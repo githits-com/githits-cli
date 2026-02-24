@@ -1,4 +1,4 @@
-import { describe, expect, it, spyOn } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import type { Dependencies } from "../container.js";
 import {
   createMockAuthService,
@@ -7,7 +7,6 @@ import {
   createMockFileSystemService,
   createMockGitHitsService,
 } from "../services/test-helpers.js";
-import { AuthRequiredError } from "../shared/require-auth.js";
 import { createMcpServer, startMcpServer } from "./mcp.js";
 
 function createTestDeps(overrides: Partial<Dependencies> = {}): Dependencies {
@@ -45,12 +44,11 @@ describe("createMcpServer", () => {
 });
 
 describe("startMcpServer", () => {
-  it("throws AuthRequiredError on auth failure", async () => {
-    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+  it("starts successfully without a valid token", async () => {
     const deps = createTestDeps({ hasValidToken: false });
 
-    await expect(startMcpServer(deps)).rejects.toThrow(AuthRequiredError);
-
-    consoleSpy.mockRestore();
+    // Server should start and connect transport without throwing.
+    // Auth errors are deferred to individual tool calls.
+    await expect(startMcpServer(deps)).resolves.toBeUndefined();
   });
 });
