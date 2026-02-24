@@ -1,0 +1,133 @@
+import { describe, expect, it } from "bun:test";
+import { AuthServiceImpl, evaluateCallback } from "./auth-service.js";
+
+describe("AuthServiceImpl", () => {
+  const service = new AuthServiceImpl();
+
+  describe("generatePkceParams", () => {
+    it("returns verifier, challenge, and state", () => {
+      const params = service.generatePkceParams();
+      expect(params.verifier).toBeDefined();
+      expect(params.challenge).toBeDefined();
+      expect(params.state).toBeDefined();
+    });
+
+    it("generates unique params each time", () => {
+      const a = service.generatePkceParams();
+      const b = service.generatePkceParams();
+      expect(a.verifier).not.toBe(b.verifier);
+      expect(a.state).not.toBe(b.state);
+    });
+  });
+
+  describe("buildAuthUrl", () => {
+    it("builds correct authorization URL with all parameters", () => {
+      const url = service.buildAuthUrl({
+        authorizationEndpoint: "https://auth.example.com/oauth/authorize",
+        clientId: "test-client-id",
+        redirectUri: "http://127.0.0.1:8080/callback",
+        state: "test-state",
+        codeChallenge: "test-challenge",
+      });
+
+      const parsed = new URL(url);
+      expect(parsed.origin).toBe("https://auth.example.com");
+      expect(parsed.pathname).toBe("/oauth/authorize");
+      expect(parsed.searchParams.get("response_type")).toBe("code");
+      expect(parsed.searchParams.get("client_id")).toBe("test-client-id");
+      expect(parsed.searchParams.get("redirect_uri")).toBe(
+        "http://127.0.0.1:8080/callback",
+      );
+      expect(parsed.searchParams.get("state")).toBe("test-state");
+      expect(parsed.searchParams.get("code_challenge")).toBe("test-challenge");
+      expect(parsed.searchParams.get("code_challenge_method")).toBe("S256");
+    });
+  });
+
+  describe("discoverEndpoints", () => {
+    it("throws on non-ok response", async () => {
+      // Uses real fetch against non-existent server
+      await expect(
+        service.discoverEndpoints("http://127.0.0.1:1"),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe("evaluateCallback", () => {
+    it("returns success outcome and clear success HTML", () => {
+      const callback = evaluateCallback({
+        code: "test-code",
+        state: "state-ok",
+        error: null,
+        errorDescription: null,
+        expectedState: "state-ok",
+      });
+
+      expect(callback.result).toEqual({
+        type: "success",
+        code: "test-code",
+        state: "state-ok",
+      });
+      expect(callback.statusCode).toBe(200);
+      expect(callback.html).toContain("Authentication successful");
+      expect(callback.html).toContain(
+        "You can close this window and return to the terminal.",
+      );
+    });
+
+    it("returns oauth error outcome and failure HTML", () => {
+      const callback = evaluateCallback({
+        code: null,
+        state: null,
+        error: "access_denied",
+        errorDescription: "Denied",
+        expectedState: "state-ok",
+      });
+
+      expect(callback.result).toEqual({
+        type: "oauth_error",
+        message: "access_denied: Denied",
+      });
+      expect(callback.statusCode).toBe(200);
+      expect(callback.html).toContain("Authentication failed");
+      expect(callback.html).toContain("Run `githits login` to try again.");
+    });
+
+    it("returns invalid callback outcome for missing params", () => {
+      const callback = evaluateCallback({
+        code: null,
+        state: "a",
+        error: null,
+        errorDescription: null,
+        expectedState: "state-ok",
+      });
+
+      expect(callback.result).toEqual({
+        type: "invalid_callback",
+        message: "Authentication callback missing required parameters",
+      });
+      expect(callback.statusCode).toBe(400);
+      expect(callback.html).toContain(
+        "Authentication callback was missing required",
+      );
+    });
+
+    it("returns state mismatch outcome and security failure HTML", () => {
+      const callback = evaluateCallback({
+        code: "test-code",
+        state: "wrong-state",
+        error: null,
+        errorDescription: null,
+        expectedState: "expected-state",
+      });
+
+      expect(callback.result).toEqual({
+        type: "state_mismatch",
+        message: "Security validation failed (state mismatch)",
+      });
+      expect(callback.statusCode).toBe(400);
+      expect(callback.html).toContain("Authentication failed");
+      expect(callback.html).toContain("state mismatch");
+    });
+  });
+});

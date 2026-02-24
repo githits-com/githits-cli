@@ -1,0 +1,9 @@
+name: Pull Request
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
