@@ -1,0 +1,77 @@
+{
+  "name": "githits",
+  "description": "CLI companion for GitHits - code examples from global open source for developers and AI assistants",
+  "version": "0.1.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "githits": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "bunup --dts --target node --packages=external --exports && chmod +x dist/cli.js",
+    "dev": "bun run ./src/cli.ts",
+    "inspector": "npx @modelcontextprotocol/inspector bun run dev mcp",
+    "test": "bun test",
+    "typecheck": "tsc",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "prepare": "husky",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "githits",
+    "code-examples",
+    "search",
+    "cli",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "llm"
+  ],
+  "author": "GitHits",
+  "license": "Apache-2.0",
+  "homepage": "https://githits.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GitHits-com/githits-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/GitHits-com/githits-cli/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.23.0",
+    "@napi-rs/keyring": "^1.2.0",
+    "commander": "^14.0.2",
+    "open": "^11.0.0",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.8",
+    "@types/bun": "latest",
+    "bunup": "^0.16.10",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "typescript": "^5.9.3"
+  }
+}

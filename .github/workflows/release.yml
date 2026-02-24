@@ -1,0 +1,81 @@
+name: Release
+
+on:
+    workflow_run:
+        workflows: ["Main"]
+        types: [completed]
+        branches: [main]
+
+jobs:
+    release:
+        # Only run if Main workflow succeeded
+        if: github.event.workflow_run.conclusion == 'success'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            id-token: write # Required for OIDC trusted publishing
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Get version and check if release needed
+              id: version
+              run: |
+                  VERSION=$(jq -r '.version' package.json)
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+                  if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+                    echo "Tag v$VERSION already exists, skipping release"
+                    echo "should_release=false" >> $GITHUB_OUTPUT
+                  else
+                    echo "Tag v$VERSION does not exist, will create release"
+                    echo "should_release=true" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Setup Bun
+              if: steps.version.outputs.should_release == 'true'
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
+
+            - name: Setup Node.js
+              if: steps.version.outputs.should_release == 'true'
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+                  registry-url: "https://registry.npmjs.org"
+
+            # Trusted publishing requires npm 11.5.1+
+            - name: Update npm
+              if: steps.version.outputs.should_release == 'true'
+              run: npm install -g npm@latest
+
+            - name: Install dependencies
+              if: steps.version.outputs.should_release == 'true'
+              run: bun install --frozen-lockfile
+
+            - name: Build
+              if: steps.version.outputs.should_release == 'true'
+              run: bun run build
+
+            - name: Create GitHub Release
+              if: steps.version.outputs.should_release == 'true'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  gh release create "v${{ steps.version.outputs.version }}" \
+                    --title "v${{ steps.version.outputs.version }}" \
+                    --generate-notes
+
+            # Authentication via npm Trusted Publishing (OIDC)
+            # - No NPM_TOKEN secret needed
+            # - Provenance attestation is generated automatically
+            # - Requires trusted publisher configured on npmjs.com:
+            #   Package Settings > Publishing access > Add trusted publisher
+            #   Repository: GitHits-com/githits-cli, Workflow: release.yml
+            # See: https://docs.npmjs.com/trusted-publishers
+            - name: Publish to npm
+              if: steps.version.outputs.should_release == 'true'
+              run: npm publish --access public
