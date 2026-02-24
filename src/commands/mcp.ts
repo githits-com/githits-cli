@@ -4,7 +4,6 @@ import type { Command } from "commander";
 import { version } from "../../package.json";
 import { createContainer, type Dependencies } from "../container.js";
 import { dim, highlight, shouldUseColors } from "../shared/colors.js";
-import { AuthRequiredError, requireAuth } from "../shared/require-auth.js";
 import {
   createFeedbackTool,
   createSearchLanguageTool,
@@ -44,8 +43,6 @@ export function createMcpServer(deps: Dependencies): McpServer {
  * Start the MCP server. Exported for testability.
  */
 export async function startMcpServer(deps: Dependencies): Promise<void> {
-  requireAuth(deps, "to start MCP server");
-
   const server = createMcpServer(deps);
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -101,13 +98,8 @@ Available tools: search, search_language, feedback`,
         showMcpSetupInstructions();
         return;
       }
-      try {
-        const deps = await createContainer();
-        await startMcpServer(deps);
-      } catch (error) {
-        if (error instanceof AuthRequiredError) process.exit(1);
-        throw error;
-      }
+      const deps = await createContainer();
+      await startMcpServer(deps);
     });
 
   mcpCommand
@@ -120,12 +112,7 @@ This command explicitly starts the server and is intended for use
 in MCP configuration files. Use 'githits mcp' for interactive setup.`,
     )
     .action(async () => {
-      try {
-        const deps = await createContainer();
-        await startMcpServer(deps);
-      } catch (error) {
-        if (error instanceof AuthRequiredError) process.exit(1);
-        throw error;
-      }
+      const deps = await createContainer();
+      await startMcpServer(deps);
     });
 }
