@@ -1,18 +1,21 @@
 import type { KeyringService } from "./keyring-service.js";
 
 /**
- * Conservative chunk size for Windows Credential Manager, which limits
- * password fields to 2560 UTF-16 code units. The 160-char gap provides
- * margin for any encoding overhead in the @napi-rs/keyring binding layer
- * between JS strings and the Windows DPAPI credential store.
+ * Conservative chunk size for Windows Credential Manager.
  *
- * JS string `.length` counts UTF-16 code units, which matches the Windows
- * limit unit. JWT tokens are base64url ASCII, so each char = one code unit.
+ * The Windows `CRED_MAX_CREDENTIAL_BLOB_SIZE` limit is 2560 **bytes**.
+ * The `@napi-rs/keyring` binding (via keyring-rs) encodes passwords as
+ * UTF-16 before writing, so each JS character costs 2 bytes. The true
+ * character limit is therefore `2560 / 2 = 1280`.
+ *
+ * We use 1200 to provide an 80-character safety margin for any encoding
+ * overhead in the binding layer between JS strings and the Windows DPAPI
+ * credential store.
  *
  * Pass a different value to the ChunkingKeyringService constructor if
  * another platform has a different limit.
  */
-export const WINDOWS_MAX_ENTRY_SIZE = 2400;
+export const WINDOWS_MAX_ENTRY_SIZE = 1200;
 
 /**
  * Sentinel prefix stored in the main key when a value has been chunked.
@@ -90,7 +93,8 @@ export function generateWriteId(): string {
 
 /**
  * KeyringService decorator that transparently chunks values exceeding a
- * platform size limit (Windows Credential Manager's 2560 UTF-16 char cap).
+ * platform size limit (Windows Credential Manager's 2560-byte blob cap,
+ * which is 1280 characters after UTF-16 encoding).
  *
  * Values under the limit are stored directly (backward compatible with
  * pre-chunking versions). Values over the limit are split into numbered

@@ -67,9 +67,9 @@ The `v1:` prefix allows future key format changes without collisions.
 
 #### Windows chunked storage
 
-Windows Credential Manager limits password fields to 2560 UTF-16 code units. Since JSON-serialized token data (especially JWT access tokens) can exceed this, the CLI wraps the `KeyringService` with a `ChunkingKeyringService` decorator on Windows (`process.platform === "win32"`). This decorator is not applied on macOS or Linux, which have no practical per-entry size limits.
+Windows Credential Manager limits credential blobs to `CRED_MAX_CREDENTIAL_BLOB_SIZE` (2560 **bytes**). The `@napi-rs/keyring` binding encodes passwords as UTF-16 (2 bytes per character), so the effective character limit is 1280. Since JSON-serialized token data (especially JWT access tokens) can exceed this, the CLI wraps the `KeyringService` with a `ChunkingKeyringService` decorator on Windows (`process.platform === "win32"`). This decorator is not applied on macOS or Linux, which have no practical per-entry size limits.
 
-When a value exceeds `WINDOWS_MAX_ENTRY_SIZE` (2400 characters — a conservative threshold below the 2560 limit), the decorator splits it across multiple keyring entries. The chunk size is configurable via the `ChunkingKeyringService` constructor, so the same decorator can be reused if other platforms have different limits:
+When a value exceeds `WINDOWS_MAX_ENTRY_SIZE` (1200 characters — a conservative threshold providing 80-char margin from the 1280 limit), the decorator splits it across multiple keyring entries. The chunk size is configurable via the `ChunkingKeyringService` constructor, so the same decorator can be reused if other platforms have different limits:
 
 | Account key pattern | Content |
 |---|---|
@@ -79,7 +79,7 @@ When a value exceeds `WINDOWS_MAX_ENTRY_SIZE` (2400 characters — a conservativ
 
 Each write uses a unique `writeId` to namespace chunk keys. This ensures atomicity: new chunks are written before the sentinel is updated, so a crash at any point leaves valid data. Old chunks are cleaned up after the sentinel is committed.
 
-Values under 2400 characters are stored directly with no sentinel, maintaining full backward compatibility with pre-chunking CLI versions. If a user downgrades the CLI after tokens were stored as chunks, the old CLI reads the sentinel as raw text, fails JSON parsing (via `parseJsonOrNull`), and prompts re-login. The same applies to chunked client registrations, which would trigger re-registration. Both are acceptable graceful degradation.
+Values under 1200 characters are stored directly with no sentinel, maintaining full backward compatibility with pre-chunking CLI versions. If a user downgrades the CLI after tokens were stored as chunks, the old CLI reads the sentinel as raw text, fails JSON parsing (via `parseJsonOrNull`), and prompts re-login. The same applies to chunked client registrations, which would trigger re-registration. Both are acceptable graceful degradation.
 
 The `getStorageLocation()` method returns a platform-specific label: "macOS Keychain (githits)" on macOS, "Windows Credential Manager (githits)" on Windows, and "System keychain (githits)" on Linux.
 
@@ -147,7 +147,7 @@ The `hasValidToken` flag is checked by `requireAuth()` in `src/commands/mcp.ts` 
 - **Token refresh fails silently** — By design. The container clears stale auth and `hasValidToken` becomes false, prompting re-login.
 - **Clearing auth** — Run `githits logout` to remove stored tokens and client registration for the current environment.
 - **Keychain unavailable warning** — If the system keychain is not accessible (headless Linux, CI), the CLI falls back to file storage in `~/.githits/` and prints a warning to stderr.
-- **Windows "password encoded as UTF-16 is longer than platform limit"** — The Windows Credential Manager limits entries to 2560 UTF-16 chars. The `ChunkingKeyringService` decorator handles this automatically by splitting large values across multiple entries. If this error occurs on an older CLI version, upgrade to get chunked storage support.
+- **Windows "password encoded as UTF-16 is longer than platform limit"** — The Windows Credential Manager limits credential blobs to 2560 bytes (`CRED_MAX_CREDENTIAL_BLOB_SIZE`). Since passwords are stored as UTF-16 (2 bytes per char), the effective limit is 1280 characters. The `ChunkingKeyringService` decorator handles this automatically by splitting large values across multiple entries. If this error occurs on an older CLI version, upgrade to get chunked storage support.
 
 ## Key Reference Files
 
