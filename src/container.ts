@@ -6,6 +6,7 @@ import {
   AuthStorageImpl,
   type BrowserService,
   BrowserServiceImpl,
+  ChunkingKeyringService,
   type FileSystemService,
   FileSystemServiceImpl,
   GitHitsServiceImpl,
@@ -18,6 +19,7 @@ import {
   MigratingAuthStorage,
   RefreshingGitHitsService,
   TokenManager,
+  WINDOWS_MAX_ENTRY_SIZE,
 } from "./services/index.js";
 
 /**
@@ -29,9 +31,16 @@ function createAuthStorage(fileSystemService: FileSystemService): AuthStorage {
   const fileStorage = new AuthStorageImpl(fileSystemService);
 
   try {
-    const keyring = new KeyringServiceImpl();
+    const rawKeyring = new KeyringServiceImpl();
+    // Windows Credential Manager limits entries to 2560 UTF-16 chars.
+    // Wrap with chunking decorator to split large values across multiple entries.
+    const keyring =
+      process.platform === "win32"
+        ? new ChunkingKeyringService(rawKeyring, WINDOWS_MAX_ENTRY_SIZE)
+        : rawKeyring;
     // Probe keychain availability with a write+delete cycle.
     // Use timestamp + random suffix to avoid probe key collisions.
+    // Probe value "probe" is 5 chars, passes through the chunking wrapper unchanged.
     const probeKey = `__probe_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     keyring.setPassword("githits", probeKey, "probe");
     try {

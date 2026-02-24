@@ -65,6 +65,22 @@ Each credential is a separate keychain entry using service name `"githits"`:
 
 The `v1:` prefix allows future key format changes without collisions.
 
+#### Windows chunked storage
+
+Windows Credential Manager limits credential blobs to `CRED_MAX_CREDENTIAL_BLOB_SIZE` (2560 **bytes**). The `@napi-rs/keyring` binding encodes passwords as UTF-16 (2 bytes per character), so the effective character limit is 1280. Since JSON-serialized token data (especially JWT access tokens) can exceed this, the CLI wraps the `KeyringService` with a `ChunkingKeyringService` decorator on Windows (`process.platform === "win32"`). This decorator is not applied on macOS or Linux, which have no practical per-entry size limits.
+
+When a value exceeds `WINDOWS_MAX_ENTRY_SIZE` (1200 characters — a conservative threshold providing 80-char margin from the 1280 limit), the decorator splits it across multiple keyring entries. The chunk size is configurable via the `ChunkingKeyringService` constructor, so the same decorator can be reused if other platforms have different limits:
+
+| Account key pattern | Content |
+|---|---|
+| `<original-key>` | Sentinel: `CHUNKED:<writeId>:<count>` |
+| `<original-key>:chunk:<writeId>:0` | First chunk of the JSON value |
+| `<original-key>:chunk:<writeId>:N` | Nth chunk of the JSON value |
+
+Each write uses a unique `writeId` to namespace chunk keys. This ensures atomicity: new chunks are written before the sentinel is updated, so a crash at any point leaves valid data. Old chunks are cleaned up after the sentinel is committed.
+
+Values under 1200 characters are stored directly with no sentinel, maintaining full backward compatibility with pre-chunking CLI versions. If a user downgrades the CLI after tokens were stored as chunks, the old CLI reads the sentinel as raw text, fails JSON parsing (via `parseJsonOrNull`), and prompts re-login. The same applies to chunked client registrations, which would trigger re-registration. Both are acceptable graceful degradation.
+
 The `getStorageLocation()` method returns a platform-specific label: "macOS Keychain (githits)" on macOS, "Windows Credential Manager (githits)" on Windows, and "System keychain (githits)" on Linux.
 
 ### File storage (fallback)
@@ -93,7 +109,9 @@ Keychain write must succeed before the file entry is deleted. Tokens and client 
 ```
 Container (createAuthStorage)
   └─ MigratingAuthStorage (decorator)
-       ├─ KeychainAuthStorage (primary) ← uses KeyringService
+       ├─ KeychainAuthStorage (primary)
+       │    └─ ChunkingKeyringService (Windows only, decorator)
+       │         └─ KeyringServiceImpl ← @napi-rs/keyring
        └─ AuthStorageImpl (legacy) ← file-based
 ```
 
@@ -129,6 +147,7 @@ The `hasValidToken` flag is checked by `requireAuth()` in `src/commands/mcp.ts` 
 - **Token refresh fails silently** — By design. The container clears stale auth and `hasValidToken` becomes false, prompting re-login.
 - **Clearing auth** — Run `githits logout` to remove stored tokens and client registration for the current environment.
 - **Keychain unavailable warning** — If the system keychain is not accessible (headless Linux, CI), the CLI falls back to file storage in `~/.githits/` and prints a warning to stderr.
+- **Windows "password encoded as UTF-16 is longer than platform limit"** — The Windows Credential Manager limits credential blobs to 2560 bytes (`CRED_MAX_CREDENTIAL_BLOB_SIZE`). Since passwords are stored as UTF-16 (2 bytes per char), the effective limit is 1280 characters. The `ChunkingKeyringService` decorator handles this automatically by splitting large values across multiple entries. If this error occurs on an older CLI version, upgrade to get chunked storage support.
 
 ## Key Reference Files
 
@@ -142,6 +161,7 @@ The `hasValidToken` flag is checked by `requireAuth()` in `src/commands/mcp.ts` 
 | `src/services/auth-service.ts` | OAuth operations (DCR, PKCE, token exchange, callback server) |
 | `src/services/auth-storage.ts` | `AuthStorage` interface and file-based implementation |
 | `src/services/keyring-service.ts` | `KeyringService` interface wrapping `@napi-rs/keyring` |
+| `src/services/chunking-keyring-service.ts` | `KeyringService` decorator for chunked storage (Windows 2560-char limit) |
 | `src/services/keychain-auth-storage.ts` | `AuthStorage` implementation backed by system keychain |
 | `src/services/migrating-auth-storage.ts` | Migration decorator (keychain primary + file legacy) |
 | `src/services/filesystem-service.ts` | File system abstraction for testable storage |

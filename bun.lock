@@ -19,9 +19,6 @@
         "lint-staged": "^16.2.7",
         "typescript": "^5.9.3",
       },
-      "peerDependencies": {
-        "typescript": "^5.9.3",
-      },
     },
   },
   "packages": {

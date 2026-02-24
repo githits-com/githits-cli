@@ -19,6 +19,10 @@ export type {
 export { AuthStorageImpl, normalizeBaseUrl } from "./auth-storage.js";
 export type { BrowserService } from "./browser-service.js";
 export { BrowserServiceImpl } from "./browser-service.js";
+export {
+  ChunkingKeyringService,
+  WINDOWS_MAX_ENTRY_SIZE,
+} from "./chunking-keyring-service.js";
 export { getApiUrl, getEnvApiToken, getMcpUrl } from "./config.js";
 export type { FileSystemService } from "./filesystem-service.js";
 export { FileSystemServiceImpl } from "./filesystem-service.js";
