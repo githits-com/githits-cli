@@ -36,6 +36,7 @@ export function requireAuth(
   console.log("To authenticate:");
   console.log("  githits login\n");
   console.log("Or set GITHITS_API_TOKEN environment variable.");
+  console.log("\nNeed help? support@githits.com");
 
   throw new AuthRequiredError(`Authentication required${suffix}`);
 }
