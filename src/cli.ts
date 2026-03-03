@@ -31,7 +31,9 @@ Getting started:
   githits mcp                            Start MCP server for your AI assistant
   githits search "query" --lang python   Search for code examples
 
-Learn more at https://githits.com`,
+Learn more at https://githits.com
+Docs: https://app.githits.com/docs/
+Support: support@githits.com`,
   );
 
 // Auth commands
