@@ -4,7 +4,6 @@ import {
   createMockAuthStorage,
   createValidTokenData,
   defaultClientRegistration,
-  defaultTokenResponse,
 } from "../services/test-helpers.js";
 import { authStatusAction } from "./auth-status.js";
 

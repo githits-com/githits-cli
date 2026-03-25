@@ -1,11 +1,9 @@
 import { describe, expect, it, mock } from "bun:test";
-import type { TokenData } from "./auth-storage.js";
 import {
   createMockAuthService,
   createMockAuthStorage,
   createValidTokenData,
   defaultClientRegistration,
-  defaultOAuthMetadata,
   defaultTokenResponse,
 } from "./test-helpers.js";
 import {
