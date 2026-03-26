@@ -60,6 +60,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@inquirer/prompts": "^8.3.2",
     "@modelcontextprotocol/sdk": "^1.23.0",
     "@napi-rs/keyring": "^1.2.0",
     "commander": "^14.0.2",

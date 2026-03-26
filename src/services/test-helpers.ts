@@ -12,9 +12,15 @@ import type {
   TokenData,
 } from "./auth-storage.js";
 import type { BrowserService } from "./browser-service.js";
+import type { ExecResult, ExecService } from "./exec-service.js";
 import type { FileSystemService } from "./filesystem-service.js";
 import type { GitHitsService } from "./githits-service.js";
 import type { KeyringService } from "./keyring-service.js";
+import type {
+  CheckboxChoice,
+  ConfirmChoice,
+  PromptService,
+} from "./prompt-service.js";
 import type { TokenProvider } from "./token-manager.js";
 
 /**
@@ -136,6 +142,7 @@ export function createMockFileSystemService(
     ),
     readdir: mock(() => Promise.resolve([])),
     isDirectory: mock(() => Promise.resolve(false)),
+    atomicWriteFile: mock(() => Promise.resolve()),
     ...impl,
   };
 }
@@ -221,5 +228,32 @@ export function createValidTokenData(
     createdAt: "2025-01-15T10:30:00Z",
     expiresAt: null,
     ...overrides,
+  };
+}
+
+/**
+ * Creates a mock PromptService with default implementations.
+ */
+export function createMockPromptService(
+  impl: Partial<PromptService> = {},
+): PromptService {
+  return {
+    checkbox: mock(() => Promise.resolve([])) as PromptService["checkbox"],
+    confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+    ...impl,
+  };
+}
+
+/**
+ * Creates a mock ExecService with default implementations.
+ */
+export function createMockExecService(
+  impl: Partial<ExecService> = {},
+): ExecService {
+  return {
+    exec: mock(() =>
+      Promise.resolve({ exitCode: 0, stdout: "", stderr: "" } as ExecResult),
+    ),
+    ...impl,
   };
 }

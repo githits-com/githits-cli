@@ -8,9 +8,23 @@ The CLI exposes three commands (`search`, `languages`, `feedback`) that mirror t
 
 | Command | Required Args | Options | Description |
 |---|---|---|---|
+| `init` | — | `-y, --yes` | Set up MCP server for coding agents |
 | `search <query>` | `-l, --lang <language>` | `--license <mode>`, `--explain`, `--json` | Search for code examples |
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback <solution_id>` | `--accept` or `--reject` | `-m, --message <text>`, `--json` | Submit feedback on a search result |
+
+### `githits init`
+
+```
+githits init              # Interactive: scan, select agents, confirm each
+githits init --yes        # Non-interactive: configure all detected agents
+```
+
+Scans for installed coding agents and sets up GitHits MCP server for each. Supports Claude Code, Cursor, Windsurf, Claude Desktop, and Codex CLI. Uses CLI commands for agents that support them (Claude Code, Codex) and atomic config file writes for others (Cursor, Windsurf, Claude Desktop).
+
+This command does NOT use `createContainer()` — it creates its own lightweight dependencies since it doesn't need auth or API access. This is intentional: init should work before the user has authenticated.
+
+**File structure:** The init command uses a subdirectory (`src/commands/init/`) because it has distinct submodules (agent definitions, setup handlers, orchestrator). This is an accepted variation for commands with significant internal complexity.
 
 ### `githits search`
 
@@ -75,6 +89,8 @@ Each command follows this pattern:
 4. **Register in CLI** — Import and call `registerXxxCommand(program)` in `src/cli.ts`
 5. **Update help text** — If the command is a primary workflow, add it to the `addHelpText("after", ...)` block
 
+For complex commands with multiple submodules, a subdirectory (`src/commands/xxx/`) with an `index.ts` barrel is acceptable (see `init` command for example).
+
 ## Error Handling
 
 - **Auth errors** — `requireAuth()` prints instructions and calls `process.exit(1)`
@@ -103,6 +119,11 @@ All commands support two output modes:
 | `src/shared/require-auth.ts` | Auth guard shared with MCP server |
 | `src/shared/colors.ts` | ANSI color utilities and `shouldUseColors()` |
 | `src/container.ts` | Dependency container with `githitsService` |
+| `src/commands/init/init.ts` | Init command orchestrator |
+| `src/commands/init/agent-definitions.ts` | Agent detection and setup config |
+| `src/commands/init/setup-handlers.ts` | CLI exec and config file merge logic |
+| `src/services/prompt-service.ts` | Interactive prompt abstraction |
+| `src/services/exec-service.ts` | CLI command execution abstraction |
 
 ## Related Documentation
 

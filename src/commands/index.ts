@@ -10,6 +10,12 @@ export {
   registerFeedbackCommand,
 } from "./feedback.js";
 export {
+  type InitDependencies,
+  type InitOptions,
+  initAction,
+  registerInitCommand,
+} from "./init/index.js";
+export {
   type LanguagesDependencies,
   type LanguagesOptions,
   languagesAction,

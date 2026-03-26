@@ -4,6 +4,7 @@ import { version } from "../package.json";
 import {
   registerAuthStatusCommand,
   registerFeedbackCommand,
+  registerInitCommand,
   registerLanguagesCommand,
   registerLoginCommand,
   registerLogoutCommand,
@@ -27,6 +28,7 @@ program
     "after",
     `
 Getting started:
+  githits init                           Set up MCP for your coding agents
   githits login                          Authenticate with your GitHits account
   githits mcp                            Start MCP server for your AI assistant
   githits search "query" --lang python   Search for code examples
@@ -35,6 +37,9 @@ Learn more at https://githits.com
 Docs: https://app.githits.com/docs/
 Support: support@githits.com`,
   );
+
+// Setup command
+registerInitCommand(program);
 
 // Auth commands
 registerLoginCommand(program);
