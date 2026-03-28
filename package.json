@@ -1,7 +1,7 @@
 {
   "name": "githits",
   "description": "CLI companion for GitHits - code examples from global open source for developers and AI assistants",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "files": [
     "dist",
@@ -48,10 +48,10 @@
   "homepage": "https://githits.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/GitHits-com/githits-cli.git"
+    "url": "git+https://github.com/githits-com/githits-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/GitHits-com/githits-cli/issues"
+    "url": "https://github.com/githits-com/githits-cli/issues"
   },
   "engines": {
     "node": ">=20"
