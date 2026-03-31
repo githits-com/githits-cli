@@ -59,6 +59,12 @@ export async function loginAction(
     console.log("Re-authenticating (--force flag)...\n");
   }
 
+  // If tokens were cleared (expired+refreshFailed or never existed) but a stale
+  // client registration remains, clear it so we get a fresh DCR registration.
+  if (!existing) {
+    await authStorage.clearClient(mcpUrl);
+  }
+
   // Step 1: Discover OAuth endpoints
   console.log("Discovering OAuth endpoints...");
   const metadata = await authService.discoverEndpoints(mcpUrl);
@@ -183,6 +189,13 @@ export async function loginAction(
       redirectUri,
     });
   } catch (error) {
+    // Best-effort: clear potentially stale client so next login starts fresh.
+    // Swallow clearClient errors to ensure we always reach the user-facing error path.
+    try {
+      await authStorage.clearClient(mcpUrl);
+    } catch {
+      // Ignore -- client cleanup is best-effort
+    }
     console.error(
       `Failed to complete authentication: ${error instanceof Error ? error.message : error}\n`,
     );

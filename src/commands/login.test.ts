@@ -152,6 +152,164 @@ describe("loginAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("clears stale client registration when tokens are absent", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const authStorage = createMockAuthStorage();
+    const authService = createMockAuthService();
+
+    await loginAction(
+      { port: 8080 },
+      {
+        authService,
+        authStorage,
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+    );
+
+    expect(authStorage.clearClient).toHaveBeenCalledWith(mcpUrl);
+    expect(authService.registerClient).toHaveBeenCalled();
+    expect(authStorage.saveClient).toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
+  it("clears client registration on token exchange failure", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    const authStorage = createMockAuthStorage();
+    const authService = createMockAuthService({
+      exchangeCodeForTokens: mock(() => {
+        throw new Error("invalid_grant");
+      }),
+    });
+
+    try {
+      await loginAction(
+        { port: 8080 },
+        {
+          authService,
+          authStorage,
+          browserService: createMockBrowserService(),
+          mcpUrl,
+        },
+      );
+    } catch {
+      // Expected: process.exit mock throws
+    }
+
+    expect(authStorage.clearClient).toHaveBeenCalledWith(mcpUrl);
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    consoleSpy.mockRestore();
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("still shows error and exits when clearClient fails during token exchange error", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    let clearClientCallCount = 0;
+    const authStorage = createMockAuthStorage({
+      clearClient: mock(() => {
+        clearClientCallCount++;
+        // First call is from the !existing path (Part 1), let it succeed.
+        // Second call is from the catch block (Part 2), make it fail.
+        if (clearClientCallCount > 1) {
+          throw new Error("fs error");
+        }
+        return Promise.resolve();
+      }),
+    });
+    const authService = createMockAuthService({
+      exchangeCodeForTokens: mock(() => {
+        throw new Error("invalid_grant");
+      }),
+    });
+
+    try {
+      await loginAction(
+        { port: 8080 },
+        {
+          authService,
+          authStorage,
+          browserService: createMockBrowserService(),
+          mcpUrl,
+        },
+      );
+    } catch {
+      // Expected: process.exit mock throws
+    }
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(errorSpy).toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("does not clear client when tokens are still valid", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const authStorage = createMockAuthStorage({
+      loadTokens: mock(() =>
+        Promise.resolve(
+          createValidTokenData({
+            expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+          }),
+        ),
+      ),
+    });
+
+    await loginAction(
+      {},
+      {
+        authService: createMockAuthService(),
+        authStorage,
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+    );
+
+    expect(authStorage.clearClient).not.toHaveBeenCalled();
+    expect(authStorage.saveTokens).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
+  it("does not clear client when tokens are expired but present", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const authStorage = createMockAuthStorage({
+      loadTokens: mock(() =>
+        Promise.resolve(
+          createValidTokenData({
+            expiresAt: new Date(Date.now() - 3600_000).toISOString(),
+          }),
+        ),
+      ),
+    });
+
+    await loginAction(
+      { port: 8080 },
+      {
+        authService: createMockAuthService(),
+        authStorage,
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+    );
+
+    expect(authStorage.clearClient).not.toHaveBeenCalled();
+    expect(authStorage.saveTokens).toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
   it("proceeds with login when token is expired", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const authStorage = createMockAuthStorage({

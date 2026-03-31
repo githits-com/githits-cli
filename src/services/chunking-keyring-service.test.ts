@@ -222,7 +222,7 @@ describe("ChunkingKeyringService", () => {
       expect(sentinel).toMatch(/^CHUNKED:[a-z0-9]+:3$/);
 
       // Parse sentinel to find writeId and verify chunks
-      const parsed = parseChunkedSentinel(sentinel!);
+      const parsed = parseChunkedSentinel(sentinel as string);
       expect(parsed).not.toBeNull();
       expect(
         inner.getPassword(SERVICE, chunkKey(ACCOUNT, parsed!.writeId, 0)),
@@ -242,7 +242,7 @@ describe("ChunkingKeyringService", () => {
       // Write a chunked value
       chunking.setPassword(SERVICE, ACCOUNT, "a".repeat(25));
       const oldSentinel = parseChunkedSentinel(
-        inner.getPassword(SERVICE, ACCOUNT)!,
+        inner.getPassword(SERVICE, ACCOUNT) as string,
       );
       expect(oldSentinel).not.toBeNull();
 
@@ -268,13 +268,13 @@ describe("ChunkingKeyringService", () => {
       // Write 3-chunk value
       chunking.setPassword(SERVICE, ACCOUNT, "a".repeat(25));
       const oldSentinel = parseChunkedSentinel(
-        inner.getPassword(SERVICE, ACCOUNT)!,
+        inner.getPassword(SERVICE, ACCOUNT) as string,
       );
 
       // Overwrite with 2-chunk value
       chunking.setPassword(SERVICE, ACCOUNT, "b".repeat(15));
       const newSentinel = parseChunkedSentinel(
-        inner.getPassword(SERVICE, ACCOUNT)!,
+        inner.getPassword(SERVICE, ACCOUNT) as string,
       );
       expect(newSentinel!.count).toBe(2);
 
@@ -311,10 +311,14 @@ describe("ChunkingKeyringService", () => {
       const chunking = new ChunkingKeyringService(inner, 10);
 
       chunking.setPassword(SERVICE, ACCOUNT, "a".repeat(15));
-      const first = parseChunkedSentinel(inner.getPassword(SERVICE, ACCOUNT)!);
+      const first = parseChunkedSentinel(
+        inner.getPassword(SERVICE, ACCOUNT) as string,
+      );
 
       chunking.setPassword(SERVICE, ACCOUNT, "b".repeat(15));
-      const second = parseChunkedSentinel(inner.getPassword(SERVICE, ACCOUNT)!);
+      const second = parseChunkedSentinel(
+        inner.getPassword(SERVICE, ACCOUNT) as string,
+      );
 
       expect(first!.writeId).not.toBe(second!.writeId);
     });
@@ -371,7 +375,7 @@ describe("ChunkingKeyringService", () => {
       const chunking = new ChunkingKeyringService(inner, 10);
       chunking.setPassword(SERVICE, ACCOUNT, "a".repeat(25));
       const sentinel = parseChunkedSentinel(
-        inner.getPassword(SERVICE, ACCOUNT)!,
+        inner.getPassword(SERVICE, ACCOUNT) as string,
       );
 
       const result = chunking.deletePassword(SERVICE, ACCOUNT);
@@ -414,15 +418,14 @@ describe("ChunkingKeyringService", () => {
 
       const sentinel = inner.getPassword(SERVICE, ACCOUNT);
       expect(sentinel).toMatch(/^CHUNKED:/);
-      const parsed = parseChunkedSentinel(sentinel!);
-      expect(parsed!.count).toBe(2);
+      const parsed = parseChunkedSentinel(sentinel as string);
+      expect(parsed?.count).toBe(2);
     });
 
     it("round-trips a chunked value through set and get", () => {
       const inner = createInMemoryKeyring();
       const chunking = new ChunkingKeyringService(inner, 10);
-      const value =
-        '{"accessToken":"' + "a".repeat(50) + '","refreshToken":"b"}';
+      const value = `{"accessToken":"${"a".repeat(50)}","refreshToken":"b"}`;
 
       chunking.setPassword(SERVICE, ACCOUNT, value);
       const result = chunking.getPassword(SERVICE, ACCOUNT);
