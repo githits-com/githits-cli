@@ -7,31 +7,12 @@ GitHits gives your AI coding assistant access to verified, canonical code exampl
 ## Quick Start
 
 ```sh
-npx githits login
+npx githits init
 ```
 
-This opens your browser to authenticate with your [GitHits](https://githits.com) account. Once logged in, set up your AI assistant:
+`init` authenticates with your [GitHits](https://githits.com) account, then auto-detects your installed coding tools and configures each one with GitHits MCP.
 
-**Claude Code**
-
-```sh
-claude mcp add githits -- npx -y githits mcp start
-```
-
-**Cursor / VS Code**
-
-Add to your MCP settings JSON:
-
-```json
-{
-  "mcpServers": {
-    "githits": {
-      "command": "npx",
-      "args": ["-y", "githits", "mcp", "start"]
-    }
-  }
-}
-```
+Supported tools: Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Gemini CLI, and Google Antigravity.
 
 That's it. Your assistant now has a `search` tool it will use automatically when it needs code examples.
 
@@ -84,7 +65,8 @@ export GITHITS_API_TOKEN=ghi-your-token-here
 ## Commands
 
 ```
-githits login          Authenticate with your GitHits account
+githits init           Authenticate and configure your coding tools with GitHits MCP
+githits login          Authenticate with your GitHits account (also runs as part of init)
 githits logout         Remove stored credentials
 githits mcp            Show setup instructions in a terminal; starts MCP server when piped
 githits mcp start      Always start MCP server (for use in MCP config files)
@@ -98,6 +80,16 @@ githits auth status    Show current authentication status
 | `GITHITS_API_TOKEN` | API token for authentication | — |
 | `GITHITS_MCP_URL` | Override MCP server URL | `https://mcp.githits.com` |
 | `GITHITS_API_URL` | Override REST API URL | `https://api.githits.com` |
+
+## Development
+
+```sh
+bun run build
+npm link
+githits --version
+```
+
+After the initial `npm link`, only `bun run build` is needed for subsequent changes.
 
 ## Requirements
 

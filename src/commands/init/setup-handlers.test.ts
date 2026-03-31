@@ -4,11 +4,13 @@ import {
   createMockFileSystemService,
 } from "../../services/test-helpers.js";
 import type { CliSetup, ConfigFileSetup } from "./agent-definitions.js";
-import type { MergeResult } from "./setup-handlers.js";
+import type { CliCheckCommand, MergeResult } from "./setup-handlers.js";
 import {
   executeCliSetup,
   executeConfigFileSetup,
   formatSetupPreview,
+  isAlreadyConfigured,
+  isCliAlreadyConfigured,
   mergeServerConfig,
 } from "./setup-handlers.js";
 
@@ -25,6 +27,167 @@ function expectParseError(result: MergeResult): string {
   if (result.status !== "parse_error") throw new Error("unreachable");
   return result.error;
 }
+
+// -- isAlreadyConfigured (read-only check) --
+
+describe("isAlreadyConfigured", () => {
+  const configSetup: ConfigFileSetup = {
+    method: "config-file",
+    configPath: "/home/test/.cursor/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { url: "https://mcp.githits.com/" },
+  };
+
+  it("returns true when config file contains the server entry", async () => {
+    const existing = JSON.stringify({
+      mcpServers: { GitHits: { url: "https://mcp.githits.com/" } },
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(true);
+  });
+
+  it("returns false when config file exists but server entry is missing", async () => {
+    const existing = JSON.stringify({ mcpServers: { Other: {} } });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(false);
+  });
+
+  it("returns false when config file does not exist", async () => {
+    const enoent = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.reject(enoent)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(false);
+  });
+
+  it("returns false when config file has malformed JSON", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve("{invalid json")),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(false);
+  });
+
+  it("returns false when serversKey is missing", async () => {
+    const existing = JSON.stringify({ otherKey: {} });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(false);
+  });
+
+  it("works with 'servers' key for VS Code config", async () => {
+    const vscodeSetup: ConfigFileSetup = {
+      method: "config-file",
+      configPath: "/home/test/.vscode/mcp.json",
+      serversKey: "servers",
+      serverName: "GitHits",
+      serverConfig: { url: "https://mcp.githits.com/", type: "http" },
+    };
+    const existing = JSON.stringify({
+      servers: { GitHits: { url: "https://mcp.githits.com/", type: "http" } },
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(vscodeSetup, fs)).toBe(true);
+  });
+
+  it("returns false on empty file", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve("")),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(false);
+  });
+
+  it("handles BOM prefix", async () => {
+    const bom = "\uFEFF";
+    const existing = `${bom}${JSON.stringify({ mcpServers: { GitHits: {} } })}`;
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(true);
+  });
+});
+
+// -- isCliAlreadyConfigured (read-only CLI check) --
+
+describe("isCliAlreadyConfigured", () => {
+  const check: CliCheckCommand = {
+    command: "claude",
+    args: ["plugin", "list"],
+    configuredPattern: /githits/i,
+  };
+
+  it("returns true when pattern matches stdout", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: "githits-plugin\nother-plugin\n",
+          stderr: "",
+        }),
+      ),
+    });
+    expect(await isCliAlreadyConfigured(check, execService)).toBe(true);
+  });
+
+  it("returns true when pattern matches stderr", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: "",
+          stderr: "GitHits is installed",
+        }),
+      ),
+    });
+    expect(await isCliAlreadyConfigured(check, execService)).toBe(true);
+  });
+
+  it("returns false when pattern does not match output", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 0, stdout: "other-plugin\n", stderr: "" }),
+      ),
+    });
+    expect(await isCliAlreadyConfigured(check, execService)).toBe(false);
+  });
+
+  it("returns false when command not found (ENOENT)", async () => {
+    const enoent = Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" });
+    const execService = createMockExecService({
+      exec: mock(() => Promise.reject(enoent)),
+    });
+    expect(await isCliAlreadyConfigured(check, execService)).toBe(false);
+  });
+
+  it("returns false on non-zero exit code with no pattern match", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 1, stdout: "", stderr: "error occurred" }),
+      ),
+    });
+    expect(await isCliAlreadyConfigured(check, execService)).toBe(false);
+  });
+
+  it("returns true on non-zero exit code when pattern matches", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "GitHits already installed",
+        }),
+      ),
+    });
+    expect(await isCliAlreadyConfigured(check, execService)).toBe(true);
+  });
+});
 
 // -- mergeServerConfig (pure function) --
 
@@ -202,19 +365,55 @@ describe("mergeServerConfig", () => {
     const parsed = JSON.parse(content);
     expect(parsed.settings.nested.deep.value).toBe(true);
   });
+
+  it("works with 'servers' key for VS Code config", () => {
+    const vscodeConfig = { url: "https://mcp.githits.com", type: "http" };
+    const result = mergeServerConfig("{}", "servers", "GitHits", vscodeConfig);
+    const content = expectAdded(result);
+    const parsed = JSON.parse(content);
+    expect(parsed.servers.GitHits).toEqual(vscodeConfig);
+  });
 });
 
 // -- formatSetupPreview --
 
 describe("formatSetupPreview", () => {
-  it("formats CLI setup as a command", () => {
+  it("formats single-step CLI setup as a command", () => {
     const setup: CliSetup = {
       method: "cli",
-      command: "claude",
-      args: ["mcp", "add", "GitHits"],
+      commands: [{ command: "codex", args: ["mcp", "add", "githits"] }],
     };
     const preview = formatSetupPreview(setup);
-    expect(preview).toBe("Will run: claude mcp add GitHits");
+    expect(preview).toBe("Will run: codex mcp add githits");
+  });
+
+  it("formats multi-step CLI setup as multiple lines", () => {
+    const setup: CliSetup = {
+      method: "cli",
+      commands: [
+        {
+          command: "claude",
+          args: [
+            "plugin",
+            "marketplace",
+            "add",
+            "githits-com/githits-claude-code-plugin",
+          ],
+        },
+        {
+          command: "claude",
+          args: ["plugin", "install", "githits@githits-plugins"],
+        },
+      ],
+    };
+    const preview = formatSetupPreview(setup);
+    expect(preview).toContain(
+      "Will run: claude plugin marketplace add githits-com/githits-claude-code-plugin",
+    );
+    expect(preview).toContain(
+      "Will run: claude plugin install githits@githits-plugins",
+    );
+    expect(preview.split("\n")).toHaveLength(2);
   });
 
   it("formats config file setup with path and JSON snippet", () => {
@@ -223,37 +422,66 @@ describe("formatSetupPreview", () => {
       configPath: "/home/test/.cursor/mcp.json",
       serversKey: "mcpServers",
       serverName: "GitHits",
-      serverConfig: { command: "npx" },
+      serverConfig: { url: "https://mcp.githits.com/" },
     };
     const preview = formatSetupPreview(setup);
     expect(preview).toContain("Will add to /home/test/.cursor/mcp.json:");
     expect(preview).toContain('"GitHits"');
-    expect(preview).toContain('"command": "npx"');
+    expect(preview).toContain('"url"');
   });
 });
 
 // -- executeCliSetup --
 
 describe("executeCliSetup", () => {
-  const cliSetup: CliSetup = {
+  const singleStepSetup: CliSetup = {
     method: "cli",
-    command: "claude",
-    args: ["mcp", "add", "GitHits"],
+    commands: [{ command: "codex", args: ["mcp", "add", "githits"] }],
   };
 
-  it("returns success on exit code 0", async () => {
+  const multiStepSetup: CliSetup = {
+    method: "cli",
+    commands: [
+      {
+        command: "claude",
+        args: [
+          "plugin",
+          "marketplace",
+          "add",
+          "githits-com/githits-claude-code-plugin",
+        ],
+      },
+      {
+        command: "claude",
+        args: ["plugin", "install", "githits@githits-plugins"],
+      },
+    ],
+  };
+
+  it("returns success on exit code 0 for single-step", async () => {
     const execService = createMockExecService({
       exec: mock(() =>
         Promise.resolve({ exitCode: 0, stdout: "Added.\n", stderr: "" }),
       ),
     });
-    const result = await executeCliSetup(cliSetup, execService);
+    const result = await executeCliSetup(singleStepSetup, execService);
     expect(result.status).toBe("success");
-    expect(execService.exec).toHaveBeenCalledWith("claude", [
+    expect(execService.exec).toHaveBeenCalledWith("codex", [
       "mcp",
       "add",
-      "GitHits",
+      "githits",
     ]);
+  });
+
+  it("returns success when all multi-step commands succeed", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 0, stdout: "OK\n", stderr: "" }),
+      ),
+    });
+    const result = await executeCliSetup(multiStepSetup, execService);
+    expect(result.status).toBe("success");
+    expect(execService.exec).toHaveBeenCalledTimes(2);
   });
 
   it("returns failed with stderr on non-zero exit", async () => {
@@ -266,7 +494,7 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(cliSetup, execService);
+    const result = await executeCliSetup(singleStepSetup, execService);
     expect(result.status).toBe("failed");
     expect(result.message).toContain("code 1");
     expect(result.message).toContain("Unknown command");
@@ -279,22 +507,21 @@ describe("executeCliSetup", () => {
     const execService = createMockExecService({
       exec: mock(() => Promise.reject(enoent)),
     });
-    const result = await executeCliSetup(cliSetup, execService);
+    const result = await executeCliSetup(singleStepSetup, execService);
     expect(result.status).toBe("failed");
-    expect(result.message).toContain('"claude" not found on PATH');
+    expect(result.message).toContain('"codex" not found on PATH');
   });
 
   it("returns failed with message on other errors", async () => {
     const execService = createMockExecService({
       exec: mock(() => Promise.reject(new Error("Unexpected error"))),
     });
-    const result = await executeCliSetup(cliSetup, execService);
+    const result = await executeCliSetup(singleStepSetup, execService);
     expect(result.status).toBe("failed");
     expect(result.message).toContain("Unexpected error");
   });
 
-  it("detects already-exists on non-zero exit (claude pattern)", async () => {
-    // claude mcp add exits 1 with "already exists" on stderr
+  it("detects already-exists on non-zero exit", async () => {
     const execService = createMockExecService({
       exec: mock(() =>
         Promise.resolve({
@@ -304,17 +531,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(cliSetup, execService);
+    const result = await executeCliSetup(singleStepSetup, execService);
     expect(result.status).toBe("already_configured");
   });
 
   it("detects already-exists on zero exit (codex pattern)", async () => {
-    // codex mcp add exits 0 with "already added" on stdout
-    const codexSetup: CliSetup = {
-      method: "cli",
-      command: "codex",
-      args: ["mcp", "add", "GitHits"],
-    };
     const execService = createMockExecService({
       exec: mock(() =>
         Promise.resolve({
@@ -324,8 +545,49 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(codexSetup, execService);
+    const result = await executeCliSetup(singleStepSetup, execService);
     expect(result.status).toBe("already_configured");
+  });
+
+  it("stops on first failure in multi-step setup", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "command not found\n",
+        }),
+      ),
+    });
+    const result = await executeCliSetup(multiStepSetup, execService);
+    expect(result.status).toBe("failed");
+    // Only the first command should have been attempted
+    expect(execService.exec).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns already_configured when any step reports it", async () => {
+    let callCount = 0;
+    const execService = createMockExecService({
+      exec: mock(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "already exists\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: "OK\n",
+          stderr: "",
+        });
+      }),
+    });
+    const result = await executeCliSetup(multiStepSetup, execService);
+    expect(result.status).toBe("already_configured");
+    // Both commands should still run
+    expect(execService.exec).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -337,10 +599,7 @@ describe("executeConfigFileSetup", () => {
     configPath: "/home/test/.cursor/mcp.json",
     serversKey: "mcpServers",
     serverName: "GitHits",
-    serverConfig: {
-      command: "npx",
-      args: ["-y", "mcp-remote", "https://mcp.githits.com"],
-    },
+    serverConfig: { url: "https://mcp.githits.com/" },
   };
 
   it("creates new config when file does not exist", async () => {

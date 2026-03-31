@@ -1,5 +1,6 @@
 import { ExitPromptError } from "@inquirer/core";
 import type { Command } from "commander";
+import { createContainer } from "../../container.js";
 import type { ExecService } from "../../services/exec-service.js";
 import { ExecServiceImpl } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
@@ -16,11 +17,9 @@ import {
   success,
   warning,
 } from "../../shared/colors.js";
-import {
-  agentDefinitions,
-  buildCheckboxChoices,
-  detectAgents,
-} from "./agent-definitions.js";
+import type { LoginDependencies, LoginFlowResult } from "../login.js";
+import { loginFlow } from "../login.js";
+import { agentDefinitions, scanAgents } from "./agent-definitions.js";
 import {
   executeCliSetup,
   executeConfigFileSetup,
@@ -31,13 +30,17 @@ import {
 export interface InitOptions {
   /** Skip all prompts, configure all detected agents */
   yes?: boolean;
+  /** Skip the login step */
+  skipLogin?: boolean;
 }
 
-/** Dependencies for the init command (not from createContainer) */
+/** Dependencies for the init command */
 export interface InitDependencies {
   fileSystemService: FileSystemService;
   promptService: PromptService;
   execService: ExecService;
+  /** Factory to create auth deps for the login step. Omit to skip login. */
+  createLoginDeps?: () => Promise<LoginDependencies>;
 }
 
 /** Tracks per-agent setup outcome for the summary */
@@ -55,64 +58,105 @@ export async function initAction(
   deps: InitDependencies,
 ): Promise<void> {
   const useColors = shouldUseColors();
-  const { fileSystemService, promptService, execService } = deps;
+  const { fileSystemService, promptService, execService, createLoginDeps } =
+    deps;
 
   // Header
   console.log(
     `\n  ${colorize("GitHits", "bold", useColors)} — Set up MCP server for your coding agents\n`,
   );
 
-  // Detect installed agents
-  console.log("  Scanning for installed agents...\n");
-  const detectedIds = await detectAgents(agentDefinitions, fileSystemService);
-
-  // Determine which agents to configure
-  let selectedIds: string[];
-
-  if (options.yes) {
-    // Non-interactive: use all detected agents
-    if (detectedIds.length === 0) {
-      console.log(
-        "  No coding agents detected. Install an agent and try again.\n",
-      );
-      return;
-    }
-    const names = agentDefinitions
-      .filter((a) => detectedIds.includes(a.id))
-      .map((a) => a.name)
-      .join(", ");
-    console.log(`  Detected: ${colorize(names, "cyan", useColors)}\n`);
-    selectedIds = detectedIds;
-  } else {
-    // Interactive: show checkbox
-    const choices = buildCheckboxChoices(agentDefinitions, detectedIds);
+  // Login step (before tool configuration)
+  if (!options.skipLogin && createLoginDeps) {
+    console.log("  Checking authentication...\n");
+    let loginResult: LoginFlowResult;
     try {
-      selectedIds = await promptService.checkbox(
-        "Select agents to configure",
-        choices,
+      const loginDeps = await createLoginDeps();
+      loginResult = await loginFlow({}, loginDeps);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      loginResult = { status: "failed", message: msg };
+    }
+
+    if (loginResult.status === "already_authenticated") {
+      console.log(`    ${success("Already authenticated", useColors)}\n`);
+    } else if (loginResult.status === "success") {
+      console.log(`    ${success("Logged in successfully", useColors)}\n`);
+    } else {
+      console.log(
+        `    ${warning(`Login failed: ${loginResult.message}`, useColors)}\n`,
       );
-    } catch (err) {
-      if (err instanceof ExitPromptError) {
-        console.log("\n  Setup cancelled.\n");
-        return;
+      if (!options.yes) {
+        try {
+          const choice = await promptService.confirm3(
+            "Continue without authentication?",
+          );
+          if (choice === "no") {
+            console.log(
+              "\n  Setup cancelled. Run `githits login` to authenticate.\n",
+            );
+            return;
+          }
+        } catch (err) {
+          if (err instanceof ExitPromptError) {
+            console.log("\n  Setup cancelled.\n");
+            return;
+          }
+          throw err;
+        }
       }
-      throw err;
+      console.log("    Continuing without authentication...\n");
     }
   }
 
-  if (selectedIds.length === 0) {
-    console.log("  No agents selected.\n");
+  // Scan for installed agents and check configuration status
+  console.log("  Scanning for installed agents...\n");
+  const scan = await scanAgents(
+    agentDefinitions,
+    fileSystemService,
+    execService,
+  );
+
+  // Display status list
+  for (const agent of scan.alreadyConfigured) {
+    console.log(
+      `    ${success(`${agent.name} — already configured`, useColors)}`,
+    );
+  }
+  for (const agent of scan.needsSetup) {
+    console.log(
+      `    ${colorize(`● ${agent.name} — needs setup`, "cyan", useColors)}`,
+    );
+  }
+  for (const agent of scan.notDetected) {
+    console.log(
+      `    ${colorize(`${agent.name} — not detected`, "dim", useColors)}`,
+    );
+  }
+  console.log();
+
+  // All agents not detected
+  if (scan.needsSetup.length === 0 && scan.alreadyConfigured.length === 0) {
+    console.log(
+      "  No coding agents detected. Install an agent and try again.\n",
+    );
     return;
   }
 
-  // Sequential setup with confirmation
+  // All detected agents already configured
+  if (scan.needsSetup.length === 0) {
+    console.log(
+      "  All detected agents are already configured. Nothing to do.\n",
+    );
+    return;
+  }
+
+  // Sequential setup for unconfigured agents
+  const toSetup = scan.needsSetup;
   const outcomes: AgentOutcome[] = [];
   let alwaysMode = options.yes ?? false;
 
-  for (const agentId of selectedIds) {
-    const agent = agentDefinitions.find((a) => a.id === agentId);
-    if (!agent) continue;
-
+  for (const agent of toSetup) {
     console.log(`  Setting up ${colorize(agent.name, "bold", useColors)}...\n`);
 
     const config = agent.getSetupConfig(fileSystemService);
@@ -169,9 +213,9 @@ export async function initAction(
 
   // Summary
   const configured = outcomes.filter((o) => o.status === "success").length;
-  const alreadyDone = outcomes.filter(
-    (o) => o.status === "already_configured",
-  ).length;
+  const alreadyDone =
+    outcomes.filter((o) => o.status === "already_configured").length +
+    scan.alreadyConfigured.length;
   const failed = outcomes.filter((o) => o.status === "failed").length;
   const skipped = outcomes.filter((o) => o.status === "skipped").length;
 
@@ -192,21 +236,23 @@ export async function initAction(
     console.log(`  ${skipped} agent${skipped !== 1 ? "s" : ""} skipped.`);
   }
 
-  console.log("  Run `githits login` if you haven't authenticated yet.\n");
+  console.log();
 }
 
 const INIT_DESCRIPTION = `Set up GitHits MCP server for your coding agents.
 
-Scans for installed agents (Claude Code, Cursor, Windsurf, Claude Desktop,
-Codex CLI), lets you select which to configure, and sets up each one
-with your confirmation.
+Authenticates with your GitHits account, then scans for installed agents
+(Claude Code, Cursor, Windsurf, VS Code, Cline, Claude Desktop, Codex CLI,
+Gemini CLI, Google Antigravity), checks which are already configured,
+and sets up unconfigured ones with your confirmation.
 
-Supports both CLI-based setup (Claude Code, Codex) and config file
-editing (Cursor, Windsurf, Claude Desktop) with atomic writes.`;
+Supports CLI-based setup (Claude Code, Codex, Gemini CLI) and config
+file editing (Cursor, Windsurf, VS Code, Cline, Claude Desktop,
+Google Antigravity) with atomic writes.`;
 
 /**
  * Register the init command on the given program.
- * Creates its own lightweight dependencies (no auth needed).
+ * Creates lightweight dependencies for tool setup, plus auth deps for login.
  */
 export function registerInitCommand(program: Command) {
   program
@@ -214,6 +260,7 @@ export function registerInitCommand(program: Command) {
     .summary("Set up MCP server for your coding agents")
     .description(INIT_DESCRIPTION)
     .option("-y, --yes", "Skip prompts, configure all detected agents")
+    .option("--skip-login", "Skip authentication step")
     .action(async (options: InitOptions) => {
       const fileSystemService = new FileSystemServiceImpl();
       const promptService = new PromptServiceImpl();
@@ -222,6 +269,7 @@ export function registerInitCommand(program: Command) {
         fileSystemService,
         promptService,
         execService,
+        createLoginDeps: () => createContainer(),
       });
     });
 }

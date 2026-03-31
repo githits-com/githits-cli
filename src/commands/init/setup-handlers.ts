@@ -1,6 +1,20 @@
 import type { ExecService } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
-import type { CliSetup, ConfigFileSetup } from "./agent-definitions.js";
+import type {
+  CliCommand,
+  CliSetup,
+  ConfigFileSetup,
+} from "./agent-definitions.js";
+
+/** A read-only command to check if a CLI agent is already configured. */
+export interface CliCheckCommand {
+  /** Command to execute (e.g., "claude") */
+  command: string;
+  /** Command arguments (e.g., ["plugin", "list"]) */
+  args: string[];
+  /** Pattern to search for in combined stdout+stderr. If found, agent is configured. */
+  configuredPattern: RegExp;
+}
 
 /** Result of merging server config into an existing config file */
 export type MergeResult =
@@ -101,7 +115,9 @@ export function mergeServerConfig(
  */
 export function formatSetupPreview(config: CliSetup | ConfigFileSetup): string {
   if (config.method === "cli") {
-    return `Will run: ${config.command} ${config.args.join(" ")}`;
+    return config.commands
+      .map((cmd) => `Will run: ${cmd.command} ${cmd.args.join(" ")}`)
+      .join("\n");
   }
   const snippet = JSON.stringify(
     { [config.serverName]: config.serverConfig },
@@ -109,6 +125,74 @@ export function formatSetupPreview(config: CliSetup | ConfigFileSetup): string {
     2,
   );
   return `Will add to ${config.configPath}:\n\n${snippet}`;
+}
+
+/**
+ * Check if GitHits is already configured in a config file.
+ * Read-only — never writes. Returns false on any error (file missing, parse failure).
+ */
+export async function isAlreadyConfigured(
+  config: ConfigFileSetup,
+  fs: FileSystemService,
+): Promise<boolean> {
+  try {
+    let content: string;
+    try {
+      content = await fs.readFile(config.configPath);
+    } catch {
+      return false;
+    }
+
+    // Strip BOM if present
+    if (content.charCodeAt(0) === 0xfeff) {
+      content = content.slice(1);
+    }
+
+    const trimmed = content.trim();
+    if (trimmed === "") {
+      return false;
+    }
+
+    const parsed = JSON.parse(trimmed);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      return false;
+    }
+
+    const servers = parsed[config.serversKey];
+    if (
+      typeof servers !== "object" ||
+      servers === null ||
+      Array.isArray(servers)
+    ) {
+      return false;
+    }
+
+    return config.serverName in servers;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a CLI agent is already configured by running a read-only check command.
+ * Checks pattern against combined stdout+stderr regardless of exit code.
+ * Returns false on ENOENT or when pattern does not match.
+ */
+export async function isCliAlreadyConfigured(
+  check: CliCheckCommand,
+  execService: ExecService,
+): Promise<boolean> {
+  try {
+    const result = await execService.exec(check.command, check.args);
+    const combined = `${result.stdout} ${result.stderr}`;
+    return check.configuredPattern.test(combined);
+  } catch {
+    return false;
+  }
 }
 
 /** Patterns in CLI output that indicate the server was already configured */
@@ -124,26 +208,22 @@ function isAlreadyConfiguredOutput(output: string): boolean {
 }
 
 /**
- * Execute a CLI-based setup (e.g., `claude mcp add`).
+ * Execute a single CLI command step.
  * Returns a result object — does not throw on failure.
- *
- * Handles idempotency: `claude mcp add` exits 1 with "already exists" on
- * duplicate, while `codex mcp add` exits 0. Both are detected and mapped
- * to "already_configured".
  */
-export async function executeCliSetup(
-  setup: CliSetup,
+async function executeCliCommand(
+  cmd: CliCommand,
   execService: ExecService,
 ): Promise<SetupResult> {
   try {
-    const result = await execService.exec(setup.command, setup.args);
+    const result = await execService.exec(cmd.command, cmd.args);
     const combined = `${result.stdout} ${result.stderr}`;
 
     // Check for "already exists" in output regardless of exit code
     if (isAlreadyConfiguredOutput(combined)) {
       return {
         status: "already_configured",
-        message: `GitHits already configured via ${setup.command}`,
+        message: `GitHits already configured via ${cmd.command}`,
       };
     }
 
@@ -160,7 +240,7 @@ export async function executeCliSetup(
     if (err instanceof Error && "code" in err && err.code === "ENOENT") {
       return {
         status: "failed",
-        message: `"${setup.command}" not found on PATH. Install it or configure manually.`,
+        message: `"${cmd.command}" not found on PATH. Install it or configure manually.`,
       };
     }
     return {
@@ -168,6 +248,41 @@ export async function executeCliSetup(
       message: `Failed to run command: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
+}
+
+/**
+ * Execute a CLI-based setup with one or more sequential commands.
+ * Returns a result object — does not throw on failure.
+ *
+ * For multi-step setups (e.g., plugin marketplace add + plugin install),
+ * commands run sequentially and stop on first failure.
+ * If any step reports "already_configured", the overall result is "already_configured".
+ */
+export async function executeCliSetup(
+  setup: CliSetup,
+  execService: ExecService,
+): Promise<SetupResult> {
+  let anyAlreadyConfigured = false;
+
+  for (const cmd of setup.commands) {
+    const result = await executeCliCommand(cmd, execService);
+
+    if (result.status === "failed") {
+      return result;
+    }
+    if (result.status === "already_configured") {
+      anyAlreadyConfigured = true;
+    }
+  }
+
+  if (anyAlreadyConfigured) {
+    return {
+      status: "already_configured",
+      message: `GitHits already configured via ${setup.commands[0]!.command}`,
+    };
+  }
+
+  return { status: "success", message: "Configured successfully" };
 }
 
 /**

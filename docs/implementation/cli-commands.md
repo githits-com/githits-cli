@@ -8,7 +8,7 @@ The CLI exposes three commands (`search`, `languages`, `feedback`) that mirror t
 
 | Command | Required Args | Options | Description |
 |---|---|---|---|
-| `init` | — | `-y, --yes` | Set up MCP server for coding agents |
+| `init` | — | `-y, --yes`, `--skip-login` | Authenticate and set up MCP server for coding agents |
 | `search <query>` | `-l, --lang <language>` | `--license <mode>`, `--explain`, `--json` | Search for code examples |
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback <solution_id>` | `--accept` or `--reject` | `-m, --message <text>`, `--json` | Submit feedback on a search result |
@@ -16,13 +16,16 @@ The CLI exposes three commands (`search`, `languages`, `feedback`) that mirror t
 ### `githits init`
 
 ```
-githits init              # Interactive: scan, select agents, confirm each
-githits init --yes        # Non-interactive: configure all detected agents
+githits init              # Interactive: authenticate, scan, configure unconfigured agents
+githits init --yes        # Non-interactive: authenticate, configure all unconfigured agents
+githits init --skip-login # Skip authentication, configure tools only
 ```
 
-Scans for installed coding agents and sets up GitHits MCP server for each. Supports Claude Code, Cursor, Windsurf, Claude Desktop, and Codex CLI. Uses CLI commands for agents that support them (Claude Code, Codex) and atomic config file writes for others (Cursor, Windsurf, Claude Desktop).
+Authenticates with GitHits (via OAuth in the browser), then scans for installed coding agents, checks which are already configured, and sets up unconfigured ones with your confirmation. All agents — including CLI-based ones — are pre-checked before any setup begins, so the status display is fully resolved. If already authenticated, the login step is skipped automatically. If login fails, the user is prompted to continue with tool setup anyway. If all detected agents are already configured, exits early with a summary.
 
-This command does NOT use `createContainer()` — it creates its own lightweight dependencies since it doesn't need auth or API access. This is intentional: init should work before the user has authenticated.
+Supports Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Gemini CLI, and Google Antigravity. Uses plugin install (Claude Code), CLI commands (Codex, Gemini CLI), and atomic config file writes (Cursor, Windsurf, VS Code, Cline, Claude Desktop, Google Antigravity). CLI agents use read-only check commands (e.g., `claude plugin list`) to determine configuration status before prompting.
+
+The command uses `createContainer()` lazily for the login step. Tool detection and configuration use lightweight dependencies that don't require auth.
 
 **File structure:** The init command uses a subdirectory (`src/commands/init/`) because it has distinct submodules (agent definitions, setup handlers, orchestrator). This is an accepted variation for commands with significant internal complexity.
 

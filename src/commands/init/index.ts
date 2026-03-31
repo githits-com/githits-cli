@@ -2,6 +2,7 @@ export {
   type AgentDefinition,
   agentDefinitions,
   buildCheckboxChoices,
+  type CliCommand,
   type CliSetup,
   type ConfigFileSetup,
   detectAgents,
