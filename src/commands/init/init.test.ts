@@ -208,13 +208,18 @@ describe("initAction", () => {
       },
     );
     const execService = createMockExecService({
-      exec: mock(() =>
-        Promise.resolve({
-          exitCode: 0,
-          stdout: "githits-plugin\n",
-          stderr: "",
-        }),
-      ),
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === "claude plugin list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "githits-plugin\n",
+            stderr: "",
+          });
+        }
+        // Default: command not found (e.g., which opencode)
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
     });
     const promptService = createMockPromptService();
 
@@ -238,20 +243,23 @@ describe("initAction", () => {
     const promptService = createMockPromptService({
       confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
     });
-    let callCount = 0;
     const execService = createMockExecService({
-      exec: mock(() => {
-        callCount++;
-        // First call: check command (no match = needs setup)
-        if (callCount === 1) {
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === "claude plugin list") {
+          // Check command: no match = needs setup
           return Promise.resolve({
             exitCode: 0,
             stdout: "other-plugin\n",
             stderr: "",
           });
         }
-        // Subsequent calls: setup commands
-        return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
+        if (cmd === "claude") {
+          // Setup commands
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
+        }
+        // Default: command not found (e.g., which opencode)
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
       }),
     });
 
@@ -265,8 +273,8 @@ describe("initAction", () => {
       },
     );
 
-    // 1 check + 2 setup commands = 3 exec calls
-    expect(execService.exec).toHaveBeenCalledTimes(3);
+    // 1 binary detection (which opencode) + 1 check + 2 setup commands = 4 exec calls
+    expect(execService.exec).toHaveBeenCalledTimes(4);
     expect(execService.exec).toHaveBeenCalledWith("claude", expect.any(Array));
   });
 
@@ -347,7 +355,8 @@ describe("initAction", () => {
       },
     );
 
-    expect(execService.exec).not.toHaveBeenCalled();
+    // Only exec call should be the opencode binary detection (which opencode)
+    expect(execService.exec).toHaveBeenCalledTimes(1);
     const logCalls = getLogOutput();
     expect(
       logCalls.some((msg) => msg.includes("No coding agents detected")),

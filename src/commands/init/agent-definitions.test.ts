@@ -13,8 +13,8 @@ import {
 } from "./agent-definitions.js";
 
 describe("agentDefinitions", () => {
-  it("defines 9 agents", () => {
-    expect(agentDefinitions).toHaveLength(9);
+  it("defines 11 agents", () => {
+    expect(agentDefinitions).toHaveLength(11);
   });
 
   it("has unique ids", () => {
@@ -97,6 +97,52 @@ describe("detectPaths", () => {
     const agent = agentDefinitions.find((a) => a.id === "google-antigravity")!;
     const paths = agent.detectPaths(fs);
     expect(paths).toEqual(["/home/test/.gemini/antigravity"]);
+  });
+
+  it("kiro uses ~/.kiro/", () => {
+    const fs = createMockFileSystemService({
+      getHomeDir: mock(() => "/home/test"),
+      joinPath: mock((...segments: string[]) => segments.join("/")),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "kiro")!;
+    const paths = agent.detectPaths(fs);
+    expect(paths).toEqual(["/home/test/.kiro"]);
+  });
+
+  it("opencode uses binary detection (no detect paths)", () => {
+    const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+    expect(agent.detectPaths(createMockFileSystemService())).toEqual([]);
+    expect(agent.detectBinary).toBeDefined();
+  });
+
+  it("opencode detectBinary returns true when binary found", async () => {
+    const exec = createMockExecService({
+      exec: mock(async () => ({
+        exitCode: 0,
+        stdout: "/usr/bin/opencode\n",
+        stderr: "",
+      })),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+    expect(await agent.detectBinary!(exec)).toBe(true);
+  });
+
+  it("opencode detectBinary returns false when binary not found", async () => {
+    const exec = createMockExecService({
+      exec: mock(async () => ({ exitCode: 1, stdout: "", stderr: "" })),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+    expect(await agent.detectBinary!(exec)).toBe(false);
+  });
+
+  it("opencode detectBinary returns false on exec error", async () => {
+    const exec = createMockExecService({
+      exec: mock(async () => {
+        throw new Error("spawn ENOENT");
+      }),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+    expect(await agent.detectBinary!(exec)).toBe(false);
   });
 
   it("all agents use FileSystemService.getHomeDir (not hardcoded)", () => {
@@ -431,6 +477,45 @@ describe("getSetupConfig", () => {
     }
   });
 
+  it("kiro returns config-file setup with url", () => {
+    const fs = createMockFileSystemService({
+      getHomeDir: mock(() => "/home/test"),
+      joinPath: mock((...segments: string[]) => segments.join("/")),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "kiro")!;
+    const config = agent.getSetupConfig(fs);
+    expect(config.method).toBe("config-file");
+    if (config.method === "config-file") {
+      expect(config.configPath).toBe("/home/test/.kiro/settings/mcp.json");
+      expect(config.serversKey).toBe("mcpServers");
+      expect(config.serverName).toBe("GitHits");
+      expect(config.serverConfig).toHaveProperty("url");
+      expect(config.serverConfig).not.toHaveProperty("command");
+    }
+  });
+
+  it("opencode returns config-file setup with mcp serversKey and array command", () => {
+    const fs = createMockFileSystemService({
+      getHomeDir: mock(() => "/home/test"),
+      joinPath: mock((...segments: string[]) => segments.join("/")),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+    const config = agent.getSetupConfig(fs);
+    expect(config.method).toBe("config-file");
+    if (config.method === "config-file") {
+      expect(config.configPath).toBe(
+        "/home/test/.config/opencode/opencode.json",
+      );
+      expect(config.serversKey).toBe("mcp");
+      expect(config.serverName).toBe("GitHits");
+      expect(config.serverConfig).toEqual({
+        type: "local",
+        command: ["npx", "-y", "githits@latest", "mcp", "start"],
+        enabled: true,
+      });
+    }
+  });
+
   it("claude-desktop is the only config-file agent using mcp-remote", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
@@ -447,7 +532,11 @@ describe("getSetupConfig", () => {
           const args = config.serverConfig.args as string[];
           expect(args).toContain("mcp-remote");
         } else {
-          expect(config.serverConfig).not.toHaveProperty("command");
+          // No agent other than claude-desktop should use mcp-remote
+          const args = config.serverConfig.args;
+          if (Array.isArray(args)) {
+            expect(args).not.toContain("mcp-remote");
+          }
         }
       }
     }
@@ -507,14 +596,19 @@ describe("detectAgents", () => {
     expect(detected).toEqual([]);
   });
 
-  it("returns all ids when all agents detected", async () => {
+  it("returns ids of all directory-detectable agents when all dirs exist", async () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
       joinPath: mock((...segments: string[]) => segments.join("/")),
       isDirectory: mock(() => Promise.resolve(true)),
     });
     const detected = await detectAgents(agentDefinitions, fs);
-    expect(detected).toHaveLength(agentDefinitions.length);
+    // detectAgents (deprecated) only checks detectPaths, not detectBinary
+    const dirDetectable = agentDefinitions.filter(
+      (a) => a.detectPaths(fs).length > 0,
+    );
+    expect(detected).toHaveLength(dirDetectable.length);
+    expect(detected).not.toContain("opencode");
   });
 });
 
@@ -546,7 +640,7 @@ describe("scanAgents", () => {
           if (val instanceof Error) throw val;
           return val;
         }
-        return { exitCode: 0, stdout: "", stderr: "" };
+        return { exitCode: 1, stdout: "", stderr: "" };
       }),
     });
     return { fs, execService };
@@ -624,6 +718,22 @@ describe("scanAgents", () => {
     expect(result.needsSetup.some((a) => a.id === "claude-code")).toBe(true);
   });
 
+  it("detects agent via detectBinary when directory does not exist", async () => {
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        "which opencode": {
+          exitCode: 0,
+          stdout: "/usr/bin/opencode\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.needsSetup.some((a) => a.id === "opencode")).toBe(true);
+    expect(result.notDetected.some((a) => a.id === "opencode")).toBe(false);
+  });
+
   it("categorizes undetected agent as notDetected", async () => {
     const { fs, execService } = createScanMocks({ detectedDirs: [] });
     const result = await scanAgents(agentDefinitions, fs, execService);
@@ -686,6 +796,7 @@ describe("scanAgents", () => {
       "/home/test/.codex",
       "/home/test/.gemini",
       "/home/test/.gemini/antigravity",
+      "/home/test/.kiro",
     ];
     // Platform-dependent detect dirs
     const vscodePath = `${appDataPrefix}/Code`;
@@ -721,9 +832,24 @@ describe("scanAgents", () => {
       "/home/test/.gemini/antigravity/mcp_config.json": JSON.stringify({
         mcpServers: { GitHits: { serverUrl: "https://mcp.githits.com" } },
       }),
+      "/home/test/.kiro/settings/mcp.json": JSON.stringify({
+        mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+      }),
+      "/home/test/.config/opencode/opencode.json": JSON.stringify({
+        mcp: {
+          GitHits: {
+            type: "local",
+            command: ["npx", "-y", "githits@latest", "mcp", "start"],
+            enabled: true,
+          },
+        },
+      }),
     };
 
-    // Exec results for all CLI agents reporting configured
+    // Binary detection command varies by platform
+    const whichCmd = platform === "win32" ? "where" : "which";
+
+    // Exec results for all CLI agents reporting configured + binary detection
     const allCliConfigured: Record<string, ExecResult> = {
       "claude plugin list": {
         exitCode: 0,
@@ -738,6 +864,11 @@ describe("scanAgents", () => {
       "gemini extensions list": {
         exitCode: 0,
         stdout: "githits-gemini-cli\n",
+        stderr: "",
+      },
+      [`${whichCmd} opencode`]: {
+        exitCode: 0,
+        stdout: "/usr/bin/opencode\n",
         stderr: "",
       },
     };
@@ -766,7 +897,7 @@ describe("scanAgents", () => {
           execResults: allCliConfigured,
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
-        expect(result.alreadyConfigured).toHaveLength(9);
+        expect(result.alreadyConfigured).toHaveLength(11);
         expect(result.needsSetup).toHaveLength(0);
         expect(result.notDetected).toHaveLength(0);
       });
@@ -786,14 +917,27 @@ describe("scanAgents", () => {
           "/home/test/.gemini/antigravity/mcp_config.json": JSON.stringify({
             mcpServers: {},
           }),
+          "/home/test/.kiro/settings/mcp.json": JSON.stringify({
+            mcpServers: {},
+          }),
+          "/home/test/.config/opencode/opencode.json": JSON.stringify({
+            mcp: {},
+          }),
         };
         const { fs, execService } = createScanMocks({
           detectedDirs: allDetectDirs,
           configFiles: unconfiguredFiles,
+          execResults: {
+            [`${whichCmd} opencode`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/opencode\n",
+              stderr: "",
+            },
+          },
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
-        expect(result.needsSetup).toHaveLength(9);
+        expect(result.needsSetup).toHaveLength(11);
         expect(result.notDetected).toHaveLength(0);
       });
 
@@ -802,20 +946,22 @@ describe("scanAgents", () => {
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
         expect(result.needsSetup).toHaveLength(0);
-        expect(result.notDetected).toHaveLength(9);
+        expect(result.notDetected).toHaveLength(11);
       });
 
-      it("mixed: 3 configured, 3 unconfigured, 3 not detected", async () => {
+      it("mixed: 4 configured, 4 unconfigured, 3 not detected", async () => {
         const { fs, execService } = createScanMocks({
           detectedDirs: [
-            // Configured: cursor, claude-desktop, claude-code
+            // Configured: cursor, claude-desktop, claude-code, kiro
             "/home/test/.cursor",
             claudeDesktopPath,
             "/home/test/.claude",
+            "/home/test/.kiro",
             // Unconfigured: windsurf, vscode, codex-cli
             "/home/test/.codeium/windsurf",
             vscodePath,
             "/home/test/.codex",
+            // opencode detected via binary (below), not directory
             // Not detected: cline, gemini-cli, google-antigravity
           ],
           configFiles: {
@@ -827,6 +973,9 @@ describe("scanAgents", () => {
                 mcpServers: { GitHits: { command: "npx" } },
               },
             ),
+            "/home/test/.kiro/settings/mcp.json": JSON.stringify({
+              mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+            }),
           },
           execResults: {
             "claude plugin list": {
@@ -835,18 +984,23 @@ describe("scanAgents", () => {
               stderr: "",
             },
             "codex mcp list": { exitCode: 0, stdout: "", stderr: "" },
+            [`${whichCmd} opencode`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/opencode\n",
+              stderr: "",
+            },
           },
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
-        expect(result.alreadyConfigured).toHaveLength(3);
-        expect(result.needsSetup).toHaveLength(3);
+        expect(result.alreadyConfigured).toHaveLength(4);
+        expect(result.needsSetup).toHaveLength(4);
         expect(result.notDetected).toHaveLength(3);
 
         expect(result.alreadyConfigured.map((a) => a.id).sort()).toEqual(
-          ["claude-code", "claude-desktop", "cursor"].sort(),
+          ["claude-code", "claude-desktop", "cursor", "kiro"].sort(),
         );
         expect(result.needsSetup.map((a) => a.id).sort()).toEqual(
-          ["codex-cli", "vscode", "windsurf"].sort(),
+          ["codex-cli", "opencode", "vscode", "windsurf"].sort(),
         );
         expect(result.notDetected.map((a) => a.id).sort()).toEqual(
           ["cline", "gemini-cli", "google-antigravity"].sort(),

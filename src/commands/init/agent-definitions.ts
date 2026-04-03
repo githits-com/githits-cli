@@ -56,6 +56,8 @@ export interface AgentDefinition {
   id: string;
   /** Directories to check for detection. Uses FileSystemService for testability. */
   detectPaths: (fs: FileSystemService) => string[];
+  /** Optional binary detection — checked before detectPaths. */
+  detectBinary?: (exec: ExecService) => Promise<boolean>;
   /** How this agent is configured */
   setupMethod: "cli" | "config-file";
   /** Returns the setup config for this agent. Uses FileSystemService for path resolution. */
@@ -296,6 +298,54 @@ const googleAntigravity: AgentDefinition = {
   }),
 };
 
+/** Kiro: detected by ~/.kiro/ directory */
+const kiro: AgentDefinition = {
+  name: "Kiro",
+  id: "kiro",
+  setupMethod: "config-file",
+  detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".kiro")],
+  getSetupConfig: (fs) => ({
+    method: "config-file",
+    configPath: fs.joinPath(fs.getHomeDir(), ".kiro", "settings", "mcp.json"),
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { url: getMcpUrl() },
+  }),
+};
+
+/** OpenCode: detected by opencode binary on PATH */
+const openCode: AgentDefinition = {
+  name: "OpenCode",
+  id: "opencode",
+  setupMethod: "config-file",
+  detectPaths: () => [],
+  detectBinary: async (exec) => {
+    try {
+      const cmd = process.platform === "win32" ? "where" : "which";
+      const result = await exec.exec(cmd, ["opencode"]);
+      return result.exitCode === 0;
+    } catch {
+      return false;
+    }
+  },
+  getSetupConfig: (fs) => ({
+    method: "config-file",
+    configPath: fs.joinPath(
+      fs.getHomeDir(),
+      ".config",
+      "opencode",
+      "opencode.json",
+    ),
+    serversKey: "mcp",
+    serverName: "GitHits",
+    serverConfig: {
+      type: "local",
+      command: ["npx", "-y", "githits@latest", "mcp", "start"],
+      enabled: true,
+    },
+  }),
+};
+
 /**
  * All supported agent definitions, ordered by popularity/likelihood.
  * New agents should be added here.
@@ -310,6 +360,8 @@ export const agentDefinitions: AgentDefinition[] = [
   codexCli,
   geminiCli,
   googleAntigravity,
+  kiro,
+  openCode,
 ];
 
 /**
@@ -362,13 +414,24 @@ export async function scanAgents(
   };
 
   for (const agent of definitions) {
-    // Check if installed
-    const paths = agent.detectPaths(fs);
+    // Check if installed — try binary detection first, then directory detection
     let detected = false;
-    for (const path of paths) {
-      if (await fs.isDirectory(path)) {
-        detected = true;
-        break;
+
+    if (agent.detectBinary) {
+      try {
+        detected = await agent.detectBinary(execService);
+      } catch {
+        // Fall through to directory detection
+      }
+    }
+
+    if (!detected) {
+      const paths = agent.detectPaths(fs);
+      for (const path of paths) {
+        if (await fs.isDirectory(path)) {
+          detected = true;
+          break;
+        }
       }
     }
 

@@ -252,7 +252,7 @@ export function createMockExecService(
 ): ExecService {
   return {
     exec: mock(() =>
-      Promise.resolve({ exitCode: 0, stdout: "", stderr: "" } as ExecResult),
+      Promise.resolve({ exitCode: 1, stdout: "", stderr: "" } as ExecResult),
     ),
     ...impl,
   };
