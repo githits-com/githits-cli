@@ -13,8 +13,8 @@ import {
 } from "./agent-definitions.js";
 
 describe("agentDefinitions", () => {
-  it("defines 11 agents", () => {
-    expect(agentDefinitions).toHaveLength(11);
+  it("defines 10 agents", () => {
+    expect(agentDefinitions).toHaveLength(10);
   });
 
   it("has unique ids", () => {
@@ -97,16 +97,6 @@ describe("detectPaths", () => {
     const agent = agentDefinitions.find((a) => a.id === "google-antigravity")!;
     const paths = agent.detectPaths(fs);
     expect(paths).toEqual(["/home/test/.gemini/antigravity"]);
-  });
-
-  it("kiro uses ~/.kiro/", () => {
-    const fs = createMockFileSystemService({
-      getHomeDir: mock(() => "/home/test"),
-      joinPath: mock((...segments: string[]) => segments.join("/")),
-    });
-    const agent = agentDefinitions.find((a) => a.id === "kiro")!;
-    const paths = agent.detectPaths(fs);
-    expect(paths).toEqual(["/home/test/.kiro"]);
   });
 
   it("opencode uses binary detection (no detect paths)", () => {
@@ -477,23 +467,6 @@ describe("getSetupConfig", () => {
     }
   });
 
-  it("kiro returns config-file setup with url", () => {
-    const fs = createMockFileSystemService({
-      getHomeDir: mock(() => "/home/test"),
-      joinPath: mock((...segments: string[]) => segments.join("/")),
-    });
-    const agent = agentDefinitions.find((a) => a.id === "kiro")!;
-    const config = agent.getSetupConfig(fs);
-    expect(config.method).toBe("config-file");
-    if (config.method === "config-file") {
-      expect(config.configPath).toBe("/home/test/.kiro/settings/mcp.json");
-      expect(config.serversKey).toBe("mcpServers");
-      expect(config.serverName).toBe("GitHits");
-      expect(config.serverConfig).toHaveProperty("url");
-      expect(config.serverConfig).not.toHaveProperty("command");
-    }
-  });
-
   it("opencode returns config-file setup with mcp serversKey and array command", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
@@ -796,7 +769,6 @@ describe("scanAgents", () => {
       "/home/test/.codex",
       "/home/test/.gemini",
       "/home/test/.gemini/antigravity",
-      "/home/test/.kiro",
     ];
     // Platform-dependent detect dirs
     const vscodePath = `${appDataPrefix}/Code`;
@@ -831,9 +803,6 @@ describe("scanAgents", () => {
       }),
       "/home/test/.gemini/antigravity/mcp_config.json": JSON.stringify({
         mcpServers: { GitHits: { serverUrl: "https://mcp.githits.com" } },
-      }),
-      "/home/test/.kiro/settings/mcp.json": JSON.stringify({
-        mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
       }),
       "/home/test/.config/opencode/opencode.json": JSON.stringify({
         mcp: {
@@ -897,7 +866,7 @@ describe("scanAgents", () => {
           execResults: allCliConfigured,
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
-        expect(result.alreadyConfigured).toHaveLength(11);
+        expect(result.alreadyConfigured).toHaveLength(10);
         expect(result.needsSetup).toHaveLength(0);
         expect(result.notDetected).toHaveLength(0);
       });
@@ -917,9 +886,6 @@ describe("scanAgents", () => {
           "/home/test/.gemini/antigravity/mcp_config.json": JSON.stringify({
             mcpServers: {},
           }),
-          "/home/test/.kiro/settings/mcp.json": JSON.stringify({
-            mcpServers: {},
-          }),
           "/home/test/.config/opencode/opencode.json": JSON.stringify({
             mcp: {},
           }),
@@ -937,7 +903,7 @@ describe("scanAgents", () => {
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
-        expect(result.needsSetup).toHaveLength(11);
+        expect(result.needsSetup).toHaveLength(10);
         expect(result.notDetected).toHaveLength(0);
       });
 
@@ -946,17 +912,16 @@ describe("scanAgents", () => {
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
         expect(result.needsSetup).toHaveLength(0);
-        expect(result.notDetected).toHaveLength(11);
+        expect(result.notDetected).toHaveLength(10);
       });
 
-      it("mixed: 4 configured, 4 unconfigured, 3 not detected", async () => {
+      it("mixed: 3 configured, 4 unconfigured, 3 not detected", async () => {
         const { fs, execService } = createScanMocks({
           detectedDirs: [
-            // Configured: cursor, claude-desktop, claude-code, kiro
+            // Configured: cursor, claude-desktop, claude-code
             "/home/test/.cursor",
             claudeDesktopPath,
             "/home/test/.claude",
-            "/home/test/.kiro",
             // Unconfigured: windsurf, vscode, codex-cli
             "/home/test/.codeium/windsurf",
             vscodePath,
@@ -973,9 +938,6 @@ describe("scanAgents", () => {
                 mcpServers: { GitHits: { command: "npx" } },
               },
             ),
-            "/home/test/.kiro/settings/mcp.json": JSON.stringify({
-              mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
-            }),
           },
           execResults: {
             "claude plugin list": {
@@ -992,12 +954,12 @@ describe("scanAgents", () => {
           },
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
-        expect(result.alreadyConfigured).toHaveLength(4);
+        expect(result.alreadyConfigured).toHaveLength(3);
         expect(result.needsSetup).toHaveLength(4);
         expect(result.notDetected).toHaveLength(3);
 
         expect(result.alreadyConfigured.map((a) => a.id).sort()).toEqual(
-          ["claude-code", "claude-desktop", "cursor", "kiro"].sort(),
+          ["claude-code", "claude-desktop", "cursor"].sort(),
         );
         expect(result.needsSetup.map((a) => a.id).sort()).toEqual(
           ["codex-cli", "opencode", "vscode", "windsurf"].sort(),

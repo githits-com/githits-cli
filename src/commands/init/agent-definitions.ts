@@ -298,21 +298,6 @@ const googleAntigravity: AgentDefinition = {
   }),
 };
 
-/** Kiro: detected by ~/.kiro/ directory */
-const kiro: AgentDefinition = {
-  name: "Kiro",
-  id: "kiro",
-  setupMethod: "config-file",
-  detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".kiro")],
-  getSetupConfig: (fs) => ({
-    method: "config-file",
-    configPath: fs.joinPath(fs.getHomeDir(), ".kiro", "settings", "mcp.json"),
-    serversKey: "mcpServers",
-    serverName: "GitHits",
-    serverConfig: { url: getMcpUrl() },
-  }),
-};
-
 /** OpenCode: detected by opencode binary on PATH */
 const openCode: AgentDefinition = {
   name: "OpenCode",
@@ -360,7 +345,6 @@ export const agentDefinitions: AgentDefinition[] = [
   codexCli,
   geminiCli,
   googleAntigravity,
-  kiro,
   openCode,
 ];
 
