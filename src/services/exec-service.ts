@@ -19,6 +19,9 @@ export interface ExecService {
 /**
  * Production implementation using node:child_process.spawn.
  * Collects stdout/stderr and resolves with exit code.
+ *
+ * On Windows, uses shell: true to resolve .cmd/.ps1 shims via cmd.exe.
+ * Callers must not pass untrusted input as command or args.
  */
 export class ExecServiceImpl implements ExecService {
   async exec(command: string, args: string[]): Promise<ExecResult> {
@@ -26,6 +29,7 @@ export class ExecServiceImpl implements ExecService {
       const child = spawn(command, args, {
         stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env },
+        ...(process.platform === "win32" && { shell: true }),
       });
 
       const stdoutChunks: Buffer[] = [];

@@ -5,7 +5,6 @@ import {
   createMockFileSystemService,
 } from "../../services/test-helpers.js";
 import {
-  type AgentDefinition,
   agentDefinitions,
   buildCheckboxChoices,
   detectAgents,
@@ -99,10 +98,147 @@ describe("detectPaths", () => {
     expect(paths).toEqual(["/home/test/.gemini/antigravity"]);
   });
 
-  it("opencode uses binary detection (no detect paths)", () => {
-    const agent = agentDefinitions.find((a) => a.id === "opencode")!;
-    expect(agent.detectPaths(createMockFileSystemService())).toEqual([]);
-    expect(agent.detectBinary).toBeDefined();
+  it("opencode has both directory and binary detection", () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", {
+      value: "linux",
+      configurable: true,
+    });
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+      expect(agent.detectPaths(fs)).toEqual(["/home/test/.config/opencode"]);
+      expect(agent.detectBinary).toBeDefined();
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+    }
+  });
+
+  it("opencode returns APPDATA path on win32", () => {
+    const originalPlatform = process.platform;
+    const originalAppdata = process.env.APPDATA;
+    Object.defineProperty(process, "platform", {
+      value: "win32",
+      configurable: true,
+    });
+    process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "C:\\Users\\test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+      const paths = agent.detectPaths(fs);
+      expect(paths).toEqual(["C:\\Users\\test\\AppData\\Roaming/opencode"]);
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+      if (originalAppdata !== undefined) {
+        process.env.APPDATA = originalAppdata;
+      } else {
+        delete process.env.APPDATA;
+      }
+    }
+  });
+
+  it("claude-desktop checks multiple Windows paths on win32", () => {
+    const originalPlatform = process.platform;
+    const originalLocalAppdata = process.env.LOCALAPPDATA;
+    Object.defineProperty(process, "platform", {
+      value: "win32",
+      configurable: true,
+    });
+    process.env.LOCALAPPDATA = "C:\\Users\\test\\AppData\\Local";
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "C:\\Users\\test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "claude-desktop")!;
+      const paths = agent.detectPaths(fs);
+      expect(paths).toHaveLength(3);
+      expect(paths[0]).toContain("Roaming");
+      expect(paths[1]).toContain("Local/Claude");
+      expect(paths[2]).toContain("Local/Programs/Claude");
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+      if (originalLocalAppdata !== undefined) {
+        process.env.LOCALAPPDATA = originalLocalAppdata;
+      } else {
+        delete process.env.LOCALAPPDATA;
+      }
+    }
+  });
+
+  it("claude-desktop returns single path on non-Windows", () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", {
+      value: "darwin",
+      configurable: true,
+    });
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "claude-desktop")!;
+      const paths = agent.detectPaths(fs);
+      expect(paths).toHaveLength(1);
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+    }
+  });
+
+  it("claude-desktop falls back to AppData/Local when LOCALAPPDATA is unset on win32", () => {
+    const originalPlatform = process.platform;
+    const originalLocalAppdata = process.env.LOCALAPPDATA;
+    const originalAppdata = process.env.APPDATA;
+    Object.defineProperty(process, "platform", {
+      value: "win32",
+      configurable: true,
+    });
+    process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
+    delete process.env.LOCALAPPDATA;
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "C:\\Users\\test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "claude-desktop")!;
+      const paths = agent.detectPaths(fs);
+      expect(paths).toHaveLength(3);
+      expect(paths[1]).toBe("C:\\Users\\test/AppData/Local/Claude");
+      expect(paths[2]).toBe("C:\\Users\\test/AppData/Local/Programs/Claude");
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+      if (originalLocalAppdata !== undefined) {
+        process.env.LOCALAPPDATA = originalLocalAppdata;
+      } else {
+        delete process.env.LOCALAPPDATA;
+      }
+      if (originalAppdata !== undefined) {
+        process.env.APPDATA = originalAppdata;
+      } else {
+        delete process.env.APPDATA;
+      }
+    }
   });
 
   it("opencode detectBinary returns true when binary found", async () => {
@@ -577,11 +713,9 @@ describe("detectAgents", () => {
     });
     const detected = await detectAgents(agentDefinitions, fs);
     // detectAgents (deprecated) only checks detectPaths, not detectBinary
-    const dirDetectable = agentDefinitions.filter(
-      (a) => a.detectPaths(fs).length > 0,
-    );
-    expect(detected).toHaveLength(dirDetectable.length);
-    expect(detected).not.toContain("opencode");
+    // All agents now have detectPaths, so all should be detected
+    expect(detected).toHaveLength(agentDefinitions.length);
+    expect(detected).toContain("opencode");
   });
 });
 
@@ -707,6 +841,32 @@ describe("scanAgents", () => {
     expect(result.notDetected.some((a) => a.id === "opencode")).toBe(false);
   });
 
+  it("detects opencode via directory fallback when binary not on PATH", async () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", {
+      value: "linux",
+      configurable: true,
+    });
+    try {
+      const { fs, execService } = createScanMocks({
+        detectedDirs: ["/home/test/.config/opencode"],
+        configFiles: {
+          "/home/test/.config/opencode/opencode.json": JSON.stringify({
+            mcp: {},
+          }),
+        },
+      });
+      const result = await scanAgents(agentDefinitions, fs, execService);
+      expect(result.needsSetup.some((a) => a.id === "opencode")).toBe(true);
+      expect(result.notDetected.some((a) => a.id === "opencode")).toBe(false);
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+    }
+  });
+
   it("categorizes undetected agent as notDetected", async () => {
     const { fs, execService } = createScanMocks({ detectedDirs: [] });
     const result = await scanAgents(agentDefinitions, fs, execService);
@@ -773,7 +933,16 @@ describe("scanAgents", () => {
     // Platform-dependent detect dirs
     const vscodePath = `${appDataPrefix}/Code`;
     const claudeDesktopPath = `${appDataPrefix}/Claude`;
-    const allDetectDirs = [...homeDirs, vscodePath, claudeDesktopPath];
+    const opencodePath =
+      platform === "win32"
+        ? `${appDataPrefix}/opencode`
+        : "/home/test/.config/opencode";
+    const allDetectDirs = [
+      ...homeDirs,
+      vscodePath,
+      claudeDesktopPath,
+      opencodePath,
+    ];
 
     // Config files for all config-file agents with GitHits configured
     const allConfiguredFiles: Record<string, string> = {

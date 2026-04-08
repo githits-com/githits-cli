@@ -161,6 +161,16 @@ const claudeDesktop: AgentDefinition = {
   setupMethod: "config-file",
   detectPaths: (fs) => {
     const appData = getAppDataPath(fs, "Claude");
+    if (process.platform === "win32") {
+      const home = fs.getHomeDir();
+      const localAppData =
+        process.env.LOCALAPPDATA ?? fs.joinPath(home, "AppData", "Local");
+      return [
+        appData,
+        fs.joinPath(localAppData, "Claude"),
+        fs.joinPath(localAppData, "Programs", "Claude"),
+      ];
+    }
     return [appData];
   },
   getSetupConfig: (fs) => {
@@ -298,12 +308,23 @@ const googleAntigravity: AgentDefinition = {
   }),
 };
 
-/** OpenCode: detected by opencode binary on PATH */
+/** OpenCode: detected by opencode binary on PATH or config directory */
 const openCode: AgentDefinition = {
   name: "OpenCode",
   id: "opencode",
   setupMethod: "config-file",
-  detectPaths: () => [],
+  detectPaths: (fs) => {
+    const home = fs.getHomeDir();
+    if (process.platform === "win32") {
+      return [
+        fs.joinPath(
+          process.env.APPDATA ?? fs.joinPath(home, "AppData", "Roaming"),
+          "opencode",
+        ),
+      ];
+    }
+    return [fs.joinPath(home, ".config", "opencode")];
+  },
   detectBinary: async (exec) => {
     try {
       const cmd = process.platform === "win32" ? "where" : "which";

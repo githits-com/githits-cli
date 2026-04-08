@@ -278,7 +278,7 @@ export async function executeCliSetup(
   if (anyAlreadyConfigured) {
     return {
       status: "already_configured",
-      message: `GitHits already configured via ${setup.commands[0]!.command}`,
+      message: `GitHits already configured via ${setup.commands[0]?.command}`,
     };
   }
 

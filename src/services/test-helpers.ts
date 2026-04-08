@@ -16,11 +16,7 @@ import type { ExecResult, ExecService } from "./exec-service.js";
 import type { FileSystemService } from "./filesystem-service.js";
 import type { GitHitsService } from "./githits-service.js";
 import type { KeyringService } from "./keyring-service.js";
-import type {
-  CheckboxChoice,
-  ConfirmChoice,
-  PromptService,
-} from "./prompt-service.js";
+import type { ConfirmChoice, PromptService } from "./prompt-service.js";
 import type { TokenProvider } from "./token-manager.js";
 
 /**

@@ -8,10 +8,7 @@ import {
   spyOn,
 } from "bun:test";
 import { ExitPromptError } from "@inquirer/core";
-import type {
-  ConfirmChoice,
-  PromptService,
-} from "../../services/prompt-service.js";
+import type { ConfirmChoice } from "../../services/prompt-service.js";
 import {
   createMockAuthService,
   createMockAuthStorage,
@@ -22,7 +19,6 @@ import {
   createValidTokenData,
 } from "../../services/test-helpers.js";
 import type { LoginDependencies } from "../login.js";
-import type { InitDependencies } from "./init.js";
 import { initAction } from "./init.js";
 
 /** Suppress console.log during tests */
@@ -54,23 +50,6 @@ function createAlreadyAuthLoginDeps(): () => Promise<LoginDependencies> {
       mcpUrl: "https://mcp.githits.com",
     }),
   );
-}
-
-/** Create default deps with overrides */
-function createDeps(
-  overrides: Partial<InitDependencies> = {},
-): InitDependencies {
-  return {
-    fileSystemService: createMockFileSystemService({
-      getHomeDir: mock(() => "/home/test"),
-      joinPath: mock((...segments: string[]) => segments.join("/")),
-      isDirectory: mock(() => Promise.resolve(false)),
-    }),
-    promptService: createMockPromptService(),
-    execService: createMockExecService(),
-    createLoginDeps: createAlreadyAuthLoginDeps(),
-    ...overrides,
-  };
 }
 
 /**
