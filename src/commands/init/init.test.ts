@@ -83,6 +83,10 @@ function getLogOutput(): string[] {
   return (logSpy.mock.calls as unknown[][]).map((c) => String(c[0] ?? ""));
 }
 
+function lookupCommandFor(platform: string = process.platform): string {
+  return platform === "win32" ? "where" : "which";
+}
+
 describe("initAction", () => {
   it("scans agents and sets up unconfigured ones", async () => {
     // Cursor detected but not configured
@@ -177,18 +181,23 @@ describe("initAction", () => {
   });
 
   it("shows all agents as already configured when all check commands match", async () => {
+    const lookupCmd = lookupCommandFor();
     // Detect Claude Code (CLI) and Cursor (config-file), both configured
-    const fs = createFsWithDetection(
-      ["/home/test/.claude", "/home/test/.cursor"],
-      {
-        "/home/test/.cursor/mcp.json": JSON.stringify({
-          mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
-        }),
-      },
-    );
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+      }),
+    });
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} claude`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/claude\n",
+            stderr: "",
+          });
+        }
         if (key === "claude plugin list") {
           return Promise.resolve({
             exitCode: 0,
@@ -218,13 +227,21 @@ describe("initAction", () => {
   });
 
   it("sets up CLI agents that are not yet configured", async () => {
-    const fs = createFsWithDetection(["/home/test/.claude"]);
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
     const promptService = createMockPromptService({
       confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
     });
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} claude`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/claude\n",
+            stderr: "",
+          });
+        }
         if (key === "claude plugin list") {
           // Check command: no match = needs setup
           return Promise.resolve({
@@ -252,8 +269,8 @@ describe("initAction", () => {
       },
     );
 
-    // 1 binary detection (which opencode) + 1 check + 2 setup commands = 4 exec calls
-    expect(execService.exec).toHaveBeenCalledTimes(4);
+    // 4 binary detections + 1 check + 2 setup commands = 7 exec calls
+    expect(execService.exec).toHaveBeenCalledTimes(7);
     expect(execService.exec).toHaveBeenCalledWith("claude", expect.any(Array));
   });
 
@@ -334,8 +351,8 @@ describe("initAction", () => {
       },
     );
 
-    // Only exec call should be the opencode binary detection (which opencode)
-    expect(execService.exec).toHaveBeenCalledTimes(1);
+    // One PATH lookup is attempted for each binary-detected agent
+    expect(execService.exec).toHaveBeenCalledTimes(4);
     const logCalls = getLogOutput();
     expect(
       logCalls.some((msg) => msg.includes("No coding agents detected")),
@@ -364,17 +381,20 @@ describe("initAction", () => {
   });
 
   it("continues to next agent when one fails", async () => {
+    const lookupCmd = lookupCommandFor();
     // Claude (CLI, will fail) + cursor (config-file, should still work)
-    const fs = createFsWithDetection([
-      "/home/test/.claude",
-      "/home/test/.cursor",
-    ]);
-    let callCount = 0;
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
     const execService = createMockExecService({
-      exec: mock(() => {
-        callCount++;
-        // First call: check command for claude (no match = needs setup)
-        if (callCount === 1) {
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} claude`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/claude\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin list") {
           return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
         }
         // Setup commands: fail
@@ -398,6 +418,35 @@ describe("initAction", () => {
     // Both should be attempted
     expect(execService.exec).toHaveBeenCalled();
     expect(fs.atomicWriteFile).toHaveBeenCalled();
+  });
+
+  it("does not attempt Gemini setup when only .gemini directory exists", async () => {
+    const fs = createFsWithDetection(["/home/test/.gemini"]);
+    const promptService = createMockPromptService();
+    const execService = createMockExecService();
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some(
+        (msg) => msg.includes("Gemini CLI") && msg.includes("not detected"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) => msg.includes("Setting up") && msg.includes("Gemini CLI"),
+      ),
+    ).toBe(false);
+    expect(promptService.confirm3).not.toHaveBeenCalled();
   });
 
   it("handles Ctrl+C on confirm3 prompt gracefully", async () => {

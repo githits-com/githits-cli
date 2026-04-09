@@ -51,7 +51,7 @@ interface AgentOutcome {
 
 /**
  * Core init logic, separated from CLI registration for testability.
- * Scans for installed agents, prompts for selection, configures each sequentially.
+ * Scans for available agents, prompts for selection, configures each sequentially.
  */
 export async function initAction(
   options: InitOptions,
@@ -109,8 +109,8 @@ export async function initAction(
     }
   }
 
-  // Scan for installed agents and check configuration status
-  console.log("  Scanning for installed agents...\n");
+  // Scan for available agents and check configuration status
+  console.log("  Scanning for available agents...\n");
   const scan = await scanAgents(
     agentDefinitions,
     fileSystemService,
@@ -241,7 +241,7 @@ export async function initAction(
 
 const INIT_DESCRIPTION = `Set up GitHits MCP server for your coding agents.
 
-Authenticates with your GitHits account, then scans for installed agents
+Authenticates with your GitHits account, then scans for available agents
 (Claude Code, Cursor, Windsurf, VS Code, Cline, Claude Desktop, Codex CLI,
 Gemini CLI, Google Antigravity), checks which are already configured,
 and sets up unconfigured ones with your confirmation.
