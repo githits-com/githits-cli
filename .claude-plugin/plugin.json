@@ -1,0 +1,12 @@
+{
+  "name": "githits",
+  "version": "0.1.5",
+  "description": "Code examples from global open source for developers and AI assistants",
+  "author": {
+    "name": "GitHits"
+  },
+  "homepage": "https://githits.com",
+  "repository": "https://github.com/githits-com/githits-cli",
+  "license": "Apache-2.0",
+  "keywords": ["githits", "code-examples", "search", "mcp", "ai"]
+}

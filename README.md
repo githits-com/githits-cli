@@ -12,6 +12,14 @@ npx githits login
 
 This opens your browser to authenticate with your [GitHits](https://githits.com) account. Once logged in, set up your AI assistant:
 
+### MCP Setup (works in all agents)
+
+Use this server command in MCP configuration files:
+
+```sh
+npx -y githits mcp start
+```
+
 **Claude Code**
 
 ```sh
@@ -32,6 +40,31 @@ Add to your MCP settings JSON:
   }
 }
 ```
+
+### Plugin Installation (Open Plugin standard)
+
+The npm package includes Open Plugin-compatible files:
+
+- `.plugin/plugin.json` (vendor-neutral, used by Cursor/Codex/Copilot-compatible hosts)
+- `.claude-plugin/plugin.json` (Claude Code compatibility)
+- `.claude-plugin/marketplace.json` (Claude Code marketplace catalog)
+- `.mcp.json`, `skills/`, and `commands/`
+
+**Claude Code marketplace install**
+
+```sh
+/plugin marketplace add githits-com/githits-cli
+/plugin install githits@githits-plugins
+```
+
+For plugin-based hosts, install from npm/GitHub using your agent's plugin workflow and enable plugin `githits`.
+
+### Agent Coverage
+
+- **Cursor**: reads vendor-neutral `.plugin/` for Open Plugin installs
+- **Claude Code**: supports `.claude-plugin/` and Open Plugin components
+- **Codex**: supports Open Plugin components
+- **GitHub Copilot**: supports Open Plugin components
 
 That's it. Your assistant now has a `search` tool it will use automatically when it needs code examples.
 

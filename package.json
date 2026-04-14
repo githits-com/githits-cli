@@ -5,7 +5,12 @@
   "type": "module",
   "files": [
     "dist",
-    "LICENSE"
+    "LICENSE",
+    ".plugin",
+    ".claude-plugin",
+    ".mcp.json",
+    "skills",
+    "commands"
   ],
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
