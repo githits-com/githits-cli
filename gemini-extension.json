@@ -1,0 +1,12 @@
+{
+  "name": "githits",
+  "version": "0.1.5",
+  "description": "Code examples from global open source for developers and AI assistants.",
+  "mcpServers": {
+    "githits": {
+      "command": "npx",
+      "args": ["-y", "githits", "mcp", "start"]
+    }
+  },
+  "contextFileName": "GEMINI.md"
+}

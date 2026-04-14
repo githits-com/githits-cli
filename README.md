@@ -57,6 +57,12 @@ The npm package includes Open Plugin-compatible files:
 /plugin install githits@githits-plugins
 ```
 
+**Gemini CLI extension install**
+
+```sh
+gemini extensions install https://github.com/githits-com/githits-cli
+```
+
 For plugin-based hosts, install from npm/GitHub using your agent's plugin workflow and enable plugin `githits`.
 
 ### Agent Coverage
@@ -65,6 +71,7 @@ For plugin-based hosts, install from npm/GitHub using your agent's plugin workfl
 - **Claude Code**: supports `.claude-plugin/` and Open Plugin components
 - **Codex**: supports Open Plugin components
 - **GitHub Copilot**: supports Open Plugin components
+- **Gemini CLI**: supports `gemini-extension.json` and `GEMINI.md`
 
 That's it. Your assistant now has a `search` tool it will use automatically when it needs code examples.
 

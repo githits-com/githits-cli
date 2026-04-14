@@ -9,6 +9,8 @@
     ".plugin",
     ".claude-plugin",
     ".mcp.json",
+    "gemini-extension.json",
+    "GEMINI.md",
     "skills",
     "commands"
   ],
