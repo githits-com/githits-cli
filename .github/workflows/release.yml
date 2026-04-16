@@ -16,7 +16,7 @@ jobs:
             id-token: write # Required for OIDC trusted publishing
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
               with:
                   fetch-depth: 0
 
@@ -42,9 +42,9 @@ jobs:
 
             - name: Setup Node.js
               if: steps.version.outputs.should_release == 'true'
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
-                  node-version: "22"
+                  node-version-file: ".node-version"
                   registry-url: "https://registry.npmjs.org"
 
             # Trusted publishing requires npm 11.5.1+
