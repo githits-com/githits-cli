@@ -370,6 +370,7 @@ const openCode: AgentDefinition = {
 /**
  * All supported agent definitions, ordered by popularity/likelihood.
  * New agents should be added here.
+ * @deprecated Use scanAgents() instead, which also checks configuration status.
  */
 export const agentDefinitions: AgentDefinition[] = [
   claudeCode,
