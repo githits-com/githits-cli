@@ -27,15 +27,11 @@ describe("agentDefinitions", () => {
   });
 });
 
-describe("detectPaths", () => {
-  it("claude-code uses ~/.claude/", () => {
-    const fs = createMockFileSystemService({
-      getHomeDir: mock(() => "/home/test"),
-      joinPath: mock((...segments: string[]) => segments.join("/")),
-    });
+describe("detection configuration", () => {
+  it("claude-code uses binary detection only", () => {
     const agent = agentDefinitions.find((a) => a.id === "claude-code")!;
-    const paths = agent.detectPaths(fs);
-    expect(paths).toEqual(["/home/test/.claude"]);
+    expect(agent.detectBinary).toBeDefined();
+    expect(agent.detectPaths).toBeUndefined();
   });
 
   it("cursor uses ~/.cursor/", () => {
@@ -44,18 +40,14 @@ describe("detectPaths", () => {
       joinPath: mock((...segments: string[]) => segments.join("/")),
     });
     const agent = agentDefinitions.find((a) => a.id === "cursor")!;
-    const paths = agent.detectPaths(fs);
+    const paths = agent.detectPaths?.(fs);
     expect(paths).toEqual(["/home/test/.cursor"]);
   });
 
-  it("codex-cli uses ~/.codex/", () => {
-    const fs = createMockFileSystemService({
-      getHomeDir: mock(() => "/home/test"),
-      joinPath: mock((...segments: string[]) => segments.join("/")),
-    });
+  it("codex-cli uses binary detection only", () => {
     const agent = agentDefinitions.find((a) => a.id === "codex-cli")!;
-    const paths = agent.detectPaths(fs);
-    expect(paths).toEqual(["/home/test/.codex"]);
+    expect(agent.detectBinary).toBeDefined();
+    expect(agent.detectPaths).toBeUndefined();
   });
 
   it("windsurf detects via ~/.codeium/windsurf/ directory", () => {
@@ -64,7 +56,7 @@ describe("detectPaths", () => {
       joinPath: mock((...segments: string[]) => segments.join("/")),
     });
     const agent = agentDefinitions.find((a) => a.id === "windsurf")!;
-    const paths = agent.detectPaths(fs);
+    const paths = agent.detectPaths?.(fs);
     expect(paths).toEqual(["/home/test/.codeium/windsurf"]);
   });
 
@@ -74,18 +66,14 @@ describe("detectPaths", () => {
       joinPath: mock((...segments: string[]) => segments.join("/")),
     });
     const agent = agentDefinitions.find((a) => a.id === "cline")!;
-    const paths = agent.detectPaths(fs);
+    const paths = agent.detectPaths?.(fs);
     expect(paths).toEqual(["/home/test/.cline"]);
   });
 
-  it("gemini-cli uses ~/.gemini/", () => {
-    const fs = createMockFileSystemService({
-      getHomeDir: mock(() => "/home/test"),
-      joinPath: mock((...segments: string[]) => segments.join("/")),
-    });
+  it("gemini-cli uses binary detection only", () => {
     const agent = agentDefinitions.find((a) => a.id === "gemini-cli")!;
-    const paths = agent.detectPaths(fs);
-    expect(paths).toEqual(["/home/test/.gemini"]);
+    expect(agent.detectBinary).toBeDefined();
+    expect(agent.detectPaths).toBeUndefined();
   });
 
   it("google-antigravity uses ~/.gemini/antigravity/", () => {
@@ -94,59 +82,14 @@ describe("detectPaths", () => {
       joinPath: mock((...segments: string[]) => segments.join("/")),
     });
     const agent = agentDefinitions.find((a) => a.id === "google-antigravity")!;
-    const paths = agent.detectPaths(fs);
+    const paths = agent.detectPaths?.(fs);
     expect(paths).toEqual(["/home/test/.gemini/antigravity"]);
   });
 
-  it("opencode has both directory and binary detection", () => {
-    const originalPlatform = process.platform;
-    Object.defineProperty(process, "platform", {
-      value: "linux",
-      configurable: true,
-    });
-    try {
-      const fs = createMockFileSystemService({
-        getHomeDir: mock(() => "/home/test"),
-        joinPath: mock((...segments: string[]) => segments.join("/")),
-      });
-      const agent = agentDefinitions.find((a) => a.id === "opencode")!;
-      expect(agent.detectPaths(fs)).toEqual(["/home/test/.config/opencode"]);
-      expect(agent.detectBinary).toBeDefined();
-    } finally {
-      Object.defineProperty(process, "platform", {
-        value: originalPlatform,
-        configurable: true,
-      });
-    }
-  });
-
-  it("opencode returns APPDATA path on win32", () => {
-    const originalPlatform = process.platform;
-    const originalAppdata = process.env.APPDATA;
-    Object.defineProperty(process, "platform", {
-      value: "win32",
-      configurable: true,
-    });
-    process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
-    try {
-      const fs = createMockFileSystemService({
-        getHomeDir: mock(() => "C:\\Users\\test"),
-        joinPath: mock((...segments: string[]) => segments.join("/")),
-      });
-      const agent = agentDefinitions.find((a) => a.id === "opencode")!;
-      const paths = agent.detectPaths(fs);
-      expect(paths).toEqual(["C:\\Users\\test\\AppData\\Roaming/opencode"]);
-    } finally {
-      Object.defineProperty(process, "platform", {
-        value: originalPlatform,
-        configurable: true,
-      });
-      if (originalAppdata !== undefined) {
-        process.env.APPDATA = originalAppdata;
-      } else {
-        delete process.env.APPDATA;
-      }
-    }
+  it("opencode uses binary detection only", () => {
+    const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+    expect(agent.detectBinary).toBeDefined();
+    expect(agent.detectPaths).toBeUndefined();
   });
 
   it("claude-desktop checks multiple Windows paths on win32", () => {
@@ -163,7 +106,9 @@ describe("detectPaths", () => {
         joinPath: mock((...segments: string[]) => segments.join("/")),
       });
       const agent = agentDefinitions.find((a) => a.id === "claude-desktop")!;
-      const paths = agent.detectPaths(fs);
+      const paths = agent.detectPaths?.(fs);
+      expect(paths).toBeDefined();
+      if (!paths) throw new Error("expected claude-desktop paths");
       expect(paths).toHaveLength(3);
       expect(paths[0]).toContain("Roaming");
       expect(paths[1]).toContain("Local/Claude");
@@ -193,7 +138,9 @@ describe("detectPaths", () => {
         joinPath: mock((...segments: string[]) => segments.join("/")),
       });
       const agent = agentDefinitions.find((a) => a.id === "claude-desktop")!;
-      const paths = agent.detectPaths(fs);
+      const paths = agent.detectPaths?.(fs);
+      expect(paths).toBeDefined();
+      if (!paths) throw new Error("expected claude-desktop paths");
       expect(paths).toHaveLength(1);
     } finally {
       Object.defineProperty(process, "platform", {
@@ -219,7 +166,9 @@ describe("detectPaths", () => {
         joinPath: mock((...segments: string[]) => segments.join("/")),
       });
       const agent = agentDefinitions.find((a) => a.id === "claude-desktop")!;
-      const paths = agent.detectPaths(fs);
+      const paths = agent.detectPaths?.(fs);
+      expect(paths).toBeDefined();
+      if (!paths) throw new Error("expected claude-desktop paths");
       expect(paths).toHaveLength(3);
       expect(paths[1]).toBe("C:\\Users\\test/AppData/Local/Claude");
       expect(paths[2]).toBe("C:\\Users\\test/AppData/Local/Programs/Claude");
@@ -362,7 +311,7 @@ describe("detectPaths", () => {
     expect(await agent.detectBinary!(exec)).toBe(false);
   });
 
-  it("all agents use FileSystemService.getHomeDir (not hardcoded)", () => {
+  it("path-detected agents use FileSystemService.getHomeDir (not hardcoded)", () => {
     const originalPlatform = process.platform;
     const originalAppdata = process.env.APPDATA;
     Object.defineProperty(process, "platform", {
@@ -376,7 +325,10 @@ describe("detectPaths", () => {
         joinPath: mock((...segments: string[]) => segments.join("/")),
       });
       for (const agent of agentDefinitions) {
-        const paths = agent.detectPaths(fs);
+        const paths = agent.detectPaths?.(fs);
+        if (!paths) {
+          continue;
+        }
         for (const path of paths) {
           expect(path).toContain("/custom/home");
         }
@@ -716,6 +668,40 @@ describe("getSetupConfig", () => {
     }
   });
 
+  it("opencode uses APPDATA on win32 for config path", () => {
+    const originalPlatform = process.platform;
+    const originalAppdata = process.env.APPDATA;
+    Object.defineProperty(process, "platform", {
+      value: "win32",
+      configurable: true,
+    });
+    process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "C:\\Users\\test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+      const config = agent.getSetupConfig(fs);
+      expect(config.method).toBe("config-file");
+      if (config.method === "config-file") {
+        expect(config.configPath).toBe(
+          "C:\\Users\\test\\AppData\\Roaming/opencode/opencode.json",
+        );
+      }
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+      if (originalAppdata !== undefined) {
+        process.env.APPDATA = originalAppdata;
+      } else {
+        delete process.env.APPDATA;
+      }
+    }
+  });
+
   it("claude-desktop is the only config-file agent using mcp-remote", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
@@ -779,7 +765,6 @@ describe("detectAgents", () => {
       }),
     });
     const detected = await detectAgents(agentDefinitions, fs);
-    expect(detected).toContain("claude-code");
     expect(detected).toContain("cursor");
     expect(detected).not.toContain("windsurf");
     expect(detected).not.toContain("claude-desktop");
@@ -803,14 +788,20 @@ describe("detectAgents", () => {
       isDirectory: mock(() => Promise.resolve(true)),
     });
     const detected = await detectAgents(agentDefinitions, fs);
-    // detectAgents (deprecated) only checks detectPaths, not detectBinary
-    // All agents now have detectPaths, so all should be detected
-    expect(detected).toHaveLength(agentDefinitions.length);
-    expect(detected).toContain("opencode");
+    // detectAgents (deprecated) only checks path-based agents
+    expect(detected).toHaveLength(6);
+    expect(detected).not.toContain("claude-code");
+    expect(detected).not.toContain("codex-cli");
+    expect(detected).not.toContain("gemini-cli");
+    expect(detected).not.toContain("opencode");
   });
 });
 
 describe("scanAgents", () => {
+  function lookupCommandFor(platform: string = process.platform): string {
+    return platform === "win32" ? "where" : "which";
+  }
+
   /** Helper to create fs + exec mocks for scan tests */
   function createScanMocks(opts: {
     detectedDirs: string[];
@@ -868,9 +859,15 @@ describe("scanAgents", () => {
   });
 
   it("categorizes CLI agent as alreadyConfigured when check command matches", async () => {
+    const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
-      detectedDirs: ["/home/test/.claude"],
+      detectedDirs: [],
       execResults: {
+        [`${lookupCmd} claude`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/claude\n",
+          stderr: "",
+        },
         "claude plugin list": {
           exitCode: 0,
           stdout: "githits-plugin\nother\n",
@@ -886,9 +883,15 @@ describe("scanAgents", () => {
   });
 
   it("categorizes CLI agent as needsSetup when check command does not match", async () => {
+    const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
-      detectedDirs: ["/home/test/.claude"],
+      detectedDirs: [],
       execResults: {
+        [`${lookupCmd} claude`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/claude\n",
+          stderr: "",
+        },
         "claude plugin list": {
           exitCode: 0,
           stdout: "other-plugin\n",
@@ -904,9 +907,15 @@ describe("scanAgents", () => {
   });
 
   it("categorizes CLI agent as needsSetup when check command fails (ENOENT)", async () => {
+    const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
-      detectedDirs: ["/home/test/.claude"],
+      detectedDirs: [],
       execResults: {
+        [`${lookupCmd} claude`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/claude\n",
+          stderr: "",
+        },
         "claude plugin list": Object.assign(new Error("spawn ENOENT"), {
           code: "ENOENT",
         }),
@@ -917,10 +926,11 @@ describe("scanAgents", () => {
   });
 
   it("detects agent via detectBinary when directory does not exist", async () => {
+    const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
       detectedDirs: [],
       execResults: {
-        "which opencode": {
+        [`${lookupCmd} opencode`]: {
           exitCode: 0,
           stdout: "/usr/bin/opencode\n",
           stderr: "",
@@ -933,10 +943,11 @@ describe("scanAgents", () => {
   });
 
   it("detects codex via detectBinary when directory does not exist", async () => {
+    const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
       detectedDirs: [],
       execResults: {
-        "which codex": {
+        [`${lookupCmd} codex`]: {
           exitCode: 0,
           stdout: "/usr/bin/codex\n",
           stderr: "",
@@ -948,23 +959,7 @@ describe("scanAgents", () => {
     expect(result.notDetected.some((a) => a.id === "codex-cli")).toBe(false);
   });
 
-  it("falls back to codex directory detection when binary is not on PATH", async () => {
-    const { fs, execService } = createScanMocks({
-      detectedDirs: ["/home/test/.codex"],
-      execResults: {
-        "which codex": {
-          exitCode: 1,
-          stdout: "",
-          stderr: "",
-        },
-      },
-    });
-    const result = await scanAgents(agentDefinitions, fs, execService);
-    expect(result.needsSetup.some((a) => a.id === "codex-cli")).toBe(true);
-    expect(result.notDetected.some((a) => a.id === "codex-cli")).toBe(false);
-  });
-
-  it("detects opencode via directory fallback when binary not on PATH", async () => {
+  it("does not detect opencode from config directory when binary is missing", async () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", {
       value: "linux",
@@ -980,8 +975,8 @@ describe("scanAgents", () => {
         },
       });
       const result = await scanAgents(agentDefinitions, fs, execService);
-      expect(result.needsSetup.some((a) => a.id === "opencode")).toBe(true);
-      expect(result.notDetected.some((a) => a.id === "opencode")).toBe(false);
+      expect(result.notDetected.some((a) => a.id === "opencode")).toBe(true);
+      expect(result.needsSetup.some((a) => a.id === "opencode")).toBe(false);
     } finally {
       Object.defineProperty(process, "platform", {
         value: originalPlatform,
@@ -999,18 +994,20 @@ describe("scanAgents", () => {
   });
 
   it("handles mixed scenario correctly", async () => {
+    const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
-      detectedDirs: [
-        "/home/test/.claude",
-        "/home/test/.cursor",
-        "/home/test/.codeium/windsurf",
-      ],
+      detectedDirs: ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
       configFiles: {
         "/home/test/.cursor/mcp.json": JSON.stringify({
           mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
         }),
       },
       execResults: {
+        [`${lookupCmd} claude`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/claude\n",
+          stderr: "",
+        },
         "claude plugin list": {
           exitCode: 0,
           stdout: "githits-plugin\n",
@@ -1031,6 +1028,23 @@ describe("scanAgents", () => {
     expect(result.notDetected.length).toBeGreaterThan(0);
   });
 
+  it("does not detect CLI agents from stale dot-directories when binaries are missing", async () => {
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [
+        "/home/test/.claude",
+        "/home/test/.codex",
+        "/home/test/.gemini",
+      ],
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.notDetected.some((a) => a.id === "claude-code")).toBe(true);
+    expect(result.notDetected.some((a) => a.id === "codex-cli")).toBe(true);
+    expect(result.notDetected.some((a) => a.id === "gemini-cli")).toBe(true);
+    expect(result.needsSetup.some((a) => a.id === "claude-code")).toBe(false);
+    expect(result.needsSetup.some((a) => a.id === "codex-cli")).toBe(false);
+    expect(result.needsSetup.some((a) => a.id === "gemini-cli")).toBe(false);
+  });
+
   /**
    * Generates the 5 comprehensive test cases for a given platform.
    * Platform-dependent paths (VS Code, Claude Desktop) vary; all others are home-relative dotdirs.
@@ -1043,14 +1057,11 @@ describe("scanAgents", () => {
   }) {
     const { platform, appDataPrefix } = opts;
 
-    // Platform-independent detect dirs (home-relative dotdirs)
+    // Platform-independent detect dirs for path-detected agents
     const homeDirs = [
-      "/home/test/.claude",
       "/home/test/.cursor",
       "/home/test/.codeium/windsurf",
       "/home/test/.cline",
-      "/home/test/.codex",
-      "/home/test/.gemini",
       "/home/test/.gemini/antigravity",
     ];
     // Platform-dependent detect dirs
@@ -1096,7 +1107,7 @@ describe("scanAgents", () => {
       "/home/test/.gemini/antigravity/mcp_config.json": JSON.stringify({
         mcpServers: { GitHits: { serverUrl: "https://mcp.githits.com" } },
       }),
-      "/home/test/.config/opencode/opencode.json": JSON.stringify({
+      [`${opencodePath}/opencode.json`]: JSON.stringify({
         mcp: {
           GitHits: {
             type: "local",
@@ -1110,16 +1121,31 @@ describe("scanAgents", () => {
     // Binary detection command varies by platform
     const whichCmd = platform === "win32" ? "where" : "which";
 
-    // Exec results for all CLI agents reporting configured + binary detection
+    // Exec results for CLI-like agents reporting configured + binary detection
     const allCliConfigured: Record<string, ExecResult> = {
+      [`${whichCmd} claude`]: {
+        exitCode: 0,
+        stdout: "/usr/bin/claude\n",
+        stderr: "",
+      },
       "claude plugin list": {
         exitCode: 0,
         stdout: "githits-plugin\n",
         stderr: "",
       },
+      [`${whichCmd} codex`]: {
+        exitCode: 0,
+        stdout: "/usr/bin/codex\n",
+        stderr: "",
+      },
       "codex mcp list": {
         exitCode: 0,
         stdout: "githits  npx -y githits@latest mcp start\n",
+        stderr: "",
+      },
+      [`${whichCmd} gemini`]: {
+        exitCode: 0,
+        stdout: "/usr/bin/gemini\n",
         stderr: "",
       },
       "gemini extensions list": {
@@ -1178,7 +1204,7 @@ describe("scanAgents", () => {
           "/home/test/.gemini/antigravity/mcp_config.json": JSON.stringify({
             mcpServers: {},
           }),
-          "/home/test/.config/opencode/opencode.json": JSON.stringify({
+          [`${opencodePath}/opencode.json`]: JSON.stringify({
             mcp: {},
           }),
         };
@@ -1186,6 +1212,21 @@ describe("scanAgents", () => {
           detectedDirs: allDetectDirs,
           configFiles: unconfiguredFiles,
           execResults: {
+            [`${whichCmd} claude`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/claude\n",
+              stderr: "",
+            },
+            [`${whichCmd} codex`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/codex\n",
+              stderr: "",
+            },
+            [`${whichCmd} gemini`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/gemini\n",
+              stderr: "",
+            },
             [`${whichCmd} opencode`]: {
               exitCode: 0,
               stdout: "/usr/bin/opencode\n",
@@ -1213,12 +1254,10 @@ describe("scanAgents", () => {
             // Configured: cursor, claude-desktop, claude-code
             "/home/test/.cursor",
             claudeDesktopPath,
-            "/home/test/.claude",
-            // Unconfigured: windsurf, vscode, codex-cli
+            // Unconfigured: windsurf, vscode
             "/home/test/.codeium/windsurf",
             vscodePath,
-            "/home/test/.codex",
-            // opencode detected via binary (below), not directory
+            // CLI tools are detected via binary checks below
             // Not detected: cline, gemini-cli, google-antigravity
           ],
           configFiles: {
@@ -1232,9 +1271,19 @@ describe("scanAgents", () => {
             ),
           },
           execResults: {
+            [`${whichCmd} claude`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/claude\n",
+              stderr: "",
+            },
             "claude plugin list": {
               exitCode: 0,
               stdout: "githits-plugin\n",
+              stderr: "",
+            },
+            [`${whichCmd} codex`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/codex\n",
               stderr: "",
             },
             "codex mcp list": { exitCode: 0, stdout: "", stderr: "" },
@@ -1266,12 +1315,23 @@ describe("scanAgents", () => {
           code: "ENOENT",
         });
         const { fs, execService } = createScanMocks({
-          detectedDirs: [
-            "/home/test/.claude",
-            "/home/test/.codex",
-            "/home/test/.gemini",
-          ],
+          detectedDirs: [],
           execResults: {
+            [`${whichCmd} claude`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/claude\n",
+              stderr: "",
+            },
+            [`${whichCmd} codex`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/codex\n",
+              stderr: "",
+            },
+            [`${whichCmd} gemini`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/gemini\n",
+              stderr: "",
+            },
             "claude plugin list": enoent,
             "codex mcp list": enoent,
             "gemini extensions list": enoent,

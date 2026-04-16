@@ -44,9 +44,12 @@ export interface ConfigFileSetup {
 
 export type SetupConfig = CliSetup | ConfigFileSetup;
 
+/** How an agent is considered present on the machine. */
+type DetectionMethod = "binary" | "path";
+
 /**
  * Represents a coding agent that can be configured with GitHits MCP server.
- * Each definition knows how to detect whether the agent is installed
+ * Each definition knows how to detect whether the agent is available
  * and how to configure it.
  */
 export interface AgentDefinition {
@@ -54,9 +57,11 @@ export interface AgentDefinition {
   name: string;
   /** Unique identifier (e.g., "claude-code") */
   id: string;
-  /** Directories to check for detection. Uses FileSystemService for testability. */
-  detectPaths: (fs: FileSystemService) => string[];
-  /** Optional binary detection — checked before detectPaths. */
+  /** Detection contract for the agent. */
+  detectionMethod: DetectionMethod;
+  /** Directories to check for path-based detection. */
+  detectPaths?: (fs: FileSystemService) => string[];
+  /** Executable detection for binary-based agents. */
   detectBinary?: (exec: ExecService) => Promise<boolean>;
   /** How this agent is configured */
   setupMethod: "cli" | "config-file";
@@ -85,28 +90,30 @@ function getAppDataPath(fs: FileSystemService, appName: string): string {
   }
 }
 
-/** Creates a cross-platform detector that checks if a binary exists on PATH. */
-function createBinaryDetector(
-  binaryName: string,
-): (exec: ExecService) => Promise<boolean> {
-  return async (exec: ExecService): Promise<boolean> => {
-    try {
-      const cmd = process.platform === "win32" ? "where" : "which";
-      const result = await exec.exec(cmd, [binaryName]);
-      return result.exitCode === 0;
-    } catch {
-      return false;
-    }
-  };
+/**
+ * Detect whether an executable is available on PATH.
+ * This is the install signal for CLI-configured agents.
+ */
+async function isExecutableAvailable(
+  exec: ExecService,
+  executable: string,
+): Promise<boolean> {
+  try {
+    const lookupCommand = process.platform === "win32" ? "where" : "which";
+    const result = await exec.exec(lookupCommand, [executable]);
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
 }
 
-/** Claude Code: detected by ~/.claude/ directory, configured via plugin install */
+/** Claude Code: detected by claude executable, configured via plugin install */
 const claudeCode: AgentDefinition = {
   name: "Claude Code",
   id: "claude-code",
+  detectionMethod: "binary",
   setupMethod: "cli",
-  detectBinary: createBinaryDetector("claude"),
-  detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".claude")],
+  detectBinary: async (exec) => isExecutableAvailable(exec, "claude"),
   getSetupConfig: () => ({
     method: "cli",
     commands: [
@@ -136,6 +143,7 @@ const claudeCode: AgentDefinition = {
 const cursor: AgentDefinition = {
   name: "Cursor",
   id: "cursor",
+  detectionMethod: "path",
   setupMethod: "config-file",
   detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".cursor")],
   getSetupConfig: (fs) => ({
@@ -154,6 +162,7 @@ const cursor: AgentDefinition = {
 const windsurf: AgentDefinition = {
   name: "Windsurf",
   id: "windsurf",
+  detectionMethod: "path",
   setupMethod: "config-file",
   detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".codeium", "windsurf")],
   getSetupConfig: (fs) => ({
@@ -174,6 +183,7 @@ const windsurf: AgentDefinition = {
 const claudeDesktop: AgentDefinition = {
   name: "Claude Desktop",
   id: "claude-desktop",
+  detectionMethod: "path",
   setupMethod: "config-file",
   detectPaths: (fs) => {
     const appData = getAppDataPath(fs, "Claude");
@@ -204,13 +214,13 @@ const claudeDesktop: AgentDefinition = {
   },
 };
 
-/** Codex CLI: detected by ~/.codex/ directory, configured via npm/stdio */
+/** Codex CLI: detected by codex executable, configured via npm/stdio */
 const codexCli: AgentDefinition = {
   name: "Codex CLI",
   id: "codex-cli",
+  detectionMethod: "binary",
   setupMethod: "cli",
-  detectBinary: createBinaryDetector("codex"),
-  detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".codex")],
+  detectBinary: async (exec) => isExecutableAvailable(exec, "codex"),
   getSetupConfig: () => ({
     method: "cli",
     commands: [
@@ -241,6 +251,7 @@ const codexCli: AgentDefinition = {
 const vscode: AgentDefinition = {
   name: "VS Code / Copilot",
   id: "vscode",
+  detectionMethod: "path",
   setupMethod: "config-file",
   detectPaths: (fs) => {
     const appData = getAppDataPath(fs, "Code");
@@ -262,6 +273,7 @@ const vscode: AgentDefinition = {
 const cline: AgentDefinition = {
   name: "Cline",
   id: "cline",
+  detectionMethod: "path",
   setupMethod: "config-file",
   detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".cline")],
   getSetupConfig: (fs) => ({
@@ -279,13 +291,13 @@ const cline: AgentDefinition = {
   }),
 };
 
-/** Gemini CLI: detected by ~/.gemini/ directory, configured via extensions install */
+/** Gemini CLI: detected by gemini executable, configured via extensions install */
 const geminiCli: AgentDefinition = {
   name: "Gemini CLI",
   id: "gemini-cli",
+  detectionMethod: "binary",
   setupMethod: "cli",
-  detectBinary: createBinaryDetector("gemini"),
-  detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".gemini")],
+  detectBinary: async (exec) => isExecutableAvailable(exec, "gemini"),
   getSetupConfig: () => ({
     method: "cli",
     commands: [
@@ -310,6 +322,7 @@ const geminiCli: AgentDefinition = {
 const googleAntigravity: AgentDefinition = {
   name: "Google Antigravity",
   id: "google-antigravity",
+  detectionMethod: "path",
   setupMethod: "config-file",
   detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".gemini", "antigravity")],
   getSetupConfig: (fs) => ({
@@ -326,32 +339,24 @@ const googleAntigravity: AgentDefinition = {
   }),
 };
 
-/** OpenCode: detected by opencode binary on PATH or config directory */
+/** OpenCode: detected by opencode executable, configured via config file */
 const openCode: AgentDefinition = {
   name: "OpenCode",
   id: "opencode",
+  detectionMethod: "binary",
   setupMethod: "config-file",
-  detectPaths: (fs) => {
-    const home = fs.getHomeDir();
-    if (process.platform === "win32") {
-      return [
-        fs.joinPath(
-          process.env.APPDATA ?? fs.joinPath(home, "AppData", "Roaming"),
-          "opencode",
-        ),
-      ];
-    }
-    return [fs.joinPath(home, ".config", "opencode")];
-  },
-  detectBinary: createBinaryDetector("opencode"),
+  detectBinary: async (exec) => isExecutableAvailable(exec, "opencode"),
   getSetupConfig: (fs) => ({
     method: "config-file",
-    configPath: fs.joinPath(
-      fs.getHomeDir(),
-      ".config",
-      "opencode",
-      "opencode.json",
-    ),
+    configPath:
+      process.platform === "win32"
+        ? fs.joinPath(
+            process.env.APPDATA ??
+              fs.joinPath(fs.getHomeDir(), "AppData", "Roaming"),
+            "opencode",
+            "opencode.json",
+          )
+        : fs.joinPath(fs.getHomeDir(), ".config", "opencode", "opencode.json"),
     serversKey: "mcp",
     serverName: "GitHits",
     serverConfig: {
@@ -381,8 +386,8 @@ export const agentDefinitions: AgentDefinition[] = [
 ];
 
 /**
- * Detect which agents are installed by checking if their detection paths exist.
- * Returns the IDs of agents whose directories were found.
+ * Detect which path-based agents are present by checking if their detection
+ * directories exist. Binary-based agents are intentionally ignored here.
  * @deprecated Use scanAgents() instead, which also checks configuration status.
  */
 export async function detectAgents(
@@ -391,6 +396,9 @@ export async function detectAgents(
 ): Promise<string[]> {
   const detected: string[] = [];
   for (const agent of definitions) {
+    if (agent.detectionMethod !== "path" || !agent.detectPaths) {
+      continue;
+    }
     const paths = agent.detectPaths(fs);
     for (const path of paths) {
       if (await fs.isDirectory(path)) {
@@ -413,7 +421,7 @@ export interface ScanResult {
 }
 
 /**
- * Scan all agents: detect installation and check configuration status.
+ * Scan all agents: detect availability and check configuration status.
  * Config-file agents get a pre-check via isAlreadyConfigured().
  * CLI agents with a checkCommand get a pre-check via isCliAlreadyConfigured().
  * CLI agents without a checkCommand are treated as needsSetup.
@@ -430,18 +438,16 @@ export async function scanAgents(
   };
 
   for (const agent of definitions) {
-    // Check if installed — try binary detection first, then directory detection
+    // Check if available using the agent's declared detection contract
     let detected = false;
 
-    if (agent.detectBinary) {
+    if (agent.detectionMethod === "binary" && agent.detectBinary) {
       try {
         detected = await agent.detectBinary(execService);
       } catch {
-        // Fall through to directory detection
+        detected = false;
       }
-    }
-
-    if (!detected) {
+    } else if (agent.detectionMethod === "path" && agent.detectPaths) {
       const paths = agent.detectPaths(fs);
       for (const path of paths) {
         if (await fs.isDirectory(path)) {
