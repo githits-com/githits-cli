@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -50,10 +50,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runtime: Node 20.x
-            node-version: "20.x"
-          - runtime: Node 22.x
-            node-version: "22.x"
           - runtime: Node 24.x
             node-version: "24.x"
           - runtime: Bun
@@ -61,7 +57,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -70,7 +66,7 @@ jobs:
 
       - name: Setup Node.js ${{ matrix.node-version }}
         if: matrix.node-version != ''
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
 
