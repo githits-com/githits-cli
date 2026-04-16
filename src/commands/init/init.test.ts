@@ -252,8 +252,8 @@ describe("initAction", () => {
       },
     );
 
-    // 1 binary detection (which opencode) + 1 check + 2 setup commands = 4 exec calls
-    expect(execService.exec).toHaveBeenCalledTimes(4);
+    // 4 binary detections (claude/codex/gemini/opencode) + 1 check + 2 setup = 7
+    expect(execService.exec).toHaveBeenCalledTimes(7);
     expect(execService.exec).toHaveBeenCalledWith("claude", expect.any(Array));
   });
 
@@ -334,8 +334,8 @@ describe("initAction", () => {
       },
     );
 
-    // Only exec call should be the opencode binary detection (which opencode)
-    expect(execService.exec).toHaveBeenCalledTimes(1);
+    // scanAgents performs binary detection for 4 agents (claude/codex/gemini/opencode)
+    expect(execService.exec).toHaveBeenCalledTimes(4);
     const logCalls = getLogOutput();
     expect(
       logCalls.some((msg) => msg.includes("No coding agents detected")),

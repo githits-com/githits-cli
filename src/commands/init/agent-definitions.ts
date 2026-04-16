@@ -85,11 +85,27 @@ function getAppDataPath(fs: FileSystemService, appName: string): string {
   }
 }
 
+/** Creates a cross-platform detector that checks if a binary exists on PATH. */
+function createBinaryDetector(
+  binaryName: string,
+): (exec: ExecService) => Promise<boolean> {
+  return async (exec: ExecService): Promise<boolean> => {
+    try {
+      const cmd = process.platform === "win32" ? "where" : "which";
+      const result = await exec.exec(cmd, [binaryName]);
+      return result.exitCode === 0;
+    } catch {
+      return false;
+    }
+  };
+}
+
 /** Claude Code: detected by ~/.claude/ directory, configured via plugin install */
 const claudeCode: AgentDefinition = {
   name: "Claude Code",
   id: "claude-code",
   setupMethod: "cli",
+  detectBinary: createBinaryDetector("claude"),
   detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".claude")],
   getSetupConfig: () => ({
     method: "cli",
@@ -193,6 +209,7 @@ const codexCli: AgentDefinition = {
   name: "Codex CLI",
   id: "codex-cli",
   setupMethod: "cli",
+  detectBinary: createBinaryDetector("codex"),
   detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".codex")],
   getSetupConfig: () => ({
     method: "cli",
@@ -267,6 +284,7 @@ const geminiCli: AgentDefinition = {
   name: "Gemini CLI",
   id: "gemini-cli",
   setupMethod: "cli",
+  detectBinary: createBinaryDetector("gemini"),
   detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".gemini")],
   getSetupConfig: () => ({
     method: "cli",
@@ -325,15 +343,7 @@ const openCode: AgentDefinition = {
     }
     return [fs.joinPath(home, ".config", "opencode")];
   },
-  detectBinary: async (exec) => {
-    try {
-      const cmd = process.platform === "win32" ? "where" : "which";
-      const result = await exec.exec(cmd, ["opencode"]);
-      return result.exitCode === 0;
-    } catch {
-      return false;
-    }
-  },
+  detectBinary: createBinaryDetector("opencode"),
   getSetupConfig: (fs) => ({
     method: "config-file",
     configPath: fs.joinPath(
@@ -355,6 +365,7 @@ const openCode: AgentDefinition = {
 /**
  * All supported agent definitions, ordered by popularity/likelihood.
  * New agents should be added here.
+ * @deprecated Use scanAgents() instead, which also checks configuration status.
  */
 export const agentDefinitions: AgentDefinition[] = [
   claudeCode,

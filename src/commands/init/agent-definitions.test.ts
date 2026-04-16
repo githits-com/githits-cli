@@ -271,6 +271,97 @@ describe("detectPaths", () => {
     expect(await agent.detectBinary!(exec)).toBe(false);
   });
 
+  it("claude-code detectBinary returns true when binary found", async () => {
+    const exec = createMockExecService({
+      exec: mock(async () => ({
+        exitCode: 0,
+        stdout: "/usr/bin/claude\n",
+        stderr: "",
+      })),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "claude-code")!;
+    expect(await agent.detectBinary!(exec)).toBe(true);
+  });
+
+  it("binary detectors use correct command and binary name on linux", async () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", {
+      value: "linux",
+      configurable: true,
+    });
+
+    try {
+      const testCases = [
+        { id: "claude-code", binary: "claude" },
+        { id: "codex-cli", binary: "codex" },
+        { id: "gemini-cli", binary: "gemini" },
+        { id: "opencode", binary: "opencode" },
+      ];
+
+      for (const testCase of testCases) {
+        const exec = createMockExecService({
+          exec: mock(async () => ({
+            exitCode: 0,
+            stdout: "/usr/bin/mock\n",
+            stderr: "",
+          })),
+        });
+        const agent = agentDefinitions.find((a) => a.id === testCase.id)!;
+        expect(await agent.detectBinary!(exec)).toBe(true);
+        expect(exec.exec).toHaveBeenCalledWith("which", [testCase.binary]);
+      }
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+    }
+  });
+
+  it("binary detectors use where on win32", async () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", {
+      value: "win32",
+      configurable: true,
+    });
+
+    try {
+      const exec = createMockExecService({
+        exec: mock(async () => ({
+          exitCode: 0,
+          stdout: "C:\\Program Files\\Claude\\claude.exe\n",
+          stderr: "",
+        })),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "claude-code")!;
+      expect(await agent.detectBinary!(exec)).toBe(true);
+      expect(exec.exec).toHaveBeenCalledWith("where", ["claude"]);
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+    }
+  });
+
+  it("claude-code detectBinary returns false when binary not found", async () => {
+    const exec = createMockExecService({
+      exec: mock(async () => ({ exitCode: 1, stdout: "", stderr: "" })),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "claude-code")!;
+    expect(await agent.detectBinary!(exec)).toBe(false);
+  });
+
+  it("claude-code detectBinary returns false on exec error", async () => {
+    const exec = createMockExecService({
+      exec: mock(async () => {
+        throw new Error("spawn ENOENT");
+      }),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "claude-code")!;
+    expect(await agent.detectBinary!(exec)).toBe(false);
+  });
+
   it("all agents use FileSystemService.getHomeDir (not hardcoded)", () => {
     const originalPlatform = process.platform;
     const originalAppdata = process.env.APPDATA;
@@ -839,6 +930,38 @@ describe("scanAgents", () => {
     const result = await scanAgents(agentDefinitions, fs, execService);
     expect(result.needsSetup.some((a) => a.id === "opencode")).toBe(true);
     expect(result.notDetected.some((a) => a.id === "opencode")).toBe(false);
+  });
+
+  it("detects codex via detectBinary when directory does not exist", async () => {
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        "which codex": {
+          exitCode: 0,
+          stdout: "/usr/bin/codex\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.needsSetup.some((a) => a.id === "codex-cli")).toBe(true);
+    expect(result.notDetected.some((a) => a.id === "codex-cli")).toBe(false);
+  });
+
+  it("falls back to codex directory detection when binary is not on PATH", async () => {
+    const { fs, execService } = createScanMocks({
+      detectedDirs: ["/home/test/.codex"],
+      execResults: {
+        "which codex": {
+          exitCode: 1,
+          stdout: "",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.needsSetup.some((a) => a.id === "codex-cli")).toBe(true);
+    expect(result.notDetected.some((a) => a.id === "codex-cli")).toBe(false);
   });
 
   it("detects opencode via directory fallback when binary not on PATH", async () => {
