@@ -24,6 +24,8 @@ export {
   WINDOWS_MAX_ENTRY_SIZE,
 } from "./chunking-keyring-service.js";
 export { getApiUrl, getEnvApiToken, getMcpUrl } from "./config.js";
+export type { ExecResult, ExecService } from "./exec-service.js";
+export { ExecServiceImpl } from "./exec-service.js";
 export type { FileSystemService } from "./filesystem-service.js";
 export { FileSystemServiceImpl } from "./filesystem-service.js";
 export type {
@@ -41,6 +43,12 @@ export {
   KeyringServiceImpl,
 } from "./keyring-service.js";
 export { MigratingAuthStorage } from "./migrating-auth-storage.js";
+export type {
+  CheckboxChoice,
+  ConfirmChoice,
+  PromptService,
+} from "./prompt-service.js";
+export { PromptServiceImpl } from "./prompt-service.js";
 export { RefreshingGitHitsService } from "./refreshing-githits-service.js";
 export type { TokenProvider } from "./token-manager.js";
 export { refreshExpiredToken, TokenManager } from "./token-manager.js";

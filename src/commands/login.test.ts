@@ -5,7 +5,7 @@ import {
   createMockBrowserService,
   createValidTokenData,
 } from "../services/test-helpers.js";
-import { loginAction } from "./login.js";
+import { loginAction, loginFlow } from "./login.js";
 
 describe("loginAction", () => {
   const mcpUrl = "https://mcp.githits.com";
@@ -333,6 +333,90 @@ describe("loginAction", () => {
     );
 
     expect(authStorage.saveTokens).toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+});
+
+describe("loginFlow", () => {
+  const mcpUrl = "https://mcp.githits.com";
+
+  it("returns success after completing OAuth flow", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    const result = await loginFlow(
+      { port: 8080 },
+      {
+        authService: createMockAuthService(),
+        authStorage: createMockAuthStorage(),
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+    );
+
+    expect(result.status).toBe("success");
+    expect(result.message).toContain("Logged in successfully");
+    consoleSpy.mockRestore();
+  });
+
+  it("returns already_authenticated when valid tokens exist", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    const result = await loginFlow(
+      {},
+      {
+        authService: createMockAuthService(),
+        authStorage: createMockAuthStorage({
+          loadTokens: mock(() =>
+            Promise.resolve(
+              createValidTokenData({
+                expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+              }),
+            ),
+          ),
+        }),
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+    );
+
+    expect(result.status).toBe("already_authenticated");
+    consoleSpy.mockRestore();
+  });
+
+  it("returns failed on invalid port", async () => {
+    const result = await loginFlow(
+      { port: -1 },
+      {
+        authService: createMockAuthService(),
+        authStorage: createMockAuthStorage(),
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+    );
+
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("Invalid port");
+  });
+
+  it("returns failed when token exchange throws", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    const result = await loginFlow(
+      { port: 8080 },
+      {
+        authService: createMockAuthService({
+          exchangeCodeForTokens: mock(() =>
+            Promise.reject(new Error("Token exchange failed")),
+          ),
+        }),
+        authStorage: createMockAuthStorage(),
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+    );
+
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("Token exchange failed");
     consoleSpy.mockRestore();
   });
 });
