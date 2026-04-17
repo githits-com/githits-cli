@@ -23,14 +23,48 @@ The npm package includes Open Plugin-compatible files:
 - `.plugin/plugin.json` (vendor-neutral, used by Cursor/Codex/Copilot-compatible hosts)
 - `.claude-plugin/plugin.json` (Claude Code compatibility)
 - `.claude-plugin/marketplace.json` (Claude Code marketplace catalog)
-- `.mcp.json`, `skills/`, and `commands/`
+- `.mcp.json` (Open Plugin MCP server config for plugin hosts)
+- `plugins/claude/` (Claude plugin runtime payload: `.claude-plugin/plugin.json`, `.mcp.json`, `skills/`, and `commands/`)
 
-**Claude Code marketplace install**
+Root `.claude-plugin/marketplace.json` provides marketplace metadata. Claude Code
+loads the plugin runtime payload from `plugins/claude/`.
+
+**Claude Code Plugin (Marketplace)**
+
+Install from terminal (recommended):
+
+```sh
+claude plugin marketplace add githits-com/githits-cli
+claude plugin install githits@githits-plugins
+```
+
+This is preferred over in-session install so the plugin is loaded cleanly on
+next `claude` launch.
+
+Alternative (inside Claude input):
 
 ```sh
 /plugin marketplace add githits-com/githits-cli
 /plugin install githits@githits-plugins
 ```
+
+If installed inside a running Claude session, reload/restart Claude if the
+plugin is not immediately available.
+
+For unpublished/local testing of this repository:
+
+```sh
+claude plugin marketplace add "$PWD"
+claude plugin install githits@githits-plugins
+```
+
+By default, the plugin starts MCP with `npx -y githits@latest mcp start` so installs track the latest published GitHits CLI.
+
+For unpublished/local testing, install from your local repository path and verify behavior in your host before publishing.
+
+In Claude Code, run `/mcp` and confirm `plugin:githits:githits` is listed for the plugin path.
+
+Note: when running Claude in this repository directory, root `.mcp.json` can also register `githits` for project-level MCP. For plugin-only attribution during testing, run Claude from a different working directory.
 
 **Gemini CLI extension install**
 
@@ -122,7 +156,7 @@ If your tool is not in the supported `githits init` list, configure GitHits manu
 Use this MCP server command in your tool's MCP config (the host/agent runs this command):
 
 ```sh
-npx -y githits mcp start
+npx -y githits@latest mcp start
 ```
 
 A typical MCP config looks like this (check your tool's docs for exact schema/key names):
@@ -132,7 +166,7 @@ A typical MCP config looks like this (check your tool's docs for exact schema/ke
   "mcpServers": {
     "githits": {
       "command": "npx",
-      "args": ["-y", "githits", "mcp", "start"]
+      "args": ["-y", "githits@latest", "mcp", "start"]
     }
   }
 }

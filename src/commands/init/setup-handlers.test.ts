@@ -393,12 +393,7 @@ describe("formatSetupPreview", () => {
       commands: [
         {
           command: "claude",
-          args: [
-            "plugin",
-            "marketplace",
-            "add",
-            "githits-com/githits-claude-code-plugin",
-          ],
+          args: ["plugin", "marketplace", "add", "githits-com/githits-cli"],
         },
         {
           command: "claude",
@@ -408,7 +403,7 @@ describe("formatSetupPreview", () => {
     };
     const preview = formatSetupPreview(setup);
     expect(preview).toContain(
-      "Will run: claude plugin marketplace add githits-com/githits-claude-code-plugin",
+      "Will run: claude plugin marketplace add githits-com/githits-cli",
     );
     expect(preview).toContain(
       "Will run: claude plugin install githits@githits-plugins",
@@ -444,12 +439,7 @@ describe("executeCliSetup", () => {
     commands: [
       {
         command: "claude",
-        args: [
-          "plugin",
-          "marketplace",
-          "add",
-          "githits-com/githits-claude-code-plugin",
-        ],
+        args: ["plugin", "marketplace", "add", "githits-com/githits-cli"],
       },
       {
         command: "claude",

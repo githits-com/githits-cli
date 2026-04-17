@@ -6,12 +6,12 @@
   },
   "metadata": {
     "description": "GitHits plugins for Claude Code - code examples from global open source",
-    "version": "0.1.5"
+    "version": "0.1.8"
   },
   "plugins": [
     {
       "name": "githits",
-      "source": "./",
+      "source": "./plugins/claude",
       "description": "Code examples from global open source for developers and AI assistants",
       "author": {
         "name": "GitHits"
