@@ -12,6 +12,12 @@ export interface LoginOptions {
   force?: boolean;
 }
 
+/** Result of the login flow, used by init to handle outcomes without process.exit */
+export interface LoginFlowResult {
+  status: "success" | "already_authenticated" | "failed";
+  message: string;
+}
+
 const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 function randomPort(): number {
@@ -26,12 +32,13 @@ export interface LoginDependencies {
 }
 
 /**
- * Core login logic, separated for testability.
+ * Core login logic that returns a result instead of calling process.exit.
+ * Used by both the standalone `login` command and the `init` command.
  */
-export async function loginAction(
+export async function loginFlow(
   options: LoginOptions,
   deps: LoginDependencies,
-): Promise<void> {
+): Promise<LoginFlowResult> {
   const { authService, authStorage, browserService, mcpUrl } = deps;
 
   // Validate port if provided
@@ -39,8 +46,10 @@ export async function loginAction(
     options.port !== undefined &&
     (Number.isNaN(options.port) || options.port < 1 || options.port > 65535)
   ) {
-    console.error("Invalid port number. Must be between 1 and 65535.");
-    process.exit(1);
+    return {
+      status: "failed",
+      message: "Invalid port number. Must be between 1 and 65535.",
+    };
   }
 
   // Check if already logged in
@@ -49,10 +58,7 @@ export async function loginAction(
     const isExpired =
       existing.expiresAt && new Date(existing.expiresAt) < new Date();
     if (!isExpired) {
-      console.log("Already logged in.\n");
-      console.log(`  Environment: ${mcpUrl}\n`);
-      console.log("To re-authenticate, use `githits login --force`.");
-      return;
+      return { status: "already_authenticated", message: "Already logged in." };
     }
     console.log("Token expired. Starting new login...\n");
   } else if (existing && options.force) {
@@ -159,20 +165,19 @@ export async function loginAction(
     if (timeoutId) clearTimeout(timeoutId);
   } catch (error) {
     if (timeoutId) clearTimeout(timeoutId);
-    if (error instanceof Error) {
-      console.log(`${error.message}.\n`);
-      console.log("Run `githits login` to try again.");
-    }
-    process.exit(1);
+    const msg =
+      error instanceof Error ? error.message : "Authentication failed";
+    return { status: "failed", message: `${msg}.` };
   }
 
   // Step 7: Handle callback outcome
   if (callback.type !== "success") {
-    console.log(`${callback.message}\n`);
-    console.log("Run `githits login` to try again.");
     // Let the callback server finish sending the error page to the browser
     await new Promise((r) => setTimeout(r, 2000));
-    process.exit(1);
+    return {
+      status: "failed",
+      message: callback.message ?? "Authentication callback failed.",
+    };
   }
 
   // Step 8: Exchange code for tokens
@@ -190,17 +195,16 @@ export async function loginAction(
     });
   } catch (error) {
     // Best-effort: clear potentially stale client so next login starts fresh.
-    // Swallow clearClient errors to ensure we always reach the user-facing error path.
     try {
       await authStorage.clearClient(mcpUrl);
     } catch {
       // Ignore -- client cleanup is best-effort
     }
-    console.error(
-      `Failed to complete authentication: ${error instanceof Error ? error.message : error}\n`,
-    );
-    console.log("Run `githits login` to try again.");
-    process.exit(1);
+    const msg = error instanceof Error ? error.message : String(error);
+    return {
+      status: "failed",
+      message: `Failed to complete authentication: ${msg}`,
+    };
   }
 
   // Step 9: Save tokens
@@ -216,9 +220,39 @@ export async function loginAction(
 
   // Success message
   const hours = Math.round(tokenResponse.expiresIn / 3600);
+  return {
+    status: "success",
+    message: `Logged in successfully. Token expires in ${hours} hour${hours !== 1 ? "s" : ""}.`,
+  };
+}
+
+/**
+ * Standalone login command action.
+ * Wraps loginFlow with console output and process.exit on failure.
+ */
+export async function loginAction(
+  options: LoginOptions,
+  deps: LoginDependencies,
+): Promise<void> {
+  const result = await loginFlow(options, deps);
+
+  if (result.status === "already_authenticated") {
+    console.log("Already logged in.\n");
+    console.log(`  Environment: ${deps.mcpUrl}\n`);
+    console.log("To re-authenticate, use `githits login --force`.");
+    return;
+  }
+
+  if (result.status === "failed") {
+    console.error(`${result.message}\n`);
+    console.log("Run `githits login` to try again.");
+    process.exit(1);
+  }
+
+  // success
   console.log("Logged in successfully.\n");
-  console.log(`  Environment: ${mcpUrl}`);
-  console.log(`  Token expires in: ${hours} hour${hours !== 1 ? "s" : ""}`);
+  console.log(`  Environment: ${deps.mcpUrl}`);
+  console.log(result.message.replace("Logged in successfully. ", "  "));
   console.log("\nYou're ready to use githits with your AI assistant.");
 }
 

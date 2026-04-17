@@ -2,6 +2,7 @@ import {
   mkdir,
   readdir,
   readFile,
+  rename,
   stat,
   unlink,
   writeFile,
@@ -46,6 +47,14 @@ export interface FileSystemService {
 
   /** Check if path is a directory */
   isDirectory(path: string): Promise<boolean>;
+
+  /**
+   * Write file atomically by writing to a temp file then renaming.
+   * Ensures the target file is never left in a half-written state.
+   * The temp file is created in the same directory as the target
+   * so rename() is atomic on the same filesystem.
+   */
+  atomicWriteFile(path: string, contents: string): Promise<void>;
 }
 
 /**
@@ -114,6 +123,31 @@ export class FileSystemServiceImpl implements FileSystemService {
       return stats.isDirectory();
     } catch {
       return false;
+    }
+  }
+
+  async atomicWriteFile(path: string, contents: string): Promise<void> {
+    const tmpPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+    // Preserve existing file permissions; default to 0o600 for new files
+    // (config files may contain sensitive data from other MCP servers)
+    let mode = 0o600;
+    try {
+      const existing = await stat(path);
+      mode = existing.mode & 0o777;
+    } catch {
+      // File doesn't exist yet — use default
+    }
+    try {
+      await writeFile(tmpPath, contents, { mode });
+      await rename(tmpPath, path);
+    } catch (error) {
+      // Clean up temp file on failure
+      try {
+        await unlink(tmpPath);
+      } catch {
+        // Ignore cleanup errors
+      }
+      throw error;
     }
   }
 }

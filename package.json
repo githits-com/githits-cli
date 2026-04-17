@@ -1,7 +1,7 @@
 {
   "name": "githits",
   "description": "CLI companion for GitHits - code examples from global open source for developers and AI assistants",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "type": "module",
   "files": [
     "dist",
@@ -61,12 +61,13 @@
     "url": "https://github.com/githits-com/githits-cli/issues"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
+    "@inquirer/prompts": "^8.3.2",
     "@modelcontextprotocol/sdk": "^1.23.0",
     "@napi-rs/keyring": "^1.2.0",
     "commander": "^14.0.2",

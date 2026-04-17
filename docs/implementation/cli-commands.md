@@ -8,9 +8,26 @@ The CLI exposes three commands (`search`, `languages`, `feedback`) that mirror t
 
 | Command | Required Args | Options | Description |
 |---|---|---|---|
+| `init` | — | `-y, --yes`, `--skip-login` | Authenticate and set up MCP server for coding agents |
 | `search <query>` | `-l, --lang <language>` | `--license <mode>`, `--explain`, `--json` | Search for code examples |
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback <solution_id>` | `--accept` or `--reject` | `-m, --message <text>`, `--json` | Submit feedback on a search result |
+
+### `githits init`
+
+```
+githits init              # Interactive: authenticate, scan, configure unconfigured agents
+githits init --yes        # Non-interactive: authenticate, configure all unconfigured agents
+githits init --skip-login # Skip authentication, configure tools only
+```
+
+Authenticates with GitHits (via OAuth in the browser), then scans for available coding agents, checks which are already configured, and sets up unconfigured ones with your confirmation. All agents are pre-checked before any setup begins, so the status display is fully resolved. CLI agents are considered available only when their executable is on `PATH`; related dot-directories alone do not count. Config-file agents remain filesystem-detected using their known app/config directories. If already authenticated, the login step is skipped automatically. If login fails, the user is prompted to continue with tool setup anyway. If all detected agents are already configured, exits early with a summary.
+
+Supports Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Gemini CLI, and Google Antigravity. Uses plugin install (Claude Code), CLI commands (Codex, Gemini CLI), and atomic config file writes (Cursor, Windsurf, VS Code, Cline, Claude Desktop, Google Antigravity). CLI agents use read-only check commands (e.g., `claude plugin list`) to determine configuration status before prompting.
+
+The command uses `createContainer()` lazily for the login step. Tool detection and configuration use lightweight dependencies that don't require auth.
+
+**File structure:** The init command uses a subdirectory (`src/commands/init/`) because it has distinct submodules (agent definitions, setup handlers, orchestrator). This is an accepted variation for commands with significant internal complexity.
 
 ### `githits search`
 
@@ -75,6 +92,8 @@ Each command follows this pattern:
 4. **Register in CLI** — Import and call `registerXxxCommand(program)` in `src/cli.ts`
 5. **Update help text** — If the command is a primary workflow, add it to the `addHelpText("after", ...)` block
 
+For complex commands with multiple submodules, a subdirectory (`src/commands/xxx/`) with an `index.ts` barrel is acceptable (see `init` command for example).
+
 ## Error Handling
 
 - **Auth errors** — `requireAuth()` prints instructions and calls `process.exit(1)`
@@ -103,6 +122,11 @@ All commands support two output modes:
 | `src/shared/require-auth.ts` | Auth guard shared with MCP server |
 | `src/shared/colors.ts` | ANSI color utilities and `shouldUseColors()` |
 | `src/container.ts` | Dependency container with `githitsService` |
+| `src/commands/init/init.ts` | Init command orchestrator |
+| `src/commands/init/agent-definitions.ts` | Agent detection and setup config |
+| `src/commands/init/setup-handlers.ts` | CLI exec and config file merge logic |
+| `src/services/prompt-service.ts` | Interactive prompt abstraction |
+| `src/services/exec-service.ts` | CLI command execution abstraction |
 
 ## Related Documentation
 

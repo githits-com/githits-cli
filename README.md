@@ -7,39 +7,14 @@ GitHits gives your AI coding assistant access to verified, canonical code exampl
 ## Quick Start
 
 ```sh
-npx githits login
+npx githits init
 ```
 
-This opens your browser to authenticate with your [GitHits](https://githits.com) account. Once logged in, set up your AI assistant:
+`init` authenticates with your [GitHits](https://githits.com) account, then auto-detects your installed coding tools and configures each one with GitHits MCP.
 
-### MCP Setup (works in all agents)
+Supported tools: Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Gemini CLI, and Google Antigravity.
 
-Use this server command in MCP configuration files:
-
-```sh
-npx -y githits mcp start
-```
-
-**Claude Code**
-
-```sh
-claude mcp add githits -- npx -y githits mcp start
-```
-
-**Cursor / VS Code**
-
-Add to your MCP settings JSON:
-
-```json
-{
-  "mcpServers": {
-    "githits": {
-      "command": "npx",
-      "args": ["-y", "githits", "mcp", "start"]
-    }
-  }
-}
-```
+If you are using a tool that is not listed above, use the manual MCP setup instructions near the end of this README.
 
 ### Plugin Installation (Open Plugin standard)
 
@@ -124,7 +99,8 @@ export GITHITS_API_TOKEN=ghi-your-token-here
 ## Commands
 
 ```
-githits login          Authenticate with your GitHits account
+githits init           Authenticate and configure your coding tools with GitHits MCP
+githits login          Authenticate with your GitHits account (also runs as part of init)
 githits logout         Remove stored credentials
 githits mcp            Show setup instructions in a terminal; starts MCP server when piped
 githits mcp start      Always start MCP server (for use in MCP config files)
@@ -139,9 +115,44 @@ githits auth status    Show current authentication status
 | `GITHITS_MCP_URL` | Override MCP server URL | `https://mcp.githits.com` |
 | `GITHITS_API_URL` | Override REST API URL | `https://api.githits.com` |
 
+## Manual Setup
+
+If your tool is not in the supported `githits init` list, configure GitHits manually.
+
+Use this MCP server command in your tool's MCP config (the host/agent runs this command):
+
+```sh
+npx -y githits mcp start
+```
+
+A typical MCP config looks like this (check your tool's docs for exact schema/key names):
+
+```json
+{
+  "mcpServers": {
+    "githits": {
+      "command": "npx",
+      "args": ["-y", "githits", "mcp", "start"]
+    }
+  }
+}
+```
+
+If you'd like another tool to be included in `githits init` for auto-configuration, open an issue or PR.
+
+## Development
+
+```sh
+bun run build
+npm link
+githits --version
+```
+
+After the initial `npm link`, only `bun run build` is needed for subsequent changes.
+
 ## Requirements
 
-- Node.js 20 or later
+- Node.js 24 or later
 
 ## License
 
