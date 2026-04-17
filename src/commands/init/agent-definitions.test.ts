@@ -359,9 +359,7 @@ describe("getSetupConfig", () => {
       expect(config.commands[0]!.args).toContain("plugin");
       expect(config.commands[0]!.args).toContain("marketplace");
       expect(config.commands[0]!.args).toContain("add");
-      expect(config.commands[0]!.args).toContain(
-        "githits-com/githits-claude-code-plugin",
-      );
+      expect(config.commands[0]!.args).toContain("githits-com/githits-cli");
       expect(config.commands[1]!.command).toBe("claude");
       expect(config.commands[1]!.args).toContain("plugin");
       expect(config.commands[1]!.args).toContain("install");
@@ -621,7 +619,7 @@ describe("getSetupConfig", () => {
       expect(config.commands[0]!.args).toContain("extensions");
       expect(config.commands[0]!.args).toContain("install");
       expect(config.commands[0]!.args).toContain(
-        "https://github.com/githits-com/githits-gemini-cli",
+        "https://github.com/githits-com/githits-cli",
       );
     }
   });
@@ -1150,7 +1148,7 @@ describe("scanAgents", () => {
       },
       "gemini extensions list": {
         exitCode: 0,
-        stdout: "githits-gemini-cli\n",
+        stdout: "githits-cli\n",
         stderr: "",
       },
       [`${whichCmd} opencode`]: {

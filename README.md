@@ -14,6 +14,74 @@ npx githits init
 
 Supported tools: Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Gemini CLI, and Google Antigravity.
 
+If you are using a tool that is not listed above, use the manual MCP setup instructions near the end of this README.
+
+### Plugin Installation (Open Plugin standard)
+
+The npm package includes Open Plugin-compatible files:
+
+- `.plugin/plugin.json` (vendor-neutral, used by Cursor/Codex/Copilot-compatible hosts)
+- `.claude-plugin/plugin.json` (Claude Code compatibility)
+- `.claude-plugin/marketplace.json` (Claude Code marketplace catalog)
+- `.mcp.json` (Open Plugin MCP server config for plugin hosts)
+- `plugins/claude/` (Claude plugin runtime payload: `.claude-plugin/plugin.json`, `.mcp.json`, `skills/`, and `commands/`)
+
+Root `.claude-plugin/marketplace.json` provides marketplace metadata. Claude Code
+loads the plugin runtime payload from `plugins/claude/`.
+
+**Claude Code Plugin (Marketplace)**
+
+Install from terminal (recommended):
+
+```sh
+claude plugin marketplace add githits-com/githits-cli
+claude plugin install githits@githits-plugins
+```
+
+This is preferred over in-session install so the plugin is loaded cleanly on
+next `claude` launch.
+
+Alternative (inside Claude input):
+
+```sh
+/plugin marketplace add githits-com/githits-cli
+/plugin install githits@githits-plugins
+```
+
+If installed inside a running Claude session, reload/restart Claude if the
+plugin is not immediately available.
+
+For unpublished/local testing of this repository:
+
+```sh
+claude plugin marketplace add "$PWD"
+claude plugin install githits@githits-plugins
+```
+
+By default, the plugin starts MCP with `npx -y githits@latest mcp start` so installs track the latest published GitHits CLI.
+
+For unpublished/local testing, install from your local repository path and verify behavior in your host before publishing.
+
+In Claude Code, run `/mcp` and confirm `plugin:githits:githits` is listed for the plugin path.
+
+Note: when running Claude in this repository directory, root `.mcp.json` can also register `githits` for project-level MCP. For plugin-only attribution during testing, run Claude from a different working directory.
+
+**Gemini CLI extension install**
+
+```sh
+gemini extensions install https://github.com/githits-com/githits-cli
+```
+
+For plugin-based hosts, install from npm/GitHub using your agent's plugin workflow and enable plugin `githits`.
+
+### Agent Coverage
+
+- **Cursor**: reads vendor-neutral `.plugin/` for Open Plugin installs
+- **Claude Code**: supports `.claude-plugin/` and Open Plugin components
+- **Codex**: supports Open Plugin components
+- **GitHub Copilot**: supports Open Plugin components
+- **Gemini CLI**: supports `gemini-extension.json` and `GEMINI.md`
+
 That's it. Your assistant now has a `search` tool it will use automatically when it needs code examples.
 
 ## How It Works
@@ -80,6 +148,31 @@ githits auth status    Show current authentication status
 | `GITHITS_API_TOKEN` | API token for authentication | — |
 | `GITHITS_MCP_URL` | Override MCP server URL | `https://mcp.githits.com` |
 | `GITHITS_API_URL` | Override REST API URL | `https://api.githits.com` |
+
+## Manual Setup
+
+If your tool is not in the supported `githits init` list, configure GitHits manually.
+
+Use this MCP server command in your tool's MCP config (the host/agent runs this command):
+
+```sh
+npx -y githits@latest mcp start
+```
+
+A typical MCP config looks like this (check your tool's docs for exact schema/key names):
+
+```json
+{
+  "mcpServers": {
+    "githits": {
+      "command": "npx",
+      "args": ["-y", "githits@latest", "mcp", "start"]
+    }
+  }
+}
+```
+
+If you'd like another tool to be included in `githits init` for auto-configuration, open an issue or PR.
 
 ## Development
 

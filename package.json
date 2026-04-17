@@ -1,11 +1,19 @@
 {
   "name": "githits",
   "description": "CLI companion for GitHits - code examples from global open source for developers and AI assistants",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "type": "module",
   "files": [
     "dist",
-    "LICENSE"
+    "LICENSE",
+    ".plugin",
+    ".claude-plugin",
+    ".mcp.json",
+    "gemini-extension.json",
+    "GEMINI.md",
+    "plugins",
+    "skills",
+    "commands"
   ],
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

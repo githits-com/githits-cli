@@ -119,12 +119,7 @@ const claudeCode: AgentDefinition = {
     commands: [
       {
         command: "claude",
-        args: [
-          "plugin",
-          "marketplace",
-          "add",
-          "githits-com/githits-claude-code-plugin",
-        ],
+        args: ["plugin", "marketplace", "add", "githits-com/githits-cli"],
       },
       {
         command: "claude",
@@ -306,7 +301,7 @@ const geminiCli: AgentDefinition = {
         args: [
           "extensions",
           "install",
-          "https://github.com/githits-com/githits-gemini-cli",
+          "https://github.com/githits-com/githits-cli",
         ],
       },
     ],
