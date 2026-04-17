@@ -50,10 +50,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runtime: Node 24.x
-            node-version: "24.x"
+          - runtime: Node (.node-version)
+            use-node: true
           - runtime: Bun
-            node-version: ""
+            use-node: false
 
     steps:
       - name: Checkout
@@ -64,11 +64,11 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup Node.js ${{ matrix.node-version }}
-        if: matrix.node-version != ''
+      - name: Setup Node.js from .node-version
+        if: matrix.use-node
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version-file: ".node-version"
 
       - name: Cache bun dependencies
         uses: actions/cache@v4
@@ -84,7 +84,7 @@ jobs:
         run: bun run build
 
       - name: Verify CLI version (Node)
-        if: matrix.node-version != ''
+        if: matrix.use-node
         run: |
           VERSION=$(node dist/cli.js --version)
           EXPECTED=$(jq -r '.version' package.json)
@@ -92,7 +92,7 @@ jobs:
           [ "$VERSION" = "$EXPECTED" ] || { echo "::error::Version mismatch: got '$VERSION', expected '$EXPECTED'"; exit 1; }
 
       - name: Verify CLI help (Node)
-        if: matrix.node-version != ''
+        if: matrix.use-node
         run: node dist/cli.js --help
 
       - name: Verify CLI version (Bun)
