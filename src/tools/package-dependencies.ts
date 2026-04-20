@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { PackageIntelligenceService } from "../services/index.js";
+import { InvalidPackageSpecError } from "../shared/index.js";
 import { buildPackageDependenciesParams } from "../shared/package-dependencies-request.js";
 import { buildPackageDependenciesSuccessPayload } from "../shared/package-dependencies-response.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
@@ -68,7 +69,7 @@ const schema = {
     .max(10)
     .optional()
     .describe(
-      "Cap the transitive traversal at this depth (1–10). Omit to get the backend's full graph. Only meaningful alongside `include_transitive: true`.",
+      "Cap the transitive traversal at this depth (1–10). Omit to get the backend's full graph. Requires `include_transitive: true` — passing `max_depth` without the transitive flag is rejected with `INVALID_ARGUMENT`.",
     ),
 };
 
@@ -98,12 +99,27 @@ export function createPackageDependenciesTool(
     annotations: { readOnlyHint: true },
     handler: async (args) => {
       try {
+        if (args.max_depth !== undefined && !args.include_transitive) {
+          throw new InvalidPackageSpecError(
+            "max_depth requires include_transitive: true. Either drop max_depth or set include_transitive.",
+          );
+        }
+        if (args.include_importers && !args.include_transitive) {
+          throw new InvalidPackageSpecError(
+            "include_importers requires include_transitive: true. Either drop include_importers or set include_transitive.",
+          );
+        }
+        // Always fetch the transitive DAG on the wire — even without
+        // `include_transitive` we need it at depth 1 to resolve each
+        // direct dep's constraint to a concrete version (surfaced as
+        // `runtime.items[].version`). Mirrors the CLI path.
+        const wireMaxDepth = args.include_transitive ? args.max_depth : 1;
         const { params, canonicalLifecycles } = buildPackageDependenciesParams({
           registry: args.registry,
           packageName: args.package_name,
           version: args.version,
-          includeTransitive: args.include_transitive,
-          maxDepth: args.max_depth,
+          includeTransitive: true,
+          maxDepth: wireMaxDepth,
           lifecycle: args.lifecycle,
         });
         const report = await service.packageDependencies(params);

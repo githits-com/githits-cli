@@ -58,6 +58,11 @@ export async function pkgDepsAction(
     const parsed = parsePackageSpec(spec);
 
     const userDepth = resolveDepth(options);
+    if (userDepth !== undefined && !options.transitive) {
+      throw new InvalidPackageSpecError(
+        "--depth requires --transitive. Omit --depth, or add --transitive to cap the transitive traversal.",
+      );
+    }
     // Always fetch the transitive DAG on the wire — even in plain
     // mode we need it to resolve the concrete version for each
     // direct dep (`name@version` in display), and for `--verbose`
