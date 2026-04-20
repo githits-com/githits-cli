@@ -1,22 +1,13 @@
 import type {
-  CodeNavigationRegistry,
   SearchSymbolsFileIntent,
   SearchSymbolsKind,
   SearchSymbolsMatchMode,
   SymbolCategory,
 } from "../services/index.js";
-
-const registryMap = {
-  npm: "NPM",
-  pypi: "PYPI",
-  hex: "HEX",
-  crates: "CRATES",
-  nuget: "NUGET",
-  maven: "MAVEN",
-  zig: "ZIG",
-  vcpkg: "VCPKG",
-  packagist: "PACKAGIST",
-} as const satisfies Record<string, CodeNavigationRegistry>;
+import {
+  type PkgseerRegistryArg,
+  toPkgseerRegistry,
+} from "./pkgseer-registry.js";
 
 /**
  * Lowercase user-facing kind values → the backend's uppercase
@@ -83,12 +74,18 @@ const matchModeMap = {
   and: "AND",
 } as const satisfies Record<string, SearchSymbolsMatchMode>;
 
-export type CodeNavigationRegistryArg = keyof typeof registryMap;
+/**
+ * Back-compat alias for {@link PkgseerRegistryArg}. The registry map
+ * now lives in `pkgseer-registry.ts` as single source of truth; this
+ * re-export keeps existing call-sites working without churn.
+ */
+export type CodeNavigationRegistryArg = PkgseerRegistryArg;
 
-export function toCodeNavigationRegistry(
-  registry: CodeNavigationRegistryArg,
-): CodeNavigationRegistry {
-  return registryMap[registry];
+/**
+ * Back-compat alias for {@link toPkgseerRegistry}.
+ */
+export function toCodeNavigationRegistry(registry: CodeNavigationRegistryArg) {
+  return toPkgseerRegistry(registry);
 }
 
 export function toSearchSymbolsMatchMode(

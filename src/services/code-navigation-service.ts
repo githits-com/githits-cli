@@ -1,19 +1,20 @@
 import { z } from "zod";
-import { version } from "../../package.json";
+import {
+  type PkgseerGraphqlResponse,
+  PkgseerTransportError,
+  postPkgseerGraphql,
+} from "../shared/pkgseer-graphql.js";
+import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import { AuthenticationError } from "./githits-service.js";
 import type { TokenProvider } from "./token-manager.js";
 
-export type CodeNavigationRegistry =
-  | "NPM"
-  | "PYPI"
-  | "HEX"
-  | "CRATES"
-  | "NUGET"
-  | "MAVEN"
-  | "ZIG"
-  | "VCPKG"
-  | "PACKAGIST";
+/**
+ * Back-compat alias — the canonical registry union now lives in
+ * `src/shared/pkgseer-registry.ts`. Re-exported here so existing
+ * consumers of `CodeNavigationRegistry` compile unchanged.
+ */
+export type CodeNavigationRegistry = PkgseerRegistry;
 
 export type SearchSymbolsMatchMode = "OR" | "AND";
 
@@ -476,49 +477,48 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       );
     }
 
-    let response: Response;
+    let response: PkgseerGraphqlResponse;
     try {
-      response = await this.fetchFn(`${this.baseUrl()}/api/graphql`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          "User-Agent": `githits-cli/${version}`,
+      response = await postPkgseerGraphql({
+        endpointUrl: this.codeNavigationUrl,
+        token,
+        query: SEARCH_SYMBOLS_QUERY,
+        variables: {
+          registry: params.target.registry,
+          packageName: params.target.packageName,
+          repoUrl: params.target.repoUrl,
+          gitRef: params.target.gitRef,
+          query: params.query,
+          keywords: params.keywords,
+          matchMode: params.matchMode,
+          kind: params.kind,
+          category: params.category,
+          filePath: params.filePath,
+          version: params.target.version,
+          limit: params.limit,
+          fileIntent: params.fileIntent,
+          waitTimeoutMs: params.waitTimeoutMs,
         },
-        body: JSON.stringify({
-          query: SEARCH_SYMBOLS_QUERY,
-          variables: {
-            registry: params.target.registry,
-            packageName: params.target.packageName,
-            repoUrl: params.target.repoUrl,
-            gitRef: params.target.gitRef,
-            query: params.query,
-            keywords: params.keywords,
-            matchMode: params.matchMode,
-            kind: params.kind,
-            category: params.category,
-            filePath: params.filePath,
-            version: params.target.version,
-            limit: params.limit,
-            fileIntent: params.fileIntent,
-            waitTimeoutMs: params.waitTimeoutMs,
-          },
-        }),
+        fetchFn: this.fetchFn,
       });
     } catch (cause) {
-      throw new CodeNavigationNetworkError(
-        "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
-        { cause },
-      );
+      // Helper owns transport-level error wrapping; re-map to the
+      // domain error class so `mapCodeNavigationError` still routes
+      // to `NETWORK`. Other error classes bubble unchanged.
+      if (cause instanceof PkgseerTransportError) {
+        throw new CodeNavigationNetworkError(
+          "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
+          { cause },
+        );
+      }
+      throw cause;
     }
 
-    if (!response.ok) {
-      throw await this.createHttpError(response);
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
     }
 
-    const parsed = graphQLResponseSchema.safeParse(
-      await response.json().catch(() => null),
-    );
+    const parsed = graphQLResponseSchema.safeParse(response.parsedBody);
     if (!parsed.success) {
       throw new MalformedCodeNavigationResponseError(
         "Malformed response from code navigation service.",
@@ -588,14 +588,9 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     };
   }
 
-  private baseUrl(): string {
-    return this.codeNavigationUrl.replace(/\/+$/, "");
-  }
-
-  private async createHttpError(response: Response): Promise<Error> {
+  private createHttpError(response: PkgseerGraphqlResponse): Error {
     const status = response.status;
-    const body = await response.text().catch(() => "");
-    const detail = parseDetail(body);
+    const detail = parseDetail(response.responseBody);
 
     if (status === 401) {
       return new AuthenticationError(
