@@ -82,6 +82,9 @@ export {
 export { MigratingAuthStorage } from "./migrating-auth-storage.js";
 export type {
   ChangelogEntry,
+  ChangelogEntryDetail,
+  ChangelogPackageInfo,
+  ChangelogReport,
   DependencyBundle,
   DependencyGroup,
   DependencyGroupsInfo,
@@ -89,6 +92,7 @@ export type {
   DirectDependency,
   GithubRepository,
   GroupDependency,
+  PackageChangelogParams,
   PackageDependenciesParams,
   PackageIdentity,
   PackageIntelligenceService,
@@ -109,6 +113,7 @@ export {
   MalformedPackageIntelligenceResponseError,
   PackageIntelligenceAccessError,
   PackageIntelligenceBackendError,
+  PackageIntelligenceChangelogSourceNotFoundError,
   PackageIntelligenceFeatureFlagRequiredError,
   PackageIntelligenceGraphQLError,
   PackageIntelligenceNetworkError,

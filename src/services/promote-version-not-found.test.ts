@@ -78,4 +78,67 @@ describe("promoteGenericVersionNotFound", () => {
       PackageIntelligenceVersionNotFoundError,
     );
   });
+
+  it("promotes when fromVersion is set (range-mode callers)", () => {
+    const generic = new PackageIntelligenceBackendError(
+      "No matching version found",
+    );
+    const promoted = promoteGenericVersionNotFound(generic, {
+      registry: "NPM",
+      packageName: "lodash",
+      fromVersion: "4.0.0",
+    }) as PackageIntelligenceVersionNotFoundError;
+    expect(promoted).toBeInstanceOf(PackageIntelligenceVersionNotFoundError);
+    expect(promoted.packageName).toBe("npm:lodash");
+    expect(promoted.requestedVersion).toBe("4.0.0");
+  });
+
+  it("prefers fromVersion over toVersion when both are set", () => {
+    const generic = new PackageIntelligenceBackendError(
+      "No matching version found",
+    );
+    const promoted = promoteGenericVersionNotFound(generic, {
+      registry: "NPM",
+      packageName: "lodash",
+      fromVersion: "3.0.0",
+      toVersion: "4.0.0",
+    }) as PackageIntelligenceVersionNotFoundError;
+    expect(promoted.requestedVersion).toBe("3.0.0");
+  });
+
+  it("promotes when only toVersion is set (latest-mode cap)", () => {
+    const generic = new PackageIntelligenceBackendError(
+      "No matching version found",
+    );
+    const promoted = promoteGenericVersionNotFound(generic, {
+      registry: "NPM",
+      packageName: "lodash",
+      toVersion: "99.0.0",
+    }) as PackageIntelligenceVersionNotFoundError;
+    expect(promoted.requestedVersion).toBe("99.0.0");
+  });
+
+  it("does not promote when no version field is set (unconstrained request)", () => {
+    const generic = new PackageIntelligenceBackendError(
+      "No matching version found",
+    );
+    expect(
+      promoteGenericVersionNotFound(generic, {
+        registry: "NPM",
+        packageName: "lodash",
+      }),
+    ).toBe(generic);
+  });
+
+  it("omits details.package in repo-URL mode (no registry / packageName)", () => {
+    const generic = new PackageIntelligenceBackendError(
+      "No matching version found",
+    );
+    const promoted = promoteGenericVersionNotFound(generic, {
+      fromVersion: "1.0.0",
+    }) as PackageIntelligenceVersionNotFoundError;
+    expect(promoted).toBeInstanceOf(PackageIntelligenceVersionNotFoundError);
+    expect(promoted.packageName).toBeUndefined();
+    expect(promoted.requestedVersion).toBe("1.0.0");
+  });
 });

@@ -152,20 +152,25 @@ When a new tool lands with both MCP and CLI surfaces:
 | `src/shared/package-vulnerabilities-response.ts` | Lean JSON envelope builder for `package_vulnerabilities` (shared); terminal formatter (CLI-only). |
 | `src/shared/package-dependencies-request.ts` | Shared request builder for `package_dependencies`; owns `supportsDependenciesRegistry` + lifecycle / depth validation. |
 | `src/shared/package-dependencies-response.ts` | Lean JSON envelope builder for `package_dependencies` (shared); terminal formatter (CLI-only). |
+| `src/shared/package-changelog-request.ts` | Shared request builder for `package_changelog`; owns spec-XOR-repo-URL validation, `<spec>@<version>` rejection, `--from` / `--limit` mutex, tag-style version rejection, and the `explicitFilterFields` tracker. |
+| `src/shared/package-changelog-response.ts` | JSON envelope builder for `package_changelog` (shared); terminal formatter (CLI-only). |
 | `src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier (reuses `MappedError` from the code-nav map). |
-| `src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. Used by `packageVulnerabilities` and `packageDependencies` executors. |
+| `src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. Used by `packageVulnerabilities`, `packageDependencies`, and `packageChangelog` executors. Extended in P4 to recognise `fromVersion` / `toVersion` (and to skip the `details.package` synthesis when registry/name aren't available, i.e. repo-URL mode). |
 | `src/tools/search-symbols.ts` | MCP tool definition for `search_symbols`. |
 | `src/tools/package-summary.ts` | MCP tool definition for `package_summary`. |
 | `src/tools/package-vulnerabilities.ts` | MCP tool definition for `package_vulnerabilities`. |
 | `src/tools/package-dependencies.ts` | MCP tool definition for `package_dependencies`. |
+| `src/tools/package-changelog.ts` | MCP tool definition for `package_changelog`. |
 | `src/commands/code/search-symbols.ts` | CLI command. |
 | `src/commands/pkg/info.ts` | CLI command for `pkg info`. |
 | `src/commands/pkg/vulns.ts` | CLI command for `pkg vulns`. |
 | `src/commands/pkg/deps.ts` | CLI command for `pkg deps`. |
+| `src/commands/pkg/changelog.ts` | CLI command for `pkg changelog`. |
 | `src/tools/search-symbols-parity.test.ts` | Parity tests (cite rule IDs). |
 | `src/tools/package-summary-parity.test.ts` | Parity tests for `package_summary` (cite rule IDs). |
 | `src/tools/package-vulnerabilities-parity.test.ts` | Parity tests for `package_vulnerabilities` (cite rule IDs). |
 | `src/tools/package-dependencies-parity.test.ts` | Parity tests for `package_dependencies` (cite rule IDs). |
+| `src/tools/package-changelog-parity.test.ts` | Parity tests for `package_changelog` (cite rule IDs). |
 
 ## Per-tool notes
 
@@ -292,3 +297,75 @@ When a new tool lands with both MCP and CLI surfaces:
   - `toMatchObject` for builder-sourced `INVALID_ARGUMENT` cases:
     unsupported registry (`nuget`), tag-style version (`v4.18.0`),
     unknown lifecycle token (`dev`).
+
+### `package_changelog`
+
+- **Dual addressing — the only pkg-intel tool with it.** `registry`
+  + `package_name` XOR `repo_url` on both surfaces. Justified because
+  `packageChangelog` is intrinsically repo-level on the backend (its
+  sources are GitHub Releases, CHANGELOG.md, HexDocs); repo-URL
+  isn't a bolt-on, it's a peer addressing mode on the GraphQL
+  signature. P1 / P2 / P3 omit it because their backend queries are
+  registry-metadata APIs without repo-URL alternatives. Future
+  pkg-intel tool authors should not cargo-cult the asymmetry.
+- **`<spec>@<version>` rejected.** Other `pkg` commands give
+  `@version` a meaning (`for this exact version`), but changelog
+  has no single-version query — remapping to `to_version` would be
+  a client-invented semantic shift. Both CLI and MCP reject with
+  `INVALID_ARGUMENT` and redirect callers to `--to` / `to_version`.
+- **Mode mutex enforced client-side.** `--from` / `from_version` +
+  `--limit` / `limit` together → `INVALID_ARGUMENT`. The backend's
+  same-shape rejection is generic; we catch it with a specific hint
+  before the wire.
+- **`filter.*` echo tracks explicit fields only.** Request builder
+  exposes an `explicitFilterFields` set (`fromVersion`, `toVersion`,
+  `limit`, `gitRef`). The envelope builder consults the set before
+  emitting `filter.*`, so backend-default values
+  (e.g. `limit: 10` from the wire echo) never round-trip as caller
+  intent.
+- **`entries: { count, items }` shape.** Matches the `runtime:
+  { count, items }` convention from `package_dependencies`.
+  `entries.count === entries.items.length` by construction; the
+  backend's count field is never selected on the wire.
+- **`version` kept when null, other per-entry nullables stripped.**
+  `version` is the primary key agents index by, so the slot is
+  always present (possibly `null`). Other nullable fields
+  (`normalizedVersion`, `publishedAt`, `htmlUrl`, `body`) are
+  stripped when absent to keep the envelope lean. `body` is
+  additionally stripped when `include_bodies: false`.
+- **`metadata` dropped.** `ChangelogEntry.metadata` is backend
+  `GenericJSON`; v1 envelope drops it entirely rather than
+  guessing at its shape. Revisit via agent feedback
+  (`TODO(pkgseer-backend)` anchor on the service type).
+- **`source: null` promoted to `NOT_FOUND`.** The service layer
+  promotes the null-source case to a typed
+  `PackageIntelligenceChangelogSourceNotFoundError` which the
+  shared classifier routes to `NOT_FOUND` with a message naming
+  the sources tried (GitHub Releases, CHANGELOG.md, HexDocs).
+  `source: "releases"` + `entries.items: []` is success — "no
+  entries in this range" is a legitimate neutral outcome.
+- **`--verbose` vs `--no-body` vs `--json` interaction.**
+  Default terminal output shows each entry's body truncated at
+  10 lines with a `… (+N more lines — use --verbose …)` footer.
+  `--verbose` lifts the cap (terminal-only — does not change
+  `--json` output). `--no-body` mirrors MCP's `include_bodies:
+  false` and affects both terminal (no body preview, no footer)
+  and `--json` (entry objects lose the `body` field) — explicit
+  opt-out, not silent truncation. `--no-body` + `--verbose` is
+  rejected with a specific hint because the two flags contradict.
+- **`promoteGenericVersionNotFound` extension.** The shared helper
+  now recognises `fromVersion` / `toVersion` in addition to
+  `version`. Preference order: `version → fromVersion → toVersion`.
+  In repo-URL mode (no `registry` / `packageName`),
+  `details.package` is omitted; the error-map handles
+  `details.package === undefined` gracefully.
+- **Parity assertion policy** (coded in
+  `src/tools/package-changelog-parity.test.ts`):
+  - `toEqual` across service-sourced fixtures: happy latest mode,
+    range mode (`--from` / `from_version`), repo-URL addressing,
+    `--no-body` / `include_bodies: false`, default bodies, empty
+    entries, `NOT_FOUND` (no source), `PackageIntelligenceTargetNotFoundError`
+    (package missing), `VERSION_NOT_FOUND` with structured details,
+    `BACKEND_ERROR`.
+  - `toMatchObject` for builder-sourced `INVALID_ARGUMENT` cases:
+    `<spec>@<version>` rejection, `--from` + `--limit` mutex.

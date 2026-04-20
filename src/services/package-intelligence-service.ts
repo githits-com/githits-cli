@@ -225,6 +225,72 @@ export interface DependencyReport {
   dependencyGroups?: DependencyGroupsInfo;
 }
 
+/**
+ * Inputs to `packageChangelog`. Addressing is "spec XOR repo-URL":
+ * either both `registry` and `packageName`, or `repoUrl` alone.
+ * The shared request builder enforces the XOR before reaching the
+ * service; the service layer trusts the contract.
+ */
+export interface PackageChangelogParams {
+  /** Uppercase GraphQL registry enum value. Required with `packageName`. */
+  registry?: PkgseerRegistry;
+  /** Package name. Required with `registry`. */
+  packageName?: string;
+  /** GitHub repo URL. Mutually exclusive with `registry` + `packageName`. */
+  repoUrl?: string;
+  /** Branch or tag for CHANGELOG.md fetching. Ignored for GH Releases. */
+  gitRef?: string;
+  /**
+   * Start of version range. When set, the backend returns every entry
+   * between `fromVersion` and `toVersion` (or latest); `limit` is
+   * rejected client-side in this mode.
+   */
+  fromVersion?: string;
+  /** End of range / latest-mode cap. Defaults to latest on the wire. */
+  toVersion?: string;
+  /** Latest-mode cap (1–50). Rejected client-side when `fromVersion` is set. */
+  limit?: number;
+}
+
+/**
+ * Package-info echo from the changelog response. Mirrors
+ * `ChangelogPackageInfo` in the schema — all fields nullable at the
+ * wire level.
+ */
+export interface ChangelogPackageInfo {
+  name?: string;
+  registry?: string;
+  repoUrl?: string;
+  fromVersion?: string;
+  toVersion?: string;
+  limit?: number;
+}
+
+/**
+ * Full changelog entry as observed on the wire. The envelope builder
+ * projects this into the lean response shape; `metadata` is dropped
+ * from the envelope because its source-specific opaque structure
+ * isn't worth the token cost today. Revisit via agent feedback.
+ */
+export interface ChangelogEntryDetail {
+  version?: string;
+  normalizedVersion?: string;
+  body?: string;
+  htmlUrl?: string;
+  publishedAt?: string;
+  /** TODO(pkgseer-backend): surface when shape is documented. */
+  metadata?: UntypedGenericJSON;
+}
+
+export interface ChangelogReport {
+  /** Echo of addressing + filter as the backend saw it. */
+  package?: ChangelogPackageInfo;
+  /** `"releases"` | `"changelog_file"` | `"hexdocs"` when resolved; null otherwise. */
+  source?: string;
+  /** Entries, newest-first. Empty array = resolved source but nothing in range. */
+  entries: ChangelogEntryDetail[];
+}
+
 export interface PackageIntelligenceService {
   packageSummary(params: PackageSummaryParams): Promise<PackageSummary>;
   packageVulnerabilities(
@@ -233,6 +299,7 @@ export interface PackageIntelligenceService {
   packageDependencies(
     params: PackageDependenciesParams,
   ): Promise<DependencyReport>;
+  packageChangelog(params: PackageChangelogParams): Promise<ChangelogReport>;
 }
 
 // --------------------------------------------------------------------
@@ -327,6 +394,23 @@ export class MalformedPackageIntelligenceResponseError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "MalformedPackageIntelligenceResponseError";
+  }
+}
+
+/**
+ * Raised when the backend confirmed the package / repo exists but
+ * could not resolve a changelog source for it (no GitHub Releases,
+ * no CHANGELOG.md, no HexDocs). Distinct from
+ * {@link PackageIntelligenceTargetNotFoundError} which signals the
+ * package itself is missing. The error-map routes this to the shared
+ * `NOT_FOUND` code so MCP / CLI error envelopes are consistent, but
+ * the distinct class lets the changelog executor attach a message
+ * naming the sources that were tried.
+ */
+export class PackageIntelligenceChangelogSourceNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PackageIntelligenceChangelogSourceNotFoundError";
   }
 }
 
@@ -686,6 +770,90 @@ query PackageDependencies(
           constraint
         }
       }
+    }
+  }
+}`;
+
+// --------------------------------------------------------------------
+// Zod schema + query for packageChangelog
+// --------------------------------------------------------------------
+
+const changelogPackageInfoSchema = z
+  .object({
+    name: z.string().nullable().optional(),
+    registry: z.string().nullable().optional(),
+    repoUrl: z.string().nullable().optional(),
+    fromVersion: z.string().nullable().optional(),
+    toVersion: z.string().nullable().optional(),
+    limit: z.number().int().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+const changelogEntryDetailSchema = z.object({
+  version: z.string().nullable().optional(),
+  normalizedVersion: z.string().nullable().optional(),
+  body: z.string().nullable().optional(),
+  htmlUrl: z.string().nullable().optional(),
+  publishedAt: z.string().nullable().optional(),
+  // `metadata` is schema-level GenericJSON and we drop it from the
+  // service-returned shape today (envelope doesn't surface it). We
+  // still request-select it on the wire so live smoke can observe
+  // real shapes for a future typed surface.
+  metadata: z.unknown().nullable().optional(),
+});
+
+const changelogReportResponseSchema = z.object({
+  package: changelogPackageInfoSchema,
+  source: z.string().nullable().optional(),
+  entries: z.array(changelogEntryDetailSchema).nullable().optional(),
+});
+
+const changelogGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      packageChangelog: changelogReportResponseSchema.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
+const PACKAGE_CHANGELOG_QUERY = `
+query PackageChangelog(
+  $registry: Registry
+  $name: String
+  $repoUrl: String
+  $gitRef: String
+  $fromVersion: String
+  $toVersion: String
+  $limit: Int
+) {
+  packageChangelog(
+    registry: $registry
+    name: $name
+    repoUrl: $repoUrl
+    gitRef: $gitRef
+    fromVersion: $fromVersion
+    toVersion: $toVersion
+    limit: $limit
+  ) {
+    package {
+      name
+      registry
+      repoUrl
+      fromVersion
+      toVersion
+      limit
+    }
+    source
+    entries {
+      version
+      normalizedVersion
+      body
+      htmlUrl
+      publishedAt
+      metadata
     }
   }
 }`;
@@ -1213,6 +1381,128 @@ export class PackageIntelligenceServiceImpl
       package: identity,
       dependencies,
       dependencyGroups,
+    };
+  }
+
+  async packageChangelog(
+    params: PackageChangelogParams,
+  ): Promise<ChangelogReport> {
+    return executeWithTokenRefresh({
+      getToken: () => this.tokenProvider.getToken(),
+      forceRefresh: () => this.tokenProvider.forceRefresh(),
+      shouldRefresh: (error) => error instanceof AuthenticationError,
+      executeWithToken: (token) => this.executePackageChangelog(token, params),
+    });
+  }
+
+  private async executePackageChangelog(
+    token: string,
+    params: PackageChangelogParams,
+  ): Promise<ChangelogReport> {
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.endpointUrl,
+        token,
+        query: PACKAGE_CHANGELOG_QUERY,
+        variables: {
+          registry: params.registry,
+          name: params.packageName,
+          repoUrl: params.repoUrl,
+          gitRef: params.gitRef,
+          fromVersion: params.fromVersion,
+          toVersion: params.toVersion,
+          limit: params.limit,
+        },
+        fetchFn: this.fetchFn,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw new PackageIntelligenceNetworkError(
+          "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
+          { cause },
+        );
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = changelogGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Malformed response from the package-intelligence service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw promoteGenericVersionNotFound(
+        this.createGraphQLError(parsed.data.errors),
+        params,
+      );
+    }
+
+    const data = parsed.data.data?.packageChangelog;
+    if (!data) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Empty response from the package-intelligence service.",
+      );
+    }
+
+    return this.normaliseChangelogReport(data, params);
+  }
+
+  private normaliseChangelogReport(
+    data: z.infer<typeof changelogReportResponseSchema>,
+    params: PackageChangelogParams,
+  ): ChangelogReport {
+    // Backend returns `source: null` when no changelog source could
+    // be resolved for the package/repo. Distinct from `entries: []`
+    // which means "source resolved but produced no entries in this
+    // range". Promote the null-source case to a typed error at the
+    // service boundary so the envelope builder never has to think
+    // about it.
+    const source = data.source ?? undefined;
+    if (!source) {
+      const target =
+        params.repoUrl ??
+        (params.registry && params.packageName
+          ? `${params.registry.toLowerCase()}:${params.packageName}`
+          : "package");
+      throw new PackageIntelligenceChangelogSourceNotFoundError(
+        `No changelog source available for ${target} (tried GitHub Releases, CHANGELOG.md, and HexDocs).`,
+      );
+    }
+
+    const rawEntries = data.entries ?? [];
+    const entries: ChangelogEntryDetail[] = rawEntries.map((entry) => ({
+      version: entry.version ?? undefined,
+      normalizedVersion: entry.normalizedVersion ?? undefined,
+      body: entry.body ?? undefined,
+      htmlUrl: entry.htmlUrl ?? undefined,
+      publishedAt: entry.publishedAt ?? undefined,
+      metadata: entry.metadata ?? undefined,
+    }));
+
+    const packageInfo: ChangelogPackageInfo | undefined = data.package
+      ? {
+          name: data.package.name ?? undefined,
+          registry: data.package.registry ?? undefined,
+          repoUrl: data.package.repoUrl ?? undefined,
+          fromVersion: data.package.fromVersion ?? undefined,
+          toVersion: data.package.toVersion ?? undefined,
+          limit: data.package.limit ?? undefined,
+        }
+      : undefined;
+
+    return {
+      package: packageInfo,
+      source,
+      entries,
     };
   }
 }
