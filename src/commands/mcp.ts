@@ -6,6 +6,7 @@ import { createContainer, type Dependencies } from "../container.js";
 import { dim, highlight, shouldUseColors } from "../shared/colors.js";
 import {
   createFeedbackTool,
+  createPackageSummaryTool,
   createSearchLanguageTool,
   createSearchSymbolsTool,
   createSearchTool,
@@ -24,13 +25,20 @@ export function getMcpToolDefinitions(
     createFeedbackTool(deps.githitsService),
   ];
 
-  if (
-    (deps.codeNavigationCapability === "enabled" ||
-      (deps.codeNavigationCapability === "unknown" &&
-        deps.envApiToken !== undefined)) &&
-    deps.codeNavigationService
-  ) {
+  // MCP capability predicate for pkgseer-backed tools. Narrower than
+  // the CLI gate by design — agents must not see tools that would
+  // silently fail. Shared with `search_symbols` below.
+  const pkgseerCapabilityOpen =
+    deps.codeNavigationCapability === "enabled" ||
+    (deps.codeNavigationCapability === "unknown" &&
+      deps.envApiToken !== undefined);
+
+  if (pkgseerCapabilityOpen && deps.codeNavigationService) {
     tools.push(createSearchSymbolsTool(deps.codeNavigationService));
+  }
+
+  if (pkgseerCapabilityOpen && deps.packageIntelligenceService) {
+    tools.push(createPackageSummaryTool(deps.packageIntelligenceService));
   }
 
   return tools;

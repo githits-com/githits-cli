@@ -23,6 +23,8 @@ import {
   KeychainUnavailableError,
   KeyringServiceImpl,
   MigratingAuthStorage,
+  type PackageIntelligenceService,
+  PackageIntelligenceServiceImpl,
   RefreshingGitHitsService,
   type TokenData,
   TokenManager,
@@ -93,6 +95,13 @@ export interface Dependencies {
   codeNavigationUrl: string | undefined;
   /** Optional code navigation service used by gated CLI/MCP paths */
   codeNavigationService: CodeNavigationService | undefined;
+  /**
+   * Optional package intelligence service — reads registry metadata,
+   * vulnerabilities, dependencies, and changelogs from the pkgseer
+   * endpoint. Shares the `code_navigation` capability gate and the
+   * same endpoint URL as the code-navigation service.
+   */
+  packageIntelligenceService: PackageIntelligenceService | undefined;
   /** GitHits REST API service */
   githitsService: GitHitsService;
 }
@@ -121,11 +130,12 @@ export async function createContainer(): Promise<Dependencies> {
   // Check for env API token first
   const envToken = getEnvApiToken();
   if (envToken) {
+    const tokenProvider = createStaticTokenProvider(envToken);
     const codeNavigationService = codeNavigationUrl
-      ? new CodeNavigationServiceImpl(
-          codeNavigationUrl,
-          createStaticTokenProvider(envToken),
-        )
+      ? new CodeNavigationServiceImpl(codeNavigationUrl, tokenProvider)
+      : undefined;
+    const packageIntelligenceService = codeNavigationUrl
+      ? new PackageIntelligenceServiceImpl(codeNavigationUrl, tokenProvider)
       : undefined;
 
     return {
@@ -142,6 +152,7 @@ export async function createContainer(): Promise<Dependencies> {
       codeNavigationCliOverrideEnabled,
       codeNavigationUrl,
       codeNavigationService,
+      packageIntelligenceService,
       githitsService: new GitHitsServiceImpl(apiUrl, envToken),
     };
   }
@@ -151,6 +162,9 @@ export async function createContainer(): Promise<Dependencies> {
   const apiToken = await tokenManager.getToken();
   const codeNavigationService = codeNavigationUrl
     ? new CodeNavigationServiceImpl(codeNavigationUrl, tokenManager)
+    : undefined;
+  const packageIntelligenceService = codeNavigationUrl
+    ? new PackageIntelligenceServiceImpl(codeNavigationUrl, tokenManager)
     : undefined;
 
   return {
@@ -167,6 +181,7 @@ export async function createContainer(): Promise<Dependencies> {
     codeNavigationCliOverrideEnabled,
     codeNavigationUrl,
     codeNavigationService,
+    packageIntelligenceService,
     githitsService: new RefreshingGitHitsService(apiUrl, tokenManager),
   };
 }

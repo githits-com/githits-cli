@@ -20,6 +20,10 @@ import type { ExecResult, ExecService } from "./exec-service.js";
 import type { FileSystemService } from "./filesystem-service.js";
 import type { GitHitsService } from "./githits-service.js";
 import type { KeyringService } from "./keyring-service.js";
+import type {
+  PackageIntelligenceService,
+  PackageSummary,
+} from "./package-intelligence-service.js";
 import type { ConfirmChoice, PromptService } from "./prompt-service.js";
 import type { TokenProvider } from "./token-manager.js";
 
@@ -221,6 +225,87 @@ export function createMockCodeNavigationService(
 ): CodeNavigationService {
   return {
     searchSymbols: mock(() => Promise.resolve(defaultSearchSymbolsResult)),
+    ...impl,
+  };
+}
+
+/**
+ * Fully-populated `PackageSummary` fixture. Every optional field is
+ * present so omission-rule tests can subtract from a realistic shape.
+ */
+export const defaultPackageSummary: PackageSummary = {
+  package: {
+    name: "express",
+    registry: "NPM",
+    description: "Fast, unopinionated, minimalist web framework for Node.js",
+    latestVersion: "4.18.2",
+    latestVersionPublishedAt: "2023-05-28T00:00:00Z",
+    homepage: "https://expressjs.com",
+    repositoryUrl: "https://github.com/expressjs/express",
+    license: "MIT",
+    downloadsLastMonth: 86_000_000,
+    downloadsTotal: 1_200_000_000,
+    githubRepository: {
+      stargazersCount: 63_400,
+      forksCount: 14_300,
+      openIssuesCount: 123,
+      archived: false,
+      language: "JavaScript",
+      topics: ["framework", "http", "middleware", "nodejs", "web"],
+      pushedAt: "2024-05-10T00:00:00Z",
+    },
+  },
+  security: {
+    vulnerabilityCount: 5,
+    hasCurrentVulnerabilities: true,
+    recentVulnerabilities: [
+      {
+        osvId: "GHSA-xxxx-xxxx-xxxx",
+        summary: "Open redirect vulnerability in default error handler",
+        severityScore: 7.5,
+        publishedAt: "2024-06-01T00:00:00Z",
+      },
+      {
+        osvId: "GHSA-yyyy-yyyy-yyyy",
+        summary: "Prototype pollution via query parser",
+        severityScore: 5.3,
+        publishedAt: "2024-03-12T00:00:00Z",
+      },
+    ],
+  },
+  quickstart: {
+    installCommand: "npm install express",
+    usageExample: "const express = require('express')\nconst app = express()",
+  },
+  latestChangelogs: [
+    {
+      version: "4.18.2",
+      publishedAt: "2023-05-28T00:00:00Z",
+      body: "Security fix for CVE-xxxx\n\nFull changelog body...",
+    },
+    {
+      version: "4.18.1",
+      publishedAt: "2023-05-10T00:00:00Z",
+      body: "Bug fixes\n\nAnother body...",
+    },
+    {
+      version: "4.18.0",
+      publishedAt: "2023-04-01T00:00:00Z",
+      body: "New router API\n\nYet another body...",
+    },
+  ],
+};
+
+/**
+ * Creates a mock PackageIntelligenceService. Default `packageSummary`
+ * resolves to {@link defaultPackageSummary} — override per-test as
+ * needed.
+ */
+export function createMockPackageIntelligenceService(
+  impl: Partial<PackageIntelligenceService> = {},
+): PackageIntelligenceService {
+  return {
+    packageSummary: mock(() => Promise.resolve(defaultPackageSummary)),
     ...impl,
   };
 }

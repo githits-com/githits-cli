@@ -142,8 +142,38 @@ When a new tool lands with both MCP and CLI surfaces:
 |---|---|
 | `src/shared/code-navigation-defaults.ts` | Canonical defaults and sentinels. |
 | `src/shared/code-navigation-error-map.ts` | `mapCodeNavigationError` classifier and `MappedError` union. |
+| `src/shared/pkgseer-graphql.ts` | Low-level authenticated POST helper shared by every service that talks to the upstream endpoint. |
+| `src/shared/pkgseer-registry.ts` | Registry taxonomy (`PkgseerRegistry` union + lowercase↔uppercase converters). |
 | `src/shared/search-symbols-request.ts` | Shared request builder for `search_symbols`. |
 | `src/shared/search-symbols-response.ts` | Shared JSON envelope builders for `search_symbols`. |
-| `src/tools/search-symbols.ts` | MCP tool definition. |
+| `src/shared/package-summary-request.ts` | Shared request builder for `package_summary`. |
+| `src/shared/package-summary-response.ts` | Lean JSON envelope builder and terminal formatter for `package_summary`. |
+| `src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier (reuses `MappedError` from the code-nav map). |
+| `src/tools/search-symbols.ts` | MCP tool definition for `search_symbols`. |
+| `src/tools/package-summary.ts` | MCP tool definition for `package_summary`. |
 | `src/commands/code/search-symbols.ts` | CLI command. |
+| `src/commands/pkg/info.ts` | CLI command for `pkg info`. |
 | `src/tools/search-symbols-parity.test.ts` | Parity tests (cite rule IDs). |
+| `src/tools/package-summary-parity.test.ts` | Parity tests for `package_summary` (cite rule IDs). |
+
+## Per-tool notes
+
+### `package_summary`
+
+- **Permissive MCP schema + in-handler validation.** Matches the
+  `search_symbols` precedent. `buildPackageSummaryParams` is the
+  single validator used by both surfaces; raw Zod errors never
+  surface in the envelope.
+- **Parity assertion policy** (coded in
+  `src/tools/package-summary-parity.test.ts`):
+  - `toEqual` for service-sourced fixtures (happy, minimal-fields,
+    `NOT_FOUND`, `BACKEND_ERROR`) — envelopes are byte-identical
+    because both surfaces route through the same classifier and
+    response builder.
+  - `toMatchObject` for the `INVALID_ARGUMENT` fixture. CLI's
+    `parsePackageSpec` and MCP's in-handler
+    `buildPackageSummaryParams` produce surface-specific error text;
+    same envelope shape, different message.
+- **`@version` rejection.** CLI-only. The MCP tool has no `version`
+  input. The CLI's `pkg info` throws `InvalidPackageSpecError` on
+  any non-null parsed version — never silently swaps to latest.

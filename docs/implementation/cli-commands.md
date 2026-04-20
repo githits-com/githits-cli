@@ -13,6 +13,7 @@ The CLI exposes three primary commands (`search`, `languages`, `feedback`) that 
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback <solution_id>` | `--accept` or `--reject` | `-m, --message <text>`, `--json` | Submit feedback on a search result |
 | `code search <package> [query]` | package spec | `--keywords`, `--keyword`, `--match-mode`, `--category`, `--kind`, `--file`, `--intent`, `--limit`, `--wait`, `--json` | Search indexed dependency source code |
+| `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
 
 ### `githits init`
 
@@ -85,6 +86,29 @@ Finds functions, classes, modules, and doc sections inside an indexed dependency
 **Capability gate.** The `code` group is registered only when the startup token advertises `code_navigation`, when `GITHITS_CODE_NAVIGATION=1` is set for local override, when `GITHITS_API_TOKEN` is present (opaque env token), or when stored auth is expired.
 
 **Troubleshooting.** Set `GITHITS_DEBUG=code-nav` to emit single-line JSON diagnostics to stderr on error paths. Include the output when filing an issue. Debug payloads never contain query text, tokens, or response bodies.
+
+### `githits pkg info`
+
+```
+githits pkg info npm:express
+githits pkg info pypi:requests --verbose
+githits pkg info crates:serde --json
+githits pkg info npm:@types/node
+```
+
+Shows a concise overview for a single package: latest version, license, description, repository + homepage, publication date, download count, GitHub metadata, install command, and known vulnerabilities. Default output is a compact terminal block. `--verbose` adds usage snippet, recent advisories, topics, and a recent-changes list. `--json` emits the lean hand-crafted envelope — every null field is omitted, every block that carries no actionable data is omitted entirely.
+
+**Package spec.** `<registry>:<name>`. Registries: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`. Scoped npm names (`npm:@types/node`) are supported.
+
+**Always latest.** `pkg info` returns the latest published version regardless of input. Passing `<spec>@<version>` is rejected with `INVALID_ARGUMENT` and a clear message — the tool never silently swaps to latest. Use `pkg vulns` (future) or `pkg deps` (future) for version-pinned queries.
+
+**`--verbose` + `--json`.** `--verbose` has no effect under `--json` — the JSON envelope always carries every field the verbose terminal view exposes (and more). The flag only affects human-readable output.
+
+**Output envelope.** Success payload is hand-crafted for agent token efficiency: `{registry, name, version, description?, license?, homepage?, repository?, publishedAt?, downloads?, github?, install?, usage?, vulnerabilities?, recentChanges?}`. Omitted fields reflect backend nulls, not dropped data. Error envelope: `{error, code, retryable, details?}` — same shape as `search_symbols`, same classifier family. Under `--json` the error envelope is written to **stderr** so stdout stays clean for `jq`.
+
+**Capability gate.** Same as `code`: `code_navigation` capability on the token, `GITHITS_CODE_NAVIGATION=1` override, `GITHITS_API_TOKEN` env token, or expired stored auth.
+
+**Troubleshooting.** `GITHITS_DEBUG=pkg-intel` emits PII-safe classified-error diagnostics (area, event, code, error class, detail keys). `GITHITS_DEBUG=pkg-graphql` emits transport-failure diagnostics from inside the POST helper. Use `GITHITS_DEBUG=*` to enable both.
 
 ## Architecture
 

@@ -1,4 +1,5 @@
 export { createFeedbackTool } from "./feedback.js";
+export { createPackageSummaryTool } from "./package-summary.js";
 export { createSearchTool } from "./search.js";
 export { createSearchLanguageTool } from "./search-language.js";
 export { createSearchSymbolsTool } from "./search-symbols.js";

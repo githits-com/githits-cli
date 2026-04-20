@@ -10,6 +10,7 @@ import {
   registerLoginCommand,
   registerLogoutCommand,
   registerMcpCommand,
+  registerPkgCommandGroup,
   registerSearchCommand,
 } from "./commands/index.js";
 
@@ -53,8 +54,12 @@ registerMcpCommand(program);
 registerSearchCommand(program);
 registerLanguagesCommand(program);
 registerFeedbackCommand(program);
-if (shouldRegisterCodeCommands(process.argv.slice(2))) {
+const argv = process.argv.slice(2);
+if (shouldEagerLoadGatedCommandGroup(argv, "code")) {
   await registerCodeCommandGroup(program);
+}
+if (shouldEagerLoadGatedCommandGroup(argv, "pkg")) {
+  await registerPkgCommandGroup(program);
 }
 
 // Auth status as subcommand of `auth`
@@ -66,10 +71,21 @@ registerAuthStatusCommand(authCommand);
 
 await program.parseAsync();
 
-function shouldRegisterCodeCommands(args: string[]): boolean {
+/**
+ * Argv-sniff optimisation for gated command groups. Returns `true`
+ * when the user's invocation might need the group registered — i.e.
+ * they typed the group name or asked for help. This is NOT a
+ * capability gate; the actual gate lives inside
+ * `registerXxxCommandGroup`. Here we only decide whether to build
+ * the container eagerly so registration can run.
+ */
+function shouldEagerLoadGatedCommandGroup(
+  args: string[],
+  groupName: string,
+): boolean {
   const [firstArg] = args;
   return (
-    firstArg === "code" ||
+    firstArg === groupName ||
     firstArg === "help" ||
     firstArg === "--help" ||
     firstArg === "-h"
