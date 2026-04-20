@@ -1,0 +1,179 @@
+import type { Command } from "commander";
+import { createContainer } from "../../container.js";
+import type { PackageIntelligenceService } from "../../services/index.js";
+import { shouldUseColors } from "../../shared/colors.js";
+import {
+  InvalidPackageSpecError,
+  type MappedError,
+  mapPackageIntelligenceError,
+  parsePackageSpec,
+  requireAuth,
+} from "../../shared/index.js";
+import { buildPackageVulnerabilitiesParams } from "../../shared/package-vulnerabilities-request.js";
+import {
+  buildPackageVulnerabilitiesSuccessPayload,
+  formatPackageVulnerabilitiesTerminal,
+} from "../../shared/package-vulnerabilities-response.js";
+
+export interface PkgVulnsCommandOptions {
+  severity?: string;
+  includeWithdrawn?: boolean;
+  verbose?: boolean;
+  json?: boolean;
+}
+
+export interface PkgVulnsCommandDependencies {
+  packageIntelligenceService: PackageIntelligenceService | undefined;
+  codeNavigationUrl: string | undefined;
+  hasValidToken: boolean;
+  mcpUrl: string;
+}
+
+/**
+ * Core `pkg vulns` action. Accepts `<spec>@<version>` (unlike `pkg
+ * info`, which always returns latest). Version flows through to the
+ * backend; `minSeverity` and `includeWithdrawn` likewise go to the
+ * wire. No client-side filtering — backend is single source of truth.
+ */
+export async function pkgVulnsAction(
+  spec: string,
+  options: PkgVulnsCommandOptions,
+  deps: PkgVulnsCommandDependencies,
+): Promise<void> {
+  requireAuth(deps);
+
+  try {
+    if (!deps.codeNavigationUrl || !deps.packageIntelligenceService) {
+      throw new InvalidPackageSpecError(
+        "Package intelligence is not configured for this environment.",
+      );
+    }
+
+    const parsed = parsePackageSpec(spec);
+    const { params } = buildPackageVulnerabilitiesParams({
+      registry: parsed.registry,
+      packageName: parsed.name,
+      version: parsed.version,
+      minSeverity: options.severity,
+      includeWithdrawn: options.includeWithdrawn,
+    });
+    const report =
+      await deps.packageIntelligenceService.packageVulnerabilities(params);
+
+    if (options.json) {
+      const payload = buildPackageVulnerabilitiesSuccessPayload(report, {
+        requestedVersion: parsed.version,
+      });
+      console.log(JSON.stringify(payload));
+      return;
+    }
+
+    const output = formatPackageVulnerabilitiesTerminal(report, {
+      verbose: options.verbose,
+      useColors: shouldUseColors(),
+      requestedVersion: parsed.version,
+      terminalWidth: process.stdout.columns,
+    });
+    process.stdout.write(output);
+  } catch (error) {
+    handlePkgVulnsCommandError(error, options.json ?? false);
+  }
+}
+
+function handlePkgVulnsCommandError(error: unknown, json: boolean): never {
+  const mapped = mapPackageIntelligenceError(error);
+
+  if (json) {
+    console.error(
+      JSON.stringify({
+        error: mapped.message,
+        code: mapped.code,
+        retryable: mapped.retryable ?? false,
+        ...(mapped.details ? { details: mapped.details } : {}),
+      }),
+    );
+    process.exit(1);
+  }
+
+  console.error(formatVulnsTerminalError(mapped));
+  process.exit(1);
+}
+
+/**
+ * Format the terminal error line. Most codes fall through to the
+ * bare mapped message (matches the `pkg info` handler pattern);
+ * `VERSION_NOT_FOUND` gets an extra detail line echoing what the
+ * user asked for and, when available, the versions the backend does
+ * know about — this is the one case where the bare message
+ * ("No matching version found") omits crucial context.
+ */
+function formatVulnsTerminalError(mapped: MappedError): string {
+  if (mapped.code !== "VERSION_NOT_FOUND") return mapped.message;
+  const detail = mapped.details ?? {};
+  const pkg = typeof detail.package === "string" ? detail.package : undefined;
+  const requested =
+    typeof detail.requestedVersion === "string"
+      ? detail.requestedVersion
+      : undefined;
+  const lines = [mapped.message];
+  if (pkg && requested) {
+    lines.push(`  package:   ${pkg}`);
+    lines.push(`  requested: ${requested}`);
+  } else if (requested) {
+    lines.push(`  requested: ${requested}`);
+  }
+  const rawAvailable = Array.isArray(detail.availableVersions)
+    ? detail.availableVersions
+    : undefined;
+  const available = rawAvailable
+    ?.map((entry) => (typeof entry?.version === "string" ? entry.version : ""))
+    .filter((v): v is string => v.length > 0);
+  if (available && available.length > 0) {
+    const sample = available.slice(0, 5).join(", ");
+    const more = available.length - 5;
+    const suffix = more > 0 ? `, … (+${more} more)` : "";
+    lines.push(`  available: ${sample}${suffix}`);
+  }
+  return lines.join("\n");
+}
+
+const PKG_VULNS_DESCRIPTION = `Show known vulnerabilities for a package. Lists CVE / OSV advisories
+with severity, affected version ranges, fix versions, and suggested
+upgrade paths. Malicious-package advisories are flagged prominently.
+
+Package spec: <registry>:<name>[@<version>]. Supported registries:
+npm, pypi, hex, crates. Omit @<version> to check the latest release.
+
+Severity filter (--severity) and withdrawn-advisory visibility
+(--include-withdrawn) are passed through to the backend; the
+returned count reflects whatever survived the filter.`;
+
+export function registerPkgVulnsCommand(pkgCommand: Command): Command {
+  return pkgCommand
+    .command("vulns")
+    .summary("List known vulnerabilities for a package")
+    .description(PKG_VULNS_DESCRIPTION)
+    .argument("<spec>", "Package spec, e.g. npm:express or npm:express@4.18.0")
+    .option(
+      "-s, --severity <level>",
+      "Only show advisories at or above this severity (low, medium, high, critical). Omit to see all.",
+    )
+    .option(
+      "--include-withdrawn",
+      "Include retracted advisories (default: off)",
+    )
+    .option(
+      "-v, --verbose",
+      "Show aliases, modified/withdrawn dates, and malicious-advisory markers",
+    )
+    .option("--json", "Emit the lean JSON envelope")
+    .action(async (spec: string, options: PkgVulnsCommandOptions) => {
+      const deps = await createContainer();
+      await pkgVulnsAction(spec, options, {
+        packageIntelligenceService: deps.packageIntelligenceService,
+        codeNavigationUrl: deps.codeNavigationUrl,
+        hasValidToken: deps.hasValidToken,
+        mcpUrl: deps.mcpUrl,
+      });
+    });
+}

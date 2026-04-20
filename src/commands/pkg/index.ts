@@ -7,6 +7,7 @@ import {
   isCodeNavigationCliOverrideEnabled,
 } from "../../services/index.js";
 import { registerPkgInfoCommand } from "./info.js";
+import { registerPkgVulnsCommand } from "./vulns.js";
 
 export interface PkgCommandGroupOptions {
   codeNavigationUrl?: string;
@@ -71,4 +72,5 @@ export async function registerPkgCommandGroup(
     );
 
   registerPkgInfoCommand(pkgCommand);
+  registerPkgVulnsCommand(pkgCommand);
 }

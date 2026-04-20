@@ -14,6 +14,7 @@ The CLI exposes three primary commands (`search`, `languages`, `feedback`) that 
 | `feedback <solution_id>` | `--accept` or `--reject` | `-m, --message <text>`, `--json` | Submit feedback on a search result |
 | `code search <package> [query]` | package spec | `--keywords`, `--keyword`, `--match-mode`, `--category`, `--kind`, `--file`, `--intent`, `--limit`, `--wait`, `--json` | Search indexed dependency source code |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
+| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates) |
 
 ### `githits init`
 
@@ -100,7 +101,7 @@ Shows a concise overview for a single package: latest version, license, descript
 
 **Package spec.** `<registry>:<name>`. Registries: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`. Scoped npm names (`npm:@types/node`) are supported.
 
-**Always latest.** `pkg info` returns the latest published version regardless of input. Passing `<spec>@<version>` is rejected with `INVALID_ARGUMENT` and a clear message — the tool never silently swaps to latest. Use `pkg vulns` (future) or `pkg deps` (future) for version-pinned queries.
+**Always latest.** `pkg info` returns the latest published version regardless of input. Passing `<spec>@<version>` is rejected with `INVALID_ARGUMENT` and a clear message — the tool never silently swaps to latest. Use `pkg vulns` (supports `@version`) or `pkg deps` (future) for version-pinned queries.
 
 **`--verbose` + `--json`.** `--verbose` has no effect under `--json` — the JSON envelope always carries every field the verbose terminal view exposes (and more). The flag only affects human-readable output.
 
@@ -109,6 +110,44 @@ Shows a concise overview for a single package: latest version, license, descript
 **Capability gate.** Same as `code`: `code_navigation` capability on the token, `GITHITS_CODE_NAVIGATION=1` override, `GITHITS_API_TOKEN` env token, or expired stored auth.
 
 **Troubleshooting.** `GITHITS_DEBUG=pkg-intel` emits PII-safe classified-error diagnostics (area, event, code, error class, detail keys). `GITHITS_DEBUG=pkg-graphql` emits transport-failure diagnostics from inside the POST helper. Use `GITHITS_DEBUG=*` to enable both.
+
+### `githits pkg vulns`
+
+```
+githits pkg vulns npm:express
+githits pkg vulns npm:express@4.17.0
+githits pkg vulns pypi:requests --severity high
+githits pkg vulns crates:serde --json
+githits pkg vulns npm:minimatch --include-withdrawn --verbose
+```
+
+Lists known CVE / OSV advisories for a package: severity, affected version ranges, fix versions, and upgrade targets. Malicious-package advisories (supply-chain attacks flagged by OSV) surface in a separate `MALWARE` bucket that sorts above all CVE advisories.
+
+**Package spec.** `<registry>:<name>[@<version>]`. Unlike `pkg info`, `pkg vulns` supports `@<version>` because the backend query accepts a concrete version (useful for checking an older pinned release). Only `npm`, `pypi`, `hex`, and `crates` support vulnerability data; other registries are rejected client-side with `pkg vulns only supports npm, pypi, hex, and crates. Got: ${registry}.`
+
+**Filtering.** `--severity low|medium|high|critical` maps to a CVSS float threshold (`low=0.1, medium=4, high=7, critical=9`) and goes server-side. The backend's returned `vulnerabilityCount` reflects the filtered set — no client-side filtering, no dual-summary block. Callers wanting the full picture omit the flag. `--include-withdrawn` sends `includeWithdrawn: true` to the backend; withdrawn advisories bucket below active ones in the terminal list.
+
+**Zero-vulns hot path.** The common case (clean package) renders as header + one-line summary body (`No known vulnerabilities.`) — no breakdown, no advisory list, no footer. Agents checking "am I safe?" pay minimal token cost on the happy path.
+
+**Version validation.** `pkg vulns` expects canonical package versions. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` and an actionable message telling the caller to drop the leading `v`, instead of forwarding the request to the backend and surfacing its current generic failure.
+
+**Malware marker.** Advisories with `isMalicious: true` render with a red/bold `MALWARE` column (optionally combined as `MALWARE · crit` when both flags exist). Count surfaces in the summary breakdown line as `N MALWARE · N crit · …`. Buckets partition every returned advisory: `MALWARE + crit + high + medium + low + unrated = advisories.length`, which equals `summary.total` when the backend keeps its count and list consistent. Non-malicious advisories without a CVSS score bucket under `unrated` so the breakdown reconciles with the header total (common for PyPI / Rust advisories where CVSS may be absent).
+
+**Affected-range truncation (terminal-width aware).** The `affected` detail row under each advisory caps at 4 ranges on narrow terminals (≤119 cols), 6 on standard-wide (120–159 cols), and 8 on ultrawide (≥160 cols). The remainder collapses into a dim `… (+N more; use -v)` hint. Verbose mode (`-v`) shows every range. JSON output is never truncated — machine consumers get the full list.
+
+**Unrated severity column.** Advisories with no CVSS score (common on RUSTSEC / PYSEC upstreams) render with a dim `unrated` label in the severity column rather than an empty gutter, matching the header-breakdown vocabulary. They sort below banded advisories within the active bucket.
+
+**Placeholder summary stripping.** When the upstream advisory feed returns the literal string `No summary available` (an OSV convention), both the JSON envelope and the terminal row drop the field entirely — absence of `summary` is the signal, and the advisory row is shorter as a result.
+
+**Upgrade-path ordering.** `upgradePaths` are de-duplicated and sorted ascending by semver-ish comparison (pre-release suffixes rank below the matching base release), so the footer presents the minimum-churn upgrade first: `Upgrade options: 3.11.0, 4.0.0-rc1, 4.5.0, 4.19.2, …` rather than the backend's advisory-iteration order.
+
+**Output envelope.** `{registry, name, version, requestedVersion?, summary: {total, affected?, bySeverity?}, advisories?, upgradePaths?}`. Each advisory: `{id?, aliases?, summary?, severity?, severityLabel?, affectedRanges?, fixedIn?, publishedAt?, modifiedAt?, withdrawnAt?, isMalicious?}`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
+
+**Exit codes.** 0 on success including zero-vulns; 1 on any error. Under `--json`, the error envelope is written to **stderr**.
+
+**Capability gate.** Same as `pkg info` (inherits from the `code_navigation` token capability).
+
+**Troubleshooting.** Same debug areas as `pkg info` (`GITHITS_DEBUG=pkg-intel` for classified errors; `GITHITS_DEBUG=pkg-graphql` for transport failures).
 
 ## Architecture
 

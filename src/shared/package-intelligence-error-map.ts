@@ -18,6 +18,7 @@ import {
   PackageIntelligenceNetworkError,
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceValidationError,
+  PackageIntelligenceVersionNotFoundError,
 } from "../services/package-intelligence-service.js";
 import type {
   MappedError,
@@ -54,6 +55,29 @@ function classify(error: unknown): MappedError {
       code: "NOT_FOUND",
       message: error.message,
       retryable: false,
+    };
+  }
+  if (error instanceof PackageIntelligenceVersionNotFoundError) {
+    const details: MappedErrorDetails = {};
+    if (error.packageName) details.package = error.packageName;
+    if (error.requestedVersion) {
+      details.requestedVersion = error.requestedVersion;
+    }
+    if (error.availableVersions && error.availableVersions.length > 0) {
+      // `availableVersions` on this typed error is `string[]` —
+      // narrower than the code-nav precedent's `{version, ref}[]`
+      // because vulns registries have no ref concept. Match the
+      // shared envelope shape by mapping into `{version}` objects.
+      details.availableVersions = error.availableVersions.map((version) => ({
+        version,
+        ref: version,
+      }));
+    }
+    return {
+      code: "VERSION_NOT_FOUND",
+      message: error.message,
+      retryable: false,
+      details: Object.keys(details).length > 0 ? details : undefined,
     };
   }
   if (error instanceof PackageIntelligenceValidationError) {
@@ -135,9 +159,9 @@ function classifyBackendError(
       return build("RATE_LIMITED", true);
     case "UPSTREAM_ERROR":
       return build("BACKEND_ERROR", true);
-    case "INTERNAL_ERROR":
-    case "UNKNOWN_ERROR":
     default:
+      // INTERNAL_ERROR / UNKNOWN_ERROR / any other / undefined all
+      // route to a non-retryable backend error.
       return build("BACKEND_ERROR", false);
   }
 }

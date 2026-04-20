@@ -26,6 +26,9 @@ Package spec: \`registry:name[@version]\`.`;
 const PACKAGE_SUMMARY_BULLET =
   "- `package_summary` — instant package overview.";
 
+const PACKAGE_VULNERABILITIES_BULLET =
+  "- `package_vulnerabilities` — known CVE / OSV advisories for npm, PyPI, Hex, or Crates packages (optionally pinned to `@version`). Malicious-package advisories surface in a disjoint `malware` bucket; filter with `min_severity` or include retracted advisories with `include_withdrawn`.";
+
 const SEARCH_SYMBOLS_BULLET =
   "- `search_symbols` — text search across a dependency's source. On an INDEXING response, retry with a larger `wait_timeout_ms` (up to 60000).";
 
@@ -71,6 +74,7 @@ export function buildMcpInstructions(deps: Dependencies): string {
   const bullets: string[] = [];
   if (deps.packageIntelligenceService) {
     bullets.push(PACKAGE_SUMMARY_BULLET);
+    bullets.push(PACKAGE_VULNERABILITIES_BULLET);
   }
   if (deps.codeNavigationService) {
     bullets.push(SEARCH_SYMBOLS_BULLET);

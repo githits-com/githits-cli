@@ -148,6 +148,45 @@ describe("createMcpServer", () => {
       expect(names).toContain("search_symbols");
     }
   });
+
+  it("adds package_vulnerabilities when capability is enabled and service wired", () => {
+    const deps = createTestDeps({
+      codeNavigationCapability: "enabled",
+      codeNavigationUrl: "https://pkgseer.dev",
+      codeNavigationService: createMockCodeNavigationService(),
+      packageIntelligenceService: createMockPackageIntelligenceService(),
+    });
+
+    const tools = getMcpToolDefinitions(deps);
+    expect(tools.map((tool) => tool.name)).toContain("package_vulnerabilities");
+  });
+
+  it("omits package_vulnerabilities when capability is disabled", () => {
+    const deps = createTestDeps({
+      codeNavigationCapability: "disabled",
+      codeNavigationUrl: "https://pkgseer.dev",
+      packageIntelligenceService: createMockPackageIntelligenceService(),
+    });
+
+    const tools = getMcpToolDefinitions(deps);
+    expect(tools.map((tool) => tool.name)).not.toContain(
+      "package_vulnerabilities",
+    );
+  });
+
+  it("advertises package_summary and package_vulnerabilities together (shared predicate)", () => {
+    const deps = createTestDeps({
+      codeNavigationCapability: "enabled",
+      codeNavigationUrl: "https://pkgseer.dev",
+      codeNavigationService: createMockCodeNavigationService(),
+      packageIntelligenceService: createMockPackageIntelligenceService(),
+    });
+
+    const names = getMcpToolDefinitions(deps).map((t) => t.name);
+    if (names.includes("package_summary")) {
+      expect(names).toContain("package_vulnerabilities");
+    }
+  });
 });
 
 describe("startMcpServer", () => {

@@ -7,6 +7,7 @@ import { dim, highlight, shouldUseColors } from "../shared/colors.js";
 import {
   createFeedbackTool,
   createPackageSummaryTool,
+  createPackageVulnerabilitiesTool,
   createSearchLanguageTool,
   createSearchSymbolsTool,
   createSearchTool,
@@ -37,6 +38,9 @@ export function getMcpToolDefinitions(
 
   if (gateOpen && deps.packageIntelligenceService) {
     tools.push(createPackageSummaryTool(deps.packageIntelligenceService));
+    tools.push(
+      createPackageVulnerabilitiesTool(deps.packageIntelligenceService),
+    );
   }
 
   return tools;

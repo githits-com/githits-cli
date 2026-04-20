@@ -9,6 +9,7 @@ import {
   PackageIntelligenceServiceImpl,
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceValidationError,
+  PackageIntelligenceVersionNotFoundError,
 } from "./package-intelligence-service.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
@@ -499,5 +500,596 @@ describe("PackageIntelligenceServiceImpl", () => {
       expect(error).toBeInstanceOf(PackageIntelligenceNetworkError);
       expect((error as PackageIntelligenceNetworkError).cause).toBeDefined();
     }
+  });
+});
+
+// --------------------------------------------------------------------
+// packageVulnerabilities
+// --------------------------------------------------------------------
+
+const VULNS_HAPPY_BODY = {
+  data: {
+    packageVulnerabilities: {
+      package: { name: "express", registry: "NPM", version: "4.18.0" },
+      security: {
+        vulnerabilityCount: 2,
+        currentVersionAffected: true,
+        upgradePaths: ["4.18.2"],
+        vulnerabilities: [
+          {
+            osvId: "GHSA-xxxx-xxxx-xxxx",
+            summary: "Open redirect",
+            severityScore: 7.5,
+            severityType: "CVSS_V3",
+            affectedVersionRanges: [">= 4.0.0, < 4.18.2"],
+            fixedInVersions: ["4.18.2"],
+            publishedAt: "2024-06-01T00:00:00Z",
+            modifiedAt: null,
+            withdrawnAt: null,
+            aliases: ["CVE-2024-1234"],
+            isMalicious: false,
+          },
+          {
+            osvId: "GHSA-mmmm-mmmm-mmmm",
+            summary: "Malicious impersonator",
+            severityScore: null,
+            severityType: null,
+            affectedVersionRanges: [">= 4.17.0, < 4.18.1"],
+            fixedInVersions: [],
+            publishedAt: "2024-07-10T00:00:00Z",
+            modifiedAt: null,
+            withdrawnAt: null,
+            aliases: [],
+            isMalicious: true,
+          },
+        ],
+      },
+    },
+  },
+};
+
+describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
+  const ENDPOINT = "https://pkgseer.dev";
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("maps a happy-path response to VulnerabilityReport", async () => {
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(VULNS_HAPPY_BODY)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+    });
+
+    expect(result.package.name).toBe("express");
+    expect(result.package.version).toBe("4.18.0");
+    expect(result.security?.vulnerabilityCount).toBe(2);
+    expect(result.security?.upgradePaths).toEqual(["4.18.2"]);
+    expect(result.security?.vulnerabilities?.[0]?.osvId).toBe(
+      "GHSA-xxxx-xxxx-xxxx",
+    );
+    expect(result.security?.vulnerabilities?.[1]?.isMalicious).toBe(true);
+  });
+
+  it("sends packageVulnerabilities query with wire variables", async () => {
+    let captured: string | undefined;
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      captured = init?.body as string;
+      return Promise.resolve(jsonResponse(VULNS_HAPPY_BODY));
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+      version: "4.18.0",
+      minSeverity: 7.0,
+      includeWithdrawn: true,
+    });
+
+    expect(captured).toBeDefined();
+    const parsed = JSON.parse(captured ?? "{}");
+    expect(parsed.query).toContain(
+      "packageVulnerabilities(\n    registry: $registry",
+    );
+    expect(parsed.variables).toEqual({
+      registry: "NPM",
+      name: "express",
+      version: "4.18.0",
+      minSeverity: 7.0,
+      includeWithdrawn: true,
+    });
+  });
+
+  it("throws MalformedPackageIntelligenceResponseError when name is null", async () => {
+    const body = {
+      data: {
+        packageVulnerabilities: {
+          package: { name: null, registry: "NPM", version: "1.0.0" },
+          security: null,
+        },
+      },
+    };
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(body)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "x",
+      }),
+    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+  });
+
+  it("throws MalformedPackageIntelligenceResponseError when version is null", async () => {
+    const body = {
+      data: {
+        packageVulnerabilities: {
+          package: { name: "express", version: null },
+          security: null,
+        },
+      },
+    };
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(body)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "express",
+      }),
+    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+  });
+
+  it("handles empty vulnerabilities list (zero-vulns success)", async () => {
+    const body = {
+      data: {
+        packageVulnerabilities: {
+          package: { name: "express", registry: "NPM", version: "4.18.2" },
+          security: {
+            vulnerabilityCount: 0,
+            currentVersionAffected: false,
+            upgradePaths: [],
+            vulnerabilities: [],
+          },
+        },
+      },
+    };
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(body)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+    });
+
+    expect(result.security?.vulnerabilityCount).toBe(0);
+    expect(result.security?.vulnerabilities).toEqual([]);
+  });
+
+  it("classifies GraphQL VERSION_NOT_FOUND as typed error with structured details", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "version not found",
+              extensions: {
+                code: "VERSION_NOT_FOUND",
+                package: "npm:express",
+                requested_version: "99.0.0",
+                available_versions: ["4.18.2", "4.18.1"],
+              },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    try {
+      await service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "express",
+        version: "99.0.0",
+      });
+      throw new Error("expected typed version error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PackageIntelligenceVersionNotFoundError);
+      const typed = error as PackageIntelligenceVersionNotFoundError;
+      expect(typed.packageName).toBe("npm:express");
+      expect(typed.requestedVersion).toBe("99.0.0");
+      expect(typed.availableVersions).toEqual(["4.18.2", "4.18.1"]);
+    }
+  });
+
+  it("classifies GraphQL VERSION_NOT_FOUND with empty extensions (backend not wired)", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "version not found",
+              extensions: { code: "VERSION_NOT_FOUND" },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    try {
+      await service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "express",
+        version: "99.0.0",
+      });
+      throw new Error("expected typed version error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PackageIntelligenceVersionNotFoundError);
+      const typed = error as PackageIntelligenceVersionNotFoundError;
+      expect(typed.packageName).toBeUndefined();
+      expect(typed.requestedVersion).toBeUndefined();
+      expect(typed.availableVersions).toBeUndefined();
+    }
+  });
+
+  it("promotes generic 'no matching version' backend error to VersionNotFoundError when a version was requested", async () => {
+    // Live backend currently returns the plain message without the
+    // typed extensions.code. We recover the `package` and
+    // `requestedVersion` fields from the caller's params so the CLI /
+    // MCP surfaces can render actionable output.
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [{ message: "No matching version found" }],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    try {
+      await service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "lodash",
+        version: "99.99.99",
+      });
+      throw new Error("expected typed version error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PackageIntelligenceVersionNotFoundError);
+      const typed = error as PackageIntelligenceVersionNotFoundError;
+      // Qualified with lowercase registry prefix to match the typed
+      // (backend-sent) VERSION_NOT_FOUND shape — keeps CLI / MCP
+      // output consistent across the two code paths.
+      expect(typed.packageName).toBe("npm:lodash");
+      expect(typed.requestedVersion).toBe("99.99.99");
+      expect(typed.availableVersions).toBeUndefined();
+    }
+  });
+
+  it("does NOT promote to VersionNotFoundError when no version was requested (caller asked for latest)", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [{ message: "No matching version found" }],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    try {
+      await service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "lodash",
+      });
+      throw new Error("expected backend error");
+    } catch (error) {
+      expect(error).not.toBeInstanceOf(PackageIntelligenceVersionNotFoundError);
+    }
+  });
+
+  it("does NOT promote when backend supplies an explicit graphqlCode (INTERNAL_ERROR)", async () => {
+    // Real backend faults that happen to mention "no matching
+    // version" in a joined error string must not have their typed
+    // code / retryability silently flipped. Only messages with no
+    // graphqlCode at all (current production behaviour on
+    // packageVulnerabilities) are eligible for promotion.
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "internal error, no matching version table",
+              extensions: { code: "INTERNAL_ERROR" },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    try {
+      await service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "lodash",
+        version: "99.99.99",
+      });
+      throw new Error("expected backend error");
+    } catch (error) {
+      expect(error).not.toBeInstanceOf(PackageIntelligenceVersionNotFoundError);
+      expect(error).toBeInstanceOf(PackageIntelligenceBackendError);
+    }
+  });
+
+  it("classifies GraphQL UNAUTHORIZED (after 2xx) and triggers token refresh", async () => {
+    let callCount = 0;
+    const fetchFn = mock(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve(
+          jsonResponse({
+            errors: [
+              { message: "unauthorized", extensions: { code: "UNAUTHORIZED" } },
+            ],
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse(VULNS_HAPPY_BODY));
+    });
+    const refreshed = mock(() => Promise.resolve("new-token"));
+    const tokenProvider = createMockTokenProvider({
+      getToken: mock(() => Promise.resolve("old-token")),
+      forceRefresh: refreshed,
+    });
+
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      tokenProvider,
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+    });
+
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(result.package.name).toBe("express");
+  });
+
+  it("classifies 403 as PackageIntelligenceAccessError", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(jsonResponse({ detail: "no access" }, 403)),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageVulnerabilities({ registry: "NPM", packageName: "x" }),
+    ).rejects.toBeInstanceOf(PackageIntelligenceAccessError);
+  });
+
+  it("classifies FEATURE_FLAG_REQUIRED correctly", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "flag missing",
+              extensions: { code: "FEATURE_FLAG_REQUIRED" },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageVulnerabilities({ registry: "NPM", packageName: "x" }),
+    ).rejects.toBeInstanceOf(PackageIntelligenceFeatureFlagRequiredError);
+  });
+
+  it("classifies GraphQL NOT_FOUND as PackageIntelligenceTargetNotFoundError", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            { message: "package not found", extensions: { code: "NOT_FOUND" } },
+          ],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageVulnerabilities({ registry: "NPM", packageName: "ghost" }),
+    ).rejects.toBeInstanceOf(PackageIntelligenceTargetNotFoundError);
+  });
+
+  it("classifies VALIDATION_ERROR as PackageIntelligenceValidationError", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "bad input",
+              extensions: { code: "VALIDATION_ERROR" },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageVulnerabilities({ registry: "NPM", packageName: "x" }),
+    ).rejects.toBeInstanceOf(PackageIntelligenceValidationError);
+  });
+
+  it("classifies 5xx as PackageIntelligenceBackendError", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        new Response("Server went away", {
+          status: 503,
+          headers: { "Content-Type": "text/plain" },
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    try {
+      await service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "x",
+      });
+      throw new Error("expected backend error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PackageIntelligenceBackendError);
+    }
+  });
+
+  it("wraps fetch rejection as PackageIntelligenceNetworkError preserving cause", async () => {
+    const cause = new Error("ENOTFOUND");
+    const fetchFn = mock(() => Promise.reject(cause));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    try {
+      await service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "x",
+      });
+      throw new Error("expected network error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PackageIntelligenceNetworkError);
+      expect((error as PackageIntelligenceNetworkError).cause).toBeDefined();
+    }
+  });
+
+  it("preserves malicious and withdrawn flags round-trip", async () => {
+    const body = {
+      data: {
+        packageVulnerabilities: {
+          package: { name: "shady", registry: "NPM", version: "1.0.0" },
+          security: {
+            vulnerabilityCount: 2,
+            currentVersionAffected: true,
+            upgradePaths: [],
+            vulnerabilities: [
+              {
+                osvId: "GHSA-mal",
+                summary: "Malicious",
+                severityScore: null,
+                affectedVersionRanges: [">= 1.0.0"],
+                fixedInVersions: [],
+                publishedAt: "2024-01-01T00:00:00Z",
+                modifiedAt: null,
+                withdrawnAt: null,
+                aliases: [],
+                isMalicious: true,
+              },
+              {
+                osvId: "GHSA-wit",
+                summary: "Retracted advisory",
+                severityScore: 6.5,
+                affectedVersionRanges: [">= 1.0.0"],
+                fixedInVersions: ["1.0.1"],
+                publishedAt: "2023-12-01T00:00:00Z",
+                modifiedAt: null,
+                withdrawnAt: "2024-02-01T00:00:00Z",
+                aliases: [],
+                isMalicious: false,
+              },
+            ],
+          },
+        },
+      },
+    };
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(body)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "shady",
+    });
+
+    expect(result.security?.vulnerabilities?.[0]?.isMalicious).toBe(true);
+    expect(result.security?.vulnerabilities?.[1]?.withdrawnAt).toBe(
+      "2024-02-01T00:00:00Z",
+    );
   });
 });

@@ -148,13 +148,18 @@ When a new tool lands with both MCP and CLI surfaces:
 | `src/shared/search-symbols-response.ts` | Shared JSON envelope builders for `search_symbols`. |
 | `src/shared/package-summary-request.ts` | Shared request builder for `package_summary`. |
 | `src/shared/package-summary-response.ts` | Lean JSON envelope builder and terminal formatter for `package_summary`. |
+| `src/shared/package-vulnerabilities-request.ts` | Shared request builder for `package_vulnerabilities`; owns the tool-local `supportsVulnerabilitiesRegistry` predicate and the severity-label → CVSS float map. |
+| `src/shared/package-vulnerabilities-response.ts` | Lean JSON envelope builder for `package_vulnerabilities` (shared); terminal formatter (CLI-only). |
 | `src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier (reuses `MappedError` from the code-nav map). |
 | `src/tools/search-symbols.ts` | MCP tool definition for `search_symbols`. |
 | `src/tools/package-summary.ts` | MCP tool definition for `package_summary`. |
+| `src/tools/package-vulnerabilities.ts` | MCP tool definition for `package_vulnerabilities`. |
 | `src/commands/code/search-symbols.ts` | CLI command. |
 | `src/commands/pkg/info.ts` | CLI command for `pkg info`. |
+| `src/commands/pkg/vulns.ts` | CLI command for `pkg vulns`. |
 | `src/tools/search-symbols-parity.test.ts` | Parity tests (cite rule IDs). |
 | `src/tools/package-summary-parity.test.ts` | Parity tests for `package_summary` (cite rule IDs). |
+| `src/tools/package-vulnerabilities-parity.test.ts` | Parity tests for `package_vulnerabilities` (cite rule IDs). |
 
 ## Per-tool notes
 
@@ -177,3 +182,51 @@ When a new tool lands with both MCP and CLI surfaces:
 - **`@version` rejection.** CLI-only. The MCP tool has no `version`
   input. The CLI's `pkg info` throws `InvalidPackageSpecError` on
   any non-null parsed version — never silently swaps to latest.
+
+### `package_vulnerabilities`
+
+- **Permissive MCP schema + in-handler validation.** Same pattern as
+  `package_summary`. `buildPackageVulnerabilitiesParams` is the
+  single validator used by both surfaces; raw Zod errors never
+  surface in the envelope.
+- **Filter-aware summary.** `minSeverity` + `includeWithdrawn` go
+  straight to the GraphQL query; the backend's `vulnerabilityCount`
+  reflects the filtered set. No client-side filtering, no
+  `summary.filtered` dual-block.
+- **Partitioning bySeverity buckets.** `summary.bySeverity` carries
+  a `malware` key for `isMalicious === true` advisories; severity
+  bands for non-malicious advisories with a positive CVSS score;
+  and `unrated` for non-malicious advisories with no score. Every
+  returned advisory lands in exactly one bucket — client-side
+  guarantee `MALWARE + crit + high + medium + low + unrated =
+  advisories.length`. The sum also equals `summary.total` whenever
+  the backend keeps `vulnerabilityCount` and `vulnerabilities[]`
+  consistent. Malware advisories sort first in the advisory list
+  regardless of severity score; `unrated` advisories sort last
+  within the active bucket.
+- **Scope of the shared helper.** `buildPackageVulnerabilitiesSuccessPayload`
+  is shared between CLI `--json` and MCP `content[0].text` — that's
+  what enforces envelope parity. The terminal formatter
+  `formatPackageVulnerabilitiesTerminal` is CLI-only (MCP always
+  emits JSON). The parity doc's default rule (CLI-local rendering)
+  still applies to the formatter; the envelope builder is the
+  explicit shared-helper exception.
+- **Parity assertion policy** (coded in
+  `src/tools/package-vulnerabilities-parity.test.ts`):
+  - `toEqual` for the service-sourced fixtures: happy, zero-vulns,
+    filtered-success, versioned-match (no `requestedVersion`),
+    versioned-real-diff (`requestedVersion` present), `NOT_FOUND`,
+    `VERSION_NOT_FOUND` (with structured details), `BACKEND_ERROR`.
+  - `toMatchObject` for builder-sourced `INVALID_ARGUMENT` cases
+    such as unsupported registry (`vcpkg`) and tag-style version
+    input (`v4.18.0`).
+- **Typed `VERSION_NOT_FOUND`.** Mirrors the code-nav precedent:
+  `PackageIntelligenceVersionNotFoundError` carries structured
+  fields sourced from GraphQL `extensions` (`packageName`,
+  `requestedVersion`, `availableVersions`). The classifier emits
+  structured `details` in the error envelope.
+- **Client-side `v`-prefix rejection.** `package_vulnerabilities`
+  validates version strings before the service call. Tag-style
+  inputs like `v4.18.0` are rejected as `INVALID_ARGUMENT` with an
+  actionable message instead of relying on the current production
+  backend, which returns a generic error for that input.
