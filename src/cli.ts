@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { version } from "../package.json";
 import {
   registerAuthStatusCommand,
+  registerCodeCommandGroup,
   registerFeedbackCommand,
   registerInitCommand,
   registerLanguagesCommand,
@@ -52,6 +53,9 @@ registerMcpCommand(program);
 registerSearchCommand(program);
 registerLanguagesCommand(program);
 registerFeedbackCommand(program);
+if (shouldRegisterCodeCommands(process.argv.slice(2))) {
+  await registerCodeCommandGroup(program);
+}
 
 // Auth status as subcommand of `auth`
 const authCommand = program
@@ -60,4 +64,14 @@ const authCommand = program
   .description("Manage authentication with GitHits.");
 registerAuthStatusCommand(authCommand);
 
-program.parse();
+await program.parseAsync();
+
+function shouldRegisterCodeCommands(args: string[]): boolean {
+  const [firstArg] = args;
+  return (
+    firstArg === "code" ||
+    firstArg === "help" ||
+    firstArg === "--help" ||
+    firstArg === "-h"
+  );
+}

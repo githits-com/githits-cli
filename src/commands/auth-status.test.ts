@@ -1,5 +1,6 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
+  createJwtToken,
   createMockAuthService,
   createMockAuthStorage,
   createValidTokenData,
@@ -15,6 +16,7 @@ describe("authStatusAction", () => {
       authStorage?: ReturnType<typeof createMockAuthStorage>;
       authService?: ReturnType<typeof createMockAuthService>;
       envApiToken?: string;
+      codeNavigationCliOverrideEnabled?: boolean;
     } = {},
   ) {
     return {
@@ -22,6 +24,8 @@ describe("authStatusAction", () => {
       authService: overrides.authService ?? createMockAuthService(),
       mcpUrl,
       envApiToken: overrides.envApiToken ?? undefined,
+      codeNavigationCliOverrideEnabled:
+        overrides.codeNavigationCliOverrideEnabled ?? false,
     };
   }
 
@@ -42,6 +46,7 @@ describe("authStatusAction", () => {
       loadTokens: mock(() =>
         Promise.resolve(
           createValidTokenData({
+            accessToken: createJwtToken({ feature_flags: ["code_navigation"] }),
             expiresAt: new Date(Date.now() + 3600_000).toISOString(),
           }),
         ),
@@ -56,6 +61,7 @@ describe("authStatusAction", () => {
     expect(output).toContain(mcpUrl);
     expect(output).toContain("Storage:");
     expect(output).toContain("System keychain (githits)");
+    expect(output).toContain("Code navigation: enabled");
     consoleSpy.mockRestore();
   });
 
@@ -87,6 +93,7 @@ describe("authStatusAction", () => {
       expiresAt: new Date(Date.now() - 3600_000).toISOString(),
     });
     const refreshedToken = createValidTokenData({
+      accessToken: createJwtToken({ feature_flags: ["code_navigation"] }),
       expiresAt: new Date(Date.now() + 3600_000).toISOString(),
     });
 
@@ -107,18 +114,36 @@ describe("authStatusAction", () => {
     expect(output).toContain("Authenticated (token refreshed)");
     expect(output).not.toContain("Token expired");
     expect(output).toContain("Storage:");
+    expect(output).toContain("Code navigation: enabled");
     consoleSpy.mockRestore();
   });
 
   it("shows env token info when envApiToken is provided", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
-    await authStatusAction(createDeps({ envApiToken: "ghi-test-token-12345" }));
+    await authStatusAction(
+      createDeps({
+        envApiToken: createJwtToken({ feature_flags: ["code_navigation"] }),
+      }),
+    );
 
     const output = consoleSpy.mock.calls.map((c) => c[0]).join("\n");
     expect(output).toContain("environment variable");
     expect(output).toContain("GITHITS_API_TOKEN");
-    expect(output).not.toContain("only work for search");
+    expect(output).toContain("Code navigation: enabled");
+    consoleSpy.mockRestore();
+  });
+
+  it("shows unknown capability and active CLI override when unauthenticated", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await authStatusAction(
+      createDeps({ codeNavigationCliOverrideEnabled: true }),
+    );
+
+    const output = consoleSpy.mock.calls.map((c) => c[0]).join("\n");
+    expect(output).toContain("Code navigation: unknown");
+    expect(output).toContain("CLI override: enabled");
     consoleSpy.mockRestore();
   });
 

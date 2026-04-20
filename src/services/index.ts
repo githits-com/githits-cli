@@ -10,7 +10,6 @@ export type {
   TokenResponse,
 } from "./auth-service.js";
 export { AuthServiceImpl } from "./auth-service.js";
-
 export type {
   AuthStorage,
   ClientRegistration,
@@ -23,9 +22,47 @@ export {
   ChunkingKeyringService,
   WINDOWS_MAX_ENTRY_SIZE,
 } from "./chunking-keyring-service.js";
-export { getApiUrl, getEnvApiToken, getMcpUrl } from "./config.js";
+export type { CodeNavigationCapability } from "./code-navigation-capability.js";
+export { getCodeNavigationCapability } from "./code-navigation-capability.js";
+export type {
+  AvailableVersion,
+  CodeNavigationRegistry,
+  CodeNavigationService,
+  CodeNavigationTarget,
+  SearchSymbolsFileIntent,
+  SearchSymbolsKind,
+  SearchSymbolsMatchMode,
+  SearchSymbolsParams,
+  SearchSymbolsResolution,
+  SearchSymbolsResult,
+  SearchSymbolsResultEntry,
+  SymbolCategory,
+} from "./code-navigation-service.js";
+export {
+  CodeNavigationAccessError,
+  CodeNavigationBackendError,
+  CodeNavigationFeatureFlagRequiredError,
+  CodeNavigationGraphQLError,
+  CodeNavigationIndexingError,
+  CodeNavigationNetworkError,
+  CodeNavigationServiceImpl,
+  CodeNavigationTargetNotFoundError,
+  CodeNavigationUnresolvableError,
+  CodeNavigationValidationError,
+  CodeNavigationVersionNotFoundError,
+  InvalidSearchSymbolsRequestError,
+  MalformedCodeNavigationResponseError,
+} from "./code-navigation-service.js";
+export {
+  getApiUrl,
+  getCodeNavigationUrl,
+  getEnvApiToken,
+  getMcpUrl,
+  isCodeNavigationCliOverrideEnabled,
+} from "./config.js";
 export type { ExecResult, ExecService } from "./exec-service.js";
 export { ExecServiceImpl } from "./exec-service.js";
+export { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 export type { FileSystemService } from "./filesystem-service.js";
 export { FileSystemServiceImpl } from "./filesystem-service.js";
 export type {

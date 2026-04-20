@@ -1,3 +1,4 @@
+import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import {
   AuthenticationError,
   type FeedbackParams,
@@ -46,29 +47,14 @@ export class RefreshingGitHitsService implements GitHitsService {
   private async withTokenRefresh<T>(
     operation: (service: GitHitsService) => Promise<T>,
   ): Promise<T> {
-    const token = await this.tokenProvider.getToken();
-    if (!token) {
-      throw new AuthenticationError(
-        "Authentication required. Run `githits login` to authenticate.",
-      );
-    }
-
-    const service = this.serviceFactory(this.apiUrl, token);
-    try {
-      return await operation(service);
-    } catch (error) {
-      if (error instanceof AuthenticationError) {
-        const refreshedToken = await this.tokenProvider.forceRefresh();
-        if (!refreshedToken) {
-          throw error;
-        }
-        const refreshedService = this.serviceFactory(
-          this.apiUrl,
-          refreshedToken,
-        );
-        return operation(refreshedService);
-      }
-      throw error;
-    }
+    return executeWithTokenRefresh({
+      getToken: () => this.tokenProvider.getToken(),
+      forceRefresh: () => this.tokenProvider.forceRefresh(),
+      shouldRefresh: (error) => error instanceof AuthenticationError,
+      executeWithToken: async (token) => {
+        const service = this.serviceFactory(this.apiUrl, token);
+        return operation(service);
+      },
+    });
   }
 }
