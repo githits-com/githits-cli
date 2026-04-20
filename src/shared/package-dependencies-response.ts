@@ -1,32 +1,47 @@
 /**
  * Hand-crafted response envelope for the `package_dependencies` tool.
  * Shared by CLI `--json` output and MCP `content[0].text`. The terminal
- * formatter is CLI-only.
+ * formatter is CLI-only; it reads from the same envelope shape agents
+ * consume so the two surfaces can never drift.
  *
- * Key design commitments (locked in the plan):
+ * Key design commitments:
  *
  * - **Data-first envelope.** Whenever the backend returned
- *   `dependencies.direct`, we emit a `runtime` block with the flat
- *   list and a client-computed count. Whenever the backend returned
- *   `dependencyGroups`, we emit a `groups` block with every returned
- *   group verbatim. Agents don't branch on flags; they branch on
- *   what's in the envelope. Lifecycle filtering is server-side and
- *   visible via the optional `filter` metadata block.
+ *   `dependencies.direct`, we emit a `runtime` block with
+ *   `{count, items: [{name, version?, constraint?}]}`. Whenever the
+ *   backend returned `dependencyGroups`, we emit a `groups` block
+ *   with every returned group. Agents branch on what's in the
+ *   envelope, not on caller flags.
+ * - **Preprocessed transitive.** When the caller sets
+ *   `includeTransitive`, the envelope's `transitive.packages[]` lists
+ *   every unique install with its resolved version. Adding
+ *   `includeImporters` populates per-package `importers[]` with the
+ *   upstream node name, its own version, and the constraint it
+ *   declared — the same signal the terminal `--verbose` view
+ *   renders, but derived client-side so agents don't have to decode
+ *   the backend's `GenericJSON` DAG themselves.
+ * - **Typed conflicts / cycles with raw fallback.** `transitive.conflicts`
+ *   and `transitive.circularDependencies` ship as typed arrays
+ *   (`{name, requiredVersions}` / `{cycle: string[]}`) when every
+ *   entry decodes against the observed backend shape. If any entry
+ *   fails we fall back to raw `GenericJSON[]` passthrough for that
+ *   field so no data is silently lost — agents discriminate by
+ *   checking for the typed fields on the first element.
  * - **Null vs empty matters.** `dependencyGroups: null` → omit
  *   `groups` entirely ("backend has no groups concept"). Non-null
  *   with zero members after filtering → `groups: { items: [] }`
- *   ("filter matched nothing"). Both map to different envelope
- *   shapes so agents can tell them apart.
+ *   ("filter matched nothing").
+ * - **No raw DAG, no `uniqueDependencies`.** The backend DAG is
+ *   deliberately not exposed from this tool's envelope — a future
+ *   `pkg deps-dag` command will surface it under a typed contract
+ *   for graph visualisation. `uniqueDependencies` is subsumed by
+ *   `packages[]`. `groups.environmentConstraints` remains raw
+ *   `GenericJSON[]` pending a live observation to type it against.
  * - **No v-prefix normalisation.** Inherited from P2; tag-style
  *   inputs are rejected in the request builder before we get here.
  * - **Terminal-only dedup.** JSON preserves every tuple the backend
  *   sent (including Crates target-cfg duplicates). Terminal
  *   rendering strips duplicates inside each group for scannability.
- * - **`transitive.dag` is opaque passthrough.** Backend declares it
- *   `GenericJSON`; we neither parse nor render it. Agents that want
- *   structured DAG analysis read `transitive.dag` from JSON. Same
- *   rule applies to `conflicts`, `circularDependencies`, and
- *   `environmentConstraints`.
  */
 
 import type {
@@ -932,69 +947,6 @@ function isTypedCycleArray(
   return Array.isArray(obj.cycle);
 }
 
-/**
- * Best-effort decoder for a `transitive.conflicts[]` entry. Backend
- * ships these as `GenericJSON`; observed shape on npm:jest is:
- *
- *   {
- *     package_name: string,
- *     required_versions: string[],                // deduped constraint ranges
- *     conflicting_edges: [{ data: { version_constraint, dependency_type },
- *                           from: "npm", to: "npm" }, ...]
- *   }
- *
- * Note `from`/`to` are registry strings, not importer node IDs — so
- * per-range provenance is lost. That's a backend gap; see
- * `/tmp/githits-cli-pkg-intel-backend-gaps.md` item #9 for follow-up.
- */
-interface DecodedConflict {
-  name: string;
-  ranges: string[];
-}
-
-function decodeConflictEntry(raw: unknown): DecodedConflict | null {
-  if (!raw || typeof raw !== "object") return null;
-  const obj = raw as Record<string, unknown>;
-  const name =
-    typeof obj.package_name === "string"
-      ? obj.package_name
-      : typeof obj.packageName === "string"
-        ? obj.packageName
-        : null;
-  if (!name) return null;
-  const rangesRaw = obj.required_versions ?? obj.requiredVersions;
-  if (!Array.isArray(rangesRaw)) return null;
-  const ranges: string[] = [];
-  for (const r of rangesRaw) {
-    if (typeof r === "string" && r.length > 0 && !ranges.includes(r)) {
-      ranges.push(r);
-    }
-  }
-  if (ranges.length === 0) return null;
-  ranges.sort();
-  return { name, ranges };
-}
-
-/**
- * Best-effort decoder for a `transitive.circularDependencies[]` entry.
- * No live observation yet; designed to handle plausible shapes:
- *
- *   { cycle: string[] }            — array of package names along the loop
- *   { packages: string[] }         — alias
- *   string[]                       — a bare array
- */
-function decodeCycleEntry(raw: unknown): string[] | null {
-  if (Array.isArray(raw) && raw.every((x) => typeof x === "string")) {
-    return raw as string[];
-  }
-  if (!raw || typeof raw !== "object") return null;
-  const obj = raw as Record<string, unknown>;
-  const source = obj.cycle ?? obj.packages ?? obj.path;
-  if (!Array.isArray(source)) return null;
-  const names = source.filter((x): x is string => typeof x === "string");
-  return names.length > 0 ? names : null;
-}
-
 // --------------------------------------------------------------------
 // Groups block (separate; shown when --groups or --lifecycle)
 // --------------------------------------------------------------------
@@ -1297,97 +1249,4 @@ function decodeEdges(raw: unknown): DagEdge[] | null {
     return null;
   }
   return out;
-}
-
-interface ProvenanceEntry {
-  name: string;
-  constraint?: string;
-  /**
-   * The importer's own resolved version (e.g. `express@5.2.1` →
-   * `"5.2.1"`). Populated when {@link buildProvenanceLookup} was
-   * called with `includeImporterVersion = true` and the DAG node
-   * for the importer carried a version. Optional because older
-   * DAG shapes may lack version metadata.
-   */
-  importerVersion?: string;
-}
-
-/**
- * Build a lookup `key → importers[]` where `key` matches the strings
- * in `transitive.uniqueDependencies`. Observed backend strings are
- * `name@version`; we index by both `name@version` and bare `name` so
- * either form works.
- *
- * When `includeImporterVersion` is true, each entry carries the
- * importer's own resolved version — used by the multi-line verbose
- * renderer to display `- <constraint> required by <importer>@<version>`.
- */
-function buildProvenanceLookup(
-  dag: DecodedDag,
-  includeImporterVersion = false,
-): Map<string, ProvenanceEntry[]> {
-  const nodes = dag.nodes;
-  const incoming = new Map<number, DagEdge[]>();
-  for (const edge of dag.edges) {
-    const list = incoming.get(edge.toIdx);
-    if (list) {
-      list.push(edge);
-    } else {
-      incoming.set(edge.toIdx, [edge]);
-    }
-  }
-
-  const lookup = new Map<string, ProvenanceEntry[]>();
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i];
-    if (!node) continue;
-    const importers = incoming.get(i) ?? [];
-    const entries: ProvenanceEntry[] = [];
-    const seen = new Set<string>();
-    for (const edge of importers) {
-      const from = nodes[edge.fromIdx];
-      if (!from) continue;
-      const key = `${from.name}\u0000${from.version ?? ""}\u0000${edge.constraint ?? ""}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const entry: ProvenanceEntry = {
-        name: from.name,
-        constraint: edge.constraint,
-      };
-      if (includeImporterVersion && from.version) {
-        entry.importerVersion = from.version;
-      }
-      entries.push(entry);
-    }
-    entries.sort((a, b) => {
-      if (a.name !== b.name) return a.name < b.name ? -1 : 1;
-      const av = a.importerVersion ?? "";
-      const bv = b.importerVersion ?? "";
-      return av < bv ? -1 : av > bv ? 1 : 0;
-    });
-
-    // Index by both `name@version` and bare `name`.
-    if (node.version) {
-      lookup.set(`${node.name}@${node.version}`, entries);
-    }
-    const existingBare = lookup.get(node.name);
-    if (existingBare) {
-      // Multiple versions of the same name — merge importers.
-      for (const e of entries) {
-        const key = `${e.name}\u0000${e.importerVersion ?? ""}\u0000${e.constraint ?? ""}`;
-        if (
-          !existingBare.some(
-            (x) =>
-              `${x.name}\u0000${x.importerVersion ?? ""}\u0000${x.constraint ?? ""}` ===
-              key,
-          )
-        ) {
-          existingBare.push(e);
-        }
-      }
-    } else {
-      lookup.set(node.name, [...entries]);
-    }
-  }
-  return lookup;
 }

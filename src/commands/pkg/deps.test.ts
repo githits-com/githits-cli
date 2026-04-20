@@ -183,6 +183,24 @@ describe("pkgDepsAction", () => {
     exitSpy.mockRestore();
   });
 
+  it("rejects --depth without --transitive (avoids silently ignored flag)", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await pkgDepsAction("npm:express", { depth: "3" }, createDeps());
+    } catch {
+      /* expected */
+    }
+
+    const msg = errorSpy.mock.calls[0]?.[0] as string;
+    expect(msg).toContain("--depth requires --transitive");
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
   it("rejects unsupported registry (nuget) with tool-specific message", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
