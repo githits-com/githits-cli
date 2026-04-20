@@ -41,6 +41,27 @@ export {
   InvalidKeywordsError,
   normaliseKeywords,
 } from "./normalise-keywords.js";
+export {
+  buildPackageDependenciesParams,
+  type DependencyLifecycle,
+  isLifecycle,
+  type PackageDependenciesRequestBuildResult,
+  type PackageDependenciesRequestInput,
+  supportsDependenciesRegistry,
+  UnsupportedDependenciesRegistryError,
+} from "./package-dependencies-request.js";
+export {
+  buildPackageDependenciesSuccessPayload,
+  formatPackageDependenciesTerminal,
+  type LeanDependencyReport,
+  type LeanDirectDependency,
+  type LeanFilterBlock,
+  type LeanGroup,
+  type LeanGroupDependency,
+  type LeanGroupsBlock,
+  type LeanRuntimeBlock,
+  type LeanTransitiveBlock,
+} from "./package-dependencies-response.js";
 export { mapPackageIntelligenceError } from "./package-intelligence-error-map.js";
 export {
   InvalidArgumentError,

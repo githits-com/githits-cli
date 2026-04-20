@@ -29,6 +29,9 @@ const PACKAGE_SUMMARY_BULLET =
 const PACKAGE_VULNERABILITIES_BULLET =
   "- `package_vulnerabilities` — known CVE / OSV advisories for npm, PyPI, Hex, or Crates packages (optionally pinned to `@version`). Malicious-package advisories surface in a disjoint `malware` bucket; filter with `min_severity` or include retracted advisories with `include_withdrawn`.";
 
+const PACKAGE_DEPENDENCIES_BULLET =
+  "- `package_dependencies` — direct runtime deps plus, when the backend has them, dev / peer / optional / feature groups. Pass `lifecycle` to filter groups server-side, or `include_transitive` for the full graph, conflict detection, and circular-dependency flags. Supports npm, PyPI, Hex, Crates, vcpkg, and Zig.";
+
 const SEARCH_SYMBOLS_BULLET =
   "- `search_symbols` — text search across a dependency's source. On an INDEXING response, retry with a larger `wait_timeout_ms` (up to 60000).";
 
@@ -75,6 +78,7 @@ export function buildMcpInstructions(deps: Dependencies): string {
   if (deps.packageIntelligenceService) {
     bullets.push(PACKAGE_SUMMARY_BULLET);
     bullets.push(PACKAGE_VULNERABILITIES_BULLET);
+    bullets.push(PACKAGE_DEPENDENCIES_BULLET);
   }
   if (deps.codeNavigationService) {
     bullets.push(SEARCH_SYMBOLS_BULLET);

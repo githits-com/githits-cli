@@ -150,16 +150,22 @@ When a new tool lands with both MCP and CLI surfaces:
 | `src/shared/package-summary-response.ts` | Lean JSON envelope builder and terminal formatter for `package_summary`. |
 | `src/shared/package-vulnerabilities-request.ts` | Shared request builder for `package_vulnerabilities`; owns the tool-local `supportsVulnerabilitiesRegistry` predicate and the severity-label → CVSS float map. |
 | `src/shared/package-vulnerabilities-response.ts` | Lean JSON envelope builder for `package_vulnerabilities` (shared); terminal formatter (CLI-only). |
+| `src/shared/package-dependencies-request.ts` | Shared request builder for `package_dependencies`; owns `supportsDependenciesRegistry` + lifecycle / depth validation. |
+| `src/shared/package-dependencies-response.ts` | Lean JSON envelope builder for `package_dependencies` (shared); terminal formatter (CLI-only). |
 | `src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier (reuses `MappedError` from the code-nav map). |
+| `src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. Used by `packageVulnerabilities` and `packageDependencies` executors. |
 | `src/tools/search-symbols.ts` | MCP tool definition for `search_symbols`. |
 | `src/tools/package-summary.ts` | MCP tool definition for `package_summary`. |
 | `src/tools/package-vulnerabilities.ts` | MCP tool definition for `package_vulnerabilities`. |
+| `src/tools/package-dependencies.ts` | MCP tool definition for `package_dependencies`. |
 | `src/commands/code/search-symbols.ts` | CLI command. |
 | `src/commands/pkg/info.ts` | CLI command for `pkg info`. |
 | `src/commands/pkg/vulns.ts` | CLI command for `pkg vulns`. |
+| `src/commands/pkg/deps.ts` | CLI command for `pkg deps`. |
 | `src/tools/search-symbols-parity.test.ts` | Parity tests (cite rule IDs). |
 | `src/tools/package-summary-parity.test.ts` | Parity tests for `package_summary` (cite rule IDs). |
 | `src/tools/package-vulnerabilities-parity.test.ts` | Parity tests for `package_vulnerabilities` (cite rule IDs). |
+| `src/tools/package-dependencies-parity.test.ts` | Parity tests for `package_dependencies` (cite rule IDs). |
 
 ## Per-tool notes
 
@@ -230,3 +236,59 @@ When a new tool lands with both MCP and CLI surfaces:
   inputs like `v4.18.0` are rejected as `INVALID_ARGUMENT` with an
   actionable message instead of relying on the current production
   backend, which returns a generic error for that input.
+
+### `package_dependencies`
+
+- **Data-first envelope.** `runtime`, `groups`, and `transitive` are
+  three independent blocks emitted based on what the backend
+  returned and what the caller asked for, not on additional caller
+  flags. An MCP agent decides what to read based on what's in the
+  envelope — no branching on invocation inputs.
+- **No `include_groups` input.** The data-first envelope emits the
+  `groups` block unconditionally when the backend returned
+  `dependencyGroups`, so an `include_groups: true` input would be a
+  silently ignored no-op. Deliberately absent from the MCP schema.
+- **Dependency list naming.** Every list of dependencies in the
+  envelope uses the `items` key: `runtime.items`, `groups.items`
+  (array of groups), each group's nested `items` (array of member
+  deps). Symmetric and easy to parse.
+- **Lifecycle filter echo.** `filter.lifecycles` is the
+  canonicalised, deduplicated, display-order-sorted array the
+  backend actually received (never the raw CSV). Emitted only when
+  the caller supplied a non-empty input.
+- **Null vs empty matters.** `groups` is omitted entirely when the
+  backend returned `dependencyGroups: null` (zero-dep packages);
+  emitted with `items: []` when the backend returned a non-null
+  `dependencyGroups` with zero groups (filter matched nothing).
+  `runtime` is omitted when `dependencies: null` or `direct: null`;
+  emitted with `count: 0, items: []` when `direct: []`.
+- **Terminal-only dedup.** Crates feature groups can contain
+  duplicate `{name, constraint}` tuples (target-cfg branching). The
+  terminal formatter collapses them; the JSON envelope preserves
+  every duplicate the backend emitted. A parity fixture exercises
+  the round-trip.
+- **Preprocessed transitive.** Backend declares `transitive.conflicts`,
+  `transitive.circularDependencies`, and the DAG as `GenericJSON`,
+  but the envelope builder decodes them using best-effort shape
+  detectors so agents see typed data. `transitive.packages[]` carries
+  `{name, version, importers[]}` records (importer name / version /
+  constraint pulled from the DAG); `conflicts[]` is typed
+  `{name, requiredVersions}` when decodable; `circularDependencies[]`
+  is typed `{cycle: string[]}` when decodable. When a decoder can't
+  match, that field falls back to raw `GenericJSON[]` so no data is
+  lost. The raw DAG itself is deliberately dropped from this tool's
+  envelope — a future `pkg deps-dag` command will expose it under a
+  typed contract. `groups.environmentConstraints` remains raw
+  `GenericJSON[]` (no live shape observed yet).
+- **Parity assertion policy** (coded in
+  `src/tools/package-dependencies-parity.test.ts`):
+  - `toEqual` across the service-sourced success fixtures: happy
+    flat-runtime, zero-dep (omits `groups`), full-view, optional-
+    lifecycle (tokio features), multi-lifecycle filter,
+    filter-matched-nothing (`groups: {items: []}`),
+    Crates-target-cfg dedup round-trip, versioned match / diff,
+    `NOT_FOUND`, `VERSION_NOT_FOUND` with structured details,
+    `BACKEND_ERROR`.
+  - `toMatchObject` for builder-sourced `INVALID_ARGUMENT` cases:
+    unsupported registry (`nuget`), tag-style version (`v4.18.0`),
+    unknown lifecycle token (`dev`).

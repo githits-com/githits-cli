@@ -1,4 +1,5 @@
 export { createFeedbackTool } from "./feedback.js";
+export { createPackageDependenciesTool } from "./package-dependencies.js";
 export { createPackageSummaryTool } from "./package-summary.js";
 export { createPackageVulnerabilitiesTool } from "./package-vulnerabilities.js";
 export { createSearchTool } from "./search.js";
