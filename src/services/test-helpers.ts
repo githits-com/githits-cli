@@ -21,6 +21,7 @@ import type { FileSystemService } from "./filesystem-service.js";
 import type { GitHitsService } from "./githits-service.js";
 import type { KeyringService } from "./keyring-service.js";
 import type {
+  DependencyReport,
   PackageIntelligenceService,
   PackageSummary,
   VulnerabilityReport,
@@ -376,6 +377,122 @@ export const defaultVulnerabilityReport: VulnerabilityReport = {
 };
 
 /**
+ * Fully-populated `DependencyReport` fixture — npm:express shape with
+ * a runtime group + a development group. No transitive, no conflicts,
+ * no circular deps.
+ */
+export const defaultDependencyReport: DependencyReport = {
+  package: {
+    name: "express",
+    registry: "NPM",
+    version: "5.2.1",
+  },
+  dependencies: {
+    direct: [
+      { name: "accepts", versionConstraint: "^2.0.0", type: "runtime" },
+      { name: "body-parser", versionConstraint: "^2.2.1", type: "runtime" },
+      { name: "cookie", versionConstraint: "^0.7.1", type: "runtime" },
+    ],
+  },
+  dependencyGroups: {
+    primaryGroup: undefined,
+    groups: [
+      {
+        name: "runtime",
+        lifecycle: "runtime",
+        conditionType: "always",
+        selectionMode: "required",
+        dependencies: [
+          { name: "accepts", constraint: "^2.0.0" },
+          { name: "body-parser", constraint: "^2.2.1" },
+          { name: "cookie", constraint: "^0.7.1" },
+        ],
+      },
+      {
+        name: "development",
+        lifecycle: "development",
+        conditionType: "always",
+        selectionMode: "required",
+        dependencies: [
+          { name: "mocha", constraint: "^10.7.3" },
+          { name: "supertest", constraint: "^6.3.0" },
+        ],
+      },
+    ],
+  },
+};
+
+/**
+ * Zero-dep fixture — left-pad shape. Backend returns
+ * `dependencyGroups: null` for packages without group metadata, which
+ * is the shape the envelope's omission rules key off of.
+ */
+export const zeroDepDependencyReport: DependencyReport = {
+  package: {
+    name: "left-pad",
+    registry: "NPM",
+    version: "1.3.0",
+  },
+  dependencies: { direct: [] },
+};
+
+/**
+ * Crates-shape fixture — tokio with runtime + development + optional
+ * feature groups, exercising conditionType=feature and conditionValue.
+ * Includes a synthetic duplicate so terminal-only dedup can be asserted.
+ */
+export const cratesFeatureDependencyReport: DependencyReport = {
+  package: {
+    name: "tokio",
+    registry: "CRATES",
+    version: "1.52.1",
+  },
+  dependencies: {
+    direct: [
+      {
+        name: "pin-project-lite",
+        versionConstraint: "^0.2.11",
+        type: "runtime",
+      },
+    ],
+  },
+  dependencyGroups: {
+    primaryGroup: undefined,
+    groups: [
+      {
+        name: "runtime",
+        lifecycle: "runtime",
+        conditionType: "always",
+        selectionMode: "required",
+        dependencies: [{ name: "pin-project-lite", constraint: "^0.2.11" }],
+      },
+      {
+        name: "full",
+        lifecycle: "optional",
+        conditionType: "feature",
+        conditionValue: "full",
+        selectionMode: "additive",
+        defaultEnabled: false,
+        dependencies: [{ name: "parking_lot", constraint: "^0.12.0" }],
+      },
+      {
+        name: "net",
+        lifecycle: "optional",
+        conditionType: "feature",
+        conditionValue: "net",
+        selectionMode: "additive",
+        defaultEnabled: false,
+        dependencies: [
+          { name: "libc", constraint: "^0.2.168" },
+          { name: "libc", constraint: "^0.2.168" },
+          { name: "mio", constraint: "^1.2.0" },
+        ],
+      },
+    ],
+  },
+};
+
+/**
  * Creates a mock PackageIntelligenceService. Defaults resolve to the
  * fully-populated fixtures; override per-test as needed.
  */
@@ -387,6 +504,7 @@ export function createMockPackageIntelligenceService(
     packageVulnerabilities: mock(() =>
       Promise.resolve(defaultVulnerabilityReport),
     ),
+    packageDependencies: mock(() => Promise.resolve(defaultDependencyReport)),
     ...impl,
   };
 }

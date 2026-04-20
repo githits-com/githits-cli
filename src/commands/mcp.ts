@@ -6,6 +6,7 @@ import { createContainer, type Dependencies } from "../container.js";
 import { dim, highlight, shouldUseColors } from "../shared/colors.js";
 import {
   createFeedbackTool,
+  createPackageDependenciesTool,
   createPackageSummaryTool,
   createPackageVulnerabilitiesTool,
   createSearchLanguageTool,
@@ -41,6 +42,7 @@ export function getMcpToolDefinitions(
     tools.push(
       createPackageVulnerabilitiesTool(deps.packageIntelligenceService),
     );
+    tools.push(createPackageDependenciesTool(deps.packageIntelligenceService));
   }
 
   return tools;

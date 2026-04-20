@@ -1093,3 +1093,245 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     );
   });
 });
+
+describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
+  const ENDPOINT = "https://pkgseer.dev";
+
+  const EXPRESS_BODY = {
+    data: {
+      packageDependencies: {
+        package: { name: "express", registry: "NPM", version: "5.2.1" },
+        dependencies: {
+          direct: [
+            { name: "accepts", versionConstraint: "^2.0.0", type: "runtime" },
+            { name: "cookie", versionConstraint: "^0.7.1", type: "runtime" },
+          ],
+          transitive: null,
+        },
+        dependencyGroups: {
+          primaryGroup: null,
+          environmentConstraints: null,
+          groups: [
+            {
+              name: "runtime",
+              lifecycle: "runtime",
+              conditionType: "always",
+              conditionValue: null,
+              selectionMode: "required",
+              exclusiveGroup: null,
+              fallbackPriority: null,
+              compatibleWith: null,
+              defaultEnabled: true,
+              dependencies: [
+                { name: "accepts", constraint: "^2.0.0" },
+                { name: "cookie", constraint: "^0.7.1" },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  };
+
+  it("maps a happy-path response to DependencyReport", async () => {
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(EXPRESS_BODY)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    const report = await service.packageDependencies({
+      registry: "NPM",
+      packageName: "express",
+    });
+    expect(report.package.name).toBe("express");
+    expect(report.package.version).toBe("5.2.1");
+    expect(report.dependencies?.direct?.length).toBe(2);
+    expect(report.dependencyGroups?.groups[0]?.name).toBe("runtime");
+  });
+
+  it("sends lifecycle + includeTransitive + maxDepth variables on the wire", async () => {
+    let capturedBody: string | undefined;
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(jsonResponse(EXPRESS_BODY));
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    await service.packageDependencies({
+      registry: "NPM",
+      packageName: "express",
+      lifecycle: ["runtime", "development"],
+      includeTransitive: true,
+      maxDepth: 3,
+    });
+    const parsed = JSON.parse(capturedBody ?? "{}");
+    expect(parsed.variables.lifecycle).toEqual(["runtime", "development"]);
+    expect(parsed.variables.includeTransitive).toBe(true);
+    expect(parsed.variables.maxDepth).toBe(3);
+  });
+
+  it("omits lifecycle when empty array (treated as 'no filter')", async () => {
+    let capturedBody: string | undefined;
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(jsonResponse(EXPRESS_BODY));
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    await service.packageDependencies({
+      registry: "NPM",
+      packageName: "express",
+      lifecycle: [],
+    });
+    const parsed = JSON.parse(capturedBody ?? "{}");
+    expect(parsed.variables.lifecycle).toBeUndefined();
+  });
+
+  it("promotes a generic 'no matching version' error to VERSION_NOT_FOUND when version was requested", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({ errors: [{ message: "No matching version found" }] }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    try {
+      await service.packageDependencies({
+        registry: "NPM",
+        packageName: "express",
+        version: "99.99.99",
+      });
+      throw new Error("expected VERSION_NOT_FOUND promotion");
+    } catch (err) {
+      expect(err).toBeInstanceOf(PackageIntelligenceVersionNotFoundError);
+      const typed = err as PackageIntelligenceVersionNotFoundError;
+      expect(typed.packageName).toBe("npm:express");
+      expect(typed.requestedVersion).toBe("99.99.99");
+    }
+  });
+
+  it("does NOT promote when graphqlCode is present", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "no matching version (backend mid-recovery)",
+              extensions: { code: "INTERNAL_ERROR" },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    try {
+      await service.packageDependencies({
+        registry: "NPM",
+        packageName: "express",
+        version: "99.99.99",
+      });
+      throw new Error("expected BackendError");
+    } catch (err) {
+      expect(err).not.toBeInstanceOf(PackageIntelligenceVersionNotFoundError);
+      expect(err).toBeInstanceOf(PackageIntelligenceBackendError);
+    }
+  });
+
+  it("classifies typed VERSION_NOT_FOUND response with structured details", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "version missing",
+              extensions: {
+                code: "VERSION_NOT_FOUND",
+                package: "npm:express",
+                requested_version: "99.0.0",
+                available_versions: ["5.2.1", "5.2.0"],
+              },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    try {
+      await service.packageDependencies({
+        registry: "NPM",
+        packageName: "express",
+        version: "99.0.0",
+      });
+      throw new Error("expected VERSION_NOT_FOUND");
+    } catch (err) {
+      expect(err).toBeInstanceOf(PackageIntelligenceVersionNotFoundError);
+      const typed = err as PackageIntelligenceVersionNotFoundError;
+      expect(typed.availableVersions).toEqual(["5.2.1", "5.2.0"]);
+    }
+  });
+
+  it("throws Malformed when package.name or package.version is missing", async () => {
+    const body = {
+      data: {
+        packageDependencies: {
+          package: { name: null, registry: "NPM", version: "5.2.1" },
+          dependencies: null,
+          dependencyGroups: null,
+        },
+      },
+    };
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(body)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    await expect(
+      service.packageDependencies({ registry: "NPM", packageName: "x" }),
+    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+  });
+
+  it("throws Malformed when a direct[] entry has a null name (no silent empty-string coercion)", async () => {
+    const body = {
+      data: {
+        packageDependencies: {
+          package: { name: "express", registry: "NPM", version: "5.2.1" },
+          dependencies: {
+            direct: [
+              { name: null, versionConstraint: "^1.0.0", type: "runtime" },
+            ],
+            transitive: null,
+          },
+          dependencyGroups: null,
+        },
+      },
+    };
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(body)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    await expect(
+      service.packageDependencies({ registry: "NPM", packageName: "x" }),
+    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+  });
+});

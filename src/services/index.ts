@@ -82,7 +82,14 @@ export {
 export { MigratingAuthStorage } from "./migrating-auth-storage.js";
 export type {
   ChangelogEntry,
+  DependencyBundle,
+  DependencyGroup,
+  DependencyGroupsInfo,
+  DependencyReport,
+  DirectDependency,
   GithubRepository,
+  GroupDependency,
+  PackageDependenciesParams,
   PackageIdentity,
   PackageIntelligenceService,
   PackageSecurityOverview,
@@ -91,6 +98,8 @@ export type {
   PackageVersionIdentity,
   PackageVulnerabilitiesParams,
   QuickstartInfo,
+  TransitiveDependencySummary,
+  UntypedGenericJSON,
   VulnerabilityDetail,
   VulnerabilityOverview,
   VulnerabilityReport,

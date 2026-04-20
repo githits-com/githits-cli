@@ -25,6 +25,7 @@ import {
 import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import { AuthenticationError } from "./githits-service.js";
+import { promoteGenericVersionNotFound } from "./promote-version-not-found.js";
 import type { TokenProvider } from "./token-manager.js";
 
 export interface PackageSummaryParams {
@@ -130,11 +131,108 @@ export interface VulnerabilityReport {
   security?: VulnerabilitySecurityDetails;
 }
 
+export interface PackageDependenciesParams {
+  registry: PkgseerRegistry;
+  packageName: string;
+  /** Optional — backend defaults to latest when omitted. */
+  version?: string;
+  /** Optional. Backend returns a full transitive graph when true. */
+  includeTransitive?: boolean;
+  /**
+   * Optional transitive-traversal depth (1–10). Omit for the backend
+   * default (full graph) — note the CLI applies a 3-deep guardrail but
+   * the MCP surface deliberately does not.
+   */
+  maxDepth?: number;
+  /**
+   * Optional server-side lifecycle filter. Only affects
+   * `dependencyGroups`; `direct` and `transitive` are unaffected.
+   * Canonical lowercase strings — `runtime`, `development`, `build`,
+   * `peer`, `optional`.
+   */
+  lifecycle?: string[];
+}
+
+export interface DirectDependency {
+  name: string;
+  versionConstraint?: string;
+  type?: string;
+}
+
+/**
+ * Opaque GenericJSON passthrough from the backend. Shape is not yet
+ * typed — see {@link TransitiveDependencySummary} and
+ * {@link DependencyGroupsInfo} for the fields that carry this type.
+ * Consumers should treat entries as `unknown` until the backend
+ * surfaces a typed contract.
+ *
+ * TODO(pkgseer-backend): replace with a concrete typed union once the
+ * backend documents `dag`, `conflicts`, `circularDependencies`, and
+ * `environmentConstraints` schemas. Parity tests for the current
+ * passthrough behaviour will fail loudly when the types tighten,
+ * prompting a deliberate migration.
+ */
+export type UntypedGenericJSON = unknown;
+
+export interface TransitiveDependencySummary {
+  totalEdges?: number;
+  uniquePackagesCount?: number;
+  uniqueDependencies?: string[];
+  /** TODO(pkgseer-backend): type once real shapes are observed. */
+  conflicts?: UntypedGenericJSON[];
+  /** TODO(pkgseer-backend): type once real shapes are observed. */
+  circularDependencies?: UntypedGenericJSON[];
+  /**
+   * Raw DAG blob; backend-defined `GenericJSON` passthrough.
+   * TODO(pkgseer-backend): type once real shapes are observed.
+   */
+  dag?: UntypedGenericJSON;
+}
+
+export interface DependencyBundle {
+  direct?: DirectDependency[];
+  transitive?: TransitiveDependencySummary;
+}
+
+export interface GroupDependency {
+  name: string;
+  constraint?: string;
+}
+
+export interface DependencyGroup {
+  name: string;
+  lifecycle: string;
+  conditionType: string;
+  conditionValue?: string;
+  selectionMode: string;
+  exclusiveGroup?: string;
+  fallbackPriority?: number;
+  compatibleWith?: string[];
+  defaultEnabled?: boolean;
+  dependencies: GroupDependency[];
+}
+
+export interface DependencyGroupsInfo {
+  primaryGroup?: string;
+  /** TODO(pkgseer-backend): type once real shapes are observed. */
+  environmentConstraints?: UntypedGenericJSON[];
+  groups: DependencyGroup[];
+}
+
+export interface DependencyReport {
+  package: PackageVersionIdentity;
+  dependencies?: DependencyBundle;
+  dependencyGroups?: DependencyGroupsInfo;
+}
+
 export interface PackageIntelligenceService {
   packageSummary(params: PackageSummaryParams): Promise<PackageSummary>;
   packageVulnerabilities(
     params: PackageVulnerabilitiesParams,
   ): Promise<VulnerabilityReport>;
+  packageDependencies(
+    params: PackageDependenciesParams,
+  ): Promise<DependencyReport>;
 }
 
 // --------------------------------------------------------------------
@@ -457,6 +555,142 @@ query PackageVulnerabilities(
 }`;
 
 // --------------------------------------------------------------------
+// Zod schema + query for packageDependencies
+// --------------------------------------------------------------------
+
+const directDependencySchema = z.object({
+  name: z.string().nullable().optional(),
+  versionConstraint: z.string().nullable().optional(),
+  type: z.string().nullable().optional(),
+});
+
+const transitiveDependencySchema = z
+  .object({
+    totalEdges: z.number().int().nullable().optional(),
+    uniquePackagesCount: z.number().int().nullable().optional(),
+    uniqueDependencies: z.array(z.string()).nullable().optional(),
+    conflicts: z.array(z.unknown()).nullable().optional(),
+    circularDependencies: z.array(z.unknown()).nullable().optional(),
+    dag: z.unknown().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+const dependencyBundleSchema = z
+  .object({
+    direct: z.array(directDependencySchema).nullable().optional(),
+    transitive: transitiveDependencySchema,
+  })
+  .nullable()
+  .optional();
+
+const groupDependencySchema = z.object({
+  name: z.string(),
+  constraint: z.string().nullable().optional(),
+});
+
+const dependencyGroupSchema = z.object({
+  name: z.string(),
+  lifecycle: z.string(),
+  conditionType: z.string(),
+  conditionValue: z.string().nullable().optional(),
+  selectionMode: z.string(),
+  exclusiveGroup: z.string().nullable().optional(),
+  fallbackPriority: z.number().int().nullable().optional(),
+  compatibleWith: z.array(z.string()).nullable().optional(),
+  defaultEnabled: z.boolean().nullable().optional(),
+  dependencies: z.array(groupDependencySchema),
+});
+
+const dependencyGroupsInfoSchema = z
+  .object({
+    primaryGroup: z.string().nullable().optional(),
+    environmentConstraints: z.array(z.unknown()).nullable().optional(),
+    groups: z.array(dependencyGroupSchema),
+  })
+  .nullable()
+  .optional();
+
+const dependencyReportResponseSchema = z.object({
+  package: packageVersionIdentitySchema.nullable().optional(),
+  dependencies: dependencyBundleSchema,
+  dependencyGroups: dependencyGroupsInfoSchema,
+});
+
+const dependenciesGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      packageDependencies: dependencyReportResponseSchema.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
+const PACKAGE_DEPENDENCIES_QUERY = `
+query PackageDependencies(
+  $registry: Registry!
+  $name: String!
+  $version: String
+  $includeTransitive: Boolean
+  $maxDepth: Int
+  $lifecycle: [String!]
+) {
+  packageDependencies(
+    registry: $registry
+    name: $name
+    version: $version
+    includeTransitive: $includeTransitive
+    maxDepth: $maxDepth
+    lifecycle: $lifecycle
+  ) {
+    package {
+      name
+      registry
+      version
+    }
+    dependencies {
+      # Backend-side summary block intentionally not selected — our
+      # envelope computes runtime.count client-side from direct[].length
+      # so the invariant runtime.count === runtime.items.length always
+      # holds regardless of backend-side drift.
+      direct {
+        name
+        versionConstraint
+        type
+      }
+      transitive {
+        totalEdges
+        uniquePackagesCount
+        uniqueDependencies
+        conflicts
+        circularDependencies
+        dag
+      }
+    }
+    dependencyGroups {
+      primaryGroup
+      environmentConstraints
+      groups {
+        name
+        lifecycle
+        conditionType
+        conditionValue
+        selectionMode
+        exclusiveGroup
+        fallbackPriority
+        compatibleWith
+        defaultEnabled
+        dependencies {
+          name
+          constraint
+        }
+      }
+    }
+  }
+}`;
+
+// --------------------------------------------------------------------
 // Service implementation
 // --------------------------------------------------------------------
 
@@ -760,7 +994,7 @@ export class PackageIntelligenceServiceImpl
     }
 
     if (parsed.data.errors && parsed.data.errors.length > 0) {
-      throw promoteVersionNotFound(
+      throw promoteGenericVersionNotFound(
         this.createGraphQLError(parsed.data.errors),
         params,
       );
@@ -821,6 +1055,166 @@ export class PackageIntelligenceServiceImpl
       security,
     };
   }
+
+  async packageDependencies(
+    params: PackageDependenciesParams,
+  ): Promise<DependencyReport> {
+    return executeWithTokenRefresh({
+      getToken: () => this.tokenProvider.getToken(),
+      forceRefresh: () => this.tokenProvider.forceRefresh(),
+      shouldRefresh: (error) => error instanceof AuthenticationError,
+      executeWithToken: (token) =>
+        this.executePackageDependencies(token, params),
+    });
+  }
+
+  private async executePackageDependencies(
+    token: string,
+    params: PackageDependenciesParams,
+  ): Promise<DependencyReport> {
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.endpointUrl,
+        token,
+        query: PACKAGE_DEPENDENCIES_QUERY,
+        variables: {
+          registry: params.registry,
+          name: params.packageName,
+          version: params.version,
+          includeTransitive: params.includeTransitive,
+          maxDepth: params.maxDepth,
+          lifecycle:
+            params.lifecycle && params.lifecycle.length > 0
+              ? params.lifecycle
+              : undefined,
+        },
+        fetchFn: this.fetchFn,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw new PackageIntelligenceNetworkError(
+          "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
+          { cause },
+        );
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = dependenciesGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Malformed response from the package-intelligence service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw promoteGenericVersionNotFound(
+        this.createGraphQLError(parsed.data.errors),
+        params,
+      );
+    }
+
+    const data = parsed.data.data?.packageDependencies;
+    if (!data) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Empty response from the package-intelligence service.",
+      );
+    }
+
+    return this.normaliseDependencyReport(data);
+  }
+
+  private normaliseDependencyReport(
+    data: z.infer<typeof dependencyReportResponseSchema>,
+  ): DependencyReport {
+    const name = data.package?.name ?? undefined;
+    const version = data.package?.version ?? undefined;
+    if (!name || !version) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Package dependencies response missing required name/version.",
+      );
+    }
+
+    const identity: PackageVersionIdentity = {
+      name,
+      version,
+      registry: data.package?.registry ?? undefined,
+    };
+
+    const bundle = data.dependencies;
+    const dependencies: DependencyBundle | undefined = bundle
+      ? {
+          direct:
+            bundle.direct?.map((entry) => {
+              // `name` is schema-level nullable but semantically
+              // required — a dep entry with no name is meaningless
+              // and silently collapsing to `""` would hide backend
+              // bugs. Throw Malformed instead, matching how we
+              // handle package.name/version upstream.
+              if (!entry.name) {
+                throw new MalformedPackageIntelligenceResponseError(
+                  "Dependency entry missing required name.",
+                );
+              }
+              return {
+                name: entry.name,
+                versionConstraint: entry.versionConstraint ?? undefined,
+                type: entry.type ?? undefined,
+              };
+            }) ?? undefined,
+          transitive: bundle.transitive
+            ? {
+                totalEdges: bundle.transitive.totalEdges ?? undefined,
+                uniquePackagesCount:
+                  bundle.transitive.uniquePackagesCount ?? undefined,
+                uniqueDependencies:
+                  bundle.transitive.uniqueDependencies ?? undefined,
+                conflicts: bundle.transitive.conflicts ?? undefined,
+                circularDependencies:
+                  bundle.transitive.circularDependencies ?? undefined,
+                dag: bundle.transitive.dag ?? undefined,
+              }
+            : undefined,
+        }
+      : undefined;
+
+    const dependencyGroups: DependencyGroupsInfo | undefined =
+      data.dependencyGroups
+        ? {
+            primaryGroup: data.dependencyGroups.primaryGroup ?? undefined,
+            environmentConstraints:
+              data.dependencyGroups.environmentConstraints ?? undefined,
+            groups: data.dependencyGroups.groups.map((group) => ({
+              name: group.name,
+              lifecycle: group.lifecycle,
+              conditionType: group.conditionType,
+              conditionValue: group.conditionValue ?? undefined,
+              selectionMode: group.selectionMode,
+              exclusiveGroup: group.exclusiveGroup ?? undefined,
+              fallbackPriority: group.fallbackPriority ?? undefined,
+              compatibleWith: group.compatibleWith ?? undefined,
+              defaultEnabled: group.defaultEnabled ?? undefined,
+              dependencies: group.dependencies.map((entry) => ({
+                name: entry.name,
+                constraint: entry.constraint ?? undefined,
+              })),
+            })),
+          }
+        : undefined;
+
+    return {
+      package: identity,
+      dependencies,
+      dependencyGroups,
+    };
+  }
 }
 
 function parseDetail(body: string): string | undefined {
@@ -862,49 +1256,4 @@ function parseVersionList(raw: unknown): string[] | undefined {
     }
   }
   return versions.length > 0 ? versions : undefined;
-}
-
-/**
- * Fallback: if the backend returns a generic backend error whose
- * message matches the well-known "no matching version" phrase and the
- * caller explicitly requested a version, promote it to the typed
- * {@link PackageIntelligenceVersionNotFoundError} so downstream
- * surfaces can render structured, actionable error details.
- *
- * TODO(pkgseer-backend): remove this helper once the upstream
- * `packageVulnerabilities` resolver emits
- * `extensions.code = "VERSION_NOT_FOUND"` with `package`,
- * `requested_version`, and `available_versions`. The typed path in
- * `createGraphQLError` already handles that shape; deleting this
- * helper + its two fallback-specific service tests will be the only
- * cleanup needed, and the typed-error parity test will catch any
- * regression in the structured-details envelope.
- *
- * Guard rails:
- * - Only promotes when `graphqlCode` is absent. Any explicit code
- *   (including INTERNAL_ERROR, UPSTREAM_ERROR, TIMEOUT, …) is
- *   respected as-is so we never swallow real backend signalling or
- *   flip retryability.
- * - Only promotes when `params.version` is set — if the caller asked
- *   for "latest", a "no matching version" message can only reflect
- *   an unrelated upstream condition, not a caller-addressable one.
- * - `details.package` is qualified with the lowercase registry
- *   prefix (e.g. `"npm:lodash"`) so CLI / MCP output matches the
- *   shape produced when the backend sends the typed code.
- */
-function promoteVersionNotFound(
-  error: Error,
-  params: PackageVulnerabilitiesParams,
-): Error {
-  if (!(error instanceof PackageIntelligenceBackendError)) return error;
-  if (error.graphqlCode !== undefined) return error;
-  if (!params.version) return error;
-  if (!/no matching version/i.test(error.message)) return error;
-  const qualifiedName = `${params.registry.toLowerCase()}:${params.packageName}`;
-  return new PackageIntelligenceVersionNotFoundError(
-    error.message,
-    qualifiedName,
-    params.version,
-    undefined,
-  );
 }

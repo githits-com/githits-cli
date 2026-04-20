@@ -49,6 +49,7 @@ const KNOWN_TOOLS = [
   "search_symbols",
   "package_summary",
   "package_vulnerabilities",
+  "package_dependencies",
 ] as const;
 
 function mentionedTools(instructions: string): Set<string> {
@@ -104,6 +105,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).not.toContain("Package tools");
     expect(instructions).not.toContain("package_summary");
     expect(instructions).not.toContain("package_vulnerabilities");
+    expect(instructions).not.toContain("package_dependencies");
     expect(instructions).not.toContain("search_symbols");
   });
 
@@ -120,6 +122,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("Package tools");
     expect(instructions).toContain("`package_summary`");
     expect(instructions).toContain("`package_vulnerabilities`");
+    expect(instructions).toContain("`package_dependencies`");
     expect(instructions).toContain("`search_symbols`");
   });
 
@@ -164,7 +167,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("natural-language example questions");
   });
 
-  it("half-open: only package intelligence service wired → mentions package_summary + package_vulnerabilities but not search_symbols", () => {
+  it("half-open: only package intelligence service wired → mentions every package tool but not search_symbols", () => {
     const deps = createTestDeps({
       codeNavigationCapability: "enabled",
       codeNavigationService: undefined,
@@ -175,6 +178,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("Package tools");
     expect(instructions).toContain("`package_summary`");
     expect(instructions).toContain("`package_vulnerabilities`");
+    expect(instructions).toContain("`package_dependencies`");
     expect(instructions).not.toContain("`search_symbols`");
     // The decision tip references search_symbols, so it must not
     // appear when search_symbols isn't registered.
@@ -241,6 +245,7 @@ describe("buildMcpInstructions", () => {
           "search_symbols",
           "package_summary",
           "package_vulnerabilities",
+          "package_dependencies",
         ];
         for (const name of packageTools) {
           if (registered.has(name)) {

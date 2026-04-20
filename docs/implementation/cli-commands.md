@@ -15,6 +15,7 @@ The CLI exposes three primary commands (`search`, `languages`, `feedback`) that 
 | `code search <package> [query]` | package spec | `--keywords`, `--keyword`, `--match-mode`, `--category`, `--kind`, `--file`, `--intent`, `--limit`, `--wait`, `--json` | Search indexed dependency source code |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates) |
+| `pkg deps <spec>` | package spec (optional `@version`) | `--groups`, `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig) |
 
 ### `githits init`
 
@@ -148,6 +149,42 @@ Lists known CVE / OSV advisories for a package: severity, affected version range
 **Capability gate.** Same as `pkg info` (inherits from the `code_navigation` token capability).
 
 **Troubleshooting.** Same debug areas as `pkg info` (`GITHITS_DEBUG=pkg-intel` for classified errors; `GITHITS_DEBUG=pkg-graphql` for transport failures).
+
+### `githits pkg deps`
+
+```
+githits pkg deps npm:express
+githits pkg deps npm:express --groups
+githits pkg deps crates:tokio --lifecycle optional
+githits pkg deps npm:express --lifecycle runtime,development
+githits pkg deps npm:express --transitive
+githits pkg deps npm:express --transitive --depth 2
+githits pkg deps npm:express --json
+```
+
+Analyses dependencies for a package on npm, PyPI, Hex, Crates, vcpkg, or Zig. Default terminal output is a flat list of direct runtime dependencies with a hint summarising hidden groups.
+
+**Package spec.** `<registry>:<name>[@<version>]`. `@<version>` is accepted (same as `pkg vulns`); defaults to latest. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` — callers must use the canonical version. Only `npm`, `pypi`, `hex`, `crates`, `vcpkg`, and `zig` are supported; other registries are rejected client-side with `pkg deps only supports npm, pypi, hex, crates, vcpkg, and zig. Got: ${registry}.`
+
+**Two views.** The default runtime view collapses to a single-column list from `dependencies.direct` — the flat answer to "what does this pull in?". The structured groups view (`--groups`, or implicitly via `--lifecycle`) iterates `dependencyGroups.groups` and preserves registry-specific condition metadata (PyPI extras, Crates features, NuGet TFMs). Dev / peer / build / optional deps live only in the groups view — the wire's `direct[]` is always runtime-only.
+
+**Lifecycle filter.** `-l, --lifecycle <phases>` accepts a comma-separated list of canonical lowercase tokens (`runtime`, `development`, `build`, `peer`, `optional`). Uppercase and whitespace are tolerated. Filters server-side via the backend's `lifecycle: [String!]` input, which only affects `dependencyGroups`; `direct[]` and `transitive[]` are returned regardless. Unknown tokens are rejected with `INVALID_ARGUMENT` and the canonical list.
+
+**Groups view (`--groups` or any `--lifecycle`).** Headings collapse to `name` when `conditionType === "always"` (e.g. `runtime`, `development`). Feature / TFM groups render `name (lifecycle, conditionType[: conditionValue])` — `conditionValue` is omitted when it equals `name` (the common case on Crates features and PyPI extras). Within each group, entries sort alphabetically. Duplicate `{name, constraint}` tuples inside a group collapse in the terminal for scannability; the JSON envelope preserves every duplicate the backend emitted.
+
+**Transitive view (`--transitive`).** Replaces the direct-deps list with the full unique transitive closure (alphabetical, `name@version`, one per line). Summary row carries the aggregate counts + conflict / cycle counts, and `(max depth N)` only when `--depth` was applied — otherwise the backend's full-graph traversal is shown. `--depth <n>` (1–10) caps traversal; there is **no client-side default cap** (matches `npm ls` / `cargo tree` ergonomics).
+
+**Verbose (`--verbose`).** In both plain and transitive modes, each dep expands to a multi-line block: the first line is `name@version`, followed by indented `- <constraint> required by <importer>@<importer-version>, …` bullets. Importers that share a constraint are collapsed onto one bullet with a comma-separated list. In plain mode each direct dep has exactly one importer (the root package itself); in transitive mode a popular leaf may list many importers grouped by constraint. Conflicts expand into a `Conflicts (N):` table (`name: range1, range2, …`, one row per package); circular dependencies expand into a `Circular dependencies (N):` list (`a → b → a` arrow chain).
+
+**JSON envelope.** Preprocessed: `runtime.items[].version` surfaces the resolved version alongside the constraint. Under `--transitive`, `transitive.packages[]` carries `{name, version, importers[]}` records so agents get the same provenance signal as the verbose terminal output without decoding the raw DAG. `transitive.conflicts[]` and `transitive.circularDependencies[]` are typed (`{name, requiredVersions}` / `{cycle: string[]}`) when the observed backend shape decodes; raw passthrough otherwise. The raw DAG itself is deliberately **not** in the envelope — a future dedicated `pkg deps-dag` command will expose it under a typed contract for graph visualisation (mermaid / DOT / interactive viewer).
+
+**Output envelope.** `{registry, name, version, requestedVersion?, runtime?, groups?, transitive?, filter?}`. Data-first: the `runtime` block emits whenever the backend returned `dependencies.direct` (including `{count: 0, items: []}` for zero-dep packages); the `groups` block emits whenever the backend returned `dependencyGroups` (including `{items: []}` when a lifecycle filter matched nothing, so agents distinguish "backend has no groups concept" from "filter excluded everything"). Each group carries its members under `items` (matches the top-level `runtime.items` naming so dependency lists share one key throughout the envelope). `filter.lifecycles` echoes the canonicalised, deduplicated, display-order-sorted list the backend received — not the raw CSV input.
+
+**Exit codes.** 0 on success including zero-dep packages; 1 on any error. Under `--json`, the error envelope is written to **stderr**.
+
+**Capability gate.** Same as `pkg info` / `pkg vulns` (inherits from the `code_navigation` token capability).
+
+**Troubleshooting.** Same debug areas as `pkg info` / `pkg vulns` (`GITHITS_DEBUG=pkg-intel` for classified errors; `GITHITS_DEBUG=pkg-graphql` for transport failures).
 
 ## Architecture
 
