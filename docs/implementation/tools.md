@@ -23,14 +23,25 @@ Both expose the same tools with identical names, parameters, and descriptions. T
 | `search_language` | `query` | Find supported programming language names before searching. |
 | `feedback` | `solution_id`, `accepted`, `feedback_text?` | Submit feedback on a search result to improve quality. |
 | `search_symbols` | `target`, `query?`, `keywords?`, `match_mode?`, `category?`, `kind?`, `file_path?`, `limit?`, `file_intent?`, `wait_timeout_ms?` | Capability-gated code navigation search over indexed dependency source. |
+| `package_summary` | `registry`, `package_name` | Package overview: latest version, license, description, repository, downloads, GitHub metadata, install command, and known vulnerabilities. Always returns the latest published version. |
 
-`search_symbols` is only registered when the startup token advertises `code_navigation` capability. The code-navigation endpoint can be overridden via `GITHITS_CODE_NAV_URL` for local development. Capability gating keeps the tool hidden from public/default flows while the feature is still rolling out.
+`search_symbols` and `package_summary` are only registered when the startup token advertises `code_navigation` capability. The backend endpoint can be overridden via `GITHITS_CODE_NAV_URL` for local development. Capability gating keeps the tools hidden from public/default flows while the feature is still rolling out.
 
 `search_symbols` shares request-construction, error classification, and JSON-payload shape with the CLI `githits code search` command via shared helpers under `src/shared/`. The parity rules are codified in [`mcp-cli-parity.md`](./mcp-cli-parity.md); the parity test (`src/tools/search-symbols-parity.test.ts`) asserts that both surfaces emit identical JSON for equivalent inputs.
 
 **Response shape.** `search_symbols` always requests `mode: DETAILED` and always selects the `code`, `resolution`, `kind`, and `category` fields. Responses include each match's full source code, precise symbol kind (from the unified symbol taxonomy), broad symbol category, and line range. The tool does not expose `mode` or `verbose` inputs — the service layer makes the choice once so both surfaces get the richest response without callers juggling the knobs. The legacy `chunkType` field is no longer selected or surfaced client-side; `kind` is the single source of truth for taxonomy. The text payload is always valid JSON (whether the result is success or error), so MCP clients can parse `content[0].text` without branching on `isError`.
 
 **Filter parameters.** `category` is the preferred surface for filtering (`callable`, `type`, `module`, `data`, `documentation`); `kind` is for the "I want this specific construct" case (27-value taxonomy). Both filters may be combined; both route through the shared `buildSearchSymbolsParams` helper.
+
+### `package_summary` response shape
+
+**Hand-crafted JSON envelope.** `package_summary` returns a lean JSON payload designed for agent token efficiency. Every GraphQL field dropped is deliberate — backend metadata (`schemaVersion`, `downloadsRefreshedAt`, `versionCount`, duplicate GitHub identifiers) does not reach the envelope. Null scalars are omitted; blocks (`github`, `vulnerabilities`, `downloads`, `recentChanges`) are omitted entirely when they carry no actionable data. `vulnerabilities` is omitted when `total === 0` or missing; when present, severity values include a CVSS-banded `severityLabel` (`critical` ≥9, `high` ≥7, `medium` ≥4, else `low`) for agent convenience.
+
+**Validation.** The MCP schema is permissive (`registry: z.string()`, `package_name: z.string()`) — validation happens in-handler via `buildPackageSummaryParams`, producing the same structured `{error, code, retryable}` envelope as CLI. Matches the `search_symbols` pattern of never surfacing raw Zod errors to agents.
+
+**Always latest.** The query exposes no `version` input because the upstream `packageSummary` resolver always returns the latest published version. The CLI `githits pkg info` rejects `<spec>@<version>` with `INVALID_ARGUMENT` rather than silently swapping — a silent-swap would break security-testing workflows that pin to an older vulnerable release.
+
+`package_summary` shares its envelope builder, terminal formatter, and error classifier with the CLI `githits pkg info` command via `src/shared/package-summary-request.ts`, `src/shared/package-summary-response.ts`, and `src/shared/package-intelligence-error-map.ts`. The parity test (`src/tools/package-summary-parity.test.ts`) asserts `toEqual` between CLI `--json` and MCP `content[0].text` for service-sourced fixtures, and `toMatchObject` for the `INVALID_ARGUMENT` fixture where surface-specific error text is acceptable.
 
 ## Entry Points
 

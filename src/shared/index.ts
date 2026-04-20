@@ -41,6 +41,7 @@ export {
   InvalidKeywordsError,
   normaliseKeywords,
 } from "./normalise-keywords.js";
+export { mapPackageIntelligenceError } from "./package-intelligence-error-map.js";
 export {
   InvalidArgumentError,
   InvalidPackageSpecError,
@@ -51,6 +52,26 @@ export {
   parsePackageSpec,
   UnsupportedRegistryError,
 } from "./package-spec.js";
+export {
+  buildPackageSummaryParams,
+  type PackageSummaryRequestBuildResult,
+  type PackageSummaryRequestInput,
+} from "./package-summary-request.js";
+export {
+  buildPackageSummarySuccessPayload,
+  formatPackageSummaryTerminal,
+  type LeanPackageSummary,
+  type SeverityLabel,
+  severityLabel,
+} from "./package-summary-response.js";
+export {
+  isKnownPkgseerRegistryArg,
+  knownPkgseerRegistryArgs,
+  type PkgseerRegistry,
+  type PkgseerRegistryArg,
+  toPkgseerRegistry,
+  toPkgseerRegistryLowercase,
+} from "./pkgseer-registry.js";
 export { AuthRequiredError, requireAuth } from "./require-auth.js";
 export {
   buildSearchSymbolsParams,

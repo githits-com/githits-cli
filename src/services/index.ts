@@ -81,6 +81,28 @@ export {
 } from "./keyring-service.js";
 export { MigratingAuthStorage } from "./migrating-auth-storage.js";
 export type {
+  ChangelogEntry,
+  GithubRepository,
+  PackageIdentity,
+  PackageIntelligenceService,
+  PackageSecurityOverview,
+  PackageSummary,
+  PackageSummaryParams,
+  QuickstartInfo,
+  VulnerabilityOverview,
+} from "./package-intelligence-service.js";
+export {
+  MalformedPackageIntelligenceResponseError,
+  PackageIntelligenceAccessError,
+  PackageIntelligenceBackendError,
+  PackageIntelligenceFeatureFlagRequiredError,
+  PackageIntelligenceGraphQLError,
+  PackageIntelligenceNetworkError,
+  PackageIntelligenceServiceImpl,
+  PackageIntelligenceTargetNotFoundError,
+  PackageIntelligenceValidationError,
+} from "./package-intelligence-service.js";
+export type {
   CheckboxChoice,
   ConfirmChoice,
   PromptService,

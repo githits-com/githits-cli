@@ -1,0 +1,529 @@
+/**
+ * Hand-crafted response envelope for the `package_summary` tool,
+ * shared by CLI `--json` output and MCP `content[0].text`.
+ *
+ * Principles:
+ * - **Token-efficient.** Every field dropped from the GraphQL payload
+ *   is a deliberate decision. Metadata (`schemaVersion`, refresh
+ *   timestamps, `versionCount`, duplicate GitHub identifiers) is
+ *   omitted; only fields that inform an agent decision survive.
+ * - **Null-omitted.** Scalars go missing when null; blocks go missing
+ *   when every leaf is null; arrays go missing when empty. Agent
+ *   callers receive present data only, not a skeleton.
+ * - **Stable.** Two identical queries produce byte-identical output
+ *   (no clock-dependent fields, no iteration-order tricks), so the
+ *   parity test can deep-equal across surfaces.
+ */
+
+import type {
+  ChangelogEntry,
+  PackageSecurityOverview,
+  PackageSummary,
+  VulnerabilityOverview,
+} from "../services/index.js";
+import { colorize, dim, highlight } from "./colors.js";
+import { toIsoDate, toRelativeDate } from "./format-date.js";
+import { formatCompactNumber } from "./format-number.js";
+import { toPkgseerRegistryLowercase } from "./pkgseer-registry.js";
+
+// --------------------------------------------------------------------
+// Lean JSON envelope
+// --------------------------------------------------------------------
+
+export type SeverityLabel = "critical" | "high" | "medium" | "low";
+
+export interface LeanDownloads {
+  lastMonth?: number;
+  total?: number;
+}
+
+export interface LeanGithub {
+  stars?: number;
+  forks?: number;
+  openIssues?: number;
+  archived?: boolean;
+  language?: string;
+  topics?: string[];
+  lastPushedAt?: string;
+}
+
+export interface LeanVulnerability {
+  id?: string;
+  summary?: string;
+  severity?: number;
+  severityLabel?: SeverityLabel;
+  publishedAt?: string;
+}
+
+export interface LeanVulnerabilities {
+  total: number;
+  affectsLatest: boolean;
+  recent?: LeanVulnerability[];
+}
+
+export interface LeanRecentChange {
+  version: string;
+  date?: string;
+  summary?: string;
+}
+
+export interface LeanPackageSummary {
+  registry: string;
+  name: string;
+  version: string;
+  description?: string;
+  license?: string;
+  homepage?: string;
+  repository?: string;
+  publishedAt?: string;
+  downloads?: LeanDownloads;
+  github?: LeanGithub;
+  install?: string;
+  usage?: string;
+  vulnerabilities?: LeanVulnerabilities;
+  recentChanges?: LeanRecentChange[];
+}
+
+/**
+ * Build the lean envelope from a validated {@link PackageSummary}.
+ * Pure, deterministic — no I/O, no clock, no env reads.
+ */
+export function buildPackageSummarySuccessPayload(
+  summary: PackageSummary,
+): LeanPackageSummary {
+  const pkg = summary.package;
+
+  const payload: LeanPackageSummary = {
+    registry: lowerRegistry(pkg.registry),
+    name: pkg.name,
+    version: pkg.latestVersion,
+  };
+
+  assignIfDefined(payload, "description", pkg.description);
+  assignIfDefined(payload, "license", pkg.license);
+  assignIfDefined(payload, "homepage", pkg.homepage);
+  assignIfDefined(payload, "repository", pkg.repositoryUrl);
+  assignIfDefined(
+    payload,
+    "publishedAt",
+    toIsoDate(pkg.latestVersionPublishedAt),
+  );
+
+  const downloads = buildDownloads(pkg.downloadsLastMonth, pkg.downloadsTotal);
+  if (downloads) payload.downloads = downloads;
+
+  const github = buildGithub(pkg.githubRepository);
+  if (github) payload.github = github;
+
+  if (summary.quickstart?.installCommand) {
+    payload.install = summary.quickstart.installCommand;
+  }
+  const usage = normaliseUsage(summary.quickstart?.usageExample);
+  if (usage) payload.usage = usage;
+
+  const vulns = buildVulnerabilities(summary.security);
+  if (vulns) payload.vulnerabilities = vulns;
+
+  const recent = buildRecentChanges(summary.latestChangelogs);
+  if (recent) payload.recentChanges = recent;
+
+  return payload;
+}
+
+function lowerRegistry(value: string | undefined): string {
+  if (!value) return "";
+  const upper = value.toUpperCase();
+  try {
+    // Type assertion is safe when the backend echoes a known enum
+    // value; fall through for unexpected strings (schema drift).
+    // biome-ignore lint/suspicious/noExplicitAny: boundary guard
+    return toPkgseerRegistryLowercase(upper as any);
+  } catch {
+    return value.toLowerCase();
+  }
+}
+
+function assignIfDefined<T, K extends keyof T>(
+  target: T,
+  key: K,
+  value: T[K] | null | undefined,
+): void {
+  if (value !== undefined && value !== null) {
+    target[key] = value;
+  }
+}
+
+function buildDownloads(
+  lastMonth: number | undefined,
+  total: number | undefined,
+): LeanDownloads | undefined {
+  const result: LeanDownloads = {};
+  if (typeof lastMonth === "number") result.lastMonth = lastMonth;
+  if (typeof total === "number") result.total = total;
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function buildGithub(
+  github: PackageSummary["package"]["githubRepository"],
+): LeanGithub | undefined {
+  if (!github) return undefined;
+  const result: LeanGithub = {};
+  if (typeof github.stargazersCount === "number") {
+    result.stars = github.stargazersCount;
+  }
+  if (typeof github.forksCount === "number") {
+    result.forks = github.forksCount;
+  }
+  if (typeof github.openIssuesCount === "number") {
+    result.openIssues = github.openIssuesCount;
+  }
+  if (typeof github.archived === "boolean") {
+    result.archived = github.archived;
+  }
+  if (github.language) {
+    result.language = github.language;
+  }
+  if (github.topics && github.topics.length > 0) {
+    result.topics = github.topics;
+  }
+  const lastPushedAt = toIsoDate(github.pushedAt);
+  if (lastPushedAt) result.lastPushedAt = lastPushedAt;
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function normaliseUsage(usage: string | undefined): string | undefined {
+  if (!usage) return undefined;
+  // Guard against \r\n artefacts on Windows-authored backends so the
+  // output renders consistently and the MCP JSON stays clean.
+  const cleaned = usage.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
+function buildVulnerabilities(
+  security: PackageSecurityOverview | undefined,
+): LeanVulnerabilities | undefined {
+  if (!security) return undefined;
+  const total = security.vulnerabilityCount ?? 0;
+  if (total === 0) return undefined;
+
+  const result: LeanVulnerabilities = {
+    total,
+    affectsLatest: security.hasCurrentVulnerabilities ?? false,
+  };
+
+  const recent = security.recentVulnerabilities
+    ?.map(buildVulnerability)
+    .filter((entry): entry is LeanVulnerability => entry !== undefined);
+  if (recent && recent.length > 0) {
+    result.recent = recent;
+  }
+  return result;
+}
+
+function buildVulnerability(
+  entry: VulnerabilityOverview,
+): LeanVulnerability | undefined {
+  const lean: LeanVulnerability = {};
+  if (entry.osvId) lean.id = entry.osvId;
+  if (entry.summary) lean.summary = entry.summary;
+  if (typeof entry.severityScore === "number" && entry.severityScore > 0) {
+    lean.severity = entry.severityScore;
+    lean.severityLabel = severityLabel(entry.severityScore);
+  }
+  const publishedAt = toIsoDate(entry.publishedAt);
+  if (publishedAt) lean.publishedAt = publishedAt;
+  return Object.keys(lean).length > 0 ? lean : undefined;
+}
+
+export function severityLabel(score: number): SeverityLabel {
+  if (score >= 9) return "critical";
+  if (score >= 7) return "high";
+  if (score >= 4) return "medium";
+  return "low";
+}
+
+function buildRecentChanges(
+  entries: ChangelogEntry[] | undefined,
+): LeanRecentChange[] | undefined {
+  if (!entries || entries.length === 0) return undefined;
+  const filtered = entries
+    .filter((entry): entry is ChangelogEntry => !!entry.version)
+    .map((entry) => {
+      const lean: LeanRecentChange = { version: entry.version as string };
+      const date = toIsoDate(entry.publishedAt);
+      if (date) lean.date = date;
+      const summary = pickChangelogSummary(entry);
+      if (summary) lean.summary = summary;
+      return lean;
+    });
+  return filtered.length > 0 ? filtered : undefined;
+}
+
+function pickChangelogSummary(entry: ChangelogEntry): string | undefined {
+  // ChangelogEntry has no dedicated summary field on the schema, so
+  // we derive one from the first non-empty line of the body. Many
+  // changelogs lead with markdown headers (`## What's Changed`,
+  // `### Bug fixes`) — strip the `#` markers so the summary reads as
+  // prose. Trimmed to 120 chars with trailing ellipsis.
+  if (!entry.body) return undefined;
+  const firstLine = entry.body
+    .split(/\r?\n/)
+    .map((line) => stripMarkdownHeading(line.trim()))
+    .find((line) => line.length > 0);
+  if (!firstLine) return undefined;
+  return firstLine.length > 120
+    ? `${firstLine.slice(0, 120).trimEnd()}…`
+    : firstLine;
+}
+
+function stripMarkdownHeading(line: string): string {
+  // Remove leading `#` markers (1-6) followed by whitespace.
+  return line.replace(/^#{1,6}\s+/, "").trim();
+}
+
+// --------------------------------------------------------------------
+// Terminal formatter
+// --------------------------------------------------------------------
+
+export interface FormatTerminalOptions {
+  verbose?: boolean;
+  useColors?: boolean;
+  /** Column width for wrapping the description line. Defaults to 80. */
+  terminalWidth?: number;
+  /**
+   * Clock injection for relative-date rendering. Tests pin this; in
+   * production `new Date()` is used.
+   */
+  now?: Date;
+}
+
+/**
+ * Render a {@link PackageSummary} for terminal display. Pure.
+ */
+export function formatPackageSummaryTerminal(
+  summary: PackageSummary,
+  options: FormatTerminalOptions = {},
+): string {
+  const lean = buildPackageSummarySuccessPayload(summary);
+  const useColors = options.useColors ?? false;
+  const width = resolveWidth(options.terminalWidth);
+  const now = options.now ?? new Date();
+
+  const sections: string[] = [];
+
+  // Header — `name @ version · license`
+  const header = lean.license
+    ? `${colorize(lean.name, "bold", useColors)} @ ${lean.version} · ${lean.license}`
+    : `${colorize(lean.name, "bold", useColors)} @ ${lean.version}`;
+  sections.push(header);
+
+  // Description, wrapped.
+  if (lean.description) {
+    sections.push(wrapText(lean.description, width));
+  }
+
+  // Field list.
+  const fields = buildFieldList(lean, summary, useColors, now);
+  if (fields.length > 0) {
+    sections.push(fields.join("\n"));
+  }
+
+  // Vulnerabilities footer.
+  if (lean.vulnerabilities) {
+    sections.push(formatVulnFooter(lean.vulnerabilities, useColors));
+  }
+
+  if (options.verbose) {
+    const verbose = buildVerboseSections(lean, useColors);
+    if (verbose.length > 0) sections.push(verbose);
+  }
+
+  return `${sections.join("\n\n")}\n`;
+}
+
+function resolveWidth(explicit: number | undefined): number {
+  if (typeof explicit === "number" && explicit > 0) {
+    return Math.min(explicit, 80);
+  }
+  const columns = process.stdout?.columns;
+  if (typeof columns === "number" && columns > 0) {
+    return Math.min(columns, 80);
+  }
+  return 80;
+}
+
+function wrapText(text: string, width: number): string {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    if (current.length === 0) {
+      current = word;
+      continue;
+    }
+    if (current.length + 1 + word.length > width) {
+      lines.push(current);
+      current = word;
+    } else {
+      current += ` ${word}`;
+    }
+  }
+  if (current.length > 0) lines.push(current);
+  return lines.join("\n");
+}
+
+interface LabelledField {
+  label: string;
+  value: string;
+}
+
+function buildFieldList(
+  lean: LeanPackageSummary,
+  summary: PackageSummary,
+  useColors: boolean,
+  now: Date,
+): string[] {
+  const fields: LabelledField[] = [];
+
+  if (lean.repository) {
+    fields.push({
+      label: "Repository",
+      value: dim(lean.repository, useColors),
+    });
+  }
+  if (lean.homepage) {
+    fields.push({ label: "Homepage", value: dim(lean.homepage, useColors) });
+  }
+
+  const publishedRelative = toRelativeDate(
+    summary.package.latestVersionPublishedAt,
+    now,
+  );
+  if (publishedRelative) {
+    fields.push({ label: "Published", value: publishedRelative });
+  }
+
+  if (lean.downloads?.lastMonth !== undefined) {
+    fields.push({
+      label: "Downloads",
+      value: `${formatCompactNumber(lean.downloads.lastMonth)} / month`,
+    });
+  } else if (lean.downloads?.total !== undefined) {
+    fields.push({
+      label: "Downloads",
+      value: `${formatCompactNumber(lean.downloads.total)} total`,
+    });
+  }
+
+  if (lean.github) {
+    fields.push({ label: "GitHub", value: formatGithubLine(lean.github) });
+  }
+
+  if (lean.install) {
+    fields.push({ label: "Install", value: lean.install });
+  }
+
+  // Label column sized to the widest *raw* label (no ANSI, matching
+  // the locked padding rule). Minimum 10 cols for a readable gutter.
+  const labelWidth = Math.max(10, ...fields.map((field) => field.label.length));
+
+  return fields.map(
+    (field) => `${field.label.padEnd(labelWidth)}  ${field.value}`,
+  );
+}
+
+function formatGithubLine(github: LeanGithub): string {
+  const parts: string[] = [];
+  if (github.stars !== undefined) {
+    parts.push(`★ ${formatCompactNumber(github.stars)}`);
+  }
+  if (github.forks !== undefined) {
+    parts.push(`${formatCompactNumber(github.forks)} forks`);
+  }
+  if (github.openIssues !== undefined) {
+    parts.push(`${formatCompactNumber(github.openIssues)} open issues`);
+  }
+  if (github.archived) {
+    parts.push("archived");
+  }
+  return parts.join(" · ");
+}
+
+function formatVulnFooter(
+  vulns: LeanVulnerabilities,
+  useColors: boolean,
+): string {
+  const noun = vulns.total === 1 ? "vulnerability" : "vulnerabilities";
+  const base = `${vulns.total} known ${noun}`;
+  const full = vulns.affectsLatest ? `${base} · latest affected` : base;
+  return colorize(full, "yellow", useColors);
+}
+
+function buildVerboseSections(
+  lean: LeanPackageSummary,
+  useColors: boolean,
+): string {
+  const blocks: string[] = [];
+
+  if (lean.usage) {
+    blocks.push(
+      [
+        highlight("Usage", useColors),
+        lean.usage
+          .split("\n")
+          .map((line) => `  ${line}`)
+          .join("\n"),
+      ].join("\n"),
+    );
+  }
+
+  if (lean.vulnerabilities?.recent && lean.vulnerabilities.recent.length > 0) {
+    blocks.push(
+      formatVerboseAdvisories(lean.vulnerabilities.recent, useColors),
+    );
+  }
+
+  if (lean.github?.topics && lean.github.topics.length > 0) {
+    blocks.push(`${"Topics".padEnd(10)}  ${lean.github.topics.join(", ")}`);
+  }
+
+  if (lean.recentChanges && lean.recentChanges.length > 0) {
+    blocks.push(formatVerboseChanges(lean.recentChanges, useColors));
+  }
+
+  return blocks.join("\n\n");
+}
+
+function formatVerboseAdvisories(
+  advisories: LeanVulnerability[],
+  useColors: boolean,
+): string {
+  const labelWidth = Math.max(
+    ...advisories.map((a) => (a.severityLabel ?? "").length),
+  );
+  const lines = [highlight("Recent advisories", useColors)];
+  for (const advisory of advisories) {
+    const parts: string[] = [];
+    const label = (advisory.severityLabel ?? "").padEnd(labelWidth);
+    if (label.trim().length > 0) parts.push(label);
+    if (advisory.id) parts.push(advisory.id);
+    if (advisory.publishedAt) parts.push(advisory.publishedAt);
+    if (advisory.summary) parts.push(advisory.summary);
+    lines.push(`  ${parts.join("  ")}`);
+  }
+  return lines.join("\n");
+}
+
+function formatVerboseChanges(
+  entries: LeanRecentChange[],
+  useColors: boolean,
+): string {
+  const lines = [highlight("Recent changes", useColors)];
+  for (const entry of entries) {
+    const parts: string[] = [entry.version];
+    if (entry.date) parts.push(entry.date);
+    if (entry.summary) parts.push(entry.summary);
+    lines.push(`  ${parts.join("  ")}`);
+  }
+  return lines.join("\n");
+}
