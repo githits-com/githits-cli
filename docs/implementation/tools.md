@@ -43,6 +43,19 @@ Both expose the same tools with identical names, parameters, and descriptions. T
 
 `package_summary` shares its envelope builder, terminal formatter, and error classifier with the CLI `githits pkg info` command via `src/shared/package-summary-request.ts`, `src/shared/package-summary-response.ts`, and `src/shared/package-intelligence-error-map.ts`. The parity test (`src/tools/package-summary-parity.test.ts`) asserts `toEqual` between CLI `--json` and MCP `content[0].text` for service-sourced fixtures, and `toMatchObject` for the `INVALID_ARGUMENT` fixture where surface-specific error text is acceptable.
 
+## Server instructions
+
+The MCP server advertises a short, cross-tool orientation via the protocol's server-level `instructions` field. This is distinct from per-tool `description` text: instructions cover rationale, workflow glue, and decisions that span multiple tools, while per-tool descriptions remain the source of truth for arguments, output shape, and tool-specific constraints.
+
+`src/commands/mcp-instructions.ts` owns two sections:
+
+- **Core block** — always loaded. Introduces GitHits and the `search` / `search_language` / `feedback` workflow.
+- **Package-tools block** — appended when `isPackageToolsCapabilityOpen(deps)` is true. Contains a preamble plus one bullet per package tool whose backing service is actually wired, so half-open service configurations never advertise a tool that was not registered.
+
+`isPackageToolsCapabilityOpen` is the single source of truth for whether package tools should surface in the current session. Both `getMcpToolDefinitions` and `buildMcpInstructions` import it so tool registration and the instruction text cannot drift.
+
+When adding a new package tool, extend the composer with a one-line bullet (`\`tool_name\` — one-sentence purpose`) in the same PR that registers the tool, and gate the bullet on the tool's backing service. Keep the bullet terse; argument and response detail belong in the tool's `description`. `mcp-instructions.test.ts` enforces both directions of the mention↔registration invariant across gate-open, gate-closed, and half-open scenarios.
+
 ## Entry Points
 
 The `githits mcp` command has two modes:
@@ -50,7 +63,7 @@ The `githits mcp` command has two modes:
 - **`githits mcp`** (no subcommand) — Detects TTY. When run interactively, shows setup instructions for configuring AI assistants. When run via stdio (non-TTY), starts the MCP server.
 - **`githits mcp start`** — Always starts the MCP server. Use this in MCP configuration files.
 
-Both paths call `requireAuth()` before starting the server. See `src/commands/mcp.ts` for the TTY detection logic.
+The MCP server starts without a synchronous auth check; auth errors surface per-tool-call inside each tool's handler. See `src/commands/mcp.ts` for the TTY detection logic.
 
 ## Architecture
 

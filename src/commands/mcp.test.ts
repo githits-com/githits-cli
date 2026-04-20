@@ -45,6 +45,22 @@ describe("createMcpServer", () => {
     expect(server).toBeDefined();
   });
 
+  it("creates server with instructions wired in the gate-open state", () => {
+    // Exercises the composer through createMcpServer so any breakage
+    // in the instructions pipeline (composer import, SDK options
+    // shape) surfaces here even though the SDK hides `instructions`
+    // behind a private field.
+    const deps = createTestDeps({
+      codeNavigationCapability: "enabled",
+      codeNavigationUrl: "https://pkgseer.dev",
+      codeNavigationService: createMockCodeNavigationService(),
+      packageIntelligenceService: createMockPackageIntelligenceService(),
+    });
+    const server = createMcpServer(deps);
+
+    expect(server).toBeDefined();
+  });
+
   it("adds search_symbols when capability is enabled", () => {
     const deps = createTestDeps({
       codeNavigationCapability: "enabled",

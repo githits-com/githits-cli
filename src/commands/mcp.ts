@@ -12,6 +12,10 @@ import {
   createSearchTool,
   type ToolDefinition,
 } from "../tools/index.js";
+import {
+  buildMcpInstructions,
+  isPackageToolsCapabilityOpen,
+} from "./mcp-instructions.js";
 
 /**
  * Returns the MCP tools enabled for the current startup state.
@@ -25,19 +29,13 @@ export function getMcpToolDefinitions(
     createFeedbackTool(deps.githitsService),
   ];
 
-  // MCP capability predicate for pkgseer-backed tools. Narrower than
-  // the CLI gate by design — agents must not see tools that would
-  // silently fail. Shared with `search_symbols` below.
-  const pkgseerCapabilityOpen =
-    deps.codeNavigationCapability === "enabled" ||
-    (deps.codeNavigationCapability === "unknown" &&
-      deps.envApiToken !== undefined);
+  const gateOpen = isPackageToolsCapabilityOpen(deps);
 
-  if (pkgseerCapabilityOpen && deps.codeNavigationService) {
+  if (gateOpen && deps.codeNavigationService) {
     tools.push(createSearchSymbolsTool(deps.codeNavigationService));
   }
 
-  if (pkgseerCapabilityOpen && deps.packageIntelligenceService) {
+  if (gateOpen && deps.packageIntelligenceService) {
     tools.push(createPackageSummaryTool(deps.packageIntelligenceService));
   }
 
@@ -48,10 +46,15 @@ export function getMcpToolDefinitions(
  * Creates the MCP server with injected dependencies.
  */
 export function createMcpServer(deps: Dependencies): McpServer {
-  const server = new McpServer({
-    name: "githits",
-    version,
-  });
+  const server = new McpServer(
+    {
+      name: "githits",
+      version,
+    },
+    {
+      instructions: buildMcpInstructions(deps),
+    },
+  );
 
   const tools = getMcpToolDefinitions(deps);
 
