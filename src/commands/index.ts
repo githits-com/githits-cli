@@ -3,6 +3,7 @@ export {
   authStatusAction,
   registerAuthStatusCommand,
 } from "./auth-status.js";
+export { registerCodeCommandGroup } from "./code/index.js";
 export {
   type FeedbackDependencies,
   type FeedbackOptions,

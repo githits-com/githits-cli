@@ -7,9 +7,34 @@ import { dim, highlight, shouldUseColors } from "../shared/colors.js";
 import {
   createFeedbackTool,
   createSearchLanguageTool,
+  createSearchSymbolsTool,
   createSearchTool,
   type ToolDefinition,
 } from "../tools/index.js";
+
+/**
+ * Returns the MCP tools enabled for the current startup state.
+ */
+export function getMcpToolDefinitions(
+  deps: Dependencies,
+): ToolDefinition<any, any>[] {
+  const tools: ToolDefinition<any, any>[] = [
+    createSearchTool(deps.githitsService),
+    createSearchLanguageTool(deps.githitsService),
+    createFeedbackTool(deps.githitsService),
+  ];
+
+  if (
+    (deps.codeNavigationCapability === "enabled" ||
+      (deps.codeNavigationCapability === "unknown" &&
+        deps.envApiToken !== undefined)) &&
+    deps.codeNavigationService
+  ) {
+    tools.push(createSearchSymbolsTool(deps.codeNavigationService));
+  }
+
+  return tools;
+}
 
 /**
  * Creates the MCP server with injected dependencies.
@@ -20,18 +45,16 @@ export function createMcpServer(deps: Dependencies): McpServer {
     version,
   });
 
-  const { githitsService } = deps;
-  // biome-ignore lint/suspicious/noExplicitAny: Generic tool definitions
-  const tools: ToolDefinition<any, any>[] = [
-    createSearchTool(githitsService),
-    createSearchLanguageTool(githitsService),
-    createFeedbackTool(githitsService),
-  ];
+  const tools = getMcpToolDefinitions(deps);
 
   for (const tool of tools) {
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: tool.schema },
+      {
+        description: tool.description,
+        inputSchema: tool.schema,
+        annotations: tool.annotations,
+      },
       tool.handler,
     );
   }
@@ -91,7 +114,7 @@ export function registerMcpCommand(program: Command) {
 When run interactively (TTY), shows setup instructions.
 When run via stdio (non-TTY), starts the MCP server.
 
-Available tools: search, search_language, feedback`,
+Available tools depend on the current authentication state and enabled features.`,
     )
     .action(async () => {
       if (process.stdout.isTTY && process.stdin.isTTY) {

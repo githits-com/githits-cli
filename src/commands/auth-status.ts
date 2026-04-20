@@ -1,13 +1,21 @@
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
-import type { AuthService, AuthStorage } from "../services/index.js";
-import { refreshExpiredToken } from "../services/index.js";
+import type {
+  AuthService,
+  AuthStorage,
+  CodeNavigationCapability,
+} from "../services/index.js";
+import {
+  getCodeNavigationCapability,
+  refreshExpiredToken,
+} from "../services/index.js";
 
 export interface AuthStatusDependencies {
   authStorage: AuthStorage;
   authService: AuthService;
   mcpUrl: string;
   envApiToken: string | undefined;
+  codeNavigationCliOverrideEnabled: boolean;
 }
 
 /**
@@ -33,19 +41,37 @@ function displayExpiry(expiresAt: string | null): void {
   }
 }
 
+function displayCodeNavigationStatus(
+  capability: CodeNavigationCapability,
+  overrideEnabled: boolean,
+): void {
+  console.log(`  Code navigation: ${capability}`);
+  console.log(`  CLI override: ${overrideEnabled ? "enabled" : "disabled"}`);
+}
+
 /**
  * Core auth status logic, separated for testability.
  */
 export async function authStatusAction(
   deps: AuthStatusDependencies,
 ): Promise<void> {
-  const { authStorage, authService, mcpUrl, envApiToken } = deps;
+  const {
+    authStorage,
+    authService,
+    mcpUrl,
+    envApiToken,
+    codeNavigationCliOverrideEnabled,
+  } = deps;
 
   // Check for env API token
   if (envApiToken) {
     console.log("Authenticated via environment variable.\n");
     console.log(`  Source: GITHITS_API_TOKEN`);
     console.log(`  Token: ${envApiToken.slice(0, 8)}...`);
+    displayCodeNavigationStatus(
+      getCodeNavigationCapability(envApiToken),
+      codeNavigationCliOverrideEnabled,
+    );
     return;
   }
 
@@ -54,6 +80,8 @@ export async function authStatusAction(
   if (!auth) {
     console.log("Not authenticated.\n");
     console.log(`  Environment: ${mcpUrl}\n`);
+    displayCodeNavigationStatus("unknown", codeNavigationCliOverrideEnabled);
+    console.log("");
     console.log("To authenticate:");
     console.log("  githits login");
     return;
@@ -69,9 +97,13 @@ export async function authStatusAction(
     if (refreshed) {
       // Reload tokens to get updated expiry
       const refreshedAuth = await authStorage.loadTokens(mcpUrl);
+      const capability = getCodeNavigationCapability(
+        refreshedAuth?.accessToken,
+      );
       console.log("Authenticated (token refreshed).\n");
       console.log(`  Environment: ${mcpUrl}`);
       displayExpiry(refreshedAuth?.expiresAt ?? null);
+      displayCodeNavigationStatus(capability, codeNavigationCliOverrideEnabled);
       console.log(`\n  Storage: ${authStorage.getStorageLocation()}`);
       return;
     }
@@ -81,6 +113,8 @@ export async function authStatusAction(
     console.log(
       `  Expired: ${new Date(auth.expiresAt).toLocaleDateString()}\n`,
     );
+    displayCodeNavigationStatus("unknown", codeNavigationCliOverrideEnabled);
+    console.log("");
     console.log("Run `githits login` to re-authenticate.");
     return;
   }
@@ -88,6 +122,10 @@ export async function authStatusAction(
   console.log("Authenticated.\n");
   console.log(`  Environment: ${mcpUrl}`);
   displayExpiry(auth.expiresAt);
+  displayCodeNavigationStatus(
+    getCodeNavigationCapability(auth.accessToken),
+    codeNavigationCliOverrideEnabled,
+  );
   console.log(`\n  Storage: ${authStorage.getStorageLocation()}`);
 }
 

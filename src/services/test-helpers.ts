@@ -12,6 +12,10 @@ import type {
   TokenData,
 } from "./auth-storage.js";
 import type { BrowserService } from "./browser-service.js";
+import type {
+  CodeNavigationService,
+  SearchSymbolsResult,
+} from "./code-navigation-service.js";
 import type { ExecResult, ExecService } from "./exec-service.js";
 import type { FileSystemService } from "./filesystem-service.js";
 import type { GitHitsService } from "./githits-service.js";
@@ -87,6 +91,30 @@ export function createMockAuthService(
     ...impl,
   };
 }
+
+/**
+ * Default code navigation search result for testing. Matches the
+ * DETAILED-mode response shape the service now always requests:
+ * `kind`, `category`, `endLine`, `language`, and `code` are
+ * populated; `preview` is null (callers build snippets from `code`).
+ */
+export const defaultSearchSymbolsResult: SearchSymbolsResult = {
+  results: [
+    {
+      name: "useMiddleware",
+      kind: "function",
+      category: "callable",
+      filePath: "src/app.js",
+      startLine: 42,
+      endLine: 48,
+      code: "function useMiddleware(fn) {\n  fn();\n  return null;\n}",
+      language: "javascript",
+    },
+  ],
+  totalMatches: 1,
+  hasMore: false,
+  version: "4.18.0",
+};
 
 /**
  * Creates a mock AuthStorage with default implementations.
@@ -186,6 +214,18 @@ export function createMockGitHitsService(
 }
 
 /**
+ * Creates a mock CodeNavigationService with default implementations.
+ */
+export function createMockCodeNavigationService(
+  impl: Partial<CodeNavigationService> = {},
+): CodeNavigationService {
+  return {
+    searchSymbols: mock(() => Promise.resolve(defaultSearchSymbolsResult)),
+    ...impl,
+  };
+}
+
+/**
  * Creates a mock KeyringService with default implementations.
  */
 export function createMockKeyringService(
@@ -225,6 +265,18 @@ export function createValidTokenData(
     expiresAt: null,
     ...overrides,
   };
+}
+
+/**
+ * Creates an unsigned JWT-like token string for payload decoding tests.
+ */
+export function createJwtToken(payload: Record<string, unknown>): string {
+  const encode = (value: unknown) =>
+    Buffer.from(JSON.stringify(value), "utf8")
+      .toString("base64url")
+      .replace(/=/g, "");
+
+  return `${encode({ alg: "none", typ: "JWT" })}.${encode(payload)}.signature`;
 }
 
 /**

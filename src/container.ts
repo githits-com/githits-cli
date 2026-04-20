@@ -7,18 +7,26 @@ import {
   type BrowserService,
   BrowserServiceImpl,
   ChunkingKeyringService,
+  type CodeNavigationCapability,
+  type CodeNavigationService,
+  CodeNavigationServiceImpl,
   type FileSystemService,
   FileSystemServiceImpl,
   GitHitsServiceImpl,
   getApiUrl,
+  getCodeNavigationCapability,
+  getCodeNavigationUrl,
   getEnvApiToken,
   getMcpUrl,
+  isCodeNavigationCliOverrideEnabled,
   KeychainAuthStorage,
   KeychainUnavailableError,
   KeyringServiceImpl,
   MigratingAuthStorage,
   RefreshingGitHitsService,
+  type TokenData,
   TokenManager,
+  type TokenProvider,
   WINDOWS_MAX_ENTRY_SIZE,
 } from "./services/index.js";
 
@@ -77,8 +85,23 @@ export interface Dependencies {
   hasValidToken: boolean;
   /** Raw GITHITS_API_TOKEN env var value (for auth status display) */
   envApiToken: string | undefined;
+  /** Code navigation capability derived from the startup token snapshot */
+  codeNavigationCapability: CodeNavigationCapability;
+  /** Whether GITHITS_CODE_NAVIGATION is set to force-expose the code CLI commands locally */
+  codeNavigationCliOverrideEnabled: boolean;
+  /** Code navigation backend URL when configured */
+  codeNavigationUrl: string | undefined;
+  /** Optional code navigation service used by gated CLI/MCP paths */
+  codeNavigationService: CodeNavigationService | undefined;
   /** GitHits REST API service */
   githitsService: GitHitsService;
+}
+
+function createStaticTokenProvider(token: string): TokenProvider {
+  return {
+    getToken: async () => token,
+    forceRefresh: async () => undefined,
+  };
 }
 
 /**
@@ -88,6 +111,8 @@ export interface Dependencies {
 export async function createContainer(): Promise<Dependencies> {
   const mcpUrl = getMcpUrl();
   const apiUrl = getApiUrl();
+  const codeNavigationUrl = getCodeNavigationUrl();
+  const codeNavigationCliOverrideEnabled = isCodeNavigationCliOverrideEnabled();
   const fileSystemService = new FileSystemServiceImpl();
   const authStorage = createAuthStorage(fileSystemService);
   const authService = new AuthServiceImpl();
@@ -96,6 +121,13 @@ export async function createContainer(): Promise<Dependencies> {
   // Check for env API token first
   const envToken = getEnvApiToken();
   if (envToken) {
+    const codeNavigationService = codeNavigationUrl
+      ? new CodeNavigationServiceImpl(
+          codeNavigationUrl,
+          createStaticTokenProvider(envToken),
+        )
+      : undefined;
+
     return {
       authStorage,
       authService,
@@ -106,6 +138,10 @@ export async function createContainer(): Promise<Dependencies> {
       apiToken: envToken,
       hasValidToken: true,
       envApiToken: envToken,
+      codeNavigationCapability: getCodeNavigationCapability(envToken),
+      codeNavigationCliOverrideEnabled,
+      codeNavigationUrl,
+      codeNavigationService,
       githitsService: new GitHitsServiceImpl(apiUrl, envToken),
     };
   }
@@ -113,6 +149,9 @@ export async function createContainer(): Promise<Dependencies> {
   // Create token manager for stored auth with auto-refresh
   const tokenManager = new TokenManager({ authService, authStorage, mcpUrl });
   const apiToken = await tokenManager.getToken();
+  const codeNavigationService = codeNavigationUrl
+    ? new CodeNavigationServiceImpl(codeNavigationUrl, tokenManager)
+    : undefined;
 
   return {
     authStorage,
@@ -124,6 +163,72 @@ export async function createContainer(): Promise<Dependencies> {
     apiToken,
     hasValidToken: apiToken !== undefined,
     envApiToken: undefined,
+    codeNavigationCapability: getCodeNavigationCapability(apiToken),
+    codeNavigationCliOverrideEnabled,
+    codeNavigationUrl,
+    codeNavigationService,
     githitsService: new RefreshingGitHitsService(apiUrl, tokenManager),
   };
+}
+
+/**
+ * Resolves the startup capability snapshot without triggering token refresh.
+ */
+export async function resolveStartupCodeNavigationCapability(): Promise<CodeNavigationCapability> {
+  const state = await resolveStartupCodeNavigationRegistrationState();
+  return state.capability;
+}
+
+export interface StartupCodeNavigationRegistrationState {
+  capability: CodeNavigationCapability;
+  expiredStoredAuth: boolean;
+}
+
+/**
+ * Resolves CLI registration state without triggering token refresh.
+ */
+export async function resolveStartupCodeNavigationRegistrationState(): Promise<StartupCodeNavigationRegistrationState> {
+  const envToken = getEnvApiToken();
+  if (envToken) {
+    return {
+      capability: getCodeNavigationCapability(envToken),
+      expiredStoredAuth: false,
+    };
+  }
+
+  const tokens = await loadStartupTokens(getMcpUrl());
+  if (tokens?.expiresAt && new Date(tokens.expiresAt) < new Date()) {
+    return { capability: "unknown", expiredStoredAuth: true };
+  }
+
+  return {
+    capability: getCodeNavigationCapability(tokens?.accessToken),
+    expiredStoredAuth: false,
+  };
+}
+
+async function loadStartupTokens(mcpUrl: string): Promise<TokenData | null> {
+  const fileSystemService = new FileSystemServiceImpl();
+  const fileStorage = new AuthStorageImpl(fileSystemService);
+
+  try {
+    // Avoid createAuthStorage() here: command registration/help should stay read-only
+    // and must not trigger the keychain probe write+delete cycle or migration writes.
+    const rawKeyring = new KeyringServiceImpl();
+    const keyring =
+      process.platform === "win32"
+        ? new ChunkingKeyringService(rawKeyring, WINDOWS_MAX_ENTRY_SIZE)
+        : rawKeyring;
+    const keychainStorage = new KeychainAuthStorage(keyring);
+    const keychainTokens = await keychainStorage.loadTokens(mcpUrl);
+    if (keychainTokens) {
+      return keychainTokens;
+    }
+  } catch (error) {
+    if (!(error instanceof KeychainUnavailableError)) {
+      throw error;
+    }
+  }
+
+  return fileStorage.loadTokens(mcpUrl);
 }

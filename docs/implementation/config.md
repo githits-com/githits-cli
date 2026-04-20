@@ -14,6 +14,7 @@ GitHits separates its MCP server (which handles OAuth discovery and the MCP prot
 |---|---|---|---|
 | **MCP URL** | `https://mcp.githits.com` | `GITHITS_MCP_URL` | OAuth discovery (`.well-known`), DCR registration, auth flow |
 | **API URL** | `https://api.githits.com` | `GITHITS_API_URL` | REST endpoints (`/search`, `/languages`, `/feedbacks`) |
+| **Code navigation URL** | configured per environment | `GITHITS_CODE_NAV_URL` | GraphQL code-navigation endpoint used by `search_symbols` / `githits code search` |
 
 > **These are different services.** Setting only one won't work for custom environments. Both must be overridden together when pointing to a non-production backend.
 
@@ -37,13 +38,22 @@ The container (`src/container.ts`) resolves authentication in priority order:
 | `/languages` | Full access | Full access | Blocked |
 | `/feedbacks` | Full access | Full access | Blocked |
 
+Code navigation is different from the REST endpoints above:
+
+- the CLI resolves the code-navigation endpoint from `GITHITS_CODE_NAV_URL`; custom GitHits environments must set this explicitly (no default inference)
+- MCP registration requires a startup token whose JWT advertises `code_navigation`; opaque env tokens are treated optimistically and left to backend enforcement
+- the `githits code search` CLI command is shown when the startup token advertises `code_navigation`, when an opaque `GITHITS_API_TOKEN` is present, or when `GITHITS_CODE_NAVIGATION=1` is set locally
+- the backend remains authoritative and can still deny access even if the CLI exposes the local command
+
 ## Environment Variables
 
 | Variable | Purpose | Example |
 |---|---|---|
 | `GITHITS_MCP_URL` | Override MCP server URL | `http://localhost:7071/mcp` |
 | `GITHITS_API_URL` | Override REST API URL | `http://localhost:8000` |
+| `GITHITS_CODE_NAV_URL` | Override code navigation GraphQL URL | `http://localhost:4000` |
 | `GITHITS_API_TOKEN` | API token for authentication | `ghi-abc123...` |
+| `GITHITS_CODE_NAVIGATION` | Override capability gate and expose `code` CLI commands locally | `1` |
 
 ## Local Storage
 
@@ -65,8 +75,10 @@ Environment variables
        └─ src/container.ts (createContainer)
             ├─ mcpUrl → passed to auth commands, used as storage key
             ├─ apiUrl → passed to GitHitsServiceImpl constructor
+            ├─ codeNavigationUrl → passed to CodeNavigationServiceImpl when configured
             ├─ apiToken → resolved from env var or OAuth storage
-            └─ hasValidToken → gates MCP server startup
+            ├─ hasValidToken → gates authenticated commands
+            └─ codeNavigationCapability / CLI override → gates code navigation exposure
 ```
 
 Commands receive the full `Dependencies` object. Services receive only what they need (e.g., `GitHitsServiceImpl` gets `apiUrl` and `token`).

@@ -19,6 +19,8 @@ The two methods exist because OAuth provides full access but requires a browser,
 
 > **The container resolves auth at startup.** The `createContainer()` function checks for `GITHITS_API_TOKEN` first — if set, it takes precedence even when OAuth tokens are stored. If not set, it loads stored OAuth tokens and attempts auto-refresh if expired. See `src/container.ts` for the resolution logic.
 
+For the code navigation PoC, the CLI also inspects the current bearer token for Supabase `feature_flags` claims. This is a local capability hint only: the backend still enforces access. The CLI decodes JWT payloads without signature verification, treating opaque or malformed tokens as `unknown` capability.
+
 ## OAuth PKCE Flow
 
 The login command (`src/commands/login.ts`) orchestrates a 9-step OAuth flow (matching the `// Step N:` comments in the code):
@@ -42,6 +44,7 @@ Tokens are JWTs with a configurable expiration (typically 1 hour). The CLI handl
 - **Proactive refresh** — When 90% of the token lifetime has elapsed (e.g., at ~54 minutes for a 1-hour token), the `TokenManager` refreshes before expiry. This avoids a stale-token window.
 - **Reactive refresh** — If the token is already expired, refresh is attempted immediately.
 - **401 retry** — The `RefreshingGitHitsService` decorator wraps `GitHitsServiceImpl` and retries once on `AuthenticationError`, calling `forceRefresh()` to handle clock skew or server-side revocation.
+- **Shared retry helper** — GitHits REST calls and code navigation GraphQL calls both use the same token-refresh/retry flow, so auth drift is handled consistently across both service families.
 - **Concurrent coalescing** — Multiple concurrent refresh requests share a single in-flight Promise.
 - **At login** (`src/commands/login.ts`) — Checks if existing token is still valid before starting the OAuth flow. Respects `--force` flag to re-authenticate regardless.
 - **At auth status** (`src/commands/auth-status.ts`) — Attempts refresh before reporting "Token expired".
@@ -158,6 +161,9 @@ The `hasValidToken` flag is checked by `requireAuth()` in `src/commands/mcp.ts` 
 | `src/container.ts` | Dependency wiring, keychain probe with fallback |
 | `src/services/token-manager.ts` | `TokenProvider` interface, `TokenManager` (proactive refresh, coalescing) |
 | `src/services/refreshing-githits-service.ts` | `GitHitsService` decorator with token refresh and 401 retry |
+| `src/services/execute-with-token-refresh.ts` | Shared helper for token-authenticated retry-on-refresh flows |
+| `src/services/code-navigation-capability.ts` | Local JWT capability decoding for `code_navigation` |
+| `src/services/code-navigation-service.ts` | GraphQL code navigation client using the shared refresh helper |
 | `src/services/auth-service.ts` | OAuth operations (DCR, PKCE, token exchange, callback server) |
 | `src/services/auth-storage.ts` | `AuthStorage` interface and file-based implementation |
 | `src/services/keyring-service.ts` | `KeyringService` interface wrapping `@napi-rs/keyring` |

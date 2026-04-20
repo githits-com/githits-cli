@@ -1,3 +1,4 @@
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { z } from "zod";
 
 /**
@@ -31,6 +32,7 @@ export interface ToolDefinition<
   name: string;
   description: string;
   schema: TSchema;
+  annotations?: ToolAnnotations;
   handler: ToolHandler<TArgs>;
 }
 

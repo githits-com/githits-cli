@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes three commands (`search`, `languages`, `feedback`) that mirror the MCP tools for direct human and agent use. These commands share business logic with the MCP tools through the same `GitHitsService` and shared utilities, but format output for terminal consumption instead of MCP tool results.
+The CLI exposes three primary commands (`search`, `languages`, `feedback`) that mirror the public MCP tools for direct human and agent use. It also has a capability-gated `code search` command that searches indexed dependency source via the code-navigation backend. These commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
 
 ## Commands
 
@@ -12,6 +12,7 @@ The CLI exposes three commands (`search`, `languages`, `feedback`) that mirror t
 | `search <query>` | `-l, --lang <language>` | `--license <mode>`, `--explain`, `--json` | Search for code examples |
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback <solution_id>` | `--accept` or `--reject` | `-m, --message <text>`, `--json` | Submit feedback on a search result |
+| `code search <package> [query]` | package spec | `--keywords`, `--keyword`, `--match-mode`, `--category`, `--kind`, `--file`, `--intent`, `--limit`, `--wait`, `--json` | Search indexed dependency source code |
 
 ### `githits init`
 
@@ -60,6 +61,31 @@ githits feedback abc123 --accept --message "Solved my problem" --json
 
 `--accept` and `--reject` are mutually exclusive (enforced by Commander's `.conflicts()` API). At least one must be provided (validated in the action function). JSON output is `{ "success": true, "message": "..." }`.
 
+### `githits code search`
+
+```
+githits code search npm:express middleware
+githits code search npm:express middleware --intent all
+githits code search pypi:requests timeout --category callable --limit 10
+githits code search crates:serde Serialize --kind trait --limit 5
+githits code search npm:@types/node Buffer --file src/ --json
+githits code search npm:express --keywords "router,handler" --match-mode and
+```
+
+Finds functions, classes, modules, and doc sections inside an indexed dependency by exact-token matches. Unlike `githits search`, which performs natural-language code example search, `code search` is symbol-oriented and returns source chunks with line ranges.
+
+**Package spec.** `<registry>:<name>[@<version>]`. Omit the registry to default to `npm`. Supported registries: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`. Scoped npm names are supported (`npm:@types/node`).
+
+**Filtering by symbol shape.** Prefer `--category` for broad filtering (`callable`, `type`, `module`, `data`, `documentation`) — it works across the full 27-value kind taxonomy without enumerating individual kinds. Reach for `--kind` when you want a specific construct, e.g. `--kind trait` (Rust) or `--kind namespace` (C#/C++/PHP).
+
+**Defaults.** `--intent production` filters to production source by default so top results are not dominated by tests, benchmarks, or examples. Use `--intent all` to include every file intent. `--wait` defaults to 20 seconds (above the p50 indexing time of ~11 s); first-time queries against an unindexed package may need `--wait 60` (the backend ceiling) to block until indexing completes. On an INDEXING error, the response message points out the retry options.
+
+**Output.** Default terminal output leads each entry with `path:startLine-endLine [kind]`, followed by the symbol name and a 3-line dedented snippet. `--json` emits the shared success/error envelope also produced by the MCP `search_symbols` tool — see [`mcp-cli-parity.md`](./mcp-cli-parity.md) for the wire contract. The command is registered as `code search` with `code search-symbols` as a Commander alias.
+
+**Capability gate.** The `code` group is registered only when the startup token advertises `code_navigation`, when `GITHITS_CODE_NAVIGATION=1` is set for local override, when `GITHITS_API_TOKEN` is present (opaque env token), or when stored auth is expired.
+
+**Troubleshooting.** Set `GITHITS_DEBUG=code-nav` to emit single-line JSON diagnostics to stderr on error paths. Include the output when filing an issue. Debug payloads never contain query text, tokens, or response bodies.
+
 ## Architecture
 
 ```
@@ -80,7 +106,8 @@ Each command follows this pattern:
 
 | Shared Module | Used By |
 |---|---|
-| `GitHitsService` (via container) | MCP tools + all CLI commands |
+| `GitHitsService` (via container) | Public MCP tools + primary CLI commands |
+| `CodeNavigationService` (via container) | Capability-gated `search_symbols` MCP tool + `githits code search` CLI command |
 | `filterLanguages()` from `src/shared/language-filter.ts` | `search_language` MCP tool + `languages` CLI command |
 | `requireAuth()` from `src/shared/require-auth.ts` | MCP server startup + all CLI commands |
 
@@ -130,5 +157,6 @@ All commands support two output modes:
 
 ## Related Documentation
 
-- `docs/implementation/tools.md` — MCP tools that share business logic with these commands
+- [`tools.md`](./tools.md) — MCP tools that share business logic with these commands
+- [`mcp-cli-parity.md`](./mcp-cli-parity.md) — rules for dual-surface tools (CLI ↔ MCP)
 - `docs/guidelines/ARCHITECTURAL_GUIDELINES.md` — DI and testing patterns
