@@ -23,6 +23,7 @@ import type { KeyringService } from "./keyring-service.js";
 import type {
   PackageIntelligenceService,
   PackageSummary,
+  VulnerabilityReport,
 } from "./package-intelligence-service.js";
 import type { ConfirmChoice, PromptService } from "./prompt-service.js";
 import type { TokenProvider } from "./token-manager.js";
@@ -297,15 +298,95 @@ export const defaultPackageSummary: PackageSummary = {
 };
 
 /**
- * Creates a mock PackageIntelligenceService. Default `packageSummary`
- * resolves to {@link defaultPackageSummary} — override per-test as
- * needed.
+ * Fully-populated `VulnerabilityReport` fixture. Mixes one malicious
+ * advisory, one critical, one high, one medium with aliases, one low
+ * with a `modifiedAt` that differs from `publishedAt`, and one
+ * null-severity advisory so omission tests have live material to
+ * subtract from.
+ */
+export const defaultVulnerabilityReport: VulnerabilityReport = {
+  package: {
+    name: "express",
+    registry: "NPM",
+    version: "4.18.0",
+  },
+  security: {
+    vulnerabilityCount: 6,
+    currentVersionAffected: true,
+    upgradePaths: ["4.18.2"],
+    vulnerabilities: [
+      {
+        osvId: "GHSA-mmmm-mmmm-mmmm",
+        summary: "Malicious package impersonating express helper",
+        severityScore: 9.8,
+        severityType: "CVSS_V3",
+        affectedVersionRanges: [">= 4.17.0, < 4.18.1"],
+        fixedInVersions: [],
+        publishedAt: "2024-07-10T00:00:00Z",
+        aliases: [],
+        isMalicious: true,
+      },
+      {
+        osvId: "GHSA-cccc-cccc-cccc",
+        summary: "RCE via crafted JSON body",
+        severityScore: 9.2,
+        severityType: "CVSS_V3",
+        affectedVersionRanges: [">= 4.0.0, < 4.18.2"],
+        fixedInVersions: ["4.18.2"],
+        publishedAt: "2024-06-15T00:00:00Z",
+        aliases: ["CVE-2024-4242"],
+      },
+      {
+        osvId: "GHSA-xxxx-xxxx-xxxx",
+        summary: "Open redirect in default error handler",
+        severityScore: 7.5,
+        severityType: "CVSS_V3",
+        affectedVersionRanges: [">= 4.0.0, < 4.18.2"],
+        fixedInVersions: ["4.18.2"],
+        publishedAt: "2024-06-01T00:00:00Z",
+        aliases: ["CVE-2024-1234"],
+      },
+      {
+        osvId: "GHSA-yyyy-yyyy-yyyy",
+        summary: "Prototype pollution via query parser",
+        severityScore: 5.3,
+        severityType: "CVSS_V3",
+        affectedVersionRanges: [">= 4.0.0, < 4.17.4"],
+        fixedInVersions: ["4.17.4"],
+        publishedAt: "2024-03-12T00:00:00Z",
+        modifiedAt: "2024-04-02T00:00:00Z",
+        aliases: ["CVE-2024-5678", "CVE-2024-5679"],
+      },
+      {
+        osvId: "GHSA-zzzz-zzzz-zzzz",
+        summary: "Header injection in res.send",
+        severityScore: 3.2,
+        severityType: "CVSS_V3",
+        affectedVersionRanges: [">= 4.0.0, < 4.17.3"],
+        fixedInVersions: ["4.17.3"],
+        publishedAt: "2024-02-01T00:00:00Z",
+      },
+      {
+        osvId: "GHSA-nnnn-nnnn-nnnn",
+        summary: "Advisory without a CVSS score",
+        publishedAt: "2023-11-20T00:00:00Z",
+      },
+    ],
+  },
+};
+
+/**
+ * Creates a mock PackageIntelligenceService. Defaults resolve to the
+ * fully-populated fixtures; override per-test as needed.
  */
 export function createMockPackageIntelligenceService(
   impl: Partial<PackageIntelligenceService> = {},
 ): PackageIntelligenceService {
   return {
     packageSummary: mock(() => Promise.resolve(defaultPackageSummary)),
+    packageVulnerabilities: mock(() =>
+      Promise.resolve(defaultVulnerabilityReport),
+    ),
     ...impl,
   };
 }

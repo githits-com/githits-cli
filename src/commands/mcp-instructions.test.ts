@@ -48,6 +48,7 @@ const KNOWN_TOOLS = [
   "feedback",
   "search_symbols",
   "package_summary",
+  "package_vulnerabilities",
 ] as const;
 
 function mentionedTools(instructions: string): Set<string> {
@@ -102,6 +103,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("feedback");
     expect(instructions).not.toContain("Package tools");
     expect(instructions).not.toContain("package_summary");
+    expect(instructions).not.toContain("package_vulnerabilities");
     expect(instructions).not.toContain("search_symbols");
   });
 
@@ -117,6 +119,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("GitHits surfaces verified");
     expect(instructions).toContain("Package tools");
     expect(instructions).toContain("`package_summary`");
+    expect(instructions).toContain("`package_vulnerabilities`");
     expect(instructions).toContain("`search_symbols`");
   });
 
@@ -161,7 +164,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("natural-language example questions");
   });
 
-  it("half-open: only package intelligence service wired → mentions package_summary but not search_symbols", () => {
+  it("half-open: only package intelligence service wired → mentions package_summary + package_vulnerabilities but not search_symbols", () => {
     const deps = createTestDeps({
       codeNavigationCapability: "enabled",
       codeNavigationService: undefined,
@@ -171,6 +174,7 @@ describe("buildMcpInstructions", () => {
 
     expect(instructions).toContain("Package tools");
     expect(instructions).toContain("`package_summary`");
+    expect(instructions).toContain("`package_vulnerabilities`");
     expect(instructions).not.toContain("`search_symbols`");
     // The decision tip references search_symbols, so it must not
     // appear when search_symbols isn't registered.
@@ -233,7 +237,11 @@ describe("buildMcpInstructions", () => {
         // block narrates the workflow rather than bulleting them
         // individually, so `search_language` and `feedback` won't
         // appear in backtick form.
-        const packageTools = ["search_symbols", "package_summary"];
+        const packageTools = [
+          "search_symbols",
+          "package_summary",
+          "package_vulnerabilities",
+        ];
         for (const name of packageTools) {
           if (registered.has(name)) {
             expect(mentioned.has(name)).toBe(true);

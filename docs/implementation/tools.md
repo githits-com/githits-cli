@@ -24,8 +24,9 @@ Both expose the same tools with identical names, parameters, and descriptions. T
 | `feedback` | `solution_id`, `accepted`, `feedback_text?` | Submit feedback on a search result to improve quality. |
 | `search_symbols` | `target`, `query?`, `keywords?`, `match_mode?`, `category?`, `kind?`, `file_path?`, `limit?`, `file_intent?`, `wait_timeout_ms?` | Capability-gated code navigation search over indexed dependency source. |
 | `package_summary` | `registry`, `package_name` | Package overview: latest version, license, description, repository, downloads, GitHub metadata, install command, and known vulnerabilities. Always returns the latest published version. |
+| `package_vulnerabilities` | `registry`, `package_name`, `version?`, `min_severity?`, `include_withdrawn?` | Known vulnerabilities for a package on npm, PyPI, Hex, or Crates. Count summary, per-advisory OSV ID + severity + affected/fix ranges, and upgrade paths. Malware is surfaced in a disjoint bucket. |
 
-`search_symbols` and `package_summary` are only registered when the startup token advertises `code_navigation` capability. The backend endpoint can be overridden via `GITHITS_CODE_NAV_URL` for local development. Capability gating keeps the tools hidden from public/default flows while the feature is still rolling out.
+`search_symbols`, `package_summary`, and `package_vulnerabilities` are only registered when the startup token advertises `code_navigation` capability. The backend endpoint can be overridden via `GITHITS_CODE_NAV_URL` for local development. Capability gating keeps the tools hidden from public/default flows while the feature is still rolling out.
 
 `search_symbols` shares request-construction, error classification, and JSON-payload shape with the CLI `githits code search` command via shared helpers under `src/shared/`. The parity rules are codified in [`mcp-cli-parity.md`](./mcp-cli-parity.md); the parity test (`src/tools/search-symbols-parity.test.ts`) asserts that both surfaces emit identical JSON for equivalent inputs.
 
@@ -42,6 +43,22 @@ Both expose the same tools with identical names, parameters, and descriptions. T
 **Always latest.** The query exposes no `version` input because the upstream `packageSummary` resolver always returns the latest published version. The CLI `githits pkg info` rejects `<spec>@<version>` with `INVALID_ARGUMENT` rather than silently swapping — a silent-swap would break security-testing workflows that pin to an older vulnerable release.
 
 `package_summary` shares its envelope builder, terminal formatter, and error classifier with the CLI `githits pkg info` command via `src/shared/package-summary-request.ts`, `src/shared/package-summary-response.ts`, and `src/shared/package-intelligence-error-map.ts`. The parity test (`src/tools/package-summary-parity.test.ts`) asserts `toEqual` between CLI `--json` and MCP `content[0].text` for service-sourced fixtures, and `toMatchObject` for the `INVALID_ARGUMENT` fixture where surface-specific error text is acceptable.
+
+### `package_vulnerabilities` response shape
+
+**Filter-aware summary.** `min_severity` and `include_withdrawn` are passed straight to the GraphQL query. The backend's `vulnerabilityCount` reflects the filtered set — there is no client-side filtering and no `summary.filtered` dual-block. Callers wanting the unfiltered view omit the flag.
+
+**Partitioning buckets.** Advisories with `isMalicious: true` count **only** under `summary.bySeverity.malware`; severity bands (`critical`/`high`/`medium`/`low`) count non-malicious advisories with a positive CVSS score; non-malicious advisories with no score count under `summary.bySeverity.unrated`. Every returned advisory lands in exactly one bucket — the client-side guarantee is `MALWARE + crit + high + medium + low + unrated = advisories.length`. The sum also equals `summary.total` whenever the backend keeps `vulnerabilityCount` and `vulnerabilities[]` consistent (the expected case on all shipped registries). The malware bucket sorts to the top of the advisory list regardless of score. The `unrated` bucket ensures the terminal breakdown line reconciles with the header total on Rust / PyPI packages where a non-trivial fraction of advisories ship without a CVSS score.
+
+**Version validation.** `package_vulnerabilities` accepts canonical package versions only. Tag-style refs with a leading `v` (for example `v4.18.0`) are rejected client-side with `INVALID_ARGUMENT` before the backend call. This avoids the current production backend's unhelpful generic error for that input shape. This is intentionally narrow: proper ecosystem-aware version parsing and typed invalid-version errors belong in the backend, not in ad hoc CLI normalization rules.
+
+**Typed `VERSION_NOT_FOUND`.** Mirrors the code-nav precedent: a dedicated `PackageIntelligenceVersionNotFoundError` carries structured `{ packageName, requestedVersion, availableVersions? }` fields sourced from GraphQL `extensions`. Classifier routes it to `VERSION_NOT_FOUND` with a structured `details` block. When the backend returns a generic backend error whose message matches `/no matching version/i` (current production behaviour — the typed `extensions.code` is not yet emitted on `packageVulnerabilities`), the service promotes the error to `VersionNotFoundError` using the caller's `packageName` + `version` so CLI / MCP surfaces still render an actionable envelope. `availableVersions` remains undefined in the fallback path until the backend ships them.
+
+**Omission rules.** Null scalars omitted; empty arrays dropped; zero-count `bySeverity` keys dropped; the `bySeverity` block itself dropped when `total === 0`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
+
+**Registry coverage.** Only npm, PyPI, Hex, and Crates have vulnerability data. The CLI + MCP reject the other five registries client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, and crates. Got: ${registry}.`) — rejection predicate lives in `src/shared/package-vulnerabilities-request.ts` rather than the shared registry module, since it is a tool-specific capability matrix.
+
+`package_vulnerabilities` shares its envelope builder with the CLI `githits pkg vulns` command via `src/shared/package-vulnerabilities-request.ts` and `src/shared/package-vulnerabilities-response.ts`. The terminal formatter is CLI-only (MCP always emits JSON). The parity test (`src/tools/package-vulnerabilities-parity.test.ts`) asserts `toEqual` across the service-sourced success and typed-error fixtures, and `toMatchObject` for builder-sourced `INVALID_ARGUMENT` fixtures such as unsupported registries and tag-style `v`-prefixed versions.
 
 ## Server instructions
 

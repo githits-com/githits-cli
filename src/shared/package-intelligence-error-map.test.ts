@@ -9,6 +9,7 @@ import {
   PackageIntelligenceNetworkError,
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceValidationError,
+  PackageIntelligenceVersionNotFoundError,
 } from "../services/package-intelligence-service.js";
 import { mapPackageIntelligenceError } from "./package-intelligence-error-map.js";
 
@@ -20,6 +21,40 @@ describe("mapPackageIntelligenceError", () => {
     expect(mapped.code).toBe("NOT_FOUND");
     expect(mapped.retryable).toBe(false);
     expect(mapped.message).toBe("Package not found");
+  });
+
+  it("maps PackageIntelligenceVersionNotFoundError to VERSION_NOT_FOUND with structured details", () => {
+    const mapped = mapPackageIntelligenceError(
+      new PackageIntelligenceVersionNotFoundError(
+        "Version not found",
+        "npm:express",
+        "99.0.0",
+        ["4.18.2", "4.18.1", "4.17.4"],
+      ),
+    );
+    expect(mapped.code).toBe("VERSION_NOT_FOUND");
+    expect(mapped.retryable).toBe(false);
+    expect(mapped.message).toBe("Version not found");
+    expect(mapped.details?.package).toBe("npm:express");
+    expect(mapped.details?.requestedVersion).toBe("99.0.0");
+    expect(mapped.details?.availableVersions).toEqual([
+      { version: "4.18.2", ref: "4.18.2" },
+      { version: "4.18.1", ref: "4.18.1" },
+      { version: "4.17.4", ref: "4.17.4" },
+    ]);
+  });
+
+  it("maps PackageIntelligenceVersionNotFoundError with empty extensions (backend not wired)", () => {
+    const mapped = mapPackageIntelligenceError(
+      new PackageIntelligenceVersionNotFoundError(
+        "Version not found",
+        undefined,
+        undefined,
+        undefined,
+      ),
+    );
+    expect(mapped.code).toBe("VERSION_NOT_FOUND");
+    expect(mapped.details).toBeUndefined();
   });
 
   it("maps PackageIntelligenceValidationError to INVALID_ARGUMENT", () => {

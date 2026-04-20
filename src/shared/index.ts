@@ -65,6 +65,24 @@ export {
   severityLabel,
 } from "./package-summary-response.js";
 export {
+  buildPackageVulnerabilitiesParams,
+  type PackageVulnerabilitiesRequestBuildResult,
+  type PackageVulnerabilitiesRequestInput,
+  SEVERITY_LABEL_TO_CVSS,
+  supportsVulnerabilitiesRegistry,
+  UnsupportedVulnerabilitiesRegistryError,
+} from "./package-vulnerabilities-request.js";
+export {
+  buildPackageVulnerabilitiesSuccessPayload,
+  computeBySeverity,
+  formatPackageVulnerabilitiesTerminal,
+  type LeanAdvisory,
+  type LeanVulnerabilityReport,
+  type LeanVulnerabilitySummary,
+  type VulnSeverityLabel,
+  vulnSeverityLabel,
+} from "./package-vulnerabilities-response.js";
+export {
   isKnownPkgseerRegistryArg,
   knownPkgseerRegistryArgs,
   type PkgseerRegistry,

@@ -88,8 +88,13 @@ export type {
   PackageSecurityOverview,
   PackageSummary,
   PackageSummaryParams,
+  PackageVersionIdentity,
+  PackageVulnerabilitiesParams,
   QuickstartInfo,
+  VulnerabilityDetail,
   VulnerabilityOverview,
+  VulnerabilityReport,
+  VulnerabilitySecurityDetails,
 } from "./package-intelligence-service.js";
 export {
   MalformedPackageIntelligenceResponseError,
@@ -101,6 +106,7 @@ export {
   PackageIntelligenceServiceImpl,
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceValidationError,
+  PackageIntelligenceVersionNotFoundError,
 } from "./package-intelligence-service.js";
 export type {
   CheckboxChoice,

@@ -31,6 +31,9 @@ describe("registerPkgCommandGroup", () => {
     expect(
       pkgCommand?.commands.some((command) => command.name() === "info"),
     ).toBe(true);
+    expect(
+      pkgCommand?.commands.some((command) => command.name() === "vulns"),
+    ).toBe(true);
   });
 
   it("registers the pkg command group when override and URL are set", async () => {
