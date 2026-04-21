@@ -339,7 +339,7 @@ export interface ChangelogEntryDetail {
   body?: string;
   htmlUrl?: string;
   publishedAt?: string;
-  /** TODO(pkgseer-backend): surface when shape is documented. */
+  /** TODO(backend): surface when shape is documented. */
   metadata?: UntypedGenericJSON;
 }
 

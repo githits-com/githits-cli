@@ -23,7 +23,7 @@
  *   tool accepts canonical package versions, not git refs; the live
  *   backend currently answers these with an unhelpful generic error,
  *   so we fail fast with an actionable client-side message instead.
- *   TODO(pkgseer-backend): replace this narrow guard with typed,
+ *   TODO(backend): replace this narrow guard with typed,
  *   ecosystem-aware version validation from the backend. Do not grow
  *   ad hoc normalization rules here.
  */

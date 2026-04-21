@@ -354,7 +354,7 @@ When a new tool lands with both MCP and CLI surfaces:
 - **`metadata` dropped.** `ChangelogEntry.metadata` is backend
   `GenericJSON`; v1 envelope drops it entirely rather than
   guessing at its shape. Revisit via agent feedback
-  (`TODO(pkgseer-backend)` anchor on the service type).
+  (`TODO(backend)` anchor on the service type).
 - **`source: null` promoted to `NOT_FOUND`.** The service layer
   promotes the null-source case to a typed
   `PackageIntelligenceChangelogSourceNotFoundError` which the

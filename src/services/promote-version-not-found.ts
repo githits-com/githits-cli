@@ -11,7 +11,7 @@
  * promotes it to the typed {@link PackageIntelligenceVersionNotFoundError}
  * so downstream surfaces can render structured, actionable error details.
  *
- * TODO(pkgseer-backend): remove once the upstream resolvers all emit
+ * TODO(backend): remove once the upstream resolvers all emit
  * the typed `extensions.code = "VERSION_NOT_FOUND"` payload. The typed
  * path in `createGraphQLError` already handles the structured shape;
  * deleting this helper plus its fallback-specific service tests will

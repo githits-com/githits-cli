@@ -39,7 +39,7 @@
  *   version / date / URL timeline.
  * - **`metadata` dropped from envelope.** Source-specific opaque
  *   JSON; live-smoke observations will inform a typed passthrough
- *   later. TODO(pkgseer-backend) marker in the service types.
+ *   later. TODO(backend) marker in the service types.
  */
 
 import type { ChangelogReport } from "../services/index.js";
