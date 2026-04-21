@@ -12,9 +12,21 @@ export interface CliCheckCommand {
   command: string;
   /** Command arguments (e.g., ["plugin", "list"]) */
   args: string[];
-  /** Pattern to search for in combined stdout+stderr. If found, agent is configured. */
-  configuredPattern: RegExp;
+  /**
+   * Pattern to search for in combined stdout+stderr. If found, agent is configured.
+   * Optional when using a negative-only check via notConfiguredPattern.
+   */
+  configuredPattern?: RegExp;
+  /**
+   * Pattern indicating the agent is definitely not configured.
+   * Checked before configuredPattern.
+   */
+  notConfiguredPattern?: RegExp;
+  /** Require exitCode=0 for the check command to be considered valid. */
+  requireExitCodeZero?: boolean;
 }
+
+export type CliCheckStatus = "configured" | "not_configured" | "probe_failed";
 
 /** Result of merging server config into an existing config file */
 export type MergeResult =
@@ -186,12 +198,37 @@ export async function isCliAlreadyConfigured(
   check: CliCheckCommand,
   execService: ExecService,
 ): Promise<boolean> {
+  return (await getCliCheckStatus(check, execService)) === "configured";
+}
+
+/**
+ * Check CLI configuration status with tri-state output so callers can
+ * distinguish a definitive "not configured" from probe failures.
+ */
+export async function getCliCheckStatus(
+  check: CliCheckCommand,
+  execService: ExecService,
+): Promise<CliCheckStatus> {
   try {
     const result = await execService.exec(check.command, check.args);
+    if (check.requireExitCodeZero && result.exitCode !== 0) {
+      return "probe_failed";
+    }
     const combined = `${result.stdout} ${result.stderr}`;
-    return check.configuredPattern.test(combined);
+    if (check.notConfiguredPattern?.test(combined)) {
+      return "not_configured";
+    }
+    if (check.configuredPattern) {
+      return check.configuredPattern.test(combined)
+        ? "configured"
+        : "not_configured";
+    }
+    if (check.notConfiguredPattern) {
+      return "configured";
+    }
+    return "not_configured";
   } catch {
-    return false;
+    return "probe_failed";
   }
 }
 
@@ -200,6 +237,7 @@ const ALREADY_EXISTS_PATTERNS = [
   /already exists/i,
   /already configured/i,
   /already added/i,
+  /extension\s+"githits"\s+is\s+already\s+installed/i,
 ];
 
 /** Check if CLI output indicates the server is already configured */

@@ -3,8 +3,8 @@ import type { ExecService } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/index.js";
 import {
   type CliCheckCommand,
+  getCliCheckStatus,
   isAlreadyConfigured,
-  isCliAlreadyConfigured,
 } from "./setup-handlers.js";
 
 /** A single CLI command step (command + arguments). */
@@ -301,17 +301,35 @@ const geminiCli: AgentDefinition = {
         args: [
           "extensions",
           "install",
+          "--consent",
           "https://github.com/githits-com/githits-cli",
         ],
       },
     ],
     checkCommand: {
       command: "gemini",
-      args: ["extensions", "list"],
-      configuredPattern: /githits/i,
+      args: ["extensions", "config", "githits"],
+      // `gemini extensions list` can return empty output in non-interactive
+      // environments. `extensions config githits` is a deterministic probe:
+      // stderr includes "not installed" when missing.
+      notConfiguredPattern: /not installed/i,
+      requireExitCodeZero: true,
     },
   }),
 };
+
+async function isGeminiExtensionInstalledFromFilesystem(
+  fs: FileSystemService,
+): Promise<boolean> {
+  const extensionManifestPath = fs.joinPath(
+    fs.getHomeDir(),
+    ".gemini",
+    "extensions",
+    "githits",
+    "gemini-extension.json",
+  );
+  return fs.exists(extensionManifestPath);
+}
 
 /** Google Antigravity: detected by ~/.gemini/antigravity/ directory */
 const googleAntigravity: AgentDefinition = {
@@ -472,10 +490,18 @@ export async function scanAgents(
       // CLI agent — try checkCommand if available
       const config = agent.getSetupConfig(fs);
       if (config.method === "cli" && config.checkCommand) {
-        const configured = await isCliAlreadyConfigured(
+        const checkStatus = await getCliCheckStatus(
           config.checkCommand,
           execService,
         );
+        let configured = checkStatus === "configured";
+        if (!configured && agent.id === "gemini-cli") {
+          // Only use filesystem fallback when the CLI probe itself failed.
+          // If Gemini explicitly reports "not installed", do not override it.
+          if (checkStatus === "probe_failed") {
+            configured = await isGeminiExtensionInstalledFromFilesystem(fs);
+          }
+        }
         if (configured) {
           result.alreadyConfigured.push(agent);
         } else {

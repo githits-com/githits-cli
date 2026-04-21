@@ -9,6 +9,7 @@ import {
   executeCliSetup,
   executeConfigFileSetup,
   formatSetupPreview,
+  getCliCheckStatus,
   isAlreadyConfigured,
   isCliAlreadyConfigured,
   mergeServerConfig,
@@ -186,6 +187,102 @@ describe("isCliAlreadyConfigured", () => {
       ),
     });
     expect(await isCliAlreadyConfigured(check, execService)).toBe(true);
+  });
+
+  it("supports negative-only checks via notConfiguredPattern", async () => {
+    const negativeOnlyCheck: CliCheckCommand = {
+      command: "gemini",
+      args: ["extensions", "config", "githits"],
+      notConfiguredPattern: /not installed/i,
+      requireExitCodeZero: true,
+    };
+
+    const installedExec = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+        }),
+      ),
+    });
+    expect(await isCliAlreadyConfigured(negativeOnlyCheck, installedExec)).toBe(
+      true,
+    );
+
+    const missingExec = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: "",
+          stderr: 'Extension "githits" is not installed.\n',
+        }),
+      ),
+    });
+    expect(await isCliAlreadyConfigured(negativeOnlyCheck, missingExec)).toBe(
+      false,
+    );
+  });
+
+  it("returns false for negative-only checks when requireExitCodeZero is set and command fails", async () => {
+    const negativeOnlyCheck: CliCheckCommand = {
+      command: "gemini",
+      args: ["extensions", "config", "githits"],
+      notConfiguredPattern: /not installed/i,
+      requireExitCodeZero: true,
+    };
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "",
+        }),
+      ),
+    });
+    expect(await isCliAlreadyConfigured(negativeOnlyCheck, execService)).toBe(
+      false,
+    );
+  });
+});
+
+describe("getCliCheckStatus", () => {
+  it("returns not_configured when notConfiguredPattern matches", async () => {
+    const check: CliCheckCommand = {
+      command: "gemini",
+      args: ["extensions", "config", "githits"],
+      notConfiguredPattern: /not installed/i,
+      requireExitCodeZero: true,
+    };
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: "",
+          stderr: 'Extension "githits" is not installed.\n',
+        }),
+      ),
+    });
+    expect(await getCliCheckStatus(check, execService)).toBe("not_configured");
+  });
+
+  it("returns probe_failed when requireExitCodeZero is set and command fails", async () => {
+    const check: CliCheckCommand = {
+      command: "gemini",
+      args: ["extensions", "config", "githits"],
+      notConfiguredPattern: /not installed/i,
+      requireExitCodeZero: true,
+    };
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "",
+        }),
+      ),
+    });
+    expect(await getCliCheckStatus(check, execService)).toBe("probe_failed");
   });
 });
 
@@ -532,6 +629,21 @@ describe("executeCliSetup", () => {
           exitCode: 0,
           stdout: "Server GitHits already added\n",
           stderr: "",
+        }),
+      ),
+    });
+    const result = await executeCliSetup(singleStepSetup, execService);
+    expect(result.status).toBe("already_configured");
+  });
+
+  it("detects already-installed on non-zero exit (gemini pattern)", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr:
+            'Extension "githits" is already installed. Please uninstall it first.\n',
         }),
       ),
     });

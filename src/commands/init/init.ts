@@ -45,8 +45,31 @@ export interface InitDependencies {
 
 /** Tracks per-agent setup outcome for the summary */
 interface AgentOutcome {
+  id: string;
   name: string;
   status: "success" | "already_configured" | "failed" | "skipped";
+  message?: string;
+}
+
+async function verifyAgentConfigured(
+  agent: (typeof agentDefinitions)[number],
+  fileSystemService: FileSystemService,
+  execService: ExecService,
+): Promise<{ ok: boolean; message?: string }> {
+  const postCheck = await scanAgents([agent], fileSystemService, execService);
+  if (postCheck.alreadyConfigured.some((a) => a.id === agent.id)) {
+    return { ok: true };
+  }
+  if (postCheck.needsSetup.some((a) => a.id === agent.id)) {
+    return {
+      ok: false,
+      message: `${agent.name} verification failed: not configured after setup.`,
+    };
+  }
+  return {
+    ok: false,
+    message: `${agent.name} verification failed: agent not detected after setup.`,
+  };
 }
 
 /**
@@ -182,7 +205,7 @@ export async function initAction(
       }
 
       if (choice === "no") {
-        outcomes.push({ name: agent.name, status: "skipped" });
+        outcomes.push({ id: agent.id, name: agent.name, status: "skipped" });
         console.log();
         continue;
       }
@@ -192,13 +215,36 @@ export async function initAction(
     }
 
     // Execute setup
-    const result =
+    let result =
       config.method === "cli"
         ? await executeCliSetup(config, execService)
         : await executeConfigFileSetup(config, fileSystemService);
 
+    if (result.status === "success" || result.status === "already_configured") {
+      const verification = await verifyAgentConfigured(
+        agent,
+        fileSystemService,
+        execService,
+      );
+      if (!verification.ok) {
+        result = {
+          status: "failed",
+          message:
+            agent.id === "gemini-cli"
+              ? "Gemini installation did not complete. Retry, or run: gemini extensions install --consent https://github.com/githits-com/githits-cli"
+              : (verification.message ??
+                `${agent.name} verification failed after setup.`),
+        };
+      }
+    }
+
     // Record and display outcome
-    outcomes.push({ name: agent.name, status: result.status });
+    outcomes.push({
+      id: agent.id,
+      name: agent.name,
+      status: result.status,
+      message: result.status === "failed" ? result.message : undefined,
+    });
 
     if (result.status === "success") {
       console.log(`    ${success(`${agent.name} configured`, useColors)}\n`);
@@ -219,10 +265,10 @@ export async function initAction(
   const failed = outcomes.filter((o) => o.status === "failed").length;
   const skipped = outcomes.filter((o) => o.status === "skipped").length;
 
-  if (configured > 0 || alreadyDone > 0) {
-    console.log("  Done! GitHits is ready.");
-  } else if (failed > 0) {
+  if (failed > 0) {
     console.log("  Setup completed with errors.");
+  } else if (configured > 0 || alreadyDone > 0) {
+    console.log("  Done! GitHits is ready.");
   } else if (skipped > 0) {
     console.log("  Setup skipped.");
   }
@@ -231,6 +277,11 @@ export async function initAction(
     console.log(
       `  ${failed} agent${failed !== 1 ? "s" : ""} failed to configure.`,
     );
+    for (const outcome of outcomes.filter((o) => o.status === "failed")) {
+      console.log(
+        `    - ${outcome.name}: ${outcome.message ?? "Unknown error"}`,
+      );
+    }
   }
   if (skipped > 0) {
     console.log(`  ${skipped} agent${skipped !== 1 ? "s" : ""} skipped.`);
