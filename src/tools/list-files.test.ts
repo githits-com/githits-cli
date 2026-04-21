@@ -1,0 +1,212 @@
+import { describe, expect, it, mock } from "bun:test";
+import {
+  CodeNavigationIndexingError,
+  CodeNavigationTargetNotFoundError,
+} from "../services/index.js";
+import {
+  createMockCodeNavigationService,
+  defaultListFilesResult,
+} from "../services/test-helpers.js";
+import { createListFilesTool } from "./list-files.js";
+
+function parseText(result: { content: Array<{ text: string }> }): unknown {
+  return JSON.parse(result.content[0]?.text ?? "");
+}
+
+describe("createListFilesTool — metadata", () => {
+  it("registers the correct tool name, description, and schema keys", () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    expect(tool.name).toBe("list_files");
+    expect(tool.description).toContain("List files in an indexed dependency");
+    expect(Object.keys(tool.schema).sort()).toEqual([
+      "limit",
+      "path_prefix",
+      "target",
+      "wait_timeout_ms",
+    ]);
+    expect(tool.annotations?.readOnlyHint).toBe(true);
+  });
+});
+
+describe("createListFilesTool — happy path", () => {
+  it("calls listFiles with the resolved package target", async () => {
+    const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
+    const service = createMockCodeNavigationService({ listFiles });
+    const tool = createListFilesTool(service);
+
+    await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+      },
+      {},
+    );
+
+    const calls = listFiles.mock.calls as unknown as Array<
+      [{ target: { registry?: string; packageName?: string } }]
+    >;
+    expect(calls[0]?.[0]?.target?.registry).toBe("NPM");
+    expect(calls[0]?.[0]?.target?.packageName).toBe("express");
+  });
+
+  it("emits the envelope with files, total, hasMore, resolution, indexedVersion", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      { target: { registry: "npm", package_name: "express" } },
+      {},
+    );
+    expect(result.isError).toBeUndefined();
+    const payload = parseText(result) as {
+      registry: string;
+      name: string;
+      total: number;
+      hasMore: boolean;
+      files: Array<{ path: string }>;
+      indexedVersion?: string;
+      resolution?: { resolvedRef?: string };
+    };
+    expect(payload.registry).toBe("npm");
+    expect(payload.name).toBe("express");
+    expect(payload.total).toBe(2);
+    expect(payload.hasMore).toBe(false);
+    expect(payload.files[0]?.path).toBe("src/index.js");
+    expect(payload.indexedVersion).toBe("v5.2.1");
+    expect(payload.resolution?.resolvedRef).toBe("v5.2.1");
+  });
+
+  it("emits repo-URL addressing envelope", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: {
+          repo_url: "https://github.com/expressjs/express",
+          git_ref: "main",
+        },
+      },
+      {},
+    );
+    const payload = parseText(result) as {
+      registry?: string;
+      name?: string;
+      repoUrl?: string;
+      gitRef?: string;
+    };
+    expect(payload.registry).toBeUndefined();
+    expect(payload.name).toBeUndefined();
+    expect(payload.repoUrl).toBe("https://github.com/expressjs/express");
+    expect(payload.gitRef).toBe("main");
+  });
+
+  it("emits filter.pathPrefix when caller set one", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        path_prefix: "src/",
+      },
+      {},
+    );
+    const payload = parseText(result) as {
+      filter?: { pathPrefix?: string };
+    };
+    expect(payload.filter?.pathPrefix).toBe("src/");
+  });
+
+  it("omits filter when caller only used defaults", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      { target: { registry: "npm", package_name: "express" } },
+      {},
+    );
+    const payload = parseText(result) as { filter?: unknown };
+    expect(payload.filter).toBeUndefined();
+  });
+});
+
+describe("createListFilesTool — validation errors", () => {
+  it("returns INVALID_ARGUMENT for both target forms (not both)", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: {
+          registry: "npm",
+          package_name: "express",
+          repo_url: "https://github.com/x",
+          git_ref: "main",
+        },
+      },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    const payload = parseText(result) as { code: string; error: string };
+    expect(payload.code).toBe("INVALID_ARGUMENT");
+    expect(payload.error).toContain("not both");
+  });
+
+  it("returns INVALID_ARGUMENT for out-of-range limit via envelope (not raw Zod)", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      { target: { registry: "npm", package_name: "express" }, limit: 1001 },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    const payload = parseText(result) as { code: string };
+    expect(payload.code).toBe("INVALID_ARGUMENT");
+  });
+
+  it("returns INVALID_ARGUMENT for missing repo_url pair (only git_ref)", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler({ target: { git_ref: "main" } }, {});
+    expect(result.isError).toBe(true);
+    const payload = parseText(result) as { code: string };
+    expect(payload.code).toBe("INVALID_ARGUMENT");
+  });
+});
+
+describe("createListFilesTool — service errors", () => {
+  it("classifies CodeNavigationIndexingError as INDEXING with retryable + details", async () => {
+    const service = createMockCodeNavigationService({
+      listFiles: mock(() =>
+        Promise.reject(
+          new CodeNavigationIndexingError(
+            "Target is still indexing.",
+            "ref_abc",
+            [{ version: "4.21.0", ref: "v4.21.0" }],
+          ),
+        ),
+      ),
+    });
+    const tool = createListFilesTool(service);
+    const result = await tool.handler(
+      { target: { registry: "npm", package_name: "express" } },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    const payload = parseText(result) as {
+      code: string;
+      retryable: boolean;
+      details?: { indexingRef?: string; availableVersions?: unknown };
+    };
+    expect(payload.code).toBe("INDEXING");
+    expect(payload.retryable).toBe(true);
+    expect(payload.details?.indexingRef).toBe("ref_abc");
+    expect(payload.details?.availableVersions).toBeTruthy();
+  });
+
+  it("classifies CodeNavigationTargetNotFoundError as NOT_FOUND", async () => {
+    const service = createMockCodeNavigationService({
+      listFiles: mock(() =>
+        Promise.reject(
+          new CodeNavigationTargetNotFoundError("Package not found"),
+        ),
+      ),
+    });
+    const tool = createListFilesTool(service);
+    const result = await tool.handler(
+      { target: { registry: "npm", package_name: "ghost" } },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    const payload = parseText(result) as { code: string };
+    expect(payload.code).toBe("NOT_FOUND");
+  });
+});

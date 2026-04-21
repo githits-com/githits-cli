@@ -27,8 +27,11 @@ Both expose the same tools with identical names, parameters, and descriptions. T
 | `package_vulnerabilities` | `registry`, `package_name`, `version?`, `min_severity?`, `include_withdrawn?` | Known vulnerabilities for a package on npm, PyPI, Hex, or Crates. Count summary, per-advisory OSV ID + severity + affected/fix ranges, and upgrade paths. Malware is surfaced in a disjoint bucket. |
 | `package_dependencies` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_transitive?`, `include_importers?`, `max_depth?` | Direct runtime dependency list (each `{name, version, constraint}` — the backend resolves each constraint to a concrete version) plus, when the backend has them, structured groups for dev / peer / build / optional with registry-specific condition metadata (PyPI extras, Crates features). Optional transitive block with aggregate edge counts, the preprocessed install footprint as `{name, version}`, typed conflicts and circular-dependency cycles; opt into per-package importer provenance with `include_importers`. |
 | `package_changelog` | `registry?`, `package_name?`, `repo_url?`, `from_version?`, `to_version?`, `limit?`, `git_ref?`, `include_bodies?` | Release notes or changelog entries for a package or GitHub repo. Default latest mode returns the ten most recent entries; `from_version` switches to range mode (no count cap). Dual addressing (spec vs repo URL) mutually exclusive. Response always includes `source` (`"releases"` / `"changelog_file"` / `"hexdocs"`), `mode` (`"latest"` / `"range"`), and `entries: { count, items }` with full markdown bodies by default; set `include_bodies: false` for a lean version / date / URL timeline. |
+| `list_files` | `target`, `path_prefix?`, `limit?`, `wait_timeout_ms?` | List files in an indexed dependency. Returns `{total, hasMore, files: [{path, name, language, fileType, byteSize}], resolution, indexedVersion}`. Dual addressing via `target.registry + target.package_name` (spec) or `target.repo_url + target.git_ref` (repo). `path_prefix` is a literal directory prefix — NOT a glob (`*.ts` won't match); glob / pattern filtering is an upstream enhancement. Emits an `INDEXING` error envelope when the dependency is being indexed on-demand — retry with a longer `wait_timeout_ms` or pick a version from `details.availableVersions`. |
+| `read_file` | `target`, `file_path`, `start_line?`, `end_line?`, `wait_timeout_ms?` | Read a file from an indexed dependency. Default full file; use `start_line` / `end_line` for a bounded range. Binary files set `isBinary: true` and omit `content` — agents branch on the flag. On `NOT_FOUND` / `FILE_NOT_FOUND` call `list_files` to discover the actual path. |
+| `grep_file` | `target`, `path`, `pattern`, `context_lines?`, `max_matches?`, `wait_timeout_ms?` | Search within a single file for a case-insensitive substring (not regex). Returns matches — `context_lines` defaults to 0 (matches only, token-efficient); pass explicitly for surrounding lines (0–10). Max pattern 200 chars; up to 200 matches. For symbol-shaped searches use `search_symbols`. |
 
-`search_symbols`, `package_summary`, `package_vulnerabilities`, `package_dependencies`, and `package_changelog` are only registered when the startup token advertises `code_navigation` capability. The backend endpoint can be overridden via `GITHITS_CODE_NAV_URL` for local development. Capability gating keeps the tools hidden from public/default flows while the feature is still rolling out.
+`search_symbols`, `package_summary`, `package_vulnerabilities`, `package_dependencies`, `package_changelog`, `list_files`, `read_file`, and `grep_file` are only registered when the startup token advertises `code_navigation` capability. The backend endpoint can be overridden via `GITHITS_CODE_NAV_URL` for local development.
 
 `search_symbols` shares request-construction, error classification, and JSON-payload shape with the CLI `githits code search` command via shared helpers under `src/shared/`. The parity rules are codified in [`mcp-cli-parity.md`](./mcp-cli-parity.md); the parity test (`src/tools/search-symbols-parity.test.ts`) asserts that both surfaces emit identical JSON for equivalent inputs.
 
@@ -90,7 +93,7 @@ Both expose the same tools with identical names, parameters, and descriptions. T
 
 **Per-entry shape.** `{version, normalizedVersion?, publishedAt?, htmlUrl?, body?}`. `version` is kept in the envelope even when `null` so agents can write `items.map(e => e.version)` without guarding; every other nullable field is stripped when absent. `body` is additionally stripped when the caller set `include_bodies: false`. The backend's opaque per-entry `metadata` GenericJSON is deliberately dropped from the envelope in v1 — revisit via agent feedback.
 
-**Dual addressing (`registry` + `package_name` XOR `repo_url`).** `package_changelog` is the only pkg-intel MCP tool with dual addressing. P1 / P2 / P3 all accept only `registry` + `package_name` because their underlying backend queries (summary / vulnerabilities / dependencies) are registry-metadata APIs without repo-URL alternatives. `packageChangelog` is intrinsically repo-level — its sources are GitHub Releases, CHANGELOG.md, and HexDocs — so `repoUrl` is a peer addressing mode in the GraphQL signature, not a bolt-on. Future tool authors should not cargo-cult the asymmetry without reading this rationale.
+**Dual addressing (`registry` + `package_name` XOR `repo_url`).** `package_changelog` is the only metadata-side MCP tool with dual addressing. `package_summary` / `package_vulnerabilities` / `package_dependencies` all accept only `registry` + `package_name` because their underlying backend queries are registry-metadata APIs without repo-URL alternatives. `packageChangelog` is intrinsically repo-level — its sources are GitHub Releases, CHANGELOG.md, and HexDocs — so `repoUrl` is a peer addressing mode in the GraphQL signature, not a bolt-on. Future tool authors should not cargo-cult the asymmetry without reading this rationale.
 
 **Mode selection.** `from_version` triggers range mode (returns every entry in `[fromVersion, toVersion]` with no cap). Latest mode is the default, capped by `limit` (1–50, backend default 10). `from_version` + `limit` is rejected client-side with `INVALID_ARGUMENT` rather than silently routed to one mode.
 
@@ -105,6 +108,39 @@ Both expose the same tools with identical names, parameters, and descriptions. T
 **Overlap with `package_summary`.** `package_summary` already surfaces a short-form `recentChanges` block (from the backend's `latestChangelogs` field on `PackageSummaryResult`). For a quick "what shipped recently" glance embedded in a package overview, use `package_summary`. For the full range-capable, body-rich, `include_bodies`-toggleable changelog with `--no-body` timeline mode and repo-URL addressing, use `package_changelog`.
 
 `package_changelog` shares its envelope builder with the CLI `githits pkg changelog` command via `src/shared/package-changelog-request.ts` and `src/shared/package-changelog-response.ts`. The terminal formatter is CLI-only. The parity test (`src/tools/package-changelog-parity.test.ts`) asserts `toEqual` across every service-sourced success / error fixture (happy latest, range mode, repo-URL addressing, `--no-body` / `include_bodies: false`, default bodies, empty entries, NOT_FOUND, PackageIntelligenceTargetNotFoundError, VERSION_NOT_FOUND, BACKEND_ERROR) and `toMatchObject` for builder-sourced `INVALID_ARGUMENT`.
+
+### `list_files` / `read_file` / `grep_file` response shapes
+
+These three indexing-gated tools share an addressing and lifecycle contract (documented below) and then each projects its own data-first envelope. All three reuse the shipped `codeTargetSchema` + `resolveCodeTarget` from `src/tools/code-navigation-shared.ts` — no parallel addressing module.
+
+**`list_files` envelope**: `{registry?|repoUrl?+gitRef?, total, hasMore, indexedVersion?, resolution?, files: [{path, name?, language?, fileType?, byteSize?}], hint?, filter?}`. `fileType` values come from the backend verbatim (uppercase: `CONFIG`, `SOURCE`, `DOC`, `TEST`). `total` is capped at returned count when `hasMore: true` — the terminal formatter renders `N+ files` in that case to avoid misleading users. `filter.pathPrefix` / `filter.limit` echo only when the caller supplied them explicitly; default limit (200) never round-trips.
+
+**`read_file` envelope**: `{registry?|repoUrl?+gitRef?, path, language?, totalLines?, startLine?, endLine?, content?, isBinary?}`. `path` (not `filePath`) so the key matches `list_files.files[].path` and `grep_file`'s `path` input — the `list_files` → `read_file` / `grep_file` chain needs no renames. Binary files set `isBinary: true` and **omit** `content` (not `null`); agents branch on the flag.
+
+**`grep_file` envelope**: `{registry?|repoUrl?+gitRef?, pattern, path, totalMatches, hasMore, matches: [{lineNumber, lineContent, contextBefore?, contextAfter?}], language?, totalLines?, indexedVersion?, resolution?, hint?, filter?}`. Single `path` field (backend echo wins, caller input is the fallback) — no separate `filePath`. Context arrays stripped when empty.
+
+### Indexing lifecycle (shared across `search_symbols`, `list_files`, `read_file`, `grep_file`)
+
+All four code-navigation tools share the same indexing-retry contract. The state reaches us via two wire shapes — a GraphQL error (`extensions.code: "PACKAGE_INDEXING"`) and a data-path sentinel (`indexingStatus: "INDEXING"` on a successful response) — and the service layer collapses both to the same typed `CodeNavigationIndexingError` before the envelope builder runs. Agents therefore never see an `indexingStatus` field in a success envelope; they branch on the error path instead.
+
+**`INDEXING` error envelope**:
+```json
+{
+  "error": "Target is still indexing. …",
+  "code": "INDEXING",
+  "retryable": true,
+  "details": {
+    "indexingRef": "ref_…",
+    "availableVersions": [{"version": "4.21.0", "ref": "v4.21.0"}]
+  }
+}
+```
+
+`details.availableVersions` is populated when the backend returned a list of already-indexed versions alongside the sentinel. Agents can pick one to retry against immediately without waiting. `read_file` / `fetchCodeContext` on the backend doesn't emit `availableVersions` on INDEXING responses, so its error detail carries only `indexingRef` — the MCP description calls this out so agents know to rely on the `wait_timeout_ms` retry path.
+
+**Retry default**: `DEFAULT_WAIT_TIMEOUT_MS = 20_000` (shared, defined in `src/shared/code-navigation-defaults.ts`). Applied inside each request builder so both CLI and MCP surfaces get the same default by construction. CLI's `--wait <ms>` and MCP's `wait_timeout_ms` override.
+
+**`FILE_NOT_FOUND` vs `NOT_FOUND`**: `read_file` / `grep_file` can hit "path doesn't resolve" errors. The classifier is pre-wired to emit `FILE_NOT_FOUND` when the backend sends `extensions.code: "FILE_NOT_FOUND"`, but today the backend emits generic `NOT_FOUND` for both "package missing" and "path missing". The distinction is filed upstream. CLI terminal output for `code read` / `code grep` emits the hint "Use `code files` to list available paths." on both codes so users have an actionable next step regardless of classification.
 
 ## Server instructions
 

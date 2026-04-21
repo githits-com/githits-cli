@@ -74,6 +74,9 @@ describe("createMcpServer", () => {
       "search_language",
       "feedback",
       "search_symbols",
+      "list_files",
+      "read_file",
+      "grep_file",
     ]);
   });
 

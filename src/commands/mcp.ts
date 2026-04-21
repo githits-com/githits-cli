@@ -6,10 +6,13 @@ import { createContainer, type Dependencies } from "../container.js";
 import { dim, highlight, shouldUseColors } from "../shared/colors.js";
 import {
   createFeedbackTool,
+  createGrepFileTool,
+  createListFilesTool,
   createPackageChangelogTool,
   createPackageDependenciesTool,
   createPackageSummaryTool,
   createPackageVulnerabilitiesTool,
+  createReadFileTool,
   createSearchLanguageTool,
   createSearchSymbolsTool,
   createSearchTool,
@@ -36,6 +39,9 @@ export function getMcpToolDefinitions(
 
   if (gateOpen && deps.codeNavigationService) {
     tools.push(createSearchSymbolsTool(deps.codeNavigationService));
+    tools.push(createListFilesTool(deps.codeNavigationService));
+    tools.push(createReadFileTool(deps.codeNavigationService));
+    tools.push(createGrepFileTool(deps.codeNavigationService));
   }
 
   if (gateOpen && deps.packageIntelligenceService) {

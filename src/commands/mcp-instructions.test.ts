@@ -47,6 +47,9 @@ const KNOWN_TOOLS = [
   "search_language",
   "feedback",
   "search_symbols",
+  "list_files",
+  "read_file",
+  "grep_file",
   "package_summary",
   "package_vulnerabilities",
   "package_dependencies",
@@ -247,6 +250,9 @@ describe("buildMcpInstructions", () => {
         // appear in backtick form.
         const packageTools = [
           "search_symbols",
+          "list_files",
+          "read_file",
+          "grep_file",
           "package_summary",
           "package_vulnerabilities",
           "package_dependencies",

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
   CodeNavigationBackendError,
+  CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationNetworkError,
   CodeNavigationServiceImpl,
@@ -724,5 +725,471 @@ describe("CodeNavigationServiceImpl", () => {
     // mode is inlined as a literal in the query body
     expect(body.query).toContain("mode: DETAILED");
     expect(body.query).not.toContain("@include(if: $verbose)");
+  });
+
+  // ------------------------------------------------------------------
+  // listFiles
+  // ------------------------------------------------------------------
+
+  it("normalises a successful listRepoFiles response", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              listRepoFiles: {
+                files: [
+                  {
+                    path: "src/index.js",
+                    name: "index.js",
+                    language: "javascript",
+                    fileType: "SOURCE",
+                    byteSize: 1234,
+                  },
+                  { path: "src/only-path.txt" },
+                ],
+                total: 2,
+                hasMore: false,
+                indexedVersion: "v5.2.1",
+                resolution: {
+                  resolvedRef: "v5.2.1",
+                  commitSha: "abc123",
+                },
+                diagnostics: null,
+                indexingStatus: "INDEXED",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    const result = await service.listFiles({
+      target: { registry: "NPM", packageName: "express" },
+    });
+
+    expect(result.files.length).toBe(2);
+    expect(result.files[0]).toEqual({
+      path: "src/index.js",
+      name: "index.js",
+      language: "javascript",
+      fileType: "SOURCE",
+      byteSize: 1234,
+    });
+    // null fields are stripped — second entry carries only `path`.
+    expect(result.files[1]).toEqual({ path: "src/only-path.txt" });
+    expect(result.total).toBe(2);
+    expect(result.hasMore).toBe(false);
+    expect(result.indexedVersion).toBe("v5.2.1");
+    expect(result.resolution?.resolvedRef).toBe("v5.2.1");
+  });
+
+  it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on listFiles", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              listRepoFiles: {
+                files: [],
+                total: 0,
+                hasMore: false,
+                indexedVersion: null,
+                resolution: null,
+                diagnostics: null,
+                indexingStatus: "INDEXING",
+                indexingRef: "ref_xyz",
+                availableVersions: [{ version: "4.21.0", ref: "v4.21.0" }],
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    try {
+      await service.listFiles({
+        target: { registry: "NPM", packageName: "express" },
+      });
+      throw new Error("expected listFiles to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationIndexingError);
+      const typed = error as CodeNavigationIndexingError;
+      expect(typed.indexingRef).toBe("ref_xyz");
+      expect(typed.availableVersions).toEqual([
+        { version: "4.21.0", ref: "v4.21.0" },
+      ]);
+    }
+  });
+
+  it("surfaces diagnostics.hint on listFiles empty responses", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              listRepoFiles: {
+                files: [],
+                total: 0,
+                hasMore: false,
+                indexedVersion: "v5.2.1",
+                resolution: null,
+                diagnostics: { hint: "No files match that prefix." },
+                indexingStatus: "INDEXED",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    const result = await service.listFiles({
+      target: { registry: "NPM", packageName: "express" },
+      pathPrefix: "no-such-dir/",
+    });
+
+    expect(result.files).toEqual([]);
+    expect(result.hint).toBe("No files match that prefix.");
+  });
+
+  // ------------------------------------------------------------------
+  // readFile
+  // ------------------------------------------------------------------
+
+  it("normalises a successful fetchCodeContext response", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              fetchCodeContext: {
+                content: "// hello\nconsole.log('hi');\n",
+                filePath: "src/hello.js",
+                language: "javascript",
+                totalLines: 2,
+                startLine: 1,
+                endLine: 2,
+                isBinary: false,
+                indexingStatus: "INDEXED",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+    const result = await service.readFile({
+      target: { registry: "NPM", packageName: "express" },
+      filePath: "src/hello.js",
+    });
+    expect(result.filePath).toBe("src/hello.js");
+    expect(result.content).toContain("console.log");
+    expect(result.isBinary).toBe(false);
+  });
+
+  it("preserves isBinary + null content from fetchCodeContext", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              fetchCodeContext: {
+                content: null,
+                filePath: "assets/logo.png",
+                language: null,
+                totalLines: null,
+                startLine: null,
+                endLine: null,
+                isBinary: true,
+                indexingStatus: "INDEXED",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+    const result = await service.readFile({
+      target: { registry: "NPM", packageName: "express" },
+      filePath: "assets/logo.png",
+    });
+    expect(result.isBinary).toBe(true);
+    expect(result.content).toBeUndefined();
+  });
+
+  it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on readFile", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              fetchCodeContext: {
+                content: null,
+                filePath: null,
+                language: null,
+                indexingStatus: "INDEXING",
+                indexingRef: "ref_read",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+    try {
+      await service.readFile({
+        target: { registry: "NPM", packageName: "express" },
+        filePath: "src/x.js",
+      });
+      throw new Error("expected readFile to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationIndexingError);
+      expect((error as CodeNavigationIndexingError).indexingRef).toBe(
+        "ref_read",
+      );
+    }
+  });
+
+  it("throws CodeNavigationFileNotFoundError when backend emits FILE_NOT_FOUND code", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: "File not found: nope.js",
+                extensions: {
+                  code: "FILE_NOT_FOUND",
+                  file_path: "nope.js",
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+    try {
+      await service.readFile({
+        target: { registry: "NPM", packageName: "express" },
+        filePath: "nope.js",
+      });
+      throw new Error("expected readFile to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationFileNotFoundError);
+      expect((error as CodeNavigationFileNotFoundError).filePath).toBe(
+        "nope.js",
+      );
+    }
+  });
+
+  // ------------------------------------------------------------------
+  // grepFile
+  // ------------------------------------------------------------------
+
+  it("normalises a successful grepRepoFile response", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              grepRepoFile: {
+                matches: [
+                  {
+                    lineNumber: 10,
+                    lineContent: "const app = express();",
+                    contextBefore: ["", "// setup"],
+                    contextAfter: ["", "app.get();"],
+                  },
+                ],
+                totalMatches: 1,
+                hasMore: false,
+                filePath: "src/index.js",
+                language: "javascript",
+                totalLines: 50,
+                indexedVersion: "v5.2.1",
+                resolution: {
+                  resolvedRef: "v5.2.1",
+                  commitSha: "abc",
+                },
+                diagnostics: null,
+                indexingStatus: "INDEXED",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+    const result = await service.grepFile({
+      target: { registry: "NPM", packageName: "express" },
+      path: "src/index.js",
+      pattern: "middleware",
+    });
+    expect(result.matches.length).toBe(1);
+    expect(result.matches[0]?.lineNumber).toBe(10);
+    expect(result.totalMatches).toBe(1);
+    expect(result.filePath).toBe("src/index.js");
+    expect(result.resolution?.resolvedRef).toBe("v5.2.1");
+  });
+
+  it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on grepFile", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              grepRepoFile: {
+                matches: [],
+                totalMatches: 0,
+                hasMore: false,
+                indexingStatus: "INDEXING",
+                indexingRef: "ref_grep",
+                availableVersions: [{ version: "4.21.0", ref: "v4.21.0" }],
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+    try {
+      await service.grepFile({
+        target: { registry: "NPM", packageName: "express" },
+        path: "src/index.js",
+        pattern: "middleware",
+      });
+      throw new Error("expected grepFile to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationIndexingError);
+      expect((error as CodeNavigationIndexingError).indexingRef).toBe(
+        "ref_grep",
+      );
+    }
+  });
+
+  it("sends grepRepoFile variables with the correct shape", async () => {
+    const fn = mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              grepRepoFile: {
+                matches: [],
+                totalMatches: 0,
+                hasMore: false,
+                indexingStatus: "INDEXED",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+    await service.grepFile({
+      target: { registry: "NPM", packageName: "express", version: "5.2.1" },
+      path: "src/index.js",
+      pattern: "middleware",
+      contextLines: 5,
+      maxMatches: 100,
+      waitTimeoutMs: 5000,
+    });
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.variables).toMatchObject({
+      registry: "NPM",
+      packageName: "express",
+      version: "5.2.1",
+      filePath: "src/index.js",
+      pattern: "middleware",
+      contextLines: 5,
+      maxMatches: 100,
+      waitTimeoutMs: 5000,
+    });
+  });
+
+  it("sends GraphQL variables with the correct listRepoFiles shape", async () => {
+    const fn = mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              listRepoFiles: {
+                files: [],
+                total: 0,
+                hasMore: false,
+                indexingStatus: "INDEXED",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    await service.listFiles({
+      target: { registry: "NPM", packageName: "express", version: "5.2.1" },
+      pathPrefix: "src/",
+      limit: 100,
+      waitTimeoutMs: 5000,
+    });
+
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.variables).toMatchObject({
+      registry: "NPM",
+      packageName: "express",
+      version: "5.2.1",
+      pathPrefix: "src/",
+      limit: 100,
+      waitTimeoutMs: 5000,
+    });
   });
 });

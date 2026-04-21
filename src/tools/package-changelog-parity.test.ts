@@ -5,7 +5,7 @@
 //                          details? } on every error path; MCP error text is
 //                          always valid JSON.
 //
-// Assertion policy (matches P1–P3 precedent):
+// Assertion policy (matches the other pkg-intel parity tests):
 //   - Service-sourced success / error fixtures use `toEqual`: both
 //     surfaces route through the same request builder and envelope
 //     shaper, so envelopes are byte-identical.

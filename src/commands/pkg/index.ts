@@ -68,9 +68,9 @@ export async function registerPkgCommandGroup(
 
   const pkgCommand = program
     .command("pkg")
-    .summary("Package metadata, security, and docs")
+    .summary("Package metadata: info, vulnerabilities, dependencies, changelog")
     .description(
-      "Inspect registry metadata, known vulnerabilities, and documentation for packages from npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, vcpkg, and Zig.",
+      "Inspect registry metadata for packages from npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, vcpkg, and Zig. For source-level operations (list files, read file, grep inside a file) use `githits code`.",
     );
 
   registerPkgInfoCommand(pkgCommand);

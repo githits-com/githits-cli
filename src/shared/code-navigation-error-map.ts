@@ -3,6 +3,7 @@ import {
   CodeNavigationAccessError,
   CodeNavigationBackendError,
   CodeNavigationFeatureFlagRequiredError,
+  CodeNavigationFileNotFoundError,
   CodeNavigationGraphQLError,
   CodeNavigationIndexingError,
   CodeNavigationNetworkError,
@@ -17,6 +18,7 @@ import { debugLog } from "./debug-log.js";
 
 export type MappedErrorCode =
   | "NOT_FOUND"
+  | "FILE_NOT_FOUND"
   | "VERSION_NOT_FOUND"
   | "INDEXING"
   | "UNRESOLVABLE"
@@ -45,6 +47,8 @@ export interface MappedErrorDetails {
   requestedVersion?: string;
   /** Fully-qualified package identifier (for `VERSION_NOT_FOUND`). */
   package?: string;
+  /** The file path the caller asked for (for `FILE_NOT_FOUND`). */
+  filePath?: string;
 }
 
 export interface MappedError {
@@ -113,6 +117,14 @@ function classify(error: unknown): MappedError {
       details: error.availableVersions
         ? { availableVersions: error.availableVersions }
         : undefined,
+    };
+  }
+  if (error instanceof CodeNavigationFileNotFoundError) {
+    return {
+      code: "FILE_NOT_FOUND",
+      message: error.message,
+      retryable: false,
+      details: error.filePath ? { filePath: error.filePath } : undefined,
     };
   }
   if (error instanceof CodeNavigationIndexingError) {

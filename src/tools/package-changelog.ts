@@ -20,15 +20,17 @@ export interface PackageChangelogArgs {
 /**
  * Permissive schema — the shared `buildPackageChangelogParams` builder
  * is the single validation path. Raw Zod errors never surface to
- * agents. Matches the pattern established by P1 / P2 / P3.
+ * agents. Matches the pattern established by the other pkg-intel
+ * tools (`package_summary`, `package_vulnerabilities`,
+ * `package_dependencies`).
  *
  * `package_changelog` is the first pkg-intel MCP tool with dual
  * addressing (`registry` + `package_name` XOR `repo_url`). The
  * underlying `packageChangelog` query is intrinsically repo-level
  * (sources: GitHub Releases / CHANGELOG.md / HexDocs), so exposing
  * `repo_url` isn't a bolt-on — it's a peer addressing mode on the
- * schema. P1 / P2 / P3 omit it because their queries are registry-
- * metadata APIs with no repo-URL alternative.
+ * schema. The other pkg-intel tools omit it because their queries
+ * are registry-metadata APIs with no repo-URL alternative.
  */
 const schema = {
   registry: z

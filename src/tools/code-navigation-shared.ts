@@ -119,6 +119,10 @@ export function resolveCodeTarget(
 
 function invalidTargetResult(message: string): ToolResult {
   return errorResult(
-    JSON.stringify({ error: message, code: "INVALID_ARGUMENT" }),
+    JSON.stringify({
+      error: message,
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    }),
   );
 }
