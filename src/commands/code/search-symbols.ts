@@ -113,7 +113,7 @@ export async function searchSymbolsAction(
   }
 }
 
-const SEARCH_SYMBOLS_DESCRIPTION = `Find functions, classes, modules, and doc sections inside an indexed dependency by exact-token search.
+const SEARCH_SYMBOLS_DESCRIPTION = `Find functions, classes, modules, and doc sections inside an indexed dependency by exact-token search. This is for symbol-shaped inspection, not natural-language example search.
 
 Package spec: <registry>:<name>[@<version>]. Omit the registry to default to
 npm. Supported registries: npm, pypi, hex, crates, nuget, maven, zig, vcpkg,
@@ -122,6 +122,9 @@ packagist.
 Filter by --category (broad: callable, type, module, data, documentation)
 or --kind (precise: function, method, class, trait, …). Prefer --category
 for most use cases; reach for --kind when you need a specific construct.
+
+Default file intent is production source. Pass --intent all to include tests,
+examples, benchmarks, generated files, and other non-production code.
 
 Examples:
   githits code search npm:express middleware

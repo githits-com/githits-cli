@@ -47,9 +47,10 @@ const DESCRIPTION =
   "`target.package_name` (package scope) or `target.repo_url` + " +
   "`target.git_ref` (repo scope), mutually exclusive. `path_prefix` " +
   "is a literal directory prefix — it does NOT accept globs " +
-  "(`*.ts`) or extension filters. Returns an `INDEXING` error " +
-  "envelope when the dependency is being indexed on-demand — retry " +
-  "with a longer `wait_timeout_ms` or use a version from " +
+  "(`*.ts`) or extension filters. The returned `path` values feed " +
+  "directly into `read_file` and `grep_file`. Returns an `INDEXING` " +
+  "error envelope when the dependency is being indexed on-demand — " +
+  "retry with a longer `wait_timeout_ms` or use a version from " +
   "`details.availableVersions`.";
 
 export function createListFilesTool(

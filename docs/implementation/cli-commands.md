@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes three primary commands (`search`, `languages`, `feedback`) that mirror the public MCP tools for direct human and agent use. It also has a capability-gated `code search` command that searches indexed dependency source via the code-navigation backend. These commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
+The CLI exposes three core commands (`search`, `languages`, `feedback`) that mirror the always-on MCP tools for direct human and agent use. It also has capability-gated `code` and `pkg` command groups for dependency source inspection and package intelligence. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
 
 ## Commands
 
@@ -89,7 +89,7 @@ Finds functions, classes, modules, and doc sections inside an indexed dependency
 
 **Output.** Default terminal output leads each entry with `path:startLine-endLine [kind]`, followed by the symbol name and a 3-line dedented snippet. `--json` emits the shared success/error envelope also produced by the MCP `search_symbols` tool — see [`mcp-cli-parity.md`](./mcp-cli-parity.md) for the wire contract. The command is registered as `code search` with `code search-symbols` as a Commander alias.
 
-**Capability gate.** The `code` group is registered only when the startup token advertises `code_navigation`, when `GITHITS_CODE_NAVIGATION=1` is set for local override, when `GITHITS_API_TOKEN` is present (opaque env token), or when stored auth is expired.
+**Capability gate.** The `code` group is registered only when package/source access is available for the current session, when `GITHITS_CODE_NAVIGATION=1` is set for local override, or when stored auth is expired and the CLI cannot reliably pre-classify access.
 
 **Troubleshooting.** Set `GITHITS_DEBUG=code-nav` to emit single-line JSON diagnostics to stderr on error paths. Include the output when filing an issue. Debug payloads never contain query text, tokens, or response bodies.
 
@@ -106,15 +106,15 @@ Shows a concise overview for a single package: latest version, license, descript
 
 **Package spec.** `<registry>:<name>`. Registries: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`. Scoped npm names (`npm:@types/node`) are supported.
 
-**Always latest.** `pkg info` returns the latest published version regardless of input. Passing `<spec>@<version>` is rejected with `INVALID_ARGUMENT` and a clear message — the tool never silently swaps to latest. Use `pkg vulns` (supports `@version`) or `pkg deps` (future) for version-pinned queries.
+**Always latest.** `pkg info` returns the latest published version regardless of input. Passing `<spec>@<version>` is rejected with `INVALID_ARGUMENT` and a clear message — the tool never silently swaps to latest. Use `pkg vulns` or `pkg deps` for version-pinned queries.
 
 **`--verbose` + `--json`.** `--verbose` has no effect under `--json` — the JSON envelope always carries every field the verbose terminal view exposes (and more). The flag only affects human-readable output.
 
 **Output envelope.** Success payload is hand-crafted for agent token efficiency: `{registry, name, version, description?, license?, homepage?, repository?, publishedAt?, downloads?, github?, install?, usage?, vulnerabilities?, recentChanges?}`. Omitted fields reflect backend nulls, not dropped data. Error envelope: `{error, code, retryable, details?}` — same shape as `search_symbols`, same classifier family. Under `--json` the error envelope is written to **stderr** so stdout stays clean for `jq`.
 
-**Capability gate.** Same as `code`: `code_navigation` capability on the token, `GITHITS_CODE_NAVIGATION=1` override, `GITHITS_API_TOKEN` env token, or expired stored auth.
+**Capability gate.** Same as `code`.
 
-**Troubleshooting.** `GITHITS_DEBUG=pkg-intel` emits PII-safe classified-error diagnostics (area, event, code, error class, detail keys). `GITHITS_DEBUG=pkg-graphql` emits transport-failure diagnostics from inside the POST helper. Use `GITHITS_DEBUG=*` to enable both.
+**Troubleshooting.** `GITHITS_DEBUG=pkg-intel` emits PII-safe classified-error diagnostics (area, event, code, error class, detail keys). Use `GITHITS_DEBUG=*` to enable all package/source diagnostics.
 
 ### `githits pkg vulns`
 
@@ -128,15 +128,15 @@ githits pkg vulns npm:minimatch --include-withdrawn --verbose
 
 Lists known CVE / OSV advisories for a package: severity, affected version ranges, fix versions, and upgrade targets. Malicious-package advisories (supply-chain attacks flagged by OSV) surface in a separate `MALWARE` bucket that sorts above all CVE advisories.
 
-**Package spec.** `<registry>:<name>[@<version>]`. Unlike `pkg info`, `pkg vulns` supports `@<version>` because the backend query accepts a concrete version (useful for checking an older pinned release). Only `npm`, `pypi`, `hex`, and `crates` support vulnerability data; other registries are rejected client-side with `pkg vulns only supports npm, pypi, hex, and crates. Got: ${registry}.`
+**Package spec.** `<registry>:<name>[@<version>]`. Unlike `pkg info`, `pkg vulns` supports `@<version>` so callers can inspect older pinned releases. Only `npm`, `pypi`, `hex`, and `crates` support vulnerability data; other registries are rejected client-side with `pkg vulns only supports npm, pypi, hex, and crates. Got: ${registry}.`
 
-**Filtering.** `--severity low|medium|high|critical` maps to a CVSS float threshold (`low=0.1, medium=4, high=7, critical=9`) and goes server-side. The backend's returned `vulnerabilityCount` reflects the filtered set — no client-side filtering, no dual-summary block. Callers wanting the full picture omit the flag. `--include-withdrawn` sends `includeWithdrawn: true` to the backend; withdrawn advisories bucket below active ones in the terminal list.
+**Filtering.** `--severity low|medium|high|critical` maps to a CVSS float threshold (`low=0.1, medium=4, high=7, critical=9`) and is applied by the service. The returned `vulnerabilityCount` reflects the filtered set — no client-side filtering, no dual-summary block. Callers wanting the full picture omit the flag. `--include-withdrawn` includes retracted advisories; withdrawn advisories bucket below active ones in the terminal list.
 
 **Zero-vulns hot path.** The common case (clean package) renders as header + one-line summary body (`No known vulnerabilities.`) — no breakdown, no advisory list, no footer. Agents checking "am I safe?" pay minimal token cost on the happy path.
 
-**Version validation.** `pkg vulns` expects canonical package versions. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` and an actionable message telling the caller to drop the leading `v`, instead of forwarding the request to the backend and surfacing its current generic failure.
+**Version validation.** `pkg vulns` expects canonical package versions. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` and an actionable message telling the caller to drop the leading `v`, instead of forwarding the request and surfacing an opaque upstream failure.
 
-**Malware marker.** Advisories with `isMalicious: true` render with a red/bold `MALWARE` column (optionally combined as `MALWARE · crit` when both flags exist). Count surfaces in the summary breakdown line as `N MALWARE · N crit · …`. Buckets partition every returned advisory: `MALWARE + crit + high + medium + low + unrated = advisories.length`, which equals `summary.total` when the backend keeps its count and list consistent. Non-malicious advisories without a CVSS score bucket under `unrated` so the breakdown reconciles with the header total (common for PyPI / Rust advisories where CVSS may be absent).
+**Malware marker.** Advisories with `isMalicious: true` render with a red/bold `MALWARE` column (optionally combined as `MALWARE · crit` when both flags exist). Count surfaces in the summary breakdown line as `N MALWARE · N crit · …`. Buckets partition every returned advisory: `MALWARE + crit + high + medium + low + unrated = advisories.length`, which equals `summary.total` when the upstream count and list stay consistent. Non-malicious advisories without a CVSS score bucket under `unrated` so the breakdown reconciles with the header total (common for PyPI / Rust advisories where CVSS may be absent).
 
 **Affected-range truncation (terminal-width aware).** The `affected` detail row under each advisory caps at 4 ranges on narrow terminals (≤119 cols), 6 on standard-wide (120–159 cols), and 8 on ultrawide (≥160 cols). The remainder collapses into a dim `… (+N more; use -v)` hint. Verbose mode (`-v`) shows every range. JSON output is never truncated — machine consumers get the full list.
 
@@ -150,9 +150,9 @@ Lists known CVE / OSV advisories for a package: severity, affected version range
 
 **Exit codes.** 0 on success including zero-vulns; 1 on any error. Under `--json`, the error envelope is written to **stderr**.
 
-**Capability gate.** Same as `pkg info` (inherits from the `code_navigation` token capability).
+**Capability gate.** Same as `pkg info`.
 
-**Troubleshooting.** Same debug areas as `pkg info` (`GITHITS_DEBUG=pkg-intel` for classified errors; `GITHITS_DEBUG=pkg-graphql` for transport failures).
+**Troubleshooting.** Same debug areas as `pkg info`.
 
 ### `githits pkg deps`
 
@@ -172,11 +172,11 @@ Analyses dependencies for a package on npm, PyPI, Hex, Crates, vcpkg, or Zig. De
 
 **Two views.** The default runtime view collapses to a single-column list from `dependencies.direct` — the flat answer to "what does this pull in?". The structured groups view (`--groups`, or implicitly via `--lifecycle`) iterates `dependencyGroups.groups` and preserves registry-specific condition metadata (PyPI extras, Crates features). Dev / peer / build / optional deps live only in the groups view — the wire's `direct[]` is always runtime-only.
 
-**Lifecycle filter.** `-l, --lifecycle <phases>` accepts a comma-separated list of canonical lowercase tokens (`runtime`, `development`, `build`, `peer`, `optional`). Uppercase and whitespace are tolerated. Filters server-side via the backend's `lifecycle: [String!]` input, which only affects `dependencyGroups`; `direct[]` and `transitive[]` are returned regardless. Unknown tokens are rejected with `INVALID_ARGUMENT` and the canonical list.
+**Lifecycle filter.** `-l, --lifecycle <phases>` accepts a comma-separated list of canonical lowercase tokens (`runtime`, `development`, `build`, `peer`, `optional`). Uppercase and whitespace are tolerated. The filter only affects `dependencyGroups`; `direct[]` and `transitive[]` are returned regardless. Unknown tokens are rejected with `INVALID_ARGUMENT` and the canonical list.
 
 **Groups view (`--groups` or any `--lifecycle`).** Headings collapse to `name` when `conditionType === "always"` (e.g. `runtime`, `development`). Feature / TFM groups render `name (lifecycle, conditionType[: conditionValue])` — `conditionValue` is omitted when it equals `name` (the common case on Crates features and PyPI extras). Within each group, entries sort alphabetically. Duplicate `{name, constraint}` tuples inside a group collapse in the terminal for scannability; the JSON envelope preserves every duplicate the backend emitted.
 
-**Transitive view (`--transitive`).** Replaces the direct-deps list with the full unique transitive closure (alphabetical, `name@version`, one per line). Summary row carries the aggregate counts + conflict / cycle counts, and `(max depth N)` only when `--depth` was applied — otherwise the backend's full-graph traversal is shown. `--depth <n>` (1–10) caps traversal; there is **no client-side default cap** (matches `npm ls` / `cargo tree` ergonomics).
+**Transitive view (`--transitive`).** Replaces the direct-deps list with the full unique transitive closure (alphabetical, `name@version`, one per line). Summary row carries the aggregate counts + conflict / cycle counts, and `(max depth N)` only when `--depth` was applied — otherwise the full traversal is shown. `--depth <n>` (1–10) caps traversal; there is **no client-side default cap** (matches `npm ls` / `cargo tree` ergonomics).
 
 **Verbose (`--verbose`).** In both plain and transitive modes, each dep expands to a multi-line block: the first line is `name@version`, followed by indented `- <constraint> required by <importer>@<importer-version>, …` bullets. Importers that share a constraint are collapsed onto one bullet with a comma-separated list. In plain mode each direct dep has exactly one importer (the root package itself); in transitive mode a popular leaf may list many importers grouped by constraint. Conflicts expand into a `Conflicts (N):` table (`name: range1, range2, …`, one row per package); circular dependencies expand into a `Circular dependencies (N):` list (`a → b → a` arrow chain).
 
@@ -186,9 +186,9 @@ Analyses dependencies for a package on npm, PyPI, Hex, Crates, vcpkg, or Zig. De
 
 **Exit codes.** 0 on success including zero-dep packages; 1 on any error. Under `--json`, the error envelope is written to **stderr**.
 
-**Capability gate.** Same as `pkg info` / `pkg vulns` (inherits from the `code_navigation` token capability).
+**Capability gate.** Same as `pkg info` / `pkg vulns`.
 
-**Troubleshooting.** Same debug areas as `pkg info` / `pkg vulns` (`GITHITS_DEBUG=pkg-intel` for classified errors; `GITHITS_DEBUG=pkg-graphql` for transport failures).
+**Troubleshooting.** Same debug areas as `pkg info` / `pkg vulns`.
 
 ### `githits pkg changelog`
 
@@ -203,13 +203,13 @@ githits pkg changelog pypi:requests --no-body --json       # lean timeline
 
 Fetches release notes or changelog entries for a package or GitHub repository. Output is a newest-first list with a summary header identifying the source (GitHub Releases, CHANGELOG.md, or HexDocs).
 
-**Addressing.** `<spec>` (`registry:name`, same parser as `pkg info` / `pkg vulns` / `pkg deps`) **or** `--repo-url <url>`, mutually exclusive. Unlike the other `pkg` commands, `pkg changelog` is intrinsically repo-level on the backend — its sources live on the repo, not the registry — so repo-URL addressing is a first-class peer mode.
+**Addressing.** `<spec>` (`registry:name`, same parser as `pkg info` / `pkg vulns` / `pkg deps`) **or** `--repo-url <url>`, mutually exclusive. Unlike the other `pkg` commands, `pkg changelog` is intrinsically repo-level, so repo-URL addressing is a first-class peer mode.
 
 **`<spec>@<version>` rejected.** `pkg vulns` and `pkg deps` both treat `@version` as "for this exact version", but `pkg changelog` has no single-version query: all entries live on a timeline. Remapping `@version` to `--to` would be a silent semantic shift. CLI rejects with `INVALID_ARGUMENT` and a hint pointing to `--to <version>` (or `--from <version>` for range mode).
 
-**Two modes.** Latest mode is the default; `--limit <n>` (1–50, backend default 10) caps entry count. `--from <version>` switches to range mode — returns every entry between `--from` and `--to` (or latest) with no count cap. `--to <version>` works in either mode. `--from` + `--limit` together is rejected client-side with a hint.
+**Two modes.** Latest mode is the default; `--limit <n>` (1–50, default 10) caps entry count. `--from <version>` switches to range mode — returns every entry between `--from` and `--to` (or latest) with no count cap. `--to <version>` works in either mode. `--from` + `--limit` together is rejected client-side with a hint.
 
-**Pre-release versions.** Backend-normalised versions flow through unchanged (`5.0.0-rc.1`, `2.32.0.dev0`, `1.7.0-rc.5` round-trip cleanly on `--from` / `--to`). Tag-style `v`-prefixed inputs are rejected on any version flag, consistent with `pkg vulns` / `pkg deps`.
+**Pre-release versions.** Normalised versions flow through unchanged (`5.0.0-rc.1`, `2.32.0.dev0`, `1.7.0-rc.5` round-trip cleanly on `--from` / `--to`). Tag-style `v`-prefixed inputs are rejected on any version flag, consistent with `pkg vulns` / `pkg deps`.
 
 **Default terminal output.** Summary header (`name · registry · source · mode · entry count`) followed by each entry's `version  date  url` header plus the first 10 lines of its markdown body, indented and dimmed. Bodies longer than the cap show a footer `… (+N more lines — use --verbose for the full body)`. Missing dates render as `—`; missing versions render as `(unversioned)`. The version column is padded to the longest entry in the current response (no fixed width).
 
@@ -223,9 +223,9 @@ Fetches release notes or changelog entries for a package or GitHub repository. O
 
 **Errors.** `NOT_FOUND` covers both the backend's "package not found" case and the distinct "package exists but no changelog source resolved" case (typed `PackageIntelligenceChangelogSourceNotFoundError`; message names the sources that were tried). `VERSION_NOT_FOUND` enriches with structured `package` / `requested` / `available` detail lines from the shared `promoteGenericVersionNotFound` helper — which was extended in this PR to recognise `--from` and `--to` as promotable version inputs.
 
-**Capability gate.** Same as the rest of the `pkg` family (inherits from the `code_navigation` token capability).
+**Capability gate.** Same as the rest of the `pkg` family.
 
-**Troubleshooting.** Same debug areas (`GITHITS_DEBUG=pkg-intel` for classified errors; `GITHITS_DEBUG=pkg-graphql` for transport failures).
+**Troubleshooting.** Same debug areas as the rest of the `pkg` family.
 
 ### `githits code files`
 

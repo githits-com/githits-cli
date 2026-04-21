@@ -19,36 +19,36 @@ const CORE_BLOCK = `GitHits surfaces verified, canonical code examples from glob
 
 Workflow: call \`search_language\` first if the language name is uncertain → call \`search\` with one focused question → send \`feedback\` on the returned solution_id so quality improves. Each search addresses a single issue; reuse context from prior results before re-searching.`;
 
-const PACKAGE_TOOLS_PREAMBLE = `Package tools work with third-party dependency source and registry metadata. Use them when a stack trace points into a dependency, you need to verify how a library actually works, or you're evaluating a package.
+const PACKAGE_TOOLS_PREAMBLE = `Package tools work with third-party dependency source plus registry metadata. Use them when a stack trace points into a dependency, you need to verify how a library actually works, or you're evaluating whether to add or upgrade a package.
 
 Package spec: \`registry:name[@version]\`.`;
 
 const PACKAGE_SUMMARY_BULLET =
-  "- `package_summary` — instant package overview.";
+  "- `package_summary` — instant package overview: latest version, license, downloads, quickstart, and active advisory count.";
 
 const PACKAGE_VULNERABILITIES_BULLET =
   "- `package_vulnerabilities` — known CVE / OSV advisories for npm, PyPI, Hex, or Crates packages (optionally pinned to `@version`). Malicious-package advisories surface in a disjoint `malware` bucket; filter with `min_severity` or include retracted advisories with `include_withdrawn`.";
 
 const PACKAGE_DEPENDENCIES_BULLET =
-  "- `package_dependencies` — direct runtime deps plus, when the backend has them, dev / peer / optional / feature groups. Pass `lifecycle` to filter groups server-side, or `include_transitive` for the full graph, conflict detection, and circular-dependency flags. Supports npm, PyPI, Hex, Crates, vcpkg, and Zig.";
+  "- `package_dependencies` — direct runtime deps plus, when the backend has them, dev / peer / optional / feature groups. Pass `lifecycle` to filter groups server-side, `include_transitive` for the full graph, and `include_importers` when you also need per-package provenance. Supports npm, PyPI, Hex, Crates, vcpkg, and Zig.";
 
 const PACKAGE_CHANGELOG_BULLET =
   "- `package_changelog` — release notes for a package or GitHub repo, newest-first. Default latest mode returns the 10 most recent entries with full markdown bodies; `from_version` switches to range mode between two versions. Addressable via `registry` + `package_name` or `repo_url`. Set `include_bodies: false` for a version / date / URL timeline when bodies aren't needed.";
 
 const SEARCH_SYMBOLS_BULLET =
-  "- `search_symbols` — text search across a dependency's source. On an INDEXING response, retry with a larger `wait_timeout_ms` (up to 60000).";
+  "- `search_symbols` — exact-token search across indexed dependency source. Use it for symbol-shaped lookups inside a known package or repo, not natural-language questions. On an `INDEXING` response, retry with a larger `wait_timeout_ms` (up to 60000).";
 
 const LIST_FILES_BULLET =
-  "- `list_files` — discover what files a dependency ships. Use `path_prefix` to scope to a subdirectory; the response includes each file's language, type, and byte size. Same indexing-retry rules as `search_symbols`.";
+  "- `list_files` — discover what files a dependency ships. Use `path_prefix` to scope to a subdirectory; the response includes each file's language, type, and byte size. Returned `path` values feed directly into `read_file` and `grep_file`. Same indexing-retry rules as `search_symbols`.";
 
 const READ_FILE_BULLET =
-  "- `read_file` — fetch a file's contents from a dependency. Default returns the full file; pass `start_line` / `end_line` for a bounded range. Binary files set `isBinary: true` and omit `content` — branch on the flag, not the null. A `FILE_NOT_FOUND` (or `NOT_FOUND`) response is the signal to call `list_files` for the actual path.";
+  "- `read_file` — fetch a file's contents from a dependency. Pass the same `path` emitted by `list_files`. Default returns the full file; pass `start_line` / `end_line` for a bounded range. Binary files set `isBinary: true` and omit `content` — branch on the flag, not the null. A `FILE_NOT_FOUND` (or `NOT_FOUND`) response is the signal to call `list_files` for the actual path.";
 
 const GREP_FILE_BULLET =
-  "- `grep_file` — find a case-insensitive substring within a single file (not regex). Returns matches with context lines. Max pattern 200 chars, up to 200 matches with up to 10 context lines each. For symbol-shaped searches use `search_symbols`. Same addressing and indexing-retry rules as `list_files`.";
+  "- `grep_file` — find a case-insensitive substring within a single file (not regex). Pass the same `path` emitted by `list_files`. Returns matches with context lines. Max pattern 200 chars, up to 200 matches with up to 10 context lines each. For symbol-shaped searches use `search_symbols`. Same addressing and indexing-retry rules as `list_files`.";
 
 const SEARCH_VS_SYMBOLS_TIP =
-  "Prefer `search` for natural-language example questions; prefer `search_symbols` for exact-token lookups inside a specific package.";
+  "Prefer `search` for natural-language example questions; prefer `search_symbols` for exact-token lookups inside a specific package or repo. Use `list_files` → `read_file` / `grep_file` once you know the file you need.";
 
 /**
  * Whether the MCP session should register and describe package tools.

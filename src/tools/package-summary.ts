@@ -30,11 +30,12 @@ const schema = {
 
 const DESCRIPTION =
   "Get a package overview — latest version, license, description, " +
-  "repository, downloads, GitHub stars, install command, and a count " +
-  "of known vulnerabilities. Use before recommending a package or to " +
-  "orient on what a dependency is. Works across npm, PyPI, Hex, " +
-  "Crates, NuGet, Maven, Packagist, vcpkg, Zig. Always returns data " +
-  "for the latest published version.";
+  "repository, downloads, GitHub stars, install command, recent " +
+  "changes, and a count of known vulnerabilities. Use before " +
+  "recommending a package or to orient on what a dependency is. " +
+  "Works across npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, " +
+  "vcpkg, and Zig. Always returns data for the latest published " +
+  "version.";
 
 export function createPackageSummaryTool(
   service: PackageIntelligenceService,

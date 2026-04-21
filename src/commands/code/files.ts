@@ -150,7 +150,8 @@ function resolvePositionals(
 
 const PKG_FILES_DESCRIPTION = `List files in an indexed dependency. Default returns up to 200
 entries; pass [path-prefix] to scope to a directory and --limit to
-fetch more.
+fetch more. Returned paths feed directly into \`githits code read\`
+and \`githits code grep\`.
 
 [path-prefix] is a literal directory prefix (e.g. \`src/\` or
 \`lib/parser\`), NOT a glob — \`*.ts\` and similar patterns won't

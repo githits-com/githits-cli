@@ -252,7 +252,8 @@ Default output is the raw file content — pipe-friendly for
 downstream tools (\`code read … | grep …\`). Pass --verbose for a
 header and a line-number gutter.
 
-Use --lines for a bounded range (e.g. \`--lines 10-40\`).
+Use --lines for a bounded range (e.g. \`--lines 10-40\`). The \`path\`
+comes directly from \`githits code files\`.
 
 Addressing: <spec> (registry:name[@version]) OR --repo-url <url>
 --git-ref <ref>. <path> is package-relative for spec addressing,

@@ -49,7 +49,8 @@ const DESCRIPTION =
   "file; use `start_line` / `end_line` for a bounded range. Response: " +
   "`{path, language, totalLines, startLine, endLine, content, " +
   "isBinary}`. Binary files set `isBinary: true` and omit `content` — " +
-  "agents branch on the flag rather than checking null. Address via " +
+  "agents branch on the flag rather than checking null. Pass the same " +
+  "`path` emitted by `list_files`. Address via " +
   "`target.registry` + `target.package_name` (package scope) or " +
   "`target.repo_url` + `target.git_ref` (repo scope), mutually " +
   "exclusive. On `INDEXING` retry with a longer `wait_timeout_ms` " +

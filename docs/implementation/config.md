@@ -14,7 +14,7 @@ GitHits separates its MCP server (which handles OAuth discovery and the MCP prot
 |---|---|---|---|
 | **MCP URL** | `https://mcp.githits.com` | `GITHITS_MCP_URL` | OAuth discovery (`.well-known`), DCR registration, auth flow |
 | **API URL** | `https://api.githits.com` | `GITHITS_API_URL` | REST endpoints (`/search`, `/languages`, `/feedbacks`) |
-| **Code navigation URL** | configured per environment | `GITHITS_CODE_NAV_URL` | GraphQL code-navigation endpoint used by `search_symbols` / `githits code search` |
+| **Package/source URL** | configured per environment | `GITHITS_CODE_NAV_URL` | Package/source service endpoint used by the hidden `pkg` / `code` tooling |
 
 > **These are different services.** Setting only one won't work for custom environments. Both must be overridden together when pointing to a non-production backend.
 
@@ -38,12 +38,11 @@ The container (`src/container.ts`) resolves authentication in priority order:
 | `/languages` | Full access | Full access | Blocked |
 | `/feedbacks` | Full access | Full access | Blocked |
 
-Code navigation is different from the REST endpoints above:
+Package/source access is different from the REST endpoints above:
 
-- the CLI resolves the code-navigation endpoint from `GITHITS_CODE_NAV_URL`; custom GitHits environments must set this explicitly (no default inference)
-- MCP registration requires a startup token whose JWT advertises `code_navigation`; opaque env tokens are treated optimistically and left to backend enforcement
-- the `githits code search` CLI command is shown when the startup token advertises `code_navigation`, when an opaque `GITHITS_API_TOKEN` is present, or when `GITHITS_CODE_NAVIGATION=1` is set locally
-- the backend remains authoritative and can still deny access even if the CLI exposes the local command
+- the CLI resolves the package/source service URL from `GITHITS_CODE_NAV_URL`; custom GitHits environments must set this explicitly (no default inference)
+- MCP registration and the hidden `githits code` / `githits pkg` CLI groups are only exposed when package/source access is available for the current session, or when `GITHITS_CODE_NAVIGATION=1` is set locally for development
+- if access is unavailable, those tools and command groups are omitted from the surfaced interface
 
 ## Environment Variables
 
@@ -51,9 +50,9 @@ Code navigation is different from the REST endpoints above:
 |---|---|---|
 | `GITHITS_MCP_URL` | Override MCP server URL | `http://localhost:7071/mcp` |
 | `GITHITS_API_URL` | Override REST API URL | `http://localhost:8000` |
-| `GITHITS_CODE_NAV_URL` | Override code navigation GraphQL URL | `http://localhost:4000` |
+| `GITHITS_CODE_NAV_URL` | Override package/source service URL | `http://localhost:4000` |
 | `GITHITS_API_TOKEN` | API token for authentication | `ghi-abc123...` |
-| `GITHITS_CODE_NAVIGATION` | Override capability gate and expose `code` CLI commands locally | `1` |
+| `GITHITS_CODE_NAVIGATION` | Override capability gate and expose hidden `code` / `pkg` CLI groups locally | `1` |
 
 ## Local Storage
 
