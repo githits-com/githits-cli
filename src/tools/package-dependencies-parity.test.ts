@@ -5,9 +5,8 @@
 //                          details? } on every error path; MCP error text is
 //                          always valid JSON.
 //
-// Assertion policy (locked in the P3 plan; matches shipped
-// search_symbols / package_summary / package_vulnerabilities
-// precedent):
+// Assertion policy (matches shipped search_symbols / package_summary /
+// package_vulnerabilities precedent):
 //   - Service-sourced success and error fixtures use `toEqual`: both
 //     surfaces route through the same request builder and envelope
 //     shaper, so envelopes are byte-identical.

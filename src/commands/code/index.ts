@@ -6,6 +6,9 @@ import {
   getEnvApiToken,
   isCodeNavigationCliOverrideEnabled,
 } from "../../services/index.js";
+import { registerCodeFilesCommand } from "./files.js";
+import { registerCodeGrepCommand } from "./grep.js";
+import { registerCodeReadCommand } from "./read.js";
 import { registerCodeSearchSymbolsCommand } from "./search-symbols.js";
 
 export interface CodeCommandGroupOptions {
@@ -54,10 +57,13 @@ export async function registerCodeCommandGroup(
 
   const codeCommand = program
     .command("code")
-    .summary("Search indexed dependency source code")
+    .summary("Source-level operations on indexed dependencies")
     .description(
-      "Code-navigation commands for searching indexed dependency source. Requires the `code_navigation` capability on the active account.",
+      "Search, list, read, and grep inside indexed dependency source code. Every command accepts either `<spec>` (registry:name[@version]) or `--repo-url <url> --git-ref <ref>`. For package-level metadata (versions, vulnerabilities, dependencies, changelog) use `githits pkg`.",
     );
 
   registerCodeSearchSymbolsCommand(codeCommand);
+  registerCodeFilesCommand(codeCommand);
+  registerCodeReadCommand(codeCommand);
+  registerCodeGrepCommand(codeCommand);
 }

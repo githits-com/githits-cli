@@ -220,6 +220,73 @@ export function createMockGitHitsService(
   };
 }
 
+export const defaultListFilesResult = {
+  files: [
+    // Backend returns `fileType` uppercase (observed: CONFIG, SOURCE,
+    // TEST, DOC). Keep fixtures aligned so formatter tests lock in
+    // the real contract.
+    {
+      path: "src/index.js",
+      name: "index.js",
+      language: "javascript",
+      fileType: "SOURCE",
+      byteSize: 1234,
+    },
+    {
+      path: "src/lib/app.js",
+      name: "app.js",
+      language: "javascript",
+      fileType: "SOURCE",
+      byteSize: 8500,
+    },
+  ],
+  total: 2,
+  hasMore: false,
+  indexedVersion: "v5.2.1",
+  resolution: {
+    requestedVersion: undefined,
+    requestedRef: undefined,
+    resolvedRef: "v5.2.1",
+    commitSha: "abc123",
+  },
+  hint: undefined,
+};
+
+export const defaultReadFileResult = {
+  filePath: "src/index.js",
+  language: "javascript",
+  totalLines: 5,
+  startLine: 1,
+  endLine: 5,
+  content:
+    "// Express entry point\n'use strict';\n\nmodule.exports = require('./lib/express');\n",
+  isBinary: false,
+};
+
+export const defaultGrepFileResult = {
+  matches: [
+    {
+      lineNumber: 4,
+      lineContent: "module.exports = require('./lib/express');",
+      contextBefore: ["// Express entry point", "'use strict';", ""],
+      contextAfter: [""],
+    },
+  ],
+  totalMatches: 1,
+  hasMore: false,
+  filePath: "src/index.js",
+  language: "javascript",
+  totalLines: 5,
+  indexedVersion: "v5.2.1",
+  resolution: {
+    requestedVersion: undefined,
+    requestedRef: undefined,
+    resolvedRef: "v5.2.1",
+    commitSha: "abc123",
+  },
+  hint: undefined,
+};
+
 /**
  * Creates a mock CodeNavigationService with default implementations.
  */
@@ -228,6 +295,9 @@ export function createMockCodeNavigationService(
 ): CodeNavigationService {
   return {
     searchSymbols: mock(() => Promise.resolve(defaultSearchSymbolsResult)),
+    listFiles: mock(() => Promise.resolve(defaultListFilesResult)),
+    readFile: mock(() => Promise.resolve(defaultReadFileResult)),
+    grepFile: mock(() => Promise.resolve(defaultGrepFileResult)),
     ...impl,
   };
 }

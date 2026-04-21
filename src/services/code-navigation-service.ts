@@ -169,8 +169,94 @@ export interface AvailableVersion {
   ref: string;
 }
 
+/**
+ * Input for {@link CodeNavigationService.listFiles}.
+ */
+export interface ListFilesParams {
+  target: CodeNavigationTarget;
+  pathPrefix?: string;
+  limit?: number;
+  waitTimeoutMs?: number;
+}
+
+export interface RepoFileEntry {
+  path: string;
+  name?: string;
+  language?: string;
+  fileType?: string;
+  byteSize?: number;
+}
+
+export interface ListFilesResult {
+  files: RepoFileEntry[];
+  total: number;
+  hasMore: boolean;
+  indexedVersion?: string;
+  resolution?: SearchSymbolsResolution;
+  hint?: string;
+}
+
+/**
+ * Input for {@link CodeNavigationService.readFile}.
+ */
+export interface ReadFileParams {
+  target: CodeNavigationTarget;
+  filePath: string;
+  startLine?: number;
+  endLine?: number;
+  waitTimeoutMs?: number;
+}
+
+export interface ReadFileResult {
+  filePath?: string;
+  language?: string;
+  totalLines?: number;
+  startLine?: number;
+  endLine?: number;
+  content?: string;
+  isBinary?: boolean;
+}
+
+/**
+ * Input for {@link CodeNavigationService.grepFile}.
+ *
+ * `path` today addresses a single file; naming it `path` (rather
+ * than `filePath`) leaves room for the same slot to accept broader
+ * shapes later without a rename.
+ */
+export interface GrepFileParams {
+  target: CodeNavigationTarget;
+  path: string;
+  pattern: string;
+  contextLines?: number;
+  maxMatches?: number;
+  waitTimeoutMs?: number;
+}
+
+export interface GrepMatch {
+  lineNumber: number;
+  lineContent: string;
+  contextBefore?: string[];
+  contextAfter?: string[];
+}
+
+export interface GrepFileResult {
+  matches: GrepMatch[];
+  totalMatches: number;
+  hasMore: boolean;
+  filePath?: string;
+  language?: string;
+  totalLines?: number;
+  indexedVersion?: string;
+  resolution?: SearchSymbolsResolution;
+  hint?: string;
+}
+
 export interface CodeNavigationService {
   searchSymbols(params: SearchSymbolsParams): Promise<SearchSymbolsResult>;
+  listFiles(params: ListFilesParams): Promise<ListFilesResult>;
+  readFile(params: ReadFileParams): Promise<ReadFileResult>;
+  grepFile(params: GrepFileParams): Promise<GrepFileResult>;
 }
 
 export class CodeNavigationAccessError extends Error {
@@ -222,6 +308,23 @@ export class CodeNavigationTargetNotFoundError extends Error {
   ) {
     super(message);
     this.name = "CodeNavigationTargetNotFoundError";
+  }
+}
+
+/**
+ * Raised when the backend confirmed the package / repo exists but
+ * the requested file path could not be found within it. Distinct
+ * from `CodeNavigationTargetNotFoundError` (package itself missing)
+ * because the recovery path differs — callers should re-check the
+ * path against `list_files` rather than re-check the package name.
+ */
+export class CodeNavigationFileNotFoundError extends Error {
+  constructor(
+    message: string,
+    public readonly filePath: string | undefined,
+  ) {
+    super(message);
+    this.name = "CodeNavigationFileNotFoundError";
   }
 }
 
@@ -435,6 +538,266 @@ const graphQLErrorSchema = z.object({
   message: z.string(),
   extensions: z.record(z.string(), z.unknown()).optional(),
 });
+
+// --------------------------------------------------------------------
+// Zod schemas + queries for the file-exploration bundle.
+// `listRepoFiles` / `fetchCodeContext` / `grepRepoFile` share the same
+// indexing lifecycle (`indexingStatus` + `indexingRef` +
+// `availableVersions`) but otherwise have distinct result shapes —
+// normalise per tool rather than under one abstraction.
+// --------------------------------------------------------------------
+
+const navigationResolutionSchema = z
+  .object({
+    requestedVersion: z.string().nullable().optional(),
+    requestedRef: z.string().nullable().optional(),
+    resolvedRef: z.string().nullable().optional(),
+    commitSha: z.string().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+const navigationDiagnosticsSchema = z
+  .object({
+    hint: z.string().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+// listRepoFiles ------------------------------------------------------
+
+const repoFileEntrySchema = z.object({
+  path: z.string(),
+  name: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  fileType: z.string().nullable().optional(),
+  byteSize: z.number().int().nullable().optional(),
+});
+
+const listRepoFilesResponseSchema = z.object({
+  files: z.array(repoFileEntrySchema),
+  total: z.number().int(),
+  hasMore: z.boolean(),
+  indexedVersion: z.string().nullable().optional(),
+  resolution: navigationResolutionSchema,
+  diagnostics: navigationDiagnosticsSchema,
+  indexingStatus: z.string(),
+  indexingRef: z.string().nullable().optional(),
+  availableVersions: z.array(availableVersionSchema).nullable().optional(),
+});
+
+const listRepoFilesGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      listRepoFiles: listRepoFilesResponseSchema.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
+const LIST_REPO_FILES_QUERY = `
+query ListRepoFiles(
+  $registry: Registry
+  $packageName: String
+  $repoUrl: String
+  $gitRef: String
+  $version: String
+  $pathPrefix: String
+  $limit: Int
+  $waitTimeoutMs: Int
+) {
+  listRepoFiles(
+    registry: $registry
+    packageName: $packageName
+    repoUrl: $repoUrl
+    gitRef: $gitRef
+    version: $version
+    pathPrefix: $pathPrefix
+    limit: $limit
+    waitTimeoutMs: $waitTimeoutMs
+  ) {
+    files {
+      path
+      name
+      language
+      fileType
+      byteSize
+    }
+    total
+    hasMore
+    indexedVersion
+    resolution {
+      requestedVersion
+      requestedRef
+      resolvedRef
+      commitSha
+    }
+    diagnostics {
+      hint
+    }
+    indexingStatus
+    indexingRef
+    availableVersions {
+      version
+      ref
+    }
+  }
+}`;
+
+// fetchCodeContext ---------------------------------------------------
+
+// `CodeContextResult` is a separate family — no availableVersions,
+// no resolution, no diagnostics. Only indexing fields are shared.
+const codeContextResponseSchema = z.object({
+  content: z.string().nullable().optional(),
+  filePath: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  totalLines: z.number().int().nullable().optional(),
+  startLine: z.number().int().nullable().optional(),
+  endLine: z.number().int().nullable().optional(),
+  repoUrl: z.string().nullable().optional(),
+  gitRef: z.string().nullable().optional(),
+  isBinary: z.boolean().nullable().optional(),
+  indexingStatus: z.string(),
+  indexingRef: z.string().nullable().optional(),
+});
+
+const fetchCodeContextGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      fetchCodeContext: codeContextResponseSchema.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
+const FETCH_CODE_CONTEXT_QUERY = `
+query FetchCodeContext(
+  $registry: Registry
+  $packageName: String
+  $repoUrl: String
+  $gitRef: String
+  $version: String
+  $filePath: String!
+  $startLine: Int
+  $endLine: Int
+  $waitTimeoutMs: Int
+) {
+  fetchCodeContext(
+    registry: $registry
+    packageName: $packageName
+    repoUrl: $repoUrl
+    gitRef: $gitRef
+    version: $version
+    filePath: $filePath
+    startLine: $startLine
+    endLine: $endLine
+    waitTimeoutMs: $waitTimeoutMs
+  ) {
+    content
+    filePath
+    language
+    totalLines
+    startLine
+    endLine
+    repoUrl
+    gitRef
+    isBinary
+    indexingStatus
+    indexingRef
+  }
+}`;
+
+// grepRepoFile -------------------------------------------------------
+
+const grepMatchSchema = z.object({
+  lineNumber: z.number().int(),
+  lineContent: z.string(),
+  contextBefore: z.array(z.string()).nullable().optional(),
+  contextAfter: z.array(z.string()).nullable().optional(),
+});
+
+const grepRepoFileResponseSchema = z.object({
+  matches: z.array(grepMatchSchema),
+  totalMatches: z.number().int(),
+  hasMore: z.boolean(),
+  filePath: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  totalLines: z.number().int().nullable().optional(),
+  indexedVersion: z.string().nullable().optional(),
+  resolution: navigationResolutionSchema,
+  diagnostics: navigationDiagnosticsSchema,
+  indexingStatus: z.string(),
+  indexingRef: z.string().nullable().optional(),
+  availableVersions: z.array(availableVersionSchema).nullable().optional(),
+});
+
+const grepRepoFileGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      grepRepoFile: grepRepoFileResponseSchema.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
+const GREP_REPO_FILE_QUERY = `
+query GrepRepoFile(
+  $registry: Registry
+  $packageName: String
+  $repoUrl: String
+  $gitRef: String
+  $filePath: String!
+  $pattern: String!
+  $contextLines: Int
+  $maxMatches: Int
+  $version: String
+  $waitTimeoutMs: Int
+) {
+  grepRepoFile(
+    registry: $registry
+    packageName: $packageName
+    repoUrl: $repoUrl
+    gitRef: $gitRef
+    filePath: $filePath
+    pattern: $pattern
+    contextLines: $contextLines
+    maxMatches: $maxMatches
+    version: $version
+    waitTimeoutMs: $waitTimeoutMs
+  ) {
+    matches {
+      lineNumber
+      lineContent
+      contextBefore
+      contextAfter
+    }
+    totalMatches
+    hasMore
+    filePath
+    language
+    totalLines
+    indexedVersion
+    resolution {
+      requestedVersion
+      requestedRef
+      resolvedRef
+      commitSha
+    }
+    diagnostics {
+      hint
+    }
+    indexingStatus
+    indexingRef
+    availableVersions {
+      version
+      ref
+    }
+  }
+}`;
 
 // `data` may be null (seen live for unknown packages that also carry
 // `errors`), and `searchSymbols` may be null even when `data` is present.
@@ -664,6 +1027,16 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       case "NO_REPOSITORY_URL":
         return new CodeNavigationTargetNotFoundError(message);
 
+      case "FILE_NOT_FOUND":
+        return new CodeNavigationFileNotFoundError(
+          message,
+          typeof extensions?.file_path === "string"
+            ? extensions.file_path
+            : typeof extensions?.filePath === "string"
+              ? extensions.filePath
+              : undefined,
+        );
+
       case "UNSUPPORTED_REGISTRY":
       case "VALIDATION_ERROR":
         return new CodeNavigationValidationError(message);
@@ -730,6 +1103,310 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       return `${base} Indexing reference: ${indexingRef}.`;
     }
     return base;
+  }
+
+  /**
+   * Shared sentinel-promotion for the file-exploration tools. When the backend
+   * response carries `indexingStatus: "INDEXING"` (data-path variant),
+   * throw the typed error so the envelope builder / caller never sees
+   * the raw sentinel. Mirrors the inline check `searchSymbols` does
+   * today.
+   */
+  private throwIfIndexing(data: {
+    indexingStatus: string;
+    indexingRef?: string | null;
+    availableVersions?: Array<{ version?: string | null; ref: string }> | null;
+  }): void {
+    if (data.indexingStatus === "INDEXING") {
+      throw new CodeNavigationIndexingError(
+        this.createIndexingMessage(data.indexingRef ?? undefined),
+        data.indexingRef ?? undefined,
+        data.availableVersions?.map((entry) => ({
+          version: entry.version ?? undefined,
+          ref: entry.ref,
+        })),
+      );
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // listFiles → listRepoFiles
+  // ------------------------------------------------------------------
+
+  async listFiles(params: ListFilesParams): Promise<ListFilesResult> {
+    return executeWithTokenRefresh({
+      getToken: () => this.tokenProvider.getToken(),
+      forceRefresh: () => this.tokenProvider.forceRefresh(),
+      shouldRefresh: (error) => error instanceof AuthenticationError,
+      executeWithToken: (token) => this.executeListFiles(token, params),
+    });
+  }
+
+  private async executeListFiles(
+    token: string,
+    params: ListFilesParams,
+  ): Promise<ListFilesResult> {
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.codeNavigationUrl,
+        token,
+        query: LIST_REPO_FILES_QUERY,
+        variables: {
+          registry: params.target.registry,
+          packageName: params.target.packageName,
+          repoUrl: params.target.repoUrl,
+          gitRef: params.target.gitRef,
+          version: params.target.version,
+          pathPrefix: params.pathPrefix,
+          limit: params.limit,
+          waitTimeoutMs: params.waitTimeoutMs,
+        },
+        fetchFn: this.fetchFn,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw new CodeNavigationNetworkError(
+          "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
+          { cause },
+        );
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = listRepoFilesGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedCodeNavigationResponseError(
+        "Malformed response from code navigation service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw this.createGraphQLError(parsed.data.errors);
+    }
+
+    const data = parsed.data.data?.listRepoFiles;
+    if (!data) {
+      throw new MalformedCodeNavigationResponseError(
+        "Malformed response from code navigation service.",
+      );
+    }
+
+    this.throwIfIndexing(data);
+
+    return {
+      files: data.files.map((entry) => ({
+        path: entry.path,
+        name: entry.name ?? undefined,
+        language: entry.language ?? undefined,
+        fileType: entry.fileType ?? undefined,
+        byteSize: entry.byteSize ?? undefined,
+      })),
+      total: data.total,
+      hasMore: data.hasMore,
+      indexedVersion: data.indexedVersion ?? undefined,
+      resolution: data.resolution
+        ? {
+            requestedVersion: data.resolution.requestedVersion ?? undefined,
+            requestedRef: data.resolution.requestedRef ?? undefined,
+            resolvedRef: data.resolution.resolvedRef ?? undefined,
+            commitSha: data.resolution.commitSha ?? undefined,
+          }
+        : undefined,
+      hint: data.diagnostics?.hint ?? undefined,
+    };
+  }
+
+  // ------------------------------------------------------------------
+  // readFile → fetchCodeContext
+  // ------------------------------------------------------------------
+
+  async readFile(params: ReadFileParams): Promise<ReadFileResult> {
+    return executeWithTokenRefresh({
+      getToken: () => this.tokenProvider.getToken(),
+      forceRefresh: () => this.tokenProvider.forceRefresh(),
+      shouldRefresh: (error) => error instanceof AuthenticationError,
+      executeWithToken: (token) => this.executeReadFile(token, params),
+    });
+  }
+
+  private async executeReadFile(
+    token: string,
+    params: ReadFileParams,
+  ): Promise<ReadFileResult> {
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.codeNavigationUrl,
+        token,
+        query: FETCH_CODE_CONTEXT_QUERY,
+        variables: {
+          registry: params.target.registry,
+          packageName: params.target.packageName,
+          repoUrl: params.target.repoUrl,
+          gitRef: params.target.gitRef,
+          version: params.target.version,
+          filePath: params.filePath,
+          startLine: params.startLine,
+          endLine: params.endLine,
+          waitTimeoutMs: params.waitTimeoutMs,
+        },
+        fetchFn: this.fetchFn,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw new CodeNavigationNetworkError(
+          "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
+          { cause },
+        );
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = fetchCodeContextGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedCodeNavigationResponseError(
+        "Malformed response from code navigation service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw this.createGraphQLError(parsed.data.errors);
+    }
+
+    const data = parsed.data.data?.fetchCodeContext;
+    if (!data) {
+      throw new MalformedCodeNavigationResponseError(
+        "Malformed response from code navigation service.",
+      );
+    }
+
+    // `fetchCodeContext` doesn't return availableVersions; pass a
+    // minimal object to the shared helper.
+    this.throwIfIndexing({
+      indexingStatus: data.indexingStatus,
+      indexingRef: data.indexingRef,
+    });
+
+    return {
+      filePath: data.filePath ?? undefined,
+      language: data.language ?? undefined,
+      totalLines: data.totalLines ?? undefined,
+      startLine: data.startLine ?? undefined,
+      endLine: data.endLine ?? undefined,
+      content: data.content ?? undefined,
+      isBinary: data.isBinary ?? undefined,
+    };
+  }
+
+  // ------------------------------------------------------------------
+  // grepFile → grepRepoFile
+  // ------------------------------------------------------------------
+
+  async grepFile(params: GrepFileParams): Promise<GrepFileResult> {
+    return executeWithTokenRefresh({
+      getToken: () => this.tokenProvider.getToken(),
+      forceRefresh: () => this.tokenProvider.forceRefresh(),
+      shouldRefresh: (error) => error instanceof AuthenticationError,
+      executeWithToken: (token) => this.executeGrepFile(token, params),
+    });
+  }
+
+  private async executeGrepFile(
+    token: string,
+    params: GrepFileParams,
+  ): Promise<GrepFileResult> {
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.codeNavigationUrl,
+        token,
+        query: GREP_REPO_FILE_QUERY,
+        variables: {
+          registry: params.target.registry,
+          packageName: params.target.packageName,
+          repoUrl: params.target.repoUrl,
+          gitRef: params.target.gitRef,
+          version: params.target.version,
+          filePath: params.path,
+          pattern: params.pattern,
+          contextLines: params.contextLines,
+          maxMatches: params.maxMatches,
+          waitTimeoutMs: params.waitTimeoutMs,
+        },
+        fetchFn: this.fetchFn,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw new CodeNavigationNetworkError(
+          "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
+          { cause },
+        );
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = grepRepoFileGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedCodeNavigationResponseError(
+        "Malformed response from code navigation service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw this.createGraphQLError(parsed.data.errors);
+    }
+
+    const data = parsed.data.data?.grepRepoFile;
+    if (!data) {
+      throw new MalformedCodeNavigationResponseError(
+        "Malformed response from code navigation service.",
+      );
+    }
+
+    this.throwIfIndexing(data);
+
+    return {
+      matches: data.matches.map((entry) => ({
+        lineNumber: entry.lineNumber,
+        lineContent: entry.lineContent,
+        contextBefore: entry.contextBefore ?? undefined,
+        contextAfter: entry.contextAfter ?? undefined,
+      })),
+      totalMatches: data.totalMatches,
+      hasMore: data.hasMore,
+      filePath: data.filePath ?? undefined,
+      language: data.language ?? undefined,
+      totalLines: data.totalLines ?? undefined,
+      indexedVersion: data.indexedVersion ?? undefined,
+      resolution: data.resolution
+        ? {
+            requestedVersion: data.resolution.requestedVersion ?? undefined,
+            requestedRef: data.resolution.requestedRef ?? undefined,
+            resolvedRef: data.resolution.resolvedRef ?? undefined,
+            commitSha: data.resolution.commitSha ?? undefined,
+          }
+        : undefined,
+      hint: data.diagnostics?.hint ?? undefined,
+    };
   }
 }
 

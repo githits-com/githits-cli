@@ -17,6 +17,9 @@ The CLI exposes three primary commands (`search`, `languages`, `feedback`) that 
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates) |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--groups`, `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig) |
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
+| `code files [spec] [path-prefix]` | package spec OR `--repo-url` + `--git-ref`; optional `[path-prefix]` | `--limit`, `--wait`, `--verbose`, `--json` | List files in an indexed dependency. `[path-prefix]` is a literal directory prefix (not a glob). Plain output is one path per line; `--verbose` adds language / type / size annotations. Indexing-retry via `--wait` or the `availableVersions` hint in the error envelope. |
+| `code read <spec?> <path>` | package spec OR `--repo-url` + `--git-ref`; plus `<path>` | `--lines`, `--start`, `--end`, `--wait`, `--verbose`, `--json` | Read a file's contents. Plain output is the raw file bytes (pipe-friendly); `--verbose` adds a header and a line-number gutter. `--lines 10-40` concise form; `--start`/`--end` equivalent. Binary files show a sentinel line. |
+| `code grep <spec?> <pattern> <path>` | package spec OR `--repo-url` + `--git-ref`; plus `<pattern>` and `<path>` | `--context`, `--limit`, `--wait`, `--verbose`, `--json` | Search within a single file for a case-insensitive substring (not regex). Plain output is matching lines only (pipe-friendly, `grep`-style); `--verbose` adds a header and a line-number gutter with `>` markers on match lines. `--context <n>` adds surrounding lines (default 0, up to 10); overlapping blocks merge without duplicates. Max 200-char pattern; up to 200 matches. |
 
 ### `githits init`
 
@@ -223,6 +226,78 @@ Fetches release notes or changelog entries for a package or GitHub repository. O
 **Capability gate.** Same as the rest of the `pkg` family (inherits from the `code_navigation` token capability).
 
 **Troubleshooting.** Same debug areas (`GITHITS_DEBUG=pkg-intel` for classified errors; `GITHITS_DEBUG=pkg-graphql` for transport failures).
+
+### `githits code files`
+
+```
+githits code files npm:express
+githits code files npm:express lib                      # scope by prefix
+githits code files npm:express lib --verbose            # + language / type / size
+githits code files --repo-url https://github.com/expressjs/express --git-ref main lib
+githits code files npm:express --json
+```
+
+Lists files in an indexed dependency. `[spec] [path-prefix]` positionals mirror `code read` / `code grep` so the three commands chain without friction. `[path-prefix]` is a literal directory prefix; glob / extension filtering is not supported by the backend today (tracked as an upstream ask).
+
+**Plain output (default).** One bare path per line on stdout — pipe-friendly. No header, no annotations. `code files npm:express lib | xargs -I{} …` works cleanly.
+
+**`--verbose`.** Adds a contextual header (`<identity> · <count>`), the resolution line (`indexed at <ref> · commit <sha>`), and per-row language / file-type / byte-size annotations.
+
+**`stdout` vs `stderr` routing (plain mode).** Truncation warnings (`More files available — pass --limit higher …`) and empty-result hints go to **stderr**, not stdout, so they stay visible to humans without polluting pipes. In `--verbose` the same text renders inline.
+
+**Addressing ambiguity guard.** In `--repo-url` mode, a positional that matches a known registry prefix (`npm:`, `pypi:`, `hex:`, `crates:`, `nuget:`, `maven:`, `zig:`, `vcpkg:`, `packagist:`) is rejected with a "looks like a package spec" error — catches `code files npm:express --repo-url …` typos that would otherwise silently interpret the spec as a path prefix.
+
+**Exit codes.** `0` on success (including empty results — absence of files is not an error). `1` on error (authentication, indexing, invalid arguments, backend failures).
+
+### `githits code read`
+
+```
+githits code read npm:express lib/express.js
+githits code read npm:express lib/express.js --lines 1-40
+githits code read npm:express lib/express.js --verbose  # + header + gutter
+githits code read --repo-url https://github.com/expressjs/express --git-ref main lib/express.js
+githits code read npm:express lib/express.js --json
+```
+
+Reads a file from an indexed dependency. `<path>` is package-relative in spec mode, repo-relative in `--repo-url` mode.
+
+**Plain output (default).** Raw file bytes, verbatim (preserves the backend's trailing newline). Piping `code read … | grep …` or `code read … > file` round-trips cleanly.
+
+**`--verbose`.** Adds the `<path> · <language> · lines <N-M> of <total>` header and a right-aligned line-number gutter. No stderr routing — `read` has no truncation path.
+
+**Line ranges.** `--lines 10-40` (concise form), `--lines 10-` (open end), `--lines -40` (open start). `--start <n>` / `--end <n>` are the verbose equivalents. Combining `--lines` with `--start` / `--end` is rejected.
+
+**Binary files.** Plain mode writes `Binary file — cannot display as text.` to stdout (consistent with `grep`'s binary-file convention). `--verbose` adds the header above the sentinel. `--json` exposes the classification via `isBinary: true` with `content` omitted — agents branch on the flag, not a null check.
+
+**Exit codes.** `0` on success. `1` on error — `FILE_NOT_FOUND` (path doesn't resolve) carries a "Use `code files` to list available paths" hint in terminal output.
+
+### `githits code grep`
+
+```
+githits code grep npm:express express lib/express.js
+githits code grep npm:express express lib/express.js --context 2  # merged blocks
+githits code grep npm:express express lib/express.js --verbose    # + header + gutter + `>` marker
+githits code grep --repo-url https://github.com/expressjs/express --git-ref main export lib/express.js
+githits code grep npm:express express lib/express.js --json
+```
+
+Case-insensitive **substring** search inside a single file — not regex. Max pattern 200 chars; up to 200 matches with up to 10 context lines each. For symbol-shaped searches use `githits code search` (backed by `search_symbols`).
+
+**Plain output (default).** Matching lines only, one per line on stdout — mirrors `grep`'s default. `--context <n>` (0–10, default **0**) adds surrounding lines; nearby matches whose contexts touch or overlap merge into a single block with no duplicated lines. Distinct blocks are separated by `--` on its own line, matching `grep -C` / `rg -C` convention.
+
+**`--verbose`.** Adds header, right-aligned line-number gutter, and a `>` marker on match lines so they're distinguishable from context at a glance.
+
+**`stdout` vs `stderr` routing (plain mode).** "More matches available" truncation warning goes to **stderr**. When a zero-match pattern looks like a regex attempt (`\bfoo\b`, `^start`, character classes, etc.) a one-line nudge — "Note: pattern matched literally — this tool does case-insensitive substring search, not regex." — also goes to stderr. Pipes stay clean; humans still see the hints.
+
+**Exit codes (grep-compatible).**
+
+- `0` — at least one match.
+- `1` — zero matches. Fires in both plain and `--json` modes so scripting (`if code grep X file; then …`) behaves consistently across surfaces.
+- `2` — error (missing file, indexing, invalid arguments, backend failure). Distinguished from "no match" so scripts can branch correctly.
+
+This is the standard `grep(1)` contract; the tool adopts it deliberately because its output shape mirrors grep's.
+
+**Regex pattern note.** The `GREP_PATTERN_SEMANTICS_NOTE` string ("Case-insensitive substring matching. NOT regex — …") is shared verbatim across the CLI help text, the MCP tool description, and the MCP `pattern` argument's `describe` so the three surfaces never disagree about pattern semantics.
 
 ## Architecture
 

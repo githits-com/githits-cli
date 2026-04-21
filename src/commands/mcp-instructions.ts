@@ -38,6 +38,15 @@ const PACKAGE_CHANGELOG_BULLET =
 const SEARCH_SYMBOLS_BULLET =
   "- `search_symbols` — text search across a dependency's source. On an INDEXING response, retry with a larger `wait_timeout_ms` (up to 60000).";
 
+const LIST_FILES_BULLET =
+  "- `list_files` — discover what files a dependency ships. Use `path_prefix` to scope to a subdirectory; the response includes each file's language, type, and byte size. Same indexing-retry rules as `search_symbols`.";
+
+const READ_FILE_BULLET =
+  "- `read_file` — fetch a file's contents from a dependency. Default returns the full file; pass `start_line` / `end_line` for a bounded range. Binary files set `isBinary: true` and omit `content` — branch on the flag, not the null. A `FILE_NOT_FOUND` (or `NOT_FOUND`) response is the signal to call `list_files` for the actual path.";
+
+const GREP_FILE_BULLET =
+  "- `grep_file` — find a case-insensitive substring within a single file (not regex). Returns matches with context lines. Max pattern 200 chars, up to 200 matches with up to 10 context lines each. For symbol-shaped searches use `search_symbols`. Same addressing and indexing-retry rules as `list_files`.";
+
 const SEARCH_VS_SYMBOLS_TIP =
   "Prefer `search` for natural-language example questions; prefer `search_symbols` for exact-token lookups inside a specific package.";
 
@@ -86,6 +95,9 @@ export function buildMcpInstructions(deps: Dependencies): string {
   }
   if (deps.codeNavigationService) {
     bullets.push(SEARCH_SYMBOLS_BULLET);
+    bullets.push(LIST_FILES_BULLET);
+    bullets.push(READ_FILE_BULLET);
+    bullets.push(GREP_FILE_BULLET);
   }
 
   if (bullets.length === 0) {

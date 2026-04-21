@@ -37,8 +37,8 @@
  *   for graph visualisation. `uniqueDependencies` is subsumed by
  *   `packages[]`. `groups.environmentConstraints` remains raw
  *   `GenericJSON[]` pending a live observation to type it against.
- * - **No v-prefix normalisation.** Inherited from P2; tag-style
- *   inputs are rejected in the request builder before we get here.
+ * - **No v-prefix normalisation.** Tag-style inputs are rejected in
+ *   the request builder before we get here.
  * - **Terminal-only dedup.** JSON preserves every tuple the backend
  *   sent (including Crates target-cfg duplicates). Terminal
  *   rendering strips duplicates inside each group for scannability.
@@ -1126,8 +1126,8 @@ function sortAlphabetically<T>(
 //     v: number                            // format version marker
 //   }
 //
-// The decoder also tolerates the object-shape documented by
-// `pkgseer-cli` (`n: { id: { n, v?, l? } }`) so that if backend
+// The decoder also tolerates an alternative object-shape
+// variant (`n: { id: { n, v?, l? } }`) so that if backend
 // formats diverge we don't break the terminal — provenance just
 // silently stops rendering.
 // --------------------------------------------------------------------

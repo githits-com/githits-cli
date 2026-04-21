@@ -3,6 +3,7 @@ import {
   CodeNavigationAccessError,
   CodeNavigationBackendError,
   CodeNavigationFeatureFlagRequiredError,
+  CodeNavigationFileNotFoundError,
   CodeNavigationGraphQLError,
   CodeNavigationIndexingError,
   CodeNavigationNetworkError,
@@ -340,6 +341,7 @@ describe("mapCodeNavigationError debug instrumentation", () => {
     process.env.GITHITS_DEBUG = "*";
     const errors: unknown[] = [
       new CodeNavigationTargetNotFoundError("x"),
+      new CodeNavigationFileNotFoundError("x", "some/path"),
       new CodeNavigationIndexingError("x"),
       new CodeNavigationUnresolvableError("x"),
       new CodeNavigationAccessError("x"),
@@ -353,5 +355,30 @@ describe("mapCodeNavigationError debug instrumentation", () => {
     ];
     for (const err of errors) mapCodeNavigationError(err);
     expect(stderrSpy).toHaveBeenCalledTimes(errors.length);
+  });
+
+  it("classifies CodeNavigationFileNotFoundError as FILE_NOT_FOUND with filePath detail", () => {
+    const err = new CodeNavigationFileNotFoundError(
+      "File not found: src/missing.js",
+      "src/missing.js",
+    );
+    expect(mapCodeNavigationError(err)).toEqual({
+      code: "FILE_NOT_FOUND",
+      message: "File not found: src/missing.js",
+      retryable: false,
+      details: { filePath: "src/missing.js" },
+    });
+  });
+
+  it("classifies CodeNavigationFileNotFoundError without filePath", () => {
+    const err = new CodeNavigationFileNotFoundError(
+      "File not found",
+      undefined,
+    );
+    expect(mapCodeNavigationError(err)).toEqual({
+      code: "FILE_NOT_FOUND",
+      message: "File not found",
+      retryable: false,
+    });
   });
 });
