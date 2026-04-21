@@ -5,6 +5,10 @@ import { version } from "../../package.json";
 import { createContainer, type Dependencies } from "../container.js";
 import { dim, highlight, shouldUseColors } from "../shared/colors.js";
 import {
+  setClientMode,
+  setMcpClientVersionProvider,
+} from "../shared/request-headers.js";
+import {
   createFeedbackTool,
   createGrepFileTool,
   createListFilesTool,
@@ -89,10 +93,50 @@ export function createMcpServer(deps: Dependencies): McpServer {
 
 /**
  * Start the MCP server. Exported for testability.
+ *
+ * Telemetry wiring:
+ * - `setClientMode("mcp")` tags every subsequent API request with
+ *   `x-githits-client-name: githits-cli/mcp` so backend telemetry
+ *   can distinguish MCP-driven traffic from direct-CLI traffic.
+ * - `setMcpClientVersionProvider` registers a lazy reader that
+ *   pulls the connecting client's `clientInfo` (cursor,
+ *   claude-code, etc.) on every request. The MCP SDK sets
+ *   `_clientVersion` synchronously inside `_oninitialize` before
+ *   the initialize response is sent back, so every tool call that
+ *   arrives after the handshake sees a populated value —
+ *   eliminating the race the older `oninitialized` callback
+ *   pattern had where the first tool call could slip through
+ *   before the notification dispatched.
  */
 export async function startMcpServer(deps: Dependencies): Promise<void> {
+  setClientMode("mcp");
+
   const server = createMcpServer(deps);
   const transport = new StdioServerTransport();
+
+  setMcpClientVersionProvider(() => {
+    try {
+      const clientVersion = server.server.getClientVersion();
+      if (
+        !clientVersion?.name ||
+        typeof clientVersion.name !== "string" ||
+        clientVersion.name.trim().length === 0
+      ) {
+        return undefined;
+      }
+      const name = clientVersion.name.trim();
+      const rawVersion = clientVersion.version;
+      const versionOut =
+        typeof rawVersion === "string" && rawVersion.trim().length > 0
+          ? rawVersion.trim()
+          : undefined;
+      return { name, version: versionOut };
+    } catch {
+      // Agent header is optional — never block the request.
+      return undefined;
+    }
+  });
+
   await server.connect(transport);
 }
 

@@ -25,6 +25,7 @@
 
 import { version } from "../../package.json";
 import { debugLog } from "./debug-log.js";
+import { buildClientHeaders } from "./request-headers.js";
 
 export interface PkgseerGraphqlRequest {
   /** Full endpoint URL, e.g. `https://pkgseer.dev`. Trailing slashes tolerated. */
@@ -90,6 +91,7 @@ export async function postPkgseerGraphql(
     response = await fetchFn(`${baseUrl(request.endpointUrl)}/api/graphql`, {
       method: "POST",
       headers: {
+        ...buildClientHeaders(),
         Authorization: `Bearer ${request.token}`,
         "Content-Type": "application/json",
         "User-Agent": userAgent,

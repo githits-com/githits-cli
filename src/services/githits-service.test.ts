@@ -51,6 +51,20 @@ describe("GitHitsServiceImpl", () => {
       expect(headers.Authorization).toBe("Bearer test-token");
     });
 
+    it("sends x-githits-* telemetry headers on REST requests", async () => {
+      // Pins the contract that `GitHitsServiceImpl.headers()` spreads
+      // the telemetry headers onto every REST call, not just that the
+      // shared builder emits them.
+      const fn = mockFetch(() => Promise.resolve(new Response("result")));
+      await service.search({ query: "probe", language: "javascript" });
+
+      const call = fn.mock.calls[0] as unknown as [string, RequestInit];
+      const headers = call[1].headers as Record<string, string>;
+      expect(headers["x-githits-client-name"]).toBe("githits-cli");
+      expect(headers["x-githits-client-version"]).toMatch(/^\S+$/);
+      expect(headers["x-githits-session-id"]).toMatch(/^[0-9a-f]{16}$/);
+    });
+
     it("passes custom license_mode", async () => {
       const fn = mockFetch(() => Promise.resolve(new Response("result")));
 
