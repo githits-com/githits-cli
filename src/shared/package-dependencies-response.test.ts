@@ -149,7 +149,7 @@ describe("buildPackageDependenciesSuccessPayload — transitive block", () => {
     expect(payload.transitive).toBeUndefined();
   });
 
-  it("emits transitive block with preprocessed `packages[]` (drops raw dag + uniqueDependencies)", () => {
+  it("emits transitive block with preprocessed `packages[]` (drops graph + uniqueDependencies)", () => {
     const fixture = clone(defaultDependencyReport);
     fixture.dependencies = {
       direct: fixture.dependencies?.direct,
@@ -157,17 +157,27 @@ describe("buildPackageDependenciesSuccessPayload — transitive block", () => {
         totalEdges: 80,
         uniquePackagesCount: 45,
         uniqueDependencies: ["accepts@2.0.0", "body-parser@2.2.2"],
-        dag: {
-          n: [
-            ["npm", "express", "5.2.1"],
-            ["npm", "accepts", "2.0.0"],
-            ["npm", "body-parser", "2.2.2"],
+        dependencyGraph: {
+          formatVersion: 4,
+          nodes: [
+            { registry: "npm", name: "express", version: "5.2.1" },
+            { registry: "npm", name: "accepts", version: "2.0.0" },
+            { registry: "npm", name: "body-parser", version: "2.2.2" },
           ],
-          e: [
-            [0, 1, "^2.0.0", "runtime"],
-            [0, 2, "^2.2.1", "runtime"],
+          edges: [
+            {
+              fromIndex: 0,
+              toIndex: 1,
+              constraint: "^2.0.0",
+              dependencyType: "runtime",
+            },
+            {
+              fromIndex: 0,
+              toIndex: 2,
+              constraint: "^2.2.1",
+              dependencyType: "runtime",
+            },
           ],
-          v: 4,
         },
       },
     };
@@ -193,11 +203,12 @@ describe("buildPackageDependenciesSuccessPayload — transitive block", () => {
         ],
       },
     ]);
-    // `dag` is no longer in the envelope (deferred to a future typed
-    // `pkg deps-dag` command); `uniqueDependencies` is subsumed by
-    // `packages[]`.
+    // `dependencyGraph` stays on the service-level result for a
+    // future `pkg deps-dag` command; this tool's envelope doesn't
+    // surface it. `uniqueDependencies` is subsumed by `packages[]`.
     expect(
-      (payload.transitive as unknown as Record<string, unknown>).dag,
+      (payload.transitive as unknown as Record<string, unknown>)
+        .dependencyGraph,
     ).toBeUndefined();
     expect(
       (payload.transitive as unknown as Record<string, unknown>)
@@ -205,15 +216,15 @@ describe("buildPackageDependenciesSuccessPayload — transitive block", () => {
     ).toBeUndefined();
   });
 
-  it("omits empty conflicts / circularDependencies arrays", () => {
+  it("omits empty dependencyConflicts / circularDependencyCycles arrays", () => {
     const fixture = clone(defaultDependencyReport);
     fixture.dependencies = {
       direct: fixture.dependencies?.direct,
       transitive: {
         totalEdges: 1,
         uniquePackagesCount: 1,
-        conflicts: [],
-        circularDependencies: [],
+        dependencyConflicts: [],
+        circularDependencyCycles: [],
       },
     };
     const payload = buildPackageDependenciesSuccessPayload(fixture, {
@@ -223,22 +234,34 @@ describe("buildPackageDependenciesSuccessPayload — transitive block", () => {
     expect(payload.transitive?.circularDependencies).toBeUndefined();
   });
 
-  it("preserves GenericJSON conflicts + cycles as opaque passthrough", () => {
+  it("maps typed conflicts / cycles straight to envelope (no raw passthrough)", () => {
     const fixture = clone(defaultDependencyReport);
     fixture.dependencies = {
       direct: [],
       transitive: {
         totalEdges: 0,
         uniquePackagesCount: 0,
-        conflicts: [{ package: "lodash", versions: ["4", "5"] }],
-        circularDependencies: [{ cycle: ["a", "b", "a"] }],
+        dependencyConflicts: [
+          {
+            packageName: "lodash",
+            requiredVersions: ["^4", "^5"],
+            conflictingEdges: [],
+          },
+        ],
+        circularDependencyCycles: [
+          {
+            cycleStart: "a",
+            circularPath: ["a", "b", "a"],
+            displayChain: "a → b → a",
+          },
+        ],
       },
     };
     const payload = buildPackageDependenciesSuccessPayload(fixture, {
       includeTransitive: true,
     });
     expect(payload.transitive?.conflicts).toEqual([
-      { package: "lodash", versions: ["4", "5"] },
+      { name: "lodash", requiredVersions: ["^4", "^5"] },
     ]);
     expect(payload.transitive?.circularDependencies).toEqual([
       { cycle: ["a", "b", "a"] },
@@ -408,11 +431,18 @@ describe("formatPackageDependenciesTerminal — groups view", () => {
     expect(output).toContain("defaultEnabled:");
   });
 
-  it("renders environmentConstraints block under --verbose when backend provides them", () => {
+  it("renders environmentMarkers block under --verbose when backend provides them", () => {
     const fixture: DependencyReport = {
       package: { name: "x", version: "1.0.0", registry: "NPM" },
       dependencyGroups: {
-        environmentConstraints: [{ platform: "linux" }, { platform: "macos" }],
+        environmentMarkers: [
+          { type: "extra", value: "async", raw: 'extra == "async"' },
+          {
+            type: "python_version",
+            value: ">= 3.8",
+            raw: 'python_version >= "3.8"',
+          },
+        ],
         groups: [
           {
             name: "runtime",
@@ -429,15 +459,18 @@ describe("formatPackageDependenciesTerminal — groups view", () => {
       showGroups: true,
       verbose: true,
     });
-    expect(verbose).toContain("environmentConstraints (2):");
-    expect(verbose).toContain('{"platform":"linux"}');
+    expect(verbose).toContain("environmentMarkers (2):");
+    // Typed rendering — type: value per line, no JSON blob.
+    expect(verbose).toContain("extra: async");
+    expect(verbose).toContain("python_version: >= 3.8");
+    expect(verbose).not.toContain('{"type":');
 
     const nonVerbose = formatPackageDependenciesTerminal(fixture, {
       useColors: false,
       showGroups: true,
       verbose: false,
     });
-    expect(nonVerbose).not.toContain("environmentConstraints");
+    expect(nonVerbose).not.toContain("environmentMarkers");
   });
 
   it("renders the filter-matched-nothing case with a helpful message", () => {
@@ -552,20 +585,40 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
         totalEdges: 3,
         uniquePackagesCount: 3,
         uniqueDependencies: ["accepts@2.0.0", "bytes@3.1.2"],
-        dag: {
-          n: [
-            ["npm", "express", "5.2.1"],
-            ["npm", "accepts", "2.0.0"],
-            ["npm", "bytes", "3.1.2"],
-            ["npm", "body-parser", "2.2.2"],
+        dependencyGraph: {
+          formatVersion: 4,
+          nodes: [
+            { registry: "npm", name: "express", version: "5.2.1" },
+            { registry: "npm", name: "accepts", version: "2.0.0" },
+            { registry: "npm", name: "bytes", version: "3.1.2" },
+            { registry: "npm", name: "body-parser", version: "2.2.2" },
           ],
-          e: [
-            [0, 1, "^2.0.0", "runtime"],
-            [0, 3, "^2.2.1", "runtime"],
-            [3, 2, "^3.0.0", "runtime"],
-            [0, 2, "^3.1.0", "runtime"],
+          edges: [
+            {
+              fromIndex: 0,
+              toIndex: 1,
+              constraint: "^2.0.0",
+              dependencyType: "runtime",
+            },
+            {
+              fromIndex: 0,
+              toIndex: 3,
+              constraint: "^2.2.1",
+              dependencyType: "runtime",
+            },
+            {
+              fromIndex: 3,
+              toIndex: 2,
+              constraint: "^3.0.0",
+              dependencyType: "runtime",
+            },
+            {
+              fromIndex: 0,
+              toIndex: 2,
+              constraint: "^3.1.0",
+              dependencyType: "runtime",
+            },
           ],
-          v: 4,
         },
       },
     };
@@ -591,24 +644,54 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
         totalEdges: 5,
         uniquePackagesCount: 5,
         uniqueDependencies: ["leaf@1.0.0"],
-        dag: {
-          n: [
-            ["npm", "root", "1.0.0"],
-            ["npm", "a", "1.0.0"],
-            ["npm", "b", "1.0.0"],
-            ["npm", "c", "1.0.0"],
-            ["npm", "leaf", "1.0.0"],
+        dependencyGraph: {
+          formatVersion: 4,
+          nodes: [
+            { registry: "npm", name: "root", version: "1.0.0" },
+            { registry: "npm", name: "a", version: "1.0.0" },
+            { registry: "npm", name: "b", version: "1.0.0" },
+            { registry: "npm", name: "c", version: "1.0.0" },
+            { registry: "npm", name: "leaf", version: "1.0.0" },
           ],
-          e: [
-            [0, 1, "^1", "runtime"],
-            [0, 2, "^1", "runtime"],
-            [0, 3, "^1", "runtime"],
+          edges: [
+            {
+              fromIndex: 0,
+              toIndex: 1,
+              constraint: "^1",
+              dependencyType: "runtime",
+            },
+            {
+              fromIndex: 0,
+              toIndex: 2,
+              constraint: "^1",
+              dependencyType: "runtime",
+            },
+            {
+              fromIndex: 0,
+              toIndex: 3,
+              constraint: "^1",
+              dependencyType: "runtime",
+            },
             // Three importers all expressing ^1 for leaf — group them.
-            [1, 4, "^1", "runtime"],
-            [2, 4, "^1", "runtime"],
-            [3, 4, "^1", "runtime"],
+            {
+              fromIndex: 1,
+              toIndex: 4,
+              constraint: "^1",
+              dependencyType: "runtime",
+            },
+            {
+              fromIndex: 2,
+              toIndex: 4,
+              constraint: "^1",
+              dependencyType: "runtime",
+            },
+            {
+              fromIndex: 3,
+              toIndex: 4,
+              constraint: "^1",
+              dependencyType: "runtime",
+            },
           ],
-          v: 4,
         },
       },
     };
@@ -686,7 +769,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
     expect(groupsHeadingIdx).toBeGreaterThan(transitiveIdx);
   });
 
-  it("silently omits provenance when DAG shape is undecodable", () => {
+  it("silently omits provenance when the dependency graph isn't fetched", () => {
     const fixture = clone(defaultDependencyReport);
     fixture.dependencies = {
       direct: fixture.dependencies?.direct,
@@ -694,7 +777,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
         totalEdges: 1,
         uniquePackagesCount: 1,
         uniqueDependencies: ["accepts@2.0.0"],
-        dag: { garbage: "shape" },
+        // No dependencyGraph — importers block degrades cleanly.
       },
     };
     const output = formatPackageDependenciesTerminal(fixture, {
@@ -733,13 +816,20 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
       transitive: {
         totalEdges: 2,
         uniquePackagesCount: 2,
-        conflicts: [
+        dependencyConflicts: [
           {
-            package_name: "lodash",
-            required_versions: ["^4", "^5"],
+            packageName: "lodash",
+            requiredVersions: ["^4", "^5"],
+            conflictingEdges: [],
           },
         ],
-        circularDependencies: [{ cycle: ["a", "b", "a"] }],
+        circularDependencyCycles: [
+          {
+            cycleStart: "a",
+            circularPath: ["a", "b", "a"],
+            displayChain: "a → b → a",
+          },
+        ],
       },
     };
     const output = formatPackageDependenciesTerminal(fixture, {
@@ -761,12 +851,27 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
       transitive: {
         totalEdges: 5,
         uniquePackagesCount: 5,
-        conflicts: [
-          { package_name: "a", required_versions: ["1", "2"] },
-          { package_name: "b", required_versions: ["1", "2"] },
-          { package_name: "c", required_versions: ["1", "2"] },
+        dependencyConflicts: [
+          {
+            packageName: "a",
+            requiredVersions: ["1", "2"],
+            conflictingEdges: [],
+          },
+          {
+            packageName: "b",
+            requiredVersions: ["1", "2"],
+            conflictingEdges: [],
+          },
+          {
+            packageName: "c",
+            requiredVersions: ["1", "2"],
+            conflictingEdges: [],
+          },
         ],
-        circularDependencies: [{ cycle: ["x"] }, { cycle: ["y"] }],
+        circularDependencyCycles: [
+          { cycleStart: "x", circularPath: ["x"], displayChain: "x" },
+          { cycleStart: "y", circularPath: ["y"], displayChain: "y" },
+        ],
       },
     };
     const output = formatPackageDependenciesTerminal(fixture, {
@@ -784,22 +889,22 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
       transitive: {
         totalEdges: 2,
         uniquePackagesCount: 2,
-        conflicts: [
+        dependencyConflicts: [
           {
-            package_name: "string-width",
-            required_versions: [
+            packageName: "string-width",
+            requiredVersions: [
               "^4.2.3",
               "^4.2.0",
               "^4.1.0",
               "^5.1.2",
               "^5.0.1",
             ],
-            conflicting_edges: [],
+            conflictingEdges: [],
           },
           {
-            package_name: "emoji-regex",
-            required_versions: ["^8.0.0", "^9.2.2"],
-            conflicting_edges: [],
+            packageName: "emoji-regex",
+            requiredVersions: ["^8.0.0", "^9.2.2"],
+            conflictingEdges: [],
           },
         ],
       },
@@ -815,8 +920,6 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
     expect(output).toMatch(
       /string-width:\s+\^4\.1\.0, \^4\.2\.0, \^4\.2\.3, \^5\.0\.1, \^5\.1\.2/,
     );
-    // No raw JSON blob for a recognised shape.
-    expect(output).not.toContain('{"package_name":');
   });
 
   it("renders typed circular dependencies as `a → b → a` arrow chain under --verbose", () => {
@@ -826,7 +929,13 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
       transitive: {
         totalEdges: 3,
         uniquePackagesCount: 3,
-        circularDependencies: [{ cycle: ["a", "b", "a"] }],
+        circularDependencyCycles: [
+          {
+            cycleStart: "a",
+            circularPath: ["a", "b", "a"],
+            displayChain: "a → b → a",
+          },
+        ],
       },
     };
     const output = formatPackageDependenciesTerminal(fixture, {
@@ -836,29 +945,6 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
     });
     expect(output).toContain("Circular dependencies (1):");
     expect(output).toContain("a → b → a");
-    expect(output).not.toContain('{"cycle":');
-  });
-
-  it("falls back to raw JSON under --verbose when conflict / cycle shape is unknown", () => {
-    const fixture = clone(defaultDependencyReport);
-    fixture.dependencies = {
-      direct: fixture.dependencies?.direct,
-      transitive: {
-        totalEdges: 2,
-        uniquePackagesCount: 2,
-        conflicts: [{ package: "lodash", versions: ["4", "5"] }],
-        circularDependencies: [{ unknown: "shape" }],
-      },
-    };
-    const output = formatPackageDependenciesTerminal(fixture, {
-      useColors: false,
-      includeTransitive: true,
-      verbose: true,
-    });
-    expect(output).toContain("Conflicts (1):");
-    expect(output).toContain("Circular dependencies (1):");
-    expect(output).toContain('{"package":"lodash"');
-    expect(output).toContain('{"unknown":"shape"}');
   });
 
   it("keeps the zero-ack line when neither conflicts nor cycles are present", () => {

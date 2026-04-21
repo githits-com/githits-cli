@@ -160,33 +160,95 @@ export interface DirectDependency {
 }
 
 /**
- * Opaque GenericJSON passthrough from the backend. Shape is not yet
- * typed — see {@link TransitiveDependencySummary} and
- * {@link DependencyGroupsInfo} for the fields that carry this type.
- * Consumers should treat entries as `unknown` until the backend
- * surfaces a typed contract.
- *
- * TODO(pkgseer-backend): replace with a concrete typed union once the
- * backend documents `dag`, `conflicts`, `circularDependencies`, and
- * `environmentConstraints` schemas. Parity tests for the current
- * passthrough behaviour will fail loudly when the types tighten,
- * prompting a deliberate migration.
+ * Opaque GenericJSON passthrough. The `package_dependencies` tool
+ * migrated to typed fields (`dependencyGraph`, `dependencyConflicts`,
+ * `circularDependencyCycles`, `environmentMarkers`); this type is
+ * retained for the one remaining passthrough — `ChangelogEntryDetail.metadata`.
  */
 export type UntypedGenericJSON = unknown;
+
+/**
+ * Node in a typed dependency graph. Mirrors `DependencyGraphNode`.
+ * `registry` is a lowercase string: `"npm"`, `"pypi"`, …, or
+ * `"synthetic"` for manifest / project root nodes. `version` is null
+ * for synthetic roots.
+ */
+export interface DependencyGraphNode {
+  registry: string;
+  name: string;
+  version?: string;
+}
+
+/**
+ * Edge in a typed dependency graph. `fromIndex` / `toIndex` index
+ * into the companion `nodes` list. `fromIndex` is null for
+ * synthetic-root edges emitted by the resolver.
+ */
+export interface DependencyGraphEdge {
+  fromIndex?: number;
+  toIndex: number;
+  /** Caller's declared constraint (e.g. `^4.2.3`). Null for implicit edges. */
+  constraint?: string;
+  /** `runtime` / `dev` / `peer` / `optional` / `circular` or registry-specific. */
+  dependencyType?: string;
+}
+
+export interface DependencyGraph {
+  formatVersion: number;
+  nodes: DependencyGraphNode[];
+  edges: DependencyGraphEdge[];
+}
+
+export interface DependencyConflictEdge {
+  /** Index into `DependencyGraph.nodes`. Null for synthetic-root edges. */
+  fromIndex?: number;
+  /** Index into `DependencyGraph.nodes`. Never null. */
+  toIndex: number;
+  versionConstraint: string;
+  dependencyType: string;
+}
+
+export interface DependencyConflict {
+  packageName: string;
+  requiredVersions: string[];
+  conflictingEdges: DependencyConflictEdge[];
+}
+
+export interface CircularDependencyCycle {
+  cycleStart: string;
+  /** Ordered node names, with the starting node repeated at the end. */
+  circularPath: string[];
+  /** Pre-joined human-readable display, e.g. `"a → b → c → a"`. */
+  displayChain: string;
+}
+
+export interface EnvironmentMarker {
+  /** `extra` / `python_version` / `sys_platform` / `cfg` / …; null when unclassified. */
+  type?: string;
+  /** Marker value (e.g. `async`, `>= 3.8`). Null when raw-only. */
+  value?: string;
+  /** Original unparsed marker text as it appeared in the package manifest. */
+  raw?: string;
+}
 
 export interface TransitiveDependencySummary {
   totalEdges?: number;
   uniquePackagesCount?: number;
   uniqueDependencies?: string[];
-  /** TODO(pkgseer-backend): type once real shapes are observed. */
-  conflicts?: UntypedGenericJSON[];
-  /** TODO(pkgseer-backend): type once real shapes are observed. */
-  circularDependencies?: UntypedGenericJSON[];
   /**
-   * Raw DAG blob; backend-defined `GenericJSON` passthrough.
-   * TODO(pkgseer-backend): type once real shapes are observed.
+   * Typed conflict list. Each `conflictingEdges[].fromIndex` /
+   * `toIndex` indexes into `dependencyGraph.nodes`.
    */
-  dag?: UntypedGenericJSON;
+  dependencyConflicts?: DependencyConflict[];
+  /** Typed circular-dependency cycles. */
+  circularDependencyCycles?: CircularDependencyCycle[];
+  /**
+   * Typed directed-acyclic-graph of transitive dependencies. Kept on
+   * the service-level result so the future `pkg deps-dag` command can
+   * consume it without re-querying; deliberately not surfaced on the
+   * `package_dependencies` envelope.
+   */
+  dependencyGraph?: DependencyGraph;
 }
 
 export interface DependencyBundle {
@@ -214,8 +276,7 @@ export interface DependencyGroup {
 
 export interface DependencyGroupsInfo {
   primaryGroup?: string;
-  /** TODO(pkgseer-backend): type once real shapes are observed. */
-  environmentConstraints?: UntypedGenericJSON[];
+  environmentMarkers?: EnvironmentMarker[];
   groups: DependencyGroup[];
 }
 
@@ -648,14 +709,64 @@ const directDependencySchema = z.object({
   type: z.string().nullable().optional(),
 });
 
+const dependencyGraphNodeSchema = z.object({
+  registry: z.string(),
+  name: z.string(),
+  version: z.string().nullable().optional(),
+});
+
+const dependencyGraphEdgeSchema = z.object({
+  fromIndex: z.number().int().nullable().optional(),
+  toIndex: z.number().int(),
+  constraint: z.string().nullable().optional(),
+  dependencyType: z.string().nullable().optional(),
+});
+
+const dependencyGraphSchema = z.object({
+  formatVersion: z.number().int(),
+  nodes: z.array(dependencyGraphNodeSchema),
+  edges: z.array(dependencyGraphEdgeSchema),
+});
+
+const dependencyConflictEdgeSchema = z.object({
+  fromIndex: z.number().int().nullable().optional(),
+  toIndex: z.number().int(),
+  versionConstraint: z.string(),
+  dependencyType: z.string(),
+});
+
+const dependencyConflictSchema = z.object({
+  packageName: z.string(),
+  requiredVersions: z.array(z.string()),
+  conflictingEdges: z.array(dependencyConflictEdgeSchema),
+});
+
+const circularDependencyCycleSchema = z.object({
+  cycleStart: z.string(),
+  circularPath: z.array(z.string()),
+  displayChain: z.string(),
+});
+
+const environmentMarkerSchema = z.object({
+  type: z.string().nullable().optional(),
+  value: z.string().nullable().optional(),
+  raw: z.string().nullable().optional(),
+});
+
 const transitiveDependencySchema = z
   .object({
     totalEdges: z.number().int().nullable().optional(),
     uniquePackagesCount: z.number().int().nullable().optional(),
     uniqueDependencies: z.array(z.string()).nullable().optional(),
-    conflicts: z.array(z.unknown()).nullable().optional(),
-    circularDependencies: z.array(z.unknown()).nullable().optional(),
-    dag: z.unknown().nullable().optional(),
+    dependencyConflicts: z
+      .array(dependencyConflictSchema)
+      .nullable()
+      .optional(),
+    circularDependencyCycles: z
+      .array(circularDependencyCycleSchema)
+      .nullable()
+      .optional(),
+    dependencyGraph: dependencyGraphSchema.nullable().optional(),
   })
   .nullable()
   .optional();
@@ -689,7 +800,7 @@ const dependencyGroupSchema = z.object({
 const dependencyGroupsInfoSchema = z
   .object({
     primaryGroup: z.string().nullable().optional(),
-    environmentConstraints: z.array(z.unknown()).nullable().optional(),
+    environmentMarkers: z.array(environmentMarkerSchema).nullable().optional(),
     groups: z.array(dependencyGroupSchema),
   })
   .nullable()
@@ -747,14 +858,44 @@ query PackageDependencies(
         totalEdges
         uniquePackagesCount
         uniqueDependencies
-        conflicts
-        circularDependencies
-        dag
+        dependencyConflicts {
+          packageName
+          requiredVersions
+          conflictingEdges {
+            fromIndex
+            toIndex
+            versionConstraint
+            dependencyType
+          }
+        }
+        circularDependencyCycles {
+          cycleStart
+          circularPath
+          displayChain
+        }
+        dependencyGraph {
+          formatVersion
+          nodes {
+            registry
+            name
+            version
+          }
+          edges {
+            fromIndex
+            toIndex
+            constraint
+            dependencyType
+          }
+        }
       }
     }
     dependencyGroups {
       primaryGroup
-      environmentConstraints
+      environmentMarkers {
+        type
+        value
+        raw
+      }
       groups {
         name
         lifecycle
@@ -1344,10 +1485,44 @@ export class PackageIntelligenceServiceImpl
                   bundle.transitive.uniquePackagesCount ?? undefined,
                 uniqueDependencies:
                   bundle.transitive.uniqueDependencies ?? undefined,
-                conflicts: bundle.transitive.conflicts ?? undefined,
-                circularDependencies:
-                  bundle.transitive.circularDependencies ?? undefined,
-                dag: bundle.transitive.dag ?? undefined,
+                dependencyConflicts:
+                  bundle.transitive.dependencyConflicts?.map((c) => ({
+                    packageName: c.packageName,
+                    requiredVersions: c.requiredVersions,
+                    conflictingEdges: c.conflictingEdges.map((edge) => ({
+                      fromIndex: edge.fromIndex ?? undefined,
+                      toIndex: edge.toIndex,
+                      versionConstraint: edge.versionConstraint,
+                      dependencyType: edge.dependencyType,
+                    })),
+                  })) ?? undefined,
+                circularDependencyCycles:
+                  bundle.transitive.circularDependencyCycles?.map((cycle) => ({
+                    cycleStart: cycle.cycleStart,
+                    circularPath: cycle.circularPath,
+                    displayChain: cycle.displayChain,
+                  })) ?? undefined,
+                dependencyGraph: bundle.transitive.dependencyGraph
+                  ? {
+                      formatVersion:
+                        bundle.transitive.dependencyGraph.formatVersion,
+                      nodes: bundle.transitive.dependencyGraph.nodes.map(
+                        (n) => ({
+                          registry: n.registry,
+                          name: n.name,
+                          version: n.version ?? undefined,
+                        }),
+                      ),
+                      edges: bundle.transitive.dependencyGraph.edges.map(
+                        (e) => ({
+                          fromIndex: e.fromIndex ?? undefined,
+                          toIndex: e.toIndex,
+                          constraint: e.constraint ?? undefined,
+                          dependencyType: e.dependencyType ?? undefined,
+                        }),
+                      ),
+                    }
+                  : undefined,
               }
             : undefined,
         }
@@ -1357,8 +1532,12 @@ export class PackageIntelligenceServiceImpl
       data.dependencyGroups
         ? {
             primaryGroup: data.dependencyGroups.primaryGroup ?? undefined,
-            environmentConstraints:
-              data.dependencyGroups.environmentConstraints ?? undefined,
+            environmentMarkers:
+              data.dependencyGroups.environmentMarkers?.map((m) => ({
+                type: m.type ?? undefined,
+                value: m.value ?? undefined,
+                raw: m.raw ?? undefined,
+              })) ?? undefined,
             groups: data.dependencyGroups.groups.map((group) => ({
               name: group.name,
               lifecycle: group.lifecycle,

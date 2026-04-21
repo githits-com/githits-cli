@@ -262,15 +262,22 @@ describe("package_dependencies parity", () => {
           totalEdges: 80,
           uniquePackagesCount: 45,
           uniqueDependencies: ["accepts@2.0.0"],
-          conflicts: [],
-          circularDependencies: [],
-          dag: {
-            n: [
-              ["npm", "express", "5.2.1"],
-              ["npm", "accepts", "2.0.0"],
+          dependencyConflicts: [],
+          circularDependencyCycles: [],
+          dependencyGraph: {
+            formatVersion: 4,
+            nodes: [
+              { registry: "npm", name: "express", version: "5.2.1" },
+              { registry: "npm", name: "accepts", version: "2.0.0" },
             ],
-            e: [[0, 1, "^2.0.0", "runtime"]],
-            v: 4,
+            edges: [
+              {
+                fromIndex: 0,
+                toIndex: 1,
+                constraint: "^2.0.0",
+                dependencyType: "runtime",
+              },
+            ],
           },
         },
       },
@@ -300,7 +307,11 @@ describe("package_dependencies parity", () => {
     expect(cli).toEqual(json);
     const transitiveEnvelope = (
       cli as {
-        transitive?: { packages?: unknown[]; dag?: unknown };
+        transitive?: {
+          packages?: unknown[];
+          dependencyGraph?: unknown;
+          dag?: unknown;
+        };
       }
     ).transitive;
     expect(transitiveEnvelope?.packages).toEqual([
@@ -312,6 +323,10 @@ describe("package_dependencies parity", () => {
         ],
       },
     ]);
+    // Neither the typed `dependencyGraph` nor the legacy `dag` is
+    // surfaced on this tool's envelope — both remain internal to
+    // the service-level result.
+    expect(transitiveEnvelope?.dependencyGraph).toBeUndefined();
     expect(transitiveEnvelope?.dag).toBeUndefined();
   });
 
@@ -324,15 +339,22 @@ describe("package_dependencies parity", () => {
           totalEdges: 1,
           uniquePackagesCount: 1,
           uniqueDependencies: ["accepts@2.0.0"],
-          conflicts: [],
-          circularDependencies: [],
-          dag: {
-            n: [
-              ["npm", "express", "5.2.1"],
-              ["npm", "accepts", "2.0.0"],
+          dependencyConflicts: [],
+          circularDependencyCycles: [],
+          dependencyGraph: {
+            formatVersion: 4,
+            nodes: [
+              { registry: "npm", name: "express", version: "5.2.1" },
+              { registry: "npm", name: "accepts", version: "2.0.0" },
             ],
-            e: [[0, 1, "^2.0.0", "runtime"]],
-            v: 4,
+            edges: [
+              {
+                fromIndex: 0,
+                toIndex: 1,
+                constraint: "^2.0.0",
+                dependencyType: "runtime",
+              },
+            ],
           },
         },
       },

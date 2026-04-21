@@ -158,15 +158,22 @@ describe("createPackageDependenciesTool — happy path", () => {
             totalEdges: 1,
             uniquePackagesCount: 1,
             uniqueDependencies: ["accepts@2.0.0"],
-            conflicts: [],
-            circularDependencies: [],
-            dag: {
-              n: [
-                ["npm", "express", "5.2.1"],
-                ["npm", "accepts", "2.0.0"],
+            dependencyConflicts: [],
+            circularDependencyCycles: [],
+            dependencyGraph: {
+              formatVersion: 4,
+              nodes: [
+                { registry: "npm", name: "express", version: "5.2.1" },
+                { registry: "npm", name: "accepts", version: "2.0.0" },
               ],
-              e: [[0, 1, "^2.0.0", "runtime"]],
-              v: 4,
+              edges: [
+                {
+                  fromIndex: 0,
+                  toIndex: 1,
+                  constraint: "^2.0.0",
+                  dependencyType: "runtime",
+                },
+              ],
             },
           },
         },

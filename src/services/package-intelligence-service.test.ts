@@ -1110,7 +1110,7 @@ describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
         },
         dependencyGroups: {
           primaryGroup: null,
-          environmentConstraints: null,
+          environmentMarkers: null,
           groups: [
             {
               name: "runtime",
