@@ -477,7 +477,7 @@ query SearchSymbols(
       hint
     }
     warning
-    indexingStatus
+    codeIndexState
     indexingRef
     availableVersions {
       version
@@ -529,7 +529,7 @@ const searchSymbolsResponseSchema = z.object({
     .nullable()
     .optional(),
   warning: z.string().nullable().optional(),
-  indexingStatus: z.string(),
+  codeIndexState: z.string(),
   indexingRef: z.string().nullable().optional(),
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
 });
@@ -542,7 +542,7 @@ const graphQLErrorSchema = z.object({
 // --------------------------------------------------------------------
 // Zod schemas + queries for the file-exploration bundle.
 // `listRepoFiles` / `fetchCodeContext` / `grepRepoFile` share the same
-// indexing lifecycle (`indexingStatus` + `indexingRef` +
+// indexing lifecycle (`codeIndexState` + `indexingRef` +
 // `availableVersions`) but otherwise have distinct result shapes —
 // normalise per tool rather than under one abstraction.
 // --------------------------------------------------------------------
@@ -581,7 +581,7 @@ const listRepoFilesResponseSchema = z.object({
   indexedVersion: z.string().nullable().optional(),
   resolution: navigationResolutionSchema,
   diagnostics: navigationDiagnosticsSchema,
-  indexingStatus: z.string(),
+  codeIndexState: z.string(),
   indexingRef: z.string().nullable().optional(),
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
 });
@@ -636,7 +636,7 @@ query ListRepoFiles(
     diagnostics {
       hint
     }
-    indexingStatus
+    codeIndexState
     indexingRef
     availableVersions {
       version
@@ -659,7 +659,7 @@ const codeContextResponseSchema = z.object({
   repoUrl: z.string().nullable().optional(),
   gitRef: z.string().nullable().optional(),
   isBinary: z.boolean().nullable().optional(),
-  indexingStatus: z.string(),
+  codeIndexState: z.string(),
   indexingRef: z.string().nullable().optional(),
 });
 
@@ -705,7 +705,7 @@ query FetchCodeContext(
     repoUrl
     gitRef
     isBinary
-    indexingStatus
+    codeIndexState
     indexingRef
   }
 }`;
@@ -729,7 +729,7 @@ const grepRepoFileResponseSchema = z.object({
   indexedVersion: z.string().nullable().optional(),
   resolution: navigationResolutionSchema,
   diagnostics: navigationDiagnosticsSchema,
-  indexingStatus: z.string(),
+  codeIndexState: z.string(),
   indexingRef: z.string().nullable().optional(),
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
 });
@@ -790,7 +790,7 @@ query GrepRepoFile(
     diagnostics {
       hint
     }
-    indexingStatus
+    codeIndexState
     indexingRef
     availableVersions {
       version
@@ -901,7 +901,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       );
     }
 
-    if (data.indexingStatus === "INDEXING") {
+    if (data.codeIndexState === "INDEXING") {
       throw new CodeNavigationIndexingError(
         this.createIndexingMessage(data.indexingRef ?? undefined),
         data.indexingRef ?? undefined,
@@ -912,7 +912,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       );
     }
 
-    if (data.indexingStatus === "UNRESOLVABLE") {
+    if (data.codeIndexState === "UNRESOLVABLE") {
       throw new CodeNavigationUnresolvableError(
         "The requested target or version could not be resolved.",
       );
@@ -1107,17 +1107,17 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
 
   /**
    * Shared sentinel-promotion for the file-exploration tools. When the backend
-   * response carries `indexingStatus: "INDEXING"` (data-path variant),
+   * response carries `codeIndexState: "INDEXING"` (data-path variant),
    * throw the typed error so the envelope builder / caller never sees
    * the raw sentinel. Mirrors the inline check `searchSymbols` does
    * today.
    */
   private throwIfIndexing(data: {
-    indexingStatus: string;
+    codeIndexState: string;
     indexingRef?: string | null;
     availableVersions?: Array<{ version?: string | null; ref: string }> | null;
   }): void {
-    if (data.indexingStatus === "INDEXING") {
+    if (data.codeIndexState === "INDEXING") {
       throw new CodeNavigationIndexingError(
         this.createIndexingMessage(data.indexingRef ?? undefined),
         data.indexingRef ?? undefined,
@@ -1296,7 +1296,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     // `fetchCodeContext` doesn't return availableVersions; pass a
     // minimal object to the shared helper.
     this.throwIfIndexing({
-      indexingStatus: data.indexingStatus,
+      codeIndexState: data.codeIndexState,
       indexingRef: data.indexingRef,
     });
 

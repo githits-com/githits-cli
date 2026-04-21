@@ -7,7 +7,7 @@
  *   `resolution` when backend returned one; `hint` when empty
  *   results carry a backend diagnostic.
  * - **No indexing metadata in the success envelope.** Service
- *   promotes `indexingStatus: INDEXING` to a typed error first.
+ *   promotes `codeIndexState: INDEXING` to a typed error first.
  * - **`filter.*` echoes only caller-supplied inputs.**
  * - **Regex-char heuristic on empty results (terminal-only).** If
  *   the pattern looks like unambiguous regex AND zero matches,

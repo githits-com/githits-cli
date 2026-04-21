@@ -121,7 +121,7 @@ These three indexing-gated tools share an addressing and lifecycle contract (doc
 
 ### Indexing lifecycle (shared across `search_symbols`, `list_files`, `read_file`, `grep_file`)
 
-All four code-navigation tools share the same indexing-retry contract. The state can arrive through either an error response or a success sentinel, and the service layer collapses both to the same typed `CodeNavigationIndexingError` before the envelope builder runs. Agents therefore never see an `indexingStatus` field in a success envelope; they branch on the error path instead.
+All four code-navigation tools share the same indexing-retry contract. The state can arrive through either an error response or a success sentinel (`codeIndexState: "INDEXING"`), and the service layer collapses both to the same typed `CodeNavigationIndexingError` before the envelope builder runs. Agents therefore never see a `codeIndexState` field in a success envelope; they branch on the error path instead.
 
 **`INDEXING` error envelope**:
 ```json
