@@ -2,11 +2,12 @@
 
 ## Purpose
 
-Both the MCP tool (`search_symbols`) and the CLI command (`githits code
-search`) expose the code-navigation feature. Users and agents should be
-able to cross the surface boundary without learning a new shape —
-parameter names differ per surface convention, but defaults, error
-behaviour, and the serialised payload do not.
+This document started with `search_symbols` ↔ `githits code search`,
+then expanded into the parity pattern used by the rest of the hidden
+package/code tooling. Users and agents should be able to cross the
+surface boundary without learning a new payload shape — parameter names
+can differ per surface convention, but defaults, error behaviour, and
+the serialised envelopes do not.
 
 This document is **the pattern and checklist derived from
 `search_symbols`**, not a permanent contract for every future
@@ -27,8 +28,8 @@ the test suite anchors the doc.
 - **CLI flags** use `--kebab-case`. They are the user-facing surface.
 - **Public enum values** are lowercase strings on both surfaces
   (`production`, `test`, `summary`, `all`).
-- **Backend coercion** from lowercase enum values to the uppercase
-  GraphQL enum variants lives in `src/shared/code-navigation.ts`
+- **Service coercion** from lowercase enum values to the internal
+  request enums lives in `src/shared/code-navigation.ts`
   (`toSearchSymbolsFileIntent`, `toSearchSymbolsKind`,
   `toSearchSymbolsMatchMode`).
 
@@ -74,9 +75,8 @@ the test suite anchors the doc.
 - `fileIntent` is echoed as a lowercase enum value, or the literal
   `"all"` when the caller chose the all-intents sentinel.
 - `returnedCount` is an explicit echo of `results.length`.
-  `totalMatches` is the backend-provided total (equal to
-  `returnedCount` today; see backend request B2 for the future
-  upgrade).
+- `totalMatches` is the service-provided total (equal to
+  `returnedCount` today).
 
 ### `PARITY-ERROR-ENVELOPE`
 
@@ -116,9 +116,8 @@ When a new tool lands with both MCP and CLI surfaces:
 - [ ] Parity test at `src/tools/<tool>-parity.test.ts` that cites the
   rule IDs it enforces (in a file header comment). Covers at minimum:
   successful search, zero-result, two error codes.
-- [ ] MCP tool description mirrored in the backend MCP server before
-  public release (coordination point — the CLI may lead; the backend
-  PR URL is recorded in the plan doc before the frontend PR merges).
+- [ ] MCP tool description mirrored across every shipped MCP surface
+  before public release.
 
 ## Non-goals
 
@@ -142,7 +141,7 @@ When a new tool lands with both MCP and CLI surfaces:
 |---|---|
 | `src/shared/code-navigation-defaults.ts` | Canonical defaults and sentinels. |
 | `src/shared/code-navigation-error-map.ts` | `mapCodeNavigationError` classifier and `MappedError` union. |
-| `src/shared/pkgseer-graphql.ts` | Low-level authenticated POST helper shared by every service that talks to the upstream endpoint. |
+| `src/shared/pkgseer-graphql.ts` | Low-level authenticated package/source POST helper shared by the service clients. |
 | `src/shared/pkgseer-registry.ts` | Registry taxonomy (`PkgseerRegistry` union + lowercase↔uppercase converters). |
 | `src/shared/search-symbols-request.ts` | Shared request builder for `search_symbols`. |
 | `src/shared/search-symbols-response.ts` | Shared JSON envelope builders for `search_symbols`. |
@@ -219,7 +218,7 @@ When a new tool lands with both MCP and CLI surfaces:
   single validator used by both surfaces; raw Zod errors never
   surface in the envelope.
 - **Filter-aware summary.** `minSeverity` + `includeWithdrawn` go
-  straight to the GraphQL query; the backend's `vulnerabilityCount`
+  straight to the service; the returned `vulnerabilityCount`
   reflects the filtered set. No client-side filtering, no
   `summary.filtered` dual-block.
 - **Partitioning bySeverity buckets.** `summary.bySeverity` carries
@@ -251,7 +250,7 @@ When a new tool lands with both MCP and CLI surfaces:
     input (`v4.18.0`).
 - **Typed `VERSION_NOT_FOUND`.** Mirrors the code-nav precedent:
   `PackageIntelligenceVersionNotFoundError` carries structured
-  fields sourced from GraphQL `extensions` (`packageName`,
+  fields sourced from the service response (`packageName`,
   `requestedVersion`, `availableVersions`). The classifier emits
   structured `details` in the error envelope.
 - **Client-side `v`-prefix rejection.** `package_vulnerabilities`
@@ -320,11 +319,11 @@ When a new tool lands with both MCP and CLI surfaces:
 
 - **Dual addressing — the only pkg-intel tool with it.** `registry`
   + `package_name` XOR `repo_url` on both surfaces. Justified because
-  `packageChangelog` is intrinsically repo-level on the backend (its
+  `packageChangelog` is intrinsically repo-level (its
   sources are GitHub Releases, CHANGELOG.md, HexDocs); repo-URL
-  isn't a bolt-on, it's a peer addressing mode on the GraphQL
+  isn't a bolt-on, it's a peer addressing mode on the service
   signature. `package_summary` / `package_vulnerabilities` /
-  `package_dependencies` omit it because their backend queries are
+  `package_dependencies` omit it because their queries are
   registry-metadata APIs without repo-URL alternatives. Future
   pkg-intel tool authors should not cargo-cult the asymmetry.
 - **`<spec>@<version>` rejected.** Other `pkg` commands give

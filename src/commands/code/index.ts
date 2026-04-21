@@ -59,7 +59,7 @@ export async function registerCodeCommandGroup(
     .command("code")
     .summary("Source-level operations on indexed dependencies")
     .description(
-      "Search, list, read, and grep inside indexed dependency source code. Every command accepts either `<spec>` (registry:name[@version]) or `--repo-url <url> --git-ref <ref>`. For package-level metadata (versions, vulnerabilities, dependencies, changelog) use `githits pkg`.",
+      "Search exact tokens, list files, read files, and grep substrings inside indexed dependency source. Every command accepts either `<spec>` (registry:name[@version]) or `--repo-url <url> --git-ref <ref>`. For package-level metadata (versions, vulnerabilities, dependencies, changelog) use `githits pkg`.",
     );
 
   registerCodeSearchSymbolsCommand(codeCommand);
