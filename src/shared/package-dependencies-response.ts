@@ -18,25 +18,24 @@
  *   `includeImporters` populates per-package `importers[]` with the
  *   upstream node name, its own version, and the constraint it
  *   declared — the same signal the terminal `--verbose` view
- *   renders, but derived client-side so agents don't have to decode
- *   the backend's `GenericJSON` DAG themselves.
- * - **Typed conflicts / cycles with raw fallback.** `transitive.conflicts`
- *   and `transitive.circularDependencies` ship as typed arrays
- *   (`{name, requiredVersions}` / `{cycle: string[]}`) when every
- *   entry decodes against the observed backend shape. If any entry
- *   fails we fall back to raw `GenericJSON[]` passthrough for that
- *   field so no data is silently lost — agents discriminate by
- *   checking for the typed fields on the first element.
+ *   renders, derived client-side from the typed dependency graph
+ *   so agents never see the graph directly.
+ * - **Typed conflicts / cycles.** `transitive.conflicts` is
+ *   `{name, requiredVersions}[]`; `transitive.circularDependencies`
+ *   is `{cycle: string[]}[]`. Both map from the backend's typed
+ *   `DependencyConflict` / `CircularDependencyCycle` shapes — no
+ *   raw-fallback path.
  * - **Null vs empty matters.** `dependencyGroups: null` → omit
  *   `groups` entirely ("backend has no groups concept"). Non-null
  *   with zero members after filtering → `groups: { items: [] }`
  *   ("filter matched nothing").
- * - **No raw DAG, no `uniqueDependencies`.** The backend DAG is
- *   deliberately not exposed from this tool's envelope — a future
- *   `pkg deps-dag` command will surface it under a typed contract
- *   for graph visualisation. `uniqueDependencies` is subsumed by
- *   `packages[]`. `groups.environmentConstraints` remains raw
- *   `GenericJSON[]` pending a live observation to type it against.
+ * - **No DAG in the envelope.** The typed `dependencyGraph` sits on
+ *   the service-layer result for internal lookups (direct-version
+ *   resolution, importer provenance) and for a future `pkg deps-dag`
+ *   command; this tool's envelope deliberately doesn't surface it.
+ * - **Typed environment markers.** `groups.environmentMarkers` maps
+ *   the backend's typed `{type, value, raw}` marker list. No raw-JSON
+ *   passthrough.
  * - **No v-prefix normalisation.** Tag-style inputs are rejected in
  *   the request builder before we get here.
  * - **Terminal-only dedup.** JSON preserves every tuple the backend
@@ -45,9 +44,10 @@
  */
 
 import type {
+  DependencyGraph,
   DependencyGroup,
   DependencyReport,
-  UntypedGenericJSON,
+  EnvironmentMarker,
 } from "../services/index.js";
 import { colorize, dim } from "./colors.js";
 import type { DependencyLifecycle } from "./package-dependencies-request.js";
@@ -76,6 +76,12 @@ export interface LeanGroupDependency {
   constraint?: string;
 }
 
+export interface LeanEnvironmentMarker {
+  type?: string;
+  value?: string;
+  raw?: string;
+}
+
 export interface LeanGroup {
   name: string;
   lifecycle: string;
@@ -91,7 +97,7 @@ export interface LeanGroup {
 
 export interface LeanGroupsBlock {
   primaryGroup?: string;
-  environmentConstraints?: UntypedGenericJSON[];
+  environmentMarkers?: LeanEnvironmentMarker[];
   items: LeanGroup[];
 }
 
@@ -107,9 +113,9 @@ export interface LeanTransitivePackage {
   name: string;
   version?: string;
   /**
-   * Importers for this package. Present when the DAG was decodable.
-   * Empty when the package is the root (no incoming edges) or when
-   * decoding failed for this node.
+   * Importers for this package. Present when the DAG was available
+   * and the node resolved. Empty when the package is the root (no
+   * incoming edges).
    */
   importers?: LeanTransitiveImporter[];
 }
@@ -134,23 +140,12 @@ export interface LeanTransitiveBlock {
   depth?: number;
   /**
    * Per-transitive-package records with resolved version + importer
-   * provenance. Preprocessed from the backend's DAG so agents
-   * consume the same signal the CLI `--verbose` view renders without
-   * having to decode `GenericJSON` themselves.
+   * provenance. Preprocessed from the backend's typed dependency graph
+   * so agents consume the same signal the CLI `--verbose` view renders.
    */
   packages?: LeanTransitivePackage[];
-  /**
-   * Typed when every entry decoded against the observed backend
-   * shape (`{ package_name, required_versions }`). Raw passthrough
-   * otherwise — agents can discriminate by checking for `name` /
-   * `requiredVersions` fields.
-   */
-  conflicts?: LeanTypedConflict[] | UntypedGenericJSON[];
-  /**
-   * Typed when every entry decoded (observed: `{ cycle: string[] }`).
-   * Raw passthrough otherwise.
-   */
-  circularDependencies?: LeanTypedCycle[] | UntypedGenericJSON[];
+  conflicts?: LeanTypedConflict[];
+  circularDependencies?: LeanTypedCycle[];
 }
 
 export interface LeanFilterBlock {
@@ -215,14 +210,10 @@ export function buildPackageDependenciesSuccessPayload(
   }
 
   const bundle = report.dependencies;
-  // Decode the DAG up front; used both for direct-dep version lookup
-  // (always, when the DAG was fetched) and for verbose-mode importer
-  // provenance later. Falls back to null on unknown shapes; each
-  // consumer handles the absence gracefully.
-  const decodedDagForResolution = decodeDag(bundle?.transitive?.dag);
-  const directVersionByName = decodedDagForResolution
-    ? buildDirectVersionLookup(decodedDagForResolution)
-    : null;
+  // Direct-version lookup uses the typed dependency graph's
+  // root-outgoing edges. Null when the graph wasn't fetched.
+  const graph = bundle?.transitive?.dependencyGraph ?? null;
+  const directVersionByName = graph ? buildDirectVersionLookup(graph) : null;
 
   const directArray = bundle?.direct;
   if (directArray !== undefined) {
@@ -240,11 +231,12 @@ export function buildPackageDependenciesSuccessPayload(
       groupsBlock.primaryGroup = groupsInfo.primaryGroup;
     }
     if (
-      groupsInfo.environmentConstraints &&
-      groupsInfo.environmentConstraints.length > 0
+      groupsInfo.environmentMarkers &&
+      groupsInfo.environmentMarkers.length > 0
     ) {
-      groupsBlock.environmentConstraints =
-        groupsInfo.environmentConstraints.slice();
+      groupsBlock.environmentMarkers = groupsInfo.environmentMarkers.map((m) =>
+        projectEnvironmentMarker(m),
+      );
     }
     payload.groups = groupsBlock;
   }
@@ -264,21 +256,27 @@ export function buildPackageDependenciesSuccessPayload(
       }
       const packages = buildTransitivePackages(
         transitive.uniqueDependencies,
-        decodedDagForResolution,
+        graph,
         options.includeImporters ?? false,
       );
       if (packages && packages.length > 0) {
         block.packages = packages;
       }
-      if (transitive.conflicts && transitive.conflicts.length > 0) {
-        block.conflicts = buildTypedConflicts(transitive.conflicts);
+      if (
+        transitive.dependencyConflicts &&
+        transitive.dependencyConflicts.length > 0
+      ) {
+        block.conflicts = transitive.dependencyConflicts.map((c) => ({
+          name: c.packageName,
+          requiredVersions: c.requiredVersions.slice().sort(),
+        }));
       }
       if (
-        transitive.circularDependencies &&
-        transitive.circularDependencies.length > 0
+        transitive.circularDependencyCycles &&
+        transitive.circularDependencyCycles.length > 0
       ) {
-        block.circularDependencies = buildTypedCycles(
-          transitive.circularDependencies,
+        block.circularDependencies = transitive.circularDependencyCycles.map(
+          (c) => ({ cycle: c.circularPath.slice() }),
         );
       }
       payload.transitive = block;
@@ -290,6 +288,16 @@ export function buildPackageDependenciesSuccessPayload(
   }
 
   return payload;
+}
+
+function projectEnvironmentMarker(
+  marker: EnvironmentMarker,
+): LeanEnvironmentMarker {
+  const out: LeanEnvironmentMarker = {};
+  if (marker.type !== undefined) out.type = marker.type;
+  if (marker.value !== undefined) out.value = marker.value;
+  if (marker.raw !== undefined) out.raw = marker.raw;
+  return out;
 }
 
 function buildDirect(
@@ -304,18 +312,24 @@ function buildDirect(
 }
 
 /**
- * Build a `name → resolved version` lookup for direct deps by scanning
- * the DAG's outgoing edges from the root node. Used during envelope
- * construction to annotate `runtime.items[].version` whenever the DAG
- * is available.
+ * Build a `name → resolved version` lookup for direct deps by walking
+ * edges whose `fromIndex` points at the graph's root (the node with
+ * no incoming edges). Returns null when the graph has no single root
+ * — synthetic-root edges (`fromIndex: null`) are treated as
+ * originating from the root as well.
  */
-function buildDirectVersionLookup(dag: DecodedDag): Map<string, string> | null {
-  const rootIdx = findRootNodeIdx(dag);
-  if (rootIdx === null) return null;
+function buildDirectVersionLookup(
+  graph: DependencyGraph,
+): Map<string, string> | null {
+  const rootIdx = findRootNodeIdx(graph);
   const out = new Map<string, string>();
-  for (const edge of dag.edges) {
-    if (edge.fromIdx !== rootIdx) continue;
-    const node = dag.nodes[edge.toIdx];
+  for (const edge of graph.edges) {
+    const fromRoot =
+      edge.fromIndex === undefined ||
+      edge.fromIndex === null ||
+      edge.fromIndex === rootIdx;
+    if (!fromRoot) continue;
+    const node = graph.nodes[edge.toIndex];
     if (!node || !node.version) continue;
     if (!out.has(node.name)) {
       out.set(node.name, node.version);
@@ -324,11 +338,11 @@ function buildDirectVersionLookup(dag: DecodedDag): Map<string, string> | null {
   return out.size > 0 ? out : null;
 }
 
-function findRootNodeIdx(dag: DecodedDag): number | null {
+function findRootNodeIdx(graph: DependencyGraph): number | null {
   const incoming = new Set<number>();
-  for (const e of dag.edges) incoming.add(e.toIdx);
+  for (const e of graph.edges) incoming.add(e.toIndex);
   let root: number | null = null;
-  for (let i = 0; i < dag.nodes.length; i++) {
+  for (let i = 0; i < graph.nodes.length; i++) {
     if (!incoming.has(i)) {
       if (root !== null) return null; // ambiguous — multiple roots
       root = i;
@@ -340,21 +354,21 @@ function findRootNodeIdx(dag: DecodedDag): number | null {
 /**
  * Build the preprocessed `transitive.packages[]` array. Each entry
  * carries the name + resolved version (from the backend's
- * `uniqueDependencies` list) plus importer provenance when the DAG
- * decoded successfully. Agents consume this directly rather than
- * reverse-engineering the raw DAG — same source of truth the
- * terminal `--verbose` renderer reads from.
+ * `uniqueDependencies` list) plus importer provenance when the graph
+ * was fetched. Agents consume this directly rather than the raw
+ * dependency graph.
  */
 function buildTransitivePackages(
   uniqueDependencies: string[] | undefined,
-  dag: DecodedDag | null,
+  graph: DependencyGraph | null,
   includeImporters: boolean,
 ): LeanTransitivePackage[] | null {
   if (!uniqueDependencies || uniqueDependencies.length === 0) return null;
 
   // Build a name→importers lookup once — only needed when we're
   // actually emitting importers.
-  const incoming = includeImporters && dag ? buildIncomingEdgeMap(dag) : null;
+  const incoming =
+    includeImporters && graph ? buildIncomingEdgeMap(graph) : null;
 
   const out: LeanTransitivePackage[] = [];
   for (const entry of uniqueDependencies) {
@@ -363,11 +377,11 @@ function buildTransitivePackages(
     const record: LeanTransitivePackage = { name };
     if (version) record.version = version;
 
-    if (includeImporters && dag && incoming) {
-      const nodeIdx = findNodeIdx(dag, name, version);
+    if (includeImporters && graph && incoming) {
+      const nodeIdx = findNodeIdx(graph, name, version);
       if (nodeIdx !== null) {
         const edges = incoming.get(nodeIdx) ?? [];
-        const importers = buildImportersFromEdges(dag, edges);
+        const importers = buildImportersFromEdges(graph, edges);
         if (importers.length > 0) record.importers = importers;
       }
     }
@@ -385,26 +399,28 @@ function parseNameAtVersion(raw: string): [string | null, string | undefined] {
   return [trimmed.slice(0, atIdx), trimmed.slice(atIdx + 1)];
 }
 
-function buildIncomingEdgeMap(dag: DecodedDag): Map<number, DagEdge[]> {
-  const map = new Map<number, DagEdge[]>();
-  for (const edge of dag.edges) {
-    const list = map.get(edge.toIdx);
+function buildIncomingEdgeMap(
+  graph: DependencyGraph,
+): Map<number, DependencyGraph["edges"]> {
+  const map = new Map<number, DependencyGraph["edges"]>();
+  for (const edge of graph.edges) {
+    const list = map.get(edge.toIndex);
     if (list) list.push(edge);
-    else map.set(edge.toIdx, [edge]);
+    else map.set(edge.toIndex, [edge]);
   }
   return map;
 }
 
 function findNodeIdx(
-  dag: DecodedDag,
+  graph: DependencyGraph,
   name: string,
   version: string | undefined,
 ): number | null {
   // Prefer exact name+version match. Fall back to name-only when
-  // version is absent or the DAG's node carries no version.
+  // version is absent or the graph's node carries no version.
   let fallback: number | null = null;
-  for (let i = 0; i < dag.nodes.length; i++) {
-    const n = dag.nodes[i];
+  for (let i = 0; i < graph.nodes.length; i++) {
+    const n = graph.nodes[i];
     if (!n) continue;
     if (n.name !== name) continue;
     if (version && n.version === version) return i;
@@ -415,13 +431,17 @@ function findNodeIdx(
 }
 
 function buildImportersFromEdges(
-  dag: DecodedDag,
-  edges: DagEdge[],
+  graph: DependencyGraph,
+  edges: DependencyGraph["edges"],
 ): LeanTransitiveImporter[] {
   const seen = new Set<string>();
   const out: LeanTransitiveImporter[] = [];
   for (const edge of edges) {
-    const from = dag.nodes[edge.fromIdx];
+    // Synthetic-root edges have `fromIndex: null` — skip; the root
+    // is the package itself and doesn't need to show up as an
+    // importer of its direct deps.
+    if (edge.fromIndex === undefined || edge.fromIndex === null) continue;
+    const from = graph.nodes[edge.fromIndex];
     if (!from) continue;
     const key = `${from.name}\u0000${from.version ?? ""}\u0000${edge.constraint ?? ""}`;
     if (seen.has(key)) continue;
@@ -441,79 +461,6 @@ function buildImportersFromEdges(
     return ac < bc ? -1 : ac > bc ? 1 : 0;
   });
   return out;
-}
-
-/**
- * Promote `transitive.conflicts[]` to typed objects when every entry
- * matches the observed backend shape (`{ package_name,
- * required_versions }`). Falls back to the raw array when any entry
- * fails to decode — agents can discriminate by checking for `name` /
- * `requiredVersions` keys on the first element.
- */
-function buildTypedConflicts(
-  raw: UntypedGenericJSON[],
-): LeanTypedConflict[] | UntypedGenericJSON[] {
-  const typed: LeanTypedConflict[] = [];
-  for (const entry of raw) {
-    const decoded = decodeConflictEntryForEnvelope(entry);
-    if (!decoded) return raw.slice(); // fall back to raw passthrough
-    typed.push(decoded);
-  }
-  return typed;
-}
-
-function decodeConflictEntryForEnvelope(
-  raw: unknown,
-): LeanTypedConflict | null {
-  if (!raw || typeof raw !== "object") return null;
-  const obj = raw as Record<string, unknown>;
-  const name =
-    typeof obj.package_name === "string"
-      ? obj.package_name
-      : typeof obj.packageName === "string"
-        ? obj.packageName
-        : null;
-  if (!name) return null;
-  const rangesRaw = obj.required_versions ?? obj.requiredVersions;
-  if (!Array.isArray(rangesRaw)) return null;
-  const ranges: string[] = [];
-  for (const r of rangesRaw) {
-    if (typeof r === "string" && r.length > 0 && !ranges.includes(r)) {
-      ranges.push(r);
-    }
-  }
-  if (ranges.length === 0) return null;
-  ranges.sort();
-  return { name, requiredVersions: ranges };
-}
-
-/**
- * Promote `transitive.circularDependencies[]` to typed objects when
- * every entry matches the expected `{ cycle: string[] }` shape.
- * Raw-passthrough fallback otherwise.
- */
-function buildTypedCycles(
-  raw: UntypedGenericJSON[],
-): LeanTypedCycle[] | UntypedGenericJSON[] {
-  const typed: LeanTypedCycle[] = [];
-  for (const entry of raw) {
-    const decoded = decodeCycleEntryForEnvelope(entry);
-    if (!decoded) return raw.slice();
-    typed.push({ cycle: decoded });
-  }
-  return typed;
-}
-
-function decodeCycleEntryForEnvelope(raw: unknown): string[] | null {
-  if (Array.isArray(raw) && raw.every((x) => typeof x === "string")) {
-    return raw as string[];
-  }
-  if (!raw || typeof raw !== "object") return null;
-  const obj = raw as Record<string, unknown>;
-  const source = obj.cycle ?? obj.packages ?? obj.path;
-  if (!Array.isArray(source)) return null;
-  const names = source.filter((x): x is string => typeof x === "string");
-  return names.length > 0 ? names : null;
 }
 
 function buildGroup(group: DependencyGroup): LeanGroup {
@@ -603,8 +550,7 @@ function lowerRegistry(value: string | undefined): string {
  *   if you asked for transitive, you get it all.
  * - **`--verbose` with `--transitive` adds provenance.** Each
  *   transitive entry gets `(required by <importer>@<constraint>, …)`
- *   derived from the DAG edges. Best-effort decoding; if the DAG
- *   shape drifts, provenance silently degrades (list still renders).
+ *   derived from the typed dependency graph.
  * - **Groups is a separate block below the deps list.** Shown when
  *   `--groups` or `--lifecycle` is set, composes cleanly with either
  *   the direct or transitive deps list above.
@@ -899,18 +845,13 @@ function formatConflictsAndCycles(
     lines.push(
       colorize(`Conflicts (${conflicts.length}):`, "yellow", useColors),
     );
-    const typed = isTypedConflictArray(conflicts) ? conflicts : null;
-    if (typed) {
-      const nameWidth = Math.max(...typed.map((c) => c.name.length));
-      const sorted = [...typed].sort((a, b) =>
-        a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
-      );
-      for (const c of sorted) {
-        const padded = `${c.name}:`.padEnd(nameWidth + 2);
-        lines.push(`  ${padded}  ${c.requiredVersions.join(", ")}`);
-      }
-    } else {
-      for (const c of conflicts) lines.push(`  ${JSON.stringify(c)}`);
+    const nameWidth = Math.max(...conflicts.map((c) => c.name.length));
+    const sorted = [...conflicts].sort((a, b) =>
+      a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+    );
+    for (const c of sorted) {
+      const padded = `${c.name}:`.padEnd(nameWidth + 2);
+      lines.push(`  ${padded}  ${c.requiredVersions.join(", ")}`);
     }
   }
   if (cycles.length > 0) {
@@ -918,33 +859,10 @@ function formatConflictsAndCycles(
     lines.push(
       colorize(`Circular dependencies (${cycles.length}):`, "red", useColors),
     );
-    const typed = isTypedCycleArray(cycles) ? cycles : null;
-    if (typed) {
-      for (const c of typed) lines.push(`  ${c.cycle.join(" → ")}`);
-    } else {
-      for (const c of cycles) lines.push(`  ${JSON.stringify(c)}`);
-    }
+    for (const c of cycles) lines.push(`  ${c.cycle.join(" → ")}`);
   }
 
   return lines.join("\n");
-}
-
-function isTypedConflictArray(
-  arr: LeanTypedConflict[] | UntypedGenericJSON[],
-): arr is LeanTypedConflict[] {
-  const first = arr[0];
-  if (!first || typeof first !== "object") return false;
-  const obj = first as Record<string, unknown>;
-  return typeof obj.name === "string" && Array.isArray(obj.requiredVersions);
-}
-
-function isTypedCycleArray(
-  arr: LeanTypedCycle[] | UntypedGenericJSON[],
-): arr is LeanTypedCycle[] {
-  const first = arr[0];
-  if (!first || typeof first !== "object") return false;
-  const obj = first as Record<string, unknown>;
-  return Array.isArray(obj.cycle);
 }
 
 // --------------------------------------------------------------------
@@ -981,17 +899,17 @@ function formatGroupsBlock(
 
   if (
     verbose &&
-    groups.environmentConstraints &&
-    groups.environmentConstraints.length > 0
+    groups.environmentMarkers &&
+    groups.environmentMarkers.length > 0
   ) {
     lines.push(
       dim(
-        `environmentConstraints (${groups.environmentConstraints.length}):`,
+        `environmentMarkers (${groups.environmentMarkers.length}):`,
         useColors,
       ),
     );
-    for (const entry of groups.environmentConstraints) {
-      lines.push(dim(`  ${JSON.stringify(entry)}`, useColors));
+    for (const marker of groups.environmentMarkers) {
+      lines.push(dim(`  ${formatEnvironmentMarker(marker)}`, useColors));
     }
     lines.push("");
   }
@@ -1023,6 +941,18 @@ function formatGroupsBlock(
   }
 
   return lines.join("\n").trimEnd();
+}
+
+/**
+ * Render a typed environment marker as `type: value` (falling back
+ * to the raw text when either field is missing). Keeps verbose
+ * output compact — one line per marker.
+ */
+function formatEnvironmentMarker(marker: LeanEnvironmentMarker): string {
+  if (marker.type && marker.value) return `${marker.type}: ${marker.value}`;
+  if (marker.value) return marker.value;
+  if (marker.type) return marker.type;
+  return marker.raw ?? "(empty marker)";
 }
 
 function formatGroupHeading(group: LeanGroup, registry: string): string {
@@ -1112,141 +1042,4 @@ function sortAlphabetically<T>(
     const kb = key(b);
     return ka < kb ? -1 : ka > kb ? 1 : 0;
   });
-}
-
-// --------------------------------------------------------------------
-// Best-effort DAG decoder + provenance lookup
-//
-// Backend declares `transitive.dag` as `GenericJSON`. The shape we've
-// observed live (npm, PyPI, Crates) is:
-//
-//   {
-//     n: Array<[registry, name, version]>  // node list, indexed by position
-//     e: Array<[fromIdx, toIdx, constraint?, lifecycle?]>
-//     v: number                            // format version marker
-//   }
-//
-// The decoder also tolerates an alternative object-shape
-// variant (`n: { id: { n, v?, l? } }`) so that if backend
-// formats diverge we don't break the terminal — provenance just
-// silently stops rendering.
-// --------------------------------------------------------------------
-
-interface DagNode {
-  name: string;
-  version?: string;
-  registry?: string;
-}
-
-interface DagEdge {
-  fromIdx: number;
-  toIdx: number;
-  constraint?: string;
-  lifecycle?: string;
-}
-
-interface DecodedDag {
-  nodes: DagNode[];
-  edges: DagEdge[];
-}
-
-function decodeDag(raw: unknown): DecodedDag | null {
-  if (!raw || typeof raw !== "object") return null;
-  const obj = raw as Record<string, unknown>;
-  const rawNodes = obj.n ?? obj.nodes;
-  const rawEdges = obj.e ?? obj.edges;
-
-  const nodes = decodeNodes(rawNodes);
-  if (!nodes) return null;
-  const edges = decodeEdges(rawEdges);
-  if (!edges) return null;
-  return { nodes, edges };
-}
-
-function decodeNodes(raw: unknown): DagNode[] | null {
-  if (Array.isArray(raw)) {
-    // Tuple form: [registry, name, version]
-    const result: DagNode[] = [];
-    for (const entry of raw) {
-      if (!Array.isArray(entry)) {
-        if (typeof entry === "object" && entry !== null) {
-          const n = decodeObjectNode(entry as Record<string, unknown>);
-          if (!n) return null;
-          result.push(n);
-          continue;
-        }
-        return null;
-      }
-      const [registry, name, version] = entry as unknown[];
-      if (typeof name !== "string") return null;
-      result.push({
-        name,
-        version: typeof version === "string" ? version : undefined,
-        registry: typeof registry === "string" ? registry : undefined,
-      });
-    }
-    return result;
-  }
-  if (raw && typeof raw === "object") {
-    // Object form: { "<id>": { n: name, v?: version, l?: label } }
-    const result: DagNode[] = [];
-    for (const entry of Object.values(raw as Record<string, unknown>)) {
-      if (!entry || typeof entry !== "object") return null;
-      const n = decodeObjectNode(entry as Record<string, unknown>);
-      if (!n) return null;
-      result.push(n);
-    }
-    return result;
-  }
-  return null;
-}
-
-function decodeObjectNode(entry: Record<string, unknown>): DagNode | null {
-  const name =
-    typeof entry.n === "string"
-      ? entry.n
-      : typeof entry.name === "string"
-        ? entry.name
-        : null;
-  if (!name) return null;
-  const version =
-    typeof entry.v === "string"
-      ? entry.v
-      : typeof entry.version === "string"
-        ? entry.version
-        : undefined;
-  return { name, version };
-}
-
-function decodeEdges(raw: unknown): DagEdge[] | null {
-  if (!Array.isArray(raw)) return null;
-  const out: DagEdge[] = [];
-  for (const entry of raw) {
-    if (Array.isArray(entry)) {
-      const [from, to, constraint, lifecycle] = entry as unknown[];
-      if (typeof from !== "number" || typeof to !== "number") return null;
-      out.push({
-        fromIdx: from,
-        toIdx: to,
-        constraint: typeof constraint === "string" ? constraint : undefined,
-        lifecycle: typeof lifecycle === "string" ? lifecycle : undefined,
-      });
-      continue;
-    }
-    if (entry && typeof entry === "object") {
-      const obj = entry as Record<string, unknown>;
-      const from = obj.f ?? obj.from;
-      const to = obj.t ?? obj.to;
-      if (typeof from !== "number" || typeof to !== "number") return null;
-      out.push({
-        fromIdx: from,
-        toIdx: to,
-        constraint: typeof obj.c === "string" ? obj.c : undefined,
-        lifecycle: typeof obj.l === "string" ? obj.l : undefined,
-      });
-      continue;
-    }
-    return null;
-  }
-  return out;
 }
