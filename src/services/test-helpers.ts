@@ -21,6 +21,7 @@ import type { FileSystemService } from "./filesystem-service.js";
 import type { GitHitsService } from "./githits-service.js";
 import type { KeyringService } from "./keyring-service.js";
 import type {
+  ChangelogReport,
   DependencyReport,
   PackageIntelligenceService,
   PackageSummary,
@@ -493,6 +494,39 @@ export const cratesFeatureDependencyReport: DependencyReport = {
 };
 
 /**
+ * Default changelog fixture — express with two GitHub Releases entries.
+ * Covers the common shape: resolved `releases` source, populated body
+ * markdown, ISO date, and a normalisedVersion that equals the raw.
+ */
+export const defaultChangelogReport: ChangelogReport = {
+  package: {
+    name: "express",
+    registry: "npm",
+    repoUrl: undefined,
+    fromVersion: undefined,
+    toVersion: undefined,
+    limit: 10,
+  },
+  source: "releases",
+  entries: [
+    {
+      version: "5.2.1",
+      normalizedVersion: "5.2.1",
+      publishedAt: "2026-01-15T12:00:00Z",
+      htmlUrl: "https://github.com/expressjs/express/releases/tag/5.2.1",
+      body: "## Patch\n- fixed a thing",
+    },
+    {
+      version: "5.2.0",
+      normalizedVersion: "5.2.0",
+      publishedAt: "2025-12-10T09:00:00Z",
+      htmlUrl: "https://github.com/expressjs/express/releases/tag/5.2.0",
+      body: "## Minor\n- added WebSocket support",
+    },
+  ],
+};
+
+/**
  * Creates a mock PackageIntelligenceService. Defaults resolve to the
  * fully-populated fixtures; override per-test as needed.
  */
@@ -505,6 +539,7 @@ export function createMockPackageIntelligenceService(
       Promise.resolve(defaultVulnerabilityReport),
     ),
     packageDependencies: mock(() => Promise.resolve(defaultDependencyReport)),
+    packageChangelog: mock(() => Promise.resolve(defaultChangelogReport)),
     ...impl,
   };
 }

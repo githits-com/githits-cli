@@ -16,6 +16,7 @@ The CLI exposes three primary commands (`search`, `languages`, `feedback`) that 
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates) |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--groups`, `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig) |
+| `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
 
 ### `githits init`
 
@@ -185,6 +186,43 @@ Analyses dependencies for a package on npm, PyPI, Hex, Crates, vcpkg, or Zig. De
 **Capability gate.** Same as `pkg info` / `pkg vulns` (inherits from the `code_navigation` token capability).
 
 **Troubleshooting.** Same debug areas as `pkg info` / `pkg vulns` (`GITHITS_DEBUG=pkg-intel` for classified errors; `GITHITS_DEBUG=pkg-graphql` for transport failures).
+
+### `githits pkg changelog`
+
+```
+githits pkg changelog npm:express
+githits pkg changelog npm:express --from 4.0.0
+githits pkg changelog npm:express --to 4.18.0 --limit 5
+githits pkg changelog --repo-url https://github.com/expressjs/express --git-ref main
+githits pkg changelog npm:express --json
+githits pkg changelog pypi:requests --no-body --json       # lean timeline
+```
+
+Fetches release notes or changelog entries for a package or GitHub repository. Output is a newest-first list with a summary header identifying the source (GitHub Releases, CHANGELOG.md, or HexDocs).
+
+**Addressing.** `<spec>` (`registry:name`, same parser as `pkg info` / `pkg vulns` / `pkg deps`) **or** `--repo-url <url>`, mutually exclusive. Unlike the other `pkg` commands, `pkg changelog` is intrinsically repo-level on the backend — its sources live on the repo, not the registry — so repo-URL addressing is a first-class peer mode.
+
+**`<spec>@<version>` rejected.** `pkg vulns` and `pkg deps` both treat `@version` as "for this exact version", but `pkg changelog` has no single-version query: all entries live on a timeline. Remapping `@version` to `--to` would be a silent semantic shift. CLI rejects with `INVALID_ARGUMENT` and a hint pointing to `--to <version>` (or `--from <version>` for range mode).
+
+**Two modes.** Latest mode is the default; `--limit <n>` (1–50, backend default 10) caps entry count. `--from <version>` switches to range mode — returns every entry between `--from` and `--to` (or latest) with no count cap. `--to <version>` works in either mode. `--from` + `--limit` together is rejected client-side with a hint.
+
+**Pre-release versions.** Backend-normalised versions flow through unchanged (`5.0.0-rc.1`, `2.32.0.dev0`, `1.7.0-rc.5` round-trip cleanly on `--from` / `--to`). Tag-style `v`-prefixed inputs are rejected on any version flag, consistent with `pkg vulns` / `pkg deps`.
+
+**Default terminal output.** Summary header (`name · registry · source · mode · entry count`) followed by each entry's `version  date  url` header plus the first 10 lines of its markdown body, indented and dimmed. Bodies longer than the cap show a footer `… (+N more lines — use --verbose for the full body)`. Missing dates render as `—`; missing versions render as `(unversioned)`. The version column is padded to the longest entry in the current response (no fixed width).
+
+**`--verbose`.** Uncaps the body preview — every entry's full markdown body renders, indented and dimmed, with no truncation footer. Terminal-only — does not change `--json` output.
+
+**`--no-body`.** Drops body fields from entries. Affects both terminal output (no body preview, no footer) and `--json` (entry objects lose the `body` field). Mirrors MCP's `include_bodies: false`. Default `--json` keeps full markdown bodies; use `--no-body` when you only need the version / date / URL timeline (drops 10 KB+ per entry on large release notes — measured 5.13× size reduction on `npm:typescript --limit 20`).
+
+**JSON envelope.** `{registry?, name?, repoUrl?, source, mode, entries: {count, items}, filter?}`. `source` is always present (the null-source case is promoted to `NOT_FOUND` at the service boundary and never reaches this shape). `entries.count` is computed client-side from `items.length`. `filter` emits only when the caller explicitly supplied one of `--from`, `--to`, `--limit`, `--git-ref`; backend defaults don't round-trip as caller intent.
+
+**Per-entry shape.** `{version, normalizedVersion?, publishedAt?, htmlUrl?, body?}`. `version` is kept even when null so agents can map `items.map(e => e.version)` without guarding; other nullable fields are stripped. The backend's opaque per-entry `metadata` GenericJSON is deliberately dropped from the envelope — revisit via agent feedback.
+
+**Errors.** `NOT_FOUND` covers both the backend's "package not found" case and the distinct "package exists but no changelog source resolved" case (typed `PackageIntelligenceChangelogSourceNotFoundError`; message names the sources that were tried). `VERSION_NOT_FOUND` enriches with structured `package` / `requested` / `available` detail lines from the shared `promoteGenericVersionNotFound` helper — which was extended in this PR to recognise `--from` and `--to` as promotable version inputs.
+
+**Capability gate.** Same as the rest of the `pkg` family (inherits from the `code_navigation` token capability).
+
+**Troubleshooting.** Same debug areas (`GITHITS_DEBUG=pkg-intel` for classified errors; `GITHITS_DEBUG=pkg-graphql` for transport failures).
 
 ## Architecture
 

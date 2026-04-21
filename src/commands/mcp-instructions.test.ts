@@ -50,6 +50,7 @@ const KNOWN_TOOLS = [
   "package_summary",
   "package_vulnerabilities",
   "package_dependencies",
+  "package_changelog",
 ] as const;
 
 function mentionedTools(instructions: string): Set<string> {
@@ -106,6 +107,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).not.toContain("package_summary");
     expect(instructions).not.toContain("package_vulnerabilities");
     expect(instructions).not.toContain("package_dependencies");
+    expect(instructions).not.toContain("package_changelog");
     expect(instructions).not.toContain("search_symbols");
   });
 
@@ -123,6 +125,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("`package_summary`");
     expect(instructions).toContain("`package_vulnerabilities`");
     expect(instructions).toContain("`package_dependencies`");
+    expect(instructions).toContain("`package_changelog`");
     expect(instructions).toContain("`search_symbols`");
   });
 
@@ -179,6 +182,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("`package_summary`");
     expect(instructions).toContain("`package_vulnerabilities`");
     expect(instructions).toContain("`package_dependencies`");
+    expect(instructions).toContain("`package_changelog`");
     expect(instructions).not.toContain("`search_symbols`");
     // The decision tip references search_symbols, so it must not
     // appear when search_symbols isn't registered.
@@ -246,6 +250,7 @@ describe("buildMcpInstructions", () => {
           "package_summary",
           "package_vulnerabilities",
           "package_dependencies",
+          "package_changelog",
         ];
         for (const name of packageTools) {
           if (registered.has(name)) {

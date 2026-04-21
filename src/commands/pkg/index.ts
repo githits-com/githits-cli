@@ -6,6 +6,7 @@ import {
   getEnvApiToken,
   isCodeNavigationCliOverrideEnabled,
 } from "../../services/index.js";
+import { registerPkgChangelogCommand } from "./changelog.js";
 import { registerPkgDepsCommand } from "./deps.js";
 import { registerPkgInfoCommand } from "./info.js";
 import { registerPkgVulnsCommand } from "./vulns.js";
@@ -75,4 +76,5 @@ export async function registerPkgCommandGroup(
   registerPkgInfoCommand(pkgCommand);
   registerPkgVulnsCommand(pkgCommand);
   registerPkgDepsCommand(pkgCommand);
+  registerPkgChangelogCommand(pkgCommand);
 }

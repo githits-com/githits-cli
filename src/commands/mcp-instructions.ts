@@ -32,6 +32,9 @@ const PACKAGE_VULNERABILITIES_BULLET =
 const PACKAGE_DEPENDENCIES_BULLET =
   "- `package_dependencies` — direct runtime deps plus, when the backend has them, dev / peer / optional / feature groups. Pass `lifecycle` to filter groups server-side, or `include_transitive` for the full graph, conflict detection, and circular-dependency flags. Supports npm, PyPI, Hex, Crates, vcpkg, and Zig.";
 
+const PACKAGE_CHANGELOG_BULLET =
+  "- `package_changelog` — release notes for a package or GitHub repo, newest-first. Default latest mode returns the 10 most recent entries with full markdown bodies; `from_version` switches to range mode between two versions. Addressable via `registry` + `package_name` or `repo_url`. Set `include_bodies: false` for a version / date / URL timeline when bodies aren't needed.";
+
 const SEARCH_SYMBOLS_BULLET =
   "- `search_symbols` — text search across a dependency's source. On an INDEXING response, retry with a larger `wait_timeout_ms` (up to 60000).";
 
@@ -79,6 +82,7 @@ export function buildMcpInstructions(deps: Dependencies): string {
     bullets.push(PACKAGE_SUMMARY_BULLET);
     bullets.push(PACKAGE_VULNERABILITIES_BULLET);
     bullets.push(PACKAGE_DEPENDENCIES_BULLET);
+    bullets.push(PACKAGE_CHANGELOG_BULLET);
   }
   if (deps.codeNavigationService) {
     bullets.push(SEARCH_SYMBOLS_BULLET);
