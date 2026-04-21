@@ -9,7 +9,7 @@
  *   `resolution` appears whenever the backend returned one; `hint`
  *   appears when empty results carry a backend diagnostic.
  * - **No indexing metadata in the success envelope.** The service
- *   layer promotes `indexingStatus: INDEXING` to a typed error
+ *   layer promotes `codeIndexState: INDEXING` to a typed error
  *   before the envelope builder runs, so agents never branch on a
  *   data-path indexing flag.
  * - **`filter.*` echoes only caller-supplied inputs.** The default
