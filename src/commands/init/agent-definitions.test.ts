@@ -618,6 +618,7 @@ describe("getSetupConfig", () => {
       expect(config.commands[0]!.command).toBe("gemini");
       expect(config.commands[0]!.args).toContain("extensions");
       expect(config.commands[0]!.args).toContain("install");
+      expect(config.commands[0]!.args).toContain("--consent");
       expect(config.commands[0]!.args).toContain(
         "https://github.com/githits-com/githits-cli",
       );
@@ -804,6 +805,7 @@ describe("scanAgents", () => {
   function createScanMocks(opts: {
     detectedDirs: string[];
     configFiles?: Record<string, string>;
+    existingFiles?: string[];
     execResults?: Record<string, ExecResult | Error>;
   }) {
     const fs = createMockFileSystemService({
@@ -818,6 +820,9 @@ describe("scanAgents", () => {
         }
         throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
       }),
+      exists: mock(async (path: string) =>
+        (opts.existingFiles ?? []).includes(path),
+      ),
     });
     const execService = createMockExecService({
       exec: mock(async (cmd: string, args: string[]) => {
@@ -878,6 +883,35 @@ describe("scanAgents", () => {
       true,
     );
     expect(result.needsSetup.some((a) => a.id === "claude-code")).toBe(false);
+  });
+
+  it("categorizes gemini CLI as alreadyConfigured for config check outputs", async () => {
+    const lookupCmd = lookupCommandFor();
+    const outputs = ["", "configured\n", "extension settings\n"];
+
+    for (const output of outputs) {
+      const { fs, execService } = createScanMocks({
+        detectedDirs: [],
+        execResults: {
+          [`${lookupCmd} gemini`]: {
+            exitCode: 0,
+            stdout: "/usr/bin/gemini\n",
+            stderr: "",
+          },
+          "gemini extensions config githits": {
+            exitCode: 0,
+            stdout: output,
+            stderr: "",
+          },
+        },
+      });
+
+      const result = await scanAgents(agentDefinitions, fs, execService);
+      expect(result.alreadyConfigured.some((a) => a.id === "gemini-cli")).toBe(
+        true,
+      );
+      expect(result.needsSetup.some((a) => a.id === "gemini-cli")).toBe(false);
+    }
   });
 
   it("categorizes CLI agent as needsSetup when check command does not match", async () => {
@@ -1146,7 +1180,7 @@ describe("scanAgents", () => {
         stdout: "/usr/bin/gemini\n",
         stderr: "",
       },
-      "gemini extensions list": {
+      "gemini extensions config githits": {
         exitCode: 0,
         stdout: "githits-cli\n",
         stderr: "",
@@ -1332,7 +1366,7 @@ describe("scanAgents", () => {
             },
             "claude plugin list": enoent,
             "codex mcp list": enoent,
-            "gemini extensions list": enoent,
+            "gemini extensions config githits": enoent,
           },
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
@@ -1342,6 +1376,79 @@ describe("scanAgents", () => {
         expect(result.needsSetup.some((a) => a.id === "codex-cli")).toBe(true);
         expect(result.needsSetup.some((a) => a.id === "gemini-cli")).toBe(true);
         expect(result.alreadyConfigured).toHaveLength(0);
+      });
+
+      it("gemini falls back to filesystem when config probe is unavailable", async () => {
+        const enoent = Object.assign(new Error("spawn ENOENT"), {
+          code: "ENOENT",
+        });
+        const { fs, execService } = createScanMocks({
+          detectedDirs: ["/home/test/.gemini/extensions/githits"],
+          existingFiles: [
+            "/home/test/.gemini/extensions/githits/gemini-extension.json",
+          ],
+          execResults: {
+            [`${whichCmd} gemini`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/gemini\n",
+              stderr: "",
+            },
+            "gemini extensions config githits": enoent,
+          },
+        });
+        const result = await scanAgents(agentDefinitions, fs, execService);
+        expect(
+          result.alreadyConfigured.some((a) => a.id === "gemini-cli"),
+        ).toBe(true);
+        expect(result.needsSetup.some((a) => a.id === "gemini-cli")).toBe(
+          false,
+        );
+      });
+
+      it("gemini config probe reports not installed as needsSetup", async () => {
+        const { fs, execService } = createScanMocks({
+          detectedDirs: [],
+          execResults: {
+            [`${whichCmd} gemini`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/gemini\n",
+              stderr: "",
+            },
+            "gemini extensions config githits": {
+              exitCode: 0,
+              stdout: "",
+              stderr: 'Extension "githits" is not installed.\n',
+            },
+          },
+        });
+        const result = await scanAgents(agentDefinitions, fs, execService);
+        expect(result.needsSetup.some((a) => a.id === "gemini-cli")).toBe(true);
+      });
+
+      it("gemini does not use filesystem fallback when probe explicitly reports not installed", async () => {
+        const { fs, execService } = createScanMocks({
+          detectedDirs: ["/home/test/.gemini/extensions/githits"],
+          existingFiles: [
+            "/home/test/.gemini/extensions/githits/gemini-extension.json",
+          ],
+          execResults: {
+            [`${whichCmd} gemini`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/gemini\n",
+              stderr: "",
+            },
+            "gemini extensions config githits": {
+              exitCode: 0,
+              stdout: "",
+              stderr: 'Extension "githits" is not installed.\n',
+            },
+          },
+        });
+        const result = await scanAgents(agentDefinitions, fs, execService);
+        expect(result.needsSetup.some((a) => a.id === "gemini-cli")).toBe(true);
+        expect(
+          result.alreadyConfigured.some((a) => a.id === "gemini-cli"),
+        ).toBe(false);
       });
     });
   }

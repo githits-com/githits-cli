@@ -269,8 +269,8 @@ describe("initAction", () => {
       },
     );
 
-    // 4 binary detections + 1 check + 2 setup commands = 7 exec calls
-    expect(execService.exec).toHaveBeenCalledTimes(7);
+    // 4 binary detections + 1 check + 2 setup commands + 2 post-setup verification calls = 9
+    expect(execService.exec).toHaveBeenCalledTimes(9);
     expect(execService.exec).toHaveBeenCalledWith("claude", expect.any(Array));
   });
 
@@ -418,6 +418,134 @@ describe("initAction", () => {
     // Both should be attempted
     expect(execService.exec).toHaveBeenCalled();
     expect(fs.atomicWriteFile).toHaveBeenCalled();
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("Setup completed with errors")),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Done! GitHits is ready"))).toBe(
+      false,
+    );
+    expect(logCalls.some((msg) => msg.includes("- Claude Code:"))).toBe(true);
+  });
+
+  it("treats Gemini already-installed setup output as already configured", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    const promptService = createMockPromptService({
+      confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+    });
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} gemini`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/gemini\n",
+            stderr: "",
+          });
+        }
+        if (key === "gemini extensions config githits") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "",
+            stderr: "",
+          });
+        }
+        if (
+          key ===
+          "gemini extensions install --consent https://github.com/githits-com/githits-cli"
+        ) {
+          return Promise.resolve({
+            exitCode: 1,
+            stdout: "",
+            stderr:
+              'Extension "githits" is already installed. Please uninstall it first.\n',
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("Gemini CLI") && msg.includes("already configured"),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("failed to configure"))).toBe(
+      false,
+    );
+  });
+
+  it("marks Gemini setup as failed when install does not actually configure extension", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    const promptService = createMockPromptService({
+      confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+    });
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} gemini`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/gemini\n",
+            stderr: "",
+          });
+        }
+        if (key === "gemini extensions config githits") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "",
+            stderr: 'Extension "githits" is not installed.\n',
+          });
+        }
+        if (
+          key ===
+          "gemini extensions install --consent https://github.com/githits-com/githits-cli"
+        ) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Do you want to continue? [Y/n]: ",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Gemini installation did not complete"),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("failed to configure"))).toBe(
+      true,
+    );
+    expect(logCalls.some((msg) => msg.includes("- Gemini CLI:"))).toBe(true);
   });
 
   it("does not attempt Gemini setup when only .gemini directory exists", async () => {
