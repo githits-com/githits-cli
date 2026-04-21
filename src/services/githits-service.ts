@@ -1,4 +1,5 @@
 import { version } from "../../package.json";
+import { buildClientHeaders } from "../shared/request-headers.js";
 
 /**
  * Error thrown when the API returns 401 Unauthorized.
@@ -138,6 +139,7 @@ export class GitHitsServiceImpl implements GitHitsService {
 
   private headers(): Record<string, string> {
     return {
+      ...buildClientHeaders(),
       Authorization: `Bearer ${this.token}`,
       "Content-Type": "application/json",
       "User-Agent": `githits-cli/${version}`,

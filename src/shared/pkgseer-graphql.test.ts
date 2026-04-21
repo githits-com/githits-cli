@@ -148,6 +148,33 @@ describe("postPkgseerGraphql", () => {
     expect(capturedHeaders?.["User-Agent"]).toMatch(/^githits-cli\/\S+$/);
   });
 
+  it("sends x-githits-* telemetry headers from buildClientHeaders", async () => {
+    // Pins the contract that the transport layer spreads the
+    // telemetry headers onto every request — not just that the
+    // module under `src/shared/request-headers.ts` builds them.
+    let capturedHeaders: Record<string, string> | undefined;
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      capturedHeaders = init?.headers as Record<string, string>;
+      return Promise.resolve(makeResponse(VALID_JSON));
+    });
+
+    await postPkgseerGraphql({
+      endpointUrl: ENDPOINT,
+      token: TOKEN,
+      query: "query { x }",
+      variables: {},
+      fetchFn: asFetchFn(fetchFn),
+    });
+
+    expect(capturedHeaders?.["x-githits-client-name"]).toBe("githits-cli");
+    expect(capturedHeaders?.["x-githits-client-version"]).toMatch(/^\S+$/);
+    expect(capturedHeaders?.["x-githits-session-id"]).toMatch(/^[0-9a-f]{16}$/);
+    // Authorization still wins over any hypothetical x-githits-*
+    // collision — spread order (headers first, hardcoded second)
+    // guarantees this, but pin it.
+    expect(capturedHeaders?.Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
   it("normalises trailing slashes on endpointUrl", async () => {
     let capturedUrl: string | undefined;
     const fetchFn = mock((url: string) => {
