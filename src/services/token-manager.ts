@@ -205,7 +205,10 @@ export class TokenManager implements TokenProvider {
         expiresAt: new Date(
           Date.now() + response.expiresIn * 1000,
         ).toISOString(),
-        createdAt: tokens.createdAt,
+        // Refresh starts a new token lifetime window. Keeping the
+        // original createdAt makes a freshly refreshed token look
+        // permanently near expiry, which triggers immediate re-refresh.
+        createdAt: new Date().toISOString(),
       };
 
       await withTelemetrySpan("token-manager.save-tokens", () =>

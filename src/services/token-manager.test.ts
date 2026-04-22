@@ -383,5 +383,32 @@ describe("TokenManager", () => {
       expect(result).toBeUndefined();
       expect(authStorage.clearTokens).toHaveBeenCalledWith(MCP_URL);
     });
+
+    it("resets createdAt on refresh so a fresh token is not immediately refreshed again", async () => {
+      const tokenData = createValidTokenData({
+        createdAt: new Date(Date.now() - 58 * 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + 2 * 60_000).toISOString(),
+      });
+      const refreshMock = mock(() => Promise.resolve(defaultTokenResponse));
+      const authStorage = createMockAuthStorage({
+        loadTokens: mock(() => Promise.resolve(tokenData)),
+        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+      });
+      const manager = new TokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: refreshMock,
+        }),
+        authStorage,
+        mcpUrl: MCP_URL,
+      });
+
+      const refreshed = await manager.getToken();
+      const second = await manager.getToken();
+
+      expect(refreshed).toBe(defaultTokenResponse.accessToken);
+      expect(second).toBe(defaultTokenResponse.accessToken);
+      expect(refreshMock).toHaveBeenCalledTimes(1);
+      expect(authStorage.saveTokens).toHaveBeenCalledTimes(1);
+    });
   });
 });

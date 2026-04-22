@@ -38,44 +38,26 @@ import {
 
 /**
  * Create an AuthStorage instance, preferring keychain with file-based fallback.
- * Probes keychain availability with a write+delete test. If the keychain is
- * unavailable (no daemon, access denied), falls back to file storage with a warning.
+ * Falls back to file storage only if a real keychain operation fails.
  */
 function createAuthStorage(fileSystemService: FileSystemService): AuthStorage {
   return withTelemetrySpanSync("container.create-auth-storage", () => {
     const fileStorage = new AuthStorageImpl(fileSystemService);
 
-    try {
-      const rawKeyring = new KeyringServiceImpl();
-      // Windows Credential Manager limits entries to 2560 UTF-16 chars.
-      // Wrap with chunking decorator to split large values across multiple entries.
-      const keyring =
-        process.platform === "win32"
-          ? new ChunkingKeyringService(rawKeyring, WINDOWS_MAX_ENTRY_SIZE)
-          : rawKeyring;
-      withTelemetrySpanSync("container.keychain-probe", () => {
-        // Probe keychain availability with a write+delete cycle.
-        // Use timestamp + random suffix to avoid probe key collisions.
-        // Probe value "probe" is 5 chars, passes through the chunking wrapper unchanged.
-        const probeKey = `__probe_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        keyring.setPassword("githits", probeKey, "probe");
-        try {
-          keyring.deletePassword("githits", probeKey);
-        } catch {
-          // Orphaned probe entry — keychain is operational (write succeeded)
-          // but delete failed. The tiny entry is harmless; proceed with keychain.
-        }
-      });
-
-      const keychainStorage = new KeychainAuthStorage(keyring);
-      return new MigratingAuthStorage(keychainStorage, fileStorage);
-    } catch (error) {
-      if (!(error instanceof KeychainUnavailableError)) throw error;
+    const rawKeyring = new KeyringServiceImpl();
+    // Windows Credential Manager limits entries to 2560 UTF-16 chars.
+    // Wrap with chunking decorator to split large values across multiple entries.
+    const keyring =
+      process.platform === "win32"
+        ? new ChunkingKeyringService(rawKeyring, WINDOWS_MAX_ENTRY_SIZE)
+        : rawKeyring;
+    const keychainStorage = new KeychainAuthStorage(keyring);
+    return new MigratingAuthStorage(keychainStorage, fileStorage, (error) => {
+      if (!(error instanceof KeychainUnavailableError)) return;
       console.error(
         "Warning: System keychain unavailable. Falling back to file-based credential storage.",
       );
-      return fileStorage;
-    }
+    });
   });
 }
 

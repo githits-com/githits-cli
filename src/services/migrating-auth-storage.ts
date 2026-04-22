@@ -3,6 +3,7 @@ import type {
   ClientRegistration,
   TokenData,
 } from "./auth-storage.js";
+import { KeychainUnavailableError } from "./keyring-service.js";
 
 /**
  * AuthStorage decorator that migrates credentials from a legacy (file-based)
@@ -13,51 +14,77 @@ import type {
  * 2. Check legacy → if found, write to primary → delete from legacy → return it
  * 3. Both empty → return null
  *
- * Ordering guarantee: primary write must succeed before legacy entry is deleted.
- * If primary write fails, legacy entry is kept intact and the error propagates.
- *
- * Saves always go to primary only. Clears hit both (idempotent).
+ * If the primary keychain becomes unavailable at runtime, the storage falls back
+ * to the legacy backend for the lifetime of the process and stops attempting
+ * migrations.
  */
 export class MigratingAuthStorage implements AuthStorage {
+  private primaryAvailable = true;
+  private warnedOnPrimaryFailure = false;
+
   constructor(
     private readonly primary: AuthStorage,
     private readonly legacy: AuthStorage,
+    private readonly onPrimaryUnavailable: (
+      error: KeychainUnavailableError,
+    ) => void = () => {},
   ) {}
 
   async loadTokens(baseUrl: string): Promise<TokenData | null> {
-    const tokens = await this.primary.loadTokens(baseUrl);
-    if (tokens) return tokens;
+    if (this.primaryAvailable) {
+      try {
+        const tokens = await this.primary.loadTokens(baseUrl);
+        if (tokens) return tokens;
+      } catch (error) {
+        if (!this.handlePrimaryFailure(error)) throw error;
+      }
+    }
 
     const legacyTokens = await this.legacy.loadTokens(baseUrl);
-    if (legacyTokens) {
-      // Primary write must succeed before we attempt to remove from legacy.
-      // If primary write fails, the error propagates and legacy stays intact.
+    if (!legacyTokens) return null;
+    if (!this.primaryAvailable) return legacyTokens;
+
+    try {
       await this.primary.saveTokens(baseUrl, legacyTokens);
-      try {
-        await this.legacy.clearTokens(baseUrl);
-      } catch {
-        // Non-fatal: legacy entry persists but primary is now authoritative.
-        // Next load will return from primary, skipping migration entirely.
-      }
+    } catch (error) {
+      if (!this.handlePrimaryFailure(error)) throw error;
       return legacyTokens;
     }
 
-    return null;
+    try {
+      await this.legacy.clearTokens(baseUrl);
+    } catch {
+      // Non-fatal: legacy entry persists but primary is now authoritative.
+      // Next load will return from primary, skipping migration entirely.
+    }
+    return legacyTokens;
   }
 
   async saveTokens(baseUrl: string, data: TokenData): Promise<void> {
-    await this.primary.saveTokens(baseUrl, data);
+    if (this.primaryAvailable) {
+      try {
+        await this.primary.saveTokens(baseUrl, data);
+        return;
+      } catch (error) {
+        if (!this.handlePrimaryFailure(error)) throw error;
+      }
+    }
+
+    await this.legacy.saveTokens(baseUrl, data);
   }
 
   async clearTokens(baseUrl: string): Promise<void> {
     let primaryError: unknown;
-    try {
-      await this.primary.clearTokens(baseUrl);
-    } catch (error) {
-      primaryError = error;
+    if (this.primaryAvailable) {
+      try {
+        await this.primary.clearTokens(baseUrl);
+      } catch (error) {
+        if (!this.handlePrimaryFailure(error)) {
+          primaryError = error;
+        }
+      }
     }
-    // Always attempt legacy clear regardless of primary result.
-    // Legacy failure is non-fatal — the primary error (if any) takes precedence.
+
     try {
       await this.legacy.clearTokens(baseUrl);
     } catch {
@@ -67,37 +94,60 @@ export class MigratingAuthStorage implements AuthStorage {
   }
 
   async loadClient(baseUrl: string): Promise<ClientRegistration | null> {
-    const client = await this.primary.loadClient(baseUrl);
-    if (client) return client;
+    if (this.primaryAvailable) {
+      try {
+        const client = await this.primary.loadClient(baseUrl);
+        if (client) return client;
+      } catch (error) {
+        if (!this.handlePrimaryFailure(error)) throw error;
+      }
+    }
 
     const legacyClient = await this.legacy.loadClient(baseUrl);
-    if (legacyClient) {
+    if (!legacyClient) return null;
+    if (!this.primaryAvailable) return legacyClient;
+
+    try {
       await this.primary.saveClient(baseUrl, legacyClient);
-      try {
-        await this.legacy.clearClient(baseUrl);
-      } catch {
-        // Non-fatal: legacy entry persists but primary is now authoritative.
-        // Next load will return from primary, skipping migration entirely.
-      }
+    } catch (error) {
+      if (!this.handlePrimaryFailure(error)) throw error;
       return legacyClient;
     }
 
-    return null;
+    try {
+      await this.legacy.clearClient(baseUrl);
+    } catch {
+      // Non-fatal: legacy entry persists but primary is now authoritative.
+      // Next load will return from primary, skipping migration entirely.
+    }
+    return legacyClient;
   }
 
   async saveClient(baseUrl: string, data: ClientRegistration): Promise<void> {
-    await this.primary.saveClient(baseUrl, data);
+    if (this.primaryAvailable) {
+      try {
+        await this.primary.saveClient(baseUrl, data);
+        return;
+      } catch (error) {
+        if (!this.handlePrimaryFailure(error)) throw error;
+      }
+    }
+
+    await this.legacy.saveClient(baseUrl, data);
   }
 
   async clearClient(baseUrl: string): Promise<void> {
     let primaryError: unknown;
-    try {
-      await this.primary.clearClient(baseUrl);
-    } catch (error) {
-      primaryError = error;
+    if (this.primaryAvailable) {
+      try {
+        await this.primary.clearClient(baseUrl);
+      } catch (error) {
+        if (!this.handlePrimaryFailure(error)) {
+          primaryError = error;
+        }
+      }
     }
-    // Always attempt legacy clear regardless of primary result.
-    // Legacy failure is non-fatal — the primary error (if any) takes precedence.
+
     try {
       await this.legacy.clearClient(baseUrl);
     } catch {
@@ -107,6 +157,21 @@ export class MigratingAuthStorage implements AuthStorage {
   }
 
   getStorageLocation(): string {
-    return this.primary.getStorageLocation();
+    return this.primaryAvailable
+      ? this.primary.getStorageLocation()
+      : this.legacy.getStorageLocation();
+  }
+
+  private handlePrimaryFailure(error: unknown): boolean {
+    if (!(error instanceof KeychainUnavailableError)) {
+      return false;
+    }
+
+    this.primaryAvailable = false;
+    if (!this.warnedOnPrimaryFailure) {
+      this.warnedOnPrimaryFailure = true;
+      this.onPrimaryUnavailable(error);
+    }
+    return true;
   }
 }
