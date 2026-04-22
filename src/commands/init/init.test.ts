@@ -115,7 +115,12 @@ describe("initAction", () => {
     // Cursor detected AND already configured
     const fs = createFsWithDetection(["/home/test/.cursor"], {
       "/home/test/.cursor/mcp.json": JSON.stringify({
-        mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
       }),
     });
     const promptService = createMockPromptService();
@@ -146,7 +151,12 @@ describe("initAction", () => {
       ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
       {
         "/home/test/.cursor/mcp.json": JSON.stringify({
-          mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
         }),
       },
     );
@@ -185,7 +195,12 @@ describe("initAction", () => {
     // Detect Claude Code (CLI) and Cursor (config-file), both configured
     const fs = createFsWithDetection(["/home/test/.cursor"], {
       "/home/test/.cursor/mcp.json": JSON.stringify({
-        mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
       }),
     });
     const execService = createMockExecService({
@@ -362,7 +377,12 @@ describe("initAction", () => {
   it("--yes with all agents already configured shows nothing to do", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"], {
       "/home/test/.cursor/mcp.json": JSON.stringify({
-        mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
       }),
     });
 
@@ -378,6 +398,104 @@ describe("initAction", () => {
 
     const logCalls = getLogOutput();
     expect(logCalls.some((msg) => msg.includes("Nothing to do"))).toBe(true);
+  });
+
+  it("treats equivalent local npx @latest configs as already configured", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    });
+
+    await initAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("Nothing to do"))).toBe(true);
+  });
+
+  it("migrates non-@latest local config to @latest", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits", "mcp", "start"],
+          },
+        },
+      }),
+    });
+
+    await initAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+    const written = (fs.atomicWriteFile as ReturnType<typeof mock>).mock
+      .calls[0]![1] as string;
+    const parsed = JSON.parse(written);
+    expect(parsed.mcpServers.GitHits).toEqual({
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+    });
+  });
+
+  it("cleans duplicate lowercase githits entry during setup", async () => {
+    const fs = createFsWithDetection(["/home/test/.cline"], {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            githits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits", "mcp", "start"],
+            },
+          },
+        },
+      ),
+    });
+
+    await initAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+    const written = (fs.atomicWriteFile as ReturnType<typeof mock>).mock
+      .calls[0]![1] as string;
+    const parsed = JSON.parse(written);
+    expect(parsed.mcpServers.GitHits).toEqual({
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+    });
+    expect(parsed.mcpServers.githits).toBeUndefined();
   });
 
   it("continues to next agent when one fails", async () => {

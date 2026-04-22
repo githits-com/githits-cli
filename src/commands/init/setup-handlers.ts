@@ -30,9 +30,170 @@ export type CliCheckStatus = "configured" | "not_configured" | "probe_failed";
 
 /** Result of merging server config into an existing config file */
 export type MergeResult =
-  | { status: "added"; content: string }
+  | { status: "added" | "updated"; content: string }
   | { status: "already_configured" }
   | { status: "parse_error"; error: string };
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function deepEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) {
+    return true;
+  }
+
+  if (Array.isArray(left) && Array.isArray(right)) {
+    if (left.length !== right.length) {
+      return false;
+    }
+    for (let i = 0; i < left.length; i++) {
+      if (!deepEqual(left[i], right[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  if (isPlainObject(left) && isPlainObject(right)) {
+    const leftKeys = Object.keys(left).sort();
+    const rightKeys = Object.keys(right).sort();
+    if (!deepEqual(leftKeys, rightKeys)) {
+      return false;
+    }
+    for (const key of leftKeys) {
+      if (!deepEqual(left[key], right[key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === "string")
+  );
+}
+
+function isGitHitsPackageToken(token: string): boolean {
+  return token.toLowerCase() === "githits@latest";
+}
+
+function isLocalGitHitsInvocation(invocation: string[]): boolean {
+  if (invocation.length === 5) {
+    const [command, yesFlag, packageToken, subcommand, action] = invocation;
+    return (
+      command === "npx" &&
+      yesFlag === "-y" &&
+      typeof packageToken === "string" &&
+      isGitHitsPackageToken(packageToken) &&
+      subcommand === "mcp" &&
+      action === "start"
+    );
+  }
+
+  return false;
+}
+
+function extractInvocation(config: unknown): string[] | null {
+  if (!isPlainObject(config)) {
+    return null;
+  }
+
+  const command = config.command;
+  if (typeof command === "string") {
+    const args = config.args;
+    if (!isStringArray(args)) {
+      return null;
+    }
+    return [command, ...args];
+  }
+
+  if (isStringArray(command)) {
+    return [...command];
+  }
+
+  return null;
+}
+
+function nonCommandFieldsEqual(
+  existing: Record<string, unknown>,
+  expected: Record<string, unknown>,
+): boolean {
+  for (const [key, value] of Object.entries(expected)) {
+    if (key === "command" || key === "args") {
+      continue;
+    }
+    if (!deepEqual(existing[key], value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function hasLegacyRemoteIndicators(
+  existing: Record<string, unknown>,
+  expected: Record<string, unknown>,
+): boolean {
+  if ("url" in existing || "serverUrl" in existing) {
+    return true;
+  }
+
+  if (
+    "type" in existing &&
+    !("type" in expected) &&
+    (existing.type === "http" || existing.type === "streamableHttp")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function isEquivalentConfiguredValue(
+  existing: unknown,
+  expected: Record<string, unknown>,
+): boolean {
+  if (deepEqual(existing, expected)) {
+    return true;
+  }
+
+  if (!isPlainObject(existing)) {
+    return false;
+  }
+
+  const expectedInvocation = extractInvocation(expected);
+  const existingInvocation = extractInvocation(existing);
+  if (!expectedInvocation || !existingInvocation) {
+    return false;
+  }
+
+  if (
+    !isLocalGitHitsInvocation(expectedInvocation) ||
+    !isLocalGitHitsInvocation(existingInvocation)
+  ) {
+    return false;
+  }
+
+  if (hasLegacyRemoteIndicators(existing, expected)) {
+    return false;
+  }
+
+  return nonCommandFieldsEqual(existing, expected);
+}
+
+function getMatchingServerKeys(
+  servers: Record<string, unknown>,
+  serverName: string,
+): string[] {
+  const normalizedTarget = serverName.toLowerCase();
+  return Object.keys(servers).filter(
+    (key) => key.toLowerCase() === normalizedTarget,
+  );
+}
 
 /** Result of executing a setup operation */
 export interface SetupResult {
@@ -108,15 +269,25 @@ export function mergeServerConfig(
 
   // Check if already configured
   const serversObj = servers as Record<string, unknown>;
-  if (serverName in serversObj) {
+  const matchingKeys = getMatchingServerKeys(serversObj, serverName);
+  if (
+    matchingKeys.length === 1 &&
+    matchingKeys[0] === serverName &&
+    isEquivalentConfiguredValue(serversObj[serverName], serverConfig)
+  ) {
     return { status: "already_configured" };
   }
 
-  // Add server entry
+  // Add or migrate server entry; collapse case-variant duplicates.
+  for (const key of matchingKeys) {
+    delete serversObj[key];
+  }
+
+  const hadExisting = matchingKeys.length > 0;
   serversObj[serverName] = serverConfig;
 
   return {
-    status: "added",
+    status: hadExisting ? "updated" : "added",
     content: `${JSON.stringify(config, null, 2)}\n`,
   };
 }
@@ -183,7 +354,16 @@ export async function isAlreadyConfigured(
       return false;
     }
 
-    return config.serverName in servers;
+    const serversObj = servers as Record<string, unknown>;
+    const matchingKeys = getMatchingServerKeys(serversObj, config.serverName);
+    if (matchingKeys.length !== 1 || matchingKeys[0] !== config.serverName) {
+      return false;
+    }
+
+    return isEquivalentConfiguredValue(
+      serversObj[config.serverName],
+      config.serverConfig,
+    );
   } catch {
     return false;
   }
@@ -376,7 +556,7 @@ export async function executeConfigFileSetup(
       };
     }
 
-    // Atomic write — result.status is "added" here (other statuses returned above)
+    // Atomic write — result.status is "added" or "updated" here
     await fs.atomicWriteFile(setup.configPath, result.content);
 
     return { status: "success", message: "Configured successfully" };
