@@ -1,4 +1,3 @@
-import { getMcpUrl } from "../../services/config.js";
 import type { ExecService } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/index.js";
 import {
@@ -43,6 +42,14 @@ export interface ConfigFileSetup {
 }
 
 export type SetupConfig = CliSetup | ConfigFileSetup;
+
+const GITHITS_SERVER_NAME = "GitHits";
+const GITHITS_MCP_COMMAND = "npx";
+const GITHITS_MCP_ARGS = ["-y", "githits@latest", "mcp", "start"] as const;
+const GITHITS_MCP_INVOCATION = [
+  GITHITS_MCP_COMMAND,
+  ...GITHITS_MCP_ARGS,
+] as const;
 
 /** How an agent is considered present on the machine. */
 type DetectionMethod = "binary" | "path";
@@ -134,7 +141,7 @@ const claudeCode: AgentDefinition = {
   }),
 };
 
-/** Cursor: detected by ~/.cursor/ directory, configured via mcp.json with native OAuth */
+/** Cursor: detected by ~/.cursor/ directory, configured via npm MCP command */
 const cursor: AgentDefinition = {
   name: "Cursor",
   id: "cursor",
@@ -145,14 +152,17 @@ const cursor: AgentDefinition = {
     method: "config-file",
     configPath: fs.joinPath(fs.getHomeDir(), ".cursor", "mcp.json"),
     serversKey: "mcpServers",
-    serverName: "GitHits",
-    serverConfig: { url: getMcpUrl() },
+    serverName: GITHITS_SERVER_NAME,
+    serverConfig: {
+      command: GITHITS_MCP_COMMAND,
+      args: [...GITHITS_MCP_ARGS],
+    },
   }),
 };
 
 /**
  * Windsurf: detected by ~/.codeium/windsurf/ directory.
- * Uses native serverUrl (no mcp-remote needed).
+ * Uses npm MCP command.
  */
 const windsurf: AgentDefinition = {
   name: "Windsurf",
@@ -169,12 +179,15 @@ const windsurf: AgentDefinition = {
       "mcp_config.json",
     ),
     serversKey: "mcpServers",
-    serverName: "GitHits",
-    serverConfig: { serverUrl: getMcpUrl() },
+    serverName: GITHITS_SERVER_NAME,
+    serverConfig: {
+      command: GITHITS_MCP_COMMAND,
+      args: [...GITHITS_MCP_ARGS],
+    },
   }),
 };
 
-/** Claude Desktop: detected by platform-specific Claude directory, uses mcp-remote */
+/** Claude Desktop: detected by platform-specific Claude directory, uses npm MCP command */
 const claudeDesktop: AgentDefinition = {
   name: "Claude Desktop",
   id: "claude-desktop",
@@ -200,10 +213,10 @@ const claudeDesktop: AgentDefinition = {
       method: "config-file",
       configPath: fs.joinPath(appData, "claude_desktop_config.json"),
       serversKey: "mcpServers",
-      serverName: "GitHits",
+      serverName: GITHITS_SERVER_NAME,
       serverConfig: {
-        command: "npx",
-        args: ["-y", "mcp-remote", getMcpUrl()],
+        command: GITHITS_MCP_COMMAND,
+        args: [...GITHITS_MCP_ARGS],
       },
     };
   },
@@ -221,17 +234,7 @@ const codexCli: AgentDefinition = {
     commands: [
       {
         command: "codex",
-        args: [
-          "mcp",
-          "add",
-          "githits",
-          "--",
-          "npx",
-          "-y",
-          "githits@latest",
-          "mcp",
-          "start",
-        ],
+        args: ["mcp", "add", "githits", "--", ...GITHITS_MCP_INVOCATION],
       },
     ],
     checkCommand: {
@@ -242,7 +245,7 @@ const codexCli: AgentDefinition = {
   }),
 };
 
-/** VS Code / Copilot: detected by platform-specific Code directory, uses native HTTP */
+/** VS Code / Copilot: detected by platform-specific Code directory, uses npm MCP command */
 const vscode: AgentDefinition = {
   name: "VS Code / Copilot",
   id: "vscode",
@@ -258,13 +261,16 @@ const vscode: AgentDefinition = {
       method: "config-file",
       configPath: fs.joinPath(appData, "User", "mcp.json"),
       serversKey: "servers",
-      serverName: "GitHits",
-      serverConfig: { url: getMcpUrl(), type: "http" },
+      serverName: GITHITS_SERVER_NAME,
+      serverConfig: {
+        command: GITHITS_MCP_COMMAND,
+        args: [...GITHITS_MCP_ARGS],
+      },
     };
   },
 };
 
-/** Cline: detected by ~/.cline/ directory, uses streamable HTTP */
+/** Cline: detected by ~/.cline/ directory, uses npm MCP command */
 const cline: AgentDefinition = {
   name: "Cline",
   id: "cline",
@@ -281,8 +287,11 @@ const cline: AgentDefinition = {
       "cline_mcp_settings.json",
     ),
     serversKey: "mcpServers",
-    serverName: "GitHits",
-    serverConfig: { url: getMcpUrl(), type: "streamableHttp" },
+    serverName: GITHITS_SERVER_NAME,
+    serverConfig: {
+      command: GITHITS_MCP_COMMAND,
+      args: [...GITHITS_MCP_ARGS],
+    },
   }),
 };
 
@@ -347,8 +356,11 @@ const googleAntigravity: AgentDefinition = {
       "mcp_config.json",
     ),
     serversKey: "mcpServers",
-    serverName: "GitHits",
-    serverConfig: { serverUrl: getMcpUrl() },
+    serverName: GITHITS_SERVER_NAME,
+    serverConfig: {
+      command: GITHITS_MCP_COMMAND,
+      args: [...GITHITS_MCP_ARGS],
+    },
   }),
 };
 
@@ -371,10 +383,10 @@ const openCode: AgentDefinition = {
           )
         : fs.joinPath(fs.getHomeDir(), ".config", "opencode", "opencode.json"),
     serversKey: "mcp",
-    serverName: "GitHits",
+    serverName: GITHITS_SERVER_NAME,
     serverConfig: {
       type: "local",
-      command: ["npx", "-y", "githits@latest", "mcp", "start"],
+      command: [...GITHITS_MCP_INVOCATION],
       enabled: true,
     },
   }),

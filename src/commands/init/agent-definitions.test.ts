@@ -367,7 +367,7 @@ describe("getSetupConfig", () => {
     }
   });
 
-  it("cursor returns config-file setup with native url", () => {
+  it("cursor returns config-file setup with npm MCP command", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
       joinPath: mock((...segments: string[]) => segments.join("/")),
@@ -379,12 +379,14 @@ describe("getSetupConfig", () => {
       expect(config.configPath).toBe("/home/test/.cursor/mcp.json");
       expect(config.serversKey).toBe("mcpServers");
       expect(config.serverName).toBe("GitHits");
-      expect(config.serverConfig).toHaveProperty("url");
-      expect(config.serverConfig).not.toHaveProperty("command");
+      expect(config.serverConfig).toEqual({
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
+      });
     }
   });
 
-  it("windsurf returns config-file setup with native serverUrl", () => {
+  it("windsurf returns config-file setup with npm MCP command", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
       joinPath: mock((...segments: string[]) => segments.join("/")),
@@ -398,12 +400,14 @@ describe("getSetupConfig", () => {
       );
       expect(config.serversKey).toBe("mcpServers");
       expect(config.serverName).toBe("GitHits");
-      expect(config.serverConfig).toHaveProperty("serverUrl");
-      expect(config.serverConfig).not.toHaveProperty("command");
+      expect(config.serverConfig).toEqual({
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
+      });
     }
   });
 
-  it("claude-desktop returns config-file setup with mcp-remote", () => {
+  it("claude-desktop returns config-file setup with npm MCP command", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
       joinPath: mock((...segments: string[]) => segments.join("/")),
@@ -415,9 +419,10 @@ describe("getSetupConfig", () => {
       expect(config.configPath).toContain("claude_desktop_config.json");
       expect(config.serversKey).toBe("mcpServers");
       expect(config.serverName).toBe("GitHits");
-      expect(config.serverConfig).toHaveProperty("command", "npx");
-      const args = config.serverConfig.args as string[];
-      expect(args).toContain("mcp-remote");
+      expect(config.serverConfig).toEqual({
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
+      });
     }
   });
 
@@ -539,7 +544,7 @@ describe("getSetupConfig", () => {
     }
   });
 
-  it("codex-cli returns CLI setup with npm/stdio command", () => {
+  it("codex-cli returns CLI setup with npm MCP command", () => {
     const fs = createMockFileSystemService();
     const agent = agentDefinitions.find((a) => a.id === "codex-cli")!;
     const config = agent.getSetupConfig(fs);
@@ -549,12 +554,13 @@ describe("getSetupConfig", () => {
       expect(config.commands[0]!.command).toBe("codex");
       expect(config.commands[0]!.args).toContain("mcp");
       expect(config.commands[0]!.args).toContain("add");
-      expect(config.commands[0]!.args).toContain("githits");
+      expect(config.commands[0]!.args).toContain("npx");
       expect(config.commands[0]!.args).toContain("githits@latest");
+      expect(config.commands[0]!.args).toContain("githits");
     }
   });
 
-  it("vscode returns config-file setup with servers key and http type", () => {
+  it("vscode returns config-file setup with servers key and npm MCP command", () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", {
       value: "darwin",
@@ -575,8 +581,8 @@ describe("getSetupConfig", () => {
         expect(config.serversKey).toBe("servers");
         expect(config.serverName).toBe("GitHits");
         expect(config.serverConfig).toEqual({
-          url: "https://mcp.githits.com",
-          type: "http",
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
         });
       }
     } finally {
@@ -587,7 +593,7 @@ describe("getSetupConfig", () => {
     }
   });
 
-  it("cline returns config-file setup with streamableHttp type", () => {
+  it("cline returns config-file setup with npm MCP command", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
       joinPath: mock((...segments: string[]) => segments.join("/")),
@@ -602,8 +608,8 @@ describe("getSetupConfig", () => {
       expect(config.serversKey).toBe("mcpServers");
       expect(config.serverName).toBe("GitHits");
       expect(config.serverConfig).toEqual({
-        url: "https://mcp.githits.com",
-        type: "streamableHttp",
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
       });
     }
   });
@@ -625,7 +631,7 @@ describe("getSetupConfig", () => {
     }
   });
 
-  it("google-antigravity returns config-file setup with serverUrl", () => {
+  it("google-antigravity returns config-file setup with npm MCP command", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
       joinPath: mock((...segments: string[]) => segments.join("/")),
@@ -640,7 +646,8 @@ describe("getSetupConfig", () => {
       expect(config.serversKey).toBe("mcpServers");
       expect(config.serverName).toBe("GitHits");
       expect(config.serverConfig).toEqual({
-        serverUrl: "https://mcp.githits.com",
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
       });
     }
   });
@@ -701,7 +708,7 @@ describe("getSetupConfig", () => {
     }
   });
 
-  it("claude-desktop is the only config-file agent using mcp-remote", () => {
+  it("all config-file agents use npm githits@latest mcp start command", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
       joinPath: mock((...segments: string[]) => segments.join("/")),
@@ -712,43 +719,18 @@ describe("getSetupConfig", () => {
     for (const agent of configFileAgents) {
       const config = agent.getSetupConfig(fs);
       if (config.method === "config-file") {
-        if (agent.id === "claude-desktop") {
-          expect(config.serverConfig).toHaveProperty("command", "npx");
-          const args = config.serverConfig.args as string[];
-          expect(args).toContain("mcp-remote");
+        if (agent.id === "opencode") {
+          expect(config.serverConfig).toEqual({
+            type: "local",
+            command: ["npx", "-y", "githits@latest", "mcp", "start"],
+            enabled: true,
+          });
         } else {
-          // No agent other than claude-desktop should use mcp-remote
-          const args = config.serverConfig.args;
-          if (Array.isArray(args)) {
-            expect(args).not.toContain("mcp-remote");
-          }
+          expect(config.serverConfig).toEqual({
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          });
         }
-      }
-    }
-  });
-
-  it("uses GITHITS_MCP_URL env var when set", () => {
-    const originalUrl = process.env.GITHITS_MCP_URL;
-    process.env.GITHITS_MCP_URL = "https://staging.mcp.example.com";
-    try {
-      const fs = createMockFileSystemService({
-        getHomeDir: mock(() => "/home/test"),
-        joinPath: mock((...segments: string[]) => segments.join("/")),
-      });
-      // Check a config-file agent
-      const cursor = agentDefinitions.find((a) => a.id === "cursor")!;
-      const cursorConfig = cursor.getSetupConfig(fs);
-      if (cursorConfig.method === "config-file") {
-        expect(cursorConfig.serverConfig).toHaveProperty(
-          "url",
-          "https://staging.mcp.example.com",
-        );
-      }
-    } finally {
-      if (originalUrl !== undefined) {
-        process.env.GITHITS_MCP_URL = originalUrl;
-      } else {
-        delete process.env.GITHITS_MCP_URL;
       }
     }
   });
@@ -843,7 +825,12 @@ describe("scanAgents", () => {
       detectedDirs: ["/home/test/.cursor"],
       configFiles: {
         "/home/test/.cursor/mcp.json": JSON.stringify({
-          mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
         }),
       },
     });
@@ -1031,7 +1018,12 @@ describe("scanAgents", () => {
       detectedDirs: ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
       configFiles: {
         "/home/test/.cursor/mcp.json": JSON.stringify({
-          mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
         }),
       },
       execResults: {
@@ -1113,18 +1105,36 @@ describe("scanAgents", () => {
     // Config files for all config-file agents with GitHits configured
     const allConfiguredFiles: Record<string, string> = {
       "/home/test/.cursor/mcp.json": JSON.stringify({
-        mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
       }),
       "/home/test/.codeium/windsurf/mcp_config.json": JSON.stringify({
-        mcpServers: { GitHits: { serverUrl: "https://mcp.githits.com" } },
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
       }),
       [`${vscodePath}/User/mcp.json`]: JSON.stringify({
-        servers: { GitHits: { url: "https://mcp.githits.com", type: "http" } },
+        servers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
       }),
       "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
         {
           mcpServers: {
-            GitHits: { url: "https://mcp.githits.com", type: "streamableHttp" },
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
           },
         },
       ),
@@ -1132,12 +1142,17 @@ describe("scanAgents", () => {
         mcpServers: {
           GitHits: {
             command: "npx",
-            args: ["-y", "mcp-remote", "https://mcp.githits.com"],
+            args: ["-y", "githits@latest", "mcp", "start"],
           },
         },
       }),
       "/home/test/.gemini/antigravity/mcp_config.json": JSON.stringify({
-        mcpServers: { GitHits: { serverUrl: "https://mcp.githits.com" } },
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
       }),
       [`${opencodePath}/opencode.json`]: JSON.stringify({
         mcp: {
@@ -1294,11 +1309,21 @@ describe("scanAgents", () => {
           ],
           configFiles: {
             "/home/test/.cursor/mcp.json": JSON.stringify({
-              mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+              mcpServers: {
+                GitHits: {
+                  command: "npx",
+                  args: ["-y", "githits@latest", "mcp", "start"],
+                },
+              },
             }),
             [`${claudeDesktopPath}/claude_desktop_config.json`]: JSON.stringify(
               {
-                mcpServers: { GitHits: { command: "npx" } },
+                mcpServers: {
+                  GitHits: {
+                    command: "npx",
+                    args: ["-y", "githits@latest", "mcp", "start"],
+                  },
+                },
               },
             ),
           },

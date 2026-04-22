@@ -22,6 +22,12 @@ function expectAdded(result: MergeResult): string {
   return result.content;
 }
 
+function expectUpdated(result: MergeResult): string {
+  expect(result.status).toBe("updated");
+  if (result.status !== "updated") throw new Error("unreachable");
+  return result.content;
+}
+
 /** Assert that a MergeResult is "parse_error" and return its error */
 function expectParseError(result: MergeResult): string {
   expect(result.status).toBe("parse_error");
@@ -37,12 +43,20 @@ describe("isAlreadyConfigured", () => {
     configPath: "/home/test/.cursor/mcp.json",
     serversKey: "mcpServers",
     serverName: "GitHits",
-    serverConfig: { url: "https://mcp.githits.com/" },
+    serverConfig: {
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+    },
   };
 
   it("returns true when config file contains the server entry", async () => {
     const existing = JSON.stringify({
-      mcpServers: { GitHits: { url: "https://mcp.githits.com/" } },
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
     });
     const fs = createMockFileSystemService({
       readFile: mock(() => Promise.resolve(existing)),
@@ -50,8 +64,113 @@ describe("isAlreadyConfigured", () => {
     expect(await isAlreadyConfigured(configSetup, fs)).toBe(true);
   });
 
+  it("returns false when GitHits exists with legacy remote shape", async () => {
+    const existing = JSON.stringify({
+      mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(false);
+  });
+
+  it("returns true when config uses equivalent npx @latest invocation", async () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(true);
+  });
+
+  it("returns false when config uses npx without @latest", async () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits", "mcp", "start"],
+        },
+      },
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(false);
+  });
+
+  it("returns false when config uses direct githits invocation", async () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "githits",
+          args: ["mcp", "start"],
+        },
+      },
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(false);
+  });
+
+  it("returns false when local command is mixed with legacy remote url", async () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+          url: "https://mcp.githits.com",
+        },
+      },
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(false);
+  });
+
   it("returns false when config file exists but server entry is missing", async () => {
     const existing = JSON.stringify({ mcpServers: { Other: {} } });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(false);
+  });
+
+  it("returns false when only lowercase githits key exists", async () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        githits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(false);
+  });
+
+  it("returns false when both GitHits and githits keys are present", async () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+        githits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
     const fs = createMockFileSystemService({
       readFile: mock(() => Promise.resolve(existing)),
     });
@@ -87,10 +206,18 @@ describe("isAlreadyConfigured", () => {
       configPath: "/home/test/.vscode/mcp.json",
       serversKey: "servers",
       serverName: "GitHits",
-      serverConfig: { url: "https://mcp.githits.com/", type: "http" },
+      serverConfig: {
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
+      },
     };
     const existing = JSON.stringify({
-      servers: { GitHits: { url: "https://mcp.githits.com/", type: "http" } },
+      servers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
     });
     const fs = createMockFileSystemService({
       readFile: mock(() => Promise.resolve(existing)),
@@ -107,7 +234,7 @@ describe("isAlreadyConfigured", () => {
 
   it("handles BOM prefix", async () => {
     const bom = "\uFEFF";
-    const existing = `${bom}${JSON.stringify({ mcpServers: { GitHits: {} } })}`;
+    const existing = `${bom}${JSON.stringify({ mcpServers: { GitHits: { command: "npx", args: ["-y", "githits@latest", "mcp", "start"] } } })}`;
     const fs = createMockFileSystemService({
       readFile: mock(() => Promise.resolve(existing)),
     });
@@ -291,7 +418,7 @@ describe("getCliCheckStatus", () => {
 describe("mergeServerConfig", () => {
   const serverConfig = {
     command: "npx",
-    args: ["-y", "mcp-remote", "https://mcp.githits.com"],
+    args: ["-y", "githits@latest", "mcp", "start"],
   };
 
   it("adds server to empty string input", () => {
@@ -359,10 +486,13 @@ describe("mergeServerConfig", () => {
     expect(parsed.someOtherSetting).toBe(true);
   });
 
-  it("returns already_configured when server exists", () => {
+  it("returns already_configured when server value already matches", () => {
     const existing = JSON.stringify({
       mcpServers: {
-        GitHits: { command: "old-cmd" },
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
       },
     });
     const result = mergeServerConfig(
@@ -372,6 +502,148 @@ describe("mergeServerConfig", () => {
       serverConfig,
     );
     expect(result.status).toBe("already_configured");
+  });
+
+  it("returns updated when server exists with different value", () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: { url: "https://mcp.githits.com" },
+      },
+    });
+    const result = mergeServerConfig(
+      existing,
+      "mcpServers",
+      "GitHits",
+      serverConfig,
+    );
+    const content = expectUpdated(result);
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers.GitHits).toEqual(serverConfig);
+  });
+
+  it("returns updated and normalizes lowercase githits key to GitHits", () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        githits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const result = mergeServerConfig(
+      existing,
+      "mcpServers",
+      "GitHits",
+      serverConfig,
+    );
+    const content = expectUpdated(result);
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers.GitHits).toEqual(serverConfig);
+    expect(parsed.mcpServers.githits).toBeUndefined();
+  });
+
+  it("returns updated and removes duplicate case-variant keys", () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+        githits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const result = mergeServerConfig(
+      existing,
+      "mcpServers",
+      "GitHits",
+      serverConfig,
+    );
+    const content = expectUpdated(result);
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers.GitHits).toEqual(serverConfig);
+    expect(parsed.mcpServers.githits).toBeUndefined();
+  });
+
+  it("returns already_configured for equivalent npx invocation", () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const result = mergeServerConfig(
+      existing,
+      "mcpServers",
+      "GitHits",
+      serverConfig,
+    );
+    expect(result.status).toBe("already_configured");
+  });
+
+  it("returns updated for npx command missing @latest", () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits", "mcp", "start"],
+        },
+      },
+    });
+    const result = mergeServerConfig(
+      existing,
+      "mcpServers",
+      "GitHits",
+      serverConfig,
+    );
+    const content = expectUpdated(result);
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers.GitHits).toEqual(serverConfig);
+  });
+
+  it("returns updated for direct githits command", () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "githits",
+          args: ["mcp", "start"],
+        },
+      },
+    });
+    const result = mergeServerConfig(
+      existing,
+      "mcpServers",
+      "GitHits",
+      serverConfig,
+    );
+    const content = expectUpdated(result);
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers.GitHits).toEqual(serverConfig);
+  });
+
+  it("returns updated when equivalent command also has legacy remote fields", () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+          url: "https://mcp.githits.com",
+        },
+      },
+    });
+    const result = mergeServerConfig(
+      existing,
+      "mcpServers",
+      "GitHits",
+      serverConfig,
+    );
+    const content = expectUpdated(result);
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers.GitHits).toEqual(serverConfig);
   });
 
   it("returns parse_error for malformed JSON", () => {
@@ -464,7 +736,10 @@ describe("mergeServerConfig", () => {
   });
 
   it("works with 'servers' key for VS Code config", () => {
-    const vscodeConfig = { url: "https://mcp.githits.com", type: "http" };
+    const vscodeConfig = {
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+    };
     const result = mergeServerConfig("{}", "servers", "GitHits", vscodeConfig);
     const content = expectAdded(result);
     const parsed = JSON.parse(content);
@@ -514,12 +789,15 @@ describe("formatSetupPreview", () => {
       configPath: "/home/test/.cursor/mcp.json",
       serversKey: "mcpServers",
       serverName: "GitHits",
-      serverConfig: { url: "https://mcp.githits.com/" },
+      serverConfig: {
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
+      },
     };
     const preview = formatSetupPreview(setup);
     expect(preview).toContain("Will add to /home/test/.cursor/mcp.json:");
     expect(preview).toContain('"GitHits"');
-    expect(preview).toContain('"url"');
+    expect(preview).toContain('"command"');
   });
 });
 
@@ -701,7 +979,10 @@ describe("executeConfigFileSetup", () => {
     configPath: "/home/test/.cursor/mcp.json",
     serversKey: "mcpServers",
     serverName: "GitHits",
-    serverConfig: { url: "https://mcp.githits.com/" },
+    serverConfig: {
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+    },
   };
 
   it("creates new config when file does not exist", async () => {
@@ -749,9 +1030,66 @@ describe("executeConfigFileSetup", () => {
     expect(parsed.mcpServers.GitHits).toEqual(configSetup.serverConfig);
   });
 
-  it("returns already_configured when GitHits already present", async () => {
+  it("returns already_configured when GitHits already matches desired config", async () => {
     const existing = JSON.stringify({
-      mcpServers: { GitHits: { command: "old" } },
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const atomicWrite = mock((_path: string, _content: string) =>
+      Promise.resolve(),
+    );
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+      getDirname: mock(() => "/home/test/.cursor"),
+      ensureDir: mock(() => Promise.resolve()),
+      atomicWriteFile: atomicWrite,
+    });
+
+    const result = await executeConfigFileSetup(configSetup, fs);
+    expect(result.status).toBe("already_configured");
+    expect(atomicWrite).not.toHaveBeenCalled();
+  });
+
+  it("migrates legacy remote config to local CLI command", async () => {
+    const existing = JSON.stringify({
+      mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+    });
+    const atomicWrite = mock((_path: string, _content: string) =>
+      Promise.resolve(),
+    );
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+      getDirname: mock(() => "/home/test/.cursor"),
+      ensureDir: mock(() => Promise.resolve()),
+      atomicWriteFile: atomicWrite,
+    });
+
+    const result = await executeConfigFileSetup(configSetup, fs);
+    expect(result.status).toBe("success");
+    expect(atomicWrite).toHaveBeenCalledTimes(1);
+    const firstCall = atomicWrite.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const writtenContent = firstCall?.[1];
+    expect(typeof writtenContent).toBe("string");
+    if (typeof writtenContent !== "string") {
+      throw new Error("Expected written config content");
+    }
+    const parsed = JSON.parse(writtenContent);
+    expect(parsed.mcpServers.GitHits).toEqual(configSetup.serverConfig);
+  });
+
+  it("does not rewrite equivalent npx local config", async () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
     });
     const atomicWrite = mock(() => Promise.resolve());
     const fs = createMockFileSystemService({
@@ -764,6 +1102,34 @@ describe("executeConfigFileSetup", () => {
     const result = await executeConfigFileSetup(configSetup, fs);
     expect(result.status).toBe("already_configured");
     expect(atomicWrite).not.toHaveBeenCalled();
+  });
+
+  it("treats opencode-style npx array command as equivalent local config", async () => {
+    const opencodeSetup: ConfigFileSetup = {
+      method: "config-file",
+      configPath: "/home/test/.config/opencode/opencode.json",
+      serversKey: "mcp",
+      serverName: "GitHits",
+      serverConfig: {
+        type: "local",
+        command: ["npx", "-y", "githits@latest", "mcp", "start"],
+        enabled: true,
+      },
+    };
+    const existing = JSON.stringify({
+      mcp: {
+        GitHits: {
+          type: "local",
+          command: ["npx", "-y", "githits@latest", "mcp", "start"],
+          enabled: true,
+        },
+      },
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+
+    expect(await isAlreadyConfigured(opencodeSetup, fs)).toBe(true);
   });
 
   it("returns failed on malformed JSON without writing", async () => {
