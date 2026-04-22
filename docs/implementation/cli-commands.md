@@ -351,6 +351,10 @@ All commands support two output modes:
 
 - **`--no-color`** — Disables colored output by setting `NO_COLOR=1` env var via a root-level `preAction` hook. All downstream `shouldUseColors()` calls pick it up automatically.
 
+## Runtime Diagnostics
+
+- **`GITHITS_TELEMETRY=1`** — Emits an end-of-run timing summary to stderr without polluting normal stdout. Current spans cover gated command registration, startup auth lookup, container creation, token loading/refresh, and the outbound API/package-intelligence request.
+
 ## Key Reference Files
 
 | File | Purpose |

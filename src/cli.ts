@@ -13,18 +13,44 @@ import {
   registerPkgCommandGroup,
   registerSearchCommand,
 } from "./commands/index.js";
+import {
+  endTelemetrySpan,
+  flushTelemetry,
+  isTelemetryEnabled,
+  startTelemetrySpan,
+  withTelemetrySpan,
+} from "./shared/index.js";
 
 const program = new Command();
+const commandSpans = new WeakMap<
+  Command,
+  ReturnType<typeof startTelemetrySpan>
+>();
+
+if (isTelemetryEnabled()) {
+  process.once("exit", (exitCode) => {
+    flushTelemetry(exitCode);
+  });
+}
 
 program
   .name("githits")
   .description("Code examples from global open source for your AI assistant")
   .version(version)
   .option("--no-color", "Disable colored output")
-  .hook("preAction", (thisCommand) => {
+  .hook("preAction", (thisCommand, actionCommand) => {
     if (thisCommand.opts().color === false) {
       process.env.NO_COLOR = "1";
     }
+
+    const command = actionCommand ?? thisCommand;
+    commandSpans.set(
+      command,
+      startTelemetrySpan(getTelemetryCommandName(command)),
+    );
+  })
+  .hook("postAction", (_thisCommand, actionCommand) => {
+    endTelemetrySpan(commandSpans.get(actionCommand));
   })
   .addHelpText(
     "after",
@@ -56,10 +82,14 @@ registerLanguagesCommand(program);
 registerFeedbackCommand(program);
 const argv = process.argv.slice(2);
 if (shouldEagerLoadGatedCommandGroup(argv, "code")) {
-  await registerCodeCommandGroup(program);
+  await withTelemetrySpan("cli.register.code-group", () =>
+    registerCodeCommandGroup(program),
+  );
 }
 if (shouldEagerLoadGatedCommandGroup(argv, "pkg")) {
-  await registerPkgCommandGroup(program);
+  await withTelemetrySpan("cli.register.pkg-group", () =>
+    registerPkgCommandGroup(program),
+  );
 }
 
 // Auth status as subcommand of `auth`
@@ -69,7 +99,7 @@ const authCommand = program
   .description("Manage authentication with GitHits.");
 registerAuthStatusCommand(authCommand);
 
-await program.parseAsync();
+await withTelemetrySpan("cli.parse", () => program.parseAsync());
 
 /**
  * Argv-sniff optimisation for gated command groups. Returns `true`
@@ -90,4 +120,19 @@ function shouldEagerLoadGatedCommandGroup(
     firstArg === "--help" ||
     firstArg === "-h"
   );
+}
+
+function getTelemetryCommandName(command: Command): string {
+  const names: string[] = [];
+  let current: Command | null = command;
+
+  while (current) {
+    const name = current.name();
+    if (name && name !== "githits") {
+      names.unshift(name);
+    }
+    current = current.parent ?? null;
+  }
+
+  return `command.${names.join(".")}`;
 }

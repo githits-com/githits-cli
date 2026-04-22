@@ -1,3 +1,4 @@
+import { withTelemetrySpan } from "../shared/telemetry.js";
 import type { AuthService, TokenResponse } from "./auth-service.js";
 import type { AuthStorage, TokenData } from "./auth-storage.js";
 
@@ -92,41 +93,48 @@ export class TokenManager implements TokenProvider {
   }
 
   async getToken(): Promise<string | undefined> {
-    // Load from storage on first call
-    if (!this.cachedToken) {
-      this.cachedToken = await this.authStorage.loadTokens(this.mcpUrl);
-      if (!this.cachedToken) return undefined;
-    }
+    return withTelemetrySpan("token-manager.get-token", async () => {
+      // Load from storage on first call
+      if (!this.cachedToken) {
+        this.cachedToken = await withTelemetrySpan(
+          "token-manager.load-tokens",
+          () => this.authStorage.loadTokens(this.mcpUrl),
+        );
+        if (!this.cachedToken) return undefined;
+      }
 
-    const currentToken = this.cachedToken.accessToken;
-    const { expired, shouldRefresh } = shouldRefreshToken(
-      this.cachedToken,
-      PROACTIVE_REFRESH_RATIO,
-      new Date(),
-    );
+      const currentToken = this.cachedToken.accessToken;
+      const { expired, shouldRefresh } = shouldRefreshToken(
+        this.cachedToken,
+        PROACTIVE_REFRESH_RATIO,
+        new Date(),
+      );
 
-    if (!shouldRefresh) {
-      return currentToken;
-    }
+      if (!shouldRefresh) {
+        return currentToken;
+      }
 
-    // Attempt refresh (coalesced if already in-flight)
-    const refreshedToken = await this.doRefresh();
+      // Attempt refresh (coalesced if already in-flight)
+      const refreshedToken = await this.doRefresh();
 
-    if (refreshedToken) {
-      return refreshedToken;
-    }
+      if (refreshedToken) {
+        return refreshedToken;
+      }
 
-    // Proactive refresh failed but token still valid — return current token
-    if (!expired) {
-      return currentToken;
-    }
+      // Proactive refresh failed but token still valid — return current token
+      if (!expired) {
+        return currentToken;
+      }
 
-    // Token expired and refresh failed
-    return undefined;
+      // Token expired and refresh failed
+      return undefined;
+    });
   }
 
   async forceRefresh(): Promise<string | undefined> {
-    return this.doRefresh();
+    return withTelemetrySpan("token-manager.force-refresh", () =>
+      this.doRefresh(),
+    );
   }
 
   /**
@@ -146,45 +154,68 @@ export class TokenManager implements TokenProvider {
   }
 
   private async executeRefresh(): Promise<string | undefined> {
-    const tokens =
-      this.cachedToken ?? (await this.authStorage.loadTokens(this.mcpUrl));
-    if (!tokens) return undefined;
+    return withTelemetrySpan("token-manager.refresh", async () => {
+      const tokens =
+        this.cachedToken ??
+        (await withTelemetrySpan("token-manager.load-tokens", () =>
+          this.authStorage.loadTokens(this.mcpUrl),
+        ));
+      if (!tokens) return undefined;
 
-    const client = await this.authStorage.loadClient(this.mcpUrl);
-    if (!client) return undefined;
+      const client = await withTelemetrySpan("token-manager.load-client", () =>
+        this.authStorage.loadClient(this.mcpUrl),
+      );
+      if (!client) return undefined;
 
-    let response: TokenResponse;
-    try {
-      const metadata = await this.authService.discoverEndpoints(this.mcpUrl);
-      response = await this.authService.refreshAccessToken({
-        tokenEndpoint: metadata.tokenEndpoint,
-        clientId: client.clientId,
-        clientSecret: client.clientSecret,
-        refreshToken: tokens.refreshToken,
-      });
-    } catch {
-      // Only clear tokens if they are actually expired.
-      // If refresh was proactive (token still valid), leave storage intact
-      // so subsequent calls can still serve the current token.
-      const isExpired = tokens.expiresAt
-        ? new Date() >= new Date(tokens.expiresAt)
-        : false;
-      if (isExpired) {
-        this.cachedToken = null;
-        await this.authStorage.clearTokens(this.mcpUrl);
+      let response: TokenResponse;
+      try {
+        const metadata = await withTelemetrySpan(
+          "token-manager.discover-endpoints",
+          () => this.authService.discoverEndpoints(this.mcpUrl),
+        );
+        response = await withTelemetrySpan(
+          "token-manager.refresh-access-token",
+          () =>
+            this.authService.refreshAccessToken({
+              tokenEndpoint: metadata.tokenEndpoint,
+              clientId: client.clientId,
+              clientSecret: client.clientSecret,
+              refreshToken: tokens.refreshToken,
+            }),
+        );
+      } catch {
+        // Only clear tokens if they are actually expired.
+        // If refresh was proactive (token still valid), leave storage intact
+        // so subsequent calls can still serve the current token.
+        const isExpired = tokens.expiresAt
+          ? new Date() >= new Date(tokens.expiresAt)
+          : false;
+        if (isExpired) {
+          this.cachedToken = null;
+          await withTelemetrySpan("token-manager.clear-tokens", () =>
+            this.authStorage.clearTokens(this.mcpUrl),
+          );
+        }
+        return undefined;
       }
-      return undefined;
-    }
 
-    const newTokenData: TokenData = {
-      accessToken: response.accessToken,
-      refreshToken: response.refreshToken,
-      expiresAt: new Date(Date.now() + response.expiresIn * 1000).toISOString(),
-      createdAt: tokens.createdAt,
-    };
+      const newTokenData: TokenData = {
+        accessToken: response.accessToken,
+        refreshToken: response.refreshToken,
+        expiresAt: new Date(
+          Date.now() + response.expiresIn * 1000,
+        ).toISOString(),
+        // Refresh starts a new token lifetime window. Keeping the
+        // original createdAt makes a freshly refreshed token look
+        // permanently near expiry, which triggers immediate re-refresh.
+        createdAt: new Date().toISOString(),
+      };
 
-    await this.authStorage.saveTokens(this.mcpUrl, newTokenData);
-    this.cachedToken = newTokenData;
-    return response.accessToken;
+      await withTelemetrySpan("token-manager.save-tokens", () =>
+        this.authStorage.saveTokens(this.mcpUrl, newTokenData),
+      );
+      this.cachedToken = newTokenData;
+      return response.accessToken;
+    });
   }
 }

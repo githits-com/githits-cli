@@ -1,5 +1,6 @@
 import { version } from "../../package.json";
 import { buildClientHeaders } from "../shared/request-headers.js";
+import { withTelemetrySpan } from "../shared/telemetry.js";
 
 /**
  * Error thrown when the API returns 401 Unauthorized.
@@ -89,52 +90,58 @@ export class GitHitsServiceImpl implements GitHitsService {
   ) {}
 
   async search(params: SearchParams): Promise<string> {
-    const response = await fetch(`${this.apiUrl}/search`, {
-      method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify({
-        query: params.query,
-        language: params.language,
-        license_mode: params.licenseMode ?? "strict",
-        include_explanation: params.includeExplanation ?? false,
-      }),
+    return withTelemetrySpan("githits.search.request", async () => {
+      const response = await fetch(`${this.apiUrl}/search`, {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({
+          query: params.query,
+          language: params.language,
+          license_mode: params.licenseMode ?? "strict",
+          include_explanation: params.includeExplanation ?? false,
+        }),
+      });
+
+      if (!response.ok) {
+        throw await this.createError(response);
+      }
+
+      return response.text();
     });
-
-    if (!response.ok) {
-      throw await this.createError(response);
-    }
-
-    return response.text();
   }
 
   async getLanguages(): Promise<Language[]> {
-    const response = await fetch(`${this.apiUrl}/languages`, {
-      headers: this.headers(),
+    return withTelemetrySpan("githits.languages.request", async () => {
+      const response = await fetch(`${this.apiUrl}/languages`, {
+        headers: this.headers(),
+      });
+
+      if (!response.ok) {
+        throw await this.createError(response);
+      }
+
+      return response.json() as Promise<Language[]>;
     });
-
-    if (!response.ok) {
-      throw await this.createError(response);
-    }
-
-    return response.json() as Promise<Language[]>;
   }
 
   async submitFeedback(params: FeedbackParams): Promise<FeedbackResult> {
-    const response = await fetch(`${this.apiUrl}/feedbacks`, {
-      method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify({
-        solution_id: params.solutionId,
-        accepted: params.accepted,
-        feedback_text: params.feedbackText ?? null,
-      }),
+    return withTelemetrySpan("githits.feedback.request", async () => {
+      const response = await fetch(`${this.apiUrl}/feedbacks`, {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({
+          solution_id: params.solutionId,
+          accepted: params.accepted,
+          feedback_text: params.feedbackText ?? null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw await this.createError(response);
+      }
+
+      return { success: true, message: "Feedback submitted successfully" };
     });
-
-    if (!response.ok) {
-      throw await this.createError(response);
-    }
-
-    return { success: true, message: "Feedback submitted successfully" };
   }
 
   private headers(): Record<string, string> {

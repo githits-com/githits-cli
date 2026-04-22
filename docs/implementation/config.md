@@ -53,6 +53,7 @@ Package/source access is different from the REST endpoints above:
 | `GITHITS_CODE_NAV_URL` | Override package/source service URL | `http://localhost:4000` |
 | `GITHITS_API_TOKEN` | API token for authentication | `ghi-abc123...` |
 | `GITHITS_CODE_NAVIGATION` | Override capability gate and expose hidden `code` / `pkg` CLI groups locally | `1` |
+| `GITHITS_TELEMETRY` | Emit end-of-run timing spans to stderr for local profiling | `1` |
 
 ## Local Storage
 
