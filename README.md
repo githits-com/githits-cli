@@ -174,6 +174,7 @@ githits code ...       Dependency source inspection: search, files, read, grep
 | `GITHITS_API_URL` | Override REST API URL | `https://api.githits.com` |
 | `GITHITS_CODE_NAV_URL` | Override package/source service URL | environment-specific |
 | `GITHITS_CODE_NAVIGATION` | Expose hidden `pkg` / `code` command groups locally | — |
+| `GITHITS_TELEMETRY` | Emit end-of-run timing spans to stderr for local profiling | — |
 
 ## Manual Setup
 

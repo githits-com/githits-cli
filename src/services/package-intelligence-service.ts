@@ -23,6 +23,7 @@ import {
   postPkgseerGraphql,
 } from "../shared/pkgseer-graphql.js";
 import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
+import { withTelemetrySpan } from "../shared/telemetry.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import { AuthenticationError } from "./githits-service.js";
 import { promoteGenericVersionNotFound } from "./promote-version-not-found.js";
@@ -1013,12 +1014,14 @@ export class PackageIntelligenceServiceImpl
   ) {}
 
   async packageSummary(params: PackageSummaryParams): Promise<PackageSummary> {
-    return executeWithTokenRefresh({
-      getToken: () => this.tokenProvider.getToken(),
-      forceRefresh: () => this.tokenProvider.forceRefresh(),
-      shouldRefresh: (error) => error instanceof AuthenticationError,
-      executeWithToken: (token) => this.executePackageSummary(token, params),
-    });
+    return withTelemetrySpan("pkg-intel.summary.request", () =>
+      executeWithTokenRefresh({
+        getToken: () => this.tokenProvider.getToken(),
+        forceRefresh: () => this.tokenProvider.forceRefresh(),
+        shouldRefresh: (error) => error instanceof AuthenticationError,
+        executeWithToken: (token) => this.executePackageSummary(token, params),
+      }),
+    );
   }
 
   private async executePackageSummary(
@@ -1251,13 +1254,15 @@ export class PackageIntelligenceServiceImpl
   async packageVulnerabilities(
     params: PackageVulnerabilitiesParams,
   ): Promise<VulnerabilityReport> {
-    return executeWithTokenRefresh({
-      getToken: () => this.tokenProvider.getToken(),
-      forceRefresh: () => this.tokenProvider.forceRefresh(),
-      shouldRefresh: (error) => error instanceof AuthenticationError,
-      executeWithToken: (token) =>
-        this.executePackageVulnerabilities(token, params),
-    });
+    return withTelemetrySpan("pkg-intel.vulnerabilities.request", () =>
+      executeWithTokenRefresh({
+        getToken: () => this.tokenProvider.getToken(),
+        forceRefresh: () => this.tokenProvider.forceRefresh(),
+        shouldRefresh: (error) => error instanceof AuthenticationError,
+        executeWithToken: (token) =>
+          this.executePackageVulnerabilities(token, params),
+      }),
+    );
   }
 
   private async executePackageVulnerabilities(
@@ -1368,13 +1373,15 @@ export class PackageIntelligenceServiceImpl
   async packageDependencies(
     params: PackageDependenciesParams,
   ): Promise<DependencyReport> {
-    return executeWithTokenRefresh({
-      getToken: () => this.tokenProvider.getToken(),
-      forceRefresh: () => this.tokenProvider.forceRefresh(),
-      shouldRefresh: (error) => error instanceof AuthenticationError,
-      executeWithToken: (token) =>
-        this.executePackageDependencies(token, params),
-    });
+    return withTelemetrySpan("pkg-intel.dependencies.request", () =>
+      executeWithTokenRefresh({
+        getToken: () => this.tokenProvider.getToken(),
+        forceRefresh: () => this.tokenProvider.forceRefresh(),
+        shouldRefresh: (error) => error instanceof AuthenticationError,
+        executeWithToken: (token) =>
+          this.executePackageDependencies(token, params),
+      }),
+    );
   }
 
   private async executePackageDependencies(
@@ -1566,12 +1573,15 @@ export class PackageIntelligenceServiceImpl
   async packageChangelog(
     params: PackageChangelogParams,
   ): Promise<ChangelogReport> {
-    return executeWithTokenRefresh({
-      getToken: () => this.tokenProvider.getToken(),
-      forceRefresh: () => this.tokenProvider.forceRefresh(),
-      shouldRefresh: (error) => error instanceof AuthenticationError,
-      executeWithToken: (token) => this.executePackageChangelog(token, params),
-    });
+    return withTelemetrySpan("pkg-intel.changelog.request", () =>
+      executeWithTokenRefresh({
+        getToken: () => this.tokenProvider.getToken(),
+        forceRefresh: () => this.tokenProvider.forceRefresh(),
+        shouldRefresh: (error) => error instanceof AuthenticationError,
+        executeWithToken: (token) =>
+          this.executePackageChangelog(token, params),
+      }),
+    );
   }
 
   private async executePackageChangelog(

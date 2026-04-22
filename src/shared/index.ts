@@ -124,3 +124,15 @@ export {
   type SearchSymbolsQueryEcho,
   type SearchSymbolsSuccessPayload,
 } from "./search-symbols-response.js";
+export {
+  endTelemetrySpan,
+  flushTelemetry,
+  isTelemetryEnabled,
+  resetTelemetryCollectorForTests,
+  startTelemetrySpan,
+  type TelemetryAttributes,
+  TelemetryCollector,
+  type TelemetrySpanHandle,
+  withTelemetrySpan,
+  withTelemetrySpanSync,
+} from "./telemetry.js";

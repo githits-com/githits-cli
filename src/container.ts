@@ -31,6 +31,10 @@ import {
   type TokenProvider,
   WINDOWS_MAX_ENTRY_SIZE,
 } from "./services/index.js";
+import {
+  withTelemetrySpan,
+  withTelemetrySpanSync,
+} from "./shared/telemetry.js";
 
 /**
  * Create an AuthStorage instance, preferring keychain with file-based fallback.
@@ -38,37 +42,41 @@ import {
  * unavailable (no daemon, access denied), falls back to file storage with a warning.
  */
 function createAuthStorage(fileSystemService: FileSystemService): AuthStorage {
-  const fileStorage = new AuthStorageImpl(fileSystemService);
+  return withTelemetrySpanSync("container.create-auth-storage", () => {
+    const fileStorage = new AuthStorageImpl(fileSystemService);
 
-  try {
-    const rawKeyring = new KeyringServiceImpl();
-    // Windows Credential Manager limits entries to 2560 UTF-16 chars.
-    // Wrap with chunking decorator to split large values across multiple entries.
-    const keyring =
-      process.platform === "win32"
-        ? new ChunkingKeyringService(rawKeyring, WINDOWS_MAX_ENTRY_SIZE)
-        : rawKeyring;
-    // Probe keychain availability with a write+delete cycle.
-    // Use timestamp + random suffix to avoid probe key collisions.
-    // Probe value "probe" is 5 chars, passes through the chunking wrapper unchanged.
-    const probeKey = `__probe_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    keyring.setPassword("githits", probeKey, "probe");
     try {
-      keyring.deletePassword("githits", probeKey);
-    } catch {
-      // Orphaned probe entry — keychain is operational (write succeeded)
-      // but delete failed. The tiny entry is harmless; proceed with keychain.
-    }
+      const rawKeyring = new KeyringServiceImpl();
+      // Windows Credential Manager limits entries to 2560 UTF-16 chars.
+      // Wrap with chunking decorator to split large values across multiple entries.
+      const keyring =
+        process.platform === "win32"
+          ? new ChunkingKeyringService(rawKeyring, WINDOWS_MAX_ENTRY_SIZE)
+          : rawKeyring;
+      withTelemetrySpanSync("container.keychain-probe", () => {
+        // Probe keychain availability with a write+delete cycle.
+        // Use timestamp + random suffix to avoid probe key collisions.
+        // Probe value "probe" is 5 chars, passes through the chunking wrapper unchanged.
+        const probeKey = `__probe_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        keyring.setPassword("githits", probeKey, "probe");
+        try {
+          keyring.deletePassword("githits", probeKey);
+        } catch {
+          // Orphaned probe entry — keychain is operational (write succeeded)
+          // but delete failed. The tiny entry is harmless; proceed with keychain.
+        }
+      });
 
-    const keychainStorage = new KeychainAuthStorage(keyring);
-    return new MigratingAuthStorage(keychainStorage, fileStorage);
-  } catch (error) {
-    if (!(error instanceof KeychainUnavailableError)) throw error;
-    console.error(
-      "Warning: System keychain unavailable. Falling back to file-based credential storage.",
-    );
-    return fileStorage;
-  }
+      const keychainStorage = new KeychainAuthStorage(keyring);
+      return new MigratingAuthStorage(keychainStorage, fileStorage);
+    } catch (error) {
+      if (!(error instanceof KeychainUnavailableError)) throw error;
+      console.error(
+        "Warning: System keychain unavailable. Falling back to file-based credential storage.",
+      );
+      return fileStorage;
+    }
+  });
 }
 
 /**
@@ -118,24 +126,57 @@ function createStaticTokenProvider(token: string): TokenProvider {
  * Async because token resolution requires reading stored auth.
  */
 export async function createContainer(): Promise<Dependencies> {
-  const mcpUrl = getMcpUrl();
-  const apiUrl = getApiUrl();
-  const codeNavigationUrl = getCodeNavigationUrl();
-  const codeNavigationCliOverrideEnabled = isCodeNavigationCliOverrideEnabled();
-  const fileSystemService = new FileSystemServiceImpl();
-  const authStorage = createAuthStorage(fileSystemService);
-  const authService = new AuthServiceImpl();
-  const browserService = new BrowserServiceImpl();
+  return withTelemetrySpan("container.create", async () => {
+    const mcpUrl = getMcpUrl();
+    const apiUrl = getApiUrl();
+    const codeNavigationUrl = getCodeNavigationUrl();
+    const codeNavigationCliOverrideEnabled =
+      isCodeNavigationCliOverrideEnabled();
+    const fileSystemService = new FileSystemServiceImpl();
+    const authStorage = createAuthStorage(fileSystemService);
+    const authService = new AuthServiceImpl();
+    const browserService = new BrowserServiceImpl();
 
-  // Check for env API token first
-  const envToken = getEnvApiToken();
-  if (envToken) {
-    const tokenProvider = createStaticTokenProvider(envToken);
+    // Check for env API token first
+    const envToken = getEnvApiToken();
+    if (envToken) {
+      const tokenProvider = createStaticTokenProvider(envToken);
+      const codeNavigationService = codeNavigationUrl
+        ? new CodeNavigationServiceImpl(codeNavigationUrl, tokenProvider)
+        : undefined;
+      const packageIntelligenceService = codeNavigationUrl
+        ? new PackageIntelligenceServiceImpl(codeNavigationUrl, tokenProvider)
+        : undefined;
+
+      return {
+        authStorage,
+        authService,
+        browserService,
+        fileSystemService,
+        mcpUrl,
+        apiUrl,
+        apiToken: envToken,
+        hasValidToken: true,
+        envApiToken: envToken,
+        codeNavigationCapability: getCodeNavigationCapability(envToken),
+        codeNavigationCliOverrideEnabled,
+        codeNavigationUrl,
+        codeNavigationService,
+        packageIntelligenceService,
+        githitsService: new GitHitsServiceImpl(apiUrl, envToken),
+      };
+    }
+
+    // Create token manager for stored auth with auto-refresh
+    const tokenManager = new TokenManager({ authService, authStorage, mcpUrl });
+    const apiToken = await withTelemetrySpan("container.token.get", () =>
+      tokenManager.getToken(),
+    );
     const codeNavigationService = codeNavigationUrl
-      ? new CodeNavigationServiceImpl(codeNavigationUrl, tokenProvider)
+      ? new CodeNavigationServiceImpl(codeNavigationUrl, tokenManager)
       : undefined;
     const packageIntelligenceService = codeNavigationUrl
-      ? new PackageIntelligenceServiceImpl(codeNavigationUrl, tokenProvider)
+      ? new PackageIntelligenceServiceImpl(codeNavigationUrl, tokenManager)
       : undefined;
 
     return {
@@ -145,45 +186,17 @@ export async function createContainer(): Promise<Dependencies> {
       fileSystemService,
       mcpUrl,
       apiUrl,
-      apiToken: envToken,
-      hasValidToken: true,
-      envApiToken: envToken,
-      codeNavigationCapability: getCodeNavigationCapability(envToken),
+      apiToken,
+      hasValidToken: apiToken !== undefined,
+      envApiToken: undefined,
+      codeNavigationCapability: getCodeNavigationCapability(apiToken),
       codeNavigationCliOverrideEnabled,
       codeNavigationUrl,
       codeNavigationService,
       packageIntelligenceService,
-      githitsService: new GitHitsServiceImpl(apiUrl, envToken),
+      githitsService: new RefreshingGitHitsService(apiUrl, tokenManager),
     };
-  }
-
-  // Create token manager for stored auth with auto-refresh
-  const tokenManager = new TokenManager({ authService, authStorage, mcpUrl });
-  const apiToken = await tokenManager.getToken();
-  const codeNavigationService = codeNavigationUrl
-    ? new CodeNavigationServiceImpl(codeNavigationUrl, tokenManager)
-    : undefined;
-  const packageIntelligenceService = codeNavigationUrl
-    ? new PackageIntelligenceServiceImpl(codeNavigationUrl, tokenManager)
-    : undefined;
-
-  return {
-    authStorage,
-    authService,
-    browserService,
-    fileSystemService,
-    mcpUrl,
-    apiUrl,
-    apiToken,
-    hasValidToken: apiToken !== undefined,
-    envApiToken: undefined,
-    codeNavigationCapability: getCodeNavigationCapability(apiToken),
-    codeNavigationCliOverrideEnabled,
-    codeNavigationUrl,
-    codeNavigationService,
-    packageIntelligenceService,
-    githitsService: new RefreshingGitHitsService(apiUrl, tokenManager),
-  };
+  });
 }
 
 /**
@@ -203,47 +216,54 @@ export interface StartupCodeNavigationRegistrationState {
  * Resolves CLI registration state without triggering token refresh.
  */
 export async function resolveStartupCodeNavigationRegistrationState(): Promise<StartupCodeNavigationRegistrationState> {
-  const envToken = getEnvApiToken();
-  if (envToken) {
-    return {
-      capability: getCodeNavigationCapability(envToken),
-      expiredStoredAuth: false,
-    };
-  }
+  return withTelemetrySpan(
+    "startup.resolve-code-nav-registration-state",
+    async () => {
+      const envToken = getEnvApiToken();
+      if (envToken) {
+        return {
+          capability: getCodeNavigationCapability(envToken),
+          expiredStoredAuth: false,
+        };
+      }
 
-  const tokens = await loadStartupTokens(getMcpUrl());
-  if (tokens?.expiresAt && new Date(tokens.expiresAt) < new Date()) {
-    return { capability: "unknown", expiredStoredAuth: true };
-  }
+      const tokens = await loadStartupTokens(getMcpUrl());
+      if (tokens?.expiresAt && new Date(tokens.expiresAt) < new Date()) {
+        return { capability: "unknown", expiredStoredAuth: true };
+      }
 
-  return {
-    capability: getCodeNavigationCapability(tokens?.accessToken),
-    expiredStoredAuth: false,
-  };
+      return {
+        capability: getCodeNavigationCapability(tokens?.accessToken),
+        expiredStoredAuth: false,
+      };
+    },
+  );
 }
 
 async function loadStartupTokens(mcpUrl: string): Promise<TokenData | null> {
-  const fileSystemService = new FileSystemServiceImpl();
-  const fileStorage = new AuthStorageImpl(fileSystemService);
+  return withTelemetrySpan("startup.load-tokens", async () => {
+    const fileSystemService = new FileSystemServiceImpl();
+    const fileStorage = new AuthStorageImpl(fileSystemService);
 
-  try {
-    // Avoid createAuthStorage() here: command registration/help should stay read-only
-    // and must not trigger the keychain probe write+delete cycle or migration writes.
-    const rawKeyring = new KeyringServiceImpl();
-    const keyring =
-      process.platform === "win32"
-        ? new ChunkingKeyringService(rawKeyring, WINDOWS_MAX_ENTRY_SIZE)
-        : rawKeyring;
-    const keychainStorage = new KeychainAuthStorage(keyring);
-    const keychainTokens = await keychainStorage.loadTokens(mcpUrl);
-    if (keychainTokens) {
-      return keychainTokens;
+    try {
+      // Avoid createAuthStorage() here: command registration/help should stay read-only
+      // and must not trigger the keychain probe write+delete cycle or migration writes.
+      const rawKeyring = new KeyringServiceImpl();
+      const keyring =
+        process.platform === "win32"
+          ? new ChunkingKeyringService(rawKeyring, WINDOWS_MAX_ENTRY_SIZE)
+          : rawKeyring;
+      const keychainStorage = new KeychainAuthStorage(keyring);
+      const keychainTokens = await keychainStorage.loadTokens(mcpUrl);
+      if (keychainTokens) {
+        return keychainTokens;
+      }
+    } catch (error) {
+      if (!(error instanceof KeychainUnavailableError)) {
+        throw error;
+      }
     }
-  } catch (error) {
-    if (!(error instanceof KeychainUnavailableError)) {
-      throw error;
-    }
-  }
 
-  return fileStorage.loadTokens(mcpUrl);
+    return fileStorage.loadTokens(mcpUrl);
+  });
 }
