@@ -259,6 +259,9 @@ function formatPlain(
     if (options.withContext && index > 0 && hasContext) {
       stdoutLines.push("--");
     }
+    if (options.withContext) {
+      stdoutLines.push(block.filePath);
+    }
     for (const line of block.lines) {
       if (!options.withContext && !line.isMatch) continue;
       stdoutLines.push(
@@ -386,10 +389,12 @@ function renderPlainLine(
   withContext = false,
 ): string {
   if (!withContext || line.isMatch) {
-    return `${filePath}:${line.lineNumber}:${line.content}`;
+    return withContext
+      ? `${line.lineNumber}:${line.content}`
+      : `${filePath}:${line.lineNumber}:${line.content}`;
   }
 
-  return `${filePath}-${line.lineNumber}-${line.content}`;
+  return `${line.lineNumber}-${line.content}`;
 }
 
 function groupBlocksByFile(blocks: RenderBlock[]): Map<string, RenderBlock[]> {

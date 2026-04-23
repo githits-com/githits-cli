@@ -132,12 +132,15 @@ describe("formatGrepRepoTerminal", () => {
       useColors: false,
       withContext: true,
     }).stdout;
-    expect(plain.indexOf("src/index.js-9-before")).toBeLessThan(
-      plain.indexOf("src/index.js:10:const app = express();"),
+    expect(plain.indexOf("src/index.js\n")).toBeLessThan(
+      plain.indexOf("9-before"),
     );
-    expect(
-      plain.indexOf("src/index.js:10:const app = express();"),
-    ).toBeLessThan(plain.indexOf("src/index.js-11-after"));
+    expect(plain.indexOf("9-before")).toBeLessThan(
+      plain.indexOf("10:const app = express();"),
+    );
+    expect(plain.indexOf("10:const app = express();")).toBeLessThan(
+      plain.indexOf("11-after"),
+    );
 
     const verbose = formatGrepRepoTerminal(envelope, {
       useColors: false,
@@ -218,13 +221,13 @@ describe("formatGrepRepoTerminal", () => {
       withContext: true,
     }).stdout;
 
-    expect(plain).toContain("lib/app.js-8-line 8");
-    expect(plain).toContain("lib/app.js-9-line 9");
-    expect(plain).toContain("lib/app.js:10:match one");
-    expect(plain).toContain("lib/app.js-11-line 11");
-    expect(plain).toContain("lib/app.js:12:match two");
-    expect(plain).toContain("lib/app.js-13-line 13");
-    expect(plain).toContain("lib/app.js-14-line 14");
+    expect(plain).toContain("lib/app.js\n8-line 8");
+    expect(plain).toContain("9-line 9");
+    expect(plain).toContain("10:match one");
+    expect(plain).toContain("11-line 11");
+    expect(plain).toContain("12:match two");
+    expect(plain).toContain("13-line 13");
+    expect(plain).toContain("14-line 14");
     expect(plain).not.toContain("line 10 stale");
     expect(plain).not.toContain("line 11 stale");
     expect(plain).not.toContain("--\n--");
