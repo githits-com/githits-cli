@@ -1,9 +1,14 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import { AuthRequiredError } from "../shared/require-auth.js";
+import type {
+  UnifiedSearchIncomplete,
+  UnifiedSearchProgress,
+  UnifiedSearchSessionStatus,
+} from "../services/code-navigation-service.js";
 import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,
 } from "../services/test-helpers.js";
+import { AuthRequiredError } from "../shared/require-auth.js";
 import {
   type SearchDependencies,
   searchAction,
@@ -12,6 +17,54 @@ import {
 
 describe("searchAction", () => {
   const mcpUrl = "https://mcp.githits.com";
+
+  function createIncompleteOutcome(
+    status: UnifiedSearchSessionStatus,
+    searchRef: string,
+  ): UnifiedSearchIncomplete {
+    return {
+      state: "incomplete",
+      completed: false,
+      searchRef,
+      progress: {
+        searchRef,
+        status,
+        targetsTotal: 1,
+        targetsReady: 0,
+        elapsedMs: 100,
+        query: "router",
+        queryWarnings: [],
+        sources: ["CODE"],
+      },
+    };
+  }
+
+  function createIncompleteOutcomeWithProgress(
+    status: UnifiedSearchSessionStatus,
+    searchRef: string,
+    progressOverrides: Partial<UnifiedSearchProgress> = {},
+  ): UnifiedSearchIncomplete {
+    const baseProgress: UnifiedSearchProgress = {
+      searchRef,
+      status,
+      targetsTotal: 1,
+      targetsReady: 0,
+      elapsedMs: 100,
+      query: "router",
+      queryWarnings: [],
+      sources: ["CODE"],
+    };
+
+    return {
+      state: "incomplete",
+      completed: false,
+      searchRef,
+      progress: {
+        ...baseProgress,
+        ...progressOverrides,
+      },
+    };
+  }
 
   function createDeps(
     overrides: Partial<SearchDependencies> = {},
@@ -55,6 +108,30 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("passes repeatable --source values through as source filters", async () => {
+    const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+    const deps = createDeps({
+      codeNavigationService: createMockCodeNavigationService({ search }),
+    });
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchAction(
+      "router middleware",
+      {
+        in: ["npm:express"],
+        source: ["code", "docs"],
+      },
+      deps,
+    );
+
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sources: ["CODE", "DOCS"],
+      }),
+    );
+    consoleSpy.mockRestore();
+  });
+
   it("outputs JSON when --json flag provided", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
@@ -73,7 +150,11 @@ describe("searchAction", () => {
 
   it("throws AuthRequiredError on auth failure", async () => {
     await expect(
-      searchAction("router", { in: ["npm:express"] }, createDeps({ hasValidToken: false })),
+      searchAction(
+        "router",
+        { in: ["npm:express"] },
+        createDeps({ hasValidToken: false }),
+      ),
     ).rejects.toThrow(AuthRequiredError);
   });
 
@@ -86,27 +167,17 @@ describe("searchAction", () => {
       createDeps({
         codeNavigationService: createMockCodeNavigationService({
           search: mock(() =>
-            Promise.resolve({
-              state: "incomplete",
-              completed: false,
-              searchRef: "search-ref-123",
-              progress: {
-                searchRef: "search-ref-123",
-                status: "INDEXING",
-                targetsTotal: 1,
-                targetsReady: 0,
-                elapsedMs: 100,
-                query: "router",
-                queryWarnings: [],
-                sources: ["CODE"],
-              },
-            }),
+            Promise.resolve(
+              createIncompleteOutcome("INDEXING", "search-ref-123"),
+            ),
           ),
         }),
       }),
     );
 
-    expect(String(consoleSpy.mock.calls[0]?.[0])).toContain("Search still in progress");
+    expect(String(consoleSpy.mock.calls[0]?.[0])).toContain(
+      "Search still in progress",
+    );
     expect(String(consoleSpy.mock.calls[0]?.[0])).toContain("search-ref-123");
     consoleSpy.mockRestore();
   });
@@ -114,6 +185,29 @@ describe("searchAction", () => {
 
 describe("searchStatusAction", () => {
   const mcpUrl = "https://mcp.githits.com";
+
+  function createIncompleteOutcome(
+    status: UnifiedSearchSessionStatus,
+    searchRef: string,
+    progressOverrides: Partial<UnifiedSearchProgress> = {},
+  ): UnifiedSearchIncomplete {
+    return {
+      state: "incomplete",
+      completed: false,
+      searchRef,
+      progress: {
+        searchRef,
+        status,
+        targetsTotal: 1,
+        targetsReady: 0,
+        elapsedMs: 100,
+        query: "router",
+        queryWarnings: [],
+        sources: ["CODE"],
+        ...progressOverrides,
+      },
+    };
+  }
 
   function createDeps(
     overrides: Partial<SearchDependencies> = {},
@@ -136,21 +230,12 @@ describe("searchStatusAction", () => {
       createDeps({
         codeNavigationService: createMockCodeNavigationService({
           searchStatus: mock(() =>
-            Promise.resolve({
-              state: "incomplete",
-              completed: false,
-              searchRef: "search-ref-123",
-              progress: {
-                searchRef: "search-ref-123",
-                status: "SEARCHING",
-                targetsTotal: 1,
+            Promise.resolve(
+              createIncompleteOutcome("SEARCHING", "search-ref-123", {
                 targetsReady: 1,
                 elapsedMs: 300,
-                query: "router",
-                queryWarnings: [],
-                sources: ["CODE"],
-              },
-            }),
+              }),
+            ),
           ),
         }),
       }),
@@ -161,14 +246,60 @@ describe("searchStatusAction", () => {
     consoleSpy.mockRestore();
   });
 
-  it("outputs final JSON when completed", async () => {
+  it("renders TIMEOUT as terminal status instead of in-progress", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     await searchStatusAction(
-      "search-ref-123",
-      { json: true },
-      createDeps(),
+      "search-ref-timeout",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() =>
+            Promise.resolve(
+              createIncompleteOutcome("TIMEOUT", "search-ref-timeout", {
+                elapsedMs: 20_000,
+              }),
+            ),
+          ),
+        }),
+      }),
     );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Search timed out.");
+    expect(output).not.toContain("Search still in progress.");
+    consoleSpy.mockRestore();
+  });
+
+  it("renders FAILED as terminal status instead of in-progress", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchStatusAction(
+      "search-ref-failed",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() =>
+            Promise.resolve(
+              createIncompleteOutcome("FAILED", "search-ref-failed", {
+                elapsedMs: 500,
+              }),
+            ),
+          ),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Search failed.");
+    expect(output).not.toContain("Search still in progress.");
+    consoleSpy.mockRestore();
+  });
+
+  it("outputs final JSON when completed", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchStatusAction("search-ref-123", { json: true }, createDeps());
 
     const payload = JSON.parse(String(consoleSpy.mock.calls[0]?.[0]));
     expect(payload.completed).toBe(true);

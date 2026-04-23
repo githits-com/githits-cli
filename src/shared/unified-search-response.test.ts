@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import type { UnifiedSearchParams } from "../services/code-navigation-service.js";
 import { defaultUnifiedSearchOutcome } from "../services/test-helpers.js";
 import {
   buildUnifiedSearchErrorPayload,
@@ -7,7 +8,7 @@ import {
 } from "./unified-search-response.js";
 
 describe("buildUnifiedSearchSuccessPayload", () => {
-  const params = {
+  const params: UnifiedSearchParams = {
     targets: [{ registry: "NPM", packageName: "express" }],
     query: "router middleware",
     limit: 20,
@@ -112,7 +113,13 @@ describe("buildUnifiedSearchStatusPayload", () => {
   });
 
   it("builds a completed status payload without fabricating the original request", () => {
-    const payload = buildUnifiedSearchStatusPayload(defaultUnifiedSearchOutcome);
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const payload = buildUnifiedSearchStatusPayload(
+      defaultUnifiedSearchOutcome,
+    );
 
     expect(payload.completed).toBe(true);
     if (!payload.completed) {

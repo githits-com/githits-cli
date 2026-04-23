@@ -51,6 +51,32 @@ describe("searchTool", () => {
     const result = await tool.handler({ query: "test" }, {});
 
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain("At least one target is required");
+    expect(result.content[0]?.text).toContain(
+      "At least one target is required",
+    );
+  });
+
+  it("defaults repo targets to HEAD when git_ref is omitted", async () => {
+    const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "router middleware",
+        target: { repo_url: "https://github.com/expressjs/express" },
+      },
+      {},
+    );
+
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: [
+          expect.objectContaining({
+            repoUrl: "https://github.com/expressjs/express",
+            gitRef: "HEAD",
+          }),
+        ],
+      }),
+    );
   });
 });

@@ -15,6 +15,11 @@ import {
 } from "./code-navigation-shared.js";
 import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
+type ResolvedCodeTarget = Exclude<
+  ReturnType<typeof resolveCodeTarget>,
+  { content: unknown }
+>;
+
 export interface SearchArgs {
   query: string;
   target?: CodeTargetArg;
@@ -149,15 +154,20 @@ export function createSearchTool(
     annotations: { readOnlyHint: true },
     handler: async (args) => {
       try {
-        const resolvedTarget = args.target ? resolveCodeTarget(args.target) : undefined;
-        if (resolvedTarget && "content" in resolvedTarget) return resolvedTarget;
+        const resolvedTarget = args.target
+          ? resolveCodeTarget(args.target)
+          : undefined;
+        if (resolvedTarget && "content" in resolvedTarget)
+          return resolvedTarget;
 
-        const resolvedTargets =
-          args.targets?.map((entry) => resolveCodeTarget(entry)) ?? undefined;
-        if (resolvedTargets?.some((entry) => "content" in entry)) {
-          return resolvedTargets.find((entry) => "content" in entry) as ReturnType<
-            typeof resolveCodeTarget
-          >;
+        const resolvedTargets = args.targets?.map((entry) =>
+          resolveCodeTarget(entry),
+        );
+        const resolvedTargetsError = resolvedTargets?.find(
+          (entry) => "content" in entry,
+        );
+        if (resolvedTargetsError) {
+          return resolvedTargetsError;
         }
 
         const built = buildUnifiedSearchParams({
@@ -165,12 +175,11 @@ export function createSearchTool(
             resolvedTarget && !("content" in resolvedTarget)
               ? resolvedTarget
               : undefined,
-          targets: resolvedTargets?.filter(
-            (entry): entry is Exclude<typeof entry, { content: unknown }> =>
-              !("content" in entry),
-          ),
+          targets: resolvedTargets?.filter(isResolvedCodeTarget),
           query: args.query,
-          sources: args.sources?.map((entry) => entry.toUpperCase() as "DOCS" | "CODE" | "SYMBOL"),
+          sources: args.sources?.map(
+            (entry) => entry.toUpperCase() as "DOCS" | "CODE" | "SYMBOL",
+          ),
           kind: toSearchSymbolsKind(args.kind),
           category: toSymbolCategory(args.category),
           pathPrefix: args.path_prefix,
@@ -193,8 +202,16 @@ export function createSearchTool(
         );
         return textResult(JSON.stringify(payload));
       } catch (error) {
-        return errorResult(JSON.stringify(buildUnifiedSearchErrorPayload(error)));
+        return errorResult(
+          JSON.stringify(buildUnifiedSearchErrorPayload(error)),
+        );
       }
     },
   };
+}
+
+function isResolvedCodeTarget(
+  target: ReturnType<typeof resolveCodeTarget>,
+): target is ResolvedCodeTarget {
+  return !("content" in target);
 }

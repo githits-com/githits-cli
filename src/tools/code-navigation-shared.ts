@@ -106,9 +106,16 @@ export function resolveCodeTarget(
   }
 
   if (!target.repo_url || !target.git_ref) {
-    return invalidTargetResult(
-      "Incomplete repository target: both repo_url and git_ref are required.",
-    );
+    if (!target.repo_url) {
+      return invalidTargetResult(
+        "Incomplete repository target: repo_url is required.",
+      );
+    }
+
+    return {
+      repoUrl: target.repo_url,
+      gitRef: target.git_ref ?? "HEAD",
+    };
   }
 
   return {

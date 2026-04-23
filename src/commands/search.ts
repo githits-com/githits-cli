@@ -1,6 +1,6 @@
 import { type Command, Option } from "commander";
+import type { CodeNavigationCapability } from "../services/code-navigation-capability.js";
 import type {
-  CodeNavigationCapability,
   CodeNavigationService,
   UnifiedSearchSource,
 } from "../services/code-navigation-service.js";
@@ -15,6 +15,8 @@ import {
   buildUnifiedSearchStatusPayload,
   buildUnifiedSearchSuccessPayload,
   InvalidArgumentError,
+  knownSymbolCategoryList,
+  knownSymbolKindList,
   parseUnifiedSearchTargetSpec,
   requireAuth,
   toSearchSymbolsFileIntent,
@@ -170,13 +172,35 @@ export function registerSearchCommand(program: Command) {
     .addOption(
       new Option("--source <source>", "Source to search")
         .choices(["docs", "code", "symbol"])
-        .argParser((value) => value.toLowerCase())
+        .argParser((value, previous: string[] = []) =>
+          collectRepeatable(value.toLowerCase(), previous),
+        )
         .default(undefined),
     )
-    .option("--kind <kind>", "Precise symbol kind filter")
-    .option("--category <category>", "Broad symbol category filter")
+    .addOption(
+      new Option("--kind <kind>", "Precise symbol kind filter").choices([
+        ...knownSymbolKindList(),
+      ]),
+    )
+    .addOption(
+      new Option(
+        "--category <category>",
+        "Broad symbol category filter",
+      ).choices([...knownSymbolCategoryList()]),
+    )
     .option("--path-prefix <prefix>", "Repository path prefix filter")
-    .option("--intent <intent>", "File intent filter")
+    .addOption(
+      new Option("--intent <intent>", "File intent filter").choices([
+        "production",
+        "test",
+        "benchmark",
+        "example",
+        "generated",
+        "fixture",
+        "build",
+        "vendor",
+      ]),
+    )
     .option("--public", "Filter to public symbols when supported")
     .option("--name <name>", "Structured name qualifier")
     .option("--lang <language>", "Structured language qualifier")
@@ -268,7 +292,9 @@ function parseTargetSpecs(specs: string[] | undefined) {
   return specs.map(parseUnifiedSearchTargetSpec);
 }
 
-function parseSources(values: string[] | undefined): UnifiedSearchSource[] | undefined {
+function parseSources(
+  values: string[] | undefined,
+): UnifiedSearchSource[] | undefined {
   if (!values || values.length === 0) return undefined;
   return values.map((value) => {
     switch (value) {
@@ -397,7 +423,11 @@ function formatSearchStatusTerminal(payload: {
   searchRef: string;
   progress?: { targetsReady?: number; targetsTotal?: number; status?: string };
 }): string {
-  const lines = ["Search still in progress.", `searchRef: ${payload.searchRef}`];
+  const status = payload.progress?.status;
+  const lines = [
+    formatSearchStatusHeadline(status),
+    `searchRef: ${payload.searchRef}`,
+  ];
   if (payload.progress) {
     if (payload.progress.status) {
       lines.push(`status: ${payload.progress.status.toLowerCase()}`);
@@ -411,8 +441,31 @@ function formatSearchStatusTerminal(payload: {
       );
     }
   }
+  if (status === "TIMEOUT") {
+    lines.push(
+      "Search timed out before completion. Retry with a longer wait or start a new search.",
+    );
+    return lines.join("\n");
+  }
+  if (status === "FAILED") {
+    lines.push(
+      "Search failed. Start a new search or inspect backend errors if the failure persists.",
+    );
+    return lines.join("\n");
+  }
   lines.push("Use `githits search-status <search-ref>` to check again.");
   return lines.join("\n");
+}
+
+function formatSearchStatusHeadline(status: string | undefined): string {
+  switch (status) {
+    case "TIMEOUT":
+      return "Search timed out.";
+    case "FAILED":
+      return "Search failed.";
+    default:
+      return "Search still in progress.";
+  }
 }
 
 function formatSearchStatusCompletedTerminal(payload: {
@@ -441,7 +494,7 @@ function formatSearchStatusCompletedTerminal(payload: {
     nextOffset: payload.result.nextOffset,
     results: payload.result.results,
     searchRef: payload.searchRef,
-    progress: payload.progress,
+    progress: undefined,
     query: { warnings: payload.result.queryWarnings },
   });
 }
