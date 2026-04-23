@@ -18,8 +18,8 @@ export interface LeanReadFileEnvelope {
   gitRef?: string;
   /**
    * File path. Named `path` (not `filePath`) so the envelope key
-   * matches `list_files.files[].path` and `grep_file`'s `path`
-   * input — keeps the `list_files` → `read_file` / `grep_file`
+   * matches `list_files.files[].path` and `grep_repo`'s exact-file
+   * `path` input — keeps the `list_files` → `read_file` / `grep_repo`
    * chain free of rename friction.
    */
   path: string;

@@ -174,11 +174,11 @@ When a new tool lands with both MCP and CLI surfaces:
 | `src/shared/list-files-response.ts` | JSON envelope builder for `list_files` (shared); terminal formatter (CLI-only). Resolves the `hasMore` → `N+` header behaviour. |
 | `src/shared/read-file-request.ts` | Shared request builder for `read_file`; trims filePath, validates start/end line positive-integer rules, rejects reversed ranges. |
 | `src/shared/read-file-response.ts` | JSON envelope builder for `read_file` (shared); terminal formatter (CLI-only). Normalises the envelope key to `path` (not `filePath`) so `list_files` → `read_file` chains without renames. |
-| `src/shared/grep-file-request.ts` | Shared request builder for `grep_file`; exports `GREP_PATTERN_SEMANTICS_NOTE` referenced by MCP description, MCP `pattern` describe, and CLI help. Also exports `looksLikeRegexAttempt` heuristic. |
-| `src/shared/grep-file-response.ts` | JSON envelope builder for `grep_file` (shared); terminal formatter (CLI-only) owns the regex-char empty-result nudge. |
+| `src/shared/grep-repo-request.ts` | Shared request builder for `grep_repo`; exports `GREP_REPO_PATTERN_NOTE` referenced by MCP description, MCP `pattern` describe, and CLI help. Compiles public scope inputs into backend `pathSelectors` and applies internal `allowUnscoped` when no scope filters are given. |
+| `src/shared/grep-repo-response.ts` | JSON envelope builder for `grep_repo` (shared); terminal formatter (CLI-only) renders plain `file:line:text` or verbose grouped output and surfaces pagination via stderr. |
 | `src/shared/code-navigation-error-map.ts` | `mapCodeNavigationError` classifier. Owns the `INDEXING` / `FILE_NOT_FOUND` / `NOT_FOUND` codes shared across all four code-nav tools. |
 | `src/shared/code-navigation-defaults.ts` | `DEFAULT_WAIT_TIMEOUT_MS = 20_000` + `MAX_WAIT_TIMEOUT_MS = 60_000`. Both CLI and MCP request builders import these so defaults never diverge. |
-| `src/tools/code-navigation-shared.ts` | `codeTargetSchema` + `resolveCodeTarget` — the single addressing primitive used by `search_symbols`, `list_files`, `read_file`, `grep_file`. |
+| `src/tools/code-navigation-shared.ts` | `codeTargetSchema` + `resolveCodeTarget` — the single addressing primitive used by `search_symbols`, `list_files`, `read_file`, `grep_repo`. |
 | `src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier (reuses `MappedError` from the code-nav map). |
 | `src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. Used by the `packageVulnerabilities`, `packageDependencies`, and `packageChangelog` executors. Handles both `version` (single-version queries) and `fromVersion` / `toVersion` (range queries), and skips `details.package` synthesis when registry/name aren't available (repo-URL mode). |
 | `src/tools/search-symbols.ts` | MCP tool definition for `search_symbols`. |
@@ -190,7 +190,7 @@ When a new tool lands with both MCP and CLI surfaces:
 | `src/tools/package-changelog.ts` | MCP tool definition for `package_changelog`. |
 | `src/tools/list-files.ts` | MCP tool definition for `list_files`. |
 | `src/tools/read-file.ts` | MCP tool definition for `read_file`. |
-| `src/tools/grep-file.ts` | MCP tool definition for `grep_file`. |
+| `src/tools/grep-repo.ts` | MCP tool definition for `grep_repo`. |
 | `src/commands/code/search-symbols.ts` | CLI command. |
 | `src/commands/search.ts` | Top-level CLI commands for unified `search` and `search-status`. |
 | `src/commands/pkg/info.ts` | CLI command for `pkg info`. |
@@ -207,7 +207,7 @@ When a new tool lands with both MCP and CLI surfaces:
 | `src/tools/package-changelog-parity.test.ts` | Parity tests for `package_changelog` (cite rule IDs). |
 | `src/tools/list-files-parity.test.ts` | Parity tests for `list_files` (cite rule IDs). |
 | `src/tools/read-file-parity.test.ts` | Parity tests for `read_file` (cite rule IDs). |
-| `src/tools/grep-file-parity.test.ts` | Parity tests for `grep_file` (cite rule IDs). |
+| `src/tools/grep-repo-parity.test.ts` | Parity tests for `grep_repo` (cite rule IDs). |
 
 ## Per-tool notes
 
@@ -408,7 +408,7 @@ When a new tool lands with both MCP and CLI surfaces:
   - `toMatchObject` for builder-sourced `INVALID_ARGUMENT` cases:
     `<spec>@<version>` rejection, `--from` + `--limit` mutex.
 
-### `list_files` / `read_file` / `grep_file` (file-exploration bundle)
+### `list_files` / `read_file` / `grep_repo` (file-exploration bundle)
 
 All three reuse `codeTargetSchema` + `resolveCodeTarget` from
 `src/tools/code-navigation-shared.ts`. The indexing lifecycle is
@@ -431,17 +431,15 @@ so envelope-drift surfaces in the test rather than at an agent.
   on the backend doesn't return `availableVersions` on
   INDEXING responses, so its `details` block carries only
   `indexingRef` — MCP description calls this out explicitly.
-- **`grep_file`**: `GREP_PATTERN_SEMANTICS_NOTE` constant
-  (exported from `grep-file-request.ts`) ensures the
-  substring-only disclosure is identical in the MCP
+- **`grep_repo`**: `GREP_REPO_PATTERN_NOTE` constant
+  (exported from `grep-repo-request.ts`) ensures the
+  literal-vs-regex disclosure is identical in the MCP
   description, MCP `pattern` field describe, and CLI help text.
-  Regex-char heuristic in the terminal formatter nudges users
-  who typed clearly-regex patterns; the JSON envelope never
-  carries this hint. Triggered signals cover `\b\B\w\W\d\D\s\S`,
-  escaped metacharacters, character classes, non-capturing /
-  lookaround / named groups / inline flags, and brace
-  quantifiers. Deliberately excludes bare `.`, `*`, `+`, `?`,
-  `^`, `$`, `|`, `(`, `)` — too common in ordinary code.
+  The shared request builder compiles `path`, `path_prefix`, and
+  `globs` into backend `pathSelectors`, keeps `allowUnscoped`
+  internal-only, and defaults grep to whole-target, literal,
+  case-insensitive matching. The shared response builder keeps CLI
+  `--json` and MCP payloads byte-identical for equivalent inputs.
 
 - **Parity assertion policy** (coded in the three parity
   tests):

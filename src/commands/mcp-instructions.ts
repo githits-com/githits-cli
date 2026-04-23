@@ -42,16 +42,16 @@ const SEARCH_STATUS_BULLET =
   "- `search_status` — follow up a prior unified search by `searchRef`. Use it after `search` returns incomplete state to check progress or fetch final results.";
 
 const LIST_FILES_BULLET =
-  "- `list_files` — discover what files a dependency ships. Use `path_prefix` to scope to a subdirectory; the response includes each file's language, type, and byte size. Returned `path` values feed directly into `read_file` and `grep_file`.";
+  "- `list_files` — discover what files a dependency ships. Use `path_prefix` to scope to a subdirectory; the response includes each file's language, type, and byte size. Returned `path` values feed directly into `read_file` and help scope `grep_repo`.";
 
 const READ_FILE_BULLET =
   "- `read_file` — fetch a file's contents from a dependency. Pass the same `path` emitted by `list_files`. Default returns the full file; pass `start_line` / `end_line` for a bounded range. Binary files set `isBinary: true` and omit `content` — branch on the flag, not the null. A `FILE_NOT_FOUND` (or `NOT_FOUND`) response is the signal to call `list_files` for the actual path.";
 
-const GREP_FILE_BULLET =
-  "- `grep_file` — find a case-insensitive substring within a single file (not regex). Pass the same `path` emitted by `list_files`. Returns matches with context lines. Max pattern 200 chars, up to 200 matches with up to 10 context lines each. Use unified `search` when you do not yet know the exact file. Same addressing and indexing-retry rules as `list_files`.";
+const GREP_REPO_BULLET =
+  "- `grep_repo` — deterministic text grep over indexed source files. Use it when you know the exact text or regex to match; use `search` for discovery. Whole-target grep is the default; narrow with `path`, `path_prefix`, `globs`, or `extensions`. Returned `matches[].filePath` feeds directly into `read_file`.";
 
 const SEARCH_VS_SYMBOLS_TIP =
-  'Prefer `get_example` for canonical example retrieval; prefer unified `search` for indexed dependency and repository search; use `sources:["symbol"]` when you want symbol-shaped results. Use `list_files` → `read_file` / `grep_file` once you know the file you need.';
+  'Prefer `get_example` for canonical example retrieval; prefer unified `search` for indexed dependency and repository discovery; use `sources:["symbol"]` when you want symbol-shaped results. Use `grep_repo` for deterministic text matching and `read_file` for full-file inspection.';
 
 /**
  * Whether the MCP session should register and describe package tools.
@@ -101,7 +101,7 @@ export function buildMcpInstructions(deps: Dependencies): string {
     bullets.push(SEARCH_STATUS_BULLET);
     bullets.push(LIST_FILES_BULLET);
     bullets.push(READ_FILE_BULLET);
-    bullets.push(GREP_FILE_BULLET);
+    bullets.push(GREP_REPO_BULLET);
   }
 
   if (bullets.length === 0) {

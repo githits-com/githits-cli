@@ -1,11 +1,12 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
+  CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
 } from "../../services/index.js";
 import {
   createMockCodeNavigationService,
-  defaultGrepFileResult,
+  defaultGrepRepoResult,
 } from "../../services/test-helpers.js";
 import { type PkgGrepCommandDependencies, pkgGrepAction } from "./grep.js";
 
@@ -24,7 +25,7 @@ describe("pkgGrepAction", () => {
     };
   }
 
-  it("plain mode: emits matching line(s) only — no header, no gutter", async () => {
+  it("plain mode emits file:line:text", async () => {
     const writes: string[] = [];
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
       chunk: string | Uint8Array,
@@ -34,26 +35,71 @@ describe("pkgGrepAction", () => {
       );
       return true;
     }) as typeof process.stdout.write);
+    const stdoutDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      "isTTY",
+    );
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: false,
+      configurable: true,
+    });
 
     await pkgGrepAction(
       "npm:express",
       "middleware",
-      "src/index.js",
+      undefined,
       {},
       createDeps(),
     );
 
-    const combined = writes.join("");
-    expect(combined).not.toContain("express · npm");
-    expect(combined).not.toContain("1 match in src/index.js");
-    expect(combined).not.toMatch(/^>/m);
-    // `defaultGrepFileResult` has one match line — plain mode emits
-    // its content.
-    expect(combined.trim().length).toBeGreaterThan(0);
+    expect(writes.join("")).toContain("src/index.js:4:");
     writeSpy.mockRestore();
+    if (stdoutDescriptor) {
+      Object.defineProperty(process.stdout, "isTTY", stdoutDescriptor);
+    }
   });
 
-  it("verbose mode: renders the full match block with header and `>` marker", async () => {
+  it("tty mode emits file heading plus compact line matches", async () => {
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+    const stdoutDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      "isTTY",
+    );
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: true,
+      configurable: true,
+    });
+
+    await pkgGrepAction(
+      "npm:express",
+      "middleware",
+      undefined,
+      {},
+      createDeps(),
+    );
+
+    const output = writes.join("");
+    expect(output).toContain(
+      "src/index.js\n4:module.exports = require('./lib/express');",
+    );
+    expect(output).not.toContain(
+      "src/index.js:4:module.exports = require('./lib/express');",
+    );
+    writeSpy.mockRestore();
+    if (stdoutDescriptor) {
+      Object.defineProperty(process.stdout, "isTTY", stdoutDescriptor);
+    }
+  });
+
+  it("verbose mode renders grouped output", async () => {
     const writes: string[] = [];
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
       chunk: string | Uint8Array,
@@ -67,105 +113,275 @@ describe("pkgGrepAction", () => {
     await pkgGrepAction(
       "npm:express",
       "middleware",
-      "src/index.js",
+      undefined,
       { verbose: true },
       createDeps(),
     );
 
-    const combined = writes.join("");
-    expect(combined).toContain("express · npm");
-    expect(combined).toContain("1 match in src/index.js");
-    expect(combined).toContain(">");
+    const output = writes.join("");
+    expect(output).toContain("1 match in 1 file");
+    expect(output).toContain("src/index.js\n");
+    expect(output).toContain("> 4  module.exports = require('./lib/express');");
     writeSpy.mockRestore();
   });
 
-  it("default contextLines is 0 on the wire (matches-only)", async () => {
-    const grepFile = mock(() => Promise.resolve(defaultGrepFileResult));
-    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+  it("prints the actual nextCursor in terminal pagination hints", async () => {
+    const stderrWrites: string[] = [];
+    const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(
       (() => true) as typeof process.stdout.write,
     );
+    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      stderrWrites.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stderr.write);
+
     await pkgGrepAction(
       "npm:express",
       "middleware",
-      "src/index.js",
+      undefined,
       {},
       createDeps({
-        codeNavigationService: createMockCodeNavigationService({ grepFile }),
+        codeNavigationService: createMockCodeNavigationService({
+          grepRepo: mock(() =>
+            Promise.resolve({
+              ...defaultGrepRepoResult,
+              hasMore: true,
+              nextCursor: "cursor_abc123",
+              truncatedReason: "MAX_MATCHES" as const,
+            }),
+          ),
+        }),
       }),
     );
-    const calls = grepFile.mock.calls as unknown as Array<
-      [{ contextLines?: number }]
-    >;
-    expect(calls[0]?.[0]?.contextLines).toBe(0);
-    writeSpy.mockRestore();
+
+    const stderr = stderrWrites.join("");
+    expect(stderr).toBe(
+      "More grep results available — rerun with --cursor 'cursor_abc123'\n",
+    );
+    stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 
-  it("emits the JSON envelope with --json", async () => {
+  it("adds a narrow-scope hint for noisy broad terminal output", async () => {
+    const stderrWrites: string[] = [];
+    const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      stderrWrites.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stderr.write);
+
+    await pkgGrepAction(
+      "npm:express",
+      "foo",
+      undefined,
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          grepRepo: mock(() =>
+            Promise.resolve({
+              ...defaultGrepRepoResult,
+              totalMatches: 6,
+              uniqueFilesMatched: 6,
+              matches: [
+                {
+                  ...defaultGrepRepoResult.matches[0]!,
+                  filePath: "History.md",
+                  line: 1,
+                },
+                {
+                  ...defaultGrepRepoResult.matches[0]!,
+                  filePath: "Readme.md",
+                  line: 2,
+                },
+                {
+                  ...defaultGrepRepoResult.matches[0]!,
+                  filePath: "benchmarks/run",
+                  line: 3,
+                },
+                {
+                  ...defaultGrepRepoResult.matches[0]!,
+                  filePath: "examples/a.js",
+                  line: 4,
+                },
+                {
+                  ...defaultGrepRepoResult.matches[0]!,
+                  filePath: "test/a.js",
+                  line: 5,
+                },
+                {
+                  ...defaultGrepRepoResult.matches[0]!,
+                  filePath: "lib/app.js",
+                  line: 6,
+                },
+              ],
+            }),
+          ),
+        }),
+      }),
+    );
+
+    expect(stderrWrites.join("")).toContain("Broad results");
+    expect(stderrWrites.join("")).toContain("--exclude-tests");
+    stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
+  });
+
+  it("JSON mode emits the new envelope", async () => {
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
     await pkgGrepAction(
       "npm:express",
       "middleware",
-      "src/index.js",
+      "src/",
       { json: true },
       createDeps(),
     );
     const payload = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
     expect(payload.pattern).toBe("middleware");
-    expect(payload.path).toBe("src/index.js");
-    expect(payload.matches.length).toBe(1);
+    expect(payload.filter.pathPrefix).toBe("src/");
+    expect(payload.matches[0].filePath).toBe("src/index.js");
     logSpy.mockRestore();
   });
 
-  it("sends wait default of 20000 on the wire", async () => {
-    const grepFile = mock(() => Promise.resolve(defaultGrepFileResult));
+  it("uses repo grep defaults on the wire", async () => {
+    const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(
       (() => true) as typeof process.stdout.write,
     );
     await pkgGrepAction(
       "npm:express",
       "middleware",
-      "src/index.js",
+      undefined,
       {},
       createDeps({
-        codeNavigationService: createMockCodeNavigationService({ grepFile }),
+        codeNavigationService: createMockCodeNavigationService({ grepRepo }),
       }),
     );
-    const calls = grepFile.mock.calls as unknown as Array<
-      [{ waitTimeoutMs?: number }]
+    const calls = grepRepo.mock.calls as unknown as Array<
+      [
+        {
+          allowUnscoped?: boolean;
+          contextLinesBefore?: number;
+          contextLinesAfter?: number;
+          maxMatches?: number;
+          waitTimeoutMs?: number;
+        },
+      ]
     >;
+    expect(calls[0]?.[0]?.allowUnscoped).toBe(true);
+    expect(calls[0]?.[0]?.contextLinesBefore).toBe(0);
+    expect(calls[0]?.[0]?.contextLinesAfter).toBe(0);
+    expect(calls[0]?.[0]?.maxMatches).toBe(50);
     expect(calls[0]?.[0]?.waitTimeoutMs).toBe(20000);
     writeSpy.mockRestore();
   });
 
-  it("sends repo-URL addressing with two positionals (pattern, path)", async () => {
-    const grepFile = mock(() => Promise.resolve(defaultGrepFileResult));
+  it("maps path prefix, exact path, globs, extensions, regex, and context options", async () => {
+    const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    await pkgGrepAction(
+      "npm:express",
+      "middleware",
+      "src/",
+      {
+        path: "src/index.js",
+        glob: ["src/**/*.js"],
+        ext: ["js"],
+        regex: true,
+        caseSensitive: true,
+        beforeContext: "2",
+        afterContext: "1",
+        limit: "100",
+        perFileLimit: "3",
+        excludeDocs: true,
+        excludeTests: true,
+        cursor: "cursor-123",
+      },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({ grepRepo }),
+      }),
+    );
+    const calls = grepRepo.mock.calls as unknown as Array<
+      [
+        {
+          patternType?: string;
+          caseSensitive?: boolean;
+          pathSelectors?: Array<{ kind: string; value: string }>;
+          extensions?: string[];
+          contextLinesBefore?: number;
+          contextLinesAfter?: number;
+          maxMatches?: number;
+          maxMatchesPerFile?: number;
+          excludeDocFiles?: boolean;
+          excludeTestFiles?: boolean;
+          cursor?: string;
+        },
+      ]
+    >;
+    expect(calls[0]?.[0]).toMatchObject({
+      patternType: "REGEX",
+      caseSensitive: true,
+      extensions: ["js"],
+      contextLinesBefore: 2,
+      contextLinesAfter: 1,
+      maxMatches: 100,
+      maxMatchesPerFile: 3,
+      excludeDocFiles: true,
+      excludeTestFiles: true,
+      cursor: "cursor-123",
+    });
+    expect(calls[0]?.[0]?.pathSelectors).toEqual([
+      { kind: "EXACT", value: "src/index.js" },
+      { kind: "PREFIX", value: "src/" },
+      { kind: "GLOB", value: "src/**/*.js" },
+    ]);
+    writeSpy.mockRestore();
+  });
+
+  it("repo-url mode uses <pattern> [path-prefix]", async () => {
+    const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(
       (() => true) as typeof process.stdout.write,
     );
     await pkgGrepAction(
       "middleware",
-      "src/index.js",
+      "src/",
       undefined,
       {
         repoUrl: "https://github.com/expressjs/express",
         gitRef: "main",
       },
       createDeps({
-        codeNavigationService: createMockCodeNavigationService({ grepFile }),
+        codeNavigationService: createMockCodeNavigationService({ grepRepo }),
       }),
     );
-    const calls = grepFile.mock.calls as unknown as Array<
-      [{ target: { repoUrl?: string }; pattern: string; path: string }]
+    const calls = grepRepo.mock.calls as unknown as Array<
+      [
+        {
+          target: { repoUrl?: string };
+          pathSelectors?: Array<{ value: string }>;
+        },
+      ]
     >;
     expect(calls[0]?.[0]?.target.repoUrl).toBe(
       "https://github.com/expressjs/express",
     );
-    expect(calls[0]?.[0]?.pattern).toBe("middleware");
-    expect(calls[0]?.[0]?.path).toBe("src/index.js");
+    expect(calls[0]?.[0]?.pathSelectors?.[0]?.value).toBe("src/");
     writeSpy.mockRestore();
   });
 
-  it("rejects extra positional in repo-URL mode", async () => {
+  it("rejects extra positional in repo-url mode", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
@@ -173,8 +389,8 @@ describe("pkgGrepAction", () => {
     try {
       await pkgGrepAction(
         "middleware",
-        "src/index.js",
-        "extra-arg",
+        "src/",
+        "extra",
         {
           repoUrl: "https://github.com/expressjs/express",
           gitRef: "main",
@@ -210,217 +426,7 @@ describe("pkgGrepAction", () => {
     exitSpy.mockRestore();
   });
 
-  it("gives a targeted error when caller passes two positionals without --repo-url", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit");
-    });
-    // `code grep middleware src/index.js` with no spec + no --repo-url.
-    // Commander binds these as first=middleware, second=src/index.js.
-    // The action must recognise this as a missing-spec mistake, not
-    // a "missing <path>" mistake.
-    try {
-      await pkgGrepAction(
-        "middleware",
-        "src/index.js",
-        undefined,
-        {},
-        createDeps(),
-      );
-    } catch {
-      /* expected */
-    }
-    const msg = errorSpy.mock.calls[0]?.[0] as string;
-    expect(msg).toContain("all three positionals are required");
-    expect(msg).toContain("--repo-url");
-    errorSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
-
-  it("rejects missing path", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit");
-    });
-    try {
-      await pkgGrepAction(
-        "npm:express",
-        "middleware",
-        undefined,
-        {},
-        createDeps(),
-      );
-    } catch {
-      /* expected */
-    }
-    expect(errorSpy.mock.calls[0]?.[0]).toMatch(/path/);
-    errorSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
-
-  it("rejects --context out of range", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit");
-    });
-    try {
-      await pkgGrepAction(
-        "npm:express",
-        "middleware",
-        "src/index.js",
-        { context: "11" },
-        createDeps(),
-      );
-    } catch {
-      /* expected */
-    }
-    expect(errorSpy.mock.calls[0]?.[0]).toMatch(/0 and 10/);
-    errorSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
-
-  it("rejects --limit out of range", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit");
-    });
-    try {
-      await pkgGrepAction(
-        "npm:express",
-        "middleware",
-        "src/index.js",
-        { limit: "201" },
-        createDeps(),
-      );
-    } catch {
-      /* expected */
-    }
-    expect(errorSpy.mock.calls[0]?.[0]).toMatch(/1 and 200/);
-    errorSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
-
-  it("routes NOT_FOUND with a code-files hint", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit");
-    });
-    const service = createMockCodeNavigationService({
-      grepFile: mock(() =>
-        Promise.reject(
-          new CodeNavigationTargetNotFoundError("File not found in repository"),
-        ),
-      ),
-    });
-    try {
-      await pkgGrepAction(
-        "npm:express",
-        "middleware",
-        "nope.js",
-        {},
-        createDeps({ codeNavigationService: service }),
-      );
-    } catch {
-      /* expected */
-    }
-    const output = errorSpy.mock.calls[0]?.[0] as string;
-    expect(output).toContain("File not found");
-    expect(output).toContain("code files");
-    errorSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
-
-  it("enriches INDEXING error", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit");
-    });
-    const service = createMockCodeNavigationService({
-      grepFile: mock(() =>
-        Promise.reject(
-          new CodeNavigationIndexingError("Indexing...", "ref_abc"),
-        ),
-      ),
-    });
-    try {
-      await pkgGrepAction(
-        "npm:express",
-        "middleware",
-        "src/index.js",
-        {},
-        createDeps({ codeNavigationService: service }),
-      );
-    } catch {
-      /* expected */
-    }
-    expect(errorSpy.mock.calls[0]?.[0]).toContain("indexingRef: ref_abc");
-    errorSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
-
-  // ------------------------------------------------------------------
-  // Exit-code contract (grep-style: 0 match / 1 no-match / 2 error)
-  // ------------------------------------------------------------------
-
-  it("exits 0 when there is at least one match", async () => {
-    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
-      (() => true) as typeof process.stdout.write,
-    );
-    const exitSpy = spyOn(process, "exit").mockImplementation((() => {
-      return undefined as never;
-    }) as typeof process.exit);
-    await pkgGrepAction(
-      "npm:express",
-      "middleware",
-      "src/index.js",
-      {},
-      createDeps(),
-    );
-    // `defaultGrepFileResult` has one match — exit 0 means `process.exit`
-    // was not called at all (happy path returns normally).
-    expect(exitSpy.mock.calls.length).toBe(0);
-    writeSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
-
-  it("exits 1 when there are zero matches (plain mode)", async () => {
-    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
-      (() => true) as typeof process.stdout.write,
-    );
-    const exitCalls: number[] = [];
-    // Intentionally non-throwing — `process.exit(1)` on zero matches
-    // is the last statement in the happy path, so letting the mock
-    // return keeps the action function's control flow clean.
-    const exitSpy = spyOn(process, "exit").mockImplementation(((
-      code?: number,
-    ) => {
-      exitCalls.push(code ?? 0);
-      return undefined as never;
-    }) as typeof process.exit);
-    const service = createMockCodeNavigationService({
-      grepFile: mock(() =>
-        Promise.resolve({
-          matches: [],
-          totalMatches: 0,
-          hasMore: false,
-          filePath: "src/index.js",
-          language: "javascript",
-        }),
-      ),
-    });
-    await pkgGrepAction(
-      "npm:express",
-      "nonexistent-pattern",
-      "src/index.js",
-      {},
-      createDeps({ codeNavigationService: service }),
-    );
-    expect(exitCalls).toEqual([1]);
-    writeSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
-
-  it("exits 1 when there are zero matches (--json mode)", async () => {
+  it("exits 1 on zero matches", async () => {
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
     const exitCalls: number[] = [];
     const exitSpy = spyOn(process, "exit").mockImplementation(((
@@ -430,33 +436,29 @@ describe("pkgGrepAction", () => {
       return undefined as never;
     }) as typeof process.exit);
     const service = createMockCodeNavigationService({
-      grepFile: mock(() =>
+      grepRepo: mock(() =>
         Promise.resolve({
+          ...defaultGrepRepoResult,
           matches: [],
           totalMatches: 0,
-          hasMore: false,
-          filePath: "src/index.js",
+          uniqueFilesMatched: 0,
         }),
       ),
     });
     await pkgGrepAction(
       "npm:express",
-      "nonexistent",
-      "src/index.js",
+      "nothing",
+      undefined,
       { json: true },
       createDeps({ codeNavigationService: service }),
     );
-    // JSON is logged BEFORE the exit-1 fires, so callers can still
-    // parse it via `jq` even under `pipefail`.
     expect(logSpy.mock.calls.length).toBe(1);
-    const payload = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
-    expect(payload.totalMatches).toBe(0);
     expect(exitCalls).toEqual([1]);
     logSpy.mockRestore();
     exitSpy.mockRestore();
   });
 
-  it("exits 2 on error paths (distinct from 'no match' = 1)", async () => {
+  it("exits 2 on error paths", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitCalls: number[] = [];
     const exitSpy = spyOn(process, "exit").mockImplementation(((
@@ -466,17 +468,17 @@ describe("pkgGrepAction", () => {
       throw new Error("process.exit");
     }) as typeof process.exit);
     const service = createMockCodeNavigationService({
-      grepFile: mock(() =>
+      grepRepo: mock(() =>
         Promise.reject(
-          new CodeNavigationTargetNotFoundError("File not found in repository"),
+          new CodeNavigationTargetNotFoundError("Package not found"),
         ),
       ),
     });
     try {
       await pkgGrepAction(
-        "npm:express",
+        "npm:ghost",
         "middleware",
-        "nope.js",
+        undefined,
         {},
         createDeps({ codeNavigationService: service }),
       );
@@ -488,111 +490,125 @@ describe("pkgGrepAction", () => {
     exitSpy.mockRestore();
   });
 
-  // ------------------------------------------------------------------
-  // stdout vs stderr routing (plain mode)
-  // ------------------------------------------------------------------
-
-  it("plain mode hasMore: truncation warning goes to stderr, not stdout", async () => {
-    const stdoutWrites: string[] = [];
-    const stderrWrites: string[] = [];
-    const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(((
-      chunk: string | Uint8Array,
-    ) => {
-      stdoutWrites.push(
-        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
-      );
-      return true;
-    }) as typeof process.stdout.write);
-    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(((
-      chunk: string | Uint8Array,
-    ) => {
-      stderrWrites.push(
-        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
-      );
-      return true;
-    }) as typeof process.stderr.write);
-    const service = createMockCodeNavigationService({
-      grepFile: mock(() =>
-        Promise.resolve({
-          matches: [
-            {
-              lineNumber: 1,
-              lineContent: "export const foo = 1;",
-            },
-          ],
-          totalMatches: 50,
-          hasMore: true,
-          filePath: "src/index.js",
-        }),
-      ),
-    });
-    await pkgGrepAction(
-      "npm:express",
-      "foo",
-      "src/index.js",
-      {},
-      createDeps({ codeNavigationService: service }),
-    );
-    const stdout = stdoutWrites.join("");
-    const stderr = stderrWrites.join("");
-    expect(stdout).toContain("export const foo");
-    expect(stdout).not.toContain("More matches available");
-    expect(stderr).toContain("More matches available");
-    stdoutSpy.mockRestore();
-    stderrSpy.mockRestore();
-  });
-
-  it("plain mode zero-match with regex-shaped pattern: nudge goes to stderr", async () => {
-    const stdoutWrites: string[] = [];
-    const stderrWrites: string[] = [];
-    const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(((
-      chunk: string | Uint8Array,
-    ) => {
-      stdoutWrites.push(
-        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
-      );
-      return true;
-    }) as typeof process.stdout.write);
-    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(((
-      chunk: string | Uint8Array,
-    ) => {
-      stderrWrites.push(
-        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
-      );
-      return true;
-    }) as typeof process.stderr.write);
+  it("enriches INDEXING error", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
     });
     const service = createMockCodeNavigationService({
-      grepFile: mock(() =>
-        Promise.resolve({
-          matches: [],
-          totalMatches: 0,
-          hasMore: false,
-          filePath: "src/index.js",
-        }),
+      grepRepo: mock(() =>
+        Promise.reject(
+          new CodeNavigationIndexingError("Indexing...", "ref_abc"),
+        ),
       ),
     });
     try {
       await pkgGrepAction(
         "npm:express",
-        "\\bfoo\\b",
-        "src/index.js",
+        "middleware",
+        undefined,
         {},
         createDeps({ codeNavigationService: service }),
       );
     } catch {
-      /* expected — exit 1 */
+      /* expected */
     }
-    const stdout = stdoutWrites.join("");
-    const stderr = stderrWrites.join("");
-    // Plain mode stdout stays empty on zero matches.
-    expect(stdout).toBe("");
-    // Regex-hint nudge visible on stderr.
-    expect(stderr).toContain("substring");
-    stdoutSpy.mockRestore();
-    stderrSpy.mockRestore();
+    expect(errorSpy.mock.calls[0]?.[0]).toContain("indexingRef: ref_abc");
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("adds file listing hint only for file-path failures", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await pkgGrepAction(
+        "npm:express",
+        "middleware",
+        undefined,
+        {},
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            grepRepo: mock(() =>
+              Promise.reject(
+                new CodeNavigationTargetNotFoundError("Package not found"),
+              ),
+            ),
+          }),
+        }),
+      );
+    } catch {
+      /* expected */
+    }
+
+    expect(errorSpy.mock.calls[0]?.[0]).not.toContain("Use `code files`");
+
+    errorSpy.mockReset();
+
+    try {
+      await pkgGrepAction(
+        "npm:express",
+        "middleware",
+        undefined,
+        {},
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            grepRepo: mock(() =>
+              Promise.reject(
+                new CodeNavigationFileNotFoundError(
+                  "File not found: nope.js",
+                  "nope.js",
+                ),
+              ),
+            ),
+          }),
+        }),
+      );
+    } catch {
+      /* expected */
+    }
+
+    expect(errorSpy.mock.calls[0]?.[0]).toContain("Use `code files`");
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("rewrites navpack backend failures into actionable CLI guidance", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await pkgGrepAction(
+        "npm:express",
+        "middleware",
+        undefined,
+        {},
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            grepRepo: mock(() =>
+              Promise.reject(
+                new CodeNavigationTargetNotFoundError(
+                  "aigrep has no navpack for this ref and the repository is not marked as stale on any known artifact axis.",
+                ),
+              ),
+            ),
+          }),
+        }),
+      );
+    } catch {
+      /* expected */
+    }
+
+    expect(errorSpy.mock.calls[0]?.[0]).toContain(
+      "Source index for this target is temporarily unavailable.",
+    );
+    expect(errorSpy.mock.calls[0]?.[0]).toContain("--wait 60000");
+    errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
 });

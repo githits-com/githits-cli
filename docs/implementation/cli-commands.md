@@ -21,7 +21,7 @@ The CLI exposes four primary top-level commands: `example`, `languages`, and `fe
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
 | `code files [spec] [path-prefix]` | package spec OR `--repo-url` + `--git-ref`; optional `[path-prefix]` | `--limit`, `--wait`, `--verbose`, `--json` | List files in an indexed dependency. `[path-prefix]` is a literal directory prefix (not a glob). Plain output is one path per line; `--verbose` adds language / type / size annotations. Indexing-retry via `--wait` or the `availableVersions` hint in the error envelope. |
 | `code read <spec?> <path>` | package spec OR `--repo-url` + `--git-ref`; plus `<path>` | `--lines`, `--start`, `--end`, `--wait`, `--verbose`, `--json` | Read a file's contents. Plain output is the raw file bytes (pipe-friendly); `--verbose` adds a header and a line-number gutter. `--lines 10-40` concise form; `--start`/`--end` equivalent. Binary files show a sentinel line. |
-| `code grep <spec?> <pattern> <path>` | package spec OR `--repo-url` + `--git-ref`; plus `<pattern>` and `<path>` | `--context`, `--limit`, `--wait`, `--verbose`, `--json` | Search within a single file for a case-insensitive substring (not regex). Plain output is matching lines only (pipe-friendly, `grep`-style); `--verbose` adds a header and a line-number gutter with `>` markers on match lines. `--context <n>` adds surrounding lines (default 0, up to 10); overlapping blocks merge without duplicates. Max 200-char pattern; up to 200 matches. |
+| `code grep [spec] <pattern> [path-prefix]` | package spec OR `--repo-url` + `--git-ref`; plus `<pattern>` and optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, `--regex`, `--case-sensitive`, `-C/-A/-B`, `--exclude-docs`, `--exclude-tests`, `--limit`, `--per-file-limit`, `--cursor`, `--wait`, `--verbose`, `--json` | Deterministic text grep over indexed dependency or repository source. Defaults to whole-target, literal, case-insensitive matching; narrow with `[path-prefix]`, `--path`, `--glob`, or `--ext`. Plain output is `file:line:text`; `--verbose` groups matches by file. |
 
 ### `githits init`
 
@@ -315,20 +315,20 @@ Reads a file from an indexed dependency. `<path>` is package-relative in spec mo
 ### `githits code grep`
 
 ```
-githits code grep npm:express express lib/express.js
-githits code grep npm:express express lib/express.js --context 2  # merged blocks
-githits code grep npm:express express lib/express.js --verbose    # + header + gutter + `>` marker
-githits code grep --repo-url https://github.com/expressjs/express --git-ref main export lib/express.js
-githits code grep npm:express express lib/express.js --json
+githits code grep npm:express middleware
+githits code grep npm:express middleware src/ -C 2
+githits code grep npm:express "router\\.(use|get)" --regex --glob 'lib/**/*.js'
+githits code grep --repo-url https://github.com/expressjs/express --git-ref main export lib/
+githits code grep npm:express middleware --path lib/express.js --json
 ```
 
-Case-insensitive **substring** search inside a single file — not regex. Max pattern 200 chars; up to 200 matches with up to 10 context lines each. For symbol-shaped searches use `githits code search` (backed by `search_symbols`).
+Deterministic text grep over indexed dependency or repository source. Defaults to case-insensitive literal matching across the whole target. Pass `[path-prefix]`, `--path`, `--glob`, or `--ext` to narrow scope. `--regex` switches to RE2 regex mode. Max pattern 200 chars. For discovery and ranking, use top-level `githits search` instead.
 
-**Plain output (default).** Matching lines only, one per line on stdout — mirrors `grep`'s default. `--context <n>` (0–10, default **0**) adds surrounding lines; nearby matches whose contexts touch or overlap merge into a single block with no duplicated lines. Distinct blocks are separated by `--` on its own line, matching `grep -C` / `rg -C` convention.
+**Plain output (default).** One `file:line:text` record per match on stdout, pipe-friendly and deterministic. `-C/--context`, `-A/--after-context`, and `-B/--before-context` add surrounding lines. Distinct match groups are separated by `--`.
 
-**`--verbose`.** Adds header, right-aligned line-number gutter, and a `>` marker on match lines so they're distinguishable from context at a glance.
+**`--verbose`.** Adds a summary header and grouped file sections with a `>` marker on match lines.
 
-**`stdout` vs `stderr` routing (plain mode).** "More matches available" truncation warning goes to **stderr**. When a zero-match pattern looks like a regex attempt (`\bfoo\b`, `^start`, character classes, etc.) a one-line nudge — "Note: pattern matched literally — this tool does case-insensitive substring search, not regex." — also goes to stderr. Pipes stay clean; humans still see the hints.
+**`stdout` vs `stderr` routing (plain mode).** The pagination hint for `nextCursor` goes to **stderr** so stdout stays machine-friendly.
 
 **Exit codes (grep-compatible).**
 
@@ -336,9 +336,9 @@ Case-insensitive **substring** search inside a single file — not regex. Max pa
 - `1` — zero matches. Fires in both plain and `--json` modes so scripting (`if code grep X file; then …`) behaves consistently across surfaces.
 - `2` — error (missing file, indexing, invalid arguments, backend failure). Distinguished from "no match" so scripts can branch correctly.
 
-This is the standard `grep(1)` contract; the tool adopts it deliberately because its output shape mirrors grep's.
+This is still the standard `grep(1)` contract even though the output includes file paths by default.
 
-**Regex pattern note.** The `GREP_PATTERN_SEMANTICS_NOTE` string ("Case-insensitive substring matching. NOT regex — …") is shared verbatim across the CLI help text, the MCP tool description, and the MCP `pattern` argument's `describe` so the three surfaces never disagree about pattern semantics.
+**Pattern note.** The `GREP_REPO_PATTERN_NOTE` string is shared verbatim across the CLI help text, the MCP tool description, and the MCP `pattern` argument's `describe` so the three surfaces never disagree about literal-vs-regex semantics.
 
 ## Architecture
 

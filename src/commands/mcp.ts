@@ -11,7 +11,7 @@ import {
 import {
   createFeedbackTool,
   createGetExampleTool,
-  createGrepFileTool,
+  createGrepRepoTool,
   createListFilesTool,
   createPackageChangelogTool,
   createPackageDependenciesTool,
@@ -19,8 +19,8 @@ import {
   createPackageVulnerabilitiesTool,
   createReadFileTool,
   createSearchLanguageTool,
-  createSearchTool,
   createSearchStatusTool,
+  createSearchTool,
   type ToolDefinition,
 } from "../tools/index.js";
 import {
@@ -47,7 +47,7 @@ export function getMcpToolDefinitions(
     tools.push(createSearchStatusTool(deps.codeNavigationService));
     tools.push(createListFilesTool(deps.codeNavigationService));
     tools.push(createReadFileTool(deps.codeNavigationService));
-    tools.push(createGrepFileTool(deps.codeNavigationService));
+    tools.push(createGrepRepoTool(deps.codeNavigationService));
   }
 
   if (gateOpen && deps.packageIntelligenceService) {
