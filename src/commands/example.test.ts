@@ -42,7 +42,11 @@ describe("exampleAction", () => {
   it("outputs JSON when --json flag provided", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
-    await exampleAction("test", { lang: "javascript", json: true }, createDeps());
+    await exampleAction(
+      "test",
+      { lang: "javascript", json: true },
+      createDeps(),
+    );
 
     const output = consoleSpy.mock.calls[0]?.[0] as string;
     const parsed = JSON.parse(output);
@@ -52,7 +56,11 @@ describe("exampleAction", () => {
 
   it("throws AuthRequiredError on auth failure", async () => {
     await expect(
-      exampleAction("test", { lang: "python" }, createDeps({ hasValidToken: false })),
+      exampleAction(
+        "test",
+        { lang: "python" },
+        createDeps({ hasValidToken: false }),
+      ),
     ).rejects.toThrow(AuthRequiredError);
   });
 });

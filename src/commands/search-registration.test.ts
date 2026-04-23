@@ -11,9 +11,9 @@ describe("registerUnifiedSearchCommands", () => {
       capability: "enabled",
     });
 
-    expect(program.commands.some((command) => command.name() === "search")).toBe(
-      false,
-    );
+    expect(
+      program.commands.some((command) => command.name() === "search"),
+    ).toBe(false);
     expect(
       program.commands.some((command) => command.name() === "search-status"),
     ).toBe(false);
@@ -29,9 +29,9 @@ describe("registerUnifiedSearchCommands", () => {
       expiredStoredAuth: false,
     });
 
-    expect(program.commands.some((command) => command.name() === "search")).toBe(
-      false,
-    );
+    expect(
+      program.commands.some((command) => command.name() === "search"),
+    ).toBe(false);
   });
 
   it("registers search commands when capability is enabled", async () => {
@@ -42,9 +42,9 @@ describe("registerUnifiedSearchCommands", () => {
       capability: "enabled",
     });
 
-    expect(program.commands.some((command) => command.name() === "search")).toBe(
-      true,
-    );
+    expect(
+      program.commands.some((command) => command.name() === "search"),
+    ).toBe(true);
     expect(
       program.commands.some((command) => command.name() === "search-status"),
     ).toBe(true);
@@ -58,9 +58,9 @@ describe("registerUnifiedSearchCommands", () => {
       capability: "disabled",
     });
 
-    expect(program.commands.some((command) => command.name() === "search")).toBe(
-      true,
-    );
+    expect(
+      program.commands.some((command) => command.name() === "search"),
+    ).toBe(true);
   });
 
   it("registers search commands for opaque env tokens", async () => {
@@ -72,9 +72,9 @@ describe("registerUnifiedSearchCommands", () => {
       envTokenPresent: true,
     });
 
-    expect(program.commands.some((command) => command.name() === "search")).toBe(
-      true,
-    );
+    expect(
+      program.commands.some((command) => command.name() === "search"),
+    ).toBe(true);
   });
 
   it("registers search commands for expired stored auth", async () => {
@@ -86,8 +86,8 @@ describe("registerUnifiedSearchCommands", () => {
       expiredStoredAuth: true,
     });
 
-    expect(program.commands.some((command) => command.name() === "search")).toBe(
-      true,
-    );
+    expect(
+      program.commands.some((command) => command.name() === "search"),
+    ).toBe(true);
   });
 });
