@@ -82,7 +82,8 @@ export async function pkgReadAction(
     }
 
     const target = resolveCliCodeNavTarget(spec, options);
-    const range = resolveLineRange(options);
+    const pathWithRange = parsePathWithOptionalRange(path.trim());
+    const range = resolveLineRange(options, pathWithRange);
     const wait = parseIntCliOption(
       options.wait,
       "--wait",
@@ -92,7 +93,7 @@ export async function pkgReadAction(
 
     const build = buildReadFileParams({
       target,
-      filePath: path,
+      filePath: pathWithRange.filePath,
       startLine: range.startLine,
       endLine: range.endLine,
       waitTimeoutMs: wait,
@@ -154,15 +155,40 @@ interface LineRange {
   endLine?: number;
 }
 
-function resolveLineRange(options: PkgReadCommandOptions): LineRange {
+interface ParsedPathWithRange {
+  filePath: string;
+  startLine?: number;
+  endLine?: number;
+}
+
+function resolveLineRange(
+  options: PkgReadCommandOptions,
+  pathWithRange: ParsedPathWithRange,
+): LineRange {
   const hasLines = Boolean(options.lines);
   const hasStart = Boolean(options.start);
   const hasEnd = Boolean(options.end);
+  const hasPathRange =
+    pathWithRange.startLine !== undefined ||
+    pathWithRange.endLine !== undefined;
 
-  if (hasLines && (hasStart || hasEnd)) {
+  if ((hasLines || hasPathRange) && (hasStart || hasEnd)) {
     throw new InvalidPackageSpecError(
-      "--lines is the concise form — don't combine it with --start / --end. Pick one.",
+      "Use one line-range form only — path:start-end, --lines, or --start / --end. Pick one.",
     );
+  }
+
+  if (hasLines && hasPathRange) {
+    throw new InvalidPackageSpecError(
+      "Use one line-range form only — path:start-end or --lines. Pick one.",
+    );
+  }
+
+  if (hasPathRange) {
+    return {
+      startLine: pathWithRange.startLine,
+      endLine: pathWithRange.endLine,
+    };
   }
 
   if (hasLines) {
@@ -231,6 +257,42 @@ function parseLinesOption(raw: string): LineRange {
   return { startLine, endLine };
 }
 
+function parsePathWithOptionalRange(path: string): ParsedPathWithRange {
+  const match = path.match(/^(.*):(\d+)(?:-(\d+)?)?$/);
+  if (!match) {
+    return { filePath: path };
+  }
+
+  const filePath = match[1]?.trim();
+  const startRaw = match[2];
+  const endRaw = match[3];
+
+  if (!filePath) {
+    throw new InvalidPackageSpecError(
+      `Invalid path with range: '${path}'. Use <path>:<start>-<end>.`,
+    );
+  }
+  if (!startRaw) {
+    throw new InvalidPackageSpecError(
+      `Invalid path with range: '${path}'. Use <path>:<start>-<end>.`,
+    );
+  }
+
+  const startLine = requirePositiveInteger(startRaw, "path range start");
+  const endLine =
+    endRaw !== undefined && endRaw.length > 0
+      ? requirePositiveInteger(endRaw, "path range end")
+      : startLine;
+
+  if (startLine > endLine) {
+    throw new InvalidPackageSpecError(
+      `Path range is reversed: ${startLine} > ${endLine}.`,
+    );
+  }
+
+  return { filePath, startLine, endLine };
+}
+
 function requirePositiveInteger(raw: string, label: string): number {
   if (!/^\d+$/.test(raw)) {
     throw new InvalidPackageSpecError(
@@ -252,7 +314,8 @@ Default output is the raw file content — pipe-friendly for
 downstream tools (\`code read … | grep …\`). Pass --verbose for a
 header and a line-number gutter.
 
-Use --lines for a bounded range (e.g. \`--lines 10-40\`). The \`path\`
+Use --lines for a bounded range (e.g. \`--lines 10-40\`) or append a
+range directly to the path (e.g. \`src/index.js:10-40\`). The \`path\`
 comes directly from \`githits code files\`.
 
 Addressing: <spec> (registry:name[@version]) OR --repo-url <url>

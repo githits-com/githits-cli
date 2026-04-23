@@ -164,6 +164,131 @@ export interface SearchSymbolsResult {
   warning?: string;
 }
 
+export type UnifiedSearchSource = "AUTO" | "DOCS" | "CODE" | "SYMBOL";
+
+export type UnifiedSearchResultType =
+  | "DOCUMENTATION_PAGE"
+  | "REPOSITORY_SYMBOL"
+  | "REPOSITORY_CODE"
+  | "REPOSITORY_DOC";
+
+export type UnifiedSearchSessionStatus =
+  | "PENDING"
+  | "INDEXING"
+  | "SEARCHING"
+  | "COMPLETED"
+  | "TIMEOUT"
+  | "FAILED";
+
+export interface UnifiedSearchFilters {
+  fileIntent?: SearchSymbolsFileIntent;
+  kind?: SearchSymbolsKind;
+  category?: SymbolCategory;
+  publicOnly?: boolean;
+  pathPrefix?: string;
+}
+
+export interface UnifiedSearchParams {
+  targets: CodeNavigationTarget[];
+  query: string;
+  sources?: UnifiedSearchSource[];
+  filters?: UnifiedSearchFilters;
+  limit?: number;
+  offset?: number;
+  waitTimeoutMs?: number;
+}
+
+export interface UnifiedSearchLocator {
+  registry?: string;
+  packageName?: string;
+  version?: string;
+  pageId?: string;
+  repoUrl?: string;
+  gitRef?: string;
+  filePath?: string;
+  startLine?: number;
+  endLine?: number;
+  fileContentHash?: string;
+  symbolRef?: string;
+  qualifiedPath?: string;
+  kind?: string;
+  category?: string;
+  language?: string;
+}
+
+export interface UnifiedSearchHit {
+  id: string;
+  resultType: UnifiedSearchResultType;
+  targetLabel: string;
+  title?: string;
+  summary?: string;
+  score?: number;
+  locator: UnifiedSearchLocator;
+}
+
+export interface UnifiedSearchPageInfo {
+  offset: number;
+  limit: number;
+  returned: number;
+  hasMore: boolean;
+}
+
+export interface UnifiedSearchSourceStatus {
+  source: UnifiedSearchSource;
+  targetLabel: string;
+  indexingStatus?: string;
+  codeIndexState?: string;
+  resultCount?: number;
+  appliedFilters: string[];
+  ignoredFilters: string[];
+  incompatibleFilters: string[];
+  appliedQueryFeatures: string[];
+  ignoredQueryFeatures: string[];
+  incompatibleQueryFeatures: string[];
+  note?: string;
+}
+
+export interface UnifiedSearchResult {
+  query: string;
+  queryWarnings: string[];
+  sources: UnifiedSearchSource[];
+  results: UnifiedSearchHit[];
+  page: UnifiedSearchPageInfo;
+  partialResults: boolean;
+  sourceStatus: UnifiedSearchSourceStatus[];
+}
+
+export interface UnifiedSearchProgress {
+  searchRef: string;
+  status: UnifiedSearchSessionStatus;
+  targetsTotal: number;
+  targetsReady: number;
+  elapsedMs: number;
+  query: string;
+  queryWarnings: string[];
+  sources: UnifiedSearchSource[];
+  expiresAt?: string;
+}
+
+export interface UnifiedSearchCompleted {
+  state: "completed";
+  completed: true;
+  searchRef?: string;
+  result: UnifiedSearchResult;
+  progress?: UnifiedSearchProgress;
+}
+
+export interface UnifiedSearchIncomplete {
+  state: "incomplete";
+  completed: false;
+  searchRef: string;
+  progress?: UnifiedSearchProgress;
+}
+
+export type UnifiedSearchOutcome =
+  | UnifiedSearchCompleted
+  | UnifiedSearchIncomplete;
+
 export interface AvailableVersion {
   version?: string;
   ref: string;
@@ -253,6 +378,8 @@ export interface GrepFileResult {
 }
 
 export interface CodeNavigationService {
+  search(params: UnifiedSearchParams): Promise<UnifiedSearchOutcome>;
+  searchStatus(searchRef: string): Promise<UnifiedSearchOutcome>;
   searchSymbols(params: SearchSymbolsParams): Promise<SearchSymbolsResult>;
   listFiles(params: ListFilesParams): Promise<ListFilesResult>;
   readFile(params: ReadFileParams): Promise<ReadFileResult>;
@@ -486,6 +613,160 @@ query SearchSymbols(
   }
 }`;
 
+const UNIFIED_SEARCH_QUERY = `
+query UnifiedSearch(
+  $targets: [SearchPackageInput!]!
+  $query: String!
+  $sources: [DiscoverySearchSource!]
+  $filters: DiscoverySearchFiltersInput
+  $allowPartialResults: Boolean
+  $limit: Int
+  $offset: Int
+  $waitTimeoutMs: Int
+) {
+  search(
+    targets: $targets
+    query: $query
+    sources: $sources
+    filters: $filters
+    allowPartialResults: $allowPartialResults
+    limit: $limit
+    offset: $offset
+    waitTimeoutMs: $waitTimeoutMs
+  ) {
+    completed
+    searchRef
+    result {
+      query
+      queryWarnings
+      sources
+      results {
+        id
+        resultType
+        targetLabel
+        title
+        summary
+        score
+        locator {
+          registry
+          packageName
+          version
+          pageId
+          repoUrl
+          gitRef
+          filePath
+          startLine
+          endLine
+          fileContentHash
+          symbolRef
+          qualifiedPath
+          kind
+          category
+          language
+        }
+      }
+      page {
+        offset
+        limit
+        returned
+        hasMore
+      }
+      partialResults
+      sourceStatus {
+        source
+        targetLabel
+        indexingStatus
+        codeIndexState
+        resultCount
+        appliedFilters
+        ignoredFilters
+        incompatibleFilters
+        appliedQueryFeatures
+        ignoredQueryFeatures
+        incompatibleQueryFeatures
+        note
+      }
+    }
+    progress {
+      searchRef
+      status
+      targetsTotal
+      targetsReady
+      elapsedMs
+      query
+      queryWarnings
+      sources
+      expiresAt
+    }
+  }
+}`;
+
+const UNIFIED_SEARCH_STATUS_QUERY = `
+query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
+  discoverySearchProgress(searchRef: $searchRef, includeResults: $includeResults) {
+    searchRef
+    status
+    targetsTotal
+    targetsReady
+    elapsedMs
+    query
+    queryWarnings
+    sources
+    expiresAt
+    results {
+      query
+      queryWarnings
+      sources
+      results {
+        id
+        resultType
+        targetLabel
+        title
+        summary
+        score
+        locator {
+          registry
+          packageName
+          version
+          pageId
+          repoUrl
+          gitRef
+          filePath
+          startLine
+          endLine
+          fileContentHash
+          symbolRef
+          qualifiedPath
+          kind
+          category
+          language
+        }
+      }
+      page {
+        offset
+        limit
+        returned
+        hasMore
+      }
+      partialResults
+      sourceStatus {
+        source
+        targetLabel
+        indexingStatus
+        codeIndexState
+        resultCount
+        appliedFilters
+        ignoredFilters
+        incompatibleFilters
+        appliedQueryFeatures
+        ignoredQueryFeatures
+        incompatibleQueryFeatures
+        note
+      }
+    }
+  }
+}`;
+
 const availableVersionSchema = z.object({
   version: z.string().nullable().optional(),
   ref: z.string(),
@@ -532,6 +813,104 @@ const searchSymbolsResponseSchema = z.object({
   codeIndexState: z.string(),
   indexingRef: z.string().nullable().optional(),
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
+});
+
+const unifiedSearchSourceSchema = z.enum(["AUTO", "DOCS", "CODE", "SYMBOL"]);
+
+const unifiedSearchResultTypeSchema = z.enum([
+  "DOCUMENTATION_PAGE",
+  "REPOSITORY_SYMBOL",
+  "REPOSITORY_CODE",
+  "REPOSITORY_DOC",
+]);
+
+const unifiedSearchLocatorSchema = z.object({
+  registry: z.string().nullable().optional(),
+  packageName: z.string().nullable().optional(),
+  version: z.string().nullable().optional(),
+  pageId: z.string().nullable().optional(),
+  repoUrl: z.string().nullable().optional(),
+  gitRef: z.string().nullable().optional(),
+  filePath: z.string().nullable().optional(),
+  startLine: z.number().int().nullable().optional(),
+  endLine: z.number().int().nullable().optional(),
+  fileContentHash: z.string().nullable().optional(),
+  symbolRef: z.string().nullable().optional(),
+  qualifiedPath: z.string().nullable().optional(),
+  kind: z.string().nullable().optional(),
+  category: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+});
+
+const unifiedSearchHitSchema = z.object({
+  id: z.string(),
+  resultType: unifiedSearchResultTypeSchema,
+  targetLabel: z.string(),
+  title: z.string().nullable().optional(),
+  summary: z.string().nullable().optional(),
+  score: z.number().nullable().optional(),
+  locator: unifiedSearchLocatorSchema,
+});
+
+const unifiedSearchPageInfoSchema = z.object({
+  offset: z.number().int(),
+  limit: z.number().int(),
+  returned: z.number().int(),
+  hasMore: z.boolean(),
+});
+
+const unifiedSearchSourceStatusSchema = z.object({
+  source: unifiedSearchSourceSchema,
+  targetLabel: z.string(),
+  indexingStatus: z.string().nullable().optional(),
+  codeIndexState: z.string().nullable().optional(),
+  resultCount: z.number().int().nullable().optional(),
+  appliedFilters: z.array(z.string()),
+  ignoredFilters: z.array(z.string()),
+  incompatibleFilters: z.array(z.string()),
+  appliedQueryFeatures: z.array(z.string()),
+  ignoredQueryFeatures: z.array(z.string()),
+  incompatibleQueryFeatures: z.array(z.string()),
+  note: z.string().nullable().optional(),
+});
+
+const unifiedSearchResultSchema = z.object({
+  query: z.string(),
+  queryWarnings: z.array(z.string()),
+  sources: z.array(unifiedSearchSourceSchema),
+  results: z.array(unifiedSearchHitSchema),
+  page: unifiedSearchPageInfoSchema,
+  partialResults: z.boolean(),
+  sourceStatus: z.array(unifiedSearchSourceStatusSchema),
+});
+
+const unifiedSearchSessionStatusSchema = z.enum([
+  "PENDING",
+  "INDEXING",
+  "SEARCHING",
+  "COMPLETED",
+  "TIMEOUT",
+  "FAILED",
+]);
+
+const unifiedSearchProgressSchema = z.object({
+  searchRef: z.string(),
+  status: unifiedSearchSessionStatusSchema,
+  targetsTotal: z.number().int(),
+  targetsReady: z.number().int(),
+  elapsedMs: z.number().int(),
+  query: z.string(),
+  queryWarnings: z.array(z.string()),
+  sources: z.array(unifiedSearchSourceSchema),
+  expiresAt: z.string().nullable().optional(),
+  results: unifiedSearchResultSchema.nullable().optional(),
+});
+
+const asyncUnifiedSearchResultSchema = z.object({
+  completed: z.boolean(),
+  searchRef: z.string().nullable().optional(),
+  result: unifiedSearchResultSchema.nullable().optional(),
+  progress: unifiedSearchProgressSchema.nullable().optional(),
 });
 
 const graphQLErrorSchema = z.object({
@@ -812,12 +1191,51 @@ const graphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
+const unifiedSearchGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      search: asyncUnifiedSearchResultSchema.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
+const unifiedSearchStatusGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      discoverySearchProgress: unifiedSearchProgressSchema.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
 export class CodeNavigationServiceImpl implements CodeNavigationService {
   constructor(
     private readonly codeNavigationUrl: string,
     private readonly tokenProvider: TokenProvider,
     private readonly fetchFn: typeof fetch = globalThis.fetch,
   ) {}
+
+  async search(params: UnifiedSearchParams): Promise<UnifiedSearchOutcome> {
+    return executeWithTokenRefresh({
+      getToken: () => this.tokenProvider.getToken(),
+      forceRefresh: () => this.tokenProvider.forceRefresh(),
+      shouldRefresh: (error) => error instanceof AuthenticationError,
+      executeWithToken: (token) => this.executeUnifiedSearch(token, params),
+    });
+  }
+
+  async searchStatus(searchRef: string): Promise<UnifiedSearchOutcome> {
+    return executeWithTokenRefresh({
+      getToken: () => this.tokenProvider.getToken(),
+      forceRefresh: () => this.tokenProvider.forceRefresh(),
+      shouldRefresh: (error) => error instanceof AuthenticationError,
+      executeWithToken: (token) =>
+        this.executeUnifiedSearchStatus(token, searchRef),
+    });
+  }
 
   async searchSymbols(
     params: SearchSymbolsParams,
@@ -828,6 +1246,150 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       shouldRefresh: (error) => error instanceof AuthenticationError,
       executeWithToken: (token) => this.executeSearchSymbols(token, params),
     });
+  }
+
+  private async executeUnifiedSearch(
+    token: string,
+    params: UnifiedSearchParams,
+  ): Promise<UnifiedSearchOutcome> {
+    if (params.targets.length === 0) {
+      throw new CodeNavigationValidationError(
+        "At least one search target is required.",
+      );
+    }
+
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.codeNavigationUrl,
+        token,
+        query: UNIFIED_SEARCH_QUERY,
+        variables: {
+          targets: params.targets.map((target) => ({
+            registry: target.registry,
+            name: target.packageName,
+            version: target.version,
+            repoUrl: target.repoUrl,
+            gitRef: target.gitRef,
+          })),
+          query: params.query,
+          sources: params.sources,
+          filters: params.filters,
+          allowPartialResults: false,
+          limit: params.limit,
+          offset: params.offset,
+          waitTimeoutMs: params.waitTimeoutMs,
+        },
+        fetchFn: this.fetchFn,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw new CodeNavigationNetworkError(
+          "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
+          { cause },
+        );
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = unifiedSearchGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedCodeNavigationResponseError(
+        "Malformed response from code navigation service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw this.createGraphQLError(parsed.data.errors);
+    }
+
+    const data = parsed.data.data?.search;
+    if (!data) {
+      throw new MalformedCodeNavigationResponseError(
+        "Malformed response from code navigation service.",
+      );
+    }
+
+    return this.normaliseUnifiedSearchOutcome(data);
+  }
+
+  private async executeUnifiedSearchStatus(
+    token: string,
+    searchRef: string,
+  ): Promise<UnifiedSearchOutcome> {
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.codeNavigationUrl,
+        token,
+        query: UNIFIED_SEARCH_STATUS_QUERY,
+        variables: {
+          searchRef,
+          includeResults: true,
+        },
+        fetchFn: this.fetchFn,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw new CodeNavigationNetworkError(
+          "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
+          { cause },
+        );
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = unifiedSearchStatusGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedCodeNavigationResponseError(
+        "Malformed response from code navigation service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw this.createGraphQLError(parsed.data.errors);
+    }
+
+    const data = parsed.data.data?.discoverySearchProgress;
+    if (!data) {
+      throw new MalformedCodeNavigationResponseError(
+        "Malformed response from code navigation service.",
+      );
+    }
+
+    const progress = this.normaliseUnifiedSearchProgress(data);
+    const result = data.results
+      ? this.normaliseUnifiedSearchResult(data.results)
+      : undefined;
+
+    if (result && progress.status === "COMPLETED") {
+      return {
+        state: "completed",
+        completed: true,
+        searchRef: progress.searchRef,
+        result,
+        progress,
+      };
+    }
+
+    return {
+      state: "incomplete",
+      completed: false,
+      searchRef: progress.searchRef,
+      progress,
+    };
   }
 
   private async executeSearchSymbols(
@@ -1103,6 +1665,116 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       return `${base} Indexing reference: ${indexingRef}.`;
     }
     return base;
+  }
+
+  private normaliseUnifiedSearchOutcome(
+    data: z.infer<typeof asyncUnifiedSearchResultSchema>,
+  ): UnifiedSearchOutcome {
+    const progress = data.progress
+      ? this.normaliseUnifiedSearchProgress(data.progress)
+      : undefined;
+
+    if (data.completed) {
+      if (!data.result) {
+        throw new MalformedCodeNavigationResponseError(
+          "Completed unified search response missing result payload.",
+        );
+      }
+
+      return {
+        state: "completed",
+        completed: true,
+        searchRef: data.searchRef ?? undefined,
+        result: this.normaliseUnifiedSearchResult(data.result),
+        progress,
+      };
+    }
+
+    const searchRef = data.searchRef ?? progress?.searchRef;
+    if (!searchRef) {
+      throw new MalformedCodeNavigationResponseError(
+        "Incomplete unified search response missing search reference.",
+      );
+    }
+
+    return {
+      state: "incomplete",
+      completed: false,
+      searchRef,
+      progress,
+    };
+  }
+
+  private normaliseUnifiedSearchResult(
+    result: z.infer<typeof unifiedSearchResultSchema>,
+  ): UnifiedSearchResult {
+    return {
+      query: result.query,
+      queryWarnings: result.queryWarnings,
+      sources: result.sources,
+      results: result.results.map((entry) => ({
+        id: entry.id,
+        resultType: entry.resultType,
+        targetLabel: entry.targetLabel,
+        title: entry.title ?? undefined,
+        summary: entry.summary ?? undefined,
+        score: entry.score ?? undefined,
+        locator: {
+          registry: entry.locator.registry ?? undefined,
+          packageName: entry.locator.packageName ?? undefined,
+          version: entry.locator.version ?? undefined,
+          pageId: entry.locator.pageId ?? undefined,
+          repoUrl: entry.locator.repoUrl ?? undefined,
+          gitRef: entry.locator.gitRef ?? undefined,
+          filePath: entry.locator.filePath ?? undefined,
+          startLine: entry.locator.startLine ?? undefined,
+          endLine: entry.locator.endLine ?? undefined,
+          fileContentHash: entry.locator.fileContentHash ?? undefined,
+          symbolRef: entry.locator.symbolRef ?? undefined,
+          qualifiedPath: entry.locator.qualifiedPath ?? undefined,
+          kind: entry.locator.kind ?? undefined,
+          category: entry.locator.category ?? undefined,
+          language: entry.locator.language ?? undefined,
+        },
+      })),
+      page: {
+        offset: result.page.offset,
+        limit: result.page.limit,
+        returned: result.page.returned,
+        hasMore: result.page.hasMore,
+      },
+      partialResults: result.partialResults,
+      sourceStatus: result.sourceStatus.map((entry) => ({
+        source: entry.source,
+        targetLabel: entry.targetLabel,
+        indexingStatus: entry.indexingStatus ?? undefined,
+        codeIndexState: entry.codeIndexState ?? undefined,
+        resultCount: entry.resultCount ?? undefined,
+        appliedFilters: entry.appliedFilters,
+        ignoredFilters: entry.ignoredFilters,
+        incompatibleFilters: entry.incompatibleFilters,
+        appliedQueryFeatures: entry.appliedQueryFeatures,
+        ignoredQueryFeatures: entry.ignoredQueryFeatures,
+        incompatibleQueryFeatures: entry.incompatibleQueryFeatures,
+        note: entry.note ?? undefined,
+      })),
+    };
+  }
+
+  private normaliseUnifiedSearchProgress(
+    progress: z.infer<typeof unifiedSearchProgressSchema>,
+  ): UnifiedSearchProgress {
+    return {
+      searchRef: progress.searchRef,
+      status: progress.status,
+      targetsTotal: progress.targetsTotal,
+      targetsReady: progress.targetsReady,
+      elapsedMs: progress.elapsedMs,
+      query: progress.query,
+      queryWarnings: progress.queryWarnings,
+      sources: progress.sources,
+      expiresAt: progress.expiresAt ?? undefined,
+    };
   }
 
   /**

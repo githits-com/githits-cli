@@ -125,6 +125,25 @@ export {
   type SearchSymbolsSuccessPayload,
 } from "./search-symbols-response.js";
 export {
+  buildUnifiedSearchParams,
+  type UnifiedSearchRequestBuildResult,
+  type UnifiedSearchRequestInput,
+} from "./unified-search-request.js";
+export { parseUnifiedSearchTargetSpec } from "./unified-search-target.js";
+export {
+  buildUnifiedSearchErrorPayload,
+  buildUnifiedSearchStatusPayload,
+  buildUnifiedSearchSuccessPayload,
+  type UnifiedSearchCompletedPayload,
+  type UnifiedSearchErrorPayload,
+  type UnifiedSearchHitPayload,
+  type UnifiedSearchIncompletePayload,
+  type UnifiedSearchQueryEcho,
+  type UnifiedSearchStatusCompletedPayload,
+  type UnifiedSearchStatusIncompletePayload,
+  type UnifiedSearchStatusResultPayload,
+} from "./unified-search-response.js";
+export {
   endTelemetrySpan,
   flushTelemetry,
   isTelemetryEnabled,

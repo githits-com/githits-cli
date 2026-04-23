@@ -2,14 +2,16 @@
 
 ## Purpose
 
-The CLI exposes three core commands (`search`, `languages`, `feedback`) that mirror the always-on MCP tools for direct human and agent use. It also has capability-gated `code` and `pkg` command groups for dependency source inspection and package intelligence. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
+The CLI exposes four primary top-level commands: `example`, `languages`, and `feedback` are always available, while `search` is capability-gated and surfaces unified dependency/repository search when package/source access is open for the current session. It also has capability-gated `code` and `pkg` command groups for lower-level dependency source inspection and package intelligence. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
 
 ## Commands
 
 | Command | Required Args | Options | Description |
 |---|---|---|---|
 | `init` | — | `-y, --yes`, `--skip-login` | Authenticate and set up MCP server for coding agents |
-| `search <query>` | `-l, --lang <language>` | `--license <mode>`, `--explain`, `--json` | Search for code examples |
+| `example <query>` | `-l, --lang <language>` | `--license <mode>`, `--explain`, `--json` | Search for code examples |
+| `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols |
+| `search-status <search-ref>` | `<search-ref>` | `--json` | Check progress or fetch final results for a prior unified search |
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback <solution_id>` | `--accept` or `--reject` | `-m, --message <text>`, `--json` | Submit feedback on a search result |
 | `code search <package> [query]` | package spec | `--keywords`, `--keyword`, `--match-mode`, `--category`, `--kind`, `--file`, `--intent`, `--limit`, `--wait`, `--json` | Search indexed dependency source code |
@@ -37,16 +39,53 @@ The command uses `createContainer()` lazily for the login step. Tool detection a
 
 **File structure:** The init command uses a subdirectory (`src/commands/init/`) because it has distinct submodules (agent definitions, setup handlers, orchestrator). This is an accepted variation for commands with significant internal complexity.
 
+### `githits example`
+
+```
+githits example "how to use express middleware" --lang javascript
+githits example "async file reading" -l python --license yolo
+githits example "react hooks patterns" -l typescript --explain
+githits example "react hooks patterns" -l typescript --json
+```
+
+Default output is markdown (the API response). With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>" }`. The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
+
 ### `githits search`
 
 ```
-githits search "how to use express middleware" --lang javascript
-githits search "async file reading" -l python --license yolo
-githits search "react hooks patterns" -l typescript --explain
-githits search "react hooks patterns" -l typescript --json
+githits search "router middleware" --in npm:express
+githits search "handler" --in npm:express --kind function --path-prefix src/
+githits search '"body parser" OR multer' --in npm:express --source docs
+githits search "retry logic" --in npm:got --in npm:ky --source code
+githits search "createServer" --in npm:@types/node --name createServer --lang typescript --json
 ```
 
-Default output is markdown (the API response). With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>" }`. The MCP `search` tool always sends `include_explanation: false` since LLMs don't need the extra context.
+Unified search spans indexed dependency and repository code, docs, and explicit symbols. Structured flags are the primary UX. They are compiled together with the raw query using `AND` semantics before the request reaches the backend.
+
+**Decision guide.** Use `githits example` for canonical cross-project examples. Use `githits search` for indexed dependency/repository search. Use `githits search --source symbol` when you want symbol-shaped unified search without dropping to the older dedicated `code search` surface.
+
+**Targets.** `--in <target>` is repeatable and required. Package targets use `registry:name[@version]` (for example `npm:express`, `pypi:requests@2.32.3`). Repo targets use `https://github.com/org/repo[#ref]`; omitted refs default to `HEAD`. Exact duplicate targets are deduplicated while preserving order. Mixing package and repo targets in the same request is rejected client-side.
+
+**Sources and filters.** `--source docs|code|symbol` is repeatable; omitting it delegates source selection to backend AUTO. Use `--source symbol` when you want symbol-shaped search results without dropping down to the older `code search` surface. `--category` is the broad filter (`callable`, `type`, `module`, `data`, `documentation`); `--kind` is the precise taxonomy. `--path-prefix`, `--intent`, and `--public` narrow the result set further. `--name` and `--lang` compile into query qualifiers instead of becoming separate backend fields.
+
+**Production intent by default.** When `--intent` is omitted, unified search defaults to `production` intent. This removes test / benchmark / example noise where the backend supports the filter. Some sources can still ignore `fileIntent`; when they do, the JSON `sourceStatus` block and terminal notes report that explicitly.
+
+**Complete-by-default results.** The CLI always forces `allowPartialResults: false`. If indexing does not complete within the wait window, the command returns a `searchRef` and progress summary instead of partial hits. `--wait` is in seconds (0-60, default 20).
+
+**Output.** Plain output preserves backend ranking order. It starts with a lightweight per-type count summary, then shows one result per block. The header line is optimized for scanning and copy-paste follow-up: `target path:range [type] - title`. For file-backed hits, that header can be turned directly into a `githits code read` call because `code read` accepts `path:start-end` suffixes. Summaries are rendered verbatim from the backend response. Labels are: `docs page` (hosted package docs), `repo doc` (documentation-like block from a repository file), `repo code` (code block from a repository file), and `repo symbol` (explicit symbol hit from the repository index). `--json` emits the shared success/error envelope used by the MCP `search` tool, including a full `query` echo for initial searches.
+
+**Highlighting.** The CLI currently highlights headers and badges structurally, but does **not** attempt query-term match highlighting inside summaries. Unified search receives compiled query strings, not structured match spans, so robust highlighting should come from backend-provided match metadata rather than fragile client-side substring guesses.
+
+### `githits search-status`
+
+```
+githits search-status ref_abc123
+githits search-status ref_abc123 --json
+```
+
+Follow-up for a prior unified search. Use the `searchRef` returned by `githits search` when the initial request could not complete inside the wait window.
+
+`search-status` deliberately does **not** reconstruct the original structured request echo. The backend status API exposes progress, final results, and the backend-normalized query string, but it does not expose the original target/filter/defaulting inputs. The JSON payload therefore contains only fields the follow-up endpoint can actually know: `{completed, searchRef?, progress?, result?}`.
 
 ### `githits languages`
 
@@ -70,6 +109,8 @@ githits feedback abc123 --accept --message "Solved my problem" --json
 
 ### `githits code search`
 
+This is now the older symbol-search surface. Prefer top-level `githits search --source symbol` for new flows unless you specifically need the legacy code-search UX or its exact JSON contract.
+
 ```
 githits code search npm:express middleware
 githits code search npm:express middleware --intent all
@@ -79,7 +120,7 @@ githits code search npm:@types/node Buffer --file src/ --json
 githits code search npm:express --keywords "router,handler" --match-mode and
 ```
 
-Finds functions, classes, modules, and doc sections inside an indexed dependency by exact-token matches. Unlike `githits search`, which performs natural-language code example search, `code search` is symbol-oriented and returns source chunks with line ranges.
+Finds functions, classes, modules, and doc sections inside an indexed dependency by exact-token matches. Top-level `githits search --source symbol` is the preferred unified surface for symbol-shaped search. `code search` remains available for the older dedicated symbol-search UX and parity contract.
 
 **Package spec.** `<registry>:<name>[@<version>]`. Omit the registry to default to `npm`. Supported registries: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`. Scoped npm names are supported (`npm:@types/node`).
 
@@ -265,7 +306,7 @@ Reads a file from an indexed dependency. `<path>` is package-relative in spec mo
 
 **`--verbose`.** Adds the `<path> · <language> · lines <N-M> of <total>` header and a right-aligned line-number gutter. No stderr routing — `read` has no truncation path.
 
-**Line ranges.** `--lines 10-40` (concise form), `--lines 10-` (open end), `--lines -40` (open start). `--start <n>` / `--end <n>` are the verbose equivalents. Combining `--lines` with `--start` / `--end` is rejected.
+**Line ranges.** `--lines 10-40` (concise form), `--lines 10-` (open end), `--lines -40` (open start), or append the range directly to the path as `lib/express.js:10-40`. `--start <n>` / `--end <n>` are the verbose equivalents. Combining forms is rejected. Unified top-level `search` prints file-backed hits in the same `path:range` form so users can copy directly into `code read`.
 
 **Binary files.** Plain mode writes `Binary file — cannot display as text.` to stdout (consistent with `grep`'s binary-file convention). `--verbose` adds the header above the sentinel. `--json` exposes the classification via `isBinary: true` with `content` omitted — agents branch on the flag, not a null check.
 
@@ -319,8 +360,8 @@ Each command follows this pattern:
 
 | Shared Module | Used By |
 |---|---|
-| `GitHitsService` (via container) | Public MCP tools + primary CLI commands |
-| `CodeNavigationService` (via container) | Capability-gated `search_symbols` MCP tool + `githits code search` CLI command |
+| `GitHitsService` (via container) | `example`, `languages`, `feedback`, and always-on MCP tools |
+| `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, capability-gated `search` MCP tools, and `githits code search` |
 | `filterLanguages()` from `src/shared/language-filter.ts` | `search_language` MCP tool + `languages` CLI command |
 | `requireAuth()` from `src/shared/require-auth.ts` | MCP server startup + all CLI commands |
 
@@ -344,7 +385,7 @@ For complex commands with multiple submodules, a subdirectory (`src/commands/xxx
 
 All commands support two output modes:
 
-- **Default** — Human-readable terminal output (markdown for search, colored list for languages, plain text for feedback)
+- **Default** — Human-readable terminal output (markdown for `example`, formatted result blocks for unified `search`, colored list for `languages`, plain text for `feedback`)
 - **`--json`** — Machine-readable JSON for piping to `jq`, other tools, or agent consumption
 
 ## Global Flags
@@ -359,7 +400,8 @@ All commands support two output modes:
 
 | File | Purpose |
 |---|---|
-| `src/commands/search.ts` | Search command implementation |
+| `src/commands/example.ts` | Example-search command implementation |
+| `src/commands/search.ts` | Unified search and search-status command implementation |
 | `src/commands/languages.ts` | Languages command with colored output |
 | `src/commands/feedback.ts` | Feedback command with accept/reject validation |
 | `src/shared/language-filter.ts` | Pure `filterLanguages()` shared with MCP tool |

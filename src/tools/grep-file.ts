@@ -33,7 +33,7 @@ const schema = {
   pattern: z
     .string()
     .describe(
-      `${GREP_PATTERN_SEMANTICS_NOTE} For symbol-shaped searches use \`search_symbols\` instead.`,
+      `${GREP_PATTERN_SEMANTICS_NOTE} For symbol-shaped searches prefer unified \`search\` with \`sources:["symbol"]\`.`,
     ),
   context_lines: z
     .number()
@@ -65,7 +65,7 @@ const DESCRIPTION =
   "needs no renames. Address via `target.registry` + " +
   "`target.package_name` (package scope) or `target.repo_url` + " +
   "`target.git_ref` (repo scope), mutually exclusive. For " +
-  "symbol-shaped searches use `search_symbols`. When the path " +
+  'symbol-shaped searches prefer unified `search` with `sources:["symbol"]`. When the path ' +
   "doesn't resolve the response is a `NOT_FOUND` (or " +
   "`FILE_NOT_FOUND`) error — call `list_files` to check the " +
   "actual paths.";

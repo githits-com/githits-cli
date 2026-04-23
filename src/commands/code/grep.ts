@@ -181,7 +181,7 @@ function resolvePositionals(
 const PKG_GREP_DESCRIPTION = `Search within a single file for a substring match.
 
 ${GREP_PATTERN_SEMANTICS_NOTE}
-For symbol-shaped searches, use \`githits code search\`.
+For symbol-shaped searches, prefer \`githits search --source symbol\`.
 
 Addressing: <spec> (registry:name[@version]) OR --repo-url <url>
 --git-ref <ref>. In spec mode pass <spec> <pattern> <path>; in

@@ -4,6 +4,7 @@ import { version } from "../package.json";
 import {
   registerAuthStatusCommand,
   registerCodeCommandGroup,
+  registerExampleCommand,
   registerFeedbackCommand,
   registerInitCommand,
   registerLanguagesCommand,
@@ -11,7 +12,7 @@ import {
   registerLogoutCommand,
   registerMcpCommand,
   registerPkgCommandGroup,
-  registerSearchCommand,
+  registerUnifiedSearchCommands,
 } from "./commands/index.js";
 import {
   endTelemetrySpan,
@@ -59,7 +60,8 @@ Getting started:
   githits init                           Set up MCP for your coding agents
   githits login                          Authenticate with your GitHits account
   githits mcp                            Start MCP server for your AI assistant
-  githits search "query" --lang python   Search for code examples
+  githits search "router middleware" --in npm:express   Search dependency code/docs
+  githits example "query" --lang python                  Get code examples
 
 Learn more at https://githits.com
 Docs: https://app.githits.com/docs/
@@ -77,9 +79,12 @@ registerLogoutCommand(program);
 registerMcpCommand(program);
 
 // CLI commands
-registerSearchCommand(program);
+registerExampleCommand(program);
 registerLanguagesCommand(program);
 registerFeedbackCommand(program);
+await withTelemetrySpan("cli.register.search", () =>
+  registerUnifiedSearchCommands(program),
+);
 const argv = process.argv.slice(2);
 if (shouldEagerLoadGatedCommandGroup(argv, "code")) {
   await withTelemetrySpan("cli.register.code-group", () =>

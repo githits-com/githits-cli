@@ -14,6 +14,7 @@ import type {
 import type { BrowserService } from "./browser-service.js";
 import type {
   CodeNavigationService,
+  UnifiedSearchOutcome,
   SearchSymbolsResult,
 } from "./code-navigation-service.js";
 import type { ExecResult, ExecService } from "./exec-service.js";
@@ -121,6 +122,72 @@ export const defaultSearchSymbolsResult: SearchSymbolsResult = {
   totalMatches: 1,
   hasMore: false,
   version: "4.18.0",
+};
+
+export const defaultUnifiedSearchOutcome: UnifiedSearchOutcome = {
+  state: "completed",
+  completed: true,
+  searchRef: "search-ref-123",
+  result: {
+    query: "router middleware",
+    queryWarnings: [],
+    sources: ["CODE"],
+    results: [
+      {
+        id: "hit-1",
+        resultType: "REPOSITORY_CODE",
+        targetLabel: "npm:express@4.18.2",
+        title: "router middleware",
+        summary: "function router(req, res, next) { ... }",
+        score: 0.92,
+        locator: {
+          registry: "npm",
+          packageName: "express",
+          version: "4.18.2",
+          filePath: "lib/router/index.js",
+          startLine: 42,
+          endLine: 57,
+          language: "javascript",
+          symbolRef: "npm:express:4.18.2:a123",
+          qualifiedPath: "router",
+          kind: "function",
+          category: "callable",
+        },
+      },
+    ],
+    page: {
+      offset: 0,
+      limit: 20,
+      returned: 1,
+      hasMore: false,
+    },
+    partialResults: false,
+    sourceStatus: [
+      {
+        source: "CODE",
+        targetLabel: "npm:express@4.18.2",
+        indexingStatus: "INDEXED",
+        codeIndexState: "CURRENT",
+        resultCount: 1,
+        appliedFilters: [],
+        ignoredFilters: [],
+        incompatibleFilters: [],
+        appliedQueryFeatures: [],
+        ignoredQueryFeatures: [],
+        incompatibleQueryFeatures: [],
+      },
+    ],
+  },
+  progress: {
+    searchRef: "search-ref-123",
+    status: "COMPLETED",
+    targetsTotal: 1,
+    targetsReady: 1,
+    elapsedMs: 120,
+    query: "router middleware",
+    queryWarnings: [],
+    sources: ["CODE"],
+  },
 };
 
 /**
@@ -294,6 +361,8 @@ export function createMockCodeNavigationService(
   impl: Partial<CodeNavigationService> = {},
 ): CodeNavigationService {
   return {
+    search: mock(() => Promise.resolve(defaultUnifiedSearchOutcome)),
+    searchStatus: mock(() => Promise.resolve(defaultUnifiedSearchOutcome)),
     searchSymbols: mock(() => Promise.resolve(defaultSearchSymbolsResult)),
     listFiles: mock(() => Promise.resolve(defaultListFilesResult)),
     readFile: mock(() => Promise.resolve(defaultReadFileResult)),

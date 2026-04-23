@@ -44,9 +44,10 @@ function createTestDeps(overrides: Partial<Dependencies> = {}): Dependencies {
  */
 const KNOWN_TOOLS = [
   "search",
+  "get_example",
   "search_language",
   "feedback",
-  "search_symbols",
+  "search_status",
   "list_files",
   "read_file",
   "grep_file",
@@ -106,12 +107,13 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("GitHits surfaces verified");
     expect(instructions).toContain("search_language");
     expect(instructions).toContain("feedback");
+    expect(instructions).toContain("get_example");
     expect(instructions).not.toContain("Package tools");
     expect(instructions).not.toContain("package_summary");
     expect(instructions).not.toContain("package_vulnerabilities");
     expect(instructions).not.toContain("package_dependencies");
     expect(instructions).not.toContain("package_changelog");
-    expect(instructions).not.toContain("search_symbols");
+    expect(instructions).not.toContain("search_status");
   });
 
   it("returns core + package-tools section when capability enabled and both services wired", () => {
@@ -129,7 +131,8 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("`package_vulnerabilities`");
     expect(instructions).toContain("`package_dependencies`");
     expect(instructions).toContain("`package_changelog`");
-    expect(instructions).toContain("`search_symbols`");
+    expect(instructions).toContain("`search`");
+    expect(instructions).toContain("`search_status`");
   });
 
   it("keeps the core block first when both sections are present", () => {
@@ -157,7 +160,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).not.toContain("Package tools");
   });
 
-  it("half-open: only code navigation service wired → mentions search_symbols but not package_summary", () => {
+  it("half-open: only code navigation service wired → mentions search/search_status but not package_summary", () => {
     const deps = createTestDeps({
       codeNavigationCapability: "enabled",
       codeNavigationService: createMockCodeNavigationService(),
@@ -166,14 +169,13 @@ describe("buildMcpInstructions", () => {
     const instructions = buildMcpInstructions(deps);
 
     expect(instructions).toContain("Package tools");
-    expect(instructions).toContain("`search_symbols`");
+    expect(instructions).toContain("`search`");
+    expect(instructions).toContain("`search_status`");
     expect(instructions).not.toContain("`package_summary`");
-    // The decision tip is still meaningful — it contrasts search
-    // with search_symbols, both of which are registered.
-    expect(instructions).toContain("natural-language example questions");
+    expect(instructions).toContain("canonical example retrieval");
   });
 
-  it("half-open: only package intelligence service wired → mentions every package tool but not search_symbols", () => {
+  it("half-open: only package intelligence service wired → mentions every package tool but not unified search", () => {
     const deps = createTestDeps({
       codeNavigationCapability: "enabled",
       codeNavigationService: undefined,
@@ -186,10 +188,10 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("`package_vulnerabilities`");
     expect(instructions).toContain("`package_dependencies`");
     expect(instructions).toContain("`package_changelog`");
-    expect(instructions).not.toContain("`search_symbols`");
-    // The decision tip references search_symbols, so it must not
-    // appear when search_symbols isn't registered.
-    expect(instructions).not.toContain("natural-language example questions");
+    expect(instructions).not.toContain("`search_status`");
+    // The decision tip references unified search, so it must not
+    // appear when unified search isn't registered.
+    expect(instructions).not.toContain("canonical example retrieval");
   });
 
   describe("mention↔registration invariant", () => {
@@ -249,7 +251,8 @@ describe("buildMcpInstructions", () => {
         // individually, so `search_language` and `feedback` won't
         // appear in backtick form.
         const packageTools = [
-          "search_symbols",
+          "search",
+          "search_status",
           "list_files",
           "read_file",
           "grep_file",

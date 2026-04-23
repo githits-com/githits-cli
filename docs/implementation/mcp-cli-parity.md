@@ -9,6 +9,17 @@ surface boundary without learning a new payload shape — parameter names
 can differ per surface convention, but defaults, error behaviour, and
 the serialised envelopes do not.
 
+`search_symbols` / `githits code search` remain a valid parity pair, but
+they are no longer the preferred product entry point for symbol-shaped
+search. New user-facing guidance should prefer unified top-level
+`search` with `source=symbol` / `sources:["symbol"]` unless the older
+dedicated symbol-search contract is specifically required.
+
+Top-level unified `search` and `search_status` follow the same pattern,
+with one deliberate exception: `search_status` does not echo the
+original structured request because the backend follow-up endpoint does
+not expose the caller's original targets, filters, or defaulted fields.
+
 This document is **the pattern and checklist derived from
 `search_symbols`**, not a permanent contract for every future
 code-navigation tool. When tool #2 lands with a good reason to break a
@@ -77,6 +88,10 @@ the test suite anchors the doc.
 - `returnedCount` is an explicit echo of `results.length`.
 - `totalMatches` is the service-provided total (equal to
   `returnedCount` today).
+- Initial unified `search` responses include the full compiled request
+  echo. Follow-up `search_status` responses intentionally omit that
+  echo and return only backend-known fields:
+  `{completed, searchRef?, progress?, result?}`.
 
 ### `PARITY-ERROR-ENVELOPE`
 
@@ -145,6 +160,8 @@ When a new tool lands with both MCP and CLI surfaces:
 | `src/shared/pkgseer-registry.ts` | Registry taxonomy (`PkgseerRegistry` union + lowercase↔uppercase converters). |
 | `src/shared/search-symbols-request.ts` | Shared request builder for `search_symbols`. |
 | `src/shared/search-symbols-response.ts` | Shared JSON envelope builders for `search_symbols`. |
+| `src/shared/unified-search-request.ts` | Shared request builder for top-level unified `search`; compiles structured query fields and applies defaulting. |
+| `src/shared/unified-search-response.ts` | Shared JSON envelope builders for top-level unified `search` and follow-up `search_status`. |
 | `src/shared/package-summary-request.ts` | Shared request builder for `package_summary`. |
 | `src/shared/package-summary-response.ts` | Lean JSON envelope builder and terminal formatter for `package_summary`. |
 | `src/shared/package-vulnerabilities-request.ts` | Shared request builder for `package_vulnerabilities`; owns the tool-local `supportsVulnerabilitiesRegistry` predicate and the severity-label → CVSS float map. |
@@ -165,6 +182,8 @@ When a new tool lands with both MCP and CLI surfaces:
 | `src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier (reuses `MappedError` from the code-nav map). |
 | `src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. Used by the `packageVulnerabilities`, `packageDependencies`, and `packageChangelog` executors. Handles both `version` (single-version queries) and `fromVersion` / `toVersion` (range queries), and skips `details.package` synthesis when registry/name aren't available (repo-URL mode). |
 | `src/tools/search-symbols.ts` | MCP tool definition for `search_symbols`. |
+| `src/tools/search.ts` | MCP tool definition for unified `search`. |
+| `src/tools/search-status.ts` | MCP tool definition for `search_status`. |
 | `src/tools/package-summary.ts` | MCP tool definition for `package_summary`. |
 | `src/tools/package-vulnerabilities.ts` | MCP tool definition for `package_vulnerabilities`. |
 | `src/tools/package-dependencies.ts` | MCP tool definition for `package_dependencies`. |
@@ -173,6 +192,7 @@ When a new tool lands with both MCP and CLI surfaces:
 | `src/tools/read-file.ts` | MCP tool definition for `read_file`. |
 | `src/tools/grep-file.ts` | MCP tool definition for `grep_file`. |
 | `src/commands/code/search-symbols.ts` | CLI command. |
+| `src/commands/search.ts` | Top-level CLI commands for unified `search` and `search-status`. |
 | `src/commands/pkg/info.ts` | CLI command for `pkg info`. |
 | `src/commands/pkg/vulns.ts` | CLI command for `pkg vulns`. |
 | `src/commands/pkg/deps.ts` | CLI command for `pkg deps`. |
