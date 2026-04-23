@@ -14,11 +14,15 @@ import {
   buildUnifiedSearchParams,
   buildUnifiedSearchStatusPayload,
   buildUnifiedSearchSuccessPayload,
+  colorize,
+  dim,
+  highlight,
   InvalidArgumentError,
   knownSymbolCategoryList,
   knownSymbolKindList,
   parseUnifiedSearchTargetSpec,
   requireAuth,
+  shouldUseColors,
   toSearchSymbolsFileIntent,
   toSearchSymbolsKind,
   toSymbolCategory,
@@ -382,7 +386,17 @@ function formatUnifiedSearchTerminal(payload: {
     target: string;
     title?: string;
     summary?: string;
-    locator: { filePath?: string; startLine?: number; endLine?: number };
+    locator: {
+      registry?: string;
+      packageName?: string;
+      version?: string;
+      repoUrl?: string;
+      gitRef?: string;
+      pageId?: string;
+      filePath?: string;
+      startLine?: number;
+      endLine?: number;
+    };
   }>;
   searchRef?: string;
   progress?: { targetsReady?: number; targetsTotal?: number };
@@ -396,6 +410,7 @@ function formatUnifiedSearchTerminal(payload: {
   }>;
 }): string {
   const lines: string[] = [];
+  const useColors = shouldUseColors();
 
   if (payload.query.warnings && payload.query.warnings.length > 0) {
     for (const warning of payload.query.warnings) {
@@ -418,28 +433,27 @@ function formatUnifiedSearchTerminal(payload: {
   }
 
   lines.push(
-    `${payload.returnedCount} result(s)${payload.hasMore ? " (more available)" : ""}`,
+    `${highlight(`${payload.returnedCount} result(s)`, useColors)}${payload.hasMore ? dim(" (more available)", useColors) : ""}`,
   );
-  lines.push(formatUnifiedSearchTypeSummary(payload.results));
+  lines.push(dim(formatUnifiedSearchTypeSummary(payload.results), useColors));
   lines.push("");
 
   for (const entry of payload.results) {
-    const location = entry.locator.filePath
-      ? entry.locator.startLine
-        ? `${entry.locator.filePath}:${entry.locator.startLine}${entry.locator.endLine && entry.locator.endLine !== entry.locator.startLine ? `-${entry.locator.endLine}` : ""}`
-        : entry.locator.filePath
-      : undefined;
-    lines.push(
-      `${formatUnifiedSearchResultLabel(entry.type)} · ${entry.target}${location ? ` · ${location}` : ""}${entry.title ? ` · ${entry.title}` : ""}`,
-    );
+    const location = formatUnifiedSearchLocation(entry.locator);
+    const header = formatUnifiedSearchHeader(entry, useColors, location);
+    lines.push(header);
     if (entry.summary) {
       lines.push(...formatUnifiedSearchSummary(entry.summary));
+    }
+    const detailLine = formatUnifiedSearchDetailLine(entry, useColors);
+    if (detailLine) {
+      lines.push(detailLine);
     }
     lines.push("");
   }
 
   if (payload.nextOffset !== undefined) {
-    lines.push(`Next offset: ${payload.nextOffset}`);
+    lines.push(dim(`Next offset: ${payload.nextOffset}`, useColors));
   }
 
   const sourceStatusNotes = formatSourceStatusNotes(payload.sourceStatus);
@@ -551,6 +565,7 @@ function formatSourceStatusNotes(
       }>
     | undefined,
 ): string[] {
+  const useColors = shouldUseColors();
   if (!sourceStatus) {
     return [];
   }
@@ -560,18 +575,24 @@ function formatSourceStatusNotes(
     const label = `${entry.source.toLowerCase()} on ${entry.targetLabel}`;
     if (entry.ignoredFilters.length > 0) {
       lines.push(
-        `Note: ${label} ignored filters: ${entry.ignoredFilters.join(", ")}`,
+        dim(
+          `Note: ${label} ignored filters: ${entry.ignoredFilters.join(", ")}`,
+          useColors,
+        ),
       );
     }
     if (entry.incompatibleFilters.length > 0) {
       lines.push(
-        `Note: ${label} incompatible filters: ${entry.incompatibleFilters.join(
-          ", ",
-        )}`,
+        dim(
+          `Note: ${label} incompatible filters: ${entry.incompatibleFilters.join(
+            ", ",
+          )}`,
+          useColors,
+        ),
       );
     }
     if (entry.note) {
-      lines.push(`Note: ${label}: ${entry.note}`);
+      lines.push(dim(`Note: ${label}: ${entry.note}`, useColors));
     }
   }
 
@@ -633,6 +654,73 @@ function formatUnifiedSearchSummary(summary: string): string[] {
   }
 
   return limited;
+}
+
+function formatUnifiedSearchLocation(locator: {
+  filePath?: string;
+  startLine?: number;
+  endLine?: number;
+}): string | undefined {
+  if (!locator.filePath) {
+    return undefined;
+  }
+
+  if (!locator.startLine) {
+    return locator.filePath;
+  }
+
+  return `${locator.filePath}:${locator.startLine}${locator.endLine && locator.endLine !== locator.startLine ? `-${locator.endLine}` : ""}`;
+}
+
+function formatUnifiedSearchHeader(
+  entry: {
+    target: string;
+    type: string;
+    locator: {
+      filePath?: string;
+      startLine?: number;
+      endLine?: number;
+      pageId?: string;
+    };
+    title?: string;
+  },
+  useColors: boolean,
+  location: string | undefined,
+): string {
+  const primary = location ? `${entry.target} ${location}` : entry.target;
+  const badge = `[${formatUnifiedSearchResultLabel(entry.type)}]`;
+  return `${highlight(primary, useColors)} ${dim(badge, useColors)}${entry.title ? ` - ${entry.title}` : ""}`;
+}
+
+function formatUnifiedSearchDetailLine(
+  entry: {
+    type: string;
+    target: string;
+    locator: {
+      registry?: string;
+      packageName?: string;
+      version?: string;
+      repoUrl?: string;
+      gitRef?: string;
+      pageId?: string;
+      filePath?: string;
+      startLine?: number;
+      endLine?: number;
+    };
+  },
+  useColors: boolean,
+): string | undefined {
+  if (entry.type === "documentation_page") {
+    const docHint = entry.locator.pageId
+      ? `pageId=${entry.locator.pageId}`
+      : entry.target;
+    return dim(
+      `  Full doc fetch not exposed in CLI yet (${docHint})`,
+      useColors,
+    );
+  }
+
+  return undefined;
 }
 
 function truncateSummaryLine(line: string): string {

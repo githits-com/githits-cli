@@ -160,7 +160,9 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain("1 repo code hit");
-    expect(output).toContain("repo code · npm:express@4.18.2");
+    expect(output).toContain(
+      "npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
+    );
     consoleSpy.mockRestore();
   });
 
@@ -285,6 +287,53 @@ describe("searchAction", () => {
     expect(output).toContain("  line 6");
     expect(output).toContain("  ...");
     expect(output).not.toContain("  line 7");
+    consoleSpy.mockRestore();
+  });
+
+  it("prints compact docs hint when full doc fetch is unavailable in CLI", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const docsOutcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [
+          {
+            ...defaultUnifiedSearchOutcome.result.results[0]!,
+            resultType: "DOCUMENTATION_PAGE",
+            title: "Using Express middleware",
+            locator: {
+              registry: "npm",
+              packageName: "express",
+              version: "5.2.1",
+              pageId: "docs-123",
+            },
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router middleware",
+      { in: ["npm:express"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(docsOutcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "npm:express@4.18.2 [docs page] - Using Express middleware",
+    );
+    expect(output).toContain(
+      "Full doc fetch not exposed in CLI yet (pageId=docs-123)",
+    );
     consoleSpy.mockRestore();
   });
 });

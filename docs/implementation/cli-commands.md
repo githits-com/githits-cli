@@ -72,7 +72,9 @@ Unified search spans indexed dependency and repository code, docs, and explicit 
 
 **Complete-by-default results.** The CLI always forces `allowPartialResults: false`. If indexing does not complete within the wait window, the command returns a `searchRef` and progress summary instead of partial hits. `--wait` is in seconds (0-60, default 20).
 
-**Output.** Plain output preserves backend ranking order. It starts with a lightweight per-type count summary, then shows one result per block: friendly result label, target, file location when present, title, and a truncated summary excerpt to keep terminal output readable. Labels are: `docs page` (hosted package docs), `repo doc` (documentation-like block from a repository file), `repo code` (code block from a repository file), and `repo symbol` (explicit symbol hit from the repository index). `--json` emits the shared success/error envelope used by the MCP `search` tool, including a full `query` echo for initial searches.
+**Output.** Plain output preserves backend ranking order. It starts with a lightweight per-type count summary, then shows one result per block. The header line is optimized for scanning and copy-paste follow-up: `target path:range [type] - title`. For file-backed hits, that header can be turned directly into a `githits code read` call because `code read` accepts `path:start-end` suffixes. Summary excerpts stay truncated to keep terminal output readable. Labels are: `docs page` (hosted package docs), `repo doc` (documentation-like block from a repository file), `repo code` (code block from a repository file), and `repo symbol` (explicit symbol hit from the repository index). `--json` emits the shared success/error envelope used by the MCP `search` tool, including a full `query` echo for initial searches.
+
+**Highlighting.** The CLI currently highlights headers and badges structurally, but does **not** attempt query-term match highlighting inside summaries. Unified search receives compiled query strings, not structured match spans, so robust highlighting should come from backend-provided match metadata rather than fragile client-side substring guesses.
 
 ### `githits search-status`
 
@@ -304,7 +306,7 @@ Reads a file from an indexed dependency. `<path>` is package-relative in spec mo
 
 **`--verbose`.** Adds the `<path> · <language> · lines <N-M> of <total>` header and a right-aligned line-number gutter. No stderr routing — `read` has no truncation path.
 
-**Line ranges.** `--lines 10-40` (concise form), `--lines 10-` (open end), `--lines -40` (open start). `--start <n>` / `--end <n>` are the verbose equivalents. Combining `--lines` with `--start` / `--end` is rejected.
+**Line ranges.** `--lines 10-40` (concise form), `--lines 10-` (open end), `--lines -40` (open start), or append the range directly to the path as `lib/express.js:10-40`. `--start <n>` / `--end <n>` are the verbose equivalents. Combining forms is rejected. Unified top-level `search` prints file-backed hits in the same `path:range` form so users can copy directly into `code read`.
 
 **Binary files.** Plain mode writes `Binary file — cannot display as text.` to stdout (consistent with `grep`'s binary-file convention). `--verbose` adds the header above the sentinel. `--json` exposes the classification via `isBinary: true` with `content` omitted — agents branch on the flag, not a null check.
 

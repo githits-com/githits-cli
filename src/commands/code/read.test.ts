@@ -175,6 +175,30 @@ describe("pkgReadAction", () => {
     writeSpy.mockRestore();
   });
 
+  it("parses trailing :start-end range from the path", async () => {
+    const readFile = mock(() => Promise.resolve(defaultReadFileResult));
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+
+    await pkgReadAction(
+      "npm:express",
+      "src/index.js:10-40",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({ readFile }),
+      }),
+    );
+
+    const calls = readFile.mock.calls as unknown as Array<
+      [{ filePath?: string; startLine?: number; endLine?: number }]
+    >;
+    expect(calls[0]?.[0]?.filePath).toBe("src/index.js");
+    expect(calls[0]?.[0]?.startLine).toBe(10);
+    expect(calls[0]?.[0]?.endLine).toBe(40);
+    writeSpy.mockRestore();
+  });
+
   it.each([
     "10", // single line — ambiguous
     "40-10", // reversed
@@ -217,6 +241,26 @@ describe("pkgReadAction", () => {
       /* expected */
     }
     expect(errorSpy.mock.calls[0]?.[0]).toMatch(/Pick one/);
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("rejects path range combined with --lines", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    try {
+      await pkgReadAction(
+        "npm:express",
+        "src/index.js:10-40",
+        { lines: "10-40" },
+        createDeps(),
+      );
+    } catch {
+      /* expected */
+    }
+    expect(errorSpy.mock.calls[0]?.[0]).toMatch(/path:start-end or --lines/);
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
