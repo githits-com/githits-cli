@@ -34,6 +34,10 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       title: "router middleware",
       summary: "function router(req, res, next) { ... }",
       score: 0.92,
+      highlights: {
+        title: [[7, 17]],
+        summary: [[9, 15]],
+      },
       locator: expect.objectContaining({
         filePath: "lib/router/index.js",
         language: "javascript",

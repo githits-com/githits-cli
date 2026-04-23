@@ -1,5 +1,4 @@
 import { type Command, Option } from "commander";
-import { createContainer } from "../../container.js";
 import type { CodeNavigationService } from "../../services/index.js";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
@@ -301,6 +300,7 @@ export function registerCodeGrepCommand(pkgCommand: Command): Command {
         arg3: string | undefined,
         options: PkgGrepCommandOptions,
       ) => {
+        const { createContainer } = await import("../../container.js");
         const deps = await createContainer();
         await pkgGrepAction(arg1, arg2, arg3, options, {
           codeNavigationService: deps.codeNavigationService,

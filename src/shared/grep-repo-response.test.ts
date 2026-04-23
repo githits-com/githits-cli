@@ -102,6 +102,16 @@ describe("formatGrepRepoTerminal", () => {
     expect(stdout).toContain("src/index.js:10:const app = express();");
   });
 
+  it("applies grep match highlighting when colors are enabled", () => {
+    const envelope = buildGrepRepoSuccessPayload(baseResult, baseOptions);
+    const { stdout } = formatGrepRepoTerminal(envelope, {
+      useColors: true,
+    });
+    expect(stdout).toContain(
+      `src/index.js:10:const ${"\u001b[1m\u001b[36m"}app = e${"\u001b[0m"}xpress();`,
+    );
+  });
+
   it("heading mode emits a file heading with compact line rows", () => {
     const envelope = buildGrepRepoSuccessPayload(baseResult, baseOptions);
     const { stdout } = formatGrepRepoTerminal(envelope, {

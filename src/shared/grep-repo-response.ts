@@ -1,5 +1,5 @@
 import type { GrepRepoMatch, GrepRepoResult } from "../services/index.js";
-import { colorize, dim } from "./colors.js";
+import { colorize, dim, highlightRanges } from "./colors.js";
 
 export interface LeanGrepRepoMatch {
   filePath: string;
@@ -225,6 +225,7 @@ interface RenderLine {
   lineNumber: number;
   content: string;
   isMatch: boolean;
+  highlightRanges?: Array<readonly [number, number]>;
 }
 
 interface RenderBlock {
@@ -259,7 +260,9 @@ function formatPlain(
   blocks.forEach((block) => {
     for (const line of block.lines) {
       if (!line.isMatch) continue;
-      stdoutLines.push(renderPlainLine(block.filePath, line, false));
+      stdoutLines.push(
+        renderPlainLine(block.filePath, line, options.useColors, false),
+      );
     }
   });
   stdoutLines.push("");
@@ -286,7 +289,7 @@ function formatHeadingPlain(
       if (withContext && index > 0) lines.push("--");
       for (const line of block.lines) {
         if (!withContext && !line.isMatch) continue;
-        lines.push(renderHeadingLine(line, withContext));
+        lines.push(renderHeadingLine(line, withContext, options.useColors));
       }
     });
   }
@@ -359,11 +362,30 @@ function buildRenderBlocks(matches: LeanGrepRepoMatch[]): RenderBlock[] {
       }
     }
 
-    lineMap.set(match.line, {
-      lineNumber: match.line,
-      content: match.lineContent,
-      isMatch: true,
-    });
+    const existingMatch = lineMap.get(match.line);
+    if (existingMatch && existingMatch.isMatch) {
+      existingMatch.highlightRanges = mergeRanges(
+        existingMatch.highlightRanges,
+        [
+          [
+            clampCharacterOffset(match.lineContent, match.matchStartByte),
+            clampCharacterOffset(match.lineContent, match.matchEndByte),
+          ] as const,
+        ],
+      );
+    } else {
+      lineMap.set(match.line, {
+        lineNumber: match.line,
+        content: match.lineContent,
+        isMatch: true,
+        highlightRanges: [
+          [
+            clampCharacterOffset(match.lineContent, match.matchStartByte),
+            clampCharacterOffset(match.lineContent, match.matchEndByte),
+          ],
+        ],
+      });
+    }
 
     const contextAfter = match.contextAfter ?? [];
     for (let index = 0; index < contextAfter.length; index += 1) {
@@ -407,23 +429,34 @@ function buildRenderBlocks(matches: LeanGrepRepoMatch[]): RenderBlock[] {
 function renderPlainLine(
   filePath: string,
   line: RenderLine,
+  useColors: boolean,
   withContext = false,
 ): string {
+  const content = line.isMatch
+    ? highlightRanges(line.content, line.highlightRanges, useColors)
+    : line.content;
   if (!withContext || line.isMatch) {
     return withContext
-      ? `${line.lineNumber}:${line.content}`
-      : `${filePath}:${line.lineNumber}:${line.content}`;
+      ? `${line.lineNumber}:${content}`
+      : `${filePath}:${line.lineNumber}:${content}`;
   }
 
-  return `${line.lineNumber}-${line.content}`;
+  return `${line.lineNumber}-${content}`;
 }
 
-function renderHeadingLine(line: RenderLine, withContext: boolean): string {
+function renderHeadingLine(
+  line: RenderLine,
+  withContext: boolean,
+  useColors: boolean,
+): string {
+  const content = line.isMatch
+    ? highlightRanges(line.content, line.highlightRanges, useColors)
+    : line.content;
   if (!withContext || line.isMatch) {
-    return `${line.lineNumber}:${line.content}`;
+    return `${line.lineNumber}:${content}`;
   }
 
-  return `${line.lineNumber}-${line.content}`;
+  return `${line.lineNumber}-${content}`;
 }
 
 function groupBlocksByFile(blocks: RenderBlock[]): Map<string, RenderBlock[]> {
@@ -446,7 +479,7 @@ function renderVerboseLine(
 ): string {
   const gutter = padLeft(String(line.lineNumber), gutterWidth);
   if (line.isMatch) {
-    return `${colorize(">", "bold", useColors)} ${gutter}  ${colorize(line.content, "bold", useColors)}`;
+    return `${colorize(">", "bold", useColors)} ${gutter}  ${highlightRanges(line.content, line.highlightRanges, useColors)}`;
   }
 
   return `  ${dim(gutter, useColors)}  ${dim(line.content, useColors)}`;
@@ -525,4 +558,32 @@ function padLeft(text: string, width: number): string {
   return text.length >= width
     ? text
     : `${" ".repeat(width - text.length)}${text}`;
+}
+
+function mergeRanges(
+  existing: Array<readonly [number, number]> | undefined,
+  incoming: Array<readonly [number, number]>,
+): Array<readonly [number, number]> {
+  const sorted = [...(existing ?? []), ...incoming]
+    .filter(([start, end]) => end > start)
+    .sort((left, right) => left[0] - right[0] || left[1] - right[1]);
+
+  const merged: Array<readonly [number, number]> = [];
+  for (const current of sorted) {
+    const previous = merged[merged.length - 1];
+    if (!previous || current[0] > previous[1]) {
+      merged.push(current);
+      continue;
+    }
+    merged[merged.length - 1] = [
+      previous[0],
+      Math.max(previous[1], current[1]),
+    ];
+  }
+
+  return merged;
+}
+
+function clampCharacterOffset(text: string, offset: number): number {
+  return Math.max(0, Math.min(text.length, offset));
 }

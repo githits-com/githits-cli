@@ -146,6 +146,10 @@ describe("searchAction", () => {
     const parsed = JSON.parse(output);
     expect(parsed.completed).toBe(true);
     expect(parsed.results[0].target).toBe("npm:express@4.18.2");
+    expect(parsed.results[0].highlights).toEqual({
+      title: [[7, 17]],
+      summary: [[9, 15]],
+    });
     consoleSpy.mockRestore();
   });
 
@@ -289,6 +293,103 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("renders search highlight spans in terminal output when colors are enabled", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const originalIsTTY = process.stdout.isTTY;
+    const noColor = process.env.NO_COLOR;
+    try {
+      delete process.env.NO_COLOR;
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: true,
+        configurable: true,
+      });
+
+      await searchAction(
+        "router middleware",
+        { in: ["npm:express"] },
+        createDeps(),
+      );
+
+      const output = String(consoleSpy.mock.calls[0]?.[0]);
+      expect(output).toContain("\u001b[1m\u001b[36mmiddleware\u001b[0m");
+      expect(output).toContain(
+        "function \u001b[1m\u001b[36mrouter\u001b[0m(req, res, next) { ... }",
+      );
+    } finally {
+      consoleSpy.mockRestore();
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: originalIsTTY,
+        configurable: true,
+      });
+      if (noColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = noColor;
+      }
+    }
+  });
+
+  it("preserves CRLF-based summary highlight offsets", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const originalIsTTY = process.stdout.isTTY;
+    const noColor = process.env.NO_COLOR;
+
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const crlfOutcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [
+          {
+            ...defaultUnifiedSearchOutcome.result.results[0]!,
+            summary: "line 1\r\nline 2",
+            highlights: {
+              summary: [[8, 14]],
+            },
+          },
+        ],
+      },
+    };
+
+    try {
+      delete process.env.NO_COLOR;
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: true,
+        configurable: true,
+      });
+
+      await searchAction(
+        "router middleware",
+        { in: ["npm:express"] },
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            search: mock(() => Promise.resolve(crlfOutcome)),
+          }),
+        }),
+      );
+
+      const output = String(consoleSpy.mock.calls[0]?.[0]);
+      expect(output).toContain("  line 1");
+      expect(output).toContain(
+        `  ${"\u001b[1m\u001b[36m"}line 2${"\u001b[0m"}`,
+      );
+    } finally {
+      consoleSpy.mockRestore();
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: originalIsTTY,
+        configurable: true,
+      });
+      if (noColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = noColor;
+      }
+    }
+  });
+
   it("prints compact docs hint when full doc fetch is unavailable in CLI", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
@@ -305,6 +406,7 @@ describe("searchAction", () => {
             ...defaultUnifiedSearchOutcome.result.results[0]!,
             resultType: "DOCUMENTATION_PAGE",
             title: "Using Express middleware",
+            highlights: undefined,
             locator: {
               registry: "npm",
               packageName: "express",

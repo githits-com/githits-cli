@@ -32,6 +32,10 @@ export interface UnifiedSearchHitPayload {
   title?: string;
   summary?: string;
   score?: number;
+  highlights?: {
+    title?: Array<readonly [number, number]>;
+    summary?: Array<readonly [number, number]>;
+  };
   locator: {
     registry?: string;
     packageName?: string;
@@ -233,6 +237,7 @@ function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
     title: hit.title,
     summary: hit.summary,
     score: hit.score,
+    highlights: hit.highlights,
     locator: {
       registry: hit.locator.registry,
       packageName: hit.locator.packageName,

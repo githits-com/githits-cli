@@ -1077,6 +1077,81 @@ describe("CodeNavigationServiceImpl", () => {
     expect(result.resolution?.resolvedRef).toBe("v5.2.1");
   });
 
+  it("normalises unified search highlight spans", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              search: {
+                completed: true,
+                searchRef: "search-ref-123",
+                result: {
+                  query: "router middleware",
+                  queryWarnings: [],
+                  sources: ["CODE"],
+                  results: [
+                    {
+                      id: "hit-1",
+                      resultType: "REPOSITORY_CODE",
+                      targetLabel: "npm:express@4.18.2",
+                      title: "router middleware",
+                      summary: "function router(req, res, next) { ... }",
+                      score: 0.92,
+                      highlights: {
+                        title: [[7, 17]],
+                        summary: [[9, 15]],
+                      },
+                      locator: {
+                        registry: "npm",
+                        packageName: "express",
+                        version: "4.18.2",
+                        filePath: "lib/router/index.js",
+                        startLine: 42,
+                        endLine: 57,
+                        language: "javascript",
+                      },
+                    },
+                  ],
+                  page: {
+                    offset: 0,
+                    limit: 20,
+                    returned: 1,
+                    hasMore: false,
+                  },
+                  partialResults: false,
+                  sourceStatus: [],
+                },
+                progress: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+      globalThis.fetch,
+    );
+
+    const result = await service.search({
+      targets: [{ registry: "NPM", packageName: "express" }],
+      query: "router middleware",
+    });
+
+    expect(result.state).toBe("completed");
+    if (result.state !== "completed") {
+      throw new Error("expected completed search outcome");
+    }
+    expect(result.result.results[0]?.highlights).toEqual({
+      title: [[7, 17]],
+      summary: [[9, 15]],
+    });
+  });
+
   it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on grepRepo", async () => {
     mockFetch(() =>
       Promise.resolve(
