@@ -643,17 +643,13 @@ function formatUnifiedSearchCountLabel(type: string, count: number): string {
 }
 
 function formatUnifiedSearchSummary(summary: string): string[] {
-  const normalized = summary.replace(/\r\n/g, "\n").trimEnd();
-  const lines = normalizeSummaryLines(normalized.split("\n"));
-  const limited = lines
-    .slice(0, 6)
-    .map((line) => (line.length === 0 ? "" : `  ${truncateSummaryLine(line)}`));
-
-  if (lines.length > 6) {
-    limited.push("  ...");
-  }
-
-  return limited;
+  // Preserve backend snippets verbatim. Without match spans or richer snippet
+  // metadata from the backend, client-side trimming or rewriting just guesses
+  // at what is important and can hide the actual reason a result matched.
+  return summary
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => `  ${line}`);
 }
 
 function formatUnifiedSearchLocation(locator: {
@@ -721,33 +717,4 @@ function formatUnifiedSearchDetailLine(
   }
 
   return undefined;
-}
-
-function truncateSummaryLine(line: string): string {
-  if (line.length <= 160) {
-    return line;
-  }
-
-  return `${line.slice(0, 157)}...`;
-}
-
-function normalizeSummaryLines(lines: string[]): string[] {
-  const trimmed = [...lines];
-  while (trimmed[0]?.trim() === "") {
-    trimmed.shift();
-  }
-  while (trimmed.at(-1)?.trim() === "") {
-    trimmed.pop();
-  }
-
-  const normalized: string[] = [];
-  for (const line of trimmed) {
-    const value = line.trim().length === 0 ? "" : line;
-    if (value === "" && normalized.at(-1) === "") {
-      continue;
-    }
-    normalized.push(value);
-  }
-
-  return normalized;
 }

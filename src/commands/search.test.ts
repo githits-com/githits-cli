@@ -245,7 +245,7 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
-  it("truncates long summaries in terminal output", async () => {
+  it("renders backend summaries verbatim in terminal output", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -285,8 +285,7 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain("  line 6");
-    expect(output).toContain("  ...");
-    expect(output).not.toContain("  line 7");
+    expect(output).toContain("  line 7");
     consoleSpy.mockRestore();
   });
 
