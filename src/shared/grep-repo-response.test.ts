@@ -102,6 +102,16 @@ describe("formatGrepRepoTerminal", () => {
     expect(stdout).toContain("src/index.js:10:const app = express();");
   });
 
+  it("heading mode emits a file heading with compact line rows", () => {
+    const envelope = buildGrepRepoSuccessPayload(baseResult, baseOptions);
+    const { stdout } = formatGrepRepoTerminal(envelope, {
+      useColors: false,
+      headingStyle: true,
+    });
+    expect(stdout).toContain("src/index.js\n10:const app = express();");
+    expect(stdout).not.toContain("src/index.js:10:const app = express();");
+  });
+
   it("verbose mode emits a grouped header", () => {
     const envelope = buildGrepRepoSuccessPayload(baseResult, baseOptions);
     const { stdout } = formatGrepRepoTerminal(envelope, {

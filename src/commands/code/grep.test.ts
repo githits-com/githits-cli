@@ -35,6 +35,14 @@ describe("pkgGrepAction", () => {
       );
       return true;
     }) as typeof process.stdout.write);
+    const stdoutDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      "isTTY",
+    );
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: false,
+      configurable: true,
+    });
 
     await pkgGrepAction(
       "npm:express",
@@ -46,6 +54,49 @@ describe("pkgGrepAction", () => {
 
     expect(writes.join("")).toContain("src/index.js:4:");
     writeSpy.mockRestore();
+    if (stdoutDescriptor) {
+      Object.defineProperty(process.stdout, "isTTY", stdoutDescriptor);
+    }
+  });
+
+  it("tty mode emits file heading plus compact line matches", async () => {
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+    const stdoutDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      "isTTY",
+    );
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: true,
+      configurable: true,
+    });
+
+    await pkgGrepAction(
+      "npm:express",
+      "middleware",
+      undefined,
+      {},
+      createDeps(),
+    );
+
+    const output = writes.join("");
+    expect(output).toContain(
+      "src/index.js\n4:module.exports = require('./lib/express');",
+    );
+    expect(output).not.toContain(
+      "src/index.js:4:module.exports = require('./lib/express');",
+    );
+    writeSpy.mockRestore();
+    if (stdoutDescriptor) {
+      Object.defineProperty(process.stdout, "isTTY", stdoutDescriptor);
+    }
   });
 
   it("verbose mode renders grouped output", async () => {

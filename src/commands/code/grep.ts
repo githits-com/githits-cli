@@ -162,6 +162,8 @@ export async function pkgGrepAction(
     const rendered = formatGrepRepoTerminal(payload, {
       useColors: shouldUseColors(),
       verbose: options.verbose ?? false,
+      headingStyle:
+        (process.stdout.isTTY ?? false) && !(options.verbose ?? false),
       withContext:
         (build.params.contextLinesBefore ?? 0) > 0 ||
         (build.params.contextLinesAfter ?? 0) > 0,

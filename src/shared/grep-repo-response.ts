@@ -213,6 +213,7 @@ export interface FormatGrepRepoTerminalOptions {
   useColors: boolean;
   verbose?: boolean;
   withContext?: boolean;
+  headingStyle?: boolean;
 }
 
 export interface FormattedGrepRepoTerminal {
@@ -250,29 +251,49 @@ function formatPlain(
   blocks: RenderBlock[],
   options: FormatGrepRepoTerminalOptions,
 ): FormattedGrepRepoTerminal {
-  const stdoutLines: string[] = [];
-  const hasContext = blocks.some((block) =>
-    block.lines.some((line) => !line.isMatch),
-  );
+  if (options.headingStyle || options.withContext) {
+    return formatHeadingPlain(envelope, blocks, options);
+  }
 
-  blocks.forEach((block, index) => {
-    if (options.withContext && index > 0 && hasContext) {
-      stdoutLines.push("--");
-    }
-    if (options.withContext) {
-      stdoutLines.push(block.filePath);
-    }
+  const stdoutLines: string[] = [];
+  blocks.forEach((block) => {
     for (const line of block.lines) {
-      if (!options.withContext && !line.isMatch) continue;
-      stdoutLines.push(
-        renderPlainLine(block.filePath, line, options.withContext),
-      );
+      if (!line.isMatch) continue;
+      stdoutLines.push(renderPlainLine(block.filePath, line, false));
     }
   });
   stdoutLines.push("");
 
   return {
     stdout: stdoutLines.join("\n"),
+    stderr: formatTerminalNotes(envelope, options.useColors),
+  };
+}
+
+function formatHeadingPlain(
+  envelope: LeanGrepRepoEnvelope,
+  blocks: RenderBlock[],
+  options: FormatGrepRepoTerminalOptions,
+): FormattedGrepRepoTerminal {
+  const lines: string[] = [];
+  const blocksByFile = groupBlocksByFile(blocks);
+  const withContext = options.withContext ?? false;
+
+  for (const [filePath, fileBlocks] of blocksByFile) {
+    if (lines.length > 0) lines.push("");
+    lines.push(filePath);
+    fileBlocks.forEach((block, index) => {
+      if (withContext && index > 0) lines.push("--");
+      for (const line of block.lines) {
+        if (!withContext && !line.isMatch) continue;
+        lines.push(renderHeadingLine(line, withContext));
+      }
+    });
+  }
+  lines.push("");
+
+  return {
+    stdout: `${lines.join("\n")}`,
     stderr: formatTerminalNotes(envelope, options.useColors),
   };
 }
@@ -392,6 +413,14 @@ function renderPlainLine(
     return withContext
       ? `${line.lineNumber}:${line.content}`
       : `${filePath}:${line.lineNumber}:${line.content}`;
+  }
+
+  return `${line.lineNumber}-${line.content}`;
+}
+
+function renderHeadingLine(line: RenderLine, withContext: boolean): string {
+  if (!withContext || line.isMatch) {
+    return `${line.lineNumber}:${line.content}`;
   }
 
   return `${line.lineNumber}-${line.content}`;
