@@ -1,0 +1,5 @@
+{
+  "setup": ["bun install"],
+  "teardown": [],
+  "run": ["bun run dev mcp start"]
+}
