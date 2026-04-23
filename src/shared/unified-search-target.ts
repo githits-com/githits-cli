@@ -1,8 +1,10 @@
 import type { CodeNavigationTarget } from "../services/index.js";
-import { InvalidArgumentError, parsePackageSpec } from "./package-spec.js";
 import { toCodeNavigationRegistry } from "./code-navigation.js";
+import { InvalidArgumentError, parsePackageSpec } from "./package-spec.js";
 
-export function parseUnifiedSearchTargetSpec(spec: string): CodeNavigationTarget {
+export function parseUnifiedSearchTargetSpec(
+  spec: string,
+): CodeNavigationTarget {
   const trimmed = spec.trim();
   if (trimmed.length === 0) {
     throw new InvalidArgumentError("Target spec cannot be empty.");

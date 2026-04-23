@@ -1204,7 +1204,9 @@ const unifiedSearchGraphQLResponseSchema = z.object({
 const unifiedSearchStatusGraphQLResponseSchema = z.object({
   data: z
     .object({
-      discoverySearchProgress: unifiedSearchProgressSchema.nullable().optional(),
+      discoverySearchProgress: unifiedSearchProgressSchema
+        .nullable()
+        .optional(),
     })
     .nullable()
     .optional(),

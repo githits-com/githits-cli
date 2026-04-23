@@ -25,9 +25,7 @@ const schema = {
   license_mode: z
     .enum(["strict", "yolo", "custom"])
     .optional()
-    .describe(
-      'License filtering mode: strict (default), yolo, or custom.',
-    ),
+    .describe("License filtering mode: strict (default), yolo, or custom."),
 };
 
 const DESCRIPTION = `Get verified, canonical code examples from global open source.

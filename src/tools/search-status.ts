@@ -11,7 +11,10 @@ export interface SearchStatusArgs {
 }
 
 const schema = {
-  search_ref: z.string().min(1).describe("Search reference returned by search."),
+  search_ref: z
+    .string()
+    .min(1)
+    .describe("Search reference returned by search."),
 };
 
 const DESCRIPTION =
@@ -32,7 +35,9 @@ export function createSearchStatusTool(
         const payload = buildUnifiedSearchStatusPayload(outcome);
         return textResult(JSON.stringify(payload));
       } catch (error) {
-        return errorResult(JSON.stringify(buildUnifiedSearchErrorPayload(error)));
+        return errorResult(
+          JSON.stringify(buildUnifiedSearchErrorPayload(error)),
+        );
       }
     },
   };
