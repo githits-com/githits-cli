@@ -1749,7 +1749,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     // s. Give callers both a concrete "retry shortly" expectation and
     // the option to block until ready via a longer wait timeout.
     const base =
-      "Target is still indexing. Indexing usually completes within 30 seconds. Retry this request, or pass a longer wait timeout (CLI: `--wait 60`, MCP: `wait_timeout_ms: 60000`) to block until ready.";
+      "Target is still indexing. Indexing usually completes within 30 seconds. Retry this request, or pass a longer wait timeout (CLI: `--wait 60000`, MCP: `wait_timeout_ms: 60000`) to block until ready.";
     if (indexingRef) {
       return `${base} Indexing reference: ${indexingRef}.`;
     }

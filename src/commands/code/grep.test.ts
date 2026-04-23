@@ -1,5 +1,6 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
+  CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
 } from "../../services/index.js";
@@ -67,10 +68,121 @@ describe("pkgGrepAction", () => {
     );
 
     const output = writes.join("");
-    expect(output).toContain("1 match(es) in 1 file(s)");
-    expect(output).toContain("src/index.js:4");
-    expect(output).toContain("> module.exports = require('./lib/express');");
+    expect(output).toContain("1 match in 1 file");
+    expect(output).toContain("src/index.js\n");
+    expect(output).toContain("> 4  module.exports = require('./lib/express');");
     writeSpy.mockRestore();
+  });
+
+  it("prints the actual nextCursor in terminal pagination hints", async () => {
+    const stderrWrites: string[] = [];
+    const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      stderrWrites.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stderr.write);
+
+    await pkgGrepAction(
+      "npm:express",
+      "middleware",
+      undefined,
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          grepRepo: mock(() =>
+            Promise.resolve({
+              ...defaultGrepRepoResult,
+              hasMore: true,
+              nextCursor: "cursor_abc123",
+              truncatedReason: "MAX_MATCHES" as const,
+            }),
+          ),
+        }),
+      }),
+    );
+
+    const stderr = stderrWrites.join("");
+    expect(stderr).toBe(
+      "More grep results available — rerun with --cursor 'cursor_abc123'\n",
+    );
+    stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
+  });
+
+  it("adds a narrow-scope hint for noisy broad terminal output", async () => {
+    const stderrWrites: string[] = [];
+    const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      stderrWrites.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stderr.write);
+
+    await pkgGrepAction(
+      "npm:express",
+      "foo",
+      undefined,
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          grepRepo: mock(() =>
+            Promise.resolve({
+              ...defaultGrepRepoResult,
+              totalMatches: 6,
+              uniqueFilesMatched: 6,
+              matches: [
+                {
+                  ...defaultGrepRepoResult.matches[0]!,
+                  filePath: "History.md",
+                  line: 1,
+                },
+                {
+                  ...defaultGrepRepoResult.matches[0]!,
+                  filePath: "Readme.md",
+                  line: 2,
+                },
+                {
+                  ...defaultGrepRepoResult.matches[0]!,
+                  filePath: "benchmarks/run",
+                  line: 3,
+                },
+                {
+                  ...defaultGrepRepoResult.matches[0]!,
+                  filePath: "examples/a.js",
+                  line: 4,
+                },
+                {
+                  ...defaultGrepRepoResult.matches[0]!,
+                  filePath: "test/a.js",
+                  line: 5,
+                },
+                {
+                  ...defaultGrepRepoResult.matches[0]!,
+                  filePath: "lib/app.js",
+                  line: 6,
+                },
+              ],
+            }),
+          ),
+        }),
+      }),
+    );
+
+    expect(stderrWrites.join("")).toContain("Broad results");
+    expect(stderrWrites.join("")).toContain("--exclude-tests");
+    stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 
   it("JSON mode emits the new envelope", async () => {
@@ -351,6 +463,100 @@ describe("pkgGrepAction", () => {
       /* expected */
     }
     expect(errorSpy.mock.calls[0]?.[0]).toContain("indexingRef: ref_abc");
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("adds file listing hint only for file-path failures", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await pkgGrepAction(
+        "npm:express",
+        "middleware",
+        undefined,
+        {},
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            grepRepo: mock(() =>
+              Promise.reject(
+                new CodeNavigationTargetNotFoundError("Package not found"),
+              ),
+            ),
+          }),
+        }),
+      );
+    } catch {
+      /* expected */
+    }
+
+    expect(errorSpy.mock.calls[0]?.[0]).not.toContain("Use `code files`");
+
+    errorSpy.mockReset();
+
+    try {
+      await pkgGrepAction(
+        "npm:express",
+        "middleware",
+        undefined,
+        {},
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            grepRepo: mock(() =>
+              Promise.reject(
+                new CodeNavigationFileNotFoundError(
+                  "File not found: nope.js",
+                  "nope.js",
+                ),
+              ),
+            ),
+          }),
+        }),
+      );
+    } catch {
+      /* expected */
+    }
+
+    expect(errorSpy.mock.calls[0]?.[0]).toContain("Use `code files`");
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("rewrites navpack backend failures into actionable CLI guidance", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await pkgGrepAction(
+        "npm:express",
+        "middleware",
+        undefined,
+        {},
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            grepRepo: mock(() =>
+              Promise.reject(
+                new CodeNavigationTargetNotFoundError(
+                  "aigrep has no navpack for this ref and the repository is not marked as stale on any known artifact axis.",
+                ),
+              ),
+            ),
+          }),
+        }),
+      );
+    } catch {
+      /* expected */
+    }
+
+    expect(errorSpy.mock.calls[0]?.[0]).toContain(
+      "Source index for this target is temporarily unavailable.",
+    );
+    expect(errorSpy.mock.calls[0]?.[0]).toContain("--wait 60000");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });

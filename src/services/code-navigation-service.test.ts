@@ -630,7 +630,7 @@ describe("CodeNavigationServiceImpl", () => {
       const message = (err as Error).message;
       expect(message).toContain("Target is still indexing");
       expect(message).toContain("usually completes within 30 seconds");
-      expect(message).toContain("--wait 60");
+      expect(message).toContain("--wait 60000");
       expect(message).toContain("wait_timeout_ms: 60000");
       expect(message).toContain("idx-123");
     }

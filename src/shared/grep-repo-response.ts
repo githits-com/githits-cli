@@ -220,6 +220,17 @@ export interface FormattedGrepRepoTerminal {
   stderr?: string;
 }
 
+interface RenderLine {
+  lineNumber: number;
+  content: string;
+  isMatch: boolean;
+}
+
+interface RenderBlock {
+  filePath: string;
+  lines: RenderLine[];
+}
+
 export function formatGrepRepoTerminal(
   envelope: LeanGrepRepoEnvelope,
   options: FormatGrepRepoTerminalOptions,
@@ -228,83 +239,256 @@ export function formatGrepRepoTerminal(
     return { stdout: "" };
   }
 
+  const blocks = buildRenderBlocks(envelope.matches);
   return options.verbose
-    ? formatVerbose(envelope, options)
-    : formatPlain(envelope, options);
+    ? formatVerbose(envelope, blocks, options)
+    : formatPlain(envelope, blocks, options);
 }
 
 function formatPlain(
   envelope: LeanGrepRepoEnvelope,
+  blocks: RenderBlock[],
   options: FormatGrepRepoTerminalOptions,
 ): FormattedGrepRepoTerminal {
   const stdoutLines: string[] = [];
-  for (const match of envelope.matches) {
-    if (options.withContext) {
-      for (const line of match.contextBefore ?? [])
-        stdoutLines.push(`-${line}`);
-      stdoutLines.push(`${match.filePath}:${match.line}:${match.lineContent}`);
-      for (const line of match.contextAfter ?? []) stdoutLines.push(`+${line}`);
-      stdoutLines.push("--");
-      continue;
-    }
-    stdoutLines.push(`${match.filePath}:${match.line}:${match.lineContent}`);
-  }
-  if (stdoutLines[stdoutLines.length - 1] === "--") stdoutLines.pop();
-  stdoutLines.push("");
+  const hasContext = blocks.some((block) =>
+    block.lines.some((line) => !line.isMatch),
+  );
 
-  const stderrLines: string[] = [];
-  if (envelope.hasMore && envelope.nextCursor) {
-    stderrLines.push(
-      dim(
-        "More grep results available — pass --cursor with the returned nextCursor to continue.",
-        options.useColors,
-      ),
-    );
-  }
+  blocks.forEach((block, index) => {
+    if (options.withContext && index > 0 && hasContext) {
+      stdoutLines.push("--");
+    }
+    for (const line of block.lines) {
+      if (!options.withContext && !line.isMatch) continue;
+      stdoutLines.push(
+        renderPlainLine(block.filePath, line, options.withContext),
+      );
+    }
+  });
+  stdoutLines.push("");
 
   return {
     stdout: stdoutLines.join("\n"),
-    stderr: stderrLines.length > 0 ? `${stderrLines.join("\n")}\n` : undefined,
+    stderr: formatTerminalNotes(envelope, options.useColors),
   };
 }
 
 function formatVerbose(
   envelope: LeanGrepRepoEnvelope,
+  blocks: RenderBlock[],
   options: FormatGrepRepoTerminalOptions,
 ): FormattedGrepRepoTerminal {
   const lines: string[] = [];
   lines.push(
     colorize(
-      `${envelope.totalMatches} match(es) in ${envelope.uniqueFilesMatched} file(s)`,
+      `${formatCount(envelope.totalMatches, "match", "matches")} in ${formatCount(envelope.uniqueFilesMatched, "file")}`,
       "bold",
       options.useColors,
     ),
   );
   if (envelope.indexedVersion) {
-    lines.push(dim(`indexed ${envelope.indexedVersion}`, options.useColors));
+    lines.push(dim(`Indexed ${envelope.indexedVersion}`, options.useColors));
   }
   lines.push("");
-  for (const match of envelope.matches) {
-    lines.push(
-      colorize(`${match.filePath}:${match.line}`, "bold", options.useColors),
-    );
-    for (const line of match.contextBefore ?? []) lines.push(`  ${line}`);
-    lines.push(`> ${match.lineContent}`);
-    for (const line of match.contextAfter ?? []) lines.push(`  ${line}`);
+
+  const blocksByFile = groupBlocksByFile(blocks);
+  for (const [filePath, fileBlocks] of blocksByFile) {
+    lines.push(colorize(filePath, "bold", options.useColors));
+    const gutterWidth = widestLineNumberInBlocks(fileBlocks);
+    fileBlocks.forEach((block, index) => {
+      if (index > 0) lines.push(dim("--", options.useColors));
+      for (const line of block.lines) {
+        lines.push(renderVerboseLine(line, gutterWidth, options.useColors));
+      }
+    });
     lines.push("");
   }
 
-  const stderrLines: string[] = [];
-  if (envelope.hasMore && envelope.nextCursor) {
-    stderrLines.push(
+  return {
+    stdout: `${lines.join("\n").trimEnd()}\n`,
+    stderr: formatTerminalNotes(envelope, options.useColors),
+  };
+}
+
+function buildRenderBlocks(matches: LeanGrepRepoMatch[]): RenderBlock[] {
+  if (matches.length === 0) return [];
+
+  const linesByFile = new Map<string, Map<number, RenderLine>>();
+  for (const match of matches) {
+    let lineMap = linesByFile.get(match.filePath);
+    if (!lineMap) {
+      lineMap = new Map<number, RenderLine>();
+      linesByFile.set(match.filePath, lineMap);
+    }
+
+    const contextBefore = match.contextBefore ?? [];
+    const beforeStart = match.line - contextBefore.length;
+    for (let index = 0; index < contextBefore.length; index += 1) {
+      const lineNumber = beforeStart + index;
+      if (!lineMap.has(lineNumber)) {
+        lineMap.set(lineNumber, {
+          lineNumber,
+          content: contextBefore[index] ?? "",
+          isMatch: false,
+        });
+      }
+    }
+
+    lineMap.set(match.line, {
+      lineNumber: match.line,
+      content: match.lineContent,
+      isMatch: true,
+    });
+
+    const contextAfter = match.contextAfter ?? [];
+    for (let index = 0; index < contextAfter.length; index += 1) {
+      const lineNumber = match.line + index + 1;
+      if (!lineMap.has(lineNumber)) {
+        lineMap.set(lineNumber, {
+          lineNumber,
+          content: contextAfter[index] ?? "",
+          isMatch: false,
+        });
+      }
+    }
+  }
+
+  const blocks: RenderBlock[] = [];
+  for (const [filePath, lineMap] of linesByFile) {
+    const sortedLines = [...lineMap.values()].sort(
+      (left, right) => left.lineNumber - right.lineNumber,
+    );
+
+    let current: RenderLine[] = [];
+    for (const line of sortedLines) {
+      const previous = current[current.length - 1];
+      if (!previous || line.lineNumber === previous.lineNumber + 1) {
+        current.push(line);
+        continue;
+      }
+
+      blocks.push({ filePath, lines: current });
+      current = [line];
+    }
+
+    if (current.length > 0) {
+      blocks.push({ filePath, lines: current });
+    }
+  }
+
+  return blocks;
+}
+
+function renderPlainLine(
+  filePath: string,
+  line: RenderLine,
+  withContext = false,
+): string {
+  if (!withContext || line.isMatch) {
+    return `${filePath}:${line.lineNumber}:${line.content}`;
+  }
+
+  return `${filePath}-${line.lineNumber}-${line.content}`;
+}
+
+function groupBlocksByFile(blocks: RenderBlock[]): Map<string, RenderBlock[]> {
+  const grouped = new Map<string, RenderBlock[]>();
+  for (const block of blocks) {
+    const existing = grouped.get(block.filePath);
+    if (existing) {
+      existing.push(block);
+      continue;
+    }
+    grouped.set(block.filePath, [block]);
+  }
+  return grouped;
+}
+
+function renderVerboseLine(
+  line: RenderLine,
+  gutterWidth: number,
+  useColors: boolean,
+): string {
+  const gutter = padLeft(String(line.lineNumber), gutterWidth);
+  if (line.isMatch) {
+    return `${colorize(">", "bold", useColors)} ${gutter}  ${colorize(line.content, "bold", useColors)}`;
+  }
+
+  return `  ${dim(gutter, useColors)}  ${dim(line.content, useColors)}`;
+}
+
+function widestLineNumberInBlocks(blocks: RenderBlock[]): number {
+  let maxWidth = 1;
+  for (const block of blocks) {
+    for (const line of block.lines) {
+      maxWidth = Math.max(maxWidth, String(line.lineNumber).length);
+    }
+  }
+  return maxWidth;
+}
+
+function formatTerminalNotes(
+  envelope: LeanGrepRepoEnvelope,
+  useColors: boolean,
+): string | undefined {
+  const lines: string[] = [];
+
+  if (shouldSuggestNarrowingScope(envelope)) {
+    lines.push(
       dim(
-        "More grep results available — pass --cursor with the returned nextCursor to continue.",
-        options.useColors,
+        "Broad results — consider narrowing with a path prefix, --path, --glob, --ext, --exclude-docs, or --exclude-tests.",
+        useColors,
       ),
     );
   }
-  return {
-    stdout: `${lines.join("\n").trimEnd()}\n`,
-    stderr: stderrLines.length > 0 ? `${stderrLines.join("\n")}\n` : undefined,
-  };
+
+  if (envelope.hasMore && envelope.nextCursor) {
+    lines.push(
+      dim(
+        `More grep results available — rerun with --cursor ${shellQuote(envelope.nextCursor)}`,
+        useColors,
+      ),
+    );
+  }
+
+  if (lines.length === 0) return undefined;
+
+  return `${lines.join("\n")}\n`;
+}
+
+function shouldSuggestNarrowingScope(envelope: LeanGrepRepoEnvelope): boolean {
+  const filter = envelope.filter;
+  const hasScopeFilter = Boolean(
+    filter?.path ||
+      filter?.pathPrefix ||
+      (filter?.globs && filter.globs.length > 0) ||
+      (filter?.extensions && filter.extensions.length > 0) ||
+      filter?.excludeDocFiles ||
+      filter?.excludeTestFiles,
+  );
+
+  return (
+    !hasScopeFilter &&
+    envelope.uniqueFilesMatched >= 5 &&
+    envelope.matches.length >= 5
+  );
+}
+
+function formatCount(
+  count: number,
+  singular: string,
+  plural = `${singular}s`,
+): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+function padLeft(text: string, width: number): string {
+  return text.length >= width
+    ? text
+    : `${" ".repeat(width - text.length)}${text}`;
 }

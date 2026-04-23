@@ -140,18 +140,49 @@ export function formatIndexingError(mapped: MappedError): string {
 }
 
 /**
- * Terminal error renderer for `code read` / `code grep`. Treats
- * both `FILE_NOT_FOUND` and the backend's currently-generic
- * `NOT_FOUND` (gap #11) the same way — the user experience
- * shouldn't depend on which classification the backend picked,
- * and the next action is always "call `code files` to discover
- * the actual paths".
+ * Terminal error renderer for `code read` / `code grep`. Adds the
+ * `code files` recovery hint for concrete missing-path cases, even
+ * when the backend still collapses them into generic `NOT_FOUND`.
+ * Leaves unrelated repository / indexing-state `NOT_FOUND` errors
+ * alone so we don't send users toward path debugging for the wrong
+ * class of failure.
  */
 export function formatFileErrorWithFilesHint(mapped: MappedError): string {
-  if (mapped.code === "FILE_NOT_FOUND" || mapped.code === "NOT_FOUND") {
+  if (mapped.code === "FILE_NOT_FOUND") {
     return `${mapped.message}\n  Use \`code files\` to list available paths.`;
   }
+  if (
+    mapped.code === "NOT_FOUND" &&
+    looksLikeMissingFileMessage(mapped.message)
+  ) {
+    return `${mapped.message}\n  Use \`code files\` to list available paths.`;
+  }
+  if (looksLikeMissingNavpackMessage(mapped.message)) {
+    return [
+      "Source index for this target is temporarily unavailable.",
+      "  Retry with `--wait 60000`, use an already-indexed version/ref, or try again later.",
+    ].join("\n");
+  }
   return formatIndexingError(mapped);
+}
+
+function looksLikeMissingFileMessage(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("file not found") ||
+    lower.includes("path not found") ||
+    lower.includes("path doesn't resolve") ||
+    lower.includes("path does not resolve")
+  );
+}
+
+function looksLikeMissingNavpackMessage(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("has no navpack for this ref") ||
+    lower.includes("navpack was pruned") ||
+    lower.includes("indexedrepository row still claims current state")
+  );
 }
 
 /**
