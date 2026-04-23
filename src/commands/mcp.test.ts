@@ -81,7 +81,7 @@ describe("createMcpServer", () => {
       "search_status",
       "list_files",
       "read_file",
-      "grep_file",
+      "grep_repo",
     ]);
   });
 

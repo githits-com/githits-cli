@@ -1,6 +1,6 @@
 export { createFeedbackTool } from "./feedback.js";
 export { createGetExampleTool } from "./get-example.js";
-export { createGrepFileTool } from "./grep-file.js";
+export { createGrepRepoTool } from "./grep-repo.js";
 export { createListFilesTool } from "./list-files.js";
 export { createPackageChangelogTool } from "./package-changelog.js";
 export { createPackageDependenciesTool } from "./package-dependencies.js";

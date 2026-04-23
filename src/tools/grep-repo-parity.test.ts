@@ -1,8 +1,3 @@
-// PARITY TEST — enforces:
-//   PARITY-JSON-KEYS       CLI --json output and MCP text payload parse to
-//                          deepEqual JSON objects for equivalent inputs.
-//   PARITY-ERROR-ENVELOPE  Both surfaces emit { error, code, retryable, details? }.
-
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
   type PkgGrepCommandDependencies,
@@ -11,13 +6,13 @@ import {
 import {
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
-  type GrepFileResult,
+  type GrepRepoResult,
 } from "../services/index.js";
 import {
   createMockCodeNavigationService,
-  defaultGrepFileResult,
+  defaultGrepRepoResult,
 } from "../services/test-helpers.js";
-import { createGrepFileTool } from "./grep-file.js";
+import { createGrepRepoTool } from "./grep-repo.js";
 
 function cliDeps(
   overrides: Partial<PkgGrepCommandDependencies> = {},
@@ -83,36 +78,34 @@ interface McpArgs {
     repo_url?: string;
     git_ref?: string;
   };
-  path: string;
   pattern: string;
-  context_lines?: number;
-  max_matches?: number;
+  path_prefix?: string;
   wait_timeout_ms?: number;
 }
 
 async function mcpJson(
   args: McpArgs,
-  grepFileMock?: () => Promise<GrepFileResult>,
+  grepRepoMock?: () => Promise<GrepRepoResult>,
 ): Promise<unknown> {
   const service = createMockCodeNavigationService(
-    grepFileMock ? { grepFile: grepFileMock as never } : {},
+    grepRepoMock ? { grepRepo: grepRepoMock as never } : {},
   );
-  const tool = createGrepFileTool(service);
+  const tool = createGrepRepoTool(service);
   const result = await tool.handler(args, {});
   return JSON.parse(result.content[0]?.text ?? "");
 }
 
-describe("grep_file parity", () => {
+describe("grep_repo parity", () => {
   it("PARITY-JSON-KEYS: happy package grep CLI === MCP", async () => {
-    const fn = mock(() => Promise.resolve(defaultGrepFileResult));
+    const fn = mock(() => Promise.resolve(defaultGrepRepoResult));
     const cli = await cliJson(
       "npm:express",
       "middleware",
-      "src/index.js",
+      "src/",
       {},
       cliDeps({
         codeNavigationService: createMockCodeNavigationService({
-          grepFile: fn as never,
+          grepRepo: fn as never,
         }),
       }),
     );
@@ -120,70 +113,7 @@ describe("grep_file parity", () => {
       {
         target: { registry: "npm", package_name: "express" },
         pattern: "middleware",
-        path: "src/index.js",
-      },
-      fn as never,
-    );
-    expect(cli).toEqual(mcp);
-  });
-
-  it("PARITY-JSON-KEYS: filter echoes context + max_matches on both surfaces", async () => {
-    const fn = mock(() => Promise.resolve(defaultGrepFileResult));
-    const cli = await cliJson(
-      "npm:express",
-      "middleware",
-      "src/index.js",
-      { context: "5", limit: "100" },
-      cliDeps({
-        codeNavigationService: createMockCodeNavigationService({
-          grepFile: fn as never,
-        }),
-      }),
-    );
-    const mcp = await mcpJson(
-      {
-        target: { registry: "npm", package_name: "express" },
-        pattern: "middleware",
-        path: "src/index.js",
-        context_lines: 5,
-        max_matches: 100,
-      },
-      fn as never,
-    );
-    expect(cli).toEqual(mcp);
-    expect(
-      (cli as { filter?: { contextLines?: number; maxMatches?: number } })
-        .filter,
-    ).toEqual({
-      contextLines: 5,
-      maxMatches: 100,
-    });
-  });
-
-  it("PARITY-JSON-KEYS: repo-URL addressing CLI === MCP", async () => {
-    const fn = mock(() => Promise.resolve(defaultGrepFileResult));
-    const cli = await cliJson(
-      "middleware",
-      "src/index.js",
-      undefined,
-      {
-        repoUrl: "https://github.com/expressjs/express",
-        gitRef: "main",
-      },
-      cliDeps({
-        codeNavigationService: createMockCodeNavigationService({
-          grepFile: fn as never,
-        }),
-      }),
-    );
-    const mcp = await mcpJson(
-      {
-        target: {
-          repo_url: "https://github.com/expressjs/express",
-          git_ref: "main",
-        },
-        pattern: "middleware",
-        path: "src/index.js",
+        path_prefix: "src/",
       },
       fn as never,
     );
@@ -201,11 +131,11 @@ describe("grep_file parity", () => {
     const cli = await cliJson(
       "npm:express",
       "middleware",
-      "src/index.js",
+      undefined,
       {},
       cliDeps({
         codeNavigationService: createMockCodeNavigationService({
-          grepFile: fn as never,
+          grepRepo: fn as never,
         }),
       }),
     );
@@ -213,7 +143,6 @@ describe("grep_file parity", () => {
       {
         target: { registry: "npm", package_name: "express" },
         pattern: "middleware",
-        path: "src/index.js",
       },
       fn as never,
     );
@@ -224,25 +153,24 @@ describe("grep_file parity", () => {
   it("PARITY-ERROR-ENVELOPE: NOT_FOUND identical on both surfaces", async () => {
     const fn = mock(() =>
       Promise.reject(
-        new CodeNavigationTargetNotFoundError("File not found in repository"),
+        new CodeNavigationTargetNotFoundError("Package not found"),
       ),
     );
     const cli = await cliJson(
-      "npm:express",
+      "npm:ghost",
       "middleware",
-      "nope.js",
+      undefined,
       {},
       cliDeps({
         codeNavigationService: createMockCodeNavigationService({
-          grepFile: fn as never,
+          grepRepo: fn as never,
         }),
       }),
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: { registry: "npm", package_name: "ghost" },
         pattern: "middleware",
-        path: "nope.js",
       },
       fn as never,
     );
@@ -250,14 +178,13 @@ describe("grep_file parity", () => {
     expect((cli as { code: string }).code).toBe("NOT_FOUND");
   });
 
-  it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT for empty pattern on both surfaces", async () => {
-    const cli = await cliJson("npm:express", "", "src/index.js", {});
+  it("PARITY-ERROR-ENVELOPE: whitespace-only pattern is INVALID_ARGUMENT on both surfaces", async () => {
+    const cli = await cliJson("npm:express", "   ", undefined);
     const mcp = await mcpJson({
       target: { registry: "npm", package_name: "express" },
-      pattern: "",
-      path: "src/index.js",
+      pattern: "   ",
     });
-    expect(cli).toMatchObject({ code: "INVALID_ARGUMENT" });
-    expect(mcp).toMatchObject({ code: "INVALID_ARGUMENT" });
+    expect(cli).toEqual(mcp);
+    expect((cli as { code: string }).code).toBe("INVALID_ARGUMENT");
   });
 });

@@ -14,8 +14,9 @@ import type {
 import type { BrowserService } from "./browser-service.js";
 import type {
   CodeNavigationService,
-  UnifiedSearchOutcome,
+  GrepRepoResult,
   SearchSymbolsResult,
+  UnifiedSearchOutcome,
 } from "./code-navigation-service.js";
 import type { ExecResult, ExecService } from "./exec-service.js";
 import type { FileSystemService } from "./filesystem-service.js";
@@ -330,20 +331,30 @@ export const defaultReadFileResult = {
   isBinary: false,
 };
 
-export const defaultGrepFileResult = {
+export const defaultGrepRepoResult: GrepRepoResult = {
   matches: [
     {
-      lineNumber: 4,
+      filePath: "src/index.js",
+      line: 4,
+      matchStartByte: 17,
+      matchEndByte: 24,
       lineContent: "module.exports = require('./lib/express');",
       contextBefore: ["// Express entry point", "'use strict';", ""],
       contextAfter: [""],
+      fileContentHash: "abc123",
+      fileIntent: "production",
     },
   ],
-  totalMatches: 1,
+  nextCursor: undefined,
   hasMore: false,
-  filePath: "src/index.js",
-  language: "javascript",
-  totalLines: 5,
+  truncatedReason: "NONE",
+  routeTaken: "CONTENT_INDEX",
+  filesScanned: 1,
+  filesInScope: 1,
+  binaryFilesSkipped: 0,
+  filesTooLargeSkipped: 0,
+  totalMatches: 1,
+  uniqueFilesMatched: 1,
   indexedVersion: "v5.2.1",
   resolution: {
     requestedVersion: undefined,
@@ -351,7 +362,6 @@ export const defaultGrepFileResult = {
     resolvedRef: "v5.2.1",
     commitSha: "abc123",
   },
-  hint: undefined,
 };
 
 /**
@@ -366,7 +376,7 @@ export function createMockCodeNavigationService(
     searchSymbols: mock(() => Promise.resolve(defaultSearchSymbolsResult)),
     listFiles: mock(() => Promise.resolve(defaultListFilesResult)),
     readFile: mock(() => Promise.resolve(defaultReadFileResult)),
-    grepFile: mock(() => Promise.resolve(defaultGrepFileResult)),
+    grepRepo: mock(() => Promise.resolve(defaultGrepRepoResult)),
     ...impl,
   };
 }

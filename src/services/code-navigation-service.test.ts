@@ -1015,35 +1015,44 @@ describe("CodeNavigationServiceImpl", () => {
   });
 
   // ------------------------------------------------------------------
-  // grepFile
+  // grepRepo
   // ------------------------------------------------------------------
 
-  it("normalises a successful grepRepoFile response", async () => {
+  it("normalises a successful grepRepo response", async () => {
     mockFetch(() =>
       Promise.resolve(
         new Response(
           JSON.stringify({
             data: {
-              grepRepoFile: {
+              grepRepo: {
                 matches: [
                   {
-                    lineNumber: 10,
+                    filePath: "src/index.js",
+                    line: 10,
+                    matchStartByte: 6,
+                    matchEndByte: 13,
                     lineContent: "const app = express();",
                     contextBefore: ["", "// setup"],
                     contextAfter: ["", "app.get();"],
+                    fileContentHash: "abc123",
+                    fileIntent: "production",
                   },
                 ],
+                nextCursor: null,
                 totalMatches: 1,
                 hasMore: false,
-                filePath: "src/index.js",
-                language: "javascript",
-                totalLines: 50,
+                truncatedReason: "NONE",
+                routeTaken: "CONTENT_INDEX",
+                filesScanned: 1,
+                filesInScope: 1,
+                binaryFilesSkipped: 0,
+                filesTooLargeSkipped: 0,
+                uniqueFilesMatched: 1,
                 indexedVersion: "v5.2.1",
                 resolution: {
                   resolvedRef: "v5.2.1",
                   commitSha: "abc",
                 },
-                diagnostics: null,
                 codeIndexState: "CURRENT",
               },
             },
@@ -1056,28 +1065,35 @@ describe("CodeNavigationServiceImpl", () => {
       BASE_URL,
       createMockTokenProvider(),
     );
-    const result = await service.grepFile({
+    const result = await service.grepRepo({
       target: { registry: "NPM", packageName: "express" },
-      path: "src/index.js",
       pattern: "middleware",
+      pathSelectors: [{ kind: "PREFIX", value: "src/" }],
     });
     expect(result.matches.length).toBe(1);
-    expect(result.matches[0]?.lineNumber).toBe(10);
+    expect(result.matches[0]?.line).toBe(10);
     expect(result.totalMatches).toBe(1);
-    expect(result.filePath).toBe("src/index.js");
+    expect(result.routeTaken).toBe("CONTENT_INDEX");
     expect(result.resolution?.resolvedRef).toBe("v5.2.1");
   });
 
-  it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on grepFile", async () => {
+  it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on grepRepo", async () => {
     mockFetch(() =>
       Promise.resolve(
         new Response(
           JSON.stringify({
             data: {
-              grepRepoFile: {
+              grepRepo: {
                 matches: [],
+                nextCursor: null,
                 totalMatches: 0,
                 hasMore: false,
+                truncatedReason: "NONE",
+                filesScanned: 0,
+                filesInScope: 0,
+                binaryFilesSkipped: 0,
+                filesTooLargeSkipped: 0,
+                uniqueFilesMatched: 0,
                 codeIndexState: "INDEXING",
                 indexingRef: "ref_grep",
                 availableVersions: [{ version: "4.21.0", ref: "v4.21.0" }],
@@ -1093,12 +1109,12 @@ describe("CodeNavigationServiceImpl", () => {
       createMockTokenProvider(),
     );
     try {
-      await service.grepFile({
+      await service.grepRepo({
         target: { registry: "NPM", packageName: "express" },
-        path: "src/index.js",
         pattern: "middleware",
+        pathSelectors: [{ kind: "PREFIX", value: "src/" }],
       });
-      throw new Error("expected grepFile to throw");
+      throw new Error("expected grepRepo to throw");
     } catch (error) {
       expect(error).toBeInstanceOf(CodeNavigationIndexingError);
       expect((error as CodeNavigationIndexingError).indexingRef).toBe(
@@ -1107,16 +1123,61 @@ describe("CodeNavigationServiceImpl", () => {
     }
   });
 
-  it("sends grepRepoFile variables with the correct shape", async () => {
+  it("throws CodeNavigationBackendError when backend emits GREP_FILE_TOO_LARGE", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: "File too large to grep: dist/bundle.js",
+                extensions: {
+                  code: "GREP_FILE_TOO_LARGE",
+                  file_path: "dist/bundle.js",
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+    try {
+      await service.grepRepo({
+        target: { registry: "NPM", packageName: "express" },
+        pattern: "middleware",
+        pathSelectors: [{ kind: "EXACT", value: "dist/bundle.js" }],
+      });
+      throw new Error("expected grepRepo to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationBackendError);
+      expect((error as CodeNavigationBackendError).graphqlCode).toBe(
+        "GREP_FILE_TOO_LARGE",
+      );
+    }
+  });
+
+  it("sends grepRepo variables with the correct shape", async () => {
     const fn = mockFetch(() =>
       Promise.resolve(
         new Response(
           JSON.stringify({
             data: {
-              grepRepoFile: {
+              grepRepo: {
                 matches: [],
+                nextCursor: null,
                 totalMatches: 0,
                 hasMore: false,
+                truncatedReason: "NONE",
+                filesScanned: 0,
+                filesInScope: 0,
+                binaryFilesSkipped: 0,
+                filesTooLargeSkipped: 0,
+                uniqueFilesMatched: 0,
                 codeIndexState: "CURRENT",
               },
             },
@@ -1129,12 +1190,23 @@ describe("CodeNavigationServiceImpl", () => {
       BASE_URL,
       createMockTokenProvider(),
     );
-    await service.grepFile({
+    await service.grepRepo({
       target: { registry: "NPM", packageName: "express", version: "5.2.1" },
-      path: "src/index.js",
       pattern: "middleware",
-      contextLines: 5,
+      patternType: "REGEX",
+      caseSensitive: true,
+      pathSelectors: [
+        { kind: "EXACT", value: "src/index.js" },
+        { kind: "GLOB", value: "src/**/*.js" },
+      ],
+      extensions: ["js"],
+      excludeDocFiles: true,
+      excludeTestFiles: true,
+      contextLinesBefore: 5,
+      contextLinesAfter: 2,
       maxMatches: 100,
+      maxMatchesPerFile: 3,
+      cursor: "cursor-123",
       waitTimeoutMs: 5000,
     });
     const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
@@ -1143,10 +1215,21 @@ describe("CodeNavigationServiceImpl", () => {
       registry: "NPM",
       packageName: "express",
       version: "5.2.1",
-      filePath: "src/index.js",
       pattern: "middleware",
-      contextLines: 5,
+      patternType: "REGEX",
+      caseSensitive: true,
+      pathSelectors: [
+        { kind: "EXACT", value: "src/index.js" },
+        { kind: "GLOB", value: "src/**/*.js" },
+      ],
+      extensions: ["js"],
+      excludeDocFiles: true,
+      excludeTestFiles: true,
+      contextLinesBefore: 5,
+      contextLinesAfter: 2,
       maxMatches: 100,
+      maxMatchesPerFile: 3,
+      cursor: "cursor-123",
       waitTimeoutMs: 5000,
     });
   });

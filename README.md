@@ -109,7 +109,7 @@ When package/source access is enabled for the current token, GitHits also expose
 | `search_symbols` | Exact-token search inside indexed dependency source |
 | `list_files` | Discover what files a dependency or repo contains |
 | `read_file` | Read a dependency file by path |
-| `grep_file` | Search for a case-insensitive substring within one file |
+| `grep_repo` | Deterministic text grep across indexed dependency or repo files |
 
 These advanced tools remain feature-gated. The MCP server advertises them only when the authenticated token is entitled to package/source access.
 

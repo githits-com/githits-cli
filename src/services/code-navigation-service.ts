@@ -342,39 +342,67 @@ export interface ReadFileResult {
   isBinary?: boolean;
 }
 
-/**
- * Input for {@link CodeNavigationService.grepFile}.
- *
- * `path` today addresses a single file; naming it `path` (rather
- * than `filePath`) leaves room for the same slot to accept broader
- * shapes later without a rename.
- */
-export interface GrepFileParams {
+export type GrepRepoPatternType = "LITERAL" | "REGEX";
+
+export type GrepPathSelectorKind = "EXACT" | "PREFIX" | "GLOB";
+
+export interface GrepRepoPathSelector {
+  kind: GrepPathSelectorKind;
+  value: string;
+}
+
+export interface GrepRepoParams {
   target: CodeNavigationTarget;
-  path: string;
   pattern: string;
-  contextLines?: number;
+  patternType?: GrepRepoPatternType;
+  caseSensitive?: boolean;
+  pathSelectors?: GrepRepoPathSelector[];
+  extensions?: string[];
+  excludeDocFiles?: boolean;
+  excludeTestFiles?: boolean;
+  allowUnscoped?: boolean;
+  contextLinesBefore?: number;
+  contextLinesAfter?: number;
   maxMatches?: number;
+  maxMatchesPerFile?: number;
+  cursor?: string;
   waitTimeoutMs?: number;
 }
 
-export interface GrepMatch {
-  lineNumber: number;
+export interface GrepRepoMatch {
+  filePath: string;
+  line: number;
+  matchStartByte: number;
+  matchEndByte: number;
   lineContent: string;
   contextBefore?: string[];
   contextAfter?: string[];
+  fileContentHash?: string;
+  fileIntent?: string;
 }
 
-export interface GrepFileResult {
-  matches: GrepMatch[];
-  totalMatches: number;
+export type GrepRouteTaken = "SINGLE_FILE" | "CONTENT_INDEX";
+
+export type GrepTruncatedReason =
+  | "NONE"
+  | "MAX_MATCHES"
+  | "MAX_MATCHES_PER_FILE"
+  | "DEADLINE";
+
+export interface GrepRepoResult {
+  matches: GrepRepoMatch[];
+  nextCursor?: string;
   hasMore: boolean;
-  filePath?: string;
-  language?: string;
-  totalLines?: number;
+  truncatedReason: GrepTruncatedReason;
+  routeTaken?: GrepRouteTaken;
+  filesScanned: number;
+  filesInScope: number;
+  binaryFilesSkipped: number;
+  filesTooLargeSkipped: number;
+  totalMatches: number;
+  uniqueFilesMatched: number;
   indexedVersion?: string;
   resolution?: SearchSymbolsResolution;
-  hint?: string;
 }
 
 export interface CodeNavigationService {
@@ -383,7 +411,7 @@ export interface CodeNavigationService {
   searchSymbols(params: SearchSymbolsParams): Promise<SearchSymbolsResult>;
   listFiles(params: ListFilesParams): Promise<ListFilesResult>;
   readFile(params: ReadFileParams): Promise<ReadFileResult>;
-  grepFile(params: GrepFileParams): Promise<GrepFileResult>;
+  grepRepo(params: GrepRepoParams): Promise<GrepRepoResult>;
 }
 
 export class CodeNavigationAccessError extends Error {
@@ -920,7 +948,7 @@ const graphQLErrorSchema = z.object({
 
 // --------------------------------------------------------------------
 // Zod schemas + queries for the file-exploration bundle.
-// `listRepoFiles` / `fetchCodeContext` / `grepRepoFile` share the same
+// `listRepoFiles` / `fetchCodeContext` / `grepRepo` share the same
 // indexing lifecycle (`codeIndexState` + `indexingRef` +
 // `availableVersions`) but otherwise have distinct result shapes —
 // normalise per tool rather than under one abstraction.
@@ -1089,85 +1117,124 @@ query FetchCodeContext(
   }
 }`;
 
-// grepRepoFile -------------------------------------------------------
+// grepRepo -----------------------------------------------------------
 
-const grepMatchSchema = z.object({
-  lineNumber: z.number().int(),
+const grepRepoMatchSchema = z.object({
+  filePath: z.string(),
+  line: z.number().int(),
+  matchStartByte: z.number().int(),
+  matchEndByte: z.number().int(),
   lineContent: z.string(),
   contextBefore: z.array(z.string()).nullable().optional(),
   contextAfter: z.array(z.string()).nullable().optional(),
+  fileContentHash: z.string().nullable().optional(),
+  fileIntent: z.string().nullable().optional(),
 });
 
-const grepRepoFileResponseSchema = z.object({
-  matches: z.array(grepMatchSchema),
-  totalMatches: z.number().int(),
+const grepRepoResponseSchema = z.object({
+  matches: z.array(grepRepoMatchSchema),
+  nextCursor: z.string().nullable().optional(),
   hasMore: z.boolean(),
-  filePath: z.string().nullable().optional(),
-  language: z.string().nullable().optional(),
-  totalLines: z.number().int().nullable().optional(),
+  truncatedReason: z.enum([
+    "NONE",
+    "MAX_MATCHES",
+    "MAX_MATCHES_PER_FILE",
+    "DEADLINE",
+  ]),
+  routeTaken: z.enum(["SINGLE_FILE", "CONTENT_INDEX"]).nullable().optional(),
+  filesScanned: z.number().int(),
+  filesInScope: z.number().int(),
+  binaryFilesSkipped: z.number().int(),
+  filesTooLargeSkipped: z.number().int(),
+  totalMatches: z.number().int(),
+  uniqueFilesMatched: z.number().int(),
   indexedVersion: z.string().nullable().optional(),
   resolution: navigationResolutionSchema,
-  diagnostics: navigationDiagnosticsSchema,
   codeIndexState: z.string(),
   indexingRef: z.string().nullable().optional(),
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
 });
 
-const grepRepoFileGraphQLResponseSchema = z.object({
+const grepRepoGraphQLResponseSchema = z.object({
   data: z
     .object({
-      grepRepoFile: grepRepoFileResponseSchema.nullable().optional(),
+      grepRepo: grepRepoResponseSchema.nullable().optional(),
     })
     .nullable()
     .optional(),
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
-const GREP_REPO_FILE_QUERY = `
-query GrepRepoFile(
+const GREP_REPO_QUERY = `
+query GrepRepo(
   $registry: Registry
   $packageName: String
   $repoUrl: String
   $gitRef: String
-  $filePath: String!
-  $pattern: String!
-  $contextLines: Int
-  $maxMatches: Int
   $version: String
   $waitTimeoutMs: Int
+  $pattern: String!
+  $patternType: GrepPatternType
+  $caseSensitive: Boolean
+  $pathSelectors: [GrepPathSelectorInput!]
+  $extensions: [String!]
+  $excludeDocFiles: Boolean
+  $excludeTestFiles: Boolean
+  $allowUnscoped: Boolean
+  $contextLinesBefore: Int
+  $contextLinesAfter: Int
+  $maxMatches: Int
+  $maxMatchesPerFile: Int
+  $cursor: String
 ) {
-  grepRepoFile(
+  grepRepo(
     registry: $registry
     packageName: $packageName
     repoUrl: $repoUrl
     gitRef: $gitRef
-    filePath: $filePath
-    pattern: $pattern
-    contextLines: $contextLines
-    maxMatches: $maxMatches
     version: $version
     waitTimeoutMs: $waitTimeoutMs
+    pattern: $pattern
+    patternType: $patternType
+    caseSensitive: $caseSensitive
+    pathSelectors: $pathSelectors
+    extensions: $extensions
+    excludeDocFiles: $excludeDocFiles
+    excludeTestFiles: $excludeTestFiles
+    allowUnscoped: $allowUnscoped
+    contextLinesBefore: $contextLinesBefore
+    contextLinesAfter: $contextLinesAfter
+    maxMatches: $maxMatches
+    maxMatchesPerFile: $maxMatchesPerFile
+    cursor: $cursor
   ) {
     matches {
-      lineNumber
+      filePath
+      line
+      matchStartByte
+      matchEndByte
       lineContent
       contextBefore
       contextAfter
+      fileContentHash
+      fileIntent
     }
+    nextCursor
     totalMatches
     hasMore
-    filePath
-    language
-    totalLines
+    truncatedReason
+    routeTaken
+    filesScanned
+    filesInScope
+    binaryFilesSkipped
+    filesTooLargeSkipped
+    uniqueFilesMatched
     indexedVersion
     resolution {
       requestedVersion
       requestedRef
       resolvedRef
       commitSha
-    }
-    diagnostics {
-      hint
     }
     codeIndexState
     indexingRef
@@ -1204,7 +1271,9 @@ const unifiedSearchGraphQLResponseSchema = z.object({
 const unifiedSearchStatusGraphQLResponseSchema = z.object({
   data: z
     .object({
-      discoverySearchProgress: unifiedSearchProgressSchema.nullable().optional(),
+      discoverySearchProgress: unifiedSearchProgressSchema
+        .nullable()
+        .optional(),
     })
     .nullable()
     .optional(),
@@ -1569,6 +1638,21 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
           parseAvailableVersions(extensions),
         );
 
+      case "GREP_PATTERN_TOO_SHORT":
+      case "GREP_PATTERN_TOO_LONG":
+      case "GREP_PATTERN_INVALID":
+      case "GREP_INVALID_REGEX":
+      case "GREP_UNSUPPORTED_PATTERN":
+      case "GREP_PATTERN_TOO_UNSELECTIVE":
+      case "GREP_SCOPE_REQUIRED":
+      case "GREP_SELECTOR_INVALID":
+      case "GREP_CURSOR_INVALID":
+      case "GREP_CONTEXT_TOO_LARGE":
+      case "GREP_CONTEXT_NEGATIVE":
+      case "GREP_MAX_MATCHES_TOO_LARGE":
+      case "GREP_MAX_MATCHES_INVALID":
+        return new CodeNavigationValidationError(message);
+
       case "VERSION_NOT_FOUND":
         return new CodeNavigationVersionNotFoundError(
           message,
@@ -1619,6 +1703,11 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       case "UPSTREAM_ERROR":
       case "TIMEOUT":
       case "RATE_LIMITED":
+      case "GREP_FILE_TOO_LARGE":
+      case "GREP_TIMEOUT":
+      case "GREP_SERVICE_UNAVAILABLE":
+      case "GREP_FAILED":
+      case "GREP_INDEX_NOT_AVAILABLE":
       case "INTERNAL_ERROR":
       case "UNKNOWN_ERROR":
         return new CodeNavigationBackendError(
@@ -1984,39 +2073,51 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
   }
 
   // ------------------------------------------------------------------
-  // grepFile → grepRepoFile
+  // grepRepo
   // ------------------------------------------------------------------
 
-  async grepFile(params: GrepFileParams): Promise<GrepFileResult> {
+  async grepRepo(params: GrepRepoParams): Promise<GrepRepoResult> {
     return executeWithTokenRefresh({
       getToken: () => this.tokenProvider.getToken(),
       forceRefresh: () => this.tokenProvider.forceRefresh(),
       shouldRefresh: (error) => error instanceof AuthenticationError,
-      executeWithToken: (token) => this.executeGrepFile(token, params),
+      executeWithToken: (token) => this.executeGrepRepo(token, params),
     });
   }
 
-  private async executeGrepFile(
+  private async executeGrepRepo(
     token: string,
-    params: GrepFileParams,
-  ): Promise<GrepFileResult> {
+    params: GrepRepoParams,
+  ): Promise<GrepRepoResult> {
     let response: PkgseerGraphqlResponse;
     try {
       response = await postPkgseerGraphql({
         endpointUrl: this.codeNavigationUrl,
         token,
-        query: GREP_REPO_FILE_QUERY,
+        query: GREP_REPO_QUERY,
         variables: {
           registry: params.target.registry,
           packageName: params.target.packageName,
           repoUrl: params.target.repoUrl,
           gitRef: params.target.gitRef,
           version: params.target.version,
-          filePath: params.path,
-          pattern: params.pattern,
-          contextLines: params.contextLines,
-          maxMatches: params.maxMatches,
           waitTimeoutMs: params.waitTimeoutMs,
+          pattern: params.pattern,
+          patternType: params.patternType,
+          caseSensitive: params.caseSensitive,
+          pathSelectors: params.pathSelectors?.map((entry) => ({
+            kind: entry.kind,
+            value: entry.value,
+          })),
+          extensions: params.extensions,
+          excludeDocFiles: params.excludeDocFiles,
+          excludeTestFiles: params.excludeTestFiles,
+          allowUnscoped: params.allowUnscoped,
+          contextLinesBefore: params.contextLinesBefore,
+          contextLinesAfter: params.contextLinesAfter,
+          maxMatches: params.maxMatches,
+          maxMatchesPerFile: params.maxMatchesPerFile,
+          cursor: params.cursor,
         },
         fetchFn: this.fetchFn,
       });
@@ -2034,9 +2135,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       throw this.createHttpError(response);
     }
 
-    const parsed = grepRepoFileGraphQLResponseSchema.safeParse(
-      response.parsedBody,
-    );
+    const parsed = grepRepoGraphQLResponseSchema.safeParse(response.parsedBody);
     if (!parsed.success) {
       throw new MalformedCodeNavigationResponseError(
         "Malformed response from code navigation service.",
@@ -2047,7 +2146,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       throw this.createGraphQLError(parsed.data.errors);
     }
 
-    const data = parsed.data.data?.grepRepoFile;
+    const data = parsed.data.data?.grepRepo;
     if (!data) {
       throw new MalformedCodeNavigationResponseError(
         "Malformed response from code navigation service.",
@@ -2058,16 +2157,26 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
 
     return {
       matches: data.matches.map((entry) => ({
-        lineNumber: entry.lineNumber,
+        filePath: entry.filePath,
+        line: entry.line,
+        matchStartByte: entry.matchStartByte,
+        matchEndByte: entry.matchEndByte,
         lineContent: entry.lineContent,
         contextBefore: entry.contextBefore ?? undefined,
         contextAfter: entry.contextAfter ?? undefined,
+        fileContentHash: entry.fileContentHash ?? undefined,
+        fileIntent: entry.fileIntent ?? undefined,
       })),
-      totalMatches: data.totalMatches,
+      nextCursor: data.nextCursor ?? undefined,
       hasMore: data.hasMore,
-      filePath: data.filePath ?? undefined,
-      language: data.language ?? undefined,
-      totalLines: data.totalLines ?? undefined,
+      truncatedReason: data.truncatedReason,
+      routeTaken: data.routeTaken ?? undefined,
+      filesScanned: data.filesScanned,
+      filesInScope: data.filesInScope,
+      binaryFilesSkipped: data.binaryFilesSkipped,
+      filesTooLargeSkipped: data.filesTooLargeSkipped,
+      totalMatches: data.totalMatches,
+      uniqueFilesMatched: data.uniqueFilesMatched,
       indexedVersion: data.indexedVersion ?? undefined,
       resolution: data.resolution
         ? {
@@ -2077,7 +2186,6 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
             commitSha: data.resolution.commitSha ?? undefined,
           }
         : undefined,
-      hint: data.diagnostics?.hint ?? undefined,
     };
   }
 }

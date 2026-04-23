@@ -34,6 +34,22 @@ export {
 } from "./colors.js";
 export { debugLog } from "./debug-log.js";
 export {
+  buildGrepRepoParams,
+  GREP_REPO_PATTERN_NOTE,
+  type GrepRepoRequestBuildResult,
+  type GrepRepoRequestInput,
+} from "./grep-repo-request.js";
+export {
+  type BuildGrepRepoPayloadOptions,
+  buildGrepRepoSuccessPayload,
+  type FormatGrepRepoTerminalOptions,
+  type FormattedGrepRepoTerminal,
+  formatGrepRepoTerminal,
+  type LeanGrepRepoEnvelope,
+  type LeanGrepRepoFilter,
+  type LeanGrepRepoMatch,
+} from "./grep-repo-response.js";
+export {
   filterLanguages,
   type LanguageMatch,
 } from "./language-filter.js";
@@ -125,11 +141,22 @@ export {
   type SearchSymbolsSuccessPayload,
 } from "./search-symbols-response.js";
 export {
+  endTelemetrySpan,
+  flushTelemetry,
+  isTelemetryEnabled,
+  resetTelemetryCollectorForTests,
+  startTelemetrySpan,
+  type TelemetryAttributes,
+  TelemetryCollector,
+  type TelemetrySpanHandle,
+  withTelemetrySpan,
+  withTelemetrySpanSync,
+} from "./telemetry.js";
+export {
   buildUnifiedSearchParams,
   type UnifiedSearchRequestBuildResult,
   type UnifiedSearchRequestInput,
 } from "./unified-search-request.js";
-export { parseUnifiedSearchTargetSpec } from "./unified-search-target.js";
 export {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchStatusPayload,
@@ -143,15 +170,4 @@ export {
   type UnifiedSearchStatusIncompletePayload,
   type UnifiedSearchStatusResultPayload,
 } from "./unified-search-response.js";
-export {
-  endTelemetrySpan,
-  flushTelemetry,
-  isTelemetryEnabled,
-  resetTelemetryCollectorForTests,
-  startTelemetrySpan,
-  type TelemetryAttributes,
-  TelemetryCollector,
-  type TelemetrySpanHandle,
-  withTelemetrySpan,
-  withTelemetrySpanSync,
-} from "./telemetry.js";
+export { parseUnifiedSearchTargetSpec } from "./unified-search-target.js";
