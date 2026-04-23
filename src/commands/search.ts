@@ -139,8 +139,21 @@ const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed depend
 
 Use repeatable --in targets in package form (npm:express[@version]) or repo form
 (https://github.com/org/repo[#ref]). Structured flags are the primary UX; they are
-compiled with AND semantics against the raw query. Results are complete-by-default:
-if indexing is still in progress, search returns a searchRef instead of partial hits.
+compiled with AND semantics against the raw query. Unified search defaults to
+production file intent where the backend supports that filter. Results are
+complete-by-default: if indexing is still in progress, search returns a
+searchRef instead of partial hits.
+
+Decision guide:
+  githits example ...                canonical cross-project examples
+  githits search ...                 indexed dependency/repository search
+  githits search --source symbol ... symbol-shaped unified search
+
+Plain output labels:
+  docs page   hosted documentation page
+  repo doc    documentation-like block from a repository file
+  repo code   code block from a repository file
+  repo symbol explicit symbol hit from the repository index
 
 Examples:
   githits search "router middleware" --in npm:express
@@ -160,7 +173,7 @@ when the initial request could not complete within the wait window.`;
 export function registerSearchCommand(program: Command) {
   program
     .command("search")
-    .summary("Search indexed dependency code and docs")
+    .summary("Search indexed dependency and repository code, docs, and symbols")
     .description(SEARCH_DESCRIPTION)
     .argument("<query>", "Search query")
     .requiredOption(
@@ -170,7 +183,10 @@ export function registerSearchCommand(program: Command) {
       [] as string[],
     )
     .addOption(
-      new Option("--source <source>", "Source to search")
+      new Option(
+        "--source <source>",
+        "Source to search (repeatable; default: auto)",
+      )
         .choices(["docs", "code", "symbol"])
         .argParser((value, previous: string[] = []) =>
           collectRepeatable(value.toLowerCase(), previous),
@@ -190,7 +206,10 @@ export function registerSearchCommand(program: Command) {
     )
     .option("--path-prefix <prefix>", "Repository path prefix filter")
     .addOption(
-      new Option("--intent <intent>", "File intent filter").choices([
+      new Option(
+        "--intent <intent>",
+        "File intent filter (default: production)",
+      ).choices([
         "production",
         "test",
         "benchmark",
@@ -368,6 +387,13 @@ function formatUnifiedSearchTerminal(payload: {
   searchRef?: string;
   progress?: { targetsReady?: number; targetsTotal?: number };
   query: { warnings?: string[] };
+  sourceStatus?: Array<{
+    source: string;
+    targetLabel: string;
+    ignoredFilters: string[];
+    incompatibleFilters: string[];
+    note?: string;
+  }>;
 }): string {
   const lines: string[] = [];
 
@@ -386,15 +412,16 @@ function formatUnifiedSearchTerminal(payload: {
     });
   }
 
-  lines.push(
-    `${payload.returnedCount} result(s)${payload.hasMore ? " (more available)" : ""}`,
-  );
-  lines.push("");
-
   if (payload.results.length === 0) {
     lines.push("No results.");
     return lines.join("\n");
   }
+
+  lines.push(
+    `${payload.returnedCount} result(s)${payload.hasMore ? " (more available)" : ""}`,
+  );
+  lines.push(formatUnifiedSearchTypeSummary(payload.results));
+  lines.push("");
 
   for (const entry of payload.results) {
     const location = entry.locator.filePath
@@ -403,16 +430,22 @@ function formatUnifiedSearchTerminal(payload: {
         : entry.locator.filePath
       : undefined;
     lines.push(
-      `${entry.type} · ${entry.target}${location ? ` · ${location}` : ""}${entry.title ? ` · ${entry.title}` : ""}`,
+      `${formatUnifiedSearchResultLabel(entry.type)} · ${entry.target}${location ? ` · ${location}` : ""}${entry.title ? ` · ${entry.title}` : ""}`,
     );
     if (entry.summary) {
-      lines.push(`  ${entry.summary}`);
+      lines.push(...formatUnifiedSearchSummary(entry.summary));
     }
     lines.push("");
   }
 
   if (payload.nextOffset !== undefined) {
     lines.push(`Next offset: ${payload.nextOffset}`);
+  }
+
+  const sourceStatusNotes = formatSourceStatusNotes(payload.sourceStatus);
+  if (sourceStatusNotes.length > 0) {
+    lines.push("");
+    lines.push(...sourceStatusNotes);
   }
 
   return lines.join("\n").trimEnd();
@@ -478,6 +511,13 @@ function formatSearchStatusCompletedTerminal(payload: {
     returnedCount: number;
     hasMore: boolean;
     nextOffset?: number;
+    sourceStatus?: Array<{
+      source: string;
+      targetLabel: string;
+      ignoredFilters: string[];
+      incompatibleFilters: string[];
+      note?: string;
+    }>;
     results: Array<{
       type: string;
       target: string;
@@ -496,5 +536,130 @@ function formatSearchStatusCompletedTerminal(payload: {
     searchRef: payload.searchRef,
     progress: undefined,
     query: { warnings: payload.result.queryWarnings },
+    sourceStatus: payload.result.sourceStatus,
   });
+}
+
+function formatSourceStatusNotes(
+  sourceStatus:
+    | Array<{
+        source: string;
+        targetLabel: string;
+        ignoredFilters: string[];
+        incompatibleFilters: string[];
+        note?: string;
+      }>
+    | undefined,
+): string[] {
+  if (!sourceStatus) {
+    return [];
+  }
+
+  const lines: string[] = [];
+  for (const entry of sourceStatus) {
+    const label = `${entry.source.toLowerCase()} on ${entry.targetLabel}`;
+    if (entry.ignoredFilters.length > 0) {
+      lines.push(
+        `Note: ${label} ignored filters: ${entry.ignoredFilters.join(", ")}`,
+      );
+    }
+    if (entry.incompatibleFilters.length > 0) {
+      lines.push(
+        `Note: ${label} incompatible filters: ${entry.incompatibleFilters.join(
+          ", ",
+        )}`,
+      );
+    }
+    if (entry.note) {
+      lines.push(`Note: ${label}: ${entry.note}`);
+    }
+  }
+
+  return lines;
+}
+
+function formatUnifiedSearchTypeSummary(
+  results: Array<{ type: string }>,
+): string {
+  const counts = new Map<string, number>();
+  for (const result of results) {
+    counts.set(result.type, (counts.get(result.type) ?? 0) + 1);
+  }
+
+  return Array.from(counts.entries())
+    .map(([type, count]) => formatUnifiedSearchCountLabel(type, count))
+    .join(" · ");
+}
+
+function formatUnifiedSearchResultLabel(type: string): string {
+  switch (type) {
+    case "documentation_page":
+      return "docs page";
+    case "repository_doc":
+      return "repo doc";
+    case "repository_code":
+      return "repo code";
+    case "repository_symbol":
+      return "repo symbol";
+    default:
+      return type.replaceAll("_", " ");
+  }
+}
+
+function formatUnifiedSearchCountLabel(type: string, count: number): string {
+  switch (type) {
+    case "documentation_page":
+      return `${count} docs page${count === 1 ? "" : "s"}`;
+    case "repository_doc":
+      return `${count} repo doc${count === 1 ? "" : "s"}`;
+    case "repository_code":
+      return `${count} repo code hit${count === 1 ? "" : "s"}`;
+    case "repository_symbol":
+      return `${count} repo symbol${count === 1 ? "" : "s"}`;
+    default:
+      return `${count} ${formatUnifiedSearchResultLabel(type)}`;
+  }
+}
+
+function formatUnifiedSearchSummary(summary: string): string[] {
+  const normalized = summary.replace(/\r\n/g, "\n").trimEnd();
+  const lines = normalizeSummaryLines(normalized.split("\n"));
+  const limited = lines
+    .slice(0, 6)
+    .map((line) => (line.length === 0 ? "" : `  ${truncateSummaryLine(line)}`));
+
+  if (lines.length > 6) {
+    limited.push("  ...");
+  }
+
+  return limited;
+}
+
+function truncateSummaryLine(line: string): string {
+  if (line.length <= 160) {
+    return line;
+  }
+
+  return `${line.slice(0, 157)}...`;
+}
+
+function normalizeSummaryLines(lines: string[]): string[] {
+  const trimmed = [...lines];
+  while (trimmed[0]?.trim() === "") {
+    trimmed.shift();
+  }
+  while (trimmed.at(-1)?.trim() === "") {
+    trimmed.pop();
+  }
+
+  const normalized: string[] = [];
+  for (const line of trimmed) {
+    const value = line.trim().length === 0 ? "" : line;
+    if (value === "" && normalized.at(-1) === "") {
+      continue;
+    }
+    normalized.push(value);
+  }
+
+  return normalized;
 }

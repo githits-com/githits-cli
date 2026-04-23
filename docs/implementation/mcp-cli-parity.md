@@ -9,6 +9,12 @@ surface boundary without learning a new payload shape — parameter names
 can differ per surface convention, but defaults, error behaviour, and
 the serialised envelopes do not.
 
+`search_symbols` / `githits code search` remain a valid parity pair, but
+they are no longer the preferred product entry point for symbol-shaped
+search. New user-facing guidance should prefer unified top-level
+`search` with `source=symbol` / `sources:["symbol"]` unless the older
+dedicated symbol-search contract is specifically required.
+
 Top-level unified `search` and `search_status` follow the same pattern,
 with one deliberate exception: `search_status` does not echo the
 original structured request because the backend follow-up endpoint does

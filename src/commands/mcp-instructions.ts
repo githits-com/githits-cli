@@ -36,7 +36,7 @@ const PACKAGE_CHANGELOG_BULLET =
   "- `package_changelog` — release notes for a package or GitHub repo, newest-first. Default latest mode returns the 10 most recent entries with full markdown bodies; `from_version` switches to range mode between two versions. Addressable via `registry` + `package_name` or `repo_url`. Set `include_bodies: false` for a version / date / URL timeline when bodies aren't needed.";
 
 const SEARCH_BULLET =
-  "- `search` — unified search across indexed dependency code, docs, and explicit symbols. Structured fields are the primary UX; omit `sources` for AUTO. Returns only trustworthy complete results by default. If indexing is still in progress, the response carries a `searchRef` instead of partial hits.";
+  "- `search` — unified search across indexed dependency code, docs, and explicit symbols. Structured fields are the primary UX; omit `sources` for AUTO. Production file intent is applied by default where supported, but some sources may ignore that filter and report it in `sourceStatus`. Returns only trustworthy complete results by default. If indexing is still in progress, the response carries a `searchRef` instead of partial hits.";
 
 const SEARCH_STATUS_BULLET =
   "- `search_status` — follow up a prior unified search by `searchRef`. Use it after `search` returns incomplete state to check progress or fetch final results.";
@@ -51,7 +51,7 @@ const GREP_FILE_BULLET =
   "- `grep_file` — find a case-insensitive substring within a single file (not regex). Pass the same `path` emitted by `list_files`. Returns matches with context lines. Max pattern 200 chars, up to 200 matches with up to 10 context lines each. Use unified `search` when you do not yet know the exact file. Same addressing and indexing-retry rules as `list_files`.";
 
 const SEARCH_VS_SYMBOLS_TIP =
-  "Prefer `get_example` for canonical example retrieval; prefer unified `search` for indexed dependency and repository search. Use `list_files` → `read_file` / `grep_file` once you know the file you need.";
+  'Prefer `get_example` for canonical example retrieval; prefer unified `search` for indexed dependency and repository search; use `sources:["symbol"]` when you want symbol-shaped results. Use `list_files` → `read_file` / `grep_file` once you know the file you need.';
 
 /**
  * Whether the MCP session should register and describe package tools.

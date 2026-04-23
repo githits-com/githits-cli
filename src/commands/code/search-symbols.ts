@@ -113,7 +113,9 @@ export async function searchSymbolsAction(
   }
 }
 
-const SEARCH_SYMBOLS_DESCRIPTION = `Find functions, classes, modules, and doc sections inside an indexed dependency by exact-token search. This is for symbol-shaped inspection, not natural-language example search.
+const SEARCH_SYMBOLS_DESCRIPTION = `Find functions, classes, modules, and doc sections inside an indexed dependency by exact-token search.
+
+Prefer top-level \`githits search --source symbol\` for new symbol-shaped workflows. \`githits code search\` remains available for the older dedicated symbol-search UX and JSON parity contract.
 
 Package spec: <registry>:<name>[@<version>]. Omit the registry to default to
 npm. Supported registries: npm, pypi, hex, crates, nuget, maven, zig, vcpkg,
@@ -142,7 +144,7 @@ export function registerCodeSearchSymbolsCommand(program: Command) {
   program
     .command("search <package> [query]")
     .alias("search-symbols")
-    .summary("Search indexed package code")
+    .summary("Legacy symbol search over indexed package source")
     .description(SEARCH_SYMBOLS_DESCRIPTION)
     .option(
       "--category <category>",

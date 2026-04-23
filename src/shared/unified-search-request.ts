@@ -7,7 +7,10 @@ import type {
   UnifiedSearchParams,
   UnifiedSearchSource,
 } from "../services/index.js";
-import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
+import {
+  DEFAULT_WAIT_TIMEOUT_MS,
+  SEARCH_SYMBOLS_DEFAULT_FILE_INTENT,
+} from "./code-navigation-defaults.js";
 import { InvalidArgumentError } from "./package-spec.js";
 
 export interface UnifiedSearchRequestInput {
@@ -31,7 +34,7 @@ export interface UnifiedSearchRequestBuildResult {
   params: UnifiedSearchParams;
   rawQuery: string;
   compiledQuery: string;
-  defaulted: ReadonlyArray<"limit" | "offset" | "waitTimeoutMs">;
+  defaulted: ReadonlyArray<"fileIntent" | "limit" | "offset" | "waitTimeoutMs">;
 }
 
 export function buildUnifiedSearchParams(
@@ -39,7 +42,8 @@ export function buildUnifiedSearchParams(
 ): UnifiedSearchRequestBuildResult {
   const targets = resolveTargets(input.target, input.targets);
   const rawQuery = normaliseRequiredQuery(input.query);
-  const defaulted: Array<"limit" | "offset" | "waitTimeoutMs"> = [];
+  const defaulted: Array<"fileIntent" | "limit" | "offset" | "waitTimeoutMs"> =
+    [];
 
   const limit = resolveNumber(input.limit, 20, "limit", defaulted);
   const offset = resolveNumber(input.offset, 0, "offset", defaulted);
@@ -60,7 +64,7 @@ export function buildUnifiedSearchParams(
     kind: input.kind,
     category: input.category,
     pathPrefix: input.pathPrefix,
-    fileIntent: input.fileIntent,
+    fileIntent: resolveFileIntent(input.fileIntent, defaulted),
     publicOnly: input.publicOnly,
   });
 
@@ -85,10 +89,12 @@ function resolveTargets(
   targets: CodeNavigationTarget[] | undefined,
 ): CodeNavigationTarget[] {
   if (target && targets) {
-    throw new InvalidArgumentError("Provide either target or targets, not both.");
+    throw new InvalidArgumentError(
+      "Provide either target or targets, not both.",
+    );
   }
 
-  const resolved = target ? [target] : targets ?? [];
+  const resolved = target ? [target] : (targets ?? []);
   if (resolved.length === 0) {
     throw new InvalidArgumentError("At least one target is required.");
   }
@@ -121,16 +127,28 @@ function normaliseRequiredQuery(query: string): string {
   return trimmed;
 }
 
-function resolveNumber<T extends "limit" | "offset" | "waitTimeoutMs">(
+function resolveNumber(
   value: number | undefined,
   fallback: number,
-  field: T,
-  defaulted: T[],
+  field: "limit" | "offset" | "waitTimeoutMs",
+  defaulted: Array<"fileIntent" | "limit" | "offset" | "waitTimeoutMs">,
 ): number {
   if (value === undefined) {
     defaulted.push(field);
     return fallback;
   }
+  return value;
+}
+
+function resolveFileIntent(
+  value: SearchSymbolsFileIntent | undefined,
+  defaulted: Array<"fileIntent" | "limit" | "offset" | "waitTimeoutMs">,
+): SearchSymbolsFileIntent {
+  if (value === undefined) {
+    defaulted.push("fileIntent");
+    return SEARCH_SYMBOLS_DEFAULT_FILE_INTENT;
+  }
+
   return value;
 }
 

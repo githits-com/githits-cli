@@ -10,10 +10,27 @@ describe("buildUnifiedSearchParams", () => {
 
     expect(built.rawQuery).toBe("router middleware");
     expect(built.compiledQuery).toBe("router middleware");
+    expect(built.params.filters).toEqual({ fileIntent: "PRODUCTION" });
     expect(built.params.limit).toBe(20);
     expect(built.params.offset).toBe(0);
     expect(built.params.waitTimeoutMs).toBe(20_000);
-    expect(built.defaulted).toEqual(["limit", "offset", "waitTimeoutMs"]);
+    expect(built.defaulted).toEqual([
+      "limit",
+      "offset",
+      "waitTimeoutMs",
+      "fileIntent",
+    ]);
+  });
+
+  it("does not override explicit fileIntent", () => {
+    const built = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      query: "router middleware",
+      fileIntent: "TEST",
+    });
+
+    expect(built.params.filters).toEqual({ fileIntent: "TEST" });
+    expect(built.defaulted).not.toContain("fileIntent");
   });
 
   it("compiles structured name and language into AND-ed query qualifiers", () => {
@@ -37,7 +54,7 @@ describe("buildUnifiedSearchParams", () => {
       language: "c++ lang",
     });
 
-    expect(built.compiledQuery).toContain('name:"foo \\\"bar\\\""');
+    expect(built.compiledQuery).toContain('name:"foo \\"bar\\""');
     expect(built.compiledQuery).toContain('lang:"c++ lang"');
   });
 

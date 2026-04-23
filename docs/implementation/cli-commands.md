@@ -62,13 +62,17 @@ githits search "createServer" --in npm:@types/node --name createServer --lang ty
 
 Unified search spans indexed dependency and repository code, docs, and explicit symbols. Structured flags are the primary UX. They are compiled together with the raw query using `AND` semantics before the request reaches the backend.
 
+**Decision guide.** Use `githits example` for canonical cross-project examples. Use `githits search` for indexed dependency/repository search. Use `githits search --source symbol` when you want symbol-shaped unified search without dropping to the older dedicated `code search` surface.
+
 **Targets.** `--in <target>` is repeatable and required. Package targets use `registry:name[@version]` (for example `npm:express`, `pypi:requests@2.32.3`). Repo targets use `https://github.com/org/repo[#ref]`; omitted refs default to `HEAD`. Exact duplicate targets are deduplicated while preserving order. Mixing package and repo targets in the same request is rejected client-side.
 
-**Sources and filters.** `--source docs|code|symbol` is repeatable; omitting it delegates source selection to backend AUTO. `--category` is the broad filter (`callable`, `type`, `module`, `data`, `documentation`); `--kind` is the precise taxonomy. `--path-prefix`, `--intent`, and `--public` narrow the result set further. `--name` and `--lang` compile into query qualifiers instead of becoming separate backend fields.
+**Sources and filters.** `--source docs|code|symbol` is repeatable; omitting it delegates source selection to backend AUTO. Use `--source symbol` when you want symbol-shaped search results without dropping down to the older `code search` surface. `--category` is the broad filter (`callable`, `type`, `module`, `data`, `documentation`); `--kind` is the precise taxonomy. `--path-prefix`, `--intent`, and `--public` narrow the result set further. `--name` and `--lang` compile into query qualifiers instead of becoming separate backend fields.
+
+**Production intent by default.** When `--intent` is omitted, unified search defaults to `production` intent. This removes test / benchmark / example noise where the backend supports the filter. Some sources can still ignore `fileIntent`; when they do, the JSON `sourceStatus` block and terminal notes report that explicitly.
 
 **Complete-by-default results.** The CLI always forces `allowPartialResults: false`. If indexing does not complete within the wait window, the command returns a `searchRef` and progress summary instead of partial hits. `--wait` is in seconds (0-60, default 20).
 
-**Output.** Plain output shows one result per block: result type, target, file location when present, title, optional summary, and `Next offset: <n>` when more results exist. `--json` emits the shared success/error envelope used by the MCP `search` tool, including a full `query` echo for initial searches.
+**Output.** Plain output preserves backend ranking order. It starts with a lightweight per-type count summary, then shows one result per block: friendly result label, target, file location when present, title, and a truncated summary excerpt to keep terminal output readable. Labels are: `docs page` (hosted package docs), `repo doc` (documentation-like block from a repository file), `repo code` (code block from a repository file), and `repo symbol` (explicit symbol hit from the repository index). `--json` emits the shared success/error envelope used by the MCP `search` tool, including a full `query` echo for initial searches.
 
 ### `githits search-status`
 
@@ -103,6 +107,8 @@ githits feedback abc123 --accept --message "Solved my problem" --json
 
 ### `githits code search`
 
+This is now the older symbol-search surface. Prefer top-level `githits search --source symbol` for new flows unless you specifically need the legacy code-search UX or its exact JSON contract.
+
 ```
 githits code search npm:express middleware
 githits code search npm:express middleware --intent all
@@ -112,7 +118,7 @@ githits code search npm:@types/node Buffer --file src/ --json
 githits code search npm:express --keywords "router,handler" --match-mode and
 ```
 
-Finds functions, classes, modules, and doc sections inside an indexed dependency by exact-token matches. Unlike top-level `githits search`, which performs unified dependency/repository search across code, docs, and symbols, `code search` is symbol-oriented and returns source chunks with line ranges.
+Finds functions, classes, modules, and doc sections inside an indexed dependency by exact-token matches. Top-level `githits search --source symbol` is the preferred unified surface for symbol-shaped search. `code search` remains available for the older dedicated symbol-search UX and parity contract.
 
 **Package spec.** `<registry>:<name>[@<version>]`. Omit the registry to default to `npm`. Supported registries: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`. Scoped npm names are supported (`npm:@types/node`).
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import type {
   UnifiedSearchIncomplete,
+  UnifiedSearchOutcome,
   UnifiedSearchProgress,
   UnifiedSearchSessionStatus,
 } from "../services/code-navigation-service.js";
@@ -148,6 +149,21 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("prints friendly result labels and per-type summary in terminal output", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchAction(
+      "router middleware",
+      { in: ["npm:express"] },
+      createDeps(),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("1 repo code hit");
+    expect(output).toContain("repo code · npm:express@4.18.2");
+    consoleSpy.mockRestore();
+  });
+
   it("throws AuthRequiredError on auth failure", async () => {
     await expect(
       searchAction(
@@ -179,6 +195,96 @@ describe("searchAction", () => {
       "Search still in progress",
     );
     expect(String(consoleSpy.mock.calls[0]?.[0])).toContain("search-ref-123");
+    consoleSpy.mockRestore();
+  });
+
+  it("prints source-status notes when the backend ignored filters", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const completedOutcome = defaultUnifiedSearchOutcome;
+    const outcomeWithIgnoredFilters: UnifiedSearchOutcome = {
+      ...completedOutcome,
+      result: {
+        ...completedOutcome.result,
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "npm:express@4.18.2",
+            indexingStatus: "INDEXED",
+            resultCount: 1,
+            ignoredFilters: ["fileIntent"],
+            incompatibleFilters: [],
+            appliedFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router middleware",
+      { in: ["npm:express"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcomeWithIgnoredFilters)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Note: docs on npm:express@4.18.2 ignored filters: fileIntent",
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it("truncates long summaries in terminal output", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const outcomeWithLongSummary: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [
+          {
+            ...defaultUnifiedSearchOutcome.result.results[0]!,
+            summary: [
+              "line 1",
+              "line 2",
+              "line 3",
+              "line 4",
+              "line 5",
+              "line 6",
+              "line 7",
+            ].join("\n"),
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router middleware",
+      { in: ["npm:express"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcomeWithLongSummary)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("  line 6");
+    expect(output).toContain("  ...");
+    expect(output).not.toContain("  line 7");
     consoleSpy.mockRestore();
   });
 });

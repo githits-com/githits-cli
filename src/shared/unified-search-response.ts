@@ -23,7 +23,7 @@ export interface UnifiedSearchQueryEcho {
   limit: number;
   offset: number;
   waitTimeoutMs: number;
-  defaulted: ReadonlyArray<"limit" | "offset" | "waitTimeoutMs">;
+  defaulted: ReadonlyArray<"fileIntent" | "limit" | "offset" | "waitTimeoutMs">;
 }
 
 export interface UnifiedSearchHitPayload {
@@ -108,7 +108,7 @@ export function buildUnifiedSearchSuccessPayload(
   params: UnifiedSearchParams,
   rawQuery: string,
   compiledQuery: string,
-  defaulted: ReadonlyArray<"limit" | "offset" | "waitTimeoutMs">,
+  defaulted: ReadonlyArray<"fileIntent" | "limit" | "offset" | "waitTimeoutMs">,
   outcome: UnifiedSearchOutcome,
 ): UnifiedSearchCompletedPayload | UnifiedSearchIncompletePayload {
   const warnings =
@@ -201,7 +201,7 @@ function buildQueryEcho(
   params: UnifiedSearchParams,
   rawQuery: string,
   compiledQuery: string,
-  defaulted: ReadonlyArray<"limit" | "offset" | "waitTimeoutMs">,
+  defaulted: ReadonlyArray<"fileIntent" | "limit" | "offset" | "waitTimeoutMs">,
   warnings: string[],
 ): UnifiedSearchQueryEcho {
   return {
