@@ -39,8 +39,18 @@ export { createMcpServer, registerMcpCommand } from "./mcp.js";
 export { registerPkgCommandGroup } from "./pkg/index.js";
 
 export {
+  type ExampleDependencies,
+  type ExampleOptions,
+  exampleAction,
+  registerExampleCommand,
+} from "./example.js";
+export {
   registerSearchCommand,
-  type SearchDependencies,
-  type SearchOptions,
+  registerUnifiedSearchCommands,
+  type SearchCommandDependencies,
+  type SearchCommandOptions,
+  type SearchCommandRegistrationOptions,
+  type SearchStatusCommandOptions,
   searchAction,
+  searchStatusAction,
 } from "./search.js";

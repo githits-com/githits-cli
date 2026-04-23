@@ -19,9 +19,11 @@ Both expose the same tools with identical names, parameters, and descriptions. T
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `search` | `query`, `language`, `license_mode?` | Search for code examples. Returns markdown-formatted results. |
+| `get_example` | `query`, `language`, `license_mode?` | Search for canonical code examples. Returns markdown-formatted results. |
 | `search_language` | `query` | Find supported programming language names before searching. |
 | `feedback` | `solution_id`, `accepted`, `feedback_text?` | Submit feedback on a search result to improve quality. |
+| `search` | `query`, `target?`, `targets?`, `sources?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `limit?`, `offset?`, `wait_timeout_ms?` | Unified indexed dependency/repository search across code, docs, and symbols. Returns complete results or a `searchRef` follow-up state. |
+| `search_status` | `search_ref` | Check progress or fetch final results for a prior unified search. |
 | `search_symbols` | `target`, `query?`, `keywords?`, `match_mode?`, `category?`, `kind?`, `file_path?`, `limit?`, `file_intent?`, `wait_timeout_ms?` | Capability-gated code navigation search over indexed dependency source. |
 | `package_summary` | `registry`, `package_name` | Package overview: latest version, license, description, repository, downloads, GitHub metadata, install command, and known vulnerabilities. Always returns the latest published version. |
 | `package_vulnerabilities` | `registry`, `package_name`, `version?`, `min_severity?`, `include_withdrawn?` | Known vulnerabilities for a package on npm, PyPI, Hex, or Crates. Count summary, per-advisory OSV ID + severity + affected/fix ranges, and upgrade paths. Malware is surfaced in a disjoint bucket. |
@@ -31,7 +33,7 @@ Both expose the same tools with identical names, parameters, and descriptions. T
 | `read_file` | `target`, `path`, `start_line?`, `end_line?`, `wait_timeout_ms?` | Read a file from an indexed dependency. Default full file; use `start_line` / `end_line` for a bounded range. Binary files set `isBinary: true` and omit `content` — agents branch on the flag. On `NOT_FOUND` / `FILE_NOT_FOUND` call `list_files` to discover the actual path. |
 | `grep_file` | `target`, `path`, `pattern`, `context_lines?`, `max_matches?`, `wait_timeout_ms?` | Search within a single file for a case-insensitive substring (not regex). Returns matches — `context_lines` defaults to 0 (matches only, token-efficient); pass explicitly for surrounding lines (0–10). Max pattern 200 chars; up to 200 matches. For symbol-shaped searches use `search_symbols`. |
 
-`search_symbols`, `package_summary`, `package_vulnerabilities`, `package_dependencies`, `package_changelog`, `list_files`, `read_file`, and `grep_file` are only registered when package/source access is open for the current session. The package/source service URL can be overridden via `GITHITS_CODE_NAV_URL` for local development.
+`search`, `search_status`, `search_symbols`, `package_summary`, `package_vulnerabilities`, `package_dependencies`, `package_changelog`, `list_files`, `read_file`, and `grep_file` are only registered when package/source access is open for the current session. The package/source service URL can be overridden via `GITHITS_CODE_NAV_URL` for local development.
 
 `search_symbols` shares request-construction, error classification, and JSON-payload shape with the CLI `githits code search` command via shared helpers under `src/shared/`. The parity rules are codified in [`mcp-cli-parity.md`](./mcp-cli-parity.md); the parity test (`src/tools/search-symbols-parity.test.ts`) asserts that both surfaces emit identical JSON for equivalent inputs.
 
@@ -148,7 +150,7 @@ The MCP server advertises a short, cross-tool orientation via the protocol's ser
 
 `src/commands/mcp-instructions.ts` owns two sections:
 
-- **Core block** — always loaded. Introduces GitHits and the `search` / `search_language` / `feedback` workflow.
+- **Core block** — always loaded. Introduces GitHits and the `get_example` / `search_language` / `feedback` workflow.
 - **Package-tools block** — appended when `isPackageToolsCapabilityOpen(deps)` is true. Contains a preamble plus one bullet per package tool whose backing service is actually wired, so half-open service configurations never advertise a tool that was not registered.
 
 `isPackageToolsCapabilityOpen` is the single source of truth for whether package tools should surface in the current session. Both `getMcpToolDefinitions` and `buildMcpInstructions` import it so tool registration and the instruction text cannot drift.
@@ -218,7 +220,8 @@ While the contract (names, params, descriptions) is identical, some implementati
 | Aspect | Backend | CLI |
 |---|---|---|
 | `search_language` | Server-side search via `mcp_service.search_language()` | Client-side substring filter: fetches all languages from `/languages`, filters locally by name/display_name/aliases using case-insensitive `includes()` |
-| `search` response | Backend builds markdown from structured `McpSearchResponse` | CLI receives pre-formatted markdown from REST `/search` endpoint |
+| `get_example` response | Backend builds markdown from structured `McpSearchResponse` | CLI receives pre-formatted markdown from REST `/search` endpoint |
+| unified `search` response | Backend returns structured indexed-search hits and follow-up refs | CLI and MCP share JSON envelope builders over the code-navigation service result |
 | `feedback` response | Backend returns different messages for accepted/rejected | CLI hard-codes "Feedback submitted successfully" on success; the REST API response body is not used for the message |
 | Error handling | Catches specific exception types, logs to PostHog | Uses `withErrorHandling()` wrapper for consistent `ToolResult` errors |
 
@@ -226,7 +229,7 @@ These differences exist because the CLI hits the REST API (which does its own fo
 
 ## Testing Tools
 
-Each tool has a co-located test file (e.g., `src/tools/search.test.ts`). Tests use `createMockGitHitsService()` from `src/services/test-helpers.ts` to mock the service layer.
+Each tool has a co-located test file (for example `src/tools/get-example.test.ts`, `src/tools/search.test.ts`, `src/tools/search-status.test.ts`). Tests use `createMockGitHitsService()` or `createMockCodeNavigationService()` from `src/services/test-helpers.ts` to mock the service layer.
 
 Test categories for each tool:
 - **Metadata** — tool name and description are correct
@@ -240,15 +243,17 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 
 | File | What it demonstrates |
 |---|---|
-| `src/tools/search.ts` | Canonical tool definition with full description |
+| `src/tools/get-example.ts` | Example-search MCP tool definition |
+| `src/tools/search.ts` | Unified indexed-search MCP tool definition |
+| `src/tools/search-status.ts` | Follow-up MCP tool for incomplete unified searches |
 | `src/tools/search-language.ts` | Tool with client-side filtering logic |
 | `src/tools/feedback.ts` | Simplest tool (direct service delegation) |
 | `src/tools/types.ts` | `ToolDefinition` interface, `textResult`/`errorResult` helpers |
 | `src/tools/shared.ts` | `withErrorHandling()` wrapper |
 | `src/services/test-helpers.ts` | `createMockGitHitsService()` and `createMockCodeNavigationService()` factories |
 | `src/commands/mcp.ts` | Tool registration, MCP server setup, and TTY detection |
-| `src/services/githits-service.ts` | REST API client (what tools and CLI commands call) |
-| `src/services/code-navigation-service.ts` | Package/source service client for `search_symbols` |
+| `src/services/githits-service.ts` | REST API client for example search, languages, and feedback |
+| `src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, and `search_symbols` |
 | `src/shared/language-filter.ts` | Pure `filterLanguages()` function shared between MCP tool and CLI |
 
 ## Pending backend follow-ups

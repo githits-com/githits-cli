@@ -65,7 +65,7 @@ describe("createMcpServer", () => {
     expect(server).toBeDefined();
   });
 
-  it("adds search_symbols when capability is enabled", () => {
+  it("adds unified search tools when capability is enabled", () => {
     const deps = createTestDeps({
       codeNavigationCapability: "enabled",
       codeNavigationUrl: "https://nav.example.com",
@@ -74,17 +74,18 @@ describe("createMcpServer", () => {
 
     const tools = getMcpToolDefinitions(deps);
     expect(tools.map((tool) => tool.name)).toEqual([
-      "search",
+      "get_example",
       "search_language",
       "feedback",
-      "search_symbols",
+      "search",
+      "search_status",
       "list_files",
       "read_file",
       "grep_file",
     ]);
   });
 
-  it("adds search_symbols for opaque env tokens", () => {
+  it("adds unified search tools for opaque env tokens", () => {
     const deps = createTestDeps({
       envApiToken: "ghi-opaque-token",
       codeNavigationCapability: "unknown",
@@ -93,7 +94,8 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.some((tool) => tool.name === "search_symbols")).toBe(true);
+    expect(tools.some((tool) => tool.name === "search")).toBe(true);
+    expect(tools.some((tool) => tool.name === "search_status")).toBe(true);
   });
 
   it("adds package_summary when capability is enabled and service wired", () => {
@@ -142,7 +144,7 @@ describe("createMcpServer", () => {
     expect(tools.some((tool) => tool.name === "package_summary")).toBe(true);
   });
 
-  it("preserves half-open invariant: whenever package_summary is advertised, search_symbols is too (enabled path)", () => {
+  it("preserves half-open invariant: whenever package_summary is advertised, unified search is too (enabled path)", () => {
     const deps = createTestDeps({
       codeNavigationCapability: "enabled",
       codeNavigationUrl: "https://pkgseer.dev",
@@ -152,7 +154,8 @@ describe("createMcpServer", () => {
 
     const names = getMcpToolDefinitions(deps).map((t) => t.name);
     if (names.includes("package_summary")) {
-      expect(names).toContain("search_symbols");
+      expect(names).toContain("search");
+      expect(names).toContain("search_status");
     }
   });
 

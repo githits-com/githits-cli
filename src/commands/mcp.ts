@@ -10,6 +10,7 @@ import {
 } from "../shared/request-headers.js";
 import {
   createFeedbackTool,
+  createGetExampleTool,
   createGrepFileTool,
   createListFilesTool,
   createPackageChangelogTool,
@@ -18,8 +19,8 @@ import {
   createPackageVulnerabilitiesTool,
   createReadFileTool,
   createSearchLanguageTool,
-  createSearchSymbolsTool,
   createSearchTool,
+  createSearchStatusTool,
   type ToolDefinition,
 } from "../tools/index.js";
 import {
@@ -34,7 +35,7 @@ export function getMcpToolDefinitions(
   deps: Dependencies,
 ): ToolDefinition<any, any>[] {
   const tools: ToolDefinition<any, any>[] = [
-    createSearchTool(deps.githitsService),
+    createGetExampleTool(deps.githitsService),
     createSearchLanguageTool(deps.githitsService),
     createFeedbackTool(deps.githitsService),
   ];
@@ -42,7 +43,8 @@ export function getMcpToolDefinitions(
   const gateOpen = isPackageToolsCapabilityOpen(deps);
 
   if (gateOpen && deps.codeNavigationService) {
-    tools.push(createSearchSymbolsTool(deps.codeNavigationService));
+    tools.push(createSearchTool(deps.codeNavigationService));
+    tools.push(createSearchStatusTool(deps.codeNavigationService));
     tools.push(createListFilesTool(deps.codeNavigationService));
     tools.push(createReadFileTool(deps.codeNavigationService));
     tools.push(createGrepFileTool(deps.codeNavigationService));

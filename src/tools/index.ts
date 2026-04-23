@@ -1,4 +1,5 @@
 export { createFeedbackTool } from "./feedback.js";
+export { createGetExampleTool } from "./get-example.js";
 export { createGrepFileTool } from "./grep-file.js";
 export { createListFilesTool } from "./list-files.js";
 export { createPackageChangelogTool } from "./package-changelog.js";
@@ -8,6 +9,7 @@ export { createPackageVulnerabilitiesTool } from "./package-vulnerabilities.js";
 export { createReadFileTool } from "./read-file.js";
 export { createSearchTool } from "./search.js";
 export { createSearchLanguageTool } from "./search-language.js";
+export { createSearchStatusTool } from "./search-status.js";
 export { createSearchSymbolsTool } from "./search-symbols.js";
 export type {
   ToolDefinition,

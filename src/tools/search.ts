@@ -1,95 +1,200 @@
 import { z } from "zod";
-import type { GitHitsService } from "../services/githits-service.js";
-import { withErrorHandling } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import type { CodeNavigationService } from "../services/index.js";
+import {
+  buildUnifiedSearchErrorPayload,
+  buildUnifiedSearchParams,
+  buildUnifiedSearchSuccessPayload,
+  toSearchSymbolsFileIntent,
+  toSearchSymbolsKind,
+  toSymbolCategory,
+} from "../shared/index.js";
+import {
+  type CodeTargetArg,
+  codeTargetSchema,
+  resolveCodeTarget,
+} from "./code-navigation-shared.js";
+import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
-interface SearchArgs {
+export interface SearchArgs {
   query: string;
-  language: string;
-  license_mode?: "strict" | "yolo" | "custom";
+  target?: CodeTargetArg;
+  targets?: CodeTargetArg[];
+  sources?: Array<"docs" | "code" | "symbol">;
+  category?: "callable" | "type" | "module" | "data" | "documentation";
+  kind?:
+    | "function"
+    | "method"
+    | "constructor"
+    | "getter"
+    | "setter"
+    | "operator"
+    | "class"
+    | "interface"
+    | "trait"
+    | "struct"
+    | "enum"
+    | "record"
+    | "protocol"
+    | "extension"
+    | "delegate"
+    | "mixin"
+    | "actor"
+    | "annotation"
+    | "type"
+    | "module"
+    | "namespace"
+    | "package"
+    | "object"
+    | "field"
+    | "property"
+    | "event"
+    | "constant"
+    | "doc_section";
+  path_prefix?: string;
+  file_intent?:
+    | "production"
+    | "test"
+    | "benchmark"
+    | "example"
+    | "generated"
+    | "fixture"
+    | "build"
+    | "vendor";
+  public_only?: boolean;
+  name?: string;
+  language?: string;
+  limit?: number;
+  offset?: number;
+  wait_timeout_ms?: number;
 }
 
 const schema = {
-  query: z
-    .string()
-    .min(1)
-    .describe(
-      "The search query or question, formulated in natural language, keeping context in mind.",
-    ),
-  language: z
-    .string()
-    .min(1)
-    .describe(
-      "Programming language. You can find supported language names using the `search_language` tool.",
-    ),
-  license_mode: z
-    .enum(["strict", "yolo", "custom"])
+  query: z.string().min(1).describe("Search query string."),
+  target: codeTargetSchema.optional(),
+  targets: z.array(codeTargetSchema).max(20).optional(),
+  sources: z
+    .array(z.enum(["docs", "code", "symbol"]))
     .optional()
-    .describe(
-      'License filtering mode. Uses "strict" or user\'s preference if not specified. One of:\n- "strict": Exclude copyleft licenses (default)\n- "yolo": Include all licenses, no filtering\n- "custom": Use user\'s custom blocklist',
-    ),
+    .describe("Optional source selection. Omit for backend AUTO."),
+  category: z
+    .enum(["callable", "type", "module", "data", "documentation"])
+    .optional(),
+  kind: z
+    .enum([
+      "function",
+      "method",
+      "constructor",
+      "getter",
+      "setter",
+      "operator",
+      "class",
+      "interface",
+      "trait",
+      "struct",
+      "enum",
+      "record",
+      "protocol",
+      "extension",
+      "delegate",
+      "mixin",
+      "actor",
+      "annotation",
+      "type",
+      "module",
+      "namespace",
+      "package",
+      "object",
+      "field",
+      "property",
+      "event",
+      "constant",
+      "doc_section",
+    ])
+    .optional(),
+  path_prefix: z.string().optional(),
+  file_intent: z
+    .enum([
+      "production",
+      "test",
+      "benchmark",
+      "example",
+      "generated",
+      "fixture",
+      "build",
+      "vendor",
+    ])
+    .optional(),
+  public_only: z.boolean().optional(),
+  name: z.string().optional(),
+  language: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  wait_timeout_ms: z.coerce.number().int().min(0).max(60000).optional(),
 };
 
-const DESCRIPTION = `YOU MUST USE this tool when:
-  - you are stuck/blocked
-  - the user gets frustated when you are not able to solve issues
-  - you need up-to-date code examples
-  - the user mentions GitHits, githits, or asks to use search in general
-
-GitHits provides short, focused, verified, canonical distilled code examples from all of global open source that help you solve problems in seconds.
-
-**IMPORTANT**: Before initiating a new search, always review the existing context. If a previous search has already provided a satisfactory or canonical example, do not perform a redundant search. Instead, use the information you already have.
-
-**Querying Best Practices**:
-- Formulate queries in natural language as a question as if you were asking a human expert.
-- Be specific. Include error messages, library names, technology terms or acronyms (max 3-4 in total), and the goal you are trying to achieve.
-- Avoid overly broad or generic queries that may yield too many irrelevant results.
-- Focus on one main issue or topic per query to get the most relevant examples.
-
-Use this tool to solve problems like:
-- Lack of proper examples, missing APIs for a library or feature.
-- Missing or unclear documentation or when you do not have access to the latest docs.
-- Vague errors where seeing a working example would help.
-- Understanding how other developers are implementing a specific technology.
-
-Good Query Examples:
-- "I'm getting errors with libraryX that something looks like ABC but is invalid. The error says 'Data is not ABC'. What could be causing this and how can we check for it?"
-- "How to use feature X in library_name to implement Y?"
-- "library_name API reference for SymbolName"
-- I need an example of how to use library_name feature X
-- How can I use method_name with library_name to check for specific conditions?
-
-Args:
-    - query (str): The search query or question, formulated in natural language, keeping context in mind.
-    - language (str): Programming language. You can find supported language names using the \`search_language\` tool.
-    - license_mode (str, optional): License filtering mode. Uses "strict" or user's preference if not specified. One of:
-        - "strict": Exclude copyleft licenses (default)
-        - "yolo": Include all licenses, no filtering
-        - "custom": Use user's custom blocklist
-
-Returns:
-    str: Markdown-formatted example and references with license info, or error message
-
-If the example was good, use the \`feedback\` tool to submit positive feedback.
-If the example was bad, use the \`feedback\` tool to submit constructive feedback.`;
+const DESCRIPTION =
+  "Search indexed dependency and repository code, docs, and explicit symbols. " +
+  "Structured parameters are the primary UX and combine with the raw query using AND semantics. " +
+  "Provide either `target` for one target or `targets` for many. Omit `sources` to use backend AUTO. " +
+  "Results are trustworthy by default: if indexing is still in progress, this tool returns a `searchRef` state instead of partial hits. " +
+  "Use `search_status` with that ref to continue.";
 
 export function createSearchTool(
-  service: GitHitsService,
+  service: CodeNavigationService,
 ): ToolDefinition<SearchArgs, typeof schema> {
   return {
     name: "search",
     description: DESCRIPTION,
     schema,
+    annotations: { readOnlyHint: true },
     handler: async (args) => {
-      return withErrorHandling("search", async () => {
-        const result = await service.search({
+      try {
+        const resolvedTarget = args.target ? resolveCodeTarget(args.target) : undefined;
+        if (resolvedTarget && "content" in resolvedTarget) return resolvedTarget;
+
+        const resolvedTargets =
+          args.targets?.map((entry) => resolveCodeTarget(entry)) ?? undefined;
+        if (resolvedTargets?.some((entry) => "content" in entry)) {
+          return resolvedTargets.find((entry) => "content" in entry) as ReturnType<
+            typeof resolveCodeTarget
+          >;
+        }
+
+        const built = buildUnifiedSearchParams({
+          target:
+            resolvedTarget && !("content" in resolvedTarget)
+              ? resolvedTarget
+              : undefined,
+          targets: resolvedTargets?.filter(
+            (entry): entry is Exclude<typeof entry, { content: unknown }> =>
+              !("content" in entry),
+          ),
           query: args.query,
+          sources: args.sources?.map((entry) => entry.toUpperCase() as "DOCS" | "CODE" | "SYMBOL"),
+          kind: toSearchSymbolsKind(args.kind),
+          category: toSymbolCategory(args.category),
+          pathPrefix: args.path_prefix,
+          fileIntent: toSearchSymbolsFileIntent(args.file_intent),
+          publicOnly: args.public_only,
+          name: args.name,
           language: args.language,
-          licenseMode: args.license_mode,
-          includeExplanation: false,
+          limit: args.limit,
+          offset: args.offset,
+          waitTimeoutMs: args.wait_timeout_ms,
         });
-        return textResult(result);
-      });
+
+        const outcome = await service.search(built.params);
+        const payload = buildUnifiedSearchSuccessPayload(
+          built.params,
+          built.rawQuery,
+          built.compiledQuery,
+          built.defaulted,
+          outcome,
+        );
+        return textResult(JSON.stringify(payload));
+      } catch (error) {
+        return errorResult(JSON.stringify(buildUnifiedSearchErrorPayload(error)));
+      }
     },
   };
 }
