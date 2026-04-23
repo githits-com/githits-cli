@@ -17,6 +17,7 @@ import {
   colorize,
   dim,
   highlight,
+  highlightRanges,
   InvalidArgumentError,
   knownSymbolCategoryList,
   knownSymbolKindList,
@@ -386,6 +387,10 @@ function formatUnifiedSearchTerminal(payload: {
     target: string;
     title?: string;
     summary?: string;
+    highlights?: {
+      title?: Array<readonly [number, number]>;
+      summary?: Array<readonly [number, number]>;
+    };
     locator: {
       registry?: string;
       packageName?: string;
@@ -443,7 +448,13 @@ function formatUnifiedSearchTerminal(payload: {
     const header = formatUnifiedSearchHeader(entry, useColors, location);
     lines.push(header);
     if (entry.summary) {
-      lines.push(...formatUnifiedSearchSummary(entry.summary));
+      lines.push(
+        ...formatUnifiedSearchSummary(
+          entry.summary,
+          entry.highlights?.summary,
+          useColors,
+        ),
+      );
     }
     const detailLine = formatUnifiedSearchDetailLine(entry, useColors);
     if (detailLine) {
@@ -537,6 +548,10 @@ function formatSearchStatusCompletedTerminal(payload: {
       target: string;
       title?: string;
       summary?: string;
+      highlights?: {
+        title?: Array<readonly [number, number]>;
+        summary?: Array<readonly [number, number]>;
+      };
       locator: { filePath?: string; startLine?: number; endLine?: number };
     }>;
   };
@@ -642,14 +657,30 @@ function formatUnifiedSearchCountLabel(type: string, count: number): string {
   }
 }
 
-function formatUnifiedSearchSummary(summary: string): string[] {
-  // Preserve backend snippets verbatim. Without match spans or richer snippet
-  // metadata from the backend, client-side trimming or rewriting just guesses
-  // at what is important and can hide the actual reason a result matched.
-  return summary
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .map((line) => `  ${line}`);
+function formatUnifiedSearchSummary(
+  summary: string,
+  ranges: Array<readonly [number, number]> | undefined,
+  useColors: boolean,
+): string[] {
+  const lines = summary.split(/\r\n|\n/);
+
+  // Preserve backend snippets verbatim. We only style spans the backend already
+  // computed instead of trimming or rewriting the snippet client-side.
+  let offset = 0;
+  return lines.map((line) => {
+    const lineStart = offset;
+    const lineEnd = lineStart + line.length;
+    const lineRanges = (ranges ?? [])
+      .map(
+        ([start, end]) =>
+          [Math.max(start, lineStart), Math.min(end, lineEnd)] as const,
+      )
+      .filter(([start, end]) => end > start)
+      .map(([start, end]) => [start - lineStart, end - lineStart] as const);
+    const separatorLength = summary.startsWith("\r\n", lineEnd) ? 2 : 1;
+    offset = lineEnd + separatorLength;
+    return `  ${highlightRanges(line, lineRanges, useColors)}`;
+  });
 }
 
 function formatUnifiedSearchLocation(locator: {
@@ -672,6 +703,7 @@ function formatUnifiedSearchHeader(
   entry: {
     target: string;
     type: string;
+    highlights?: { title?: Array<readonly [number, number]> };
     locator: {
       filePath?: string;
       startLine?: number;
@@ -685,7 +717,10 @@ function formatUnifiedSearchHeader(
 ): string {
   const primary = location ? `${entry.target} ${location}` : entry.target;
   const badge = `[${formatUnifiedSearchResultLabel(entry.type)}]`;
-  return `${highlight(primary, useColors)} ${dim(badge, useColors)}${entry.title ? ` - ${entry.title}` : ""}`;
+  const title = entry.title
+    ? highlightRanges(entry.title, entry.highlights?.title, useColors)
+    : undefined;
+  return `${highlight(primary, useColors)} ${dim(badge, useColors)}${title ? ` - ${title}` : ""}`;
 }
 
 function formatUnifiedSearchDetailLine(

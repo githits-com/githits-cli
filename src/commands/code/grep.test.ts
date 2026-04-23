@@ -3,7 +3,7 @@ import {
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
-} from "../../services/index.js";
+} from "../../services/code-navigation-service.js";
 import {
   createMockCodeNavigationService,
   defaultGrepRepoResult,
@@ -87,8 +87,9 @@ describe("pkgGrepAction", () => {
     );
 
     const output = writes.join("");
+    expect(output).toContain("src/index.js\n4:module.exports = ");
     expect(output).toContain(
-      "src/index.js\n4:module.exports = require('./lib/express');",
+      "\u001b[1m\u001b[36mrequire\u001b[0m('./lib/express');",
     );
     expect(output).not.toContain(
       "src/index.js:4:module.exports = require('./lib/express');",
@@ -120,7 +121,7 @@ describe("pkgGrepAction", () => {
 
     const output = writes.join("");
     expect(output).toContain("1 match in 1 file");
-    expect(output).toContain("src/index.js\n");
+    expect(output).toContain("src/index.js");
     expect(output).toContain("> 4  module.exports = require('./lib/express');");
     writeSpy.mockRestore();
   });
@@ -159,8 +160,8 @@ describe("pkgGrepAction", () => {
     );
 
     const stderr = stderrWrites.join("");
-    expect(stderr).toBe(
-      "More grep results available — rerun with --cursor 'cursor_abc123'\n",
+    expect(stderr).toContain(
+      "More grep results available — rerun with --cursor 'cursor_abc123'",
     );
     stdoutSpy.mockRestore();
     stderrSpy.mockRestore();

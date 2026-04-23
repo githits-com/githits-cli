@@ -28,6 +28,7 @@ export {
   dim,
   error,
   highlight,
+  highlightRanges,
   shouldUseColors,
   success,
   warning,

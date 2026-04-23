@@ -71,6 +71,60 @@ export function highlight(text: string, useColors: boolean): string {
 }
 
 /**
+ * Apply half-open character spans to a string.
+ * Invalid or overlapping spans are ignored/merged conservatively.
+ */
+export function highlightRanges(
+  text: string,
+  ranges: ReadonlyArray<readonly [number, number]> | undefined,
+  useColors: boolean,
+): string {
+  if (!useColors || !text || !ranges || ranges.length === 0) return text;
+
+  const normalised = ranges
+    .filter(
+      (range): range is readonly [number, number] =>
+        Array.isArray(range) &&
+        range.length === 2 &&
+        Number.isInteger(range[0]) &&
+        Number.isInteger(range[1]),
+    )
+    .map(([start, end]) => {
+      const safeStart = Math.max(0, Math.min(text.length, start));
+      const safeEnd = Math.max(safeStart, Math.min(text.length, end));
+      return [safeStart, safeEnd] as const;
+    })
+    .filter(([start, end]) => end > start)
+    .sort((left, right) => left[0] - right[0] || left[1] - right[1]);
+
+  if (normalised.length === 0) return text;
+
+  const merged: Array<readonly [number, number]> = [];
+  for (const current of normalised) {
+    const previous = merged[merged.length - 1];
+    if (!previous || current[0] > previous[1]) {
+      merged.push(current);
+      continue;
+    }
+
+    merged[merged.length - 1] = [
+      previous[0],
+      Math.max(previous[1], current[1]),
+    ];
+  }
+
+  let result = "";
+  let cursor = 0;
+  for (const [start, end] of merged) {
+    if (cursor < start) result += text.slice(cursor, start);
+    result += highlight(text.slice(start, end), useColors);
+    cursor = end;
+  }
+  if (cursor < text.length) result += text.slice(cursor);
+  return result;
+}
+
+/**
  * Dim less important text
  */
 export function dim(text: string, useColors: boolean): string {

@@ -223,6 +223,10 @@ export interface UnifiedSearchHit {
   title?: string;
   summary?: string;
   score?: number;
+  highlights?: {
+    title?: Array<readonly [number, number]>;
+    summary?: Array<readonly [number, number]>;
+  };
   locator: UnifiedSearchLocator;
 }
 
@@ -675,6 +679,10 @@ query UnifiedSearch(
         title
         summary
         score
+        highlights {
+          title
+          summary
+        }
         locator {
           registry
           packageName
@@ -752,6 +760,10 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
         title
         summary
         score
+        highlights {
+          title
+          summary
+        }
         locator {
           registry
           packageName
@@ -877,6 +889,19 @@ const unifiedSearchHitSchema = z.object({
   title: z.string().nullable().optional(),
   summary: z.string().nullable().optional(),
   score: z.number().nullable().optional(),
+  highlights: z
+    .object({
+      title: z
+        .array(z.tuple([z.number().int(), z.number().int()]))
+        .nullable()
+        .optional(),
+      summary: z
+        .array(z.tuple([z.number().int(), z.number().int()]))
+        .nullable()
+        .optional(),
+    })
+    .nullable()
+    .optional(),
   locator: unifiedSearchLocatorSchema,
 });
 
@@ -1808,6 +1833,12 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         title: entry.title ?? undefined,
         summary: entry.summary ?? undefined,
         score: entry.score ?? undefined,
+        highlights: entry.highlights
+          ? {
+              title: entry.highlights.title ?? undefined,
+              summary: entry.highlights.summary ?? undefined,
+            }
+          : undefined,
         locator: {
           registry: entry.locator.registry ?? undefined,
           packageName: entry.locator.packageName ?? undefined,
