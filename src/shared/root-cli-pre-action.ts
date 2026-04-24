@@ -14,6 +14,8 @@ export interface RootCliPreActionDependencies {
     options: LoginOptions,
     deps: LoginDependencies,
   ) => Promise<LoginFlowResult>;
+  stdinIsTTY?: boolean;
+  stdoutIsTTY?: boolean;
   exit?: (code: number) => void;
 }
 
@@ -26,7 +28,11 @@ export function createRootCliPreAction(
     }
 
     const command = actionCommand ?? thisCommand;
-    const authResult = await maybeAutoLoginBeforeCommand(command, deps);
+    const authResult = await maybeAutoLoginBeforeCommand(command, {
+      ...deps,
+      stdinIsTTY: deps.stdinIsTTY,
+      stdoutIsTTY: deps.stdoutIsTTY,
+    });
     if (authResult.status !== "failed") {
       return;
     }

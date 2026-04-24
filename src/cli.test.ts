@@ -92,7 +92,14 @@ function createProgramWithRootPreAction(
   program
     .name("githits")
     .option("--no-color", "Disable colored output")
-    .hook("preAction", createRootCliPreAction(dependencies));
+    .hook(
+      "preAction",
+      createRootCliPreAction({
+        stdinIsTTY: true,
+        stdoutIsTTY: true,
+        ...dependencies,
+      }),
+    );
   return program;
 }
 
