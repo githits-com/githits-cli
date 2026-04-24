@@ -60,6 +60,11 @@ For interactive `--json` invocations, the same bootstrap runs, but login
 progress is written to stderr so the command's JSON payload can remain the only
 stdout output.
 
+This bootstrap does not widen the package/source command surface. The gated
+`search`, `code`, and `pkg` commands still rely on startup capability checks
+for registration and remain hidden until capability is known to be open, or a
+local CLI override forces them on.
+
 ## Token Lifecycle
 
 Tokens are JWTs with a configurable expiration (typically 1 hour). The CLI handles expiration through a `TokenManager` (see `src/services/token-manager.ts`):

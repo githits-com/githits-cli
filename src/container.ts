@@ -8,12 +8,14 @@ import {
   type BrowserService,
   BrowserServiceImpl,
   ChunkingKeyringService,
+  type CodeNavigationCapability,
   type CodeNavigationService,
   CodeNavigationServiceImpl,
   type FileSystemService,
   FileSystemServiceImpl,
   GitHitsServiceImpl,
   getApiUrl,
+  getCodeNavigationCapability,
   getAuthFileStorageDir,
   getCodeNavigationUrl,
   getEnvApiToken,
@@ -249,4 +251,36 @@ export async function createContainer(): Promise<Dependencies> {
       githitsService: new RefreshingGitHitsService(apiUrl, tokenManager),
     };
   });
+}
+
+export interface StartupCodeNavigationRegistrationState {
+  capability: CodeNavigationCapability;
+  expiredStoredAuth: boolean;
+}
+
+export async function resolveStartupCodeNavigationRegistrationState(): Promise<StartupCodeNavigationRegistrationState> {
+  return withTelemetrySpan(
+    "startup.resolve-code-nav-registration-state",
+    async () => {
+      const envToken = getEnvApiToken();
+      if (envToken) {
+        return {
+          capability: getCodeNavigationCapability(envToken),
+          expiredStoredAuth: false,
+        };
+      }
+
+      const fileSystemService = new FileSystemServiceImpl();
+      const authStorage = await createAuthStorage(fileSystemService);
+      const tokens = await authStorage.loadTokens(getMcpUrl());
+      if (tokens?.expiresAt && new Date(tokens.expiresAt) < new Date()) {
+        return { capability: "unknown", expiredStoredAuth: true };
+      }
+
+      return {
+        capability: getCodeNavigationCapability(tokens?.accessToken),
+        expiredStoredAuth: false,
+      };
+    },
+  );
 }

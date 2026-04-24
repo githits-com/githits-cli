@@ -1,9 +1,11 @@
 import { type Command, Option } from "commander";
+import type { CodeNavigationCapability } from "../services/index.js";
 import type {
   CodeNavigationService,
   UnifiedSearchSource,
 } from "../services/code-navigation-service.js";
 import { getCodeNavigationUrl } from "../services/config.js";
+import { isCodeNavigationCliSurfaceOpen } from "../shared/code-navigation-cli-surface.js";
 import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchParams,
@@ -48,6 +50,8 @@ export interface SearchStatusCommandOptions {
 
 export interface SearchCommandRegistrationOptions {
   codeNavigationUrl?: string;
+  overrideEnabled?: boolean;
+  capability?: CodeNavigationCapability;
 }
 
 export interface SearchCommandDependencies {
@@ -255,6 +259,10 @@ export async function registerUnifiedSearchCommands(
 ): Promise<void> {
   const codeNavigationUrl = options.codeNavigationUrl ?? getCodeNavigationUrl();
   if (!codeNavigationUrl) {
+    return;
+  }
+
+  if (!isCodeNavigationCliSurfaceOpen(options)) {
     return;
   }
 

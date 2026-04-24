@@ -1,23 +1,33 @@
 import type { Command } from "commander";
 import {
-  type GatedCommandGroupOptions,
-  resolveGatedCommandGroupRegistrationState,
-} from "../gated-command-group.js";
+  type CodeNavigationCapability,
+  getCodeNavigationUrl,
+} from "../../services/index.js";
+import { isCodeNavigationCliSurfaceOpen } from "../../shared/code-navigation-cli-surface.js";
 import { registerCodeFilesCommand } from "./files.js";
 import { registerCodeGrepCommand } from "./grep.js";
 import { registerCodeReadCommand } from "./read.js";
 
-export interface CodeCommandGroupOptions extends GatedCommandGroupOptions {}
+export interface CodeCommandGroupOptions {
+  codeNavigationUrl?: string;
+  overrideEnabled?: boolean;
+  capability?: CodeNavigationCapability;
+}
 
 /**
- * Registers the code-navigation command group.
+ * Registers the code-navigation command group only when the endpoint URL
+ * is configured and the capability gate is open for the CLI surface.
  */
 export async function registerCodeCommandGroup(
   program: Command,
   options: CodeCommandGroupOptions = {},
 ): Promise<void> {
-  const registration = await resolveGatedCommandGroupRegistrationState(options);
-  if (!registration.shouldRegister) {
+  const codeNavigationUrl = options.codeNavigationUrl ?? getCodeNavigationUrl();
+  if (!codeNavigationUrl) {
+    return;
+  }
+
+  if (!isCodeNavigationCliSurfaceOpen(options)) {
     return;
   }
 

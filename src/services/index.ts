@@ -92,11 +92,14 @@ export {
   CodeNavigationVersionNotFoundError,
   MalformedCodeNavigationResponseError,
 } from "./code-navigation-service.js";
+export type { CodeNavigationCapability } from "./code-navigation-capability.js";
+export { getCodeNavigationCapability } from "./code-navigation-capability.js";
 export {
   getApiUrl,
   getCodeNavigationUrl,
   getEnvApiToken,
   getMcpUrl,
+  isCodeNavigationCliOverrideEnabled,
 } from "./config.js";
 export type { ExecResult, ExecService } from "./exec-service.js";
 export { ExecServiceImpl } from "./exec-service.js";

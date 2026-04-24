@@ -23,16 +23,19 @@ import {
   registerUnifiedSearchCommands,
 } from "./commands/index.js";
 import { loginFlow, stderrLoginOutput } from "./commands/login.js";
-import { createContainer } from "./container.js";
 import {
-  getCommandPath,
-  maybeAutoLoginBeforeCommand,
-} from "./shared/auto-login.js";
+  createContainer,
+  resolveStartupCodeNavigationRegistrationState,
+} from "./container.js";
 import {
   FileSystemServiceImpl,
+  getCodeNavigationUrl,
+  isCodeNavigationCliOverrideEnabled,
   NpmRegistryUpdateCheckService,
 } from "./services/index.js";
+import { getCommandPath } from "./shared/auto-login.js";
 import {
+  createRootCliPreAction,
   endTelemetrySpan,
   flushTelemetry,
   isTelemetryEnabled,
@@ -80,33 +83,24 @@ if (isTelemetryEnabled()) {
   });
 }
 
+const rootCliPreAction = createRootCliPreAction({
+  createContainer,
+  loginFlow: (options, deps) => loginFlow(options, deps, stderrLoginOutput),
+});
+
 program
   .name("githits")
   .description("Code examples from global open source for your AI assistant")
   .version(version)
   .option("--no-color", "Disable colored output")
   .hook("preAction", async (thisCommand, actionCommand) => {
-    if (thisCommand.opts().color === false) {
-      process.env.NO_COLOR = "1";
-    }
-
     const command = actionCommand ?? thisCommand;
     commandSpans.set(
       command,
       startTelemetrySpan(getTelemetryCommandName(command)),
     );
 
-    const authResult = await maybeAutoLoginBeforeCommand(command, {
-      createContainer,
-      loginFlow: (options, deps) => loginFlow(options, deps, stderrLoginOutput),
-    });
-    if (authResult.status !== "failed") {
-      return;
-    }
-
-    console.error(`${authResult.message}\n`);
-    console.error("Run `githits login` to try again.");
-    process.exit(1);
+    await rootCliPreAction(thisCommand, actionCommand);
   })
   .hook("postAction", (_thisCommand, actionCommand) => {
     endTelemetrySpan(commandSpans.get(actionCommand));
@@ -142,19 +136,27 @@ registerLanguagesCommand(program);
 registerFeedbackCommand(program);
 const registrationArgv = stripRootRegistrationOptions(argv);
 
+const shouldLoadCapabilityGatedCommands =
+  shouldEagerLoadSearchCommands(registrationArgv) ||
+  shouldEagerLoadGatedCommandGroup(registrationArgv, "code") ||
+  shouldEagerLoadGatedCommandGroup(registrationArgv, "pkg");
+const gatedCommandRegistrationOptions = shouldLoadCapabilityGatedCommands
+  ? await resolveGatedCommandRegistrationOptions()
+  : undefined;
+
 if (shouldEagerLoadSearchCommands(registrationArgv)) {
   await withTelemetrySpan("cli.register.search", () =>
-    registerUnifiedSearchCommands(program),
+    registerUnifiedSearchCommands(program, gatedCommandRegistrationOptions),
   );
 }
 if (shouldEagerLoadGatedCommandGroup(registrationArgv, "code")) {
   await withTelemetrySpan("cli.register.code-group", () =>
-    registerCodeCommandGroup(program),
+    registerCodeCommandGroup(program, gatedCommandRegistrationOptions),
   );
 }
 if (shouldEagerLoadGatedCommandGroup(registrationArgv, "pkg")) {
   await withTelemetrySpan("cli.register.pkg-group", () =>
-    registerPkgCommandGroup(program),
+    registerPkgCommandGroup(program, gatedCommandRegistrationOptions),
   );
 }
 if (shouldEagerLoadGatedCommandGroup(registrationArgv, "docs")) {
@@ -227,6 +229,19 @@ function shouldEagerLoadSearchCommands(args: string[]): boolean {
 
 function isSearchHelpTarget(value: string | undefined): boolean {
   return value === "search" || value === "search-status";
+}
+
+async function resolveGatedCommandRegistrationOptions() {
+  const codeNavigationUrl = getCodeNavigationUrl();
+  return {
+    codeNavigationUrl,
+    overrideEnabled: isCodeNavigationCliOverrideEnabled(),
+    capability: (
+      await withTelemetrySpan("cli.resolve-code-nav-registration-state", () =>
+        resolveStartupCodeNavigationRegistrationState(),
+      )
+    ).capability,
+  };
 }
 
 function getTelemetryCommandName(command: Command): string {

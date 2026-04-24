@@ -170,6 +170,10 @@ export {
 export { renderReadPackageDocText } from "./read-package-doc-text.js";
 export { AuthRequiredError, requireAuth } from "./require-auth.js";
 export {
+  createRootCliPreAction,
+  type RootCliPreActionDependencies,
+} from "./root-cli-pre-action.js";
+export {
   endTelemetrySpan,
   flushTelemetry,
   isTelemetryEnabled,

@@ -119,25 +119,27 @@ Use these rules when implementing the feature:
 
 ### Phase 1.3: tests
 
-- [ ] Add CLI-level tests for exempt commands never triggering auto-login.
-- [ ] Add CLI-level tests for eligible commands triggering login when no valid
+- [x] Add CLI-level tests for exempt commands never triggering auto-login.
+- [x] Add CLI-level tests for eligible commands triggering login when no valid
       token is available.
-- [ ] Add tests for login failure preserving a clear error path.
-- [ ] Add tests proving `--json` commands do not receive login chatter on
+- [x] Add tests for login failure preserving a clear error path.
+- [x] Add tests proving `--json` commands do not receive login chatter on
       stdout.
 - [ ] Keep existing command-level `AuthRequiredError` tests to verify the final
       invariant still holds.
 
 ### Phase 2: capability-gated command registration
 
-- [ ] Decide whether `search`, `code`, and `pkg` should be visible on a fresh
+- [x] Decide whether `search`, `code`, and `pkg` should be visible on a fresh
       unauthenticated machine purely to allow auto-login on first use.
-- [ ] If yes, relax the startup registration gates in `src/commands/search.ts`,
-      `src/commands/code/index.ts`, and `src/commands/pkg/index.ts` so the
-      command surfaces can parse before auth exists.
-- [ ] Re-check help output and discoverability once those command groups are
-      visible without a token.
-- [ ] Add tests covering first-run unauthenticated registration behavior.
+      Decision: no, gated package/source features should stay hidden until
+      capability is known to be open.
+- [x] Keep the startup registration gates in `src/commands/search.ts`,
+      `src/commands/code/index.ts`, and `src/commands/pkg/index.ts` aligned
+      with that stricter capability policy.
+- [x] Re-check help output and discoverability with the stricter gated-command
+      policy in place.
+- [x] Add tests covering the hidden-unless-enabled registration behavior.
 
 ## Open Decisions
 

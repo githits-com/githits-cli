@@ -1,24 +1,34 @@
 import type { Command } from "commander";
 import {
-  type GatedCommandGroupOptions,
-  resolveGatedCommandGroupRegistrationState,
-} from "../gated-command-group.js";
+  type CodeNavigationCapability,
+  getCodeNavigationUrl,
+} from "../../services/index.js";
+import { isCodeNavigationCliSurfaceOpen } from "../../shared/code-navigation-cli-surface.js";
 import { registerPkgChangelogCommand } from "./changelog.js";
 import { registerPkgDepsCommand } from "./deps.js";
 import { registerPkgInfoCommand } from "./info.js";
 import { registerPkgVulnsCommand } from "./vulns.js";
 
-export interface PkgCommandGroupOptions extends GatedCommandGroupOptions {}
+export interface PkgCommandGroupOptions {
+  codeNavigationUrl?: string;
+  overrideEnabled?: boolean;
+  capability?: CodeNavigationCapability;
+}
 
 /**
- * Registers the `pkg` command group.
+ * Registers the `pkg` command group only when the package/source endpoint
+ * is configured and the capability gate is open for the CLI surface.
  */
 export async function registerPkgCommandGroup(
   program: Command,
   options: PkgCommandGroupOptions = {},
 ): Promise<void> {
-  const registration = await resolveGatedCommandGroupRegistrationState(options);
-  if (!registration.shouldRegister) {
+  const codeNavigationUrl = options.codeNavigationUrl ?? getCodeNavigationUrl();
+  if (!codeNavigationUrl) {
+    return;
+  }
+
+  if (!isCodeNavigationCliSurfaceOpen(options)) {
     return;
   }
 

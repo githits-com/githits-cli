@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
+The CLI exposes four primary top-level commands: `example`, `languages`, and `feedback` are always available, while `search` and the `code` / `pkg` command groups remain capability-gated package/source surfaces. Those gated commands are only registered when the package/source endpoint is configured and the startup auth context resolves code-navigation capability as enabled, or when the local CLI override is enabled. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
 
 Phase 1 of the streamlined signup flow adds automatic browser login bootstrap to
 three interactive top-level commands: `example`, `languages`, and `feedback`.
@@ -11,6 +11,10 @@ launches the existing OAuth login flow first, then continues the original
 command after auth succeeds. For interactive `--json` runs, login progress is
 written to stderr so stdout stays machine-readable. The bootstrap remains
 disabled for non-interactive execution.
+
+The gated package/source commands do not participate in that phase-1 bootstrap.
+`search`, `code`, and `pkg` stay hidden unless the CLI can already prove the
+capability is open at startup, or a local override forces the surface on.
 
 ## Commands
 
@@ -95,6 +99,10 @@ The original unified-search plan envisaged hiding partial mode entirely in v1 to
 
 **Source-status surfacing.** The JSON `sourceStatus` block is always passed through verbatim for debugging. Human-readable output surfaces only the actionable subset: ignored / incompatible filters, ignored / incompatible query features, free-form `note`s, and an `INDEXING` indicator when a source is still indexing on a partial-result payload. `STALE` (served from a slightly old index while a fresh reindex runs) is intentionally not shown in human output — agents and users do not need to second-guess otherwise-correct results, but it remains in JSON for diagnostics.
 
+**Registration.** `search` stays capability-gated at registration time. Unlike
+`example`, `languages`, and `feedback`, it does not auto-surface on a fresh
+unauthenticated machine just to trigger browser login.
+
 ### `githits search-status`
 
 ```
@@ -156,7 +164,9 @@ Finds functions, classes, modules, and doc sections inside an indexed dependency
 
 **Output.** Default terminal output leads each entry with `path:startLine-endLine [kind]`, followed by the symbol name and a 3-line dedented snippet. `--json` emits the shared success/error envelope also produced by the MCP `search_symbols` tool — see [`mcp-cli-parity.md`](./mcp-cli-parity.md) for the wire contract. The command is registered as `code search` with `code search-symbols` as a Commander alias.
 
-**Capability gate.** The `code` group is registered only when package/source access is available for the current session, when `GITHITS_CODE_NAVIGATION=1` is set for local override, or when stored auth is expired and the CLI cannot reliably pre-classify access.
+**Registration.** The `code` group is registered only when the package/source
+endpoint is configured and the startup capability gate is open for the CLI
+surface, or when the local CLI override is enabled.
 
 **Troubleshooting.** Set `GITHITS_DEBUG=code-nav` to emit single-line JSON diagnostics to stderr on error paths. Include the output when filing an issue. Debug payloads never contain query text, tokens, or response bodies.
 
@@ -178,6 +188,10 @@ Shows a concise overview for a single package: latest version, license, descript
 **`--verbose` + `--json`.** `--verbose` has no effect under `--json` — the JSON envelope always carries every field the verbose terminal view exposes (and more). The flag only affects human-readable output.
 
 **Output envelope.** Success payload is hand-crafted for agent token efficiency: `{registry, name, version, description?, license?, homepage?, repository?, publishedAt?, downloads?, github?, install?, usage?, vulnerabilities?, recentChanges?}`. Omitted fields reflect backend nulls, not dropped data. Error envelope: `{error, code, retryable, details?}` — shared classifier family. Under `--json` the error envelope is written to **stderr** so stdout stays clean for `jq`.
+
+**Registration.** Same as `code`: the command is visible only when the
+package/source endpoint is configured and the startup capability gate is open
+for the CLI surface, or when the local CLI override is enabled.
 
 **Troubleshooting.** `GITHITS_DEBUG=pkg-intel` emits PII-safe classified-error diagnostics (area, event, code, error class, detail keys). Use `GITHITS_DEBUG=*` to enable all non-sensitive package/source diagnostics.
 

@@ -43,6 +43,10 @@ export function getCodeNavigationUrl(): string {
   return DEFAULT_CODE_NAV_URL;
 }
 
+export function isCodeNavigationCliOverrideEnabled(): boolean {
+  return process.env.GITHITS_CODE_NAVIGATION === "1";
+}
+
 /**
  * Get API token from environment variable (for CI/automation).
  */
