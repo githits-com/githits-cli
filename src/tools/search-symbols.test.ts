@@ -11,8 +11,8 @@ describe("searchSymbolsTool", () => {
     const tool = createSearchSymbolsTool(createMockCodeNavigationService());
     expect(tool.name).toBe("search_symbols");
     expect(tool.description).toContain("exact-token matches");
-    expect(tool.description).toContain("'production'");
-    expect(tool.description).toContain("'all'");
+    expect(tool.description).toContain("across all intents");
+    expect(tool.description).toContain("`all`");
     // Category is the preferred filtering surface per the April 2026
     // backend taxonomy split.
     expect(tool.description).toContain("category");
@@ -45,7 +45,7 @@ describe("searchSymbolsTool", () => {
       kind: "FUNCTION",
       filePath: undefined,
       limit: 10,
-      fileIntent: "PRODUCTION",
+      fileIntent: undefined,
       waitTimeoutMs: 5000,
     });
   });
@@ -74,8 +74,8 @@ describe("searchSymbolsTool", () => {
       version: undefined,
     });
     expect(payload.query.query).toBe("middleware");
-    expect(payload.query.fileIntent).toBe("production");
-    expect(payload.query.defaulted).toContain("fileIntent");
+    expect(payload.query.fileIntent).toBe("all");
+    expect(payload.query.defaulted).not.toContain("fileIntent");
     expect(payload.query.defaulted).toContain("waitTimeoutMs");
     // No underscore-prefixed keys in the shared envelope.
     expect(payload._warning).toBeUndefined();

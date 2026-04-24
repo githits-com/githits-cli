@@ -157,7 +157,7 @@ const schema = {
     ])
     .optional()
     .describe(
-      "File intent filter. Defaults to 'production' so top results are production source. Pass 'all' to include tests, benchmarks, examples, and other non-production files.",
+      "Optional file intent filter. Omit it to search across all intents. `all` remains accepted as an explicit no-filter alias.",
     ),
   wait_timeout_ms: z.coerce
     .number()
@@ -174,7 +174,7 @@ const DESCRIPTION =
   "Search a dependency's source code by exact-token matches. Use for symbol lookup, not natural-language questions. " +
   'Prefer unified `search` with `sources:["symbol"]` for new symbol-shaped workflows; use `search_symbols` when you specifically need this dedicated legacy contract. ' +
   "Package scope: pass target.registry + target.package_name. Repo scope: pass target.repo_url + target.git_ref. " +
-  "`file_intent` defaults to 'production' so top results are production source; pass 'all' to include tests, examples, benchmarks. " +
+  "Omit `file_intent` to search across all intents; `all` remains accepted as an explicit no-filter alias. " +
   "`query` and `keywords` can combine; `match_mode` controls AND vs OR across keywords. " +
   "Filter by `category` (broad: callable/type/module/data/documentation — preferred) or `kind` (precise construct like trait/record/namespace). " +
   "Prefer `file_path` to scope to a directory (e.g., 'src/'). " +

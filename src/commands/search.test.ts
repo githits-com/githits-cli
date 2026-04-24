@@ -108,6 +108,42 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("does not send a file-intent filter unless the caller explicitly set one", async () => {
+    const search = mock<
+      (
+        params: import("../services/code-navigation-service.js").UnifiedSearchParams,
+      ) => Promise<
+        import("../services/code-navigation-service.js").UnifiedSearchOutcome
+      >
+    >(() => Promise.resolve(defaultUnifiedSearchOutcome));
+    const deps = createDeps({
+      codeNavigationService: createMockCodeNavigationService({ search }),
+    });
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchAction(
+      "router middleware",
+      {
+        in: ["npm:express"],
+      },
+      deps,
+    );
+    expect(search.mock.calls[0]?.[0]?.filters?.fileIntent).toBeUndefined();
+
+    search.mockClear();
+    await searchAction(
+      "router middleware",
+      {
+        in: ["npm:express"],
+        intent: "test",
+      },
+      deps,
+    );
+    expect(search.mock.calls[0]?.[0]?.filters?.fileIntent).toBe("TEST");
+
+    consoleSpy.mockRestore();
+  });
+
   it("outputs JSON when --json flag provided", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
@@ -221,49 +257,6 @@ describe("searchAction", () => {
     expect(output).toContain(
       "Note: docs on npm:express@4.18.2 ignored filters: fileIntent",
     );
-    consoleSpy.mockRestore();
-  });
-
-  it("suppresses ignored-filter notes for auto-defaulted filters", async () => {
-    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
-
-    if (defaultUnifiedSearchOutcome.state !== "completed") {
-      throw new Error("expected completed outcome fixture");
-    }
-    const completedOutcome = defaultUnifiedSearchOutcome;
-    const outcomeWithIgnoredFilters: UnifiedSearchOutcome = {
-      ...completedOutcome,
-      result: {
-        ...completedOutcome.result,
-        sourceStatus: [
-          {
-            source: "DOCS",
-            targetLabel: "npm:express@4.18.2",
-            indexingStatus: "INDEXED",
-            resultCount: 1,
-            ignoredFilters: ["fileIntent"],
-            incompatibleFilters: [],
-            appliedFilters: [],
-            appliedQueryFeatures: [],
-            ignoredQueryFeatures: [],
-            incompatibleQueryFeatures: [],
-          },
-        ],
-      },
-    };
-
-    await searchAction(
-      "router middleware",
-      { in: ["npm:express"] },
-      createDeps({
-        codeNavigationService: createMockCodeNavigationService({
-          search: mock(() => Promise.resolve(outcomeWithIgnoredFilters)),
-        }),
-      }),
-    );
-
-    const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output).not.toContain("ignored filters: fileIntent");
     consoleSpy.mockRestore();
   });
 

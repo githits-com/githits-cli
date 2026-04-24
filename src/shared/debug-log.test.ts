@@ -52,12 +52,24 @@ describe("debugLog", () => {
     expect(stderrSpy).not.toHaveBeenCalled();
   });
 
-  it("emits for any area when GITHITS_DEBUG=*", () => {
+  it("emits for non-sensitive areas when GITHITS_DEBUG=*", () => {
     process.env.GITHITS_DEBUG = "*";
     debugLog("code-nav", {});
     debugLog("auth", {});
     debugLog("anything", {});
     expect(stderrSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not enable explicit-only wire areas when GITHITS_DEBUG=*", () => {
+    process.env.GITHITS_DEBUG = "*";
+    debugLog("code-nav-wire", { foo: "bar" });
+    expect(stderrSpy).not.toHaveBeenCalled();
+  });
+
+  it("still emits for explicit-only wire areas when named directly", () => {
+    process.env.GITHITS_DEBUG = "code-nav-wire";
+    debugLog("code-nav-wire", { foo: "bar" });
+    expect(stderrSpy).toHaveBeenCalledTimes(1);
   });
 
   it("serialises payload contents as JSON on a single line", () => {

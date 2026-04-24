@@ -10,7 +10,6 @@ import {
   DEFAULT_WAIT_TIMEOUT_MS,
   FILE_INTENT_ALL,
   type FileIntentInput,
-  SEARCH_SYMBOLS_DEFAULT_FILE_INTENT,
 } from "./code-navigation-defaults.js";
 
 /**
@@ -21,8 +20,8 @@ import {
  * translation.
  *
  * `fileIntent` is tri-valued: specific intent, `FILE_INTENT_ALL`
- * (caller asked for all), or `undefined` (caller omitted the field —
- * the builder fills in the default).
+ * (caller asked for all), or `undefined` (caller omitted the field and
+ * the request should carry no file-intent filter).
  */
 export interface SearchSymbolsRequestInput {
   target: CodeNavigationTarget;
@@ -46,14 +45,14 @@ export interface SearchSymbolsRequestInput {
  */
 export interface SearchSymbolsRequestBuildResult {
   params: SearchSymbolsParams;
-  defaulted: ReadonlyArray<"fileIntent" | "waitTimeoutMs">;
+  defaulted: ReadonlyArray<"waitTimeoutMs">;
 }
 
 /**
  * Build a `SearchSymbolsParams` object from caller-facing input.
  *
  * Responsibilities:
- * - Fill in defaults for `fileIntent` and `waitTimeoutMs`.
+ * - Fill in the default for `waitTimeoutMs`.
  * - Translate the `FILE_INTENT_ALL` sentinel to "omit the GraphQL
  *   variable" by leaving `fileIntent: undefined` on the outgoing
  *   params — omission returns all intents on the live backend.
@@ -65,9 +64,9 @@ export interface SearchSymbolsRequestBuildResult {
 export function buildSearchSymbolsParams(
   input: SearchSymbolsRequestInput,
 ): SearchSymbolsRequestBuildResult {
-  const defaulted: Array<"fileIntent" | "waitTimeoutMs"> = [];
+  const defaulted: Array<"waitTimeoutMs"> = [];
 
-  const resolvedFileIntent = resolveFileIntent(input.fileIntent, defaulted);
+  const resolvedFileIntent = resolveFileIntent(input.fileIntent);
   const resolvedWaitTimeoutMs = resolveWaitTimeoutMs(
     input.waitTimeoutMs,
     defaulted,
@@ -92,22 +91,17 @@ export function buildSearchSymbolsParams(
 
 function resolveFileIntent(
   input: FileIntentInput,
-  defaulted: Array<"fileIntent" | "waitTimeoutMs">,
 ): SearchSymbolsFileIntent | undefined {
   if (input === FILE_INTENT_ALL) {
     // Caller asked for all intents; send no filter to the backend.
     return undefined;
-  }
-  if (input === undefined) {
-    defaulted.push("fileIntent");
-    return SEARCH_SYMBOLS_DEFAULT_FILE_INTENT;
   }
   return input;
 }
 
 function resolveWaitTimeoutMs(
   input: number | undefined,
-  defaulted: Array<"fileIntent" | "waitTimeoutMs">,
+  defaulted: Array<"waitTimeoutMs">,
 ): number {
   if (input === undefined) {
     defaulted.push("waitTimeoutMs");

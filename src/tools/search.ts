@@ -136,7 +136,7 @@ const schema = {
     ])
     .optional()
     .describe(
-      "Optional file-intent filter. When omitted, AUTO/code/symbol searches default to production; explicit docs-only searches omit the filter because docs do not support it.",
+      "Optional file-intent filter. Omit it to search across all intents; some sources may ignore this filter and report that in sourceStatus.",
     ),
   public_only: z.boolean().optional(),
   name: z.string().optional(),

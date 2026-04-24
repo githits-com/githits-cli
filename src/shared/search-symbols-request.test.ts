@@ -5,14 +5,14 @@ import { buildSearchSymbolsParams } from "./search-symbols-request.js";
 describe("buildSearchSymbolsParams", () => {
   const baseTarget = { registry: "NPM", packageName: "express" } as const;
 
-  it("defaults fileIntent to PRODUCTION and records it as defaulted", () => {
+  it("leaves fileIntent unset when the caller omits it", () => {
     const { params, defaulted } = buildSearchSymbolsParams({
       target: baseTarget,
       query: "middleware",
     });
 
-    expect(params.fileIntent).toBe("PRODUCTION");
-    expect(defaulted).toContain("fileIntent");
+    expect(params.fileIntent).toBeUndefined();
+    expect(defaulted).not.toContain("fileIntent");
   });
 
   it("defaults waitTimeoutMs to 20000 and records it as defaulted", () => {
@@ -79,7 +79,7 @@ describe("buildSearchSymbolsParams", () => {
       kind: "FUNCTION",
       filePath: "lib/",
       limit: 25,
-      fileIntent: "PRODUCTION",
+      fileIntent: undefined,
       waitTimeoutMs: 3000,
     });
   });

@@ -48,7 +48,7 @@ export interface SearchSymbolsQueryEcho {
   fileIntent: string; // lowercase enum value or the literal "all"
   limit?: number;
   waitTimeoutMs: number;
-  defaulted: ReadonlyArray<"fileIntent" | "waitTimeoutMs">;
+  defaulted: ReadonlyArray<"waitTimeoutMs">;
 }
 
 export interface SearchSymbolsErrorPayload {
@@ -73,7 +73,7 @@ export interface SearchSymbolsErrorPayload {
  */
 export function buildSearchSymbolsSuccessPayload(
   params: SearchSymbolsParams,
-  defaulted: ReadonlyArray<"fileIntent" | "waitTimeoutMs">,
+  defaulted: ReadonlyArray<"waitTimeoutMs">,
   result: SearchSymbolsResult,
 ): SearchSymbolsSuccessPayload {
   const payload: SearchSymbolsSuccessPayload = {
@@ -141,10 +141,10 @@ export function buildSearchSymbolsErrorPayload(
 }
 
 function echoFileIntent(resolved: SearchSymbolsParams["fileIntent"]): string {
-  // When the builder translated `FILE_INTENT_ALL` to "omit the
-  // GraphQL variable", `params.fileIntent` is `undefined`. Echo that
-  // as the literal "all" so the agent/user sees the intent that was
-  // actually applied.
+  // Omitted file intent means "search across all intents". Keep
+  // echoing that as the literal "all" so the legacy JSON contract
+  // stays stable whether the caller explicitly chose the alias or just
+  // omitted the filter.
   if (resolved === undefined) return "all";
   return resolved.toLowerCase();
 }

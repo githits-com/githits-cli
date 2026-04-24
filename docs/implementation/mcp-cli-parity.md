@@ -52,9 +52,9 @@ the test suite anchors the doc.
   `src/shared/code-navigation-defaults.ts`. They never diverge
   silently.
 - Cross-tool defaults (e.g. `DEFAULT_WAIT_TIMEOUT_MS`) live without a
-  prefix. Tool-specific defaults carry a tool-name prefix
-  (`SEARCH_SYMBOLS_DEFAULT_FILE_INTENT`) so tool #2 declaring its own
-  defaults in the same file does not cause naming churn.
+  prefix. Tool-local sentinels that affect request shaping (for example
+  `FILE_INTENT_ALL`) also live there so both surfaces translate them the
+  same way.
 - When a surface fills in a default for the caller, that default value
   is applied at the shared request builder
   (`buildSearchSymbolsParams`) — not at the surface — so both
@@ -86,7 +86,7 @@ the test suite anchors the doc.
   a string array naming the fields whose values the client filled in.
   Empty array when every field was caller-set.
 - `fileIntent` is echoed as a lowercase enum value, or the literal
-  `"all"` when the caller chose the all-intents sentinel.
+  `"all"` when no file-intent filter was applied.
 - `returnedCount` is an explicit echo of `results.length`.
 - `totalMatches` is the service-provided total (equal to
   `returnedCount` today).
@@ -160,7 +160,7 @@ When a new tool lands with both MCP and CLI surfaces:
 
 | File | Role |
 |---|---|
-| `src/shared/code-navigation-defaults.ts` | Canonical defaults and sentinels. |
+| `src/shared/code-navigation-defaults.ts` | Canonical cross-surface defaults and sentinels. |
 | `src/shared/code-navigation-error-map.ts` | `mapCodeNavigationError` classifier and `MappedError` union. |
 | `src/shared/pkgseer-graphql.ts` | Low-level authenticated package/source POST helper shared by the service clients. |
 | `src/shared/pkgseer-registry.ts` | Registry taxonomy (`PkgseerRegistry` union + lowercase↔uppercase converters). |

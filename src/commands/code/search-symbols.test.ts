@@ -63,8 +63,8 @@ describe("searchSymbolsAction", () => {
       packageName: "express",
       version: undefined,
     });
-    expect(payload.query.fileIntent).toBe("production");
-    expect(payload.query.defaulted).toContain("fileIntent");
+    expect(payload.query.fileIntent).toBe("all");
+    expect(payload.query.defaulted).not.toContain("fileIntent");
     expect(payload.query.defaulted).toContain("waitTimeoutMs");
     expect(payload._warning).toBeUndefined();
     consoleSpy.mockRestore();
@@ -189,7 +189,7 @@ describe("searchSymbolsAction", () => {
     exitSpy.mockRestore();
   });
 
-  it("applies --intent production by default and --intent all to opt out", async () => {
+  it("sends no file-intent filter by default and preserves explicit intent choices", async () => {
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
     const searchSymbols = mock<
       (
@@ -203,7 +203,7 @@ describe("searchSymbolsAction", () => {
     });
 
     await searchSymbolsAction("npm:express", "middleware", {}, deps);
-    expect(searchSymbols.mock.calls[0]?.[0]?.fileIntent).toBe("PRODUCTION");
+    expect(searchSymbols.mock.calls[0]?.[0]?.fileIntent).toBeUndefined();
 
     searchSymbols.mockClear();
     await searchSymbolsAction(
@@ -395,13 +395,13 @@ describe("searchSymbolsAction", () => {
     consoleSpy.mockRestore();
   });
 
-  it("adapts zero-result suggestions to the filters the caller actually used", async () => {
+  it("suggests --intent all only when the caller explicitly narrowed file intent", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     await searchSymbolsAction(
       "npm:express",
       "Router",
-      { file: "nonexistent/", kind: "function" },
+      { file: "nonexistent/", kind: "function", intent: "test" },
       createDeps({
         codeNavigationService: createMockCodeNavigationService({
           searchSymbols: mock(() =>
@@ -430,6 +430,33 @@ describe("searchSymbolsAction", () => {
       "npm:express",
       "Router",
       { intent: "all" },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchSymbols: mock(() =>
+            Promise.resolve({
+              results: [],
+              totalMatches: 0,
+              hasMore: false,
+              version: "v5.2.1",
+            }),
+          ),
+        }),
+      }),
+    );
+
+    const output = consoleSpy.mock.calls.map((call) => call[0]).join("\n");
+    expect(output).toContain("try broader keywords");
+    expect(output).not.toContain("try --intent all");
+    consoleSpy.mockRestore();
+  });
+
+  it("omits `try --intent all` from the zero-result suggestion when no intent filter was sent", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchSymbolsAction(
+      "npm:express",
+      "Router",
+      {},
       createDeps({
         codeNavigationService: createMockCodeNavigationService({
           searchSymbols: mock(() =>

@@ -154,8 +154,8 @@ const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed depend
 
 Use repeatable --in targets in package form (npm:express[@version]) or repo
 form (https://github.com/org/repo[#ref]). Structured flags are AND-combined with
-the discovery query. Unified search defaults to production file intent where the
-backend supports that filter. Results are complete-by-default: if indexing is
+the discovery query. Omit --intent to search across all file intents; pass it
+only when you want to narrow results. Results are complete-by-default: if indexing is
 still in progress, search returns a searchRef instead of partial hits unless
 --allow-partial is passed.
 
@@ -230,7 +230,7 @@ export function registerSearchCommand(program: Command) {
     .addOption(
       new Option(
         "--intent <intent>",
-        "File intent filter (default: production for AUTO/code/symbol, omitted for docs-only)",
+        "File intent filter (omit to search across all intents)",
       ).choices([
         "production",
         "test",

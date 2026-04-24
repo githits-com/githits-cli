@@ -125,8 +125,9 @@ Filter by --category (broad: callable, type, module, data, documentation)
 or --kind (precise: function, method, class, trait, …). Prefer --category
 for most use cases; reach for --kind when you need a specific construct.
 
-Default file intent is production source. Pass --intent all to include tests,
-examples, benchmarks, generated files, and other non-production code.
+By default no file-intent filter is sent. Pass --intent production (or another
+specific intent) to narrow results; --intent all remains accepted as an explicit
+no-filter alias.
 
 Examples:
   githits code search npm:express middleware
@@ -172,7 +173,7 @@ export function registerCodeSearchSymbolsCommand(program: Command) {
     .option("--file <prefix>", "Filter to files matching path prefix")
     .option(
       "--intent <intent>",
-      "File intent filter (production, test, benchmark, example, generated, fixture, build, vendor, all). Default: production.",
+      "File intent filter (production, test, benchmark, example, generated, fixture, build, vendor, all). Omit for no filter; `all` is an explicit alias.",
     )
     .option(
       "--wait <seconds>",

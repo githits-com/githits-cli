@@ -15,7 +15,6 @@ export {
   FILE_INTENT_ALL,
   type FileIntentInput,
   MAX_WAIT_TIMEOUT_MS,
-  SEARCH_SYMBOLS_DEFAULT_FILE_INTENT,
 } from "./code-navigation-defaults.js";
 export {
   type MappedError,
