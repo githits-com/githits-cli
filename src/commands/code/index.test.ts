@@ -50,21 +50,20 @@ describe("registerCodeCommandGroup", () => {
     ).toBe(true);
   });
 
-  it("registers the code command group for opaque env tokens", async () => {
+  it("does not register the code command group for opaque env tokens without the capability claim", async () => {
     const program = new Command();
     await registerCodeCommandGroup(program, {
       codeNavigationUrl: "https://nav.example.com",
       overrideEnabled: false,
       capability: "unknown",
-      envTokenPresent: true,
     });
 
     expect(program.commands.some((command) => command.name() === "code")).toBe(
-      true,
+      false,
     );
   });
 
-  it("registers the code command group for expired stored auth", async () => {
+  it("registers the code command group for expired stored auth so direct invocation can refresh", async () => {
     const program = new Command();
     await registerCodeCommandGroup(program, {
       codeNavigationUrl: "https://nav.example.com",

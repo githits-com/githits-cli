@@ -6,7 +6,6 @@ import type {
 } from "../services/code-navigation-service.js";
 import {
   getCodeNavigationUrl,
-  getEnvApiToken,
   isCodeNavigationCliOverrideEnabled,
 } from "../services/config.js";
 import {
@@ -55,7 +54,6 @@ export interface SearchCommandRegistrationOptions {
   codeNavigationUrl?: string;
   overrideEnabled?: boolean;
   capability?: CodeNavigationCapability;
-  envTokenPresent?: boolean;
   expiredStoredAuth?: boolean;
 }
 
@@ -293,13 +291,10 @@ export async function registerUnifiedSearchCommands(
           expiredStoredAuth: options.expiredStoredAuth ?? false,
         }
       : await loadStartupCodeNavigationRegistrationState();
-  const capability = registrationState.capability;
-  const envTokenPresent = options.envTokenPresent ?? Boolean(getEnvApiToken());
 
   if (
     !overrideEnabled &&
-    capability !== "enabled" &&
-    !envTokenPresent &&
+    registrationState.capability !== "enabled" &&
     !registrationState.expiredStoredAuth
   ) {
     return;

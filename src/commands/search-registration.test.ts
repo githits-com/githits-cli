@@ -19,14 +19,12 @@ describe("registerUnifiedSearchCommands", () => {
     ).toBe(false);
   });
 
-  it("does not register search commands without override, capability, env token, or expired auth", async () => {
+  it("does not register search commands without override or explicit capability", async () => {
     const program = new Command();
     await registerUnifiedSearchCommands(program, {
       codeNavigationUrl: "https://nav.example.com",
       overrideEnabled: false,
       capability: "disabled",
-      envTokenPresent: false,
-      expiredStoredAuth: false,
     });
 
     expect(
@@ -63,21 +61,20 @@ describe("registerUnifiedSearchCommands", () => {
     ).toBe(true);
   });
 
-  it("registers search commands for opaque env tokens", async () => {
+  it("does not register search commands for opaque env tokens without the capability claim", async () => {
     const program = new Command();
     await registerUnifiedSearchCommands(program, {
       codeNavigationUrl: "https://nav.example.com",
       overrideEnabled: false,
       capability: "unknown",
-      envTokenPresent: true,
     });
 
     expect(
       program.commands.some((command) => command.name() === "search"),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("registers search commands for expired stored auth", async () => {
+  it("registers search commands for expired stored auth so direct invocation can refresh", async () => {
     const program = new Command();
     await registerUnifiedSearchCommands(program, {
       codeNavigationUrl: "https://nav.example.com",

@@ -3,7 +3,6 @@ import { resolveStartupCodeNavigationRegistrationState } from "../../container.j
 import {
   type CodeNavigationCapability,
   getCodeNavigationUrl,
-  getEnvApiToken,
   isCodeNavigationCliOverrideEnabled,
 } from "../../services/index.js";
 import { registerPkgChangelogCommand } from "./changelog.js";
@@ -15,7 +14,6 @@ export interface PkgCommandGroupOptions {
   codeNavigationUrl?: string;
   overrideEnabled?: boolean;
   capability?: CodeNavigationCapability;
-  envTokenPresent?: boolean;
   expiredStoredAuth?: boolean;
 }
 
@@ -27,10 +25,10 @@ export interface PkgCommandGroupOptions {
  *    `GITHITS_CODE_NAV_URL`, no sensible default), skip registration
  *    entirely.
  * 2. Capability gate — register only when the token advertises
- *    `code_navigation`, `GITHITS_CODE_NAVIGATION=1` is set, an env
- *    API token is present, or the stored auth has expired (we can't
- *    inspect the caps inside an expired JWT, so show the command and
- *    let the caller refresh).
+ *    `code_navigation`, or when `GITHITS_CODE_NAVIGATION=1` is set
+ *    for local development. Direct command invocation also keeps the
+ *    expired-stored-auth fallback so a refreshable session can reach
+ *    the token refresh path before capability is re-evaluated.
  *
  * The capability check is intentionally duplicated with
  * `registerCodeCommandGroup` rather than factored out — two tiny
@@ -54,13 +52,10 @@ export async function registerPkgCommandGroup(
           expiredStoredAuth: options.expiredStoredAuth ?? false,
         }
       : await resolveStartupCodeNavigationRegistrationState();
-  const capability = registrationState.capability;
-  const envTokenPresent = options.envTokenPresent ?? Boolean(getEnvApiToken());
 
   if (
     !overrideEnabled &&
-    capability !== "enabled" &&
-    !envTokenPresent &&
+    registrationState.capability !== "enabled" &&
     !registrationState.expiredStoredAuth
   ) {
     return;

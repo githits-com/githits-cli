@@ -53,8 +53,9 @@ export function getEnvApiToken(): string | undefined {
 
 /**
  * Whether `GITHITS_CODE_NAVIGATION` forces the capability-gated
- * `code` CLI commands to be exposed locally regardless of the
- * startup token's `code_navigation` claim.
+ * code-navigation CLI surfaces (`search`, `code`, `pkg`) to be
+ * exposed locally regardless of the startup token's
+ * `code_navigation` claim.
  */
 export function isCodeNavigationCliOverrideEnabled(): boolean {
   const raw = process.env.GITHITS_CODE_NAVIGATION;

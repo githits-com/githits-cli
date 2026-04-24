@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes four primary top-level commands: `example`, `languages`, and `feedback` are always available, while `search` is capability-gated and surfaces unified dependency/repository search when package/source access is open for the current session. It also has capability-gated `code` and `pkg` command groups for lower-level dependency source inspection and package intelligence. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
+The CLI exposes three always-on top-level commands: `example`, `languages`, and `feedback`. Indexed dependency/package surfaces are capability-gated: top-level `search` / `search-status` plus the `code` and `pkg` command groups are shown only when the startup token explicitly carries `code_navigation`, or when `GITHITS_CODE_NAVIGATION=1` is set locally for development. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
 
 ## Commands
 
@@ -130,7 +130,7 @@ Finds functions, classes, modules, and doc sections inside an indexed dependency
 
 **Output.** Default terminal output leads each entry with `path:startLine-endLine [kind]`, followed by the symbol name and a 3-line dedented snippet. `--json` emits the shared success/error envelope also produced by the MCP `search_symbols` tool — see [`mcp-cli-parity.md`](./mcp-cli-parity.md) for the wire contract. The command is registered as `code search` with `code search-symbols` as a Commander alias.
 
-**Capability gate.** The `code` group is registered only when package/source access is available for the current session, when `GITHITS_CODE_NAVIGATION=1` is set for local override, or when stored auth is expired and the CLI cannot reliably pre-classify access.
+**Capability gate.** The `code` group is registered only when the startup token explicitly carries `code_navigation`, or when `GITHITS_CODE_NAVIGATION=1` is set for local override.
 
 **Troubleshooting.** Set `GITHITS_DEBUG=code-nav` to emit single-line JSON diagnostics to stderr on error paths. Include the output when filing an issue. Debug payloads never contain query text, tokens, or response bodies.
 
@@ -346,8 +346,8 @@ This is still the standard `grep(1)` contract even though the output includes fi
 CLI command (src/commands/search.ts)
   └─ searchAction(query, options, deps)
        ├─ requireAuth(deps)
-       └─ deps.githitsService.search(params)
-            └─ GitHitsServiceImpl makes REST API call
+       └─ deps.codeNavigationService.search(params)
+            └─ CodeNavigationServiceImpl makes package/source API call
 ```
 
 Each command follows this pattern:
@@ -361,9 +361,9 @@ Each command follows this pattern:
 | Shared Module | Used By |
 |---|---|
 | `GitHitsService` (via container) | `example`, `languages`, `feedback`, and always-on MCP tools |
-| `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, capability-gated `search` MCP tools, and `githits code search` |
+| `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, capability-gated MCP indexed-search tools, and `githits code search` |
 | `filterLanguages()` from `src/shared/language-filter.ts` | `search_language` MCP tool + `languages` CLI command |
-| `requireAuth()` from `src/shared/require-auth.ts` | MCP server startup + all CLI commands |
+| `requireAuth()` from `src/shared/require-auth.ts` | all CLI commands and auth-required MCP tool handlers |
 
 ## Adding a New CLI Command
 

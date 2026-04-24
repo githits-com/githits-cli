@@ -60,7 +60,6 @@ Getting started:
   githits init                           Set up MCP for your coding agents
   githits login                          Authenticate with your GitHits account
   githits mcp                            Start MCP server for your AI assistant
-  githits search "router middleware" --in npm:express   Search dependency code/docs
   githits example "query" --lang python                  Get code examples
 
 Learn more at https://githits.com
@@ -84,12 +83,9 @@ registerLanguagesCommand(program);
 registerFeedbackCommand(program);
 const argv = process.argv.slice(2);
 const helpInvocation = isHelpInvocation(argv);
-const helpRegistrationOptions = helpInvocation
-  ? {
-      capability: "enabled" as const,
-      expiredStoredAuth: false,
-      envTokenPresent: false,
-    }
+const shouldLoadGatedHelpRegistration = needsGatedHelpRegistration(argv);
+const helpRegistrationOptions = shouldLoadGatedHelpRegistration
+  ? await loadHelpRegistrationOptions()
   : undefined;
 
 if (shouldEagerLoadSearchCommands(argv)) {
@@ -131,10 +127,7 @@ function shouldEagerLoadGatedCommandGroup(
 ): boolean {
   const [firstArg] = args;
   return (
-    firstArg === groupName ||
-    firstArg === "help" ||
-    firstArg === "--help" ||
-    firstArg === "-h"
+    firstArg === groupName || (firstArg === "help" && args[1] === groupName)
   );
 }
 
@@ -143,10 +136,7 @@ function shouldEagerLoadSearchCommands(args: string[]): boolean {
   return (
     firstArg === "search" ||
     firstArg === "search-status" ||
-    firstArg === "help" ||
-    firstArg === "--help" ||
-    firstArg === "-h" ||
-    args.length === 0
+    (firstArg === "help" && isSearchHelpTarget(args[1]))
   );
 }
 
@@ -156,6 +146,57 @@ function isHelpInvocation(args: string[]): boolean {
     args[0] === "help" ||
     args.includes("--help") ||
     args.includes("-h")
+  );
+}
+
+function needsGatedHelpRegistration(args: string[]): boolean {
+  if (!isHelpInvocation(args)) {
+    return false;
+  }
+
+  const [firstArg, secondArg] = args;
+  if (firstArg === "help") {
+    return (
+      isSearchHelpTarget(secondArg) ||
+      secondArg === "code" ||
+      secondArg === "pkg"
+    );
+  }
+
+  return (
+    isSearchHelpTarget(firstArg) || firstArg === "code" || firstArg === "pkg"
+  );
+}
+
+function isSearchHelpTarget(value: string | undefined): boolean {
+  return value === "search" || value === "search-status";
+}
+
+async function loadHelpRegistrationOptions() {
+  const { resolveStartupCodeNavigationRegistrationState } = await import(
+    "./container.js"
+  );
+  const registrationState =
+    await resolveStartupCodeNavigationRegistrationState();
+  return {
+    capability: registrationState.capability,
+    expiredStoredAuth: shouldUseExpiredStoredAuthFallbackForHelp(argv)
+      ? registrationState.expiredStoredAuth
+      : false,
+  };
+}
+
+function shouldUseExpiredStoredAuthFallbackForHelp(args: string[]): boolean {
+  const [firstArg, secondArg] = args;
+  return (
+    firstArg === "search" ||
+    firstArg === "search-status" ||
+    firstArg === "code" ||
+    firstArg === "pkg" ||
+    (firstArg === "help" &&
+      (isSearchHelpTarget(secondArg) ||
+        secondArg === "code" ||
+        secondArg === "pkg"))
   );
 }
 

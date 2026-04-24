@@ -14,7 +14,7 @@ GitHits separates its MCP server (which handles OAuth discovery and the MCP prot
 |---|---|---|---|
 | **MCP URL** | `https://mcp.githits.com` | `GITHITS_MCP_URL` | OAuth discovery (`.well-known`), DCR registration, auth flow |
 | **API URL** | `https://api.githits.com` | `GITHITS_API_URL` | REST endpoints (`/search`, `/languages`, `/feedbacks`) |
-| **Package/source URL** | configured per environment | `GITHITS_CODE_NAV_URL` | Package/source service endpoint used by the hidden `pkg` / `code` tooling |
+| **Package/source URL** | `https://pkgseer.dev` in the default production environment; otherwise unset | `GITHITS_CODE_NAV_URL` | Package/source service endpoint used by hidden indexed `search` / `pkg` / `code` tooling |
 
 > **These are different services.** Setting only one won't work for custom environments. Both must be overridden together when pointing to a non-production backend.
 
@@ -28,7 +28,7 @@ The container (`src/container.ts`) resolves authentication in priority order:
 
 2. **Stored OAuth JWT** — Loaded from `~/.githits/auth.json`. If expired, the container automatically attempts a refresh using the stored refresh token. If refresh fails, auth is cleared silently.
 
-3. **Unauthenticated** — No token available. The MCP server refuses to start (`requireAuth()` in `src/commands/mcp.ts`). CLI commands like `auth status` still work to help the user diagnose the issue.
+3. **Unauthenticated** — No token available. Auth-required CLI commands fail on use, and the MCP server can start but every authenticated tool call will fail. Commands like `auth status` still work to help the user diagnose the issue.
 
 ### Auth Mode Capabilities
 
@@ -40,9 +40,10 @@ The container (`src/container.ts`) resolves authentication in priority order:
 
 Package/source access is different from the REST endpoints above:
 
-- the CLI resolves the package/source service URL from `GITHITS_CODE_NAV_URL`; custom GitHits environments must set this explicitly (no default inference)
-- MCP registration and the hidden `githits code` / `githits pkg` CLI groups are only exposed when package/source access is available for the current session, or when `GITHITS_CODE_NAVIGATION=1` is set locally for development
-- if access is unavailable, those tools and command groups are omitted from the surfaced interface
+- the CLI resolves the package/source service URL from `GITHITS_CODE_NAV_URL`; in the default production environment it falls back to `https://pkgseer.dev`, but custom GitHits environments must set this explicitly
+- MCP registration for `search`, `search_status`, `package_*`, `list_files`, `read_file`, and `grep_repo` happens only when the current token explicitly carries `code_navigation`
+- CLI registration for top-level `search` / `search-status` plus the hidden `githits code` / `githits pkg` groups uses the same capability check, with one local-development escape hatch: `GITHITS_CODE_NAVIGATION=1`
+- if the capability is absent or unknown, those indexed tools and command groups are omitted from the surfaced interface
 
 ## Environment Variables
 
@@ -52,7 +53,7 @@ Package/source access is different from the REST endpoints above:
 | `GITHITS_API_URL` | Override REST API URL | `http://localhost:8000` |
 | `GITHITS_CODE_NAV_URL` | Override package/source service URL | `http://localhost:4000` |
 | `GITHITS_API_TOKEN` | API token for authentication | `ghi-abc123...` |
-| `GITHITS_CODE_NAVIGATION` | Override capability gate and expose hidden `code` / `pkg` CLI groups locally | `1` |
+| `GITHITS_CODE_NAVIGATION` | Override capability gate and expose hidden indexed `search` / `code` / `pkg` CLI surfaces locally | `1` |
 | `GITHITS_TELEMETRY` | Emit end-of-run timing spans to stderr for local profiling | `1` |
 
 ## Local Storage
@@ -98,4 +99,4 @@ Commands receive the full `Dependencies` object. Services receive only what they
 | `src/services/auth-storage.ts` | File-based token storage with secure permissions |
 | `src/services/filesystem-service.ts` | File system abstraction for testable storage |
 | `src/commands/auth-status.ts` | Diagnosing current auth state (reached via `githits auth status`) |
-| `src/commands/mcp.ts` | Auth gate (see `requireAuth`) before MCP server startup |
+| `src/commands/mcp.ts` | MCP tool registration and deferred-auth startup behavior |

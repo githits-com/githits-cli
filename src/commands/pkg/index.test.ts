@@ -56,21 +56,20 @@ describe("registerPkgCommandGroup", () => {
     ).toBe(true);
   });
 
-  it("registers the pkg command group for opaque env tokens", async () => {
+  it("does not register the pkg command group for opaque env tokens without the capability claim", async () => {
     const program = new Command();
     await registerPkgCommandGroup(program, {
       codeNavigationUrl: "https://pkgseer.dev",
       overrideEnabled: false,
       capability: "unknown",
-      envTokenPresent: true,
     });
 
     expect(program.commands.some((command) => command.name() === "pkg")).toBe(
-      true,
+      false,
     );
   });
 
-  it("registers the pkg command group for expired stored auth", async () => {
+  it("registers the pkg command group for expired stored auth so direct invocation can refresh", async () => {
     const program = new Command();
     await registerPkgCommandGroup(program, {
       codeNavigationUrl: "https://pkgseer.dev",

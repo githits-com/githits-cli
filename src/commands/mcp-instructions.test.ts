@@ -82,12 +82,12 @@ describe("isPackageToolsCapabilityOpen", () => {
     expect(isPackageToolsCapabilityOpen(deps)).toBe(false);
   });
 
-  it("is true when capability unknown but env token provides opaque grant", () => {
+  it("is false when capability unknown even if an env token is present", () => {
     const deps = createTestDeps({
       codeNavigationCapability: "unknown",
       envApiToken: "ghi-opaque-token",
     });
-    expect(isPackageToolsCapabilityOpen(deps)).toBe(true);
+    expect(isPackageToolsCapabilityOpen(deps)).toBe(false);
   });
 
   it("is false when capability unknown and no env token", () => {

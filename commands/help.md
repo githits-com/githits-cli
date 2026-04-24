@@ -16,7 +16,8 @@ context summary:
 
 ## Slash Commands
 
-- `/githits:search <query>` — Search for code examples from open source.
+- `/githits:example <query>` — Search for canonical code examples from open source.
+- `/githits:search <query>` — Legacy alias for `/githits:example`.
 - `/githits:login` — Authenticate with your GitHits account.
 - `/githits:status` — Show your current authentication status.
 - `/githits:logout` — Remove stored credentials.
@@ -24,13 +25,17 @@ context summary:
 
 ## MCP Tools
 
-This plugin connects to the GitHits MCP server and exposes three tools:
+This plugin connects to the GitHits MCP server and always exposes three core tools:
 
-- **search** — Find code examples by describing what you need in natural
+- **get_example** — Find code examples by describing what you need in natural
   language. Requires `query` and `language` parameters.
 - **search_language** — Look up supported programming language names before
   searching.
 - **feedback** — Rate a search result to improve future quality.
+
+Additional indexed dependency/package tools such as `search`, `package_summary`,
+`list_files`, and `grep_repo` stay hidden unless the authenticated token carries
+the `code_navigation` feature flag.
 
 ## Authentication
 

@@ -1,12 +1,14 @@
 ---
-description: Search for code examples from open source via GitHits
+description: Legacy alias for GitHits example search
 ---
 
-# Search
+# Search (Legacy Alias)
 
-Search for code examples using GitHits for the query: "$ARGUMENTS"
+Use GitHits example search for the query: "$ARGUMENTS"
 
-Use the GitHits MCP `search` tool with the user's query. The tool requires two
+This slash command is the older alias for `/githits:example`.
+
+Use the GitHits MCP `get_example` tool with the user's query. The tool requires two
 parameters:
 
 - **query**: The user's search query, formulated in natural language.

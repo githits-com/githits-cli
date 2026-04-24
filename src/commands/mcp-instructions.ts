@@ -56,9 +56,8 @@ const SEARCH_VS_SYMBOLS_TIP =
 /**
  * Whether the MCP session should register and describe package tools.
  *
- * Narrower than the CLI gate by design: agents must not see tools
- * or guidance that would silently fail, so a bare `unknown`
- * capability (no env token to probe further) keeps the gate closed.
+ * Agents must not see tools or guidance that would silently fail, so
+ * only an explicit `code_navigation` capability enables the surface.
  *
  * Single source of truth — tool registration in `mcp.ts` and the
  * package-tools fragment in `buildMcpInstructions` must share this
@@ -66,11 +65,7 @@ const SEARCH_VS_SYMBOLS_TIP =
  * documented.
  */
 export function isPackageToolsCapabilityOpen(deps: Dependencies): boolean {
-  return (
-    deps.codeNavigationCapability === "enabled" ||
-    (deps.codeNavigationCapability === "unknown" &&
-      deps.envApiToken !== undefined)
-  );
+  return deps.codeNavigationCapability === "enabled";
 }
 
 /**
