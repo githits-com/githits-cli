@@ -37,10 +37,10 @@ export const GREP_REPO_SYMBOL_FIELDS = [
 
 export type GrepRepoSymbolField = (typeof GREP_REPO_SYMBOL_FIELDS)[number];
 
-export const GREP_REPO_SYMBOL_FIELDS_NOTE = `Enclosing symbol fields to hydrate on each match. Valid values: ${GREP_REPO_SYMBOL_FIELDS.join(", ")}. Omit for no symbol hydration.`;
+export const GREP_REPO_SYMBOL_FIELDS_NOTE = `Hydrate these enclosing-symbol fields on each match; omit for no symbol hydration. Valid values: ${GREP_REPO_SYMBOL_FIELDS.join(", ")}.`;
 
 export const GREP_REPO_PATTERN_NOTE =
-  "Text grep over indexed source files. `literal` (default) does substring matching. `regex` uses RE2 syntax (no lookaround, no backreferences); when scoping the whole target with no path, path_prefix, or glob, the regex must include at least one literal substring the index can use for pre-filtering. Pattern max 200 UTF-8 bytes. Matching is ASCII case-insensitive by default: non-ASCII letters match case-sensitively; pass case_sensitive: true for exact casing.";
+  "Text grep over indexed source files. `literal` (default) does substring matching. `regex` uses RE2 syntax (no lookaround, no backreferences); when scoping the whole target with no path, path_prefix, or glob, the regex must include at least one literal substring the index can use for pre-filtering. Pattern max 200 UTF-8 bytes. Matching is ASCII case-insensitive by default: non-ASCII letters match case-sensitively; pass case_sensitive: true for exact casing. When multiple selectors (`path`, `path_prefix`, `globs`) are combined, they are unioned — a file matches if any selector matches. Use `extensions` to intersect further.";
 
 export interface GrepRepoRequestPathSelectorInput {
   kind: "exact" | "prefix" | "glob";

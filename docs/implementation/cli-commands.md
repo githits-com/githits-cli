@@ -54,10 +54,10 @@ Default output is markdown (the API response). With `--explain`, an AI-generated
 
 ```
 githits search "router middleware" --in npm:express
-githits search "handler" --in npm:express --kind function --path-prefix src/
 githits search '"body parser" OR multer' --in npm:express --source docs
-githits search "retry logic" --in npm:got --in npm:ky --source code
-githits search "createServer" --in npm:@types/node --name createServer --lang typescript --json
+githits search "compose" --in npm:lodash --source code --kind function
+githits search "debounce" --in npm:lodash --source symbol
+githits search "composeArgs" --in npm:lodash --name composeArgs --json
 ```
 
 Unified search spans indexed dependency and repository code, docs, and explicit symbols. The positional query is the backend discovery syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). Structured flags are compiled together with the query using `AND` semantics before the request reaches the backend.
@@ -322,7 +322,7 @@ githits code grep --repo-url https://github.com/expressjs/express --git-ref main
 githits code grep npm:express middleware --path lib/express.js --json
 ```
 
-Deterministic text grep over indexed dependency or repository source. Defaults to ASCII case-insensitive literal matching across the whole target; non-ASCII letters match case-sensitively. Pass `[path-prefix]`, `--path`, `--glob`, or `--ext` to narrow scope. `--regex` switches to RE2 regex mode. Whole-target regexes must include at least one literal substring the index can use for pre-filtering. Max pattern 200 UTF-8 bytes. For discovery and ranking, use top-level `githits search` instead. Repeat `--symbol-field` to hydrate enclosing symbol metadata in JSON output.
+Deterministic text grep over indexed dependency or repository source. Defaults to ASCII case-insensitive literal matching across the whole target; non-ASCII letters match case-sensitively. Pass `[path-prefix]`, `--path`, `--glob`, or `--ext` to narrow scope. `--regex` switches to RE2 regex mode. Whole-target regexes must include at least one literal substring the index can use for pre-filtering. Max pattern 200 UTF-8 bytes. For discovery and ranking, use top-level `githits search` instead. Repeat `--symbol-field` to hydrate enclosing symbol metadata; hints appear under each `--verbose` match, full payload in `--json`.
 
 **Plain output (default).** One `file:line:text` record per match on stdout, pipe-friendly and deterministic. `-C/--context`, `-A/--after-context`, and `-B/--before-context` add surrounding lines. Distinct match groups are separated by `--`.
 

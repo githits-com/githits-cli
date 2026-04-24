@@ -14,7 +14,6 @@ import {
   buildUnifiedSearchParams,
   buildUnifiedSearchStatusPayload,
   buildUnifiedSearchSuccessPayload,
-  colorize,
   dim,
   highlight,
   highlightRanges,
@@ -149,7 +148,7 @@ export async function searchStatusAction(
 
     console.log(formatSearchStatusCompletedTerminal(payload));
   } catch (error) {
-    handleSearchError(error, options.json ?? false);
+    handleSearchError(error, options.json ?? false, "status");
   }
 }
 
@@ -184,10 +183,10 @@ Plain output labels:
 
 Examples:
   githits search "router middleware" --in npm:express
-  githits search "handler" --in npm:express --kind function --path-prefix src/
   githits search '"body parser" OR multer' --in npm:express --source docs
-  githits search "retry logic" --in npm:got --in npm:ky --source code
-  githits search "createServer" --in npm:@types/node --name createServer --lang typescript`;
+  githits search "compose" --in npm:lodash --source code --kind function
+  githits search "debounce" --in npm:lodash --source symbol
+  githits search "composeArgs" --in npm:lodash --name composeArgs`;
 
 const SEARCH_STATUS_DESCRIPTION = `Check the status of a unified search started earlier.
 
@@ -337,7 +336,20 @@ function parseTargetSpecs(specs: string[] | undefined) {
   if (!specs || specs.length === 0) {
     throw new InvalidArgumentError("Provide at least one --in target.");
   }
+  for (const spec of specs) {
+    warnIfUnprefixedTargetSpec(spec);
+  }
   return specs.map(parseUnifiedSearchTargetSpec);
+}
+
+function warnIfUnprefixedTargetSpec(spec: string): void {
+  const trimmed = spec.trim();
+  if (trimmed.length === 0) return;
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return;
+  if (trimmed.includes(":")) return;
+  console.error(
+    `Warning: --in '${trimmed}' has no registry prefix; treating as 'npm:${trimmed}'. Pass 'npm:${trimmed}' explicitly to suppress this warning.`,
+  );
 }
 
 function parseSources(
@@ -390,15 +402,29 @@ function collectRepeatable(value: string, previous: string[]): string[] {
   return [...previous, value];
 }
 
-function handleSearchError(error: unknown, json: boolean): never {
+function handleSearchError(
+  error: unknown,
+  json: boolean,
+  context: "search" | "status" = "search",
+): never {
   const payload = buildUnifiedSearchErrorPayload(error);
 
   if (json) {
     console.error(JSON.stringify(payload));
   } else {
-    console.error(payload.error);
+    console.error(formatSearchErrorTerminal(payload, context));
   }
   process.exit(1);
+}
+
+function formatSearchErrorTerminal(
+  payload: { error: string; code: string },
+  context: "search" | "status",
+): string {
+  if (context === "status" && payload.code === "NOT_FOUND") {
+    return `${payload.error}\n  Search sessions expire; run \`githits search ...\` to start a new one.`;
+  }
+  return payload.error;
 }
 
 function formatUnifiedSearchTerminal(payload: {
@@ -429,14 +455,8 @@ function formatUnifiedSearchTerminal(payload: {
   }>;
   searchRef?: string;
   progress?: { targetsReady?: number; targetsTotal?: number };
-  query: { warnings?: string[] };
-  sourceStatus?: Array<{
-    source: string;
-    targetLabel: string;
-    ignoredFilters: string[];
-    incompatibleFilters: string[];
-    note?: string;
-  }>;
+  query: { warnings?: string[]; defaulted?: ReadonlyArray<string> };
+  sourceStatus?: SourceStatusEntry[];
 }): string {
   const lines: string[] = [];
   const useColors = shouldUseColors();
@@ -462,18 +482,36 @@ function formatUnifiedSearchTerminal(payload: {
     lines.push("Partial results:");
   }
 
+  const sourceStatusNotes = formatSourceStatusNotes(
+    payload.sourceStatus,
+    payload.query.defaulted,
+  );
+
   if (payload.results.length === 0) {
     lines.push("No results.");
-    return lines.join("\n");
+    if (sourceStatusNotes.length > 0) {
+      lines.push("");
+      lines.push(...sourceStatusNotes);
+    }
+    return lines.join("\n").trimEnd();
   }
 
-  lines.push(
-    `${highlight(`${payload.returnedCount} result(s)`, useColors)}${payload.hasMore ? dim(" (more available)", useColors) : ""}`,
+  const { display, duplicatesFolded } = dedupeSearchResultsForDisplay(
+    payload.results,
   );
-  lines.push(dim(formatUnifiedSearchTypeSummary(payload.results), useColors));
+
+  const baseCount = `${display.length} result(s)`;
+  const countSuffix = [
+    payload.hasMore ? " (more available)" : "",
+    duplicatesFolded > 0 ? ` (+${duplicatesFolded} near-duplicate folded)` : "",
+  ].join("");
+  lines.push(
+    `${highlight(baseCount, useColors)}${dim(countSuffix, useColors)}`,
+  );
+  lines.push(dim(formatUnifiedSearchTypeSummary(display), useColors));
   lines.push("");
 
-  for (const entry of payload.results) {
+  for (const entry of display) {
     const location = formatUnifiedSearchLocation(entry.locator);
     const header = formatUnifiedSearchHeader(entry, useColors, location);
     lines.push(header);
@@ -486,10 +524,6 @@ function formatUnifiedSearchTerminal(payload: {
         ),
       );
     }
-    const detailLine = formatUnifiedSearchDetailLine(entry, useColors);
-    if (detailLine) {
-      lines.push(detailLine);
-    }
     lines.push("");
   }
 
@@ -497,7 +531,6 @@ function formatUnifiedSearchTerminal(payload: {
     lines.push(dim(`Next offset: ${payload.nextOffset}`, useColors));
   }
 
-  const sourceStatusNotes = formatSourceStatusNotes(payload.sourceStatus);
   if (sourceStatusNotes.length > 0) {
     lines.push("");
     lines.push(...sourceStatusNotes);
@@ -566,13 +599,7 @@ function formatSearchStatusCompletedTerminal(payload: {
     returnedCount: number;
     hasMore: boolean;
     nextOffset?: number;
-    sourceStatus?: Array<{
-      source: string;
-      targetLabel: string;
-      ignoredFilters: string[];
-      incompatibleFilters: string[];
-      note?: string;
-    }>;
+    sourceStatus?: SourceStatusEntry[];
     results: Array<{
       type: string;
       target: string;
@@ -617,39 +644,68 @@ function formatSearchStatusPartialTerminal(
   });
 }
 
+interface SourceStatusEntry {
+  source: string;
+  targetLabel: string;
+  ignoredFilters: string[];
+  incompatibleFilters: string[];
+  ignoredQueryFeatures?: string[];
+  incompatibleQueryFeatures?: string[];
+  note?: string;
+}
+
 function formatSourceStatusNotes(
-  sourceStatus:
-    | Array<{
-        source: string;
-        targetLabel: string;
-        ignoredFilters: string[];
-        incompatibleFilters: string[];
-        note?: string;
-      }>
-    | undefined,
+  sourceStatus: SourceStatusEntry[] | undefined,
+  defaulted: ReadonlyArray<string> | undefined,
 ): string[] {
   const useColors = shouldUseColors();
   if (!sourceStatus) {
     return [];
   }
 
+  const defaultedSet = new Set(defaulted ?? []);
   const lines: string[] = [];
   for (const entry of sourceStatus) {
     const label = `${entry.source.toLowerCase()} on ${entry.targetLabel}`;
-    if (entry.ignoredFilters.length > 0) {
+    const ignoredFilters = entry.ignoredFilters.filter(
+      (name) => !defaultedSet.has(name),
+    );
+    if (ignoredFilters.length > 0) {
       lines.push(
         dim(
-          `Note: ${label} ignored filters: ${entry.ignoredFilters.join(", ")}`,
+          `Note: ${label} ignored filters: ${ignoredFilters.join(", ")}`,
           useColors,
         ),
       );
     }
-    if (entry.incompatibleFilters.length > 0) {
+    const incompatibleFilters = entry.incompatibleFilters.filter(
+      (name) => !defaultedSet.has(name),
+    );
+    if (incompatibleFilters.length > 0) {
       lines.push(
         dim(
-          `Note: ${label} incompatible filters: ${entry.incompatibleFilters.join(
+          `Note: ${label} incompatible filters: ${incompatibleFilters.join(
             ", ",
           )}`,
+          useColors,
+        ),
+      );
+    }
+    if (entry.ignoredQueryFeatures && entry.ignoredQueryFeatures.length > 0) {
+      lines.push(
+        dim(
+          `Note: ${label} ignored query features: ${entry.ignoredQueryFeatures.join(", ")}`,
+          useColors,
+        ),
+      );
+    }
+    if (
+      entry.incompatibleQueryFeatures &&
+      entry.incompatibleQueryFeatures.length > 0
+    ) {
+      lines.push(
+        dim(
+          `Note: ${label} incompatible query features: ${entry.incompatibleQueryFeatures.join(", ")}`,
           useColors,
         ),
       );
@@ -660,6 +716,34 @@ function formatSourceStatusNotes(
   }
 
   return lines;
+}
+
+function dedupeSearchResultsForDisplay<
+  T extends {
+    type: string;
+    target: string;
+    title?: string;
+    summary?: string;
+  },
+>(results: T[]): { display: T[]; duplicatesFolded: number } {
+  const seen = new Set<string>();
+  const display: T[] = [];
+  let duplicatesFolded = 0;
+  for (const entry of results) {
+    const key = [
+      entry.type,
+      entry.target,
+      entry.title ?? "",
+      (entry.summary ?? "").slice(0, 120),
+    ].join("");
+    if (seen.has(key)) {
+      duplicatesFolded += 1;
+      continue;
+    }
+    seen.add(key);
+    display.push(entry);
+  }
+  return { display, duplicatesFolded };
 }
 
 function formatUnifiedSearchTypeSummary(
@@ -769,35 +853,4 @@ function formatUnifiedSearchHeader(
     ? highlightRanges(entry.title, entry.highlights?.title, useColors)
     : undefined;
   return `${highlight(primary, useColors)} ${dim(badge, useColors)}${title ? ` - ${title}` : ""}`;
-}
-
-function formatUnifiedSearchDetailLine(
-  entry: {
-    type: string;
-    target: string;
-    locator: {
-      registry?: string;
-      packageName?: string;
-      version?: string;
-      repoUrl?: string;
-      gitRef?: string;
-      pageId?: string;
-      filePath?: string;
-      startLine?: number;
-      endLine?: number;
-    };
-  },
-  useColors: boolean,
-): string | undefined {
-  if (entry.type === "documentation_page") {
-    const docHint = entry.locator.pageId
-      ? `pageId=${entry.locator.pageId}`
-      : entry.target;
-    return dim(
-      `  Full doc fetch not exposed in CLI yet (${docHint})`,
-      useColors,
-    );
-  }
-
-  return undefined;
 }

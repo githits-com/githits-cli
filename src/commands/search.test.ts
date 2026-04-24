@@ -40,33 +40,6 @@ describe("searchAction", () => {
     };
   }
 
-  function createIncompleteOutcomeWithProgress(
-    status: UnifiedSearchSessionStatus,
-    searchRef: string,
-    progressOverrides: Partial<UnifiedSearchProgress> = {},
-  ): UnifiedSearchIncomplete {
-    const baseProgress: UnifiedSearchProgress = {
-      searchRef,
-      status,
-      targetsTotal: 1,
-      targetsReady: 0,
-      elapsedMs: 100,
-      query: "router",
-      queryWarnings: [],
-      sources: ["CODE"],
-    };
-
-    return {
-      state: "incomplete",
-      completed: false,
-      searchRef,
-      progress: {
-        ...baseProgress,
-        ...progressOverrides,
-      },
-    };
-  }
-
   function createDeps(
     overrides: Partial<SearchDependencies> = {},
   ): SearchDependencies {
@@ -206,7 +179,52 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
-  it("prints source-status notes when the backend ignored filters", async () => {
+  it("prints source-status notes when the backend ignored an explicitly-set filter", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const completedOutcome = defaultUnifiedSearchOutcome;
+    const outcomeWithIgnoredFilters: UnifiedSearchOutcome = {
+      ...completedOutcome,
+      result: {
+        ...completedOutcome.result,
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "npm:express@4.18.2",
+            indexingStatus: "INDEXED",
+            resultCount: 1,
+            ignoredFilters: ["fileIntent"],
+            incompatibleFilters: [],
+            appliedFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router middleware",
+      { in: ["npm:express"], intent: "production" },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcomeWithIgnoredFilters)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Note: docs on npm:express@4.18.2 ignored filters: fileIntent",
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it("suppresses ignored-filter notes for auto-defaulted filters", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -245,8 +263,54 @@ describe("searchAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).not.toContain("ignored filters: fileIntent");
+    consoleSpy.mockRestore();
+  });
+
+  it("renders ignored and incompatible query-feature notes", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const completedOutcome = defaultUnifiedSearchOutcome;
+    const outcomeWithQueryFeatures: UnifiedSearchOutcome = {
+      ...completedOutcome,
+      result: {
+        ...completedOutcome.result,
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "npm:express@4.18.2",
+            indexingStatus: "INDEXED",
+            resultCount: 1,
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: ["kind"],
+            incompatibleQueryFeatures: ["name"],
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router middleware",
+      { in: ["npm:express"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcomeWithQueryFeatures)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain(
-      "Note: docs on npm:express@4.18.2 ignored filters: fileIntent",
+      "Note: docs on npm:express@4.18.2 ignored query features: kind",
+    );
+    expect(output).toContain(
+      "Note: docs on npm:express@4.18.2 incompatible query features: name",
     );
     consoleSpy.mockRestore();
   });
@@ -392,7 +456,7 @@ describe("searchAction", () => {
     }
   });
 
-  it("prints compact docs hint when full doc fetch is unavailable in CLI", async () => {
+  it("omits doc-fetch placeholder line for documentation pages", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -434,9 +498,8 @@ describe("searchAction", () => {
     expect(output).toContain(
       "npm:express@4.18.2 [docs page] - Using Express middleware",
     );
-    expect(output).toContain(
-      "Full doc fetch not exposed in CLI yet (pageId=docs-123)",
-    );
+    expect(output).not.toContain("Full doc fetch");
+    expect(output).not.toContain("pageId=");
     consoleSpy.mockRestore();
   });
 });

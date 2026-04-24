@@ -163,6 +163,12 @@ export function formatFileErrorWithFilesHint(mapped: MappedError): string {
       "  Retry with `--wait 60000`, use an already-indexed version/ref, or try again later.",
     ].join("\n");
   }
+  if (mapped.code === "BACKEND_ERROR") {
+    const retry = mapped.retryable
+      ? "Retry in a moment; if it persists, narrow the target or file an issue."
+      : "Narrow the target (path, path-prefix, glob) and retry; if it persists, file an issue.";
+    return `${mapped.message}\n  ${retry}`;
+  }
   return formatIndexingError(mapped);
 }
 

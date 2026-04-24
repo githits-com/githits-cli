@@ -1,4 +1,4 @@
-import { type Command, Option } from "commander";
+import type { Command } from "commander";
 import type { CodeNavigationService } from "../../services/index.js";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
@@ -11,6 +11,8 @@ import {
   formatGrepRepoTerminal,
   GREP_REPO_PATTERN_NOTE,
   GREP_REPO_SYMBOL_FIELDS_NOTE,
+  type GrepRepoRequestBuildResult,
+  type GrepRepoRequestInput,
   InvalidPackageSpecError,
   requireAuth,
 } from "../../shared/index.js";
@@ -108,7 +110,7 @@ export async function pkgGrepAction(
       MAX_WAIT_TIMEOUT_MS,
     );
 
-    const build = buildGrepRepoParams({
+    const build = buildCliGrepParams({
       target,
       pattern,
       path: options.path,
@@ -214,6 +216,21 @@ function collectRepeatable(value: string, previous: string[] = []): string[] {
   return [...previous, value];
 }
 
+function buildCliGrepParams(
+  input: GrepRepoRequestInput,
+): GrepRepoRequestBuildResult {
+  try {
+    return buildGrepRepoParams(input);
+  } catch (error) {
+    if (!(error instanceof InvalidPackageSpecError)) throw error;
+    const rewritten = error.message
+      .replace(/^`symbol_fields`/, "`--symbol-field`")
+      .replace(/`symbol_fields` value/g, "`--symbol-field` value");
+    if (rewritten === error.message) throw error;
+    throw new InvalidPackageSpecError(rewritten);
+  }
+}
+
 const PKG_GREP_DESCRIPTION = `Deterministic text grep over indexed dependency and repository source files.
 
 ${GREP_REPO_PATTERN_NOTE}
@@ -224,12 +241,14 @@ In spec mode pass <spec> <pattern> [path-prefix]; in repo-URL mode pass only <pa
 
 [path-prefix] matches the same literal prefix semantics as \`githits code files\`.
 Use --path for one exact file, repeatable --glob for glob narrowing, and
-repeatable --ext for extension filtering.
+repeatable --ext for extension filtering. When [path-prefix], --path, and
+--glob are combined they are unioned — a file matches if any selector matches;
+use --ext to narrow further (intersection).
 
 Default output is \`file:line:text\`, pipe-friendly like grep. Use -C / -A / -B
 for context, --verbose for grouped output, and --cursor to continue a paginated
-grep run. Use repeatable --symbol-field to hydrate enclosing symbol metadata on
-JSON output.`;
+grep run. --symbol-field hydrates enclosing symbol metadata (appears under each
+match in --verbose output; full payload in --json).`;
 
 export function registerCodeGrepCommand(pkgCommand: Command): Command {
   return pkgCommand
@@ -296,7 +315,7 @@ export function registerCodeGrepCommand(pkgCommand: Command): Command {
     )
     .option(
       "--symbol-field <field>",
-      `Hydrate enclosing symbol field on JSON matches (repeatable). ${GREP_REPO_SYMBOL_FIELDS_NOTE}`,
+      `Repeatable; surfaces in --json and under each --verbose match. ${GREP_REPO_SYMBOL_FIELDS_NOTE}`,
       collectRepeatable,
       [] as string[],
     )

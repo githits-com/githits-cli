@@ -256,6 +256,7 @@ interface RenderLine {
   content: string;
   isMatch: boolean;
   highlightRanges?: Array<readonly [number, number]>;
+  symbolHint?: string;
 }
 
 interface RenderBlock {
@@ -393,7 +394,7 @@ function buildRenderBlocks(matches: LeanGrepRepoMatch[]): RenderBlock[] {
     }
 
     const existingMatch = lineMap.get(match.line);
-    if (existingMatch && existingMatch.isMatch) {
+    if (existingMatch?.isMatch) {
       existingMatch.highlightRanges = mergeRanges(
         existingMatch.highlightRanges,
         [
@@ -414,6 +415,7 @@ function buildRenderBlocks(matches: LeanGrepRepoMatch[]): RenderBlock[] {
             clampCharacterOffset(match.lineContent, match.matchEndByte),
           ],
         ],
+        symbolHint: formatSymbolHint(match.symbol),
       });
     }
 
@@ -509,10 +511,33 @@ function renderVerboseLine(
 ): string {
   const gutter = padLeft(String(line.lineNumber), gutterWidth);
   if (line.isMatch) {
-    return `${colorize(">", "bold", useColors)} ${gutter}  ${highlightRanges(line.content, line.highlightRanges, useColors)}`;
+    const matchRow = `${colorize(">", "bold", useColors)} ${gutter}  ${highlightRanges(line.content, line.highlightRanges, useColors)}`;
+    if (line.symbolHint) {
+      const hintIndent = " ".repeat(2 + gutterWidth + 2);
+      return `${matchRow}\n${hintIndent}${dim(`↳ in: ${line.symbolHint}`, useColors)}`;
+    }
+    return matchRow;
   }
 
   return `  ${dim(gutter, useColors)}  ${dim(line.content, useColors)}`;
+}
+
+function formatSymbolHint(
+  symbol: LeanGrepRepoMatch["symbol"],
+): string | undefined {
+  if (!symbol) return undefined;
+  const primary = symbol.qualifiedPath ?? symbol.name;
+  const parts: string[] = [];
+  if (primary) parts.push(primary);
+  if (symbol.kind) parts.push(`(${symbol.kind})`);
+  if (symbol.isPublic === true) parts.push("public");
+  if (symbol.arity !== undefined) parts.push(`arity=${symbol.arity}`);
+  if (symbol.callerCount !== undefined)
+    parts.push(`callers=${symbol.callerCount}`);
+  if (symbol.startLine !== undefined && symbol.endLine !== undefined) {
+    parts.push(`L${symbol.startLine}-${symbol.endLine}`);
+  }
+  return parts.length > 0 ? parts.join(" ") : undefined;
 }
 
 function widestLineNumberInBlocks(blocks: RenderBlock[]): number {
