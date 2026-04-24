@@ -33,6 +33,28 @@ describe("buildUnifiedSearchParams", () => {
     expect(built.defaulted).not.toContain("fileIntent");
   });
 
+  it("does not default fileIntent for explicit docs-only searches", () => {
+    const built = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      query: "routing",
+      sources: ["DOCS"],
+    });
+
+    expect(built.params.filters).toBeUndefined();
+    expect(built.defaulted).not.toContain("fileIntent");
+  });
+
+  it("defaults fileIntent when selected sources include code search", () => {
+    const built = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      query: "routing",
+      sources: ["DOCS", "CODE"],
+    });
+
+    expect(built.params.filters).toEqual({ fileIntent: "PRODUCTION" });
+    expect(built.defaulted).toContain("fileIntent");
+  });
+
   it("compiles structured name and language into AND-ed query qualifiers", () => {
     const built = buildUnifiedSearchParams({
       target: { registry: "NPM", packageName: "express" },
@@ -76,6 +98,21 @@ describe("buildUnifiedSearchParams", () => {
       fileIntent: "PRODUCTION",
       publicOnly: true,
     });
+  });
+
+  it("passes through allowPartialResults without changing the default", () => {
+    const defaulted = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      query: "router",
+    });
+    expect(defaulted.params.allowPartialResults).toBeUndefined();
+
+    const explicit = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      query: "router",
+      allowPartialResults: true,
+    });
+    expect(explicit.params.allowPartialResults).toBe(true);
   });
 
   it("dedupes exact duplicate targets while preserving order", () => {

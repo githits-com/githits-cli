@@ -17,6 +17,13 @@ const baseResult: GrepRepoResult = {
       contextAfter: ["", "app.get('/', …);"],
       fileContentHash: "abc123",
       fileIntent: "production",
+      symbolRowId: "42",
+      symbol: {
+        symbolRef: "npm:express:4.18.2:42",
+        name: "createRouter",
+        qualifiedPath: "express.createRouter",
+        kind: "function",
+      },
     },
   ],
   nextCursor: undefined,
@@ -52,6 +59,7 @@ const baseOptions = {
   maxMatches: 50,
   maxMatchesPerFile: 3,
   cursor: undefined,
+  symbolFields: ["name", "qualified_path", "kind"],
   excludeDocFiles: true,
   excludeTestFiles: true,
   explicit: {
@@ -69,6 +77,7 @@ const baseOptions = {
     maxMatches: true,
     maxMatchesPerFile: true,
     cursor: false,
+    symbolFields: true,
   },
 };
 
@@ -79,6 +88,10 @@ describe("buildGrepRepoSuccessPayload", () => {
     expect(envelope.patternType).toBe("literal");
     expect(envelope.totalMatches).toBe(1);
     expect(envelope.matches[0]?.filePath).toBe("src/index.js");
+    expect(envelope.matches[0]?.symbol).toMatchObject({
+      name: "createRouter",
+      qualifiedPath: "express.createRouter",
+    });
     expect(envelope.routeTaken).toBe("content_index");
     expect(envelope.filter).toEqual({
       pathPrefix: "src/",
@@ -89,6 +102,7 @@ describe("buildGrepRepoSuccessPayload", () => {
       contextLines: 2,
       maxMatches: 50,
       maxMatchesPerFile: 3,
+      symbolFields: ["name", "qualified_path", "kind"],
     });
   });
 });

@@ -133,6 +133,8 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("`package_changelog`");
     expect(instructions).toContain("`search`");
     expect(instructions).toContain("`search_status`");
+    expect(instructions).toContain("allow_partial_results");
+    expect(instructions).toContain("partial hits");
   });
 
   it("keeps the core block first when both sections are present", () => {

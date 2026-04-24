@@ -77,6 +77,8 @@ describe("pkgGrepAction", () => {
       value: true,
       configurable: true,
     });
+    const noColor = process.env.NO_COLOR;
+    delete process.env.NO_COLOR;
 
     await pkgGrepAction(
       "npm:express",
@@ -95,6 +97,11 @@ describe("pkgGrepAction", () => {
       "src/index.js:4:module.exports = require('./lib/express');",
     );
     writeSpy.mockRestore();
+    if (noColor === undefined) {
+      delete process.env.NO_COLOR;
+    } else {
+      process.env.NO_COLOR = noColor;
+    }
     if (stdoutDescriptor) {
       Object.defineProperty(process.stdout, "isTTY", stdoutDescriptor);
     }
@@ -308,6 +315,7 @@ describe("pkgGrepAction", () => {
         excludeDocs: true,
         excludeTests: true,
         cursor: "cursor-123",
+        symbolField: ["name", "qualified_path"],
       },
       createDeps({
         codeNavigationService: createMockCodeNavigationService({ grepRepo }),
@@ -327,6 +335,7 @@ describe("pkgGrepAction", () => {
           excludeDocFiles?: boolean;
           excludeTestFiles?: boolean;
           cursor?: string;
+          symbolFields?: string[];
         },
       ]
     >;
@@ -341,6 +350,7 @@ describe("pkgGrepAction", () => {
       excludeDocFiles: true,
       excludeTestFiles: true,
       cursor: "cursor-123",
+      symbolFields: ["name", "qualified_path"],
     });
     expect(calls[0]?.[0]?.pathSelectors).toEqual([
       { kind: "EXACT", value: "src/index.js" },

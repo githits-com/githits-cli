@@ -25,6 +25,7 @@ export interface UnifiedSearchRequestInput {
   publicOnly?: boolean;
   name?: string;
   language?: string;
+  allowPartialResults?: boolean;
   limit?: number;
   offset?: number;
   waitTimeoutMs?: number;
@@ -64,7 +65,7 @@ export function buildUnifiedSearchParams(
     kind: input.kind,
     category: input.category,
     pathPrefix: input.pathPrefix,
-    fileIntent: resolveFileIntent(input.fileIntent, defaulted),
+    fileIntent: resolveFileIntent(input.fileIntent, input.sources, defaulted),
     publicOnly: input.publicOnly,
   });
 
@@ -74,6 +75,7 @@ export function buildUnifiedSearchParams(
       query: compiledQuery,
       sources: input.sources,
       filters,
+      allowPartialResults: input.allowPartialResults,
       limit,
       offset,
       waitTimeoutMs,
@@ -142,9 +144,17 @@ function resolveNumber(
 
 function resolveFileIntent(
   value: SearchSymbolsFileIntent | undefined,
+  sources: UnifiedSearchSource[] | undefined,
   defaulted: Array<"fileIntent" | "limit" | "offset" | "waitTimeoutMs">,
-): SearchSymbolsFileIntent {
+): SearchSymbolsFileIntent | undefined {
   if (value === undefined) {
+    if (
+      sources &&
+      sources.length > 0 &&
+      sources.every((entry) => entry === "DOCS")
+    ) {
+      return undefined;
+    }
     defaulted.push("fileIntent");
     return SEARCH_SYMBOLS_DEFAULT_FILE_INTENT;
   }

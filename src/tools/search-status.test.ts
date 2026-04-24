@@ -55,6 +55,13 @@ describe("searchStatusTool", () => {
     });
   });
 
+  it("describes partial-result follow-up behavior", () => {
+    const tool = createSearchStatusTool(createMockCodeNavigationService());
+
+    expect(tool.description).toContain("partial hits");
+    expect(tool.description).toContain("allow_partial_results");
+  });
+
   it("returns completed payload without fabricating initial query echo", async () => {
     const tool = createSearchStatusTool(createMockCodeNavigationService());
 

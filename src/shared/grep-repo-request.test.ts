@@ -22,6 +22,7 @@ describe("buildGrepRepoParams", () => {
     expect(params.contextLinesAfter).toBe(0);
     expect(params.maxMatches).toBe(50);
     expect(params.waitTimeoutMs).toBe(20000);
+    expect(params.symbolFields).toBeUndefined();
   });
 
   it("compiles path, pathPrefix, and globs into pathSelectors", () => {
@@ -60,6 +61,27 @@ describe("buildGrepRepoParams", () => {
     expect(asymmetric.params.contextLinesAfter).toBe(5);
   });
 
+  it("passes symbol fields through when requested", () => {
+    const { params, explicit } = buildGrepRepoParams({
+      target,
+      pattern: "middleware",
+      symbolFields: ["name", "qualified_path", "kind"],
+    });
+
+    expect(params.symbolFields).toEqual(["name", "qualified_path", "kind"]);
+    expect(explicit.symbolFields).toBe(true);
+  });
+
+  it("rejects unknown symbol fields", () => {
+    expect(() =>
+      buildGrepRepoParams({
+        target,
+        pattern: "middleware",
+        symbolFields: ["name", "qualifiedPath"],
+      }),
+    ).toThrow(/symbol_fields.*qualifiedPath/);
+  });
+
   it("rejects leading dots in extensions", () => {
     expect(() =>
       buildGrepRepoParams({
@@ -87,10 +109,11 @@ describe("buildGrepRepoParams", () => {
 });
 
 describe("GREP_REPO_PATTERN_NOTE", () => {
-  it("mentions literal, regex, RE2, and byte limit", () => {
+  it("mentions literal, regex, RE2, byte limit, and whole-target regex planning", () => {
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/literal/i);
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/regex/i);
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/RE2/i);
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/200/i);
+    expect(GREP_REPO_PATTERN_NOTE).toMatch(/literal substring/i);
   });
 });

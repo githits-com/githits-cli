@@ -33,6 +33,7 @@ describe("searchTool", () => {
         target: { registry: "npm", package_name: "express" },
         kind: "function",
         language: "typescript",
+        allow_partial_results: true,
       },
       {},
     );
@@ -40,6 +41,7 @@ describe("searchTool", () => {
     expect(search).toHaveBeenCalledWith(
       expect.objectContaining({
         query: "(handler) AND (lang:typescript)",
+        allowPartialResults: true,
         filters: expect.objectContaining({ kind: "FUNCTION" }),
       }),
     );

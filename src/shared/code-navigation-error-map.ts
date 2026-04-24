@@ -170,7 +170,7 @@ function classify(error: unknown): MappedError {
   if (error instanceof CodeNavigationValidationError) {
     return {
       code: "INVALID_ARGUMENT",
-      message: error.message,
+      message: normalizeBackendMessage(error.message),
       retryable: false,
     };
   }
@@ -218,9 +218,11 @@ function classifyBackendError(error: CodeNavigationBackendError): MappedError {
   if (typeof error.status === "number") details.status = error.status;
   if (error.graphqlCode) details.graphqlCode = error.graphqlCode;
 
+  const message = normalizeBackendMessage(error.message);
+
   const build = (code: MappedErrorCode, defaultRetryable: boolean) => ({
     code,
-    message: error.message,
+    message,
     retryable: error.retryable ?? defaultRetryable,
     details: Object.keys(details).length > 0 ? details : undefined,
   });
@@ -232,11 +234,21 @@ function classifyBackendError(error: CodeNavigationBackendError): MappedError {
       return build("RATE_LIMITED", true);
     case "UPSTREAM_ERROR":
       return build("BACKEND_ERROR", true);
-    case "INTERNAL_ERROR":
-    case "UNKNOWN_ERROR":
     default:
       return build("BACKEND_ERROR", false);
   }
+}
+
+/**
+ * Align backend wording with the CLI/MCP docs. The backend labels the
+ * required regex pre-filter term as a "literal anchor"; our surfaces
+ * call it a "literal substring" to avoid anchor/^$ confusion.
+ */
+function normalizeBackendMessage(message: string): string {
+  return message
+    .replace(/extractable literal anchor/g, "extractable literal substring")
+    .replace(/at least one literal anchor/g, "at least one literal substring")
+    .replace(/literal prefix/g, "literal substring");
 }
 
 /**

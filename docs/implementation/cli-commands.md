@@ -10,8 +10,8 @@ The CLI exposes four primary top-level commands: `example`, `languages`, and `fe
 |---|---|---|---|
 | `init` | — | `-y, --yes`, `--skip-login` | Authenticate and set up MCP server for coding agents |
 | `example <query>` | `-l, --lang <language>` | `--license <mode>`, `--explain`, `--json` | Search for code examples |
-| `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols |
-| `search-status <search-ref>` | `<search-ref>` | `--json` | Check progress or fetch final results for a prior unified search |
+| `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols |
+| `search-status <search-ref>` | `<search-ref>` | `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search |
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback <solution_id>` | `--accept` or `--reject` | `-m, --message <text>`, `--json` | Submit feedback on a search result |
 | `code search <package> [query]` | package spec | `--keywords`, `--keyword`, `--match-mode`, `--category`, `--kind`, `--file`, `--intent`, `--limit`, `--wait`, `--json` | Search indexed dependency source code |
@@ -21,7 +21,7 @@ The CLI exposes four primary top-level commands: `example`, `languages`, and `fe
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
 | `code files [spec] [path-prefix]` | package spec OR `--repo-url` + `--git-ref`; optional `[path-prefix]` | `--limit`, `--wait`, `--verbose`, `--json` | List files in an indexed dependency. `[path-prefix]` is a literal directory prefix (not a glob). Plain output is one path per line; `--verbose` adds language / type / size annotations. Indexing-retry via `--wait` or the `availableVersions` hint in the error envelope. |
 | `code read <spec?> <path>` | package spec OR `--repo-url` + `--git-ref`; plus `<path>` | `--lines`, `--start`, `--end`, `--wait`, `--verbose`, `--json` | Read a file's contents. Plain output is the raw file bytes (pipe-friendly); `--verbose` adds a header and a line-number gutter. `--lines 10-40` concise form; `--start`/`--end` equivalent. Binary files show a sentinel line. |
-| `code grep [spec] <pattern> [path-prefix]` | package spec OR `--repo-url` + `--git-ref`; plus `<pattern>` and optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, `--regex`, `--case-sensitive`, `-C/-A/-B`, `--exclude-docs`, `--exclude-tests`, `--limit`, `--per-file-limit`, `--cursor`, `--wait`, `--verbose`, `--json` | Deterministic text grep over indexed dependency or repository source. Defaults to whole-target, literal, case-insensitive matching; narrow with `[path-prefix]`, `--path`, `--glob`, or `--ext`. Plain output is `file:line:text`; `--verbose` groups matches by file. |
+| `code grep [spec] <pattern> [path-prefix]` | package spec OR `--repo-url` + `--git-ref`; plus `<pattern>` and optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, `--regex`, `--case-sensitive`, `-C/-A/-B`, `--exclude-docs`, `--exclude-tests`, `--limit`, `--per-file-limit`, `--cursor`, `--symbol-field`, `--wait`, `--verbose`, `--json` | Deterministic text grep over indexed dependency or repository source. Defaults to whole-target, literal, ASCII case-insensitive matching; non-ASCII letters match case-sensitively. Narrow with `[path-prefix]`, `--path`, `--glob`, or `--ext`. Plain output is `file:line:text`; `--verbose` groups matches by file. |
 
 ### `githits init`
 
@@ -54,13 +54,13 @@ Default output is markdown (the API response). With `--explain`, an AI-generated
 
 ```
 githits search "router middleware" --in npm:express
-githits search "handler" --in npm:express --kind function --path-prefix src/
 githits search '"body parser" OR multer' --in npm:express --source docs
-githits search "retry logic" --in npm:got --in npm:ky --source code
-githits search "createServer" --in npm:@types/node --name createServer --lang typescript --json
+githits search "compose" --in npm:lodash --source code --kind function
+githits search "debounce" --in npm:lodash --source symbol
+githits search "composeArgs" --in npm:lodash --name composeArgs --json
 ```
 
-Unified search spans indexed dependency and repository code, docs, and explicit symbols. Structured flags are the primary UX. They are compiled together with the raw query using `AND` semantics before the request reaches the backend.
+Unified search spans indexed dependency and repository code, docs, and explicit symbols. The positional query is the backend discovery syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). Structured flags are compiled together with the query using `AND` semantics before the request reaches the backend.
 
 **Decision guide.** Use `githits example` for canonical cross-project examples. Use `githits search` for indexed dependency/repository search. Use `githits search --source symbol` when you want symbol-shaped unified search without dropping to the older dedicated `code search` surface.
 
@@ -68,9 +68,9 @@ Unified search spans indexed dependency and repository code, docs, and explicit 
 
 **Sources and filters.** `--source docs|code|symbol` is repeatable; omitting it delegates source selection to backend AUTO. Use `--source symbol` when you want symbol-shaped search results without dropping down to the older `code search` surface. `--category` is the broad filter (`callable`, `type`, `module`, `data`, `documentation`); `--kind` is the precise taxonomy. `--path-prefix`, `--intent`, and `--public` narrow the result set further. `--name` and `--lang` compile into query qualifiers instead of becoming separate backend fields.
 
-**Production intent by default.** When `--intent` is omitted, unified search defaults to `production` intent. This removes test / benchmark / example noise where the backend supports the filter. Some sources can still ignore `fileIntent`; when they do, the JSON `sourceStatus` block and terminal notes report that explicitly.
+**Production intent by default.** When `--intent` is omitted, unified search defaults to `production` intent for AUTO, code, and symbol searches. This removes test / benchmark / example noise where the backend supports the filter. Explicit docs-only searches do not get a file-intent default because docs do not support that filter. Some sources can still ignore `fileIntent`; when they do, the JSON `sourceStatus` block and terminal notes report that explicitly.
 
-**Complete-by-default results.** The CLI always forces `allowPartialResults: false`. If indexing does not complete within the wait window, the command returns a `searchRef` and progress summary instead of partial hits. `--wait` is in seconds (0-60, default 20).
+**Complete-by-default results.** The CLI sends `allowPartialResults: false` unless `--allow-partial` is passed. If indexing does not complete within the wait window, the default behavior returns a `searchRef` and progress summary instead of partial hits. With `--allow-partial`, available hits are included while remaining sources continue indexing. `--wait` is in seconds (0-60, default 20).
 
 **Output.** Plain output preserves backend ranking order. It starts with a lightweight per-type count summary, then shows one result per block. The header line is optimized for scanning and copy-paste follow-up: `target path:range [type] - title`. For file-backed hits, that header can be turned directly into a `githits code read` call because `code read` accepts `path:start-end` suffixes. Summaries are rendered verbatim from the backend response. Labels are: `docs page` (hosted package docs), `repo doc` (documentation-like block from a repository file), `repo code` (code block from a repository file), and `repo symbol` (explicit symbol hit from the repository index). `--json` emits the shared success/error envelope used by the MCP `search` tool, including a full `query` echo for initial searches.
 
@@ -83,7 +83,7 @@ githits search-status ref_abc123
 githits search-status ref_abc123 --json
 ```
 
-Follow-up for a prior unified search. Use the `searchRef` returned by `githits search` when the initial request could not complete inside the wait window.
+Follow-up for a prior unified search. Use the `searchRef` returned by `githits search` when the initial request could not complete inside the wait window. If the original request used `--allow-partial`, `search-status` can return updated partial hits before final completion.
 
 `search-status` deliberately does **not** reconstruct the original structured request echo. The backend status API exposes progress, final results, and the backend-normalized query string, but it does not expose the original target/filter/defaulting inputs. The JSON payload therefore contains only fields the follow-up endpoint can actually know: `{completed, searchRef?, progress?, result?}`.
 
@@ -322,7 +322,7 @@ githits code grep --repo-url https://github.com/expressjs/express --git-ref main
 githits code grep npm:express middleware --path lib/express.js --json
 ```
 
-Deterministic text grep over indexed dependency or repository source. Defaults to case-insensitive literal matching across the whole target. Pass `[path-prefix]`, `--path`, `--glob`, or `--ext` to narrow scope. `--regex` switches to RE2 regex mode. Max pattern 200 chars. For discovery and ranking, use top-level `githits search` instead.
+Deterministic text grep over indexed dependency or repository source. Defaults to ASCII case-insensitive literal matching across the whole target; non-ASCII letters match case-sensitively. Pass `[path-prefix]`, `--path`, `--glob`, or `--ext` to narrow scope. `--regex` switches to RE2 regex mode. Whole-target regexes must include at least one literal substring the index can use for pre-filtering. Max pattern 200 UTF-8 bytes. For discovery and ranking, use top-level `githits search` instead. Repeat `--symbol-field` to hydrate enclosing symbol metadata; hints appear under each `--verbose` match, full payload in `--json`.
 
 **Plain output (default).** One `file:line:text` record per match on stdout, pipe-friendly and deterministic. `-C/--context`, `-A/--after-context`, and `-B/--before-context` add surrounding lines. Distinct match groups are separated by `--`.
 

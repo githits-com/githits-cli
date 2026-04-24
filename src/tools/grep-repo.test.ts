@@ -34,9 +34,11 @@ describe("createGrepRepoTool — metadata", () => {
       "path_prefix",
       "pattern",
       "pattern_type",
+      "symbol_fields",
       "target",
       "wait_timeout_ms",
     ]);
+    expect(tool.schema.symbol_fields.description).toContain("parent_path");
     expect(tool.annotations?.readOnlyHint).toBe(true);
   });
 });
@@ -73,6 +75,7 @@ describe("createGrepRepoTool — happy path", () => {
           caseSensitive?: boolean;
           contextLinesBefore?: number;
           contextLinesAfter?: number;
+          symbolFields?: string[];
         },
       ]
     >;
@@ -85,6 +88,28 @@ describe("createGrepRepoTool — happy path", () => {
       { kind: "PREFIX", value: "src/" },
       { kind: "GLOB", value: "src/**/*.js" },
     ]);
+  });
+
+  it("passes symbol field hydration through to grepRepo", async () => {
+    const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
+    const tool = createGrepRepoTool(
+      createMockCodeNavigationService({ grepRepo }),
+    );
+
+    await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        pattern: "middleware",
+        symbol_fields: ["name", "qualified_path", "kind"],
+      },
+      {},
+    );
+
+    expect(grepRepo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbolFields: ["name", "qualified_path", "kind"],
+      }),
+    );
   });
 
   it("emits the new envelope shape", async () => {

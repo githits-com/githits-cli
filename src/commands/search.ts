@@ -14,7 +14,6 @@ import {
   buildUnifiedSearchParams,
   buildUnifiedSearchStatusPayload,
   buildUnifiedSearchSuccessPayload,
-  colorize,
   dim,
   highlight,
   highlightRanges,
@@ -27,6 +26,8 @@ import {
   toSearchSymbolsFileIntent,
   toSearchSymbolsKind,
   toSymbolCategory,
+  type UnifiedSearchStatusIncompletePayload,
+  type UnifiedSearchStatusResultPayload,
 } from "../shared/index.js";
 
 export interface SearchCommandOptions {
@@ -39,6 +40,7 @@ export interface SearchCommandOptions {
   public?: boolean;
   name?: string;
   lang?: string;
+  allowPartial?: boolean;
   limit?: string;
   offset?: string;
   wait?: string;
@@ -87,6 +89,7 @@ export async function searchAction(
       publicOnly: options.public,
       name: options.name,
       language: options.lang,
+      allowPartialResults: options.allowPartial,
       limit: parseOptionalInt(options.limit, "--limit", 1, 100),
       offset: parseOptionalInt(options.offset, "--offset", 0),
       waitTimeoutMs: parseWaitMs(options.wait),
@@ -130,24 +133,42 @@ export async function searchStatusAction(
     }
 
     if (!payload.completed) {
-      console.log(formatSearchStatusTerminal(payload));
+      if (payload.result) {
+        console.log(
+          formatSearchStatusPartialTerminal({
+            ...payload,
+            result: payload.result,
+          }),
+        );
+      } else {
+        console.log(formatSearchStatusTerminal(payload));
+      }
       return;
     }
 
     console.log(formatSearchStatusCompletedTerminal(payload));
   } catch (error) {
-    handleSearchError(error, options.json ?? false);
+    handleSearchError(error, options.json ?? false, "status");
   }
 }
 
 const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed dependencies and repositories.
 
-Use repeatable --in targets in package form (npm:express[@version]) or repo form
-(https://github.com/org/repo[#ref]). Structured flags are the primary UX; they are
-compiled with AND semantics against the raw query. Unified search defaults to
-production file intent where the backend supports that filter. Results are
-complete-by-default: if indexing is still in progress, search returns a
-searchRef instead of partial hits.
+Use repeatable --in targets in package form (npm:express[@version]) or repo
+form (https://github.com/org/repo[#ref]). Structured flags are AND-combined with
+the discovery query. Unified search defaults to production file intent where the
+backend supports that filter. Results are complete-by-default: if indexing is
+still in progress, search returns a searchRef instead of partial hits unless
+--allow-partial is passed.
+
+Query syntax:
+  implicit AND   foo bar
+  OR             foo OR bar        (must be uppercase)
+  grouping       (foo OR bar) baz
+  exclude        foo -bar
+  phrase         "exact phrase"
+  qualifiers     kind: category: path: lang: name: intent:
+  routing        registry: package: version: repo:
 
 Decision guide:
   githits example ...                canonical cross-project examples
@@ -162,18 +183,16 @@ Plain output labels:
 
 Examples:
   githits search "router middleware" --in npm:express
-  githits search "handler" --in npm:express --kind function --path-prefix src/
   githits search '"body parser" OR multer' --in npm:express --source docs
-  githits search "retry logic" --in npm:got --in npm:ky --source code
-  githits search "createServer" --in npm:@types/node --name createServer --lang typescript`;
+  githits search "compose" --in npm:lodash --source code --kind function
+  githits search "debounce" --in npm:lodash --source symbol
+  githits search "composeArgs" --in npm:lodash --name composeArgs`;
 
 const SEARCH_STATUS_DESCRIPTION = `Check the status of a unified search started earlier.
 
-Pass the searchRef returned by \
-
-  githits search ...
-
-when the initial request could not complete within the wait window.`;
+Pass the searchRef returned by githits search when the initial request could
+not complete within the wait window. This can return progress, partial hits when
+the original request used --allow-partial, or final results.`;
 
 export function registerSearchCommand(program: Command) {
   program
@@ -213,7 +232,7 @@ export function registerSearchCommand(program: Command) {
     .addOption(
       new Option(
         "--intent <intent>",
-        "File intent filter (default: production)",
+        "File intent filter (default: production for AUTO/code/symbol, omitted for docs-only)",
       ).choices([
         "production",
         "test",
@@ -228,6 +247,10 @@ export function registerSearchCommand(program: Command) {
     .option("--public", "Filter to public symbols when supported")
     .option("--name <name>", "Structured name qualifier")
     .option("--lang <language>", "Structured language qualifier")
+    .option(
+      "--allow-partial",
+      "Include hits already available while indexing continues; a searchRef is still returned so search-status can fetch the rest",
+    )
     .option("--limit <n>", "Max results (1-100)")
     .option("--offset <n>", "Result offset")
     .option(
@@ -313,7 +336,20 @@ function parseTargetSpecs(specs: string[] | undefined) {
   if (!specs || specs.length === 0) {
     throw new InvalidArgumentError("Provide at least one --in target.");
   }
+  for (const spec of specs) {
+    warnIfUnprefixedTargetSpec(spec);
+  }
   return specs.map(parseUnifiedSearchTargetSpec);
+}
+
+function warnIfUnprefixedTargetSpec(spec: string): void {
+  const trimmed = spec.trim();
+  if (trimmed.length === 0) return;
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return;
+  if (trimmed.includes(":")) return;
+  console.error(
+    `Warning: --in '${trimmed}' has no registry prefix; treating as 'npm:${trimmed}'. Pass 'npm:${trimmed}' explicitly to suppress this warning.`,
+  );
 }
 
 function parseSources(
@@ -366,15 +402,29 @@ function collectRepeatable(value: string, previous: string[]): string[] {
   return [...previous, value];
 }
 
-function handleSearchError(error: unknown, json: boolean): never {
+function handleSearchError(
+  error: unknown,
+  json: boolean,
+  context: "search" | "status" = "search",
+): never {
   const payload = buildUnifiedSearchErrorPayload(error);
 
   if (json) {
     console.error(JSON.stringify(payload));
   } else {
-    console.error(payload.error);
+    console.error(formatSearchErrorTerminal(payload, context));
   }
   process.exit(1);
+}
+
+function formatSearchErrorTerminal(
+  payload: { error: string; code: string },
+  context: "search" | "status",
+): string {
+  if (context === "status" && payload.code === "NOT_FOUND") {
+    return `${payload.error}\n  Search sessions expire; run \`githits search ...\` to start a new one.`;
+  }
+  return payload.error;
 }
 
 function formatUnifiedSearchTerminal(payload: {
@@ -405,14 +455,8 @@ function formatUnifiedSearchTerminal(payload: {
   }>;
   searchRef?: string;
   progress?: { targetsReady?: number; targetsTotal?: number };
-  query: { warnings?: string[] };
-  sourceStatus?: Array<{
-    source: string;
-    targetLabel: string;
-    ignoredFilters: string[];
-    incompatibleFilters: string[];
-    note?: string;
-  }>;
+  query: { warnings?: string[]; defaulted?: ReadonlyArray<string> };
+  sourceStatus?: SourceStatusEntry[];
 }): string {
   const lines: string[] = [];
   const useColors = shouldUseColors();
@@ -425,25 +469,49 @@ function formatUnifiedSearchTerminal(payload: {
   }
 
   if (!payload.completed) {
-    return formatSearchStatusTerminal({
+    const statusText = formatSearchStatusTerminal({
       completed: false,
       searchRef: payload.searchRef ?? "",
       progress: payload.progress,
     });
+    if (payload.results.length === 0) {
+      return statusText;
+    }
+    lines.push(statusText);
+    lines.push("");
+    lines.push("Partial results:");
   }
+
+  const sourceStatusNotes = formatSourceStatusNotes(
+    payload.sourceStatus,
+    payload.query.defaulted,
+  );
 
   if (payload.results.length === 0) {
     lines.push("No results.");
-    return lines.join("\n");
+    if (sourceStatusNotes.length > 0) {
+      lines.push("");
+      lines.push(...sourceStatusNotes);
+    }
+    return lines.join("\n").trimEnd();
   }
 
-  lines.push(
-    `${highlight(`${payload.returnedCount} result(s)`, useColors)}${payload.hasMore ? dim(" (more available)", useColors) : ""}`,
+  const { display, duplicatesFolded } = dedupeSearchResultsForDisplay(
+    payload.results,
   );
-  lines.push(dim(formatUnifiedSearchTypeSummary(payload.results), useColors));
+
+  const baseCount = `${display.length} result(s)`;
+  const countSuffix = [
+    payload.hasMore ? " (more available)" : "",
+    duplicatesFolded > 0 ? ` (+${duplicatesFolded} near-duplicate folded)` : "",
+  ].join("");
+  lines.push(
+    `${highlight(baseCount, useColors)}${dim(countSuffix, useColors)}`,
+  );
+  lines.push(dim(formatUnifiedSearchTypeSummary(display), useColors));
   lines.push("");
 
-  for (const entry of payload.results) {
+  for (const entry of display) {
     const location = formatUnifiedSearchLocation(entry.locator);
     const header = formatUnifiedSearchHeader(entry, useColors, location);
     lines.push(header);
@@ -456,10 +524,6 @@ function formatUnifiedSearchTerminal(payload: {
         ),
       );
     }
-    const detailLine = formatUnifiedSearchDetailLine(entry, useColors);
-    if (detailLine) {
-      lines.push(detailLine);
-    }
     lines.push("");
   }
 
@@ -467,7 +531,6 @@ function formatUnifiedSearchTerminal(payload: {
     lines.push(dim(`Next offset: ${payload.nextOffset}`, useColors));
   }
 
-  const sourceStatusNotes = formatSourceStatusNotes(payload.sourceStatus);
   if (sourceStatusNotes.length > 0) {
     lines.push("");
     lines.push(...sourceStatusNotes);
@@ -536,13 +599,7 @@ function formatSearchStatusCompletedTerminal(payload: {
     returnedCount: number;
     hasMore: boolean;
     nextOffset?: number;
-    sourceStatus?: Array<{
-      source: string;
-      targetLabel: string;
-      ignoredFilters: string[];
-      incompatibleFilters: string[];
-      note?: string;
-    }>;
+    sourceStatus?: SourceStatusEntry[];
     results: Array<{
       type: string;
       target: string;
@@ -569,39 +626,86 @@ function formatSearchStatusCompletedTerminal(payload: {
   });
 }
 
+function formatSearchStatusPartialTerminal(
+  payload: UnifiedSearchStatusIncompletePayload & {
+    result: UnifiedSearchStatusResultPayload;
+  },
+): string {
+  return formatUnifiedSearchTerminal({
+    completed: false,
+    returnedCount: payload.result.returnedCount,
+    hasMore: payload.result.hasMore,
+    nextOffset: payload.result.nextOffset,
+    results: payload.result.results,
+    searchRef: payload.searchRef,
+    progress: payload.progress,
+    query: { warnings: payload.result.queryWarnings },
+    sourceStatus: payload.result.sourceStatus,
+  });
+}
+
+interface SourceStatusEntry {
+  source: string;
+  targetLabel: string;
+  ignoredFilters: string[];
+  incompatibleFilters: string[];
+  ignoredQueryFeatures?: string[];
+  incompatibleQueryFeatures?: string[];
+  note?: string;
+}
+
 function formatSourceStatusNotes(
-  sourceStatus:
-    | Array<{
-        source: string;
-        targetLabel: string;
-        ignoredFilters: string[];
-        incompatibleFilters: string[];
-        note?: string;
-      }>
-    | undefined,
+  sourceStatus: SourceStatusEntry[] | undefined,
+  defaulted: ReadonlyArray<string> | undefined,
 ): string[] {
   const useColors = shouldUseColors();
   if (!sourceStatus) {
     return [];
   }
 
+  const defaultedSet = new Set(defaulted ?? []);
   const lines: string[] = [];
   for (const entry of sourceStatus) {
     const label = `${entry.source.toLowerCase()} on ${entry.targetLabel}`;
-    if (entry.ignoredFilters.length > 0) {
+    const ignoredFilters = entry.ignoredFilters.filter(
+      (name) => !defaultedSet.has(name),
+    );
+    if (ignoredFilters.length > 0) {
       lines.push(
         dim(
-          `Note: ${label} ignored filters: ${entry.ignoredFilters.join(", ")}`,
+          `Note: ${label} ignored filters: ${ignoredFilters.join(", ")}`,
           useColors,
         ),
       );
     }
-    if (entry.incompatibleFilters.length > 0) {
+    const incompatibleFilters = entry.incompatibleFilters.filter(
+      (name) => !defaultedSet.has(name),
+    );
+    if (incompatibleFilters.length > 0) {
       lines.push(
         dim(
-          `Note: ${label} incompatible filters: ${entry.incompatibleFilters.join(
+          `Note: ${label} incompatible filters: ${incompatibleFilters.join(
             ", ",
           )}`,
+          useColors,
+        ),
+      );
+    }
+    if (entry.ignoredQueryFeatures && entry.ignoredQueryFeatures.length > 0) {
+      lines.push(
+        dim(
+          `Note: ${label} ignored query features: ${entry.ignoredQueryFeatures.join(", ")}`,
+          useColors,
+        ),
+      );
+    }
+    if (
+      entry.incompatibleQueryFeatures &&
+      entry.incompatibleQueryFeatures.length > 0
+    ) {
+      lines.push(
+        dim(
+          `Note: ${label} incompatible query features: ${entry.incompatibleQueryFeatures.join(", ")}`,
           useColors,
         ),
       );
@@ -612,6 +716,34 @@ function formatSourceStatusNotes(
   }
 
   return lines;
+}
+
+function dedupeSearchResultsForDisplay<
+  T extends {
+    type: string;
+    target: string;
+    title?: string;
+    summary?: string;
+  },
+>(results: T[]): { display: T[]; duplicatesFolded: number } {
+  const seen = new Set<string>();
+  const display: T[] = [];
+  let duplicatesFolded = 0;
+  for (const entry of results) {
+    const key = [
+      entry.type,
+      entry.target,
+      entry.title ?? "",
+      (entry.summary ?? "").slice(0, 120),
+    ].join("");
+    if (seen.has(key)) {
+      duplicatesFolded += 1;
+      continue;
+    }
+    seen.add(key);
+    display.push(entry);
+  }
+  return { display, duplicatesFolded };
 }
 
 function formatUnifiedSearchTypeSummary(
@@ -721,35 +853,4 @@ function formatUnifiedSearchHeader(
     ? highlightRanges(entry.title, entry.highlights?.title, useColors)
     : undefined;
   return `${highlight(primary, useColors)} ${dim(badge, useColors)}${title ? ` - ${title}` : ""}`;
-}
-
-function formatUnifiedSearchDetailLine(
-  entry: {
-    type: string;
-    target: string;
-    locator: {
-      registry?: string;
-      packageName?: string;
-      version?: string;
-      repoUrl?: string;
-      gitRef?: string;
-      pageId?: string;
-      filePath?: string;
-      startLine?: number;
-      endLine?: number;
-    };
-  },
-  useColors: boolean,
-): string | undefined {
-  if (entry.type === "documentation_page") {
-    const docHint = entry.locator.pageId
-      ? `pageId=${entry.locator.pageId}`
-      : entry.target;
-    return dim(
-      `  Full doc fetch not exposed in CLI yet (${docHint})`,
-      useColors,
-    );
-  }
-
-  return undefined;
 }

@@ -39,6 +39,7 @@ export type {
   GrepTruncatedReason,
   ListFilesParams,
   ListFilesResult,
+  NavigationSymbol,
   ReadFileParams,
   ReadFileResult,
   RepoFileEntry,

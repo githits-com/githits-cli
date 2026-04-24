@@ -36,10 +36,10 @@ const PACKAGE_CHANGELOG_BULLET =
   "- `package_changelog` — release notes for a package or GitHub repo, newest-first. Default latest mode returns the 10 most recent entries with full markdown bodies; `from_version` switches to range mode between two versions. Addressable via `registry` + `package_name` or `repo_url`. Set `include_bodies: false` for a version / date / URL timeline when bodies aren't needed.";
 
 const SEARCH_BULLET =
-  "- `search` — unified search across indexed dependency code, docs, and explicit symbols. Structured fields are the primary UX; omit `sources` for AUTO. Production file intent is applied by default where supported, but some sources may ignore that filter and report it in `sourceStatus`. Returns only trustworthy complete results by default. If indexing is still in progress, the response carries a `searchRef` instead of partial hits.";
+  "- `search` — unified search across indexed dependency code, docs, and explicit symbols. Structured fields are the primary UX; omit `sources` for AUTO. Production file intent is applied by default where supported, but some sources may ignore that filter and report it in `sourceStatus`. Returns only trustworthy complete results by default; opt into partial hits with `allow_partial_results: true`. If indexing is still in progress, the response carries a `searchRef`.";
 
 const SEARCH_STATUS_BULLET =
-  "- `search_status` — follow up a prior unified search by `searchRef`. Use it after `search` returns incomplete state to check progress or fetch final results.";
+  "- `search_status` — follow up a prior unified search by `searchRef`. Use it after `search` returns incomplete state to check progress, fetch partial hits when the original request used `allow_partial_results: true`, or fetch final results.";
 
 const LIST_FILES_BULLET =
   "- `list_files` — discover what files a dependency ships. Use `path_prefix` to scope to a subdirectory; the response includes each file's language, type, and byte size. Returned `path` values feed directly into `read_file` and help scope `grep_repo`.";
