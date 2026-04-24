@@ -134,7 +134,10 @@ const schema = {
       "build",
       "vendor",
     ])
-    .optional(),
+    .optional()
+    .describe(
+      "Optional file-intent filter. When omitted, AUTO/code/symbol searches default to production; explicit docs-only searches omit the filter because docs do not support it.",
+    ),
   public_only: z.boolean().optional(),
   name: z.string().optional(),
   language: z.string().optional(),
@@ -142,7 +145,7 @@ const schema = {
     .boolean()
     .optional()
     .describe(
-      "When true, return available partial results while other sources are still indexing. Default false returns only searchRef/progress until complete.",
+      "Default false waits for all sources; if the wait window expires, returns only searchRef/progress. When true, includes hits from sources that finished so far and still returns searchRef for continuation. Partial payloads support normal pagination via nextOffset.",
     ),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
@@ -151,10 +154,10 @@ const schema = {
 
 const DESCRIPTION =
   "Search indexed dependency and repository code, docs, and explicit symbols. " +
-  "The query is the backend discovery syntax: implicit AND, uppercase OR, parentheses, unary -, quoted phrases, semantic qualifiers, and routing qualifiers. " +
+  "The query field uses GitHits discovery syntax (AND/OR/parens/qualifiers; see the parameter description). " +
   "Structured parameters combine with that query using AND semantics. " +
   "Provide either `target` for one target or `targets` for many. Omit `sources` to use backend AUTO. " +
-  "Results are trustworthy by default: if indexing is still in progress, this tool returns a `searchRef` state instead of partial hits. " +
+  "Results are complete by default; set `allow_partial_results: true` to include available hits while indexing continues. " +
   "Use `search_status` with that ref to continue.";
 
 export function createSearchTool(

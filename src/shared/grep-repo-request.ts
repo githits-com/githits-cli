@@ -17,8 +17,30 @@ const LIMIT_MAX = 1000;
 const LIMIT_DEFAULT = 50;
 const WAIT_MIN = 0;
 
+export const GREP_REPO_SYMBOL_FIELDS = [
+  "symbol_ref",
+  "name",
+  "qualified_path",
+  "kind",
+  "category",
+  "arity",
+  "is_public",
+  "file_path",
+  "start_line",
+  "end_line",
+  "code",
+  "caller_count",
+  "content_hash",
+  "parent_symbol_ref",
+  "parent_path",
+] as const;
+
+export type GrepRepoSymbolField = (typeof GREP_REPO_SYMBOL_FIELDS)[number];
+
+export const GREP_REPO_SYMBOL_FIELDS_NOTE = `Enclosing symbol fields to hydrate on each match. Valid values: ${GREP_REPO_SYMBOL_FIELDS.join(", ")}. Omit for no symbol hydration.`;
+
 export const GREP_REPO_PATTERN_NOTE =
-  "Text grep over indexed source files. `literal` (default) does substring matching; `regex` uses RE2 syntax (no lookaround, no backreferences) and needs a literal anchor for indexed repo-wide searches. Pattern max 200 UTF-8 bytes; matching is ASCII case-insensitive by default.";
+  "Text grep over indexed source files. `literal` (default) does substring matching. `regex` uses RE2 syntax (no lookaround, no backreferences); when scoping the whole target with no path, path_prefix, or glob, the regex must include at least one literal substring the index can use for pre-filtering. Pattern max 200 UTF-8 bytes. Matching is ASCII case-insensitive by default: non-ASCII letters match case-sensitively; pass case_sensitive: true for exact casing.";
 
 export interface GrepRepoRequestPathSelectorInput {
   kind: "exact" | "prefix" | "glob";
@@ -42,7 +64,7 @@ export interface GrepRepoRequestInput {
   maxMatches?: number;
   maxMatchesPerFile?: number;
   cursor?: string;
-  symbolFields?: string[];
+  symbolFields?: readonly string[];
   waitTimeoutMs?: number;
 }
 
@@ -109,7 +131,7 @@ export function buildGrepRepoParams(
   const maxMatchesPerFile = normalizeMaxMatchesPerFile(input.maxMatchesPerFile);
   const waitTimeoutMs = normalizeWaitTimeoutMs(input.waitTimeoutMs);
   const cursor = normalizeOptionalNonEmpty(input.cursor, "cursor");
-  const symbolFields = normalizeStringList(input.symbolFields, "symbol_fields");
+  const symbolFields = normalizeSymbolFields(input.symbolFields);
 
   const pathSelectors = buildPathSelectors({ path, pathPrefix, globs });
   const hasPathSelectors = (pathSelectors?.length ?? 0) > 0;
@@ -204,6 +226,20 @@ function normalizeStringList(
     out.push(trimmed);
   }
   return out;
+}
+
+function normalizeSymbolFields(
+  values: readonly string[] | undefined,
+): GrepRepoSymbolField[] {
+  const out = normalizeStringList([...(values ?? [])], "symbol_fields");
+  for (const value of out) {
+    if (!GREP_REPO_SYMBOL_FIELDS.includes(value as GrepRepoSymbolField)) {
+      throw new InvalidPackageSpecError(
+        `\`symbol_fields\` value must be one of: ${GREP_REPO_SYMBOL_FIELDS.join(", ")}. Got: ${value}.`,
+      );
+    }
+  }
+  return out as GrepRepoSymbolField[];
 }
 
 function normalizeExtensions(values: string[] | undefined): string[] {

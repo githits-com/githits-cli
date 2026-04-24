@@ -377,8 +377,8 @@ export interface GrepRepoParams {
 }
 
 export interface NavigationSymbol {
-  symbolRef: string;
-  name: string;
+  symbolRef?: string;
+  name?: string;
   qualifiedPath?: string;
   kind?: string;
   category?: string;
@@ -1180,8 +1180,8 @@ const grepRepoMatchSchema = z.object({
   symbolRowId: z.string().nullable().optional(),
   symbol: z
     .object({
-      symbolRef: z.string(),
-      name: z.string(),
+      symbolRef: z.string().optional(),
+      name: z.string().optional(),
       qualifiedPath: z.string().nullable().optional(),
       kind: z.string().nullable().optional(),
       category: z.string().nullable().optional(),
@@ -1234,7 +1234,38 @@ const grepRepoGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
-const GREP_REPO_QUERY = `
+const GREP_REPO_SYMBOL_SELECTIONS: Record<string, string> = {
+  symbol_ref: "symbolRef",
+  name: "name",
+  qualified_path: "qualifiedPath",
+  kind: "kind",
+  category: "category",
+  arity: "arity",
+  is_public: "isPublic",
+  file_path: "filePath",
+  start_line: "startLine",
+  end_line: "endLine",
+  code: "code",
+  caller_count: "callerCount",
+  content_hash: "contentHash",
+  parent_symbol_ref: "parentSymbolRef",
+  parent_path: "parentPath",
+};
+
+function buildGrepRepoQuery(
+  symbolFields: readonly string[] | undefined,
+): string {
+  const symbolSelection = (symbolFields ?? [])
+    .map((field) => GREP_REPO_SYMBOL_SELECTIONS[field])
+    .filter((field): field is string => Boolean(field))
+    .filter((field, index, fields) => fields.indexOf(field) === index)
+    .join("\n        ");
+  const symbolBlock =
+    symbolSelection.length > 0
+      ? `\n      symbol {\n        ${symbolSelection}\n      }`
+      : "";
+
+  return `
 query GrepRepo(
   $registry: Registry
   $packageName: String
@@ -1289,24 +1320,7 @@ query GrepRepo(
       contextAfter
       fileContentHash
       fileIntent
-      symbolRowId
-      symbol {
-        symbolRef
-        name
-        qualifiedPath
-        kind
-        category
-        arity
-        isPublic
-        filePath
-        startLine
-        endLine
-        code
-        callerCount
-        contentHash
-        parentSymbolRef
-        parentPath
-      }
+      symbolRowId${symbolBlock}
     }
     nextCursor
     totalMatches
@@ -1333,6 +1347,7 @@ query GrepRepo(
     }
   }
 }`;
+}
 
 // `data` may be null (seen live for unknown packages that also carry
 // `errors`), and `searchSymbols` may be null even when `data` is present.
@@ -2195,7 +2210,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       response = await postPkgseerGraphql({
         endpointUrl: this.codeNavigationUrl,
         token,
-        query: GREP_REPO_QUERY,
+        query: buildGrepRepoQuery(params.symbolFields),
         variables: {
           registry: params.target.registry,
           packageName: params.target.packageName,

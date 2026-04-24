@@ -13,8 +13,8 @@ export interface LeanGrepRepoMatch {
   fileIntent?: string;
   symbolRowId?: string;
   symbol?: {
-    symbolRef: string;
-    name: string;
+    symbolRef?: string;
+    name?: string;
     qualifiedPath?: string;
     kind?: string;
     category?: string;

@@ -10,6 +10,7 @@ import {
   buildGrepRepoSuccessPayload,
   formatGrepRepoTerminal,
   GREP_REPO_PATTERN_NOTE,
+  GREP_REPO_SYMBOL_FIELDS_NOTE,
   InvalidPackageSpecError,
   requireAuth,
 } from "../../shared/index.js";
@@ -221,11 +222,14 @@ Use \`githits search\` for discovery; use \`githits code grep\` when you know th
 Addressing: <spec> (registry:name[@version]) OR --repo-url <url> --git-ref <ref>.
 In spec mode pass <spec> <pattern> [path-prefix]; in repo-URL mode pass only <pattern> [path-prefix].
 
-[path-prefix] matches the same literal prefix semantics as \`githits code files\`. Use --path for one exact file,
-repeatable --glob for glob narrowing, and repeatable --ext for extension filtering.
+[path-prefix] matches the same literal prefix semantics as \`githits code files\`.
+Use --path for one exact file, repeatable --glob for glob narrowing, and
+repeatable --ext for extension filtering.
 
-Default output is \`file:line:text\`, pipe-friendly like grep. Use -C/ -A / -B for context, --verbose for grouped output,
-and --cursor to continue a paginated grep run. Use repeatable --symbol-field to hydrate enclosing symbol metadata on JSON output.`;
+Default output is \`file:line:text\`, pipe-friendly like grep. Use -C / -A / -B
+for context, --verbose for grouped output, and --cursor to continue a paginated
+grep run. Use repeatable --symbol-field to hydrate enclosing symbol metadata on
+JSON output.`;
 
 export function registerCodeGrepCommand(pkgCommand: Command): Command {
   return pkgCommand
@@ -292,7 +296,7 @@ export function registerCodeGrepCommand(pkgCommand: Command): Command {
     )
     .option(
       "--symbol-field <field>",
-      "Hydrate enclosing symbol field on JSON matches (repeatable; e.g. name, qualified_path, kind)",
+      `Hydrate enclosing symbol field on JSON matches (repeatable). ${GREP_REPO_SYMBOL_FIELDS_NOTE}`,
       collectRepeatable,
       [] as string[],
     )

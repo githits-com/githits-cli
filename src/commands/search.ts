@@ -27,6 +27,8 @@ import {
   toSearchSymbolsFileIntent,
   toSearchSymbolsKind,
   toSymbolCategory,
+  type UnifiedSearchStatusIncompletePayload,
+  type UnifiedSearchStatusResultPayload,
 } from "../shared/index.js";
 
 export interface SearchCommandOptions {
@@ -153,15 +155,21 @@ export async function searchStatusAction(
 
 const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed dependencies and repositories.
 
-Use repeatable --in targets in package form (npm:express[@version]) or repo form
-(https://github.com/org/repo[#ref]). Structured flags are the primary UX; they are
-compiled with AND semantics against the discovery query. The query supports
-implicit AND, uppercase OR, parentheses, unary -, quoted phrases, semantic
-qualifiers (kind:, category:, path:, lang:, name:, intent:), and routing
-qualifiers (registry:, package:, version:, repo:). Unified search defaults to
-production file intent where the backend supports that filter. Results are
-complete-by-default: if indexing is still in progress, search returns a
-searchRef instead of partial hits unless --allow-partial is passed.
+Use repeatable --in targets in package form (npm:express[@version]) or repo
+form (https://github.com/org/repo[#ref]). Structured flags are AND-combined with
+the discovery query. Unified search defaults to production file intent where the
+backend supports that filter. Results are complete-by-default: if indexing is
+still in progress, search returns a searchRef instead of partial hits unless
+--allow-partial is passed.
+
+Query syntax:
+  implicit AND   foo bar
+  OR             foo OR bar        (must be uppercase)
+  grouping       (foo OR bar) baz
+  exclude        foo -bar
+  phrase         "exact phrase"
+  qualifiers     kind: category: path: lang: name: intent:
+  routing        registry: package: version: repo:
 
 Decision guide:
   githits example ...                canonical cross-project examples
@@ -183,11 +191,9 @@ Examples:
 
 const SEARCH_STATUS_DESCRIPTION = `Check the status of a unified search started earlier.
 
-Pass the searchRef returned by \
-
-  githits search ...
-
-when the initial request could not complete within the wait window.`;
+Pass the searchRef returned by githits search when the initial request could
+not complete within the wait window. This can return progress, partial hits when
+the original request used --allow-partial, or final results.`;
 
 export function registerSearchCommand(program: Command) {
   program
@@ -227,7 +233,7 @@ export function registerSearchCommand(program: Command) {
     .addOption(
       new Option(
         "--intent <intent>",
-        "File intent filter (default: production)",
+        "File intent filter (default: production for AUTO/code/symbol, omitted for docs-only)",
       ).choices([
         "production",
         "test",
@@ -244,7 +250,7 @@ export function registerSearchCommand(program: Command) {
     .option("--lang <language>", "Structured language qualifier")
     .option(
       "--allow-partial",
-      "Return available partial results while other sources are still indexing",
+      "Include hits already available while indexing continues; a searchRef is still returned so search-status can fetch the rest",
     )
     .option("--limit <n>", "Max results (1-100)")
     .option("--offset <n>", "Result offset")
@@ -593,35 +599,11 @@ function formatSearchStatusCompletedTerminal(payload: {
   });
 }
 
-function formatSearchStatusPartialTerminal(payload: {
-  completed: false;
-  searchRef: string;
-  progress?: { targetsReady?: number; targetsTotal?: number; status?: string };
-  result: {
-    queryWarnings: string[];
-    returnedCount: number;
-    hasMore: boolean;
-    nextOffset?: number;
-    sourceStatus?: Array<{
-      source: string;
-      targetLabel: string;
-      ignoredFilters: string[];
-      incompatibleFilters: string[];
-      note?: string;
-    }>;
-    results: Array<{
-      type: string;
-      target: string;
-      title?: string;
-      summary?: string;
-      highlights?: {
-        title?: Array<readonly [number, number]>;
-        summary?: Array<readonly [number, number]>;
-      };
-      locator: { filePath?: string; startLine?: number; endLine?: number };
-    }>;
-  };
-}): string {
+function formatSearchStatusPartialTerminal(
+  payload: UnifiedSearchStatusIncompletePayload & {
+    result: UnifiedSearchStatusResultPayload;
+  },
+): string {
   return formatUnifiedSearchTerminal({
     completed: false,
     returnedCount: payload.result.returnedCount,

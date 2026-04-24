@@ -37,8 +37,11 @@ export { debugLog } from "./debug-log.js";
 export {
   buildGrepRepoParams,
   GREP_REPO_PATTERN_NOTE,
+  GREP_REPO_SYMBOL_FIELDS,
+  GREP_REPO_SYMBOL_FIELDS_NOTE,
   type GrepRepoRequestBuildResult,
   type GrepRepoRequestInput,
+  type GrepRepoSymbolField,
 } from "./grep-repo-request.js";
 export {
   type BuildGrepRepoPayloadOptions,

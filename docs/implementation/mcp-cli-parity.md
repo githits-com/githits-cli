@@ -37,6 +37,8 @@ the test suite anchors the doc.
 - **MCP arguments** use `snake_case`. They are the wire contract agents
   see; the JSON-schema description is the primary UX.
 - **CLI flags** use `--kebab-case`. They are the user-facing surface.
+  `allow_partial_results` maps to CLI `--allow-partial` because the CLI
+  name reads better as a command flag while preserving the same behavior.
 - **Public enum values** are lowercase strings on both surfaces
   (`production`, `test`, `summary`, `all`).
 - **Service coercion** from lowercase enum values to the internal
@@ -442,11 +444,14 @@ so envelope-drift surfaces in the test rather than at an agent.
   The shared request builder compiles `path`, `path_prefix`, and
   `globs` into backend `pathSelectors`, keeps `allowUnscoped`
   internal-only, and defaults grep to whole-target, literal,
-  ASCII case-insensitive matching. `symbol_fields` / `--symbol-field`
-  passes backend symbol hydration field names through to `symbolFields`
-  and the response envelope carries `matches[].symbol` when the backend
-  hydrates it. The shared response builder keeps CLI `--json` and MCP
-  payloads byte-identical for equivalent inputs.
+  ASCII case-insensitive matching; non-ASCII letters match
+  case-sensitively. Whole-target regexes must include at least one
+  literal substring the backend index can use for pre-filtering.
+  `symbol_fields` / `--symbol-field` passes backend symbol hydration
+  field names through to `symbolFields` and the response envelope
+  carries `matches[].symbol` when the backend hydrates it. The shared
+  response builder keeps CLI `--json` and MCP payloads byte-identical
+  for equivalent inputs.
 
 - **Parity assertion policy** (coded in the three parity
   tests):

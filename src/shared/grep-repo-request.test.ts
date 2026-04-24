@@ -72,6 +72,16 @@ describe("buildGrepRepoParams", () => {
     expect(explicit.symbolFields).toBe(true);
   });
 
+  it("rejects unknown symbol fields", () => {
+    expect(() =>
+      buildGrepRepoParams({
+        target,
+        pattern: "middleware",
+        symbolFields: ["name", "qualifiedPath"],
+      }),
+    ).toThrow(/symbol_fields.*qualifiedPath/);
+  });
+
   it("rejects leading dots in extensions", () => {
     expect(() =>
       buildGrepRepoParams({
@@ -99,10 +109,11 @@ describe("buildGrepRepoParams", () => {
 });
 
 describe("GREP_REPO_PATTERN_NOTE", () => {
-  it("mentions literal, regex, RE2, and byte limit", () => {
+  it("mentions literal, regex, RE2, byte limit, and whole-target regex planning", () => {
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/literal/i);
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/regex/i);
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/RE2/i);
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/200/i);
+    expect(GREP_REPO_PATTERN_NOTE).toMatch(/literal substring/i);
   });
 });

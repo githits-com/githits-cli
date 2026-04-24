@@ -5,6 +5,9 @@ import {
   buildGrepRepoParams,
   buildGrepRepoSuccessPayload,
   GREP_REPO_PATTERN_NOTE,
+  GREP_REPO_SYMBOL_FIELDS,
+  GREP_REPO_SYMBOL_FIELDS_NOTE,
+  type GrepRepoSymbolField,
 } from "../shared/index.js";
 import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
 import {
@@ -31,7 +34,7 @@ export interface GrepRepoArgs {
   max_matches?: number;
   max_matches_per_file?: number;
   cursor?: string;
-  symbol_fields?: string[];
+  symbol_fields?: GrepRepoSymbolField[];
   wait_timeout_ms?: number;
 }
 
@@ -76,11 +79,9 @@ const schema = {
   max_matches_per_file: z.number().optional(),
   cursor: z.string().optional(),
   symbol_fields: z
-    .array(z.string())
+    .array(z.enum(GREP_REPO_SYMBOL_FIELDS))
     .optional()
-    .describe(
-      'Enclosing symbol fields to hydrate on each match (e.g. ["name", "qualified_path", "kind"]). Omit for no symbol hydration.',
-    ),
+    .describe(GREP_REPO_SYMBOL_FIELDS_NOTE),
   wait_timeout_ms: z.number().optional(),
 };
 

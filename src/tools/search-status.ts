@@ -18,7 +18,7 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Check progress or fetch final results for a prior unified search. " +
+  "Check progress, fetch partial hits when the original request used allow_partial_results: true, or fetch final results for a prior unified search. " +
   "Pass the search_ref returned by `search` when the original request did not complete within the wait window.";
 
 export function createSearchStatusTool(

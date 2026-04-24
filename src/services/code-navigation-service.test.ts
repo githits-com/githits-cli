@@ -1036,6 +1036,12 @@ describe("CodeNavigationServiceImpl", () => {
                     contextAfter: ["", "app.get();"],
                     fileContentHash: "abc123",
                     fileIntent: "production",
+                    symbolRowId: "42",
+                    symbol: {
+                      name: "createRouter",
+                      qualifiedPath: "express.createRouter",
+                      kind: "function",
+                    },
                   },
                 ],
                 nextCursor: null,
@@ -1069,9 +1075,15 @@ describe("CodeNavigationServiceImpl", () => {
       target: { registry: "NPM", packageName: "express" },
       pattern: "middleware",
       pathSelectors: [{ kind: "PREFIX", value: "src/" }],
+      symbolFields: ["name", "qualified_path", "kind"],
     });
     expect(result.matches.length).toBe(1);
     expect(result.matches[0]?.line).toBe(10);
+    expect(result.matches[0]?.symbol).toMatchObject({
+      name: "createRouter",
+      qualifiedPath: "express.createRouter",
+      kind: "function",
+    });
     expect(result.totalMatches).toBe(1);
     expect(result.routeTaken).toBe("CONTENT_INDEX");
     expect(result.resolution?.resolvedRef).toBe("v5.2.1");
@@ -1313,6 +1325,11 @@ describe("CodeNavigationServiceImpl", () => {
       symbolFields: ["name", "qualified_path", "kind"],
       waitTimeoutMs: 5000,
     });
+    expect(body.query).toContain("symbol {");
+    expect(body.query).toContain("name");
+    expect(body.query).toContain("qualifiedPath");
+    expect(body.query).toContain("kind");
+    expect(body.query).not.toContain("symbolRef");
   });
 
   it("sends GraphQL variables with the correct listRepoFiles shape", async () => {
