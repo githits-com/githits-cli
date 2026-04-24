@@ -7,10 +7,7 @@ import type {
   UnifiedSearchParams,
   UnifiedSearchSource,
 } from "../services/index.js";
-import {
-  DEFAULT_WAIT_TIMEOUT_MS,
-  SEARCH_SYMBOLS_DEFAULT_FILE_INTENT,
-} from "./code-navigation-defaults.js";
+import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { InvalidArgumentError } from "./package-spec.js";
 
 export interface UnifiedSearchRequestInput {
@@ -35,7 +32,7 @@ export interface UnifiedSearchRequestBuildResult {
   params: UnifiedSearchParams;
   rawQuery: string;
   compiledQuery: string;
-  defaulted: ReadonlyArray<"fileIntent" | "limit" | "offset" | "waitTimeoutMs">;
+  defaulted: ReadonlyArray<"limit" | "offset" | "waitTimeoutMs">;
 }
 
 export function buildUnifiedSearchParams(
@@ -43,8 +40,7 @@ export function buildUnifiedSearchParams(
 ): UnifiedSearchRequestBuildResult {
   const targets = resolveTargets(input.target, input.targets);
   const rawQuery = normaliseRequiredQuery(input.query);
-  const defaulted: Array<"fileIntent" | "limit" | "offset" | "waitTimeoutMs"> =
-    [];
+  const defaulted: Array<"limit" | "offset" | "waitTimeoutMs"> = [];
 
   const limit = resolveNumber(input.limit, 20, "limit", defaulted);
   const offset = resolveNumber(input.offset, 0, "offset", defaulted);
@@ -65,7 +61,7 @@ export function buildUnifiedSearchParams(
     kind: input.kind,
     category: input.category,
     pathPrefix: input.pathPrefix,
-    fileIntent: resolveFileIntent(input.fileIntent, input.sources, defaulted),
+    fileIntent: input.fileIntent,
     publicOnly: input.publicOnly,
   });
 
@@ -133,32 +129,12 @@ function resolveNumber(
   value: number | undefined,
   fallback: number,
   field: "limit" | "offset" | "waitTimeoutMs",
-  defaulted: Array<"fileIntent" | "limit" | "offset" | "waitTimeoutMs">,
+  defaulted: Array<"limit" | "offset" | "waitTimeoutMs">,
 ): number {
   if (value === undefined) {
     defaulted.push(field);
     return fallback;
   }
-  return value;
-}
-
-function resolveFileIntent(
-  value: SearchSymbolsFileIntent | undefined,
-  sources: UnifiedSearchSource[] | undefined,
-  defaulted: Array<"fileIntent" | "limit" | "offset" | "waitTimeoutMs">,
-): SearchSymbolsFileIntent | undefined {
-  if (value === undefined) {
-    if (
-      sources &&
-      sources.length > 0 &&
-      sources.every((entry) => entry === "DOCS")
-    ) {
-      return undefined;
-    }
-    defaulted.push("fileIntent");
-    return SEARCH_SYMBOLS_DEFAULT_FILE_INTENT;
-  }
-
   return value;
 }
 

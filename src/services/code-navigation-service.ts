@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { debugLog, isDebugAreaEnabled } from "../shared/debug-log.js";
 import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
@@ -830,6 +831,127 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
   }
 }`;
 
+function debugUnifiedSearchRequest(variables: {
+  targets: Array<Record<string, unknown>>;
+  query: string;
+  sources?: UnifiedSearchSource[];
+  filters?: UnifiedSearchFilters;
+  allowPartialResults: boolean;
+  limit?: number;
+  offset?: number;
+  waitTimeoutMs?: number;
+}): void {
+  if (!isDebugAreaEnabled("code-nav")) return;
+  const serialised = serialiseForDebug(variables);
+  const filters = asRecord(serialised.filters);
+
+  debugLog("code-nav", {
+    event: "request",
+    operation: "search",
+    targetCount: Array.isArray(serialised.targets)
+      ? serialised.targets.length
+      : 0,
+    sources: Array.isArray(serialised.sources) ? serialised.sources : [],
+    hasFilters: filters !== undefined,
+    filterKeys: filters ? Object.keys(filters).sort() : [],
+    fileIntent:
+      filters && typeof filters.fileIntent === "string"
+        ? filters.fileIntent
+        : "omitted",
+    allowPartialResults: serialised.allowPartialResults === true,
+    presentVariableKeys: Object.keys(serialised).sort(),
+    hasLimit: typeof serialised.limit === "number",
+    hasOffset: typeof serialised.offset === "number",
+    waitTimeoutMs:
+      typeof serialised.waitTimeoutMs === "number"
+        ? serialised.waitTimeoutMs
+        : undefined,
+  });
+}
+
+function debugGraphqlWireRequest(
+  operation: "search" | "searchSymbols",
+  graphqlQuery: string,
+  variables: Record<string, unknown>,
+): void {
+  if (!isDebugAreaEnabled("code-nav-wire")) return;
+  debugLog("code-nav-wire", {
+    event: "wire-request",
+    operation,
+    graphqlQuery,
+    variables: serialiseForDebug(variables),
+  });
+}
+
+function debugSearchSymbolsRequest(variables: {
+  registry?: string;
+  packageName?: string;
+  repoUrl?: string;
+  gitRef?: string;
+  query?: string;
+  keywords?: string[];
+  matchMode?: SearchSymbolsMatchMode;
+  kind?: SearchSymbolsKind;
+  category?: SymbolCategory;
+  filePath?: string;
+  version?: string;
+  limit?: number;
+  fileIntent?: SearchSymbolsFileIntent;
+  waitTimeoutMs?: number;
+}): void {
+  if (!isDebugAreaEnabled("code-nav")) return;
+  const serialised = serialiseForDebug(variables);
+
+  debugLog("code-nav", {
+    event: "request",
+    operation: "searchSymbols",
+    targetType: typeof serialised.repoUrl === "string" ? "repo" : "package",
+    queryMode: Array.isArray(serialised.keywords)
+      ? typeof serialised.query === "string"
+        ? "query+keywords"
+        : "keywords"
+      : typeof serialised.query === "string"
+        ? "query"
+        : "none",
+    keywordsCount: Array.isArray(serialised.keywords)
+      ? serialised.keywords.length
+      : 0,
+    kind: typeof serialised.kind === "string" ? serialised.kind : undefined,
+    category:
+      typeof serialised.category === "string" ? serialised.category : undefined,
+    fileIntent:
+      typeof serialised.fileIntent === "string"
+        ? serialised.fileIntent
+        : "omitted",
+    presentVariableKeys: Object.keys(serialised).sort(),
+    hasLimit: typeof serialised.limit === "number",
+    waitTimeoutMs:
+      typeof serialised.waitTimeoutMs === "number"
+        ? serialised.waitTimeoutMs
+        : undefined,
+  });
+}
+
+function serialiseForDebug(
+  value: Record<string, unknown>,
+): Record<string, unknown> {
+  try {
+    const text = JSON.stringify(value);
+    if (!text) return {};
+    const parsed = JSON.parse(text);
+    return asRecord(parsed) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return undefined;
+}
+
 const availableVersionSchema = z.object({
   version: z.string().nullable().optional(),
   ref: z.string(),
@@ -1432,27 +1554,30 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     }
 
     let response: PkgseerGraphqlResponse;
+    const variables = {
+      targets: params.targets.map((target) => ({
+        registry: target.registry,
+        name: target.packageName,
+        version: target.version,
+        repoUrl: target.repoUrl,
+        gitRef: target.gitRef,
+      })),
+      query: params.query,
+      sources: params.sources,
+      filters: params.filters,
+      allowPartialResults: params.allowPartialResults ?? false,
+      limit: params.limit,
+      offset: params.offset,
+      waitTimeoutMs: params.waitTimeoutMs,
+    };
+    debugUnifiedSearchRequest(variables);
+    debugGraphqlWireRequest("search", UNIFIED_SEARCH_QUERY, variables);
     try {
       response = await postPkgseerGraphql({
         endpointUrl: this.codeNavigationUrl,
         token,
         query: UNIFIED_SEARCH_QUERY,
-        variables: {
-          targets: params.targets.map((target) => ({
-            registry: target.registry,
-            name: target.packageName,
-            version: target.version,
-            repoUrl: target.repoUrl,
-            gitRef: target.gitRef,
-          })),
-          query: params.query,
-          sources: params.sources,
-          filters: params.filters,
-          allowPartialResults: params.allowPartialResults ?? false,
-          limit: params.limit,
-          offset: params.offset,
-          waitTimeoutMs: params.waitTimeoutMs,
-        },
+        variables,
         fetchFn: this.fetchFn,
       });
     } catch (cause) {
@@ -1577,27 +1702,30 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     }
 
     let response: PkgseerGraphqlResponse;
+    const variables = {
+      registry: params.target.registry,
+      packageName: params.target.packageName,
+      repoUrl: params.target.repoUrl,
+      gitRef: params.target.gitRef,
+      query: params.query,
+      keywords: params.keywords,
+      matchMode: params.matchMode,
+      kind: params.kind,
+      category: params.category,
+      filePath: params.filePath,
+      version: params.target.version,
+      limit: params.limit,
+      fileIntent: params.fileIntent,
+      waitTimeoutMs: params.waitTimeoutMs,
+    };
+    debugSearchSymbolsRequest(variables);
+    debugGraphqlWireRequest("searchSymbols", SEARCH_SYMBOLS_QUERY, variables);
     try {
       response = await postPkgseerGraphql({
         endpointUrl: this.codeNavigationUrl,
         token,
         query: SEARCH_SYMBOLS_QUERY,
-        variables: {
-          registry: params.target.registry,
-          packageName: params.target.packageName,
-          repoUrl: params.target.repoUrl,
-          gitRef: params.target.gitRef,
-          query: params.query,
-          keywords: params.keywords,
-          matchMode: params.matchMode,
-          kind: params.kind,
-          category: params.category,
-          filePath: params.filePath,
-          version: params.target.version,
-          limit: params.limit,
-          fileIntent: params.fileIntent,
-          waitTimeoutMs: params.waitTimeoutMs,
-        },
+        variables,
         fetchFn: this.fetchFn,
       });
     } catch (cause) {

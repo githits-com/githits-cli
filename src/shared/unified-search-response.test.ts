@@ -11,7 +11,6 @@ describe("buildUnifiedSearchSuccessPayload", () => {
   const params: UnifiedSearchParams = {
     targets: [{ registry: "NPM", packageName: "express" }],
     query: "router middleware",
-    filters: { fileIntent: "PRODUCTION" },
     limit: 20,
     offset: 0,
     waitTimeoutMs: 20_000,
@@ -22,7 +21,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       params,
       "router middleware",
       "router middleware",
-      ["fileIntent", "limit", "offset", "waitTimeoutMs"],
+      ["limit", "offset", "waitTimeoutMs"],
       defaultUnifiedSearchOutcome,
     );
 
@@ -50,7 +49,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       params,
       "router middleware",
       "router middleware",
-      ["fileIntent", "limit", "offset", "waitTimeoutMs"],
+      ["limit", "offset", "waitTimeoutMs"],
       {
         state: "incomplete",
         completed: false,
@@ -70,8 +69,8 @@ describe("buildUnifiedSearchSuccessPayload", () => {
 
     expect(payload).toEqual({
       query: expect.objectContaining({
-        filters: expect.objectContaining({ fileIntent: "production" }),
-        defaulted: ["fileIntent", "limit", "offset", "waitTimeoutMs"],
+        filters: undefined,
+        defaulted: ["limit", "offset", "waitTimeoutMs"],
       }),
       completed: false,
       returnedCount: 0,
@@ -91,7 +90,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       { ...params, allowPartialResults: true },
       "router middleware",
       "router middleware",
-      ["fileIntent", "limit", "offset", "waitTimeoutMs"],
+      ["limit", "offset", "waitTimeoutMs"],
       {
         state: "incomplete",
         completed: false,

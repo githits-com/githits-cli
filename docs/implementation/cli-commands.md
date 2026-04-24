@@ -68,7 +68,7 @@ Unified search spans indexed dependency and repository code, docs, and explicit 
 
 **Sources and filters.** `--source docs|code|symbol` is repeatable; omitting it delegates source selection to backend AUTO. Use `--source symbol` when you want symbol-shaped search results without dropping down to the older `code search` surface. `--category` is the broad filter (`callable`, `type`, `module`, `data`, `documentation`); `--kind` is the precise taxonomy. `--path-prefix`, `--intent`, and `--public` narrow the result set further. `--name` and `--lang` compile into query qualifiers instead of becoming separate backend fields.
 
-**Production intent by default.** When `--intent` is omitted, unified search defaults to `production` intent for AUTO, code, and symbol searches. This removes test / benchmark / example noise where the backend supports the filter. Explicit docs-only searches do not get a file-intent default because docs do not support that filter. Some sources can still ignore `fileIntent`; when they do, the JSON `sourceStatus` block and terminal notes report that explicitly.
+**Intent filter.** When `--intent` is omitted, unified search sends no file-intent filter. Pass `--intent production` or another specific intent only when you want to narrow the result set. Some sources can still ignore `fileIntent`; when they do, the JSON `sourceStatus` block and terminal notes report that explicitly.
 
 **Complete-by-default results.** The CLI sends `allowPartialResults: false` unless `--allow-partial` is passed. If indexing does not complete within the wait window, the default behavior returns a `searchRef` and progress summary instead of partial hits. With `--allow-partial`, available hits are included while remaining sources continue indexing. `--wait` is in seconds (0-60, default 20).
 
@@ -126,13 +126,13 @@ Finds functions, classes, modules, and doc sections inside an indexed dependency
 
 **Filtering by symbol shape.** Prefer `--category` for broad filtering (`callable`, `type`, `module`, `data`, `documentation`) — it works across the full 27-value kind taxonomy without enumerating individual kinds. Reach for `--kind` when you want a specific construct, e.g. `--kind trait` (Rust) or `--kind namespace` (C#/C++/PHP).
 
-**Defaults.** `--intent production` filters to production source by default so top results are not dominated by tests, benchmarks, or examples. Use `--intent all` to include every file intent. `--wait` defaults to 20 seconds (above the p50 indexing time of ~11 s); first-time queries against an unindexed package may need `--wait 60` (the backend ceiling) to block until indexing completes. On an INDEXING error, the response message points out the retry options.
+**Defaults.** No file-intent filter is sent by default. Pass `--intent production` or another specific intent to narrow results; `--intent all` remains accepted as an explicit no-filter alias. `--wait` defaults to 20 seconds (above the p50 indexing time of ~11 s); first-time queries against an unindexed package may need `--wait 60` (the backend ceiling) to block until indexing completes. On an INDEXING error, the response message points out the retry options.
 
 **Output.** Default terminal output leads each entry with `path:startLine-endLine [kind]`, followed by the symbol name and a 3-line dedented snippet. `--json` emits the shared success/error envelope also produced by the MCP `search_symbols` tool — see [`mcp-cli-parity.md`](./mcp-cli-parity.md) for the wire contract. The command is registered as `code search` with `code search-symbols` as a Commander alias.
 
 **Capability gate.** The `code` group is registered only when the startup token explicitly carries `code_navigation`, or when `GITHITS_CODE_NAVIGATION=1` is set for local override.
 
-**Troubleshooting.** Set `GITHITS_DEBUG=code-nav` to emit single-line JSON diagnostics to stderr on error paths. Include the output when filing an issue. Debug payloads never contain query text, tokens, or response bodies.
+**Troubleshooting.** Set `GITHITS_DEBUG=code-nav` to emit single-line JSON diagnostics to stderr without query text, tokens, or response bodies. When you need the exact code-navigation wire payload, `GITHITS_DEBUG=code-nav-wire` logs the GraphQL document plus serialized variables, which includes query text and resolved target values; it is explicit-only and is not enabled by `GITHITS_DEBUG=*`.
 
 ### `githits pkg info`
 
@@ -155,7 +155,7 @@ Shows a concise overview for a single package: latest version, license, descript
 
 **Capability gate.** Same as `code`.
 
-**Troubleshooting.** `GITHITS_DEBUG=pkg-intel` emits PII-safe classified-error diagnostics (area, event, code, error class, detail keys). Use `GITHITS_DEBUG=*` to enable all package/source diagnostics.
+**Troubleshooting.** `GITHITS_DEBUG=pkg-intel` emits PII-safe classified-error diagnostics (area, event, code, error class, detail keys). Use `GITHITS_DEBUG=*` to enable all non-sensitive package/source diagnostics.
 
 ### `githits pkg vulns`
 

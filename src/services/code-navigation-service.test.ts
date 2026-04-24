@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+  spyOn,
+} from "bun:test";
 import {
   CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
@@ -23,6 +31,7 @@ function mockFetch(impl: () => Promise<Response>) {
 describe("CodeNavigationServiceImpl", () => {
   const BASE_URL = "https://nav.example.com";
   let originalFetch: typeof globalThis.fetch;
+  const originalDebug = process.env.GITHITS_DEBUG;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -30,6 +39,8 @@ describe("CodeNavigationServiceImpl", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (originalDebug === undefined) delete process.env.GITHITS_DEBUG;
+    else process.env.GITHITS_DEBUG = originalDebug;
   });
 
   it("sends GraphQL request and normalizes search results", async () => {
@@ -90,6 +101,112 @@ describe("CodeNavigationServiceImpl", () => {
     expect(body.variables.registry).toBe("NPM");
     expect(body.variables.packageName).toBe("express");
     expect(body.variables.query).toBe("middleware");
+  });
+
+  it("emits safe debug logging for searchSymbols request shape without query text", async () => {
+    process.env.GITHITS_DEBUG = "code-nav";
+    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
+      () => true as never,
+    );
+    const fn = mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              searchSymbols: {
+                results: [],
+                totalMatches: 0,
+                hasMore: false,
+                indexedVersion: "4.18.0",
+                diagnostics: { hint: null },
+                warning: null,
+                codeIndexState: "CURRENT",
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+      globalThis.fetch,
+    );
+
+    await service.searchSymbols({
+      target: { registry: "NPM", packageName: "express", version: "4.18.0" },
+      query: "middleware secret text",
+      waitTimeoutMs: 5000,
+    });
+
+    const call = stderrSpy.mock.calls[0]?.[0] as string;
+    const parsed = JSON.parse(call.trimEnd());
+    expect(parsed.area).toBe("code-nav");
+    expect(parsed.event).toBe("request");
+    expect(parsed.operation).toBe("searchSymbols");
+    expect(parsed.fileIntent).toBe("omitted");
+    expect(parsed.queryMode).toBe("query");
+    expect(parsed.presentVariableKeys).not.toContain("fileIntent");
+    expect(call).not.toContain("middleware secret text");
+    expect(fn).toHaveBeenCalledTimes(1);
+    stderrSpy.mockRestore();
+  });
+
+  it("emits exact GraphQL and serialized variables for searchSymbols under code-nav-wire", async () => {
+    process.env.GITHITS_DEBUG = "code-nav-wire";
+    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
+      () => true as never,
+    );
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              searchSymbols: {
+                results: [],
+                totalMatches: 0,
+                hasMore: false,
+                indexedVersion: "4.18.0",
+                diagnostics: { hint: null },
+                warning: null,
+                codeIndexState: "CURRENT",
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+      globalThis.fetch,
+    );
+
+    await service.searchSymbols({
+      target: { registry: "NPM", packageName: "express", version: "4.18.0" },
+      query: "middleware secret text",
+      waitTimeoutMs: 5000,
+    });
+
+    const call = stderrSpy.mock.calls[0]?.[0] as string;
+    const parsed = JSON.parse(call.trimEnd());
+    expect(parsed.area).toBe("code-nav-wire");
+    expect(parsed.event).toBe("wire-request");
+    expect(parsed.operation).toBe("searchSymbols");
+    expect(parsed.graphqlQuery).toContain("query SearchSymbols(");
+    expect(parsed.graphqlQuery).toContain("fileIntent: $fileIntent");
+    expect(parsed.variables).toEqual({
+      registry: "NPM",
+      packageName: "express",
+      query: "middleware secret text",
+      version: "4.18.0",
+      waitTimeoutMs: 5000,
+    });
+    stderrSpy.mockRestore();
   });
 
   it("retries once on 401 with refreshed token", async () => {
@@ -1166,6 +1283,132 @@ describe("CodeNavigationServiceImpl", () => {
     const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
     const body = JSON.parse(init.body as string);
     expect(body.variables.allowPartialResults).toBe(true);
+  });
+
+  it("emits safe debug logging for unified search request shape without query text", async () => {
+    process.env.GITHITS_DEBUG = "code-nav";
+    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
+      () => true as never,
+    );
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              search: {
+                completed: true,
+                searchRef: "search-ref-123",
+                result: {
+                  query: "router middleware",
+                  queryWarnings: [],
+                  sources: ["CODE"],
+                  results: [],
+                  page: {
+                    offset: 0,
+                    limit: 20,
+                    returned: 0,
+                    hasMore: false,
+                  },
+                  partialResults: false,
+                  sourceStatus: [],
+                },
+                progress: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+      globalThis.fetch,
+    );
+
+    await service.search({
+      targets: [{ registry: "NPM", packageName: "express" }],
+      query: "router middleware secret text",
+      allowPartialResults: false,
+      waitTimeoutMs: 20_000,
+    });
+
+    const call = stderrSpy.mock.calls[0]?.[0] as string;
+    const parsed = JSON.parse(call.trimEnd());
+    expect(parsed.area).toBe("code-nav");
+    expect(parsed.event).toBe("request");
+    expect(parsed.operation).toBe("search");
+    expect(parsed.fileIntent).toBe("omitted");
+    expect(parsed.hasFilters).toBe(false);
+    expect(parsed.presentVariableKeys).not.toContain("filters");
+    expect(call).not.toContain("router middleware secret text");
+    stderrSpy.mockRestore();
+  });
+
+  it("emits exact GraphQL and serialized variables for unified search under code-nav-wire", async () => {
+    process.env.GITHITS_DEBUG = "code-nav-wire";
+    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
+      () => true as never,
+    );
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              search: {
+                completed: true,
+                searchRef: "search-ref-123",
+                result: {
+                  query: "router middleware",
+                  queryWarnings: [],
+                  sources: ["CODE"],
+                  results: [],
+                  page: {
+                    offset: 0,
+                    limit: 20,
+                    returned: 0,
+                    hasMore: false,
+                  },
+                  partialResults: false,
+                  sourceStatus: [],
+                },
+                progress: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+      globalThis.fetch,
+    );
+
+    await service.search({
+      targets: [{ registry: "NPM", packageName: "express" }],
+      query: "router middleware secret text",
+      allowPartialResults: false,
+      waitTimeoutMs: 20_000,
+    });
+
+    const call = stderrSpy.mock.calls[0]?.[0] as string;
+    const parsed = JSON.parse(call.trimEnd());
+    expect(parsed.area).toBe("code-nav-wire");
+    expect(parsed.event).toBe("wire-request");
+    expect(parsed.operation).toBe("search");
+    expect(parsed.graphqlQuery).toContain("query UnifiedSearch(");
+    expect(parsed.graphqlQuery).toContain("filters: $filters");
+    expect(parsed.variables).toEqual({
+      targets: [{ registry: "NPM", name: "express" }],
+      query: "router middleware secret text",
+      allowPartialResults: false,
+      waitTimeoutMs: 20_000,
+    });
+    stderrSpy.mockRestore();
   });
 
   it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on grepRepo", async () => {

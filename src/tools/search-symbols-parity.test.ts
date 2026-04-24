@@ -210,7 +210,7 @@ describe("search_symbols CLI ↔ MCP JSON parity", () => {
     })) as { query: { defaulted: string[] } };
 
     expect(cliPayload.query.defaulted).toEqual(mcpPayload.query.defaulted);
-    expect(cliPayload.query.defaulted).toContain("fileIntent");
+    expect(cliPayload.query.defaulted).not.toContain("fileIntent");
     expect(cliPayload.query.defaulted).toContain("waitTimeoutMs");
   });
 

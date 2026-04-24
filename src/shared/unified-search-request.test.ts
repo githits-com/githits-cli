@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { buildUnifiedSearchParams } from "./unified-search-request.js";
 
 describe("buildUnifiedSearchParams", () => {
-  it("applies defaults and keeps raw query when no structured qualifiers", () => {
+  it("applies numeric defaults and keeps raw query when no structured qualifiers", () => {
     const built = buildUnifiedSearchParams({
       target: { registry: "NPM", packageName: "express" },
       query: "router middleware",
@@ -10,16 +10,11 @@ describe("buildUnifiedSearchParams", () => {
 
     expect(built.rawQuery).toBe("router middleware");
     expect(built.compiledQuery).toBe("router middleware");
-    expect(built.params.filters).toEqual({ fileIntent: "PRODUCTION" });
+    expect(built.params.filters).toBeUndefined();
     expect(built.params.limit).toBe(20);
     expect(built.params.offset).toBe(0);
     expect(built.params.waitTimeoutMs).toBe(20_000);
-    expect(built.defaulted).toEqual([
-      "limit",
-      "offset",
-      "waitTimeoutMs",
-      "fileIntent",
-    ]);
+    expect(built.defaulted).toEqual(["limit", "offset", "waitTimeoutMs"]);
   });
 
   it("does not override explicit fileIntent", () => {
@@ -33,7 +28,7 @@ describe("buildUnifiedSearchParams", () => {
     expect(built.defaulted).not.toContain("fileIntent");
   });
 
-  it("does not default fileIntent for explicit docs-only searches", () => {
+  it("leaves fileIntent unset for explicit docs-only searches", () => {
     const built = buildUnifiedSearchParams({
       target: { registry: "NPM", packageName: "express" },
       query: "routing",
@@ -41,18 +36,18 @@ describe("buildUnifiedSearchParams", () => {
     });
 
     expect(built.params.filters).toBeUndefined();
-    expect(built.defaulted).not.toContain("fileIntent");
+    expect(built.defaulted).toEqual(["limit", "offset", "waitTimeoutMs"]);
   });
 
-  it("defaults fileIntent when selected sources include code search", () => {
+  it("does not invent fileIntent when selected sources include code search", () => {
     const built = buildUnifiedSearchParams({
       target: { registry: "NPM", packageName: "express" },
       query: "routing",
       sources: ["DOCS", "CODE"],
     });
 
-    expect(built.params.filters).toEqual({ fileIntent: "PRODUCTION" });
-    expect(built.defaulted).toContain("fileIntent");
+    expect(built.params.filters).toBeUndefined();
+    expect(built.defaulted).toEqual(["limit", "offset", "waitTimeoutMs"]);
   });
 
   it("compiles structured name and language into AND-ed query qualifiers", () => {
