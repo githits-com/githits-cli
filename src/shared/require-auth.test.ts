@@ -19,6 +19,7 @@ describe("requireAuth", () => {
     const output = consoleSpy.mock.calls.map((c) => c[0]).join("\n");
     expect(output).toContain("Authentication required");
     expect(output).toContain("githits login");
+    expect(output).toContain("npx githits@latest login");
     consoleSpy.mockRestore();
   });
 

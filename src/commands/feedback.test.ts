@@ -1,18 +1,13 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import { createMockGitHitsService } from "../services/test-helpers.js";
-import { AuthRequiredError } from "../shared/require-auth.js";
 import { type FeedbackDependencies, feedbackAction } from "./feedback.js";
 
 describe("feedbackAction", () => {
-  const mcpUrl = "https://mcp.githits.com";
-
   function createDeps(
     overrides: Partial<FeedbackDependencies> = {},
   ): FeedbackDependencies {
     return {
       githitsService: createMockGitHitsService(),
-      hasValidToken: true,
-      mcpUrl,
       ...overrides,
     };
   }
@@ -130,17 +125,6 @@ describe("feedbackAction", () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
     errorSpy.mockRestore();
     exitSpy.mockRestore();
-  });
-
-  it("throws AuthRequiredError on auth failure", async () => {
-    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
-    const deps = createDeps({ hasValidToken: false });
-
-    await expect(
-      feedbackAction("abc-123", { accept: true }, deps),
-    ).rejects.toThrow(AuthRequiredError);
-
-    consoleSpy.mockRestore();
   });
 
   it("catches service error and exits with message", async () => {

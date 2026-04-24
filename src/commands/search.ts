@@ -1,7 +1,6 @@
 import { type Command, Option } from "commander";
-import { createContainer } from "../container.js";
 import type { GitHitsService } from "../services/githits-service.js";
-import { AuthRequiredError, requireAuth } from "../shared/require-auth.js";
+import { withAuthenticatedAction } from "./shared.js";
 
 export interface SearchOptions {
   lang: string;
@@ -12,8 +11,6 @@ export interface SearchOptions {
 
 export interface SearchDependencies {
   githitsService: GitHitsService;
-  hasValidToken: boolean;
-  mcpUrl: string;
 }
 
 /**
@@ -24,8 +21,6 @@ export async function searchAction(
   options: SearchOptions,
   deps: SearchDependencies,
 ): Promise<void> {
-  requireAuth(deps);
-
   try {
     const result = await deps.githitsService.search({
       query,
@@ -77,13 +72,5 @@ export function registerSearchCommand(program: Command) {
     )
     .option("--explain", "Include AI-generated explanation")
     .option("--json", "Output as JSON for piping")
-    .action(async (query: string, options: SearchOptions) => {
-      try {
-        const deps = await createContainer();
-        await searchAction(query, options, deps);
-      } catch (error) {
-        if (error instanceof AuthRequiredError) process.exit(1);
-        throw error;
-      }
-    });
+    .action(withAuthenticatedAction(searchAction));
 }

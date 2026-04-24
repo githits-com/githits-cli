@@ -1,18 +1,13 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import { createMockGitHitsService } from "../services/test-helpers.js";
-import { AuthRequiredError } from "../shared/require-auth.js";
 import { type LanguagesDependencies, languagesAction } from "./languages.js";
 
 describe("languagesAction", () => {
-  const mcpUrl = "https://mcp.githits.com";
-
   function createDeps(
     overrides: Partial<LanguagesDependencies> = {},
   ): LanguagesDependencies {
     return {
       githitsService: createMockGitHitsService(),
-      hasValidToken: true,
-      mcpUrl,
       ...overrides,
     };
   }
@@ -88,17 +83,6 @@ describe("languagesAction", () => {
 
     const output = consoleSpy.mock.calls[0]?.[0] as string;
     expect(JSON.parse(output)).toEqual([]);
-    consoleSpy.mockRestore();
-  });
-
-  it("throws AuthRequiredError on auth failure", async () => {
-    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
-    const deps = createDeps({ hasValidToken: false });
-
-    await expect(languagesAction(undefined, {}, deps)).rejects.toThrow(
-      AuthRequiredError,
-    );
-
     consoleSpy.mockRestore();
   });
 

@@ -1,12 +1,11 @@
 import type { Command } from "commander";
-import { createContainer } from "../container.js";
 import type { GitHitsService } from "../services/githits-service.js";
 import { colorize, dim, shouldUseColors } from "../shared/colors.js";
 import {
   filterLanguages,
   type LanguageMatch,
 } from "../shared/language-filter.js";
-import { AuthRequiredError, requireAuth } from "../shared/require-auth.js";
+import { withAuthenticatedAction } from "./shared.js";
 
 export interface LanguagesOptions {
   json?: boolean;
@@ -14,8 +13,6 @@ export interface LanguagesOptions {
 
 export interface LanguagesDependencies {
   githitsService: GitHitsService;
-  hasValidToken: boolean;
-  mcpUrl: string;
 }
 
 /**
@@ -26,8 +23,6 @@ export async function languagesAction(
   options: LanguagesOptions,
   deps: LanguagesDependencies,
 ): Promise<void> {
-  requireAuth(deps);
-
   try {
     const allLanguages = await deps.githitsService.getLanguages();
 
@@ -76,13 +71,5 @@ export function registerLanguagesCommand(program: Command) {
     .description(LANGUAGES_DESCRIPTION)
     .argument("[query]", "Filter by name, display name, or alias")
     .option("--json", "Output as JSON for piping")
-    .action(async (query: string | undefined, options: LanguagesOptions) => {
-      try {
-        const deps = await createContainer();
-        await languagesAction(query, options, deps);
-      } catch (error) {
-        if (error instanceof AuthRequiredError) process.exit(1);
-        throw error;
-      }
-    });
+    .action(withAuthenticatedAction(languagesAction));
 }

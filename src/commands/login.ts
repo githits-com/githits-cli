@@ -25,39 +25,20 @@ export interface LoginDependencies {
   mcpUrl: string;
 }
 
+export interface PerformLoginOptions {
+  browser?: boolean;
+  port?: number;
+}
+
 /**
- * Core login logic, separated for testability.
+ * Core OAuth PKCE login flow. Returns true on success, false on failure.
+ * Does not call process.exit — callers decide how to handle failure.
  */
-export async function loginAction(
-  options: LoginOptions,
+export async function performLogin(
   deps: LoginDependencies,
-): Promise<void> {
+  options: PerformLoginOptions = {},
+): Promise<boolean> {
   const { authService, authStorage, browserService, mcpUrl } = deps;
-
-  // Validate port if provided
-  if (
-    options.port !== undefined &&
-    (Number.isNaN(options.port) || options.port < 1 || options.port > 65535)
-  ) {
-    console.error("Invalid port number. Must be between 1 and 65535.");
-    process.exit(1);
-  }
-
-  // Check if already logged in
-  const existing = await authStorage.loadTokens(mcpUrl);
-  if (existing && !options.force) {
-    const isExpired =
-      existing.expiresAt && new Date(existing.expiresAt) < new Date();
-    if (!isExpired) {
-      console.log("Already logged in.\n");
-      console.log(`  Environment: ${mcpUrl}\n`);
-      console.log("To re-authenticate, use `githits login --force`.");
-      return;
-    }
-    console.log("Token expired. Starting new login...\n");
-  } else if (existing && options.force) {
-    console.log("Re-authenticating (--force flag)...\n");
-  }
 
   // Step 1: Discover OAuth endpoints
   console.log("Discovering OAuth endpoints...");
@@ -69,12 +50,9 @@ export async function loginAction(
   let redirectUri: string;
 
   if (client) {
-    // Reuse the stored redirect URI to match the DCR registration.
-    // If user specified --port, use that and re-register if needed.
     if (options.port) {
       redirectUri = `http://127.0.0.1:${options.port}/callback`;
       if (redirectUri !== client.redirectUri) {
-        // Port changed - need to re-register
         console.log("Registering CLI client with new port...");
         const registration = await authService.registerClient({
           registrationEndpoint: metadata.registrationEndpoint,
@@ -90,7 +68,6 @@ export async function loginAction(
       }
       port = options.port;
     } else {
-      // Extract port from stored redirect URI
       redirectUri = client.redirectUri;
       const storedUrl = new URL(redirectUri);
       port = Number(storedUrl.port) || randomPort();
@@ -154,19 +131,17 @@ export async function loginAction(
   } catch (error) {
     if (timeoutId) clearTimeout(timeoutId);
     if (error instanceof Error) {
-      console.log(`${error.message}.\n`);
-      console.log("Run `githits login` to try again.");
+      console.error(`${error.message}.`);
     }
-    process.exit(1);
+    return false;
   }
 
   // Step 7: Handle callback outcome
   if (callback.type !== "success") {
-    console.log(`${callback.message}\n`);
-    console.log("Run `githits login` to try again.");
+    console.error(callback.message);
     // Let the callback server finish sending the error page to the browser
     await new Promise((r) => setTimeout(r, 2000));
-    process.exit(1);
+    return false;
   }
 
   // Step 8: Exchange code for tokens
@@ -184,10 +159,9 @@ export async function loginAction(
     });
   } catch (error) {
     console.error(
-      `Failed to complete authentication: ${error instanceof Error ? error.message : error}\n`,
+      `Failed to complete authentication: ${error instanceof Error ? error.message : error}`,
     );
-    console.log("Run `githits login` to try again.");
-    process.exit(1);
+    return false;
   }
 
   // Step 9: Save tokens
@@ -201,12 +175,60 @@ export async function loginAction(
     createdAt: new Date().toISOString(),
   });
 
-  // Success message
   const hours = Math.round(tokenResponse.expiresIn / 3600);
   console.log("Logged in successfully.\n");
   console.log(`  Environment: ${mcpUrl}`);
-  console.log(`  Token expires in: ${hours} hour${hours !== 1 ? "s" : ""}`);
-  console.log("\nYou're ready to use githits with your AI assistant.");
+  console.log(`  Token expires in: ${hours} hour${hours !== 1 ? "s" : ""}\n`);
+
+  return true;
+}
+
+/**
+ * Core login command logic, separated for testability.
+ * Wraps performLogin with CLI-specific behavior (already-logged-in check, process.exit).
+ */
+export async function loginAction(
+  options: LoginOptions,
+  deps: LoginDependencies,
+): Promise<void> {
+  const { authStorage, mcpUrl } = deps;
+
+  // Validate port if provided
+  if (
+    options.port !== undefined &&
+    (Number.isNaN(options.port) || options.port < 1 || options.port > 65535)
+  ) {
+    console.error("Invalid port number. Must be between 1 and 65535.");
+    process.exit(1);
+  }
+
+  // Check if already logged in
+  const existing = await authStorage.loadTokens(mcpUrl);
+  if (existing && !options.force) {
+    const isExpired =
+      existing.expiresAt && new Date(existing.expiresAt) < new Date();
+    if (!isExpired) {
+      console.log("Already logged in.\n");
+      console.log(`  Environment: ${mcpUrl}\n`);
+      console.log("To re-authenticate, use `githits login --force`.");
+      return;
+    }
+    console.log("Token expired. Starting new login...\n");
+  } else if (existing && options.force) {
+    console.log("Re-authenticating (--force flag)...\n");
+  }
+
+  const success = await performLogin(deps, {
+    browser: options.browser,
+    port: options.port,
+  });
+
+  if (!success) {
+    console.log("\nRun `githits login` to try again.");
+    process.exit(1);
+  }
+
+  console.log("You're ready to use githits with your AI assistant.");
 }
 
 const LOGIN_DESCRIPTION = `Authenticate with your GitHits account via browser.

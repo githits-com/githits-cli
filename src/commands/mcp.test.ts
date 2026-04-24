@@ -11,6 +11,8 @@ import { AuthRequiredError } from "../shared/require-auth.js";
 import { createMcpServer, startMcpServer } from "./mcp.js";
 
 function createTestDeps(overrides: Partial<Dependencies> = {}): Dependencies {
+  const githitsService = createMockGitHitsService();
+
   return {
     authStorage: createMockAuthStorage(),
     authService: createMockAuthService(),
@@ -21,7 +23,12 @@ function createTestDeps(overrides: Partial<Dependencies> = {}): Dependencies {
     apiToken: "test-token",
     hasValidToken: true,
     envApiToken: undefined,
-    githitsService: createMockGitHitsService(),
+    githitsService,
+    refreshAuth: async () => ({
+      apiToken: "test-token",
+      hasValidToken: true,
+      githitsService,
+    }),
     ...overrides,
   };
 }

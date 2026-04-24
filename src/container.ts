@@ -79,6 +79,12 @@ export interface Dependencies {
   envApiToken: string | undefined;
   /** GitHits REST API service */
   githitsService: GitHitsService;
+  /** Re-resolve token and service after login. Returns updated auth fields. */
+  refreshAuth: () => Promise<{
+    apiToken: string | undefined;
+    hasValidToken: boolean;
+    githitsService: GitHitsService;
+  }>;
 }
 
 /**
@@ -96,6 +102,7 @@ export async function createContainer(): Promise<Dependencies> {
   // Check for env API token first
   const envToken = getEnvApiToken();
   if (envToken) {
+    const githitsService = new GitHitsServiceImpl(apiUrl, envToken);
     return {
       authStorage,
       authService,
@@ -106,13 +113,28 @@ export async function createContainer(): Promise<Dependencies> {
       apiToken: envToken,
       hasValidToken: true,
       envApiToken: envToken,
-      githitsService: new GitHitsServiceImpl(apiUrl, envToken),
+      githitsService,
+      refreshAuth: async () => ({
+        apiToken: envToken,
+        hasValidToken: true,
+        githitsService,
+      }),
     };
   }
 
   // Create token manager for stored auth with auto-refresh
   const tokenManager = new TokenManager({ authService, authStorage, mcpUrl });
   const apiToken = await tokenManager.getToken();
+
+  const refreshAuth = async () => {
+    const freshManager = new TokenManager({ authService, authStorage, mcpUrl });
+    const freshToken = await freshManager.getToken();
+    return {
+      apiToken: freshToken,
+      hasValidToken: freshToken !== undefined,
+      githitsService: new RefreshingGitHitsService(apiUrl, freshManager),
+    };
+  };
 
   return {
     authStorage,
@@ -125,5 +147,6 @@ export async function createContainer(): Promise<Dependencies> {
     hasValidToken: apiToken !== undefined,
     envApiToken: undefined,
     githitsService: new RefreshingGitHitsService(apiUrl, tokenManager),
+    refreshAuth,
   };
 }

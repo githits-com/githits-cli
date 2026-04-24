@@ -9,9 +9,16 @@ export class AuthRequiredError extends Error {
   }
 }
 
+export function printAuthInstructions(): void {
+  console.log("To authenticate:");
+  console.log("  githits login");
+  console.log("  npx githits@latest login\n");
+  console.log("Or set GITHITS_API_TOKEN environment variable.");
+}
+
 /**
  * Print friendly message when auth is missing and throw AuthRequiredError.
- * Shared between MCP server startup and CLI commands.
+ * Used for non-interactive contexts (MCP server) where auto-login is not possible.
  *
  * @param context - Optional context appended to the message (e.g., "to start MCP server")
  * @throws AuthRequiredError - Always throws when hasValidToken is false
@@ -33,9 +40,7 @@ export function requireAuth(
     console.log("  You're using a custom environment.\n");
   }
 
-  console.log("To authenticate:");
-  console.log("  githits login\n");
-  console.log("Or set GITHITS_API_TOKEN environment variable.");
+  printAuthInstructions();
 
   throw new AuthRequiredError(`Authentication required${suffix}`);
 }

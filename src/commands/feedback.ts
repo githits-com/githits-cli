@@ -1,7 +1,6 @@
 import { type Command, Option } from "commander";
-import { createContainer } from "../container.js";
 import type { GitHitsService } from "../services/githits-service.js";
-import { AuthRequiredError, requireAuth } from "../shared/require-auth.js";
+import { withAuthenticatedAction } from "./shared.js";
 
 export interface FeedbackOptions {
   accept?: boolean;
@@ -12,8 +11,6 @@ export interface FeedbackOptions {
 
 export interface FeedbackDependencies {
   githitsService: GitHitsService;
-  hasValidToken: boolean;
-  mcpUrl: string;
 }
 
 /**
@@ -24,8 +21,6 @@ export async function feedbackAction(
   options: FeedbackOptions,
   deps: FeedbackDependencies,
 ): Promise<void> {
-  requireAuth(deps);
-
   if (!options.accept && !options.reject) {
     console.error("Error: Specify either --accept or --reject.");
     process.exit(1);
@@ -79,13 +74,5 @@ export function registerFeedbackCommand(program: Command) {
     .addOption(new Option("--reject", "Mark as unhelpful").conflicts("accept"))
     .option("-m, --message <text>", "Feedback explanation")
     .option("--json", "Output as JSON for piping")
-    .action(async (solutionId: string, options: FeedbackOptions) => {
-      try {
-        const deps = await createContainer();
-        await feedbackAction(solutionId, options, deps);
-      } catch (error) {
-        if (error instanceof AuthRequiredError) process.exit(1);
-        throw error;
-      }
-    });
+    .action(withAuthenticatedAction(feedbackAction));
 }
