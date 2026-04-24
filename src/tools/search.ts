@@ -68,13 +68,19 @@ export interface SearchArgs {
   public_only?: boolean;
   name?: string;
   language?: string;
+  allow_partial_results?: boolean;
   limit?: number;
   offset?: number;
   wait_timeout_ms?: number;
 }
 
 const schema = {
-  query: z.string().min(1).describe("Search query string."),
+  query: z
+    .string()
+    .min(1)
+    .describe(
+      "Discovery query string. Supports implicit AND, uppercase OR, parentheses, unary -, quoted phrases, semantic qualifiers (kind:, category:, path:, lang:, name:, intent:), and routing qualifiers (registry:, package:, version:, repo:). Parsed once and compiled per source; it is not forwarded as a raw backend query.",
+    ),
   target: codeTargetSchema.optional(),
   targets: z.array(codeTargetSchema).max(20).optional(),
   sources: z
@@ -132,6 +138,12 @@ const schema = {
   public_only: z.boolean().optional(),
   name: z.string().optional(),
   language: z.string().optional(),
+  allow_partial_results: z
+    .boolean()
+    .optional()
+    .describe(
+      "When true, return available partial results while other sources are still indexing. Default false returns only searchRef/progress until complete.",
+    ),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
   wait_timeout_ms: z.coerce.number().int().min(0).max(60000).optional(),
@@ -139,7 +151,8 @@ const schema = {
 
 const DESCRIPTION =
   "Search indexed dependency and repository code, docs, and explicit symbols. " +
-  "Structured parameters are the primary UX and combine with the raw query using AND semantics. " +
+  "The query is the backend discovery syntax: implicit AND, uppercase OR, parentheses, unary -, quoted phrases, semantic qualifiers, and routing qualifiers. " +
+  "Structured parameters combine with that query using AND semantics. " +
   "Provide either `target` for one target or `targets` for many. Omit `sources` to use backend AUTO. " +
   "Results are trustworthy by default: if indexing is still in progress, this tool returns a `searchRef` state instead of partial hits. " +
   "Use `search_status` with that ref to continue.";
@@ -187,6 +200,7 @@ export function createSearchTool(
           publicOnly: args.public_only,
           name: args.name,
           language: args.language,
+          allowPartialResults: args.allow_partial_results,
           limit: args.limit,
           offset: args.offset,
           waitTimeoutMs: args.wait_timeout_ms,

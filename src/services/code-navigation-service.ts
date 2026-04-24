@@ -193,6 +193,7 @@ export interface UnifiedSearchParams {
   query: string;
   sources?: UnifiedSearchSource[];
   filters?: UnifiedSearchFilters;
+  allowPartialResults?: boolean;
   limit?: number;
   offset?: number;
   waitTimeoutMs?: number;
@@ -286,6 +287,7 @@ export interface UnifiedSearchIncomplete {
   state: "incomplete";
   completed: false;
   searchRef: string;
+  result?: UnifiedSearchResult;
   progress?: UnifiedSearchProgress;
 }
 
@@ -370,7 +372,26 @@ export interface GrepRepoParams {
   maxMatches?: number;
   maxMatchesPerFile?: number;
   cursor?: string;
+  symbolFields?: string[];
   waitTimeoutMs?: number;
+}
+
+export interface NavigationSymbol {
+  symbolRef: string;
+  name: string;
+  qualifiedPath?: string;
+  kind?: string;
+  category?: string;
+  arity?: number;
+  isPublic?: boolean;
+  filePath?: string;
+  startLine?: number;
+  endLine?: number;
+  code?: string;
+  callerCount?: number;
+  contentHash?: string;
+  parentSymbolRef?: string;
+  parentPath?: string;
 }
 
 export interface GrepRepoMatch {
@@ -383,6 +404,8 @@ export interface GrepRepoMatch {
   contextAfter?: string[];
   fileContentHash?: string;
   fileIntent?: string;
+  symbolRowId?: string;
+  symbol?: NavigationSymbol;
 }
 
 export type GrepRouteTaken = "SINGLE_FILE" | "CONTENT_INDEX";
@@ -1154,6 +1177,27 @@ const grepRepoMatchSchema = z.object({
   contextAfter: z.array(z.string()).nullable().optional(),
   fileContentHash: z.string().nullable().optional(),
   fileIntent: z.string().nullable().optional(),
+  symbolRowId: z.string().nullable().optional(),
+  symbol: z
+    .object({
+      symbolRef: z.string(),
+      name: z.string(),
+      qualifiedPath: z.string().nullable().optional(),
+      kind: z.string().nullable().optional(),
+      category: z.string().nullable().optional(),
+      arity: z.number().int().nullable().optional(),
+      isPublic: z.boolean().nullable().optional(),
+      filePath: z.string().nullable().optional(),
+      startLine: z.number().int().nullable().optional(),
+      endLine: z.number().int().nullable().optional(),
+      code: z.string().nullable().optional(),
+      callerCount: z.number().int().nullable().optional(),
+      contentHash: z.string().nullable().optional(),
+      parentSymbolRef: z.string().nullable().optional(),
+      parentPath: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 const grepRepoResponseSchema = z.object({
@@ -1211,6 +1255,7 @@ query GrepRepo(
   $maxMatches: Int
   $maxMatchesPerFile: Int
   $cursor: String
+  $symbolFields: [String!]
 ) {
   grepRepo(
     registry: $registry
@@ -1232,6 +1277,7 @@ query GrepRepo(
     maxMatches: $maxMatches
     maxMatchesPerFile: $maxMatchesPerFile
     cursor: $cursor
+    symbolFields: $symbolFields
   ) {
     matches {
       filePath
@@ -1243,6 +1289,24 @@ query GrepRepo(
       contextAfter
       fileContentHash
       fileIntent
+      symbolRowId
+      symbol {
+        symbolRef
+        name
+        qualifiedPath
+        kind
+        category
+        arity
+        isPublic
+        filePath
+        startLine
+        endLine
+        code
+        callerCount
+        contentHash
+        parentSymbolRef
+        parentPath
+      }
     }
     nextCursor
     totalMatches
@@ -1369,7 +1433,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
           query: params.query,
           sources: params.sources,
           filters: params.filters,
-          allowPartialResults: false,
+          allowPartialResults: params.allowPartialResults ?? false,
           limit: params.limit,
           offset: params.offset,
           waitTimeoutMs: params.waitTimeoutMs,
@@ -1482,6 +1546,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       state: "incomplete",
       completed: false,
       searchRef: progress.searchRef,
+      result,
       progress,
     };
   }
@@ -1811,10 +1876,15 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       );
     }
 
+    const result = data.result
+      ? this.normaliseUnifiedSearchResult(data.result)
+      : undefined;
+
     return {
       state: "incomplete",
       completed: false,
       searchRef,
+      result,
       progress,
     };
   }
@@ -2149,6 +2219,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
           maxMatches: params.maxMatches,
           maxMatchesPerFile: params.maxMatchesPerFile,
           cursor: params.cursor,
+          symbolFields: params.symbolFields,
         },
         fetchFn: this.fetchFn,
       });
@@ -2197,6 +2268,26 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         contextAfter: entry.contextAfter ?? undefined,
         fileContentHash: entry.fileContentHash ?? undefined,
         fileIntent: entry.fileIntent ?? undefined,
+        symbolRowId: entry.symbolRowId ?? undefined,
+        symbol: entry.symbol
+          ? {
+              symbolRef: entry.symbol.symbolRef,
+              name: entry.symbol.name,
+              qualifiedPath: entry.symbol.qualifiedPath ?? undefined,
+              kind: entry.symbol.kind ?? undefined,
+              category: entry.symbol.category ?? undefined,
+              arity: entry.symbol.arity ?? undefined,
+              isPublic: entry.symbol.isPublic ?? undefined,
+              filePath: entry.symbol.filePath ?? undefined,
+              startLine: entry.symbol.startLine ?? undefined,
+              endLine: entry.symbol.endLine ?? undefined,
+              code: entry.symbol.code ?? undefined,
+              callerCount: entry.symbol.callerCount ?? undefined,
+              contentHash: entry.symbol.contentHash ?? undefined,
+              parentSymbolRef: entry.symbol.parentSymbolRef ?? undefined,
+              parentPath: entry.symbol.parentPath ?? undefined,
+            }
+          : undefined,
       })),
       nextCursor: data.nextCursor ?? undefined,
       hasMore: data.hasMore,

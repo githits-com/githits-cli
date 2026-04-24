@@ -25,6 +25,7 @@ export interface UnifiedSearchRequestInput {
   publicOnly?: boolean;
   name?: string;
   language?: string;
+  allowPartialResults?: boolean;
   limit?: number;
   offset?: number;
   waitTimeoutMs?: number;
@@ -74,6 +75,7 @@ export function buildUnifiedSearchParams(
       query: compiledQuery,
       sources: input.sources,
       filters,
+      allowPartialResults: input.allowPartialResults,
       limit,
       offset,
       waitTimeoutMs,

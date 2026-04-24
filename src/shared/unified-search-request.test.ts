@@ -78,6 +78,21 @@ describe("buildUnifiedSearchParams", () => {
     });
   });
 
+  it("passes through allowPartialResults without changing the default", () => {
+    const defaulted = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      query: "router",
+    });
+    expect(defaulted.params.allowPartialResults).toBeUndefined();
+
+    const explicit = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      query: "router",
+      allowPartialResults: true,
+    });
+    expect(explicit.params.allowPartialResults).toBe(true);
+  });
+
   it("dedupes exact duplicate targets while preserving order", () => {
     const built = buildUnifiedSearchParams({
       targets: [

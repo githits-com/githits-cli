@@ -31,6 +31,7 @@ export interface GrepRepoArgs {
   max_matches?: number;
   max_matches_per_file?: number;
   cursor?: string;
+  symbol_fields?: string[];
   wait_timeout_ms?: number;
 }
 
@@ -74,6 +75,12 @@ const schema = {
   max_matches: z.number().optional(),
   max_matches_per_file: z.number().optional(),
   cursor: z.string().optional(),
+  symbol_fields: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Enclosing symbol fields to hydrate on each match (e.g. ["name", "qualified_path", "kind"]). Omit for no symbol hydration.',
+    ),
   wait_timeout_ms: z.number().optional(),
 };
 
@@ -113,6 +120,7 @@ export function createGrepRepoTool(
           maxMatches: args.max_matches,
           maxMatchesPerFile: args.max_matches_per_file,
           cursor: args.cursor,
+          symbolFields: args.symbol_fields,
           waitTimeoutMs: args.wait_timeout_ms,
         });
         const result = await service.grepRepo(build.params);
@@ -137,6 +145,7 @@ export function createGrepRepoTool(
           maxMatches: build.params.maxMatches ?? 50,
           maxMatchesPerFile: build.params.maxMatchesPerFile,
           cursor: args.cursor,
+          symbolFields: build.params.symbolFields,
           excludeDocFiles: build.params.excludeDocFiles,
           excludeTestFiles: build.params.excludeTestFiles,
           explicit: build.explicit,

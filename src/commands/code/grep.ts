@@ -37,6 +37,7 @@ export interface PkgGrepCommandOptions {
   excludeDocs?: boolean;
   excludeTests?: boolean;
   cursor?: string;
+  symbolField?: string[];
   wait?: string;
   verbose?: boolean;
   json?: boolean;
@@ -123,6 +124,7 @@ export async function pkgGrepAction(
       maxMatches,
       maxMatchesPerFile,
       cursor: options.cursor,
+      symbolFields: options.symbolField,
       waitTimeoutMs: wait,
     });
     const result = await deps.codeNavigationService.grepRepo(build.params);
@@ -147,6 +149,7 @@ export async function pkgGrepAction(
       maxMatches: build.params.maxMatches ?? 50,
       maxMatchesPerFile: build.params.maxMatchesPerFile,
       cursor: options.cursor,
+      symbolFields: build.params.symbolFields,
       excludeDocFiles: build.params.excludeDocFiles,
       excludeTestFiles: build.params.excludeTestFiles,
       explicit: build.explicit,
@@ -222,7 +225,7 @@ In spec mode pass <spec> <pattern> [path-prefix]; in repo-URL mode pass only <pa
 repeatable --glob for glob narrowing, and repeatable --ext for extension filtering.
 
 Default output is \`file:line:text\`, pipe-friendly like grep. Use -C/ -A / -B for context, --verbose for grouped output,
-and --cursor to continue a paginated grep run.`;
+and --cursor to continue a paginated grep run. Use repeatable --symbol-field to hydrate enclosing symbol metadata on JSON output.`;
 
 export function registerCodeGrepCommand(pkgCommand: Command): Command {
   return pkgCommand
@@ -286,6 +289,12 @@ export function registerCodeGrepCommand(pkgCommand: Command): Command {
     .option(
       "--cursor <cursor>",
       "Opaque nextCursor from a previous grep result",
+    )
+    .option(
+      "--symbol-field <field>",
+      "Hydrate enclosing symbol field on JSON matches (repeatable; e.g. name, qualified_path, kind)",
+      collectRepeatable,
+      [] as string[],
     )
     .option(
       "--wait <ms>",

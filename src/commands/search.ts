@@ -39,6 +39,7 @@ export interface SearchCommandOptions {
   public?: boolean;
   name?: string;
   lang?: string;
+  allowPartial?: boolean;
   limit?: string;
   offset?: string;
   wait?: string;
@@ -87,6 +88,7 @@ export async function searchAction(
       publicOnly: options.public,
       name: options.name,
       language: options.lang,
+      allowPartialResults: options.allowPartial,
       limit: parseOptionalInt(options.limit, "--limit", 1, 100),
       offset: parseOptionalInt(options.offset, "--offset", 0),
       waitTimeoutMs: parseWaitMs(options.wait),
@@ -130,7 +132,16 @@ export async function searchStatusAction(
     }
 
     if (!payload.completed) {
-      console.log(formatSearchStatusTerminal(payload));
+      if (payload.result) {
+        console.log(
+          formatSearchStatusPartialTerminal({
+            ...payload,
+            result: payload.result,
+          }),
+        );
+      } else {
+        console.log(formatSearchStatusTerminal(payload));
+      }
       return;
     }
 
@@ -144,10 +155,13 @@ const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed depend
 
 Use repeatable --in targets in package form (npm:express[@version]) or repo form
 (https://github.com/org/repo[#ref]). Structured flags are the primary UX; they are
-compiled with AND semantics against the raw query. Unified search defaults to
+compiled with AND semantics against the discovery query. The query supports
+implicit AND, uppercase OR, parentheses, unary -, quoted phrases, semantic
+qualifiers (kind:, category:, path:, lang:, name:, intent:), and routing
+qualifiers (registry:, package:, version:, repo:). Unified search defaults to
 production file intent where the backend supports that filter. Results are
 complete-by-default: if indexing is still in progress, search returns a
-searchRef instead of partial hits.
+searchRef instead of partial hits unless --allow-partial is passed.
 
 Decision guide:
   githits example ...                canonical cross-project examples
@@ -228,6 +242,10 @@ export function registerSearchCommand(program: Command) {
     .option("--public", "Filter to public symbols when supported")
     .option("--name <name>", "Structured name qualifier")
     .option("--lang <language>", "Structured language qualifier")
+    .option(
+      "--allow-partial",
+      "Return available partial results while other sources are still indexing",
+    )
     .option("--limit <n>", "Max results (1-100)")
     .option("--offset <n>", "Result offset")
     .option(
@@ -425,11 +443,17 @@ function formatUnifiedSearchTerminal(payload: {
   }
 
   if (!payload.completed) {
-    return formatSearchStatusTerminal({
+    const statusText = formatSearchStatusTerminal({
       completed: false,
       searchRef: payload.searchRef ?? "",
       progress: payload.progress,
     });
+    if (payload.results.length === 0) {
+      return statusText;
+    }
+    lines.push(statusText);
+    lines.push("");
+    lines.push("Partial results:");
   }
 
   if (payload.results.length === 0) {
@@ -564,6 +588,48 @@ function formatSearchStatusCompletedTerminal(payload: {
     results: payload.result.results,
     searchRef: payload.searchRef,
     progress: undefined,
+    query: { warnings: payload.result.queryWarnings },
+    sourceStatus: payload.result.sourceStatus,
+  });
+}
+
+function formatSearchStatusPartialTerminal(payload: {
+  completed: false;
+  searchRef: string;
+  progress?: { targetsReady?: number; targetsTotal?: number; status?: string };
+  result: {
+    queryWarnings: string[];
+    returnedCount: number;
+    hasMore: boolean;
+    nextOffset?: number;
+    sourceStatus?: Array<{
+      source: string;
+      targetLabel: string;
+      ignoredFilters: string[];
+      incompatibleFilters: string[];
+      note?: string;
+    }>;
+    results: Array<{
+      type: string;
+      target: string;
+      title?: string;
+      summary?: string;
+      highlights?: {
+        title?: Array<readonly [number, number]>;
+        summary?: Array<readonly [number, number]>;
+      };
+      locator: { filePath?: string; startLine?: number; endLine?: number };
+    }>;
+  };
+}): string {
+  return formatUnifiedSearchTerminal({
+    completed: false,
+    returnedCount: payload.result.returnedCount,
+    hasMore: payload.result.hasMore,
+    nextOffset: payload.result.nextOffset,
+    results: payload.result.results,
+    searchRef: payload.searchRef,
+    progress: payload.progress,
     query: { warnings: payload.result.queryWarnings },
     sourceStatus: payload.result.sourceStatus,
   });

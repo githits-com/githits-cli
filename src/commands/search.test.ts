@@ -92,6 +92,7 @@ describe("searchAction", () => {
         in: ["npm:express", "npm:koa"],
         kind: "function",
         lang: "typescript",
+        allowPartial: true,
       },
       deps,
     );
@@ -103,6 +104,7 @@ describe("searchAction", () => {
           { registry: "NPM", packageName: "koa", version: undefined },
         ],
         query: "(router middleware) AND (lang:typescript)",
+        allowPartialResults: true,
         filters: expect.objectContaining({ kind: "FUNCTION" }),
       }),
     );

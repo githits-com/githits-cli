@@ -81,6 +81,46 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       progress: expect.objectContaining({ status: "INDEXING" }),
     });
   });
+
+  it("normalises incomplete outcomes with opt-in partial results", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      { ...params, allowPartialResults: true },
+      "router middleware",
+      "router middleware",
+      ["fileIntent", "limit", "offset", "waitTimeoutMs"],
+      {
+        state: "incomplete",
+        completed: false,
+        searchRef: "search-ref-123",
+        result: {
+          ...defaultUnifiedSearchOutcome.result,
+          partialResults: true,
+        },
+        progress: {
+          searchRef: "search-ref-123",
+          status: "INDEXING",
+          targetsTotal: 2,
+          targetsReady: 1,
+          elapsedMs: 200,
+          query: "router middleware",
+          queryWarnings: [],
+          sources: ["CODE"],
+        },
+      },
+    );
+
+    expect(payload.completed).toBe(false);
+    expect(payload.query.allowPartialResults).toBe(true);
+    expect(payload.returnedCount).toBe(1);
+    expect(payload.results[0]?.target).toBe("npm:express@4.18.2");
+    expect(payload.sourceStatus).toEqual(
+      defaultUnifiedSearchOutcome.result.sourceStatus,
+    );
+  });
 });
 
 describe("buildUnifiedSearchErrorPayload", () => {

@@ -11,6 +11,24 @@ export interface LeanGrepRepoMatch {
   contextAfter?: string[];
   fileContentHash?: string;
   fileIntent?: string;
+  symbolRowId?: string;
+  symbol?: {
+    symbolRef: string;
+    name: string;
+    qualifiedPath?: string;
+    kind?: string;
+    category?: string;
+    arity?: number;
+    isPublic?: boolean;
+    filePath?: string;
+    startLine?: number;
+    endLine?: number;
+    code?: string;
+    callerCount?: number;
+    contentHash?: string;
+    parentSymbolRef?: string;
+    parentPath?: string;
+  };
 }
 
 export interface LeanGrepRepoResolution {
@@ -35,6 +53,7 @@ export interface LeanGrepRepoFilter {
   maxMatches?: number;
   maxMatchesPerFile?: number;
   cursor?: string;
+  symbolFields?: string[];
 }
 
 export interface LeanGrepRepoEnvelope {
@@ -79,6 +98,7 @@ export interface BuildGrepRepoPayloadOptions {
   maxMatches: number;
   maxMatchesPerFile?: number;
   cursor?: string;
+  symbolFields?: string[];
   excludeDocFiles?: boolean;
   excludeTestFiles?: boolean;
   explicit: {
@@ -96,6 +116,7 @@ export interface BuildGrepRepoPayloadOptions {
     maxMatches: boolean;
     maxMatchesPerFile: boolean;
     cursor: boolean;
+    symbolFields: boolean;
   };
 }
 
@@ -145,6 +166,8 @@ function projectMatch(match: GrepRepoMatch): LeanGrepRepoMatch {
     contextAfter: match.contextAfter,
     fileContentHash: match.fileContentHash,
     fileIntent: match.fileIntent,
+    symbolRowId: match.symbolRowId,
+    symbol: match.symbol,
   };
 }
 
@@ -206,6 +229,13 @@ function buildFilterBlock(
     filter.maxMatchesPerFile = options.maxMatchesPerFile;
   }
   if (options.explicit.cursor && options.cursor) filter.cursor = options.cursor;
+  if (
+    options.explicit.symbolFields &&
+    options.symbolFields &&
+    options.symbolFields.length > 0
+  ) {
+    filter.symbolFields = options.symbolFields;
+  }
   return Object.keys(filter).length > 0 ? filter : undefined;
 }
 

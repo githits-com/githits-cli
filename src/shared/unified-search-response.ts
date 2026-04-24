@@ -20,6 +20,7 @@ export interface UnifiedSearchQueryEcho {
     fileIntent?: string;
     publicOnly?: boolean;
   };
+  allowPartialResults: boolean;
   limit: number;
   offset: number;
   waitTimeoutMs: number;
@@ -70,11 +71,13 @@ export interface UnifiedSearchCompletedPayload {
 export interface UnifiedSearchIncompletePayload {
   query: UnifiedSearchQueryEcho;
   completed: false;
-  returnedCount: 0;
-  hasMore: false;
-  results: [];
+  returnedCount: number;
+  hasMore: boolean;
+  nextOffset?: number;
+  results: UnifiedSearchHitPayload[];
   searchRef: string;
   progress?: UnifiedSearchIncomplete["progress"];
+  sourceStatus?: UnifiedSearchCompleted["result"]["sourceStatus"];
 }
 
 export interface UnifiedSearchErrorPayload {
@@ -106,6 +109,7 @@ export interface UnifiedSearchStatusIncompletePayload {
   completed: false;
   searchRef: string;
   progress?: UnifiedSearchIncomplete["progress"];
+  result?: UnifiedSearchStatusResultPayload;
 }
 
 export function buildUnifiedSearchSuccessPayload(
@@ -118,7 +122,9 @@ export function buildUnifiedSearchSuccessPayload(
   const warnings =
     outcome.state === "completed"
       ? outcome.result.queryWarnings
-      : (outcome.progress?.queryWarnings ?? []);
+      : (outcome.result?.queryWarnings ??
+        outcome.progress?.queryWarnings ??
+        []);
   const query = buildQueryEcho(
     params,
     rawQuery,
@@ -128,15 +134,23 @@ export function buildUnifiedSearchSuccessPayload(
   );
 
   if (outcome.state === "incomplete") {
-    return {
+    const result = outcome.result;
+    const payload: UnifiedSearchIncompletePayload = {
       query,
       completed: false,
-      returnedCount: 0,
-      hasMore: false,
-      results: [],
+      returnedCount: result?.results.length ?? 0,
+      hasMore: result?.page.hasMore ?? false,
+      results: result?.results.map(buildHitPayload) ?? [],
       searchRef: outcome.searchRef,
       progress: outcome.progress,
     };
+    if (result?.page.hasMore === true) {
+      payload.nextOffset = result.page.offset + result.page.returned;
+    }
+    if (result) {
+      payload.sourceStatus = result.sourceStatus;
+    }
+    return payload;
   }
 
   return {
@@ -175,29 +189,39 @@ export function buildUnifiedSearchStatusPayload(
   outcome: UnifiedSearchOutcome,
 ): UnifiedSearchStatusCompletedPayload | UnifiedSearchStatusIncompletePayload {
   if (outcome.state === "incomplete") {
-    return {
+    const payload: UnifiedSearchStatusIncompletePayload = {
       completed: false,
       searchRef: outcome.searchRef,
       progress: outcome.progress,
     };
+    if (outcome.result) {
+      payload.result = buildUnifiedSearchStatusResultPayload(outcome.result);
+    }
+    return payload;
   }
 
   return {
     completed: true,
     searchRef: outcome.searchRef,
     progress: outcome.progress,
-    result: {
-      query: outcome.result.query,
-      queryWarnings: outcome.result.queryWarnings,
-      sources: outcome.result.sources.map((entry) => entry.toLowerCase()),
-      returnedCount: outcome.result.results.length,
-      hasMore: outcome.result.page.hasMore,
-      nextOffset: outcome.result.page.hasMore
-        ? outcome.result.page.offset + outcome.result.page.returned
-        : undefined,
-      results: outcome.result.results.map(buildHitPayload),
-      sourceStatus: outcome.result.sourceStatus,
-    },
+    result: buildUnifiedSearchStatusResultPayload(outcome.result),
+  };
+}
+
+function buildUnifiedSearchStatusResultPayload(
+  result: UnifiedSearchCompleted["result"],
+): UnifiedSearchStatusResultPayload {
+  return {
+    query: result.query,
+    queryWarnings: result.queryWarnings,
+    sources: result.sources.map((entry) => entry.toLowerCase()),
+    returnedCount: result.results.length,
+    hasMore: result.page.hasMore,
+    nextOffset: result.page.hasMore
+      ? result.page.offset + result.page.returned
+      : undefined,
+    results: result.results.map(buildHitPayload),
+    sourceStatus: result.sourceStatus,
   };
 }
 
@@ -223,6 +247,7 @@ function buildQueryEcho(
           publicOnly: params.filters.publicOnly,
         }
       : undefined,
+    allowPartialResults: params.allowPartialResults ?? false,
     limit: params.limit ?? 0,
     offset: params.offset ?? 0,
     waitTimeoutMs: params.waitTimeoutMs ?? 0,

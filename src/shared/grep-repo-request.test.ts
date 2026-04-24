@@ -22,6 +22,7 @@ describe("buildGrepRepoParams", () => {
     expect(params.contextLinesAfter).toBe(0);
     expect(params.maxMatches).toBe(50);
     expect(params.waitTimeoutMs).toBe(20000);
+    expect(params.symbolFields).toBeUndefined();
   });
 
   it("compiles path, pathPrefix, and globs into pathSelectors", () => {
@@ -58,6 +59,17 @@ describe("buildGrepRepoParams", () => {
     });
     expect(asymmetric.params.contextLinesBefore).toBe(1);
     expect(asymmetric.params.contextLinesAfter).toBe(5);
+  });
+
+  it("passes symbol fields through when requested", () => {
+    const { params, explicit } = buildGrepRepoParams({
+      target,
+      pattern: "middleware",
+      symbolFields: ["name", "qualified_path", "kind"],
+    });
+
+    expect(params.symbolFields).toEqual(["name", "qualified_path", "kind"]);
+    expect(explicit.symbolFields).toBe(true);
   });
 
   it("rejects leading dots in extensions", () => {

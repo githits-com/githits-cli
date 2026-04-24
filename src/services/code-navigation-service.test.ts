@@ -1078,7 +1078,7 @@ describe("CodeNavigationServiceImpl", () => {
   });
 
   it("normalises unified search highlight spans", async () => {
-    mockFetch(() =>
+    const fn = mockFetch(() =>
       Promise.resolve(
         new Response(
           JSON.stringify({
@@ -1140,6 +1140,7 @@ describe("CodeNavigationServiceImpl", () => {
     const result = await service.search({
       targets: [{ registry: "NPM", packageName: "express" }],
       query: "router middleware",
+      allowPartialResults: true,
     });
 
     expect(result.state).toBe("completed");
@@ -1150,6 +1151,9 @@ describe("CodeNavigationServiceImpl", () => {
       title: [[7, 17]],
       summary: [[9, 15]],
     });
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.variables.allowPartialResults).toBe(true);
   });
 
   it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on grepRepo", async () => {
@@ -1282,6 +1286,7 @@ describe("CodeNavigationServiceImpl", () => {
       maxMatches: 100,
       maxMatchesPerFile: 3,
       cursor: "cursor-123",
+      symbolFields: ["name", "qualified_path", "kind"],
       waitTimeoutMs: 5000,
     });
     const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
@@ -1305,6 +1310,7 @@ describe("CodeNavigationServiceImpl", () => {
       maxMatches: 100,
       maxMatchesPerFile: 3,
       cursor: "cursor-123",
+      symbolFields: ["name", "qualified_path", "kind"],
       waitTimeoutMs: 5000,
     });
   });
