@@ -231,9 +231,23 @@ function buildCliGrepParams(
   }
 }
 
+const CLI_GREP_PATTERN_NOTE = GREP_REPO_PATTERN_NOTE.replace(
+  "with no path, path_prefix, or glob",
+  "with no --path, [path-prefix], or --glob",
+)
+  .replace("pass case_sensitive: true", "pass --case-sensitive")
+  .replace(
+    "(`path`, `path_prefix`, `globs`)",
+    "(--path, [path-prefix], --glob)",
+  )
+  .replace(
+    "Use `extensions` to intersect further.",
+    "Use --ext to intersect further.",
+  );
+
 const PKG_GREP_DESCRIPTION = `Deterministic text grep over indexed dependency and repository source files.
 
-${GREP_REPO_PATTERN_NOTE}
+${CLI_GREP_PATTERN_NOTE}
 Use \`githits search\` for discovery; use \`githits code grep\` when you know the text or regex to match.
 
 Addressing: <spec> (registry:name[@version]) OR --repo-url <url> --git-ref <ref>.

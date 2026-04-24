@@ -82,18 +82,29 @@ registerMcpCommand(program);
 registerExampleCommand(program);
 registerLanguagesCommand(program);
 registerFeedbackCommand(program);
-await withTelemetrySpan("cli.register.search", () =>
-  registerUnifiedSearchCommands(program),
-);
 const argv = process.argv.slice(2);
+const helpInvocation = isHelpInvocation(argv);
+const helpRegistrationOptions = helpInvocation
+  ? {
+      capability: "enabled" as const,
+      expiredStoredAuth: false,
+      envTokenPresent: false,
+    }
+  : undefined;
+
+if (shouldEagerLoadSearchCommands(argv)) {
+  await withTelemetrySpan("cli.register.search", () =>
+    registerUnifiedSearchCommands(program, helpRegistrationOptions),
+  );
+}
 if (shouldEagerLoadGatedCommandGroup(argv, "code")) {
   await withTelemetrySpan("cli.register.code-group", () =>
-    registerCodeCommandGroup(program),
+    registerCodeCommandGroup(program, helpRegistrationOptions),
   );
 }
 if (shouldEagerLoadGatedCommandGroup(argv, "pkg")) {
   await withTelemetrySpan("cli.register.pkg-group", () =>
-    registerPkgCommandGroup(program),
+    registerPkgCommandGroup(program, helpRegistrationOptions),
   );
 }
 
@@ -124,6 +135,27 @@ function shouldEagerLoadGatedCommandGroup(
     firstArg === "help" ||
     firstArg === "--help" ||
     firstArg === "-h"
+  );
+}
+
+function shouldEagerLoadSearchCommands(args: string[]): boolean {
+  const [firstArg] = args;
+  return (
+    firstArg === "search" ||
+    firstArg === "search-status" ||
+    firstArg === "help" ||
+    firstArg === "--help" ||
+    firstArg === "-h" ||
+    args.length === 0
+  );
+}
+
+function isHelpInvocation(args: string[]): boolean {
+  return (
+    args.length === 0 ||
+    args[0] === "help" ||
+    args.includes("--help") ||
+    args.includes("-h")
   );
 }
 
