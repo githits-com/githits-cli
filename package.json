@@ -30,7 +30,7 @@
     "githits": "dist/cli.js"
   },
   "scripts": {
-    "build": "bunup --dts --target node --packages=external --exports && chmod +x dist/cli.js",
+    "build": "bunup --dts --target node --packages=external --exports && node --input-type=module -e \"import { chmodSync } from 'node:fs'; if (process.platform !== 'win32') chmodSync('dist/cli.js', 0o755);\"",
     "dev": "bun run ./src/cli.ts",
     "inspector": "npx @modelcontextprotocol/inspector bun run dev mcp",
     "smoke:cli": "bun run scripts/cli-smoke.ts",

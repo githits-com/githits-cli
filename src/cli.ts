@@ -22,6 +22,12 @@ import {
   registerPkgCommandGroup,
   registerUnifiedSearchCommands,
 } from "./commands/index.js";
+import { loginFlow, stderrLoginOutput } from "./commands/login.js";
+import { createContainer } from "./container.js";
+import {
+  getCommandPath,
+  maybeAutoLoginBeforeCommand,
+} from "./shared/auto-login.js";
 import {
   FileSystemServiceImpl,
   NpmRegistryUpdateCheckService,
@@ -79,7 +85,7 @@ program
   .description("Code examples from global open source for your AI assistant")
   .version(version)
   .option("--no-color", "Disable colored output")
-  .hook("preAction", (thisCommand, actionCommand) => {
+  .hook("preAction", async (thisCommand, actionCommand) => {
     if (thisCommand.opts().color === false) {
       process.env.NO_COLOR = "1";
     }
@@ -89,6 +95,18 @@ program
       command,
       startTelemetrySpan(getTelemetryCommandName(command)),
     );
+
+    const authResult = await maybeAutoLoginBeforeCommand(command, {
+      createContainer,
+      loginFlow: (options, deps) => loginFlow(options, deps, stderrLoginOutput),
+    });
+    if (authResult.status !== "failed") {
+      return;
+    }
+
+    console.error(`${authResult.message}\n`);
+    console.error("Run `githits login` to try again.");
+    process.exit(1);
   })
   .hook("postAction", (_thisCommand, actionCommand) => {
     endTelemetrySpan(commandSpans.get(actionCommand));
@@ -97,10 +115,11 @@ program
     "after",
     `
 Getting started:
-  githits init                         Set up MCP for your coding agents
-  githits login                        Authenticate with your GitHits account
-  githits mcp                          Show MCP setup instructions
-  githits example "query"              Get code examples
+  githits init                           Set up MCP for your coding agents
+  githits login                          Authenticate with your GitHits account
+  githits mcp                            Start MCP server for your AI assistant
+  githits search "router middleware" --in npm:express   Search dependency code/docs
+  npx -y githits@latest example "query" --lang python    One-shot example search with browser login
 
 Learn more at https://githits.com
 Docs: https://app.githits.com/docs/
@@ -211,16 +230,7 @@ function isSearchHelpTarget(value: string | undefined): boolean {
 }
 
 function getTelemetryCommandName(command: Command): string {
-  const names: string[] = [];
-  let current: Command | null = command;
-
-  while (current) {
-    const name = current.name();
-    if (name && name !== "githits") {
-      names.unshift(name);
-    }
-    current = current.parent ?? null;
-  }
+  const names = getCommandPath(command);
 
   return `command.${names.join(".")}`;
 }

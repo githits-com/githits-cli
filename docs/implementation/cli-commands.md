@@ -4,6 +4,14 @@
 
 The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
 
+Phase 1 of the streamlined signup flow adds automatic browser login bootstrap to
+three interactive top-level commands: `example`, `languages`, and `feedback`.
+When those commands run in an interactive TTY without a valid token, the CLI
+launches the existing OAuth login flow first, then continues the original
+command after auth succeeds. For interactive `--json` runs, login progress is
+written to stderr so stdout stays machine-readable. The bootstrap remains
+disabled for non-interactive execution.
+
 ## Commands
 
 | Command | Required Args | Options | Description |
@@ -51,6 +59,11 @@ githits example "react hooks patterns" -l typescript --json
 ```
 
 Default output is markdown (the API response). `--lang` is optional; when omitted, the backend infers the language from the query. With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL — pass it back to `feedback`). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
+
+When run interactively without a valid token, `githits example` now triggers
+the browser login flow automatically before performing the search. On
+interactive `--json` runs, login progress goes to stderr so stdout remains the
+JSON payload.
 
 ### `githits search`
 
@@ -103,6 +116,9 @@ githits languages type --json  # JSON output for piping
 
 Without a query, lists all languages. With a query, filters to top 5 matches using the same logic as the `search_language` MCP tool (case-insensitive substring match on name, display_name, and aliases). Default output uses colored terminal formatting. JSON output is `[{ "name": "...", "display_name": "...", "aliases": [...] }, ...]`.
 
+Interactive runs without a valid token auto-trigger browser login before the
+language lookup. On interactive `--json` runs, login progress goes to stderr.
+
 ### `githits feedback`
 
 ```
@@ -112,6 +128,37 @@ githits feedback abc123 --accept --message "Solved my problem" --json
 ```
 
 `--accept` and `--reject` are mutually exclusive (enforced by Commander's `.conflicts()` API). At least one must be provided (validated in the action function). JSON output is `{ "success": true, "message": "..." }`.
+
+Interactive runs without a valid token auto-trigger browser login before the
+feedback submission. On interactive `--json` runs, login progress goes to
+stderr.
+
+### `githits code search`
+
+This is now the older symbol-search surface. Prefer top-level `githits search --source symbol` for new flows unless you specifically need the legacy code-search UX or its exact JSON contract.
+
+```
+githits code search npm:express middleware
+githits code search npm:express middleware --intent all
+githits code search pypi:requests timeout --category callable --limit 10
+githits code search crates:serde Serialize --kind trait --limit 5
+githits code search npm:@types/node Buffer --file src/ --json
+githits code search npm:express --keywords "router,handler" --match-mode and
+```
+
+Finds functions, classes, modules, and doc sections inside an indexed dependency by exact-token matches. Top-level `githits search --source symbol` is the preferred unified surface for symbol-shaped search. `code search` remains available for the older dedicated symbol-search UX and parity contract.
+
+**Package spec.** `<registry>:<name>[@<version>]`. Omit the registry to default to `npm`. Supported registries: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`. Scoped npm names are supported (`npm:@types/node`).
+
+**Filtering by symbol shape.** Prefer `--category` for broad filtering (`callable`, `type`, `module`, `data`, `documentation`) — it works across the full 27-value kind taxonomy without enumerating individual kinds. Reach for `--kind` when you want a specific construct, e.g. `--kind trait` (Rust) or `--kind namespace` (C#/C++/PHP).
+
+**Defaults.** `--intent production` filters to production source by default so top results are not dominated by tests, benchmarks, or examples. Use `--intent all` to include every file intent. `--wait` defaults to 20 seconds (above the p50 indexing time of ~11 s); first-time queries against an unindexed package may need `--wait 60` (the backend ceiling) to block until indexing completes. On an INDEXING error, the response message points out the retry options.
+
+**Output.** Default terminal output leads each entry with `path:startLine-endLine [kind]`, followed by the symbol name and a 3-line dedented snippet. `--json` emits the shared success/error envelope also produced by the MCP `search_symbols` tool — see [`mcp-cli-parity.md`](./mcp-cli-parity.md) for the wire contract. The command is registered as `code search` with `code search-symbols` as a Commander alias.
+
+**Capability gate.** The `code` group is registered only when package/source access is available for the current session, when `GITHITS_CODE_NAVIGATION=1` is set for local override, or when stored auth is expired and the CLI cannot reliably pre-classify access.
+
+**Troubleshooting.** Set `GITHITS_DEBUG=code-nav` to emit single-line JSON diagnostics to stderr on error paths. Include the output when filing an issue. Debug payloads never contain query text, tokens, or response bodies.
 
 ### `githits pkg info`
 

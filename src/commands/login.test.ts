@@ -5,7 +5,7 @@ import {
   createMockBrowserService,
   createValidTokenData,
 } from "../services/test-helpers.js";
-import { loginAction, loginFlow } from "./login.js";
+import { loginAction, loginFlow, silentLoginOutput } from "./login.js";
 
 describe("loginAction", () => {
   const mcpUrl = "https://mcp.githits.com";
@@ -411,6 +411,32 @@ describe("loginFlow", () => {
     consoleSpy.mockRestore();
   });
 
+  it("routes progress through the provided reporter instead of stdout", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const writes: string[] = [];
+
+    const result = await loginFlow(
+      { port: 8080 },
+      {
+        authService: createMockAuthService(),
+        authStorage: createMockAuthStorage(),
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+      {
+        write: (message: string) => {
+          writes.push(message);
+        },
+      },
+    );
+
+    expect(result.status).toBe("success");
+    expect(writes).toContain("Discovering OAuth endpoints...");
+    expect(writes).toContain("Opening browser...");
+    expect(consoleSpy).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
   it("returns already_authenticated when valid tokens exist", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
@@ -433,6 +459,24 @@ describe("loginFlow", () => {
     );
 
     expect(result.status).toBe("already_authenticated");
+    consoleSpy.mockRestore();
+  });
+
+  it("stays quiet when the silent reporter is used", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await loginFlow(
+      { port: 8080 },
+      {
+        authService: createMockAuthService(),
+        authStorage: createMockAuthStorage(),
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+      silentLoginOutput,
+    );
+
+    expect(consoleSpy).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
 

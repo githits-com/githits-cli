@@ -18,6 +18,26 @@ export interface LoginFlowResult {
   message: string;
 }
 
+export interface LoginOutput {
+  write(message: string): void;
+}
+
+export const stdoutLoginOutput: LoginOutput = {
+  write: (message: string) => {
+    console.log(message);
+  },
+};
+
+export const stderrLoginOutput: LoginOutput = {
+  write: (message: string) => {
+    console.error(message);
+  },
+};
+
+export const silentLoginOutput: LoginOutput = {
+  write: () => {},
+};
+
 const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 function randomPort(): number {
@@ -69,6 +89,7 @@ async function preflightAuthPersistence(
 export async function loginFlow(
   options: LoginOptions,
   deps: LoginDependencies,
+  output: LoginOutput = stdoutLoginOutput,
 ): Promise<LoginFlowResult> {
   const { authService, authStorage, browserService, mcpUrl } = deps;
 
@@ -91,9 +112,9 @@ export async function loginFlow(
     if (!isExpired) {
       return { status: "already_authenticated", message: "Already logged in." };
     }
-    console.log("Token expired. Starting new login...\n");
+    output.write("Token expired. Starting new login...\n");
   } else if (existing && options.force) {
-    console.log("Re-authenticating (--force flag)...\n");
+    output.write("Re-authenticating (--force flag)...\n");
   }
 
   // If tokens were cleared (expired+refreshFailed or never existed) but a stale
@@ -106,7 +127,7 @@ export async function loginFlow(
   if (persistenceError) return persistenceError;
 
   // Step 1: Discover OAuth endpoints
-  console.log("Discovering OAuth endpoints...");
+  output.write("Discovering OAuth endpoints...");
   const metadata = await authService.discoverEndpoints(mcpUrl);
 
   // Step 2: Load or register client via DCR
@@ -121,7 +142,7 @@ export async function loginFlow(
       redirectUri = `http://127.0.0.1:${options.port}/callback`;
       if (redirectUri !== client.redirectUri) {
         // Port changed - need to re-register
-        console.log("Registering CLI client with new port...");
+        output.write("Registering CLI client with new port...");
         const registration = await authService.registerClient({
           registrationEndpoint: metadata.registrationEndpoint,
           redirectUri,
@@ -143,7 +164,7 @@ export async function loginFlow(
   } else {
     port = options.port ?? randomPort();
     redirectUri = `http://127.0.0.1:${port}/callback`;
-    console.log("Registering CLI client...");
+    output.write("Registering CLI client...");
     const registration = await authService.registerClient({
       registrationEndpoint: metadata.registrationEndpoint,
       redirectUri,
@@ -173,14 +194,14 @@ export async function loginFlow(
 
   // Step 6: Open browser or show URL
   if (options.browser === false) {
-    console.log("Open this URL in your browser:\n");
-    console.log(`  ${authUrl}\n`);
+    output.write("Open this URL in your browser:\n");
+    output.write(`  ${authUrl}\n`);
   } else {
-    console.log("Opening browser...");
+    output.write("Opening browser...");
     await browserService.open(authUrl);
   }
 
-  console.log("Waiting for authentication...\n");
+  output.write("Waiting for authentication...\n");
 
   // Wait for callback with timeout
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -266,7 +287,7 @@ export async function loginAction(
   options: LoginOptions,
   deps: LoginDependencies,
 ): Promise<void> {
-  const result = await loginFlow(options, deps);
+  const result = await loginFlow(options, deps, stdoutLoginOutput);
 
   if (result.status === "already_authenticated") {
     console.log("Already logged in.\n");

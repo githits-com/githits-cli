@@ -35,6 +35,31 @@ The login command (`src/commands/login.ts`) orchestrates a 9-step OAuth flow (ma
 
 The flow has a 5-minute timeout. The callback server must start before the browser opens so it's ready to receive the redirect.
 
+### Automatic login bootstrap for interactive CLI commands
+
+Phase 1 of the streamlined signup flow adds a CLI-boundary bootstrap in
+`src/cli.ts` for a small allowlist of interactive commands:
+
+- `githits example ...`
+- `githits languages ...`
+- `githits feedback ...`
+
+When one of those commands runs in an interactive TTY and no valid token is
+available, the CLI calls the existing `loginFlow()` from `src/commands/login.ts`
+before dispatching the command action. After authentication succeeds, the
+original command continues and builds a fresh container with the newly saved
+tokens.
+
+The bootstrap deliberately does **not** run for:
+
+- non-interactive/stdio-driven execution
+- explicit auth and recovery surfaces such as `login`, `logout`, `auth status`,
+  `init`, and `mcp`
+
+For interactive `--json` invocations, the same bootstrap runs, but login
+progress is written to stderr so the command's JSON payload can remain the only
+stdout output.
+
 ## Token Lifecycle
 
 Tokens are JWTs with a configurable expiration (typically 1 hour). The CLI handles expiration through a `TokenManager` (see `src/services/token-manager.ts`):
@@ -167,9 +192,25 @@ Per API call (via RefreshingGitHitsService):
 
 The MCP server starts without a synchronous auth gate. Tool calls resolve tokens through the shared token provider and return per-tool auth errors when no valid token is available.
 
+For `example`, `languages`, and `feedback`, there is now one extra step before
+the action runs:
+
+```
+CLI preAction hook
+  └─ eligible interactive command?
+       ├─ no → run command normally
+       └─ yes → createContainer()
+            ├─ valid token available? → run command normally
+            └─ no valid token → loginFlow()
+                 ├─ success → continue into the original command action
+                 └─ failure → print login error and exit 1
+```
+
 ## Troubleshooting
 
 - **"Authentication required" from a command or MCP tool** — No valid token found. Run `githits login` or set `GITHITS_API_TOKEN`.
+- **Browser did not open for a piped or redirected invocation** — Expected. Auto-login bootstrap still requires an interactive TTY. Authenticate first with `githits login` or use `GITHITS_API_TOKEN`.
+- **Interactive `--json` printed login progress** — That progress should go to stderr only. If stdout contains login chatter, the login reporter wiring in `src/commands/login.ts` / `src/cli.ts` has regressed.
 - **"Already logged in."** — Token is still valid. Use `githits login --force` to re-authenticate.
 - **Port conflicts on login** — The callback server uses the port from the stored client registration. On first login, a random port (8000–9999) is chosen and saved. Use `--port <port>` to change it (triggers re-registration).
 - **Token refresh fails silently** — By design. The token manager first reloads storage in case another process refreshed credentials. If the expired token is still unchanged, it clears that stale token and later calls prompt re-login.
@@ -182,8 +223,10 @@ The MCP server starts without a synchronous auth gate. Tool calls resolve tokens
 | File | What it demonstrates |
 |---|---|
 | `src/commands/login.ts` | Full OAuth PKCE flow orchestration |
+| `src/cli.ts` | CLI pre-action bootstrap for phase-1 automatic login |
 | `src/commands/logout.ts` | Token and client removal and storage cleanup |
-| `src/container.ts` | Dependency wiring and auth-command container without eager token refresh |
+| `src/shared/auto-login.ts` | Command allowlist and auto-login decision logic |
+| `src/container.ts` | Dependency wiring, keychain probe with fallback, and auth-command container without eager token refresh |
 | `src/services/token-manager.ts` | `TokenProvider` interface, `TokenManager` (proactive refresh, coalescing) |
 | `src/services/refreshing-githits-service.ts` | `GitHitsService` decorator with token refresh and 401 retry |
 | `src/services/execute-with-token-refresh.ts` | Shared helper for token-authenticated retry-on-refresh flows |
