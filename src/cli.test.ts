@@ -148,6 +148,7 @@ describe("root CLI preAction", () => {
   });
 
   it("triggers auto-login for eligible commands before the action runs", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const container = createLoginDeps({ hasValidToken: false });
     const createContainer = mock(() => Promise.resolve(container));
     const loginFlow = mock(() =>
@@ -171,6 +172,68 @@ describe("root CLI preAction", () => {
     expect(ran).toBe(true);
     expect(createContainer).toHaveBeenCalledTimes(1);
     expect(loginFlow).toHaveBeenCalledWith({}, container);
+    expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
+      "Authentication complete. Running example search...",
+    ]);
+    errorSpy.mockRestore();
+  });
+
+  it("prints the languages continuation message after successful auto-login", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const container = createLoginDeps({ hasValidToken: false });
+    const createContainer = mock(() => Promise.resolve(container));
+    const loginFlow = mock(() =>
+      Promise.resolve({
+        status: "success" as const,
+        message: "Logged in successfully.",
+      }),
+    );
+    const program = createProgramWithRootPreAction({
+      createContainer,
+      loginFlow,
+    });
+
+    let ran = false;
+    program.command("languages").action(() => {
+      ran = true;
+    });
+
+    await program.parseAsync(["node", "githits", "languages"]);
+
+    expect(ran).toBe(true);
+    expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
+      "Authentication complete. Loading supported languages...",
+    ]);
+    errorSpy.mockRestore();
+  });
+
+  it("prints the feedback continuation message after successful auto-login", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const container = createLoginDeps({ hasValidToken: false });
+    const createContainer = mock(() => Promise.resolve(container));
+    const loginFlow = mock(() =>
+      Promise.resolve({
+        status: "success" as const,
+        message: "Logged in successfully.",
+      }),
+    );
+    const program = createProgramWithRootPreAction({
+      createContainer,
+      loginFlow,
+    });
+
+    let ran = false;
+    program.command("feedback").action(() => {
+      ran = true;
+    });
+
+    await program.parseAsync(["node", "githits", "feedback"]);
+
+    expect(ran).toBe(true);
+    expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
+      "Authentication complete. Submitting feedback...",
+    ]);
+    errorSpy.mockRestore();
   });
 
   it("preserves a clear failure path when auto-login fails", async () => {
@@ -240,6 +303,7 @@ describe("root CLI preAction", () => {
     expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
       "Opening browser...",
       "Waiting for authentication...\n",
+      "Authentication complete. Running example search...",
     ]);
     logSpy.mockRestore();
     errorSpy.mockRestore();

@@ -4,7 +4,7 @@ import type {
   LoginFlowResult,
   LoginOptions,
 } from "../commands/login.js";
-import { maybeAutoLoginBeforeCommand } from "./auto-login.js";
+import { getCommandPath, maybeAutoLoginBeforeCommand } from "./auto-login.js";
 
 export interface RootCliPreActionDependencies {
   createContainer: () => Promise<
@@ -33,6 +33,13 @@ export function createRootCliPreAction(
       stdinIsTTY: deps.stdinIsTTY,
       stdoutIsTTY: deps.stdoutIsTTY,
     });
+    if (authResult.status === "authenticated") {
+      const continuationMessage = getPostLoginContinuationMessage(command);
+      if (continuationMessage) {
+        console.error(continuationMessage);
+      }
+    }
+
     if (authResult.status !== "failed") {
       return;
     }
@@ -41,4 +48,17 @@ export function createRootCliPreAction(
     console.error("Run `githits login` to try again.");
     (deps.exit ?? process.exit)(1);
   };
+}
+
+function getPostLoginContinuationMessage(command: Command): string | undefined {
+  switch (getCommandPath(command).join(" ")) {
+    case "example":
+      return "Authentication complete. Running example search...";
+    case "languages":
+      return "Authentication complete. Loading supported languages...";
+    case "feedback":
+      return "Authentication complete. Submitting feedback...";
+    default:
+      return undefined;
+  }
 }
