@@ -85,7 +85,7 @@ describe("createMcpServer", () => {
     ]);
   });
 
-  it("adds unified search tools for opaque env tokens", () => {
+  it("omits unified search tools for opaque env tokens without an explicit capability claim", () => {
     const deps = createTestDeps({
       envApiToken: "ghi-opaque-token",
       codeNavigationCapability: "unknown",
@@ -94,8 +94,8 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.some((tool) => tool.name === "search")).toBe(true);
-    expect(tools.some((tool) => tool.name === "search_status")).toBe(true);
+    expect(tools.some((tool) => tool.name === "search")).toBe(false);
+    expect(tools.some((tool) => tool.name === "search_status")).toBe(false);
   });
 
   it("adds package_summary when capability is enabled and service wired", () => {
@@ -132,7 +132,7 @@ describe("createMcpServer", () => {
     expect(tools.map((tool) => tool.name)).not.toContain("package_summary");
   });
 
-  it("adds package_summary for opaque env tokens (capability unknown + env token)", () => {
+  it("omits package_summary for opaque env tokens without an explicit capability claim", () => {
     const deps = createTestDeps({
       envApiToken: "ghi-opaque-token",
       codeNavigationCapability: "unknown",
@@ -141,7 +141,7 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.some((tool) => tool.name === "package_summary")).toBe(true);
+    expect(tools.some((tool) => tool.name === "package_summary")).toBe(false);
   });
 
   it("preserves half-open invariant: whenever package_summary is advertised, unified search is too (enabled path)", () => {

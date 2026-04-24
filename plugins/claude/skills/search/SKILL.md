@@ -29,7 +29,10 @@ Guidelines:
 
 - Prefer existing search context if it already answers the problem.
 - Use `search_language` first when language naming is uncertain.
-- Use `search` for one focused question at a time.
+- Use `get_example` for one focused example-search question at a time.
+- When the task is about indexed dependency or repository internals and the
+  capability-gated tools are available, prefer unified `search` instead of
+  `get_example`.
 - After using results, send `feedback` with helpful/unhelpful outcome.
 
 Tool argument details and rich query guidance are provided directly in the MCP

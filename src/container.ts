@@ -79,7 +79,7 @@ export interface Dependencies {
   envApiToken: string | undefined;
   /** Code navigation capability derived from the startup token snapshot */
   codeNavigationCapability: CodeNavigationCapability;
-  /** Whether GITHITS_CODE_NAVIGATION is set to force-expose the code CLI commands locally */
+  /** Whether GITHITS_CODE_NAVIGATION is set to force-expose gated search/code/pkg CLI surfaces locally */
   codeNavigationCliOverrideEnabled: boolean;
   /** Code navigation backend URL when configured */
   codeNavigationUrl: string | undefined;

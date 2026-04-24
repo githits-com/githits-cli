@@ -3,7 +3,6 @@ import { resolveStartupCodeNavigationRegistrationState } from "../../container.j
 import {
   type CodeNavigationCapability,
   getCodeNavigationUrl,
-  getEnvApiToken,
   isCodeNavigationCliOverrideEnabled,
 } from "../../services/index.js";
 import { registerCodeFilesCommand } from "./files.js";
@@ -15,15 +14,15 @@ export interface CodeCommandGroupOptions {
   codeNavigationUrl?: string;
   overrideEnabled?: boolean;
   capability?: CodeNavigationCapability;
-  envTokenPresent?: boolean;
   expiredStoredAuth?: boolean;
 }
 
 /**
  * Registers the capability-gated code-navigation command group.
  * Only exposed when the token advertises `code_navigation`, the
- * user sets `GITHITS_CODE_NAVIGATION=1`, an opaque env token is
- * present, or stored auth has expired.
+ * user sets `GITHITS_CODE_NAVIGATION=1` for local development, or
+ * stored auth has expired and the direct command path needs a chance
+ * to refresh before the CLI can re-evaluate capability.
  */
 export async function registerCodeCommandGroup(
   program: Command,
@@ -43,13 +42,10 @@ export async function registerCodeCommandGroup(
           expiredStoredAuth: options.expiredStoredAuth ?? false,
         }
       : await resolveStartupCodeNavigationRegistrationState();
-  const capability = registrationState.capability;
-  const envTokenPresent = options.envTokenPresent ?? Boolean(getEnvApiToken());
 
   if (
     !overrideEnabled &&
-    capability !== "enabled" &&
-    !envTokenPresent &&
+    registrationState.capability !== "enabled" &&
     !registrationState.expiredStoredAuth
   ) {
     return;

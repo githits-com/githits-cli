@@ -4,7 +4,7 @@ Code examples from global open source for developers and AI assistants.
 
 ## Available Tools
 
-### search
+### get_example
 
 Find code examples from open source repositories.
 
@@ -16,7 +16,7 @@ Find code examples from open source repositories.
 
 ### search_language
 
-Look up supported programming language names. Use this before calling `search` to get the correct language identifier.
+Look up supported programming language names. Use this before calling `get_example` to get the correct language identifier.
 
 **Parameters:**
 
@@ -34,14 +34,14 @@ Rate a search result. Submit feedback after each search to improve future result
 
 ## When to Use
 
-Use `search` when:
+Use `get_example` when:
 
 - You are stuck or blocked on an implementation problem
 - You need up-to-date examples for an API, library, or framework
 - The user mentions GitHits or asks you to search for code examples
 - You encounter an error you cannot resolve from your training data
 
-Do not use `search` for:
+Do not use `get_example` for:
 
 - General knowledge questions that do not require code examples
 - Problems you can already solve confidently
@@ -60,11 +60,19 @@ Do not use `search` for:
 
 ## How to Search Well
 
-- Call `search_language` first to confirm the correct language name before calling `search`
+- Call `search_language` first to confirm the correct language name before calling `get_example`
 - Formulate queries as natural language questions (e.g., "How to stream responses with the Vercel AI SDK in Next.js")
 - Include specific error messages, library names, or API names when relevant
 - Keep queries focused: 3-4 technical terms maximum
 - Submit `feedback` after every search result you use or discard
+
+## Feature-Gated Tools
+
+When the authenticated token carries the `code_navigation` feature flag, GitHits
+also exposes indexed dependency/package tools such as `search`,
+`search_status`, `package_summary`, `package_vulnerabilities`,
+`package_dependencies`, `package_changelog`, `list_files`, `read_file`, and
+`grep_repo`.
 
 ## License Filtering
 
