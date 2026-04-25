@@ -353,6 +353,80 @@ export interface ChangelogReport {
   entries: ChangelogEntryDetail[];
 }
 
+export type PackageDocSourceKind = "CRAWLED" | "REPOSITORY";
+
+export interface ListPackageDocsParams {
+  registry: PkgseerRegistry;
+  packageName: string;
+  version?: string;
+  limit?: number;
+  after?: string;
+}
+
+export interface ReadPackageDocParams {
+  pageId: string;
+}
+
+export interface PackageDocPageSummary {
+  id?: string;
+  title?: string;
+  slug?: string;
+  order?: number;
+  linkName?: string;
+  lastUpdatedAt?: string;
+  sourceKind?: PackageDocSourceKind;
+  sourceUrl?: string;
+  repoUrl?: string;
+  gitRef?: string;
+  requestedRef?: string;
+  filePath?: string;
+}
+
+export interface PackageDocsPageInfo {
+  hasNextPage: boolean;
+  endCursor?: string;
+  totalCount?: number;
+}
+
+export interface PackageDocsList {
+  registry?: string;
+  packageName?: string;
+  version?: string;
+  stale?: boolean;
+  pages: PackageDocPageSummary[];
+  pageInfo?: PackageDocsPageInfo;
+}
+
+export interface PackageDocSource {
+  url?: string;
+  label?: string;
+}
+
+export interface PackageDocPage {
+  id?: string;
+  title?: string;
+  content?: string;
+  contentFormat?: string;
+  breadcrumbs?: string[];
+  linkName?: string;
+  lastUpdatedAt?: string;
+  sourceKind?: PackageDocSourceKind;
+  source?: PackageDocSource;
+  repoUrl?: string;
+  gitRef?: string;
+  requestedRef?: string;
+  filePath?: string;
+  baseUrl?: string;
+}
+
+export interface PackageDocResult {
+  registry?: string;
+  packageName?: string;
+  version?: string;
+  sourceKind?: PackageDocSourceKind;
+  page?: PackageDocPage;
+}
+
 export interface PackageIntelligenceService {
   packageSummary(params: PackageSummaryParams): Promise<PackageSummary>;
   packageVulnerabilities(
@@ -362,6 +436,8 @@ export interface PackageIntelligenceService {
     params: PackageDependenciesParams,
   ): Promise<DependencyReport>;
   packageChangelog(params: PackageChangelogParams): Promise<ChangelogReport>;
+  listPackageDocs(params: ListPackageDocsParams): Promise<PackageDocsList>;
+  readPackageDoc(params: ReadPackageDocParams): Promise<PackageDocResult>;
 }
 
 // --------------------------------------------------------------------
@@ -996,6 +1072,171 @@ query PackageChangelog(
       htmlUrl
       publishedAt
       metadata
+    }
+  }
+}`;
+
+// --------------------------------------------------------------------
+// Zod schema + queries for package docs
+// --------------------------------------------------------------------
+
+const packageDocSourceKindSchema = z.enum(["CRAWLED", "REPOSITORY"]);
+
+const packageDocPageSummarySchema = z.object({
+  id: z.string().nullable().optional(),
+  title: z.string().nullable().optional(),
+  slug: z.string().nullable().optional(),
+  order: z.number().int().nullable().optional(),
+  linkName: z.string().nullable().optional(),
+  lastUpdatedAt: z.string().nullable().optional(),
+  sourceKind: packageDocSourceKindSchema.nullable().optional(),
+  sourceUrl: z.string().nullable().optional(),
+  repoUrl: z.string().nullable().optional(),
+  gitRef: z.string().nullable().optional(),
+  requestedRef: z.string().nullable().optional(),
+  filePath: z.string().nullable().optional(),
+});
+
+const packageDocsPageInfoSchema = z
+  .object({
+    hasNextPage: z.boolean(),
+    endCursor: z.string().nullable().optional(),
+    totalCount: z.number().int().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+const packageDocsListResponseSchema = z.object({
+  registry: z.string().nullable().optional(),
+  packageName: z.string().nullable().optional(),
+  version: z.string().nullable().optional(),
+  stale: z.boolean().nullable().optional(),
+  pages: z.array(packageDocPageSummarySchema).nullable().optional(),
+  pageInfo: packageDocsPageInfoSchema,
+});
+
+const packageDocSourceSchema = z
+  .object({
+    url: z.string().nullable().optional(),
+    label: z.string().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+const packageDocPageSchema = z
+  .object({
+    id: z.string().nullable().optional(),
+    title: z.string().nullable().optional(),
+    content: z.string().nullable().optional(),
+    contentFormat: z.string().nullable().optional(),
+    breadcrumbs: z.array(z.string()).nullable().optional(),
+    linkName: z.string().nullable().optional(),
+    lastUpdatedAt: z.string().nullable().optional(),
+    sourceKind: packageDocSourceKindSchema.nullable().optional(),
+    source: packageDocSourceSchema,
+    repoUrl: z.string().nullable().optional(),
+    gitRef: z.string().nullable().optional(),
+    requestedRef: z.string().nullable().optional(),
+    filePath: z.string().nullable().optional(),
+    baseUrl: z.string().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+const packageDocResultResponseSchema = z.object({
+  registry: z.string().nullable().optional(),
+  packageName: z.string().nullable().optional(),
+  version: z.string().nullable().optional(),
+  sourceKind: packageDocSourceKindSchema.nullable().optional(),
+  page: packageDocPageSchema,
+});
+
+const packageDocsListGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      listPackageDocs: packageDocsListResponseSchema.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
+const packageDocReadGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      getDocPage: packageDocResultResponseSchema.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
+const LIST_PACKAGE_DOCS_QUERY = `
+query ListPackageDocs(
+  $registry: Registry!
+  $packageName: String!
+  $version: String
+  $limit: Int
+  $after: String
+) {
+  listPackageDocs(
+    registry: $registry
+    packageName: $packageName
+    version: $version
+    limit: $limit
+    after: $after
+  ) {
+    registry
+    packageName
+    version
+    stale
+    pages {
+      id
+      title
+      slug
+      order
+      linkName
+      lastUpdatedAt
+      sourceKind
+      sourceUrl
+      repoUrl
+      gitRef
+      requestedRef
+      filePath
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+      totalCount
+    }
+  }
+}`;
+
+const READ_PACKAGE_DOC_QUERY = `
+query ReadPackageDoc($pageId: String!) {
+  getDocPage(pageId: $pageId) {
+    registry
+    packageName
+    version
+    sourceKind
+    page {
+      id
+      title
+      content
+      contentFormat
+      breadcrumbs
+      linkName
+      lastUpdatedAt
+      sourceKind
+      source {
+        url
+        label
+      }
+      repoUrl
+      gitRef
+      requestedRef
+      filePath
+      baseUrl
     }
   }
 }`;
@@ -1692,6 +1933,210 @@ export class PackageIntelligenceServiceImpl
       package: packageInfo,
       source,
       entries,
+    };
+  }
+
+  async listPackageDocs(
+    params: ListPackageDocsParams,
+  ): Promise<PackageDocsList> {
+    return withTelemetrySpan("pkg-intel.docs.list", () =>
+      executeWithTokenRefresh({
+        getToken: () => this.tokenProvider.getToken(),
+        forceRefresh: () => this.tokenProvider.forceRefresh(),
+        shouldRefresh: (error) => error instanceof AuthenticationError,
+        executeWithToken: (token) => this.executeListPackageDocs(token, params),
+      }),
+    );
+  }
+
+  private async executeListPackageDocs(
+    token: string,
+    params: ListPackageDocsParams,
+  ): Promise<PackageDocsList> {
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.endpointUrl,
+        token,
+        query: LIST_PACKAGE_DOCS_QUERY,
+        variables: {
+          registry: params.registry,
+          packageName: params.packageName,
+          version: params.version,
+          limit: params.limit,
+          after: params.after,
+        },
+        fetchFn: this.fetchFn,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw new PackageIntelligenceNetworkError(
+          "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
+          { cause },
+        );
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = packageDocsListGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Malformed response from the package-intelligence service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw promoteGenericVersionNotFound(
+        this.createGraphQLError(parsed.data.errors),
+        params,
+      );
+    }
+
+    const data = parsed.data.data?.listPackageDocs;
+    if (!data) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Empty response from the package-intelligence service.",
+      );
+    }
+
+    return this.normalisePackageDocsList(data);
+  }
+
+  private normalisePackageDocsList(
+    data: z.infer<typeof packageDocsListResponseSchema>,
+  ): PackageDocsList {
+    return {
+      registry: data.registry ?? undefined,
+      packageName: data.packageName ?? undefined,
+      version: data.version ?? undefined,
+      stale: data.stale ?? undefined,
+      pages:
+        data.pages?.map((page) => ({
+          id: page.id ?? undefined,
+          title: page.title ?? undefined,
+          slug: page.slug ?? undefined,
+          order: page.order ?? undefined,
+          linkName: page.linkName ?? undefined,
+          lastUpdatedAt: page.lastUpdatedAt ?? undefined,
+          sourceKind: page.sourceKind ?? undefined,
+          sourceUrl: page.sourceUrl ?? undefined,
+          repoUrl: page.repoUrl ?? undefined,
+          gitRef: page.gitRef ?? undefined,
+          requestedRef: page.requestedRef ?? undefined,
+          filePath: page.filePath ?? undefined,
+        })) ?? [],
+      pageInfo: data.pageInfo
+        ? {
+            hasNextPage: data.pageInfo.hasNextPage,
+            endCursor: data.pageInfo.endCursor ?? undefined,
+            totalCount: data.pageInfo.totalCount ?? undefined,
+          }
+        : undefined,
+    };
+  }
+
+  async readPackageDoc(
+    params: ReadPackageDocParams,
+  ): Promise<PackageDocResult> {
+    return withTelemetrySpan("pkg-intel.docs.read", () =>
+      executeWithTokenRefresh({
+        getToken: () => this.tokenProvider.getToken(),
+        forceRefresh: () => this.tokenProvider.forceRefresh(),
+        shouldRefresh: (error) => error instanceof AuthenticationError,
+        executeWithToken: (token) => this.executeReadPackageDoc(token, params),
+      }),
+    );
+  }
+
+  private async executeReadPackageDoc(
+    token: string,
+    params: ReadPackageDocParams,
+  ): Promise<PackageDocResult> {
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.endpointUrl,
+        token,
+        query: READ_PACKAGE_DOC_QUERY,
+        variables: {
+          pageId: params.pageId,
+        },
+        fetchFn: this.fetchFn,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw new PackageIntelligenceNetworkError(
+          "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
+          { cause },
+        );
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = packageDocReadGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Malformed response from the package-intelligence service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw this.createGraphQLError(parsed.data.errors);
+    }
+
+    const data = parsed.data.data?.getDocPage;
+    if (!data) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Empty response from the package-intelligence service.",
+      );
+    }
+
+    return this.normalisePackageDocResult(data);
+  }
+
+  private normalisePackageDocResult(
+    data: z.infer<typeof packageDocResultResponseSchema>,
+  ): PackageDocResult {
+    return {
+      registry: data.registry ?? undefined,
+      packageName: data.packageName ?? undefined,
+      version: data.version ?? undefined,
+      sourceKind: data.sourceKind ?? undefined,
+      page: data.page
+        ? {
+            id: data.page.id ?? undefined,
+            title: data.page.title ?? undefined,
+            content: data.page.content ?? undefined,
+            contentFormat: data.page.contentFormat ?? undefined,
+            breadcrumbs: data.page.breadcrumbs ?? undefined,
+            linkName: data.page.linkName ?? undefined,
+            lastUpdatedAt: data.page.lastUpdatedAt ?? undefined,
+            sourceKind: data.page.sourceKind ?? undefined,
+            source: data.page.source
+              ? {
+                  url: data.page.source.url ?? undefined,
+                  label: data.page.source.label ?? undefined,
+                }
+              : undefined,
+            repoUrl: data.page.repoUrl ?? undefined,
+            gitRef: data.page.gitRef ?? undefined,
+            requestedRef: data.page.requestedRef ?? undefined,
+            filePath: data.page.filePath ?? undefined,
+            baseUrl: data.page.baseUrl ?? undefined,
+          }
+        : undefined,
     };
   }
 }

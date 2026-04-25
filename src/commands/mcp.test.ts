@@ -107,6 +107,8 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
+    expect(tools.map((tool) => tool.name)).toContain("list_package_docs");
+    expect(tools.map((tool) => tool.name)).toContain("read_package_doc");
     expect(tools.map((tool) => tool.name)).toContain("package_summary");
   });
 
@@ -142,6 +144,20 @@ describe("createMcpServer", () => {
 
     const tools = getMcpToolDefinitions(deps);
     expect(tools.some((tool) => tool.name === "package_summary")).toBe(false);
+  });
+
+  it("adds package and code-nav tools when local override is enabled", () => {
+    const deps = createTestDeps({
+      codeNavigationCliOverrideEnabled: true,
+      codeNavigationUrl: "https://pkgseer.dev",
+      codeNavigationService: createMockCodeNavigationService(),
+      packageIntelligenceService: createMockPackageIntelligenceService(),
+    });
+
+    const names = getMcpToolDefinitions(deps).map((tool) => tool.name);
+    expect(names).toContain("search");
+    expect(names).toContain("list_package_docs");
+    expect(names).toContain("read_package_doc");
   });
 
   it("preserves half-open invariant: whenever package_summary is advertised, unified search is too (enabled path)", () => {

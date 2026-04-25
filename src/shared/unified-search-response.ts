@@ -5,7 +5,24 @@ import type {
   UnifiedSearchOutcome,
   UnifiedSearchParams,
 } from "../services/index.js";
+import { MalformedCodeNavigationResponseError } from "../services/index.js";
 import { mapCodeNavigationError } from "./code-navigation-error-map.js";
+import {
+  buildDocReadFollowUp,
+  buildFileReadFollowUp,
+} from "./docs-follow-up.js";
+
+export type UnifiedSearchFollowUpPayload =
+  | {
+      type: "read_doc";
+      pageId: string;
+    }
+  | {
+      type: "read_file";
+      repoUrl: string;
+      gitRef: string;
+      path: string;
+    };
 
 export interface UnifiedSearchQueryEcho {
   raw: string;
@@ -42,8 +59,11 @@ export interface UnifiedSearchHitPayload {
     packageName?: string;
     version?: string;
     pageId?: string;
+    sourceKind?: string;
+    sourceUrl?: string;
     repoUrl?: string;
     gitRef?: string;
+    requestedRef?: string;
     filePath?: string;
     startLine?: number;
     endLine?: number;
@@ -54,6 +74,8 @@ export interface UnifiedSearchHitPayload {
     category?: string;
     language?: string;
   };
+  followUp?: UnifiedSearchFollowUpPayload;
+  alternateFollowUps?: UnifiedSearchFollowUpPayload[];
 }
 
 export interface UnifiedSearchCompletedPayload {
@@ -256,6 +278,7 @@ function buildQueryEcho(
 }
 
 function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
+  assertSearchFollowUpInvariant(hit);
   return {
     type: hit.resultType.toLowerCase(),
     target: hit.targetLabel,
@@ -268,8 +291,11 @@ function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
       packageName: hit.locator.packageName,
       version: hit.locator.version,
       pageId: hit.locator.pageId,
+      sourceKind: hit.locator.sourceKind,
+      sourceUrl: hit.locator.sourceUrl,
       repoUrl: hit.locator.repoUrl,
       gitRef: hit.locator.gitRef,
+      requestedRef: hit.locator.requestedRef,
       filePath: hit.locator.filePath,
       startLine: hit.locator.startLine,
       endLine: hit.locator.endLine,
@@ -280,5 +306,53 @@ function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
       category: hit.locator.category,
       language: hit.locator.language,
     },
+    followUp: buildPrimaryFollowUp(hit),
+    alternateFollowUps: buildAlternateFollowUps(hit),
   };
+}
+
+function assertSearchFollowUpInvariant(hit: UnifiedSearchHit): void {
+  if (
+    (hit.resultType === "DOCUMENTATION_PAGE" ||
+      hit.resultType === "REPOSITORY_DOC") &&
+    !hit.locator.pageId
+  ) {
+    throw new MalformedCodeNavigationResponseError(
+      `${hit.resultType} search hit missing required pageId.`,
+    );
+  }
+
+  if (
+    hit.resultType === "REPOSITORY_DOC" &&
+    (!hit.locator.repoUrl || !hit.locator.gitRef || !hit.locator.filePath)
+  ) {
+    throw new MalformedCodeNavigationResponseError(
+      "REPOSITORY_DOC search hit missing repo locator fields.",
+    );
+  }
+}
+
+function buildPrimaryFollowUp(
+  hit: UnifiedSearchHit,
+): UnifiedSearchFollowUpPayload | undefined {
+  switch (hit.resultType) {
+    case "DOCUMENTATION_PAGE":
+    case "REPOSITORY_DOC":
+      return buildDocReadFollowUp(hit.locator.pageId);
+    case "REPOSITORY_CODE":
+      return buildFileReadFollowUp(hit.locator);
+    default:
+      return undefined;
+  }
+}
+
+function buildAlternateFollowUps(
+  hit: UnifiedSearchHit,
+): UnifiedSearchFollowUpPayload[] | undefined {
+  if (hit.resultType !== "REPOSITORY_DOC") {
+    return undefined;
+  }
+
+  const readFile = buildFileReadFollowUp(hit.locator);
+  return readFile ? [readFile] : undefined;
 }

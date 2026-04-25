@@ -4,6 +4,13 @@ export {
   registerAuthStatusCommand,
 } from "./auth-status.js";
 export { registerCodeCommandGroup } from "./code/index.js";
+export { registerDocsCommandGroup } from "./docs/index.js";
+export {
+  type ExampleDependencies,
+  type ExampleOptions,
+  exampleAction,
+  registerExampleCommand,
+} from "./example.js";
 export {
   type FeedbackDependencies,
   type FeedbackOptions,
@@ -33,17 +40,8 @@ export {
   logoutAction,
   registerLogoutCommand,
 } from "./logout.js";
-
 export { createMcpServer, registerMcpCommand } from "./mcp.js";
-
 export { registerPkgCommandGroup } from "./pkg/index.js";
-
-export {
-  type ExampleDependencies,
-  type ExampleOptions,
-  exampleAction,
-  registerExampleCommand,
-} from "./example.js";
 export {
   registerSearchCommand,
   registerUnifiedSearchCommands,

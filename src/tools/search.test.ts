@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import type { UnifiedSearchOutcome } from "../services/index.js";
 import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,
@@ -80,5 +81,64 @@ describe("searchTool", () => {
         ],
       }),
     );
+  });
+
+  it("includes alternate read_file follow-up for repository docs", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const baseHit = defaultUnifiedSearchOutcome.result.results[0]!;
+
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [
+          {
+            ...baseHit,
+            resultType: "REPOSITORY_DOC" as const,
+            locator: {
+              ...baseHit.locator,
+              pageId: "github:expressjs/express@abc123/README.md",
+              sourceKind: "REPOSITORY",
+              sourceUrl:
+                "https://github.com/expressjs/express/blob/abc123/README.md",
+              repoUrl: "https://github.com/expressjs/express",
+              gitRef: "abc123",
+              requestedRef: "v5.2.1",
+              filePath: "README.md",
+            },
+          },
+        ],
+      },
+    };
+    const tool = createSearchTool(
+      createMockCodeNavigationService({
+        search: mock(() => Promise.resolve(outcome)),
+      }),
+    );
+
+    const result = await tool.handler(
+      {
+        query: "middleware",
+        target: { registry: "npm", package_name: "express" },
+      },
+      {},
+    );
+
+    const payload = JSON.parse(result.content[0]?.text ?? "{}");
+    expect(payload.results[0].followUp).toEqual({
+      type: "read_doc",
+      pageId: "github:expressjs/express@abc123/README.md",
+    });
+    expect(payload.results[0].alternateFollowUps).toEqual([
+      {
+        type: "read_file",
+        repoUrl: "https://github.com/expressjs/express",
+        gitRef: "abc123",
+        path: "README.md",
+      },
+    ]);
   });
 });

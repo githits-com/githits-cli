@@ -26,6 +26,12 @@ Package spec: \`registry:name[@version]\`.`;
 const PACKAGE_SUMMARY_BULLET =
   "- `package_summary` — instant package overview: latest version, license, downloads, quickstart, and active advisory count.";
 
+const LIST_PACKAGE_DOCS_BULLET =
+  "- `list_package_docs` — browse mixed package documentation pages from hosted docs and repository-backed docs. Each entry includes a stable pageId, source kind, source URL, and for repo docs exact file follow-up metadata.";
+
+const READ_PACKAGE_DOC_BULLET =
+  "- `read_package_doc` — read a documentation page by pageId. Works for both hosted docs and repo-backed docs. Repo-backed results additionally expose exact file follow-up metadata.";
+
 const PACKAGE_VULNERABILITIES_BULLET =
   "- `package_vulnerabilities` — known CVE / OSV advisories for npm, PyPI, Hex, or Crates packages (optionally pinned to `@version`). Malicious-package advisories surface in a disjoint `malware` bucket; filter with `min_severity` or include retracted advisories with `include_withdrawn`.";
 
@@ -65,7 +71,12 @@ const SEARCH_VS_SYMBOLS_TIP =
  * documented.
  */
 export function isPackageToolsCapabilityOpen(deps: Dependencies): boolean {
-  return deps.codeNavigationCapability === "enabled";
+  return (
+    deps.codeNavigationCliOverrideEnabled ||
+    deps.codeNavigationCapability === "enabled" ||
+    (deps.codeNavigationCapability === "unknown" &&
+      deps.envApiToken !== undefined)
+  );
 }
 
 /**
@@ -86,6 +97,8 @@ export function buildMcpInstructions(deps: Dependencies): string {
 
   const bullets: string[] = [];
   if (deps.packageIntelligenceService) {
+    bullets.push(LIST_PACKAGE_DOCS_BULLET);
+    bullets.push(READ_PACKAGE_DOC_BULLET);
     bullets.push(PACKAGE_SUMMARY_BULLET);
     bullets.push(PACKAGE_VULNERABILITIES_BULLET);
     bullets.push(PACKAGE_DEPENDENCIES_BULLET);

@@ -13,11 +13,13 @@ import {
   createGetExampleTool,
   createGrepRepoTool,
   createListFilesTool,
+  createListPackageDocsTool,
   createPackageChangelogTool,
   createPackageDependenciesTool,
   createPackageSummaryTool,
   createPackageVulnerabilitiesTool,
   createReadFileTool,
+  createReadPackageDocTool,
   createSearchLanguageTool,
   createSearchStatusTool,
   createSearchTool,
@@ -51,6 +53,8 @@ export function getMcpToolDefinitions(
   }
 
   if (gateOpen && deps.packageIntelligenceService) {
+    tools.push(createListPackageDocsTool(deps.packageIntelligenceService));
+    tools.push(createReadPackageDocTool(deps.packageIntelligenceService));
     tools.push(createPackageSummaryTool(deps.packageIntelligenceService));
     tools.push(
       createPackageVulnerabilitiesTool(deps.packageIntelligenceService),

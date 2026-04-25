@@ -51,6 +51,8 @@ const KNOWN_TOOLS = [
   "list_files",
   "read_file",
   "grep_repo",
+  "list_package_docs",
+  "read_package_doc",
   "package_summary",
   "package_vulnerabilities",
   "package_dependencies",
@@ -82,12 +84,20 @@ describe("isPackageToolsCapabilityOpen", () => {
     expect(isPackageToolsCapabilityOpen(deps)).toBe(false);
   });
 
-  it("is false when capability unknown even if an env token is present", () => {
+  it("is true when local override is enabled", () => {
+    const deps = createTestDeps({
+      codeNavigationCapability: "disabled",
+      codeNavigationCliOverrideEnabled: true,
+    });
+    expect(isPackageToolsCapabilityOpen(deps)).toBe(true);
+  });
+
+  it("is true when capability unknown but env token provides opaque grant", () => {
     const deps = createTestDeps({
       codeNavigationCapability: "unknown",
       envApiToken: "ghi-opaque-token",
     });
-    expect(isPackageToolsCapabilityOpen(deps)).toBe(false);
+    expect(isPackageToolsCapabilityOpen(deps)).toBe(true);
   });
 
   it("is false when capability unknown and no env token", () => {
@@ -128,6 +138,8 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("GitHits surfaces verified");
     expect(instructions).toContain("Package tools");
     expect(instructions).toContain("`package_summary`");
+    expect(instructions).toContain("`list_package_docs`");
+    expect(instructions).toContain("`read_package_doc`");
     expect(instructions).toContain("`package_vulnerabilities`");
     expect(instructions).toContain("`package_dependencies`");
     expect(instructions).toContain("`package_changelog`");
@@ -187,6 +199,8 @@ describe("buildMcpInstructions", () => {
 
     expect(instructions).toContain("Package tools");
     expect(instructions).toContain("`package_summary`");
+    expect(instructions).toContain("`list_package_docs`");
+    expect(instructions).toContain("`read_package_doc`");
     expect(instructions).toContain("`package_vulnerabilities`");
     expect(instructions).toContain("`package_dependencies`");
     expect(instructions).toContain("`package_changelog`");
@@ -208,6 +222,14 @@ describe("buildMcpInstructions", () => {
         overrides: {
           codeNavigationCapability: "enabled",
           codeNavigationService: createMockCodeNavigationService(),
+        },
+      },
+      {
+        label: "override enabled, both services wired",
+        overrides: {
+          codeNavigationCliOverrideEnabled: true,
+          codeNavigationService: createMockCodeNavigationService(),
+          packageIntelligenceService: createMockPackageIntelligenceService(),
         },
       },
       {

@@ -442,7 +442,10 @@ function formatUnifiedSearchTerminal(payload: {
       version?: string;
       repoUrl?: string;
       gitRef?: string;
+      requestedRef?: string;
       pageId?: string;
+      sourceKind?: string;
+      sourceUrl?: string;
       filePath?: string;
       startLine?: number;
       endLine?: number;
@@ -510,6 +513,10 @@ function formatUnifiedSearchTerminal(payload: {
     const location = formatUnifiedSearchLocation(entry.locator);
     const header = formatUnifiedSearchHeader(entry, useColors, location);
     lines.push(header);
+    const metadata = formatUnifiedSearchMetadata(entry, useColors);
+    if (metadata.length > 0) {
+      lines.push(...metadata);
+    }
     if (entry.summary) {
       lines.push(
         ...formatUnifiedSearchSummary(
@@ -604,7 +611,16 @@ function formatSearchStatusCompletedTerminal(payload: {
         title?: Array<readonly [number, number]>;
         summary?: Array<readonly [number, number]>;
       };
-      locator: { filePath?: string; startLine?: number; endLine?: number };
+      locator: {
+        filePath?: string;
+        gitRef?: string;
+        startLine?: number;
+        endLine?: number;
+        pageId?: string;
+        sourceKind?: string;
+        sourceUrl?: string;
+        requestedRef?: string;
+      };
     }>;
   };
 }): string {
@@ -719,6 +735,7 @@ function dedupeSearchResultsForDisplay<
     target: string;
     title?: string;
     summary?: string;
+    locator: { pageId?: string; filePath?: string };
   },
 >(results: T[]): { display: T[]; duplicatesFolded: number } {
   const seen = new Set<string>();
@@ -731,11 +748,12 @@ function dedupeSearchResultsForDisplay<
       entry.title ?? "",
       (entry.summary ?? "").slice(0, 120),
     ].join("");
-    if (seen.has(key)) {
+    const dedupeKey = `${key}\u0001${entry.locator.pageId ?? entry.locator.filePath ?? ""}`;
+    if (seen.has(dedupeKey)) {
       duplicatesFolded += 1;
       continue;
     }
-    seen.add(key);
+    seen.add(dedupeKey);
     display.push(entry);
   }
   return { display, duplicatesFolded };
@@ -814,9 +832,10 @@ function formatUnifiedSearchLocation(locator: {
   filePath?: string;
   startLine?: number;
   endLine?: number;
+  sourceUrl?: string;
 }): string | undefined {
   if (!locator.filePath) {
-    return undefined;
+    return locator.sourceUrl;
   }
 
   if (!locator.startLine) {
@@ -836,16 +855,69 @@ function formatUnifiedSearchHeader(
       startLine?: number;
       endLine?: number;
       pageId?: string;
+      sourceKind?: string;
+      sourceUrl?: string;
+      requestedRef?: string;
     };
     title?: string;
   },
   useColors: boolean,
   location: string | undefined,
 ): string {
-  const primary = location ? `${entry.target} ${location}` : entry.target;
+  const primary =
+    entry.type === "documentation_page"
+      ? entry.target
+      : location
+        ? `${entry.target} ${location}`
+        : entry.target;
   const badge = `[${formatUnifiedSearchResultLabel(entry.type)}]`;
   const title = entry.title
     ? highlightRanges(entry.title, entry.highlights?.title, useColors)
     : undefined;
   return `${highlight(primary, useColors)} ${dim(badge, useColors)}${title ? ` - ${title}` : ""}`;
+}
+
+function formatUnifiedSearchMetadata(
+  entry: {
+    type: string;
+    locator: {
+      pageId?: string;
+      sourceKind?: string;
+      sourceUrl?: string;
+      filePath?: string;
+      gitRef?: string;
+      requestedRef?: string;
+    };
+  },
+  useColors: boolean,
+): string[] {
+  if (entry.type !== "documentation_page" && entry.type !== "repository_doc") {
+    return [];
+  }
+
+  const lines: string[] = [];
+  if (entry.locator.pageId) {
+    lines.push(`  ${dim("pageId:", useColors)} ${entry.locator.pageId}`);
+  }
+
+  const sourceBadge =
+    entry.locator.sourceKind?.toLowerCase() === "repository"
+      ? "[repo]"
+      : entry.locator.sourceKind?.toLowerCase() === "crawled"
+        ? "[crawled]"
+        : undefined;
+  if (entry.locator.sourceUrl) {
+    lines.push(
+      `  ${dim("source:", useColors)} ${sourceBadge ? `${sourceBadge} ` : ""}${entry.locator.sourceUrl}`,
+    );
+  }
+
+  if (entry.type === "repository_doc" && entry.locator.filePath) {
+    const ref = entry.locator.requestedRef ?? entry.locator.gitRef;
+    lines.push(
+      `  ${dim("file:", useColors)} ${entry.locator.filePath}${ref ? ` @ ${ref}` : ""}`,
+    );
+  }
+
+  return lines;
 }

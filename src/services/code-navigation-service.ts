@@ -205,8 +205,11 @@ export interface UnifiedSearchLocator {
   packageName?: string;
   version?: string;
   pageId?: string;
+  sourceKind?: string;
+  sourceUrl?: string;
   repoUrl?: string;
   gitRef?: string;
+  requestedRef?: string;
   filePath?: string;
   startLine?: number;
   endLine?: number;
@@ -712,8 +715,11 @@ query UnifiedSearch(
           packageName
           version
           pageId
+          sourceKind
+          sourceUrl
           repoUrl
           gitRef
+          requestedRef
           filePath
           startLine
           endLine
@@ -793,8 +799,11 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
           packageName
           version
           pageId
+          sourceKind
+          sourceUrl
           repoUrl
           gitRef
+          requestedRef
           filePath
           startLine
           endLine
@@ -1014,8 +1023,11 @@ const unifiedSearchLocatorSchema = z.object({
   packageName: z.string().nullable().optional(),
   version: z.string().nullable().optional(),
   pageId: z.string().nullable().optional(),
+  sourceKind: z.string().nullable().optional(),
+  sourceUrl: z.string().nullable().optional(),
   repoUrl: z.string().nullable().optional(),
   gitRef: z.string().nullable().optional(),
+  requestedRef: z.string().nullable().optional(),
   filePath: z.string().nullable().optional(),
   startLine: z.number().int().nullable().optional(),
   endLine: z.number().int().nullable().optional(),
@@ -2057,8 +2069,11 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
           packageName: entry.locator.packageName ?? undefined,
           version: entry.locator.version ?? undefined,
           pageId: entry.locator.pageId ?? undefined,
+          sourceKind: entry.locator.sourceKind ?? undefined,
+          sourceUrl: entry.locator.sourceUrl ?? undefined,
           repoUrl: entry.locator.repoUrl ?? undefined,
           gitRef: entry.locator.gitRef ?? undefined,
+          requestedRef: entry.locator.requestedRef ?? undefined,
           filePath: entry.locator.filePath ?? undefined,
           startLine: entry.locator.startLine ?? undefined,
           endLine: entry.locator.endLine ?? undefined,

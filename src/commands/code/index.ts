@@ -1,20 +1,16 @@
 import type { Command } from "commander";
-import { resolveStartupCodeNavigationRegistrationState } from "../../container.js";
+import type { CodeNavigationCapability } from "../../services/index.js";
 import {
-  type CodeNavigationCapability,
-  getCodeNavigationUrl,
-  isCodeNavigationCliOverrideEnabled,
-} from "../../services/index.js";
+  type GatedCommandGroupOptions,
+  resolveGatedCommandGroupRegistrationState,
+} from "../gated-command-group.js";
 import { registerCodeFilesCommand } from "./files.js";
 import { registerCodeGrepCommand } from "./grep.js";
 import { registerCodeReadCommand } from "./read.js";
 import { registerCodeSearchSymbolsCommand } from "./search-symbols.js";
 
-export interface CodeCommandGroupOptions {
-  codeNavigationUrl?: string;
-  overrideEnabled?: boolean;
+export interface CodeCommandGroupOptions extends GatedCommandGroupOptions {
   capability?: CodeNavigationCapability;
-  expiredStoredAuth?: boolean;
 }
 
 /**
@@ -28,26 +24,8 @@ export async function registerCodeCommandGroup(
   program: Command,
   options: CodeCommandGroupOptions = {},
 ): Promise<void> {
-  const codeNavigationUrl = options.codeNavigationUrl ?? getCodeNavigationUrl();
-  if (!codeNavigationUrl) {
-    return;
-  }
-
-  const overrideEnabled =
-    options.overrideEnabled ?? isCodeNavigationCliOverrideEnabled();
-  const registrationState =
-    options.capability !== undefined || options.expiredStoredAuth !== undefined
-      ? {
-          capability: options.capability ?? "unknown",
-          expiredStoredAuth: options.expiredStoredAuth ?? false,
-        }
-      : await resolveStartupCodeNavigationRegistrationState();
-
-  if (
-    !overrideEnabled &&
-    registrationState.capability !== "enabled" &&
-    !registrationState.expiredStoredAuth
-  ) {
+  const registration = await resolveGatedCommandGroupRegistrationState(options);
+  if (!registration.shouldRegister) {
     return;
   }
 
