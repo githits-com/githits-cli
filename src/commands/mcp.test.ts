@@ -85,7 +85,7 @@ describe("createMcpServer", () => {
     ]);
   });
 
-  it("omits unified search tools for opaque env tokens without an explicit capability claim", () => {
+  it("adds unified search tools for opaque env tokens when the gate is otherwise open", () => {
     const deps = createTestDeps({
       envApiToken: "ghi-opaque-token",
       codeNavigationCapability: "unknown",
@@ -94,8 +94,8 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.some((tool) => tool.name === "search")).toBe(false);
-    expect(tools.some((tool) => tool.name === "search_status")).toBe(false);
+    expect(tools.some((tool) => tool.name === "search")).toBe(true);
+    expect(tools.some((tool) => tool.name === "search_status")).toBe(true);
   });
 
   it("adds package_summary when capability is enabled and service wired", () => {
@@ -134,7 +134,7 @@ describe("createMcpServer", () => {
     expect(tools.map((tool) => tool.name)).not.toContain("package_summary");
   });
 
-  it("omits package_summary for opaque env tokens without an explicit capability claim", () => {
+  it("adds package_summary for opaque env tokens when the gate is otherwise open", () => {
     const deps = createTestDeps({
       envApiToken: "ghi-opaque-token",
       codeNavigationCapability: "unknown",
@@ -143,7 +143,7 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.some((tool) => tool.name === "package_summary")).toBe(false);
+    expect(tools.some((tool) => tool.name === "package_summary")).toBe(true);
   });
 
   it("adds package and code-nav tools when local override is enabled", () => {
