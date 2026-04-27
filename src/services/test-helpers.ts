@@ -25,6 +25,8 @@ import type { KeyringService } from "./keyring-service.js";
 import type {
   ChangelogReport,
   DependencyReport,
+  PackageDocResult,
+  PackageDocsList,
   PackageIntelligenceService,
   PackageSummary,
   VulnerabilityReport,
@@ -679,6 +681,66 @@ export const defaultChangelogReport: ChangelogReport = {
   ],
 };
 
+export const defaultPackageDocsList: PackageDocsList = {
+  registry: "npm",
+  packageName: "express",
+  version: "5.2.1",
+  stale: false,
+  pages: [
+    {
+      id: "123-getting-started",
+      title: "Getting Started",
+      slug: "getting-started",
+      order: 0,
+      linkName: "getting-started",
+      lastUpdatedAt: "2026-02-01T12:00:00Z",
+      sourceKind: "CRAWLED",
+      sourceUrl: "https://hexdocs.pm/express/getting-started.html",
+    },
+    {
+      id: "github:expressjs/express@abc123/README.md",
+      title: "README.md",
+      slug: "github:expressjs/express@abc123/README.md",
+      order: 1,
+      sourceKind: "REPOSITORY",
+      sourceUrl: "https://github.com/expressjs/express/blob/abc123/README.md",
+      repoUrl: "https://github.com/expressjs/express",
+      gitRef: "abc123",
+      requestedRef: "v5.2.1",
+      filePath: "README.md",
+    },
+  ],
+  pageInfo: {
+    hasNextPage: false,
+    totalCount: 2,
+  },
+};
+
+export const defaultPackageDocResult: PackageDocResult = {
+  registry: "npm",
+  packageName: "express",
+  version: "5.2.1",
+  sourceKind: "REPOSITORY",
+  page: {
+    id: "github:expressjs/express@abc123/README.md",
+    title: "README.md",
+    content: "# Express\n\nFast, unopinionated web framework.",
+    contentFormat: "markdown",
+    breadcrumbs: ["README"],
+    lastUpdatedAt: "2026-02-01T12:00:00Z",
+    sourceKind: "REPOSITORY",
+    source: {
+      url: "https://github.com/expressjs/express/blob/abc123/README.md",
+      label: "README.md",
+    },
+    repoUrl: "https://github.com/expressjs/express",
+    gitRef: "abc123",
+    requestedRef: "v5.2.1",
+    filePath: "README.md",
+    baseUrl: "https://github.com/expressjs/express/blob/abc123/README.md",
+  },
+};
+
 /**
  * Creates a mock PackageIntelligenceService. Defaults resolve to the
  * fully-populated fixtures; override per-test as needed.
@@ -693,6 +755,8 @@ export function createMockPackageIntelligenceService(
     ),
     packageDependencies: mock(() => Promise.resolve(defaultDependencyReport)),
     packageChangelog: mock(() => Promise.resolve(defaultChangelogReport)),
+    listPackageDocs: mock(() => Promise.resolve(defaultPackageDocsList)),
+    readPackageDoc: mock(() => Promise.resolve(defaultPackageDocResult)),
     ...impl,
   };
 }

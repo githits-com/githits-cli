@@ -449,7 +449,7 @@ describe("searchAction", () => {
     }
   });
 
-  it("omits doc-fetch placeholder line for documentation pages", async () => {
+  it("shows pageId and source info for documentation pages", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -471,6 +471,8 @@ describe("searchAction", () => {
               packageName: "express",
               version: "5.2.1",
               pageId: "docs-123",
+              sourceKind: "CRAWLED",
+              sourceUrl: "https://hexdocs.pm/express/getting-started.html",
             },
           },
         ],
@@ -491,8 +493,9 @@ describe("searchAction", () => {
     expect(output).toContain(
       "npm:express@4.18.2 [docs page] - Using Express middleware",
     );
-    expect(output).not.toContain("Full doc fetch");
-    expect(output).not.toContain("pageId=");
+    expect(output).toContain("pageId:");
+    expect(output).toContain("docs-123");
+    expect(output).toContain("[crawled]");
     consoleSpy.mockRestore();
   });
 });

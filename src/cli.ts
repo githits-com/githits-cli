@@ -4,6 +4,7 @@ import { version } from "../package.json";
 import {
   registerAuthStatusCommand,
   registerCodeCommandGroup,
+  registerDocsCommandGroup,
   registerExampleCommand,
   registerFeedbackCommand,
   registerInitCommand,
@@ -103,6 +104,11 @@ if (shouldEagerLoadGatedCommandGroup(argv, "pkg")) {
     registerPkgCommandGroup(program, helpRegistrationOptions),
   );
 }
+if (shouldEagerLoadGatedCommandGroup(argv, "docs")) {
+  await withTelemetrySpan("cli.register.docs-group", () =>
+    registerDocsCommandGroup(program, helpRegistrationOptions),
+  );
+}
 
 // Auth status as subcommand of `auth`
 const authCommand = program
@@ -127,7 +133,11 @@ function shouldEagerLoadGatedCommandGroup(
 ): boolean {
   const [firstArg] = args;
   return (
-    firstArg === groupName || (firstArg === "help" && args[1] === groupName)
+    args.length === 0 ||
+    firstArg === groupName ||
+    (firstArg === "help" && (!args[1] || args[1] === groupName)) ||
+    firstArg === "--help" ||
+    firstArg === "-h"
   );
 }
 
@@ -159,12 +169,16 @@ function needsGatedHelpRegistration(args: string[]): boolean {
     return (
       isSearchHelpTarget(secondArg) ||
       secondArg === "code" ||
-      secondArg === "pkg"
+      secondArg === "pkg" ||
+      secondArg === "docs"
     );
   }
 
   return (
-    isSearchHelpTarget(firstArg) || firstArg === "code" || firstArg === "pkg"
+    isSearchHelpTarget(firstArg) ||
+    firstArg === "code" ||
+    firstArg === "pkg" ||
+    firstArg === "docs"
   );
 }
 
@@ -193,10 +207,12 @@ function shouldUseExpiredStoredAuthFallbackForHelp(args: string[]): boolean {
     firstArg === "search-status" ||
     firstArg === "code" ||
     firstArg === "pkg" ||
+    firstArg === "docs" ||
     (firstArg === "help" &&
       (isSearchHelpTarget(secondArg) ||
         secondArg === "code" ||
-        secondArg === "pkg"))
+        secondArg === "pkg" ||
+        secondArg === "docs"))
   );
 }
 

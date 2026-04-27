@@ -34,6 +34,13 @@ export {
 } from "./colors.js";
 export { debugLog } from "./debug-log.js";
 export {
+  buildDocReadFollowUp,
+  buildFileReadFollowUp,
+  type DocReadFollowUp,
+  type FileReadFollowUp,
+  lowerDocSourceKind,
+} from "./docs-follow-up.js";
+export {
   buildGrepRepoParams,
   GREP_REPO_PATTERN_NOTE,
   GREP_REPO_SYMBOL_FIELDS,
@@ -56,6 +63,17 @@ export {
   filterLanguages,
   type LanguageMatch,
 } from "./language-filter.js";
+export {
+  buildListPackageDocsParams,
+  type ListPackageDocsRequestBuildResult,
+  type ListPackageDocsRequestInput,
+} from "./list-package-docs-request.js";
+export {
+  buildListPackageDocsSuccessPayload,
+  formatListPackageDocsTerminal,
+  type LeanPackageDocListEntry,
+  type LeanPackageDocsEnvelope,
+} from "./list-package-docs-response.js";
 export {
   InvalidKeywordsError,
   normaliseKeywords,
@@ -130,6 +148,16 @@ export {
   toPkgseerRegistry,
   toPkgseerRegistryLowercase,
 } from "./pkgseer-registry.js";
+export {
+  buildReadPackageDocParams,
+  type ReadPackageDocRequestBuildResult,
+  type ReadPackageDocRequestInput,
+} from "./read-package-doc-request.js";
+export {
+  buildReadPackageDocSuccessPayload,
+  formatReadPackageDocTerminal,
+  type LeanPackageDocEnvelope,
+} from "./read-package-doc-response.js";
 export { AuthRequiredError, requireAuth } from "./require-auth.js";
 export {
   buildSearchSymbolsParams,
