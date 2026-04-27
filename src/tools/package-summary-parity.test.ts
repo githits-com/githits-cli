@@ -28,10 +28,7 @@ import {
   PackageIntelligenceBackendError,
   PackageIntelligenceTargetNotFoundError,
 } from "../services/index.js";
-import {
-  createMockPackageIntelligenceService,
-  defaultPackageSummary,
-} from "../services/test-helpers.js";
+import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { createPackageSummaryTool } from "./package-summary.js";
 
 function cliDeps(

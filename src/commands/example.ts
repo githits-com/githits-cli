@@ -4,7 +4,7 @@ import { extractSolutionId } from "../shared/extract-solution-id.js";
 import { AuthRequiredError, requireAuth } from "../shared/require-auth.js";
 
 export interface ExampleOptions {
-  lang: string;
+  lang?: string;
   license?: "strict" | "yolo" | "custom";
   explain?: boolean;
   json?: boolean;
@@ -53,6 +53,7 @@ const EXAMPLE_DESCRIPTION = `Get verified, canonical code examples from global o
 For dependency, package, or repository source search, use \`githits search\` instead.
 
 Examples:
+  githits example "how to use express middleware"
   githits example "how to use express middleware" --lang javascript
   githits example "async file reading" -l python --license yolo
   githits example "react hooks patterns" -l typescript --explain
@@ -64,7 +65,10 @@ export function registerExampleCommand(program: Command) {
     .summary("Get code examples from global open source")
     .description(EXAMPLE_DESCRIPTION)
     .argument("<query>", "Natural language example-search query")
-    .requiredOption("-l, --lang <language>", "Programming language")
+    .option(
+      "-l, --lang <language>",
+      "Optional programming language; omitted values are inferred by GitHits",
+    )
     .addOption(
       new Option("--license <mode>", "License filter mode")
         .choices(["strict", "yolo", "custom"])

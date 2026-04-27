@@ -39,6 +39,24 @@ describe("exampleAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("calls service without language when --lang is omitted", async () => {
+    const searchFn = mock(() => Promise.resolve("result"));
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({ search: searchFn }),
+    });
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await exampleAction("hello world", {}, deps);
+
+    expect(searchFn).toHaveBeenCalledWith({
+      query: "hello world",
+      language: undefined,
+      licenseMode: undefined,
+      includeExplanation: undefined,
+    });
+    consoleSpy.mockRestore();
+  });
+
   it("outputs JSON when --json flag provided", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 

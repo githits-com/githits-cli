@@ -24,6 +24,7 @@ import {
   createSearchStatusTool,
   createSearchTool,
   type ToolDefinition,
+  type ZodRawShape,
 } from "../tools/index.js";
 import {
   buildMcpInstructions,
@@ -35,35 +36,56 @@ import {
  */
 export function getMcpToolDefinitions(
   deps: Dependencies,
-): ToolDefinition<any, any>[] {
-  const tools: ToolDefinition<any, any>[] = [
-    createGetExampleTool(deps.githitsService),
-    createSearchLanguageTool(deps.githitsService),
-    createFeedbackTool(deps.githitsService),
+): ToolDefinition<unknown>[] {
+  const tools: ToolDefinition<unknown>[] = [
+    eraseTool(createGetExampleTool(deps.githitsService)),
+    eraseTool(createSearchLanguageTool(deps.githitsService)),
+    eraseTool(createFeedbackTool(deps.githitsService)),
   ];
 
   const gateOpen = isPackageToolsCapabilityOpen(deps);
 
   if (gateOpen && deps.codeNavigationService) {
-    tools.push(createSearchTool(deps.codeNavigationService));
-    tools.push(createSearchStatusTool(deps.codeNavigationService));
-    tools.push(createListFilesTool(deps.codeNavigationService));
-    tools.push(createReadFileTool(deps.codeNavigationService));
-    tools.push(createGrepRepoTool(deps.codeNavigationService));
+    tools.push(eraseTool(createSearchTool(deps.codeNavigationService)));
+    tools.push(eraseTool(createSearchStatusTool(deps.codeNavigationService)));
+    tools.push(eraseTool(createListFilesTool(deps.codeNavigationService)));
+    tools.push(eraseTool(createReadFileTool(deps.codeNavigationService)));
+    tools.push(eraseTool(createGrepRepoTool(deps.codeNavigationService)));
   }
 
   if (gateOpen && deps.packageIntelligenceService) {
-    tools.push(createListPackageDocsTool(deps.packageIntelligenceService));
-    tools.push(createReadPackageDocTool(deps.packageIntelligenceService));
-    tools.push(createPackageSummaryTool(deps.packageIntelligenceService));
     tools.push(
-      createPackageVulnerabilitiesTool(deps.packageIntelligenceService),
+      eraseTool(createListPackageDocsTool(deps.packageIntelligenceService)),
     );
-    tools.push(createPackageDependenciesTool(deps.packageIntelligenceService));
-    tools.push(createPackageChangelogTool(deps.packageIntelligenceService));
+    tools.push(
+      eraseTool(createReadPackageDocTool(deps.packageIntelligenceService)),
+    );
+    tools.push(
+      eraseTool(createPackageSummaryTool(deps.packageIntelligenceService)),
+    );
+    tools.push(
+      eraseTool(
+        createPackageVulnerabilitiesTool(deps.packageIntelligenceService),
+      ),
+    );
+    tools.push(
+      eraseTool(createPackageDependenciesTool(deps.packageIntelligenceService)),
+    );
+    tools.push(
+      eraseTool(createPackageChangelogTool(deps.packageIntelligenceService)),
+    );
   }
 
   return tools;
+}
+
+function eraseTool<TArgs, TSchema extends ZodRawShape>(
+  tool: ToolDefinition<TArgs, TSchema>,
+): ToolDefinition<unknown> {
+  return {
+    ...tool,
+    handler: (args, extra) => tool.handler(args as TArgs, extra),
+  };
 }
 
 /**

@@ -19,7 +19,7 @@ Both expose the same tools with identical names, parameters, and descriptions. T
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `get_example` | `query`, `language`, `license_mode?` | Search for canonical code examples. Returns markdown-formatted results. |
+| `get_example` | `query`, `language?`, `license_mode?` | Search for canonical code examples. Returns markdown-formatted results. If `language` is omitted, the backend infers it from the query. |
 | `search_language` | `query` | Find supported programming language names before searching. |
 | `feedback` | `solution_id`, `accepted`, `feedback_text?` | Submit feedback on a search result to improve quality. |
 | `search` | `query`, `target?`, `targets?`, `sources?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?` | Unified indexed dependency/repository discovery search across code, docs, and symbols. Omit `file_intent` to search across all intents; set it only when you want to narrow results, and note that some sources may ignore it and report that in `sourceStatus`. Prefer `sources:["symbol"]` for symbol-shaped unified search. Complete-by-default; set `allow_partial_results: true` to receive available partial hits while indexing continues. |

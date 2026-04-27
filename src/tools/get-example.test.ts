@@ -34,6 +34,21 @@ describe("getExampleTool", () => {
     });
   });
 
+  it("allows language to be omitted", async () => {
+    const searchFn = mock(() => Promise.resolve("result"));
+    const service = createMockGitHitsService({ search: searchFn });
+    const tool = createGetExampleTool(service);
+
+    await tool.handler({ query: "test" }, {});
+
+    expect(searchFn).toHaveBeenCalledWith({
+      query: "test",
+      language: undefined,
+      licenseMode: undefined,
+      includeExplanation: false,
+    });
+  });
+
   it("returns error result on service failure", async () => {
     const service = createMockGitHitsService({
       search: mock(() => Promise.reject(new Error("Network error"))),

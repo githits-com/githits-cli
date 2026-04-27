@@ -38,11 +38,6 @@ export interface GrepRepoArgs {
   wait_timeout_ms?: number;
 }
 
-const pathSelectorSchema = z.object({
-  kind: z.enum(["exact", "prefix", "glob"]),
-  value: z.string(),
-});
-
 const schema = {
   target: codeTargetSchema,
   pattern: z.string().describe(GREP_REPO_PATTERN_NOTE),

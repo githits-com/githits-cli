@@ -11,12 +11,12 @@ Find code examples from open source repositories.
 **Parameters:**
 
 - `query` (string, required) - natural language description of what you need
-- `language` (string, required) - programming language name (use `search_language` to verify)
+- `language` (string, optional) - programming language name; omit it to let GitHits infer the language from the query
 - `license_mode` (string, optional) - one of `strict` (default), `yolo`, or `custom`
 
 ### search_language
 
-Look up supported programming language names. Use this before calling `get_example` to get the correct language identifier.
+Look up supported programming language names. Use this before calling `get_example` only when you need to force a specific language and the exact name is uncertain.
 
 **Parameters:**
 
@@ -60,7 +60,7 @@ Do not use `get_example` for:
 
 ## How to Search Well
 
-- Call `search_language` first to confirm the correct language name before calling `get_example`
+- Pass `language` only when you need to force a specific language; call `search_language` first if the exact language name is uncertain
 - Formulate queries as natural language questions (e.g., "How to stream responses with the Vercel AI SDK in Next.js")
 - Include specific error messages, library names, or API names when relevant
 - Keep queries focused: 3-4 technical terms maximum

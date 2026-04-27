@@ -6,7 +6,7 @@ import { type ToolDefinition, textResult } from "./types.js";
 
 interface GetExampleArgs {
   query: string;
-  language: string;
+  language?: string;
   license_mode?: "strict" | "yolo" | "custom";
 }
 
@@ -20,8 +20,9 @@ const schema = {
   language: z
     .string()
     .min(1)
+    .optional()
     .describe(
-      "Programming language. Use search_language first if the exact name is uncertain.",
+      "Optional programming language. If omitted, GitHits tries to infer it automatically. Use search_language first only when you need to force a specific language and the exact name is uncertain.",
     ),
   license_mode: z
     .enum(["strict", "yolo", "custom"])

@@ -250,13 +250,12 @@ describe("postPkgseerGraphql", () => {
     const stderrLines: string[] = [];
     const originalWrite = process.stderr.write.bind(process.stderr);
     // Capture stderr for the duration of the call.
-    // biome-ignore lint/suspicious/noExplicitAny: test-only monkeypatch
     process.stderr.write = ((chunk: string | Uint8Array) => {
       stderrLines.push(
         typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
       );
       return true;
-    }) as any;
+    }) as typeof process.stderr.write;
 
     try {
       const fetchFn = mock(() => Promise.reject(new Error("ENOTFOUND")));
