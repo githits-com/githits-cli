@@ -44,7 +44,7 @@ export interface Language {
  */
 export interface SearchParams {
   query: string;
-  language: string;
+  language?: string;
   licenseMode?: "strict" | "yolo" | "custom";
   includeExplanation?: boolean;
 }

@@ -28,9 +28,9 @@ context summary:
 This plugin connects to the GitHits MCP server and always exposes three core tools:
 
 - **get_example** — Find code examples by describing what you need in natural
-  language. Requires `query` and `language` parameters.
-- **search_language** — Look up supported programming language names before
-  searching.
+  language. Requires `query`; `language` is optional and inferred when omitted.
+- **search_language** — Look up supported programming language names when you
+  need to force a specific language.
 - **feedback** — Rate a search result to improve future quality.
 
 Additional indexed dependency/package tools such as `search`, `package_summary`,

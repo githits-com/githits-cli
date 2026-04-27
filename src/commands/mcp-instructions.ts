@@ -17,7 +17,7 @@ import type { Dependencies } from "../container.js";
 
 const CORE_BLOCK = `GitHits surfaces verified, canonical code examples from global open source. Use it when you're stuck, the user is frustrated by repeated failed attempts, you need up-to-date API usage, or the user mentions GitHits.
 
-Workflow: call \`search_language\` first if the language name is uncertain → call \`get_example\` with one focused question → send \`feedback\` on the returned solution_id so quality improves. Each search addresses a single issue; reuse context from prior results before re-searching.`;
+Workflow: call \`get_example\` with one focused question, optionally passing \`language\` when the desired language is known; call \`search_language\` first only if you need to force a language and the exact name is uncertain. Send \`feedback\` on the returned solution_id so quality improves. Each search addresses a single issue; reuse context from prior results before re-searching.`;
 
 const PACKAGE_TOOLS_PREAMBLE = `Package tools work with third-party dependency source plus registry metadata. Use them when a stack trace points into a dependency, you need to verify how a library actually works, or you're evaluating whether to add or upgrade a package.
 

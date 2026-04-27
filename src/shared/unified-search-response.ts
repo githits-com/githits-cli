@@ -1,7 +1,6 @@
 import type {
   UnifiedSearchCompleted,
   UnifiedSearchHit,
-  UnifiedSearchIncomplete,
   UnifiedSearchOutcome,
   UnifiedSearchParams,
   UnifiedSearchProgress,

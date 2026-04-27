@@ -61,7 +61,7 @@ Getting started:
   githits init                         Set up MCP for your coding agents
   githits login                        Authenticate with your GitHits account
   githits mcp                          Show MCP setup instructions
-  githits example "query" -l python    Get code examples
+  githits example "query"              Get code examples
 
 Learn more at https://githits.com
 Docs: https://app.githits.com/docs/
@@ -84,7 +84,6 @@ registerLanguagesCommand(program);
 registerFeedbackCommand(program);
 const argv = process.argv.slice(2);
 const registrationArgv = stripRootRegistrationOptions(argv);
-const helpInvocation = isHelpInvocation(registrationArgv);
 const shouldLoadGatedHelpRegistration =
   needsGatedHelpRegistration(registrationArgv);
 const helpRegistrationOptions = shouldLoadGatedHelpRegistration

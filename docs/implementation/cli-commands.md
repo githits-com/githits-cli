@@ -9,7 +9,7 @@ The CLI exposes three always-on top-level commands: `example`, `languages`, and 
 | Command | Required Args | Options | Description |
 |---|---|---|---|
 | `init` | — | `-y, --yes`, `--skip-login` | Authenticate and set up MCP server for coding agents |
-| `example <query>` | `-l, --lang <language>` | `--license <mode>`, `--explain`, `--json` | Search for code examples |
+| `example <query>` | `<query>` | `-l, --lang <language>`, `--license <mode>`, `--explain`, `--json` | Search for code examples |
 | `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols |
 | `search-status <search-ref>` | `<search-ref>` | `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search |
 | `languages [query]` | — | `--json` | List or filter supported languages |
@@ -41,13 +41,14 @@ The command uses `createContainer()` lazily for the login step. Tool detection a
 ### `githits example`
 
 ```
+githits example "how to use express middleware"
 githits example "how to use express middleware" --lang javascript
 githits example "async file reading" -l python --license yolo
 githits example "react hooks patterns" -l typescript --explain
 githits example "react hooks patterns" -l typescript --json
 ```
 
-Default output is markdown (the API response). With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL — pass it back to `feedback`). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
+Default output is markdown (the API response). `--lang` is optional; when omitted, the backend infers the language from the query. With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL — pass it back to `feedback`). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
 
 ### `githits search`
 

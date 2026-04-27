@@ -189,13 +189,12 @@ describe("mapPackageIntelligenceError — debug emissions", () => {
     process.env.GITHITS_DEBUG = "pkg-intel";
     stderrLines = [];
     originalWrite = process.stderr.write.bind(process.stderr);
-    // biome-ignore lint/suspicious/noExplicitAny: test-only monkeypatch
     process.stderr.write = ((chunk: string | Uint8Array) => {
       stderrLines.push(
         typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
       );
       return true;
-    }) as any;
+    }) as typeof process.stderr.write;
   });
 
   afterEach(() => {

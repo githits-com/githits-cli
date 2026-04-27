@@ -79,6 +79,16 @@ describe("GitHitsServiceImpl", () => {
       expect(body.license_mode).toBe("yolo");
     });
 
+    it("omits language from JSON when not provided", async () => {
+      const fn = mockFetch(() => Promise.resolve(new Response("result")));
+
+      await service.search({ query: "test" });
+
+      const call = fn.mock.calls[0] as unknown as [string, RequestInit];
+      const body = JSON.parse(call[1].body as string);
+      expect(body).not.toHaveProperty("language");
+    });
+
     it("passes include_explanation when set", async () => {
       const fn = mockFetch(() => Promise.resolve(new Response("result")));
 

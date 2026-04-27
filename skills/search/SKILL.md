@@ -28,7 +28,8 @@ Authentication:
 Guidelines:
 
 - Prefer existing search context if it already answers the problem.
-- Use `search_language` first when language naming is uncertain.
+- Pass `language` only when you need to force a specific language; use
+  `search_language` first if the exact language name is uncertain.
 - Use `get_example` for one focused example-search question at a time.
 - When the task is about indexed dependency or repository internals and the
   capability-gated tools are available, prefer unified `search` instead of

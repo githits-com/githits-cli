@@ -11,15 +11,8 @@ import {
   CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
-  CodeNavigationNetworkError,
   CodeNavigationServiceImpl,
-  CodeNavigationTargetNotFoundError,
-  CodeNavigationUnresolvableError,
-  CodeNavigationValidationError,
-  CodeNavigationVersionNotFoundError,
-  MalformedCodeNavigationResponseError,
 } from "./code-navigation-service.js";
-import { AuthenticationError } from "./githits-service.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
 function mockFetch(impl: () => Promise<Response>) {
