@@ -79,9 +79,9 @@ describe("createMcpServer", () => {
       "feedback",
       "search",
       "search_status",
-      "list_files",
-      "read_file",
-      "grep_repo",
+      "code_files",
+      "code_read",
+      "code_grep",
     ]);
   });
 
@@ -107,9 +107,9 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.map((tool) => tool.name)).toContain("list_package_docs");
-    expect(tools.map((tool) => tool.name)).toContain("read_package_doc");
-    expect(tools.map((tool) => tool.name)).toContain("package_summary");
+    expect(tools.map((tool) => tool.name)).toContain("docs_list");
+    expect(tools.map((tool) => tool.name)).toContain("docs_read");
+    expect(tools.map((tool) => tool.name)).toContain("pkg_info");
   });
 
   it("omits package_summary when capability is disabled", () => {
@@ -120,7 +120,7 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.map((tool) => tool.name)).not.toContain("package_summary");
+    expect(tools.map((tool) => tool.name)).not.toContain("pkg_info");
   });
 
   it("omits package_summary when service is missing even if capability enabled", () => {
@@ -131,7 +131,7 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.map((tool) => tool.name)).not.toContain("package_summary");
+    expect(tools.map((tool) => tool.name)).not.toContain("pkg_info");
   });
 
   it("adds package_summary for opaque env tokens when the gate is otherwise open", () => {
@@ -143,7 +143,7 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.some((tool) => tool.name === "package_summary")).toBe(true);
+    expect(tools.some((tool) => tool.name === "pkg_info")).toBe(true);
   });
 
   it("adds package and code-nav tools when local override is enabled", () => {
@@ -156,8 +156,8 @@ describe("createMcpServer", () => {
 
     const names = getMcpToolDefinitions(deps).map((tool) => tool.name);
     expect(names).toContain("search");
-    expect(names).toContain("list_package_docs");
-    expect(names).toContain("read_package_doc");
+    expect(names).toContain("docs_list");
+    expect(names).toContain("docs_read");
   });
 
   it("preserves half-open invariant: whenever package_summary is advertised, unified search is too (enabled path)", () => {
@@ -169,7 +169,7 @@ describe("createMcpServer", () => {
     });
 
     const names = getMcpToolDefinitions(deps).map((t) => t.name);
-    if (names.includes("package_summary")) {
+    if (names.includes("pkg_info")) {
       expect(names).toContain("search");
       expect(names).toContain("search_status");
     }
@@ -184,7 +184,7 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.map((tool) => tool.name)).toContain("package_vulnerabilities");
+    expect(tools.map((tool) => tool.name)).toContain("pkg_vulns");
   });
 
   it("omits package_vulnerabilities when capability is disabled", () => {
@@ -195,9 +195,7 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.map((tool) => tool.name)).not.toContain(
-      "package_vulnerabilities",
-    );
+    expect(tools.map((tool) => tool.name)).not.toContain("pkg_vulns");
   });
 
   it("advertises package_summary and package_vulnerabilities together (shared predicate)", () => {
@@ -209,8 +207,8 @@ describe("createMcpServer", () => {
     });
 
     const names = getMcpToolDefinitions(deps).map((t) => t.name);
-    if (names.includes("package_summary")) {
-      expect(names).toContain("package_vulnerabilities");
+    if (names.includes("pkg_info")) {
+      expect(names).toContain("pkg_vulns");
     }
   });
 
@@ -222,7 +220,7 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.map((tool) => tool.name)).toContain("package_dependencies");
+    expect(tools.map((tool) => tool.name)).toContain("pkg_deps");
   });
 
   it("omits package_dependencies when capability is disabled", () => {
@@ -233,9 +231,7 @@ describe("createMcpServer", () => {
     });
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.map((tool) => tool.name)).not.toContain(
-      "package_dependencies",
-    );
+    expect(tools.map((tool) => tool.name)).not.toContain("pkg_deps");
   });
 
   it("advertises every package tool together (shared predicate covers deps too)", () => {
@@ -247,9 +243,9 @@ describe("createMcpServer", () => {
     });
 
     const names = getMcpToolDefinitions(deps).map((t) => t.name);
-    if (names.includes("package_summary")) {
-      expect(names).toContain("package_vulnerabilities");
-      expect(names).toContain("package_dependencies");
+    if (names.includes("pkg_info")) {
+      expect(names).toContain("pkg_vulns");
+      expect(names).toContain("pkg_deps");
     }
   });
 });

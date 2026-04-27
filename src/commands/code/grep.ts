@@ -270,16 +270,16 @@ export function registerCodeGrepCommand(pkgCommand: Command): Command {
     .summary("Deterministic text grep over indexed dependency source")
     .description(PKG_GREP_DESCRIPTION)
     .argument(
-      "[arg1]",
-      "In spec mode: package spec (e.g. npm:express). In --repo-url mode: the pattern.",
+      "[spec-or-pattern]",
+      "Spec mode: package spec (e.g. npm:express). Repo mode (with --repo-url): the pattern.",
     )
     .argument(
-      "[arg2]",
-      "In spec mode: the pattern. In --repo-url mode: optional path-prefix.",
+      "[pattern-or-prefix]",
+      "Spec mode: the pattern. Repo mode: optional path-prefix.",
     )
     .argument(
-      "[arg3]",
-      "In spec mode: optional path-prefix. Unused in --repo-url mode.",
+      "[path-prefix]",
+      "Spec mode only: optional path-prefix. Ignored with --repo-url.",
     )
     .option(
       "--repo-url <url>",

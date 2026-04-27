@@ -71,8 +71,7 @@ describe("searchStatusTool", () => {
     expect(result.isError).toBeUndefined();
     expect(payload.completed).toBe(true);
     expect(payload.searchRef).toBe(defaultUnifiedSearchOutcome.searchRef);
-    expect(payload.result.query).toBe("router middleware");
-    expect(payload.result.returnedCount).toBe(1);
+    expect(payload.result.results).toHaveLength(1);
     expect(payload).not.toHaveProperty("query");
   });
 

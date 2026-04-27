@@ -50,13 +50,13 @@ const schema = {
     .string()
     .optional()
     .describe(
-      "Exact file path to grep. Shares the same path vocabulary as `read_file`.",
+      "Exact file path to grep. Shares the same path vocabulary as `code_read`.",
     ),
   path_prefix: z
     .string()
     .optional()
     .describe(
-      "Literal directory prefix to scope grep, matching `list_files` / `search` naming.",
+      "Literal directory prefix to scope grep, matching `code_files` / `search` naming.",
     ),
   globs: z
     .array(z.string())
@@ -89,13 +89,13 @@ const DESCRIPTION =
   "Deterministic text grep over indexed dependency and repository source files. " +
   "Use this when you know the text pattern you want; use `search` for discovery. " +
   "Whole-target grep is the default. Narrow with `path`, `path_prefix`, `globs`, or `extensions`. " +
-  "Matches chain directly into `read_file` via `matches[].filePath`.";
+  "Matches chain directly into `code_read` via `matches[].filePath`.";
 
 export function createGrepRepoTool(
   service: CodeNavigationService,
 ): ToolDefinition<GrepRepoArgs, typeof schema> {
   return {
-    name: "grep_repo",
+    name: "code_grep",
     description: DESCRIPTION,
     schema,
     annotations: { readOnlyHint: true },

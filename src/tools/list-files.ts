@@ -48,7 +48,7 @@ const DESCRIPTION =
   "`target.git_ref` (repo scope), mutually exclusive. `path_prefix` " +
   "is a literal directory prefix — it does NOT accept globs " +
   "(`*.ts`) or extension filters. The returned `path` values feed " +
-  "directly into `read_file` and help scope `grep_repo`. Returns an `INDEXING` " +
+  "directly into `code_read` and help scope `code_grep`. Returns an `INDEXING` " +
   "error envelope when the dependency is being indexed on-demand — " +
   "retry with a longer `wait_timeout_ms` or use a version from " +
   "`details.availableVersions`.";
@@ -57,7 +57,7 @@ export function createListFilesTool(
   service: CodeNavigationService,
 ): ToolDefinition<ListFilesArgs, typeof schema> {
   return {
-    name: "list_files",
+    name: "code_files",
     description: DESCRIPTION,
     schema,
     annotations: { readOnlyHint: true },

@@ -621,8 +621,7 @@ describe("searchStatusAction", () => {
     const payload = JSON.parse(String(consoleSpy.mock.calls[0]?.[0]));
     expect(payload.completed).toBe(true);
     expect(payload.searchRef).toBe("search-ref-123");
-    expect(payload.result.query).toBe("router middleware");
-    expect(payload.result.returnedCount).toBe(1);
+    expect(payload.result.results).toHaveLength(1);
     expect(payload).not.toHaveProperty("query.raw");
     consoleSpy.mockRestore();
   });

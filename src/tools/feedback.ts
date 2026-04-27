@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { GitHitsService } from "../services/githits-service.js";
 import { withErrorHandling } from "./shared.js";
-import { textResult, type ToolDefinition } from "./types.js";
+import { type ToolDefinition, textResult } from "./types.js";
 
 interface FeedbackArgs {
   solution_id: string;
@@ -27,24 +27,9 @@ const schema = {
     ),
 };
 
-const DESCRIPTION = `Submit feedback on a GitHits search result.
+const DESCRIPTION = `Submit feedback on a GitHits example result.
 
-Use this tool after receiving a search result to indicate whether the example was helpful.
-This feedback helps improve GitHits' search quality.
-
-**When to use**:
-- After using the search tool, provide feedback on whether the result was useful
-- Use \`accepted=true\` if the example solved your problem or was helpful, and you used it
-- Use \`accepted=false\` if the example was not relevant or unhelpful, and you did not use it
-- Optionally provide textual feedback explaining why
-
-Args:
-    solution_id: The solution ID from a previous search result (shown in the result)
-    accepted: True if the example was helpful/good, False if unhelpful/bad
-    feedback_text: Optional text explaining why (e.g., "This solved problem X" or "Example was outdated")
-
-Returns:
-    Confirmation message or error`;
+Call after \`get_example\` to record whether the returned example was used. \`accepted=true\` when it solved the problem or was useful; \`accepted=false\` when it was irrelevant or wrong. Use \`feedback_text\` to add a short reason. Feeds back into ranking quality.`;
 
 export function createFeedbackTool(
   service: GitHitsService,

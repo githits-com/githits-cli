@@ -15,7 +15,7 @@ describe("createPackageSummaryTool — metadata", () => {
     const tool = createPackageSummaryTool(
       createMockPackageIntelligenceService(),
     );
-    expect(tool.name).toBe("package_summary");
+    expect(tool.name).toBe("pkg_info");
     expect(tool.description).toContain("package overview");
     expect(Object.keys(tool.schema)).toEqual(["registry", "package_name"]);
     expect(tool.annotations?.readOnlyHint).toBe(true);

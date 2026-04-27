@@ -52,7 +52,7 @@ describe("docsReadAction", () => {
 
     const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0]));
     expect(payload.pageId).toBe("github:expressjs/express@abc123/README.md");
-    expect(payload.readFile.path).toBe("README.md");
+    expect(payload.filePath).toBe("README.md");
     logSpy.mockRestore();
   });
 

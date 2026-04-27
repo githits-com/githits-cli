@@ -1,5 +1,6 @@
 import { type Command, Option } from "commander";
 import type { GitHitsService } from "../services/githits-service.js";
+import { extractSolutionId } from "../shared/extract-solution-id.js";
 import { AuthRequiredError, requireAuth } from "../shared/require-auth.js";
 
 export interface ExampleOptions {
@@ -31,7 +32,11 @@ export async function exampleAction(
     });
 
     if (options.json) {
-      console.log(JSON.stringify({ result }));
+      const solutionId = extractSolutionId(result);
+      const payload = solutionId
+        ? { result, solution_id: solutionId }
+        : { result };
+      console.log(JSON.stringify(payload));
     } else {
       console.log(result);
     }
@@ -45,12 +50,7 @@ export async function exampleAction(
 
 const EXAMPLE_DESCRIPTION = `Get verified, canonical code examples from global open source.
 
-This is the GitHits example-search surface. For dependency/package/repo source search,
-use \
-
-  githits search
-
-instead.
+For dependency, package, or repository source search, use \`githits search\` instead.
 
 Examples:
   githits example "how to use express middleware" --lang javascript

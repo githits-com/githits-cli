@@ -12,7 +12,6 @@ export { createReadPackageDocTool } from "./read-package-doc.js";
 export { createSearchTool } from "./search.js";
 export { createSearchLanguageTool } from "./search-language.js";
 export { createSearchStatusTool } from "./search-status.js";
-export { createSearchSymbolsTool } from "./search-symbols.js";
 export type {
   ToolDefinition,
   ToolHandler,

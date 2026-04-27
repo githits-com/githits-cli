@@ -1,8 +1,7 @@
 import type {
-  SearchSymbolsFileIntent,
-  SearchSymbolsKind,
-  SearchSymbolsMatchMode,
+  FileIntent,
   SymbolCategory,
+  SymbolKind,
 } from "../services/index.js";
 import {
   type PkgseerRegistryArg,
@@ -44,7 +43,7 @@ const symbolKindMap = {
   event: "EVENT",
   constant: "CONSTANT",
   doc_section: "DOC_SECTION",
-} as const satisfies Record<string, SearchSymbolsKind>;
+} as const satisfies Record<string, SymbolKind>;
 
 /**
  * Lowercase user-facing category values → the backend's uppercase
@@ -67,12 +66,7 @@ const fileIntentMap = {
   fixture: "FIXTURE",
   build: "BUILD",
   vendor: "VENDOR",
-} as const satisfies Record<string, SearchSymbolsFileIntent>;
-
-const matchModeMap = {
-  or: "OR",
-  and: "AND",
-} as const satisfies Record<string, SearchSymbolsMatchMode>;
+} as const satisfies Record<string, FileIntent>;
 
 /**
  * Back-compat alias for {@link PkgseerRegistryArg}. The registry map
@@ -88,15 +82,7 @@ export function toCodeNavigationRegistry(registry: CodeNavigationRegistryArg) {
   return toPkgseerRegistry(registry);
 }
 
-export function toSearchSymbolsMatchMode(
-  mode: string | undefined,
-): SearchSymbolsMatchMode | undefined {
-  return mode ? matchModeMap[mode as keyof typeof matchModeMap] : undefined;
-}
-
-export function toSearchSymbolsKind(
-  kind: string | undefined,
-): SearchSymbolsKind | undefined {
+export function toSymbolKind(kind: string | undefined): SymbolKind | undefined {
   return kind ? symbolKindMap[kind as keyof typeof symbolKindMap] : undefined;
 }
 
@@ -122,9 +108,9 @@ export function knownSymbolCategoryList(): ReadonlyArray<string> {
   return Object.keys(symbolCategoryMap);
 }
 
-export function toSearchSymbolsFileIntent(
+export function toFileIntent(
   intent: string | undefined,
-): SearchSymbolsFileIntent | undefined {
+): FileIntent | undefined {
   return intent
     ? fileIntentMap[intent as keyof typeof fileIntentMap]
     : undefined;

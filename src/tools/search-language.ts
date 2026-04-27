@@ -17,16 +17,7 @@ const schema = {
     ),
 };
 
-const DESCRIPTION = `Search for a programming language supported by GitHits.
-
-Use this tool to find the correct language name before calling the search tool.
-Returns up to 5 matching languages.
-
-Args:
-    query: Language name or partial name to search for (e.g., "python", "type", "java")
-
-Returns:
-    List of matching languages with name and display_name`;
+const DESCRIPTION = `Find the correct language name for \`get_example\` when it is uncertain. Returns up to 5 matching languages by name, display name, or alias.`;
 
 export function createSearchLanguageTool(
   service: GitHitsService,
@@ -39,7 +30,7 @@ export function createSearchLanguageTool(
       return withErrorHandling("search languages", async () => {
         const allLanguages = await service.getLanguages();
         const result = filterLanguages(allLanguages, args.query);
-        return textResult(JSON.stringify(result, null, 2));
+        return textResult(JSON.stringify(result));
       });
     },
   };

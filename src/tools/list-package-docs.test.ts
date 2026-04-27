@@ -15,7 +15,7 @@ describe("createListPackageDocsTool", () => {
     const tool = createListPackageDocsTool(
       createMockPackageIntelligenceService(),
     );
-    expect(tool.name).toBe("list_package_docs");
+    expect(tool.name).toBe("docs_list");
     expect(tool.annotations?.readOnlyHint).toBe(true);
     expect(Object.keys(tool.schema)).toEqual([
       "registry",

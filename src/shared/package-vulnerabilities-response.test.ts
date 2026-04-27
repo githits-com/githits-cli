@@ -251,12 +251,10 @@ describe("buildPackageVulnerabilitiesSuccessPayload — requestedVersion echo", 
   });
 
   it("surfaces requestedVersion on any non-empty divergence, including v-prefix forms", () => {
-    // Unlike `search_symbols` (which normalises `v`-prefixed refs
-    // via `isTrivialRefDifference`), the vulnerabilities query takes
-    // a version string, not a git ref. `v4.18.0` is a tag
-    // convention; no registry accepts it as a canonical version, so
-    // surfacing the divergence here points at a real caller mistake
-    // rather than masking it.
+    // The vulnerabilities query takes a version string, not a git
+    // ref. `v4.18.0` is a tag convention; no registry accepts it as
+    // a canonical version, so surfacing the divergence here points
+    // at a real caller mistake rather than masking it.
     const payload = buildPackageVulnerabilitiesSuccessPayload(
       defaultVulnerabilityReport,
       { requestedVersion: "v4.18.0" },

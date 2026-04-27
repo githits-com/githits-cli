@@ -14,7 +14,6 @@ The CLI exposes three always-on top-level commands: `example`, `languages`, and 
 | `search-status <search-ref>` | `<search-ref>` | `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search |
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback <solution_id>` | `--accept` or `--reject` | `-m, --message <text>`, `--json` | Submit feedback on a search result |
-| `code search <package> [query]` | package spec | `--keywords`, `--keyword`, `--match-mode`, `--category`, `--kind`, `--file`, `--intent`, `--limit`, `--wait`, `--json` | Search indexed dependency source code |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates) |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--groups`, `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig) |
@@ -48,7 +47,7 @@ githits example "react hooks patterns" -l typescript --explain
 githits example "react hooks patterns" -l typescript --json
 ```
 
-Default output is markdown (the API response). With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>" }`. The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
+Default output is markdown (the API response). With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL — pass it back to `feedback`). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
 
 ### `githits search`
 
@@ -62,19 +61,23 @@ githits search "composeArgs" --in npm:lodash --name composeArgs --json
 
 Unified search spans indexed dependency and repository code, docs, and explicit symbols. The positional query is the backend discovery syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). Structured flags are compiled together with the query using `AND` semantics before the request reaches the backend.
 
-**Decision guide.** Use `githits example` for canonical cross-project examples. Use `githits search` for indexed dependency/repository search. Use `githits search --source symbol` when you want symbol-shaped unified search without dropping to the older dedicated `code search` surface.
+**Decision guide.** Use `githits example` for canonical cross-project examples. Use `githits search` for indexed dependency/repository search. Use `githits search --source symbol` when you want symbol-shaped unified search.
 
 **Targets.** `--in <target>` is repeatable and required. Package targets use `registry:name[@version]` (for example `npm:express`, `pypi:requests@2.32.3`). Repo targets use `https://github.com/org/repo[#ref]`; omitted refs default to `HEAD`. Exact duplicate targets are deduplicated while preserving order. Mixing package and repo targets in the same request is rejected client-side.
 
-**Sources and filters.** `--source docs|code|symbol` is repeatable; omitting it delegates source selection to backend AUTO. Use `--source symbol` when you want symbol-shaped search results without dropping down to the older `code search` surface. `--category` is the broad filter (`callable`, `type`, `module`, `data`, `documentation`); `--kind` is the precise taxonomy. `--path-prefix`, `--intent`, and `--public` narrow the result set further. `--name` and `--lang` compile into query qualifiers instead of becoming separate backend fields.
+**Sources and filters.** `--source docs|code|symbol` is repeatable; omitting it delegates source selection to backend AUTO. Use `--source symbol` when you want symbol-shaped search results. `--category` is the broad filter (`callable`, `type`, `module`, `data`, `documentation`); `--kind` is the precise taxonomy. `--path-prefix`, `--intent`, and `--public` narrow the result set further. `--name` and `--lang` compile into query qualifiers instead of becoming separate backend fields.
 
 **Intent filter.** When `--intent` is omitted, unified search sends no file-intent filter. Pass `--intent production` or another specific intent only when you want to narrow the result set. Some sources can still ignore `fileIntent`; when they do, the JSON `sourceStatus` block and terminal notes report that explicitly.
 
 **Complete-by-default results.** The CLI sends `allowPartialResults: false` unless `--allow-partial` is passed. If indexing does not complete within the wait window, the default behavior returns a `searchRef` and progress summary instead of partial hits. With `--allow-partial`, available hits are included while remaining sources continue indexing. `--wait` is in seconds (0-60, default 20).
 
+The original unified-search plan envisaged hiding partial mode entirely in v1 to make results trustworthy by default. We kept the flag exposed because some agent and CLI flows benefit from "show me what you have so far"; the trust contract is preserved by keeping the *default* false. Users and agents must explicitly opt in, so a vanilla `search` call still cannot return incomplete results by surprise.
+
 **Output.** Plain output preserves backend ranking order. It starts with a lightweight per-type count summary, then shows one result per block. The header line is optimized for scanning and copy-paste follow-up: `target path:range [type] - title`. For file-backed hits, that header can be turned directly into a `githits code read` call because `code read` accepts `path:start-end` suffixes. Summaries are rendered verbatim from the backend response. Labels are: `docs page` (hosted package docs), `repo doc` (documentation-like block from a repository file), `repo code` (code block from a repository file), and `repo symbol` (explicit symbol hit from the repository index). `--json` emits the shared success/error envelope used by the MCP `search` tool, including a full `query` echo for initial searches.
 
-**Highlighting.** The CLI currently highlights headers and badges structurally, but does **not** attempt query-term match highlighting inside summaries. Unified search receives compiled query strings, not structured match spans, so robust highlighting should come from backend-provided match metadata rather than fragile client-side substring guesses.
+**Highlighting.** The CLI applies the backend's structured `highlights` spans on titles and summaries, plus structural emphasis on headers and badges. It does **not** attempt client-side substring highlighting for terms the backend did not flag, since the compiled query is not a faithful match spec.
+
+**Source-status surfacing.** The JSON `sourceStatus` block is always passed through verbatim for debugging. Human-readable output surfaces only the actionable subset: ignored / incompatible filters, ignored / incompatible query features, free-form `note`s, and an `INDEXING` indicator when a source is still indexing on a partial-result payload. `STALE` (served from a slightly old index while a fresh reindex runs) is intentionally not shown in human output — agents and users do not need to second-guess otherwise-correct results, but it remains in JSON for diagnostics.
 
 ### `githits search-status`
 
@@ -107,33 +110,6 @@ githits feedback abc123 --accept --message "Solved my problem" --json
 
 `--accept` and `--reject` are mutually exclusive (enforced by Commander's `.conflicts()` API). At least one must be provided (validated in the action function). JSON output is `{ "success": true, "message": "..." }`.
 
-### `githits code search`
-
-This is now the older symbol-search surface. Prefer top-level `githits search --source symbol` for new flows unless you specifically need the legacy code-search UX or its exact JSON contract.
-
-```
-githits code search npm:express middleware
-githits code search npm:express middleware --intent all
-githits code search pypi:requests timeout --category callable --limit 10
-githits code search crates:serde Serialize --kind trait --limit 5
-githits code search npm:@types/node Buffer --file src/ --json
-githits code search npm:express --keywords "router,handler" --match-mode and
-```
-
-Finds functions, classes, modules, and doc sections inside an indexed dependency by exact-token matches. Top-level `githits search --source symbol` is the preferred unified surface for symbol-shaped search. `code search` remains available for the older dedicated symbol-search UX and parity contract.
-
-**Package spec.** `<registry>:<name>[@<version>]`. Omit the registry to default to `npm`. Supported registries: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`. Scoped npm names are supported (`npm:@types/node`).
-
-**Filtering by symbol shape.** Prefer `--category` for broad filtering (`callable`, `type`, `module`, `data`, `documentation`) — it works across the full 27-value kind taxonomy without enumerating individual kinds. Reach for `--kind` when you want a specific construct, e.g. `--kind trait` (Rust) or `--kind namespace` (C#/C++/PHP).
-
-**Defaults.** No file-intent filter is sent by default. Pass `--intent production` or another specific intent to narrow results; `--intent all` remains accepted as an explicit no-filter alias. `--wait` defaults to 20 seconds (above the p50 indexing time of ~11 s); first-time queries against an unindexed package may need `--wait 60` (the backend ceiling) to block until indexing completes. On an INDEXING error, the response message points out the retry options.
-
-**Output.** Default terminal output leads each entry with `path:startLine-endLine [kind]`, followed by the symbol name and a 3-line dedented snippet. `--json` emits the shared success/error envelope also produced by the MCP `search_symbols` tool — see [`mcp-cli-parity.md`](./mcp-cli-parity.md) for the wire contract. The command is registered as `code search` with `code search-symbols` as a Commander alias.
-
-**Capability gate.** The `code` group is registered only when the startup token explicitly carries `code_navigation`, or when `GITHITS_CODE_NAVIGATION=1` is set for local override.
-
-**Troubleshooting.** Set `GITHITS_DEBUG=code-nav` to emit single-line JSON diagnostics to stderr without query text, tokens, or response bodies. When you need the exact code-navigation wire payload, `GITHITS_DEBUG=code-nav-wire` logs the GraphQL document plus serialized variables, which includes query text and resolved target values; it is explicit-only and is not enabled by `GITHITS_DEBUG=*`.
-
 ### `githits pkg info`
 
 ```
@@ -151,7 +127,7 @@ Shows a concise overview for a single package: latest version, license, descript
 
 **`--verbose` + `--json`.** `--verbose` has no effect under `--json` — the JSON envelope always carries every field the verbose terminal view exposes (and more). The flag only affects human-readable output.
 
-**Output envelope.** Success payload is hand-crafted for agent token efficiency: `{registry, name, version, description?, license?, homepage?, repository?, publishedAt?, downloads?, github?, install?, usage?, vulnerabilities?, recentChanges?}`. Omitted fields reflect backend nulls, not dropped data. Error envelope: `{error, code, retryable, details?}` — same shape as `search_symbols`, same classifier family. Under `--json` the error envelope is written to **stderr** so stdout stays clean for `jq`.
+**Output envelope.** Success payload is hand-crafted for agent token efficiency: `{registry, name, version, description?, license?, homepage?, repository?, publishedAt?, downloads?, github?, install?, usage?, vulnerabilities?, recentChanges?}`. Omitted fields reflect backend nulls, not dropped data. Error envelope: `{error, code, retryable, details?}` — shared classifier family. Under `--json` the error envelope is written to **stderr** so stdout stays clean for `jq`.
 
 **Capability gate.** Same as `code`.
 
@@ -361,7 +337,7 @@ Each command follows this pattern:
 | Shared Module | Used By |
 |---|---|
 | `GitHitsService` (via container) | `example`, `languages`, `feedback`, and always-on MCP tools |
-| `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, capability-gated MCP indexed-search tools, and `githits code search` |
+| `CodeNavigationService` (via container) | top-level unified `search` / `search-status` plus capability-gated MCP indexed-search tools (`search`, `search_status`, `code_files`, `code_read`, `code_grep`) and the `githits code` command group |
 | `filterLanguages()` from `src/shared/language-filter.ts` | `search_language` MCP tool + `languages` CLI command |
 | `requireAuth()` from `src/shared/require-auth.ts` | all CLI commands and auth-required MCP tool handlers |
 

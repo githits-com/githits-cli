@@ -16,7 +16,7 @@ function parseText(result: { content: Array<{ text: string }> }): unknown {
 describe("createListFilesTool — metadata", () => {
   it("registers the correct tool name, description, and schema keys", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
-    expect(tool.name).toBe("list_files");
+    expect(tool.name).toBe("code_files");
     expect(tool.description).toContain("List files in an indexed dependency");
     expect(Object.keys(tool.schema).sort()).toEqual([
       "limit",

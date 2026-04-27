@@ -29,7 +29,7 @@ describe("registerCodeCommandGroup", () => {
     );
     expect(codeCommand).toBeDefined();
     expect(
-      codeCommand?.commands.some((command) => command.name() === "search"),
+      codeCommand?.commands.some((command) => command.name() === "files"),
     ).toBe(true);
   });
 
@@ -46,7 +46,7 @@ describe("registerCodeCommandGroup", () => {
     );
     expect(codeCommand).toBeDefined();
     expect(
-      codeCommand?.commands.some((command) => command.name() === "search"),
+      codeCommand?.commands.some((command) => command.name() === "files"),
     ).toBe(true);
   });
 

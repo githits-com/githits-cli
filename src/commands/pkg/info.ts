@@ -90,8 +90,7 @@ function handlePkgInfoCommandError(error: unknown, json: boolean): never {
     process.exit(1);
   }
 
-  // Bare mapped message — matches `search_symbols` structure, not its
-  // wording. Domain messages (`Package 'npm:foo' not found.`,
+  // Bare mapped message. Domain messages (`Package 'npm:foo' not found.`,
   // `pkg info always returns the latest version; omit @4.18.0.`) are
   // already caller-readable.
   console.error(mapped.message);

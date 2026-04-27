@@ -101,7 +101,7 @@ export function createPackageChangelogTool(
   service: PackageIntelligenceService,
 ): ToolDefinition<PackageChangelogArgs, typeof schema> {
   return {
-    name: "package_changelog",
+    name: "pkg_changelog",
     description: DESCRIPTION,
     schema,
     annotations: { readOnlyHint: true },

@@ -16,7 +16,7 @@ function parseText(result: { content: Array<{ text: string }> }): unknown {
 describe("createGrepRepoTool — metadata", () => {
   it("registers the correct tool name and schema keys", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
-    expect(tool.name).toBe("grep_repo");
+    expect(tool.name).toBe("code_grep");
     expect(tool.description).toContain("Deterministic text grep");
     expect(Object.keys(tool.schema).sort()).toEqual([
       "case_sensitive",
@@ -123,14 +123,15 @@ describe("createGrepRepoTool — happy path", () => {
     );
     const payload = parseText(result) as {
       pattern: string;
-      patternType: string;
-      caseSensitive: boolean;
+      patternType?: string;
+      caseSensitive?: boolean;
       totalMatches: number;
       matches: Array<{ filePath: string; line: number }>;
     };
     expect(payload.pattern).toBe("middleware");
-    expect(payload.patternType).toBe("literal");
-    expect(payload.caseSensitive).toBe(false);
+    // patternType / caseSensitive omitted when default
+    expect(payload.patternType).toBeUndefined();
+    expect(payload.caseSensitive).toBeUndefined();
     expect(payload.totalMatches).toBe(1);
     expect(payload.matches[0]).toMatchObject({
       filePath: "src/index.js",

@@ -24,7 +24,7 @@ const schema = {
   path: z
     .string()
     .describe(
-      "Path to the file. Package addressing: package-relative. Repo addressing: repo-relative. This is the same `path` key that `list_files` emits for each entry, so the `list_files` → `read_file` chain needs no renaming.",
+      "Path to the file. Package addressing: package-relative. Repo addressing: repo-relative. This is the same `path` key that `code_files` emits for each entry, so chaining needs no renaming.",
     ),
   start_line: z
     .number()
@@ -50,20 +50,19 @@ const DESCRIPTION =
   "`{path, language, totalLines, startLine, endLine, content, " +
   "isBinary}`. Binary files set `isBinary: true` and omit `content` — " +
   "agents branch on the flag rather than checking null. Pass the same " +
-  "`path` emitted by `list_files`. Address via " +
+  "`path` emitted by `code_files`. Address via " +
   "`target.registry` + `target.package_name` (package scope) or " +
   "`target.repo_url` + `target.git_ref` (repo scope), mutually " +
-  "exclusive. On `INDEXING` retry with a longer `wait_timeout_ms` " +
-  "(note: `fetchCodeContext` doesn't emit `availableVersions` in " +
-  "details, only `indexingRef`). When the path doesn't resolve the " +
-  "response is a `NOT_FOUND` (or `FILE_NOT_FOUND`) error — call " +
-  "`list_files` to discover the actual paths.";
+  "exclusive. On `INDEXING` retry with a longer `wait_timeout_ms`. " +
+  "When the path doesn't resolve the response is a `NOT_FOUND` (or " +
+  "`FILE_NOT_FOUND`) error — call `code_files` to discover the " +
+  "actual paths.";
 
 export function createReadFileTool(
   service: CodeNavigationService,
 ): ToolDefinition<ReadFileArgs, typeof schema> {
   return {
-    name: "read_file",
+    name: "code_read",
     description: DESCRIPTION,
     schema,
     annotations: { readOnlyHint: true },

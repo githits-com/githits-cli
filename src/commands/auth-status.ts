@@ -67,7 +67,6 @@ export async function authStatusAction(
   if (envApiToken) {
     console.log("Authenticated via environment variable.\n");
     console.log(`  Source: GITHITS_API_TOKEN`);
-    console.log(`  Token: ${envApiToken.slice(0, 8)}...`);
     displayCodeNavigationStatus(
       getCodeNavigationCapability(envApiToken),
       codeNavigationCliOverrideEnabled,

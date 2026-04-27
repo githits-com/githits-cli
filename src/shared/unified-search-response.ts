@@ -4,31 +4,26 @@ import type {
   UnifiedSearchIncomplete,
   UnifiedSearchOutcome,
   UnifiedSearchParams,
+  UnifiedSearchProgress,
+  UnifiedSearchSourceStatus,
 } from "../services/index.js";
 import { MalformedCodeNavigationResponseError } from "../services/index.js";
+import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { mapCodeNavigationError } from "./code-navigation-error-map.js";
-import {
-  buildDocReadFollowUp,
-  buildFileReadFollowUp,
-} from "./docs-follow-up.js";
 
-export type UnifiedSearchFollowUpPayload =
-  | {
-      type: "read_doc";
-      pageId: string;
-    }
-  | {
-      type: "read_file";
-      repoUrl: string;
-      gitRef: string;
-      path: string;
-    };
+/**
+ * Default values folded out of the JSON envelope when the caller did
+ * not set them. Agents asked for what they want; echoing the default
+ * back wastes tokens. The defaults must stay aligned with
+ * `buildUnifiedSearchParams`.
+ */
+const DEFAULT_LIMIT = 20;
+const DEFAULT_OFFSET = 0;
 
 export interface UnifiedSearchQueryEcho {
   raw: string;
-  compiled: string;
-  warnings: string[];
-  targets: UnifiedSearchParams["targets"];
+  compiled?: string;
+  warnings?: string[];
   sources?: string[];
   filters?: {
     kind?: string;
@@ -37,11 +32,15 @@ export interface UnifiedSearchQueryEcho {
     fileIntent?: string;
     publicOnly?: boolean;
   };
-  allowPartialResults: boolean;
-  limit: number;
-  offset: number;
-  waitTimeoutMs: number;
-  defaulted: ReadonlyArray<"limit" | "offset" | "waitTimeoutMs">;
+  allowPartialResults?: true;
+  limit?: number;
+  offset?: number;
+  waitTimeoutMs?: number;
+}
+
+export interface UnifiedSearchHighlightsPayload {
+  title?: Array<readonly [number, number]>;
+  summary?: Array<readonly [number, number]>;
 }
 
 export interface UnifiedSearchHitPayload {
@@ -50,10 +49,7 @@ export interface UnifiedSearchHitPayload {
   title?: string;
   summary?: string;
   score?: number;
-  highlights?: {
-    title?: Array<readonly [number, number]>;
-    summary?: Array<readonly [number, number]>;
-  };
+  highlights?: UnifiedSearchHighlightsPayload;
   locator: {
     registry?: string;
     packageName?: string;
@@ -67,39 +63,53 @@ export interface UnifiedSearchHitPayload {
     filePath?: string;
     startLine?: number;
     endLine?: number;
-    fileContentHash?: string;
-    symbolRef?: string;
     qualifiedPath?: string;
     kind?: string;
     category?: string;
     language?: string;
   };
-  followUp?: UnifiedSearchFollowUpPayload;
-  alternateFollowUps?: UnifiedSearchFollowUpPayload[];
+}
+
+export interface UnifiedSearchProgressPayload {
+  status: string;
+  targetsReady: number;
+  targetsTotal: number;
+  elapsedMs: number;
+  expiresAt?: string;
+}
+
+export interface UnifiedSearchSourceStatusPayload {
+  source: string;
+  targetLabel: string;
+  indexingStatus?: string;
+  codeIndexState?: string;
+  resultCount?: number;
+  ignoredFilters?: string[];
+  incompatibleFilters?: string[];
+  ignoredQueryFeatures?: string[];
+  incompatibleQueryFeatures?: string[];
+  note?: string;
 }
 
 export interface UnifiedSearchCompletedPayload {
   query: UnifiedSearchQueryEcho;
   completed: true;
-  returnedCount: number;
   hasMore: boolean;
   nextOffset?: number;
   results: UnifiedSearchHitPayload[];
   searchRef?: string;
-  progress?: UnifiedSearchCompleted["progress"];
-  sourceStatus: UnifiedSearchCompleted["result"]["sourceStatus"];
+  sourceStatus?: UnifiedSearchSourceStatusPayload[];
 }
 
 export interface UnifiedSearchIncompletePayload {
   query: UnifiedSearchQueryEcho;
   completed: false;
-  returnedCount: number;
   hasMore: boolean;
   nextOffset?: number;
   results: UnifiedSearchHitPayload[];
   searchRef: string;
-  progress?: UnifiedSearchIncomplete["progress"];
-  sourceStatus?: UnifiedSearchCompleted["result"]["sourceStatus"];
+  progress?: UnifiedSearchProgressPayload;
+  sourceStatus?: UnifiedSearchSourceStatusPayload[];
 }
 
 export interface UnifiedSearchErrorPayload {
@@ -110,27 +120,24 @@ export interface UnifiedSearchErrorPayload {
 }
 
 export interface UnifiedSearchStatusResultPayload {
-  query: string;
-  queryWarnings: string[];
-  sources: string[];
-  returnedCount: number;
+  warnings?: string[];
+  sources?: string[];
   hasMore: boolean;
   nextOffset?: number;
   results: UnifiedSearchHitPayload[];
-  sourceStatus: UnifiedSearchCompleted["result"]["sourceStatus"];
+  sourceStatus?: UnifiedSearchSourceStatusPayload[];
 }
 
 export interface UnifiedSearchStatusCompletedPayload {
   completed: true;
   searchRef?: string;
-  progress?: UnifiedSearchCompleted["progress"];
   result: UnifiedSearchStatusResultPayload;
 }
 
 export interface UnifiedSearchStatusIncompletePayload {
   completed: false;
   searchRef: string;
-  progress?: UnifiedSearchIncomplete["progress"];
+  progress?: UnifiedSearchProgressPayload;
   result?: UnifiedSearchStatusResultPayload;
 }
 
@@ -138,7 +145,6 @@ export function buildUnifiedSearchSuccessPayload(
   params: UnifiedSearchParams,
   rawQuery: string,
   compiledQuery: string,
-  defaulted: ReadonlyArray<"limit" | "offset" | "waitTimeoutMs">,
   outcome: UnifiedSearchOutcome,
 ): UnifiedSearchCompletedPayload | UnifiedSearchIncompletePayload {
   const warnings =
@@ -147,47 +153,41 @@ export function buildUnifiedSearchSuccessPayload(
       : (outcome.result?.queryWarnings ??
         outcome.progress?.queryWarnings ??
         []);
-  const query = buildQueryEcho(
-    params,
-    rawQuery,
-    compiledQuery,
-    defaulted,
-    warnings,
-  );
+  const query = buildQueryEcho(params, rawQuery, compiledQuery, warnings);
 
   if (outcome.state === "incomplete") {
     const result = outcome.result;
     const payload: UnifiedSearchIncompletePayload = {
       query,
       completed: false,
-      returnedCount: result?.results.length ?? 0,
       hasMore: result?.page.hasMore ?? false,
       results: result?.results.map(buildHitPayload) ?? [],
       searchRef: outcome.searchRef,
-      progress: outcome.progress,
     };
     if (result?.page.hasMore === true) {
       payload.nextOffset = result.page.offset + result.page.returned;
     }
-    if (result) {
-      payload.sourceStatus = result.sourceStatus;
-    }
+    const progress = compactProgress(outcome.progress);
+    if (progress) payload.progress = progress;
+    const sourceStatus = compactSourceStatus(result?.sourceStatus);
+    if (sourceStatus) payload.sourceStatus = sourceStatus;
     return payload;
   }
 
-  return {
+  const completed: UnifiedSearchCompletedPayload = {
     query,
     completed: true,
-    returnedCount: outcome.result.results.length,
     hasMore: outcome.result.page.hasMore,
-    nextOffset: outcome.result.page.hasMore
-      ? outcome.result.page.offset + outcome.result.page.returned
-      : undefined,
     results: outcome.result.results.map(buildHitPayload),
-    searchRef: outcome.searchRef,
-    progress: outcome.progress,
-    sourceStatus: outcome.result.sourceStatus,
   };
+  if (outcome.result.page.hasMore) {
+    completed.nextOffset =
+      outcome.result.page.offset + outcome.result.page.returned;
+  }
+  if (outcome.searchRef) completed.searchRef = outcome.searchRef;
+  const sourceStatus = compactSourceStatus(outcome.result.sourceStatus);
+  if (sourceStatus) completed.sourceStatus = sourceStatus;
+  return completed;
 }
 
 export function buildUnifiedSearchErrorPayload(
@@ -214,101 +214,226 @@ export function buildUnifiedSearchStatusPayload(
     const payload: UnifiedSearchStatusIncompletePayload = {
       completed: false,
       searchRef: outcome.searchRef,
-      progress: outcome.progress,
     };
+    const progress = compactProgress(outcome.progress);
+    if (progress) payload.progress = progress;
     if (outcome.result) {
       payload.result = buildUnifiedSearchStatusResultPayload(outcome.result);
     }
     return payload;
   }
 
-  return {
+  const payload: UnifiedSearchStatusCompletedPayload = {
     completed: true,
-    searchRef: outcome.searchRef,
-    progress: outcome.progress,
     result: buildUnifiedSearchStatusResultPayload(outcome.result),
   };
+  if (outcome.searchRef) payload.searchRef = outcome.searchRef;
+  return payload;
 }
 
 function buildUnifiedSearchStatusResultPayload(
   result: UnifiedSearchCompleted["result"],
 ): UnifiedSearchStatusResultPayload {
-  return {
-    query: result.query,
-    queryWarnings: result.queryWarnings,
-    sources: result.sources.map((entry) => entry.toLowerCase()),
-    returnedCount: result.results.length,
+  const payload: UnifiedSearchStatusResultPayload = {
     hasMore: result.page.hasMore,
-    nextOffset: result.page.hasMore
-      ? result.page.offset + result.page.returned
-      : undefined,
     results: result.results.map(buildHitPayload),
-    sourceStatus: result.sourceStatus,
   };
+  if (result.page.hasMore) {
+    payload.nextOffset = result.page.offset + result.page.returned;
+  }
+  if (result.queryWarnings.length > 0) {
+    payload.warnings = result.queryWarnings;
+  }
+  if (result.sources.length > 0) {
+    payload.sources = result.sources.map((entry) => entry.toLowerCase());
+  }
+  const sourceStatus = compactSourceStatus(result.sourceStatus);
+  if (sourceStatus) payload.sourceStatus = sourceStatus;
+  return payload;
 }
 
 function buildQueryEcho(
   params: UnifiedSearchParams,
   rawQuery: string,
   compiledQuery: string,
-  defaulted: ReadonlyArray<"limit" | "offset" | "waitTimeoutMs">,
   warnings: string[],
 ): UnifiedSearchQueryEcho {
-  return {
+  const echo: UnifiedSearchQueryEcho = {
     raw: rawQuery,
-    compiled: compiledQuery,
-    warnings,
-    targets: params.targets,
-    sources: params.sources?.map((entry) => entry.toLowerCase()),
-    filters: params.filters
-      ? {
-          kind: params.filters.kind?.toLowerCase(),
-          category: params.filters.category?.toLowerCase(),
-          pathPrefix: params.filters.pathPrefix,
-          fileIntent: params.filters.fileIntent?.toLowerCase(),
-          publicOnly: params.filters.publicOnly,
-        }
-      : undefined,
-    allowPartialResults: params.allowPartialResults ?? false,
-    limit: params.limit ?? 0,
-    offset: params.offset ?? 0,
-    waitTimeoutMs: params.waitTimeoutMs ?? 0,
-    defaulted,
   };
+  if (compiledQuery !== rawQuery) {
+    echo.compiled = compiledQuery;
+  }
+  if (warnings.length > 0) {
+    echo.warnings = warnings;
+  }
+  if (params.sources && params.sources.length > 0) {
+    echo.sources = params.sources.map((entry) => entry.toLowerCase());
+  }
+  if (params.filters) {
+    const filters: UnifiedSearchQueryEcho["filters"] = {};
+    if (params.filters.kind) filters.kind = params.filters.kind.toLowerCase();
+    if (params.filters.category)
+      filters.category = params.filters.category.toLowerCase();
+    if (params.filters.pathPrefix)
+      filters.pathPrefix = params.filters.pathPrefix;
+    if (params.filters.fileIntent)
+      filters.fileIntent = params.filters.fileIntent.toLowerCase();
+    if (typeof params.filters.publicOnly === "boolean")
+      filters.publicOnly = params.filters.publicOnly;
+    if (Object.keys(filters).length > 0) echo.filters = filters;
+  }
+  if (params.allowPartialResults === true) {
+    echo.allowPartialResults = true;
+  }
+  if (params.limit !== undefined && params.limit !== DEFAULT_LIMIT) {
+    echo.limit = params.limit;
+  }
+  if (params.offset !== undefined && params.offset !== DEFAULT_OFFSET) {
+    echo.offset = params.offset;
+  }
+  if (
+    params.waitTimeoutMs !== undefined &&
+    params.waitTimeoutMs !== DEFAULT_WAIT_TIMEOUT_MS
+  ) {
+    echo.waitTimeoutMs = params.waitTimeoutMs;
+  }
+  return echo;
 }
 
 function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
   assertSearchFollowUpInvariant(hit);
-  return {
+  const payload: UnifiedSearchHitPayload = {
     type: hit.resultType.toLowerCase(),
     target: hit.targetLabel,
-    title: hit.title,
-    summary: hit.summary,
-    score: hit.score,
-    highlights: hit.highlights,
-    locator: {
-      registry: hit.locator.registry,
-      packageName: hit.locator.packageName,
-      version: hit.locator.version,
-      pageId: hit.locator.pageId,
-      sourceKind: hit.locator.sourceKind,
-      sourceUrl: hit.locator.sourceUrl,
-      repoUrl: hit.locator.repoUrl,
-      gitRef: hit.locator.gitRef,
-      requestedRef: hit.locator.requestedRef,
-      filePath: hit.locator.filePath,
-      startLine: hit.locator.startLine,
-      endLine: hit.locator.endLine,
-      fileContentHash: hit.locator.fileContentHash,
-      symbolRef: hit.locator.symbolRef,
-      qualifiedPath: hit.locator.qualifiedPath,
-      kind: hit.locator.kind,
-      category: hit.locator.category,
-      language: hit.locator.language,
-    },
-    followUp: buildPrimaryFollowUp(hit),
-    alternateFollowUps: buildAlternateFollowUps(hit),
+    locator: buildLocatorPayload(hit),
   };
+  if (hit.title) payload.title = hit.title;
+  if (hit.summary) payload.summary = hit.summary;
+  if (typeof hit.score === "number") payload.score = hit.score;
+  const highlights = buildHighlights(hit.highlights);
+  if (highlights) payload.highlights = highlights;
+  return payload;
+}
+
+function buildLocatorPayload(
+  hit: UnifiedSearchHit,
+): UnifiedSearchHitPayload["locator"] {
+  const locator: UnifiedSearchHitPayload["locator"] = {};
+  const src = hit.locator;
+  if (src.registry) locator.registry = src.registry;
+  if (src.packageName) locator.packageName = src.packageName;
+  if (src.version) locator.version = src.version;
+  if (src.pageId) locator.pageId = src.pageId;
+  if (src.sourceKind) locator.sourceKind = src.sourceKind;
+  if (src.sourceUrl) locator.sourceUrl = src.sourceUrl;
+  if (src.repoUrl) locator.repoUrl = src.repoUrl;
+  if (src.gitRef) locator.gitRef = src.gitRef;
+  if (src.requestedRef) locator.requestedRef = src.requestedRef;
+  if (src.filePath) locator.filePath = src.filePath;
+  if (typeof src.startLine === "number") locator.startLine = src.startLine;
+  if (typeof src.endLine === "number") locator.endLine = src.endLine;
+  // Top-level symbols often have qualifiedPath identical to title;
+  // skip the duplicate. Nested members (e.g. `MyClass.method`) still
+  // carry the disambiguating path.
+  if (src.qualifiedPath && src.qualifiedPath !== hit.title) {
+    locator.qualifiedPath = src.qualifiedPath;
+  }
+  if (src.kind) locator.kind = src.kind;
+  if (src.category) locator.category = src.category;
+  if (src.language) locator.language = src.language;
+  return locator;
+}
+
+function buildHighlights(
+  highlights: UnifiedSearchHit["highlights"],
+): UnifiedSearchHighlightsPayload | undefined {
+  if (!highlights) return undefined;
+  const compact: UnifiedSearchHighlightsPayload = {};
+  if (highlights.title && highlights.title.length > 0) {
+    compact.title = highlights.title;
+  }
+  if (highlights.summary && highlights.summary.length > 0) {
+    compact.summary = highlights.summary;
+  }
+  return Object.keys(compact).length > 0 ? compact : undefined;
+}
+
+function compactProgress(
+  progress: UnifiedSearchProgress | undefined,
+): UnifiedSearchProgressPayload | undefined {
+  if (!progress) return undefined;
+  const payload: UnifiedSearchProgressPayload = {
+    status: progress.status,
+    targetsReady: progress.targetsReady,
+    targetsTotal: progress.targetsTotal,
+    elapsedMs: progress.elapsedMs,
+  };
+  if (progress.expiresAt) payload.expiresAt = progress.expiresAt;
+  return payload;
+}
+
+function compactSourceStatus(
+  sourceStatus: UnifiedSearchSourceStatus[] | undefined,
+): UnifiedSearchSourceStatusPayload[] | undefined {
+  if (!sourceStatus || sourceStatus.length === 0) return undefined;
+  const compact: UnifiedSearchSourceStatusPayload[] = [];
+  for (const entry of sourceStatus) {
+    const slim = compactSourceStatusEntry(entry);
+    if (slim) compact.push(slim);
+  }
+  return compact.length > 0 ? compact : undefined;
+}
+
+function compactSourceStatusEntry(
+  entry: UnifiedSearchSourceStatus,
+): UnifiedSearchSourceStatusPayload | undefined {
+  const payload: UnifiedSearchSourceStatusPayload = {
+    source: entry.source.toLowerCase(),
+    targetLabel: entry.targetLabel,
+  };
+  let interesting = false;
+
+  // Suppress healthy lifecycle states. INDEXED means searchable; CURRENT
+  // and STALE both have data agents can use (STALE = served from a slightly
+  // older navpack while a reindex runs — we do not warn agents about it).
+  if (entry.indexingStatus && entry.indexingStatus !== "INDEXED") {
+    payload.indexingStatus = entry.indexingStatus;
+    interesting = true;
+  }
+  if (
+    entry.codeIndexState &&
+    entry.codeIndexState !== "CURRENT" &&
+    entry.codeIndexState !== "STALE"
+  ) {
+    payload.codeIndexState = entry.codeIndexState;
+    interesting = true;
+  }
+  if (typeof entry.resultCount === "number" && entry.resultCount > 0) {
+    payload.resultCount = entry.resultCount;
+  }
+  if (entry.ignoredFilters.length > 0) {
+    payload.ignoredFilters = entry.ignoredFilters;
+    interesting = true;
+  }
+  if (entry.incompatibleFilters.length > 0) {
+    payload.incompatibleFilters = entry.incompatibleFilters;
+    interesting = true;
+  }
+  if (entry.ignoredQueryFeatures.length > 0) {
+    payload.ignoredQueryFeatures = entry.ignoredQueryFeatures;
+    interesting = true;
+  }
+  if (entry.incompatibleQueryFeatures.length > 0) {
+    payload.incompatibleQueryFeatures = entry.incompatibleQueryFeatures;
+    interesting = true;
+  }
+  if (entry.note) {
+    payload.note = entry.note;
+    interesting = true;
+  }
+
+  return interesting ? payload : undefined;
 }
 
 function assertSearchFollowUpInvariant(hit: UnifiedSearchHit): void {
@@ -330,29 +455,4 @@ function assertSearchFollowUpInvariant(hit: UnifiedSearchHit): void {
       "REPOSITORY_DOC search hit missing repo locator fields.",
     );
   }
-}
-
-function buildPrimaryFollowUp(
-  hit: UnifiedSearchHit,
-): UnifiedSearchFollowUpPayload | undefined {
-  switch (hit.resultType) {
-    case "DOCUMENTATION_PAGE":
-    case "REPOSITORY_DOC":
-      return buildDocReadFollowUp(hit.locator.pageId);
-    case "REPOSITORY_CODE":
-      return buildFileReadFollowUp(hit.locator);
-    default:
-      return undefined;
-  }
-}
-
-function buildAlternateFollowUps(
-  hit: UnifiedSearchHit,
-): UnifiedSearchFollowUpPayload[] | undefined {
-  if (hit.resultType !== "REPOSITORY_DOC") {
-    return undefined;
-  }
-
-  const readFile = buildFileReadFollowUp(hit.locator);
-  return readFile ? [readFile] : undefined;
 }

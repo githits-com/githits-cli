@@ -47,8 +47,8 @@ describe("docsListAction", () => {
 
     const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0]));
     expect(payload.name).toBe("express");
-    expect(payload.pages[0].followUp.pageId).toBe("123-getting-started");
-    expect(payload.pages[1].readFile.path).toBe("README.md");
+    expect(payload.pages[0].pageId).toBe("123-getting-started");
+    expect(payload.pages[1].filePath).toBe("README.md");
     logSpy.mockRestore();
   });
 

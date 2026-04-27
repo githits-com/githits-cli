@@ -4,9 +4,9 @@ import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchParams,
   buildUnifiedSearchSuccessPayload,
-  toSearchSymbolsFileIntent,
-  toSearchSymbolsKind,
+  toFileIntent,
   toSymbolCategory,
+  toSymbolKind,
 } from "../shared/index.js";
 import {
   type CodeTargetArg,
@@ -154,11 +154,12 @@ const schema = {
 
 const DESCRIPTION =
   "Search indexed dependency and repository code, docs, and explicit symbols. " +
+  "Provide either `target` for one target or `targets` for many; omit `sources` to use backend AUTO. " +
   "The query field uses GitHits discovery syntax (AND/OR/parens/qualifiers; see the parameter description). " +
   "Structured parameters combine with that query using AND semantics. " +
-  "Provide either `target` for one target or `targets` for many. Omit `sources` to use backend AUTO. " +
-  "Results are complete by default; set `allow_partial_results: true` to include available hits while indexing continues. " +
-  "Use `search_status` with that ref to continue.";
+  "Results are complete by default — if indexing is still running, the response carries a `searchRef` and no hits; pass it to `search_status` to follow up. " +
+  "Set `allow_partial_results: true` to opt into hits from sources that finished while others continue indexing. " +
+  "Each hit's `type` tells you the follow-up tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present).";
 
 export function createSearchTool(
   service: CodeNavigationService,
@@ -196,10 +197,10 @@ export function createSearchTool(
           sources: args.sources?.map(
             (entry) => entry.toUpperCase() as "DOCS" | "CODE" | "SYMBOL",
           ),
-          kind: toSearchSymbolsKind(args.kind),
+          kind: toSymbolKind(args.kind),
           category: toSymbolCategory(args.category),
           pathPrefix: args.path_prefix,
-          fileIntent: toSearchSymbolsFileIntent(args.file_intent),
+          fileIntent: toFileIntent(args.file_intent),
           publicOnly: args.public_only,
           name: args.name,
           language: args.language,
@@ -214,7 +215,6 @@ export function createSearchTool(
           built.params,
           built.rawQuery,
           built.compiledQuery,
-          built.defaulted,
           outcome,
         );
         return textResult(JSON.stringify(payload));

@@ -48,15 +48,15 @@ const KNOWN_TOOLS = [
   "search_language",
   "feedback",
   "search_status",
-  "list_files",
-  "read_file",
-  "grep_repo",
-  "list_package_docs",
-  "read_package_doc",
-  "package_summary",
-  "package_vulnerabilities",
-  "package_dependencies",
-  "package_changelog",
+  "code_files",
+  "code_read",
+  "code_grep",
+  "docs_list",
+  "docs_read",
+  "pkg_info",
+  "pkg_vulns",
+  "pkg_deps",
+  "pkg_changelog",
 ] as const;
 
 function mentionedTools(instructions: string): Set<string> {
@@ -119,10 +119,10 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("feedback");
     expect(instructions).toContain("get_example");
     expect(instructions).not.toContain("Package tools");
-    expect(instructions).not.toContain("package_summary");
-    expect(instructions).not.toContain("package_vulnerabilities");
-    expect(instructions).not.toContain("package_dependencies");
-    expect(instructions).not.toContain("package_changelog");
+    expect(instructions).not.toContain("pkg_info");
+    expect(instructions).not.toContain("pkg_vulns");
+    expect(instructions).not.toContain("pkg_deps");
+    expect(instructions).not.toContain("pkg_changelog");
     expect(instructions).not.toContain("search_status");
   });
 
@@ -137,12 +137,12 @@ describe("buildMcpInstructions", () => {
 
     expect(instructions).toContain("GitHits surfaces verified");
     expect(instructions).toContain("Package tools");
-    expect(instructions).toContain("`package_summary`");
-    expect(instructions).toContain("`list_package_docs`");
-    expect(instructions).toContain("`read_package_doc`");
-    expect(instructions).toContain("`package_vulnerabilities`");
-    expect(instructions).toContain("`package_dependencies`");
-    expect(instructions).toContain("`package_changelog`");
+    expect(instructions).toContain("`pkg_info`");
+    expect(instructions).toContain("`docs_list`");
+    expect(instructions).toContain("`docs_read`");
+    expect(instructions).toContain("`pkg_vulns`");
+    expect(instructions).toContain("`pkg_deps`");
+    expect(instructions).toContain("`pkg_changelog`");
     expect(instructions).toContain("`search`");
     expect(instructions).toContain("`search_status`");
     expect(instructions).toContain("allow_partial_results");
@@ -185,7 +185,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("Package tools");
     expect(instructions).toContain("`search`");
     expect(instructions).toContain("`search_status`");
-    expect(instructions).not.toContain("`package_summary`");
+    expect(instructions).not.toContain("`pkg_info`");
     expect(instructions).toContain("canonical example retrieval");
   });
 
@@ -198,12 +198,12 @@ describe("buildMcpInstructions", () => {
     const instructions = buildMcpInstructions(deps);
 
     expect(instructions).toContain("Package tools");
-    expect(instructions).toContain("`package_summary`");
-    expect(instructions).toContain("`list_package_docs`");
-    expect(instructions).toContain("`read_package_doc`");
-    expect(instructions).toContain("`package_vulnerabilities`");
-    expect(instructions).toContain("`package_dependencies`");
-    expect(instructions).toContain("`package_changelog`");
+    expect(instructions).toContain("`pkg_info`");
+    expect(instructions).toContain("`docs_list`");
+    expect(instructions).toContain("`docs_read`");
+    expect(instructions).toContain("`pkg_vulns`");
+    expect(instructions).toContain("`pkg_deps`");
+    expect(instructions).toContain("`pkg_changelog`");
     expect(instructions).not.toContain("`search_status`");
     // The decision tip references unified search, so it must not
     // appear when unified search isn't registered.
@@ -277,13 +277,13 @@ describe("buildMcpInstructions", () => {
         const packageTools = [
           "search",
           "search_status",
-          "list_files",
-          "read_file",
-          "grep_repo",
-          "package_summary",
-          "package_vulnerabilities",
-          "package_dependencies",
-          "package_changelog",
+          "code_files",
+          "code_read",
+          "code_grep",
+          "pkg_info",
+          "pkg_vulns",
+          "pkg_deps",
+          "pkg_changelog",
         ];
         for (const name of packageTools) {
           if (registered.has(name)) {

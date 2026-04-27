@@ -5,7 +5,7 @@
 //                          on every error path; MCP error text is always valid
 //                          JSON.
 //
-// Assertion policy (locked to match shipped `search_symbols` precedent):
+// Assertion policy:
 //   - Success fixtures + service-sourced error fixtures → `toEqual`.
 //     Both surfaces route through the same classifier / envelope builder,
 //     so envelopes are byte-identical.
