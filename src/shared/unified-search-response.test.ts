@@ -21,12 +21,11 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       params,
       "router middleware",
       "router middleware",
-      ["limit", "offset", "waitTimeoutMs"],
       defaultUnifiedSearchOutcome,
     );
 
     expect(payload.completed).toBe(true);
-    expect(payload.returnedCount).toBe(1);
+    expect(payload.results.length).toBe(1);
     expect(payload.results[0]).toEqual({
       type: "repository_code",
       target: "npm:express@4.18.2",
@@ -44,12 +43,26 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     });
   });
 
+  it("omits default-valued query echo fields", () => {
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      defaultUnifiedSearchOutcome,
+    );
+
+    // Default limit/offset/waitTimeoutMs/allowPartialResults all omitted.
+    // No `compiled` because it equals raw. No `warnings` because empty.
+    expect(payload.query).toEqual({
+      raw: "router middleware",
+    });
+  });
+
   it("normalises incomplete outcomes without partial results", () => {
     const payload = buildUnifiedSearchSuccessPayload(
       params,
       "router middleware",
       "router middleware",
-      ["limit", "offset", "waitTimeoutMs"],
       {
         state: "incomplete",
         completed: false,
@@ -68,16 +81,17 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
 
     expect(payload).toEqual({
-      query: expect.objectContaining({
-        filters: undefined,
-        defaulted: ["limit", "offset", "waitTimeoutMs"],
-      }),
+      query: { raw: "router middleware" },
       completed: false,
-      returnedCount: 0,
       hasMore: false,
       results: [],
       searchRef: "search-ref-123",
-      progress: expect.objectContaining({ status: "INDEXING" }),
+      progress: {
+        status: "INDEXING",
+        targetsReady: 0,
+        targetsTotal: 1,
+        elapsedMs: 200,
+      },
     });
   });
 
@@ -90,7 +104,6 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       { ...params, allowPartialResults: true },
       "router middleware",
       "router middleware",
-      ["limit", "offset", "waitTimeoutMs"],
       {
         state: "incomplete",
         completed: false,
@@ -114,11 +127,8 @@ describe("buildUnifiedSearchSuccessPayload", () => {
 
     expect(payload.completed).toBe(false);
     expect(payload.query.allowPartialResults).toBe(true);
-    expect(payload.returnedCount).toBe(1);
+    expect(payload.results.length).toBe(1);
     expect(payload.results[0]?.target).toBe("npm:express@4.18.2");
-    expect(payload.sourceStatus).toEqual(
-      defaultUnifiedSearchOutcome.result.sourceStatus,
-    );
   });
 });
 
@@ -155,7 +165,12 @@ describe("buildUnifiedSearchStatusPayload", () => {
     expect(payload).toEqual({
       completed: false,
       searchRef: "search-ref-123",
-      progress: expect.objectContaining({ status: "INDEXING" }),
+      progress: {
+        status: "INDEXING",
+        targetsReady: 0,
+        targetsTotal: 1,
+        elapsedMs: 200,
+      },
     });
   });
 
@@ -174,19 +189,14 @@ describe("buildUnifiedSearchStatusPayload", () => {
     }
 
     expect(payload.result).toEqual({
-      query: "router middleware",
-      queryWarnings: [],
       sources: ["code"],
-      returnedCount: 1,
       hasMore: false,
-      nextOffset: undefined,
       results: [
         expect.objectContaining({
           type: "repository_code",
           target: "npm:express@4.18.2",
         }),
       ],
-      sourceStatus: defaultUnifiedSearchOutcome.result.sourceStatus,
     });
   });
 });

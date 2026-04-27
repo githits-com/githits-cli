@@ -14,7 +14,6 @@ describe("buildUnifiedSearchParams", () => {
     expect(built.params.limit).toBe(20);
     expect(built.params.offset).toBe(0);
     expect(built.params.waitTimeoutMs).toBe(20_000);
-    expect(built.defaulted).toEqual(["limit", "offset", "waitTimeoutMs"]);
   });
 
   it("does not override explicit fileIntent", () => {
@@ -25,7 +24,6 @@ describe("buildUnifiedSearchParams", () => {
     });
 
     expect(built.params.filters).toEqual({ fileIntent: "TEST" });
-    expect(built.defaulted).not.toContain("fileIntent");
   });
 
   it("leaves fileIntent unset for explicit docs-only searches", () => {
@@ -36,7 +34,6 @@ describe("buildUnifiedSearchParams", () => {
     });
 
     expect(built.params.filters).toBeUndefined();
-    expect(built.defaulted).toEqual(["limit", "offset", "waitTimeoutMs"]);
   });
 
   it("does not invent fileIntent when selected sources include code search", () => {
@@ -47,7 +44,6 @@ describe("buildUnifiedSearchParams", () => {
     });
 
     expect(built.params.filters).toBeUndefined();
-    expect(built.defaulted).toEqual(["limit", "offset", "waitTimeoutMs"]);
   });
 
   it("compiles structured name and language into AND-ed query qualifiers", () => {

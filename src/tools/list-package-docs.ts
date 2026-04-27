@@ -35,14 +35,14 @@ const schema = {
 
 const DESCRIPTION =
   "List mixed package documentation pages from hosted docs and repository-backed docs. " +
-  "Every entry includes a stable pageId, source kind, source URL, and for repo docs exact file follow-up metadata. " +
-  "Use this when you need to browse what docs exist before reading a full page.";
+  "Every entry includes a stable `pageId`, `sourceKind` (`crawled` or `repo`), and source URL; repo-backed entries also expose `repoUrl` / `gitRef` / `filePath` for exact file reads. " +
+  "Pass a returned `pageId` to `docs_read`. Use this to browse before reading a full page.";
 
 export function createListPackageDocsTool(
   service: PackageIntelligenceService,
 ): ToolDefinition<ListPackageDocsArgs, typeof schema> {
   return {
-    name: "list_package_docs",
+    name: "docs_list",
     description: DESCRIPTION,
     schema,
     annotations: { readOnlyHint: true },

@@ -16,7 +16,7 @@ function parseText(result: { content: Array<{ text: string }> }): unknown {
 describe("createReadFileTool — metadata", () => {
   it("registers the correct tool name, description, and schema keys", () => {
     const tool = createReadFileTool(createMockCodeNavigationService());
-    expect(tool.name).toBe("read_file");
+    expect(tool.name).toBe("code_read");
     expect(tool.description).toContain(
       "Read a file from an indexed dependency",
     );

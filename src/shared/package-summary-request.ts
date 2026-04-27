@@ -11,8 +11,8 @@
  *   enum via `toPkgseerRegistry`, rejecting unknown registries with
  *   `UnsupportedRegistryError`.
  *
- * Unlike `buildSearchSymbolsParams` this builder has no defaults to
- * apply, so it returns only `{ params }` — no `defaulted` array.
+ * This builder has no defaults to apply, so it returns only
+ * `{ params }` — no `defaulted` array.
  */
 
 import type { PackageSummaryParams } from "../services/index.js";

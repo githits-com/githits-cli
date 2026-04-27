@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { GitHitsService } from "../services/githits-service.js";
+import { extractSolutionId } from "../shared/extract-solution-id.js";
 import { withErrorHandling } from "./shared.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
@@ -30,8 +31,7 @@ const schema = {
 
 const DESCRIPTION = `Get verified, canonical code examples from global open source.
 
-Use this for example retrieval. For searching indexed dependency and repository code/docs,
-use the unified \`search\` tool instead.`;
+Returns JSON \`{result, solution_id?}\`. \`result\` is markdown — render or quote it directly. Pass \`solution_id\` to \`feedback\` after using or rejecting the example. For searching indexed dependency and repository code/docs, use the unified \`search\` tool instead.`;
 
 export function createGetExampleTool(
   service: GitHitsService,
@@ -42,13 +42,17 @@ export function createGetExampleTool(
     schema,
     handler: async (args) => {
       return withErrorHandling("get example", async () => {
-        const result = await service.search({
+        const markdown = await service.search({
           query: args.query,
           language: args.language,
           licenseMode: args.license_mode,
           includeExplanation: false,
         });
-        return textResult(result);
+        const solutionId = extractSolutionId(markdown);
+        const payload = solutionId
+          ? { result: markdown, solution_id: solutionId }
+          : { result: markdown };
+        return textResult(JSON.stringify(payload));
       });
     },
   };

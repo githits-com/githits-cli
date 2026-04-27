@@ -18,7 +18,7 @@ describe("createPackageChangelogTool — metadata", () => {
     const tool = createPackageChangelogTool(
       createMockPackageIntelligenceService(),
     );
-    expect(tool.name).toBe("package_changelog");
+    expect(tool.name).toBe("pkg_changelog");
     expect(tool.description).toContain("latest mode");
     expect(tool.description).toContain("range mode");
     expect(Object.keys(tool.schema).sort()).toEqual([

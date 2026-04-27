@@ -1,8 +1,8 @@
 import type {
   CodeNavigationTarget,
-  SearchSymbolsFileIntent,
-  SearchSymbolsKind,
+  FileIntent,
   SymbolCategory,
+  SymbolKind,
   UnifiedSearchFilters,
   UnifiedSearchParams,
   UnifiedSearchSource,
@@ -15,10 +15,10 @@ export interface UnifiedSearchRequestInput {
   targets?: CodeNavigationTarget[];
   query: string;
   sources?: UnifiedSearchSource[];
-  kind?: SearchSymbolsKind;
+  kind?: SymbolKind;
   category?: SymbolCategory;
   pathPrefix?: string;
-  fileIntent?: SearchSymbolsFileIntent;
+  fileIntent?: FileIntent;
   publicOnly?: boolean;
   name?: string;
   language?: string;
@@ -32,7 +32,6 @@ export interface UnifiedSearchRequestBuildResult {
   params: UnifiedSearchParams;
   rawQuery: string;
   compiledQuery: string;
-  defaulted: ReadonlyArray<"limit" | "offset" | "waitTimeoutMs">;
 }
 
 export function buildUnifiedSearchParams(
@@ -40,16 +39,10 @@ export function buildUnifiedSearchParams(
 ): UnifiedSearchRequestBuildResult {
   const targets = resolveTargets(input.target, input.targets);
   const rawQuery = normaliseRequiredQuery(input.query);
-  const defaulted: Array<"limit" | "offset" | "waitTimeoutMs"> = [];
 
-  const limit = resolveNumber(input.limit, 20, "limit", defaulted);
-  const offset = resolveNumber(input.offset, 0, "offset", defaulted);
-  const waitTimeoutMs = resolveNumber(
-    input.waitTimeoutMs,
-    DEFAULT_WAIT_TIMEOUT_MS,
-    "waitTimeoutMs",
-    defaulted,
-  );
+  const limit = input.limit ?? 20;
+  const offset = input.offset ?? 0;
+  const waitTimeoutMs = input.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS;
 
   const qualifierClauses = buildQualifierClauses({
     name: input.name,
@@ -78,7 +71,6 @@ export function buildUnifiedSearchParams(
     },
     rawQuery,
     compiledQuery,
-    defaulted,
   };
 }
 
@@ -125,19 +117,6 @@ function normaliseRequiredQuery(query: string): string {
   return trimmed;
 }
 
-function resolveNumber(
-  value: number | undefined,
-  fallback: number,
-  field: "limit" | "offset" | "waitTimeoutMs",
-  defaulted: Array<"limit" | "offset" | "waitTimeoutMs">,
-): number {
-  if (value === undefined) {
-    defaulted.push(field);
-    return fallback;
-  }
-  return value;
-}
-
 function buildQualifierClauses(input: {
   name?: string;
   language?: string;
@@ -182,10 +161,10 @@ function compileQuery(rawQuery: string, qualifierClauses: string[]): string {
 }
 
 function buildFilters(input: {
-  kind?: SearchSymbolsKind;
+  kind?: SymbolKind;
   category?: SymbolCategory;
   pathPrefix?: string;
-  fileIntent?: SearchSymbolsFileIntent;
+  fileIntent?: FileIntent;
   publicOnly?: boolean;
 }): UnifiedSearchFilters | undefined {
   const filters: UnifiedSearchFilters = {};

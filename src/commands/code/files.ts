@@ -174,12 +174,12 @@ export function registerCodeFilesCommand(pkgCommand: Command): Command {
     .summary("List files in an indexed dependency")
     .description(PKG_FILES_DESCRIPTION)
     .argument(
-      "[arg1]",
-      "In spec mode: package spec (e.g. npm:express). In --repo-url mode: the path-prefix.",
+      "[spec-or-prefix]",
+      "Spec mode: package spec (e.g. npm:express). Repo mode (with --repo-url): the path-prefix.",
     )
     .argument(
-      "[arg2]",
-      "In spec mode: the path-prefix (literal directory, not a glob). Unused in --repo-url mode.",
+      "[path-prefix]",
+      "Spec mode only: literal directory prefix (not a glob). Ignored with --repo-url.",
     )
     .option(
       "--repo-url <url>",

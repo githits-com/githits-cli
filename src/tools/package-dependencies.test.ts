@@ -15,7 +15,7 @@ describe("createPackageDependenciesTool — metadata", () => {
     const tool = createPackageDependenciesTool(
       createMockPackageIntelligenceService(),
     );
-    expect(tool.name).toBe("package_dependencies");
+    expect(tool.name).toBe("pkg_deps");
     expect(tool.description).toContain("npm, PyPI, Hex, Crates");
     expect(Object.keys(tool.schema).sort()).toEqual([
       "include_importers",

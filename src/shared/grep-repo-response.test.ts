@@ -85,14 +85,14 @@ describe("buildGrepRepoSuccessPayload", () => {
   it("projects the new envelope shape", () => {
     const envelope = buildGrepRepoSuccessPayload(baseResult, baseOptions);
     expect(envelope.pattern).toBe("express()");
-    expect(envelope.patternType).toBe("literal");
+    // patternType omitted when default ("literal")
+    expect(envelope.patternType).toBeUndefined();
     expect(envelope.totalMatches).toBe(1);
     expect(envelope.matches[0]?.filePath).toBe("src/index.js");
     expect(envelope.matches[0]?.symbol).toMatchObject({
       name: "createRouter",
       qualifiedPath: "express.createRouter",
     });
-    expect(envelope.routeTaken).toBe("content_index");
     expect(envelope.filter).toEqual({
       pathPrefix: "src/",
       globs: ["src/**/*.js"],

@@ -11,7 +11,6 @@ import {
   CodeNavigationUnresolvableError,
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
-  InvalidSearchSymbolsRequestError,
   MalformedCodeNavigationResponseError,
 } from "../services/code-navigation-service.js";
 import { AuthenticationError } from "../services/githits-service.js";
@@ -260,17 +259,6 @@ describe("mapCodeNavigationError", () => {
     expect(mapCodeNavigationError(err)).toEqual({
       code: "INVALID_ARGUMENT",
       message: "no such registry",
-      retryable: false,
-    });
-  });
-
-  it("classifies InvalidSearchSymbolsRequestError as INVALID_ARGUMENT", () => {
-    const err = new InvalidSearchSymbolsRequestError(
-      "Either query or keywords must be provided.",
-    );
-    expect(mapCodeNavigationError(err)).toEqual({
-      code: "INVALID_ARGUMENT",
-      message: "Either query or keywords must be provided.",
       retryable: false,
     });
   });

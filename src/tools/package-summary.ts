@@ -15,7 +15,7 @@ export interface PackageSummaryArgs {
  * via `buildPackageSummaryParams`. That way, malformed input produces
  * the structured `{error, code, retryable}` envelope (same as CLI),
  * rather than a raw Zod error that agents would have to parse
- * separately. See `search_symbols` precedent.
+ * separately.
  */
 const schema = {
   registry: z
@@ -41,7 +41,7 @@ export function createPackageSummaryTool(
   service: PackageIntelligenceService,
 ): ToolDefinition<PackageSummaryArgs, typeof schema> {
   return {
-    name: "package_summary",
+    name: "pkg_info",
     description: DESCRIPTION,
     schema,
     annotations: { readOnlyHint: true },

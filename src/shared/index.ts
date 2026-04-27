@@ -5,10 +5,9 @@ export {
   knownSymbolKindList,
   type SymbolCategoryArg,
   toCodeNavigationRegistry,
-  toSearchSymbolsFileIntent,
-  toSearchSymbolsKind,
-  toSearchSymbolsMatchMode,
+  toFileIntent,
   toSymbolCategory,
+  toSymbolKind,
 } from "./code-navigation.js";
 export {
   DEFAULT_WAIT_TIMEOUT_MS,
@@ -33,13 +32,8 @@ export {
   warning,
 } from "./colors.js";
 export { debugLog } from "./debug-log.js";
-export {
-  buildDocReadFollowUp,
-  buildFileReadFollowUp,
-  type DocReadFollowUp,
-  type FileReadFollowUp,
-  lowerDocSourceKind,
-} from "./docs-follow-up.js";
+export { lowerDocSourceKind } from "./docs-follow-up.js";
+export { extractSolutionId } from "./extract-solution-id.js";
 export {
   buildGrepRepoParams,
   GREP_REPO_PATTERN_NOTE,
@@ -140,6 +134,7 @@ export {
   type VulnSeverityLabel,
   vulnSeverityLabel,
 } from "./package-vulnerabilities-response.js";
+export { type LineRange, parseLinesOption } from "./parse-lines-option.js";
 export {
   isKnownPkgseerRegistryArg,
   knownPkgseerRegistryArgs,
@@ -159,18 +154,6 @@ export {
   type LeanPackageDocEnvelope,
 } from "./read-package-doc-response.js";
 export { AuthRequiredError, requireAuth } from "./require-auth.js";
-export {
-  buildSearchSymbolsParams,
-  type SearchSymbolsRequestBuildResult,
-  type SearchSymbolsRequestInput,
-} from "./search-symbols-request.js";
-export {
-  buildSearchSymbolsErrorPayload,
-  buildSearchSymbolsSuccessPayload,
-  type SearchSymbolsErrorPayload,
-  type SearchSymbolsQueryEcho,
-  type SearchSymbolsSuccessPayload,
-} from "./search-symbols-response.js";
 export {
   endTelemetrySpan,
   flushTelemetry,

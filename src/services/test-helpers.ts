@@ -15,7 +15,6 @@ import type { BrowserService } from "./browser-service.js";
 import type {
   CodeNavigationService,
   GrepRepoResult,
-  SearchSymbolsResult,
   UnifiedSearchOutcome,
 } from "./code-navigation-service.js";
 import type { ExecResult, ExecService } from "./exec-service.js";
@@ -102,30 +101,6 @@ export function createMockAuthService(
     ...impl,
   };
 }
-
-/**
- * Default code navigation search result for testing. Matches the
- * DETAILED-mode response shape the service now always requests:
- * `kind`, `category`, `endLine`, `language`, and `code` are
- * populated; `preview` is null (callers build snippets from `code`).
- */
-export const defaultSearchSymbolsResult: SearchSymbolsResult = {
-  results: [
-    {
-      name: "useMiddleware",
-      kind: "function",
-      category: "callable",
-      filePath: "src/app.js",
-      startLine: 42,
-      endLine: 48,
-      code: "function useMiddleware(fn) {\n  fn();\n  return null;\n}",
-      language: "javascript",
-    },
-  ],
-  totalMatches: 1,
-  hasMore: false,
-  version: "4.18.0",
-};
 
 export const defaultUnifiedSearchOutcome: UnifiedSearchOutcome = {
   state: "completed",
@@ -379,7 +354,6 @@ export function createMockCodeNavigationService(
   return {
     search: mock(() => Promise.resolve(defaultUnifiedSearchOutcome)),
     searchStatus: mock(() => Promise.resolve(defaultUnifiedSearchOutcome)),
-    searchSymbols: mock(() => Promise.resolve(defaultSearchSymbolsResult)),
     listFiles: mock(() => Promise.resolve(defaultListFilesResult)),
     readFile: mock(() => Promise.resolve(defaultReadFileResult)),
     grepRepo: mock(() => Promise.resolve(defaultGrepRepoResult)),

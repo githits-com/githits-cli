@@ -12,9 +12,13 @@ describe("createReadPackageDocTool", () => {
     const tool = createReadPackageDocTool(
       createMockPackageIntelligenceService(),
     );
-    expect(tool.name).toBe("read_package_doc");
+    expect(tool.name).toBe("docs_read");
     expect(tool.annotations?.readOnlyHint).toBe(true);
-    expect(Object.keys(tool.schema)).toEqual(["page_id"]);
+    expect(Object.keys(tool.schema)).toEqual([
+      "page_id",
+      "start_line",
+      "end_line",
+    ]);
   });
 
   it("calls service.readPackageDoc with the page ID", async () => {
@@ -38,7 +42,6 @@ describe("createReadPackageDocTool", () => {
     );
     const payload = parseText(result) as Record<string, unknown>;
     expect(payload.pageId).toBe("github:expressjs/express@abc123/README.md");
-    expect(payload.followUp).toBeDefined();
   });
 
   it("returns INVALID_ARGUMENT for empty page ID", async () => {

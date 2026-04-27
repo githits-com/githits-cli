@@ -120,16 +120,21 @@ describe("authStatusAction", () => {
 
   it("shows env token info when envApiToken is provided", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const envApiToken = createJwtToken({
+      feature_flags: ["code_navigation"],
+    });
 
     await authStatusAction(
       createDeps({
-        envApiToken: createJwtToken({ feature_flags: ["code_navigation"] }),
+        envApiToken,
       }),
     );
 
     const output = consoleSpy.mock.calls.map((c) => c[0]).join("\n");
     expect(output).toContain("environment variable");
     expect(output).toContain("GITHITS_API_TOKEN");
+    expect(output).not.toContain("Token:");
+    expect(output).not.toContain(envApiToken.slice(0, 8));
     expect(output).toContain("Code navigation: enabled");
     consoleSpy.mockRestore();
   });

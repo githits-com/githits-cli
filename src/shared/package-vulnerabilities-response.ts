@@ -21,13 +21,12 @@
  *   legitimately exceed the returned list in paginated futures.
  * - `requestedVersion` surfaces whenever the backend-resolved
  *   `version` differs from the caller's (trimmed) input. `v`-prefix
- *   normalisation that `search_symbols` does via
- *   `isTrivialRefDifference` is intentionally *not* applied here:
- *   the `v4.17.0` form is a git-tag convention, not a version-string
- *   convention — no supported registry (npm, PyPI, Hex, Crates)
- *   accepts it as a canonical version, so the backend will reject
- *   it rather than resolve it to `4.17.0`. Masking that error
- *   would hide a real caller mistake.
+ *   normalisation is intentionally *not* applied here: the `v4.17.0`
+ *   form is a git-tag convention, not a version-string convention —
+ *   no supported registry (npm, PyPI, Hex, Crates) accepts it as a
+ *   canonical version, so the backend will reject it rather than
+ *   resolve it to `4.17.0`. Masking that error would hide a real
+ *   caller mistake.
  * - `modifiedAt` is included only when it differs from `publishedAt`.
  * - Sort order: malware bucket first; within a bucket, severity desc,
  *   then `publishedAt` desc, then `osvId` asc (deterministic

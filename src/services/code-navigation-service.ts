@@ -17,8 +17,6 @@ import type { TokenProvider } from "./token-manager.js";
  */
 export type CodeNavigationRegistry = PkgseerRegistry;
 
-export type SearchSymbolsMatchMode = "OR" | "AND";
-
 /**
  * Precise symbol kind from the backend's unified symbol taxonomy.
  * Prefer `SymbolCategory` for broad filtering; use `SymbolKind`
@@ -31,7 +29,7 @@ export type SearchSymbolsMatchMode = "OR" | "AND";
  * - `class` excludes record/mixin/actor
  * - `interface` excludes protocol/annotation
  */
-export type SearchSymbolsKind =
+export type SymbolKind =
   | "FUNCTION"
   | "METHOD"
   | "CONSTRUCTOR"
@@ -73,7 +71,7 @@ export type SymbolCategory =
   | "DATA"
   | "DOCUMENTATION";
 
-export type SearchSymbolsFileIntent =
+export type FileIntent =
   | "PRODUCTION"
   | "TEST"
   | "BENCHMARK"
@@ -91,78 +89,11 @@ export interface CodeNavigationTarget {
   gitRef?: string;
 }
 
-export interface SearchSymbolsParams {
-  target: CodeNavigationTarget;
-  query?: string;
-  keywords?: string[];
-  matchMode?: SearchSymbolsMatchMode;
-  /**
-   * Precise symbol kind. Prefer `category` for broad filtering;
-   * use `kind` only when the caller wants a specific construct.
-   */
-  kind?: SearchSymbolsKind;
-  /**
-   * Broad symbol category filter. Preferred surface for filtering
-   * navigation queries — works across the 27-value kind taxonomy
-   * without enumerating individual kinds.
-   */
-  category?: SymbolCategory;
-  filePath?: string;
-  limit?: number;
-  fileIntent?: SearchSymbolsFileIntent;
-  waitTimeoutMs?: number;
-}
-
-export interface SearchSymbolsResultEntry {
-  name?: string;
-  filePath?: string;
-  startLine?: number;
-  endLine?: number;
-  preview?: string;
-  code?: string;
-  language?: string;
-  symbolRef?: string;
-  qualifiedPath?: string;
-  /**
-   * Precise symbol kind (lowercase string) from the backend's
-   * unified symbol taxonomy. Populated for every chunk — the
-   * backend handles the fallback from chunk-level classification
-   * to enrichment-level kind internally, so callers can treat
-   * this as the single source of truth for taxonomy.
-   */
-  kind?: string;
-  /**
-   * Broad category of the primary symbol — one of `callable`,
-   * `type`, `module`, `data`, `documentation`. Computed by the
-   * backend from `kind`. Null for kinds with no category
-   * (e.g. CSS rules).
-   */
-  category?: string;
-  arity?: number;
-  isPublic?: boolean;
-  /**
-   * Number of symbols contained in this chunk (DETAILED mode only,
-   * populated when > 1). Schema coerced to `Int` in the April 2026
-   * backend update; earlier versions returned a string array.
-   */
-  containedSymbols?: number;
-}
-
-export interface SearchSymbolsResolution {
+export interface IndexResolution {
   requestedVersion?: string;
   requestedRef?: string;
   resolvedRef?: string;
   commitSha?: string;
-}
-
-export interface SearchSymbolsResult {
-  results: SearchSymbolsResultEntry[];
-  totalMatches: number;
-  hasMore: boolean;
-  version?: string;
-  resolution?: SearchSymbolsResolution;
-  hint?: string;
-  warning?: string;
 }
 
 export type UnifiedSearchSource = "AUTO" | "DOCS" | "CODE" | "SYMBOL";
@@ -182,8 +113,8 @@ export type UnifiedSearchSessionStatus =
   | "FAILED";
 
 export interface UnifiedSearchFilters {
-  fileIntent?: SearchSymbolsFileIntent;
-  kind?: SearchSymbolsKind;
+  fileIntent?: FileIntent;
+  kind?: SymbolKind;
   category?: SymbolCategory;
   publicOnly?: boolean;
   pathPrefix?: string;
@@ -327,7 +258,7 @@ export interface ListFilesResult {
   total: number;
   hasMore: boolean;
   indexedVersion?: string;
-  resolution?: SearchSymbolsResolution;
+  resolution?: IndexResolution;
   hint?: string;
 }
 
@@ -433,13 +364,12 @@ export interface GrepRepoResult {
   totalMatches: number;
   uniqueFilesMatched: number;
   indexedVersion?: string;
-  resolution?: SearchSymbolsResolution;
+  resolution?: IndexResolution;
 }
 
 export interface CodeNavigationService {
   search(params: UnifiedSearchParams): Promise<UnifiedSearchOutcome>;
   searchStatus(searchRef: string): Promise<UnifiedSearchOutcome>;
-  searchSymbols(params: SearchSymbolsParams): Promise<SearchSymbolsResult>;
   listFiles(params: ListFilesParams): Promise<ListFilesResult>;
   readFile(params: ReadFileParams): Promise<ReadFileResult>;
   grepRepo(params: GrepRepoParams): Promise<GrepRepoResult>;
@@ -582,95 +512,6 @@ export class CodeNavigationBackendError extends Error {
     this.name = "CodeNavigationBackendError";
   }
 }
-
-/**
- * Raised by the service when the caller supplied neither a query
- * nor any keywords. Name starts with `Invalid` so
- * `mapCodeNavigationError` classifies it as `INVALID_ARGUMENT`.
- */
-export class InvalidSearchSymbolsRequestError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "InvalidSearchSymbolsRequestError";
-  }
-}
-
-// Always requests `mode: DETAILED` — the service makes this choice
-// once so both CLI and MCP get the richest response (kind, category,
-// endLine, language). Consumers derive a snippet from `code` when
-// needed; `preview` is available in both modes but the formatter
-// owns snippet rendering client-side for consistent truncation.
-const SEARCH_SYMBOLS_QUERY = `
-query SearchSymbols(
-  $registry: Registry
-  $packageName: String
-  $repoUrl: String
-  $gitRef: String
-  $query: String
-  $keywords: [String!]
-  $matchMode: MatchMode
-  $kind: SymbolKind
-  $category: SymbolCategory
-  $filePath: String
-  $version: String
-  $limit: Int
-  $fileIntent: FileIntent
-  $waitTimeoutMs: Int
-) {
-  searchSymbols(
-    registry: $registry
-    packageName: $packageName
-    repoUrl: $repoUrl
-    gitRef: $gitRef
-    query: $query
-    keywords: $keywords
-    matchMode: $matchMode
-    kind: $kind
-    category: $category
-    filePath: $filePath
-    version: $version
-    limit: $limit
-    fileIntent: $fileIntent
-    mode: DETAILED
-    waitTimeoutMs: $waitTimeoutMs
-  ) {
-    results {
-      name
-      filePath
-      startLine
-      endLine
-      preview
-      code
-      language
-      symbolRef
-      qualifiedPath
-      kind
-      category
-      arity
-      isPublic
-      containedSymbols
-    }
-    totalMatches
-    hasMore
-    indexedVersion
-    resolution {
-      requestedVersion
-      requestedRef
-      resolvedRef
-      commitSha
-    }
-    diagnostics {
-      hint
-    }
-    warning
-    codeIndexState
-    indexingRef
-    availableVersions {
-      version
-      ref
-    }
-  }
-}`;
 
 const UNIFIED_SEARCH_QUERY = `
 query UnifiedSearch(
@@ -879,7 +720,7 @@ function debugUnifiedSearchRequest(variables: {
 }
 
 function debugGraphqlWireRequest(
-  operation: "search" | "searchSymbols",
+  operation: "search",
   graphqlQuery: string,
   variables: Record<string, unknown>,
 ): void {
@@ -889,55 +730,6 @@ function debugGraphqlWireRequest(
     operation,
     graphqlQuery,
     variables: serialiseForDebug(variables),
-  });
-}
-
-function debugSearchSymbolsRequest(variables: {
-  registry?: string;
-  packageName?: string;
-  repoUrl?: string;
-  gitRef?: string;
-  query?: string;
-  keywords?: string[];
-  matchMode?: SearchSymbolsMatchMode;
-  kind?: SearchSymbolsKind;
-  category?: SymbolCategory;
-  filePath?: string;
-  version?: string;
-  limit?: number;
-  fileIntent?: SearchSymbolsFileIntent;
-  waitTimeoutMs?: number;
-}): void {
-  if (!isDebugAreaEnabled("code-nav")) return;
-  const serialised = serialiseForDebug(variables);
-
-  debugLog("code-nav", {
-    event: "request",
-    operation: "searchSymbols",
-    targetType: typeof serialised.repoUrl === "string" ? "repo" : "package",
-    queryMode: Array.isArray(serialised.keywords)
-      ? typeof serialised.query === "string"
-        ? "query+keywords"
-        : "keywords"
-      : typeof serialised.query === "string"
-        ? "query"
-        : "none",
-    keywordsCount: Array.isArray(serialised.keywords)
-      ? serialised.keywords.length
-      : 0,
-    kind: typeof serialised.kind === "string" ? serialised.kind : undefined,
-    category:
-      typeof serialised.category === "string" ? serialised.category : undefined,
-    fileIntent:
-      typeof serialised.fileIntent === "string"
-        ? serialised.fileIntent
-        : "omitted",
-    presentVariableKeys: Object.keys(serialised).sort(),
-    hasLimit: typeof serialised.limit === "number",
-    waitTimeoutMs:
-      typeof serialised.waitTimeoutMs === "number"
-        ? serialised.waitTimeoutMs
-        : undefined,
   });
 }
 
@@ -964,49 +756,6 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 const availableVersionSchema = z.object({
   version: z.string().nullable().optional(),
   ref: z.string(),
-});
-
-const searchSymbolsResultEntrySchema = z.object({
-  name: z.string().nullable().optional(),
-  filePath: z.string().nullable().optional(),
-  startLine: z.number().int().nullable().optional(),
-  endLine: z.number().int().nullable().optional(),
-  preview: z.string().nullable().optional(),
-  code: z.string().nullable().optional(),
-  language: z.string().nullable().optional(),
-  symbolRef: z.string().nullable().optional(),
-  qualifiedPath: z.string().nullable().optional(),
-  kind: z.string().nullable().optional(),
-  category: z.string().nullable().optional(),
-  arity: z.number().int().nullable().optional(),
-  isPublic: z.boolean().nullable().optional(),
-  containedSymbols: z.number().int().nullable().optional(),
-});
-
-const searchSymbolsResponseSchema = z.object({
-  results: z.array(searchSymbolsResultEntrySchema),
-  totalMatches: z.number().int(),
-  hasMore: z.boolean(),
-  indexedVersion: z.string().nullable().optional(),
-  resolution: z
-    .object({
-      requestedVersion: z.string().nullable().optional(),
-      requestedRef: z.string().nullable().optional(),
-      resolvedRef: z.string().nullable().optional(),
-      commitSha: z.string().nullable().optional(),
-    })
-    .nullable()
-    .optional(),
-  diagnostics: z
-    .object({
-      hint: z.string().nullable().optional(),
-    })
-    .nullable()
-    .optional(),
-  warning: z.string().nullable().optional(),
-  codeIndexState: z.string(),
-  indexingRef: z.string().nullable().optional(),
-  availableVersions: z.array(availableVersionSchema).nullable().optional(),
 });
 
 const unifiedSearchSourceSchema = z.enum(["AUTO", "DOCS", "CODE", "SYMBOL"]);
@@ -1483,19 +1232,6 @@ query GrepRepo(
 }`;
 }
 
-// `data` may be null (seen live for unknown packages that also carry
-// `errors`), and `searchSymbols` may be null even when `data` is present.
-// Both must parse successfully so the error-handling layer can classify.
-const graphQLResponseSchema = z.object({
-  data: z
-    .object({
-      searchSymbols: searchSymbolsResponseSchema.nullable().optional(),
-    })
-    .nullable()
-    .optional(),
-  errors: z.array(graphQLErrorSchema).optional(),
-});
-
 const unifiedSearchGraphQLResponseSchema = z.object({
   data: z
     .object({
@@ -1541,17 +1277,6 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       shouldRefresh: (error) => error instanceof AuthenticationError,
       executeWithToken: (token) =>
         this.executeUnifiedSearchStatus(token, searchRef),
-    });
-  }
-
-  async searchSymbols(
-    params: SearchSymbolsParams,
-  ): Promise<SearchSymbolsResult> {
-    return executeWithTokenRefresh({
-      getToken: () => this.tokenProvider.getToken(),
-      forceRefresh: () => this.tokenProvider.forceRefresh(),
-      shouldRefresh: (error) => error instanceof AuthenticationError,
-      executeWithToken: (token) => this.executeSearchSymbols(token, params),
     });
   }
 
@@ -1700,130 +1425,6 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       searchRef: progress.searchRef,
       result,
       progress,
-    };
-  }
-
-  private async executeSearchSymbols(
-    token: string,
-    params: SearchSymbolsParams,
-  ): Promise<SearchSymbolsResult> {
-    if (!params.query && (!params.keywords || params.keywords.length === 0)) {
-      throw new InvalidSearchSymbolsRequestError(
-        "Either query or keywords must be provided.",
-      );
-    }
-
-    let response: PkgseerGraphqlResponse;
-    const variables = {
-      registry: params.target.registry,
-      packageName: params.target.packageName,
-      repoUrl: params.target.repoUrl,
-      gitRef: params.target.gitRef,
-      query: params.query,
-      keywords: params.keywords,
-      matchMode: params.matchMode,
-      kind: params.kind,
-      category: params.category,
-      filePath: params.filePath,
-      version: params.target.version,
-      limit: params.limit,
-      fileIntent: params.fileIntent,
-      waitTimeoutMs: params.waitTimeoutMs,
-    };
-    debugSearchSymbolsRequest(variables);
-    debugGraphqlWireRequest("searchSymbols", SEARCH_SYMBOLS_QUERY, variables);
-    try {
-      response = await postPkgseerGraphql({
-        endpointUrl: this.codeNavigationUrl,
-        token,
-        query: SEARCH_SYMBOLS_QUERY,
-        variables,
-        fetchFn: this.fetchFn,
-      });
-    } catch (cause) {
-      // Helper owns transport-level error wrapping; re-map to the
-      // domain error class so `mapCodeNavigationError` still routes
-      // to `NETWORK`. Other error classes bubble unchanged.
-      if (cause instanceof PkgseerTransportError) {
-        throw new CodeNavigationNetworkError(
-          "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
-      }
-      throw cause;
-    }
-
-    if (response.status < 200 || response.status >= 300) {
-      throw this.createHttpError(response);
-    }
-
-    const parsed = graphQLResponseSchema.safeParse(response.parsedBody);
-    if (!parsed.success) {
-      throw new MalformedCodeNavigationResponseError(
-        "Malformed response from code navigation service.",
-      );
-    }
-
-    if (parsed.data.errors && parsed.data.errors.length > 0) {
-      throw this.createGraphQLError(parsed.data.errors);
-    }
-
-    const data = parsed.data.data?.searchSymbols;
-    if (!data) {
-      // `data: null` or `data.searchSymbols: null` with no `errors` entry.
-      // Rare — the backend normally couples null payloads with errors.
-      throw new MalformedCodeNavigationResponseError(
-        "Malformed response from code navigation service.",
-      );
-    }
-
-    if (data.codeIndexState === "INDEXING") {
-      throw new CodeNavigationIndexingError(
-        this.createIndexingMessage(data.indexingRef ?? undefined),
-        data.indexingRef ?? undefined,
-        data.availableVersions?.map((entry) => ({
-          version: entry.version ?? undefined,
-          ref: entry.ref,
-        })),
-      );
-    }
-
-    if (data.codeIndexState === "UNRESOLVABLE") {
-      throw new CodeNavigationUnresolvableError(
-        "The requested target or version could not be resolved.",
-      );
-    }
-
-    return {
-      results: data.results.map((entry) => ({
-        name: entry.name ?? undefined,
-        filePath: entry.filePath ?? undefined,
-        startLine: entry.startLine ?? undefined,
-        endLine: entry.endLine ?? undefined,
-        preview: entry.preview ?? undefined,
-        code: entry.code ?? undefined,
-        language: entry.language ?? undefined,
-        symbolRef: entry.symbolRef ?? undefined,
-        qualifiedPath: entry.qualifiedPath ?? undefined,
-        kind: entry.kind ?? undefined,
-        category: entry.category ?? undefined,
-        arity: entry.arity ?? undefined,
-        isPublic: entry.isPublic ?? undefined,
-        containedSymbols: entry.containedSymbols ?? undefined,
-      })),
-      totalMatches: data.totalMatches,
-      hasMore: data.hasMore,
-      version: data.indexedVersion ?? undefined,
-      resolution: data.resolution
-        ? {
-            requestedVersion: data.resolution.requestedVersion ?? undefined,
-            requestedRef: data.resolution.requestedRef ?? undefined,
-            resolvedRef: data.resolution.resolvedRef ?? undefined,
-            commitSha: data.resolution.commitSha ?? undefined,
-          }
-        : undefined,
-      hint: data.diagnostics?.hint ?? undefined,
-      warning: data.warning ?? undefined,
     };
   }
 
@@ -2129,8 +1730,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
    * Shared sentinel-promotion for the file-exploration tools. When the backend
    * response carries `codeIndexState: "INDEXING"` (data-path variant),
    * throw the typed error so the envelope builder / caller never sees
-   * the raw sentinel. Mirrors the inline check `searchSymbols` does
-   * today.
+   * the raw sentinel.
    */
   private throwIfIndexing(data: {
     codeIndexState: string;

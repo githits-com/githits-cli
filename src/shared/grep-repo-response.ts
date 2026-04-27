@@ -11,7 +11,6 @@ export interface LeanGrepRepoMatch {
   contextAfter?: string[];
   fileContentHash?: string;
   fileIntent?: string;
-  symbolRowId?: string;
   symbol?: {
     symbolRef?: string;
     name?: string;
@@ -62,17 +61,16 @@ export interface LeanGrepRepoEnvelope {
   repoUrl?: string;
   gitRef?: string;
   pattern: string;
-  patternType: "literal" | "regex";
-  caseSensitive: boolean;
+  patternType?: "literal" | "regex";
+  caseSensitive?: boolean;
   matches: LeanGrepRepoMatch[];
   nextCursor?: string;
   hasMore: boolean;
-  truncatedReason: string;
-  routeTaken?: string;
+  truncatedReason?: string;
   filesScanned: number;
   filesInScope: number;
-  binaryFilesSkipped: number;
-  filesTooLargeSkipped: number;
+  binaryFilesSkipped?: number;
+  filesTooLargeSkipped?: number;
   totalMatches: number;
   uniqueFilesMatched: number;
   indexedVersion?: string;
@@ -126,19 +124,27 @@ export function buildGrepRepoSuccessPayload(
 ): LeanGrepRepoEnvelope {
   const envelope: LeanGrepRepoEnvelope = {
     pattern: options.pattern,
-    patternType: options.patternType,
-    caseSensitive: options.caseSensitive,
     matches: result.matches.map(projectMatch),
     hasMore: result.hasMore,
-    truncatedReason: result.truncatedReason.toLowerCase(),
-    routeTaken: result.routeTaken?.toLowerCase(),
     filesScanned: result.filesScanned,
     filesInScope: result.filesInScope,
-    binaryFilesSkipped: result.binaryFilesSkipped,
-    filesTooLargeSkipped: result.filesTooLargeSkipped,
     totalMatches: result.totalMatches,
     uniqueFilesMatched: result.uniqueFilesMatched,
   };
+
+  if (options.patternType !== "literal") {
+    envelope.patternType = options.patternType;
+  }
+  if (options.caseSensitive) envelope.caseSensitive = true;
+  if (result.binaryFilesSkipped > 0) {
+    envelope.binaryFilesSkipped = result.binaryFilesSkipped;
+  }
+  if (result.filesTooLargeSkipped > 0) {
+    envelope.filesTooLargeSkipped = result.filesTooLargeSkipped;
+  }
+  if (result.truncatedReason && result.truncatedReason !== "NONE") {
+    envelope.truncatedReason = result.truncatedReason.toLowerCase();
+  }
 
   if (options.registry) envelope.registry = options.registry;
   if (options.name) envelope.name = options.name;
@@ -156,19 +162,23 @@ export function buildGrepRepoSuccessPayload(
 }
 
 function projectMatch(match: GrepRepoMatch): LeanGrepRepoMatch {
-  return {
+  const projected: LeanGrepRepoMatch = {
     filePath: match.filePath,
     line: match.line,
     matchStartByte: match.matchStartByte,
     matchEndByte: match.matchEndByte,
     lineContent: match.lineContent,
-    contextBefore: match.contextBefore,
-    contextAfter: match.contextAfter,
-    fileContentHash: match.fileContentHash,
-    fileIntent: match.fileIntent,
-    symbolRowId: match.symbolRowId,
-    symbol: match.symbol,
   };
+  if (match.contextBefore && match.contextBefore.length > 0) {
+    projected.contextBefore = match.contextBefore;
+  }
+  if (match.contextAfter && match.contextAfter.length > 0) {
+    projected.contextAfter = match.contextAfter;
+  }
+  if (match.fileContentHash) projected.fileContentHash = match.fileContentHash;
+  if (match.fileIntent) projected.fileIntent = match.fileIntent;
+  if (match.symbol) projected.symbol = match.symbol;
+  return projected;
 }
 
 function projectResolution(

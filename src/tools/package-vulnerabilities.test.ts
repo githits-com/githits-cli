@@ -15,7 +15,7 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
-    expect(tool.name).toBe("package_vulnerabilities");
+    expect(tool.name).toBe("pkg_vulns");
     expect(tool.description).toContain("npm, PyPI, Hex, or");
     expect(Object.keys(tool.schema).sort()).toEqual([
       "include_withdrawn",

@@ -58,10 +58,10 @@ program
     "after",
     `
 Getting started:
-  githits init                           Set up MCP for your coding agents
-  githits login                          Authenticate with your GitHits account
-  githits mcp                            Start MCP server for your AI assistant
-  githits example "query" --lang python                  Get code examples
+  githits init                         Set up MCP for your coding agents
+  githits login                        Authenticate with your GitHits account
+  githits mcp                          Show MCP setup instructions
+  githits example "query" -l python    Get code examples
 
 Learn more at https://githits.com
 Docs: https://app.githits.com/docs/
@@ -83,28 +83,30 @@ registerExampleCommand(program);
 registerLanguagesCommand(program);
 registerFeedbackCommand(program);
 const argv = process.argv.slice(2);
-const helpInvocation = isHelpInvocation(argv);
-const shouldLoadGatedHelpRegistration = needsGatedHelpRegistration(argv);
+const registrationArgv = stripRootRegistrationOptions(argv);
+const helpInvocation = isHelpInvocation(registrationArgv);
+const shouldLoadGatedHelpRegistration =
+  needsGatedHelpRegistration(registrationArgv);
 const helpRegistrationOptions = shouldLoadGatedHelpRegistration
-  ? await loadHelpRegistrationOptions()
+  ? await loadHelpRegistrationOptions(registrationArgv)
   : undefined;
 
-if (shouldEagerLoadSearchCommands(argv)) {
+if (shouldEagerLoadSearchCommands(registrationArgv)) {
   await withTelemetrySpan("cli.register.search", () =>
     registerUnifiedSearchCommands(program, helpRegistrationOptions),
   );
 }
-if (shouldEagerLoadGatedCommandGroup(argv, "code")) {
+if (shouldEagerLoadGatedCommandGroup(registrationArgv, "code")) {
   await withTelemetrySpan("cli.register.code-group", () =>
     registerCodeCommandGroup(program, helpRegistrationOptions),
   );
 }
-if (shouldEagerLoadGatedCommandGroup(argv, "pkg")) {
+if (shouldEagerLoadGatedCommandGroup(registrationArgv, "pkg")) {
   await withTelemetrySpan("cli.register.pkg-group", () =>
     registerPkgCommandGroup(program, helpRegistrationOptions),
   );
 }
-if (shouldEagerLoadGatedCommandGroup(argv, "docs")) {
+if (shouldEagerLoadGatedCommandGroup(registrationArgv, "docs")) {
   await withTelemetrySpan("cli.register.docs-group", () =>
     registerDocsCommandGroup(program, helpRegistrationOptions),
   );
@@ -118,6 +120,16 @@ const authCommand = program
 registerAuthStatusCommand(authCommand);
 
 await withTelemetrySpan("cli.parse", () => program.parseAsync());
+
+/**
+ * Commander supports root options before subcommands, e.g.
+ * `githits --no-color pkg info`. Registration happens before Commander
+ * parses argv, so the lightweight gated-command sniff must ignore root-only
+ * flags or it will misclassify `--no-color` as the requested command.
+ */
+function stripRootRegistrationOptions(args: string[]): string[] {
+  return args.filter((arg) => arg !== "--no-color");
+}
 
 /**
  * Argv-sniff optimisation for gated command groups. Returns `true`
@@ -144,9 +156,12 @@ function shouldEagerLoadGatedCommandGroup(
 function shouldEagerLoadSearchCommands(args: string[]): boolean {
   const [firstArg] = args;
   return (
+    args.length === 0 ||
     firstArg === "search" ||
     firstArg === "search-status" ||
-    (firstArg === "help" && isSearchHelpTarget(args[1]))
+    firstArg === "--help" ||
+    firstArg === "-h" ||
+    (firstArg === "help" && (!args[1] || isSearchHelpTarget(args[1])))
   );
 }
 
@@ -186,7 +201,7 @@ function isSearchHelpTarget(value: string | undefined): boolean {
   return value === "search" || value === "search-status";
 }
 
-async function loadHelpRegistrationOptions() {
+async function loadHelpRegistrationOptions(args: string[]) {
   const { resolveStartupCodeNavigationRegistrationState } = await import(
     "./container.js"
   );
@@ -194,7 +209,7 @@ async function loadHelpRegistrationOptions() {
     await resolveStartupCodeNavigationRegistrationState();
   return {
     capability: registrationState.capability,
-    expiredStoredAuth: shouldUseExpiredStoredAuthFallbackForHelp(argv)
+    expiredStoredAuth: shouldUseExpiredStoredAuthFallbackForHelp(args)
       ? registrationState.expiredStoredAuth
       : false,
   };

@@ -1,13 +1,7 @@
 import type { PackageDocsList } from "../services/index.js";
 import { MalformedPackageIntelligenceResponseError } from "../services/index.js";
 import { colorize, dim } from "./colors.js";
-import {
-  buildDocReadFollowUp,
-  buildFileReadFollowUp,
-  type DocReadFollowUp,
-  type FileReadFollowUp,
-  lowerDocSourceKind,
-} from "./docs-follow-up.js";
+import { lowerDocSourceKind } from "./docs-follow-up.js";
 import { toIsoDate } from "./format-date.js";
 
 export interface LeanPackageDocListEntry {
@@ -21,8 +15,6 @@ export interface LeanPackageDocListEntry {
   filePath?: string;
   linkName?: string;
   lastUpdatedAt?: string;
-  followUp: DocReadFollowUp;
-  readFile?: FileReadFollowUp;
 }
 
 export interface LeanPackageDocListFilter {
@@ -59,20 +51,18 @@ export function buildListPackageDocsSuccessPayload(
       assertDocListEntry(page);
       const pageId = page.id as string;
       const lastUpdatedAt = toIsoDate(page.lastUpdatedAt);
-      return {
-        pageId,
-        title: page.title ?? undefined,
-        sourceKind: lowerDocSourceKind(page.sourceKind),
-        sourceUrl: page.sourceUrl ?? undefined,
-        repoUrl: page.repoUrl ?? undefined,
-        gitRef: page.gitRef ?? undefined,
-        requestedRef: page.requestedRef ?? undefined,
-        filePath: page.filePath ?? undefined,
-        linkName: page.linkName ?? undefined,
-        lastUpdatedAt: lastUpdatedAt ?? undefined,
-        followUp: buildDocReadFollowUp(pageId) as DocReadFollowUp,
-        readFile: buildFileReadFollowUp(page),
-      };
+      const entry: LeanPackageDocListEntry = { pageId };
+      if (page.title) entry.title = page.title;
+      const sourceKind = lowerDocSourceKind(page.sourceKind);
+      if (sourceKind) entry.sourceKind = sourceKind;
+      if (page.sourceUrl) entry.sourceUrl = page.sourceUrl;
+      if (page.repoUrl) entry.repoUrl = page.repoUrl;
+      if (page.gitRef) entry.gitRef = page.gitRef;
+      if (page.requestedRef) entry.requestedRef = page.requestedRef;
+      if (page.filePath) entry.filePath = page.filePath;
+      if (page.linkName) entry.linkName = page.linkName;
+      if (lastUpdatedAt) entry.lastUpdatedAt = lastUpdatedAt;
+      return entry;
     }),
   };
 

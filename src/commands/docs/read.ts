@@ -7,6 +7,7 @@ import {
   formatReadPackageDocTerminal,
   InvalidPackageSpecError,
   mapPackageIntelligenceError,
+  parseLinesOption,
   requireAuth,
   shouldUseColors,
 } from "../../shared/index.js";
@@ -14,6 +15,7 @@ import {
 export interface DocsReadCommandOptions {
   verbose?: boolean;
   json?: boolean;
+  lines?: string;
 }
 
 export interface DocsReadCommandDependencies {
@@ -37,6 +39,8 @@ export async function docsReadAction(
       );
     }
 
+    const range = options.lines ? parseLinesOption(options.lines) : undefined;
+
     const build = buildReadPackageDocParams({ pageId });
     const result = await deps.packageIntelligenceService.readPackageDoc(
       build.params,
@@ -44,6 +48,7 @@ export async function docsReadAction(
     const payload = buildReadPackageDocSuccessPayload(
       result,
       build.params.pageId,
+      range,
     );
 
     if (options.json) {
@@ -85,8 +90,9 @@ const DOCS_READ_DESCRIPTION = `Read a documentation page by page ID.
 
 Use page IDs from githits docs list, githits search --json, or MCP doc/search
 results. Default output is content-only for easy piping; pass --verbose for a
-metadata header. Repo-backed pages also expose exact file follow-up metadata in
-JSON.`;
+metadata header. Use --lines for a bounded line range (e.g. \`--lines 10-40\`,
+\`--lines 10-\` for open-ended, or \`--lines -40\` for the first 40 lines) —
+useful when a page is too long to read whole.`;
 
 export function registerDocsReadCommand(docsCommand: Command): Command {
   return docsCommand
@@ -94,6 +100,10 @@ export function registerDocsReadCommand(docsCommand: Command): Command {
     .summary("Read a documentation page by page ID")
     .description(DOCS_READ_DESCRIPTION)
     .argument("<page-id>", "Documentation page ID from docs/search results")
+    .option(
+      "--lines <range>",
+      "Bounded line range, e.g. 10-40, 10-, or -40 (1-indexed inclusive)",
+    )
     .option("-v, --verbose", "Show metadata header before content")
     .option("--json", "Emit the JSON envelope")
     .action(async (pageId: string, options: DocsReadCommandOptions) => {

@@ -19,9 +19,7 @@ export interface PackageDependenciesArgs {
 /**
  * Permissive schema — in-handler validation via
  * `buildPackageDependenciesParams` is the single validation path so
- * raw Zod errors never surface to agents. Matches the shipped
- * `search_symbols` / `package_summary` / `package_vulnerabilities`
- * pattern.
+ * raw Zod errors never surface to agents.
  *
  * No `include_groups` input. The data-first envelope emits the
  * `groups` block unconditionally when the backend returned
@@ -93,7 +91,7 @@ export function createPackageDependenciesTool(
   service: PackageIntelligenceService,
 ): ToolDefinition<PackageDependenciesArgs, typeof schema> {
   return {
-    name: "package_dependencies",
+    name: "pkg_deps",
     description: DESCRIPTION,
     schema,
     annotations: { readOnlyHint: true },

@@ -34,6 +34,6 @@ export const FILE_INTENT_ALL = Symbol("FILE_INTENT_ALL");
  * `FILE_INTENT_ALL` sentinel, or `undefined` (no filter requested).
  */
 export type FileIntentInput =
-  | import("../services/index.js").SearchSymbolsFileIntent
+  | import("../services/index.js").FileIntent
   | typeof FILE_INTENT_ALL
   | undefined;

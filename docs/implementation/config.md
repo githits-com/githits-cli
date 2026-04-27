@@ -41,7 +41,7 @@ The container (`src/container.ts`) resolves authentication in priority order:
 Package/source access is different from the REST endpoints above:
 
 - the CLI resolves the package/source service URL from `GITHITS_CODE_NAV_URL`; in the default production environment it falls back to `https://pkgseer.dev`, but custom GitHits environments must set this explicitly
-- MCP registration for `search`, `search_status`, `package_*`, `list_files`, `read_file`, and `grep_repo` happens only when the current token explicitly carries `code_navigation`
+- MCP registration for `search`, `search_status`, `package_*`, `code_files`, `code_read`, and `code_grep` happens only when the current token explicitly carries `code_navigation`
 - CLI registration for top-level `search` / `search-status` plus the hidden `githits code` / `githits pkg` groups uses the same capability check, with one local-development escape hatch: `GITHITS_CODE_NAVIGATION=1`
 - if the capability is absent or unknown, those indexed tools and command groups are omitted from the surfaced interface
 

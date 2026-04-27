@@ -7,7 +7,6 @@ import {
 import { registerCodeFilesCommand } from "./files.js";
 import { registerCodeGrepCommand } from "./grep.js";
 import { registerCodeReadCommand } from "./read.js";
-import { registerCodeSearchSymbolsCommand } from "./search-symbols.js";
 
 export interface CodeCommandGroupOptions extends GatedCommandGroupOptions {
   capability?: CodeNavigationCapability;
@@ -33,10 +32,9 @@ export async function registerCodeCommandGroup(
     .command("code")
     .summary("Source-level operations on indexed dependencies")
     .description(
-      "Search exact tokens, list files, read files, and grep substrings inside indexed dependency source. Every command accepts either `<spec>` (registry:name[@version]) or `--repo-url <url> --git-ref <ref>`. For package-level metadata (versions, vulnerabilities, dependencies, changelog) use `githits pkg`.",
+      "List files, read files, and grep substrings inside indexed dependency source. Every command accepts either `<spec>` (registry:name[@version]) or `--repo-url <url> --git-ref <ref>`. For symbol or unified discovery search use `githits search`; for package-level metadata use `githits pkg`.",
     );
 
-  registerCodeSearchSymbolsCommand(codeCommand);
   registerCodeFilesCommand(codeCommand);
   registerCodeReadCommand(codeCommand);
   registerCodeGrepCommand(codeCommand);

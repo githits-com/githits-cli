@@ -83,7 +83,7 @@ describe("searchTool", () => {
     );
   });
 
-  it("includes alternate read_file follow-up for repository docs", async () => {
+  it("preserves locator fields on repository_doc hits so agents can call read_package_doc or read_file", async () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
     }
@@ -128,17 +128,14 @@ describe("searchTool", () => {
     );
 
     const payload = JSON.parse(result.content[0]?.text ?? "{}");
-    expect(payload.results[0].followUp).toEqual({
-      type: "read_doc",
+    expect(payload.results[0].type).toBe("repository_doc");
+    expect(payload.results[0].locator).toMatchObject({
       pageId: "github:expressjs/express@abc123/README.md",
+      repoUrl: "https://github.com/expressjs/express",
+      gitRef: "abc123",
+      filePath: "README.md",
     });
-    expect(payload.results[0].alternateFollowUps).toEqual([
-      {
-        type: "read_file",
-        repoUrl: "https://github.com/expressjs/express",
-        gitRef: "abc123",
-        path: "README.md",
-      },
-    ]);
+    expect(payload.results[0]).not.toHaveProperty("followUp");
+    expect(payload.results[0]).not.toHaveProperty("alternateFollowUps");
   });
 });

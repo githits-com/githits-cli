@@ -16,8 +16,8 @@ export interface PackageVulnerabilitiesArgs {
 /**
  * Permissive schema by design — in-handler validation via
  * `buildPackageVulnerabilitiesParams` is the single validation path
- * for both CLI and MCP. Matches shipped `search_symbols` /
- * `package_summary` pattern: raw Zod errors never surface to agents.
+ * for both CLI and MCP. Raw Zod errors never surface to agents; the
+ * structured `{error, code, retryable}` envelope is returned instead.
  */
 const schema = {
   registry: z
@@ -59,7 +59,7 @@ export function createPackageVulnerabilitiesTool(
   service: PackageIntelligenceService,
 ): ToolDefinition<PackageVulnerabilitiesArgs, typeof schema> {
   return {
-    name: "package_vulnerabilities",
+    name: "pkg_vulns",
     description: DESCRIPTION,
     schema,
     annotations: { readOnlyHint: true },

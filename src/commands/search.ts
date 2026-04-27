@@ -22,9 +22,9 @@ import {
   parseUnifiedSearchTargetSpec,
   requireAuth,
   shouldUseColors,
-  toSearchSymbolsFileIntent,
-  toSearchSymbolsKind,
+  toFileIntent,
   toSymbolCategory,
+  toSymbolKind,
   type UnifiedSearchStatusIncompletePayload,
   type UnifiedSearchStatusResultPayload,
 } from "../shared/index.js";
@@ -80,10 +80,10 @@ export async function searchAction(
       targets: parseTargetSpecs(options.in),
       query,
       sources: parseSources(options.source),
-      kind: toSearchSymbolsKind(options.kind),
+      kind: toSymbolKind(options.kind),
       category: toSymbolCategory(options.category),
       pathPrefix: options.pathPrefix,
-      fileIntent: toSearchSymbolsFileIntent(options.intent),
+      fileIntent: toFileIntent(options.intent),
       publicOnly: options.public,
       name: options.name,
       language: options.lang,
@@ -98,7 +98,6 @@ export async function searchAction(
       built.params,
       built.rawQuery,
       built.compiledQuery,
-      built.defaulted,
       outcome,
     );
 
@@ -152,32 +151,16 @@ export async function searchStatusAction(
 
 const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed dependencies and repositories.
 
-Use repeatable --in targets in package form (npm:express[@version]) or repo
-form (https://github.com/org/repo[#ref]). Structured flags are AND-combined with
-the discovery query. Omit --intent to search across all file intents; pass it
-only when you want to narrow results. Results are complete-by-default: if indexing is
-still in progress, search returns a searchRef instead of partial hits unless
---allow-partial is passed.
+Repeatable --in targets accept package form (npm:express[@version]) or repo
+form (https://github.com/org/repo[#ref]). Structured flags are AND-combined
+with the query. Complete by default — if indexing is still running, returns
+a searchRef instead of partial hits unless --allow-partial is passed. Use
+\`githits example\` for canonical cross-project examples; \`--source symbol\`
+here returns symbol-shaped hits.
 
-Query syntax:
-  implicit AND   foo bar
-  OR             foo OR bar        (must be uppercase)
-  grouping       (foo OR bar) baz
-  exclude        foo -bar
-  phrase         "exact phrase"
-  qualifiers     kind: category: path: lang: name: intent:
-  routing        registry: package: version: repo:
-
-Decision guide:
-  githits example ...                canonical cross-project examples
-  githits search ...                 indexed dependency/repository search
-  githits search --source symbol ... symbol-shaped unified search
-
-Plain output labels:
-  docs page   hosted documentation page
-  repo doc    documentation-like block from a repository file
-  repo code   code block from a repository file
-  repo symbol explicit symbol hit from the repository index
+The query supports implicit AND, uppercase OR, parens, unary -, "phrases",
+and qualifiers (kind:, category:, path:, lang:, name:, intent:, registry:,
+package:, version:, repo:).
 
 Examples:
   githits search "router middleware" --in npm:express
@@ -424,7 +407,6 @@ function formatSearchErrorTerminal(
 
 function formatUnifiedSearchTerminal(payload: {
   completed: boolean;
-  returnedCount: number;
   hasMore: boolean;
   nextOffset?: number;
   results: Array<{
@@ -453,7 +435,7 @@ function formatUnifiedSearchTerminal(payload: {
   }>;
   searchRef?: string;
   progress?: { targetsReady?: number; targetsTotal?: number };
-  query: { warnings?: string[]; defaulted?: ReadonlyArray<string> };
+  query: { warnings?: string[] };
   sourceStatus?: SourceStatusEntry[];
 }): string {
   const lines: string[] = [];
@@ -480,10 +462,7 @@ function formatUnifiedSearchTerminal(payload: {
     lines.push("Partial results:");
   }
 
-  const sourceStatusNotes = formatSourceStatusNotes(
-    payload.sourceStatus,
-    payload.query.defaulted,
-  );
+  const sourceStatusNotes = formatSourceStatusNotes(payload.sourceStatus);
 
   if (payload.results.length === 0) {
     lines.push("No results.");
@@ -594,45 +573,16 @@ function formatSearchStatusHeadline(status: string | undefined): string {
 function formatSearchStatusCompletedTerminal(payload: {
   completed: true;
   searchRef?: string;
-  progress?: { status?: string };
-  result: {
-    query: string;
-    queryWarnings: string[];
-    returnedCount: number;
-    hasMore: boolean;
-    nextOffset?: number;
-    sourceStatus?: SourceStatusEntry[];
-    results: Array<{
-      type: string;
-      target: string;
-      title?: string;
-      summary?: string;
-      highlights?: {
-        title?: Array<readonly [number, number]>;
-        summary?: Array<readonly [number, number]>;
-      };
-      locator: {
-        filePath?: string;
-        gitRef?: string;
-        startLine?: number;
-        endLine?: number;
-        pageId?: string;
-        sourceKind?: string;
-        sourceUrl?: string;
-        requestedRef?: string;
-      };
-    }>;
-  };
+  result: UnifiedSearchStatusResultPayload;
 }): string {
   return formatUnifiedSearchTerminal({
     completed: true,
-    returnedCount: payload.result.returnedCount,
     hasMore: payload.result.hasMore,
     nextOffset: payload.result.nextOffset,
     results: payload.result.results,
     searchRef: payload.searchRef,
     progress: undefined,
-    query: { warnings: payload.result.queryWarnings },
+    query: { warnings: payload.result.warnings },
     sourceStatus: payload.result.sourceStatus,
   });
 }
@@ -644,13 +594,12 @@ function formatSearchStatusPartialTerminal(
 ): string {
   return formatUnifiedSearchTerminal({
     completed: false,
-    returnedCount: payload.result.returnedCount,
     hasMore: payload.result.hasMore,
     nextOffset: payload.result.nextOffset,
     results: payload.result.results,
     searchRef: payload.searchRef,
     progress: payload.progress,
-    query: { warnings: payload.result.queryWarnings },
+    query: { warnings: payload.result.warnings },
     sourceStatus: payload.result.sourceStatus,
   });
 }
@@ -658,8 +607,9 @@ function formatSearchStatusPartialTerminal(
 interface SourceStatusEntry {
   source: string;
   targetLabel: string;
-  ignoredFilters: string[];
-  incompatibleFilters: string[];
+  indexingStatus?: string;
+  ignoredFilters?: string[];
+  incompatibleFilters?: string[];
   ignoredQueryFeatures?: string[];
   incompatibleQueryFeatures?: string[];
   note?: string;
@@ -667,37 +617,27 @@ interface SourceStatusEntry {
 
 function formatSourceStatusNotes(
   sourceStatus: SourceStatusEntry[] | undefined,
-  defaulted: ReadonlyArray<string> | undefined,
 ): string[] {
   const useColors = shouldUseColors();
   if (!sourceStatus) {
     return [];
   }
 
-  const defaultedSet = new Set(defaulted ?? []);
   const lines: string[] = [];
   for (const entry of sourceStatus) {
     const label = `${entry.source.toLowerCase()} on ${entry.targetLabel}`;
-    const ignoredFilters = entry.ignoredFilters.filter(
-      (name) => !defaultedSet.has(name),
-    );
-    if (ignoredFilters.length > 0) {
+    if (entry.ignoredFilters && entry.ignoredFilters.length > 0) {
       lines.push(
         dim(
-          `Note: ${label} ignored filters: ${ignoredFilters.join(", ")}`,
+          `Note: ${label} ignored filters: ${entry.ignoredFilters.join(", ")}`,
           useColors,
         ),
       );
     }
-    const incompatibleFilters = entry.incompatibleFilters.filter(
-      (name) => !defaultedSet.has(name),
-    );
-    if (incompatibleFilters.length > 0) {
+    if (entry.incompatibleFilters && entry.incompatibleFilters.length > 0) {
       lines.push(
         dim(
-          `Note: ${label} incompatible filters: ${incompatibleFilters.join(
-            ", ",
-          )}`,
+          `Note: ${label} incompatible filters: ${entry.incompatibleFilters.join(", ")}`,
           useColors,
         ),
       );
@@ -717,6 +657,14 @@ function formatSourceStatusNotes(
       lines.push(
         dim(
           `Note: ${label} incompatible query features: ${entry.incompatibleQueryFeatures.join(", ")}`,
+          useColors,
+        ),
+      );
+    }
+    if (entry.indexingStatus === "INDEXING") {
+      lines.push(
+        dim(
+          `Note: ${label} still indexing — re-run with the searchRef for full results.`,
           useColors,
         ),
       );
