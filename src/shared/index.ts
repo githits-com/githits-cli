@@ -53,10 +53,12 @@ export {
   type LeanGrepRepoFilter,
   type LeanGrepRepoMatch,
 } from "./grep-repo-response.js";
+export { renderGrepRepoText } from "./grep-repo-text.js";
 export {
   filterLanguages,
   type LanguageMatch,
 } from "./language-filter.js";
+export { renderListFilesText } from "./list-files-text.js";
 export {
   buildListPackageDocsParams,
   type ListPackageDocsRequestBuildResult,
@@ -185,3 +187,7 @@ export {
   type UnifiedSearchStatusResultPayload,
 } from "./unified-search-response.js";
 export { parseUnifiedSearchTargetSpec } from "./unified-search-target.js";
+export {
+  renderUnifiedSearchError,
+  renderUnifiedSearchSuccess,
+} from "./unified-search-text.js";

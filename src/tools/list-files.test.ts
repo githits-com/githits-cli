@@ -19,6 +19,7 @@ describe("createListFilesTool — metadata", () => {
     expect(tool.name).toBe("code_files");
     expect(tool.description).toContain("List files in an indexed dependency");
     expect(Object.keys(tool.schema).sort()).toEqual([
+      "format",
       "limit",
       "path_prefix",
       "target",
@@ -51,7 +52,7 @@ describe("createListFilesTool — happy path", () => {
   it("emits the envelope with files, total, hasMore, resolution, indexedVersion", async () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
-      { target: { registry: "npm", package_name: "express" } },
+      { target: { registry: "npm", package_name: "express" }, format: "json" },
       {},
     );
     expect(result.isError).toBeUndefined();
@@ -81,6 +82,7 @@ describe("createListFilesTool — happy path", () => {
           repo_url: "https://github.com/expressjs/express",
           git_ref: "main",
         },
+        format: "json",
       },
       {},
     );
@@ -102,6 +104,7 @@ describe("createListFilesTool — happy path", () => {
       {
         target: { registry: "npm", package_name: "express" },
         path_prefix: "src/",
+        format: "json",
       },
       {},
     );
@@ -114,7 +117,7 @@ describe("createListFilesTool — happy path", () => {
   it("omits filter when caller only used defaults", async () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
-      { target: { registry: "npm", package_name: "express" } },
+      { target: { registry: "npm", package_name: "express" }, format: "json" },
       {},
     );
     const payload = parseText(result) as { filter?: unknown };
@@ -208,5 +211,64 @@ describe("createListFilesTool — service errors", () => {
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("NOT_FOUND");
+  });
+});
+
+describe("createListFilesTool — text format", () => {
+  it("defaults to text output when format is omitted", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      { target: { registry: "npm", package_name: "express" } },
+      {},
+    );
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("code_files | 2 paths");
+    // Confirm text payload is not valid JSON (proves text default).
+    expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("returns line-oriented text when format=text-v1", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        format: "text-v1",
+      },
+      {},
+    );
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("code_files | 2 paths | npm:express@v5.2.1");
+    expect(text).toContain("src/index.js");
+    // Confirm the text payload is not valid JSON.
+    expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("accepts format=text as an alias for text-v1", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        format: "text",
+      },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("code_files | 2 paths");
+  });
+
+  it("keeps JSON envelope when format=json (explicit)", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        format: "json",
+      },
+      {},
+    );
+    const payload = parseText(result) as { registry: string; total: number };
+    expect(payload.registry).toBe("npm");
+    expect(payload.total).toBe(2);
   });
 });

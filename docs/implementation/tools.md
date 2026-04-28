@@ -8,12 +8,10 @@ The CLI exposes MCP tools that mirror the backend's MCP server. This document ex
 
 GitHits has two MCP server implementations:
 
-- **Backend** (`githits-backend`) — Python/FastMCP, runs as a hosted service at `mcp.githits.com`
-- **CLI** (`githits-cli`) — TypeScript/MCP SDK, runs locally via `githits mcp start`
+- **Backend** (`githits-backend`) — Python/FastMCP, runs as a hosted service at `mcp.githits.com`. Surfaces only the example-search workflow (`get_example`, `search_language`, `feedback`).
+- **CLI** (`githits-cli`) — TypeScript/MCP SDK, runs locally via `githits mcp start`. Surfaces the full set, including unified `search`, package intelligence (`pkg_*`), and code navigation (`code_*`).
 
-Both expose the same tools with identical names, parameters, and descriptions. The backend handles auth, analytics, and AI orchestration server-side. The CLI delegates to the REST API, which is a simpler path that still benefits from the backend's processing pipeline.
-
-> **Tools must stay in sync with the backend.** When the backend adds or modifies a tool, the CLI must be updated to match. The tool names, parameter names, descriptions, and schema constraints should be identical across both implementations.
+The two surfaces overlap on the example-search workflow only; for the overlapping tools the parameters and descriptions stay aligned. Tools that exist only on the CLI surface (code navigation, package intelligence, unified `search`) are not constrained by backend parity.
 
 ## Current Tools
 
@@ -22,15 +20,15 @@ Both expose the same tools with identical names, parameters, and descriptions. T
 | `get_example` | `query`, `language?`, `license_mode?` | Search for canonical code examples. Returns markdown-formatted results. If `language` is omitted, the backend infers it from the query. |
 | `search_language` | `query` | Find supported programming language names before searching. |
 | `feedback` | `solution_id`, `accepted`, `feedback_text?` | Submit feedback on a search result to improve quality. |
-| `search` | `query`, `target?`, `targets?`, `sources?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?` | Unified indexed dependency/repository discovery search across code, docs, and symbols. Omit `file_intent` to search across all intents; set it only when you want to narrow results, and note that some sources may ignore it and report that in `sourceStatus`. Prefer `sources:["symbol"]` for symbol-shaped unified search. Complete-by-default; set `allow_partial_results: true` to receive available partial hits while indexing continues. |
+| `search` | `query`, `target?`, `targets?`, `sources?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Unified indexed dependency/repository discovery search across code, docs, and symbols. Omit `file_intent` to search across all intents; set it only when you want to narrow results, and note that some sources may ignore it and report that in `sourceStatus`. Prefer `sources:["symbol"]` for symbol-shaped unified search. Complete-by-default; set `allow_partial_results: true` to receive available partial hits while indexing continues. `format` defaults to `text-v1` for compact agent output; pass `format: "json"` for the structured envelope. |
 | `search_status` | `search_ref` | Check progress, fetch partial hits when the original request used `allow_partial_results: true`, or fetch final results for a prior unified search. |
 | `pkg_info` | `registry`, `package_name` | Package overview: latest version, license, description, repository, downloads, GitHub metadata, install command, and known vulnerabilities. Always returns the latest published version. |
 | `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `include_withdrawn?` | Known vulnerabilities for a package on npm, PyPI, Hex, or Crates. Count summary, per-advisory OSV ID + severity + affected/fix ranges, and upgrade paths. Malware is surfaced in a disjoint bucket. |
 | `pkg_deps` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_transitive?`, `include_importers?`, `max_depth?` | Direct runtime dependency list (each `{name, version, constraint}` — the backend resolves each constraint to a concrete version) plus, when the backend has them, structured groups for dev / peer / build / optional with registry-specific condition metadata (PyPI extras, Crates features). Optional transitive block with aggregate edge counts, the preprocessed install footprint as `{name, version}`, typed conflicts and circular-dependency cycles; opt into per-package importer provenance with `include_importers`. |
 | `pkg_changelog` | `registry?`, `package_name?`, `repo_url?`, `from_version?`, `to_version?`, `limit?`, `git_ref?`, `include_bodies?` | Release notes or changelog entries for a package or GitHub repo. Default latest mode returns the ten most recent entries; `from_version` switches to range mode (no count cap). Dual addressing (spec vs repo URL) mutually exclusive. Response always includes `source` (`"releases"` / `"changelog_file"` / `"hexdocs"`), `mode` (`"latest"` / `"range"`), and `entries: { count, items }` with full markdown bodies by default; set `include_bodies: false` for a lean version / date / URL timeline. |
-| `code_files` | `target`, `path_prefix?`, `limit?`, `wait_timeout_ms?` | List files in an indexed dependency. Returns `{total, hasMore, files: [{path, name, language, fileType, byteSize}], resolution, indexedVersion}`. Dual addressing via `target.registry + target.package_name` (spec) or `target.repo_url + target.git_ref` (repo). `path_prefix` is a literal directory prefix — NOT a glob (`*.ts` won't match); glob / pattern filtering is an upstream enhancement. Emits an `INDEXING` error envelope when the dependency is being indexed on-demand — retry with a longer `wait_timeout_ms` or pick a version from `details.availableVersions`. |
-| `code_read` | `target`, `path`, `start_line?`, `end_line?`, `wait_timeout_ms?` | Read a file from an indexed dependency. Default full file; use `start_line` / `end_line` for a bounded range. Binary files set `isBinary: true` and omit `content` — agents branch on the flag. On `NOT_FOUND` / `FILE_NOT_FOUND` call `code_files` to discover the actual path. |
-| `code_grep` | `target`, `pattern`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `pattern_type?`, `case_sensitive?`, `exclude_doc_files?`, `exclude_test_files?`, `context_lines?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `max_matches_per_file?`, `cursor?`, `symbol_fields?`, `wait_timeout_ms?` | Deterministic text grep over indexed dependency or repository source. Defaults to literal, ASCII case-insensitive matching across the whole target; non-ASCII letters match case-sensitively. Narrow with `path`, `path_prefix`, `globs`, or `extensions`. `pattern_type: "regex"` uses RE2 syntax; whole-target regexes must include at least one literal substring for index pre-filtering. Returns matches plus pagination and scan counters; `symbol_fields` hydrates enclosing symbol metadata on each match. |
+| `code_files` | `target`, `path_prefix?`, `limit?`, `wait_timeout_ms?`, `format?` | List files in an indexed dependency. Returns `{total, hasMore, files: [{path, name, language, fileType, byteSize}], resolution, indexedVersion}` in JSON mode. Dual addressing via `target.registry + target.package_name` (spec) or `target.repo_url + target.git_ref` (repo). `path_prefix` is a literal directory prefix — NOT a glob (`*.ts` won't match); glob / pattern filtering is an upstream enhancement. Emits an `INDEXING` error envelope when the dependency is being indexed on-demand — retry with a longer `wait_timeout_ms` or pick a version from `details.availableVersions`. `format` defaults to `text-v1` (paths-only listing); pass `format: "json"` for the structured envelope. |
+| `code_read` | `target`, `path`, `start_line?`, `end_line?`, `wait_timeout_ms?` | Read a file from an indexed dependency. **MCP per-call span cap: 150 lines** — broader requests (or no range) are silently truncated to the first 150 lines from the caller's start, with a `hint` field explaining the cap and the original request. Use `start_line` / `end_line` to pick a focused window — typical 80-150 lines around a known symbol from `search` / `code_grep`. Binary files set `isBinary: true` and omit `content`. On `NOT_FOUND` / `FILE_NOT_FOUND` call `code_files` to discover the actual path. The cap is MCP-only; the CLI command `githits code read` honors arbitrary ranges. |
+| `code_grep` | `target`, `pattern`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `pattern_type?`, `case_sensitive?`, `exclude_doc_files?`, `exclude_test_files?`, `context_lines?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `max_matches_per_file?`, `cursor?`, `symbol_fields?`, `wait_timeout_ms?`, `format?` | Deterministic text grep over indexed dependency or repository source. Defaults to literal, ASCII case-insensitive matching across the whole target; non-ASCII letters match case-sensitively. Narrow with `path`, `path_prefix`, `globs`, or `extensions`. `pattern_type: "regex"` uses RE2 syntax; whole-target regexes must include at least one literal substring for index pre-filtering. Returns matches plus pagination and scan counters; `symbol_fields` hydrates enclosing symbol metadata on each match. `format` defaults to `text-v1` (matches grouped by file, grep -A/-B notation for context); pass `format: "json"` for the structured envelope. |
 
 `search`, `search_status`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `code_files`, `code_read`, and `code_grep` are only registered when the current token explicitly carries the `code_navigation` feature flag. The package/source service URL defaults to `https://pkgseer.dev` in the default production environment and can be overridden via `GITHITS_CODE_NAV_URL` for local development.
 
@@ -139,14 +137,84 @@ All three code-navigation tools share the same indexing-retry contract. The stat
 
 **`FILE_NOT_FOUND` vs `NOT_FOUND`**: `code_read` / `code_grep` can hit "path doesn't resolve" errors when an exact path scope is invalid. The classifier is pre-wired to emit `FILE_NOT_FOUND` when the backend sends `extensions.code: "FILE_NOT_FOUND"`, but today the backend emits generic `NOT_FOUND` for both "package missing" and "path missing". The distinction is filed upstream. CLI terminal output for `code read` / `code grep` emits the hint "Use `code files` to list available paths." on both codes so users have an actionable next step regardless of classification.
 
+**`code_read` span cap (MCP-only)**: real session traces showed agents requesting 300-600 line windows (and occasional unbounded full-file reads) which dominated context cost. The MCP surface caps each `code_read` call at `MCP_READ_MAX_SPAN` (150 lines, defined in `src/tools/read-file.ts`). The cap is enforced *before* the backend call — `deriveBoundedRange` clamps the request, so the service does not transfer bytes that will be discarded. When clamping fires, the envelope carries a `hint` field describing what was returned, what the caller originally requested, and the 80-150-line guidance for a follow-up. Binary files skip the hint. The CLI command `githits code read` does not apply the cap; humans piping whole files to disk continue to work.
+
+## Text response format (`format: "text-v1"`)
+
+`search`, `code_files`, and `code_grep` accept a `format` parameter on the MCP surface. The default is `"text-v1"` — a compact line-oriented format that drops JSON scaffolding to stay lean in agent context. Programmatic callers (parity tests, scripts that parse responses) pass `format: "json"` explicitly. `"text"` is accepted as an alias for `"text-v1"` to keep agent prompts terse.
+
+**Why text-v1 default.** A 10-hit `search` JSON envelope runs 5–7 KB after compaction; the same hits in `text-v1` land around 3–4 KB. The savings come from dropped quoting, dropped key repetition, and dropped fields that an agent does not need at the per-call decision point (highlights byte offsets, repeated locator scaffolding). The token budget belongs to the agent's reasoning, not to JSON structure.
+
+**Format stability.** The text format is a public contract, locked with snapshot-style tests (`src/shared/unified-search-text.test.ts`, `src/shared/list-files-text.test.ts`). The `text-v1` version tag exists so we can evolve the format without silently breaking downstream parsers — future incompatible changes ship as `text-v2`.
+
+**ASCII-only.** Separators are ` | `; ellipsis is `...`; no box-drawing or Latin-1 punctuation. Tokenizer behavior for multi-byte UTF-8 varies across BPE variants, and the format runs into Claude, Codex CLI, OpenCode, Cline, Cursor, etc. — ASCII keeps it predictable.
+
+**Hit anatomy** (`search` text-v1):
+
+```
+search | <N> hits | query="..."
+[blank]
+[1] <target>  <type>  <score>
+    <locator-line>
+    <title?>
+    <summary line 1>
+    <summary line 2 (wrapped at ~76 cols)>
+[blank]
+[2] ...
+[blank]
+More hits available. Pass offset=N for the next page or limit=N to widen.
+```
+
+`<type>` compacts to `code` / `symbol` / `docs` / `repo-docs`. `<locator-line>` is `path:start-end` (optionally followed by ` | qualifiedPath | kind`) for code/symbol hits; `pageId: <id>` for documentation pages; or `sourceUrl` as a last resort. The locator line is copy-pasteable as `code_read` arguments.
+
+**Listing anatomy** (`code_files` text-v1):
+
+```
+code_files | <N>[+] paths | <identity> [path_prefix="..."] [limit=N]
+[blank]
+<path1>
+<path2>
+...
+[blank]
+More files available. Pass limit=N to widen or refine path_prefix.
+```
+
+`<identity>` is `<registry>:<name>@<version>` for spec addressing or `<repoUrl>@<gitRef>` for repo addressing. Filter echoes appear in the header only when the caller supplied them explicitly (defaults never echo).
+
+**Grep anatomy** (`code_grep` text-v1):
+
+```
+code_grep | <N> matches in <M> files | pattern="..." [regex,case-sensitive] [filter echo]
+[blank]
+<filePath> (<count>)
+  142: matching line content
+  287: another match
+[blank]
+<filePath2> (<count>)
+  140- context-before line
+  141- context-before line
+  142: matching line
+  143- context-after line
+[blank]
+[Truncated: limit. Pass narrower path/path_prefix/globs or increase max_matches.]
+[More matches available. Pass cursor=<token> for the next page.]
+```
+
+Standard grep -A/-B notation: `:` separator on match lines, `-` on context lines. Non-adjacent blocks within the same file are separated by `--`. The `(<count>)` after the file path is the per-file match count; the header sums across files. Header flags (`regex`, `case-sensitive`) appear only when the request used them. Filter echoes (`path_prefix=`, `exts=`, `max_matches=`, etc.) appear only when the caller supplied them. Match-line offsets, file content hashes, file intent, and symbol metadata are dropped in text mode — agents that need them can request `format: "json"`.
+
+**Errors in text mode.** `search` errors render as text in `text-v1` mode: `search | ERROR | code=<CODE> [| retryable]\n<message>` followed by an indented `details:` block when present. `code_files` and `code_grep` keep errors JSON-formatted in either mode for now — revisit if agent feedback warrants.
+
 ## Server instructions
 
 The MCP server advertises a short, cross-tool orientation via the protocol's server-level `instructions` field. This is distinct from per-tool `description` text: instructions cover rationale, workflow glue, and decisions that span multiple tools, while per-tool descriptions remain the source of truth for arguments, output shape, and tool-specific constraints.
 
 `src/commands/mcp-instructions.ts` owns two sections:
 
-- **Core block** — always loaded. Introduces GitHits and the `get_example` / `search_language` / `feedback` workflow.
-- **Package-tools block** — appended when `isPackageToolsCapabilityOpen(deps)` is true. Contains a preamble plus one bullet per package tool whose backing service is actually wired, so half-open service configurations never advertise a tool that was not registered.
+- **Core block** — always loaded. Introduces GitHits, expands trigger criteria to include comparative cross-OSS questions and "how does X actually implement this" archaeology, and walks through the `get_example` / `search_language` / `feedback` workflow.
+- **Package-tools block** — appended when `isPackageToolsCapabilityOpen(deps)` is true. Contains a preamble plus one bullet per package tool whose backing service is actually wired (so half-open service configurations never advertise a tool that was not registered), plus three cross-tool tips emitted only when code navigation is wired:
+  - **Reference-first, content-second**: locate symbols and lines first, then read narrowly with `code_read` using `start_line` / `end_line` windows around the match.
+  - **Multi-turn discovery**: anticipate 3+ calls? Delegate to a sub-task / sub-agent and ask for a compact synthesis rather than pulling raw `code_read` / `code_files` output into the main conversation.
+  - **Tool-selection tip**: contrasts `get_example` vs unified `search` vs `code_grep`/`code_read`.
 
 `isPackageToolsCapabilityOpen` is the single source of truth for whether package tools should surface in the current session. Both `getMcpToolDefinitions` and `buildMcpInstructions` import it so tool registration and the instruction text cannot drift.
 

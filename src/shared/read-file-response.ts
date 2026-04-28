@@ -30,6 +30,14 @@ export interface LeanReadFileEnvelope {
   content?: string;
   /** Present and `true` when the file is binary; absent otherwise. */
   isBinary?: boolean;
+  /**
+   * Optional one-line guidance for the agent. Set by the MCP tool
+   * handler when it caps the returned span (see
+   * `src/tools/read-file.ts`). Not auto-populated by this builder —
+   * the policy of when to nudge an agent belongs to the surface, not
+   * the response shape.
+   */
+  hint?: string;
 }
 
 export interface BuildReadFilePayloadOptions {
@@ -162,6 +170,10 @@ function formatVerboseBody(
       options.useColors,
     );
     lines.push(`${gutter}  ${bodyLines[i]}`);
+  }
+  if (envelope.hint) {
+    lines.push("");
+    lines.push(dim(envelope.hint, options.useColors));
   }
   lines.push("");
   return lines.join("\n");
