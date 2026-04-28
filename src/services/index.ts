@@ -167,3 +167,14 @@ export { PromptServiceImpl } from "./prompt-service.js";
 export { RefreshingGitHitsService } from "./refreshing-githits-service.js";
 export type { TokenProvider } from "./token-manager.js";
 export { refreshExpiredToken, TokenManager } from "./token-manager.js";
+export type {
+  UpdateCheckFetcher,
+  UpdateCheckNotice,
+  UpdateCheckService,
+} from "./update-check-service.js";
+export {
+  formatUpdateNotice,
+  NpmRegistryUpdateCheckService,
+  resolveConfigHome,
+  shouldRunUpdateCheck,
+} from "./update-check-service.js";

@@ -2,6 +2,10 @@
 import { Command } from "commander";
 import { version } from "../package.json";
 import {
+  runWithUpdateCheckFlush,
+  startUpdateCheckTaskForInvocation,
+} from "./cli/update-check.js";
+import {
   registerAuthStatusCommand,
   registerCodeCommandGroup,
   registerDocsCommandGroup,
@@ -16,6 +20,10 @@ import {
   registerUnifiedSearchCommands,
 } from "./commands/index.js";
 import {
+  FileSystemServiceImpl,
+  NpmRegistryUpdateCheckService,
+} from "./services/index.js";
+import {
   endTelemetrySpan,
   flushTelemetry,
   isTelemetryEnabled,
@@ -24,10 +32,23 @@ import {
 } from "./shared/index.js";
 
 const program = new Command();
+const argv = process.argv.slice(2);
 const commandSpans = new WeakMap<
   Command,
   ReturnType<typeof startTelemetrySpan>
 >();
+const updateCheckTask = startUpdateCheckTaskForInvocation({
+  args: argv,
+  env: process.env,
+  stderrIsTTY: process.stderr.isTTY === true,
+  stdinIsTTY: process.stdin.isTTY === true,
+  stdoutIsTTY: process.stdout.isTTY === true,
+  createService: () =>
+    new NpmRegistryUpdateCheckService({
+      currentVersion: version,
+      fileSystemService: new FileSystemServiceImpl(),
+    }),
+});
 
 if (isTelemetryEnabled()) {
   process.once("exit", (exitCode) => {
@@ -82,7 +103,6 @@ registerMcpCommand(program);
 registerExampleCommand(program);
 registerLanguagesCommand(program);
 registerFeedbackCommand(program);
-const argv = process.argv.slice(2);
 const registrationArgv = stripRootRegistrationOptions(argv);
 
 if (shouldEagerLoadSearchCommands(registrationArgv)) {
@@ -113,7 +133,11 @@ const authCommand = program
   .description("Manage authentication with GitHits.");
 registerAuthStatusCommand(authCommand);
 
-await withTelemetrySpan("cli.parse", () => program.parseAsync());
+await runWithUpdateCheckFlush(
+  () => withTelemetrySpan("cli.parse", () => program.parseAsync()),
+  updateCheckTask,
+  { stderr: process.stderr },
+);
 
 /**
  * Commander supports root options before subcommands, e.g.

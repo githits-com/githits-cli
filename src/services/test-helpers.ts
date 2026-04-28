@@ -32,6 +32,7 @@ import type {
 } from "./package-intelligence-service.js";
 import type { ConfirmChoice, PromptService } from "./prompt-service.js";
 import type { TokenProvider } from "./token-manager.js";
+import type { UpdateCheckService } from "./update-check-service.js";
 
 /**
  * Default OAuth metadata for testing.
@@ -223,6 +224,18 @@ export function createMockFileSystemService(
     readdir: mock(() => Promise.resolve([])),
     isDirectory: mock(() => Promise.resolve(false)),
     atomicWriteFile: mock(() => Promise.resolve()),
+    ...impl,
+  };
+}
+
+/**
+ * Creates a mock UpdateCheckService with default implementations.
+ */
+export function createMockUpdateCheckService(
+  impl: Partial<UpdateCheckService> = {},
+): UpdateCheckService {
+  return {
+    checkForUpdate: mock(() => Promise.resolve(undefined)),
     ...impl,
   };
 }
