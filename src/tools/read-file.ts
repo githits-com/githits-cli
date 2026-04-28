@@ -3,13 +3,28 @@ import type { CodeNavigationService } from "../services/index.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
 import { buildReadFileParams } from "../shared/read-file-request.js";
-import { buildReadFileSuccessPayload } from "../shared/read-file-response.js";
+import {
+  buildReadFileSuccessPayload,
+  type LeanReadFileEnvelope,
+} from "../shared/read-file-response.js";
 import {
   type CodeTargetArg,
   codeTargetSchema,
   resolveCodeTarget,
 } from "./code-navigation-shared.js";
 import { errorResult, type ToolDefinition, textResult } from "./types.js";
+
+/**
+ * Maximum line span the MCP `code_read` tool will return in one call.
+ *
+ * Real session traces showed agents requesting 300-600 line windows
+ * (and occasionally unbounded full-file reads) which dominated
+ * context cost. The cap forces agents to pick a focused window —
+ * typical 80-150 lines around a known symbol from `search` or
+ * `code_grep` results. CLI command `githits code read` bypasses this
+ * cap so humans piping a whole file to disk still work.
+ */
+export const MCP_READ_MAX_SPAN = 150;
 
 export interface ReadFileArgs {
   target: CodeTargetArg;
@@ -29,12 +44,14 @@ const schema = {
   start_line: z
     .number()
     .optional()
-    .describe("Starting line (1-indexed). Omit for the full file from line 1."),
+    .describe(
+      `Starting line (1-indexed). Omit to start at line 1. The MCP surface caps any single read at ${MCP_READ_MAX_SPAN} lines — pick a focused window from your prior \`search\` / \`code_grep\` hit.`,
+    ),
   end_line: z
     .number()
     .optional()
     .describe(
-      "Ending line (inclusive). Omit for end of file. Must be ≥ `start_line` when both are set.",
+      `Ending line (inclusive). Must be ≥ \`start_line\` when both are set. Omitting it implies \`start_line + ${MCP_READ_MAX_SPAN - 1}\` because the MCP surface caps each read at ${MCP_READ_MAX_SPAN} lines.`,
     ),
   wait_timeout_ms: z
     .number()
@@ -45,18 +62,64 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Read a file from an indexed dependency. Default returns the full " +
-  "file; use `start_line` / `end_line` for a bounded range. Response: " +
-  "`{path, language, totalLines, startLine, endLine, content, " +
-  "isBinary}`. Binary files set `isBinary: true` and omit `content` — " +
-  "agents branch on the flag rather than checking null. Pass the same " +
-  "`path` emitted by `code_files`. Address via " +
-  "`target.registry` + `target.package_name` (package scope) or " +
-  "`target.repo_url` + `target.git_ref` (repo scope), mutually " +
-  "exclusive. On `INDEXING` retry with a longer `wait_timeout_ms`. " +
-  "When the path doesn't resolve the response is a `NOT_FOUND` (or " +
-  "`FILE_NOT_FOUND`) error — call `code_files` to discover the " +
-  "actual paths.";
+  "Read a file from an indexed dependency. **MCP cap: " +
+  `${MCP_READ_MAX_SPAN} lines per call** — broader requests (or no ` +
+  `range) silently truncate to the first ${MCP_READ_MAX_SPAN} lines ` +
+  "from your start, with a `hint` describing what was returned vs. " +
+  "requested. Pick a focused window from a `search` / `code_grep` " +
+  "match. Response: `{path, language, totalLines, startLine, endLine, " +
+  "content, isBinary, hint?}`. Binary files set `isBinary: true` and " +
+  "omit `content`. Pass the same `path` emitted by `code_files`. " +
+  "Address via `target.registry` + `target.package_name` (package " +
+  "scope) or `target.repo_url` + `target.git_ref` (repo scope), " +
+  "mutually exclusive. On `INDEXING` retry with a longer " +
+  "`wait_timeout_ms`. On `NOT_FOUND` / `FILE_NOT_FOUND` call " +
+  "`code_files` to discover the actual path.";
+
+interface BoundedRange {
+  startLine: number;
+  endLine: number;
+  capped: boolean;
+}
+
+/**
+ * Compute the effective `(startLine, endLine)` for the backend call,
+ * enforcing the MCP per-call span cap.
+ *
+ * - No range supplied: `1..MCP_READ_MAX_SPAN`.
+ * - `start_line` only: `start..start + MCP_READ_MAX_SPAN - 1`.
+ * - `end_line` only: treat start as 1; if span > cap, clamp.
+ * - Both supplied with span ≤ cap: untouched.
+ * - Both supplied with span > cap: clamp to `start..start + cap - 1`.
+ *
+ * The cap is enforced before the backend call so the service does not
+ * have to transfer bytes that will be discarded.
+ */
+export function deriveBoundedRange(
+  startLine: number | undefined,
+  endLine: number | undefined,
+): BoundedRange {
+  const start = startLine ?? 1;
+
+  if (endLine === undefined) {
+    return {
+      startLine: start,
+      endLine: start + MCP_READ_MAX_SPAN - 1,
+      capped: true,
+    };
+  }
+
+  const span = endLine - start + 1;
+  if (span > MCP_READ_MAX_SPAN) {
+    return {
+      startLine: start,
+      endLine: start + MCP_READ_MAX_SPAN - 1,
+      capped: true,
+    };
+  }
+
+  return { startLine: start, endLine, capped: false };
+}
 
 export function createReadFileTool(
   service: CodeNavigationService,
@@ -71,11 +134,15 @@ export function createReadFileTool(
       if ("content" in target) return target;
 
       try {
+        // Cap before the backend call so we don't transfer bytes only
+        // to throw them away. CLI surface bypasses this — see the
+        // MCP_READ_MAX_SPAN doc-comment for rationale.
+        const bounded = deriveBoundedRange(args.start_line, args.end_line);
         const build = buildReadFileParams({
           target,
           filePath: args.path,
-          startLine: args.start_line,
-          endLine: args.end_line,
+          startLine: bounded.startLine,
+          endLine: bounded.endLine,
           waitTimeoutMs: args.wait_timeout_ms,
         });
         const result = await service.readFile(build.params);
@@ -88,6 +155,15 @@ export function createReadFileTool(
           gitRef: target.gitRef,
           requestedFilePath: build.params.filePath,
         });
+
+        if (shouldEmitCappedHint(bounded, payload)) {
+          payload.hint = buildCappedHint(
+            payload,
+            args.start_line,
+            args.end_line,
+          );
+        }
+
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapCodeNavigationError(error);
@@ -102,4 +178,60 @@ export function createReadFileTool(
       }
     },
   };
+}
+
+/**
+ * Whether to emit the cap hint.
+ *
+ * The hint is only useful when the response was actually truncated —
+ * i.e., the caller's intent ran past the end of what came back. If
+ * the caller asked for the whole file but the file fits within the
+ * cap, the response is the whole file and the hint would point at
+ * lines that don't exist (real bug found by Codex review).
+ *
+ * Suppression cases:
+ * - Cap clamp logic didn't fire at all.
+ * - Binary file (hint is irrelevant).
+ * - Backend didn't echo `endLine` / `totalLines` (we can't tell).
+ * - The returned end IS the end of the file.
+ */
+function shouldEmitCappedHint(
+  bounded: BoundedRange,
+  payload: LeanReadFileEnvelope,
+): boolean {
+  if (!bounded.capped) return false;
+  if (payload.isBinary) return false;
+  if (payload.endLine === undefined) return false;
+  if (payload.totalLines === undefined) return false;
+  return payload.endLine < payload.totalLines;
+}
+
+function buildCappedHint(
+  payload: LeanReadFileEnvelope,
+  originalStart: number | undefined,
+  originalEnd: number | undefined,
+): string {
+  const requested = describeRequest(originalStart, originalEnd);
+  return (
+    `Returned lines ${payload.startLine}-${payload.endLine}/${payload.totalLines} ` +
+    `(MCP cap: ${MCP_READ_MAX_SPAN} lines per call; you requested ${requested}). ` +
+    `Pick a focused start_line/end_line window — typical 80-150 lines around a search/code_grep match. ` +
+    `Each retry also costs context, so aim for one well-sized read.`
+  );
+}
+
+function describeRequest(
+  originalStart: number | undefined,
+  originalEnd: number | undefined,
+): string {
+  if (originalStart === undefined && originalEnd === undefined) {
+    return "no range";
+  }
+  if (originalEnd === undefined) {
+    return `start_line=${originalStart}, no end_line`;
+  }
+  if (originalStart === undefined) {
+    return `end_line=${originalEnd}, no start_line`;
+  }
+  return `lines ${originalStart}-${originalEnd}`;
 }

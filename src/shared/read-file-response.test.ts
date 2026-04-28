@@ -101,6 +101,23 @@ describe("buildReadFileSuccessPayload", () => {
     );
     expect(envelope.content).toBe("");
   });
+
+  it("does not auto-populate the hint field — that policy belongs to the MCP handler", () => {
+    const wideResult: ReadFileResult = {
+      filePath: "src/big.ts",
+      language: "typescript",
+      totalLines: 5000,
+      startLine: 1,
+      endLine: 5000,
+      content: "// big file\n".repeat(5000),
+      isBinary: false,
+    };
+    const envelope = buildReadFileSuccessPayload(wideResult, {
+      ...baseOptions,
+      requestedFilePath: "src/big.ts",
+    });
+    expect(envelope.hint).toBeUndefined();
+  });
 });
 
 describe("formatReadFileTerminal", () => {

@@ -27,6 +27,7 @@ describe("createGrepRepoTool — metadata", () => {
       "exclude_doc_files",
       "exclude_test_files",
       "extensions",
+      "format",
       "globs",
       "max_matches",
       "max_matches_per_file",
@@ -112,12 +113,13 @@ describe("createGrepRepoTool — happy path", () => {
     );
   });
 
-  it("emits the new envelope shape", async () => {
+  it("emits the JSON envelope shape when format=json", async () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
         target: { registry: "npm", package_name: "express" },
         pattern: "middleware",
+        format: "json",
       },
       {},
     );
@@ -137,6 +139,53 @@ describe("createGrepRepoTool — happy path", () => {
       filePath: "src/index.js",
       line: 4,
     });
+  });
+});
+
+describe("createGrepRepoTool — text format", () => {
+  it("defaults to text output when format is omitted", async () => {
+    const tool = createGrepRepoTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        pattern: "middleware",
+      },
+      {},
+    );
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("code_grep | 1 match in 1 file");
+    expect(text).toContain('pattern="middleware"');
+    expect(text).toContain("src/index.js (1)");
+    expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("renders text output when format=text-v1", async () => {
+    const tool = createGrepRepoTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        pattern: "middleware",
+        format: "text-v1",
+      },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("code_grep | ");
+  });
+
+  it("accepts format=text as an alias for text-v1", async () => {
+    const tool = createGrepRepoTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        pattern: "middleware",
+        format: "text",
+      },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("code_grep | ");
   });
 });
 

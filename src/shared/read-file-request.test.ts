@@ -9,7 +9,7 @@ const target: CodeNavigationTarget = {
 
 describe("buildReadFileParams — defaults and validation", () => {
   it("accepts a minimal request and defaults wait to 20000", () => {
-    const { params, startLineExplicit, endLineExplicit } = buildReadFileParams({
+    const { params } = buildReadFileParams({
       target,
       filePath: "src/index.js",
     });
@@ -17,8 +17,6 @@ describe("buildReadFileParams — defaults and validation", () => {
     expect(params.startLine).toBeUndefined();
     expect(params.endLine).toBeUndefined();
     expect(params.waitTimeoutMs).toBe(20000);
-    expect(startLineExplicit).toBe(false);
-    expect(endLineExplicit).toBe(false);
   });
 
   it("trims whitespace around filePath", () => {
@@ -36,7 +34,7 @@ describe("buildReadFileParams — defaults and validation", () => {
   });
 
   it("passes line range through", () => {
-    const { params, startLineExplicit, endLineExplicit } = buildReadFileParams({
+    const { params } = buildReadFileParams({
       target,
       filePath: "src/index.js",
       startLine: 10,
@@ -44,8 +42,6 @@ describe("buildReadFileParams — defaults and validation", () => {
     });
     expect(params.startLine).toBe(10);
     expect(params.endLine).toBe(40);
-    expect(startLineExplicit).toBe(true);
-    expect(endLineExplicit).toBe(true);
   });
 
   it("accepts open-ended start (end omitted)", () => {

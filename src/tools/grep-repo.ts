@@ -8,6 +8,7 @@ import {
   GREP_REPO_SYMBOL_FIELDS,
   GREP_REPO_SYMBOL_FIELDS_NOTE,
   type GrepRepoSymbolField,
+  renderGrepRepoText,
 } from "../shared/index.js";
 import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
 import {
@@ -36,6 +37,7 @@ export interface GrepRepoArgs {
   cursor?: string;
   symbol_fields?: GrepRepoSymbolField[];
   wait_timeout_ms?: number;
+  format?: "json" | "text" | "text-v1";
 }
 
 const schema = {
@@ -78,13 +80,20 @@ const schema = {
     .optional()
     .describe(GREP_REPO_SYMBOL_FIELDS_NOTE),
   wait_timeout_ms: z.number().optional(),
+  format: z
+    .enum(["json", "text", "text-v1"])
+    .optional()
+    .describe(
+      'Response format. Default `text-v1` — compact line-oriented output (matches grouped by file with grep -A/-B notation for context). Pass `format: "json"` for the structured envelope. `text` is an alias for `text-v1`. Errors stay JSON-formatted in either mode for now.',
+    ),
 };
 
 const DESCRIPTION =
   "Deterministic text grep over indexed dependency and repository source files. " +
   "Use this when you know the text pattern you want; use `search` for discovery. " +
-  "Whole-target grep is the default. Narrow with `path`, `path_prefix`, `globs`, or `extensions`. " +
-  "Matches chain directly into `code_read` via `matches[].filePath`.";
+  "Whole-target grep is the default — narrow with `path`, `path_prefix`, `globs`, or `extensions` to keep responses small. " +
+  'Default response is a compact line-oriented listing (`format: "text-v1"`); pass `format: "json"` for the structured envelope. ' +
+  "Matches chain directly into `code_read` (the `path` and `line` from each match feed straight into `start_line` / `end_line`).";
 
 export function createGrepRepoTool(
   service: CodeNavigationService,
@@ -146,6 +155,9 @@ export function createGrepRepoTool(
           excludeTestFiles: build.params.excludeTestFiles,
           explicit: build.explicit,
         });
+        if (isTextFormat(args.format)) {
+          return textResult(renderGrepRepoText(payload));
+        }
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapCodeNavigationError(error);
@@ -160,4 +172,12 @@ export function createGrepRepoTool(
       }
     },
   };
+}
+
+/**
+ * Default response format is text-v1; programmatic callers opt into
+ * JSON explicitly via `format: "json"`.
+ */
+function isTextFormat(format: GrepRepoArgs["format"]): boolean {
+  return format === undefined || format === "text" || format === "text-v1";
 }

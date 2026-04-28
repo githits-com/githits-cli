@@ -147,6 +147,37 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("`search_status`");
     expect(instructions).toContain("allow_partial_results");
     expect(instructions).toContain("partial hits");
+    // Reference-first and multi-turn strategy tips appear when
+    // code-navigation is wired so agents do not pull raw source into
+    // the main conversation by default.
+    expect(instructions).toContain("reference-first");
+    expect(instructions).toContain("Delegate multi-call work to a sub-agent");
+    expect(instructions).toContain("inherently multi-call");
+    // Delegation framing leads the gated section so it lands before
+    // the per-tool bullets.
+    const multiTurnIdx = instructions.indexOf(
+      "Delegate multi-call work to a sub-agent",
+    );
+    const firstBulletIdx = instructions.indexOf("- `");
+    expect(multiTurnIdx).toBeGreaterThan(0);
+    expect(firstBulletIdx).toBeGreaterThan(multiTurnIdx);
+  });
+
+  it("expands core trigger criteria to cover comparative cross-OSS questions", () => {
+    const deps = createTestDeps();
+    const instructions = buildMcpInstructions(deps);
+    expect(instructions).toContain("comparative across OSS projects");
+    expect(instructions).toContain("how a real codebase implements");
+  });
+
+  it("does not surface the strategy tips when code-navigation is not wired", () => {
+    const deps = createTestDeps({
+      codeNavigationCapability: "enabled",
+      packageIntelligenceService: createMockPackageIntelligenceService(),
+    });
+    const instructions = buildMcpInstructions(deps);
+    expect(instructions).not.toContain("reference-first");
+    expect(instructions).not.toContain("Delegate multi-call work");
   });
 
   it("keeps the core block first when both sections are present", () => {

@@ -91,7 +91,18 @@ async function mcpJson(
   );
   const tool = createReadFileTool(service);
   const result = await tool.handler(args, {});
-  return JSON.parse(result.content[0]?.text ?? "");
+  const parsed = JSON.parse(result.content[0]?.text ?? "") as Record<
+    string,
+    unknown
+  >;
+  // The MCP surface adds a `hint` field when its per-call span cap
+  // truncates the request. The cap is intentionally MCP-only — the
+  // CLI command path honors arbitrary ranges so humans can pipe
+  // whole files. Strip the field here so the envelope shapes match
+  // for parity comparison; cap behavior is covered by
+  // `read-file.test.ts`.
+  delete parsed.hint;
+  return parsed;
 }
 
 describe("read_file parity", () => {

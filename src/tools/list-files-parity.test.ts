@@ -1,6 +1,8 @@
 // PARITY TEST — enforces:
-//   PARITY-JSON-KEYS       CLI --json output and MCP text payload parse to
-//                          deepEqual JSON objects for equivalent inputs.
+//   PARITY-JSON-KEYS       CLI --json output and MCP `format: "json"` payload
+//                          parse to deepEqual JSON objects for equivalent
+//                          inputs. The MCP default is `text-v1`; this helper
+//                          opts into JSON to compare like-for-like.
 //   PARITY-ERROR-ENVELOPE  Both surfaces emit { error, code, retryable, details? }.
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
@@ -84,6 +86,7 @@ interface McpArgs {
   path_prefix?: string;
   limit?: number;
   wait_timeout_ms?: number;
+  format?: "json" | "text" | "text-v1";
 }
 
 async function mcpJson(
@@ -94,7 +97,10 @@ async function mcpJson(
     listFilesMock ? { listFiles: listFilesMock as never } : {},
   );
   const tool = createListFilesTool(service);
-  const result = await tool.handler(args, {});
+  // Parity is asserted against the JSON envelope. The MCP default is
+  // text-v1, so this helper opts into JSON to match the CLI `--json`
+  // payload shape.
+  const result = await tool.handler({ ...args, format: "json" }, {});
   return JSON.parse(result.content[0]?.text ?? "");
 }
 

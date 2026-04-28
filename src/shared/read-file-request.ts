@@ -24,8 +24,6 @@ export interface ReadFileRequestInput {
 
 export interface ReadFileRequestBuildResult {
   params: ReadFileParams;
-  startLineExplicit: boolean;
-  endLineExplicit: boolean;
 }
 
 export function buildReadFileParams(
@@ -56,8 +54,6 @@ export function buildReadFileParams(
       endLine,
       waitTimeoutMs,
     },
-    startLineExplicit: input.startLine !== undefined,
-    endLineExplicit: input.endLine !== undefined,
   };
 }
 

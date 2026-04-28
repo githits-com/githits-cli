@@ -4,6 +4,8 @@ import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchParams,
   buildUnifiedSearchSuccessPayload,
+  renderUnifiedSearchError,
+  renderUnifiedSearchSuccess,
   toFileIntent,
   toSymbolCategory,
   toSymbolKind,
@@ -72,6 +74,7 @@ export interface SearchArgs {
   limit?: number;
   offset?: number;
   wait_timeout_ms?: number;
+  format?: "json" | "text" | "text-v1";
 }
 
 const schema = {
@@ -150,6 +153,12 @@ const schema = {
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
   wait_timeout_ms: z.coerce.number().int().min(0).max(60000).optional(),
+  format: z
+    .enum(["json", "text", "text-v1"])
+    .optional()
+    .describe(
+      'Response format. Default `text-v1` — compact line-oriented output tuned for agent context efficiency. Pass `format: "json"` for the structured envelope (programmatic consumers, parity testing). `text` is an alias for `text-v1`. The text format is a public, snapshot-tested contract.',
+    ),
 };
 
 const DESCRIPTION =
@@ -217,11 +226,16 @@ export function createSearchTool(
           built.compiledQuery,
           outcome,
         );
+        if (isTextFormat(args.format)) {
+          return textResult(renderUnifiedSearchSuccess(payload));
+        }
         return textResult(JSON.stringify(payload));
       } catch (error) {
-        return errorResult(
-          JSON.stringify(buildUnifiedSearchErrorPayload(error)),
-        );
+        const payload = buildUnifiedSearchErrorPayload(error);
+        if (isTextFormat(args.format)) {
+          return errorResult(renderUnifiedSearchError(payload));
+        }
+        return errorResult(JSON.stringify(payload));
       }
     },
   };
@@ -231,4 +245,13 @@ function isResolvedCodeTarget(
   target: ReturnType<typeof resolveCodeTarget>,
 ): target is ResolvedCodeTarget {
   return !("content" in target);
+}
+
+/**
+ * Default response format is text-v1 — agents consume the MCP surface
+ * and benefit from the compact form. Programmatic / parity callers
+ * opt into JSON explicitly.
+ */
+function isTextFormat(format: SearchArgs["format"]): boolean {
+  return format === undefined || format === "text" || format === "text-v1";
 }

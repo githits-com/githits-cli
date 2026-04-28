@@ -14,6 +14,7 @@ describe("searchTool", () => {
       {
         query: "router middleware",
         target: { registry: "npm", package_name: "express" },
+        format: "json",
       },
       {},
     );
@@ -123,6 +124,7 @@ describe("searchTool", () => {
       {
         query: "middleware",
         target: { registry: "npm", package_name: "express" },
+        format: "json",
       },
       {},
     );
@@ -137,5 +139,66 @@ describe("searchTool", () => {
     });
     expect(payload.results[0]).not.toHaveProperty("followUp");
     expect(payload.results[0]).not.toHaveProperty("alternateFollowUps");
+  });
+
+  it("defaults to text output when format is omitted", async () => {
+    const tool = createSearchTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        query: "router middleware",
+        target: { registry: "npm", package_name: "express" },
+      },
+      {},
+    );
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("search | ");
+    expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("renders text output when format=text-v1", async () => {
+    const tool = createSearchTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        query: "router middleware",
+        target: { registry: "npm", package_name: "express" },
+        format: "text-v1",
+      },
+      {},
+    );
+    expect(result.isError).toBeUndefined();
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("search | ");
+    expect(text).toContain('query="router middleware"');
+    // Confirm the text payload is not valid JSON.
+    expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("accepts format=text as an alias for text-v1", async () => {
+    const tool = createSearchTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        query: "router",
+        target: { registry: "npm", package_name: "express" },
+        format: "text",
+      },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("search | ");
+  });
+
+  it("keeps the JSON envelope when format=json (explicit)", async () => {
+    const tool = createSearchTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        query: "router",
+        target: { registry: "npm", package_name: "express" },
+        format: "json",
+      },
+      {},
+    );
+    const payload = JSON.parse(result.content[0]?.text ?? "{}");
+    expect(payload.completed).toBe(true);
   });
 });
