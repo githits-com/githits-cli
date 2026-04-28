@@ -1,7 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import type { UnifiedSearchParams } from "../services/code-navigation-service.js";
+import type {
+  UnifiedSearchOutcome,
+  UnifiedSearchParams,
+} from "../services/code-navigation-service.js";
 import { defaultUnifiedSearchOutcome } from "../services/test-helpers.js";
 import {
+  buildSourceStatusWarnings,
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchStatusPayload,
   buildUnifiedSearchSuccessPayload,
@@ -129,6 +133,197 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.query.allowPartialResults).toBe(true);
     expect(payload.results.length).toBe(1);
     expect(payload.results[0]?.target).toBe("npm:express@4.18.2");
+  });
+});
+
+describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", () => {
+  it("returns empty when source status is undefined or empty", () => {
+    expect(buildSourceStatusWarnings(undefined)).toEqual([]);
+    expect(buildSourceStatusWarnings([])).toEqual([]);
+  });
+
+  it("promotes incompatibleQueryFeatures into a structured message", () => {
+    const warnings = buildSourceStatusWarnings([
+      {
+        source: "docs",
+        targetLabel: "npm:zod@4.3.6",
+        incompatibleQueryFeatures: ["kind"],
+        note: "Incompatible with query features: kind",
+      },
+    ]);
+    expect(warnings).toEqual([
+      "Source 'docs' for npm:zod@4.3.6: incompatible query features [kind]",
+    ]);
+  });
+
+  it("combines multiple reasons in a single warning", () => {
+    const warnings = buildSourceStatusWarnings([
+      {
+        source: "docs",
+        targetLabel: "npm:express@5.2.1",
+        incompatibleQueryFeatures: ["lang"],
+        ignoredFilters: ["fileIntent"],
+      },
+    ]);
+    expect(warnings.length).toBe(1);
+    expect(warnings[0]).toContain("incompatible query features [lang]");
+    expect(warnings[0]).toContain("ignored filters [fileIntent]");
+  });
+
+  it("falls back to the free-form note when no structured fields fired", () => {
+    const warnings = buildSourceStatusWarnings([
+      {
+        source: "code",
+        targetLabel: "npm:express@5.2.1",
+        note: "Index rebuilt 5 minutes ago.",
+      },
+    ]);
+    expect(warnings).toEqual([
+      "Source 'code' for npm:express@5.2.1: Index rebuilt 5 minutes ago.",
+    ]);
+  });
+
+  it("produces one warning per source-status entry, preserving order", () => {
+    const warnings = buildSourceStatusWarnings([
+      {
+        source: "docs",
+        targetLabel: "npm:zod@4.3.6",
+        incompatibleQueryFeatures: ["kind"],
+      },
+      {
+        source: "code",
+        targetLabel: "npm:zod@4.3.6",
+        ignoredFilters: ["pathPrefix"],
+      },
+    ]);
+    expect(warnings.length).toBe(2);
+    expect(warnings[0]).toContain("docs");
+    expect(warnings[1]).toContain("code");
+  });
+});
+
+describe("buildUnifiedSearchSuccessPayload — sourceStatus warnings on completed payloads", () => {
+  function buildOutcomeWithStatus(
+    overrides: Record<string, unknown>,
+  ): UnifiedSearchOutcome {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed fixture");
+    }
+    const sourceStatus = [
+      {
+        ...defaultUnifiedSearchOutcome.result.sourceStatus[0],
+        ...overrides,
+      },
+    ];
+    return {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        sourceStatus,
+      },
+    } as UnifiedSearchOutcome;
+  }
+
+  const params: UnifiedSearchParams = {
+    targets: [{ registry: "NPM", packageName: "zod" }],
+    query: "parse kind:function",
+    sources: ["DOCS"],
+    limit: 20,
+    offset: 0,
+    waitTimeoutMs: 20_000,
+  };
+
+  it("emits warnings[] when a source reports incompatibleQueryFeatures (B5 repro)", () => {
+    const outcome = buildOutcomeWithStatus({
+      source: "DOCS",
+      targetLabel: "npm:zod@4.3.6",
+      incompatibleQueryFeatures: ["kind"],
+      note: "Incompatible with query features: kind",
+    });
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "parse kind:function",
+      "parse kind:function",
+      outcome,
+    );
+    expect(payload.completed).toBe(true);
+    expect(payload.warnings).toEqual([
+      "Source 'docs' for npm:zod@4.3.6: incompatible query features [kind]",
+    ]);
+    // Structured detail is still available alongside.
+    expect(payload.sourceStatus?.[0]?.incompatibleQueryFeatures).toEqual([
+      "kind",
+    ]);
+  });
+
+  it("omits warnings[] when sourceStatus is healthy", () => {
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      defaultUnifiedSearchOutcome,
+    );
+    expect(payload.warnings).toBeUndefined();
+  });
+
+  it("includes parser warnings ahead of sourceStatus warnings at top level", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed fixture");
+    }
+    const outcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        queryWarnings: ["unrecognised qualifier 'xyz:'"],
+        sourceStatus: [
+          {
+            ...defaultUnifiedSearchOutcome.result.sourceStatus[0],
+            incompatibleQueryFeatures: ["kind"],
+          },
+        ],
+      },
+    } as UnifiedSearchOutcome;
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "parse kind:function",
+      "parse kind:function",
+      outcome,
+    );
+    expect(payload.warnings).toEqual([
+      "unrecognised qualifier 'xyz:'",
+      expect.stringContaining("incompatible query features [kind]"),
+    ]);
+    // Parser warnings remain on the query echo for callers that
+    // specifically inspect the parser-warning surface.
+    expect(payload.query.warnings).toEqual(["unrecognised qualifier 'xyz:'"]);
+  });
+});
+
+describe("buildUnifiedSearchStatusPayload — combined warnings", () => {
+  it("appends sourceStatus warnings after parser warnings", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed fixture");
+    }
+    const outcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        queryWarnings: ["unrecognised qualifier 'xyz:'"],
+        sourceStatus: [
+          {
+            ...defaultUnifiedSearchOutcome.result.sourceStatus[0],
+            incompatibleQueryFeatures: ["kind"],
+          },
+        ],
+      },
+    } as UnifiedSearchOutcome;
+
+    const payload = buildUnifiedSearchStatusPayload(outcome);
+    if (!payload.completed) throw new Error("expected completed payload");
+    expect(payload.result.warnings).toEqual([
+      "unrecognised qualifier 'xyz:'",
+      expect.stringContaining("incompatible query features [kind]"),
+    ]);
   });
 });
 

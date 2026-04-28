@@ -7,18 +7,27 @@
  * - Backend is the single source of truth for counts. `minSeverity`
  *   and `includeWithdrawn` are passed through on the wire; the
  *   backend returns a filter-aware `vulnerabilityCount`. The builder
- *   does no filtering of its own.
+ *   does no selective filtering of its own — but it does collapse
+ *   alias-clustered duplicates (see below) because that is shape
+ *   normalisation rather than selection.
+ * - Alias-cluster dedup runs before bucketing. Some registries (most
+ *   visibly Crates) return both the GHSA-prefixed and the
+ *   RUSTSEC-prefixed entry for the same underlying vulnerability;
+ *   `aliases[]` carries the cross-link. The builder unions clusters
+ *   over `id ∪ aliases`, picks one canonical advisory per cluster
+ *   (severity-bearing entries first, then GHSA over RUSTSEC, then
+ *   lexicographic `id`), and merges the rest under the canonical's
+ *   `aliases`. Both `summary.total` and `summary.bySeverity` are
+ *   recomputed from the deduped list — the partition invariant
+ *   (bucket sum equals total) is preserved post-dedup. This is a
+ *   client-side mitigation for backend issue B3; remove once the
+ *   backend dedups upstream.
  * - Malware bucket is disjoint from severity bands. `summary.bySeverity`
  *   carries a `malware` key counting `isMalicious === true` advisories;
  *   severity bands count non-malicious advisories only. Non-malicious
  *   advisories with no CVSS score fall into a disjoint `unrated`
  *   bucket so every returned advisory is accounted for. The buckets
- *   always partition `security.vulnerabilities[]`; their sum equals
- *   `summary.total` whenever the backend keeps its `vulnerabilityCount`
- *   and `vulnerabilities[]` in sync (the expected case on all shipped
- *   registries). The builder does not re-derive `total` from the array
- *   length because `vulnerabilityCount` is filter-aware and may
- *   legitimately exceed the returned list in paginated futures.
+ *   always partition `security.vulnerabilities[]` after dedup.
  * - `requestedVersion` surfaces whenever the backend-resolved
  *   `version` differs from the caller's (trimmed) input. `v`-prefix
  *   normalisation is intentionally *not* applied here: the `v4.17.0`
@@ -95,13 +104,29 @@ export function buildPackageVulnerabilitiesSuccessPayload(
 ): LeanVulnerabilityReport {
   const pkg = report.package;
   const security = report.security;
-  const total = security?.vulnerabilityCount ?? 0;
+
+  // Dedup before counting: alias-clustered duplicates (GHSA + RUSTSEC
+  // pairs on Crates, mainly) collapse to one canonical advisory each.
+  // `total` and `bySeverity` are derived from the deduped list so the
+  // partition invariant holds.
+  //
+  // This recomputation is only correct while the backend returns the
+  // entire filtered vulnerability set inline with `vulnerabilityCount`.
+  // If the backend later paginates the advisory list (delivering a
+  // page slice while `vulnerabilityCount` keeps the global filtered
+  // count), `total` here will underreport — revisit at that point and
+  // either compute from a backend-supplied deduped count or run dedup
+  // server-side.
+  const dedupedAdvisories = dedupAdvisoriesByAlias(
+    security?.vulnerabilities ?? [],
+  );
+  const total = dedupedAdvisories.length;
 
   const payload: LeanVulnerabilityReport = {
     registry: lowerRegistry(pkg.registry),
     name: pkg.name,
     version: pkg.version,
-    summary: buildSummary(total, security),
+    summary: buildSummary(total, security, dedupedAdvisories),
   };
 
   const requestedEcho = deriveRequestedVersion(
@@ -114,7 +139,7 @@ export function buildPackageVulnerabilitiesSuccessPayload(
 
   if (total > 0) {
     const sortedAdvisories = sortAdvisories(
-      (security?.vulnerabilities ?? []).map(buildAdvisory),
+      dedupedAdvisories.map(buildAdvisory),
     );
     if (sortedAdvisories.length > 0) {
       payload.advisories = sortedAdvisories;
@@ -177,6 +202,7 @@ function parseVersionForSort(v: string): { main: number[]; pre?: string } {
 function buildSummary(
   total: number,
   security: VulnerabilityReport["security"],
+  dedupedAdvisories: readonly VulnerabilityDetail[],
 ): LeanVulnerabilitySummary {
   const summary: LeanVulnerabilitySummary = { total };
   if (total === 0) return summary;
@@ -185,7 +211,7 @@ function buildSummary(
     summary.affected = security.currentVersionAffected;
   }
 
-  const bySeverity = computeBySeverity(security?.vulnerabilities ?? []);
+  const bySeverity = computeBySeverity(dedupedAdvisories);
   const anyCounted = Object.values(bySeverity).some((n) => n > 0);
   if (anyCounted) {
     const trimmed: Partial<Record<VulnBucket, number>> = {};
@@ -250,6 +276,270 @@ export function vulnSeverityLabel(
   if (score >= 7) return "high";
   if (score >= 4) return "medium";
   return "low";
+}
+
+// --------------------------------------------------------------------
+// Alias-cluster dedup
+// --------------------------------------------------------------------
+
+/**
+ * Collapse advisories that share an `id`/`aliases` identifier into one
+ * canonical entry per cluster. The merged entry:
+ *   - unions `aliases`, `affectedVersionRanges`, and `fixedInVersions`;
+ *   - reports the **maximum** `severityScore` across the cluster
+ *     (security tooling errs toward the more conservative band when
+ *     OSV and RUSTSEC disagree);
+ *   - tracks the latest `modifiedAt` actually present (no fallback to
+ *     `publishedAt` — a sibling without a real modification timestamp
+ *     does not advance the merged record);
+ *   - inherits the malware flag from any member that carries it;
+ *   - keeps the withdrawn flag only when **every** cluster member is
+ *     withdrawn (a single active member means the vulnerability is
+ *     still tracked under at least one source).
+ *
+ * Canonical preference (deterministic, used to pick the entry whose
+ * non-merged fields — `osvId`, `summary`, `publishedAt` — survive):
+ *   1. Member with a positive CVSS score wins over a member without.
+ *   2. Among severity-bearing members (or among score-less members),
+ *      `GHSA-*` ids beat `RUSTSEC-*` and other prefixes.
+ *   3. Tiebreak on lexicographic `osvId` ascending.
+ *
+ * Members without an `osvId` and without aliases are passed through as
+ * singleton clusters — they cannot link to anything else. Empty input
+ * returns an empty array.
+ */
+export function dedupAdvisoriesByAlias(
+  advisories: readonly VulnerabilityDetail[],
+): VulnerabilityDetail[] {
+  if (advisories.length === 0) return [];
+
+  // Union-find over identifier strings. Each advisory's `osvId` and
+  // every alias becomes a node; sharing any node merges the clusters.
+  // Every node passed to `union` is `ensure()`d first, so `parent.get`
+  // never returns `undefined` for a known id.
+  const parent = new Map<string, string>();
+  const find = (id: string): string => {
+    let root = id;
+    let next = parent.get(root);
+    while (next !== undefined && next !== root) {
+      root = next;
+      next = parent.get(root);
+    }
+    // Path compression: walk again, pointing each node directly at root.
+    let cursor = id;
+    while (cursor !== root) {
+      const parentOfCursor = parent.get(cursor);
+      if (parentOfCursor === undefined) break;
+      parent.set(cursor, root);
+      cursor = parentOfCursor;
+    }
+    return root;
+  };
+  const union = (a: string, b: string): void => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
+  const ensure = (id: string): void => {
+    if (!parent.has(id)) parent.set(id, id);
+  };
+
+  // Track the per-advisory primary identifier so we can group entries
+  // back into their cluster after the union pass. Advisories with
+  // neither id nor aliases get a synthetic key so they remain a
+  // singleton cluster.
+  const advisoryKeys: string[] = [];
+  for (let i = 0; i < advisories.length; i++) {
+    const advisory = advisories[i];
+    if (!advisory) {
+      advisoryKeys.push(`__synthetic_${i}`);
+      continue;
+    }
+    const ids: string[] = [];
+    if (advisory.osvId) ids.push(advisory.osvId);
+    for (const alias of advisory.aliases ?? []) {
+      if (alias) ids.push(alias);
+    }
+    if (ids.length === 0) {
+      const synthetic = `__synthetic_${i}`;
+      ensure(synthetic);
+      advisoryKeys.push(synthetic);
+      continue;
+    }
+    for (const id of ids) ensure(id);
+    for (let j = 1; j < ids.length; j++) {
+      const a = ids[j - 1];
+      const b = ids[j];
+      if (a !== undefined && b !== undefined) union(a, b);
+    }
+    advisoryKeys.push(ids[0] as string);
+  }
+
+  // Group advisories by cluster root, preserving the input order of
+  // first appearance so the eventual sort step gets a stable seed.
+  const clusters = new Map<string, VulnerabilityDetail[]>();
+  for (let i = 0; i < advisories.length; i++) {
+    const advisory = advisories[i];
+    if (!advisory) continue;
+    const key = advisoryKeys[i];
+    if (key === undefined) continue;
+    const root = find(key);
+    const bucket = clusters.get(root);
+    if (bucket) bucket.push(advisory);
+    else clusters.set(root, [advisory]);
+  }
+
+  const merged: VulnerabilityDetail[] = [];
+  for (const cluster of clusters.values()) {
+    merged.push(mergeAdvisoryCluster(cluster));
+  }
+  return merged;
+}
+
+function mergeAdvisoryCluster(
+  cluster: readonly VulnerabilityDetail[],
+): VulnerabilityDetail {
+  if (cluster.length === 1) {
+    const only = cluster[0];
+    if (!only) throw new Error("empty advisory cluster"); // unreachable
+    return only;
+  }
+
+  const canonical = pickCanonical(cluster);
+
+  // Union of all known identifiers across the cluster, with the
+  // canonical's own `osvId` removed from the alias list (it lives on
+  // `osvId` instead).
+  const aliasSet = new Set<string>();
+  for (const member of cluster) {
+    if (member.osvId) aliasSet.add(member.osvId);
+    for (const alias of member.aliases ?? []) {
+      if (alias) aliasSet.add(alias);
+    }
+  }
+  if (canonical.osvId) aliasSet.delete(canonical.osvId);
+  const aliases = Array.from(aliasSet).sort();
+
+  const affectedRangesSet = new Set<string>();
+  const fixedInSet = new Set<string>();
+  let isMalicious = false;
+  // Latest `modifiedAt` wins, but only counts entries that explicitly
+  // carry one — a sibling whose `modifiedAt` is absent should not
+  // promote its `publishedAt` into the merged record.
+  let latestModifiedAt: string | undefined = canonical.modifiedAt;
+  let withdrawnAt: string | undefined;
+  let allWithdrawn = true;
+  // Take the maximum severity score across the cluster. OSV and
+  // RUSTSEC occasionally disagree on the score for the same CVE; the
+  // safer choice for security tooling is the higher band, not the
+  // canonical's score (which may be lower because GHSA wins the
+  // canonical-pick on a prefix tiebreaker).
+  let maxSeverityScore =
+    typeof canonical.severityScore === "number" ? canonical.severityScore : 0;
+
+  for (const member of cluster) {
+    for (const range of member.affectedVersionRanges ?? []) {
+      affectedRangesSet.add(range);
+    }
+    for (const fix of member.fixedInVersions ?? []) {
+      fixedInSet.add(fix);
+    }
+    if (member.isMalicious === true) isMalicious = true;
+    if (member.modifiedAt) {
+      if (!latestModifiedAt || member.modifiedAt > latestModifiedAt) {
+        latestModifiedAt = member.modifiedAt;
+      }
+    }
+    if (member.withdrawnAt) {
+      if (!withdrawnAt || member.withdrawnAt > withdrawnAt) {
+        withdrawnAt = member.withdrawnAt;
+      }
+    } else {
+      allWithdrawn = false;
+    }
+    // Withdrawn members don't contribute severity. The merged record
+    // surfaces the highest *currently authoritative* score; promoting
+    // a retracted advisory's score would mislead callers about an
+    // active vulnerability that no longer claims that band.
+    if (
+      !member.withdrawnAt &&
+      typeof member.severityScore === "number" &&
+      member.severityScore > maxSeverityScore
+    ) {
+      maxSeverityScore = member.severityScore;
+    }
+  }
+
+  const merged: VulnerabilityDetail = {
+    ...canonical,
+    aliases,
+  };
+  if (maxSeverityScore > 0) {
+    merged.severityScore = maxSeverityScore;
+  }
+  if (affectedRangesSet.size > 0) {
+    merged.affectedVersionRanges = Array.from(affectedRangesSet);
+  }
+  if (fixedInSet.size > 0) {
+    merged.fixedInVersions = Array.from(fixedInSet);
+  }
+  if (isMalicious) merged.isMalicious = true;
+  // `buildAdvisory` later drops `modifiedAt` if it equals `publishedAt`,
+  // so we only need to ensure the field reflects the latest real
+  // modification timestamp here. The seed already filtered out the
+  // "no modifiedAt anywhere in the cluster" case.
+  if (latestModifiedAt) {
+    merged.modifiedAt = latestModifiedAt;
+  } else {
+    delete merged.modifiedAt;
+  }
+  // Only mark the merged advisory as withdrawn when every cluster
+  // member is withdrawn — a single non-withdrawn member means the
+  // vulnerability is still active under at least one source.
+  if (allWithdrawn && withdrawnAt) {
+    merged.withdrawnAt = withdrawnAt;
+  } else {
+    delete merged.withdrawnAt;
+  }
+  return merged;
+}
+
+function pickCanonical(
+  cluster: readonly VulnerabilityDetail[],
+): VulnerabilityDetail {
+  const ranked = cluster.slice().sort((a, b) => {
+    const aHasScore =
+      typeof a.severityScore === "number" && a.severityScore > 0 ? 1 : 0;
+    const bHasScore =
+      typeof b.severityScore === "number" && b.severityScore > 0 ? 1 : 0;
+    if (aHasScore !== bHasScore) return bHasScore - aHasScore;
+
+    const aRank = idPrefixRank(a.osvId);
+    const bRank = idPrefixRank(b.osvId);
+    if (aRank !== bRank) return aRank - bRank;
+
+    const aId = a.osvId ?? "";
+    const bId = b.osvId ?? "";
+    if (aId !== bId) return aId < bId ? -1 : 1;
+    return 0;
+  });
+  const winner = ranked[0];
+  if (!winner) throw new Error("empty cluster passed to pickCanonical"); // unreachable
+  return winner;
+}
+
+/**
+ * Lower rank wins. GHSA carries severity reliably; RUSTSEC entries
+ * round-tripped through OSV often lose it. Other prefixes fall back
+ * to a generic bucket between the two known forms. A missing id is
+ * the worst rank — it cannot be cited and rarely surfaces in
+ * production (every backend-fed advisory carries an `osvId`).
+ */
+function idPrefixRank(id: string | undefined): number {
+  if (!id) return 99; // fallback bucket — all real ids outrank this
+  if (id.startsWith("GHSA-")) return 0;
+  if (id.startsWith("RUSTSEC-")) return 2;
+  return 1;
 }
 
 // --------------------------------------------------------------------

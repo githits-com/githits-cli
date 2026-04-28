@@ -5,6 +5,7 @@ import {
   buildPackageVulnerabilitiesSuccessPayload,
   compareVersionsAscending,
   computeBySeverity,
+  dedupAdvisoriesByAlias,
   formatPackageVulnerabilitiesTerminal,
   vulnSeverityLabel,
 } from "./package-vulnerabilities-response.js";
@@ -291,6 +292,387 @@ describe("buildPackageVulnerabilitiesSuccessPayload — requestedVersion echo", 
       defaultVulnerabilityReport.security?.vulnerabilities?.length ?? 0;
     expect(sum).toBe(returnedCount);
     expect(sum).toBe(payload.summary.total);
+  });
+});
+
+describe("dedupAdvisoriesByAlias — alias-cluster collapse", () => {
+  it("returns input unchanged when no aliases overlap", () => {
+    const input = cloneFixture().security?.vulnerabilities ?? [];
+    const out = dedupAdvisoriesByAlias(input);
+    expect(out.length).toBe(input.length);
+  });
+
+  it("returns empty array on empty input", () => {
+    expect(dedupAdvisoriesByAlias([])).toEqual([]);
+  });
+
+  it("collapses GHSA + RUSTSEC pair sharing a CVE alias", () => {
+    const out = dedupAdvisoriesByAlias([
+      {
+        osvId: "GHSA-xjxc-vfw2-cg96",
+        aliases: ["CVE-2018-20997", "RUSTSEC-2018-0010"],
+        severityScore: 9.8,
+        publishedAt: "2021-08-25T00:00:00Z",
+        affectedVersionRanges: [">=0.10.8 <0.10.9"],
+        fixedInVersions: ["0.10.9"],
+      },
+      {
+        osvId: "RUSTSEC-2018-0010",
+        aliases: ["CVE-2018-20997", "GHSA-xjxc-vfw2-cg96"],
+        publishedAt: "2018-06-01T00:00:00Z",
+        affectedVersionRanges: [">=0.10.8 <0.10.9"],
+        fixedInVersions: ["0.10.9"],
+      },
+    ]);
+    expect(out.length).toBe(1);
+    const merged = out[0];
+    if (!merged) throw new Error("expected one merged advisory");
+    // GHSA wins because it carries a positive severity score.
+    expect(merged.osvId).toBe("GHSA-xjxc-vfw2-cg96");
+    // The other id and shared CVE survive as aliases on the canonical.
+    expect(merged.aliases?.sort()).toEqual([
+      "CVE-2018-20997",
+      "RUSTSEC-2018-0010",
+    ]);
+    expect(merged.aliases).not.toContain("GHSA-xjxc-vfw2-cg96");
+    expect(merged.severityScore).toBe(9.8);
+  });
+
+  it("links chains via shared aliases (transitive merge)", () => {
+    // Three entries: A↔B share CVE-X; B↔C share CVE-Y. All three end up
+    // in one cluster because B bridges A and C.
+    const out = dedupAdvisoriesByAlias([
+      {
+        osvId: "GHSA-aaa",
+        aliases: ["CVE-X"],
+        severityScore: 8.0,
+      },
+      {
+        osvId: "RUSTSEC-2024-A",
+        aliases: ["CVE-X", "CVE-Y"],
+      },
+      {
+        osvId: "RUSTSEC-2024-B",
+        aliases: ["CVE-Y"],
+      },
+    ]);
+    expect(out.length).toBe(1);
+    const merged = out[0];
+    if (!merged) throw new Error("expected merged advisory");
+    expect(merged.osvId).toBe("GHSA-aaa");
+    expect(merged.aliases?.sort()).toEqual([
+      "CVE-X",
+      "CVE-Y",
+      "RUSTSEC-2024-A",
+      "RUSTSEC-2024-B",
+    ]);
+  });
+
+  it("prefers GHSA over RUSTSEC when neither has severity", () => {
+    const out = dedupAdvisoriesByAlias([
+      {
+        osvId: "RUSTSEC-2025-0099",
+        aliases: ["GHSA-zzz"],
+      },
+      {
+        osvId: "GHSA-zzz",
+        aliases: ["RUSTSEC-2025-0099"],
+      },
+    ]);
+    expect(out.length).toBe(1);
+    expect(out[0]?.osvId).toBe("GHSA-zzz");
+  });
+
+  it("falls back to lexicographic id when prefix and severity tie", () => {
+    const out = dedupAdvisoriesByAlias([
+      {
+        osvId: "GHSA-bbb",
+        aliases: ["CVE-Z"],
+      },
+      {
+        osvId: "GHSA-aaa",
+        aliases: ["CVE-Z"],
+      },
+    ]);
+    expect(out[0]?.osvId).toBe("GHSA-aaa");
+  });
+
+  it("unions affectedVersionRanges and fixedInVersions across the cluster", () => {
+    const out = dedupAdvisoriesByAlias([
+      {
+        osvId: "GHSA-xxx",
+        aliases: ["CVE-Q"],
+        severityScore: 7.5,
+        affectedVersionRanges: [">=1.0.0 <1.1.0"],
+        fixedInVersions: ["1.1.0"],
+      },
+      {
+        osvId: "RUSTSEC-2024-X",
+        aliases: ["CVE-Q"],
+        affectedVersionRanges: [">=0.9.0 <1.0.0"],
+        fixedInVersions: ["1.0.0"],
+      },
+    ]);
+    const merged = out[0];
+    if (!merged) throw new Error("expected merged");
+    expect(merged.affectedVersionRanges?.sort()).toEqual([
+      ">=0.9.0 <1.0.0",
+      ">=1.0.0 <1.1.0",
+    ]);
+    expect(merged.fixedInVersions?.sort()).toEqual(["1.0.0", "1.1.0"]);
+  });
+
+  it("inherits malware flag from any cluster member", () => {
+    const out = dedupAdvisoriesByAlias([
+      {
+        osvId: "GHSA-mal",
+        aliases: ["CVE-MAL"],
+        severityScore: 9.0,
+      },
+      {
+        osvId: "RUSTSEC-MAL",
+        aliases: ["CVE-MAL"],
+        isMalicious: true,
+      },
+    ]);
+    expect(out[0]?.isMalicious).toBe(true);
+  });
+
+  it("clears withdrawn flag if any cluster member is still active", () => {
+    const out = dedupAdvisoriesByAlias([
+      {
+        osvId: "GHSA-aaa",
+        aliases: ["CVE-W"],
+        severityScore: 7.0,
+      },
+      {
+        osvId: "RUSTSEC-W",
+        aliases: ["CVE-W"],
+        withdrawnAt: "2024-01-01T00:00:00Z",
+      },
+    ]);
+    expect(out[0]?.withdrawnAt).toBeUndefined();
+  });
+
+  it("keeps withdrawn flag when every cluster member is withdrawn", () => {
+    const out = dedupAdvisoriesByAlias([
+      {
+        osvId: "GHSA-aaa",
+        aliases: ["CVE-W"],
+        severityScore: 7.0,
+        withdrawnAt: "2024-01-15T00:00:00Z",
+      },
+      {
+        osvId: "RUSTSEC-W",
+        aliases: ["CVE-W"],
+        withdrawnAt: "2024-01-01T00:00:00Z",
+      },
+    ]);
+    expect(out[0]?.withdrawnAt).toBe("2024-01-15T00:00:00Z");
+  });
+
+  it("passes singletons (no aliases, no overlap) through unchanged", () => {
+    const out = dedupAdvisoriesByAlias([
+      { osvId: "GHSA-solo", severityScore: 5.0 },
+    ]);
+    expect(out.length).toBe(1);
+    expect(out[0]?.osvId).toBe("GHSA-solo");
+  });
+
+  it("does not merge advisories that lack ids and aliases", () => {
+    const out = dedupAdvisoriesByAlias([
+      { summary: "ghost A" },
+      { summary: "ghost B" },
+    ]);
+    expect(out.length).toBe(2);
+  });
+
+  it("merges advisories with no osvId but overlapping aliases", () => {
+    // Backend occasionally ships advisories with aliases populated but
+    // no top-level osvId (e.g. legacy CVE-only entries on PyPI). They
+    // should still cluster on shared aliases.
+    const out = dedupAdvisoriesByAlias([
+      {
+        aliases: ["CVE-NO-ID"],
+        severityScore: 6.0,
+      },
+      {
+        aliases: ["CVE-NO-ID"],
+        affectedVersionRanges: [">=1.0.0 <2.0.0"],
+      },
+    ]);
+    expect(out.length).toBe(1);
+    const merged = out[0];
+    if (!merged) throw new Error("expected merged advisory");
+    // Canonical pick (severity-bearing wins) keeps the first member's
+    // shape; aliases on the merged are the union minus the canonical's
+    // own osvId — but neither has an osvId, so the alias survives.
+    expect(merged.aliases).toEqual(["CVE-NO-ID"]);
+    expect(merged.severityScore).toBe(6.0);
+    expect(merged.affectedVersionRanges).toEqual([">=1.0.0 <2.0.0"]);
+  });
+
+  it("does not promote a withdrawn sibling's severity into the merged record", () => {
+    // The merged advisory survives because the GHSA member is active.
+    // The RUSTSEC sibling was retracted; its score is no longer
+    // authoritative and must not inflate the merged band.
+    const out = dedupAdvisoriesByAlias([
+      {
+        osvId: "GHSA-active",
+        aliases: ["CVE-W"],
+        severityScore: 5.0,
+      },
+      {
+        osvId: "RUSTSEC-2023-W",
+        aliases: ["CVE-W"],
+        severityScore: 9.8,
+        withdrawnAt: "2024-01-15T00:00:00Z",
+      },
+    ]);
+    const merged = out[0];
+    if (!merged) throw new Error("expected merged advisory");
+    expect(merged.severityScore).toBe(5.0);
+    expect(merged.withdrawnAt).toBeUndefined();
+  });
+
+  it("reports the maximum severity across the cluster (not the canonical's)", () => {
+    // GHSA wins canonical pick on prefix, but RUSTSEC sibling has a
+    // higher score. Merged should reflect the higher band so the
+    // bySeverity histogram is conservative.
+    const out = dedupAdvisoriesByAlias([
+      {
+        osvId: "GHSA-low",
+        aliases: ["CVE-X"],
+        severityScore: 5.0,
+      },
+      {
+        osvId: "RUSTSEC-2025-X",
+        aliases: ["CVE-X"],
+        severityScore: 9.5,
+      },
+    ]);
+    const merged = out[0];
+    if (!merged) throw new Error("expected merged advisory");
+    expect(merged.osvId).toBe("GHSA-low");
+    expect(merged.severityScore).toBe(9.5);
+  });
+
+  it("does not promote a sibling's publishedAt to the merged modifiedAt", () => {
+    // Canonical was last touched 2024-01-15; sibling was published
+    // 2025-06-01 but has no explicit modifiedAt. The merged record
+    // should keep the canonical's modifiedAt (or none) — a publish
+    // date is not a modification date.
+    const out = dedupAdvisoriesByAlias([
+      {
+        osvId: "GHSA-aaa",
+        aliases: ["CVE-Y"],
+        severityScore: 7.0,
+        publishedAt: "2024-01-01T00:00:00Z",
+        modifiedAt: "2024-01-15T00:00:00Z",
+      },
+      {
+        osvId: "RUSTSEC-2025-Y",
+        aliases: ["CVE-Y"],
+        publishedAt: "2025-06-01T00:00:00Z",
+      },
+    ]);
+    expect(out[0]?.modifiedAt).toBe("2024-01-15T00:00:00Z");
+  });
+
+  it("advances modifiedAt when a sibling has a newer real modifiedAt", () => {
+    const out = dedupAdvisoriesByAlias([
+      {
+        osvId: "GHSA-aaa",
+        aliases: ["CVE-Z"],
+        severityScore: 7.0,
+        publishedAt: "2024-01-01T00:00:00Z",
+        modifiedAt: "2024-01-15T00:00:00Z",
+      },
+      {
+        osvId: "RUSTSEC-2025-Z",
+        aliases: ["CVE-Z"],
+        modifiedAt: "2025-06-15T00:00:00Z",
+      },
+    ]);
+    expect(out[0]?.modifiedAt).toBe("2025-06-15T00:00:00Z");
+  });
+});
+
+describe("buildPackageVulnerabilitiesSuccessPayload — alias-cluster dedup integration", () => {
+  it("recomputes total and bySeverity from deduped list", () => {
+    // Two GHSA/RUSTSEC pairs + one solo advisory. Pre-dedup: 5; after: 3.
+    // Backend `vulnerabilityCount` is intentionally stale (5) so we
+    // verify the builder re-derives total from the deduped output.
+    const fixture = {
+      package: { name: "pkg", registry: "CRATES" as const, version: "0.10.0" },
+      security: {
+        vulnerabilityCount: 5,
+        currentVersionAffected: true,
+        upgradePaths: ["0.10.78"],
+        vulnerabilities: [
+          {
+            osvId: "GHSA-xxx",
+            aliases: ["CVE-A", "RUSTSEC-2018-0010"],
+            severityScore: 9.8,
+            publishedAt: "2021-08-25T00:00:00Z",
+          },
+          {
+            osvId: "RUSTSEC-2018-0010",
+            aliases: ["CVE-A"],
+            publishedAt: "2018-06-01T00:00:00Z",
+          },
+          {
+            osvId: "GHSA-yyy",
+            aliases: ["CVE-B", "RUSTSEC-2024-B"],
+            severityScore: 6.0,
+          },
+          {
+            osvId: "RUSTSEC-2024-B",
+            aliases: ["CVE-B"],
+          },
+          {
+            osvId: "GHSA-solo",
+            // No CVSS — exercises the `unrated` bucket post-dedup.
+          },
+        ],
+      },
+    };
+
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture);
+    expect(payload.summary.total).toBe(3);
+    expect(payload.advisories?.length).toBe(3);
+
+    // Buckets reconcile with deduped total.
+    const buckets = payload.summary.bySeverity ?? {};
+    const sum =
+      (buckets.malware ?? 0) +
+      (buckets.critical ?? 0) +
+      (buckets.high ?? 0) +
+      (buckets.medium ?? 0) +
+      (buckets.low ?? 0) +
+      (buckets.unrated ?? 0);
+    expect(sum).toBe(3);
+    expect(payload.summary.bySeverity).toEqual({
+      critical: 1,
+      medium: 1,
+      unrated: 1,
+    });
+
+    // Canonical preference: GHSA-xxx wins over its RUSTSEC counterpart.
+    const ids = payload.advisories?.map((a) => a.id);
+    expect(ids).toContain("GHSA-xxx");
+    expect(ids).not.toContain("RUSTSEC-2018-0010");
+  });
+
+  it("preserves total when no aliases cluster (express fixture)", () => {
+    // Sanity: the default 6-advisory fixture has no overlapping aliases,
+    // so dedup is a no-op and total/bySeverity match the pre-dedup
+    // expectations from the partition-invariant test.
+    const payload = buildPackageVulnerabilitiesSuccessPayload(
+      defaultVulnerabilityReport,
+    );
+    expect(payload.summary.total).toBe(6);
+    expect(payload.advisories?.length).toBe(6);
   });
 });
 

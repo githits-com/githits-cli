@@ -196,6 +196,34 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("ignored=fileIntent");
   });
 
+  it("renders a warnings preamble when payload-level warnings are populated", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        warnings: [
+          "Source 'docs' for npm:zod@4.3.6: incompatible query features [kind]",
+        ],
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:zod@4.3.6",
+            incompatibleQueryFeatures: ["kind"],
+          },
+        ],
+      }),
+    );
+    expect(text).toContain("warnings:");
+    expect(text).toContain(
+      "  - Source 'docs' for npm:zod@4.3.6: incompatible query features [kind]",
+    );
+    // Source notes block still rendered for structured detail.
+    expect(text).toContain("source notes:");
+  });
+
+  it("omits the warnings preamble when no warnings are present", () => {
+    const text = renderUnifiedSearchSuccess(completed([codeHit()]));
+    expect(text).not.toContain("warnings:");
+  });
+
   it("separates multiple hits with a blank line", () => {
     const text = renderUnifiedSearchSuccess(
       completed([codeHit(), docsHit(), symbolHit()]),
