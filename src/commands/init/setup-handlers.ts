@@ -1,3 +1,8 @@
+import {
+  type ParseError,
+  parse as parseJsonc,
+  printParseErrorCode,
+} from "jsonc-parser";
 import type { ExecService } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
 import type {
@@ -33,6 +38,90 @@ export type MergeResult =
   | { status: "added" | "updated"; content: string }
   | { status: "already_configured" }
   | { status: "parse_error"; error: string };
+
+export type ConfigFormat = "json" | "jsonc" | "invalid";
+
+type ParsedConfigResult =
+  | {
+      format: "json" | "jsonc";
+      value: Record<string, unknown>;
+    }
+  | {
+      format: "invalid";
+      error: string;
+    };
+
+function parseConfigObject(content: string): ParsedConfigResult {
+  let normalizedContent = content;
+  if (normalizedContent.charCodeAt(0) === 0xfeff) {
+    normalizedContent = normalizedContent.slice(1);
+  }
+
+  const trimmed = normalizedContent.trim();
+  if (trimmed === "") {
+    return {
+      format: "json",
+      value: {},
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(normalizedContent);
+    if (!isPlainObject(parsed)) {
+      return {
+        format: "invalid",
+        error: "Config file root is not a JSON object",
+      };
+    }
+    return {
+      format: "json",
+      value: parsed,
+    };
+  } catch (jsonError) {
+    const parseErrors: ParseError[] = [];
+    const parsed = parseJsonc(normalizedContent, parseErrors, {
+      allowTrailingComma: true,
+      disallowComments: false,
+      allowEmptyContent: false,
+    });
+
+    if (parseErrors.length > 0) {
+      const firstParseError = parseErrors[0];
+      const strictErrorMessage =
+        jsonError instanceof Error ? jsonError.message : String(jsonError);
+      const jsoncDetail = firstParseError
+        ? `${printParseErrorCode(firstParseError.error)} at offset ${firstParseError.offset}`
+        : "Unknown parse error";
+      return {
+        format: "invalid",
+        error: `Invalid JSON: ${strictErrorMessage}. JSONC parse error: ${jsoncDetail}`,
+      };
+    }
+
+    if (!isPlainObject(parsed)) {
+      return {
+        format: "invalid",
+        error: "Config file root is not a JSON object",
+      };
+    }
+
+    return {
+      format: "jsonc",
+      value: parsed,
+    };
+  }
+}
+
+/**
+ * Detect whether config content is strict JSON, JSONC, or invalid.
+ *
+ * Used by tests and diagnostics to assert parser behavior independently from
+ * merge/check flows.
+ */
+export function detectConfigFormat(content: string): ConfigFormat {
+  const parsed = parseConfigObject(content);
+  return parsed.format;
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -219,36 +308,14 @@ export function mergeServerConfig(
   serverName: string,
   serverConfig: Record<string, unknown>,
 ): MergeResult {
-  // Strip BOM if present
-  let content = existingContent;
-  if (content.charCodeAt(0) === 0xfeff) {
-    content = content.slice(1);
-  }
-
-  // Handle empty content
-  const trimmed = content.trim();
-  if (trimmed === "") {
-    content = "{}";
-  }
-
-  // Parse existing JSON
-  let config: Record<string, unknown>;
-  try {
-    config = JSON.parse(content);
-  } catch (err) {
+  const parsedConfig = parseConfigObject(existingContent);
+  if (parsedConfig.format === "invalid") {
     return {
       status: "parse_error",
-      error: `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      error: parsedConfig.error,
     };
   }
-
-  // Ensure it's an object
-  if (typeof config !== "object" || config === null || Array.isArray(config)) {
-    return {
-      status: "parse_error",
-      error: "Config file root is not a JSON object",
-    };
-  }
+  const config = parsedConfig.value;
 
   // Get or create the servers section
   if (!(serversKey in config)) {
@@ -319,31 +386,12 @@ export async function isAlreadyConfigured(
   fs: FileSystemService,
 ): Promise<boolean> {
   try {
-    let content: string;
-    try {
-      content = await fs.readFile(config.configPath);
-    } catch {
+    const content = await fs.readFile(config.configPath);
+    const parsedConfig = parseConfigObject(content);
+    if (parsedConfig.format === "invalid") {
       return false;
     }
-
-    // Strip BOM if present
-    if (content.charCodeAt(0) === 0xfeff) {
-      content = content.slice(1);
-    }
-
-    const trimmed = content.trim();
-    if (trimmed === "") {
-      return false;
-    }
-
-    const parsed = JSON.parse(trimmed);
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      Array.isArray(parsed)
-    ) {
-      return false;
-    }
+    const parsed = parsedConfig.value;
 
     const servers = parsed[config.serversKey];
     if (

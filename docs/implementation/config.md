@@ -90,6 +90,14 @@ Commands receive the full `Dependencies` object. Services receive only what they
 - **Custom environment not working** — Make sure both `GITHITS_MCP_URL` and `GITHITS_API_URL` are set. They point to different services.
 - **Tokens from wrong environment** — Tokens are stored per MCP URL. If you switched `GITHITS_MCP_URL`, you need to re-authenticate for the new URL.
 
+### Init config parsing behavior
+
+`githits init` now accepts both strict JSON and JSONC-style config files when reading agent MCP config files (for example files containing comments or trailing commas).
+
+- Parsing flow first attempts strict JSON, then falls back to JSONC parsing.
+- If parsing still fails, setup reports a parse error and leaves the file unchanged.
+- Successful writes are still emitted as canonical JSON with 2-space indentation and a trailing newline.
+
 ## Key Reference Files
 
 | File | What it demonstrates |

@@ -52,7 +52,7 @@ const GITHITS_MCP_INVOCATION = [
 ] as const;
 
 /** How an agent is considered present on the machine. */
-type DetectionMethod = "binary" | "path";
+type DetectionMethod = "binary" | "path" | "hybrid";
 
 /**
  * Represents a coding agent that can be configured with GitHits MCP server.
@@ -66,9 +66,9 @@ export interface AgentDefinition {
   id: string;
   /** Detection contract for the agent. */
   detectionMethod: DetectionMethod;
-  /** Directories to check for path-based detection. */
+  /** Directories to check for path/hybrid detection. */
   detectPaths?: (fs: FileSystemService) => string[];
-  /** Executable detection for binary-based agents. */
+  /** Executable detection for binary/hybrid agents. */
   detectBinary?: (exec: ExecService) => Promise<boolean>;
   /** How this agent is configured */
   setupMethod: "cli" | "config-file";
@@ -95,6 +95,41 @@ function getAppDataPath(fs: FileSystemService, appName: string): string {
     default:
       return fs.joinPath(home, ".config", appName);
   }
+}
+
+/**
+ * Returns platform-specific user data directory root.
+ * macOS: ~/Library/Application Support
+ * Windows: %APPDATA% (or ~/AppData/Roaming fallback)
+ * Linux: $XDG_DATA_HOME (or ~/.local/share fallback)
+ */
+function getUserDataRoot(fs: FileSystemService): string {
+  const home = fs.getHomeDir();
+  switch (process.platform) {
+    case "win32":
+      return process.env.APPDATA ?? fs.joinPath(home, "AppData", "Roaming");
+    case "darwin":
+      return fs.joinPath(home, "Library", "Application Support");
+    default:
+      return process.env.XDG_DATA_HOME ?? fs.joinPath(home, ".local", "share");
+  }
+}
+
+function getOpenCodeConfigDir(fs: FileSystemService): string {
+  if (process.platform === "win32") {
+    return fs.joinPath(getUserDataRoot(fs), "opencode");
+  }
+  return fs.joinPath(fs.getHomeDir(), ".config", "opencode");
+}
+
+function getOpenCodeDesktopDetectPaths(fs: FileSystemService): string[] {
+  const userDataRoot = getUserDataRoot(fs);
+  return [
+    fs.joinPath(userDataRoot, "ai.opencode.desktop"),
+    fs.joinPath(userDataRoot, "ai.opencode.desktop.beta"),
+    fs.joinPath(userDataRoot, "ai.opencode.desktop.dev"),
+    getOpenCodeConfigDir(fs),
+  ];
 }
 
 /**
@@ -364,24 +399,17 @@ const googleAntigravity: AgentDefinition = {
   }),
 };
 
-/** OpenCode: detected by opencode executable, configured via config file */
+/** OpenCode: detected by CLI binary or desktop/config directories, configured via config file */
 const openCode: AgentDefinition = {
   name: "OpenCode",
   id: "opencode",
-  detectionMethod: "binary",
+  detectionMethod: "hybrid",
   setupMethod: "config-file",
+  detectPaths: (fs) => getOpenCodeDesktopDetectPaths(fs),
   detectBinary: async (exec) => isExecutableAvailable(exec, "opencode"),
   getSetupConfig: (fs) => ({
     method: "config-file",
-    configPath:
-      process.platform === "win32"
-        ? fs.joinPath(
-            process.env.APPDATA ??
-              fs.joinPath(fs.getHomeDir(), "AppData", "Roaming"),
-            "opencode",
-            "opencode.json",
-          )
-        : fs.joinPath(fs.getHomeDir(), ".config", "opencode", "opencode.json"),
+    configPath: fs.joinPath(getOpenCodeConfigDir(fs), "opencode.json"),
     serversKey: "mcp",
     serverName: GITHITS_SERVER_NAME,
     serverConfig: {
@@ -411,8 +439,9 @@ export const agentDefinitions: AgentDefinition[] = [
 ];
 
 /**
- * Detect which path-based agents are present by checking if their detection
- * directories exist. Binary-based agents are intentionally ignored here.
+ * Detect agents that expose directory probes (path + hybrid) by checking if
+ * their detection directories exist. Binary checks are intentionally skipped
+ * here and only performed by scanAgents().
  * @deprecated Use scanAgents() instead, which also checks configuration status.
  */
 export async function detectAgents(
@@ -421,7 +450,11 @@ export async function detectAgents(
 ): Promise<string[]> {
   const detected: string[] = [];
   for (const agent of definitions) {
-    if (agent.detectionMethod !== "path" || !agent.detectPaths) {
+    if (
+      (agent.detectionMethod !== "path" &&
+        agent.detectionMethod !== "hybrid") ||
+      !agent.detectPaths
+    ) {
       continue;
     }
     const paths = agent.detectPaths(fs);
@@ -480,6 +513,29 @@ export async function scanAgents(
           break;
         }
       }
+    } else if (agent.detectionMethod === "hybrid") {
+      let binaryDetected = false;
+      let pathDetected = false;
+
+      if (agent.detectBinary) {
+        try {
+          binaryDetected = await agent.detectBinary(execService);
+        } catch {
+          binaryDetected = false;
+        }
+      }
+
+      if (!binaryDetected && agent.detectPaths) {
+        const paths = agent.detectPaths(fs);
+        for (const path of paths) {
+          if (await fs.isDirectory(path)) {
+            pathDetected = true;
+            break;
+          }
+        }
+      }
+
+      detected = binaryDetected || pathDetected;
     }
 
     if (!detected) {

@@ -6,6 +6,7 @@ import {
 import type { CliSetup, ConfigFileSetup } from "./agent-definitions.js";
 import type { CliCheckCommand, MergeResult } from "./setup-handlers.js";
 import {
+  detectConfigFormat,
   executeCliSetup,
   executeConfigFileSetup,
   formatSetupPreview,
@@ -14,6 +15,29 @@ import {
   isCliAlreadyConfigured,
   mergeServerConfig,
 } from "./setup-handlers.js";
+
+describe("detectConfigFormat", () => {
+  it("returns json for strict JSON", () => {
+    expect(detectConfigFormat('{"mcpServers": {}}')).toBe("json");
+  });
+
+  it("returns jsonc for JSONC with comments and trailing commas", () => {
+    const content = `{
+      // comment
+      "mcpServers": {
+        "GitHits": {
+          "command": "npx",
+          "args": ["-y", "githits@latest", "mcp", "start",],
+        },
+      },
+    }`;
+    expect(detectConfigFormat(content)).toBe("jsonc");
+  });
+
+  it("returns invalid for malformed content", () => {
+    expect(detectConfigFormat("{invalid json")).toBe("invalid");
+  });
+});
 
 /** Assert that a MergeResult is "added" and return its content */
 function expectAdded(result: MergeResult): string {
@@ -190,6 +214,22 @@ describe("isAlreadyConfigured", () => {
       readFile: mock(() => Promise.resolve("{invalid json")),
     });
     expect(await isAlreadyConfigured(configSetup, fs)).toBe(false);
+  });
+
+  it("returns true for JSONC config with comments and trailing commas", async () => {
+    const existing = `{
+      // VS Code style config
+      "mcpServers": {
+        "GitHits": {
+          "command": "npx",
+          "args": ["-y", "githits@latest", "mcp", "start",],
+        },
+      },
+    }`;
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+    });
+    expect(await isAlreadyConfigured(configSetup, fs)).toBe(true);
   });
 
   it("returns false when serversKey is missing", async () => {
@@ -657,6 +697,25 @@ describe("mergeServerConfig", () => {
     expect(error).toContain("Invalid JSON");
   });
 
+  it("parses JSONC with comments and trailing commas", () => {
+    const existing = `{
+      // existing MCP servers
+      "mcpServers": {
+        "other": { "command": "other" },
+      },
+    }`;
+    const result = mergeServerConfig(
+      existing,
+      "mcpServers",
+      "GitHits",
+      serverConfig,
+    );
+    const content = expectAdded(result);
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers.other).toEqual({ command: "other" });
+    expect(parsed.mcpServers.GitHits).toEqual(serverConfig);
+  });
+
   it("returns parse_error when root is not an object", () => {
     const result = mergeServerConfig(
       "[1,2,3]",
@@ -1071,7 +1130,8 @@ describe("executeConfigFileSetup", () => {
     const result = await executeConfigFileSetup(configSetup, fs);
     expect(result.status).toBe("success");
     expect(atomicWrite).toHaveBeenCalledTimes(1);
-    const firstCall = atomicWrite.mock.calls[0];
+    const calls = atomicWrite.mock.calls as unknown[][];
+    const firstCall = calls[0];
     expect(firstCall).toBeDefined();
     const writtenContent = firstCall?.[1];
     expect(typeof writtenContent).toBe("string");
@@ -1145,6 +1205,37 @@ describe("executeConfigFileSetup", () => {
     expect(result.status).toBe("failed");
     expect(result.message).toContain("Cannot parse");
     expect(atomicWrite).not.toHaveBeenCalled();
+  });
+
+  it("supports JSONC config in executeConfigFileSetup", async () => {
+    const existing = `{
+      // existing server
+      "mcpServers": {
+        "other": { "command": "other" },
+      },
+    }`;
+    const atomicWrite = mock(() => Promise.resolve());
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+      getDirname: mock(() => "/home/test/.cursor"),
+      ensureDir: mock(() => Promise.resolve()),
+      atomicWriteFile: atomicWrite,
+    });
+
+    const result = await executeConfigFileSetup(configSetup, fs);
+    expect(result.status).toBe("success");
+    expect(atomicWrite).toHaveBeenCalledTimes(1);
+    const calls = atomicWrite.mock.calls as unknown[][];
+    const firstCall = calls[0];
+    expect(firstCall).toBeDefined();
+    const writtenContent = firstCall?.[1];
+    expect(typeof writtenContent).toBe("string");
+    if (typeof writtenContent !== "string") {
+      throw new Error("Expected written config content");
+    }
+    const parsed = JSON.parse(writtenContent);
+    expect(parsed.mcpServers.other).toEqual({ command: "other" });
+    expect(parsed.mcpServers.GitHits).toEqual(configSetup.serverConfig);
   });
 
   it("ensures parent directory exists before writing", async () => {

@@ -86,10 +86,105 @@ describe("detection configuration", () => {
     expect(paths).toEqual(["/home/test/.gemini/antigravity"]);
   });
 
-  it("opencode uses binary detection only", () => {
+  it("opencode uses hybrid detection", () => {
     const agent = agentDefinitions.find((a) => a.id === "opencode")!;
     expect(agent.detectBinary).toBeDefined();
-    expect(agent.detectPaths).toBeUndefined();
+    expect(agent.detectPaths).toBeDefined();
+  });
+
+  it("opencode includes desktop and config detection paths on linux", () => {
+    const originalPlatform = process.platform;
+    const originalXdgDataHome = process.env.XDG_DATA_HOME;
+    Object.defineProperty(process, "platform", {
+      value: "linux",
+      configurable: true,
+    });
+    process.env.XDG_DATA_HOME = "/home/test/.local/share";
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+      const paths = agent.detectPaths?.(fs);
+      expect(paths).toEqual([
+        "/home/test/.local/share/ai.opencode.desktop",
+        "/home/test/.local/share/ai.opencode.desktop.beta",
+        "/home/test/.local/share/ai.opencode.desktop.dev",
+        "/home/test/.config/opencode",
+      ]);
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+      if (originalXdgDataHome !== undefined) {
+        process.env.XDG_DATA_HOME = originalXdgDataHome;
+      } else {
+        delete process.env.XDG_DATA_HOME;
+      }
+    }
+  });
+
+  it("opencode includes desktop and config detection paths on darwin", () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", {
+      value: "darwin",
+      configurable: true,
+    });
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+      const paths = agent.detectPaths?.(fs);
+      expect(paths).toEqual([
+        "/home/test/Library/Application Support/ai.opencode.desktop",
+        "/home/test/Library/Application Support/ai.opencode.desktop.beta",
+        "/home/test/Library/Application Support/ai.opencode.desktop.dev",
+        "/home/test/.config/opencode",
+      ]);
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+    }
+  });
+
+  it("opencode includes desktop and config detection paths on win32", () => {
+    const originalPlatform = process.platform;
+    const originalAppdata = process.env.APPDATA;
+    Object.defineProperty(process, "platform", {
+      value: "win32",
+      configurable: true,
+    });
+    process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "C:\\Users\\test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+      const paths = agent.detectPaths?.(fs);
+      expect(paths).toEqual([
+        "C:\\Users\\test\\AppData\\Roaming/ai.opencode.desktop",
+        "C:\\Users\\test\\AppData\\Roaming/ai.opencode.desktop.beta",
+        "C:\\Users\\test\\AppData\\Roaming/ai.opencode.desktop.dev",
+        "C:\\Users\\test\\AppData\\Roaming/opencode",
+      ]);
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+      if (originalAppdata !== undefined) {
+        process.env.APPDATA = originalAppdata;
+      } else {
+        delete process.env.APPDATA;
+      }
+    }
   });
 
   it("claude-desktop checks multiple Windows paths on win32", () => {
@@ -311,14 +406,16 @@ describe("detection configuration", () => {
     expect(await agent.detectBinary!(exec)).toBe(false);
   });
 
-  it("path-detected agents use FileSystemService.getHomeDir (not hardcoded)", () => {
+  it("path/hybrid-detected agents use FileSystemService.getHomeDir (not hardcoded)", () => {
     const originalPlatform = process.platform;
     const originalAppdata = process.env.APPDATA;
+    const originalXdgDataHome = process.env.XDG_DATA_HOME;
     Object.defineProperty(process, "platform", {
       value: "linux",
       configurable: true,
     });
     delete process.env.APPDATA;
+    delete process.env.XDG_DATA_HOME;
     try {
       const fs = createMockFileSystemService({
         getHomeDir: mock(() => "/custom/home"),
@@ -342,6 +439,11 @@ describe("detection configuration", () => {
         process.env.APPDATA = originalAppdata;
       } else {
         delete process.env.APPDATA;
+      }
+      if (originalXdgDataHome !== undefined) {
+        process.env.XDG_DATA_HOME = originalXdgDataHome;
+      } else {
+        delete process.env.XDG_DATA_HOME;
       }
     }
   });
@@ -769,12 +871,12 @@ describe("detectAgents", () => {
       isDirectory: mock(() => Promise.resolve(true)),
     });
     const detected = await detectAgents(agentDefinitions, fs);
-    // detectAgents (deprecated) only checks path-based agents
-    expect(detected).toHaveLength(6);
+    // detectAgents (deprecated) checks path and hybrid agents
+    expect(detected).toHaveLength(7);
     expect(detected).not.toContain("claude-code");
     expect(detected).not.toContain("codex-cli");
     expect(detected).not.toContain("gemini-cli");
-    expect(detected).not.toContain("opencode");
+    expect(detected).toContain("opencode");
   });
 });
 
@@ -978,7 +1080,7 @@ describe("scanAgents", () => {
     expect(result.notDetected.some((a) => a.id === "codex-cli")).toBe(false);
   });
 
-  it("does not detect opencode from config directory when binary is missing", async () => {
+  it("detects opencode from config directory when binary is missing", async () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", {
       value: "linux",
@@ -994,13 +1096,92 @@ describe("scanAgents", () => {
         },
       });
       const result = await scanAgents(agentDefinitions, fs, execService);
-      expect(result.notDetected.some((a) => a.id === "opencode")).toBe(true);
-      expect(result.needsSetup.some((a) => a.id === "opencode")).toBe(false);
+      expect(result.notDetected.some((a) => a.id === "opencode")).toBe(false);
+      expect(result.needsSetup.some((a) => a.id === "opencode")).toBe(true);
     } finally {
       Object.defineProperty(process, "platform", {
         value: originalPlatform,
         configurable: true,
       });
+    }
+  });
+
+  it("detects opencode from desktop app data directory when binary is missing", async () => {
+    const originalPlatform = process.platform;
+    const originalXdgDataHome = process.env.XDG_DATA_HOME;
+    Object.defineProperty(process, "platform", {
+      value: "linux",
+      configurable: true,
+    });
+    process.env.XDG_DATA_HOME = "/home/test/.local/share";
+    try {
+      const { fs, execService } = createScanMocks({
+        detectedDirs: ["/home/test/.local/share/ai.opencode.desktop"],
+      });
+      const result = await scanAgents(agentDefinitions, fs, execService);
+      expect(result.notDetected.some((a) => a.id === "opencode")).toBe(false);
+      expect(result.needsSetup.some((a) => a.id === "opencode")).toBe(true);
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+      if (originalXdgDataHome !== undefined) {
+        process.env.XDG_DATA_HOME = originalXdgDataHome;
+      } else {
+        delete process.env.XDG_DATA_HOME;
+      }
+    }
+  });
+
+  it("detects opencode from desktop app data directory on darwin when binary is missing", async () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", {
+      value: "darwin",
+      configurable: true,
+    });
+    try {
+      const { fs, execService } = createScanMocks({
+        detectedDirs: [
+          "/home/test/Library/Application Support/ai.opencode.desktop",
+        ],
+      });
+      const result = await scanAgents(agentDefinitions, fs, execService);
+      expect(result.notDetected.some((a) => a.id === "opencode")).toBe(false);
+      expect(result.needsSetup.some((a) => a.id === "opencode")).toBe(true);
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+    }
+  });
+
+  it("detects opencode from desktop app data directory on win32 when binary is missing", async () => {
+    const originalPlatform = process.platform;
+    const originalAppdata = process.env.APPDATA;
+    Object.defineProperty(process, "platform", {
+      value: "win32",
+      configurable: true,
+    });
+    process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
+    try {
+      const { fs, execService } = createScanMocks({
+        detectedDirs: ["C:\\Users\\test\\AppData\\Roaming/ai.opencode.desktop"],
+      });
+      const result = await scanAgents(agentDefinitions, fs, execService);
+      expect(result.notDetected.some((a) => a.id === "opencode")).toBe(false);
+      expect(result.needsSetup.some((a) => a.id === "opencode")).toBe(true);
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+      if (originalAppdata !== undefined) {
+        process.env.APPDATA = originalAppdata;
+      } else {
+        delete process.env.APPDATA;
+      }
     }
   });
 
