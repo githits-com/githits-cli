@@ -52,7 +52,7 @@ Package/source access uses the package/source service URL from `GITHITS_CODE_NAV
 
 ## Local Storage
 
-All configuration lives in `~/.githits/`:
+Authentication state lives in `~/.githits/`:
 
 ```
 ~/.githits/           (0700)
@@ -61,6 +61,17 @@ All configuration lives in `~/.githits/`:
 ```
 
 The secure file permissions prevent other users from reading tokens. When writing new files to `~/.githits/`, use `FileSystemService` rather than `node:fs` directly — this enables testing via mock implementations from `src/services/test-helpers.ts`.
+
+Non-secret update-check state uses the XDG config location:
+
+```
+~/.config/githits/update-check.json
+```
+
+If `XDG_CONFIG_HOME` is set, the update-check cache lives under
+`$XDG_CONFIG_HOME/githits/update-check.json`. See
+`docs/implementation/update-check.md` for the update-check cache contract and
+eligibility rules.
 
 ## How Config Flows Through the System
 
@@ -99,5 +110,6 @@ Commands receive the full `Dependencies` object. Services receive only what they
 | `src/container.ts` | Auth priority logic and dependency wiring |
 | `src/services/auth-storage.ts` | File-based token storage with secure permissions |
 | `src/services/filesystem-service.ts` | File system abstraction for testable storage |
+| `src/services/update-check-service.ts` | Non-secret update-check cache and npm latest lookup |
 | `src/commands/auth-status.ts` | Diagnosing current auth state (reached via `githits auth status`) |
 | `src/commands/mcp.ts` | MCP tool registration and deferred-auth startup behavior |

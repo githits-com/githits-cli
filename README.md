@@ -181,6 +181,7 @@ githits code ...       Dependency source inspection: search, files, read, grep
 | `GITHITS_API_URL` | Override REST API URL | `https://api.githits.com` |
 | `GITHITS_CODE_NAV_URL` | Override package/source service URL | `https://pkgseer.dev` |
 | `GITHITS_TELEMETRY` | Emit end-of-run timing spans to stderr for local profiling | — |
+| `GITHITS_DISABLE_UPDATE_CHECK` | Disable npm latest-version update notices | — |
 
 ## Manual Setup
 
