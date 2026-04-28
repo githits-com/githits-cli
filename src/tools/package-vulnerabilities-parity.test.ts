@@ -99,7 +99,9 @@ function zeroVulnsReport(): VulnerabilityReport {
   return {
     package: { name: "clean", registry: "NPM", version: "1.0.0" },
     security: {
-      vulnerabilityCount: 0,
+      affectedVulnerabilityCount: 0,
+      nonAffectingVulnerabilityCount: 0,
+      allVulnerabilityCount: 0,
       currentVersionAffected: false,
       upgradePaths: [],
       vulnerabilities: [],
@@ -154,7 +156,9 @@ describe("package_vulnerabilities parity", () => {
     const filteredReport: VulnerabilityReport = {
       package: { name: "express", registry: "NPM", version: "4.18.0" },
       security: {
-        vulnerabilityCount: 2,
+        affectedVulnerabilityCount: 2,
+        nonAffectingVulnerabilityCount: 0,
+        allVulnerabilityCount: 2,
         currentVersionAffected: true,
         upgradePaths: ["4.18.2"],
         vulnerabilities: [critAdvisory, highAdvisory],
@@ -205,7 +209,9 @@ describe("package_vulnerabilities parity", () => {
     const resolvedReport: VulnerabilityReport = {
       package: { name: "express", registry: "NPM", version: "4.17.2" },
       security: {
-        vulnerabilityCount: 0,
+        affectedVulnerabilityCount: 0,
+        nonAffectingVulnerabilityCount: 0,
+        allVulnerabilityCount: 0,
         currentVersionAffected: false,
         upgradePaths: [],
         vulnerabilities: [],

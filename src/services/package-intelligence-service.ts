@@ -112,16 +112,23 @@ export interface VulnerabilityDetail {
   severityScore?: number;
   severityType?: string;
   affectedVersionRanges?: string[];
+  affectedVersionRangesCount?: number;
+  affectedVersionRangesTruncated?: boolean;
   fixedInVersions?: string[];
   publishedAt?: string;
   modifiedAt?: string;
   withdrawnAt?: string;
   aliases?: string[];
   isMalicious?: boolean;
+  affectsInspectedVersion?: boolean;
+  matchedAffectedVersionRanges?: string[];
+  duplicateIds?: string[];
 }
 
 export interface VulnerabilitySecurityDetails {
-  vulnerabilityCount?: number;
+  affectedVulnerabilityCount: number;
+  nonAffectingVulnerabilityCount: number;
+  allVulnerabilityCount: number;
   currentVersionAffected?: boolean;
   vulnerabilities?: VulnerabilityDetail[];
   upgradePaths?: string[];
@@ -700,19 +707,37 @@ const vulnerabilityDetailSchema = z.object({
   severityScore: z.number().nullable().optional(),
   severityType: z.string().nullable().optional(),
   affectedVersionRanges: z.array(z.string()).nullable().optional(),
+  affectedVersionRangesCount: z.number().int(),
+  affectedVersionRangesTruncated: z.boolean(),
   fixedInVersions: z.array(z.string()).nullable().optional(),
   publishedAt: z.string().nullable().optional(),
   modifiedAt: z.string().nullable().optional(),
   withdrawnAt: z.string().nullable().optional(),
   aliases: z.array(z.string()).nullable().optional(),
   isMalicious: z.boolean().nullable().optional(),
+  affectsInspectedVersion: z.boolean(),
+  matchedAffectedVersionRanges: z.array(z.string()),
+  duplicateIds: z.array(z.string()),
+});
+
+const pageInfoSchema = z.object({
+  hasNextPage: z.boolean(),
+  endCursor: z.string().nullable().optional(),
+  totalCount: z.number().int(),
+});
+
+const vulnerabilityAdvisoryPageSchema = z.object({
+  entries: z.array(vulnerabilityDetailSchema),
+  pageInfo: pageInfoSchema,
 });
 
 const vulnerabilitySecurityDetailsSchema = z
   .object({
-    vulnerabilityCount: z.number().int().nullable().optional(),
+    affectedVulnerabilityCount: z.number().int(),
+    nonAffectingVulnerabilityCount: z.number().int(),
+    allVulnerabilityCount: z.number().int(),
     currentVersionAffected: z.boolean().nullable().optional(),
-    vulnerabilities: z.array(vulnerabilityDetailSchema).nullable().optional(),
+    advisories: vulnerabilityAdvisoryPageSchema,
     upgradePaths: z.array(z.string()).nullable().optional(),
   })
   .nullable()
@@ -742,6 +767,7 @@ query PackageVulnerabilities(
   $version: String
   $minSeverity: Float
   $includeWithdrawn: Boolean
+  $after: String
 ) {
   packageVulnerabilities(
     registry: $registry
@@ -756,21 +782,35 @@ query PackageVulnerabilities(
       version
     }
     security {
-      vulnerabilityCount
+      affectedVulnerabilityCount
+      nonAffectingVulnerabilityCount
+      allVulnerabilityCount
       currentVersionAffected
       upgradePaths
-      vulnerabilities {
-        osvId
-        summary
-        severityScore
-        severityType
-        affectedVersionRanges
-        fixedInVersions
-        publishedAt
-        modifiedAt
-        withdrawnAt
-        aliases
-        isMalicious
+      advisories(scope: AFFECTED, first: 100, after: $after) {
+        entries {
+          osvId
+          summary
+          severityScore
+          severityType
+          affectedVersionRanges
+          affectedVersionRangesCount
+          affectedVersionRangesTruncated
+          fixedInVersions
+          publishedAt
+          modifiedAt
+          withdrawnAt
+          aliases
+          isMalicious
+          affectsInspectedVersion
+          matchedAffectedVersionRanges
+          duplicateIds
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+          totalCount
+        }
       }
     }
   }
@@ -1510,6 +1550,83 @@ export class PackageIntelligenceServiceImpl
     token: string,
     params: PackageVulnerabilitiesParams,
   ): Promise<VulnerabilityReport> {
+    let after: string | null = null;
+    let firstPage:
+      | z.infer<typeof vulnerabilityReportResponseSchema>
+      | undefined;
+    const entries: z.infer<typeof vulnerabilityDetailSchema>[] = [];
+    const seenCursors = new Set<string>();
+
+    do {
+      const page = await this.fetchPackageVulnerabilitiesPage(
+        token,
+        params,
+        after,
+      );
+      if (!firstPage) firstPage = page;
+
+      const advisoryPage = page.security?.advisories;
+      if (!advisoryPage) {
+        after = null;
+        break;
+      }
+
+      entries.push(...advisoryPage.entries);
+      if (advisoryPage.pageInfo.hasNextPage) {
+        const nextCursor = advisoryPage.pageInfo.endCursor;
+        if (!nextCursor) {
+          throw new MalformedPackageIntelligenceResponseError(
+            "Vulnerability response pagination omitted next cursor.",
+          );
+        }
+        if (seenCursors.has(nextCursor)) {
+          throw new MalformedPackageIntelligenceResponseError(
+            "Vulnerability response pagination repeated a cursor.",
+          );
+        }
+        seenCursors.add(nextCursor);
+        after = nextCursor;
+      } else {
+        after = null;
+      }
+    } while (after !== null);
+
+    if (!firstPage) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Empty response from the package-intelligence service.",
+      );
+    }
+
+    if (firstPage.security) {
+      const expectedCount = firstPage.security.advisories.pageInfo.totalCount;
+      if (entries.length !== expectedCount) {
+        throw new MalformedPackageIntelligenceResponseError(
+          "Vulnerability response pagination returned an incomplete advisory set.",
+        );
+      }
+    }
+
+    const data = firstPage.security
+      ? {
+          ...firstPage,
+          security: {
+            ...firstPage.security,
+            advisories: {
+              ...firstPage.security.advisories,
+              entries,
+            },
+          },
+        }
+      : firstPage;
+
+    return this.normaliseVulnerabilityReport(data);
+  }
+
+  private async fetchPackageVulnerabilitiesPage(
+    token: string,
+    params: PackageVulnerabilitiesParams,
+    after: string | null,
+  ): Promise<z.infer<typeof vulnerabilityReportResponseSchema>> {
     let response: PkgseerGraphqlResponse;
     try {
       response = await postPkgseerGraphql({
@@ -1522,6 +1639,7 @@ export class PackageIntelligenceServiceImpl
           version: params.version,
           minSeverity: params.minSeverity,
           includeWithdrawn: params.includeWithdrawn,
+          after,
         },
         fetchFn: this.fetchFn,
       });
@@ -1562,7 +1680,7 @@ export class PackageIntelligenceServiceImpl
       );
     }
 
-    return this.normaliseVulnerabilityReport(data);
+    return data;
   }
 
   private normaliseVulnerabilityReport(
@@ -1584,23 +1702,30 @@ export class PackageIntelligenceServiceImpl
 
     const security: VulnerabilitySecurityDetails | undefined = data.security
       ? {
-          vulnerabilityCount: data.security.vulnerabilityCount ?? undefined,
+          affectedVulnerabilityCount: data.security.affectedVulnerabilityCount,
+          nonAffectingVulnerabilityCount:
+            data.security.nonAffectingVulnerabilityCount,
+          allVulnerabilityCount: data.security.allVulnerabilityCount,
           currentVersionAffected:
             data.security.currentVersionAffected ?? undefined,
-          vulnerabilities:
-            data.security.vulnerabilities?.map((vuln) => ({
-              osvId: vuln.osvId ?? undefined,
-              summary: vuln.summary ?? undefined,
-              severityScore: vuln.severityScore ?? undefined,
-              severityType: vuln.severityType ?? undefined,
-              affectedVersionRanges: vuln.affectedVersionRanges ?? undefined,
-              fixedInVersions: vuln.fixedInVersions ?? undefined,
-              publishedAt: vuln.publishedAt ?? undefined,
-              modifiedAt: vuln.modifiedAt ?? undefined,
-              withdrawnAt: vuln.withdrawnAt ?? undefined,
-              aliases: vuln.aliases ?? undefined,
-              isMalicious: vuln.isMalicious ?? undefined,
-            })) ?? undefined,
+          vulnerabilities: data.security.advisories.entries.map((vuln) => ({
+            osvId: vuln.osvId ?? undefined,
+            summary: vuln.summary ?? undefined,
+            severityScore: vuln.severityScore ?? undefined,
+            severityType: vuln.severityType ?? undefined,
+            affectedVersionRanges: vuln.affectedVersionRanges ?? undefined,
+            affectedVersionRangesCount: vuln.affectedVersionRangesCount,
+            affectedVersionRangesTruncated: vuln.affectedVersionRangesTruncated,
+            fixedInVersions: vuln.fixedInVersions ?? undefined,
+            publishedAt: vuln.publishedAt ?? undefined,
+            modifiedAt: vuln.modifiedAt ?? undefined,
+            withdrawnAt: vuln.withdrawnAt ?? undefined,
+            aliases: vuln.aliases ?? undefined,
+            isMalicious: vuln.isMalicious ?? undefined,
+            affectsInspectedVersion: vuln.affectsInspectedVersion,
+            matchedAffectedVersionRanges: vuln.matchedAffectedVersionRanges,
+            duplicateIds: vuln.duplicateIds,
+          })),
           upgradePaths: data.security.upgradePaths ?? undefined,
         }
       : undefined;

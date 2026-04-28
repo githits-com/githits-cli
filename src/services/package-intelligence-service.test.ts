@@ -512,37 +512,52 @@ const VULNS_HAPPY_BODY = {
     packageVulnerabilities: {
       package: { name: "express", registry: "NPM", version: "4.18.0" },
       security: {
-        vulnerabilityCount: 2,
+        affectedVulnerabilityCount: 2,
+        nonAffectingVulnerabilityCount: 3,
+        allVulnerabilityCount: 5,
         currentVersionAffected: true,
         upgradePaths: ["4.18.2"],
-        vulnerabilities: [
-          {
-            osvId: "GHSA-xxxx-xxxx-xxxx",
-            summary: "Open redirect",
-            severityScore: 7.5,
-            severityType: "CVSS_V3",
-            affectedVersionRanges: [">= 4.0.0, < 4.18.2"],
-            fixedInVersions: ["4.18.2"],
-            publishedAt: "2024-06-01T00:00:00Z",
-            modifiedAt: null,
-            withdrawnAt: null,
-            aliases: ["CVE-2024-1234"],
-            isMalicious: false,
-          },
-          {
-            osvId: "GHSA-mmmm-mmmm-mmmm",
-            summary: "Malicious impersonator",
-            severityScore: null,
-            severityType: null,
-            affectedVersionRanges: [">= 4.17.0, < 4.18.1"],
-            fixedInVersions: [],
-            publishedAt: "2024-07-10T00:00:00Z",
-            modifiedAt: null,
-            withdrawnAt: null,
-            aliases: [],
-            isMalicious: true,
-          },
-        ],
+        advisories: {
+          entries: [
+            {
+              osvId: "GHSA-xxxx-xxxx-xxxx",
+              summary: "Open redirect",
+              severityScore: 7.5,
+              severityType: "CVSS_V3",
+              affectedVersionRanges: [">= 4.0.0, < 4.18.2"],
+              affectedVersionRangesCount: 1,
+              affectedVersionRangesTruncated: false,
+              fixedInVersions: ["4.18.2"],
+              publishedAt: "2024-06-01T00:00:00Z",
+              modifiedAt: null,
+              withdrawnAt: null,
+              aliases: ["CVE-2024-1234"],
+              isMalicious: false,
+              affectsInspectedVersion: true,
+              matchedAffectedVersionRanges: [">= 4.0.0, < 4.18.2"],
+              duplicateIds: [],
+            },
+            {
+              osvId: "GHSA-mmmm-mmmm-mmmm",
+              summary: "Malicious impersonator",
+              severityScore: null,
+              severityType: null,
+              affectedVersionRanges: [">= 4.17.0, < 4.18.1"],
+              affectedVersionRangesCount: 1,
+              affectedVersionRangesTruncated: false,
+              fixedInVersions: [],
+              publishedAt: "2024-07-10T00:00:00Z",
+              modifiedAt: null,
+              withdrawnAt: null,
+              aliases: [],
+              isMalicious: true,
+              affectsInspectedVersion: true,
+              matchedAffectedVersionRanges: [">= 4.17.0, < 4.18.1"],
+              duplicateIds: [],
+            },
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null, totalCount: 2 },
+        },
       },
     },
   },
@@ -575,12 +590,20 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
 
     expect(result.package.name).toBe("express");
     expect(result.package.version).toBe("4.18.0");
-    expect(result.security?.vulnerabilityCount).toBe(2);
+    expect(result.security?.affectedVulnerabilityCount).toBe(2);
+    expect(result.security?.nonAffectingVulnerabilityCount).toBe(3);
+    expect(result.security?.allVulnerabilityCount).toBe(5);
     expect(result.security?.upgradePaths).toEqual(["4.18.2"]);
     expect(result.security?.vulnerabilities?.[0]?.osvId).toBe(
       "GHSA-xxxx-xxxx-xxxx",
     );
     expect(result.security?.vulnerabilities?.[1]?.isMalicious).toBe(true);
+    expect(result.security?.vulnerabilities?.[0]?.affectsInspectedVersion).toBe(
+      true,
+    );
+    expect(
+      result.security?.vulnerabilities?.[0]?.matchedAffectedVersionRanges,
+    ).toEqual([">= 4.0.0, < 4.18.2"]);
   });
 
   it("sends packageVulnerabilities query with wire variables", async () => {
@@ -608,12 +631,15 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     expect(parsed.query).toContain(
       "packageVulnerabilities(\n    registry: $registry",
     );
+    expect(parsed.query).toContain("advisories(scope: AFFECTED");
+    expect(parsed.query).not.toContain("vulnerabilityCount");
     expect(parsed.variables).toEqual({
       registry: "NPM",
       name: "express",
       version: "4.18.0",
       minSeverity: 7.0,
       includeWithdrawn: true,
+      after: null,
     });
   });
 
@@ -671,10 +697,15 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
         packageVulnerabilities: {
           package: { name: "express", registry: "NPM", version: "4.18.2" },
           security: {
-            vulnerabilityCount: 0,
+            affectedVulnerabilityCount: 0,
+            nonAffectingVulnerabilityCount: 2,
+            allVulnerabilityCount: 2,
             currentVersionAffected: false,
             upgradePaths: [],
-            vulnerabilities: [],
+            advisories: {
+              entries: [],
+              pageInfo: { hasNextPage: false, endCursor: null, totalCount: 0 },
+            },
           },
         },
       },
@@ -691,8 +722,132 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       packageName: "express",
     });
 
-    expect(result.security?.vulnerabilityCount).toBe(0);
+    expect(result.security?.affectedVulnerabilityCount).toBe(0);
+    expect(result.security?.nonAffectingVulnerabilityCount).toBe(2);
+    expect(result.security?.allVulnerabilityCount).toBe(2);
     expect(result.security?.vulnerabilities).toEqual([]);
+  });
+
+  it("fetches all affected advisory pages", async () => {
+    const firstPage = structuredClone(VULNS_HAPPY_BODY);
+    if (!firstPage.data.packageVulnerabilities.security) {
+      throw new Error("fixture missing security block");
+    }
+    const firstPageInfo = firstPage.data.packageVulnerabilities.security
+      .advisories.pageInfo as {
+      hasNextPage: boolean;
+      endCursor: string | null;
+      totalCount: number;
+    };
+    firstPageInfo.hasNextPage = true;
+    firstPageInfo.endCursor = "cursor-1";
+    firstPageInfo.totalCount = 3;
+    const secondPage = structuredClone(VULNS_HAPPY_BODY);
+    if (!secondPage.data.packageVulnerabilities.security) {
+      throw new Error("fixture missing security block");
+    }
+    secondPage.data.packageVulnerabilities.security.advisories.entries = [
+      {
+        osvId: "GHSA-last-last-last",
+        summary: "Last page advisory",
+        severityScore: 4.1,
+        severityType: "CVSS_V3",
+        affectedVersionRanges: [">= 4.0.0, < 4.17.0"],
+        affectedVersionRangesCount: 1,
+        affectedVersionRangesTruncated: false,
+        fixedInVersions: ["4.17.0"],
+        publishedAt: "2023-01-01T00:00:00Z",
+        modifiedAt: null,
+        withdrawnAt: null,
+        aliases: [],
+        isMalicious: false,
+        affectsInspectedVersion: true,
+        matchedAffectedVersionRanges: [">= 4.0.0, < 4.17.0"],
+        duplicateIds: [],
+      },
+    ];
+    secondPage.data.packageVulnerabilities.security.advisories.pageInfo = {
+      hasNextPage: false,
+      endCursor: null,
+      totalCount: 3,
+    };
+
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      const parsed = JSON.parse((init?.body as string | undefined) ?? "{}");
+      if (parsed.variables.after === "cursor-1") {
+        return Promise.resolve(jsonResponse(secondPage));
+      }
+      return Promise.resolve(jsonResponse(firstPage));
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+    });
+
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(result.security?.vulnerabilities?.map((vuln) => vuln.osvId)).toEqual(
+      ["GHSA-xxxx-xxxx-xxxx", "GHSA-mmmm-mmmm-mmmm", "GHSA-last-last-last"],
+    );
+  });
+
+  it("rejects incomplete advisory pagination", async () => {
+    const body = structuredClone(VULNS_HAPPY_BODY);
+    if (!body.data.packageVulnerabilities.security) {
+      throw new Error("fixture missing security block");
+    }
+    body.data.packageVulnerabilities.security.advisories.pageInfo = {
+      hasNextPage: false,
+      endCursor: null,
+      totalCount: 3,
+    };
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(body)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "express",
+      }),
+    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+  });
+
+  it("rejects repeated advisory pagination cursors", async () => {
+    const body = structuredClone(VULNS_HAPPY_BODY);
+    if (!body.data.packageVulnerabilities.security) {
+      throw new Error("fixture missing security block");
+    }
+    const pageInfo = body.data.packageVulnerabilities.security.advisories
+      .pageInfo as {
+      hasNextPage: boolean;
+      endCursor: string | null;
+      totalCount: number;
+    };
+    pageInfo.hasNextPage = true;
+    pageInfo.endCursor = "cursor-1";
+    pageInfo.totalCount = 3;
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(body)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "express",
+      }),
+    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
 
   it("classifies GraphQL VERSION_NOT_FOUND as typed error with structured details", async () => {
@@ -1042,35 +1197,52 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
         packageVulnerabilities: {
           package: { name: "shady", registry: "NPM", version: "1.0.0" },
           security: {
-            vulnerabilityCount: 2,
+            affectedVulnerabilityCount: 2,
+            nonAffectingVulnerabilityCount: 0,
+            allVulnerabilityCount: 2,
             currentVersionAffected: true,
             upgradePaths: [],
-            vulnerabilities: [
-              {
-                osvId: "GHSA-mal",
-                summary: "Malicious",
-                severityScore: null,
-                affectedVersionRanges: [">= 1.0.0"],
-                fixedInVersions: [],
-                publishedAt: "2024-01-01T00:00:00Z",
-                modifiedAt: null,
-                withdrawnAt: null,
-                aliases: [],
-                isMalicious: true,
-              },
-              {
-                osvId: "GHSA-wit",
-                summary: "Retracted advisory",
-                severityScore: 6.5,
-                affectedVersionRanges: [">= 1.0.0"],
-                fixedInVersions: ["1.0.1"],
-                publishedAt: "2023-12-01T00:00:00Z",
-                modifiedAt: null,
-                withdrawnAt: "2024-02-01T00:00:00Z",
-                aliases: [],
-                isMalicious: false,
-              },
-            ],
+            advisories: {
+              entries: [
+                {
+                  osvId: "GHSA-mal",
+                  summary: "Malicious",
+                  severityScore: null,
+                  severityType: null,
+                  affectedVersionRanges: [">= 1.0.0"],
+                  affectedVersionRangesCount: 1,
+                  affectedVersionRangesTruncated: false,
+                  fixedInVersions: [],
+                  publishedAt: "2024-01-01T00:00:00Z",
+                  modifiedAt: null,
+                  withdrawnAt: null,
+                  aliases: [],
+                  isMalicious: true,
+                  affectsInspectedVersion: true,
+                  matchedAffectedVersionRanges: [">= 1.0.0"],
+                  duplicateIds: [],
+                },
+                {
+                  osvId: "GHSA-wit",
+                  summary: "Retracted advisory",
+                  severityScore: 6.5,
+                  severityType: null,
+                  affectedVersionRanges: [">= 1.0.0"],
+                  affectedVersionRangesCount: 1,
+                  affectedVersionRangesTruncated: false,
+                  fixedInVersions: ["1.0.1"],
+                  publishedAt: "2023-12-01T00:00:00Z",
+                  modifiedAt: null,
+                  withdrawnAt: "2024-02-01T00:00:00Z",
+                  aliases: [],
+                  isMalicious: false,
+                  affectsInspectedVersion: true,
+                  matchedAffectedVersionRanges: [">= 1.0.0"],
+                  duplicateIds: [],
+                },
+              ],
+              pageInfo: { hasNextPage: false, endCursor: null, totalCount: 2 },
+            },
           },
         },
       },

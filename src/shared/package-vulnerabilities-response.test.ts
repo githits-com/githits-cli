@@ -18,7 +18,9 @@ function zeroVulnsFixture(): VulnerabilityReport {
   return {
     package: { name: "clean", registry: "NPM", version: "1.0.0" },
     security: {
-      vulnerabilityCount: 0,
+      affectedVulnerabilityCount: 0,
+      nonAffectingVulnerabilityCount: 0,
+      allVulnerabilityCount: 0,
       currentVersionAffected: false,
       upgradePaths: [],
       vulnerabilities: [],
@@ -59,7 +61,8 @@ describe("computeBySeverity — partitioning buckets", () => {
       unrated: 1,
     });
     // Every advisory lands in exactly one bucket — the sum equals total.
-    const total = defaultVulnerabilityReport.security?.vulnerabilityCount ?? 0;
+    const total =
+      defaultVulnerabilityReport.security?.affectedVulnerabilityCount ?? 0;
     const bucketSum =
       histogram.malware +
       histogram.critical +
@@ -102,6 +105,9 @@ describe("buildPackageVulnerabilitiesSuccessPayload — happy path", () => {
     expect(payload.name).toBe("express");
     expect(payload.version).toBe("4.18.0");
     expect(payload.summary.total).toBe(6);
+    expect(payload.summary.affectedVulnerabilityCount).toBe(6);
+    expect(payload.summary.nonAffectingVulnerabilityCount).toBe(0);
+    expect(payload.summary.allVulnerabilityCount).toBe(6);
     expect(payload.summary.affected).toBe(true);
     expect(payload.summary.bySeverity).toEqual({
       malware: 1,
@@ -112,6 +118,10 @@ describe("buildPackageVulnerabilitiesSuccessPayload — happy path", () => {
       unrated: 1,
     });
     expect(payload.advisories?.length).toBe(6);
+    expect(payload.advisories?.[0]?.affectsInspectedVersion).toBe(true);
+    expect(payload.advisories?.[0]?.matchedAffectedVersionRanges).toEqual([
+      ">= 4.17.0, < 4.18.1",
+    ]);
     expect(payload.upgradePaths).toEqual(["4.18.2"]);
   });
 
@@ -144,9 +154,28 @@ describe("buildPackageVulnerabilitiesSuccessPayload — omission rules", () => {
     const payload = buildPackageVulnerabilitiesSuccessPayload(
       zeroVulnsFixture(),
     );
-    expect(payload.summary).toEqual({ total: 0 });
+    expect(payload.summary).toEqual({
+      total: 0,
+      affectedVulnerabilityCount: 0,
+      nonAffectingVulnerabilityCount: 0,
+      allVulnerabilityCount: 0,
+      affected: false,
+    });
     expect(payload.advisories).toBeUndefined();
     expect(payload.upgradePaths).toBeUndefined();
+  });
+
+  it("reports historical advisories separately from active version risk", () => {
+    const fixture = zeroVulnsFixture();
+    if (fixture.security) {
+      fixture.security.nonAffectingVulnerabilityCount = 2;
+      fixture.security.allVulnerabilityCount = 2;
+    }
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture);
+    expect(payload.summary.total).toBe(0);
+    expect(payload.summary.nonAffectingVulnerabilityCount).toBe(2);
+    expect(payload.summary.allVulnerabilityCount).toBe(2);
+    expect(payload.advisories).toBeUndefined();
   });
 
   it("omits empty aliases / fixedIn / affectedRanges arrays", () => {
@@ -274,7 +303,7 @@ describe("buildPackageVulnerabilitiesSuccessPayload — requestedVersion echo", 
   it("partition invariant: bucket sum equals vulnerabilities.length (and summary.total when backend is consistent)", () => {
     // Client-side guarantee: the six buckets partition
     // `security.vulnerabilities[]`. In the default fixture the
-    // backend also keeps `vulnerabilityCount` in sync with the list
+    // backend also keeps `affectedVulnerabilityCount` in sync with the list
     // length, so the sum additionally matches `summary.total` — the
     // visible CLI / MCP reconciliation users see.
     const payload = buildPackageVulnerabilitiesSuccessPayload(
@@ -314,6 +343,8 @@ describe("dedupAdvisoriesByAlias — alias-cluster collapse", () => {
         severityScore: 9.8,
         publishedAt: "2021-08-25T00:00:00Z",
         affectedVersionRanges: [">=0.10.8 <0.10.9"],
+        affectedVersionRangesCount: 1,
+        affectedVersionRangesTruncated: false,
         fixedInVersions: ["0.10.9"],
       },
       {
@@ -321,6 +352,8 @@ describe("dedupAdvisoriesByAlias — alias-cluster collapse", () => {
         aliases: ["CVE-2018-20997", "GHSA-xjxc-vfw2-cg96"],
         publishedAt: "2018-06-01T00:00:00Z",
         affectedVersionRanges: [">=0.10.8 <0.10.9"],
+        affectedVersionRangesCount: 3,
+        affectedVersionRangesTruncated: true,
         fixedInVersions: ["0.10.9"],
       },
     ]);
@@ -336,6 +369,8 @@ describe("dedupAdvisoriesByAlias — alias-cluster collapse", () => {
     ]);
     expect(merged.aliases).not.toContain("GHSA-xjxc-vfw2-cg96");
     expect(merged.severityScore).toBe(9.8);
+    expect(merged.affectedVersionRangesCount).toBe(3);
+    expect(merged.affectedVersionRangesTruncated).toBe(true);
   });
 
   it("links chains via shared aliases (transitive merge)", () => {
@@ -601,12 +636,15 @@ describe("dedupAdvisoriesByAlias — alias-cluster collapse", () => {
 describe("buildPackageVulnerabilitiesSuccessPayload — alias-cluster dedup integration", () => {
   it("recomputes total and bySeverity from deduped list", () => {
     // Two GHSA/RUSTSEC pairs + one solo advisory. Pre-dedup: 5; after: 3.
-    // Backend `vulnerabilityCount` is intentionally stale (5) so we
-    // verify the builder re-derives total from the deduped output.
+    // Backend affected count is already deduped, while the inline list
+    // still carries source-level duplicates. Verify both the count and
+    // advisory list stay internally consistent after client-side dedup.
     const fixture = {
       package: { name: "pkg", registry: "CRATES" as const, version: "0.10.0" },
       security: {
-        vulnerabilityCount: 5,
+        affectedVulnerabilityCount: 3,
+        nonAffectingVulnerabilityCount: 0,
+        allVulnerabilityCount: 3,
         currentVersionAffected: true,
         upgradePaths: ["0.10.78"],
         vulnerabilities: [
@@ -681,7 +719,37 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     const output = formatPackageVulnerabilitiesTerminal(zeroVulnsFixture(), {
       useColors: false,
     });
-    expect(output).toBe("clean @ 1.0.0 · npm\nNo known vulnerabilities.\n");
+    expect(output).toBe(
+      "clean @ 1.0.0 · npm\nNo known vulnerabilities affect this version.\n",
+    );
+  });
+
+  it("renders historical package advisories without marking the version vulnerable", () => {
+    const fixture = zeroVulnsFixture();
+    if (fixture.security) {
+      fixture.security.nonAffectingVulnerabilityCount = 2;
+      fixture.security.allVulnerabilityCount = 2;
+    }
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+    });
+    expect(output).toBe(
+      "clean @ 1.0.0 · npm\nNo vulnerabilities affect this version (2 historical advisories do not apply).\n",
+    );
+  });
+
+  it("uses singular grammar for one historical advisory", () => {
+    const fixture = zeroVulnsFixture();
+    if (fixture.security) {
+      fixture.security.nonAffectingVulnerabilityCount = 1;
+      fixture.security.allVulnerabilityCount = 1;
+    }
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+    });
+    expect(output).toBe(
+      "clean @ 1.0.0 · npm\nNo vulnerabilities affect this version (1 historical advisory does not apply).\n",
+    );
   });
 
   it("renders default terminal block with header, summary, breakdown, advisories, footer", () => {
@@ -690,10 +758,10 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
       { useColors: false },
     );
     expect(output).toContain("express @ 4.18.0 · npm");
-    expect(output).toContain("6 known vulnerabilities · latest affected");
+    expect(output).toContain("6 vulnerabilities affect this version");
     expect(output).toContain("MALWARE");
     expect(output).toContain("GHSA-mmmm-mmmm-mmmm");
-    expect(output).toContain("Upgrade to 4.18.2.");
+    expect(output).toContain("Fix version: 4.18.2.");
   });
 
   it("shows MALWARE · crit combined label for malicious + severe advisory", () => {
@@ -710,14 +778,15 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
   it("omits breakdown line when total is 1", () => {
     const fixture = cloneFixture();
     if (fixture.security) {
-      fixture.security.vulnerabilityCount = 1;
+      fixture.security.affectedVulnerabilityCount = 1;
+      fixture.security.allVulnerabilityCount = 1;
       fixture.security.vulnerabilities =
         fixture.security.vulnerabilities?.slice(2, 3) ?? []; // keep one high CVE
     }
     const output = formatPackageVulnerabilitiesTerminal(fixture, {
       useColors: false,
     });
-    expect(output).toContain("1 known vulnerability");
+    expect(output).toContain("1 vulnerability affects this version");
     expect(output).not.toContain("1 high");
   });
 
@@ -737,7 +806,7 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     expect(output).toContain("(requested v4.18.0)");
   });
 
-  it("renders Upgrade options: A, B, C. for multiple paths", () => {
+  it("renders Fix versions: A, B, C. for multiple paths", () => {
     const fixture = cloneFixture();
     if (fixture.security) {
       fixture.security.upgradePaths = ["4.17.4", "4.18.2"];
@@ -745,16 +814,16 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     const output = formatPackageVulnerabilitiesTerminal(fixture, {
       useColors: false,
     });
-    expect(output).toContain("Upgrade options: 4.17.4, 4.18.2.");
+    expect(output).toContain("Fix versions: 4.17.4, 4.18.2.");
   });
 
-  it("omits upgrade footer when no paths", () => {
+  it("omits fix-version footer when no paths", () => {
     const fixture = cloneFixture();
     if (fixture.security) fixture.security.upgradePaths = [];
     const output = formatPackageVulnerabilitiesTerminal(fixture, {
       useColors: false,
     });
-    expect(output).not.toContain("Upgrade");
+    expect(output).not.toContain("Fix version");
   });
 
   it("verbose adds aliases, severity, published/modified rows where applicable", () => {
@@ -815,6 +884,22 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     expect(output).not.toContain("==1.0.4,");
   });
 
+  it("surfaces backend-truncated affected ranges in compact output", () => {
+    const fixture = cloneFixture();
+    const advisory = fixture.security?.vulnerabilities?.[1];
+    if (advisory) {
+      advisory.affectedVersionRanges = ["==1.0.0", "==1.0.1"];
+      advisory.affectedVersionRangesCount = 5;
+      advisory.affectedVersionRangesTruncated = true;
+    }
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+    });
+    expect(output).toContain(
+      "affected ==1.0.0, ==1.0.1, … (+3 ranges omitted by service)",
+    );
+  });
+
   it("verbose mode shows every affected range without truncation", () => {
     const fixture = cloneFixture();
     const advisory = fixture.security?.vulnerabilities?.[1];
@@ -839,14 +924,15 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
   it("singular vulnerability noun when total is 1", () => {
     const fixture = cloneFixture();
     if (fixture.security) {
-      fixture.security.vulnerabilityCount = 1;
+      fixture.security.affectedVulnerabilityCount = 1;
+      fixture.security.allVulnerabilityCount = 1;
       fixture.security.vulnerabilities =
         fixture.security.vulnerabilities?.slice(2, 3) ?? [];
     }
     const output = formatPackageVulnerabilitiesTerminal(fixture, {
       useColors: false,
     });
-    expect(output).toContain("1 known vulnerability ·");
+    expect(output).toContain("1 vulnerability affects this version");
   });
 });
 

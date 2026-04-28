@@ -6,10 +6,9 @@
  * Key design commitments (locked in the plan):
  * - Backend is the single source of truth for counts. `minSeverity`
  *   and `includeWithdrawn` are passed through on the wire; the
- *   backend returns a filter-aware `vulnerabilityCount`. The builder
- *   does no selective filtering of its own — but it does collapse
- *   alias-clustered duplicates (see below) because that is shape
- *   normalisation rather than selection.
+ *   backend returns version-aware affected/non-affecting/all advisory
+ *   counts. `summary.total` is the affected count for the inspected
+ *   version, not historical package advisory volume.
  * - Alias-cluster dedup runs before bucketing. Some registries (most
  *   visibly Crates) return both the GHSA-prefixed and the
  *   RUSTSEC-prefixed entry for the same underlying vulnerability;
@@ -66,6 +65,11 @@ export interface LeanAdvisory {
   severity?: number;
   severityLabel?: VulnSeverityLabel;
   affectedRanges?: string[];
+  affectedVersionRangesCount?: number;
+  affectedVersionRangesTruncated?: boolean;
+  affectsInspectedVersion?: boolean;
+  matchedAffectedVersionRanges?: string[];
+  duplicateIds?: string[];
   fixedIn?: string[];
   publishedAt?: string;
   modifiedAt?: string;
@@ -74,7 +78,11 @@ export interface LeanAdvisory {
 }
 
 export interface LeanVulnerabilitySummary {
+  /** Affected advisories for the inspected version. Kept for compatibility. */
   total: number;
+  affectedVulnerabilityCount?: number;
+  nonAffectingVulnerabilityCount?: number;
+  allVulnerabilityCount?: number;
   affected?: boolean;
   bySeverity?: Partial<Record<VulnBucket, number>>;
 }
@@ -110,17 +118,11 @@ export function buildPackageVulnerabilitiesSuccessPayload(
   // `total` and `bySeverity` are derived from the deduped list so the
   // partition invariant holds.
   //
-  // This recomputation is only correct while the backend returns the
-  // entire filtered vulnerability set inline with `vulnerabilityCount`.
-  // If the backend later paginates the advisory list (delivering a
-  // page slice while `vulnerabilityCount` keeps the global filtered
-  // count), `total` here will underreport — revisit at that point and
-  // either compute from a backend-supplied deduped count or run dedup
-  // server-side.
   const dedupedAdvisories = dedupAdvisoriesByAlias(
     security?.vulnerabilities ?? [],
   );
-  const total = dedupedAdvisories.length;
+  const total =
+    security?.affectedVulnerabilityCount ?? dedupedAdvisories.length;
 
   const payload: LeanVulnerabilityReport = {
     registry: lowerRegistry(pkg.registry),
@@ -149,8 +151,8 @@ export function buildPackageVulnerabilitiesSuccessPayload(
   const upgradePaths = security?.upgradePaths;
   if (upgradePaths && upgradePaths.length > 0) {
     // Ascending semver-ish order (pre-releases sort below their base
-    // version) so the CLI footer reads `Upgrade options: 3.11.0, 4.5.0,
-    // 4.19.2, …` — presenting the minimum-churn upgrade first. Without
+    // version) so the CLI footer reads `Fix versions: 3.11.0, 4.5.0,
+    // 4.19.2, …` — presenting the minimum-churn fix first. Without
     // this sort the backend's advisory-iteration order produced
     // jarring mixes like `3.11.0, 4.5.0, 4.20.0, 5.0.0, 4.0.0-rc1`.
     const unique = Array.from(new Set(upgradePaths));
@@ -205,11 +207,18 @@ function buildSummary(
   dedupedAdvisories: readonly VulnerabilityDetail[],
 ): LeanVulnerabilitySummary {
   const summary: LeanVulnerabilitySummary = { total };
-  if (total === 0) return summary;
+  if (security) {
+    summary.affectedVulnerabilityCount = security.affectedVulnerabilityCount;
+    summary.nonAffectingVulnerabilityCount =
+      security.nonAffectingVulnerabilityCount;
+    summary.allVulnerabilityCount = security.allVulnerabilityCount;
+  }
 
   if (typeof security?.currentVersionAffected === "boolean") {
     summary.affected = security.currentVersionAffected;
   }
+
+  if (total === 0) return summary;
 
   const bySeverity = computeBySeverity(dedupedAdvisories);
   const anyCounted = Object.values(bySeverity).some((n) => n > 0);
@@ -421,8 +430,13 @@ function mergeAdvisoryCluster(
   const aliases = Array.from(aliasSet).sort();
 
   const affectedRangesSet = new Set<string>();
+  const matchedAffectedRangesSet = new Set<string>();
   const fixedInSet = new Set<string>();
+  const duplicateIdsSet = new Set<string>();
   let isMalicious = false;
+  let affectsInspectedVersion = false;
+  let affectedVersionRangesTruncated = false;
+  let affectedVersionRangesCount = 0;
   // Latest `modifiedAt` wins, but only counts entries that explicitly
   // carry one — a sibling whose `modifiedAt` is absent should not
   // promote its `publishedAt` into the merged record.
@@ -441,10 +455,26 @@ function mergeAdvisoryCluster(
     for (const range of member.affectedVersionRanges ?? []) {
       affectedRangesSet.add(range);
     }
+    for (const range of member.matchedAffectedVersionRanges ?? []) {
+      matchedAffectedRangesSet.add(range);
+    }
     for (const fix of member.fixedInVersions ?? []) {
       fixedInSet.add(fix);
     }
+    for (const duplicateId of member.duplicateIds ?? []) {
+      duplicateIdsSet.add(duplicateId);
+    }
     if (member.isMalicious === true) isMalicious = true;
+    if (member.affectsInspectedVersion === true) affectsInspectedVersion = true;
+    if (member.affectedVersionRangesTruncated === true) {
+      affectedVersionRangesTruncated = true;
+    }
+    if (typeof member.affectedVersionRangesCount === "number") {
+      affectedVersionRangesCount = Math.max(
+        affectedVersionRangesCount,
+        member.affectedVersionRangesCount,
+      );
+    }
     if (member.modifiedAt) {
       if (!latestModifiedAt || member.modifiedAt > latestModifiedAt) {
         latestModifiedAt = member.modifiedAt;
@@ -479,6 +509,23 @@ function mergeAdvisoryCluster(
   }
   if (affectedRangesSet.size > 0) {
     merged.affectedVersionRanges = Array.from(affectedRangesSet);
+  }
+  const exactOrLowerBoundCount = Math.max(
+    affectedVersionRangesCount,
+    affectedRangesSet.size,
+  );
+  if (exactOrLowerBoundCount > 0) {
+    merged.affectedVersionRangesCount = exactOrLowerBoundCount;
+  }
+  if (affectedVersionRangesTruncated) {
+    merged.affectedVersionRangesTruncated = true;
+  }
+  if (matchedAffectedRangesSet.size > 0) {
+    merged.matchedAffectedVersionRanges = Array.from(matchedAffectedRangesSet);
+  }
+  if (affectsInspectedVersion) merged.affectsInspectedVersion = true;
+  if (duplicateIdsSet.size > 0) {
+    merged.duplicateIds = Array.from(duplicateIdsSet).sort();
   }
   if (fixedInSet.size > 0) {
     merged.fixedInVersions = Array.from(fixedInSet);
@@ -570,6 +617,25 @@ function buildAdvisory(advisory: VulnerabilityDetail): LeanAdvisory {
     advisory.affectedVersionRanges.length > 0
   ) {
     lean.affectedRanges = advisory.affectedVersionRanges.slice();
+  }
+  if (typeof advisory.affectedVersionRangesCount === "number") {
+    lean.affectedVersionRangesCount = advisory.affectedVersionRangesCount;
+  }
+  if (advisory.affectedVersionRangesTruncated === true) {
+    lean.affectedVersionRangesTruncated = true;
+  }
+  if (typeof advisory.affectsInspectedVersion === "boolean") {
+    lean.affectsInspectedVersion = advisory.affectsInspectedVersion;
+  }
+  if (
+    advisory.matchedAffectedVersionRanges &&
+    advisory.matchedAffectedVersionRanges.length > 0
+  ) {
+    lean.matchedAffectedVersionRanges =
+      advisory.matchedAffectedVersionRanges.slice();
+  }
+  if (advisory.duplicateIds && advisory.duplicateIds.length > 0) {
+    lean.duplicateIds = advisory.duplicateIds.slice();
   }
   if (advisory.fixedInVersions && advisory.fixedInVersions.length > 0) {
     lean.fixedIn = advisory.fixedInVersions.slice();
@@ -708,7 +774,7 @@ export function formatPackageVulnerabilitiesTerminal(
   if (payload.summary.total === 0) {
     const lines = [headerLine];
     if (requestedLine) lines.push(requestedLine);
-    lines.push("No known vulnerabilities.");
+    lines.push(formatNoAffectedVulnerabilitiesLine(payload));
     return `${lines.join("\n")}\n`;
   }
 
@@ -747,17 +813,30 @@ function formatSummaryLine(
 ): string {
   const n = payload.summary.total;
   const noun = n === 1 ? "vulnerability" : "vulnerabilities";
-  const base = `${n} known ${noun}`;
-  // Colour reflects caller risk: yellow/warn when the latest version
-  // is affected; plain text when clean (so "latest clean" doesn't
-  // read as a caution signal).
+  const verb = n === 1 ? "affects" : "affect";
+  const base = `${n} ${noun} ${verb} this version`;
+  // Colour reflects caller risk: yellow/warn when the inspected version
+  // is affected; plain text when clean.
   if (payload.summary.affected === true) {
-    return colorize(`${base} · latest affected`, "yellow", useColors);
+    return colorize(base, "yellow", useColors);
   }
   if (payload.summary.affected === false) {
-    return `${base} · latest clean`;
+    return base;
   }
   return base;
+}
+
+function formatNoAffectedVulnerabilitiesLine(
+  payload: LeanVulnerabilityReport,
+): string {
+  const historical = payload.summary.nonAffectingVulnerabilityCount ?? 0;
+  if (historical > 0) {
+    const noun =
+      historical === 1 ? "historical advisory" : "historical advisories";
+    const verb = historical === 1 ? "does" : "do";
+    return `No vulnerabilities affect this version (${historical} ${noun} ${verb} not apply).`;
+  }
+  return "No known vulnerabilities affect this version.";
 }
 
 function formatBreakdownLine(
@@ -897,7 +976,14 @@ function formatAdvisoryLines(
   if (advisory.affectedRanges && advisory.affectedRanges.length > 0) {
     pushRow(
       "affected",
-      formatRangeList(advisory.affectedRanges, verbose, useColors, rangeLimit),
+      formatRangeList(
+        advisory.affectedRanges,
+        verbose,
+        useColors,
+        rangeLimit,
+        advisory.affectedVersionRangesCount,
+        advisory.affectedVersionRangesTruncated,
+      ),
     );
   }
   if (advisory.fixedIn && advisory.fixedIn.length > 0) {
@@ -940,13 +1026,33 @@ function formatRangeList(
   verbose: boolean,
   useColors: boolean,
   limit: number,
+  totalCount: number | undefined,
+  backendTruncated: boolean | undefined,
 ): string {
+  const actualTotal = Math.max(totalCount ?? ranges.length, ranges.length);
+  const backendHidden =
+    backendTruncated === true ? actualTotal - ranges.length : 0;
+  const appendBackendHint = (shown: string): string => {
+    if (backendHidden > 0) {
+      const hint = dim(
+        `… (+${backendHidden} ranges omitted by service)`,
+        useColors,
+      );
+      return shown.length > 0 ? `${shown}, ${hint}` : hint;
+    }
+    return shown;
+  };
+
   if (verbose || ranges.length <= limit) {
-    return ranges.join(", ");
+    return appendBackendHint(ranges.join(", "));
   }
   const shown = ranges.slice(0, limit).join(", ");
-  const hiddenCount = ranges.length - limit;
-  const hint = dim(`… (+${hiddenCount} more; use -v)`, useColors);
+  const localHidden = ranges.length - limit;
+  const hintText =
+    backendHidden > 0
+      ? `… (+${localHidden} more with -v; +${backendHidden} omitted by service)`
+      : `… (+${localHidden} more; use -v)`;
+  const hint = dim(hintText, useColors);
   return `${shown}, ${hint}`;
 }
 
@@ -970,6 +1076,6 @@ function resolveAffectedRangesLimit(terminalWidth: number | undefined): number {
 
 function formatUpgradeFooter(paths: string[] | undefined): string | undefined {
   if (!paths || paths.length === 0) return undefined;
-  if (paths.length === 1) return `Upgrade to ${paths[0]}.`;
-  return `Upgrade options: ${paths.join(", ")}.`;
+  if (paths.length === 1) return `Fix version: ${paths[0]}.`;
+  return `Fix versions: ${paths.join(", ")}.`;
 }

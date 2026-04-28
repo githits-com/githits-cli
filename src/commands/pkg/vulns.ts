@@ -138,8 +138,8 @@ function formatVulnsTerminalError(mapped: MappedError): string {
 }
 
 const PKG_VULNS_DESCRIPTION = `Show known vulnerabilities for a package. Lists CVE / OSV advisories
-with severity, affected version ranges, fix versions, and suggested
-upgrade paths. Malicious-package advisories are flagged prominently.
+with severity, affected version ranges, and fix versions.
+Malicious-package advisories are flagged prominently.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
 npm, pypi, hex, crates. Omit @<version> to check the latest release.

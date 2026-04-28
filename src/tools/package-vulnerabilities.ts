@@ -48,8 +48,7 @@ const DESCRIPTION =
   "Check known vulnerabilities for a package on npm, PyPI, Hex, or " +
   "Crates (other registries are not yet supported for vulnerability " +
   "data). Returns a count summary, each advisory with OSV ID, " +
-  "severity, affected ranges and fix versions, plus suggested " +
-  "upgrade paths. Malicious-package advisories surface in a separate " +
+  "severity, affected ranges, and fix versions. Malicious-package advisories surface in a separate " +
   "bucket. Pass `version` to inspect a specific release; otherwise " +
   "the latest is checked. Use `min_severity` to filter to a threshold " +
   "(`low`, `medium`, `high`, `critical`) and `include_withdrawn` to " +

@@ -40,9 +40,9 @@ describe("pkgVulnsAction", () => {
 
     const combined = writes.join("");
     expect(combined).toContain("express @ 4.18.0 · npm");
-    expect(combined).toContain("6 known vulnerabilities · latest affected");
+    expect(combined).toContain("6 vulnerabilities affect this version");
     expect(combined).toContain("MALWARE");
-    expect(combined).toContain("Upgrade to 4.18.2.");
+    expect(combined).toContain("Fix version: 4.18.2.");
     writeSpy.mockRestore();
   });
 
