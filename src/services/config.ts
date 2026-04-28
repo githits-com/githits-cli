@@ -1,9 +1,10 @@
 /**
  * Base URL configuration for GitHits services.
  *
- * Two separate URLs are needed:
+ * Three separate URLs are needed:
  * - MCP URL: For OAuth discovery (.well-known endpoints) and auth flow
  * - API URL: For REST API calls (search, languages, feedbacks)
+ * - Code navigation URL: For indexed package/source calls
  */
 
 const DEFAULT_MCP_URL = "https://mcp.githits.com";
@@ -32,16 +33,14 @@ export function getApiUrl(): string {
  * development parity with older environments but is not publicly
  * documented.
  */
-export function getCodeNavigationUrl(): string | undefined {
+export function getCodeNavigationUrl(): string {
   const explicitUrl =
     process.env.GITHITS_CODE_NAV_URL ?? process.env.PKGSEER_URL;
   if (explicitUrl) {
     return explicitUrl;
   }
 
-  const usingDefaultEnvironment =
-    getMcpUrl() === DEFAULT_MCP_URL && getApiUrl() === DEFAULT_API_URL;
-  return usingDefaultEnvironment ? DEFAULT_CODE_NAV_URL : undefined;
+  return DEFAULT_CODE_NAV_URL;
 }
 
 /**
@@ -49,18 +48,4 @@ export function getCodeNavigationUrl(): string | undefined {
  */
 export function getEnvApiToken(): string | undefined {
   return process.env.GITHITS_API_TOKEN;
-}
-
-/**
- * Whether `GITHITS_CODE_NAVIGATION` forces the capability-gated
- * code-navigation CLI surfaces (`search`, `code`, `pkg`) to be
- * exposed locally regardless of the startup token's
- * `code_navigation` claim.
- */
-export function isCodeNavigationCliOverrideEnabled(): boolean {
-  const raw = process.env.GITHITS_CODE_NAVIGATION;
-  if (!raw) return false;
-
-  const normalized = raw.toLowerCase();
-  return normalized !== "0" && normalized !== "false" && normalized !== "";
 }

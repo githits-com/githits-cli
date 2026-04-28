@@ -82,7 +82,7 @@ For plugin-based hosts, install from npm/GitHub using your agent's plugin workfl
 - **GitHub Copilot**: supports Open Plugin components
 - **Gemini CLI**: supports `gemini-extension.json` and `GEMINI.md`
 
-That's it. Your assistant now has GitHits example-search tools, and on accounts with package/source access enabled it also gets indexed dependency/package inspection tools.
+That's it. Your assistant now has GitHits example-search tools and indexed dependency/package inspection tools.
 
 ## How It Works
 
@@ -98,21 +98,21 @@ Core tools available in every authenticated session:
 
 The assistant decides when to call these tools on its own — typically when it's stuck, needs a working example for an unfamiliar API, or encounters an error it can't resolve from its training data alone.
 
-When package/source access is enabled for the current token, GitHits also exposes these capability-gated tools:
+GitHits also exposes indexed package/source tools:
 
 | Tool | Purpose |
 |---|---|
 | `search` | Unified indexed search across dependency/repository code, docs, and symbols |
 | `search_status` | Follow up a prior indexed `search` by `searchRef` |
-| `package_summary` | Quick package overview: version, license, downloads, quickstart, advisories |
-| `package_vulnerabilities` | CVE / OSV advisories for a package or specific version |
-| `package_dependencies` | Direct dependencies, dependency groups, and optional transitive graph |
-| `package_changelog` | Release notes / changelog entries for a package or GitHub repo |
-| `list_files` | Discover what files a dependency or repo contains |
-| `read_file` | Read a dependency file by path |
-| `grep_repo` | Deterministic text grep across indexed dependency or repo files |
-
-These advanced tools remain feature-gated. The MCP server advertises them only when the authenticated token explicitly carries the `code_navigation` feature flag.
+| `docs_list` | Browse mixed package documentation pages |
+| `docs_read` | Read a documentation page by page ID |
+| `pkg_info` | Quick package overview: version, license, downloads, quickstart, advisories |
+| `pkg_vulns` | CVE / OSV advisories for a package or specific version |
+| `pkg_deps` | Direct dependencies, dependency groups, and optional transitive graph |
+| `pkg_changelog` | Release notes / changelog entries for a package or GitHub repo |
+| `code_files` | Discover what files a dependency or repo contains |
+| `code_read` | Read a dependency file by path |
+| `code_grep` | Deterministic text grep across indexed dependency or repo files |
 
 ### License Filtering
 
@@ -162,12 +162,13 @@ githits languages      List or filter supported language names
 githits feedback       Send feedback on a returned example
 ```
 
-When the current token explicitly carries `code_navigation`, these extra commands are also available:
+These indexed package/source commands are also available:
 
 ```
 githits search ...     Unified indexed dependency/repository search
 githits search-status  Follow up a prior indexed search
 githits pkg ...        Package metadata: overview, advisories, deps, changelog
+githits docs ...       Package documentation: browse pages and read content
 githits code ...       Dependency source inspection: search, files, read, grep
 ```
 
@@ -178,15 +179,14 @@ githits code ...       Dependency source inspection: search, files, read, grep
 | `GITHITS_API_TOKEN` | API token for authentication | — |
 | `GITHITS_MCP_URL` | Override MCP server URL | `https://mcp.githits.com` |
 | `GITHITS_API_URL` | Override REST API URL | `https://api.githits.com` |
-| `GITHITS_CODE_NAV_URL` | Override package/source service URL | environment-specific |
-| `GITHITS_CODE_NAVIGATION` | Expose hidden `search` / `pkg` / `code` CLI surfaces locally for development | — |
+| `GITHITS_CODE_NAV_URL` | Override package/source service URL | `https://pkgseer.dev` |
 | `GITHITS_TELEMETRY` | Emit end-of-run timing spans to stderr for local profiling | — |
 
 ## Manual Setup
 
 If your tool is not in the supported `githits init` list, configure GitHits manually.
 
-The same MCP server command exposes both the core example-search tools and, when your token carries `code_navigation`, the indexed package/source inspection tools. No separate install is required.
+The same MCP server command exposes both the core example-search tools and the indexed package/source inspection tools. No separate install is required.
 
 Use this MCP server command in your tool's MCP config (the host/agent runs this command):
 

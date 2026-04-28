@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI supports two authentication methods with different capabilities. Understanding which one is active and how the OAuth flow works is essential for modifying auth-related code without breaking the login experience.
+The CLI supports two authentication methods. Understanding which one is active and how the OAuth flow works is essential for modifying auth-related code without breaking the login experience.
 
 ## Background
 
@@ -18,8 +18,6 @@ The two methods exist because OAuth provides full access but requires a browser,
 | **API token** (`ghi-*`) | `GITHITS_API_TOKEN` env var | All (`/search`, `/languages`, `/feedbacks`) | CI, automation, quick setup |
 
 > **The container resolves auth at startup.** The `createContainer()` function checks for `GITHITS_API_TOKEN` first — if set, it takes precedence even when OAuth tokens are stored. If not set, it loads stored OAuth tokens and attempts auto-refresh if expired. See `src/container.ts` for the resolution logic.
-
-Some hidden package/source tooling is conditionally exposed based on the active auth context.
 
 ## OAuth PKCE Flow
 
@@ -162,7 +160,6 @@ The `hasValidToken` flag is checked by `requireAuth()` in `src/commands/mcp.ts` 
 | `src/services/token-manager.ts` | `TokenProvider` interface, `TokenManager` (proactive refresh, coalescing) |
 | `src/services/refreshing-githits-service.ts` | `GitHitsService` decorator with token refresh and 401 retry |
 | `src/services/execute-with-token-refresh.ts` | Shared helper for token-authenticated retry-on-refresh flows |
-| `src/services/code-navigation-capability.ts` | Local package/source access gating helpers |
 | `src/services/code-navigation-service.ts` | Package/source service client using the shared refresh helper |
 | `src/services/auth-service.ts` | OAuth operations (DCR, PKCE, token exchange, callback server) |
 | `src/services/auth-storage.ts` | `AuthStorage` interface and file-based implementation |

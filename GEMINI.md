@@ -66,13 +66,11 @@ Do not use `get_example` for:
 - Keep queries focused: 3-4 technical terms maximum
 - Submit `feedback` after every search result you use or discard
 
-## Feature-Gated Tools
+## Indexed Package/Source Tools
 
-When the authenticated token carries the `code_navigation` feature flag, GitHits
-also exposes indexed dependency/package tools such as `search`,
-`search_status`, `package_summary`, `package_vulnerabilities`,
-`package_dependencies`, `package_changelog`, `list_files`, `read_file`, and
-`grep_repo`.
+GitHits also exposes indexed dependency/package tools such as `search`,
+`search_status`, `docs_list`, `docs_read`, `pkg_info`, `pkg_vulns`,
+`pkg_deps`, `pkg_changelog`, `code_files`, `code_read`, and `code_grep`.
 
 ## License Filtering
 

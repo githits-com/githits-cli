@@ -1,5 +1,4 @@
 import type { Command } from "commander";
-import type { CodeNavigationCapability } from "../../services/index.js";
 import {
   type GatedCommandGroupOptions,
   resolveGatedCommandGroupRegistrationState,
@@ -8,16 +7,10 @@ import { registerCodeFilesCommand } from "./files.js";
 import { registerCodeGrepCommand } from "./grep.js";
 import { registerCodeReadCommand } from "./read.js";
 
-export interface CodeCommandGroupOptions extends GatedCommandGroupOptions {
-  capability?: CodeNavigationCapability;
-}
+export interface CodeCommandGroupOptions extends GatedCommandGroupOptions {}
 
 /**
- * Registers the capability-gated code-navigation command group.
- * Only exposed when the token advertises `code_navigation`, the
- * user sets `GITHITS_CODE_NAVIGATION=1` for local development, or
- * stored auth has expired and the direct command path needs a chance
- * to refresh before the CLI can re-evaluate capability.
+ * Registers the code-navigation command group.
  */
 export async function registerCodeCommandGroup(
   program: Command,

@@ -14,9 +14,9 @@ GitHits separates its MCP server (which handles OAuth discovery and the MCP prot
 |---|---|---|---|
 | **MCP URL** | `https://mcp.githits.com` | `GITHITS_MCP_URL` | OAuth discovery (`.well-known`), DCR registration, auth flow |
 | **API URL** | `https://api.githits.com` | `GITHITS_API_URL` | REST endpoints (`/search`, `/languages`, `/feedbacks`) |
-| **Package/source URL** | `https://pkgseer.dev` in the default production environment; otherwise unset | `GITHITS_CODE_NAV_URL` | Package/source service endpoint used by hidden indexed `search` / `pkg` / `code` tooling |
+| **Package/source URL** | `https://pkgseer.dev` | `GITHITS_CODE_NAV_URL` | Package/source service endpoint used by indexed `search` / `pkg` / `docs` / `code` tooling |
 
-> **These are different services.** Setting only one won't work for custom environments. Both must be overridden together when pointing to a non-production backend.
+> **These are different services.** Override every URL that differs from production when pointing to a non-production backend.
 
 The MCP URL is also used as the storage key for tokens and client registrations in `~/.githits/` (trailing slashes are stripped for consistent key matching). This means tokens from one environment don't leak into another.
 
@@ -38,12 +38,7 @@ The container (`src/container.ts`) resolves authentication in priority order:
 | `/languages` | Full access | Full access | Blocked |
 | `/feedbacks` | Full access | Full access | Blocked |
 
-Package/source access is different from the REST endpoints above:
-
-- the CLI resolves the package/source service URL from `GITHITS_CODE_NAV_URL`; in the default production environment it falls back to `https://pkgseer.dev`, but custom GitHits environments must set this explicitly
-- MCP registration for `search`, `search_status`, `package_*`, `code_files`, `code_read`, and `code_grep` happens only when the current token explicitly carries `code_navigation`
-- CLI registration for top-level `search` / `search-status` plus the hidden `githits code` / `githits pkg` groups uses the same capability check, with one local-development escape hatch: `GITHITS_CODE_NAVIGATION=1`
-- if the capability is absent or unknown, those indexed tools and command groups are omitted from the surfaced interface
+Package/source access uses the package/source service URL from `GITHITS_CODE_NAV_URL`, defaulting to `https://pkgseer.dev`. MCP registration for `search`, `search_status`, `docs_*`, `pkg_*`, `code_files`, `code_read`, and `code_grep` is always on; CLI registration for top-level `search` / `search-status` plus the `githits code`, `githits pkg`, and `githits docs` groups is also always on.
 
 ## Environment Variables
 
@@ -53,7 +48,6 @@ Package/source access is different from the REST endpoints above:
 | `GITHITS_API_URL` | Override REST API URL | `http://localhost:8000` |
 | `GITHITS_CODE_NAV_URL` | Override package/source service URL | `http://localhost:4000` |
 | `GITHITS_API_TOKEN` | API token for authentication | `ghi-abc123...` |
-| `GITHITS_CODE_NAVIGATION` | Override capability gate and expose hidden indexed `search` / `code` / `pkg` CLI surfaces locally | `1` |
 | `GITHITS_TELEMETRY` | Emit end-of-run timing spans to stderr for local profiling | `1` |
 
 ## Local Storage
@@ -72,14 +66,13 @@ The secure file permissions prevent other users from reading tokens. When writin
 
 ```
 Environment variables
-  └─ src/services/config.ts (getMcpUrl, getApiUrl, getEnvApiToken)
+  └─ src/services/config.ts (getMcpUrl, getApiUrl, getCodeNavigationUrl, getEnvApiToken)
        └─ src/container.ts (createContainer)
             ├─ mcpUrl → passed to auth commands, used as storage key
             ├─ apiUrl → passed to GitHitsServiceImpl constructor
-            ├─ codeNavigationUrl → passed to CodeNavigationServiceImpl when configured
+            ├─ codeNavigationUrl → passed to CodeNavigationServiceImpl and PackageIntelligenceServiceImpl
             ├─ apiToken → resolved from env var or OAuth storage
-            ├─ hasValidToken → gates authenticated commands
-            └─ codeNavigationCapability / CLI override → gates code navigation exposure
+            └─ hasValidToken → gates authenticated commands
 ```
 
 Commands receive the full `Dependencies` object. Services receive only what they need (e.g., `GitHitsServiceImpl` gets `apiUrl` and `token`).

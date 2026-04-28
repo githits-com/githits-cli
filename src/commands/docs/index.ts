@@ -1,5 +1,4 @@
 import type { Command } from "commander";
-import type { CodeNavigationCapability } from "../../services/index.js";
 import {
   type GatedCommandGroupOptions,
   resolveGatedCommandGroupRegistrationState,
@@ -7,9 +6,7 @@ import {
 import { registerDocsListCommand } from "./list.js";
 import { registerDocsReadCommand } from "./read.js";
 
-export interface DocsCommandGroupOptions extends GatedCommandGroupOptions {
-  capability?: CodeNavigationCapability;
-}
+export interface DocsCommandGroupOptions extends GatedCommandGroupOptions {}
 
 export async function registerDocsCommandGroup(
   program: Command,

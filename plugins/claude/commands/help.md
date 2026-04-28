@@ -33,9 +33,8 @@ This plugin connects to the GitHits MCP server and always exposes three core too
   need to force a specific language.
 - **feedback** — Rate a search result to improve future quality.
 
-Additional indexed dependency/package tools such as `search`, `package_summary`,
-`list_files`, and `grep_repo` stay hidden unless the authenticated token carries
-the `code_navigation` feature flag.
+Additional indexed dependency/package tools such as `search`, `pkg_info`,
+`code_files`, and `code_grep` are available by default.
 
 ## Authentication
 

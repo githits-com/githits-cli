@@ -7,18 +7,15 @@ import {
   type BrowserService,
   BrowserServiceImpl,
   ChunkingKeyringService,
-  type CodeNavigationCapability,
   type CodeNavigationService,
   CodeNavigationServiceImpl,
   type FileSystemService,
   FileSystemServiceImpl,
   GitHitsServiceImpl,
   getApiUrl,
-  getCodeNavigationCapability,
   getCodeNavigationUrl,
   getEnvApiToken,
   getMcpUrl,
-  isCodeNavigationCliOverrideEnabled,
   KeychainAuthStorage,
   KeychainUnavailableError,
   KeyringServiceImpl,
@@ -26,7 +23,6 @@ import {
   type PackageIntelligenceService,
   PackageIntelligenceServiceImpl,
   RefreshingGitHitsService,
-  type TokenData,
   TokenManager,
   type TokenProvider,
   WINDOWS_MAX_ENTRY_SIZE,
@@ -77,21 +73,16 @@ export interface Dependencies {
   hasValidToken: boolean;
   /** Raw GITHITS_API_TOKEN env var value (for auth status display) */
   envApiToken: string | undefined;
-  /** Code navigation capability derived from the startup token snapshot */
-  codeNavigationCapability: CodeNavigationCapability;
-  /** Whether GITHITS_CODE_NAVIGATION is set to force-expose gated search/code/pkg CLI surfaces locally */
-  codeNavigationCliOverrideEnabled: boolean;
-  /** Code navigation backend URL when configured */
-  codeNavigationUrl: string | undefined;
-  /** Optional code navigation service used by gated CLI/MCP paths */
-  codeNavigationService: CodeNavigationService | undefined;
+  /** Code navigation backend URL */
+  codeNavigationUrl: string;
+  /** Code navigation service used by CLI/MCP paths */
+  codeNavigationService: CodeNavigationService;
   /**
-   * Optional package intelligence service — reads registry metadata,
+   * Package intelligence service — reads registry metadata,
    * vulnerabilities, dependencies, and changelogs from the pkgseer
-   * endpoint. Shares the `code_navigation` capability gate and the
-   * same endpoint URL as the code-navigation service.
+   * endpoint shared with the code-navigation service.
    */
-  packageIntelligenceService: PackageIntelligenceService | undefined;
+  packageIntelligenceService: PackageIntelligenceService;
   /** GitHits REST API service */
   githitsService: GitHitsService;
 }
@@ -112,8 +103,6 @@ export async function createContainer(): Promise<Dependencies> {
     const mcpUrl = getMcpUrl();
     const apiUrl = getApiUrl();
     const codeNavigationUrl = getCodeNavigationUrl();
-    const codeNavigationCliOverrideEnabled =
-      isCodeNavigationCliOverrideEnabled();
     const fileSystemService = new FileSystemServiceImpl();
     const authStorage = createAuthStorage(fileSystemService);
     const authService = new AuthServiceImpl();
@@ -123,12 +112,14 @@ export async function createContainer(): Promise<Dependencies> {
     const envToken = getEnvApiToken();
     if (envToken) {
       const tokenProvider = createStaticTokenProvider(envToken);
-      const codeNavigationService = codeNavigationUrl
-        ? new CodeNavigationServiceImpl(codeNavigationUrl, tokenProvider)
-        : undefined;
-      const packageIntelligenceService = codeNavigationUrl
-        ? new PackageIntelligenceServiceImpl(codeNavigationUrl, tokenProvider)
-        : undefined;
+      const codeNavigationService = new CodeNavigationServiceImpl(
+        codeNavigationUrl,
+        tokenProvider,
+      );
+      const packageIntelligenceService = new PackageIntelligenceServiceImpl(
+        codeNavigationUrl,
+        tokenProvider,
+      );
 
       return {
         authStorage,
@@ -140,8 +131,6 @@ export async function createContainer(): Promise<Dependencies> {
         apiToken: envToken,
         hasValidToken: true,
         envApiToken: envToken,
-        codeNavigationCapability: getCodeNavigationCapability(envToken),
-        codeNavigationCliOverrideEnabled,
         codeNavigationUrl,
         codeNavigationService,
         packageIntelligenceService,
@@ -154,12 +143,14 @@ export async function createContainer(): Promise<Dependencies> {
     const apiToken = await withTelemetrySpan("container.token.get", () =>
       tokenManager.getToken(),
     );
-    const codeNavigationService = codeNavigationUrl
-      ? new CodeNavigationServiceImpl(codeNavigationUrl, tokenManager)
-      : undefined;
-    const packageIntelligenceService = codeNavigationUrl
-      ? new PackageIntelligenceServiceImpl(codeNavigationUrl, tokenManager)
-      : undefined;
+    const codeNavigationService = new CodeNavigationServiceImpl(
+      codeNavigationUrl,
+      tokenManager,
+    );
+    const packageIntelligenceService = new PackageIntelligenceServiceImpl(
+      codeNavigationUrl,
+      tokenManager,
+    );
 
     return {
       authStorage,
@@ -171,81 +162,10 @@ export async function createContainer(): Promise<Dependencies> {
       apiToken,
       hasValidToken: apiToken !== undefined,
       envApiToken: undefined,
-      codeNavigationCapability: getCodeNavigationCapability(apiToken),
-      codeNavigationCliOverrideEnabled,
       codeNavigationUrl,
       codeNavigationService,
       packageIntelligenceService,
       githitsService: new RefreshingGitHitsService(apiUrl, tokenManager),
     };
-  });
-}
-
-/**
- * Resolves the startup capability snapshot without triggering token refresh.
- */
-export async function resolveStartupCodeNavigationCapability(): Promise<CodeNavigationCapability> {
-  const state = await resolveStartupCodeNavigationRegistrationState();
-  return state.capability;
-}
-
-export interface StartupCodeNavigationRegistrationState {
-  capability: CodeNavigationCapability;
-  expiredStoredAuth: boolean;
-}
-
-/**
- * Resolves CLI registration state without triggering token refresh.
- */
-export async function resolveStartupCodeNavigationRegistrationState(): Promise<StartupCodeNavigationRegistrationState> {
-  return withTelemetrySpan(
-    "startup.resolve-code-nav-registration-state",
-    async () => {
-      const envToken = getEnvApiToken();
-      if (envToken) {
-        return {
-          capability: getCodeNavigationCapability(envToken),
-          expiredStoredAuth: false,
-        };
-      }
-
-      const tokens = await loadStartupTokens(getMcpUrl());
-      if (tokens?.expiresAt && new Date(tokens.expiresAt) < new Date()) {
-        return { capability: "unknown", expiredStoredAuth: true };
-      }
-
-      return {
-        capability: getCodeNavigationCapability(tokens?.accessToken),
-        expiredStoredAuth: false,
-      };
-    },
-  );
-}
-
-async function loadStartupTokens(mcpUrl: string): Promise<TokenData | null> {
-  return withTelemetrySpan("startup.load-tokens", async () => {
-    const fileSystemService = new FileSystemServiceImpl();
-    const fileStorage = new AuthStorageImpl(fileSystemService);
-
-    try {
-      // Avoid createAuthStorage() here: command registration/help should stay read-only
-      // and must not trigger the keychain probe write+delete cycle or migration writes.
-      const rawKeyring = new KeyringServiceImpl();
-      const keyring =
-        process.platform === "win32"
-          ? new ChunkingKeyringService(rawKeyring, WINDOWS_MAX_ENTRY_SIZE)
-          : rawKeyring;
-      const keychainStorage = new KeychainAuthStorage(keyring);
-      const keychainTokens = await keychainStorage.loadTokens(mcpUrl);
-      if (keychainTokens) {
-        return keychainTokens;
-      }
-    } catch (error) {
-      if (!(error instanceof KeychainUnavailableError)) {
-        throw error;
-      }
-    }
-
-    return fileStorage.loadTokens(mcpUrl);
   });
 }

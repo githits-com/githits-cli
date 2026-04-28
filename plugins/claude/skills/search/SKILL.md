@@ -31,8 +31,8 @@ Guidelines:
 - Pass `language` only when you need to force a specific language; use
   `search_language` first if the exact language name is uncertain.
 - Use `get_example` for one focused example-search question at a time.
-- When the task is about indexed dependency or repository internals and the
-  capability-gated tools are available, prefer unified `search` instead of
+- When the task is about indexed dependency or repository internals, prefer
+  unified `search` instead of
   `get_example`.
 - After using results, send `feedback` with helpful/unhelpful outcome.
 

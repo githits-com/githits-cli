@@ -1,13 +1,9 @@
 import { type Command, Option } from "commander";
-import type { CodeNavigationCapability } from "../services/code-navigation-capability.js";
 import type {
   CodeNavigationService,
   UnifiedSearchSource,
 } from "../services/code-navigation-service.js";
-import {
-  getCodeNavigationUrl,
-  isCodeNavigationCliOverrideEnabled,
-} from "../services/config.js";
+import { getCodeNavigationUrl } from "../services/config.js";
 import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchParams,
@@ -52,9 +48,6 @@ export interface SearchStatusCommandOptions {
 
 export interface SearchCommandRegistrationOptions {
   codeNavigationUrl?: string;
-  overrideEnabled?: boolean;
-  capability?: CodeNavigationCapability;
-  expiredStoredAuth?: boolean;
 }
 
 export interface SearchCommandDependencies {
@@ -265,24 +258,6 @@ export async function registerUnifiedSearchCommands(
     return;
   }
 
-  const overrideEnabled =
-    options.overrideEnabled ?? isCodeNavigationCliOverrideEnabled();
-  const registrationState =
-    options.capability !== undefined || options.expiredStoredAuth !== undefined
-      ? {
-          capability: options.capability ?? "unknown",
-          expiredStoredAuth: options.expiredStoredAuth ?? false,
-        }
-      : await loadStartupCodeNavigationRegistrationState();
-
-  if (
-    !overrideEnabled &&
-    registrationState.capability !== "enabled" &&
-    !registrationState.expiredStoredAuth
-  ) {
-    return;
-  }
-
   registerSearchCommand(program);
 }
 
@@ -301,13 +276,6 @@ function requireSearchService(
 async function loadContainer() {
   const { createContainer } = await import("../container.js");
   return createContainer();
-}
-
-async function loadStartupCodeNavigationRegistrationState() {
-  const { resolveStartupCodeNavigationRegistrationState } = await import(
-    "../container.js"
-  );
-  return resolveStartupCodeNavigationRegistrationState();
 }
 
 function parseTargetSpecs(specs: string[] | undefined) {
