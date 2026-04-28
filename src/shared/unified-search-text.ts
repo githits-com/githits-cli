@@ -167,6 +167,13 @@ function formatScore(score: number): string {
 function buildTrailer(payload: SearchSuccessPayload): string[] {
   const lines: string[] = [];
 
+  if (payload.warnings && payload.warnings.length > 0) {
+    lines.push("warnings:");
+    for (const warning of payload.warnings) {
+      lines.push(`  - ${warning}`);
+    }
+  }
+
   if (payload.hasMore) {
     const nextOffsetHint =
       typeof payload.nextOffset === "number"

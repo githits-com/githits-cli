@@ -97,6 +97,14 @@ export interface UnifiedSearchCompletedPayload {
   nextOffset?: number;
   results: UnifiedSearchHitPayload[];
   searchRef?: string;
+  /**
+   * Top-level execution warnings derived from `sourceStatus`. Promoted
+   * here so agents see them without inspecting the nested
+   * `sourceStatus` block — the structured detail still lives there for
+   * callers that need it. Parser-level warnings stay in
+   * {@link UnifiedSearchQueryEcho.warnings}.
+   */
+  warnings?: string[];
   sourceStatus?: UnifiedSearchSourceStatusPayload[];
 }
 
@@ -108,6 +116,7 @@ export interface UnifiedSearchIncompletePayload {
   results: UnifiedSearchHitPayload[];
   searchRef: string;
   progress?: UnifiedSearchProgressPayload;
+  warnings?: string[];
   sourceStatus?: UnifiedSearchSourceStatusPayload[];
 }
 
@@ -170,6 +179,8 @@ export function buildUnifiedSearchSuccessPayload(
     if (progress) payload.progress = progress;
     const sourceStatus = compactSourceStatus(result?.sourceStatus);
     if (sourceStatus) payload.sourceStatus = sourceStatus;
+    const combinedWarnings = combineWarnings(warnings, sourceStatus);
+    if (combinedWarnings.length > 0) payload.warnings = combinedWarnings;
     return payload;
   }
 
@@ -186,7 +197,31 @@ export function buildUnifiedSearchSuccessPayload(
   if (outcome.searchRef) completed.searchRef = outcome.searchRef;
   const sourceStatus = compactSourceStatus(outcome.result.sourceStatus);
   if (sourceStatus) completed.sourceStatus = sourceStatus;
+  const combinedWarnings = combineWarnings(warnings, sourceStatus);
+  if (combinedWarnings.length > 0) completed.warnings = combinedWarnings;
   return completed;
+}
+
+/**
+ * Compose the top-level `warnings[]` array from parser warnings
+ * (compile-time issues with the query string) and sourceStatus-derived
+ * warnings (runtime issues affecting result completeness). Parser
+ * warnings come first so query-shape issues remain at the head of the
+ * list; the same ordering applies in `buildUnifiedSearchStatusResultPayload`.
+ *
+ * `query.warnings` on the echoed query stays populated for callers that
+ * specifically inspect the parser-warning surface; including parser
+ * warnings here too gives text-v1 readers a single, consistent
+ * `warnings:` preamble.
+ */
+function combineWarnings(
+  parserWarnings: readonly string[],
+  sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
+): string[] {
+  const out: string[] = [];
+  if (parserWarnings.length > 0) out.push(...parserWarnings);
+  out.push(...buildSourceStatusWarnings(sourceStatus));
+  return out;
 }
 
 export function buildUnifiedSearchErrorPayload(
@@ -240,14 +275,15 @@ function buildUnifiedSearchStatusResultPayload(
   if (result.page.hasMore) {
     payload.nextOffset = result.page.offset + result.page.returned;
   }
-  if (result.queryWarnings.length > 0) {
-    payload.warnings = result.queryWarnings;
-  }
   if (result.sources.length > 0) {
     payload.sources = result.sources.map((entry) => entry.toLowerCase());
   }
   const sourceStatus = compactSourceStatus(result.sourceStatus);
   if (sourceStatus) payload.sourceStatus = sourceStatus;
+  const combinedWarnings = combineWarnings(result.queryWarnings, sourceStatus);
+  if (combinedWarnings.length > 0) {
+    payload.warnings = combinedWarnings;
+  }
   return payload;
 }
 
@@ -370,6 +406,76 @@ function compactProgress(
   };
   if (progress.expiresAt) payload.expiresAt = progress.expiresAt;
   return payload;
+}
+
+/**
+ * Promote noteworthy `sourceStatus` entries into top-level human-readable
+ * warning strings so callers see them without inspecting the nested
+ * structured block. Mitigation for backend issue B5 (search responses
+ * with `sources: ["docs"]` plus a `kind:`/`lang:` qualifier silently
+ * return empty results because the only signal — incompatibility — is
+ * buried inside `sourceStatus[].note`).
+ *
+ * Order: each compacted entry contributes at most one warning. We
+ * derive the message from the structured fields first; if none of
+ * those fired but a free-form `note` is present, the note alone is
+ * promoted. Iteration order matches `compactSourceStatus`, which is
+ * the backend's order.
+ */
+export function buildSourceStatusWarnings(
+  sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
+): string[] {
+  if (!sourceStatus || sourceStatus.length === 0) return [];
+  const warnings: string[] = [];
+  for (const entry of sourceStatus) {
+    const message = warningForEntry(entry);
+    if (message !== undefined) warnings.push(message);
+  }
+  return warnings;
+}
+
+function warningForEntry(
+  entry: UnifiedSearchSourceStatusPayload,
+): string | undefined {
+  const reasons: string[] = [];
+  if (entry.incompatibleQueryFeatures?.length) {
+    reasons.push(
+      `incompatible query features [${entry.incompatibleQueryFeatures.join(", ")}]`,
+    );
+  }
+  if (entry.ignoredQueryFeatures?.length) {
+    reasons.push(
+      `ignored query features [${entry.ignoredQueryFeatures.join(", ")}]`,
+    );
+  }
+  if (entry.incompatibleFilters?.length) {
+    reasons.push(
+      `incompatible filters [${entry.incompatibleFilters.join(", ")}]`,
+    );
+  }
+  if (entry.ignoredFilters?.length) {
+    reasons.push(`ignored filters [${entry.ignoredFilters.join(", ")}]`);
+  }
+  // Healthy lifecycle states (`INDEXED`, `CURRENT`, `STALE`) are
+  // already filtered out upstream in `compactSourceStatusEntry`; if
+  // these fields are present here, the state is genuinely worth
+  // surfacing.
+  if (entry.indexingStatus) {
+    reasons.push(`indexing status ${entry.indexingStatus}`);
+  }
+  if (entry.codeIndexState) {
+    reasons.push(`code index state ${entry.codeIndexState}`);
+  }
+  // Source/target prefix anchors the message so an agent reading
+  // multi-source warnings can tell which target each refers to.
+  const prefix = `Source '${entry.source}' for ${entry.targetLabel}`;
+  if (reasons.length > 0) {
+    return `${prefix}: ${reasons.join("; ")}`;
+  }
+  if (entry.note) {
+    return `${prefix}: ${entry.note}`;
+  }
+  return undefined;
 }
 
 function compactSourceStatus(
