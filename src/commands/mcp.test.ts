@@ -30,11 +30,9 @@ function createTestDeps(overrides: Partial<Dependencies> = {}): Dependencies {
     apiToken: "test-token",
     hasValidToken: true,
     envApiToken: undefined,
-    codeNavigationCapability: "disabled",
-    codeNavigationCliOverrideEnabled: false,
-    codeNavigationUrl: undefined,
-    codeNavigationService: undefined,
-    packageIntelligenceService: undefined,
+    codeNavigationUrl: "https://pkgseer.dev",
+    codeNavigationService: createMockCodeNavigationService(),
+    packageIntelligenceService: createMockPackageIntelligenceService(),
     githitsService: createMockGitHitsService(),
     ...overrides,
   };
@@ -49,31 +47,23 @@ describe("createMcpServer", () => {
     expect(server).toBeDefined();
   });
 
-  it("creates server with instructions wired in the gate-open state", () => {
+  it("creates server with instructions wired", () => {
     // Exercises the composer through createMcpServer so any breakage
     // in the instructions pipeline (composer import, SDK options
     // shape) surfaces here even though the SDK hides `instructions`
     // behind a private field.
-    const deps = createTestDeps({
-      codeNavigationCapability: "enabled",
-      codeNavigationUrl: "https://pkgseer.dev",
-      codeNavigationService: createMockCodeNavigationService(),
-      packageIntelligenceService: createMockPackageIntelligenceService(),
-    });
+    const deps = createTestDeps();
     const server = createMcpServer(deps);
 
     expect(server).toBeDefined();
   });
 
-  it("adds unified search tools when capability is enabled", () => {
-    const deps = createTestDeps({
-      codeNavigationCapability: "enabled",
-      codeNavigationUrl: "https://nav.example.com",
-      codeNavigationService: createMockCodeNavigationService(),
-    });
+  it("adds unified search tools by default", () => {
+    const deps = createTestDeps();
 
     const tools = getMcpToolDefinitions(deps);
-    expect(tools.map((tool) => tool.name)).toEqual([
+    const names = tools.map((tool) => tool.name);
+    for (const name of [
       "get_example",
       "search_language",
       "feedback",
@@ -82,29 +72,13 @@ describe("createMcpServer", () => {
       "code_files",
       "code_read",
       "code_grep",
-    ]);
+    ]) {
+      expect(names).toContain(name);
+    }
   });
 
-  it("adds unified search tools for opaque env tokens when the gate is otherwise open", () => {
-    const deps = createTestDeps({
-      envApiToken: "ghi-opaque-token",
-      codeNavigationCapability: "unknown",
-      codeNavigationUrl: "https://nav.example.com",
-      codeNavigationService: createMockCodeNavigationService(),
-    });
-
-    const tools = getMcpToolDefinitions(deps);
-    expect(tools.some((tool) => tool.name === "search")).toBe(true);
-    expect(tools.some((tool) => tool.name === "search_status")).toBe(true);
-  });
-
-  it("adds package_summary when capability is enabled and service wired", () => {
-    const deps = createTestDeps({
-      codeNavigationCapability: "enabled",
-      codeNavigationUrl: "https://pkgseer.dev",
-      codeNavigationService: createMockCodeNavigationService(),
-      packageIntelligenceService: createMockPackageIntelligenceService(),
-    });
+  it("adds package_summary by default", () => {
+    const deps = createTestDeps();
 
     const tools = getMcpToolDefinitions(deps);
     expect(tools.map((tool) => tool.name)).toContain("docs_list");
@@ -112,61 +86,8 @@ describe("createMcpServer", () => {
     expect(tools.map((tool) => tool.name)).toContain("pkg_info");
   });
 
-  it("omits package_summary when capability is disabled", () => {
-    const deps = createTestDeps({
-      codeNavigationCapability: "disabled",
-      codeNavigationUrl: "https://pkgseer.dev",
-      packageIntelligenceService: createMockPackageIntelligenceService(),
-    });
-
-    const tools = getMcpToolDefinitions(deps);
-    expect(tools.map((tool) => tool.name)).not.toContain("pkg_info");
-  });
-
-  it("omits package_summary when service is missing even if capability enabled", () => {
-    const deps = createTestDeps({
-      codeNavigationCapability: "enabled",
-      codeNavigationUrl: "https://pkgseer.dev",
-      packageIntelligenceService: undefined,
-    });
-
-    const tools = getMcpToolDefinitions(deps);
-    expect(tools.map((tool) => tool.name)).not.toContain("pkg_info");
-  });
-
-  it("adds package_summary for opaque env tokens when the gate is otherwise open", () => {
-    const deps = createTestDeps({
-      envApiToken: "ghi-opaque-token",
-      codeNavigationCapability: "unknown",
-      codeNavigationUrl: "https://pkgseer.dev",
-      packageIntelligenceService: createMockPackageIntelligenceService(),
-    });
-
-    const tools = getMcpToolDefinitions(deps);
-    expect(tools.some((tool) => tool.name === "pkg_info")).toBe(true);
-  });
-
-  it("adds package and code-nav tools when local override is enabled", () => {
-    const deps = createTestDeps({
-      codeNavigationCliOverrideEnabled: true,
-      codeNavigationUrl: "https://pkgseer.dev",
-      codeNavigationService: createMockCodeNavigationService(),
-      packageIntelligenceService: createMockPackageIntelligenceService(),
-    });
-
-    const names = getMcpToolDefinitions(deps).map((tool) => tool.name);
-    expect(names).toContain("search");
-    expect(names).toContain("docs_list");
-    expect(names).toContain("docs_read");
-  });
-
-  it("preserves half-open invariant: whenever package_summary is advertised, unified search is too (enabled path)", () => {
-    const deps = createTestDeps({
-      codeNavigationCapability: "enabled",
-      codeNavigationUrl: "https://pkgseer.dev",
-      codeNavigationService: createMockCodeNavigationService(),
-      packageIntelligenceService: createMockPackageIntelligenceService(),
-    });
+  it("advertises package_summary with unified search", () => {
+    const deps = createTestDeps();
 
     const names = getMcpToolDefinitions(deps).map((t) => t.name);
     if (names.includes("pkg_info")) {
@@ -175,36 +96,15 @@ describe("createMcpServer", () => {
     }
   });
 
-  it("adds package_vulnerabilities when capability is enabled and service wired", () => {
-    const deps = createTestDeps({
-      codeNavigationCapability: "enabled",
-      codeNavigationUrl: "https://pkgseer.dev",
-      codeNavigationService: createMockCodeNavigationService(),
-      packageIntelligenceService: createMockPackageIntelligenceService(),
-    });
+  it("adds package_vulnerabilities by default", () => {
+    const deps = createTestDeps();
 
     const tools = getMcpToolDefinitions(deps);
     expect(tools.map((tool) => tool.name)).toContain("pkg_vulns");
   });
 
-  it("omits package_vulnerabilities when capability is disabled", () => {
-    const deps = createTestDeps({
-      codeNavigationCapability: "disabled",
-      codeNavigationUrl: "https://pkgseer.dev",
-      packageIntelligenceService: createMockPackageIntelligenceService(),
-    });
-
-    const tools = getMcpToolDefinitions(deps);
-    expect(tools.map((tool) => tool.name)).not.toContain("pkg_vulns");
-  });
-
   it("advertises package_summary and package_vulnerabilities together (shared predicate)", () => {
-    const deps = createTestDeps({
-      codeNavigationCapability: "enabled",
-      codeNavigationUrl: "https://pkgseer.dev",
-      codeNavigationService: createMockCodeNavigationService(),
-      packageIntelligenceService: createMockPackageIntelligenceService(),
-    });
+    const deps = createTestDeps();
 
     const names = getMcpToolDefinitions(deps).map((t) => t.name);
     if (names.includes("pkg_info")) {
@@ -212,35 +112,15 @@ describe("createMcpServer", () => {
     }
   });
 
-  it("adds package_dependencies when capability is enabled and service wired", () => {
-    const deps = createTestDeps({
-      codeNavigationCapability: "enabled",
-      codeNavigationUrl: "https://pkgseer.dev",
-      packageIntelligenceService: createMockPackageIntelligenceService(),
-    });
+  it("adds package_dependencies by default", () => {
+    const deps = createTestDeps();
 
     const tools = getMcpToolDefinitions(deps);
     expect(tools.map((tool) => tool.name)).toContain("pkg_deps");
   });
 
-  it("omits package_dependencies when capability is disabled", () => {
-    const deps = createTestDeps({
-      codeNavigationCapability: "disabled",
-      codeNavigationUrl: "https://pkgseer.dev",
-      packageIntelligenceService: createMockPackageIntelligenceService(),
-    });
-
-    const tools = getMcpToolDefinitions(deps);
-    expect(tools.map((tool) => tool.name)).not.toContain("pkg_deps");
-  });
-
   it("advertises every package tool together (shared predicate covers deps too)", () => {
-    const deps = createTestDeps({
-      codeNavigationCapability: "enabled",
-      codeNavigationUrl: "https://pkgseer.dev",
-      codeNavigationService: createMockCodeNavigationService(),
-      packageIntelligenceService: createMockPackageIntelligenceService(),
-    });
+    const deps = createTestDeps();
 
     const names = getMcpToolDefinitions(deps).map((t) => t.name);
     if (names.includes("pkg_info")) {

@@ -26,10 +26,7 @@ import {
   type ToolDefinition,
   type ZodRawShape,
 } from "../tools/index.js";
-import {
-  buildMcpInstructions,
-  isPackageToolsCapabilityOpen,
-} from "./mcp-instructions.js";
+import { buildMcpInstructions } from "./mcp-instructions.js";
 
 /**
  * Returns the MCP tools enabled for the current startup state.
@@ -43,38 +40,31 @@ export function getMcpToolDefinitions(
     eraseTool(createFeedbackTool(deps.githitsService)),
   ];
 
-  const gateOpen = isPackageToolsCapabilityOpen(deps);
-
-  if (gateOpen && deps.codeNavigationService) {
-    tools.push(eraseTool(createSearchTool(deps.codeNavigationService)));
-    tools.push(eraseTool(createSearchStatusTool(deps.codeNavigationService)));
-    tools.push(eraseTool(createListFilesTool(deps.codeNavigationService)));
-    tools.push(eraseTool(createReadFileTool(deps.codeNavigationService)));
-    tools.push(eraseTool(createGrepRepoTool(deps.codeNavigationService)));
-  }
-
-  if (gateOpen && deps.packageIntelligenceService) {
-    tools.push(
-      eraseTool(createListPackageDocsTool(deps.packageIntelligenceService)),
-    );
-    tools.push(
-      eraseTool(createReadPackageDocTool(deps.packageIntelligenceService)),
-    );
-    tools.push(
-      eraseTool(createPackageSummaryTool(deps.packageIntelligenceService)),
-    );
-    tools.push(
-      eraseTool(
-        createPackageVulnerabilitiesTool(deps.packageIntelligenceService),
-      ),
-    );
-    tools.push(
-      eraseTool(createPackageDependenciesTool(deps.packageIntelligenceService)),
-    );
-    tools.push(
-      eraseTool(createPackageChangelogTool(deps.packageIntelligenceService)),
-    );
-  }
+  tools.push(eraseTool(createSearchTool(deps.codeNavigationService)));
+  tools.push(eraseTool(createSearchStatusTool(deps.codeNavigationService)));
+  tools.push(eraseTool(createListFilesTool(deps.codeNavigationService)));
+  tools.push(eraseTool(createReadFileTool(deps.codeNavigationService)));
+  tools.push(eraseTool(createGrepRepoTool(deps.codeNavigationService)));
+  tools.push(
+    eraseTool(createListPackageDocsTool(deps.packageIntelligenceService)),
+  );
+  tools.push(
+    eraseTool(createReadPackageDocTool(deps.packageIntelligenceService)),
+  );
+  tools.push(
+    eraseTool(createPackageSummaryTool(deps.packageIntelligenceService)),
+  );
+  tools.push(
+    eraseTool(
+      createPackageVulnerabilitiesTool(deps.packageIntelligenceService),
+    ),
+  );
+  tools.push(
+    eraseTool(createPackageDependenciesTool(deps.packageIntelligenceService)),
+  );
+  tools.push(
+    eraseTool(createPackageChangelogTool(deps.packageIntelligenceService)),
+  );
 
   return tools;
 }
@@ -211,7 +201,7 @@ export function registerMcpCommand(program: Command) {
 When run interactively (TTY), shows setup instructions.
 When run via stdio (non-TTY), starts the MCP server.
 
-Available tools depend on the current authentication state and enabled features.`,
+Authenticated tool calls require a valid GitHits token.`,
     )
     .action(async () => {
       if (process.stdout.isTTY && process.stdin.isTTY) {

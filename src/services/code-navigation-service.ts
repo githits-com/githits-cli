@@ -479,8 +479,8 @@ export class CodeNavigationValidationError extends Error {
 }
 
 /**
- * Raised when the caller hit a backend feature flag they don't have
- * access to. Same user-facing handling as ACCESS_DENIED.
+ * Raised when the backend reports an authorization feature check failure.
+ * Same user-facing handling as ACCESS_DENIED.
  */
 export class CodeNavigationFeatureFlagRequiredError extends Error {
   constructor(message: string) {

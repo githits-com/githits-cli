@@ -5,7 +5,7 @@ import { errorResult, type ToolResult } from "./types.js";
  * Wraps a tool handler with the shared structured `{error, code,
  * retryable}` error envelope. Used by always-on tools (`get_example`,
  * `search_language`, `feedback`) so agents can branch on `code`
- * uniformly with capability-gated tools instead of text-parsing.
+ * uniformly with code-navigation tools instead of text-parsing.
  */
 export async function withErrorHandling<T>(
   operation: string,

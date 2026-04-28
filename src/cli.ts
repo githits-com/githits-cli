@@ -84,30 +84,25 @@ registerLanguagesCommand(program);
 registerFeedbackCommand(program);
 const argv = process.argv.slice(2);
 const registrationArgv = stripRootRegistrationOptions(argv);
-const shouldLoadGatedHelpRegistration =
-  needsGatedHelpRegistration(registrationArgv);
-const helpRegistrationOptions = shouldLoadGatedHelpRegistration
-  ? await loadHelpRegistrationOptions(registrationArgv)
-  : undefined;
 
 if (shouldEagerLoadSearchCommands(registrationArgv)) {
   await withTelemetrySpan("cli.register.search", () =>
-    registerUnifiedSearchCommands(program, helpRegistrationOptions),
+    registerUnifiedSearchCommands(program),
   );
 }
 if (shouldEagerLoadGatedCommandGroup(registrationArgv, "code")) {
   await withTelemetrySpan("cli.register.code-group", () =>
-    registerCodeCommandGroup(program, helpRegistrationOptions),
+    registerCodeCommandGroup(program),
   );
 }
 if (shouldEagerLoadGatedCommandGroup(registrationArgv, "pkg")) {
   await withTelemetrySpan("cli.register.pkg-group", () =>
-    registerPkgCommandGroup(program, helpRegistrationOptions),
+    registerPkgCommandGroup(program),
   );
 }
 if (shouldEagerLoadGatedCommandGroup(registrationArgv, "docs")) {
   await withTelemetrySpan("cli.register.docs-group", () =>
-    registerDocsCommandGroup(program, helpRegistrationOptions),
+    registerDocsCommandGroup(program),
   );
 }
 
@@ -123,7 +118,7 @@ await withTelemetrySpan("cli.parse", () => program.parseAsync());
 /**
  * Commander supports root options before subcommands, e.g.
  * `githits --no-color pkg info`. Registration happens before Commander
- * parses argv, so the lightweight gated-command sniff must ignore root-only
+ * parses argv, so the lightweight command sniff must ignore root-only
  * flags or it will misclassify `--no-color` as the requested command.
  */
 function stripRootRegistrationOptions(args: string[]): string[] {
@@ -131,12 +126,10 @@ function stripRootRegistrationOptions(args: string[]): string[] {
 }
 
 /**
- * Argv-sniff optimisation for gated command groups. Returns `true`
+ * Argv-sniff optimisation for command groups. Returns `true`
  * when the user's invocation might need the group registered — i.e.
- * they typed the group name or asked for help. This is NOT a
- * capability gate; the actual gate lives inside
- * `registerXxxCommandGroup`. Here we only decide whether to build
- * the container eagerly so registration can run.
+ * they typed the group name or asked for help. Here we only decide
+ * whether to build the command group eagerly so registration can run.
  */
 function shouldEagerLoadGatedCommandGroup(
   args: string[],
@@ -164,70 +157,8 @@ function shouldEagerLoadSearchCommands(args: string[]): boolean {
   );
 }
 
-function isHelpInvocation(args: string[]): boolean {
-  return (
-    args.length === 0 ||
-    args[0] === "help" ||
-    args.includes("--help") ||
-    args.includes("-h")
-  );
-}
-
-function needsGatedHelpRegistration(args: string[]): boolean {
-  if (!isHelpInvocation(args)) {
-    return false;
-  }
-
-  const [firstArg, secondArg] = args;
-  if (firstArg === "help") {
-    return (
-      isSearchHelpTarget(secondArg) ||
-      secondArg === "code" ||
-      secondArg === "pkg" ||
-      secondArg === "docs"
-    );
-  }
-
-  return (
-    isSearchHelpTarget(firstArg) ||
-    firstArg === "code" ||
-    firstArg === "pkg" ||
-    firstArg === "docs"
-  );
-}
-
 function isSearchHelpTarget(value: string | undefined): boolean {
   return value === "search" || value === "search-status";
-}
-
-async function loadHelpRegistrationOptions(args: string[]) {
-  const { resolveStartupCodeNavigationRegistrationState } = await import(
-    "./container.js"
-  );
-  const registrationState =
-    await resolveStartupCodeNavigationRegistrationState();
-  return {
-    capability: registrationState.capability,
-    expiredStoredAuth: shouldUseExpiredStoredAuthFallbackForHelp(args)
-      ? registrationState.expiredStoredAuth
-      : false,
-  };
-}
-
-function shouldUseExpiredStoredAuthFallbackForHelp(args: string[]): boolean {
-  const [firstArg, secondArg] = args;
-  return (
-    firstArg === "search" ||
-    firstArg === "search-status" ||
-    firstArg === "code" ||
-    firstArg === "pkg" ||
-    firstArg === "docs" ||
-    (firstArg === "help" &&
-      (isSearchHelpTarget(secondArg) ||
-        secondArg === "code" ||
-        secondArg === "pkg" ||
-        secondArg === "docs"))
-  );
 }
 
 function getTelemetryCommandName(command: Command): string {

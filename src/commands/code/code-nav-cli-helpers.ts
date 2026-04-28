@@ -1,5 +1,5 @@
 /**
- * Shared CLI helpers for the indexing-gated `code files` / `code read`
+ * Shared CLI helpers for the indexed `code files` / `code read`
  * / `code grep` commands. Each command parses its own positionals
  * (because the shape varies — `[spec] [path]` vs `[spec] [pattern]
  * [path]`), but addressing resolution, numeric-option parsing, and
@@ -23,7 +23,7 @@ import {
 } from "../../shared/index.js";
 
 /**
- * Fields every `pkg` indexing-gated command shares.
+ * Fields every indexed `code` command shares.
  */
 export interface SharedCodeNavCliDependencies {
   codeNavigationService: CodeNavigationService | undefined;
@@ -33,7 +33,7 @@ export interface SharedCodeNavCliDependencies {
 }
 
 /**
- * Fields every `pkg` indexing-gated command's options carry.
+ * Fields every indexed `code` command's options carry.
  */
 export interface SharedCodeNavCliOptions {
   repoUrl?: string;
@@ -193,7 +193,7 @@ function looksLikeMissingNavpackMessage(message: string): boolean {
 
 /**
  * Shared error-printing + `process.exit` path used by every
- * indexing-gated `pkg` command. JSON callers get the shared
+ * indexed `code` command. JSON callers get the shared
  * `{error, code, retryable, details?}` envelope on stderr;
  * terminal callers get a per-command renderer wrapper.
  *

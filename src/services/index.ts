@@ -22,8 +22,6 @@ export {
   ChunkingKeyringService,
   WINDOWS_MAX_ENTRY_SIZE,
 } from "./chunking-keyring-service.js";
-export type { CodeNavigationCapability } from "./code-navigation-capability.js";
-export { getCodeNavigationCapability } from "./code-navigation-capability.js";
 export type {
   AvailableVersion,
   CodeNavigationRegistry,
@@ -82,7 +80,6 @@ export {
   getCodeNavigationUrl,
   getEnvApiToken,
   getMcpUrl,
-  isCodeNavigationCliOverrideEnabled,
 } from "./config.js";
 export type { ExecResult, ExecService } from "./exec-service.js";
 export { ExecServiceImpl } from "./exec-service.js";

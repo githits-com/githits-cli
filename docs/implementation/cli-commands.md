@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes three always-on top-level commands: `example`, `languages`, and `feedback`. Indexed dependency/package surfaces are capability-gated: top-level `search` / `search-status` plus the `code` and `pkg` command groups are shown only when the startup token explicitly carries `code_navigation`, or when `GITHITS_CODE_NAVIGATION=1` is set locally for development. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
+The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
 
 ## Commands
 
@@ -18,6 +18,8 @@ The CLI exposes three always-on top-level commands: `example`, `languages`, and 
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates) |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--groups`, `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig) |
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
+| `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages for a package. Entries include page IDs for `docs read`; JSON includes exact repo-file follow-up metadata when available. |
+| `docs read <page-id>` | page ID from `docs list` or search results | `--lines`, `--verbose`, `--json` | Read a documentation page by page ID. Default output is content-only; `--lines` fetches a bounded range for long pages. |
 | `code files [spec] [path-prefix]` | package spec OR `--repo-url` + `--git-ref`; optional `[path-prefix]` | `--limit`, `--wait`, `--verbose`, `--json` | List files in an indexed dependency. `[path-prefix]` is a literal directory prefix (not a glob). Plain output is one path per line; `--verbose` adds language / type / size annotations. Indexing-retry via `--wait` or the `availableVersions` hint in the error envelope. |
 | `code read <spec?> <path>` | package spec OR `--repo-url` + `--git-ref`; plus `<path>` | `--lines`, `--start`, `--end`, `--wait`, `--verbose`, `--json` | Read a file's contents. Plain output is the raw file bytes (pipe-friendly); `--verbose` adds a header and a line-number gutter. `--lines 10-40` concise form; `--start`/`--end` equivalent. Binary files show a sentinel line. |
 | `code grep [spec] <pattern> [path-prefix]` | package spec OR `--repo-url` + `--git-ref`; plus `<pattern>` and optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, `--regex`, `--case-sensitive`, `-C/-A/-B`, `--exclude-docs`, `--exclude-tests`, `--limit`, `--per-file-limit`, `--cursor`, `--symbol-field`, `--wait`, `--verbose`, `--json` | Deterministic text grep over indexed dependency or repository source. Defaults to whole-target, literal, ASCII case-insensitive matching; non-ASCII letters match case-sensitively. Narrow with `[path-prefix]`, `--path`, `--glob`, or `--ext`. Plain output is `file:line:text`; `--verbose` groups matches by file. |
@@ -130,8 +132,6 @@ Shows a concise overview for a single package: latest version, license, descript
 
 **Output envelope.** Success payload is hand-crafted for agent token efficiency: `{registry, name, version, description?, license?, homepage?, repository?, publishedAt?, downloads?, github?, install?, usage?, vulnerabilities?, recentChanges?}`. Omitted fields reflect backend nulls, not dropped data. Error envelope: `{error, code, retryable, details?}` — shared classifier family. Under `--json` the error envelope is written to **stderr** so stdout stays clean for `jq`.
 
-**Capability gate.** Same as `code`.
-
 **Troubleshooting.** `GITHITS_DEBUG=pkg-intel` emits PII-safe classified-error diagnostics (area, event, code, error class, detail keys). Use `GITHITS_DEBUG=*` to enable all non-sensitive package/source diagnostics.
 
 ### `githits pkg vulns`
@@ -168,8 +168,6 @@ Lists known CVE / OSV advisories for a package: severity, affected version range
 
 **Exit codes.** 0 on success including zero-vulns; 1 on any error. Under `--json`, the error envelope is written to **stderr**.
 
-**Capability gate.** Same as `pkg info`.
-
 **Troubleshooting.** Same debug areas as `pkg info`.
 
 ### `githits pkg deps`
@@ -203,8 +201,6 @@ Analyses dependencies for a package on npm, PyPI, Hex, Crates, vcpkg, or Zig. De
 **Output envelope.** `{registry, name, version, requestedVersion?, runtime?, groups?, transitive?, filter?}`. Data-first: the `runtime` block emits whenever the backend returned `dependencies.direct` (including `{count: 0, items: []}` for zero-dep packages); the `groups` block emits whenever the backend returned `dependencyGroups` (including `{items: []}` when a lifecycle filter matched nothing, so agents distinguish "backend has no groups concept" from "filter excluded everything"). Each group carries its members under `items` (matches the top-level `runtime.items` naming so dependency lists share one key throughout the envelope). `filter.lifecycles` echoes the canonicalised, deduplicated, display-order-sorted list the backend received — not the raw CSV input.
 
 **Exit codes.** 0 on success including zero-dep packages; 1 on any error. Under `--json`, the error envelope is written to **stderr**.
-
-**Capability gate.** Same as `pkg info` / `pkg vulns`.
 
 **Troubleshooting.** Same debug areas as `pkg info` / `pkg vulns`.
 
@@ -241,9 +237,40 @@ Fetches release notes or changelog entries for a package or GitHub repository. O
 
 **Errors.** `NOT_FOUND` covers both the backend's "package not found" case and the distinct "package exists but no changelog source resolved" case (typed `PackageIntelligenceChangelogSourceNotFoundError`; message names the sources that were tried). `VERSION_NOT_FOUND` enriches with structured `package` / `requested` / `available` detail lines from the shared `promoteGenericVersionNotFound` helper — which was extended in this PR to recognise `--from` and `--to` as promotable version inputs.
 
-**Capability gate.** Same as the rest of the `pkg` family.
-
 **Troubleshooting.** Same debug areas as the rest of the `pkg` family.
+
+### `githits docs list`
+
+```
+githits docs list npm:express
+githits docs list npm:express --limit 20
+githits docs list npm:express --json
+```
+
+Lists hosted/crawled and repository-backed documentation pages for a package. Each row includes a stable page ID for `docs read`, a source badge, and the source location. JSON output also includes repo URL / git ref / file path for repository-backed docs so callers can follow up with `code read` when source context is needed.
+
+**Pagination.** `--limit <n>` accepts 1-500. When `hasMore` is true, pass the returned `nextCursor` to `--after`.
+
+**Output envelope.** `{registry, name, version?, pages, total?, hasMore, nextCursor?, stale?, filter?}`. Each page has `{pageId, title, sourceKind, sourceUrl?, linkName?, repoUrl?, gitRef?, filePath?, lastUpdatedAt?}`.
+
+**Troubleshooting.** Same debug areas as the `pkg` family.
+
+### `githits docs read`
+
+```
+githits docs read <page-id>
+githits docs read <page-id> --lines 10-80
+githits docs read <page-id> --verbose
+githits docs read <page-id> --json
+```
+
+Reads a documentation page returned by `docs list` or search results. Default output is content-only for easy piping; `--verbose` adds a metadata header.
+
+**Line ranges.** `--lines 10-40`, `--lines 10-`, and `--lines -40` are supported. Use ranges to inspect long pages incrementally.
+
+**Output envelope.** `{pageId, title?, sourceKind?, sourceUrl?, repoUrl?, gitRef?, filePath?, totalLines?, startLine?, endLine?, content}`. Repo-backed docs include exact source metadata for `code read` follow-up.
+
+**Troubleshooting.** Same debug areas as the `pkg` family.
 
 ### `githits code files`
 
@@ -338,7 +365,7 @@ Each command follows this pattern:
 | Shared Module | Used By |
 |---|---|
 | `GitHitsService` (via container) | `example`, `languages`, `feedback`, and always-on MCP tools |
-| `CodeNavigationService` (via container) | top-level unified `search` / `search-status` plus capability-gated MCP indexed-search tools (`search`, `search_status`, `code_files`, `code_read`, `code_grep`) and the `githits code` command group |
+| `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, MCP indexed-search tools (`search`, `search_status`, `code_files`, `code_read`, `code_grep`), and the `githits code` command group |
 | `filterLanguages()` from `src/shared/language-filter.ts` | `search_language` MCP tool + `languages` CLI command |
 | `requireAuth()` from `src/shared/require-auth.ts` | all CLI commands and auth-required MCP tool handlers |
 
@@ -371,7 +398,7 @@ All commands support two output modes:
 
 ## Runtime Diagnostics
 
-- **`GITHITS_TELEMETRY=1`** — Emits an end-of-run timing summary to stderr without polluting normal stdout. Current spans cover gated command registration, startup auth lookup, container creation, token loading/refresh, and the outbound API/package-intelligence request.
+- **`GITHITS_TELEMETRY=1`** — Emits an end-of-run timing summary to stderr without polluting normal stdout. Current spans cover command registration, container creation, token loading/refresh, and the outbound API/package-intelligence request.
 
 ## Key Reference Files
 

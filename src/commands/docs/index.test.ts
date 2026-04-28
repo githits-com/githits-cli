@@ -3,12 +3,10 @@ import { Command } from "commander";
 import { registerDocsCommandGroup } from "./index.js";
 
 describe("registerDocsCommandGroup", () => {
-  it("does not register docs group without override or capability", async () => {
+  it("does not register docs group with an explicitly empty code navigation URL", async () => {
     const program = new Command();
     await registerDocsCommandGroup(program, {
-      codeNavigationUrl: "https://pkgseer.dev",
-      overrideEnabled: false,
-      capability: "disabled",
+      codeNavigationUrl: "",
     });
 
     expect(program.commands.some((command) => command.name() === "docs")).toBe(
@@ -16,12 +14,10 @@ describe("registerDocsCommandGroup", () => {
     );
   });
 
-  it("registers docs group when capability is enabled", async () => {
+  it("registers docs group when code navigation URL is configured", async () => {
     const program = new Command();
     await registerDocsCommandGroup(program, {
       codeNavigationUrl: "https://pkgseer.dev",
-      overrideEnabled: false,
-      capability: "enabled",
     });
 
     const docsCommand = program.commands.find(
