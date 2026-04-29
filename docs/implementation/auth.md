@@ -43,7 +43,7 @@ Tokens are JWTs with a configurable expiration (typically 1 hour). The CLI handl
 - **Reactive refresh** — If the token is already expired, refresh is attempted immediately.
 - **401 retry** — The `RefreshingGitHitsService` decorator wraps `GitHitsServiceImpl` and retries once on `AuthenticationError`, calling `forceRefresh()` to handle clock skew or server-side revocation.
 - **Shared retry helper** — GitHits REST calls and package/source service calls both use the same token-refresh/retry flow, so auth drift is handled consistently across both service families.
-- **Concurrent coalescing** — Multiple concurrent refresh requests share a single in-flight Promise.
+- **Concurrent coalescing** — Multiple concurrent refresh requests share a single in-flight Promise. Storage writes use compare-and-swap helpers so a failed refresh cannot overwrite or clear credentials another process already updated.
 - **At login** (`src/commands/login.ts`) — Checks if existing token is still valid before starting the OAuth flow. Respects `--force` flag to re-authenticate regardless.
 - **At auth status** (`src/commands/auth-status.ts`) — Attempts refresh before reporting "Token expired".
 
@@ -131,16 +131,19 @@ The configured target write must succeed before the source entry is deleted. Tok
 
 ```
 Container (createAuthStorage)
-  └─ MigratingAuthStorage (decorator)
-       ├─ KeychainAuthStorage
-       │    └─ ChunkingKeyringService (Windows only, decorator)
-       │         └─ KeyringServiceImpl ← @napi-rs/keyring
-       ├─ ModeAwareFileAuthStorage
-       │    └─ AuthStorageImpl ← platform config auth path
-       └─ AuthStorageImpl ← legacy ~/.githits path
+  └─ LockedAuthStorage (cross-process write lock)
+       └─ MigratingAuthStorage (decorator)
+            ├─ KeychainAuthStorage
+            │    └─ ChunkingKeyringService (Windows only, decorator)
+            │         └─ KeyringServiceImpl ← @napi-rs/keyring
+            ├─ ModeAwareFileAuthStorage
+            │    └─ AuthStorageImpl ← platform config auth path
+            └─ AuthStorageImpl ← legacy ~/.githits path
 ```
 
 All credential types are keyed by normalized MCP base URL (trailing slashes stripped), supporting multiple environments simultaneously.
+
+`LockedAuthStorage` serializes mutating auth operations across CLI processes and long-running MCP servers with an `auth.lock` directory under the platform config path. The lock records PID and process start time so dead-owner locks can be reclaimed without stealing live locks.
 
 ## How Auth Flows Through the System
 
@@ -154,22 +157,22 @@ CLI startup / MCP server start
                  ├─ stored token near-expiry (≥90% lifetime)? → proactive refresh
                  ├─ stored token expired? → reactive refresh
                  │    ├─ refresh success → save new tokens, use them
-                 │    └─ refresh fail → clear stale auth (hasValidToken=false)
-                 └─ no stored token → hasValidToken=false
+                  │    └─ refresh fail → reload storage; use externally updated tokens or clear only if unchanged and expired
+                  └─ no stored token → hasValidToken=false
 
 Per API call (via RefreshingGitHitsService):
   └─ TokenProvider.getToken() → get fresh token
        └─ on AuthenticationError from API → forceRefresh() → retry once
 ```
 
-The `hasValidToken` flag is checked by `requireAuth()` in `src/commands/mcp.ts` before starting the MCP server.
+The MCP server starts without a synchronous auth gate. Tool calls resolve tokens through the shared token provider and return per-tool auth errors when no valid token is available.
 
 ## Troubleshooting
 
-- **"Authentication required" on MCP start** — No valid token found. Run `githits login` or set `GITHITS_API_TOKEN`.
+- **"Authentication required" from a command or MCP tool** — No valid token found. Run `githits login` or set `GITHITS_API_TOKEN`.
 - **"Already logged in."** — Token is still valid. Use `githits login --force` to re-authenticate.
 - **Port conflicts on login** — The callback server uses the port from the stored client registration. On first login, a random port (8000–9999) is chosen and saved. Use `--port <port>` to change it (triggers re-registration).
-- **Token refresh fails silently** — By design. The container clears stale auth and `hasValidToken` becomes false, prompting re-login.
+- **Token refresh fails silently** — By design. The token manager first reloads storage in case another process refreshed credentials. If the expired token is still unchanged, it clears that stale token and later calls prompt re-login.
 - **Clearing auth** — Run `githits logout` to remove stored tokens and client registration for the current environment.
 - **System keychain unavailable** — In default keychain mode, OAuth login/refresh fails rather than writing plaintext credentials. Use `GITHITS_API_TOKEN`, fix/unlock the keychain, or explicitly configure `auth.storage = "file"` if plaintext local storage is acceptable.
 - **Windows "password encoded as UTF-16 is longer than platform limit"** — The Windows Credential Manager limits credential blobs to 2560 bytes (`CRED_MAX_CREDENTIAL_BLOB_SIZE`). Since passwords are stored as UTF-16 (2 bytes per char), the effective limit is 1280 characters. The `ChunkingKeyringService` decorator handles this automatically by splitting large values across multiple entries. If this error occurs on an older CLI version, upgrade to get chunked storage support.
@@ -187,6 +190,7 @@ The `hasValidToken` flag is checked by `requireAuth()` in `src/commands/mcp.ts` 
 | `src/services/code-navigation-service.ts` | Package/source service client using the shared refresh helper |
 | `src/services/auth-service.ts` | OAuth operations (DCR, PKCE, token exchange, callback server) |
 | `src/services/auth-storage.ts` | `AuthStorage` interface and file-based implementation |
+| `src/services/locked-auth-storage.ts` | Cross-process auth-storage lock and conditional write serialization |
 | `src/services/auth-config.ts` | `config.toml` and `GITHITS_AUTH_STORAGE` parsing |
 | `src/services/app-config-paths.ts` | Platform-specific config/auth path resolution |
 | `src/services/mode-aware-file-auth-storage.ts` | File-write guard for `auth.storage` policy |
