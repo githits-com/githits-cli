@@ -90,7 +90,7 @@ const DESCRIPTION =
   "`[from_version, to_version]` range (range mode, no count cap). " +
   "Address via `registry` + `package_name` or `repo_url` (mutually " +
   'exclusive). Response: `source` (`"releases"` / `"changelog_file"` ' +
-  '/ `"hexdocs"` / `"version_spine"`), `mode` (`"latest"` or `"range"`), ' +
+  '/ `"hexdocs"`), `mode` (`"latest"` or `"range"`), ' +
   "`entries: { count, items }` with full markdown bodies. Set " +
   "`include_bodies: false` for a version / date / URL timeline only. " +
   "Supports npm, PyPI, Hex, Crates, vcpkg, Zig, NuGet, Maven, " +

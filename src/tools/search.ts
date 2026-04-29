@@ -150,7 +150,13 @@ const schema = {
     .describe(
       "Default false waits for all sources; if the wait window expires, returns only searchRef/progress. When true, includes hits from sources that finished so far and still returns searchRef for continuation. Partial payloads support normal pagination via nextOffset.",
     ),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe("Maximum results to return (default 10, max 100)."),
   offset: z.coerce.number().int().min(0).optional(),
   wait_timeout_ms: z.coerce.number().int().min(0).max(60000).optional(),
   format: z

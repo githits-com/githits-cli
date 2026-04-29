@@ -15,7 +15,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
   const params: UnifiedSearchParams = {
     targets: [{ registry: "NPM", packageName: "express" }],
     query: "router middleware",
-    limit: 20,
+    limit: 10,
     offset: 0,
     waitTimeoutMs: 20_000,
   };
@@ -228,7 +228,7 @@ describe("buildUnifiedSearchSuccessPayload — sourceStatus warnings on complete
     targets: [{ registry: "NPM", packageName: "zod" }],
     query: "parse kind:function",
     sources: ["DOCS"],
-    limit: 20,
+    limit: 10,
     offset: 0,
     waitTimeoutMs: 20_000,
   };

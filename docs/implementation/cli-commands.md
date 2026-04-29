@@ -10,14 +10,14 @@ The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` /
 |---|---|---|---|
 | `init` | — | `-y, --yes`, `--skip-login` | Authenticate and set up MCP server for coding agents |
 | `example <query>` | `<query>` | `-l, --lang <language>`, `--license <mode>`, `--explain`, `--json` | Search for code examples |
-| `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols |
+| `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols. Defaults to 10 results. |
 | `search-status <search-ref>` | `<search-ref>` | `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search |
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback <solution_id>` | `--accept` or `--reject` | `-m, --message <text>`, `--json` | Submit feedback on a search result |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates) |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--groups`, `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig) |
-| `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, HexDocs, or version-spine timeline). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
+| `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages for a package. Entries include page IDs for `docs read`; JSON includes exact repo-file follow-up metadata when available. |
 | `docs read <page-id>` | page ID from `docs list` or search results | `--lines`, `--verbose`, `--json` | Read a documentation page by page ID. Default output is content-only; `--lines` fetches a bounded range for long pages. |
 | `code files [spec] [path-prefix]` | package spec OR `--repo-url` + `--git-ref`; optional `[path-prefix]` | `--limit`, `--wait`, `--verbose`, `--json` | List files in an indexed dependency. `[path-prefix]` is a literal directory prefix (not a glob). Plain output is one path per line; `--verbose` adds language / type / size annotations. Indexing-retry via `--wait` or the `availableVersions` hint in the error envelope. |
@@ -72,7 +72,7 @@ Unified search spans indexed dependency and repository code, docs, and explicit 
 
 **Intent filter.** When `--intent` is omitted, unified search sends no file-intent filter. Pass `--intent production` or another specific intent only when you want to narrow the result set. Some sources can still ignore `fileIntent`; when they do, the JSON `sourceStatus` block and terminal notes report that explicitly.
 
-**Complete-by-default results.** The CLI sends `allowPartialResults: false` unless `--allow-partial` is passed. If indexing does not complete within the wait window, the default behavior returns a `searchRef` and progress summary instead of partial hits. With `--allow-partial`, available hits are included while remaining sources continue indexing. `--wait` is in seconds (0-60, default 20).
+**Complete-by-default results.** The CLI sends `allowPartialResults: false` unless `--allow-partial` is passed. If indexing does not complete within the wait window, the default behavior returns a `searchRef` and progress summary instead of partial hits. With `--allow-partial`, available hits are included while remaining sources continue indexing. `--limit` defaults to 10 results. `--wait` is in seconds (0-60, default 20).
 
 The original unified-search plan envisaged hiding partial mode entirely in v1 to make results trustworthy by default. We kept the flag exposed because some agent and CLI flows benefit from "show me what you have so far"; the trust contract is preserved by keeping the *default* false. Users and agents must explicitly opt in, so a vanilla `search` call still cannot return incomplete results by surprise.
 
@@ -215,7 +215,7 @@ githits pkg changelog npm:express --json
 githits pkg changelog pypi:requests --no-body --json       # lean timeline
 ```
 
-Fetches release notes or changelog entries for a package or GitHub repository. Output is a newest-first list with a summary header identifying the source (GitHub Releases, CHANGELOG.md, HexDocs, or version-spine timeline).
+Fetches release notes or changelog entries for a package or GitHub repository. Output is a newest-first list with a summary header identifying the source (GitHub Releases, CHANGELOG.md, or HexDocs).
 
 **Addressing.** `<spec>` (`registry:name`, same parser as `pkg info` / `pkg vulns` / `pkg deps`) **or** `--repo-url <url>`, mutually exclusive. Unlike the other `pkg` commands, `pkg changelog` is intrinsically repo-level, so repo-URL addressing is a first-class peer mode.
 

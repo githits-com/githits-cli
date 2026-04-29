@@ -9,6 +9,7 @@ import type {
 import { MalformedCodeNavigationResponseError } from "../services/index.js";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { mapCodeNavigationError } from "./code-navigation-error-map.js";
+import { DEFAULT_UNIFIED_SEARCH_LIMIT } from "./unified-search-request.js";
 
 /**
  * Default values folded out of the JSON envelope when the caller did
@@ -16,7 +17,7 @@ import { mapCodeNavigationError } from "./code-navigation-error-map.js";
  * back wastes tokens. The defaults must stay aligned with
  * `buildUnifiedSearchParams`.
  */
-const DEFAULT_LIMIT = 20;
+const DEFAULT_LIMIT = DEFAULT_UNIFIED_SEARCH_LIMIT;
 const DEFAULT_OFFSET = 0;
 
 export interface UnifiedSearchQueryEcho {

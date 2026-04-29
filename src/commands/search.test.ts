@@ -2,6 +2,7 @@ import { describe, expect, it, mock, spyOn } from "bun:test";
 import type {
   UnifiedSearchIncomplete,
   UnifiedSearchOutcome,
+  UnifiedSearchParams,
   UnifiedSearchProgress,
   UnifiedSearchSessionStatus,
 } from "../services/code-navigation-service.js";
@@ -105,6 +106,29 @@ describe("searchAction", () => {
         sources: ["CODE", "DOCS"],
       }),
     );
+    consoleSpy.mockRestore();
+  });
+
+  it("uses the shared search default limit and preserves explicit limits", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const deps = createDeps({
+      codeNavigationService: createMockCodeNavigationService({ search }),
+    });
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchAction("router middleware", { in: ["npm:express"] }, deps);
+    expect(search.mock.calls[0]?.[0]?.limit).toBe(10);
+
+    search.mockClear();
+    await searchAction(
+      "router middleware",
+      { in: ["npm:express"], limit: "25" },
+      deps,
+    );
+    expect(search.mock.calls[0]?.[0]?.limit).toBe(25);
+
     consoleSpy.mockRestore();
   });
 

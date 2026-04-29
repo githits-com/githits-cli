@@ -44,6 +44,7 @@ describe("searchTool", () => {
       expect.objectContaining({
         query: "(handler) AND (lang:typescript)",
         allowPartialResults: true,
+        limit: 10,
         filters: expect.objectContaining({ kind: "FUNCTION" }),
       }),
     );

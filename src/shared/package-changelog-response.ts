@@ -10,7 +10,7 @@
  *   the backend returned and what the caller asked for, not by
  *   additional caller flags. `entries` is `{count, items}` whenever
  *   the backend resolved a `source` (even `{count: 0, items: []}`
- *   for an empty range); `source === null` is promoted to a
+ *   for an empty range); null/empty source is promoted to a
  *   `NOT_FOUND` error at the service boundary and never reaches the
  *   envelope builder.
  * - **Mode derived from request.** `mode: "range"` iff `fromVersion`
@@ -88,8 +88,8 @@ export interface LeanChangelogEnvelope {
   name?: string;
   /** Present for repo-URL addressing. */
   repoUrl?: string;
-  /** `"releases"` | `"changelog_file"` | `"hexdocs"` | `"version_spine"`. Never null here
-   *  (null is promoted to NOT_FOUND at the service boundary). */
+  /** `"releases"` | `"changelog_file"` | `"hexdocs"`. Never null/empty here
+   *  (no-source responses are promoted to NOT_FOUND at the service boundary). */
   source: string;
   /** Derived from request params. */
   mode: ChangelogMode;
@@ -332,8 +332,6 @@ function humanizeSource(source: string): string {
       return "CHANGELOG.md";
     case "hexdocs":
       return "HexDocs";
-    case "version_spine":
-      return "Version spine";
     default:
       return source;
   }
