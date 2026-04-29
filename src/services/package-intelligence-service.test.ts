@@ -1319,6 +1319,82 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
       service.packageChangelog({ registry: "NPM", packageName: "express" }),
     ).rejects.toBeInstanceOf(PackageIntelligenceChangelogSourceNotFoundError);
   });
+
+  it("accepts package version entries without a changelog source", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            packageChangelog: {
+              package: { name: "react", registry: "NPM" },
+              source: null,
+              entries: [
+                {
+                  version: "19.2.5",
+                  normalizedVersion: "19.2.5",
+                  body: "React Server Components",
+                  htmlUrl: null,
+                  publishedAt: "2026-04-08T00:00:00Z",
+                  metadata: null,
+                },
+              ],
+            },
+          },
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageChangelog({
+      registry: "NPM",
+      packageName: "react",
+    });
+
+    expect(result.source).toBeUndefined();
+    expect(result.entries[0]?.version).toBe("19.2.5");
+  });
+
+  it("normalizes an empty changelog source to absent when entries are present", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            packageChangelog: {
+              package: { name: "react", registry: "NPM" },
+              source: "",
+              entries: [
+                {
+                  version: "19.2.5",
+                  normalizedVersion: "19.2.5",
+                  body: null,
+                  htmlUrl: null,
+                  publishedAt: "2026-04-08T00:00:00Z",
+                  metadata: null,
+                },
+              ],
+            },
+          },
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageChangelog({
+      registry: "NPM",
+      packageName: "react",
+    });
+
+    expect(result.source).toBeUndefined();
+    expect(result.entries).toHaveLength(1);
+  });
 });
 
 describe("PackageIntelligenceServiceImpl — packageDependencies", () => {

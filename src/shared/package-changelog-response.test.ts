@@ -135,14 +135,14 @@ describe("buildPackageChangelogSuccessPayload — version null handling", () => 
     expect(envelope.entries.items[0]?.body).toBe("");
   });
 
-  it("throws if the service layer leaks source=null into the envelope builder (defence in depth)", () => {
+  it("omits source when package version entries have no changelog entry", () => {
     const report: ChangelogReport = {
       ...baseReport,
       source: undefined,
     };
-    expect(() =>
-      buildPackageChangelogSuccessPayload(report, baseOptions),
-    ).toThrow(/null source/);
+    const envelope = buildPackageChangelogSuccessPayload(report, baseOptions);
+    expect(envelope.source).toBeUndefined();
+    expect(envelope.entries.count).toBe(2);
   });
 });
 
@@ -255,6 +255,16 @@ describe("formatPackageChangelogTerminal", () => {
     expect(output).toContain("## Patch");
     expect(output).toContain("- fixed a thing");
     expect(output).not.toContain("use --verbose");
+  });
+
+  it("labels no-source package entries as package versions", () => {
+    const report: ChangelogReport = { ...baseReport, source: undefined };
+    const envelope = buildPackageChangelogSuccessPayload(report, baseOptions);
+    const output = formatPackageChangelogTerminal(envelope, {
+      verbose: false,
+      useColors: false,
+    });
+    expect(output).toContain("source: package versions");
   });
 
   it("caps the body at 10 lines by default with a truncation footer", () => {

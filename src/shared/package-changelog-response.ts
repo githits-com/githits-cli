@@ -9,10 +9,9 @@
  * - **Data-first envelope.** Every top-level key is driven by what
  *   the backend returned and what the caller asked for, not by
  *   additional caller flags. `entries` is `{count, items}` whenever
- *   the backend resolved a `source` (even `{count: 0, items: []}`
- *   for an empty range); null/empty source is promoted to a
- *   `NOT_FOUND` error at the service boundary and never reaches the
- *   envelope builder.
+ *   the backend returned entries. Package version responses may have
+ *   entries with no concrete changelog source; only no-source +
+ *   no-entry responses are promoted to `NOT_FOUND`.
  * - **Mode derived from request.** `mode: "range"` iff `fromVersion`
  *   was non-null after normalisation; `"latest"` otherwise. Lowercase
  *   strings matching the backend's doc-comment convention.
@@ -88,9 +87,8 @@ export interface LeanChangelogEnvelope {
   name?: string;
   /** Present for repo-URL addressing. */
   repoUrl?: string;
-  /** `"releases"` | `"changelog_file"` | `"hexdocs"`. Never null/empty here
-   *  (no-source responses are promoted to NOT_FOUND at the service boundary). */
-  source: string;
+  /** `"releases"` | `"changelog_file"` | `"hexdocs"` when resolved. Absent for package versions with no changelog entry. */
+  source?: string;
   /** Derived from request params. */
   mode: ChangelogMode;
   entries: LeanEntriesBlock;
@@ -143,24 +141,15 @@ export function buildPackageChangelogSuccessPayload(
     return lean;
   });
 
-  if (report.source == null) {
-    // Defence in depth — the service promotes null-source to
-    // NOT_FOUND before we get here, so this path is unreachable in
-    // practice. Throw rather than emit an envelope that would
-    // violate the `source: string` type contract.
-    throw new Error(
-      "Changelog envelope builder received a null source — should have been promoted to NOT_FOUND at the service boundary.",
-    );
-  }
-
   const envelope: LeanChangelogEnvelope = {
-    source: report.source,
     mode: options.mode,
     entries: {
       count: items.length,
       items,
     },
   };
+
+  if (report.source) envelope.source = report.source;
 
   if (options.registry) envelope.registry = options.registry;
   if (options.name) envelope.name = options.name;
@@ -303,7 +292,9 @@ function buildSummaryLine(
     envelope.registry && envelope.name
       ? `${envelope.name} · ${envelope.registry}`
       : (envelope.repoUrl ?? "(unknown)");
-  const sourceLabel = humanizeSource(envelope.source);
+  const sourceLabel = envelope.source
+    ? humanizeSource(envelope.source)
+    : "package versions";
   const modeLabel =
     envelope.mode === "range" ? rangeLabel(envelope) : latestLabel(envelope);
   const countLabel = `${envelope.entries.count} ${plural("entry", "entries", envelope.entries.count)}`;

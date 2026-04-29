@@ -166,6 +166,33 @@ describe("pkgChangelogAction", () => {
     logSpy.mockRestore();
   });
 
+  it("emits JSON version entries without source when no changelog source is available", async () => {
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await pkgChangelogAction(
+      "npm:express",
+      { json: true },
+      createDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageChangelog: mock(() =>
+            Promise.resolve({
+              ...defaultChangelogReport,
+              source: undefined,
+              entries: [defaultChangelogReport.entries[0]!],
+            }),
+          ),
+        }),
+      }),
+    );
+
+    const output = logSpy.mock.calls[0]?.[0] as string;
+    const payload = JSON.parse(output);
+    expect(payload.source).toBeUndefined();
+    expect(payload.entries.count).toBe(1);
+    expect(payload.entries.items[0].version).toBe("5.2.1");
+    logSpy.mockRestore();
+  });
+
   it("drops body fields in JSON when --no-body is set", async () => {
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
 
