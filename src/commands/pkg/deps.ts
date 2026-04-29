@@ -3,6 +3,7 @@ import { createContainer } from "../../container.js";
 import type { PackageIntelligenceService } from "../../services/index.js";
 import { shouldUseColors } from "../../shared/colors.js";
 import {
+  formatMappedErrorForTerminal,
   InvalidPackageSpecError,
   type MappedError,
   mapPackageIntelligenceError,
@@ -161,6 +162,9 @@ function handlePkgDepsCommandError(error: unknown, json: boolean): never {
  * provides one.
  */
 function formatDepsTerminalError(mapped: MappedError): string {
+  if (mapped.code === "UPDATE_REQUIRED") {
+    return formatMappedErrorForTerminal(mapped);
+  }
   if (mapped.code !== "VERSION_NOT_FOUND") return mapped.message;
   const detail = mapped.details ?? {};
   const pkg = typeof detail.package === "string" ? detail.package : undefined;

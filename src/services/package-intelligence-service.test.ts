@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { ClientUpdateRequiredError } from "./client-update-required-error.js";
 import { AuthenticationError } from "./githits-service.js";
 import {
   MalformedPackageIntelligenceResponseError,
@@ -422,6 +423,30 @@ describe("PackageIntelligenceServiceImpl", () => {
     await expect(
       service.packageSummary({ registry: "NPM", packageName: "x" }),
     ).rejects.toBeInstanceOf(PackageIntelligenceValidationError);
+  });
+
+  it("classifies GraphQL schema mismatch as ClientUpdateRequiredError", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: 'Cannot query field "packageSummary" on type "Query".',
+              extensions: { code: "GRAPHQL_VALIDATION_FAILED" },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageSummary({ registry: "NPM", packageName: "x" }),
+    ).rejects.toBeInstanceOf(ClientUpdateRequiredError);
   });
 
   it("classifies 5xx plain-text body via parseDetail as PackageIntelligenceBackendError", async () => {

@@ -7,6 +7,7 @@ import {
   mock,
   spyOn,
 } from "bun:test";
+import { ClientUpdateRequiredError } from "./client-update-required-error.js";
 import {
   CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
@@ -685,6 +686,35 @@ describe("CodeNavigationServiceImpl", () => {
         "GREP_FILE_TOO_LARGE",
       );
     }
+  });
+
+  it("classifies GraphQL schema mismatch as ClientUpdateRequiredError", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: 'Cannot query field "search" on type "Query".',
+                extensions: { code: "GRAPHQL_VALIDATION_FAILED" },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    await expect(
+      service.search({
+        targets: [{ registry: "NPM", packageName: "express" }],
+        query: "middleware",
+      }),
+    ).rejects.toBeInstanceOf(ClientUpdateRequiredError);
   });
 
   it("sends grepRepo variables with the correct shape", async () => {

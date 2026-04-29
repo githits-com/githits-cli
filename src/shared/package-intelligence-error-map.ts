@@ -8,6 +8,7 @@
  * single debug line under the `pkg-intel` area.
  */
 
+import { ClientUpdateRequiredError } from "../services/client-update-required-error.js";
 import { AuthenticationError } from "../services/githits-service.js";
 import {
   MalformedPackageIntelligenceResponseError,
@@ -26,6 +27,7 @@ import type {
   MappedErrorCode,
   MappedErrorDetails,
 } from "./code-navigation-error-map.js";
+import { buildUpdateRequiredError } from "./code-navigation-error-map.js";
 import { debugLog } from "./debug-log.js";
 
 // Re-export for caller convenience — callers of
@@ -51,6 +53,9 @@ export function mapPackageIntelligenceError(error: unknown): MappedError {
 }
 
 function classify(error: unknown): MappedError {
+  if (error instanceof ClientUpdateRequiredError) {
+    return buildUpdateRequiredError(error.reason, error.currentVersion);
+  }
   if (
     error instanceof PackageIntelligenceTargetNotFoundError ||
     error instanceof PackageIntelligenceChangelogSourceNotFoundError

@@ -13,6 +13,7 @@ import type {
   CodeNavigationTarget,
 } from "../../services/index.js";
 import {
+  formatMappedErrorForTerminal,
   type MappedError,
   mapCodeNavigationError,
 } from "../../shared/code-navigation-error-map.js";
@@ -122,6 +123,9 @@ export function parseIntCliOption(
  * share the same indexing-retry story.
  */
 export function formatIndexingError(mapped: MappedError): string {
+  if (mapped.code === "UPDATE_REQUIRED") {
+    return formatMappedErrorForTerminal(mapped);
+  }
   if (mapped.code !== "INDEXING") return mapped.message;
   const detail = mapped.details ?? {};
   const lines = [mapped.message];
@@ -148,6 +152,9 @@ export function formatIndexingError(mapped: MappedError): string {
  * class of failure.
  */
 export function formatFileErrorWithFilesHint(mapped: MappedError): string {
+  if (mapped.code === "UPDATE_REQUIRED") {
+    return formatMappedErrorForTerminal(mapped);
+  }
   if (mapped.code === "FILE_NOT_FOUND") {
     return `${mapped.message}\n  Use \`code files\` to list available paths.`;
   }

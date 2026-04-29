@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
+import { ClientUpdateRequiredError } from "../services/client-update-required-error.js";
 import {
   CodeNavigationAccessError,
   CodeNavigationBackendError,
@@ -31,6 +32,23 @@ class UnsupportedRegistryError extends Error {
 }
 
 describe("mapCodeNavigationError", () => {
+  it("classifies ClientUpdateRequiredError as UPDATE_REQUIRED", () => {
+    expect(
+      mapCodeNavigationError(
+        new ClientUpdateRequiredError(undefined, undefined, "0.2.0"),
+      ),
+    ).toEqual({
+      code: "UPDATE_REQUIRED",
+      message: "Update required: Backend protocol changed",
+      retryable: false,
+      details: {
+        currentVersion: "0.2.0",
+        reason: "Backend protocol changed",
+        updateCommand: "npm i -g githits@latest",
+      },
+    });
+  });
+
   it("classifies CodeNavigationTargetNotFoundError as NOT_FOUND", () => {
     const err = new CodeNavigationTargetNotFoundError("Package not found", [
       { version: "5.2.1", ref: "v5.2.1" },

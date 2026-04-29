@@ -24,6 +24,10 @@ import {
 } from "../shared/pkgseer-graphql.js";
 import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
 import { withTelemetrySpan } from "../shared/telemetry.js";
+import {
+  ClientUpdateRequiredError,
+  isClientUpdateRequiredGraphQLError,
+} from "./client-update-required-error.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import { AuthenticationError } from "./githits-service.js";
 import { promoteGenericVersionNotFound } from "./promote-version-not-found.js";
@@ -1396,6 +1400,10 @@ export class PackageIntelligenceServiceImpl
       typeof extensions?.retryable === "boolean"
         ? extensions.retryable
         : undefined;
+
+    if (isClientUpdateRequiredGraphQLError({ message, code })) {
+      return new ClientUpdateRequiredError();
+    }
 
     switch (code) {
       case "NOT_FOUND":

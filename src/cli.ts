@@ -2,7 +2,9 @@
 import { Command } from "commander";
 import { version } from "../package.json";
 import {
+  enforceCachedRequiredUpdateForInvocation,
   runWithUpdateCheckFlush,
+  startRequiredUpdateRefreshTaskForInvocation,
   startUpdateCheckTaskForInvocation,
 } from "./cli/update-check.js";
 import {
@@ -38,17 +40,32 @@ const commandSpans = new WeakMap<
   Command,
   ReturnType<typeof startTelemetrySpan>
 >();
+const createUpdateCheckService = () =>
+  new NpmRegistryUpdateCheckService({
+    currentVersion: version,
+    fileSystemService: new FileSystemServiceImpl(),
+  });
+
+await enforceCachedRequiredUpdateForInvocation({
+  args: argv,
+  env: process.env,
+  createService: createUpdateCheckService,
+  stderr: process.stderr,
+  exit: process.exit as (code: number) => never,
+});
+
 const updateCheckTask = startUpdateCheckTaskForInvocation({
   args: argv,
   env: process.env,
   stderrIsTTY: process.stderr.isTTY === true,
   stdinIsTTY: process.stdin.isTTY === true,
   stdoutIsTTY: process.stdout.isTTY === true,
-  createService: () =>
-    new NpmRegistryUpdateCheckService({
-      currentVersion: version,
-      fileSystemService: new FileSystemServiceImpl(),
-    }),
+  createService: createUpdateCheckService,
+});
+const requiredUpdateRefreshTask = startRequiredUpdateRefreshTaskForInvocation({
+  args: argv,
+  env: process.env,
+  createService: createUpdateCheckService,
 });
 
 if (isTelemetryEnabled()) {
@@ -138,7 +155,7 @@ try {
   await runWithUpdateCheckFlush(
     () => withTelemetrySpan("cli.parse", () => program.parseAsync()),
     updateCheckTask,
-    { stderr: process.stderr },
+    { stderr: process.stderr, requiredUpdateRefreshTask },
   );
 } catch (error) {
   if (isUserFacingError(error)) {

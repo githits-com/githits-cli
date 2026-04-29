@@ -236,6 +236,8 @@ export function createMockUpdateCheckService(
 ): UpdateCheckService {
   return {
     checkForUpdate: mock(() => Promise.resolve(undefined)),
+    refreshRequiredUpdateStatus: mock(() => Promise.resolve()),
+    getRequiredUpdateNotice: mock(() => Promise.resolve(undefined)),
     ...impl,
   };
 }
