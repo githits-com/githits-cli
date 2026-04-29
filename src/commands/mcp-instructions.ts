@@ -70,7 +70,7 @@ const MULTI_TURN_TIP =
  * Mirrors `getMcpToolDefinitions` so the instructions stay aligned
  * with the registered tool surface.
  */
-export function buildMcpInstructions(deps: Dependencies): string {
+export function buildMcpInstructions(_deps: Dependencies): string {
   const sections = [CORE_BLOCK];
 
   const bullets: string[] = [];

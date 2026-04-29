@@ -358,7 +358,7 @@ export interface ChangelogEntryDetail {
 export interface ChangelogReport {
   /** Echo of addressing + filter as the backend saw it. */
   package?: ChangelogPackageInfo;
-  /** `"releases"` | `"changelog_file"` | `"hexdocs"` when resolved; null otherwise. */
+  /** `"releases"` | `"changelog_file"` | `"hexdocs"` | `"version_spine"` when resolved; null otherwise. */
   source?: string;
   /** Entries, newest-first. Empty array = resolved source but nothing in range. */
   entries: ChangelogEntryDetail[];

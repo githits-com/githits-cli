@@ -88,7 +88,7 @@ export interface LeanChangelogEnvelope {
   name?: string;
   /** Present for repo-URL addressing. */
   repoUrl?: string;
-  /** `"releases"` | `"changelog_file"` | `"hexdocs"`. Never null here
+  /** `"releases"` | `"changelog_file"` | `"hexdocs"` | `"version_spine"`. Never null here
    *  (null is promoted to NOT_FOUND at the service boundary). */
   source: string;
   /** Derived from request params. */
@@ -332,6 +332,8 @@ function humanizeSource(source: string): string {
       return "CHANGELOG.md";
     case "hexdocs":
       return "HexDocs";
+    case "version_spine":
+      return "Version spine";
     default:
       return source;
   }

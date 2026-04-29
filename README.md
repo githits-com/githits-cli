@@ -12,7 +12,7 @@ npx githits init
 
 `init` authenticates with your [GitHits](https://githits.com) account, then auto-detects your installed coding tools and configures each one with GitHits MCP.
 
-Supported tools: Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Gemini CLI, and Google Antigravity.
+Supported tools: Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Gemini CLI, Google Antigravity, and OpenCode.
 
 If you are using a tool that is not listed above, use the manual MCP setup instructions near the end of this README.
 

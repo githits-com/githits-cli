@@ -256,7 +256,8 @@ When a new tool lands with both MCP and CLI surfaces:
 - **`source: null` promoted to `NOT_FOUND`.** The service layer
   promotes the null-source case to a typed
   `PackageIntelligenceChangelogSourceNotFoundError` with a message
-  naming the sources tried (GitHub Releases, CHANGELOG.md, HexDocs).
+  naming the sources tried (GitHub Releases, CHANGELOG.md, HexDocs,
+  version-spine timeline).
 - **`--verbose` / `--no-body` / `--json` interaction.** Default
   terminal output truncates each entry's body at 10 lines.
   `--verbose` lifts the cap (terminal-only). `--no-body` mirrors
