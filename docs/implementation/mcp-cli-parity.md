@@ -253,8 +253,8 @@ When a new tool lands with both MCP and CLI surfaces:
   values never round-trip as caller intent.
 - **`entries: { count, items }` shape.** Mirrors `runtime: {count,
   items}` from `pkg_deps`.
-- **`source: null` promoted to `NOT_FOUND`.** The service layer
-  promotes the null-source case to a typed
+- **Missing source promoted to `NOT_FOUND`.** The service layer
+  promotes null or empty `source` to a typed
   `PackageIntelligenceChangelogSourceNotFoundError` with a message
   naming the sources tried (GitHub Releases, CHANGELOG.md, HexDocs).
 - **`--verbose` / `--no-body` / `--json` interaction.** Default

@@ -5,6 +5,7 @@ import {
   MalformedPackageIntelligenceResponseError,
   PackageIntelligenceAccessError,
   PackageIntelligenceBackendError,
+  PackageIntelligenceChangelogSourceNotFoundError,
   PackageIntelligenceFeatureFlagRequiredError,
   PackageIntelligenceNetworkError,
   PackageIntelligenceServiceImpl,
@@ -1288,6 +1289,35 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     expect(result.security?.vulnerabilities?.[1]?.withdrawnAt).toBe(
       "2024-02-01T00:00:00Z",
     );
+  });
+});
+
+describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
+  const ENDPOINT = "https://pkgseer.dev";
+
+  it("treats an empty source as no changelog data", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            packageChangelog: {
+              package: { name: "express", registry: "NPM" },
+              source: "",
+              entries: [],
+            },
+          },
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageChangelog({ registry: "NPM", packageName: "express" }),
+    ).rejects.toBeInstanceOf(PackageIntelligenceChangelogSourceNotFoundError);
   });
 });
 

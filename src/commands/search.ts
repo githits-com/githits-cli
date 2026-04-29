@@ -225,7 +225,7 @@ export function registerSearchCommand(program: Command) {
       "--allow-partial",
       "Include hits already available while indexing continues; a searchRef is still returned so search-status can fetch the rest",
     )
-    .option("--limit <n>", "Max results (1-100)")
+    .option("--limit <n>", "Max results (1-100, default: 10)")
     .option("--offset <n>", "Result offset")
     .option(
       "--wait <seconds>",

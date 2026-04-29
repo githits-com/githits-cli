@@ -25,7 +25,7 @@ context summary:
 
 ## MCP Tools
 
-This plugin connects to the GitHits MCP server and always exposes three core tools:
+This plugin connects to the GitHits MCP server and always exposes these core tools:
 
 - **get_example** — Find code examples by describing what you need in natural
   language. Requires `query`; `language` is optional and inferred when omitted.
@@ -33,8 +33,9 @@ This plugin connects to the GitHits MCP server and always exposes three core too
   need to force a specific language.
 - **feedback** — Rate a search result to improve future quality.
 
-Additional indexed dependency/package tools such as `search`, `pkg_info`,
-`code_files`, and `code_grep` are available by default.
+Additional indexed dependency/package tools are available by default:
+`search`, `search_status`, `docs_list`, `docs_read`, `pkg_info`, `pkg_vulns`,
+`pkg_deps`, `pkg_changelog`, `code_files`, `code_read`, and `code_grep`.
 
 ## Authentication
 

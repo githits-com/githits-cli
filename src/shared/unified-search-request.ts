@@ -10,6 +10,8 @@ import type {
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { InvalidArgumentError } from "./package-spec.js";
 
+export const DEFAULT_UNIFIED_SEARCH_LIMIT = 10;
+
 export interface UnifiedSearchRequestInput {
   target?: CodeNavigationTarget;
   targets?: CodeNavigationTarget[];
@@ -40,7 +42,7 @@ export function buildUnifiedSearchParams(
   const targets = resolveTargets(input.target, input.targets);
   const rawQuery = normaliseRequiredQuery(input.query);
 
-  const limit = input.limit ?? 20;
+  const limit = input.limit ?? DEFAULT_UNIFIED_SEARCH_LIMIT;
   const offset = input.offset ?? 0;
   const waitTimeoutMs = input.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS;
 

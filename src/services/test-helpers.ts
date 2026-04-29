@@ -140,7 +140,7 @@ export const defaultUnifiedSearchOutcome: UnifiedSearchOutcome = {
     ],
     page: {
       offset: 0,
-      limit: 20,
+      limit: 10,
       returned: 1,
       hasMore: false,
     },

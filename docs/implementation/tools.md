@@ -8,10 +8,10 @@ The CLI exposes MCP tools that mirror the backend's MCP server. This document ex
 
 GitHits has two MCP server implementations:
 
-- **Backend** (`githits-backend`) — Python/FastMCP, runs as a hosted service at `mcp.githits.com`. Surfaces only the example-search workflow (`get_example`, `search_language`, `feedback`).
-- **CLI** (`githits-cli`) — TypeScript/MCP SDK, runs locally via `githits mcp start`. Surfaces the full set, including unified `search`, package intelligence (`pkg_*`), and code navigation (`code_*`).
+- **Backend** (`githits-backend` / PkgSeer MCP) — Python/FastMCP, runs as hosted MCP services. Production exposes both the core example-search workflow (`get_example`, `search_language`, `feedback`) and indexed package/source tooling.
+- **CLI** (`githits-cli`) — TypeScript/MCP SDK, runs locally via `githits mcp start`. Surfaces the same public tool families, including unified `search`, package intelligence (`pkg_*`), docs (`docs_*`), and code navigation (`code_*`).
 
-The two surfaces overlap on the example-search workflow only; for the overlapping tools the parameters and descriptions stay aligned. Tools that exist only on the CLI surface (code navigation, package intelligence, unified `search`) are not constrained by backend parity.
+The CLI mirrors the production MCP tool contract where equivalent tools exist. Core example-search tool descriptions are kept aligned with GitHits backend wording; indexed package/source tool descriptions are kept aligned with the PkgSeer/GitHits indexed-service contract.
 
 ## Current Tools
 
@@ -20,7 +20,7 @@ The two surfaces overlap on the example-search workflow only; for the overlappin
 | `get_example` | `query`, `language?`, `license_mode?` | Search for canonical code examples. Returns markdown-formatted results. If `language` is omitted, the backend infers it from the query. |
 | `search_language` | `query` | Find supported programming language names before searching. |
 | `feedback` | `solution_id`, `accepted`, `feedback_text?` | Submit feedback on a search result to improve quality. |
-| `search` | `query`, `target?`, `targets?`, `sources?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Unified indexed dependency/repository discovery search across code, docs, and symbols. Omit `file_intent` to search across all intents; set it only when you want to narrow results, and note that some sources may ignore it and report that in `sourceStatus`. Prefer `sources:["symbol"]` for symbol-shaped unified search. Complete-by-default; set `allow_partial_results: true` to receive available partial hits while indexing continues. `format` defaults to `text-v1` for compact agent output; pass `format: "json"` for the structured envelope. |
+| `search` | `query`, `target?`, `targets?`, `sources?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Unified indexed dependency/repository discovery search across code, docs, and symbols. Omit `file_intent` to search across all intents; set it only when you want to narrow results, and note that some sources may ignore it and report that in `sourceStatus`. Prefer `sources:["symbol"]` for symbol-shaped unified search. Complete-by-default; `limit` defaults to 10 to keep agent output compact. Set `allow_partial_results: true` to receive available partial hits while indexing continues. `format` defaults to `text-v1` for compact agent output; pass `format: "json"` for the structured envelope. |
 | `search_status` | `search_ref` | Check progress, fetch partial hits when the original request used `allow_partial_results: true`, or fetch final results for a prior unified search. |
 | `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?` | List hosted/crawled and repository-backed documentation pages for a package. Entries include stable page IDs for `docs_read`; repo-backed entries include exact source metadata for `code_read` follow-up. |
 | `docs_read` | `page_id`, `start_line?`, `end_line?` | Read a documentation page by page ID. Supports bounded line ranges for long pages; repo-backed pages include exact file follow-up metadata. |
@@ -104,7 +104,7 @@ The two surfaces overlap on the example-search workflow only; for the overlappin
 
 **Version validation.** Same rule as `pkg_vulns` / `pkg_deps`: tag-style `v`-prefixed inputs on `from_version` / `to_version` are rejected client-side with `INVALID_ARGUMENT`. `<spec>@<version>` is also rejected — the `pkg changelog` family has no single-version query, and silently remapping to `to_version` would be a client-invented semantic shift. Hint text redirects callers to `--to` / `to_version`.
 
-**NOT_FOUND semantics.** Backend `source === null` is promoted to a typed `PackageIntelligenceChangelogSourceNotFoundError` at the service boundary, which the shared classifier routes to the `NOT_FOUND` envelope with a message naming the sources that were tried. Empty `entries.items: []` with a valid `source` is a success, not an error — "no entries in this range" is a legitimate neutral outcome.
+**NOT_FOUND semantics.** Backend `source === null` or `source === ""` is promoted to a typed `PackageIntelligenceChangelogSourceNotFoundError` at the service boundary, which the shared classifier routes to the `NOT_FOUND` envelope with a message naming the sources that were tried. Empty `entries.items: []` with a valid `source` is a success, not an error — "no entries in this range" is a legitimate neutral outcome.
 
 **Overlap with `pkg_info`.** `pkg_info` already surfaces a short-form `recentChanges` block (from the backend's `latestChangelogs` field on `PackageSummaryResult`). For a quick "what shipped recently" glance embedded in a package overview, use `pkg_info`. For the full range-capable, body-rich, `include_bodies`-toggleable changelog with `--no-body` timeline mode and repo-URL addressing, use `pkg_changelog`.
 

@@ -11,7 +11,7 @@ describe("buildUnifiedSearchParams", () => {
     expect(built.rawQuery).toBe("router middleware");
     expect(built.compiledQuery).toBe("router middleware");
     expect(built.params.filters).toBeUndefined();
-    expect(built.params.limit).toBe(20);
+    expect(built.params.limit).toBe(10);
     expect(built.params.offset).toBe(0);
     expect(built.params.waitTimeoutMs).toBe(20_000);
   });
