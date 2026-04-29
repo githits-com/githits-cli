@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { version } from "../package.json";
+import { handleCliError } from "./cli/errors.js";
 import {
   enforceCachedRequiredUpdateForInvocation,
   runWithUpdateCheckFlush,
@@ -21,7 +22,6 @@ import {
   registerPkgCommandGroup,
   registerUnifiedSearchCommands,
 } from "./commands/index.js";
-import { AuthConfigError, AuthStoragePolicyError } from "./services/index.js";
 import {
   FileSystemServiceImpl,
   NpmRegistryUpdateCheckService,
@@ -158,17 +158,10 @@ try {
     { stderr: process.stderr, requiredUpdateRefreshTask },
   );
 } catch (error) {
-  if (isUserFacingError(error)) {
-    console.error(`${error.message}\n`);
-    process.exit(1);
-  }
-  throw error;
-}
-
-function isUserFacingError(error: unknown): error is Error {
-  return (
-    error instanceof AuthConfigError || error instanceof AuthStoragePolicyError
-  );
+  handleCliError(error, {
+    stderr: process.stderr,
+    exit: process.exit as (code: number) => never,
+  });
 }
 
 /**

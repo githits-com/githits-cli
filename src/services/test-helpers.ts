@@ -182,10 +182,14 @@ export function createMockAuthStorage(
   return {
     loadTokens: mock(() => Promise.resolve(null)),
     saveTokens: mock(() => Promise.resolve()),
+    saveTokensIfUnchanged: mock(() => Promise.resolve(true)),
     clearTokens: mock(() => Promise.resolve()),
+    clearTokensIfUnchanged: mock(() => Promise.resolve(true)),
     loadClient: mock(() => Promise.resolve(null)),
     saveClient: mock(() => Promise.resolve()),
     clearClient: mock(() => Promise.resolve()),
+    saveAuthSession: mock(() => Promise.resolve()),
+    clearAuthSession: mock(() => Promise.resolve()),
     getStorageLocation: mock(() => "/mock/.githits"),
     ...impl,
   };

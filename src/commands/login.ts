@@ -49,14 +49,11 @@ async function preflightAuthPersistence(
     createdAt: new Date(0).toISOString(),
   };
   try {
-    await authStorage.saveClient(probeUrl, probeClient);
-    await authStorage.saveTokens(probeUrl, probeTokens);
-    await authStorage.clearTokens(probeUrl);
-    await authStorage.clearClient(probeUrl);
+    await authStorage.saveAuthSession(probeUrl, probeClient, probeTokens);
+    await authStorage.clearAuthSession(probeUrl);
     return null;
   } catch (error) {
-    await authStorage.clearTokens(probeUrl).catch(() => {});
-    await authStorage.clearClient(probeUrl).catch(() => {});
+    await authStorage.clearAuthSession(probeUrl).catch(() => {});
     const message = error instanceof Error ? error.message : String(error);
     return {
       status: "failed",
@@ -135,7 +132,6 @@ export async function loginFlow(
           redirectUri,
           registeredAt: new Date().toISOString(),
         };
-        await authStorage.saveClient(mcpUrl, client);
       }
       port = options.port;
     } else {
@@ -158,7 +154,6 @@ export async function loginFlow(
       redirectUri,
       registeredAt: new Date().toISOString(),
     };
-    await authStorage.saveClient(mcpUrl, client);
   }
 
   // Step 3: Generate PKCE parameters
@@ -244,11 +239,11 @@ export async function loginFlow(
     };
   }
 
-  // Step 9: Save tokens
+  // Step 9: Save auth session
   const expiresAt = new Date(
     Date.now() + tokenResponse.expiresIn * 1000,
   ).toISOString();
-  await authStorage.saveTokens(mcpUrl, {
+  await authStorage.saveAuthSession(mcpUrl, client, {
     accessToken: tokenResponse.accessToken,
     refreshToken: tokenResponse.refreshToken,
     expiresAt,

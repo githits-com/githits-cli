@@ -21,6 +21,7 @@ import {
   getMcpUrl,
   KeychainAuthStorage,
   KeyringServiceImpl,
+  LockedAuthStorage,
   loadAuthConfig,
   MigratingAuthStorage,
   ModeAwareFileAuthStorage,
@@ -77,13 +78,16 @@ function createAuthStorageForMode(
       : rawKeyring;
   const keychainStorage = new KeychainAuthStorage(keyring);
 
-  return new MigratingAuthStorage(
-    keychainStorage,
-    fileStorage,
-    legacyStorage,
-    mode,
-    configPath,
-    (message) => console.error(message),
+  return new LockedAuthStorage(
+    new MigratingAuthStorage(
+      keychainStorage,
+      fileStorage,
+      legacyStorage,
+      mode,
+      configPath,
+      (message) => console.error(message),
+    ),
+    fileSystemService,
   );
 }
 

@@ -139,6 +139,28 @@ describe("KeychainAuthStorage", () => {
     });
   });
 
+  describe("clearAuthSession", () => {
+    it("attempts client cleanup even when token cleanup fails", async () => {
+      const deletePassword = mock((_service: string, account: string) => {
+        if (account.startsWith("v1:tokens:")) {
+          throw new KeychainUnavailableError("token delete failed");
+        }
+        return true;
+      });
+      const keyring = createMockKeyringService({ deletePassword });
+      const storage = new KeychainAuthStorage(keyring);
+
+      await expect(storage.clearAuthSession(BASE_URL)).rejects.toThrow(
+        "token delete failed",
+      );
+
+      expect(deletePassword).toHaveBeenCalledWith(
+        "githits",
+        `v1:client:${BASE_URL}`,
+      );
+    });
+  });
+
   describe("loadClient", () => {
     it("returns null when keyring returns null", async () => {
       const keyring = createMockKeyringService();

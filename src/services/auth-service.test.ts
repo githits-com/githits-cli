@@ -1,8 +1,13 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, mock } from "bun:test";
 import { AuthServiceImpl, evaluateCallback } from "./auth-service.js";
 
 describe("AuthServiceImpl", () => {
   const service = new AuthServiceImpl();
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
 
   describe("generatePkceParams", () => {
     it("returns verifier, challenge, and state", () => {
@@ -50,6 +55,36 @@ describe("AuthServiceImpl", () => {
       await expect(
         service.discoverEndpoints("http://127.0.0.1:1"),
       ).rejects.toThrow();
+    });
+  });
+
+  describe("refreshAccessToken", () => {
+    it("accepts refresh responses that omit refresh_token", async () => {
+      const fetchMock = mock(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              access_token: "new-access-token",
+              expires_in: 60,
+            }),
+            { status: 200 },
+          ),
+        ),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      const result = await service.refreshAccessToken({
+        tokenEndpoint: "https://auth.example.com/oauth/token",
+        clientId: "client-id",
+        clientSecret: "client-secret",
+        refreshToken: "existing-refresh-token",
+      });
+
+      expect(result).toEqual({
+        accessToken: "new-access-token",
+        refreshToken: undefined,
+        expiresIn: 60,
+      });
     });
   });
 
