@@ -4,6 +4,7 @@ import {
   AuthServiceImpl,
   type AuthStorage,
   AuthStorageImpl,
+  type AuthStorageMode,
   type BrowserService,
   BrowserServiceImpl,
   ChunkingKeyringService,
@@ -13,13 +14,16 @@ import {
   FileSystemServiceImpl,
   GitHitsServiceImpl,
   getApiUrl,
+  getAuthFileStorageDir,
   getCodeNavigationUrl,
   getEnvApiToken,
+  getLegacyAuthStorageDir,
   getMcpUrl,
   KeychainAuthStorage,
-  KeychainUnavailableError,
   KeyringServiceImpl,
+  loadAuthConfig,
   MigratingAuthStorage,
+  ModeAwareFileAuthStorage,
   type PackageIntelligenceService,
   PackageIntelligenceServiceImpl,
   RefreshingGitHitsService,
@@ -27,33 +31,102 @@ import {
   type TokenProvider,
   WINDOWS_MAX_ENTRY_SIZE,
 } from "./services/index.js";
-import {
-  withTelemetrySpan,
-  withTelemetrySpanSync,
-} from "./shared/telemetry.js";
+import { withTelemetrySpan } from "./shared/telemetry.js";
 
 /**
- * Create an AuthStorage instance, preferring keychain with file-based fallback.
- * Falls back to file storage only if a real keychain operation fails.
+ * Create an AuthStorage instance using the configured auth storage mode.
+ * Keychain mode never silently downgrades writes to plaintext files.
  */
-function createAuthStorage(fileSystemService: FileSystemService): AuthStorage {
-  return withTelemetrySpanSync("container.create-auth-storage", () => {
-    const fileStorage = new AuthStorageImpl(fileSystemService);
+async function createAuthStorage(
+  fileSystemService: FileSystemService,
+): Promise<AuthStorage> {
+  return withTelemetrySpan("container.create-auth-storage", async () => {
+    const authConfig = await loadAuthConfig(fileSystemService);
+    return createAuthStorageForMode(
+      fileSystemService,
+      authConfig.storage,
+      authConfig.configPath,
+    );
+  });
+}
 
-    const rawKeyring = new KeyringServiceImpl();
-    // Windows Credential Manager limits entries to 2560 UTF-16 chars.
-    // Wrap with chunking decorator to split large values across multiple entries.
-    const keyring =
-      process.platform === "win32"
-        ? new ChunkingKeyringService(rawKeyring, WINDOWS_MAX_ENTRY_SIZE)
-        : rawKeyring;
-    const keychainStorage = new KeychainAuthStorage(keyring);
-    return new MigratingAuthStorage(keychainStorage, fileStorage, (error) => {
-      if (!(error instanceof KeychainUnavailableError)) return;
-      console.error(
-        "Warning: System keychain unavailable. Falling back to file-based credential storage.",
-      );
-    });
+function createAuthStorageForMode(
+  fileSystemService: FileSystemService,
+  mode: AuthStorageMode,
+  configPath = "your GitHits config.toml",
+): AuthStorage {
+  const fileStorage = new ModeAwareFileAuthStorage(
+    new AuthStorageImpl(
+      fileSystemService,
+      getAuthFileStorageDir(fileSystemService),
+    ),
+    mode,
+    configPath,
+  );
+  const legacyStorage = new AuthStorageImpl(
+    fileSystemService,
+    getLegacyAuthStorageDir(fileSystemService),
+  );
+
+  const rawKeyring = new KeyringServiceImpl();
+  // Windows Credential Manager limits entries to 2560 UTF-16 chars.
+  // Wrap with chunking decorator to split large values across multiple entries.
+  const keyring =
+    process.platform === "win32"
+      ? new ChunkingKeyringService(rawKeyring, WINDOWS_MAX_ENTRY_SIZE)
+      : rawKeyring;
+  const keychainStorage = new KeychainAuthStorage(keyring);
+
+  return new MigratingAuthStorage(
+    keychainStorage,
+    fileStorage,
+    legacyStorage,
+    mode,
+    configPath,
+    (message) => console.error(message),
+  );
+}
+
+export interface AuthCommandDependencies {
+  authStorage: AuthStorage;
+  authService: AuthService;
+  browserService: BrowserService;
+  fileSystemService: FileSystemService;
+  mcpUrl: string;
+  apiUrl: string;
+  envApiToken: string | undefined;
+}
+
+export async function createAuthCommandDependencies(): Promise<AuthCommandDependencies> {
+  return withTelemetrySpan("container.create-auth-command", async () => {
+    const fileSystemService = new FileSystemServiceImpl();
+    return {
+      authStorage: await createAuthStorage(fileSystemService),
+      authService: new AuthServiceImpl(),
+      browserService: new BrowserServiceImpl(),
+      fileSystemService,
+      mcpUrl: getMcpUrl(),
+      apiUrl: getApiUrl(),
+      envApiToken: getEnvApiToken(),
+    };
+  });
+}
+
+export async function createAuthStatusDependencies(): Promise<AuthCommandDependencies> {
+  return withTelemetrySpan("container.create-auth-status", async () => {
+    const fileSystemService = new FileSystemServiceImpl();
+    const envApiToken = getEnvApiToken();
+    return {
+      authStorage: envApiToken
+        ? createAuthStorageForMode(fileSystemService, "keychain")
+        : await createAuthStorage(fileSystemService),
+      authService: new AuthServiceImpl(),
+      browserService: new BrowserServiceImpl(),
+      fileSystemService,
+      mcpUrl: getMcpUrl(),
+      apiUrl: getApiUrl(),
+      envApiToken,
+    };
   });
 }
 
@@ -104,13 +177,16 @@ export async function createContainer(): Promise<Dependencies> {
     const apiUrl = getApiUrl();
     const codeNavigationUrl = getCodeNavigationUrl();
     const fileSystemService = new FileSystemServiceImpl();
-    const authStorage = createAuthStorage(fileSystemService);
     const authService = new AuthServiceImpl();
     const browserService = new BrowserServiceImpl();
 
     // Check for env API token first
     const envToken = getEnvApiToken();
     if (envToken) {
+      const authStorage = createAuthStorageForMode(
+        fileSystemService,
+        "keychain",
+      );
       const tokenProvider = createStaticTokenProvider(envToken);
       const codeNavigationService = new CodeNavigationServiceImpl(
         codeNavigationUrl,
@@ -139,6 +215,7 @@ export async function createContainer(): Promise<Dependencies> {
     }
 
     // Create token manager for stored auth with auto-refresh
+    const authStorage = await createAuthStorage(fileSystemService);
     const tokenManager = new TokenManager({ authService, authStorage, mcpUrl });
     const apiToken = await withTelemetrySpan("container.token.get", () =>
       tokenManager.getToken(),

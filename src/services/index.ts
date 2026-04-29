@@ -1,3 +1,15 @@
+export {
+  getAppConfigDir,
+  getAuthConfigPath,
+  getAuthFileStorageDir,
+  getLegacyAuthStorageDir,
+} from "./app-config-paths.js";
+export type { AuthConfig, AuthStorageMode } from "./auth-config.js";
+export {
+  AuthConfigError,
+  loadAuthConfig,
+  parseAuthStorageMode,
+} from "./auth-config.js";
 export type {
   AuthService,
   BuildAuthUrlParams,
@@ -101,6 +113,10 @@ export {
   KeyringServiceImpl,
 } from "./keyring-service.js";
 export { MigratingAuthStorage } from "./migrating-auth-storage.js";
+export {
+  AuthStoragePolicyError,
+  ModeAwareFileAuthStorage,
+} from "./mode-aware-file-auth-storage.js";
 export type {
   ChangelogEntry,
   ChangelogEntryDetail,

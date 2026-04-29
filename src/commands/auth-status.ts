@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { createContainer } from "../container.js";
+import { createAuthStatusDependencies } from "../container.js";
 import type { AuthService, AuthStorage } from "../services/index.js";
 import { refreshExpiredToken } from "../services/index.js";
 
@@ -95,7 +95,8 @@ export async function authStatusAction(
 const STATUS_DESCRIPTION = `Show current authentication status.
 
 Displays details about the stored token including environment
-and expiration. Useful for debugging authentication issues.`;
+and expiration. If GITHITS_API_TOKEN is set, reports that source
+without reading local OAuth storage. Useful for debugging authentication issues.`;
 
 /**
  * Register the auth status command on the given program.
@@ -107,7 +108,7 @@ export function registerAuthStatusCommand(program: Command) {
     .summary("Show authentication status")
     .description(STATUS_DESCRIPTION)
     .action(async () => {
-      const deps = await createContainer();
+      const deps = await createAuthStatusDependencies();
       await authStatusAction(deps);
     });
 }

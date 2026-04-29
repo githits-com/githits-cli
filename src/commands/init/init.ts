@@ -1,6 +1,6 @@
 import { ExitPromptError } from "@inquirer/core";
 import type { Command } from "commander";
-import { createContainer } from "../../container.js";
+import { createAuthCommandDependencies } from "../../container.js";
 import type { ExecService } from "../../services/exec-service.js";
 import { ExecServiceImpl } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
@@ -320,7 +320,7 @@ export function registerInitCommand(program: Command) {
         fileSystemService,
         promptService,
         execService,
-        createLoginDeps: () => createContainer(),
+        createLoginDeps: () => createAuthCommandDependencies(),
       });
     });
 }

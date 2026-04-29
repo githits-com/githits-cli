@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { createContainer } from "../container.js";
+import { createAuthCommandDependencies } from "../container.js";
 import type {
   AuthService,
   AuthStorage,
@@ -29,6 +29,40 @@ export interface LoginDependencies {
   authStorage: AuthStorage;
   browserService: BrowserService;
   mcpUrl: string;
+}
+
+async function preflightAuthPersistence(
+  authStorage: AuthStorage,
+  mcpUrl: string,
+): Promise<LoginFlowResult | null> {
+  const probeUrl = `${mcpUrl.replace(/\/+$/, "")}/__githits_storage_probe__`;
+  const probeClient = {
+    clientId: "__githits_storage_probe__",
+    clientSecret: "__githits_storage_probe__",
+    redirectUri: "http://127.0.0.1:1/callback",
+    registeredAt: new Date(0).toISOString(),
+  };
+  const probeTokens = {
+    accessToken: "__githits_storage_probe__",
+    refreshToken: "__githits_storage_probe__",
+    expiresAt: new Date(0).toISOString(),
+    createdAt: new Date(0).toISOString(),
+  };
+  try {
+    await authStorage.saveClient(probeUrl, probeClient);
+    await authStorage.saveTokens(probeUrl, probeTokens);
+    await authStorage.clearTokens(probeUrl);
+    await authStorage.clearClient(probeUrl);
+    return null;
+  } catch (error) {
+    await authStorage.clearTokens(probeUrl).catch(() => {});
+    await authStorage.clearClient(probeUrl).catch(() => {});
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      status: "failed",
+      message: `Cannot persist OAuth credentials: ${message}`,
+    };
+  }
 }
 
 /**
@@ -70,6 +104,9 @@ export async function loginFlow(
   if (!existing) {
     await authStorage.clearClient(mcpUrl);
   }
+
+  const persistenceError = await preflightAuthPersistence(authStorage, mcpUrl);
+  if (persistenceError) return persistenceError;
 
   // Step 1: Discover OAuth endpoints
   console.log("Discovering OAuth endpoints...");
@@ -259,7 +296,9 @@ export async function loginAction(
 const LOGIN_DESCRIPTION = `Authenticate with your GitHits account via browser.
 
 Opens your browser to complete authentication securely using OAuth.
-The CLI receives tokens stored locally and used for API requests.
+OAuth credentials are stored in the system keychain by default. If your
+machine has no usable keychain, use GITHITS_API_TOKEN or explicitly configure
+auth.storage = "file". File storage is plaintext on disk.
 
 Use --no-browser in environments without a display (CI, SSH sessions)
 to get a URL you can open on another device.`;
@@ -277,7 +316,7 @@ export function registerLoginCommand(program: Command) {
     .option("--port <port>", "Port for local callback server", parseInt)
     .option("--force", "Re-authenticate even if already logged in")
     .action(async (options: LoginOptions) => {
-      const deps = await createContainer();
+      const deps = await createAuthCommandDependencies();
       await loginAction(options, deps);
     });
 }

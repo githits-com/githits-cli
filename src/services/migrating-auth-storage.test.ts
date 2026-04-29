@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
 import { KeychainUnavailableError } from "./keyring-service.js";
 import { MigratingAuthStorage } from "./migrating-auth-storage.js";
+import { AuthStoragePolicyError } from "./mode-aware-file-auth-storage.js";
 import {
   createMockAuthStorage,
   createValidTokenData,
@@ -10,368 +11,349 @@ import {
 describe("MigratingAuthStorage", () => {
   const BASE_URL = "https://mcp.githits.com";
 
-  describe("loadTokens", () => {
-    it("returns from primary when found", async () => {
-      const tokenData = createValidTokenData();
-      const primary = createMockAuthStorage({
-        loadTokens: mock(() => Promise.resolve(tokenData)),
-      });
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      const result = await storage.loadTokens(BASE_URL);
-      expect(result).toEqual(tokenData);
-      expect(legacy.loadTokens).not.toHaveBeenCalled();
+  it("keychain mode returns from keychain first", async () => {
+    const token = createValidTokenData();
+    const primary = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(token)),
     });
+    const file = createMockAuthStorage();
+    const legacy = createMockAuthStorage();
+    const storage = new MigratingAuthStorage(primary, file, legacy, "keychain");
 
-    it("migrates from legacy when primary returns null", async () => {
-      const tokenData = createValidTokenData();
-      const primary = createMockAuthStorage();
-      const legacy = createMockAuthStorage({
-        loadTokens: mock(() => Promise.resolve(tokenData)),
-      });
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      const result = await storage.loadTokens(BASE_URL);
-
-      expect(result).toEqual(tokenData);
-      expect(primary.saveTokens).toHaveBeenCalledWith(BASE_URL, tokenData);
-      expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
-    });
-
-    it("returns null when both return null", async () => {
-      const primary = createMockAuthStorage();
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      const result = await storage.loadTokens(BASE_URL);
-      expect(result).toBeNull();
-    });
-
-    it("keeps legacy entry intact if primary write fails", async () => {
-      const tokenData = createValidTokenData();
-      const primary = createMockAuthStorage({
-        saveTokens: mock(() =>
-          Promise.reject(new KeychainUnavailableError("Keychain write failed")),
-        ),
-      });
-      const legacy = createMockAuthStorage({
-        loadTokens: mock(() => Promise.resolve(tokenData)),
-      });
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      const result = await storage.loadTokens(BASE_URL);
-
-      expect(result).toEqual(tokenData);
-      expect(legacy.clearTokens).not.toHaveBeenCalled();
-    });
-
-    it("succeeds when primary write succeeds but legacy clear fails", async () => {
-      const tokenData = createValidTokenData();
-      const primary = createMockAuthStorage();
-      const legacy = createMockAuthStorage({
-        loadTokens: mock(() => Promise.resolve(tokenData)),
-        clearTokens: mock(() => Promise.reject(new Error("file locked"))),
-      });
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      const result = await storage.loadTokens(BASE_URL);
-
-      expect(result).toEqual(tokenData);
-      expect(primary.saveTokens).toHaveBeenCalledWith(BASE_URL, tokenData);
-      // Legacy clear failed but was swallowed — migration still succeeded
-      expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
-    });
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(token);
+    expect(file.loadTokens).not.toHaveBeenCalled();
+    expect(legacy.loadTokens).not.toHaveBeenCalled();
   });
 
-  describe("saveTokens", () => {
-    it("writes only to primary", async () => {
-      const tokenData = createValidTokenData();
-      const primary = createMockAuthStorage();
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      await storage.saveTokens(BASE_URL, tokenData);
-
-      expect(primary.saveTokens).toHaveBeenCalledWith(BASE_URL, tokenData);
-      expect(legacy.saveTokens).not.toHaveBeenCalled();
+  it("keychain mode migrates new file tokens into keychain", async () => {
+    const token = createValidTokenData();
+    const primary = createMockAuthStorage();
+    const file = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(token)),
     });
+    const legacy = createMockAuthStorage();
+    const storage = new MigratingAuthStorage(primary, file, legacy, "keychain");
 
-    it("falls back to legacy when primary save fails with keychain unavailable", async () => {
-      const tokenData = createValidTokenData();
-      const primary = createMockAuthStorage({
-        saveTokens: mock(() =>
-          Promise.reject(new KeychainUnavailableError("keychain locked")),
-        ),
-      });
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      await storage.saveTokens(BASE_URL, tokenData);
-
-      expect(legacy.saveTokens).toHaveBeenCalledWith(BASE_URL, tokenData);
-    });
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(token);
+    expect(primary.saveTokens).toHaveBeenCalledWith(BASE_URL, token);
+    expect(file.clearTokens).toHaveBeenCalledWith(BASE_URL);
+    expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
   });
 
-  describe("clearTokens", () => {
-    it("clears from both primary and legacy", async () => {
-      const primary = createMockAuthStorage();
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      await storage.clearTokens(BASE_URL);
-
-      expect(primary.clearTokens).toHaveBeenCalledWith(BASE_URL);
-      expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
+  it("keychain mode migrates legacy tokens into keychain", async () => {
+    const token = createValidTokenData();
+    const primary = createMockAuthStorage();
+    const file = createMockAuthStorage();
+    const legacy = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(token)),
     });
+    const storage = new MigratingAuthStorage(primary, file, legacy, "keychain");
 
-    it("attempts legacy clear even when primary throws", async () => {
-      const primary = createMockAuthStorage({
-        clearTokens: mock(() =>
-          Promise.reject(new KeychainUnavailableError("keychain locked")),
-        ),
-      });
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      await storage.clearTokens(BASE_URL);
-      expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
-    });
-
-    it("swallows keychain-unavailable primary clear errors even when legacy clear also throws", async () => {
-      const primaryError = new KeychainUnavailableError("keychain locked");
-      const primary = createMockAuthStorage({
-        clearTokens: mock(() => Promise.reject(primaryError)),
-      });
-      const legacy = createMockAuthStorage({
-        clearTokens: mock(() => Promise.reject(new Error("file locked"))),
-      });
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      await storage.clearTokens(BASE_URL);
-    });
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(token);
+    expect(primary.saveTokens).toHaveBeenCalledWith(BASE_URL, token);
+    expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
   });
 
-  describe("loadClient", () => {
-    it("returns from primary when found", async () => {
-      const primary = createMockAuthStorage({
-        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
-      });
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      const result = await storage.loadClient(BASE_URL);
-      expect(result).toEqual(defaultClientRegistration);
-      expect(legacy.loadClient).not.toHaveBeenCalled();
+  it("keychain mode keeps plaintext entry if keychain migration write fails", async () => {
+    const token = createValidTokenData();
+    const primary = createMockAuthStorage({
+      saveTokens: mock(() =>
+        Promise.reject(new KeychainUnavailableError("keychain locked")),
+      ),
     });
-
-    it("migrates from legacy when primary returns null", async () => {
-      const primary = createMockAuthStorage();
-      const legacy = createMockAuthStorage({
-        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
-      });
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      const result = await storage.loadClient(BASE_URL);
-
-      expect(result).toEqual(defaultClientRegistration);
-      expect(primary.saveClient).toHaveBeenCalledWith(
-        BASE_URL,
-        defaultClientRegistration,
-      );
-      expect(legacy.clearClient).toHaveBeenCalledWith(BASE_URL);
+    const file = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(token)),
     });
+    const legacy = createMockAuthStorage();
+    const storage = new MigratingAuthStorage(primary, file, legacy, "keychain");
 
-    it("returns null when both return null", async () => {
-      const primary = createMockAuthStorage();
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      const result = await storage.loadClient(BASE_URL);
-      expect(result).toBeNull();
-    });
-
-    it("keeps legacy entry intact if primary write fails", async () => {
-      const primary = createMockAuthStorage({
-        saveClient: mock(() =>
-          Promise.reject(new KeychainUnavailableError("Keychain write failed")),
-        ),
-      });
-      const legacy = createMockAuthStorage({
-        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
-      });
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      const result = await storage.loadClient(BASE_URL);
-
-      expect(result).toEqual(defaultClientRegistration);
-      expect(legacy.clearClient).not.toHaveBeenCalled();
-    });
-
-    it("succeeds when primary write succeeds but legacy clear fails", async () => {
-      const primary = createMockAuthStorage();
-      const legacy = createMockAuthStorage({
-        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
-        clearClient: mock(() => Promise.reject(new Error("file locked"))),
-      });
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      const result = await storage.loadClient(BASE_URL);
-
-      expect(result).toEqual(defaultClientRegistration);
-      expect(primary.saveClient).toHaveBeenCalledWith(
-        BASE_URL,
-        defaultClientRegistration,
-      );
-      expect(legacy.clearClient).toHaveBeenCalledWith(BASE_URL);
-    });
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(token);
+    expect(file.clearTokens).not.toHaveBeenCalled();
   });
 
-  describe("saveClient", () => {
-    it("writes only to primary", async () => {
-      const primary = createMockAuthStorage();
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      await storage.saveClient(BASE_URL, defaultClientRegistration);
-
-      expect(primary.saveClient).toHaveBeenCalledWith(
-        BASE_URL,
-        defaultClientRegistration,
-      );
-      expect(legacy.saveClient).not.toHaveBeenCalled();
+  it("keychain mode save fails instead of writing plaintext when keychain is unavailable", async () => {
+    const token = createValidTokenData();
+    const primary = createMockAuthStorage({
+      saveTokens: mock(() =>
+        Promise.reject(new KeychainUnavailableError("keychain locked")),
+      ),
     });
+    const file = createMockAuthStorage();
+    const storage = new MigratingAuthStorage(
+      primary,
+      file,
+      createMockAuthStorage(),
+      "keychain",
+      "/home/test/.config/githits/config.toml",
+    );
 
-    it("falls back to legacy when primary client save fails with keychain unavailable", async () => {
-      const primary = createMockAuthStorage({
-        saveClient: mock(() =>
-          Promise.reject(new KeychainUnavailableError("keychain locked")),
-        ),
-      });
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      await storage.saveClient(BASE_URL, defaultClientRegistration);
-
-      expect(legacy.saveClient).toHaveBeenCalledWith(
-        BASE_URL,
-        defaultClientRegistration,
-      );
-    });
+    await expect(storage.saveTokens(BASE_URL, token)).rejects.toThrow(
+      AuthStoragePolicyError,
+    );
+    await expect(storage.saveTokens(BASE_URL, token)).rejects.toThrow(
+      /Warning: file storage is plaintext/,
+    );
+    await expect(storage.saveTokens(BASE_URL, token)).rejects.toThrow(
+      /\[auth\]\n {5}storage = "file"/,
+    );
+    await expect(storage.saveTokens(BASE_URL, token)).rejects.toThrow(
+      /\/home\/test\/\.config\/githits\/config\.toml/,
+    );
+    expect(file.saveTokens).not.toHaveBeenCalled();
   });
 
-  describe("clearClient", () => {
-    it("clears from both primary and legacy", async () => {
-      const primary = createMockAuthStorage();
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
+  it("file mode writes only to new file storage", async () => {
+    const token = createValidTokenData();
+    const primary = createMockAuthStorage();
+    const file = createMockAuthStorage();
+    const storage = new MigratingAuthStorage(
+      primary,
+      file,
+      createMockAuthStorage(),
+      "file",
+    );
 
-      await storage.clearClient(BASE_URL);
-
-      expect(primary.clearClient).toHaveBeenCalledWith(BASE_URL);
-      expect(legacy.clearClient).toHaveBeenCalledWith(BASE_URL);
-    });
-
-    it("attempts legacy clear even when primary throws", async () => {
-      const primary = createMockAuthStorage({
-        clearClient: mock(() =>
-          Promise.reject(new KeychainUnavailableError("keychain locked")),
-        ),
-      });
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      await storage.clearClient(BASE_URL);
-      expect(legacy.clearClient).toHaveBeenCalledWith(BASE_URL);
-    });
-
-    it("swallows keychain-unavailable primary client clear errors even when legacy clear also throws", async () => {
-      const primaryError = new KeychainUnavailableError("keychain locked");
-      const primary = createMockAuthStorage({
-        clearClient: mock(() => Promise.reject(primaryError)),
-      });
-      const legacy = createMockAuthStorage({
-        clearClient: mock(() => Promise.reject(new Error("file locked"))),
-      });
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      await storage.clearClient(BASE_URL);
-    });
+    await storage.saveTokens(BASE_URL, token);
+    expect(file.saveTokens).toHaveBeenCalledWith(BASE_URL, token);
+    expect(primary.saveTokens).not.toHaveBeenCalled();
   });
 
-  describe("migration independence", () => {
-    it("client migration succeeds independently when token migration fails", async () => {
-      const tokenData = createValidTokenData();
-      const primary = createMockAuthStorage({
-        saveTokens: mock(() =>
-          Promise.reject(new KeychainUnavailableError("fail")),
-        ),
-      });
-      const legacy = createMockAuthStorage({
-        loadTokens: mock(() => Promise.resolve(tokenData)),
-        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
-      });
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      const tokenResult = await storage.loadTokens(BASE_URL);
-      expect(tokenResult).toEqual(tokenData);
-
-      // Client migration succeeds independently
-      const client = await storage.loadClient(BASE_URL);
-      expect(client).toEqual(defaultClientRegistration);
-      expect(primary.saveClient).not.toHaveBeenCalled();
+  it("file mode migrates legacy tokens into new file storage", async () => {
+    const token = createValidTokenData();
+    const file = createMockAuthStorage();
+    const legacy = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(token)),
     });
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      file,
+      legacy,
+      "file",
+    );
+
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(token);
+    expect(file.saveTokens).toHaveBeenCalledWith(BASE_URL, token);
+    expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
   });
 
-  describe("getStorageLocation", () => {
-    it("returns primary storage location", () => {
-      const primary = createMockAuthStorage({
-        getStorageLocation: mock(() => "System keychain (githits)"),
-      });
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(primary, legacy);
+  it("file mode chooses newer legacy tokens when both plaintext stores exist", async () => {
+    const older = createValidTokenData({ createdAt: "2025-01-01T00:00:00Z" });
+    const newer = createValidTokenData({ createdAt: "2025-02-01T00:00:00Z" });
+    const file = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(older)),
+    });
+    const legacy = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(newer)),
+    });
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      file,
+      legacy,
+      "file",
+    );
 
-      expect(storage.getStorageLocation()).toBe("System keychain (githits)");
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(newer);
+    expect(file.saveTokens).toHaveBeenCalledWith(BASE_URL, newer);
+    expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
+  });
+
+  it("file mode keeps newer file tokens when legacy is older", async () => {
+    const newer = createValidTokenData({ createdAt: "2025-02-01T00:00:00Z" });
+    const older = createValidTokenData({ createdAt: "2025-01-01T00:00:00Z" });
+    const file = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(newer)),
+    });
+    const legacy = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(older)),
+    });
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      file,
+      legacy,
+      "file",
+    );
+
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(newer);
+    expect(file.saveTokens).not.toHaveBeenCalled();
+    expect(legacy.clearTokens).not.toHaveBeenCalled();
+  });
+
+  it("file mode uses keychain only as last-resort migration source", async () => {
+    const token = createValidTokenData();
+    const primary = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(token)),
+    });
+    const file = createMockAuthStorage();
+    const legacy = createMockAuthStorage();
+    const warning = mock(() => {});
+    const storage = new MigratingAuthStorage(
+      primary,
+      file,
+      legacy,
+      "file",
+      "test-config.toml",
+      warning,
+    );
+
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(token);
+    expect(file.saveTokens).toHaveBeenCalledWith(BASE_URL, token);
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("exporting"));
+  });
+
+  it("chooses newer plaintext token and leaves ambiguous other entry intact", async () => {
+    const older = createValidTokenData({ createdAt: "2025-01-01T00:00:00Z" });
+    const newer = createValidTokenData({ createdAt: "2025-02-01T00:00:00Z" });
+    const primary = createMockAuthStorage();
+    const file = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(older)),
+    });
+    const legacy = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(newer)),
+    });
+    const storage = new MigratingAuthStorage(primary, file, legacy, "keychain");
+
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(newer);
+    expect(primary.saveTokens).toHaveBeenCalledWith(BASE_URL, newer);
+    expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
+    expect(file.clearTokens).toHaveBeenCalledWith(BASE_URL);
+  });
+
+  it("prefers new file path and warns when plaintext timestamps are tied", async () => {
+    const token = createValidTokenData({ createdAt: "2025-01-01T00:00:00Z" });
+    const primary = createMockAuthStorage();
+    const file = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(token)),
+    });
+    const legacy = createMockAuthStorage({
+      loadTokens: mock(() =>
+        Promise.resolve(createValidTokenData({ createdAt: token.createdAt })),
+      ),
+    });
+    const warning = mock(() => {});
+    const storage = new MigratingAuthStorage(
+      primary,
+      file,
+      legacy,
+      "keychain",
+      "test-config.toml",
+      warning,
+    );
+
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(token);
+    expect(file.clearTokens).toHaveBeenCalledWith(BASE_URL);
+    expect(legacy.clearTokens).not.toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("ambiguous"));
+  });
+
+  it("keychain mode clears both plaintext clients after unambiguous migration", async () => {
+    const older = {
+      ...defaultClientRegistration,
+      registeredAt: "2025-01-01T00:00:00Z",
+    };
+    const newer = {
+      ...defaultClientRegistration,
+      clientId: "newer-client",
+      registeredAt: "2025-02-01T00:00:00Z",
+    };
+    const primary = createMockAuthStorage();
+    const file = createMockAuthStorage({
+      loadClient: mock(() => Promise.resolve(older)),
+    });
+    const legacy = createMockAuthStorage({
+      loadClient: mock(() => Promise.resolve(newer)),
+    });
+    const storage = new MigratingAuthStorage(primary, file, legacy, "keychain");
+
+    await expect(storage.loadClient(BASE_URL)).resolves.toEqual(newer);
+    expect(primary.saveClient).toHaveBeenCalledWith(BASE_URL, newer);
+    expect(file.clearClient).toHaveBeenCalledWith(BASE_URL);
+    expect(legacy.clearClient).toHaveBeenCalledWith(BASE_URL);
+  });
+
+  it("migrates clients according to configured mode", async () => {
+    const primary = createMockAuthStorage();
+    const file = createMockAuthStorage();
+    const legacy = createMockAuthStorage({
+      loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+    });
+    const storage = new MigratingAuthStorage(primary, file, legacy, "file");
+
+    await expect(storage.loadClient(BASE_URL)).resolves.toEqual(
+      defaultClientRegistration,
+    );
+    expect(file.saveClient).toHaveBeenCalledWith(
+      BASE_URL,
+      defaultClientRegistration,
+    );
+    expect(legacy.clearClient).toHaveBeenCalledWith(BASE_URL);
+  });
+
+  it("file mode chooses newer legacy client when both plaintext stores exist", async () => {
+    const older = {
+      ...defaultClientRegistration,
+      registeredAt: "2025-01-01T00:00:00Z",
+    };
+    const newer = {
+      ...defaultClientRegistration,
+      clientId: "newer-client",
+      registeredAt: "2025-02-01T00:00:00Z",
+    };
+    const file = createMockAuthStorage({
+      loadClient: mock(() => Promise.resolve(older)),
+    });
+    const legacy = createMockAuthStorage({
+      loadClient: mock(() => Promise.resolve(newer)),
+    });
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      file,
+      legacy,
+      "file",
+    );
+
+    await expect(storage.loadClient(BASE_URL)).resolves.toEqual(newer);
+    expect(file.saveClient).toHaveBeenCalledWith(BASE_URL, newer);
+    expect(legacy.clearClient).toHaveBeenCalledWith(BASE_URL);
+  });
+
+  it("clears keychain, file, and legacy stores best-effort", async () => {
+    const primary = createMockAuthStorage({
+      clearTokens: mock(() =>
+        Promise.reject(new KeychainUnavailableError("keychain locked")),
+      ),
+    });
+    const file = createMockAuthStorage();
+    const legacy = createMockAuthStorage();
+    const storage = new MigratingAuthStorage(primary, file, legacy, "keychain");
+
+    await storage.clearTokens(BASE_URL);
+    expect(file.clearTokens).toHaveBeenCalledWith(BASE_URL);
+    expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
+  });
+
+  it("reports active storage location", () => {
+    const primary = createMockAuthStorage({
+      getStorageLocation: mock(() => "System keychain (githits)"),
+    });
+    const file = createMockAuthStorage({
+      getStorageLocation: mock(() => "/home/test/.config/githits/auth"),
     });
 
-    it("switches to legacy storage location after primary keychain failure", async () => {
-      const primary = createMockAuthStorage({
-        loadTokens: mock(() =>
-          Promise.reject(new KeychainUnavailableError("keychain locked")),
-        ),
-        getStorageLocation: mock(() => "System keychain (githits)"),
-      });
-      const legacy = createMockAuthStorage({
-        getStorageLocation: mock(() => "/mock/.githits"),
-      });
-      const storage = new MigratingAuthStorage(primary, legacy);
-
-      await storage.loadTokens(BASE_URL);
-
-      expect(storage.getStorageLocation()).toBe("/mock/.githits");
-    });
-
-    it("warns only once when the primary keychain becomes unavailable", async () => {
-      const onPrimaryUnavailable = mock(() => {});
-      const primary = createMockAuthStorage({
-        loadTokens: mock(() =>
-          Promise.reject(new KeychainUnavailableError("keychain locked")),
-        ),
-        loadClient: mock(() =>
-          Promise.reject(new KeychainUnavailableError("keychain locked")),
-        ),
-      });
-      const legacy = createMockAuthStorage();
-      const storage = new MigratingAuthStorage(
+    expect(
+      new MigratingAuthStorage(
         primary,
-        legacy,
-        onPrimaryUnavailable,
-      );
-
-      await storage.loadTokens(BASE_URL);
-      await storage.loadClient(BASE_URL);
-
-      expect(onPrimaryUnavailable).toHaveBeenCalledTimes(1);
-    });
+        file,
+        createMockAuthStorage(),
+        "keychain",
+      ).getStorageLocation(),
+    ).toBe("System keychain (githits)");
+    expect(
+      new MigratingAuthStorage(
+        primary,
+        file,
+        createMockAuthStorage(),
+        "file",
+      ).getStorageLocation(),
+    ).toBe("/home/test/.config/githits/auth");
   });
 });

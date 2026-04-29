@@ -6,6 +6,12 @@ describe("AuthStorageImpl", () => {
   const BASE_URL = "https://mcp.githits.com";
 
   describe("loadTokens", () => {
+    it("defaults to the platform config auth directory", () => {
+      const storage = new AuthStorageImpl(createMockFileSystemService());
+
+      expect(storage.getStorageLocation()).toContain("githits/auth");
+    });
+
     it("returns null when auth file does not exist", async () => {
       const fs = createMockFileSystemService({
         exists: mock(() => Promise.resolve(false)),
@@ -121,14 +127,13 @@ describe("AuthStorageImpl", () => {
       });
 
       expect(fs.ensureDir).toHaveBeenCalledWith("/test/.githits", 0o700);
-      expect(fs.writeFile).toHaveBeenCalledWith(
+      expect(fs.atomicWriteFile).toHaveBeenCalledWith(
         "/test/.githits/auth.json",
         expect.any(String),
-        0o600,
       );
 
       // Verify the written content
-      const calls = (fs.writeFile as ReturnType<typeof mock>).mock.calls;
+      const calls = (fs.atomicWriteFile as ReturnType<typeof mock>).mock.calls;
       const writtenContent = JSON.parse(calls[0]?.[1] as string);
       expect(writtenContent.version).toBe(1);
       expect(writtenContent.tokens[BASE_URL].accessToken).toBe("eyJ-new");
@@ -159,7 +164,7 @@ describe("AuthStorageImpl", () => {
         createdAt: "2025-01-15T10:00:00Z",
       });
 
-      const calls = (fs.writeFile as ReturnType<typeof mock>).mock.calls;
+      const calls = (fs.atomicWriteFile as ReturnType<typeof mock>).mock.calls;
       const writtenContent = JSON.parse(calls[0]?.[1] as string);
       expect(Object.keys(writtenContent.tokens)).toHaveLength(2);
       expect(writtenContent.tokens[BASE_URL].accessToken).toBe("eyJ-new");
@@ -219,7 +224,7 @@ describe("AuthStorageImpl", () => {
       await storage.clearTokens(BASE_URL);
       expect(fs.deleteFile).not.toHaveBeenCalled();
 
-      const calls = (fs.writeFile as ReturnType<typeof mock>).mock.calls;
+      const calls = (fs.atomicWriteFile as ReturnType<typeof mock>).mock.calls;
       const writtenContent = JSON.parse(calls[0]?.[1] as string);
       expect(Object.keys(writtenContent.tokens)).toHaveLength(1);
       expect(writtenContent.tokens[BASE_URL]).toBeUndefined();
@@ -233,7 +238,7 @@ describe("AuthStorageImpl", () => {
 
       await storage.clearTokens(BASE_URL);
       expect(fs.deleteFile).not.toHaveBeenCalled();
-      expect(fs.writeFile).not.toHaveBeenCalled();
+      expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     });
   });
 
@@ -288,10 +293,9 @@ describe("AuthStorageImpl", () => {
       });
 
       expect(fs.ensureDir).toHaveBeenCalledWith("/test/.githits", 0o700);
-      expect(fs.writeFile).toHaveBeenCalledWith(
+      expect(fs.atomicWriteFile).toHaveBeenCalledWith(
         "/test/.githits/client.json",
         expect.any(String),
-        0o600,
       );
     });
   });
@@ -346,7 +350,7 @@ describe("AuthStorageImpl", () => {
       await storage.clearClient(BASE_URL);
       expect(fs.deleteFile).not.toHaveBeenCalled();
 
-      const calls = (fs.writeFile as ReturnType<typeof mock>).mock.calls;
+      const calls = (fs.atomicWriteFile as ReturnType<typeof mock>).mock.calls;
       const writtenContent = JSON.parse(calls[0]?.[1] as string);
       expect(Object.keys(writtenContent.clients)).toHaveLength(1);
       expect(writtenContent.clients[BASE_URL]).toBeUndefined();
@@ -360,7 +364,7 @@ describe("AuthStorageImpl", () => {
 
       await storage.clearClient(BASE_URL);
       expect(fs.deleteFile).not.toHaveBeenCalled();
-      expect(fs.writeFile).not.toHaveBeenCalled();
+      expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     });
   });
 
@@ -371,13 +375,13 @@ describe("AuthStorageImpl", () => {
       expect(storage.getStorageLocation()).toBe("/test/.githits");
     });
 
-    it("defaults to ~/.githits", () => {
+    it("defaults to the platform config auth path", () => {
       const fs = createMockFileSystemService({
         getHomeDir: mock(() => "/home/user"),
         joinPath: mock((...segments: string[]) => segments.join("/")),
       });
       const storage = new AuthStorageImpl(fs);
-      expect(storage.getStorageLocation()).toBe("/home/user/.githits");
+      expect(storage.getStorageLocation()).toContain("/githits/auth");
     });
   });
 });

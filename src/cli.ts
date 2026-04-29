@@ -19,6 +19,7 @@ import {
   registerPkgCommandGroup,
   registerUnifiedSearchCommands,
 } from "./commands/index.js";
+import { AuthConfigError, AuthStoragePolicyError } from "./services/index.js";
 import {
   FileSystemServiceImpl,
   NpmRegistryUpdateCheckService,
@@ -133,11 +134,25 @@ const authCommand = program
   .description("Manage authentication with GitHits.");
 registerAuthStatusCommand(authCommand);
 
-await runWithUpdateCheckFlush(
-  () => withTelemetrySpan("cli.parse", () => program.parseAsync()),
-  updateCheckTask,
-  { stderr: process.stderr },
-);
+try {
+  await runWithUpdateCheckFlush(
+    () => withTelemetrySpan("cli.parse", () => program.parseAsync()),
+    updateCheckTask,
+    { stderr: process.stderr },
+  );
+} catch (error) {
+  if (isUserFacingError(error)) {
+    console.error(`${error.message}\n`);
+    process.exit(1);
+  }
+  throw error;
+}
+
+function isUserFacingError(error: unknown): error is Error {
+  return (
+    error instanceof AuthConfigError || error instanceof AuthStoragePolicyError
+  );
+}
 
 /**
  * Commander supports root options before subcommands, e.g.

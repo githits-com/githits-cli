@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { createContainer } from "../container.js";
+import { createAuthCommandDependencies } from "../container.js";
 import type { AuthStorage } from "../services/index.js";
 
 export interface LogoutDependencies {
@@ -49,7 +49,8 @@ const LOGOUT_DESCRIPTION = `Remove stored credentials.
 
 Clears all locally stored authentication data including tokens and
 client registrations. OAuth tokens expire naturally; this
-removes the local copies from the keychain (or fallback file storage).`;
+removes local copies from the keychain, explicit file storage, and
+legacy auth file storage.`;
 
 /**
  * Register the logout command on the given program.
@@ -61,7 +62,7 @@ export function registerLogoutCommand(program: Command) {
     .summary("Remove stored credentials")
     .description(LOGOUT_DESCRIPTION)
     .action(async () => {
-      const deps = await createContainer();
+      const deps = await createAuthCommandDependencies();
       await logoutAction(deps);
     });
 }

@@ -1,3 +1,4 @@
+import { getAuthFileStorageDir } from "./app-config-paths.js";
 import type { FileSystemService } from "./filesystem-service.js";
 
 /**
@@ -65,15 +66,13 @@ export interface AuthStorage {
   getStorageLocation(): string;
 }
 
-const CONFIG_DIR = ".githits";
 const AUTH_FILE = "auth.json";
 const CLIENT_FILE = "client.json";
 const DIR_MODE = 0o700;
-const FILE_MODE = 0o600;
 
 /**
  * File-based auth storage implementation.
- * Stores auth in ~/.githits/ with secure permissions.
+ * Stores auth under the platform config directory with secure permissions.
  */
 export class AuthStorageImpl implements AuthStorage {
   private readonly configDir: string;
@@ -84,7 +83,7 @@ export class AuthStorageImpl implements AuthStorage {
     private readonly fs: FileSystemService,
     configDir?: string,
   ) {
-    this.configDir = configDir ?? fs.joinPath(fs.getHomeDir(), CONFIG_DIR);
+    this.configDir = configDir ?? getAuthFileStorageDir(fs);
     this.authPath = fs.joinPath(this.configDir, AUTH_FILE);
     this.clientPath = fs.joinPath(this.configDir, CLIENT_FILE);
   }
@@ -107,10 +106,9 @@ export class AuthStorageImpl implements AuthStorage {
     stored.tokens[normalizeBaseUrl(baseUrl)] = data;
 
     await this.fs.ensureDir(this.configDir, DIR_MODE);
-    await this.fs.writeFile(
+    await this.fs.atomicWriteFile(
       this.authPath,
       JSON.stringify(stored, null, 2),
-      FILE_MODE,
     );
   }
 
@@ -123,10 +121,9 @@ export class AuthStorageImpl implements AuthStorage {
     if (Object.keys(stored.tokens).length === 0) {
       await this.fs.deleteFile(this.authPath);
     } else {
-      await this.fs.writeFile(
+      await this.fs.atomicWriteFile(
         this.authPath,
         JSON.stringify(stored, null, 2),
-        FILE_MODE,
       );
     }
   }
@@ -146,10 +143,9 @@ export class AuthStorageImpl implements AuthStorage {
     if (Object.keys(stored.clients).length === 0) {
       await this.fs.deleteFile(this.clientPath);
     } else {
-      await this.fs.writeFile(
+      await this.fs.atomicWriteFile(
         this.clientPath,
         JSON.stringify(stored, null, 2),
-        FILE_MODE,
       );
     }
   }
@@ -162,10 +158,9 @@ export class AuthStorageImpl implements AuthStorage {
     stored.clients[normalizeBaseUrl(baseUrl)] = data;
 
     await this.fs.ensureDir(this.configDir, DIR_MODE);
-    await this.fs.writeFile(
+    await this.fs.atomicWriteFile(
       this.clientPath,
       JSON.stringify(stored, null, 2),
-      FILE_MODE,
     );
   }
 
