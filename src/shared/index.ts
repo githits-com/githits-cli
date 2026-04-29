@@ -16,6 +16,7 @@ export {
   MAX_WAIT_TIMEOUT_MS,
 } from "./code-navigation-defaults.js";
 export {
+  formatMappedErrorForTerminal,
   type MappedError,
   type MappedErrorCode,
   mapCodeNavigationError,

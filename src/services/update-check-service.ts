@@ -3,11 +3,12 @@ import type { FileSystemService } from "./filesystem-service.js";
 
 const NPM_DIST_TAGS_URL =
   "https://registry.npmjs.org/-/package/githits/dist-tags";
+const NPM_PACKAGE_VERSION_URL = "https://registry.npmjs.org/githits";
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 1000;
 const DIR_MODE = 0o700;
-const FILE_MODE = 0o600;
 const UPDATE_COMMAND = "npm i -g githits@latest";
+const MAX_DEPRECATION_REASON_LENGTH = 200;
 
 export interface UpdateCheckNotice {
   currentVersion: string;
@@ -15,8 +16,17 @@ export interface UpdateCheckNotice {
   updateCommand: string;
 }
 
+export interface RequiredUpdateNotice {
+  currentVersion: string;
+  latestKnownVersion?: string;
+  reason: string;
+  updateCommand: string;
+}
+
 export interface UpdateCheckService {
   checkForUpdate(signal?: AbortSignal): Promise<UpdateCheckNotice | undefined>;
+  refreshRequiredUpdateStatus(signal?: AbortSignal): Promise<void>;
+  getRequiredUpdateNotice(): Promise<RequiredUpdateNotice | undefined>;
 }
 
 export type UpdateCheckFetcher = (
@@ -35,8 +45,15 @@ export interface UpdateCheckServiceOptions {
 }
 
 interface UpdateCheckCache {
+  checkedAt?: string;
+  latestVersion?: string;
+  currentVersionStatus?: CurrentVersionStatus;
+}
+
+interface CurrentVersionStatus {
+  version: string;
   checkedAt: string;
-  latestVersion: string;
+  deprecatedReason?: string;
 }
 
 export interface UpdateCheckEligibilityInput {
@@ -45,6 +62,11 @@ export interface UpdateCheckEligibilityInput {
   stderrIsTTY?: boolean;
   stdinIsTTY?: boolean;
   stdoutIsTTY?: boolean;
+}
+
+export interface RequiredUpdateEligibilityInput {
+  args: string[];
+  env?: Record<string, string | undefined>;
 }
 
 export class NpmRegistryUpdateCheckService implements UpdateCheckService {
@@ -77,22 +99,93 @@ export class NpmRegistryUpdateCheckService implements UpdateCheckService {
     signal?: AbortSignal,
   ): Promise<UpdateCheckNotice | undefined> {
     const cache = await this.loadCache();
+    const latestDue = !cache || this.isCheckDue(cache);
+    const currentVersionStatusDue = this.isCurrentVersionStatusDue(
+      cache?.currentVersionStatus,
+    );
+    const currentVersionStatus = await this.refreshCurrentVersionStatusIfDue(
+      cache?.currentVersionStatus,
+      signal,
+    );
+    const currentVersionStatusChanged =
+      currentVersionStatusDue &&
+      !sameCurrentVersionStatus(
+        currentVersionStatus,
+        cache?.currentVersionStatus,
+      );
 
-    if (cache && !this.isCheckDue(cache)) {
+    if (cache && !latestDue) {
+      if (currentVersionStatusChanged) {
+        await this.saveCache({
+          ...cache,
+          currentVersionStatus,
+        });
+      }
       return this.noticeFromLatest(cache.latestVersion);
     }
 
     const latestVersion = await this.fetchLatestVersion(signal);
     if (!latestVersion) {
+      if (currentVersionStatusChanged) {
+        await this.saveCache({
+          ...cache,
+          currentVersionStatus,
+        });
+      }
       return this.noticeFromLatest(cache?.latestVersion);
     }
 
     await this.saveCache({
       checkedAt: this.now().toISOString(),
       latestVersion,
+      currentVersionStatus,
     });
 
     return this.noticeFromLatest(latestVersion);
+  }
+
+  async refreshRequiredUpdateStatus(signal?: AbortSignal): Promise<void> {
+    const cache = await this.loadCache();
+    const currentVersionStatusDue = this.isCurrentVersionStatusDue(
+      cache?.currentVersionStatus,
+    );
+    const currentVersionStatus = await this.refreshCurrentVersionStatusIfDue(
+      cache?.currentVersionStatus,
+      signal,
+    );
+    if (
+      currentVersionStatusDue &&
+      !sameCurrentVersionStatus(
+        currentVersionStatus,
+        cache?.currentVersionStatus,
+      )
+    ) {
+      await this.saveCache({
+        ...cache,
+        currentVersionStatus,
+      });
+    }
+  }
+
+  async getRequiredUpdateNotice(): Promise<RequiredUpdateNotice | undefined> {
+    const cache = await this.loadCache();
+    const status = cache?.currentVersionStatus;
+    if (
+      !status ||
+      status.version !== this.currentVersion ||
+      !status.deprecatedReason
+    ) {
+      return undefined;
+    }
+
+    return {
+      currentVersion: this.currentVersion,
+      ...(cache.latestVersion
+        ? { latestKnownVersion: cache.latestVersion }
+        : {}),
+      reason: status.deprecatedReason,
+      updateCommand: formatUpdateCommand(this.env),
+    };
   }
 
   private noticeFromLatest(
@@ -115,11 +208,45 @@ export class NpmRegistryUpdateCheckService implements UpdateCheckService {
   }
 
   private isCheckDue(cache: UpdateCheckCache): boolean {
+    if (!cache.checkedAt || !cache.latestVersion) {
+      return true;
+    }
     const checkedAtMs = Date.parse(cache.checkedAt);
     if (Number.isNaN(checkedAtMs)) {
       return true;
     }
     return this.now().getTime() - checkedAtMs >= this.checkIntervalMs;
+  }
+
+  private isCurrentVersionStatusDue(
+    status: CurrentVersionStatus | undefined,
+  ): boolean {
+    if (!status || status.version !== this.currentVersion) {
+      return true;
+    }
+    const checkedAtMs = Date.parse(status.checkedAt);
+    if (Number.isNaN(checkedAtMs)) {
+      return true;
+    }
+    return this.now().getTime() - checkedAtMs >= this.checkIntervalMs;
+  }
+
+  private async refreshCurrentVersionStatusIfDue(
+    cached: CurrentVersionStatus | undefined,
+    signal: AbortSignal | undefined,
+  ): Promise<CurrentVersionStatus | undefined> {
+    const reusableCached =
+      cached?.version === this.currentVersion ? cached : undefined;
+    if (!this.isCurrentVersionStatusDue(reusableCached)) {
+      return reusableCached;
+    }
+
+    const remote = await this.fetchCurrentVersionStatus(signal);
+    if (!remote) {
+      return reusableCached;
+    }
+
+    return remote;
   }
 
   private async fetchLatestVersion(
@@ -150,6 +277,42 @@ export class NpmRegistryUpdateCheckService implements UpdateCheckService {
     }
   }
 
+  private async fetchCurrentVersionStatus(
+    signal: AbortSignal | undefined,
+  ): Promise<CurrentVersionStatus | undefined> {
+    try {
+      const timeoutSignal = AbortSignal.timeout(this.fetchTimeoutMs);
+      const response = await this.fetcher(
+        `${NPM_PACKAGE_VERSION_URL}/${this.currentVersion}`,
+        {
+          signal: signal
+            ? AbortSignal.any([signal, timeoutSignal])
+            : timeoutSignal,
+        },
+      );
+      if (!response.ok) {
+        return undefined;
+      }
+      const body = await response.json();
+      if (!body || typeof body !== "object") {
+        return undefined;
+      }
+      const rawDeprecated = (body as { deprecated?: unknown }).deprecated;
+      const deprecatedReason =
+        typeof rawDeprecated === "string"
+          ? sanitizeDeprecationReason(rawDeprecated)
+          : undefined;
+
+      return {
+        version: this.currentVersion,
+        checkedAt: this.now().toISOString(),
+        ...(deprecatedReason ? { deprecatedReason } : {}),
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
   private async loadCache(): Promise<UpdateCheckCache | undefined> {
     try {
       if (!(await this.fs.exists(this.cachePath))) {
@@ -157,15 +320,23 @@ export class NpmRegistryUpdateCheckService implements UpdateCheckService {
       }
       const raw = await this.fs.readFile(this.cachePath);
       const parsed = JSON.parse(raw) as Partial<UpdateCheckCache>;
-      if (
-        typeof parsed.checkedAt !== "string" ||
-        typeof parsed.latestVersion !== "string"
-      ) {
+      const currentVersionStatus = parseCurrentVersionStatus(
+        parsed.currentVersionStatus,
+      );
+      const hasLatest =
+        typeof parsed.checkedAt === "string" &&
+        typeof parsed.latestVersion === "string";
+      if (!hasLatest && !currentVersionStatus) {
         return undefined;
       }
       return {
-        checkedAt: parsed.checkedAt,
-        latestVersion: parsed.latestVersion,
+        ...(hasLatest
+          ? {
+              checkedAt: parsed.checkedAt,
+              latestVersion: parsed.latestVersion,
+            }
+          : {}),
+        currentVersionStatus,
       };
     } catch {
       return undefined;
@@ -175,10 +346,17 @@ export class NpmRegistryUpdateCheckService implements UpdateCheckService {
   private async saveCache(cache: UpdateCheckCache): Promise<void> {
     try {
       await this.fs.ensureDir(this.configDir, DIR_MODE);
+      if (typeof this.fs.atomicWriteFile === "function") {
+        await this.fs.atomicWriteFile(
+          this.cachePath,
+          `${JSON.stringify(cache, null, 2)}\n`,
+        );
+        return;
+      }
       await this.fs.writeFile(
         this.cachePath,
         `${JSON.stringify(cache, null, 2)}\n`,
-        FILE_MODE,
+        0o600,
       );
     } catch {
       // Update checks must never break the real command.
@@ -230,8 +408,108 @@ export function shouldRunUpdateCheck(
   return true;
 }
 
+export function shouldRunRequiredUpdateEnforcement(
+  input: RequiredUpdateEligibilityInput,
+): boolean {
+  if (isHelpOrVersionInvocation(input.args)) {
+    return false;
+  }
+
+  const env = input.env ?? process.env;
+  if (isLikelyEphemeralPackageRunner(env)) {
+    return false;
+  }
+
+  return true;
+}
+
 export function formatUpdateNotice(notice: UpdateCheckNotice): string {
   return `Update available: githits ${notice.currentVersion} -> ${notice.latestVersion}\nRun: ${notice.updateCommand}`;
+}
+
+export function formatRequiredUpdateNotice(
+  notice: RequiredUpdateNotice,
+): string {
+  const lines = [
+    `Update required: ${notice.reason}`,
+    "",
+    `Installed githits ${notice.currentVersion} is no longer supported.`,
+  ];
+  if (notice.latestKnownVersion) {
+    lines.push(`Latest known version: ${notice.latestKnownVersion}`);
+  }
+  lines.push("Update with:", `  ${notice.updateCommand}`);
+  return [...lines].join("\n");
+}
+
+export function formatUpdateCommand(
+  env: Record<string, string | undefined> = process.env,
+): string {
+  const userAgent = env.npm_config_user_agent ?? "";
+  const execPath = env.npm_execpath ?? "";
+  const signal = `${userAgent} ${execPath}`.toLowerCase();
+
+  if (signal.includes("pnpm")) {
+    return "pnpm add -g githits@latest";
+  }
+  if (signal.includes("yarn")) {
+    return "yarn global add githits@latest";
+  }
+  if (signal.includes("bun")) {
+    return "bun add -g githits@latest";
+  }
+  return UPDATE_COMMAND;
+}
+
+function parseCurrentVersionStatus(
+  value: unknown,
+): CurrentVersionStatus | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const status = value as Partial<CurrentVersionStatus>;
+  if (typeof status.version !== "string") {
+    return undefined;
+  }
+  if (typeof status.checkedAt !== "string") {
+    return undefined;
+  }
+  const deprecatedReason =
+    typeof status.deprecatedReason === "string"
+      ? sanitizeDeprecationReason(status.deprecatedReason)
+      : undefined;
+  return {
+    version: status.version,
+    checkedAt: status.checkedAt,
+    ...(deprecatedReason ? { deprecatedReason } : {}),
+  };
+}
+
+function sameCurrentVersionStatus(
+  left: CurrentVersionStatus | undefined,
+  right: CurrentVersionStatus | undefined,
+): boolean {
+  return (
+    left?.version === right?.version &&
+    left?.checkedAt === right?.checkedAt &&
+    left?.deprecatedReason === right?.deprecatedReason
+  );
+}
+
+function sanitizeDeprecationReason(value: string): string | undefined {
+  const sanitized = Array.from(value)
+    .map((character) => (isControlCharacter(character) ? " " : character))
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_DEPRECATION_REASON_LENGTH)
+    .trim();
+  return sanitized.length > 0 ? sanitized : undefined;
+}
+
+function isControlCharacter(value: string): boolean {
+  const code = value.charCodeAt(0);
+  return code <= 0x1f || (code >= 0x7f && code <= 0x9f);
 }
 
 function isHelpOrVersionInvocation(args: string[]): boolean {

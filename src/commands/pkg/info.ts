@@ -3,6 +3,7 @@ import { createContainer } from "../../container.js";
 import type { PackageIntelligenceService } from "../../services/index.js";
 import { shouldUseColors } from "../../shared/colors.js";
 import {
+  formatMappedErrorForTerminal,
   InvalidPackageSpecError,
   mapPackageIntelligenceError,
   parsePackageSpec,
@@ -93,7 +94,7 @@ function handlePkgInfoCommandError(error: unknown, json: boolean): never {
   // Bare mapped message. Domain messages (`Package 'npm:foo' not found.`,
   // `pkg info always returns the latest version; omit @4.18.0.`) are
   // already caller-readable.
-  console.error(mapped.message);
+  console.error(formatMappedErrorForTerminal(mapped));
   process.exit(1);
 }
 

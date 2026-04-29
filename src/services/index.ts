@@ -34,6 +34,11 @@ export {
   ChunkingKeyringService,
   WINDOWS_MAX_ENTRY_SIZE,
 } from "./chunking-keyring-service.js";
+export {
+  CLIENT_UPDATE_REQUIRED_REASON,
+  ClientUpdateRequiredError,
+  isClientUpdateRequiredGraphQLError,
+} from "./client-update-required-error.js";
 export type {
   AvailableVersion,
   CodeNavigationRegistry,
@@ -184,13 +189,17 @@ export { RefreshingGitHitsService } from "./refreshing-githits-service.js";
 export type { TokenProvider } from "./token-manager.js";
 export { refreshExpiredToken, TokenManager } from "./token-manager.js";
 export type {
+  RequiredUpdateNotice,
   UpdateCheckFetcher,
   UpdateCheckNotice,
   UpdateCheckService,
 } from "./update-check-service.js";
 export {
+  formatRequiredUpdateNotice,
+  formatUpdateCommand,
   formatUpdateNotice,
   NpmRegistryUpdateCheckService,
   resolveConfigHome,
+  shouldRunRequiredUpdateEnforcement,
   shouldRunUpdateCheck,
 } from "./update-check-service.js";

@@ -4,6 +4,7 @@ import type { PackageIntelligenceService } from "../../services/index.js";
 import {
   buildReadPackageDocParams,
   buildReadPackageDocSuccessPayload,
+  formatMappedErrorForTerminal,
   formatReadPackageDocTerminal,
   InvalidPackageSpecError,
   mapPackageIntelligenceError,
@@ -80,7 +81,7 @@ function handleDocsReadError(error: unknown, json: boolean): never {
       }),
     );
   } else {
-    console.error(mapped.message);
+    console.error(formatMappedErrorForTerminal(mapped));
   }
 
   process.exit(1);

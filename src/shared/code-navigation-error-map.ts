@@ -1,4 +1,8 @@
 import {
+  CLIENT_UPDATE_REQUIRED_REASON,
+  ClientUpdateRequiredError,
+} from "../services/client-update-required-error.js";
+import {
   type AvailableVersion,
   CodeNavigationAccessError,
   CodeNavigationBackendError,
@@ -30,6 +34,7 @@ export type MappedErrorCode =
   | "TIMEOUT"
   | "RATE_LIMITED"
   | "PROTOCOL_ERROR"
+  | "UPDATE_REQUIRED"
   | "UNKNOWN";
 
 export interface MappedErrorDetails {
@@ -49,6 +54,12 @@ export interface MappedErrorDetails {
   package?: string;
   /** The file path the caller asked for (for `FILE_NOT_FOUND`). */
   filePath?: string;
+  /** Installed CLI version when an update is required. */
+  currentVersion?: string;
+  /** Suggested package-manager command when an update is required. */
+  updateCommand?: string;
+  /** Human-readable update reason. */
+  reason?: string;
 }
 
 export interface MappedError {
@@ -92,6 +103,9 @@ export function mapCodeNavigationError(error: unknown): MappedError {
 }
 
 function classify(error: unknown): MappedError {
+  if (error instanceof ClientUpdateRequiredError) {
+    return buildUpdateRequiredError(error.reason, error.currentVersion);
+  }
   if (error instanceof CodeNavigationVersionNotFoundError) {
     const details: MappedErrorDetails = {};
     if (error.packageName) details.package = error.packageName;
@@ -205,6 +219,34 @@ function classify(error: unknown): MappedError {
     return { code: "UNKNOWN", message: error.message, retryable: false };
   }
   return { code: "UNKNOWN", message: "Unknown error", retryable: false };
+}
+
+export function buildUpdateRequiredError(
+  reason = CLIENT_UPDATE_REQUIRED_REASON,
+  currentVersion?: string,
+): MappedError {
+  return {
+    code: "UPDATE_REQUIRED",
+    message: `Update required: ${reason}`,
+    retryable: false,
+    details: {
+      reason,
+      updateCommand: "npm i -g githits@latest",
+      ...(currentVersion ? { currentVersion } : {}),
+    },
+  };
+}
+
+export function formatMappedErrorForTerminal(mapped: MappedError): string {
+  if (mapped.code !== "UPDATE_REQUIRED") {
+    return mapped.message;
+  }
+  const detail = mapped.details ?? {};
+  const updateCommand =
+    typeof detail.updateCommand === "string"
+      ? detail.updateCommand
+      : "npm i -g githits@latest";
+  return [mapped.message, "", "Update with:", `  ${updateCommand}`].join("\n");
 }
 
 /**

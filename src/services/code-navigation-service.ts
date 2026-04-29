@@ -6,6 +6,10 @@ import {
   postPkgseerGraphql,
 } from "../shared/pkgseer-graphql.js";
 import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
+import {
+  ClientUpdateRequiredError,
+  isClientUpdateRequiredGraphQLError,
+} from "./client-update-required-error.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import { AuthenticationError } from "./githits-service.js";
 import type { TokenProvider } from "./token-manager.js";
@@ -1471,6 +1475,10 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         ? extensions.retryable
         : undefined;
     const indexingRef = getGraphQLIndexingRef(errors);
+
+    if (isClientUpdateRequiredGraphQLError({ message, code })) {
+      return new ClientUpdateRequiredError();
+    }
 
     // Direct dispatch on extensions.code — the April 2026 backend
     // contract populates this on every error. Fall back to message

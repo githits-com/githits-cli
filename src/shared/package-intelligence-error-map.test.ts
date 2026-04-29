@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { ClientUpdateRequiredError } from "../services/client-update-required-error.js";
 import { AuthenticationError } from "../services/githits-service.js";
 import {
   MalformedPackageIntelligenceResponseError,
@@ -14,6 +15,23 @@ import {
 import { mapPackageIntelligenceError } from "./package-intelligence-error-map.js";
 
 describe("mapPackageIntelligenceError", () => {
+  it("maps ClientUpdateRequiredError to UPDATE_REQUIRED", () => {
+    const mapped = mapPackageIntelligenceError(
+      new ClientUpdateRequiredError(undefined, undefined, "0.2.0"),
+    );
+
+    expect(mapped).toEqual({
+      code: "UPDATE_REQUIRED",
+      message: "Update required: Backend protocol changed",
+      retryable: false,
+      details: {
+        currentVersion: "0.2.0",
+        reason: "Backend protocol changed",
+        updateCommand: "npm i -g githits@latest",
+      },
+    });
+  });
+
   it("maps PackageIntelligenceTargetNotFoundError to NOT_FOUND", () => {
     const mapped = mapPackageIntelligenceError(
       new PackageIntelligenceTargetNotFoundError("Package not found"),

@@ -6,6 +6,7 @@ import {
   buildListPackageDocsParams,
   buildListPackageDocsSuccessPayload,
   formatListPackageDocsTerminal,
+  formatMappedErrorForTerminal,
   InvalidPackageSpecError,
   mapPackageIntelligenceError,
   parsePackageSpec,
@@ -99,7 +100,7 @@ function handleDocsListError(error: unknown, json: boolean): never {
       }),
     );
   } else {
-    console.error(mapped.message);
+    console.error(formatMappedErrorForTerminal(mapped));
   }
 
   process.exit(1);
