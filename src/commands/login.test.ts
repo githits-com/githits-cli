@@ -30,6 +30,10 @@ describe("loginAction", () => {
     expect(browserService.open).toHaveBeenCalled();
     expect(authService.exchangeCodeForTokens).toHaveBeenCalled();
     expect(authStorage.saveTokens).toHaveBeenCalled();
+    expect(authStorage.saveClient).toHaveBeenCalledWith(
+      expect.stringContaining("__githits_storage_probe__"),
+      expect.any(Object),
+    );
 
     consoleSpy.mockRestore();
   });
@@ -148,7 +152,31 @@ describe("loginAction", () => {
     );
 
     expect(authService.registerClient).toHaveBeenCalled();
-    expect(authStorage.saveClient).toHaveBeenCalled();
+    expect(authStorage.saveClient).toHaveBeenCalledWith(
+      mcpUrl,
+      expect.any(Object),
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it("fails before remote registration when storage preflight fails", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const authStorage = createMockAuthStorage({
+      saveClient: mock(() => Promise.reject(new Error("keychain locked"))),
+    });
+    const authService = createMockAuthService();
+    const browserService = createMockBrowserService();
+
+    const result = await loginFlow(
+      { port: 8080 },
+      { authService, authStorage, browserService, mcpUrl },
+    );
+
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("Cannot persist OAuth credentials");
+    expect(authService.discoverEndpoints).not.toHaveBeenCalled();
+    expect(authService.registerClient).not.toHaveBeenCalled();
+    expect(browserService.open).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
 
@@ -216,13 +244,13 @@ describe("loginAction", () => {
       throw new Error("process.exit");
     });
 
-    let clearClientCallCount = 0;
+    let mcpClearClientCallCount = 0;
     const authStorage = createMockAuthStorage({
-      clearClient: mock(() => {
-        clearClientCallCount++;
-        // First call is from the !existing path (Part 1), let it succeed.
-        // Second call is from the catch block (Part 2), make it fail.
-        if (clearClientCallCount > 1) {
+      clearClient: mock((baseUrl: string) => {
+        if (baseUrl === mcpUrl) {
+          mcpClearClientCallCount++;
+        }
+        if (baseUrl === mcpUrl && mcpClearClientCallCount > 1) {
           throw new Error("fs error");
         }
         return Promise.resolve();
@@ -278,7 +306,7 @@ describe("loginAction", () => {
       },
     );
 
-    expect(authStorage.clearClient).not.toHaveBeenCalled();
+    expect(authStorage.clearClient).not.toHaveBeenCalledWith(mcpUrl);
     expect(authStorage.saveTokens).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
@@ -305,7 +333,7 @@ describe("loginAction", () => {
       },
     );
 
-    expect(authStorage.clearClient).not.toHaveBeenCalled();
+    expect(authStorage.clearClient).not.toHaveBeenCalledWith(mcpUrl);
     expect(authStorage.saveTokens).toHaveBeenCalled();
     consoleSpy.mockRestore();
   });

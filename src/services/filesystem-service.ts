@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   mkdir,
   readdir,
@@ -127,7 +128,7 @@ export class FileSystemServiceImpl implements FileSystemService {
   }
 
   async atomicWriteFile(path: string, contents: string): Promise<void> {
-    const tmpPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+    const tmpPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
     // Preserve existing file permissions; default to 0o600 for new files
     // (config files may contain sensitive data from other MCP servers)
     let mode = 0o600;

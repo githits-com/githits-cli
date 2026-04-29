@@ -31,7 +31,7 @@ The login command (`src/commands/login.ts`) orchestrates a 9-step OAuth flow (ma
 6. **Open browser or print URL** — Navigate user to auth URL, or print it if `--no-browser` is set
 7. **Verify state** — CSRF protection check on the callback
 8. **Exchange code for tokens** — POST to token endpoint with PKCE verifier
-9. **Save tokens** — Store to system keychain (or fallback file storage)
+9. **Save tokens** — Store to the configured auth store
 
 The flow has a 5-minute timeout. The callback server must start before the browser opens so it's ready to receive the redirect.
 
@@ -53,7 +53,9 @@ To clear tokens manually, use `githits logout`. This removes stored tokens for t
 
 ## Storage
 
-Credentials are stored in the **system keychain** (macOS Keychain, Windows Credential Manager, Linux Secret Service) via `@napi-rs/keyring`. If the keychain is unavailable (headless Linux, CI), the CLI falls back to file-based storage in `~/.githits/` with a stderr warning.
+Credentials are stored in the **system keychain** by default (macOS Keychain, Windows Credential Manager, Linux Secret Service) via `@napi-rs/keyring`. The CLI does not silently downgrade OAuth credentials to plaintext files when the keychain is unavailable.
+
+Machines without a usable keychain can explicitly opt into plaintext OAuth storage with `auth.storage = "file"` in `config.toml` or `GITHITS_AUTH_STORAGE=file`. `GITHITS_API_TOKEN` remains the preferred automation/CI path because it avoids storing OAuth refresh credentials.
 
 ### Keychain storage (primary)
 
@@ -84,36 +86,58 @@ Values under 1200 characters are stored directly with no sentinel, maintaining f
 
 The `getStorageLocation()` method returns a platform-specific label: "macOS Keychain (githits)" on macOS, "Windows Credential Manager (githits)" on Windows, and "System keychain (githits)" on Linux.
 
-### File storage (fallback)
+### File storage (explicit)
 
-When the keychain is unavailable, auth data is stored in `~/.githits/` with two files:
+When `auth.storage = "file"`, auth data is stored under the platform config auth directory with two files:
 
 | File | Content | Structure |
 |---|---|---|
 | `auth.json` | OAuth tokens | `{ version: 1, tokens: { [mcpUrl]: { accessToken, refreshToken, expiresAt (string\|null), createdAt } } }` |
 | `client.json` | DCR client registration | `{ version: 1, clients: { [mcpUrl]: { clientId, clientSecret, redirectUri, registeredAt } } }` |
 
-Both files use 0600 permissions. The directory uses 0700.
+Both files use 0600 permissions. The directory uses 0700. Rewrites use `FileSystemService.atomicWriteFile()` so a crash does not leave half-written JSON. This protects against other local users but does not encrypt credentials at rest.
+
+Typical Linux layout:
+
+```text
+~/.config/githits/
+  config.toml
+  auth/
+    auth.json
+    client.json
+```
+
+The legacy `~/.githits/auth.json` and `~/.githits/client.json` path is still read for migration and cleared by logout, but new file-mode writes go to the platform config auth directory.
 
 ### Migration
 
-On first use after upgrading, the `MigratingAuthStorage` decorator transparently migrates credentials from files to the keychain:
+On first use after upgrading, `MigratingAuthStorage` transparently migrates credentials according to the configured storage mode:
+
+Keychain mode:
 
 1. Check keychain — if found, return it
-2. Check file — if found, write to keychain, delete from file, return it
+2. Check new file path, then legacy `~/.githits` — if found, write to keychain, delete the migrated plaintext entry, return it
 3. Both empty — return null
 
-Keychain write must succeed before the file entry is deleted. Tokens and client registrations migrate independently.
+File mode:
+
+1. Check new file path — if found, return it
+2. Check legacy `~/.githits` — if found, write to new file path, delete legacy entry, return it
+3. Check keychain only as a last-resort migration source, then warn before exporting encrypted credentials to plaintext
+
+The configured target write must succeed before the source entry is deleted. Tokens and client registrations migrate independently. If both plaintext paths contain entries, the newer timestamp wins; ambiguous ties prefer the new file path and leave the other entry intact with a warning.
 
 ### Architecture
 
 ```
 Container (createAuthStorage)
   └─ MigratingAuthStorage (decorator)
-       ├─ KeychainAuthStorage (primary)
+       ├─ KeychainAuthStorage
        │    └─ ChunkingKeyringService (Windows only, decorator)
        │         └─ KeyringServiceImpl ← @napi-rs/keyring
-       └─ AuthStorageImpl (legacy) ← file-based
+       ├─ ModeAwareFileAuthStorage
+       │    └─ AuthStorageImpl ← platform config auth path
+       └─ AuthStorageImpl ← legacy ~/.githits path
 ```
 
 All credential types are keyed by normalized MCP base URL (trailing slashes stripped), supporting multiple environments simultaneously.
@@ -147,7 +171,7 @@ The `hasValidToken` flag is checked by `requireAuth()` in `src/commands/mcp.ts` 
 - **Port conflicts on login** — The callback server uses the port from the stored client registration. On first login, a random port (8000–9999) is chosen and saved. Use `--port <port>` to change it (triggers re-registration).
 - **Token refresh fails silently** — By design. The container clears stale auth and `hasValidToken` becomes false, prompting re-login.
 - **Clearing auth** — Run `githits logout` to remove stored tokens and client registration for the current environment.
-- **Keychain unavailable warning** — If the system keychain is not accessible (headless Linux, CI), the CLI falls back to file storage in `~/.githits/` and prints a warning to stderr.
+- **System keychain unavailable** — In default keychain mode, OAuth login/refresh fails rather than writing plaintext credentials. Use `GITHITS_API_TOKEN`, fix/unlock the keychain, or explicitly configure `auth.storage = "file"` if plaintext local storage is acceptable.
 - **Windows "password encoded as UTF-16 is longer than platform limit"** — The Windows Credential Manager limits credential blobs to 2560 bytes (`CRED_MAX_CREDENTIAL_BLOB_SIZE`). Since passwords are stored as UTF-16 (2 bytes per char), the effective limit is 1280 characters. The `ChunkingKeyringService` decorator handles this automatically by splitting large values across multiple entries. If this error occurs on an older CLI version, upgrade to get chunked storage support.
 
 ## Key Reference Files
@@ -156,17 +180,20 @@ The `hasValidToken` flag is checked by `requireAuth()` in `src/commands/mcp.ts` 
 |---|---|
 | `src/commands/login.ts` | Full OAuth PKCE flow orchestration |
 | `src/commands/logout.ts` | Token and client removal and storage cleanup |
-| `src/container.ts` | Dependency wiring, keychain probe with fallback |
+| `src/container.ts` | Dependency wiring and auth-command container without eager token refresh |
 | `src/services/token-manager.ts` | `TokenProvider` interface, `TokenManager` (proactive refresh, coalescing) |
 | `src/services/refreshing-githits-service.ts` | `GitHitsService` decorator with token refresh and 401 retry |
 | `src/services/execute-with-token-refresh.ts` | Shared helper for token-authenticated retry-on-refresh flows |
 | `src/services/code-navigation-service.ts` | Package/source service client using the shared refresh helper |
 | `src/services/auth-service.ts` | OAuth operations (DCR, PKCE, token exchange, callback server) |
 | `src/services/auth-storage.ts` | `AuthStorage` interface and file-based implementation |
+| `src/services/auth-config.ts` | `config.toml` and `GITHITS_AUTH_STORAGE` parsing |
+| `src/services/app-config-paths.ts` | Platform-specific config/auth path resolution |
+| `src/services/mode-aware-file-auth-storage.ts` | File-write guard for `auth.storage` policy |
 | `src/services/keyring-service.ts` | `KeyringService` interface wrapping `@napi-rs/keyring` |
 | `src/services/chunking-keyring-service.ts` | `KeyringService` decorator for chunked storage (Windows 2560-char limit) |
 | `src/services/keychain-auth-storage.ts` | `AuthStorage` implementation backed by system keychain |
-| `src/services/migrating-auth-storage.ts` | Migration decorator (keychain primary + file legacy) |
+| `src/services/migrating-auth-storage.ts` | Mode-aware migration across keychain, config file storage, and legacy file storage |
 | `src/services/filesystem-service.ts` | File system abstraction for testable storage |
 | `src/auth/pkce.ts` | PKCE cryptographic primitives |
 | `src/services/config.ts` | URL and API token configuration |

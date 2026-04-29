@@ -132,7 +132,7 @@ GitHits requires authentication. There are two options:
 npx githits login
 ```
 
-Opens your browser for secure OAuth authentication. Tokens are stored locally and refreshed automatically on next use. If a refresh fails (e.g., after an extended idle period), run `githits login` again.
+Opens your browser for secure OAuth authentication. Tokens are stored in the system keychain by default and refreshed automatically on next use. If a refresh fails (e.g., after an extended idle period), run `githits login` again.
 
 Useful flags:
 
@@ -147,6 +147,18 @@ For CI or environments where browser login isn't practical, set an environment v
 ```sh
 export GITHITS_API_TOKEN=ghi-your-token-here
 ```
+
+For machines without a usable keychain, OAuth file storage must be explicit:
+
+```toml
+# ~/.config/githits/config.toml on Linux
+[auth]
+storage = "file"
+```
+
+File storage is plaintext on disk. Prefer `GITHITS_API_TOKEN` for CI and automation.
+
+You can also opt in for one process with `GITHITS_AUTH_STORAGE=file`. Use file storage only on machines where local file access is trusted.
 
 ## Commands
 
@@ -177,6 +189,7 @@ githits code ...       Dependency source inspection: search, files, read, grep
 | Variable | Purpose | Default |
 |---|---|---|
 | `GITHITS_API_TOKEN` | API token for authentication | — |
+| `GITHITS_AUTH_STORAGE` | Override OAuth storage mode (`keychain` or `file`) | `keychain` |
 | `GITHITS_MCP_URL` | Override MCP server URL | `https://mcp.githits.com` |
 | `GITHITS_API_URL` | Override REST API URL | `https://api.githits.com` |
 | `GITHITS_CODE_NAV_URL` | Override package/source service URL | `https://pkgseer.dev` |
