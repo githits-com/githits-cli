@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import type { TokenData } from "./auth-storage.js";
 import {
   createMockAuthService,
   createMockAuthStorage,
@@ -112,9 +113,39 @@ describe("refreshExpiredToken", () => {
     const result = await refreshExpiredToken(authService, authStorage, MCP_URL);
 
     expect(result).toBe(defaultTokenResponse.accessToken);
-    expect(authStorage.saveTokens).toHaveBeenCalledTimes(1);
+    expect(authStorage.saveTokensIfUnchanged).toHaveBeenCalledTimes(1);
     expect(authService.discoverEndpoints).toHaveBeenCalledWith(MCP_URL);
     expect(authService.refreshAccessToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps existing refresh token when refresh response omits one", async () => {
+    const expiredToken = createValidTokenData({
+      createdAt: new Date(Date.now() - 7200_000).toISOString(),
+      expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      refreshToken: "existing-refresh-token",
+    });
+    const authService = createMockAuthService({
+      refreshAccessToken: mock(() =>
+        Promise.resolve({
+          accessToken: "new-access-token",
+          expiresIn: 3600,
+        }),
+      ),
+    });
+    const authStorage = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(expiredToken)),
+      loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+    });
+
+    const result = await refreshExpiredToken(authService, authStorage, MCP_URL);
+
+    expect(result).toBe("new-access-token");
+    expect(authStorage.saveTokensIfUnchanged).toHaveBeenCalledTimes(1);
+    expect(authStorage.saveTokensIfUnchanged).toHaveBeenCalledWith(
+      MCP_URL,
+      expiredToken,
+      expect.objectContaining({ refreshToken: "existing-refresh-token" }),
+    );
   });
 
   it("clears tokens and returns undefined on refresh failure", async () => {
@@ -135,7 +166,10 @@ describe("refreshExpiredToken", () => {
     const result = await refreshExpiredToken(authService, authStorage, MCP_URL);
 
     expect(result).toBeUndefined();
-    expect(authStorage.clearTokens).toHaveBeenCalledWith(MCP_URL);
+    expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
+      MCP_URL,
+      expiredToken,
+    );
   });
 });
 
@@ -213,7 +247,7 @@ describe("TokenManager", () => {
       const result = await manager.getToken();
       expect(result).toBe(defaultTokenResponse.accessToken);
       expect(authService.refreshAccessToken).toHaveBeenCalledTimes(1);
-      expect(authStorage.saveTokens).toHaveBeenCalledTimes(1);
+      expect(authStorage.saveTokensIfUnchanged).toHaveBeenCalledTimes(1);
     });
 
     it("returns current token when proactive refresh fails", async () => {
@@ -262,7 +296,10 @@ describe("TokenManager", () => {
 
       const result = await manager.getToken();
       expect(result).toBeUndefined();
-      expect(authStorage.clearTokens).toHaveBeenCalledWith(MCP_URL);
+      expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
+        MCP_URL,
+        tokenData,
+      );
     });
 
     it("coalesces concurrent refresh requests", async () => {
@@ -355,7 +392,7 @@ describe("TokenManager", () => {
       const result = await manager.forceRefresh();
       expect(result).toBeUndefined();
       // Should NOT clear tokens since the token is still valid (not expired)
-      expect(authStorage.clearTokens).not.toHaveBeenCalled();
+      expect(authStorage.clearTokensIfUnchanged).not.toHaveBeenCalled();
     });
 
     it("clears tokens when refresh fails with expired token", async () => {
@@ -381,7 +418,240 @@ describe("TokenManager", () => {
       // forceRefresh should also clear since token is expired
       const result = await manager.forceRefresh();
       expect(result).toBeUndefined();
-      expect(authStorage.clearTokens).toHaveBeenCalledWith(MCP_URL);
+      expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
+        MCP_URL,
+        tokenData,
+      );
+    });
+
+    it("recovers when another process writes fresh tokens after cached refresh fails", async () => {
+      const staleToken = createValidTokenData({
+        accessToken: "stale-access-token",
+        refreshToken: "stale-refresh-token",
+        createdAt: new Date(Date.now() - 7200_000).toISOString(),
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+      const freshToken = createValidTokenData({
+        accessToken: "fresh-access-token",
+        refreshToken: "fresh-refresh-token",
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      });
+      const loadTokens = mock<() => Promise<TokenData | null>>(() =>
+        Promise.resolve(staleToken),
+      );
+      const authStorage = createMockAuthStorage({
+        loadTokens,
+        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+      });
+      const manager = new TokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() => Promise.reject(new Error("stale"))),
+        }),
+        authStorage,
+        mcpUrl: MCP_URL,
+      });
+
+      expect(await manager.getToken()).toBe("stale-access-token");
+      loadTokens.mockImplementation(() => Promise.resolve(freshToken));
+
+      const result = await manager.forceRefresh();
+
+      expect(result).toBe("fresh-access-token");
+      expect(authStorage.clearTokensIfUnchanged).not.toHaveBeenCalled();
+    });
+
+    it("uses externally refreshed tokens on later getToken calls", async () => {
+      const staleToken = createValidTokenData({
+        accessToken: "stale-access-token",
+        refreshToken: "stale-refresh-token",
+        createdAt: new Date(Date.now() - 7200_000).toISOString(),
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+      const freshToken = createValidTokenData({
+        accessToken: "fresh-access-token",
+        refreshToken: "fresh-refresh-token",
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      });
+      const loadTokens = mock<() => Promise<TokenData | null>>(() =>
+        Promise.resolve(staleToken),
+      );
+      const refreshAccessToken = mock(() => Promise.reject(new Error("stale")));
+      const authStorage = createMockAuthStorage({
+        loadTokens,
+        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+      });
+      const manager = new TokenManager({
+        authService: createMockAuthService({ refreshAccessToken }),
+        authStorage,
+        mcpUrl: MCP_URL,
+      });
+
+      expect(await manager.getToken()).toBe("stale-access-token");
+      loadTokens.mockImplementation(() => Promise.resolve(freshToken));
+      const recovered = await manager.forceRefresh();
+      const next = await manager.getToken();
+
+      expect(recovered).toBe("fresh-access-token");
+      expect(next).toBe("fresh-access-token");
+      expect(refreshAccessToken).toHaveBeenCalledTimes(2);
+    });
+
+    it("recovers externally updated tokens that preserve the same refresh token", async () => {
+      const staleToken = createValidTokenData({
+        accessToken: "stale-access-token",
+        refreshToken: "same-refresh-token",
+        createdAt: new Date(Date.now() - 7200_000).toISOString(),
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+      const freshToken = createValidTokenData({
+        accessToken: "fresh-access-token",
+        refreshToken: "same-refresh-token",
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      });
+      const loadTokens = mock<() => Promise<TokenData | null>>(() =>
+        Promise.resolve(staleToken),
+      );
+      const authStorage = createMockAuthStorage({
+        loadTokens,
+        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+      });
+      const manager = new TokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() => Promise.reject(new Error("stale"))),
+        }),
+        authStorage,
+        mcpUrl: MCP_URL,
+      });
+
+      expect(await manager.getToken()).toBe("stale-access-token");
+      loadTokens.mockImplementation(() => Promise.resolve(freshToken));
+
+      const result = await manager.forceRefresh();
+
+      expect(result).toBe("fresh-access-token");
+      expect(authStorage.clearTokensIfUnchanged).not.toHaveBeenCalled();
+    });
+
+    it("does not clear fresh tokens written after the first failed-refresh reload", async () => {
+      const staleToken = createValidTokenData({
+        accessToken: "stale-access-token",
+        refreshToken: "stale-refresh-token",
+        createdAt: new Date(Date.now() - 7200_000).toISOString(),
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      const freshToken = createValidTokenData({
+        accessToken: "fresh-access-token",
+        refreshToken: "fresh-refresh-token",
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      });
+      const loadTokens = mock<() => Promise<TokenData | null>>(() =>
+        Promise.resolve(staleToken),
+      );
+      const authStorage = createMockAuthStorage({
+        loadTokens,
+        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+      });
+      const manager = new TokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() => Promise.reject(new Error("stale"))),
+        }),
+        authStorage,
+        mcpUrl: MCP_URL,
+      });
+
+      loadTokens
+        .mockImplementationOnce(() => Promise.resolve(staleToken))
+        .mockImplementationOnce(() => Promise.resolve(staleToken))
+        .mockImplementationOnce(() => Promise.resolve(freshToken));
+
+      const result = await manager.getToken();
+
+      expect(result).toBe("fresh-access-token");
+      expect(authStorage.clearTokensIfUnchanged).not.toHaveBeenCalled();
+    });
+
+    it("does not overwrite fresh tokens written during refresh", async () => {
+      const staleToken = createValidTokenData({
+        accessToken: "stale-access-token",
+        refreshToken: "stale-refresh-token",
+        createdAt: new Date(Date.now() - 7200_000).toISOString(),
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      const freshToken = createValidTokenData({
+        accessToken: "fresh-access-token",
+        refreshToken: "fresh-refresh-token",
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      });
+      const loadTokens = mock(() => Promise.resolve(staleToken));
+      const authStorage = createMockAuthStorage({
+        loadTokens,
+        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+      });
+      const manager = new TokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() =>
+            Promise.resolve({
+              accessToken: "refresh-access-token",
+              expiresIn: 3600,
+            }),
+          ),
+        }),
+        authStorage,
+        mcpUrl: MCP_URL,
+      });
+
+      loadTokens
+        .mockImplementationOnce(() => Promise.resolve(staleToken))
+        .mockImplementationOnce(() => Promise.resolve(freshToken));
+
+      const result = await manager.getToken();
+
+      expect(result).toBe("fresh-access-token");
+      expect(authStorage.saveTokensIfUnchanged).not.toHaveBeenCalled();
+      expect(authStorage.saveTokens).not.toHaveBeenCalled();
+    });
+
+    it("does not rewrite tokens deleted during refresh", async () => {
+      const staleToken = createValidTokenData({
+        accessToken: "stale-access-token",
+        refreshToken: "stale-refresh-token",
+        createdAt: new Date(Date.now() - 7200_000).toISOString(),
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      const loadTokens = mock<() => Promise<TokenData | null>>(() =>
+        Promise.resolve(staleToken),
+      );
+      const authStorage = createMockAuthStorage({
+        loadTokens,
+        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+      });
+      const manager = new TokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() =>
+            Promise.resolve({
+              accessToken: "refresh-access-token",
+              expiresIn: 3600,
+            }),
+          ),
+        }),
+        authStorage,
+        mcpUrl: MCP_URL,
+      });
+
+      loadTokens
+        .mockImplementationOnce(() => Promise.resolve(staleToken))
+        .mockImplementationOnce(() => Promise.resolve(null));
+
+      const result = await manager.getToken();
+
+      expect(result).toBeUndefined();
+      expect(authStorage.saveTokensIfUnchanged).not.toHaveBeenCalled();
+      expect(authStorage.saveTokens).not.toHaveBeenCalled();
     });
 
     it("resets createdAt on refresh so a fresh token is not immediately refreshed again", async () => {
@@ -408,7 +678,7 @@ describe("TokenManager", () => {
       expect(refreshed).toBe(defaultTokenResponse.accessToken);
       expect(second).toBe(defaultTokenResponse.accessToken);
       expect(refreshMock).toHaveBeenCalledTimes(1);
-      expect(authStorage.saveTokens).toHaveBeenCalledTimes(1);
+      expect(authStorage.saveTokensIfUnchanged).toHaveBeenCalledTimes(1);
     });
   });
 });

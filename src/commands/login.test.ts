@@ -29,9 +29,9 @@ describe("loginAction", () => {
     );
     expect(browserService.open).toHaveBeenCalled();
     expect(authService.exchangeCodeForTokens).toHaveBeenCalled();
-    expect(authStorage.saveTokens).toHaveBeenCalled();
-    expect(authStorage.saveClient).toHaveBeenCalledWith(
+    expect(authStorage.saveAuthSession).toHaveBeenCalledWith(
       expect.stringContaining("__githits_storage_probe__"),
+      expect.any(Object),
       expect.any(Object),
     );
 
@@ -60,7 +60,11 @@ describe("loginAction", () => {
       },
     );
 
-    expect(authStorage.saveTokens).not.toHaveBeenCalled();
+    expect(authStorage.saveAuthSession).not.toHaveBeenCalledWith(
+      mcpUrl,
+      expect.any(Object),
+      expect.any(Object),
+    );
     consoleSpy.mockRestore();
   });
 
@@ -86,7 +90,11 @@ describe("loginAction", () => {
       },
     );
 
-    expect(authStorage.saveTokens).toHaveBeenCalled();
+    expect(authStorage.saveAuthSession).toHaveBeenCalledWith(
+      mcpUrl,
+      expect.any(Object),
+      expect.any(Object),
+    );
     consoleSpy.mockRestore();
   });
 
@@ -152,8 +160,9 @@ describe("loginAction", () => {
     );
 
     expect(authService.registerClient).toHaveBeenCalled();
-    expect(authStorage.saveClient).toHaveBeenCalledWith(
+    expect(authStorage.saveAuthSession).toHaveBeenCalledWith(
       mcpUrl,
+      expect.any(Object),
       expect.any(Object),
     );
     consoleSpy.mockRestore();
@@ -162,7 +171,7 @@ describe("loginAction", () => {
   it("fails before remote registration when storage preflight fails", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const authStorage = createMockAuthStorage({
-      saveClient: mock(() => Promise.reject(new Error("keychain locked"))),
+      saveAuthSession: mock(() => Promise.reject(new Error("keychain locked"))),
     });
     const authService = createMockAuthService();
     const browserService = createMockBrowserService();
@@ -197,7 +206,11 @@ describe("loginAction", () => {
 
     expect(authStorage.clearClient).toHaveBeenCalledWith(mcpUrl);
     expect(authService.registerClient).toHaveBeenCalled();
-    expect(authStorage.saveClient).toHaveBeenCalled();
+    expect(authStorage.saveAuthSession).toHaveBeenCalledWith(
+      mcpUrl,
+      expect.any(Object),
+      expect.any(Object),
+    );
     consoleSpy.mockRestore();
   });
 
@@ -307,7 +320,11 @@ describe("loginAction", () => {
     );
 
     expect(authStorage.clearClient).not.toHaveBeenCalledWith(mcpUrl);
-    expect(authStorage.saveTokens).not.toHaveBeenCalled();
+    expect(authStorage.saveAuthSession).not.toHaveBeenCalledWith(
+      mcpUrl,
+      expect.any(Object),
+      expect.any(Object),
+    );
     consoleSpy.mockRestore();
   });
 
@@ -334,7 +351,11 @@ describe("loginAction", () => {
     );
 
     expect(authStorage.clearClient).not.toHaveBeenCalledWith(mcpUrl);
-    expect(authStorage.saveTokens).toHaveBeenCalled();
+    expect(authStorage.saveAuthSession).toHaveBeenCalledWith(
+      mcpUrl,
+      expect.any(Object),
+      expect.any(Object),
+    );
     consoleSpy.mockRestore();
   });
 
@@ -360,7 +381,11 @@ describe("loginAction", () => {
       },
     );
 
-    expect(authStorage.saveTokens).toHaveBeenCalled();
+    expect(authStorage.saveAuthSession).toHaveBeenCalledWith(
+      mcpUrl,
+      expect.any(Object),
+      expect.any(Object),
+    );
     consoleSpy.mockRestore();
   });
 });

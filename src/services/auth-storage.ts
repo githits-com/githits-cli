@@ -50,8 +50,21 @@ export interface AuthStorage {
   /** Save tokens for a specific base URL */
   saveTokens(baseUrl: string, data: TokenData): Promise<void>;
 
+  /** Save tokens only when the currently stored token still matches expected */
+  saveTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+    data: TokenData,
+  ): Promise<boolean>;
+
   /** Clear tokens for a specific base URL */
   clearTokens(baseUrl: string): Promise<void>;
+
+  /** Clear tokens only when the currently stored token still matches expected */
+  clearTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+  ): Promise<boolean>;
 
   /** Load client registration for a specific base URL */
   loadClient(baseUrl: string): Promise<ClientRegistration | null>;
@@ -61,6 +74,16 @@ export interface AuthStorage {
 
   /** Clear client registration for a specific base URL */
   clearClient(baseUrl: string): Promise<void>;
+
+  /** Save client registration and tokens as one auth session update */
+  saveAuthSession(
+    baseUrl: string,
+    client: ClientRegistration,
+    tokens: TokenData,
+  ): Promise<void>;
+
+  /** Clear client registration and tokens as one auth session update */
+  clearAuthSession(baseUrl: string): Promise<void>;
 
   /** Get a human-readable description of where credentials are stored */
   getStorageLocation(): string;
@@ -112,6 +135,17 @@ export class AuthStorageImpl implements AuthStorage {
     );
   }
 
+  async saveTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+    data: TokenData,
+  ): Promise<boolean> {
+    const current = await this.loadTokens(baseUrl);
+    if (!sameTokenData(current, expected)) return false;
+    await this.saveTokens(baseUrl, data);
+    return true;
+  }
+
   async clearTokens(baseUrl: string): Promise<void> {
     const stored = await this.loadAuthFile();
     if (!stored) return;
@@ -126,6 +160,16 @@ export class AuthStorageImpl implements AuthStorage {
         JSON.stringify(stored, null, 2),
       );
     }
+  }
+
+  async clearTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+  ): Promise<boolean> {
+    const current = await this.loadTokens(baseUrl);
+    if (!sameTokenData(current, expected)) return false;
+    await this.clearTokens(baseUrl);
+    return true;
   }
 
   async loadClient(baseUrl: string): Promise<ClientRegistration | null> {
@@ -164,6 +208,22 @@ export class AuthStorageImpl implements AuthStorage {
     );
   }
 
+  async saveAuthSession(
+    baseUrl: string,
+    client: ClientRegistration,
+    tokens: TokenData,
+  ): Promise<void> {
+    await this.saveClient(baseUrl, client);
+    await this.saveTokens(baseUrl, tokens);
+  }
+
+  async clearAuthSession(baseUrl: string): Promise<void> {
+    await clearAuthSessionBestEffort(
+      () => this.clearTokens(baseUrl),
+      () => this.clearClient(baseUrl),
+    );
+  }
+
   private async loadAuthFile(): Promise<StoredAuth | null> {
     if (!(await this.fs.exists(this.authPath))) return null;
     try {
@@ -196,4 +256,35 @@ export class AuthStorageImpl implements AuthStorage {
  */
 export function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, "");
+}
+
+export function sameTokenData(
+  a: TokenData | null,
+  b: TokenData | null,
+): boolean {
+  if (a === null || b === null) return a === b;
+  return (
+    a.accessToken === b.accessToken &&
+    a.refreshToken === b.refreshToken &&
+    a.expiresAt === b.expiresAt &&
+    a.createdAt === b.createdAt
+  );
+}
+
+export async function clearAuthSessionBestEffort(
+  clearTokens: () => Promise<void>,
+  clearClient: () => Promise<void>,
+): Promise<void> {
+  let firstError: unknown;
+  try {
+    await clearTokens();
+  } catch (error) {
+    firstError = error;
+  }
+  try {
+    await clearClient();
+  } catch (error) {
+    firstError ??= error;
+  }
+  if (firstError) throw firstError;
 }

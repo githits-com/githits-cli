@@ -117,6 +117,10 @@ export {
   KeychainUnavailableError,
   KeyringServiceImpl,
 } from "./keyring-service.js";
+export {
+  AuthStorageLockTimeoutError,
+  LockedAuthStorage,
+} from "./locked-auth-storage.js";
 export { MigratingAuthStorage } from "./migrating-auth-storage.js";
 export {
   AuthStoragePolicyError,

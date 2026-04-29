@@ -22,14 +22,16 @@ interface ToolErrorEnvelope {
   error: string;
   code: string;
   retryable: boolean;
+  details?: { action: string };
 }
 
 function classify(operation: string, error: unknown): ToolErrorEnvelope {
   if (error instanceof AuthenticationError) {
     return {
       error: error.message,
-      code: "UNAUTHENTICATED",
+      code: "AUTH_REQUIRED",
       retryable: false,
+      details: { action: "Run `githits login`, then retry this tool call." },
     };
   }
   const message = error instanceof Error ? error.message : "Unknown error";

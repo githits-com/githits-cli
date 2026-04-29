@@ -10,29 +10,14 @@ export interface LogoutDependencies {
 /**
  * Core logout logic, separated for testability.
  *
- * Always clears both tokens and client registration independently before
- * reporting status. This ensures orphaned client registrations are cleaned up
- * even when tokens are already absent (e.g. after a partial logout or expired
- * token clear). Both clear operations are idempotent and error-isolated so a
- * failure in one does not prevent the other from running.
+ * Clears both tokens and client registration as one auth-session update so
+ * concurrent MCP servers and login/logout commands cannot observe split state.
  */
 export async function logoutAction(deps: LogoutDependencies): Promise<void> {
   const { authStorage, mcpUrl } = deps;
 
   const auth = await authStorage.loadTokens(mcpUrl);
-
-  // Clear both independently — a failure in one must not prevent the other.
-  let firstError: unknown;
-  try {
-    await authStorage.clearTokens(mcpUrl);
-  } catch (error) {
-    firstError = error;
-  }
-  try {
-    await authStorage.clearClient(mcpUrl);
-  } catch (error) {
-    firstError ??= error;
-  }
+  await authStorage.clearAuthSession(mcpUrl);
 
   if (!auth) {
     console.log("Not currently logged in.\n");
@@ -41,8 +26,6 @@ export async function logoutAction(deps: LogoutDependencies): Promise<void> {
     console.log("Logged out.\n");
     console.log(`  Environment: ${mcpUrl}`);
   }
-
-  if (firstError) throw firstError;
 }
 
 const LOGOUT_DESCRIPTION = `Remove stored credentials.

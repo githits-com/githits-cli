@@ -150,6 +150,7 @@ describe("mapCodeNavigationError", () => {
       code: "AUTH_REQUIRED",
       message: "Login required",
       retryable: false,
+      details: { action: "Run `githits login`, then retry this tool call." },
     });
   });
 

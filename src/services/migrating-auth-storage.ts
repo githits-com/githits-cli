@@ -55,6 +55,17 @@ export class MigratingAuthStorage implements AuthStorage {
     }
   }
 
+  async saveTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+    data: TokenData,
+  ): Promise<boolean> {
+    const current = await this.loadTokens(baseUrl);
+    if (!this.sameTokenData(current, expected)) return false;
+    await this.saveTokens(baseUrl, data);
+    return true;
+  }
+
   async clearTokens(baseUrl: string): Promise<void> {
     const primaryError = await this.clearBestEffort(() =>
       this.primary.clearTokens(baseUrl),
@@ -64,6 +75,16 @@ export class MigratingAuthStorage implements AuthStorage {
     if (primaryError && !(primaryError instanceof KeychainUnavailableError)) {
       throw primaryError;
     }
+  }
+
+  async clearTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+  ): Promise<boolean> {
+    const current = await this.loadTokens(baseUrl);
+    if (!this.sameTokenData(current, expected)) return false;
+    await this.clearTokens(baseUrl);
+    return true;
   }
 
   async loadClient(baseUrl: string): Promise<ClientRegistration | null> {
@@ -91,6 +112,33 @@ export class MigratingAuthStorage implements AuthStorage {
     );
     await this.clearBestEffort(() => this.file.clearClient(baseUrl));
     await this.clearBestEffort(() => this.legacy.clearClient(baseUrl));
+    if (primaryError && !(primaryError instanceof KeychainUnavailableError)) {
+      throw primaryError;
+    }
+  }
+
+  async saveAuthSession(
+    baseUrl: string,
+    client: ClientRegistration,
+    tokens: TokenData,
+  ): Promise<void> {
+    if (this.mode === "file") {
+      await this.file.saveAuthSession(baseUrl, client, tokens);
+      return;
+    }
+    try {
+      await this.primary.saveAuthSession(baseUrl, client, tokens);
+    } catch (error) {
+      throw this.toPolicyError(error);
+    }
+  }
+
+  async clearAuthSession(baseUrl: string): Promise<void> {
+    const primaryError = await this.clearBestEffort(() =>
+      this.primary.clearAuthSession(baseUrl),
+    );
+    await this.clearBestEffort(() => this.file.clearAuthSession(baseUrl));
+    await this.clearBestEffort(() => this.legacy.clearAuthSession(baseUrl));
     if (primaryError && !(primaryError instanceof KeychainUnavailableError)) {
       throw primaryError;
     }
@@ -354,6 +402,16 @@ export class MigratingAuthStorage implements AuthStorage {
     this.warnedAmbiguousPlaintext = true;
     this.onWarning(
       "Warning: multiple plaintext auth entries exist with ambiguous timestamps; using the new config auth path and leaving the other entry intact.",
+    );
+  }
+
+  private sameTokenData(a: TokenData | null, b: TokenData | null): boolean {
+    if (a === null || b === null) return a === b;
+    return (
+      a.accessToken === b.accessToken &&
+      a.refreshToken === b.refreshToken &&
+      a.expiresAt === b.expiresAt &&
+      a.createdAt === b.createdAt
     );
   }
 }

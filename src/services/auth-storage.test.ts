@@ -242,6 +242,57 @@ describe("AuthStorageImpl", () => {
     });
   });
 
+  describe("clearAuthSession", () => {
+    it("attempts client cleanup even when token cleanup fails", async () => {
+      const fs = createMockFileSystemService({
+        exists: mock(() => Promise.resolve(true)),
+        readFile: mock((path: string) => {
+          if (path.endsWith("auth.json")) {
+            return Promise.resolve(
+              JSON.stringify({
+                version: 1,
+                tokens: {
+                  [BASE_URL]: {
+                    accessToken: "eyJ-test",
+                    refreshToken: "refresh-test",
+                    expiresAt: null,
+                    createdAt: "2025-01-15T10:00:00Z",
+                  },
+                },
+              }),
+            );
+          }
+          return Promise.resolve(
+            JSON.stringify({
+              version: 1,
+              clients: {
+                [BASE_URL]: {
+                  clientId: "client",
+                  clientSecret: "secret",
+                  redirectUri: "http://127.0.0.1:8080/callback",
+                  registeredAt: "2025-01-15T10:00:00Z",
+                },
+              },
+            }),
+          );
+        }),
+        deleteFile: mock((path: string) => {
+          if (path.endsWith("auth.json")) {
+            return Promise.reject(new Error("token delete failed"));
+          }
+          return Promise.resolve();
+        }),
+      });
+      const storage = new AuthStorageImpl(fs, "/test/.githits");
+
+      await expect(storage.clearAuthSession(BASE_URL)).rejects.toThrow(
+        "token delete failed",
+      );
+
+      expect(fs.deleteFile).toHaveBeenCalledWith("/test/.githits/client.json");
+    });
+  });
+
   describe("loadClient", () => {
     it("returns null when client file does not exist", async () => {
       const fs = createMockFileSystemService({

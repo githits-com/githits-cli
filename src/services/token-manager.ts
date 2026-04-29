@@ -1,5 +1,5 @@
 import { withTelemetrySpan } from "../shared/telemetry.js";
-import type { AuthService, TokenResponse } from "./auth-service.js";
+import type { AuthService, RefreshTokenResponse } from "./auth-service.js";
 import type { AuthStorage, TokenData } from "./auth-storage.js";
 
 /**
@@ -167,7 +167,7 @@ export class TokenManager implements TokenProvider {
       );
       if (!client) return undefined;
 
-      let response: TokenResponse;
+      let response: RefreshTokenResponse;
       try {
         const metadata = await withTelemetrySpan(
           "token-manager.discover-endpoints",
@@ -184,24 +184,37 @@ export class TokenManager implements TokenProvider {
             }),
         );
       } catch {
-        // Only clear tokens if they are actually expired.
-        // If refresh was proactive (token still valid), leave storage intact
-        // so subsequent calls can still serve the current token.
+        const reloadedToken = await this.loadExternallyUpdatedToken(tokens);
+        if (reloadedToken) return reloadedToken.accessToken;
+
+        // Only clear tokens if they are actually expired and still match the
+        // failed in-memory refresh token. A separate `githits login` may have
+        // already written fresh tokens for long-running MCP servers.
         const isExpired = tokens.expiresAt
           ? new Date() >= new Date(tokens.expiresAt)
           : false;
         if (isExpired) {
-          this.cachedToken = null;
-          await withTelemetrySpan("token-manager.clear-tokens", () =>
-            this.authStorage.clearTokens(this.mcpUrl),
+          const currentStoredTokens =
+            await this.loadExternallyUpdatedToken(tokens);
+          if (currentStoredTokens) return currentStoredTokens.accessToken;
+
+          const cleared = await withTelemetrySpan(
+            "token-manager.clear-tokens-if-unchanged",
+            () => this.authStorage.clearTokensIfUnchanged(this.mcpUrl, tokens),
           );
+          if (!cleared) {
+            const currentToken = await this.authStorage.loadTokens(this.mcpUrl);
+            this.cachedToken = currentToken;
+            return currentToken?.accessToken;
+          }
+          this.cachedToken = null;
         }
         return undefined;
       }
 
       const newTokenData: TokenData = {
         accessToken: response.accessToken,
-        refreshToken: response.refreshToken,
+        refreshToken: response.refreshToken ?? tokens.refreshToken,
         expiresAt: new Date(
           Date.now() + response.expiresIn * 1000,
         ).toISOString(),
@@ -211,11 +224,56 @@ export class TokenManager implements TokenProvider {
         createdAt: new Date().toISOString(),
       };
 
-      await withTelemetrySpan("token-manager.save-tokens", () =>
-        this.authStorage.saveTokens(this.mcpUrl, newTokenData),
+      const externallyUpdatedToken = await this.loadExternallyUpdatedToken(
+        tokens,
+        {
+          treatMissingAsExternalUpdate: true,
+        },
       );
+      if (externallyUpdatedToken === null) return undefined;
+      if (externallyUpdatedToken) return externallyUpdatedToken.accessToken;
+
+      const saved = await withTelemetrySpan("token-manager.save-tokens", () =>
+        this.authStorage.saveTokensIfUnchanged(
+          this.mcpUrl,
+          tokens,
+          newTokenData,
+        ),
+      );
+      if (!saved) {
+        const currentToken = await this.authStorage.loadTokens(this.mcpUrl);
+        this.cachedToken = currentToken;
+        return currentToken?.accessToken;
+      }
       this.cachedToken = newTokenData;
       return response.accessToken;
     });
   }
+
+  private async loadExternallyUpdatedToken(
+    failedTokens: TokenData,
+    options: { treatMissingAsExternalUpdate?: boolean } = {},
+  ): Promise<TokenData | null | undefined> {
+    const storedTokens = await withTelemetrySpan(
+      "token-manager.reload-tokens",
+      () => this.authStorage.loadTokens(this.mcpUrl),
+    );
+    if (!storedTokens) {
+      if (options.treatMissingAsExternalUpdate) this.cachedToken = null;
+      return options.treatMissingAsExternalUpdate ? null : undefined;
+    }
+    if (areSameTokenData(storedTokens, failedTokens)) return undefined;
+
+    this.cachedToken = storedTokens;
+    return storedTokens;
+  }
+}
+
+function areSameTokenData(a: TokenData, b: TokenData): boolean {
+  return (
+    a.accessToken === b.accessToken &&
+    a.refreshToken === b.refreshToken &&
+    a.expiresAt === b.expiresAt &&
+    a.createdAt === b.createdAt
+  );
 }

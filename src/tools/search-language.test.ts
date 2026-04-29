@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import { AuthenticationError } from "../services/githits-service.js";
 import { createMockGitHitsService } from "../services/test-helpers.js";
 import { createSearchLanguageTool } from "./search-language.js";
 import type { ToolResult } from "./types.js";
@@ -32,5 +33,25 @@ describe("searchLanguageTool", () => {
 
     expect(result.isError).toBe(true);
     expect(getText(result)).toContain("API error");
+  });
+
+  it("returns recoverable AUTH_REQUIRED envelope on auth failure", async () => {
+    const service = createMockGitHitsService({
+      getLanguages: mock(() =>
+        Promise.reject(new AuthenticationError("Authentication required")),
+      ),
+    });
+    const tool = createSearchLanguageTool(service);
+
+    const result = await tool.handler({ query: "python" }, {});
+    const parsed = JSON.parse(getText(result));
+
+    expect(result.isError).toBe(true);
+    expect(parsed).toEqual({
+      error: "Authentication required",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+      details: { action: "Run `githits login`, then retry this tool call." },
+    });
   });
 });

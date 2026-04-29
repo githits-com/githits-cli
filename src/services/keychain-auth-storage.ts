@@ -3,7 +3,11 @@ import type {
   ClientRegistration,
   TokenData,
 } from "./auth-storage.js";
-import { normalizeBaseUrl } from "./auth-storage.js";
+import {
+  clearAuthSessionBestEffort,
+  normalizeBaseUrl,
+  sameTokenData,
+} from "./auth-storage.js";
 import type { KeyringService } from "./keyring-service.js";
 
 const SERVICE_NAME = "githits";
@@ -86,9 +90,30 @@ export class KeychainAuthStorage implements AuthStorage {
     this.keyring.setPassword(SERVICE_NAME, key, JSON.stringify(data));
   }
 
+  async saveTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+    data: TokenData,
+  ): Promise<boolean> {
+    const current = await this.loadTokens(baseUrl);
+    if (!sameTokenData(current, expected)) return false;
+    await this.saveTokens(baseUrl, data);
+    return true;
+  }
+
   async clearTokens(baseUrl: string): Promise<void> {
     const key = `${TOKEN_PREFIX}${normalizeBaseUrl(baseUrl)}`;
     this.keyring.deletePassword(SERVICE_NAME, key);
+  }
+
+  async clearTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+  ): Promise<boolean> {
+    const current = await this.loadTokens(baseUrl);
+    if (!sameTokenData(current, expected)) return false;
+    await this.clearTokens(baseUrl);
+    return true;
   }
 
   async loadClient(baseUrl: string): Promise<ClientRegistration | null> {
@@ -107,6 +132,22 @@ export class KeychainAuthStorage implements AuthStorage {
   async clearClient(baseUrl: string): Promise<void> {
     const key = `${CLIENT_PREFIX}${normalizeBaseUrl(baseUrl)}`;
     this.keyring.deletePassword(SERVICE_NAME, key);
+  }
+
+  async saveAuthSession(
+    baseUrl: string,
+    client: ClientRegistration,
+    tokens: TokenData,
+  ): Promise<void> {
+    await this.saveClient(baseUrl, client);
+    await this.saveTokens(baseUrl, tokens);
+  }
+
+  async clearAuthSession(baseUrl: string): Promise<void> {
+    await clearAuthSessionBestEffort(
+      () => this.clearTokens(baseUrl),
+      () => this.clearClient(baseUrl),
+    );
   }
 
   getStorageLocation(): string {

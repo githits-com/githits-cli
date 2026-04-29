@@ -98,6 +98,12 @@ export interface TokenResponse {
   expiresIn: number;
 }
 
+export interface RefreshTokenResponse {
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn: number;
+}
+
 /**
  * Parameters for DCR registration.
  */
@@ -134,7 +140,7 @@ export interface AuthService {
   exchangeCodeForTokens(params: ExchangeParams): Promise<TokenResponse>;
 
   /** Refresh an expired access token */
-  refreshAccessToken(params: RefreshParams): Promise<TokenResponse>;
+  refreshAccessToken(params: RefreshParams): Promise<RefreshTokenResponse>;
 }
 
 /**
@@ -312,7 +318,9 @@ export class AuthServiceImpl implements AuthService {
     return parseTokenResponse(await response.json());
   }
 
-  async refreshAccessToken(params: RefreshParams): Promise<TokenResponse> {
+  async refreshAccessToken(
+    params: RefreshParams,
+  ): Promise<RefreshTokenResponse> {
     const body = new URLSearchParams({
       grant_type: "refresh_token",
       client_id: params.clientId,
@@ -331,7 +339,7 @@ export class AuthServiceImpl implements AuthService {
       throw new Error(`Token refresh failed: ${error}`);
     }
 
-    return parseTokenResponse(await response.json());
+    return parseRefreshTokenResponse(await response.json());
   }
 }
 
@@ -343,6 +351,19 @@ function parseTokenResponse(data: unknown): TokenResponse {
   return {
     accessToken: d.access_token as string,
     refreshToken: d.refresh_token as string,
+    expiresIn: (d.expires_in as number) || 3600,
+  };
+}
+
+function parseRefreshTokenResponse(data: unknown): RefreshTokenResponse {
+  const d = data as Record<string, unknown>;
+  if (!d.access_token) {
+    throw new Error("Token response missing required fields");
+  }
+  return {
+    accessToken: d.access_token as string,
+    refreshToken:
+      typeof d.refresh_token === "string" ? d.refresh_token : undefined,
     expiresIn: (d.expires_in as number) || 3600,
   };
 }

@@ -97,9 +97,13 @@ describe("mapPackageIntelligenceError", () => {
 
   it("maps AuthenticationError to AUTH_REQUIRED", () => {
     expect(
-      mapPackageIntelligenceError(new AuthenticationError("login required"))
-        .code,
-    ).toBe("AUTH_REQUIRED");
+      mapPackageIntelligenceError(new AuthenticationError("login required")),
+    ).toEqual({
+      code: "AUTH_REQUIRED",
+      message: "login required",
+      retryable: false,
+      details: { action: "Run `githits login`, then retry this tool call." },
+    });
   });
 
   it("maps PackageIntelligenceNetworkError to NETWORK (retryable)", () => {

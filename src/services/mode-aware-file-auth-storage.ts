@@ -48,8 +48,24 @@ export class ModeAwareFileAuthStorage implements AuthStorage {
     await this.storage.saveTokens(baseUrl, data);
   }
 
+  async saveTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+    data: TokenData,
+  ): Promise<boolean> {
+    this.assertFileMode();
+    return this.storage.saveTokensIfUnchanged(baseUrl, expected, data);
+  }
+
   clearTokens(baseUrl: string): Promise<void> {
     return this.storage.clearTokens(baseUrl);
+  }
+
+  clearTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+  ): Promise<boolean> {
+    return this.storage.clearTokensIfUnchanged(baseUrl, expected);
   }
 
   loadClient(baseUrl: string): Promise<ClientRegistration | null> {
@@ -63,6 +79,19 @@ export class ModeAwareFileAuthStorage implements AuthStorage {
 
   clearClient(baseUrl: string): Promise<void> {
     return this.storage.clearClient(baseUrl);
+  }
+
+  async saveAuthSession(
+    baseUrl: string,
+    client: ClientRegistration,
+    tokens: TokenData,
+  ): Promise<void> {
+    this.assertFileMode();
+    await this.storage.saveAuthSession(baseUrl, client, tokens);
+  }
+
+  clearAuthSession(baseUrl: string): Promise<void> {
+    return this.storage.clearAuthSession(baseUrl);
   }
 
   getStorageLocation(): string {

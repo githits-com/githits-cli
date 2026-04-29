@@ -38,6 +38,7 @@ export type MappedErrorCode =
   | "UNKNOWN";
 
 export interface MappedErrorDetails {
+  action?: string;
   availableVersions?: AvailableVersion[];
   indexingRef?: string;
   status?: number;
@@ -176,6 +177,7 @@ function classify(error: unknown): MappedError {
       code: "AUTH_REQUIRED",
       message: error.message,
       retryable: false,
+      details: { action: "Run `githits login`, then retry this tool call." },
     };
   }
   if (error instanceof CodeNavigationNetworkError) {
