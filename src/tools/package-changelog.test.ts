@@ -77,6 +77,33 @@ describe("createPackageChangelogTool — happy path", () => {
     expect(payload.entries.items.length).toBe(2);
   });
 
+  it("omits source when package version entries have no changelog source", async () => {
+    const tool = createPackageChangelogTool(
+      createMockPackageIntelligenceService({
+        packageChangelog: mock(() =>
+          Promise.resolve({
+            ...defaultChangelogReport,
+            source: undefined,
+            entries: [defaultChangelogReport.entries[0]!],
+          }),
+        ),
+      }),
+    );
+
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express" },
+      {},
+    );
+
+    expect(result.isError).toBeUndefined();
+    const payload = parseText(result) as {
+      source?: string;
+      entries: { count: number; items: unknown[] };
+    };
+    expect(payload.source).toBeUndefined();
+    expect(payload.entries.count).toBe(1);
+  });
+
   it("accepts repo_url addressing and emits repoUrl in the envelope", async () => {
     const tool = createPackageChangelogTool(
       createMockPackageIntelligenceService(),

@@ -89,13 +89,14 @@ const DESCRIPTION =
   "With `from_version`, returns every entry in the " +
   "`[from_version, to_version]` range (range mode, no count cap). " +
   "Address via `registry` + `package_name` or `repo_url` (mutually " +
-  'exclusive). Response: `source` (`"releases"` / `"changelog_file"` ' +
-  '/ `"hexdocs"`), `mode` (`"latest"` or `"range"`), ' +
+  'exclusive). Response includes optional `source` (`"releases"` / ' +
+  '`"changelog_file"` / `"hexdocs"`) when a concrete changelog source ' +
+  'exists, `mode` (`"latest"` or `"range"`), ' +
   "`entries: { count, items }` with full markdown bodies. Set " +
   "`include_bodies: false` for a version / date / URL timeline only. " +
-  "Supports npm, PyPI, Hex, Crates, vcpkg, Zig, NuGet, Maven, " +
-  "Packagist; returns `NOT_FOUND` when a package has no changelog " +
-  "source.";
+  "Package-version entries without changelog text succeed with `source` " +
+  "omitted; no-source plus no entries returns `NOT_FOUND`. Supports npm, " +
+  "PyPI, Hex, Crates, vcpkg, Zig, NuGet, Maven, Packagist.";
 
 export function createPackageChangelogTool(
   service: PackageIntelligenceService,

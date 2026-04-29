@@ -358,7 +358,7 @@ export interface ChangelogEntryDetail {
 export interface ChangelogReport {
   /** Echo of addressing + filter as the backend saw it. */
   package?: ChangelogPackageInfo;
-  /** `"releases"` | `"changelog_file"` | `"hexdocs"` when resolved; null/empty otherwise. */
+  /** `"releases"` | `"changelog_file"` | `"hexdocs"` when resolved; absent for package versions with no changelog entry. */
   source?: string;
   /** Entries, newest-first. Empty array = resolved source but nothing in range. */
   entries: ChangelogEntryDetail[];
@@ -2023,13 +2023,12 @@ export class PackageIntelligenceServiceImpl
     data: z.infer<typeof changelogReportResponseSchema>,
     params: PackageChangelogParams,
   ): ChangelogReport {
-    // Backend returns a null or empty source when no changelog data could
-    // be resolved for the package/repo. Distinct from `entries: []` with
-    // a valid source, which means "source resolved but produced no entries
-    // in this range". Promote the no-source case to a typed error at the
-    // service boundary so the envelope builder never has to think about it.
-    const source = data.source ?? undefined;
-    if (!source) {
+    // Backend returns source=null for package version entries that have no
+    // changelog entry. Treat no-source as NOT_FOUND only when no entries
+    // came back at all.
+    const source = data.source && data.source.trim() ? data.source : undefined;
+    const rawEntries = data.entries ?? [];
+    if (!source && rawEntries.length === 0) {
       const target =
         params.repoUrl ??
         (params.registry && params.packageName
@@ -2040,7 +2039,6 @@ export class PackageIntelligenceServiceImpl
       );
     }
 
-    const rawEntries = data.entries ?? [];
     const entries: ChangelogEntryDetail[] = rawEntries.map((entry) => ({
       version: entry.version ?? undefined,
       normalizedVersion: entry.normalizedVersion ?? undefined,

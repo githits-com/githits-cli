@@ -254,6 +254,37 @@ describe("package_changelog parity", () => {
     expect(envelope.entries.items).toEqual([]);
   });
 
+  it("PARITY-JSON-KEYS: package version entries without source succeed on both surfaces", async () => {
+    const noSourceReport: ChangelogReport = {
+      ...defaultChangelogReport,
+      source: undefined,
+      entries: [defaultChangelogReport.entries[0]!],
+    };
+    const fn = mock(() => Promise.resolve(noSourceReport));
+    const cli = await cliJson(
+      "npm:express",
+      {},
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageChangelog: fn as never,
+        }),
+      }),
+    );
+    const { json, isError } = await mcpJson(
+      { registry: "npm", package_name: "express" },
+      fn as never,
+    );
+    expect(isError).toBeUndefined();
+    expect(cli).toEqual(json);
+    const envelope = cli as {
+      source?: string;
+      entries: { count: number; items: Array<{ version?: string }> };
+    };
+    expect(envelope.source).toBeUndefined();
+    expect(envelope.entries.count).toBe(1);
+    expect(envelope.entries.items[0]?.version).toBe("5.2.1");
+  });
+
   it("PARITY-ERROR-ENVELOPE: NOT_FOUND (no changelog source) identical on both surfaces", async () => {
     const fn = mock(() =>
       Promise.reject(
