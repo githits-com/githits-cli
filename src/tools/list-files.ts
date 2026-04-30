@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { CodeNavigationService } from "../services/index.js";
+import { knownFileIntentList } from "../shared/code-navigation.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { buildListFilesParams } from "../shared/list-files-request.js";
 import { buildListFilesSuccessPayload } from "../shared/list-files-response.js";
@@ -14,7 +15,18 @@ import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
 export interface ListFilesArgs {
   target: CodeTargetArg;
+  path?: string;
   path_prefix?: string;
+  globs?: string[];
+  extensions?: string[];
+  file_types?: string[];
+  languages?: string[];
+  file_intent?: string;
+  file_intents?: string[];
+  exclude_file_intents?: string[];
+  exclude_doc_files?: boolean;
+  exclude_test_files?: boolean;
+  include_hidden?: boolean;
   limit?: number;
   wait_timeout_ms?: number;
   format?: "json" | "text" | "text-v1";
@@ -22,12 +34,59 @@ export interface ListFilesArgs {
 
 const schema = {
   target: codeTargetSchema,
+  path: z
+    .string()
+    .optional()
+    .describe(
+      "Exact target-relative file path to include. When combined with `path_prefix` or `globs`, files matching any selector are returned.",
+    ),
   path_prefix: z
     .string()
     .optional()
     .describe(
-      "Literal directory prefix to filter by (e.g. `src/` or `lib/parser`). NOT a glob — `*.ts` and similar patterns won't match. Omit to list from the repository root.",
+      "Literal directory prefix to filter by (e.g. `src/` or `lib/parser`). NOT a glob. OR-ed with `path` and `globs` when combined.",
     ),
+  globs: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Repeatable glob selectors with real glob semantics (e.g. `src/**/*.ts`). OR-ed with `path` and `path_prefix`.",
+    ),
+  extensions: z
+    .array(z.string())
+    .optional()
+    .describe("File extensions to include, without a leading dot."),
+  file_types: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "File type filters to include, matching aigrep file_type values such as `source` or `doc`.",
+    ),
+  languages: z
+    .array(z.string())
+    .optional()
+    .describe("Language filters to include, matching aigrep language names."),
+  file_intent: z
+    .string()
+    .optional()
+    .describe(
+      `Single inclusive file-intent filter. Cannot be combined with \`file_intents\`. Valid values: ${knownFileIntentList().join(", ")}.`,
+    ),
+  file_intents: z
+    .array(z.string())
+    .optional()
+    .describe(
+      `Inclusive file-intent filters. Cannot be combined with \`file_intent\`. Valid values: ${knownFileIntentList().join(", ")}.`,
+    ),
+  exclude_file_intents: z
+    .array(z.string())
+    .optional()
+    .describe(
+      `Exclude these file intents after inclusive intent filtering. Valid values: ${knownFileIntentList().join(", ")}.`,
+    ),
+  exclude_doc_files: z.boolean().optional(),
+  exclude_test_files: z.boolean().optional(),
+  include_hidden: z.boolean().optional(),
   limit: z
     .number()
     .optional()
@@ -55,9 +114,9 @@ const DESCRIPTION =
   "language, fileType, byteSize}], resolution, indexedVersion}`. " +
   "Address via `target.registry` + `target.package_name` (package " +
   "scope) or `target.repo_url` + `target.git_ref` (repo scope), " +
-  "mutually exclusive. `path_prefix` is a literal directory prefix — " +
-  "it does NOT accept globs (`*.ts`) or extension filters. The " +
-  "returned paths feed directly into `code_read` and help scope " +
+  "mutually exclusive. Narrow with `path`, `path_prefix`, `globs`, " +
+  "`extensions`, `file_types`, `languages`, or file-intent filters. " +
+  "The returned paths feed directly into `code_read` and help scope " +
   "`code_grep`. Returns an `INDEXING` error envelope when the " +
   "dependency is being indexed on-demand — retry with a longer " +
   "`wait_timeout_ms` or use a version from `details.availableVersions`.";
@@ -77,7 +136,18 @@ export function createListFilesTool(
       try {
         const build = buildListFilesParams({
           target,
+          path: args.path,
           pathPrefix: args.path_prefix,
+          globs: args.globs,
+          extensions: args.extensions,
+          fileTypes: args.file_types,
+          languages: args.languages,
+          fileIntent: args.file_intent,
+          fileIntents: args.file_intents,
+          excludeFileIntents: args.exclude_file_intents,
+          excludeDocFiles: args.exclude_doc_files,
+          excludeTestFiles: args.exclude_test_files,
+          includeHidden: args.include_hidden,
           limit: args.limit,
           waitTimeoutMs: args.wait_timeout_ms,
         });
@@ -89,10 +159,20 @@ export function createListFilesTool(
           name: target.packageName,
           repoUrl: target.repoUrl,
           gitRef: target.gitRef,
-          limitExplicit: build.limitExplicit,
-          pathPrefixExplicit: build.pathPrefixExplicit,
-          pathPrefix: build.params.pathPrefix,
-          limit: build.params.limit,
+          path: build.filterEcho.path,
+          pathPrefix: build.filterEcho.pathPrefix,
+          globs: build.filterEcho.globs,
+          extensions: build.filterEcho.extensions,
+          fileTypes: build.filterEcho.fileTypes,
+          languages: build.filterEcho.languages,
+          fileIntent: build.filterEcho.fileIntent,
+          fileIntents: build.filterEcho.fileIntents,
+          excludeFileIntents: build.filterEcho.excludeFileIntents,
+          excludeDocFiles: build.filterEcho.excludeDocFiles,
+          excludeTestFiles: build.filterEcho.excludeTestFiles,
+          includeHidden: build.filterEcho.includeHidden,
+          limit: build.filterEcho.limit,
+          explicit: build.explicit,
         });
         if (isTextFormat(args.format)) {
           return textResult(renderListFilesText(payload));

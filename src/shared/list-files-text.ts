@@ -30,9 +30,7 @@ export function renderListFilesText(envelope: LeanListFilesEnvelope): string {
 
   if (envelope.hasMore) {
     lines.push("");
-    lines.push(
-      "More files available. Pass limit=N to widen or refine path_prefix.",
-    );
+    lines.push("More files available. Pass limit=N or refine the filter.");
   }
 
   if (envelope.hint) {
@@ -74,8 +72,45 @@ function buildIdentity(envelope: LeanListFilesEnvelope): string {
 
 function buildFilterEcho(envelope: LeanListFilesEnvelope): string {
   const parts: string[] = [];
+  if (envelope.filter?.path) {
+    parts.push(`path=${quote(envelope.filter.path)}`);
+  }
   if (envelope.filter?.pathPrefix) {
     parts.push(`path_prefix=${quote(envelope.filter.pathPrefix)}`);
+  }
+  if (envelope.filter?.globs?.length) {
+    parts.push(`globs=${envelope.filter.globs.join(",")}`);
+  }
+  if (envelope.filter?.extensions?.length) {
+    parts.push(`exts=${envelope.filter.extensions.join(",")}`);
+  }
+  if (envelope.filter?.fileTypes?.length) {
+    parts.push(`file_types=${envelope.filter.fileTypes.join(",")}`);
+  }
+  if (envelope.filter?.languages?.length) {
+    parts.push(`languages=${envelope.filter.languages.join(",")}`);
+  }
+  if (envelope.filter?.fileIntent) {
+    parts.push(`file_intent=${envelope.filter.fileIntent}`);
+  }
+  if (envelope.filter?.fileIntents?.length) {
+    parts.push(`file_intents=${envelope.filter.fileIntents.join(",")}`);
+  }
+  if (envelope.filter?.excludeFileIntents?.length) {
+    parts.push(
+      `exclude_file_intents=${envelope.filter.excludeFileIntents.join(",")}`,
+    );
+  }
+  if (envelope.filter?.excludeDocFiles !== undefined) {
+    parts.push(`exclude_doc_files=${String(envelope.filter.excludeDocFiles)}`);
+  }
+  if (envelope.filter?.excludeTestFiles !== undefined) {
+    parts.push(
+      `exclude_test_files=${String(envelope.filter.excludeTestFiles)}`,
+    );
+  }
+  if (envelope.filter?.includeHidden !== undefined) {
+    parts.push(`include_hidden=${String(envelope.filter.includeHidden)}`);
   }
   if (envelope.filter?.limit !== undefined) {
     parts.push(`limit=${envelope.filter.limit}`);

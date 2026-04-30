@@ -46,7 +46,7 @@ const SEARCH_STATUS_BULLET =
   "- `search_status` — follow up a prior `search` by `searchRef` to check progress, fetch partial hits, or fetch final results.";
 
 const CODE_FILES_BULLET =
-  '- `code_files` — list files in an indexed dependency. Use `path_prefix` to scope to a directory. Returned paths feed into `code_read` and help scope `code_grep`; pass `format: "json"` for language/type/size metadata.';
+  '- `code_files` — list files in an indexed dependency. `path`, `path_prefix`, and `globs` are OR-ed selectors; extensions, language, file type, and file-intent filters intersect on top. Returned paths feed into `code_read` and help scope `code_grep`; pass `format: "json"` for language/type/size metadata.';
 
 const CODE_READ_BULLET =
   "- `code_read` — read a dependency file by `path`. **MCP cap: 150 lines per call**; choose focused `start_line` / `end_line` windows from `search` or `code_grep`. Binary files set `isBinary: true` and omit `content`. On `FILE_NOT_FOUND` / `NOT_FOUND`, call `code_files` for the actual path.";

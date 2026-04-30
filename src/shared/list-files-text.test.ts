@@ -53,9 +53,24 @@ describe("renderListFilesText", () => {
 
   it("echoes explicit filter inputs in the header", () => {
     const text = renderListFilesText(
-      envelope({ filter: { pathPrefix: "src/lib", limit: 50 } }),
+      envelope({
+        filter: {
+          path: "README.md",
+          pathPrefix: "src/lib",
+          globs: ["test/**/*.js"],
+          extensions: ["js"],
+          fileTypes: ["source"],
+          languages: ["JavaScript"],
+          fileIntent: "production",
+          excludeDocFiles: true,
+          includeHidden: true,
+          limit: 50,
+        },
+      }),
     );
-    expect(text).toContain('path_prefix="src/lib" limit=50');
+    expect(text).toContain(
+      'path="README.md" path_prefix="src/lib" globs=test/**/*.js exts=js file_types=source languages=JavaScript file_intent=production exclude_doc_files=true include_hidden=true limit=50',
+    );
   });
 
   it("renders the empty-result hint when no files match", () => {
@@ -74,7 +89,11 @@ describe("renderListFilesText", () => {
     const text = renderListFilesText(
       envelope({
         hasMore: true,
-        filter: { pathPrefix: "src/", limit: 50 },
+        filter: {
+          pathPrefix: "src/",
+          extensions: ["ts"],
+          limit: 50,
+        },
       }),
     );
     expect(text).not.toMatch(/[·…—–]/);

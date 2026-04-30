@@ -83,7 +83,18 @@ interface McpArgs {
     repo_url?: string;
     git_ref?: string;
   };
+  path?: string;
   path_prefix?: string;
+  globs?: string[];
+  extensions?: string[];
+  file_types?: string[];
+  languages?: string[];
+  file_intent?: string;
+  file_intents?: string[];
+  exclude_file_intents?: string[];
+  exclude_doc_files?: boolean;
+  exclude_test_files?: boolean;
+  include_hidden?: boolean;
   limit?: number;
   wait_timeout_ms?: number;
   format?: "json" | "text" | "text-v1";
@@ -202,6 +213,49 @@ describe("list_files parity", () => {
     );
     expect(cli).toEqual(mcp);
     expect((cli as { filter?: { limit?: number } }).filter?.limit).toBe(50);
+  });
+
+  it("PARITY-JSON-KEYS: advanced filters echo identically on both surfaces", async () => {
+    const fn = mock(() => Promise.resolve(defaultListFilesResult));
+    const cli = await cliJson(
+      "npm:express",
+      "src/",
+      {
+        path: "README.md",
+        glob: ["test/**/*.js"],
+        ext: ["js"],
+        fileType: ["source"],
+        language: ["JavaScript"],
+        fileIntent: ["production", "test"],
+        excludeIntent: ["generated"],
+        excludeDocs: true,
+        excludeTests: false,
+        hidden: true,
+      },
+      cliDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          listFiles: fn as never,
+        }),
+      }),
+    );
+    const mcp = await mcpJson(
+      {
+        target: { registry: "npm", package_name: "express" },
+        path: "README.md",
+        path_prefix: "src/",
+        globs: ["test/**/*.js"],
+        extensions: ["js"],
+        file_types: ["source"],
+        languages: ["JavaScript"],
+        file_intents: ["production", "test"],
+        exclude_file_intents: ["generated"],
+        exclude_doc_files: true,
+        exclude_test_files: false,
+        include_hidden: true,
+      },
+      fn as never,
+    );
+    expect(cli).toEqual(mcp);
   });
 
   it("PARITY-ERROR-ENVELOPE: INDEXING identical on both surfaces", async () => {

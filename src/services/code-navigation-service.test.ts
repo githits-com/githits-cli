@@ -99,6 +99,79 @@ describe("CodeNavigationServiceImpl", () => {
     expect(result.resolution?.resolvedRef).toBe("v5.2.1");
   });
 
+  it("forwards listRepoFiles v7 filters to GraphQL variables", async () => {
+    let capturedBody = "";
+    globalThis.fetch = mock((_, init?: RequestInit) => {
+      capturedBody = String(init?.body ?? "");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              listRepoFiles: {
+                files: [],
+                total: 0,
+                hasMore: false,
+                indexedVersion: "v5.2.1",
+                resolution: null,
+                diagnostics: null,
+                codeIndexState: "CURRENT",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+    }) as unknown as typeof fetch;
+
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    await service.listFiles({
+      target: { registry: "NPM", packageName: "express", version: "4.18.2" },
+      pathPrefix: "src/",
+      pathSelectors: [
+        { kind: "EXACT", value: "README.md" },
+        { kind: "GLOB", value: "test/**/*.js" },
+      ],
+      extensions: ["js", "mjs"],
+      fileTypes: ["source", "doc"],
+      languages: ["JavaScript"],
+      fileIntent: "PRODUCTION",
+      excludeFileIntents: ["TEST", "BENCHMARK"],
+      excludeDocFiles: true,
+      excludeTestFiles: false,
+      includeHidden: true,
+      limit: 25,
+      waitTimeoutMs: 1234,
+    });
+
+    const payload = JSON.parse(capturedBody) as {
+      variables: Record<string, unknown>;
+    };
+    expect(payload.variables).toMatchObject({
+      registry: "NPM",
+      packageName: "express",
+      version: "4.18.2",
+      pathPrefix: "src/",
+      pathSelectors: [
+        { kind: "EXACT", value: "README.md" },
+        { kind: "GLOB", value: "test/**/*.js" },
+      ],
+      extensions: ["js", "mjs"],
+      fileTypes: ["source", "doc"],
+      languages: ["JavaScript"],
+      fileIntent: "PRODUCTION",
+      excludeFileIntents: ["TEST", "BENCHMARK"],
+      excludeDocFiles: true,
+      excludeTestFiles: false,
+      includeHidden: true,
+      limit: 25,
+      waitTimeoutMs: 1234,
+    });
+  });
+
   it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on listFiles", async () => {
     mockFetch(() =>
       Promise.resolve(

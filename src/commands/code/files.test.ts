@@ -136,6 +136,63 @@ describe("pkgFilesAction", () => {
     writeSpy.mockRestore();
   });
 
+  it("forwards advanced file filters to the service", async () => {
+    const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
+    const service = createMockCodeNavigationService({ listFiles });
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    await pkgFilesAction(
+      "npm:express",
+      "src/",
+      {
+        path: "README.md",
+        glob: ["test/**/*.js"],
+        ext: ["js"],
+        fileType: ["source"],
+        language: ["JavaScript"],
+        fileIntent: ["production", "test"],
+        excludeIntent: ["generated"],
+        excludeDocs: true,
+        excludeTests: false,
+        hidden: true,
+      },
+      createDeps({ codeNavigationService: service }),
+    );
+    const calls = listFiles.mock.calls as unknown as Array<
+      [
+        {
+          pathSelectors?: Array<{ kind: string; value: string }>;
+          pathPrefix?: string;
+          extensions?: string[];
+          fileTypes?: string[];
+          languages?: string[];
+          fileIntents?: string[];
+          excludeFileIntents?: string[];
+          excludeDocFiles?: boolean;
+          excludeTestFiles?: boolean;
+          includeHidden?: boolean;
+        },
+      ]
+    >;
+    expect(calls[0]?.[0]).toMatchObject({
+      pathSelectors: [
+        { kind: "EXACT", value: "README.md" },
+        { kind: "GLOB", value: "test/**/*.js" },
+      ],
+      pathPrefix: "src/",
+      extensions: ["js"],
+      fileTypes: ["source"],
+      languages: ["JavaScript"],
+      fileIntents: ["PRODUCTION", "TEST"],
+      excludeFileIntents: ["GENERATED"],
+      excludeDocFiles: true,
+      excludeTestFiles: false,
+      includeHidden: true,
+    });
+    writeSpy.mockRestore();
+  });
+
   it("rejects a second positional in --repo-url mode", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
@@ -169,6 +226,41 @@ describe("pkgFilesAction", () => {
     expect(payload.name).toBe("express");
     expect(payload.total).toBe(2);
     expect(payload.files[0].path).toBe("src/index.js");
+    logSpy.mockRestore();
+  });
+
+  it("echoes advanced filters in the JSON envelope", async () => {
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    await pkgFilesAction(
+      "npm:express",
+      "src/",
+      {
+        path: "README.md",
+        glob: ["test/**/*.js"],
+        ext: ["js"],
+        fileType: ["source"],
+        language: ["JavaScript"],
+        fileIntent: ["production", "test"],
+        excludeIntent: ["generated"],
+        excludeDocs: true,
+        hidden: true,
+        json: true,
+      },
+      createDeps(),
+    );
+    const payload = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+    expect(payload.filter).toEqual({
+      path: "README.md",
+      pathPrefix: "src/",
+      globs: ["test/**/*.js"],
+      extensions: ["js"],
+      fileTypes: ["source"],
+      languages: ["JavaScript"],
+      fileIntents: ["production", "test"],
+      excludeFileIntents: ["generated"],
+      excludeDocFiles: true,
+      includeHidden: true,
+    });
     logSpy.mockRestore();
   });
 

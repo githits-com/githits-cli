@@ -19,8 +19,19 @@ describe("createListFilesTool — metadata", () => {
     expect(tool.name).toBe("code_files");
     expect(tool.description).toContain("List files in an indexed dependency");
     expect(Object.keys(tool.schema).sort()).toEqual([
+      "exclude_doc_files",
+      "exclude_file_intents",
+      "exclude_test_files",
+      "extensions",
+      "file_intent",
+      "file_intents",
+      "file_types",
       "format",
+      "globs",
+      "include_hidden",
+      "languages",
       "limit",
+      "path",
       "path_prefix",
       "target",
       "wait_timeout_ms",
@@ -47,6 +58,52 @@ describe("createListFilesTool — happy path", () => {
     >;
     expect(calls[0]?.[0]?.target?.registry).toBe("NPM");
     expect(calls[0]?.[0]?.target?.packageName).toBe("express");
+  });
+
+  it("forwards advanced list-files filters to the service", async () => {
+    const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
+    const service = createMockCodeNavigationService({ listFiles });
+    const tool = createListFilesTool(service);
+
+    await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        path: "README.md",
+        path_prefix: "src/",
+        globs: ["test/**/*.js"],
+        extensions: ["js"],
+        file_types: ["source"],
+        languages: ["JavaScript"],
+        file_intents: ["production", "test"],
+        exclude_file_intents: ["generated"],
+        exclude_doc_files: true,
+        exclude_test_files: false,
+        include_hidden: true,
+      },
+      {},
+    );
+
+    const calls = listFiles.mock.calls as unknown as Array<
+      [
+        {
+          pathSelectors?: Array<{ kind: string; value: string }>;
+          pathPrefix?: string;
+          fileIntents?: string[];
+          excludeFileIntents?: string[];
+          includeHidden?: boolean;
+        },
+      ]
+    >;
+    expect(calls[0]?.[0]).toMatchObject({
+      pathSelectors: [
+        { kind: "EXACT", value: "README.md" },
+        { kind: "GLOB", value: "test/**/*.js" },
+      ],
+      pathPrefix: "src/",
+      fileIntents: ["PRODUCTION", "TEST"],
+      excludeFileIntents: ["GENERATED"],
+      includeHidden: true,
+    });
   });
 
   it("emits the envelope with files, total, hasMore, resolution, indexedVersion", async () => {
@@ -112,6 +169,50 @@ describe("createListFilesTool — happy path", () => {
       filter?: { pathPrefix?: string };
     };
     expect(payload.filter?.pathPrefix).toBe("src/");
+  });
+
+  it("echoes advanced filters when caller set them", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        path: "README.md",
+        globs: ["test/**/*.js"],
+        extensions: ["js"],
+        file_types: ["source"],
+        languages: ["JavaScript"],
+        file_intent: "production",
+        exclude_file_intents: ["generated"],
+        exclude_doc_files: true,
+        include_hidden: true,
+        format: "json",
+      },
+      {},
+    );
+    const payload = parseText(result) as {
+      filter?: {
+        path?: string;
+        globs?: string[];
+        extensions?: string[];
+        fileTypes?: string[];
+        languages?: string[];
+        fileIntent?: string;
+        excludeFileIntents?: string[];
+        excludeDocFiles?: boolean;
+        includeHidden?: boolean;
+      };
+    };
+    expect(payload.filter).toEqual({
+      path: "README.md",
+      globs: ["test/**/*.js"],
+      extensions: ["js"],
+      fileTypes: ["source"],
+      languages: ["JavaScript"],
+      fileIntent: "production",
+      excludeFileIntents: ["generated"],
+      excludeDocFiles: true,
+      includeHidden: true,
+    });
   });
 
   it("omits filter when caller only used defaults", async () => {
