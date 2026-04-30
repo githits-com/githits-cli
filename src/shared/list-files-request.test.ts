@@ -41,21 +41,73 @@ describe("buildListFilesParams — defaults + passthrough", () => {
   });
 
   it("passes a trimmed pathPrefix through and marks it explicit", () => {
-    const { params, pathPrefixExplicit } = buildListFilesParams({
+    const { params, explicit } = buildListFilesParams({
       target: packageTarget,
       pathPrefix: "  src/  ",
     });
     expect(params.pathPrefix).toBe("src/");
-    expect(pathPrefixExplicit).toBe(true);
+    expect(explicit.pathPrefix).toBe(true);
   });
 
   it("treats whitespace-only pathPrefix as absent", () => {
-    const { params, pathPrefixExplicit } = buildListFilesParams({
+    const { params, explicit } = buildListFilesParams({
       target: packageTarget,
       pathPrefix: "   ",
     });
     expect(params.pathPrefix).toBeUndefined();
-    expect(pathPrefixExplicit).toBe(false);
+    expect(explicit.pathPrefix).toBe(false);
+  });
+
+  it("builds exact and glob path selectors", () => {
+    const { params, explicit, filterEcho } = buildListFilesParams({
+      target: packageTarget,
+      path: " src/index.ts ",
+      globs: ["src/**/*.ts", "test/**/*.ts"],
+    });
+    expect(params.pathSelectors).toEqual([
+      { kind: "EXACT", value: "src/index.ts" },
+      { kind: "GLOB", value: "src/**/*.ts" },
+      { kind: "GLOB", value: "test/**/*.ts" },
+    ]);
+    expect(explicit.path).toBe(true);
+    expect(explicit.globs).toBe(true);
+    expect(filterEcho.path).toBe("src/index.ts");
+    expect(filterEcho.globs).toEqual(["src/**/*.ts", "test/**/*.ts"]);
+  });
+
+  it("normalises file filters and file intents", () => {
+    const { params, filterEcho, explicit } = buildListFilesParams({
+      target: packageTarget,
+      extensions: ["ts", "tsx"],
+      fileTypes: ["source", "doc"],
+      languages: ["TypeScript", "TSX"],
+      fileIntents: ["production", "test"],
+      excludeFileIntents: ["generated", "fixture"],
+      excludeDocFiles: true,
+      excludeTestFiles: false,
+      includeHidden: true,
+    });
+    expect(params.extensions).toEqual(["ts", "tsx"]);
+    expect(params.fileTypes).toEqual(["source", "doc"]);
+    expect(params.languages).toEqual(["TypeScript", "TSX"]);
+    expect(params.fileIntents).toEqual(["PRODUCTION", "TEST"]);
+    expect(params.excludeFileIntents).toEqual(["GENERATED", "FIXTURE"]);
+    expect(params.excludeDocFiles).toBe(true);
+    expect(params.excludeTestFiles).toBe(false);
+    expect(params.includeHidden).toBe(true);
+    expect(filterEcho.fileIntents).toEqual(["production", "test"]);
+    expect(filterEcho.excludeFileIntents).toEqual(["generated", "fixture"]);
+    expect(explicit.excludeTestFiles).toBe(true);
+  });
+
+  it("normalises a singular file intent and echoes it canonically", () => {
+    const { params, filterEcho, explicit } = buildListFilesParams({
+      target: packageTarget,
+      fileIntent: " Production ",
+    });
+    expect(params.fileIntent).toBe("PRODUCTION");
+    expect(filterEcho.fileIntent).toBe("production");
+    expect(explicit.fileIntent).toBe(true);
   });
 });
 
@@ -97,5 +149,44 @@ describe("buildListFilesParams — waitTimeoutMs bounds", () => {
       buildListFilesParams({ target: packageTarget, waitTimeoutMs: 60000 })
         .params.waitTimeoutMs,
     ).toBe(60000);
+  });
+});
+
+describe("buildListFilesParams — filter validation", () => {
+  it("rejects an empty exact path", () => {
+    expect(() =>
+      buildListFilesParams({ target: packageTarget, path: "   " }),
+    ).toThrow(/`path` cannot be empty/);
+  });
+
+  it("rejects empty list entries", () => {
+    expect(() =>
+      buildListFilesParams({ target: packageTarget, globs: ["src/**", " "] }),
+    ).toThrow(/`globs` entries cannot be empty/);
+  });
+
+  it("rejects leading dots in extensions", () => {
+    expect(() =>
+      buildListFilesParams({ target: packageTarget, extensions: [".ts"] }),
+    ).toThrow(/must not include a leading dot/);
+  });
+
+  it("rejects unknown file intents", () => {
+    expect(() =>
+      buildListFilesParams({
+        target: packageTarget,
+        fileIntents: ["production", "weird"],
+      }),
+    ).toThrow(/file_intents/);
+  });
+
+  it("rejects file_intent together with file_intents", () => {
+    expect(() =>
+      buildListFilesParams({
+        target: packageTarget,
+        fileIntent: "production",
+        fileIntents: ["test"],
+      }),
+    ).toThrow(/cannot be combined/);
   });
 });

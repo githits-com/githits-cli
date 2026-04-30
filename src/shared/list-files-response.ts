@@ -13,7 +13,7 @@
  *   before the envelope builder runs, so agents never branch on a
  *   data-path indexing flag.
  * - **`filter.*` echoes only caller-supplied inputs.** The default
- *   limit (200) is not echoed; an explicit limit is.
+ *   limit (200) is not echoed; explicit selectors / filters are.
  */
 
 import type { ListFilesResult, RepoFileEntry } from "../services/index.js";
@@ -35,7 +35,18 @@ export interface LeanListFilesResolution {
 }
 
 export interface LeanListFilesFilter {
+  path?: string;
   pathPrefix?: string;
+  globs?: string[];
+  extensions?: string[];
+  fileTypes?: string[];
+  languages?: string[];
+  fileIntent?: string;
+  fileIntents?: string[];
+  excludeFileIntents?: string[];
+  excludeDocFiles?: boolean;
+  excludeTestFiles?: boolean;
+  includeHidden?: boolean;
   limit?: number;
 }
 
@@ -67,13 +78,35 @@ export interface BuildListFilesPayloadOptions {
   name?: string;
   repoUrl?: string;
   gitRef?: string;
-  /** Whether the caller supplied an explicit `limit`. */
-  limitExplicit: boolean;
-  /** Whether the caller supplied an explicit `path_prefix`. */
-  pathPrefixExplicit: boolean;
   /** Caller's raw inputs, echoed under `filter.*` when explicit. */
+  path?: string;
   pathPrefix?: string;
+  globs?: string[];
+  extensions?: string[];
+  fileTypes?: string[];
+  languages?: string[];
+  fileIntent?: string;
+  fileIntents?: string[];
+  excludeFileIntents?: string[];
+  excludeDocFiles?: boolean;
+  excludeTestFiles?: boolean;
+  includeHidden?: boolean;
   limit?: number;
+  explicit: {
+    path: boolean;
+    pathPrefix: boolean;
+    globs: boolean;
+    extensions: boolean;
+    fileTypes: boolean;
+    languages: boolean;
+    fileIntent: boolean;
+    fileIntents: boolean;
+    excludeFileIntents: boolean;
+    excludeDocFiles: boolean;
+    excludeTestFiles: boolean;
+    includeHidden: boolean;
+    limit: boolean;
+  };
 }
 
 export function buildListFilesSuccessPayload(
@@ -131,10 +164,63 @@ function buildFilterBlock(
   options: BuildListFilesPayloadOptions,
 ): LeanListFilesFilter | undefined {
   const filter: LeanListFilesFilter = {};
-  if (options.pathPrefixExplicit && options.pathPrefix) {
+  if (options.explicit.path && options.path) {
+    filter.path = options.path;
+  }
+  if (options.explicit.pathPrefix && options.pathPrefix) {
     filter.pathPrefix = options.pathPrefix;
   }
-  if (options.limitExplicit && options.limit !== undefined) {
+  if (options.explicit.globs && options.globs && options.globs.length > 0) {
+    filter.globs = options.globs;
+  }
+  if (
+    options.explicit.extensions &&
+    options.extensions &&
+    options.extensions.length > 0
+  ) {
+    filter.extensions = options.extensions;
+  }
+  if (
+    options.explicit.fileTypes &&
+    options.fileTypes &&
+    options.fileTypes.length > 0
+  ) {
+    filter.fileTypes = options.fileTypes;
+  }
+  if (
+    options.explicit.languages &&
+    options.languages &&
+    options.languages.length > 0
+  ) {
+    filter.languages = options.languages;
+  }
+  if (options.explicit.fileIntent && options.fileIntent) {
+    filter.fileIntent = options.fileIntent;
+  }
+  if (
+    options.explicit.fileIntents &&
+    options.fileIntents &&
+    options.fileIntents.length > 0
+  ) {
+    filter.fileIntents = options.fileIntents;
+  }
+  if (
+    options.explicit.excludeFileIntents &&
+    options.excludeFileIntents &&
+    options.excludeFileIntents.length > 0
+  ) {
+    filter.excludeFileIntents = options.excludeFileIntents;
+  }
+  if (options.explicit.excludeDocFiles) {
+    filter.excludeDocFiles = options.excludeDocFiles;
+  }
+  if (options.explicit.excludeTestFiles) {
+    filter.excludeTestFiles = options.excludeTestFiles;
+  }
+  if (options.explicit.includeHidden) {
+    filter.includeHidden = options.includeHidden;
+  }
+  if (options.explicit.limit && options.limit !== undefined) {
     filter.limit = options.limit;
   }
   return Object.keys(filter).length > 0 ? filter : undefined;

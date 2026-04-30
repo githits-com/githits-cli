@@ -37,8 +37,21 @@ const baseResult: ListFilesResult = {
 const baseOptions = {
   registry: "npm",
   name: "express",
-  limitExplicit: false,
-  pathPrefixExplicit: false,
+  explicit: {
+    path: false,
+    pathPrefix: false,
+    globs: false,
+    extensions: false,
+    fileTypes: false,
+    languages: false,
+    fileIntent: false,
+    fileIntents: false,
+    excludeFileIntents: false,
+    excludeDocFiles: false,
+    excludeTestFiles: false,
+    includeHidden: false,
+    limit: false,
+  },
 };
 
 describe("buildListFilesSuccessPayload", () => {
@@ -73,7 +86,7 @@ describe("buildListFilesSuccessPayload", () => {
     const withFilter = buildListFilesSuccessPayload(baseResult, {
       ...baseOptions,
       limit: 100,
-      limitExplicit: true,
+      explicit: { ...baseOptions.explicit, limit: true },
     });
     expect(withFilter.filter).toEqual({ limit: 100 });
   });
@@ -82,17 +95,54 @@ describe("buildListFilesSuccessPayload", () => {
     const envelope = buildListFilesSuccessPayload(baseResult, {
       ...baseOptions,
       pathPrefix: "src/",
-      pathPrefixExplicit: true,
+      explicit: { ...baseOptions.explicit, pathPrefix: true },
     });
     expect(envelope.filter).toEqual({ pathPrefix: "src/" });
   });
 
+  it("echoes advanced filters only when explicit", () => {
+    const envelope = buildListFilesSuccessPayload(baseResult, {
+      ...baseOptions,
+      path: "README.md",
+      globs: ["test/**/*.js"],
+      extensions: ["js"],
+      fileTypes: ["source"],
+      languages: ["JavaScript"],
+      fileIntents: ["production", "test"],
+      excludeFileIntents: ["generated"],
+      excludeDocFiles: true,
+      includeHidden: true,
+      explicit: {
+        ...baseOptions.explicit,
+        path: true,
+        globs: true,
+        extensions: true,
+        fileTypes: true,
+        languages: true,
+        fileIntents: true,
+        excludeFileIntents: true,
+        excludeDocFiles: true,
+        includeHidden: true,
+      },
+    });
+    expect(envelope.filter).toEqual({
+      path: "README.md",
+      globs: ["test/**/*.js"],
+      extensions: ["js"],
+      fileTypes: ["source"],
+      languages: ["JavaScript"],
+      fileIntents: ["production", "test"],
+      excludeFileIntents: ["generated"],
+      excludeDocFiles: true,
+      includeHidden: true,
+    });
+  });
+
   it("emits repoUrl + gitRef for repo-URL addressing", () => {
     const envelope = buildListFilesSuccessPayload(baseResult, {
-      limitExplicit: false,
-      pathPrefixExplicit: false,
       repoUrl: "https://github.com/expressjs/express",
       gitRef: "main",
+      explicit: baseOptions.explicit,
     });
     expect(envelope.registry).toBeUndefined();
     expect(envelope.name).toBeUndefined();
@@ -183,7 +233,11 @@ describe("formatListFilesTerminal", () => {
   it("plain mode hasMore: stdout stays clean; warning goes to stderr", () => {
     const envelope = buildListFilesSuccessPayload(
       { ...baseResult, total: 200, hasMore: true },
-      { ...baseOptions, limit: 200, limitExplicit: true },
+      {
+        ...baseOptions,
+        limit: 200,
+        explicit: { ...baseOptions.explicit, limit: true },
+      },
     );
     const { stdout, stderr } = formatListFilesTerminal(envelope, {
       useColors: false,
@@ -199,7 +253,11 @@ describe("formatListFilesTerminal", () => {
   it("verbose mode hasMore: truncation warning included inline", () => {
     const envelope = buildListFilesSuccessPayload(
       { ...baseResult, total: 200, hasMore: true },
-      { ...baseOptions, limit: 200, limitExplicit: true },
+      {
+        ...baseOptions,
+        limit: 200,
+        explicit: { ...baseOptions.explicit, limit: true },
+      },
     );
     const { stdout } = formatListFilesTerminal(envelope, {
       verbose: true,

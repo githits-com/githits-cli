@@ -244,7 +244,17 @@ export interface AvailableVersion {
  */
 export interface ListFilesParams {
   target: CodeNavigationTarget;
+  pathSelectors?: GrepRepoPathSelector[];
   pathPrefix?: string;
+  extensions?: string[];
+  fileTypes?: string[];
+  languages?: string[];
+  fileIntent?: FileIntent;
+  fileIntents?: FileIntent[];
+  excludeFileIntents?: FileIntent[];
+  excludeDocFiles?: boolean;
+  excludeTestFiles?: boolean;
+  includeHidden?: boolean;
   limit?: number;
   waitTimeoutMs?: number;
 }
@@ -946,6 +956,16 @@ query ListRepoFiles(
   $gitRef: String
   $version: String
   $pathPrefix: String
+  $pathSelectors: [FilePathSelectorInput!]
+  $extensions: [String!]
+  $fileTypes: [String!]
+  $languages: [String!]
+  $fileIntent: FileIntent
+  $fileIntents: [FileIntent!]
+  $excludeFileIntents: [FileIntent!]
+  $excludeDocFiles: Boolean
+  $excludeTestFiles: Boolean
+  $includeHidden: Boolean
   $limit: Int
   $waitTimeoutMs: Int
 ) {
@@ -956,6 +976,16 @@ query ListRepoFiles(
     gitRef: $gitRef
     version: $version
     pathPrefix: $pathPrefix
+    pathSelectors: $pathSelectors
+    extensions: $extensions
+    fileTypes: $fileTypes
+    languages: $languages
+    fileIntent: $fileIntent
+    fileIntents: $fileIntents
+    excludeFileIntents: $excludeFileIntents
+    excludeDocFiles: $excludeDocFiles
+    excludeTestFiles: $excludeTestFiles
+    includeHidden: $includeHidden
     limit: $limit
     waitTimeoutMs: $waitTimeoutMs
   ) {
@@ -1787,6 +1817,19 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
           gitRef: params.target.gitRef,
           version: params.target.version,
           pathPrefix: params.pathPrefix,
+          pathSelectors: params.pathSelectors?.map((entry) => ({
+            kind: entry.kind,
+            value: entry.value,
+          })),
+          extensions: params.extensions,
+          fileTypes: params.fileTypes,
+          languages: params.languages,
+          fileIntent: params.fileIntent,
+          fileIntents: params.fileIntents,
+          excludeFileIntents: params.excludeFileIntents,
+          excludeDocFiles: params.excludeDocFiles,
+          excludeTestFiles: params.excludeTestFiles,
+          includeHidden: params.includeHidden,
           limit: params.limit,
           waitTimeoutMs: params.waitTimeoutMs,
         },

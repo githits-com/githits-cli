@@ -7,7 +7,11 @@ import {
 } from "../../shared/code-navigation-defaults.js";
 import { shouldUseColors } from "../../shared/colors.js";
 import { InvalidPackageSpecError, requireAuth } from "../../shared/index.js";
-import { buildListFilesParams } from "../../shared/list-files-request.js";
+import {
+  buildListFilesParams,
+  type ListFilesRequestBuildResult,
+  type ListFilesRequestInput,
+} from "../../shared/list-files-request.js";
 import {
   buildListFilesSuccessPayload,
   formatListFilesTerminal,
@@ -23,6 +27,16 @@ import {
 export interface PkgFilesCommandOptions {
   repoUrl?: string;
   gitRef?: string;
+  path?: string;
+  glob?: string[];
+  ext?: string[];
+  fileType?: string[];
+  language?: string[];
+  fileIntent?: string[];
+  excludeIntent?: string[];
+  excludeDocs?: boolean;
+  excludeTests?: boolean;
+  hidden?: boolean;
   limit?: string;
   wait?: string;
   verbose?: boolean;
@@ -76,9 +90,19 @@ export async function pkgFilesAction(
       MAX_WAIT_TIMEOUT_MS,
     );
 
-    const build = buildListFilesParams({
+    const build = buildCliListFilesParams({
       target,
+      path: options.path,
       pathPrefix,
+      globs: options.glob,
+      extensions: options.ext,
+      fileTypes: options.fileType,
+      languages: options.language,
+      fileIntents: options.fileIntent,
+      excludeFileIntents: options.excludeIntent,
+      excludeDocFiles: options.excludeDocs,
+      excludeTestFiles: options.excludeTests,
+      includeHidden: options.hidden,
       limit,
       waitTimeoutMs: wait,
     });
@@ -91,10 +115,20 @@ export async function pkgFilesAction(
       name: target.packageName,
       repoUrl: target.repoUrl,
       gitRef: target.gitRef,
-      limitExplicit: build.limitExplicit,
-      pathPrefixExplicit: build.pathPrefixExplicit,
-      pathPrefix: build.params.pathPrefix,
-      limit: build.params.limit,
+      path: build.filterEcho.path,
+      pathPrefix: build.filterEcho.pathPrefix,
+      globs: build.filterEcho.globs,
+      extensions: build.filterEcho.extensions,
+      fileTypes: build.filterEcho.fileTypes,
+      languages: build.filterEcho.languages,
+      fileIntent: build.filterEcho.fileIntent,
+      fileIntents: build.filterEcho.fileIntents,
+      excludeFileIntents: build.filterEcho.excludeFileIntents,
+      excludeDocFiles: build.filterEcho.excludeDocFiles,
+      excludeTestFiles: build.filterEcho.excludeTestFiles,
+      includeHidden: build.filterEcho.includeHidden,
+      limit: build.filterEcho.limit,
+      explicit: build.explicit,
     });
 
     if (options.json) {
@@ -114,6 +148,32 @@ export async function pkgFilesAction(
       options.json ?? false,
       formatIndexingError,
     );
+  }
+}
+
+function collectRepeatable(value: string, previous: string[] = []): string[] {
+  return [...previous, value];
+}
+
+function buildCliListFilesParams(
+  input: ListFilesRequestInput,
+): ListFilesRequestBuildResult {
+  try {
+    return buildListFilesParams(input);
+  } catch (error) {
+    if (!(error instanceof InvalidPackageSpecError)) throw error;
+    const rewritten = error.message
+      .replace(/^`path`/, "`--path`")
+      .replace(/`globs`/g, "`--glob`")
+      .replace(/`extensions`/g, "`--ext`")
+      .replace(/`file_types`/g, "`--file-type`")
+      .replace(/`languages`/g, "`--language`")
+      .replace(/`file_intent`/g, "`--file-intent`")
+      .replace(/`file_intents`/g, "`--file-intent`")
+      .replace(/`exclude_file_intents`/g, "`--exclude-intent`")
+      .replace(/`path_prefix`/g, "`[path-prefix]`");
+    if (rewritten === error.message) throw error;
+    throw new InvalidPackageSpecError(rewritten);
   }
 }
 
@@ -154,8 +214,11 @@ fetch more. Returned paths feed directly into \`githits code read\`
 and \`githits code grep\`.
 
 [path-prefix] is a literal directory prefix (e.g. \`src/\` or
-\`lib/parser\`), NOT a glob — \`*.ts\` and similar patterns won't
-match. File-type / extension filtering is not supported server-side.
+\`lib/parser\`). Use --path for exact-file selectors, repeatable
+--glob for glob selectors, and --ext / --file-type / --language /
+--file-intent to intersect further. When [path-prefix], --path, and
+--glob are combined they are OR-ed — a file matches if any selector
+matches.
 
 Addressing: <spec> (registry:name[@version]) OR --repo-url <url>
 --git-ref <ref>. Supported registries: npm, pypi, hex, crates,
@@ -189,6 +252,46 @@ export function registerCodeFilesCommand(pkgCommand: Command): Command {
       "--git-ref <ref>",
       "Tag, commit, branch, or HEAD. Required with --repo-url.",
     )
+    .option("--path <path>", "Exact file selector")
+    .option(
+      "--glob <glob>",
+      "Glob selector (repeatable)",
+      collectRepeatable,
+      [] as string[],
+    )
+    .option(
+      "--ext <ext>",
+      "Extension filter without leading dot (repeatable)",
+      collectRepeatable,
+      [] as string[],
+    )
+    .option(
+      "--file-type <type>",
+      "File type filter such as source or doc (repeatable)",
+      collectRepeatable,
+      [] as string[],
+    )
+    .option(
+      "--language <language>",
+      "Language filter matching aigrep language names (repeatable)",
+      collectRepeatable,
+      [] as string[],
+    )
+    .option(
+      "--file-intent <intent>",
+      "Inclusive file-intent filter (repeatable: production, test, benchmark, example, generated, fixture, build, vendor)",
+      collectRepeatable,
+      [] as string[],
+    )
+    .option(
+      "--exclude-intent <intent>",
+      "Exclude these file intents after inclusive filtering (repeatable)",
+      collectRepeatable,
+      [] as string[],
+    )
+    .option("--exclude-docs", "Skip files classified as documentation")
+    .option("--exclude-tests", "Skip files classified as tests")
+    .option("--hidden", "Include dotfiles and dot-prefixed paths")
     .option("--limit <n>", "Max entries (1-1000, default 200)")
     .option(
       "--wait <ms>",

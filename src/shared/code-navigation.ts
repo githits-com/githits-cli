@@ -68,6 +68,8 @@ const fileIntentMap = {
   vendor: "VENDOR",
 } as const satisfies Record<string, FileIntent>;
 
+export type FileIntentArg = keyof typeof fileIntentMap;
+
 /**
  * Back-compat alias for {@link PkgseerRegistryArg}. The registry map
  * now lives in `pkgseer-registry.ts` as single source of truth; this
@@ -114,4 +116,12 @@ export function toFileIntent(
   return intent
     ? fileIntentMap[intent as keyof typeof fileIntentMap]
     : undefined;
+}
+
+export function isKnownFileIntent(value: string): value is FileIntentArg {
+  return value in fileIntentMap;
+}
+
+export function knownFileIntentList(): ReadonlyArray<FileIntentArg> {
+  return Object.keys(fileIntentMap) as FileIntentArg[];
 }

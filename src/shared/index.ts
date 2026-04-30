@@ -1,6 +1,9 @@
 export {
   type CodeNavigationRegistryArg,
+  type FileIntentArg,
+  isKnownFileIntent,
   isKnownSymbolKind,
+  knownFileIntentList,
   knownSymbolCategoryList,
   knownSymbolKindList,
   type SymbolCategoryArg,

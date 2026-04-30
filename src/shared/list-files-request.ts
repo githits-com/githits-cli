@@ -1,15 +1,22 @@
 /**
  * Shared request builder for the `list_files` tool. CLI and MCP
  * normalise inputs here so the two surfaces cannot diverge on
- * addressing or limit validation. Addressing XOR is delegated to
- * the shipped `resolveCodeTarget` helper; this module owns the
- * tool-specific bounds.
+ * selector/filter parsing, file-intent coercion, or limit validation.
+ * Addressing XOR is delegated to the shipped `resolveCodeTarget`
+ * helper; this module owns the tool-specific bounds and filter rules.
  */
 
 import type {
   CodeNavigationTarget,
+  FileIntent,
+  GrepRepoPathSelector,
   ListFilesParams,
 } from "../services/index.js";
+import {
+  isKnownFileIntent,
+  knownFileIntentList,
+  toFileIntent,
+} from "./code-navigation.js";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { InvalidPackageSpecError } from "./package-spec.js";
 
@@ -23,7 +30,18 @@ const WAIT_MAX = 60_000;
 
 export interface ListFilesRequestInput {
   target: CodeNavigationTarget;
+  path?: string;
   pathPrefix?: string;
+  globs?: string[];
+  extensions?: string[];
+  fileTypes?: string[];
+  languages?: string[];
+  fileIntent?: string;
+  fileIntents?: string[];
+  excludeFileIntents?: string[];
+  excludeDocFiles?: boolean;
+  excludeTestFiles?: boolean;
+  includeHidden?: boolean;
   limit?: number;
   waitTimeoutMs?: number;
 }
@@ -42,7 +60,36 @@ export interface ListFilesRequestBuildResult {
    * envelope knows to echo it under `filter.limit`).
    */
   limitExplicit: boolean;
-  pathPrefixExplicit: boolean;
+  explicit: {
+    path: boolean;
+    pathPrefix: boolean;
+    globs: boolean;
+    extensions: boolean;
+    fileTypes: boolean;
+    languages: boolean;
+    fileIntent: boolean;
+    fileIntents: boolean;
+    excludeFileIntents: boolean;
+    excludeDocFiles: boolean;
+    excludeTestFiles: boolean;
+    includeHidden: boolean;
+    limit: boolean;
+  };
+  filterEcho: {
+    path?: string;
+    pathPrefix?: string;
+    globs?: string[];
+    extensions?: string[];
+    fileTypes?: string[];
+    languages?: string[];
+    fileIntent?: string;
+    fileIntents?: string[];
+    excludeFileIntents?: string[];
+    excludeDocFiles?: boolean;
+    excludeTestFiles?: boolean;
+    includeHidden?: boolean;
+    limit?: number;
+  };
 }
 
 export function buildListFilesParams(
@@ -50,23 +97,190 @@ export function buildListFilesParams(
 ): ListFilesRequestBuildResult {
   const limitExplicit = input.limit !== undefined;
   const limit = normaliseLimit(input.limit);
-
   const waitTimeoutMs = normaliseWaitTimeoutMs(input.waitTimeoutMs);
-
+  const path = normalizeOptionalNonEmpty(input.path, "path");
   const pathPrefix = normalisePathPrefix(input.pathPrefix);
+  const globs = normalizeStringList(input.globs, "globs");
+  const extensions = normalizeExtensions(input.extensions);
+  const fileTypes = normalizeStringList(input.fileTypes, "file_types");
+  const languages = normalizeStringList(input.languages, "languages");
+  const { fileIntent, fileIntentEcho } = normalizeOptionalFileIntent(
+    input.fileIntent,
+    "file_intent",
+  );
+  const fileIntents = normalizeFileIntentList(
+    input.fileIntents,
+    "file_intents",
+  );
+  const excludeFileIntents = normalizeFileIntentList(
+    input.excludeFileIntents,
+    "exclude_file_intents",
+  );
+
+  if (fileIntent && fileIntents.length > 0) {
+    throw new InvalidPackageSpecError(
+      "`file_intent` cannot be combined with `file_intents`.",
+    );
+  }
+
+  const pathSelectors = buildPathSelectors({ path, globs });
+  const pathExplicit = path !== undefined;
   const pathPrefixExplicit = pathPrefix !== undefined;
+  const globsExplicit = globs.length > 0;
 
   return {
     params: {
       target: input.target,
+      pathSelectors,
       pathPrefix,
+      extensions: extensions.length > 0 ? extensions : undefined,
+      fileTypes: fileTypes.length > 0 ? fileTypes : undefined,
+      languages: languages.length > 0 ? languages : undefined,
+      fileIntent,
+      fileIntents: fileIntents.length > 0 ? fileIntents : undefined,
+      excludeFileIntents:
+        excludeFileIntents.length > 0 ? excludeFileIntents : undefined,
+      excludeDocFiles: input.excludeDocFiles,
+      excludeTestFiles: input.excludeTestFiles,
+      includeHidden: input.includeHidden,
       limit,
       waitTimeoutMs,
     },
     effectiveLimit: limit,
     limitExplicit,
-    pathPrefixExplicit,
+    explicit: {
+      path: pathExplicit,
+      pathPrefix: pathPrefixExplicit,
+      globs: globsExplicit,
+      extensions: extensions.length > 0,
+      fileTypes: fileTypes.length > 0,
+      languages: languages.length > 0,
+      fileIntent: fileIntent !== undefined,
+      fileIntents: fileIntents.length > 0,
+      excludeFileIntents: excludeFileIntents.length > 0,
+      excludeDocFiles: input.excludeDocFiles !== undefined,
+      excludeTestFiles: input.excludeTestFiles !== undefined,
+      includeHidden: input.includeHidden !== undefined,
+      limit: limitExplicit,
+    },
+    filterEcho: {
+      path,
+      pathPrefix,
+      globs: globsExplicit ? globs : undefined,
+      extensions: extensions.length > 0 ? extensions : undefined,
+      fileTypes: fileTypes.length > 0 ? fileTypes : undefined,
+      languages: languages.length > 0 ? languages : undefined,
+      fileIntent: fileIntentEcho,
+      fileIntents:
+        fileIntents.length > 0
+          ? fileIntents.map((intent) => intent.toLowerCase())
+          : undefined,
+      excludeFileIntents:
+        excludeFileIntents.length > 0
+          ? excludeFileIntents.map((intent) => intent.toLowerCase())
+          : undefined,
+      excludeDocFiles: input.excludeDocFiles,
+      excludeTestFiles: input.excludeTestFiles,
+      includeHidden: input.includeHidden,
+      limit: limitExplicit ? limit : undefined,
+    },
   };
+}
+
+function buildPathSelectors(input: {
+  path?: string;
+  globs: string[];
+}): GrepRepoPathSelector[] | undefined {
+  const selectors: GrepRepoPathSelector[] = [];
+  if (input.path) selectors.push({ kind: "EXACT", value: input.path });
+  for (const glob of input.globs) {
+    selectors.push({ kind: "GLOB", value: glob });
+  }
+  return selectors.length > 0 ? selectors : undefined;
+}
+
+function normalizeOptionalNonEmpty(
+  raw: string | undefined,
+  field: string,
+): string | undefined {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    throw new InvalidPackageSpecError(
+      `\`${field}\` cannot be empty when provided.`,
+    );
+  }
+  return trimmed;
+}
+
+function normalizeStringList(
+  raw: string[] | undefined,
+  field: string,
+): string[] {
+  if (!raw) return [];
+  const values: string[] = [];
+  for (const entry of raw) {
+    const trimmed = entry.trim();
+    if (trimmed.length === 0) {
+      throw new InvalidPackageSpecError(
+        `\`${field}\` entries cannot be empty.`,
+      );
+    }
+    values.push(trimmed);
+  }
+  return values;
+}
+
+function normalizeExtensions(raw: string[] | undefined): string[] {
+  const values = normalizeStringList(raw, "extensions");
+  for (const value of values) {
+    if (value.startsWith(".")) {
+      throw new InvalidPackageSpecError(
+        "`extensions` values must not include a leading dot.",
+      );
+    }
+  }
+  return values;
+}
+
+function normalizeOptionalFileIntent(
+  raw: string | undefined,
+  field: string,
+): { fileIntent?: FileIntent; fileIntentEcho?: string } {
+  if (raw === undefined) return {};
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed.length === 0) {
+    throw new InvalidPackageSpecError(
+      `\`${field}\` cannot be empty when provided.`,
+    );
+  }
+  if (!isKnownFileIntent(trimmed)) {
+    throw new InvalidPackageSpecError(
+      `\`${field}\` must be one of: ${knownFileIntentList().join(", ")}. Got ${raw}.`,
+    );
+  }
+  return {
+    fileIntent: toFileIntent(trimmed),
+    fileIntentEcho: trimmed,
+  };
+}
+
+function normalizeFileIntentList(
+  raw: string[] | undefined,
+  field: string,
+): FileIntent[] {
+  const values = normalizeStringList(raw, field);
+  const intents: FileIntent[] = [];
+  for (const value of values) {
+    const lower = value.toLowerCase();
+    if (!isKnownFileIntent(lower)) {
+      throw new InvalidPackageSpecError(
+        `\`${field}\` values must be one of: ${knownFileIntentList().join(", ")}. Got ${value}.`,
+      );
+    }
+    intents.push(toFileIntent(lower) as FileIntent);
+  }
+  return intents;
 }
 
 function normaliseLimit(raw: number | undefined): number {
