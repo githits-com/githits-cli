@@ -151,8 +151,11 @@ export async function pkgFilesAction(
   }
 }
 
-function collectRepeatable(value: string, previous: string[] = []): string[] {
-  return [...previous, value];
+function collectRepeatable(
+  value: string,
+  previous: string[] | undefined,
+): string[] {
+  return [...(previous ?? []), value];
 }
 
 function buildCliListFilesParams(
@@ -216,9 +219,9 @@ and \`githits code grep\`.
 [path-prefix] is a literal directory prefix (e.g. \`src/\` or
 \`lib/parser\`). Use --path for exact-file selectors, repeatable
 --glob for glob selectors, and --ext / --file-type / --language /
---file-intent to intersect further. When [path-prefix], --path, and
---glob are combined they are OR-ed — a file matches if any selector
-matches.
+--file-intent to intersect further. Selectors ([path-prefix], --path,
+--glob) are OR-ed — a file matches if any selector matches. The other
+filters intersect on top.
 
 Addressing: <spec> (registry:name[@version]) OR --repo-url <url>
 --git-ref <ref>. Supported registries: npm, pypi, hex, crates,
@@ -253,41 +256,31 @@ export function registerCodeFilesCommand(pkgCommand: Command): Command {
       "Tag, commit, branch, or HEAD. Required with --repo-url.",
     )
     .option("--path <path>", "Exact file selector")
-    .option(
-      "--glob <glob>",
-      "Glob selector (repeatable)",
-      collectRepeatable,
-      [] as string[],
-    )
+    .option("--glob <glob>", "Glob selector (repeatable)", collectRepeatable)
     .option(
       "--ext <ext>",
       "Extension filter without leading dot (repeatable)",
       collectRepeatable,
-      [] as string[],
     )
     .option(
       "--file-type <type>",
       "File type filter such as source or doc (repeatable)",
       collectRepeatable,
-      [] as string[],
     )
     .option(
       "--language <language>",
       "Language filter matching aigrep language names (repeatable)",
       collectRepeatable,
-      [] as string[],
     )
     .option(
       "--file-intent <intent>",
-      "Inclusive file-intent filter (repeatable: production, test, benchmark, example, generated, fixture, build, vendor)",
+      "Inclusive file-intent filter. Repeat to include multiple intents: production, test, benchmark, example, generated, fixture, build, vendor",
       collectRepeatable,
-      [] as string[],
     )
     .option(
       "--exclude-intent <intent>",
       "Exclude these file intents after inclusive filtering (repeatable)",
       collectRepeatable,
-      [] as string[],
     )
     .option("--exclude-docs", "Skip files classified as documentation")
     .option("--exclude-tests", "Skip files classified as tests")
