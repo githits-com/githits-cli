@@ -78,8 +78,8 @@ Use these rules when implementing the feature:
   must not mix login progress logs into stdout.
 - Avoid launching the browser from non-interactive or host-driven contexts.
 - Reuse `loginFlow()` rather than duplicating OAuth orchestration.
-- Keep startup registration behavior explicit for capability-gated command
-  groups.
+- Keep startup registration behavior explicit for package/source command
+      groups.
 
 ## Implementation Checklist
 
@@ -128,18 +128,17 @@ Use these rules when implementing the feature:
 - [ ] Keep existing command-level `AuthRequiredError` tests to verify the final
       invariant still holds.
 
-### Phase 2: capability-gated command registration
+### Phase 2: package/source command registration
 
-- [x] Decide whether `search`, `code`, and `pkg` should be visible on a fresh
-      unauthenticated machine purely to allow auto-login on first use.
-      Decision: no, gated package/source features should stay hidden until
-      capability is known to be open.
-- [x] Keep the startup registration gates in `src/commands/search.ts`,
+- [x] Decide whether `search`, `code`, and `pkg` should trigger browser login
+      on first use. Decision: no, package/source commands keep their existing
+      action-level auth checks.
+- [x] Keep startup registration in `src/commands/search.ts`,
       `src/commands/code/index.ts`, and `src/commands/pkg/index.ts` aligned
-      with that stricter capability policy.
-- [x] Re-check help output and discoverability with the stricter gated-command
-      policy in place.
-- [x] Add tests covering the hidden-unless-enabled registration behavior.
+      with the package-service URL configuration path.
+- [x] Re-check help output and discoverability with the package/source command
+      registration policy in place.
+- [x] Add tests covering URL-configured registration behavior.
 
 ## Open Decisions
 

@@ -60,10 +60,9 @@ For interactive `--json` invocations, the same bootstrap runs, but login
 progress is written to stderr so the command's JSON payload can remain the only
 stdout output.
 
-This bootstrap does not widen the package/source command surface. The gated
-`search`, `code`, and `pkg` commands still rely on startup capability checks
-for registration and remain hidden until capability is known to be open, or a
-local CLI override forces them on.
+This bootstrap does not widen the package/source command surface with automatic
+browser login. Package/source commands still register through the normal
+package-service configuration path and rely on their action-level auth checks.
 
 ## Token Lifecycle
 

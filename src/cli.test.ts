@@ -105,8 +105,6 @@ function createProgramWithRootPreAction(
 
 async function createProgramForHelpSurface(options: {
   codeNavigationUrl?: string;
-  overrideEnabled?: boolean;
-  capability?: "enabled" | "disabled" | "unknown";
 }): Promise<Command> {
   const program = new Command();
   program.name("githits");
@@ -311,11 +309,9 @@ describe("root CLI preAction", () => {
 });
 
 describe("CLI help surface", () => {
-  it("keeps gated commands out of root help when capability is closed", async () => {
+  it("keeps package/source commands out of root help when URL is disabled", async () => {
     const program = await createProgramForHelpSurface({
-      codeNavigationUrl: "https://pkgseer.dev",
-      overrideEnabled: false,
-      capability: "disabled",
+      codeNavigationUrl: "",
     });
 
     const help = program.helpInformation();
@@ -328,11 +324,9 @@ describe("CLI help surface", () => {
     expect(help).not.toMatch(/^\s{2}pkg\b/m);
   });
 
-  it("shows gated commands in root help when capability is enabled", async () => {
+  it("shows package/source commands in root help when URL is configured", async () => {
     const program = await createProgramForHelpSurface({
       codeNavigationUrl: "https://pkgseer.dev",
-      overrideEnabled: false,
-      capability: "enabled",
     });
 
     const help = program.helpInformation();

@@ -18,7 +18,6 @@ describe("registerCodeCommandGroup", () => {
     const program = new Command();
     await registerCodeCommandGroup(program, {
       codeNavigationUrl: "https://nav.example.com",
-      capability: "enabled",
     });
 
     const codeCommand = program.commands.find(
@@ -28,35 +27,5 @@ describe("registerCodeCommandGroup", () => {
     expect(
       codeCommand?.commands.some((command) => command.name() === "files"),
     ).toBe(true);
-  });
-
-  it("registers the code command group when override and URL are set", async () => {
-    const program = new Command();
-    await registerCodeCommandGroup(program, {
-      codeNavigationUrl: "https://nav.example.com",
-      overrideEnabled: true,
-      capability: "disabled",
-    });
-
-    const codeCommand = program.commands.find(
-      (command) => command.name() === "code",
-    );
-    expect(codeCommand).toBeDefined();
-    expect(
-      codeCommand?.commands.some((command) => command.name() === "files"),
-    ).toBe(true);
-  });
-
-  it("does not register the code command group when capability is unknown", async () => {
-    const program = new Command();
-    await registerCodeCommandGroup(program, {
-      codeNavigationUrl: "https://nav.example.com",
-      overrideEnabled: false,
-      capability: "unknown",
-    });
-
-    expect(program.commands.some((command) => command.name() === "code")).toBe(
-      false,
-    );
   });
 });

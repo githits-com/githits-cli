@@ -23,14 +23,9 @@ import {
   registerUnifiedSearchCommands,
 } from "./commands/index.js";
 import { loginFlow, stderrLoginOutput } from "./commands/login.js";
-import {
-  createContainer,
-  resolveStartupCodeNavigationRegistrationState,
-} from "./container.js";
+import { createContainer } from "./container.js";
 import {
   FileSystemServiceImpl,
-  getCodeNavigationUrl,
-  isCodeNavigationCliOverrideEnabled,
   NpmRegistryUpdateCheckService,
 } from "./services/index.js";
 import { getCommandPath } from "./shared/auto-login.js";
@@ -136,27 +131,19 @@ registerLanguagesCommand(program);
 registerFeedbackCommand(program);
 const registrationArgv = stripRootRegistrationOptions(argv);
 
-const shouldLoadCapabilityGatedCommands =
-  shouldEagerLoadSearchCommands(registrationArgv) ||
-  shouldEagerLoadGatedCommandGroup(registrationArgv, "code") ||
-  shouldEagerLoadGatedCommandGroup(registrationArgv, "pkg");
-const gatedCommandRegistrationOptions = shouldLoadCapabilityGatedCommands
-  ? await resolveGatedCommandRegistrationOptions()
-  : undefined;
-
 if (shouldEagerLoadSearchCommands(registrationArgv)) {
   await withTelemetrySpan("cli.register.search", () =>
-    registerUnifiedSearchCommands(program, gatedCommandRegistrationOptions),
+    registerUnifiedSearchCommands(program),
   );
 }
 if (shouldEagerLoadGatedCommandGroup(registrationArgv, "code")) {
   await withTelemetrySpan("cli.register.code-group", () =>
-    registerCodeCommandGroup(program, gatedCommandRegistrationOptions),
+    registerCodeCommandGroup(program),
   );
 }
 if (shouldEagerLoadGatedCommandGroup(registrationArgv, "pkg")) {
   await withTelemetrySpan("cli.register.pkg-group", () =>
-    registerPkgCommandGroup(program, gatedCommandRegistrationOptions),
+    registerPkgCommandGroup(program),
   );
 }
 if (shouldEagerLoadGatedCommandGroup(registrationArgv, "docs")) {
@@ -229,19 +216,6 @@ function shouldEagerLoadSearchCommands(args: string[]): boolean {
 
 function isSearchHelpTarget(value: string | undefined): boolean {
   return value === "search" || value === "search-status";
-}
-
-async function resolveGatedCommandRegistrationOptions() {
-  const codeNavigationUrl = getCodeNavigationUrl();
-  return {
-    codeNavigationUrl,
-    overrideEnabled: isCodeNavigationCliOverrideEnabled(),
-    capability: (
-      await withTelemetrySpan("cli.resolve-code-nav-registration-state", () =>
-        resolveStartupCodeNavigationRegistrationState(),
-      )
-    ).capability,
-  };
 }
 
 function getTelemetryCommandName(command: Command): string {
