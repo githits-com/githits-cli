@@ -62,15 +62,12 @@ These are human-invoked commands where auto-login is a clear UX improvement:
 - `docs list` / `docs read`
 - `pkg info` / `pkg vulns` / `pkg deps` / `pkg changelog`
 
-### Phase 2 candidates
+### Package/source registration note
 
-These need extra work because they are not always registered when no auth state
-is available at startup:
-
-- `search`
-- `search-status`
-- `code ...`
-- `pkg ...`
+Package/source commands (`search`, `search-status`, `code`, `docs`, and `pkg`)
+register through the normal package-service URL configuration path. The signup
+bootstrap can therefore run for their interactive invocations before the command
+action reaches the final `requireAuth()` check.
 
 ## Decision Criteria
 
@@ -82,8 +79,8 @@ Use these rules when implementing the feature:
   must not mix login progress logs into stdout.
 - Avoid launching the browser from non-interactive or host-driven contexts.
 - Reuse `loginFlow()` rather than duplicating OAuth orchestration.
-- Keep startup registration behavior explicit for package/source command
-      groups.
+- Keep startup registration behavior explicit for package/source command groups:
+      registration follows package-service URL configuration.
 
 ## Implementation Checklist
 
@@ -160,10 +157,11 @@ Use these rules when implementing the feature:
 | `src/commands/login.ts` | Reusable login flow and current standalone login output. |
 | `src/shared/require-auth.ts` | Final invariant for command actions after bootstrap. |
 | `src/container.ts` | Startup token resolution and auth-state snapshot. |
-| `src/commands/init/init.ts` | Existing example of composing `loginFlow()` into another command. |
-| `src/commands/search.ts` | Top-level gated command registration. |
-| `src/commands/code/index.ts` | `code` group registration gate. |
-| `src/commands/pkg/index.ts` | `pkg` group registration gate. |
-| `src/commands/example.ts` | Phase 1 command target. |
-| `src/commands/languages.ts` | Phase 1 command target. |
-| `src/commands/feedback.ts` | Phase 1 command target. |
+| `src/commands/init/init.ts` | Advertised onboarding command; `--skip-login` remains the explicit opt-out. |
+| `src/commands/search.ts` | Top-level package/source registration and auth-required action. |
+| `src/commands/code/index.ts` | `code` group package-service URL registration. |
+| `src/commands/docs/index.ts` | `docs` group package-service URL registration. |
+| `src/commands/pkg/index.ts` | `pkg` group package-service URL registration. |
+| `src/commands/example.ts` | Auth-required command action still protected by `requireAuth()`. |
+| `src/commands/languages.ts` | Auth-required command action still protected by `requireAuth()`. |
+| `src/commands/feedback.ts` | Auth-required command action still protected by `requireAuth()`. |
