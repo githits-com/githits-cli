@@ -16,16 +16,6 @@ Supported tools: Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude
 
 If you are using a tool that is not listed above, use the manual MCP setup instructions near the end of this README.
 
-For a one-shot first run without installing the CLI globally:
-
-```sh
-npx -y githits@latest example "how to use express middleware" -l javascript
-```
-
-In an interactive terminal, `example`, `languages`, and `feedback` now open
-the browser login flow automatically when no valid token is available, then
-continue the original command after authentication.
-
 ### Plugin Installation (Open Plugin standard)
 
 The npm package includes Open Plugin-compatible files:
@@ -144,12 +134,6 @@ npx githits login
 
 Opens your browser for secure OAuth authentication. Tokens are stored in the system keychain by default and refreshed automatically on next use. If a refresh fails (e.g., after an extended idle period), run `githits login` again.
 
-In interactive TTY sessions, `example`, `languages`, and `feedback` also
-trigger this browser flow automatically on first use. For interactive
-`--json` runs, login progress is written to stderr so stdout stays
-machine-readable. Non-interactive runs, `auth status`, `logout`, `init`, and
-`mcp` remain explicit-auth flows.
-
 Useful flags:
 
 - `--no-browser` — prints a URL instead of opening a browser (for SSH sessions, CI, or headless environments)
@@ -190,17 +174,7 @@ githits languages      List or filter supported language names
 githits feedback       Send feedback on a returned example
 ```
 
-Interactive first-run UX:
-
-- `githits example ...`, `githits languages ...`, and `githits feedback ...`
-  will open the browser login flow automatically when no valid token is
-  available.
-- Interactive `--json` variants also auto-open the browser when needed, but
-  login progress is written to stderr so stdout remains clean JSON.
-- Non-interactive runs still require `githits login` first or a
-  `GITHITS_API_TOKEN`.
-
-When package/source access is enabled for the current token, two extra command groups are also available:
+These indexed package/source commands are also available:
 
 ```
 githits search ...     Unified indexed dependency/repository search

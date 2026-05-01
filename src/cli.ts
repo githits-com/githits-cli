@@ -28,7 +28,6 @@ import {
   FileSystemServiceImpl,
   NpmRegistryUpdateCheckService,
 } from "./services/index.js";
-import { getCommandPath } from "./shared/auto-login.js";
 import {
   createRootCliPreAction,
   endTelemetrySpan,
@@ -104,11 +103,10 @@ program
     "after",
     `
 Getting started:
-  githits init                           Set up MCP for your coding agents
-  githits login                          Authenticate with your GitHits account
-  githits mcp                            Start MCP server for your AI assistant
-  githits search "router middleware" --in npm:express   Search dependency code/docs
-  npx -y githits@latest example "query" --lang python    One-shot example search with browser login
+  githits init                         Set up MCP for your coding agents
+  githits login                        Authenticate with your GitHits account
+  githits mcp                          Show MCP setup instructions
+  githits example "query"              Get code examples
 
 Learn more at https://githits.com
 Docs: https://app.githits.com/docs/
@@ -219,7 +217,16 @@ function isSearchHelpTarget(value: string | undefined): boolean {
 }
 
 function getTelemetryCommandName(command: Command): string {
-  const names = getCommandPath(command);
+  const names: string[] = [];
+  let current: Command | null = command;
+
+  while (current) {
+    const name = current.name();
+    if (name && name !== "githits") {
+      names.unshift(name);
+    }
+    current = current.parent ?? null;
+  }
 
   return `command.${names.join(".")}`;
 }

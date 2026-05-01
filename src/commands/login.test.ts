@@ -437,34 +437,6 @@ describe("loginFlow", () => {
     consoleSpy.mockRestore();
   });
 
-  it("falls back to printing the URL when automatic browser launch fails", async () => {
-    const writes: string[] = [];
-
-    const result = await loginFlow(
-      { port: 8080 },
-      {
-        authService: createMockAuthService(),
-        authStorage: createMockAuthStorage(),
-        browserService: createMockBrowserService({
-          open: mock(() => Promise.reject(new Error("launch failed"))),
-        }),
-        mcpUrl,
-      },
-      {
-        write: (message: string) => {
-          writes.push(message);
-        },
-      },
-    );
-
-    expect(result.status).toBe("success");
-    expect(writes).toContain("Opening browser...");
-    expect(writes).toContain(
-      "Failed to open browser automatically. Open this URL manually:\n",
-    );
-    expect(writes).toContain("  http://example.com/auth\n");
-  });
-
   it("returns already_authenticated when valid tokens exist", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 

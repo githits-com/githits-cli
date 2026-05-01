@@ -25,7 +25,7 @@ recommended one-shot entry point less compelling.
 ## Target Flow
 
 1. User runs an auth-required interactive command such as
-   `npx -y githits@latest example "..." -l typescript`.
+      `npx -y githits@latest init`.
 2. CLI detects that no valid token is available.
 3. CLI opens the browser to the sign-in / sign-up page.
 4. User completes the GitHub-backed auth flow.
@@ -110,14 +110,8 @@ Use these rules when implementing the feature:
 
 ### Phase 1.2: docs and product guidance
 
-- [x] Update `README.md` to show the promoted one-shot entry point:
-      `npx -y githits@latest example "..." -l <language>`.
-- [x] Update `src/cli.ts` help text if the product wants the one-shot example
-      flow visible in `githits --help`.
-- [x] Update `docs/implementation/auth.md` to describe the auto-login
-      bootstrap path and its exemptions.
-- [x] Update `docs/implementation/cli-commands.md` to explain which commands
-      auto-trigger login and which do not.
+- [x] Document the signup bootstrap behavior and command scope in this
+      implementation note.
 
 ### Phase 1.3: tests
 
@@ -146,8 +140,6 @@ Use these rules when implementing the feature:
 
 - Should `mcp start` remain strictly manual-auth, or should there be a separate
   device-code or non-browser bootstrap for host-driven setups?
-- Should the promoted example command keep the explicit `-l/--lang` flag, or do
-  we want a separate feature for language inference/defaulting?
 
 ## Key Reference Files
 

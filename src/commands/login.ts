@@ -198,14 +198,7 @@ export async function loginFlow(
     output.write(`  ${authUrl}\n`);
   } else {
     output.write("Opening browser...");
-    try {
-      await browserService.open(authUrl);
-    } catch {
-      output.write(
-        "Failed to open browser automatically. Open this URL manually:\n",
-      );
-      output.write(`  ${authUrl}\n`);
-    }
+    await browserService.open(authUrl);
   }
 
   output.write("Waiting for authentication...\n");
