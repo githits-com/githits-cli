@@ -54,15 +54,17 @@ The bootstrap deliberately does **not** run for:
 
 - non-interactive/stdio-driven execution
 - explicit auth and recovery surfaces such as `login`, `logout`, `auth status`,
-  `init`, and `mcp`
+     and `mcp`
 
 For interactive `--json` invocations, the same bootstrap runs, but login
 progress is written to stderr so the command's JSON payload can remain the only
 stdout output.
 
-This bootstrap does not widen the package/source command surface with automatic
-browser login. Package/source commands still register through the normal
-package-service configuration path and rely on their action-level auth checks.
+The bootstrap applies to the advertised onboarding path (`init`) and to
+interactive user-facing commands that require authentication. `init --skip-login`
+honors the explicit skip and bypasses the bootstrap. Package/source commands
+still register through the normal package-service configuration path, and all
+command actions keep their action-level auth checks as the final invariant.
 
 ## Token Lifecycle
 
@@ -196,8 +198,8 @@ Per API call (via RefreshingGitHitsService):
 
 The MCP server starts without a synchronous auth gate. Tool calls resolve tokens through the shared token provider and return per-tool auth errors when no valid token is available.
 
-For `example`, `languages`, and `feedback`, there is now one extra step before
-the action runs:
+For `init` and interactive user-facing commands that require authentication,
+there is now one extra step before the action runs:
 
 ```
 CLI preAction hook

@@ -234,6 +234,69 @@ describe("root CLI preAction", () => {
     errorSpy.mockRestore();
   });
 
+  it("triggers auto-login for init before setup runs", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const container = createLoginDeps({ hasValidToken: false });
+    const createContainer = mock(() => Promise.resolve(container));
+    const loginFlow = mock(() =>
+      Promise.resolve({
+        status: "success" as const,
+        message: "Logged in successfully.",
+      }),
+    );
+    const program = createProgramWithRootPreAction({
+      createContainer,
+      loginFlow,
+    });
+
+    let ran = false;
+    program.command("init").action(() => {
+      ran = true;
+    });
+
+    await program.parseAsync(["node", "githits", "init"]);
+
+    expect(ran).toBe(true);
+    expect(createContainer).toHaveBeenCalledTimes(1);
+    expect(loginFlow).toHaveBeenCalledWith({}, container);
+    expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
+      "Authentication complete. Continuing setup...",
+    ]);
+    errorSpy.mockRestore();
+  });
+
+  it("triggers auto-login for nested package/source commands", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const container = createLoginDeps({ hasValidToken: false });
+    const createContainer = mock(() => Promise.resolve(container));
+    const loginFlow = mock(() =>
+      Promise.resolve({
+        status: "success" as const,
+        message: "Logged in successfully.",
+      }),
+    );
+    const program = createProgramWithRootPreAction({
+      createContainer,
+      loginFlow,
+    });
+
+    let ran = false;
+    const pkgCommand = program.command("pkg");
+    pkgCommand.command("info").action(() => {
+      ran = true;
+    });
+
+    await program.parseAsync(["node", "githits", "pkg", "info"]);
+
+    expect(ran).toBe(true);
+    expect(createContainer).toHaveBeenCalledTimes(1);
+    expect(loginFlow).toHaveBeenCalledWith({}, container);
+    expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
+      "Authentication complete. Running command...",
+    ]);
+    errorSpy.mockRestore();
+  });
+
   it("preserves a clear failure path when auto-login fails", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const createContainer = mock(() => Promise.resolve(createLoginDeps()));

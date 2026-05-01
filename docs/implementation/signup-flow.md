@@ -46,17 +46,21 @@ surprising or actively harmful.
 | `login` | Already the explicit auth entry point. |
 | `logout` | Must work even when auth is broken or absent. |
 | `auth status` | Informational; should explain missing auth, not launch browser. |
-| `init` | Already has its own login orchestration and fallback prompts. |
 | `mcp` / `mcp start` | Agent hosts and stdio launches should not unexpectedly open a browser. |
 
 ### Phase 1 candidates
 
-These are always-available, human-invoked commands where auto-login is a clear
-UX improvement:
+These are human-invoked commands where auto-login is a clear UX improvement:
 
+- `init`
+- `init --skip-login` remains an explicit opt-out
 - `example`
 - `languages`
 - `feedback`
+- `search` / `search-status`
+- `code files` / `code read` / `code grep`
+- `docs list` / `docs read`
+- `pkg info` / `pkg vulns` / `pkg deps` / `pkg changelog`
 
 ### Phase 2 candidates
 
@@ -96,7 +100,8 @@ Use these rules when implementing the feature:
       requests `--json`.
 - [x] Keep the current `requireAuth()` checks in command actions as a final
       invariant.
-- [x] Wire the new bootstrap flow for `example`, `languages`, and `feedback`.
+- [x] Wire the new bootstrap flow for `init` and interactive user-facing
+      commands that require authentication.
 
 ### Phase 1.1: login output hygiene
 
@@ -130,9 +135,9 @@ Use these rules when implementing the feature:
 
 ### Phase 2: package/source command registration
 
-- [x] Decide whether `search`, `code`, and `pkg` should trigger browser login
-      on first use. Decision: no, package/source commands keep their existing
-      action-level auth checks.
+- [x] Decide whether `search`, `code`, `docs`, and `pkg` should trigger browser
+      login on first use. Decision: yes for interactive CLI use, while keeping
+      action-level auth checks as the final invariant.
 - [x] Keep startup registration in `src/commands/search.ts`,
       `src/commands/code/index.ts`, and `src/commands/pkg/index.ts` aligned
       with the package-service URL configuration path.

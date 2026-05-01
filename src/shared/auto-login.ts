@@ -5,9 +5,21 @@ import type {
 } from "../commands/login.js";
 
 const AUTO_LOGIN_ELIGIBLE_COMMANDS = new Set([
+  "init",
   "example",
   "languages",
   "feedback",
+  "search",
+  "search-status",
+  "code files",
+  "code read",
+  "code grep",
+  "docs list",
+  "docs read",
+  "pkg info",
+  "pkg vulns",
+  "pkg deps",
+  "pkg changelog",
 ]);
 
 export interface CommandLike {
@@ -61,6 +73,10 @@ export function isAutoLoginEligibleCommand(
   },
 ): boolean {
   const commandPath = getCommandPath(command).join(" ");
+  if (commandPath === "init" && command.opts().skipLogin === true) {
+    return false;
+  }
+
   if (!AUTO_LOGIN_ELIGIBLE_COMMANDS.has(commandPath)) {
     return false;
   }

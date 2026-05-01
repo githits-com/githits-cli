@@ -4,17 +4,14 @@
 
 The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default when the package/source endpoint is configured. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
 
-Phase 1 of the streamlined signup flow adds automatic browser login bootstrap to
-three interactive top-level commands: `example`, `languages`, and `feedback`.
-When those commands run in an interactive TTY without a valid token, the CLI
-launches the existing OAuth login flow first, then continues the original
-command after auth succeeds. For interactive `--json` runs, login progress is
-written to stderr so stdout stays machine-readable. The bootstrap remains
-disabled for non-interactive execution.
-
-The package/source commands do not participate in that phase-1 bootstrap; they
-keep their existing action-level auth checks instead of launching browser login
-from the root pre-action hook.
+The streamlined signup flow adds automatic browser login bootstrap to `init`
+and interactive user-facing commands that require authentication. When those
+commands run in an interactive TTY without a valid token, the CLI launches the
+existing OAuth login flow first, then continues the original command after auth
+succeeds. `init --skip-login` honors the explicit skip. For interactive `--json`
+runs, login progress is written to stderr so stdout stays machine-readable. The
+bootstrap remains disabled for non-interactive execution, and explicit
+auth/recovery plus MCP host commands remain exempt.
 
 ## Commands
 
@@ -100,8 +97,8 @@ The original unified-search plan envisaged hiding partial mode entirely in v1 to
 **Source-status surfacing.** The JSON `sourceStatus` block is always passed through verbatim for debugging. Human-readable output surfaces only the actionable subset: ignored / incompatible filters, ignored / incompatible query features, free-form `note`s, and an `INDEXING` indicator when a source is still indexing on a partial-result payload. `STALE` (served from a slightly old index while a fresh reindex runs) is intentionally not shown in human output — agents and users do not need to second-guess otherwise-correct results, but it remains in JSON for diagnostics.
 
 **Registration.** `search` registers when the package/source endpoint is
-configured. Unlike `example`, `languages`, and `feedback`, it does not trigger
-browser login from the root pre-action hook.
+configured. Interactive unauthenticated runs trigger the root browser-login
+bootstrap before the action executes.
 
 ### `githits search-status`
 

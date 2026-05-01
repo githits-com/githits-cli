@@ -68,6 +68,47 @@ describe("isAutoLoginEligibleCommand", () => {
     ).toBe(true);
   });
 
+  it("allows interactive init invocations for first-run onboarding", () => {
+    expect(
+      isAutoLoginEligibleCommand(createCommand(["init"]), {
+        stdinIsTTY: true,
+        stdoutIsTTY: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("honors init --skip-login", () => {
+    expect(
+      isAutoLoginEligibleCommand(createCommand(["init"], { skipLogin: true }), {
+        stdinIsTTY: true,
+        stdoutIsTTY: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("allows interactive package/source command invocations", () => {
+    for (const path of [
+      ["search"],
+      ["search-status"],
+      ["code", "files"],
+      ["code", "read"],
+      ["code", "grep"],
+      ["docs", "list"],
+      ["docs", "read"],
+      ["pkg", "info"],
+      ["pkg", "vulns"],
+      ["pkg", "deps"],
+      ["pkg", "changelog"],
+    ]) {
+      expect(
+        isAutoLoginEligibleCommand(createCommand(path), {
+          stdinIsTTY: true,
+          stdoutIsTTY: true,
+        }),
+      ).toBe(true);
+    }
+  });
+
   it("allows interactive --json invocations once login output is redirected", () => {
     expect(
       isAutoLoginEligibleCommand(createCommand(["example"], { json: true }), {
@@ -87,12 +128,20 @@ describe("isAutoLoginEligibleCommand", () => {
   });
 
   it("skips exempt commands", () => {
-    expect(
-      isAutoLoginEligibleCommand(createCommand(["logout"]), {
-        stdinIsTTY: true,
-        stdoutIsTTY: true,
-      }),
-    ).toBe(false);
+    for (const path of [
+      ["login"],
+      ["logout"],
+      ["auth", "status"],
+      ["mcp"],
+      ["mcp", "start"],
+    ]) {
+      expect(
+        isAutoLoginEligibleCommand(createCommand(path), {
+          stdinIsTTY: true,
+          stdoutIsTTY: true,
+        }),
+      ).toBe(false);
+    }
   });
 });
 
