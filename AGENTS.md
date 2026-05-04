@@ -35,6 +35,8 @@ Philosophy: "If it is not tested, it is likely broken"
 **Critical Rules:**
 
 - Use `bun test` for running tests
+- Use `bun run smoke:mcp` and `bun run smoke:cli` when changing MCP tools, CLI commands, shared formatters, auth/error envelopes, or MCP/CLI parity behavior. These are live smoke suites, not the normal unit suite; they must pass unauthenticated by validating auth handling, and provide deeper coverage when authenticated.
+- Maintain smoke coverage when adding or changing user-facing tools/commands. Prefer structural UX assertions over brittle snapshots, and keep MCP `format: "json"` and CLI `--json` behavior aligned.
 - Keep tests async and isolated
 - Mock services at the interface level using factory functions
 - Use mock factories from `test-helpers.ts` (e.g., `createMockGitHitsService()`, `createMockAuthService()`)
