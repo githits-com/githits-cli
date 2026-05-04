@@ -51,13 +51,13 @@ function isTextFormat(format: SearchLanguageArgs["format"]): boolean {
 }
 
 function renderLanguageMatches(
-  matches: Array<{ name: string; displayName?: string; aliases?: string[] }>,
+  matches: Array<{ name: string; display_name: string; aliases: string[] }>,
 ): string {
   if (matches.length === 0) return "No matching languages.";
   return matches
     .map((match) => {
-      const label = match.displayName
-        ? `${match.name} (${match.displayName})`
+      const label = match.display_name
+        ? `${match.name} (${match.display_name})`
         : match.name;
       const aliases = match.aliases?.length
         ? ` aliases: ${match.aliases.join(", ")}`

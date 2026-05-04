@@ -92,6 +92,10 @@ describe("createPackageDependenciesTool — happy path", () => {
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("express @ 5.2.1 · npm");
     expect(text).toContain("3 direct runtime dependencies");
+    expect(text).toContain(
+      'Hidden groups: development — pass lifecycle="all".',
+    );
+    expect(text).not.toContain("--lifecycle");
     expect(text).toContain("accepts");
     expect(() => JSON.parse(text)).toThrow();
   });

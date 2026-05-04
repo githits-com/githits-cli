@@ -33,7 +33,11 @@ export async function languagesAction(
 
     const displayList: LanguageMatch[] = query
       ? filterLanguages(allLanguages, query)
-      : allLanguages.map(({ name, display_name }) => ({ name, display_name }));
+      : allLanguages.map(({ name, display_name, aliases }) => ({
+          name,
+          display_name,
+          aliases,
+        }));
 
     if (options.json) {
       console.log(JSON.stringify(displayList));

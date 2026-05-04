@@ -69,6 +69,35 @@ describe("createPackageChangelogTool — happy path", () => {
     expect(() => JSON.parse(text)).toThrow();
   });
 
+  it("uses MCP-native hint when compact changelog text truncates bodies", async () => {
+    const tool = createPackageChangelogTool(
+      createMockPackageIntelligenceService({
+        packageChangelog: mock(() =>
+          Promise.resolve({
+            ...defaultChangelogReport,
+            entries: [
+              {
+                ...defaultChangelogReport.entries[0]!,
+                body: Array.from(
+                  { length: 12 },
+                  (_, i) => `line ${i + 1}`,
+                ).join("\n"),
+              },
+            ],
+          }),
+        ),
+      }),
+    );
+
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express" },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain('pass format="json" for full bodies');
+    expect(text).not.toContain("--verbose");
+  });
+
   it("emits the JSON envelope with entries.count computed client-side when format=json", async () => {
     const tool = createPackageChangelogTool(
       createMockPackageIntelligenceService(),

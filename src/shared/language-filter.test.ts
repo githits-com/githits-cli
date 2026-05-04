@@ -69,12 +69,20 @@ describe("filterLanguages", () => {
     expect(result).toHaveLength(3);
   });
 
-  it("returns only name and display_name", () => {
+  it("returns fields needed to choose a get_example language", () => {
     const result = filterLanguages(testLanguages, "python");
 
     expect(result).toHaveLength(1);
     const match = result[0];
-    expect(match).toEqual({ name: "python", display_name: "Python" });
-    expect(match && Object.keys(match)).toEqual(["name", "display_name"]);
+    expect(match).toEqual({
+      name: "python",
+      display_name: "Python",
+      aliases: ["py"],
+    });
+    expect(match && Object.keys(match)).toEqual([
+      "name",
+      "display_name",
+      "aliases",
+    ]);
   });
 });

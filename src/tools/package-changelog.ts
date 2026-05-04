@@ -147,6 +147,7 @@ export function createPackageChangelogTool(
             formatPackageChangelogTerminal(payload, {
               useColors: false,
               verbose: false,
+              fullBodyHint: 'pass format="json" for full bodies',
             }).trimEnd(),
           );
         }

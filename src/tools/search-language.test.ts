@@ -17,7 +17,7 @@ describe("searchLanguageTool", () => {
     const result = await tool.handler({ query: "python" }, {});
 
     expect(result.isError).toBeUndefined();
-    expect(getText(result)).toContain("python");
+    expect(getText(result)).toContain("python (Python) aliases: py");
     expect(() => JSON.parse(getText(result))).toThrow();
     expect(service.getLanguages).toHaveBeenCalled();
   });

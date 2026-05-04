@@ -135,16 +135,21 @@ export function createPackageDependenciesTool(
           includeImporters: args.include_importers ?? false,
         });
         if (isTextFormat(args.format)) {
+          const textLifecycles =
+            canonicalLifecycles.length > 0
+              ? canonicalLifecycles
+              : (["all"] satisfies typeof canonicalLifecycles);
           return textResult(
             formatPackageDependenciesTerminal(report, {
               useColors: false,
               requestedVersion: args.version,
-              canonicalLifecycles,
+              canonicalLifecycles: textLifecycles,
               includeTransitive: args.include_transitive,
               maxDepth: args.max_depth,
               showGroups:
                 canonicalLifecycles.length > 0 &&
                 !canonicalLifecycles.every((item) => item === "runtime"),
+              hiddenGroupsHint: 'pass lifecycle="all".',
             }).trimEnd(),
           );
         }

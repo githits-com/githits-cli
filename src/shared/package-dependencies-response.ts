@@ -591,6 +591,7 @@ export interface FormatDependenciesTerminalOptions {
   maxDepth?: number;
   /** If true, render the groups block beneath the deps list. */
   showGroups?: boolean;
+  hiddenGroupsHint?: string;
 }
 
 export function formatPackageDependenciesTerminal(
@@ -615,7 +616,7 @@ export function formatPackageDependenciesTerminal(
 
   const blocks: string[] = [];
 
-  blocks.push(formatHeaderBlock(payload, useColors, showGroups));
+  blocks.push(formatHeaderBlock(payload, useColors, showGroups, options));
 
   if (includeTransitive) {
     blocks.push(formatTransitiveDepsList(payload, verbose, useColors));
@@ -640,6 +641,7 @@ function formatHeaderBlock(
   payload: LeanDependencyReport,
   useColors: boolean,
   showGroups: boolean,
+  options: FormatDependenciesTerminalOptions,
 ): string {
   const name = colorize(payload.name, "bold", useColors);
   const lines: string[] = [
@@ -648,7 +650,7 @@ function formatHeaderBlock(
   if (payload.requestedVersion) {
     lines.push(dim(`(requested ${payload.requestedVersion})`, useColors));
   }
-  lines.push(formatSummaryRow(payload, useColors, showGroups));
+  lines.push(formatSummaryRow(payload, useColors, showGroups, options));
   return lines.join("\n");
 }
 
@@ -662,6 +664,7 @@ function formatSummaryRow(
   payload: LeanDependencyReport,
   useColors: boolean,
   showGroups: boolean,
+  options: FormatDependenciesTerminalOptions,
 ): string {
   const countParts: string[] = [];
   const runtimeCount = payload.runtime?.count ?? 0;
@@ -703,7 +706,7 @@ function formatSummaryRow(
   const hidden = collectHiddenGroupNames(payload);
   if (hidden.length === 0) return countLine;
   const hiddenLine = dim(
-    `Hidden groups: ${hidden.join(", ")} — use --lifecycle all.`,
+    `Hidden groups: ${hidden.join(", ")} — ${options.hiddenGroupsHint ?? "use --lifecycle all."}`,
     useColors,
   );
   return `${countLine}\n${hiddenLine}`;
