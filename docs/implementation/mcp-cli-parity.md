@@ -10,11 +10,36 @@ default to compact `text-v1` where available, while CLI has human
 terminal output and `--json`. Structured parity is enforced through CLI
 `--json` and MCP `format: "json"`.
 
-The dual-surface tools today are unified `search` / `search_status`,
-the file-exploration bundle (`code_files`, `code_read`, `code_grep`),
-the package-intelligence tools (`pkg_info`,
-`pkg_vulns`, `pkg_deps`, `pkg_changelog`),
-and the docs surface (`docs_list`, `docs_read`).
+Live smoke coverage lives in `scripts/mcp-smoke.ts` and
+`scripts/cli-smoke.ts`, run with `bun run smoke:mcp` and
+`bun run smoke:cli`. These suites intentionally avoid exact-output
+snapshots because backend ranking and release metadata can change. They
+assert durable UX invariants instead: server/command startup, registered
+tools, auth handling, compact default text, parseable JSON opt-in,
+MCP-native hints, CLI terminal affordances, and JSON envelope shape. When
+adding or changing a dual-surface tool, update both smoke scripts if the
+covered live UX contract changes.
+
+The dual-surface tools today are:
+
+- `get_example` ↔ `githits example`
+- `search_language` ↔ `githits languages`
+- `feedback` ↔ `githits feedback`
+- `search` ↔ `githits search`
+- `search_status` ↔ `githits search-status`
+- `code_files` ↔ `githits code files`
+- `code_read` ↔ `githits code read`
+- `code_grep` ↔ `githits code grep`
+- `pkg_info` ↔ `githits pkg info`
+- `pkg_vulns` ↔ `githits pkg vulns`
+- `pkg_deps` ↔ `githits pkg deps`
+- `pkg_changelog` ↔ `githits pkg changelog`
+- `docs_list` ↔ `githits docs list`
+- `docs_read` ↔ `githits docs read`
+
+`feedback` is mutating, so smoke coverage exercises registration and
+validation/auth paths only. It does not submit fake feedback to the live
+backend.
 
 One deliberate exception: `search_status` does not echo the original
 structured request because the backend follow-up endpoint does not
