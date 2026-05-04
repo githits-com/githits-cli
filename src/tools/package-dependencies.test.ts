@@ -17,6 +17,8 @@ describe("createPackageDependenciesTool — metadata", () => {
     );
     expect(tool.name).toBe("pkg_deps");
     expect(tool.description).toContain("npm, PyPI, Hex, Crates");
+    expect(tool.description).toContain("Default output is compact");
+    expect(tool.description).toContain('format: "json"');
     expect(Object.keys(tool.schema).sort()).toEqual([
       "format",
       "include_importers",

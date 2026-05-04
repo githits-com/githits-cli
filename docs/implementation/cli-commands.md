@@ -101,7 +101,7 @@ githits languages python       # filter by name/alias (top 5)
 githits languages type --json  # JSON output for piping
 ```
 
-Without a query, lists all languages. With a query, filters to top 5 matches using the same logic as the `search_language` MCP tool (case-insensitive substring match on name, display_name, and aliases). Default output uses colored terminal formatting. JSON output is `[{ "name": "...", "display_name": "..." }, ...]`.
+Without a query, lists all languages. With a query, filters to top 5 matches using the same logic as the `search_language` MCP tool (case-insensitive substring match on name, display_name, and aliases). Default output uses colored terminal formatting. JSON output is `[{ "name": "...", "display_name": "...", "aliases": [...] }, ...]`.
 
 ### `githits feedback`
 

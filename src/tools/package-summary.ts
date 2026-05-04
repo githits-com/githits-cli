@@ -43,6 +43,8 @@ const DESCRIPTION =
   "repository, downloads, GitHub stars, install command, recent " +
   "changes, and a count of known vulnerabilities. Use before " +
   "recommending a package or to orient on what a dependency is. " +
+  'Default output is compact text; pass `format: "json"` for the ' +
+  "structured envelope. " +
   "Works across npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, " +
   "vcpkg, and Zig. Always returns data for the latest published " +
   "version.";

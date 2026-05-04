@@ -62,7 +62,8 @@ const DESCRIPTION =
   "bucket. Pass `version` to inspect a specific release; otherwise " +
   "the latest is checked. Use `min_severity` to filter to a threshold " +
   "(`low`, `medium`, `high`, `critical`) and `include_withdrawn` to " +
-  "also see retracted advisories.";
+  "also see retracted advisories. Default output is compact text; " +
+  'pass `format: "json"` for the structured envelope.';
 
 export function createPackageVulnerabilitiesTool(
   service: PackageIntelligenceService,

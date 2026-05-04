@@ -15,14 +15,14 @@ import type { Dependencies } from "../container.js";
 
 const CORE_BLOCK = `GitHits provides verified, canonical code examples from global open source. Use it for global solution synthesis and canonical examples when you're stuck, repeated attempts failed, you need up-to-date API usage, the question is comparative across OSS projects (e.g. "how does X vs Y handle Z"), the answer requires reading how a real codebase implements a feature, or the user mentions GitHits.
 
-Example workflow: call \`get_example\` with one focused question; pass \`language\` only when you know the exact language name, otherwise call \`search_language\` first. Send \`feedback\` on the returned solution_id. Reuse prior results before searching again. For dependency-specific grounding, use package-scoped \`search\` before global \`get_example\`.`;
+Example workflow: call \`get_example\` with one focused question; pass \`language\` only when you know the exact language name, otherwise call \`search_language\` first. Default output is markdown with a trailing \`solution_id\`; send \`feedback\` on that solution_id. Reuse prior results before searching again. For dependency-specific grounding, use package-scoped \`search\` before global \`get_example\`.`;
 
 const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Use them when a stack trace points into a dependency, you need to verify how a library works, or you're evaluating whether to add or upgrade a package.
 
-Package spec: \`registry:name[@version]\`.`;
+Package spec: \`registry:name[@version]\`. Default outputs are compact \`text-v1\` for agent context efficiency; pass \`format: "json"\` only when you need structured fields for programmatic parsing.`;
 
 const PKG_INFO_BULLET =
-  "- `pkg_info` — instant package overview: latest version, license, downloads, quickstart, and active advisory count.";
+  '- `pkg_info` — compact package overview: latest version, license, downloads, quickstart, and active advisory count. Pass `format: "json"` for the structured envelope.';
 
 const DOCS_LIST_BULLET =
   "- `docs_list` — browse hosted and repository-backed package docs. Entries include stable pageIds, source URLs, and repo-file follow-up metadata when available.";
@@ -31,13 +31,13 @@ const DOCS_READ_BULLET =
   "- `docs_read` — read a documentation page by pageId. Works for both hosted docs and repo-backed docs.";
 
 const PKG_VULNS_BULLET =
-  "- `pkg_vulns` — known CVE / OSV advisories for npm, PyPI, Hex, or Crates packages, optionally pinned to `@version`. Filter with `min_severity`; include retracted advisories with `include_withdrawn`.";
+  '- `pkg_vulns` — compact known CVE / OSV advisory summary for npm, PyPI, Hex, or Crates packages, optionally pinned to `version`. Filter with `min_severity`; include retracted advisories with `include_withdrawn`. Pass `format: "json"` for per-advisory structured fields.';
 
 const PKG_DEPS_BULLET =
-  '- `pkg_deps` — direct runtime deps by default. Use `lifecycle: "runtime"` for explicit runtime-only, a concrete lifecycle for runtime plus matching non-runtime deps, or `lifecycle: "all"` for all groups. Use `include_transitive` for the full graph and `include_importers` for provenance. Supports npm, PyPI, Hex, Crates, vcpkg, and Zig.';
+  '- `pkg_deps` — compact direct runtime deps by default. Use `lifecycle: "runtime"` for explicit runtime-only, a concrete lifecycle for runtime plus matching non-runtime deps, or `lifecycle: "all"` for all groups. Use `include_transitive` for the full graph and `include_importers` for provenance. Pass `format: "json"` for the structured envelope.';
 
 const PKG_CHANGELOG_BULLET =
-  "- `pkg_changelog` — release notes for a package or GitHub repo, newest-first. Default latest mode returns recent entries with markdown bodies; `from_version` switches to range mode. Set `include_bodies: false` for a compact timeline.";
+  '- `pkg_changelog` — compact release notes for a package or GitHub repo, newest-first. Default latest mode returns recent entries with markdown body previews; `from_version` switches to range mode. Set `include_bodies: false` for a compact timeline or pass `format: "json"` for full bodies.';
 
 const SEARCH_BULLET =
   '- `search` — unified search across indexed dependency code, docs, and symbols. Omit `sources` for AUTO. Use `sources:["code"]` for implementation/examples/tests text, `sources:["symbol"]` for precise API/entity lookup, and `sources:["docs"]` for guides/reference/changelogs. Default output is compact `text-v1` with ready-to-call follow-up arguments; pass `format: "json"` for structured locators, highlights, and source status. Complete by default; opt into partial hits with `allow_partial_results: true`. Incomplete responses carry a `searchRef`.';

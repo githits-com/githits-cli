@@ -17,6 +17,8 @@ describe("createPackageSummaryTool — metadata", () => {
     );
     expect(tool.name).toBe("pkg_info");
     expect(tool.description).toContain("package overview");
+    expect(tool.description).toContain("Default output is compact text");
+    expect(tool.description).toContain('format: "json"');
     expect(Object.keys(tool.schema)).toEqual([
       "registry",
       "package_name",

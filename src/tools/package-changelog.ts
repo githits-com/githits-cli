@@ -102,7 +102,8 @@ const DESCRIPTION =
   'exclusive). Response includes optional `source` (`"releases"` / ' +
   '`"changelog_file"` / `"hexdocs"`) when a concrete changelog source ' +
   'exists, `mode` (`"latest"` or `"range"`), ' +
-  "`entries: { count, items }` with full markdown bodies. Set " +
+  'and entries with markdown body previews. Pass `format: "json"` ' +
+  "for the structured envelope with full markdown bodies. Set " +
   "`include_bodies: false` for a version / date / URL timeline only. " +
   "Package-version entries without changelog text succeed with `source` " +
   "omitted; no-source plus no entries returns `NOT_FOUND`. Supports npm, " +

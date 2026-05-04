@@ -80,13 +80,12 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Analyze a package's dependency graph. The response always includes " +
-  "a `runtime` block listing the direct runtime dependencies as " +
-  "`{name, version, constraint}` records (the backend resolves each " +
-  "constraint to a concrete version for you). Non-runtime groups are " +
-  "omitted by default for token efficiency. Use `lifecycle` with a " +
-  "concrete value for runtime plus matching groups, or `all` for " +
-  "runtime plus all available groups. Set " +
+  "Analyze a package's dependency graph. Default output is compact " +
+  "text listing direct runtime dependencies with resolved versions; " +
+  'pass `format: "json"` for the structured envelope. Non-runtime ' +
+  "groups are omitted by default for token efficiency. Use `lifecycle` " +
+  "with a concrete value for runtime plus matching groups, or `all` " +
+  "for runtime plus all available groups. Set " +
   "`include_transitive: true` to add a `transitive` block with the " +
   "full install footprint, conflict detection, and circular-" +
   "dependency flags; layer `include_importers: true` on top when you " +

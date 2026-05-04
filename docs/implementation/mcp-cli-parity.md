@@ -3,9 +3,12 @@
 ## Purpose
 
 Users and agents should be able to cross the surface boundary without
-learning a new payload shape — parameter names can differ per surface
-convention, but defaults, error behaviour, and the serialised
-envelopes do not.
+learning a new request or error contract. Parameter names can differ per
+surface convention, but request defaults and error behaviour do not.
+Human/agent default rendering may differ from JSON envelopes: MCP tools
+default to compact `text-v1` where available, while CLI has human
+terminal output and `--json`. Structured parity is enforced through CLI
+`--json` and MCP `format: "json"`.
 
 The dual-surface tools today are unified `search` / `search_status`,
 the file-exploration bundle (`code_files`, `code_read`, `code_grep`),
@@ -59,8 +62,8 @@ test suite anchors the doc.
 
 ### `PARITY-JSON-KEYS`
 
-- The CLI `--json` payload and the MCP tool text payload, parsed as
-  JSON, must `deepEqual` for equivalent inputs.
+- The CLI `--json` payload and the MCP `format: "json"` payload,
+  parsed as JSON, must `deepEqual` for equivalent inputs.
 - String-equal is explicitly not the contract. Key ordering,
   whitespace, and trailing newlines are free.
 - **No leading-underscore keys.** `warning`, `hint`, and all other
@@ -86,16 +89,16 @@ test suite anchors the doc.
   `src/shared/code-navigation-error-map.test.ts`; that test is the
   enforcement mechanism, not a convention.
 - MCP error text is always valid JSON. A client that parses
-  `content[0].text` gets the same envelope whether the result is
-  success or error.
+  `content[0].text` on error gets the same envelope as CLI `--json`.
 
-### `PARITY-NO-SHARED-TERMINAL-FORMATTER`
+### `PARITY-SHARED-TEXT-FORMATTER`
 
-- Terminal rendering is CLI-local.
-- MCP emits JSON text only; there is no equivalent pretty-print.
-- Small semantic helpers that happen to be reused (e.g. a zero-result
-  message template) may move into `src/shared/` once two tools need
-  them. Default: keep formatting surface-local.
+- Terminal rendering and MCP text rendering may share formatter code when
+  the output is useful to both humans and agents.
+- Shared formatters must accept surface-specific hints so MCP never emits
+  CLI-only instructions like `--verbose` or `--lifecycle all`.
+- Default MCP success output should be compact `text-v1`; programmatic
+  parity tests must pass `format: "json"` explicitly.
 
 ## Checklist for adding a new dual-surface tool
 
@@ -120,9 +123,10 @@ When a new tool lands with both MCP and CLI surfaces:
 
 ## Non-goals
 
-- **Shared terminal formatter.** CLI terminal output and MCP JSON are
-  different products. A shared prose-rendering layer is premature
-  until at least two tools prove the shape is common.
+- **Forcing identical default prose.** CLI terminal output and MCP text
+  are related products, not identical products. Share formatters only
+  when the shape is useful on both surfaces and hints can be made
+  surface-native.
 - **Shared MCP description copy.** Each tool's description targets a
   different decision the agent is making. Copy is not reusable.
 
@@ -137,13 +141,13 @@ When a new tool lands with both MCP and CLI surfaces:
 | `src/shared/unified-search-request.ts` | Shared request builder for unified `search`; compiles structured query fields and applies defaulting. |
 | `src/shared/unified-search-response.ts` | Shared JSON envelope builders for unified `search` and follow-up `search_status`. |
 | `src/shared/package-summary-request.ts` | Shared request builder for `pkg_info`. |
-| `src/shared/package-summary-response.ts` | Lean JSON envelope builder and terminal formatter for `pkg_info`. |
+| `src/shared/package-summary-response.ts` | Lean JSON envelope builder and shared text/terminal formatter for `pkg_info`. |
 | `src/shared/package-vulnerabilities-request.ts` | Shared request builder for `pkg_vulns`. |
-| `src/shared/package-vulnerabilities-response.ts` | Lean JSON envelope builder for `pkg_vulns`. |
+| `src/shared/package-vulnerabilities-response.ts` | Lean JSON envelope builder and shared text/terminal formatter for `pkg_vulns`. |
 | `src/shared/package-dependencies-request.ts` | Shared request builder for `pkg_deps`. |
-| `src/shared/package-dependencies-response.ts` | Lean JSON envelope builder for `pkg_deps`. |
+| `src/shared/package-dependencies-response.ts` | Lean JSON envelope builder and shared text/terminal formatter for `pkg_deps`. |
 | `src/shared/package-changelog-request.ts` | Shared request builder for `pkg_changelog`. |
-| `src/shared/package-changelog-response.ts` | JSON envelope builder for `pkg_changelog`. |
+| `src/shared/package-changelog-response.ts` | JSON envelope builder and shared text/terminal formatter for `pkg_changelog`. |
 | `src/shared/list-files-request.ts` | Shared request builder for `code_files`. |
 | `src/shared/list-files-response.ts` | JSON envelope builder for `code_files`. |
 | `src/shared/read-file-request.ts` | Shared request builder for `code_read`. |

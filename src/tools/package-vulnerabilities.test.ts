@@ -17,6 +17,8 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
     );
     expect(tool.name).toBe("pkg_vulns");
     expect(tool.description).toContain("npm, PyPI, Hex, or");
+    expect(tool.description).toContain("Default output is compact text");
+    expect(tool.description).toContain('format: "json"');
     expect(Object.keys(tool.schema).sort()).toEqual([
       "format",
       "include_withdrawn",
