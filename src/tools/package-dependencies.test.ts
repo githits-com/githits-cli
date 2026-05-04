@@ -18,6 +18,7 @@ describe("createPackageDependenciesTool — metadata", () => {
     expect(tool.name).toBe("pkg_deps");
     expect(tool.description).toContain("npm, PyPI, Hex, Crates");
     expect(Object.keys(tool.schema).sort()).toEqual([
+      "format",
       "include_importers",
       "include_transitive",
       "lifecycle",
@@ -79,7 +80,7 @@ describe("createPackageDependenciesTool — happy path", () => {
     expect(calls[0]?.[0]?.maxDepth).toBe(3);
   });
 
-  it("emits the lean JSON envelope with runtime block by default", async () => {
+  it("emits compact text with runtime block by default", async () => {
     const tool = createPackageDependenciesTool(
       createMockPackageIntelligenceService(),
     );
@@ -88,6 +89,21 @@ describe("createPackageDependenciesTool — happy path", () => {
       {},
     );
     expect(result.isError).toBeUndefined();
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("express @ 5.2.1 · npm");
+    expect(text).toContain("3 direct runtime dependencies");
+    expect(text).toContain("accepts");
+    expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("emits the lean JSON envelope when format=json", async () => {
+    const tool = createPackageDependenciesTool(
+      createMockPackageIntelligenceService(),
+    );
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express", format: "json" },
+      {},
+    );
     const payload = parseText(result) as {
       registry: string;
       name: string;
@@ -109,6 +125,7 @@ describe("createPackageDependenciesTool — happy path", () => {
         registry: "npm",
         package_name: "express",
         lifecycle: "development",
+        format: "json",
       },
       {},
     );
@@ -127,6 +144,7 @@ describe("createPackageDependenciesTool — happy path", () => {
         registry: "npm",
         package_name: "express",
         lifecycle: ["runtime", "development"],
+        format: "json",
       },
       {},
     );
@@ -141,7 +159,10 @@ describe("createPackageDependenciesTool — happy path", () => {
       createMockPackageIntelligenceService(),
     );
     const withoutTransitive = parseText(
-      await tool.handler({ registry: "npm", package_name: "express" }, {}),
+      await tool.handler(
+        { registry: "npm", package_name: "express", format: "json" },
+        {},
+      ),
     ) as { transitive?: unknown };
     expect(withoutTransitive.transitive).toBeUndefined();
   });
@@ -185,7 +206,7 @@ describe("createPackageDependenciesTool — happy path", () => {
     const tool = createPackageDependenciesTool(service);
 
     const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
+      { registry: "npm", package_name: "express", format: "json" },
       {},
     );
 

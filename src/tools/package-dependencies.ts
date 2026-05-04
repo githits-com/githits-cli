@@ -2,7 +2,10 @@ import { z } from "zod";
 import type { PackageIntelligenceService } from "../services/index.js";
 import { InvalidPackageSpecError } from "../shared/index.js";
 import { buildPackageDependenciesParams } from "../shared/package-dependencies-request.js";
-import { buildPackageDependenciesSuccessPayload } from "../shared/package-dependencies-response.js";
+import {
+  buildPackageDependenciesSuccessPayload,
+  formatPackageDependenciesTerminal,
+} from "../shared/package-dependencies-response.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
@@ -14,6 +17,7 @@ export interface PackageDependenciesArgs {
   include_transitive?: boolean;
   include_importers?: boolean;
   max_depth?: number;
+  format?: "json" | "text" | "text-v1";
 }
 
 /**
@@ -66,6 +70,12 @@ const schema = {
     .optional()
     .describe(
       "Cap the transitive traversal at this depth (1–10). Omit to get the backend's full graph. Requires `include_transitive: true` — passing `max_depth` without the transitive flag is rejected with `INVALID_ARGUMENT`.",
+    ),
+  format: z
+    .enum(["json", "text", "text-v1"])
+    .optional()
+    .describe(
+      "Response format. Default `text-v1` is compact for agents. Pass `json` for the structured envelope.",
     ),
 };
 
@@ -124,6 +134,20 @@ export function createPackageDependenciesTool(
           maxDepth: args.max_depth,
           includeImporters: args.include_importers ?? false,
         });
+        if (isTextFormat(args.format)) {
+          return textResult(
+            formatPackageDependenciesTerminal(report, {
+              useColors: false,
+              requestedVersion: args.version,
+              canonicalLifecycles,
+              includeTransitive: args.include_transitive,
+              maxDepth: args.max_depth,
+              showGroups:
+                canonicalLifecycles.length > 0 &&
+                !canonicalLifecycles.every((item) => item === "runtime"),
+            }).trimEnd(),
+          );
+        }
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapPackageIntelligenceError(error);
@@ -144,4 +168,8 @@ export function createPackageDependenciesTool(
       }
     },
   };
+}
+
+function isTextFormat(format: PackageDependenciesArgs["format"]): boolean {
+  return format === undefined || format === "text" || format === "text-v1";
 }

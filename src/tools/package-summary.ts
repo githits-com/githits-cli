@@ -2,12 +2,16 @@ import { z } from "zod";
 import type { PackageIntelligenceService } from "../services/index.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { buildPackageSummaryParams } from "../shared/package-summary-request.js";
-import { buildPackageSummarySuccessPayload } from "../shared/package-summary-response.js";
+import {
+  buildPackageSummarySuccessPayload,
+  formatPackageSummaryTerminal,
+} from "../shared/package-summary-response.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
 export interface PackageSummaryArgs {
   registry: string;
   package_name: string;
+  format?: "json" | "text" | "text-v1";
 }
 
 /**
@@ -26,6 +30,12 @@ const schema = {
   package_name: z
     .string()
     .describe("Package name (scoped names ok: @types/node)."),
+  format: z
+    .enum(["json", "text", "text-v1"])
+    .optional()
+    .describe(
+      "Response format. Default `text-v1` is compact for agents. Pass `json` for the structured envelope.",
+    ),
 };
 
 const DESCRIPTION =
@@ -53,6 +63,13 @@ export function createPackageSummaryTool(
         });
         const summary = await service.packageSummary(params);
         const payload = buildPackageSummarySuccessPayload(summary);
+        if (isTextFormat(args.format)) {
+          return textResult(
+            formatPackageSummaryTerminal(summary, {
+              useColors: false,
+            }).trimEnd(),
+          );
+        }
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapPackageIntelligenceError(error);
@@ -73,4 +90,8 @@ export function createPackageSummaryTool(
       }
     },
   };
+}
+
+function isTextFormat(format: PackageSummaryArgs["format"]): boolean {
+  return format === undefined || format === "text" || format === "text-v1";
 }

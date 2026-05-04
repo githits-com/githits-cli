@@ -1,7 +1,10 @@
 import { z } from "zod";
 import type { PackageIntelligenceService } from "../services/index.js";
 import { buildPackageChangelogParams } from "../shared/package-changelog-request.js";
-import { buildPackageChangelogSuccessPayload } from "../shared/package-changelog-response.js";
+import {
+  buildPackageChangelogSuccessPayload,
+  formatPackageChangelogTerminal,
+} from "../shared/package-changelog-response.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
 import { type ToolDefinition, textResult } from "./types.js";
@@ -15,6 +18,7 @@ export interface PackageChangelogArgs {
   to_version?: string;
   limit?: number;
   include_bodies?: boolean;
+  format?: "json" | "text" | "text-v1";
 }
 
 /**
@@ -81,6 +85,12 @@ const schema = {
     .describe(
       "When false, each entry in `entries.items[]` omits its `body` field. Default true. Set false when you only need the version / date / URL timeline — drops 10 KB+ per entry on large release notes.",
     ),
+  format: z
+    .enum(["json", "text", "text-v1"])
+    .optional()
+    .describe(
+      "Response format. Default `text-v1` is compact for agents. Pass `json` for the structured envelope.",
+    ),
 };
 
 const DESCRIPTION =
@@ -132,6 +142,14 @@ export function createPackageChangelogTool(
           limit: params.limit,
           gitRef: params.gitRef,
         });
+        if (isTextFormat(args.format)) {
+          return textResult(
+            formatPackageChangelogTerminal(payload, {
+              useColors: false,
+              verbose: false,
+            }).trimEnd(),
+          );
+        }
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapPackageIntelligenceError(error);
@@ -152,4 +170,8 @@ export function createPackageChangelogTool(
       }
     },
   };
+}
+
+function isTextFormat(format: PackageChangelogArgs["format"]): boolean {
+  return format === undefined || format === "text" || format === "text-v1";
 }

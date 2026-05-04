@@ -77,7 +77,7 @@ async function mcpJson(
     packageSummaryMock ? { packageSummary: packageSummaryMock as never } : {},
   );
   const tool = createPackageSummaryTool(service);
-  const result = await tool.handler(args, {});
+  const result = await tool.handler({ ...args, format: "json" }, {});
   const text = result.content[0]?.text ?? "";
   return {
     json: JSON.parse(text),

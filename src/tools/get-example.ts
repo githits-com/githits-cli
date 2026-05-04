@@ -8,6 +8,7 @@ interface GetExampleArgs {
   query: string;
   language?: string;
   license_mode?: "strict" | "yolo" | "custom";
+  format?: "json" | "text" | "text-v1";
 }
 
 const schema = {
@@ -28,11 +29,17 @@ const schema = {
     .enum(["strict", "yolo", "custom"])
     .optional()
     .describe("License filtering mode: strict (default), yolo, or custom."),
+  format: z
+    .enum(["json", "text", "text-v1"])
+    .optional()
+    .describe(
+      "Response format. Default `text-v1` returns markdown directly with a trailing `solution_id` line when available. Pass `json` for `{result, solution_id?}`.",
+    ),
 };
 
 const DESCRIPTION = `Get verified, canonical code examples from global open source.
 
-Returns JSON \`{result, solution_id?}\`. \`result\` is markdown — render or quote it directly. Pass \`solution_id\` to \`feedback\` after using or rejecting the example. For searching indexed dependency and repository code/docs, use the unified \`search\` tool instead.`;
+Default output is markdown, with a trailing \`solution_id: ...\` line when available. Pass \`format: "json"\` for \`{result, solution_id?}\`. Pass \`solution_id\` to \`feedback\` after using or rejecting the example. For searching indexed dependency and repository code/docs, use the unified \`search\` tool instead.`;
 
 export function createGetExampleTool(
   service: GitHitsService,
@@ -53,8 +60,19 @@ export function createGetExampleTool(
         const payload = solutionId
           ? { result: markdown, solution_id: solutionId }
           : { result: markdown };
+        if (isTextFormat(args.format)) {
+          return textResult(
+            solutionId
+              ? `${markdown.trimEnd()}\n\nsolution_id: ${solutionId}`
+              : markdown,
+          );
+        }
         return textResult(JSON.stringify(payload));
       });
     },
   };
+}
+
+function isTextFormat(format: GetExampleArgs["format"]): boolean {
+  return format === undefined || format === "text" || format === "text-v1";
 }
