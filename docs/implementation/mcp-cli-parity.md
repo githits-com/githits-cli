@@ -20,11 +20,26 @@ MCP-native hints, CLI terminal affordances, and JSON envelope shape. When
 adding or changing a dual-surface tool, update both smoke scripts if the
 covered live UX contract changes.
 
-The dual-surface tools today are unified `search` / `search_status`,
-the file-exploration bundle (`code_files`, `code_read`, `code_grep`),
-the package-intelligence tools (`pkg_info`,
-`pkg_vulns`, `pkg_deps`, `pkg_changelog`),
-and the docs surface (`docs_list`, `docs_read`).
+The dual-surface tools today are:
+
+- `get_example` ↔ `githits example`
+- `search_language` ↔ `githits languages`
+- `feedback` ↔ `githits feedback`
+- `search` ↔ `githits search`
+- `search_status` ↔ `githits search-status`
+- `code_files` ↔ `githits code files`
+- `code_read` ↔ `githits code read`
+- `code_grep` ↔ `githits code grep`
+- `pkg_info` ↔ `githits pkg info`
+- `pkg_vulns` ↔ `githits pkg vulns`
+- `pkg_deps` ↔ `githits pkg deps`
+- `pkg_changelog` ↔ `githits pkg changelog`
+- `docs_list` ↔ `githits docs list`
+- `docs_read` ↔ `githits docs read`
+
+`feedback` is mutating, so smoke coverage exercises registration and
+validation/auth paths only. It does not submit fake feedback to the live
+backend.
 
 One deliberate exception: `search_status` does not echo the original
 structured request because the backend follow-up endpoint does not

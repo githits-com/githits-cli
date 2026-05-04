@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -35,6 +38,7 @@ const EXPECTED_TOOLS = [
 ] as const;
 
 const DEFAULT_TEXT_LIMIT = 12_000;
+const AUTH_ENV_KEYS = ["GITHITS_API_TOKEN", "GITHITS_TOKEN"] as const;
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -140,6 +144,70 @@ async function callTool(
   args: Record<string, unknown>,
 ): Promise<ToolCallResult> {
   return (await client.callTool({ name, arguments: args })) as ToolCallResult;
+}
+
+function isolatedUnauthenticatedEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (
+      value !== undefined &&
+      !AUTH_ENV_KEYS.includes(key as (typeof AUTH_ENV_KEYS)[number])
+    ) {
+      env[key] = value;
+    }
+  }
+  const home = mkdtempSync(join(tmpdir(), "githits-mcp-smoke-home-"));
+  env.HOME = home;
+  env.USERPROFILE = home;
+  env.XDG_CONFIG_HOME = join(home, ".config");
+  env.APPDATA = join(home, "AppData", "Roaming");
+  env.GITHITS_AUTH_STORAGE = "file";
+  return env;
+}
+
+async function withMcpClient<T>(
+  env: Record<string, string> | undefined,
+  fn: (client: Client) => Promise<T>,
+): Promise<T> {
+  const transport = new StdioClientTransport({
+    command: "bun",
+    args: ["run", "dev", "mcp", "start"],
+    env,
+  });
+  const client = new Client({ name: "githits-mcp-smoke", version: "0.1.0" });
+  try {
+    await client.connect(transport);
+    return await fn(client);
+  } finally {
+    await client.close();
+  }
+}
+
+async function assertUnauthenticatedBehavior(): Promise<void> {
+  const env = isolatedUnauthenticatedEnv();
+  const home = env.HOME;
+  try {
+    await withMcpClient(env, async (client) => {
+      const toolsResponse = await client.listTools();
+      assert(
+        toolsResponse.tools.length > 0,
+        "unauthenticated listTools returned no tools",
+      );
+      const result = await callTool(client, "search_language", {
+        query: "python",
+      });
+      const envelope = assertCleanErrorEnvelope(
+        result,
+        "search_language unauthenticated",
+      );
+      assert(
+        envelope.code === "AUTH_REQUIRED",
+        `unauthenticated probe returned unexpected code ${envelope.code}`,
+      );
+    });
+  } finally {
+    if (home) rmSync(home, { recursive: true, force: true });
+  }
 }
 
 async function assertLiveOrAuthRequired(client: Client): Promise<boolean> {
@@ -528,15 +596,8 @@ async function runLiveSmoke(client: Client): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const transport = new StdioClientTransport({
-    command: "bun",
-    args: ["run", "dev", "mcp", "start"],
-  });
-  const client = new Client({ name: "githits-mcp-smoke", version: "0.1.0" });
-
-  try {
-    await client.connect(transport);
-
+  await assertUnauthenticatedBehavior();
+  await withMcpClient(undefined, async (client) => {
     const toolsResponse = await client.listTools();
     const toolNames = new Set(toolsResponse.tools.map((tool) => tool.name));
     for (const expected of EXPECTED_TOOLS) {
@@ -547,9 +608,7 @@ async function main(): Promise<void> {
       await runLiveSmoke(client);
       console.log("MCP smoke passed");
     }
-  } finally {
-    await client.close();
-  }
+  });
 }
 
 await main();

@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 interface CommandResult {
   command: string[];
   exitCode: number;
@@ -11,7 +15,117 @@ interface ErrorEnvelope {
   retryable: boolean;
 }
 
+interface JsonParityFixture {
+  name: string;
+  cliArgs: string[];
+  mcpTool: string;
+  mcpArgs: Record<string, unknown>;
+}
+
 const DEFAULT_TEXT_LIMIT = 20_000;
+const AUTH_ENV_KEYS = ["GITHITS_API_TOKEN", "GITHITS_TOKEN"] as const;
+const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
+  {
+    name: "pkg_info",
+    cliArgs: ["pkg", "info", "npm:express", "--json"],
+    mcpTool: "pkg_info",
+    mcpArgs: { registry: "npm", package_name: "express", format: "json" },
+  },
+  {
+    name: "pkg_deps",
+    cliArgs: ["pkg", "deps", "npm:express", "--json"],
+    mcpTool: "pkg_deps",
+    mcpArgs: { registry: "npm", package_name: "express", format: "json" },
+  },
+  {
+    name: "pkg_vulns",
+    cliArgs: ["pkg", "vulns", "npm:express", "--json"],
+    mcpTool: "pkg_vulns",
+    mcpArgs: { registry: "npm", package_name: "express", format: "json" },
+  },
+  {
+    name: "pkg_changelog",
+    cliArgs: ["pkg", "changelog", "npm:express", "--limit", "1", "--json"],
+    mcpTool: "pkg_changelog",
+    mcpArgs: {
+      registry: "npm",
+      package_name: "express",
+      limit: 1,
+      format: "json",
+    },
+  },
+  {
+    name: "docs_list",
+    cliArgs: ["docs", "list", "npm:express", "--limit", "2", "--json"],
+    mcpTool: "docs_list",
+    mcpArgs: {
+      registry: "npm",
+      package_name: "express",
+      limit: 2,
+      format: "json",
+    },
+  },
+  {
+    name: "code_files",
+    cliArgs: [
+      "code",
+      "files",
+      "npm:express",
+      "package.json",
+      "--limit",
+      "1",
+      "--json",
+    ],
+    mcpTool: "code_files",
+    mcpArgs: {
+      target: { registry: "npm", package_name: "express" },
+      path_prefix: "package.json",
+      limit: 1,
+      format: "json",
+    },
+  },
+  {
+    name: "code_read",
+    cliArgs: [
+      "code",
+      "read",
+      "npm:express",
+      "package.json",
+      "--lines",
+      "1-5",
+      "--json",
+    ],
+    mcpTool: "code_read",
+    mcpArgs: {
+      target: { registry: "npm", package_name: "express" },
+      path: "package.json",
+      start_line: 1,
+      end_line: 5,
+      format: "json",
+    },
+  },
+  {
+    name: "code_grep",
+    cliArgs: [
+      "code",
+      "grep",
+      "npm:express",
+      "express",
+      "package.json",
+      "--limit",
+      "1",
+      "--json",
+    ],
+    mcpTool: "code_grep",
+    mcpArgs: {
+      target: { registry: "npm", package_name: "express" },
+      pattern: "express",
+      path_prefix: "package.json",
+      max_matches: 1,
+      format: "json",
+    },
+  },
+];
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -111,11 +225,18 @@ function assertJsonErrorCode(
 }
 
 async function runCli(args: string[]): Promise<CommandResult> {
+  return runCliWithEnv(args, process.env);
+}
+
+async function runCliWithEnv(
+  args: string[],
+  baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined>,
+): Promise<CommandResult> {
   const proc = Bun.spawn(["bun", "run", "dev", ...args], {
     stdout: "pipe",
     stderr: "pipe",
     env: {
-      ...process.env,
+      ...baseEnv,
       NO_COLOR: "1",
     },
   });
@@ -125,6 +246,94 @@ async function runCli(args: string[]): Promise<CommandResult> {
     proc.exited,
   ]);
   return { command: args, exitCode, stdout, stderr };
+}
+
+async function runMcpJson(
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const proc = Bun.spawn(
+    ["bun", "run", "scripts/mcp-call.ts", toolName, JSON.stringify(args)],
+    {
+      stdout: "pipe",
+      stderr: "pipe",
+      env: process.env,
+    },
+  );
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  assert(
+    exitCode === 0,
+    `${toolName} MCP parity call failed (${exitCode})\n${stderr}`,
+  );
+  return parseJson(stdout, `${toolName} MCP parity`);
+}
+
+function assertDeepEqual(
+  actual: unknown,
+  expected: unknown,
+  context: string,
+): void {
+  const actualText = JSON.stringify(actual);
+  const expectedText = JSON.stringify(expected);
+  assert(
+    actualText === expectedText,
+    `${context}: JSON parity mismatch\nCLI: ${expectedText}\nMCP: ${actualText}`,
+  );
+}
+
+async function assertJsonParity(): Promise<void> {
+  for (const fixture of JSON_PARITY_FIXTURES) {
+    const cliPayload = assertJsonOutput(
+      await runCli(fixture.cliArgs),
+      `${fixture.name} CLI parity`,
+    );
+    const mcpPayload = await runMcpJson(fixture.mcpTool, fixture.mcpArgs);
+    assertDeepEqual(mcpPayload, cliPayload, `${fixture.name} CLI/MCP`);
+  }
+}
+
+function isolatedUnauthenticatedEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (
+      value !== undefined &&
+      !AUTH_ENV_KEYS.includes(key as (typeof AUTH_ENV_KEYS)[number])
+    ) {
+      env[key] = value;
+    }
+  }
+  const dir = mkdtempSync(join(tmpdir(), "githits-cli-smoke-home-"));
+  env.HOME = dir;
+  env.USERPROFILE = dir;
+  env.XDG_CONFIG_HOME = `${dir}/.config`;
+  env.APPDATA = `${dir}/AppData/Roaming`;
+  env.GITHITS_AUTH_STORAGE = "file";
+  return env;
+}
+
+async function assertUnauthenticatedBehavior(): Promise<void> {
+  const env = isolatedUnauthenticatedEnv();
+  try {
+    const result = await runCliWithEnv(["languages", "python", "--json"], env);
+    assert(result.exitCode !== 0, "unauthenticated languages should fail");
+    const output = `${result.stdout}\n${result.stderr}`;
+    assert(
+      output.includes("Authentication required"),
+      "unauthenticated probe missing authentication guidance",
+    );
+    assert(
+      output.includes("githits login"),
+      "unauthenticated probe missing login guidance",
+    );
+  } finally {
+    if (env.HOME) {
+      rmSync(env.HOME, { recursive: true, force: true });
+    }
+  }
 }
 
 async function assertLiveOrAuthRequired(): Promise<boolean> {
@@ -489,8 +698,10 @@ async function runLiveSmoke(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await assertUnauthenticatedBehavior();
   if (await assertLiveOrAuthRequired()) {
     await runLiveSmoke();
+    await assertJsonParity();
     console.log("CLI smoke passed");
   }
 }
