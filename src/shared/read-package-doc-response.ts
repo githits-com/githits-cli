@@ -20,7 +20,6 @@ export interface LeanPackageDocEnvelope {
   startLine?: number;
   endLine?: number;
   breadcrumbs?: string[];
-  linkName?: string;
   lastUpdatedAt?: string;
   sourceKind?: "crawled" | "repo";
   sourceUrl?: string;
@@ -30,6 +29,7 @@ export interface LeanPackageDocEnvelope {
   requestedRef?: string;
   filePath?: string;
   baseUrl?: string;
+  hint?: string;
 }
 
 export function buildReadPackageDocSuccessPayload(
@@ -71,7 +71,6 @@ export function buildReadPackageDocSuccessPayload(
   if (result.page?.breadcrumbs && result.page.breadcrumbs.length > 0) {
     envelope.breadcrumbs = result.page.breadcrumbs;
   }
-  if (result.page?.linkName) envelope.linkName = result.page.linkName;
   if (result.page?.lastUpdatedAt) {
     envelope.lastUpdatedAt = toIsoDate(result.page.lastUpdatedAt) ?? undefined;
   }

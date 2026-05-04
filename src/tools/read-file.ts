@@ -7,6 +7,7 @@ import {
   buildReadFileSuccessPayload,
   type LeanReadFileEnvelope,
 } from "../shared/read-file-response.js";
+import { renderReadFileText } from "../shared/read-file-text.js";
 import {
   type CodeTargetArg,
   codeTargetSchema,
@@ -32,6 +33,7 @@ export interface ReadFileArgs {
   start_line?: number;
   end_line?: number;
   wait_timeout_ms?: number;
+  format?: "json" | "text" | "text-v1";
 }
 
 const schema = {
@@ -58,6 +60,12 @@ const schema = {
     .optional()
     .describe(
       "Max milliseconds to wait for indexing (0–60000, default 20000). On an `INDEXING` error envelope, retry with a longer timeout or pass a version from `details.availableVersions`.",
+    ),
+  format: z
+    .enum(["json", "text", "text-v1"])
+    .optional()
+    .describe(
+      'Response format. Default `text-v1` — line-numbered source content. Pass `format: "json"` for the structured envelope.',
     ),
 };
 
@@ -164,6 +172,9 @@ export function createReadFileTool(
           );
         }
 
+        if (isTextFormat(args.format)) {
+          return textResult(renderReadFileText(payload));
+        }
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapCodeNavigationError(error);
@@ -178,6 +189,10 @@ export function createReadFileTool(
       }
     },
   };
+}
+
+function isTextFormat(format: ReadFileArgs["format"]): boolean {
+  return format === undefined || format === "text" || format === "text-v1";
 }
 
 /**

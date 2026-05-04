@@ -15,6 +15,7 @@
  * `docs/implementation/tools.md` when changing the format.
  */
 
+import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
 import type {
   UnifiedSearchCompletedPayload,
   UnifiedSearchErrorPayload,
@@ -40,10 +41,7 @@ export function renderUnifiedSearchSuccess(
   if (payload.results.length === 0) {
     lines.push(payload.completed ? "No hits." : "No hits yet - indexing.");
   } else {
-    payload.results.forEach((hit, idx) => {
-      if (idx > 0) lines.push("");
-      appendHit(lines, idx + 1, hit);
-    });
+    appendUnifiedSearchHits(lines, payload.results);
   }
 
   const trailer = buildTrailer(payload);
@@ -89,15 +87,22 @@ function buildHeader(payload: SearchSuccessPayload): string {
   return parts.join(SEP);
 }
 
+export function appendUnifiedSearchHits(
+  lines: string[],
+  hits: UnifiedSearchHitPayload[],
+): void {
+  hits.forEach((hit, idx) => {
+    if (idx > 0) lines.push("");
+    appendHit(lines, idx + 1, hit);
+  });
+}
+
 function appendHit(
   lines: string[],
   index: number,
   hit: UnifiedSearchHitPayload,
 ): void {
   const headerParts: string[] = [hit.target, shortType(hit.type)];
-  if (typeof hit.score === "number") {
-    headerParts.push(formatScore(hit.score));
-  }
   lines.push(`[${index}] ${headerParts.join("  ")}`);
 
   const locator = buildLocatorLine(hit);
@@ -141,6 +146,13 @@ function shortType(type: string): string {
 
 function buildLocatorLine(hit: UnifiedSearchHitPayload): string {
   const loc = hit.locator;
+  const followUp = buildSearchHitFollowUpCommand(hit);
+  if (followUp) {
+    const tail: string[] = [];
+    if (loc.qualifiedPath) tail.push(loc.qualifiedPath);
+    if (loc.kind) tail.push(loc.kind);
+    return tail.length > 0 ? `${followUp}  ${tail.join(SEP)}` : followUp;
+  }
   if (loc.filePath) {
     let line = `${loc.filePath}${formatLineRange(loc.startLine, loc.endLine)}`;
     const tail: string[] = [];
@@ -158,10 +170,6 @@ function formatLineRange(start?: number, end?: number): string {
   if (typeof start !== "number") return "";
   if (typeof end !== "number" || end === start) return `:${start}`;
   return `:${start}-${end}`;
-}
-
-function formatScore(score: number): string {
-  return score.toFixed(2);
 }
 
 function buildTrailer(payload: SearchSuccessPayload): string[] {

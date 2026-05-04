@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { PackageIntelligenceService } from "../services/index.js";
 import { buildListPackageDocsParams } from "../shared/list-package-docs-request.js";
 import { buildListPackageDocsSuccessPayload } from "../shared/list-package-docs-response.js";
+import { renderListPackageDocsText } from "../shared/list-package-docs-text.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
@@ -11,6 +12,7 @@ export interface ListPackageDocsArgs {
   version?: string;
   limit?: number;
   after?: string;
+  format?: "json" | "text" | "text-v1";
 }
 
 const schema = {
@@ -31,6 +33,12 @@ const schema = {
     .string()
     .optional()
     .describe("Pagination cursor from a prior response."),
+  format: z
+    .enum(["json", "text", "text-v1"])
+    .optional()
+    .describe(
+      'Response format. Default `text-v1` — compact page list with ready-to-call `docs_read` follow-ups. Pass `format: "json"` for the structured envelope.',
+    ),
 };
 
 const DESCRIPTION =
@@ -62,6 +70,9 @@ export function createListPackageDocsTool(
           limit: build.params.limit,
           after: build.params.after,
         });
+        if (isTextFormat(args.format)) {
+          return textResult(renderListPackageDocsText(payload));
+        }
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapPackageIntelligenceError(error);
@@ -76,4 +87,8 @@ export function createListPackageDocsTool(
       }
     },
   };
+}
+
+function isTextFormat(format: ListPackageDocsArgs["format"]): boolean {
+  return format === undefined || format === "text" || format === "text-v1";
 }

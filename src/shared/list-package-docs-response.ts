@@ -13,7 +13,6 @@ export interface LeanPackageDocListEntry {
   gitRef?: string;
   requestedRef?: string;
   filePath?: string;
-  linkName?: string;
   lastUpdatedAt?: string;
 }
 
@@ -60,7 +59,6 @@ export function buildListPackageDocsSuccessPayload(
       if (page.gitRef) entry.gitRef = page.gitRef;
       if (page.requestedRef) entry.requestedRef = page.requestedRef;
       if (page.filePath) entry.filePath = page.filePath;
-      if (page.linkName) entry.linkName = page.linkName;
       if (lastUpdatedAt) entry.lastUpdatedAt = lastUpdatedAt;
       return entry;
     }),

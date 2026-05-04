@@ -17,7 +17,10 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
     );
     expect(tool.name).toBe("pkg_vulns");
     expect(tool.description).toContain("npm, PyPI, Hex, or");
+    expect(tool.description).toContain("Default output is compact text");
+    expect(tool.description).toContain('format: "json"');
     expect(Object.keys(tool.schema).sort()).toEqual([
+      "format",
       "include_withdrawn",
       "min_severity",
       "package_name",
@@ -67,7 +70,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     expect(calls[0]?.[0]?.includeWithdrawn).toBe(true);
   });
 
-  it("returns JSON-stringified lean envelope on success", async () => {
+  it("returns compact text on success by default", async () => {
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
@@ -76,6 +79,20 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       {},
     );
     expect(result.isError).toBeUndefined();
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("express @ 4.18.0 · npm");
+    expect(text).toContain("vulnerabilities affect this version");
+    expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("returns JSON-stringified lean envelope when format=json", async () => {
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService(),
+    );
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express", format: "json" },
+      {},
+    );
     const payload = parseText(result) as Record<string, unknown>;
     expect(payload.registry).toBe("npm");
     expect(payload.name).toBe("express");
@@ -88,7 +105,12 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { registry: "npm", package_name: "express", version: "4.17" },
+      {
+        registry: "npm",
+        package_name: "express",
+        version: "4.17",
+        format: "json",
+      },
       {},
     );
     const payload = parseText(result) as { requestedVersion?: string };

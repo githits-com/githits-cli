@@ -2,7 +2,10 @@ import { z } from "zod";
 import type { PackageIntelligenceService } from "../services/index.js";
 import { InvalidPackageSpecError } from "../shared/index.js";
 import { buildPackageDependenciesParams } from "../shared/package-dependencies-request.js";
-import { buildPackageDependenciesSuccessPayload } from "../shared/package-dependencies-response.js";
+import {
+  buildPackageDependenciesSuccessPayload,
+  formatPackageDependenciesTerminal,
+} from "../shared/package-dependencies-response.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
@@ -14,6 +17,7 @@ export interface PackageDependenciesArgs {
   include_transitive?: boolean;
   include_importers?: boolean;
   max_depth?: number;
+  format?: "json" | "text" | "text-v1";
 }
 
 /**
@@ -21,11 +25,9 @@ export interface PackageDependenciesArgs {
  * `buildPackageDependenciesParams` is the single validation path so
  * raw Zod errors never surface to agents.
  *
- * No `include_groups` input. The data-first envelope emits the
- * `groups` block unconditionally when the backend returned
- * `dependencyGroups`, so an `include_groups: true` flag would have no
- * observable effect — and a silently ignored flag would confuse
- * agents.
+ * No `include_groups` input. `lifecycle` is the single breadth knob:
+ * omit it for runtime-only, pass a concrete lifecycle for filtered
+ * groups, or pass `all` for the full groups view.
  */
 const schema = {
   registry: z
@@ -46,7 +48,7 @@ const schema = {
     .union([z.string(), z.array(z.string())])
     .optional()
     .describe(
-      'Filter the `groups` block server-side by lifecycle phase. Accepts a single value, a comma-separated string (e.g. `"runtime,development"`), or an array of strings. Canonical values: `runtime`, `development`, `build`, `peer`, `optional`. Uppercase is tolerated. When the filter matches nothing the response still includes `groups: { items: [] }` so you can tell an empty-match apart from a registry that has no groups concept.',
+      "Lifecycle breadth. Omit for runtime-only. Use `runtime` for explicit runtime-only, a concrete non-runtime lifecycle (`development`, `build`, `peer`, `optional`) for runtime plus matching groups, or `all` for runtime plus all available groups. Accepts a single value, a comma-separated string, or an array; `all` cannot be combined with other values. Uppercase is tolerated.",
     ),
   include_transitive: z
     .boolean()
@@ -69,18 +71,21 @@ const schema = {
     .describe(
       "Cap the transitive traversal at this depth (1–10). Omit to get the backend's full graph. Requires `include_transitive: true` — passing `max_depth` without the transitive flag is rejected with `INVALID_ARGUMENT`.",
     ),
+  format: z
+    .enum(["json", "text", "text-v1"])
+    .optional()
+    .describe(
+      "Response format. Default `text-v1` is compact for agents. Pass `json` for the structured envelope.",
+    ),
 };
 
 const DESCRIPTION =
-  "Analyze a package's dependency graph. The response always includes " +
-  "a `runtime` block listing the direct runtime dependencies as " +
-  "`{name, version, constraint}` records (the backend resolves each " +
-  "constraint to a concrete version for you). It also always includes " +
-  "a structured `groups` block whenever the backend returns group " +
-  "metadata — one group per lifecycle (`runtime`, `development`, " +
-  "`build`, `peer`, `optional`) plus feature-conditional groups for " +
-  "registries that have them (PyPI extras, Crates features). Use " +
-  "`lifecycle` to filter `groups` server-side. Set " +
+  "Analyze a package's dependency graph. Default output is compact " +
+  "text listing direct runtime dependencies with resolved versions; " +
+  'pass `format: "json"` for the structured envelope. Non-runtime ' +
+  "groups are omitted by default for token efficiency. Use `lifecycle` " +
+  "with a concrete value for runtime plus matching groups, or `all` " +
+  "for runtime plus all available groups. Set " +
   "`include_transitive: true` to add a `transitive` block with the " +
   "full install footprint, conflict detection, and circular-" +
   "dependency flags; layer `include_importers: true` on top when you " +
@@ -128,6 +133,25 @@ export function createPackageDependenciesTool(
           maxDepth: args.max_depth,
           includeImporters: args.include_importers ?? false,
         });
+        if (isTextFormat(args.format)) {
+          const textLifecycles =
+            canonicalLifecycles.length > 0
+              ? canonicalLifecycles
+              : (["all"] satisfies typeof canonicalLifecycles);
+          return textResult(
+            formatPackageDependenciesTerminal(report, {
+              useColors: false,
+              requestedVersion: args.version,
+              canonicalLifecycles: textLifecycles,
+              includeTransitive: args.include_transitive,
+              maxDepth: args.max_depth,
+              showGroups:
+                canonicalLifecycles.length > 0 &&
+                !canonicalLifecycles.every((item) => item === "runtime"),
+              hiddenGroupsHint: 'pass lifecycle="all".',
+            }).trimEnd(),
+          );
+        }
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapPackageIntelligenceError(error);
@@ -148,4 +172,8 @@ export function createPackageDependenciesTool(
       }
     },
   };
+}
+
+function isTextFormat(format: PackageDependenciesArgs["format"]): boolean {
+  return format === undefined || format === "text" || format === "text-v1";
 }

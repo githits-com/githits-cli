@@ -35,7 +35,6 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       target: "npm:express@4.18.2",
       title: "router middleware",
       summary: "function router(req, res, next) { ... }",
-      score: 0.92,
       highlights: {
         title: [[7, 17]],
         summary: [[9, 15]],
@@ -45,6 +44,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
         language: "javascript",
       }),
     });
+    expect(payload.results[0]).not.toHaveProperty("score");
   });
 
   it("omits default-valued query echo fields", () => {

@@ -60,6 +60,27 @@ describe("createListFilesTool — happy path", () => {
     expect(calls[0]?.[0]?.target?.packageName).toBe("express");
   });
 
+  it("accepts compact repo string targets", async () => {
+    const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
+    const service = createMockCodeNavigationService({ listFiles });
+    const tool = createListFilesTool(service);
+
+    await tool.handler(
+      {
+        target: "https://github.com/expressjs/express#HEAD",
+      },
+      {},
+    );
+
+    const calls = listFiles.mock.calls as unknown as Array<
+      [{ target: { repoUrl?: string; gitRef?: string } }]
+    >;
+    expect(calls[0]?.[0]?.target).toMatchObject({
+      repoUrl: "https://github.com/expressjs/express",
+      gitRef: "HEAD",
+    });
+  });
+
   it("forwards advanced list-files filters to the service", async () => {
     const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
     const service = createMockCodeNavigationService({ listFiles });

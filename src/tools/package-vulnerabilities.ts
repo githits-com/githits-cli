@@ -2,7 +2,10 @@ import { z } from "zod";
 import type { PackageIntelligenceService } from "../services/index.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { buildPackageVulnerabilitiesParams } from "../shared/package-vulnerabilities-request.js";
-import { buildPackageVulnerabilitiesSuccessPayload } from "../shared/package-vulnerabilities-response.js";
+import {
+  buildPackageVulnerabilitiesSuccessPayload,
+  formatPackageVulnerabilitiesTerminal,
+} from "../shared/package-vulnerabilities-response.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
 export interface PackageVulnerabilitiesArgs {
@@ -11,6 +14,7 @@ export interface PackageVulnerabilitiesArgs {
   version?: string;
   min_severity?: string;
   include_withdrawn?: boolean;
+  format?: "json" | "text" | "text-v1";
 }
 
 /**
@@ -42,6 +46,12 @@ const schema = {
     .boolean()
     .optional()
     .describe("Include retracted advisories (default: false)."),
+  format: z
+    .enum(["json", "text", "text-v1"])
+    .optional()
+    .describe(
+      "Response format. Default `text-v1` is compact for agents. Pass `json` for the structured envelope.",
+    ),
 };
 
 const DESCRIPTION =
@@ -52,7 +62,8 @@ const DESCRIPTION =
   "bucket. Pass `version` to inspect a specific release; otherwise " +
   "the latest is checked. Use `min_severity` to filter to a threshold " +
   "(`low`, `medium`, `high`, `critical`) and `include_withdrawn` to " +
-  "also see retracted advisories.";
+  "also see retracted advisories. Default output is compact text; " +
+  'pass `format: "json"` for the structured envelope.';
 
 export function createPackageVulnerabilitiesTool(
   service: PackageIntelligenceService,
@@ -75,6 +86,14 @@ export function createPackageVulnerabilitiesTool(
         const payload = buildPackageVulnerabilitiesSuccessPayload(report, {
           requestedVersion: args.version,
         });
+        if (isTextFormat(args.format)) {
+          return textResult(
+            formatPackageVulnerabilitiesTerminal(report, {
+              useColors: false,
+              requestedVersion: args.version,
+            }).trimEnd(),
+          );
+        }
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapPackageIntelligenceError(error);
@@ -95,4 +114,8 @@ export function createPackageVulnerabilitiesTool(
       }
     },
   };
+}
+
+function isTextFormat(format: PackageVulnerabilitiesArgs["format"]): boolean {
+  return format === undefined || format === "text" || format === "text-v1";
 }

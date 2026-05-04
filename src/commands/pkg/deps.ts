@@ -18,7 +18,6 @@ import {
 
 export interface PkgDepsCommandOptions {
   lifecycle?: string;
-  groups?: boolean;
   transitive?: boolean;
   depth?: string;
   verbose?: boolean;
@@ -35,7 +34,7 @@ export interface PkgDepsCommandDependencies {
 /**
  * Core `pkg deps` action. Accepts `<spec>[@<version>]`. The
  * `--lifecycle` filter is server-side (filters `dependencyGroups`
- * only) and implies the groups view. `--groups` alone renders the
+ * only) and implies the groups view. `--lifecycle all` renders the
  * structured view without filtering. `--transitive` opts into the
  * aggregate counts + conflict / circular-dependency signals. No
  * client-side depth cap by default — matches `npm ls` / `cargo
@@ -101,17 +100,14 @@ export async function pkgDepsAction(
       return;
     }
 
-    // `--lifecycle` implies `--groups`: there is no flat projection
-    // for non-runtime lifecycles on the wire, and the structured view
-    // is the only coherent display for filtered lifecycles.
-    const showGroups =
-      (options.groups ?? false) || canonicalLifecycles.length > 0;
+    const showGroups = canonicalLifecycles.some((entry) => entry !== "runtime");
 
     const output = formatPackageDependenciesTerminal(report, {
       verbose: options.verbose,
       useColors: shouldUseColors(),
       requestedVersion: parsed.version,
-      canonicalLifecycles,
+      canonicalLifecycles:
+        canonicalLifecycles.length > 0 ? canonicalLifecycles : undefined,
       includeTransitive: options.transitive,
       maxDepth: userDepth,
       showGroups,
@@ -195,9 +191,9 @@ function formatDepsTerminalError(mapped: MappedError): string {
 }
 
 const PKG_DEPS_DESCRIPTION = `Analyze package dependencies. By default shows the flat list of
-direct runtime dependencies. Use --groups for the structured view
+direct runtime dependencies. Use --lifecycle all for the structured view
 (dev / peer / build / optional, plus registry-specific feature / TFM
-groups). --lifecycle filters groups server-side and implies --groups.
+groups). Concrete --lifecycle values include runtime plus matching groups.
 --transitive opts into aggregate edge / unique-package counts,
 conflict detection, and circular-dependency flags.
 
@@ -212,12 +208,8 @@ export function registerPkgDepsCommand(pkgCommand: Command): Command {
     .description(PKG_DEPS_DESCRIPTION)
     .argument("<spec>", "Package spec, e.g. npm:express or npm:express@4.18.0")
     .option(
-      "-g, --groups",
-      "Render the structured groups view instead of the flat runtime list",
-    )
-    .option(
       "-l, --lifecycle <phases>",
-      "Filter groups server-side (runtime, development, build, peer, optional; comma-separated for multi-select). Implies --groups.",
+      "Dependency lifecycle breadth (runtime, development, build, peer, optional, all; comma-separated for multi-select except all).",
     )
     .option(
       "-t, --transitive",

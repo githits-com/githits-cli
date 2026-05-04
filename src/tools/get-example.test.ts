@@ -14,6 +14,21 @@ describe("getExampleTool", () => {
 
     expect(result.isError).toBeUndefined();
     expect(result.content[0]?.text).toContain("# Example");
+    expect(result.content[0]?.text).not.toContain('{"result"');
+  });
+
+  it("returns JSON envelope when format=json", async () => {
+    const service = createMockGitHitsService();
+    const tool = createGetExampleTool(service);
+
+    const result = await tool.handler(
+      { query: "hello world", language: "javascript", format: "json" },
+      {},
+    );
+
+    const payload = JSON.parse(result.content[0]?.text ?? "{}");
+    expect(payload.result).toContain("# Example");
+    expect(payload.solution_id).toBeUndefined();
   });
 
   it("passes license_mode to service", async () => {

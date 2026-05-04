@@ -6,12 +6,11 @@
  *
  * Key design commitments:
  *
- * - **Data-first envelope.** Whenever the backend returned
+ * - **Runtime-first envelope.** Whenever the backend returned
  *   `dependencies.direct`, we emit a `runtime` block with
- *   `{count, items: [{name, version?, constraint?}]}`. Whenever the
- *   backend returned `dependencyGroups`, we emit a `groups` block
- *   with every returned group. Agents branch on what's in the
- *   envelope, not on caller flags.
+ *   `{count, items: [{name, version?, constraint?}]}`. Non-runtime
+ *   dependency groups are emitted only when the caller requested a
+ *   lifecycle view (`lifecycle=<phase>` or `lifecycle=all`).
  * - **Preprocessed transitive.** When the caller sets
  *   `includeTransitive`, the envelope's `transitive.packages[]` lists
  *   every unique install with its resolved version. Adding
@@ -25,9 +24,9 @@
  *   is `{cycle: string[]}[]`. Both map from the backend's typed
  *   `DependencyConflict` / `CircularDependencyCycle` shapes — no
  *   raw-fallback path.
- * - **Null vs empty matters.** `dependencyGroups: null` → omit
- *   `groups` entirely ("backend has no groups concept"). Non-null
- *   with zero members after filtering → `groups: { items: [] }`
+ * - **Null vs empty matters.** No lifecycle request or
+ *   `dependencyGroups: null` → omit `groups` entirely. Requested
+ *   lifecycle with zero members after filtering → `groups: { items: [] }`
  *   ("filter matched nothing").
  * - **No DAG in the envelope.** The typed `dependencyGraph` sits on
  *   the service-layer result for internal lookups (direct-version
@@ -50,7 +49,10 @@ import type {
   EnvironmentMarker,
 } from "../services/index.js";
 import { colorize, dim } from "./colors.js";
-import type { DependencyLifecycle } from "./package-dependencies-request.js";
+import type {
+  DependencyLifecycle,
+  DependencyLifecycleInput,
+} from "./package-dependencies-request.js";
 import { toPkgseerRegistryLowercase } from "./pkgseer-registry.js";
 
 export interface LeanDirectDependency {
@@ -149,7 +151,7 @@ export interface LeanTransitiveBlock {
 }
 
 export interface LeanFilterBlock {
-  lifecycles: DependencyLifecycle[];
+  lifecycles: DependencyLifecycleInput[];
 }
 
 export interface LeanDependencyReport {
@@ -167,7 +169,7 @@ export interface BuildDependenciesPayloadOptions {
   /** Raw caller-supplied version string (pre-normalisation). */
   requestedVersion?: string;
   /** Lifecycles that went on the wire. Empty → no filter. */
-  canonicalLifecycles?: DependencyLifecycle[];
+  canonicalLifecycles?: DependencyLifecycleInput[];
   /** Whether the caller asked for the transitive block. */
   includeTransitive?: boolean;
   /**
@@ -224,10 +226,24 @@ export function buildPackageDependenciesSuccessPayload(
   }
 
   const groupsInfo = report.dependencyGroups;
-  if (groupsInfo !== undefined) {
-    const groupItems = sortGroups(groupsInfo.groups.map(buildGroup));
+  if (
+    groupsInfo !== undefined &&
+    shouldEmitGroups(options.canonicalLifecycles)
+  ) {
+    const groupItems = sortGroups(
+      groupsInfo.groups.map(buildGroup).filter((group) => {
+        if (!options.canonicalLifecycles) return false;
+        if (options.canonicalLifecycles.includes("all")) return true;
+        return options.canonicalLifecycles.includes(
+          group.lifecycle as DependencyLifecycle,
+        );
+      }),
+    );
     const groupsBlock: LeanGroupsBlock = { items: groupItems };
-    if (groupsInfo.primaryGroup) {
+    if (
+      groupsInfo.primaryGroup &&
+      groupItems.some((group) => group.name === groupsInfo.primaryGroup)
+    ) {
       groupsBlock.primaryGroup = groupsInfo.primaryGroup;
     }
     if (
@@ -288,6 +304,13 @@ export function buildPackageDependenciesSuccessPayload(
   }
 
   return payload;
+}
+
+function shouldEmitGroups(
+  lifecycles: DependencyLifecycleInput[] | undefined,
+): boolean {
+  if (!lifecycles || lifecycles.length === 0) return false;
+  return lifecycles.some((entry) => entry !== "runtime");
 }
 
 function projectEnvironmentMarker(
@@ -552,7 +575,7 @@ function lowerRegistry(value: string | undefined): string {
  *   transitive entry gets `(required by <importer>@<constraint>, …)`
  *   derived from the typed dependency graph.
  * - **Groups is a separate block below the deps list.** Shown when
- *   `--groups` or `--lifecycle` is set, composes cleanly with either
+ *   `--lifecycle` is a non-runtime value or `all`, and composes cleanly with either
  *   the direct or transitive deps list above.
  * - **Conflicts / cycles section** surfaces after the transitive list
  *   only (they come from the transitive graph).
@@ -562,12 +585,13 @@ export interface FormatDependenciesTerminalOptions {
   verbose?: boolean;
   useColors?: boolean;
   requestedVersion?: string;
-  canonicalLifecycles?: DependencyLifecycle[];
+  canonicalLifecycles?: DependencyLifecycleInput[];
   includeTransitive?: boolean;
   /** Caller-supplied traversal depth; surfaces in the summary row. */
   maxDepth?: number;
   /** If true, render the groups block beneath the deps list. */
   showGroups?: boolean;
+  hiddenGroupsHint?: string;
 }
 
 export function formatPackageDependenciesTerminal(
@@ -581,7 +605,7 @@ export function formatPackageDependenciesTerminal(
   // walks small.
   const payload = buildPackageDependenciesSuccessPayload(report, {
     requestedVersion: options.requestedVersion,
-    canonicalLifecycles: options.canonicalLifecycles,
+    canonicalLifecycles: options.canonicalLifecycles ?? ["all"],
     includeTransitive: options.includeTransitive,
     maxDepth: options.maxDepth,
     includeImporters: verbose,
@@ -592,7 +616,7 @@ export function formatPackageDependenciesTerminal(
 
   const blocks: string[] = [];
 
-  blocks.push(formatHeaderBlock(payload, useColors, showGroups));
+  blocks.push(formatHeaderBlock(payload, useColors, showGroups, options));
 
   if (includeTransitive) {
     blocks.push(formatTransitiveDepsList(payload, verbose, useColors));
@@ -617,6 +641,7 @@ function formatHeaderBlock(
   payload: LeanDependencyReport,
   useColors: boolean,
   showGroups: boolean,
+  options: FormatDependenciesTerminalOptions,
 ): string {
   const name = colorize(payload.name, "bold", useColors);
   const lines: string[] = [
@@ -625,20 +650,21 @@ function formatHeaderBlock(
   if (payload.requestedVersion) {
     lines.push(dim(`(requested ${payload.requestedVersion})`, useColors));
   }
-  lines.push(formatSummaryRow(payload, useColors, showGroups));
+  lines.push(formatSummaryRow(payload, useColors, showGroups, options));
   return lines.join("\n");
 }
 
 /**
  * Single summary row that always renders. Combines runtime / transitive
  * counts with a "Hidden: …" mention listing non-runtime groups by
- * name. When `--groups` is active the "Hidden: …" section is omitted
+ * name. When the groups view is active the "Hidden: …" section is omitted
  * because nothing is hidden.
  */
 function formatSummaryRow(
   payload: LeanDependencyReport,
   useColors: boolean,
   showGroups: boolean,
+  options: FormatDependenciesTerminalOptions,
 ): string {
   const countParts: string[] = [];
   const runtimeCount = payload.runtime?.count ?? 0;
@@ -680,7 +706,7 @@ function formatSummaryRow(
   const hidden = collectHiddenGroupNames(payload);
   if (hidden.length === 0) return countLine;
   const hiddenLine = dim(
-    `Hidden groups: ${hidden.join(", ")} — use --groups.`,
+    `Hidden groups: ${hidden.join(", ")} — ${options.hiddenGroupsHint ?? "use --lifecycle all."}`,
     useColors,
   );
   return `${countLine}\n${hiddenLine}`;
@@ -866,7 +892,7 @@ function formatConflictsAndCycles(
 }
 
 // --------------------------------------------------------------------
-// Groups block (separate; shown when --groups or --lifecycle)
+// Groups block (separate; shown for non-runtime lifecycle views)
 // --------------------------------------------------------------------
 
 function formatGroupsBlock(

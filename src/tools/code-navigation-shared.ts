@@ -4,6 +4,8 @@ import {
   type CodeNavigationRegistryArg,
   toCodeNavigationRegistry,
 } from "../shared/code-navigation.js";
+import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
+import { parseCodeNavigationTargetSpec } from "../shared/code-navigation-target.js";
 import { errorResult, type ToolResult } from "./types.js";
 
 // Re-export the wait-timeout default so callers already importing this
@@ -11,7 +13,7 @@ import { errorResult, type ToolResult } from "./types.js";
 // src/shared/code-navigation-defaults.ts per the CLI/MCP parity rules.
 export { DEFAULT_WAIT_TIMEOUT_MS } from "../shared/code-navigation-defaults.js";
 
-export const codeTargetSchema = z
+export const structuredCodeTargetSchema = z
   .object({
     registry: z
       .enum([
@@ -58,13 +60,25 @@ export const codeTargetSchema = z
     "Target: provide registry + package_name (package scope) or repo_url + git_ref (repo scope).",
   );
 
-export type CodeTargetArg = {
+export const codeTargetSchema = z.union([
+  structuredCodeTargetSchema,
+  z
+    .string()
+    .min(1)
+    .describe(
+      "Compact target string. Package: `npm:react@18.2.0`. Repository: `https://github.com/facebook/react#HEAD` (git ref suffix optional, defaults to HEAD).",
+    ),
+]);
+
+export type StructuredCodeTargetArg = {
   registry?: CodeNavigationRegistryArg;
   package_name?: string;
   version?: string;
   repo_url?: string;
   git_ref?: string;
 };
+
+export type CodeTargetArg = StructuredCodeTargetArg | string;
 
 /**
  * Validates and normalizes a code navigation target.
@@ -76,6 +90,14 @@ export type CodeTargetArg = {
 export function resolveCodeTarget(
   target: CodeTargetArg,
 ): CodeNavigationTarget | ToolResult {
+  if (typeof target === "string") {
+    try {
+      return parseCodeNavigationTargetSpec(target);
+    } catch (error) {
+      return mappedInvalidTargetResult(error);
+    }
+  }
+
   const hasPackageTarget = Boolean(target.registry || target.package_name);
   const hasRepoTarget = Boolean(target.repo_url || target.git_ref);
 
@@ -122,6 +144,18 @@ export function resolveCodeTarget(
     repoUrl: target.repo_url,
     gitRef: target.git_ref,
   };
+}
+
+function mappedInvalidTargetResult(error: unknown): ToolResult {
+  const mapped = mapCodeNavigationError(error);
+  return errorResult(
+    JSON.stringify({
+      error: mapped.message,
+      code: mapped.code,
+      retryable: mapped.retryable ?? false,
+      ...(mapped.details ? { details: mapped.details } : {}),
+    }),
+  );
 }
 
 function invalidTargetResult(message: string): ToolResult {

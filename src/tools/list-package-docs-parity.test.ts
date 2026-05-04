@@ -58,7 +58,7 @@ async function mcpJson(
       : {},
   );
   const tool = createListPackageDocsTool(service);
-  const result = await tool.handler(args, {});
+  const result = await tool.handler({ ...args, format: "json" }, {});
   return JSON.parse(result.content[0]?.text ?? "");
 }
 

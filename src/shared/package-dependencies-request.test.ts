@@ -94,13 +94,15 @@ describe("buildPackageDependenciesParams — version handling", () => {
 
 describe("buildPackageDependenciesParams — lifecycle parsing", () => {
   it("parses a single token", () => {
-    const { params, canonicalLifecycles } = buildPackageDependenciesParams({
-      registry: "npm",
-      packageName: "x",
-      lifecycle: "runtime",
-    });
-    expect(params.lifecycle).toEqual(["runtime"]);
+    const { params, canonicalLifecycles, wireLifecycles } =
+      buildPackageDependenciesParams({
+        registry: "npm",
+        packageName: "x",
+        lifecycle: "runtime",
+      });
+    expect(params.lifecycle).toBeUndefined();
     expect(canonicalLifecycles).toEqual(["runtime"]);
+    expect(wireLifecycles).toEqual([]);
   });
 
   it("parses a CSV list, deduplicates, and sorts canonically", () => {
@@ -110,7 +112,29 @@ describe("buildPackageDependenciesParams — lifecycle parsing", () => {
       lifecycle: "optional,development,runtime,development",
     });
     expect(canonicalLifecycles).toEqual(["runtime", "development", "optional"]);
-    expect(params.lifecycle).toEqual(["runtime", "development", "optional"]);
+    expect(params.lifecycle).toEqual(["development", "optional"]);
+  });
+
+  it("accepts all as a client-side full-view lifecycle", () => {
+    const { params, canonicalLifecycles, wireLifecycles } =
+      buildPackageDependenciesParams({
+        registry: "npm",
+        packageName: "x",
+        lifecycle: "all",
+      });
+    expect(canonicalLifecycles).toEqual(["all"]);
+    expect(wireLifecycles).toEqual([]);
+    expect(params.lifecycle).toBeUndefined();
+  });
+
+  it("rejects all combined with concrete lifecycles", () => {
+    expect(() =>
+      buildPackageDependenciesParams({
+        registry: "npm",
+        packageName: "x",
+        lifecycle: "all,development",
+      }),
+    ).toThrow("lifecycle=all cannot be combined");
   });
 
   it("tolerates uppercase / whitespace / repeats", () => {

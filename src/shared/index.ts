@@ -24,6 +24,7 @@ export {
   type MappedErrorCode,
   mapCodeNavigationError,
 } from "./code-navigation-error-map.js";
+export { parseCodeNavigationTargetSpec } from "./code-navigation-target.js";
 export {
   colorize,
   colors,
@@ -38,6 +39,11 @@ export {
 export { debugLog } from "./debug-log.js";
 export { lowerDocSourceKind } from "./docs-follow-up.js";
 export { extractSolutionId } from "./extract-solution-id.js";
+export {
+  buildCodeReadCommand,
+  buildDocsReadCommand,
+  buildSearchHitFollowUpCommand,
+} from "./follow-up-command-text.js";
 export {
   buildGrepRepoParams,
   GREP_REPO_PATTERN_NOTE,
@@ -74,6 +80,7 @@ export {
   type LeanPackageDocListEntry,
   type LeanPackageDocsEnvelope,
 } from "./list-package-docs-response.js";
+export { renderListPackageDocsText } from "./list-package-docs-text.js";
 export {
   InvalidKeywordsError,
   normaliseKeywords,
@@ -149,6 +156,7 @@ export {
   toPkgseerRegistry,
   toPkgseerRegistryLowercase,
 } from "./pkgseer-registry.js";
+export { renderReadFileText } from "./read-file-text.js";
 export {
   buildReadPackageDocParams,
   type ReadPackageDocRequestBuildResult,
@@ -159,6 +167,7 @@ export {
   formatReadPackageDocTerminal,
   type LeanPackageDocEnvelope,
 } from "./read-package-doc-response.js";
+export { renderReadPackageDocText } from "./read-package-doc-text.js";
 export { AuthRequiredError, requireAuth } from "./require-auth.js";
 export {
   endTelemetrySpan,
@@ -190,6 +199,7 @@ export {
   type UnifiedSearchStatusIncompletePayload,
   type UnifiedSearchStatusResultPayload,
 } from "./unified-search-response.js";
+export { renderUnifiedSearchStatusText } from "./unified-search-status-text.js";
 export { parseUnifiedSearchTargetSpec } from "./unified-search-target.js";
 export {
   renderUnifiedSearchError,

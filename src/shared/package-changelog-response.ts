@@ -189,6 +189,7 @@ function buildFilterBlock(
 export interface FormatChangelogTerminalOptions {
   verbose?: boolean;
   useColors: boolean;
+  fullBodyHint?: string;
 }
 
 /**
@@ -279,7 +280,7 @@ function appendBodyLines(
   const hidden = bodyLines.length - visible.length;
   if (hidden > 0) {
     lines.push(
-      `  ${dim(`… (+${hidden} more line${hidden === 1 ? "" : "s"} — use --verbose for the full body)`, options.useColors)}`,
+      `  ${dim(`… (+${hidden} more line${hidden === 1 ? "" : "s"} — ${options.fullBodyHint ?? "use --verbose for the full body"})`, options.useColors)}`,
     );
   }
 }

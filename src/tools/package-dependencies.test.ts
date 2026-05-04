@@ -17,7 +17,10 @@ describe("createPackageDependenciesTool — metadata", () => {
     );
     expect(tool.name).toBe("pkg_deps");
     expect(tool.description).toContain("npm, PyPI, Hex, Crates");
+    expect(tool.description).toContain("Default output is compact");
+    expect(tool.description).toContain('format: "json"');
     expect(Object.keys(tool.schema).sort()).toEqual([
+      "format",
       "include_importers",
       "include_transitive",
       "lifecycle",
@@ -29,7 +32,7 @@ describe("createPackageDependenciesTool — metadata", () => {
     expect(tool.annotations?.readOnlyHint).toBe(true);
   });
 
-  it("does NOT expose an include_groups input (data-first envelope makes it a no-op)", () => {
+  it("does NOT expose an include_groups input (lifecycle is the breadth knob)", () => {
     const tool = createPackageDependenciesTool(
       createMockPackageIntelligenceService(),
     );
@@ -74,12 +77,12 @@ describe("createPackageDependenciesTool — happy path", () => {
     expect(calls[0]?.[0]?.registry).toBe("NPM");
     expect(calls[0]?.[0]?.packageName).toBe("express");
     expect(calls[0]?.[0]?.version).toBe("5.2.1");
-    expect(calls[0]?.[0]?.lifecycle).toEqual(["runtime", "development"]);
+    expect(calls[0]?.[0]?.lifecycle).toEqual(["development"]);
     expect(calls[0]?.[0]?.includeTransitive).toBe(true);
     expect(calls[0]?.[0]?.maxDepth).toBe(3);
   });
 
-  it("emits the lean JSON envelope with runtime + groups blocks", async () => {
+  it("emits compact text with runtime block by default", async () => {
     const tool = createPackageDependenciesTool(
       createMockPackageIntelligenceService(),
     );
@@ -88,16 +91,35 @@ describe("createPackageDependenciesTool — happy path", () => {
       {},
     );
     expect(result.isError).toBeUndefined();
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("express @ 5.2.1 · npm");
+    expect(text).toContain("3 direct runtime dependencies");
+    expect(text).toContain(
+      'Hidden groups: development — pass lifecycle="all".',
+    );
+    expect(text).not.toContain("--lifecycle");
+    expect(text).toContain("accepts");
+    expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("emits the lean JSON envelope when format=json", async () => {
+    const tool = createPackageDependenciesTool(
+      createMockPackageIntelligenceService(),
+    );
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express", format: "json" },
+      {},
+    );
     const payload = parseText(result) as {
       registry: string;
       name: string;
       runtime: { count: number };
-      groups: { items: unknown[] };
+      groups?: { items: unknown[] };
     };
     expect(payload.registry).toBe("npm");
     expect(payload.name).toBe("express");
     expect(payload.runtime.count).toBe(3);
-    expect(payload.groups.items.length).toBe(2);
+    expect(payload.groups).toBeUndefined();
   });
 
   it("surfaces filter.lifecycles when lifecycle is set", async () => {
@@ -109,6 +131,7 @@ describe("createPackageDependenciesTool — happy path", () => {
         registry: "npm",
         package_name: "express",
         lifecycle: "development",
+        format: "json",
       },
       {},
     );
@@ -127,6 +150,7 @@ describe("createPackageDependenciesTool — happy path", () => {
         registry: "npm",
         package_name: "express",
         lifecycle: ["runtime", "development"],
+        format: "json",
       },
       {},
     );
@@ -141,7 +165,10 @@ describe("createPackageDependenciesTool — happy path", () => {
       createMockPackageIntelligenceService(),
     );
     const withoutTransitive = parseText(
-      await tool.handler({ registry: "npm", package_name: "express" }, {}),
+      await tool.handler(
+        { registry: "npm", package_name: "express", format: "json" },
+        {},
+      ),
     ) as { transitive?: unknown };
     expect(withoutTransitive.transitive).toBeUndefined();
   });
@@ -185,7 +212,7 @@ describe("createPackageDependenciesTool — happy path", () => {
     const tool = createPackageDependenciesTool(service);
 
     const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
+      { registry: "npm", package_name: "express", format: "json" },
       {},
     );
 

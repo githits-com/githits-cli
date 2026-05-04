@@ -90,7 +90,7 @@ async function mcpJson(
     readFileMock ? { readFile: readFileMock as never } : {},
   );
   const tool = createReadFileTool(service);
-  const result = await tool.handler(args, {});
+  const result = await tool.handler({ ...args, format: "json" }, {});
   const parsed = JSON.parse(result.content[0]?.text ?? "") as Record<
     string,
     unknown

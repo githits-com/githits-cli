@@ -18,6 +18,7 @@ describe("createReadPackageDocTool", () => {
       "page_id",
       "start_line",
       "end_line",
+      "format",
     ]);
   });
 
@@ -32,7 +33,19 @@ describe("createReadPackageDocTool", () => {
     expect(readPackageDoc).toHaveBeenCalledWith({ pageId: "abc" });
   });
 
-  it("returns JSON-stringified lean envelope on success", async () => {
+  it("returns JSON-stringified lean envelope when format=json", async () => {
+    const tool = createReadPackageDocTool(
+      createMockPackageIntelligenceService(),
+    );
+    const result = await tool.handler(
+      { page_id: "github:expressjs/express@abc123/README.md", format: "json" },
+      {},
+    );
+    const payload = parseText(result) as Record<string, unknown>;
+    expect(payload.pageId).toBe("github:expressjs/express@abc123/README.md");
+  });
+
+  it("defaults to bounded text output", async () => {
     const tool = createReadPackageDocTool(
       createMockPackageIntelligenceService(),
     );
@@ -40,8 +53,12 @@ describe("createReadPackageDocTool", () => {
       { page_id: "github:expressjs/express@abc123/README.md" },
       {},
     );
-    const payload = parseText(result) as Record<string, unknown>;
-    expect(payload.pageId).toBe("github:expressjs/express@abc123/README.md");
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain(
+      "docs_read | github:expressjs/express@abc123/README.md",
+    );
+    expect(text).toContain("lines 1-");
+    expect(() => JSON.parse(text)).toThrow();
   });
 
   it("returns INVALID_ARGUMENT for empty page ID", async () => {

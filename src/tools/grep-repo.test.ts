@@ -91,6 +91,28 @@ describe("createGrepRepoTool — happy path", () => {
     ]);
   });
 
+  it("accepts compact package string targets", async () => {
+    const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
+    const service = createMockCodeNavigationService({ grepRepo });
+    const tool = createGrepRepoTool(service);
+
+    await tool.handler(
+      {
+        target: "npm:express",
+        pattern: "middleware",
+      },
+      {},
+    );
+
+    const calls = grepRepo.mock.calls as unknown as Array<
+      [{ target: { registry?: string; packageName?: string } }]
+    >;
+    expect(calls[0]?.[0]?.target).toMatchObject({
+      registry: "NPM",
+      packageName: "express",
+    });
+  });
+
   it("passes symbol field hydration through to grepRepo", async () => {
     const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
     const tool = createGrepRepoTool(

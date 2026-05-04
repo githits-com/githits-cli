@@ -50,13 +50,31 @@ describe("buildPackageDependenciesSuccessPayload — runtime block", () => {
 });
 
 describe("buildPackageDependenciesSuccessPayload — groups block", () => {
-  it("emits groups block with items when backend returned dependencyGroups", () => {
+  it("omits groups block by default even when backend returned dependencyGroups", () => {
     const payload = buildPackageDependenciesSuccessPayload(
       defaultDependencyReport,
+    );
+    expect(payload.groups).toBeUndefined();
+  });
+
+  it("emits all groups when lifecycle=all was requested", () => {
+    const payload = buildPackageDependenciesSuccessPayload(
+      defaultDependencyReport,
+      { canonicalLifecycles: ["all"] },
     );
     expect(payload.groups?.items.length).toBe(2);
     expect(payload.groups?.items[0]?.name).toBe("runtime");
     expect(payload.groups?.items[1]?.name).toBe("development");
+  });
+
+  it("emits only matching groups when a concrete lifecycle was requested", () => {
+    const payload = buildPackageDependenciesSuccessPayload(
+      defaultDependencyReport,
+      { canonicalLifecycles: ["development"] },
+    );
+    expect(payload.groups?.items.map((entry) => entry.lifecycle)).toEqual([
+      "development",
+    ]);
   });
 
   it("omits groups block when dependencyGroups is absent", () => {
@@ -71,7 +89,9 @@ describe("buildPackageDependenciesSuccessPayload — groups block", () => {
       package: { name: "x", version: "1.0.0", registry: "NPM" },
       dependencyGroups: { groups: [] },
     };
-    const payload = buildPackageDependenciesSuccessPayload(fixture);
+    const payload = buildPackageDependenciesSuccessPayload(fixture, {
+      canonicalLifecycles: ["development"],
+    });
     expect(payload.groups).toEqual({ items: [] });
   });
 
@@ -120,15 +140,16 @@ describe("buildPackageDependenciesSuccessPayload — groups block", () => {
         ],
       },
     };
-    const names = buildPackageDependenciesSuccessPayload(
-      fixture,
-    ).groups?.items.map((g) => g.name);
+    const names = buildPackageDependenciesSuccessPayload(fixture, {
+      canonicalLifecycles: ["all"],
+    }).groups?.items.map((g) => g.name);
     expect(names).toEqual(["runtime", "dev", "peer", "alpha", "zeta"]);
   });
 
   it("preserves duplicate {name, constraint} entries verbatim (dedup is terminal-only)", () => {
     const payload = buildPackageDependenciesSuccessPayload(
       cratesFeatureDependencyReport,
+      { canonicalLifecycles: ["all"] },
     );
     const netGroup = payload.groups?.items.find((g) => g.name === "net");
     expect(netGroup?.items.length).toBe(3); // libc, libc, mio — not deduped
@@ -313,7 +334,9 @@ describe("formatPackageDependenciesTerminal — runtime view", () => {
     expect(output).toContain("3 direct runtime dependencies");
     expect(output).toContain("accepts");
     expect(output).toContain("^2.0.0");
-    expect(output).toContain("Hidden groups: development — use --groups.");
+    expect(output).toContain(
+      "Hidden groups: development — use --lifecycle all.",
+    );
   });
 
   it("renders zero-dep hot path under 3 lines", () => {
@@ -355,7 +378,7 @@ describe("formatPackageDependenciesTerminal — runtime view", () => {
     const output = formatPackageDependenciesTerminal(fixture, {
       useColors: false,
     });
-    expect(output).not.toContain("hidden — use --groups");
+    expect(output).not.toContain("hidden — use --lifecycle all");
   });
 });
 
@@ -363,7 +386,11 @@ describe("formatPackageDependenciesTerminal — groups view", () => {
   it("renders groups with lifecycle summary header", () => {
     const output = formatPackageDependenciesTerminal(
       cratesFeatureDependencyReport,
-      { useColors: false, showGroups: true },
+      {
+        useColors: false,
+        showGroups: true,
+        canonicalLifecycles: ["all"],
+      },
     );
     expect(output).toContain("tokio @ 1.52.1 · crates");
     expect(output).toContain("3 groups");
@@ -373,7 +400,11 @@ describe("formatPackageDependenciesTerminal — groups view", () => {
   it("collapses heading to `name` for always-typed groups", () => {
     const output = formatPackageDependenciesTerminal(
       cratesFeatureDependencyReport,
-      { useColors: false, showGroups: true },
+      {
+        useColors: false,
+        showGroups: true,
+        canonicalLifecycles: ["all"],
+      },
     );
     expect(output).toMatch(/^\s+runtime\s*$/m);
   });
@@ -381,7 +412,11 @@ describe("formatPackageDependenciesTerminal — groups view", () => {
   it("renders `name (lifecycle, conditionType)` when conditionValue === name", () => {
     const output = formatPackageDependenciesTerminal(
       cratesFeatureDependencyReport,
-      { useColors: false, showGroups: true },
+      {
+        useColors: false,
+        showGroups: true,
+        canonicalLifecycles: ["all"],
+      },
     );
     expect(output).toContain("full (optional, feature)");
     expect(output).toContain("net (optional, feature)");
@@ -407,6 +442,7 @@ describe("formatPackageDependenciesTerminal — groups view", () => {
     const output = formatPackageDependenciesTerminal(fixture, {
       useColors: false,
       showGroups: true,
+      canonicalLifecycles: ["all"],
     });
     expect(output).toContain(
       "group-alias (optional, feature: the-feature-name)",
@@ -416,7 +452,11 @@ describe("formatPackageDependenciesTerminal — groups view", () => {
   it("dedups duplicate {name, constraint} entries in terminal rendering", () => {
     const output = formatPackageDependenciesTerminal(
       cratesFeatureDependencyReport,
-      { useColors: false, showGroups: true },
+      {
+        useColors: false,
+        showGroups: true,
+        canonicalLifecycles: ["all"],
+      },
     );
     const libcLines = output.split("\n").filter((l) => /^\s+libc\b/.test(l));
     expect(libcLines.length).toBe(1);
@@ -425,7 +465,12 @@ describe("formatPackageDependenciesTerminal — groups view", () => {
   it("shows conditionType/selectionMode under --verbose", () => {
     const output = formatPackageDependenciesTerminal(
       cratesFeatureDependencyReport,
-      { useColors: false, showGroups: true, verbose: true },
+      {
+        useColors: false,
+        showGroups: true,
+        verbose: true,
+        canonicalLifecycles: ["all"],
+      },
     );
     expect(output).toContain("selectionMode:");
     expect(output).toContain("defaultEnabled:");
@@ -458,6 +503,7 @@ describe("formatPackageDependenciesTerminal — groups view", () => {
       useColors: false,
       showGroups: true,
       verbose: true,
+      canonicalLifecycles: ["all"],
     });
     expect(verbose).toContain("environmentMarkers (2):");
     // Typed rendering — type: value per line, no JSON blob.
@@ -469,6 +515,7 @@ describe("formatPackageDependenciesTerminal — groups view", () => {
       useColors: false,
       showGroups: true,
       verbose: false,
+      canonicalLifecycles: ["all"],
     });
     expect(nonVerbose).not.toContain("environmentMarkers");
   });
@@ -713,14 +760,15 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
     });
     // Both lines in the header block: count line then hidden-groups line.
     expect(output).toMatch(
-      /3 direct runtime dependencies\nHidden groups: development — use --groups\./,
+      /3 direct runtime dependencies\nHidden groups: development — use --lifecycle all\./,
     );
   });
 
-  it("omits hidden-groups line when --groups is active (nothing is hidden)", () => {
+  it("omits hidden-groups line when lifecycle=all is active (nothing is hidden)", () => {
     const output = formatPackageDependenciesTerminal(defaultDependencyReport, {
       useColors: false,
       showGroups: true,
+      canonicalLifecycles: ["all"],
     });
     expect(output).not.toContain("Hidden groups");
   });
@@ -741,6 +789,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
     const output = formatPackageDependenciesTerminal(defaultDependencyReport, {
       useColors: false,
       showGroups: true,
+      canonicalLifecycles: ["all"],
     });
     const directIdx = output.indexOf("accepts");
     const groupsHeadingIdx = output.indexOf("2 groups");
@@ -748,7 +797,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
     expect(groupsHeadingIdx).toBeGreaterThan(directIdx);
   });
 
-  it("groups block composes beneath transitive list under --transitive --groups", () => {
+  it("groups block composes beneath transitive list under --transitive --lifecycle all", () => {
     const fixture = clone(defaultDependencyReport);
     fixture.dependencies = {
       direct: fixture.dependencies?.direct,
@@ -762,6 +811,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
       useColors: false,
       showGroups: true,
       includeTransitive: true,
+      canonicalLifecycles: ["all"],
     });
     const transitiveIdx = output.indexOf("alpha@1");
     const groupsHeadingIdx = output.indexOf("2 groups");
@@ -1013,6 +1063,7 @@ describe("formatPackageDependenciesTerminal — no-color", () => {
     const output = formatPackageDependenciesTerminal(fixture, {
       useColors: false,
       showGroups: true,
+      canonicalLifecycles: ["all"],
     });
     const depLines = output.split("\n").filter((l) => /^\s{4}[a-z]/.test(l));
     expect(depLines.map((l) => l.trim().split(/\s+/)[0])).toEqual([
@@ -1042,6 +1093,7 @@ describe("formatPackageDependenciesTerminal — no-color", () => {
     const output = formatPackageDependenciesTerminal(fixture, {
       useColors: false,
       showGroups: true,
+      canonicalLifecycles: ["all"],
     });
     expect(output).toContain("argon2 (optional, extra)");
     expect(output).not.toContain("(optional, feature)");
@@ -1050,7 +1102,11 @@ describe("formatPackageDependenciesTerminal — no-color", () => {
   it("keeps `feature` vocabulary for Crates packages (Cargo's native term)", () => {
     const output = formatPackageDependenciesTerminal(
       cratesFeatureDependencyReport,
-      { useColors: false, showGroups: true },
+      {
+        useColors: false,
+        showGroups: true,
+        canonicalLifecycles: ["all"],
+      },
     );
     expect(output).toContain("(optional, feature)");
     expect(output).not.toContain("(optional, extra)");
@@ -1061,6 +1117,7 @@ describe("formatPackageDependenciesTerminal — no-color", () => {
       useColors: false,
       showGroups: true,
       verbose: true,
+      canonicalLifecycles: ["all"],
     });
     expect(output).not.toContain("selectionMode: required");
   });
@@ -1068,7 +1125,12 @@ describe("formatPackageDependenciesTerminal — no-color", () => {
   it("shows `selectionMode: additive` in verbose mode (load-bearing signal)", () => {
     const output = formatPackageDependenciesTerminal(
       cratesFeatureDependencyReport,
-      { useColors: false, showGroups: true, verbose: true },
+      {
+        useColors: false,
+        showGroups: true,
+        verbose: true,
+        canonicalLifecycles: ["all"],
+      },
     );
     expect(output).toContain("selectionMode: additive");
   });
@@ -1093,6 +1155,7 @@ describe("formatPackageDependenciesTerminal — no-color", () => {
     const output = formatPackageDependenciesTerminal(fixture, {
       useColors: false,
       showGroups: true,
+      canonicalLifecycles: ["all"],
     });
     expect(output).toContain("full (optional, feature)");
     expect(output).not.toContain("feature: Full");
@@ -1101,7 +1164,12 @@ describe("formatPackageDependenciesTerminal — no-color", () => {
   it("contains no ANSI escape sequences when useColors is false", () => {
     const output = formatPackageDependenciesTerminal(
       cratesFeatureDependencyReport,
-      { useColors: false, showGroups: true, verbose: true },
+      {
+        useColors: false,
+        showGroups: true,
+        verbose: true,
+        canonicalLifecycles: ["all"],
+      },
     );
     expect(output).not.toContain("\u001b[");
   });

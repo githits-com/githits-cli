@@ -21,7 +21,10 @@ describe("createPackageChangelogTool — metadata", () => {
     expect(tool.name).toBe("pkg_changelog");
     expect(tool.description).toContain("latest mode");
     expect(tool.description).toContain("range mode");
+    expect(tool.description).toContain("markdown body previews");
+    expect(tool.description).toContain('format: "json"');
     expect(Object.keys(tool.schema).sort()).toEqual([
+      "format",
       "from_version",
       "git_ref",
       "include_bodies",
@@ -53,7 +56,7 @@ describe("createPackageChangelogTool — happy path", () => {
     expect(calls[0]?.[0]?.repoUrl).toBeUndefined();
   });
 
-  it("emits the envelope with entries.count computed client-side", async () => {
+  it("emits compact text by default", async () => {
     const tool = createPackageChangelogTool(
       createMockPackageIntelligenceService(),
     );
@@ -62,6 +65,49 @@ describe("createPackageChangelogTool — happy path", () => {
       {},
     );
     expect(result.isError).toBeUndefined();
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("express · npm");
+    expect(text).toContain("2 entries");
+    expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("uses MCP-native hint when compact changelog text truncates bodies", async () => {
+    const tool = createPackageChangelogTool(
+      createMockPackageIntelligenceService({
+        packageChangelog: mock(() =>
+          Promise.resolve({
+            ...defaultChangelogReport,
+            entries: [
+              {
+                ...defaultChangelogReport.entries[0]!,
+                body: Array.from(
+                  { length: 12 },
+                  (_, i) => `line ${i + 1}`,
+                ).join("\n"),
+              },
+            ],
+          }),
+        ),
+      }),
+    );
+
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express" },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain('pass format="json" for full bodies');
+    expect(text).not.toContain("--verbose");
+  });
+
+  it("emits the JSON envelope with entries.count computed client-side when format=json", async () => {
+    const tool = createPackageChangelogTool(
+      createMockPackageIntelligenceService(),
+    );
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express", format: "json" },
+      {},
+    );
     const payload = parseText(result) as {
       registry: string;
       name: string;
@@ -91,7 +137,7 @@ describe("createPackageChangelogTool — happy path", () => {
     );
 
     const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
+      { registry: "npm", package_name: "express", format: "json" },
       {},
     );
 
@@ -109,7 +155,7 @@ describe("createPackageChangelogTool — happy path", () => {
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { repo_url: "https://github.com/expressjs/express" },
+      { repo_url: "https://github.com/expressjs/express", format: "json" },
       {},
     );
     const payload = parseText(result) as {
@@ -131,6 +177,7 @@ describe("createPackageChangelogTool — happy path", () => {
         registry: "npm",
         package_name: "express",
         from_version: "5.0.0",
+        format: "json",
       },
       {},
     );
@@ -151,6 +198,7 @@ describe("createPackageChangelogTool — happy path", () => {
         registry: "npm",
         package_name: "express",
         include_bodies: false,
+        format: "json",
       },
       {},
     );
@@ -167,7 +215,7 @@ describe("createPackageChangelogTool — happy path", () => {
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
+      { registry: "npm", package_name: "express", format: "json" },
       {},
     );
     const payload = parseText(result) as {

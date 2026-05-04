@@ -17,7 +17,13 @@ describe("createPackageSummaryTool — metadata", () => {
     );
     expect(tool.name).toBe("pkg_info");
     expect(tool.description).toContain("package overview");
-    expect(Object.keys(tool.schema)).toEqual(["registry", "package_name"]);
+    expect(tool.description).toContain("Default output is compact text");
+    expect(tool.description).toContain('format: "json"');
+    expect(Object.keys(tool.schema)).toEqual([
+      "registry",
+      "package_name",
+      "format",
+    ]);
     expect(tool.annotations?.readOnlyHint).toBe(true);
   });
 });
@@ -38,7 +44,7 @@ describe("createPackageSummaryTool — happy path", () => {
     expect(calls[0]?.[0]?.packageName).toBe("express");
   });
 
-  it("returns JSON-stringified lean envelope in content[0].text on success", async () => {
+  it("returns compact text in content[0].text by default", async () => {
     const tool = createPackageSummaryTool(
       createMockPackageIntelligenceService(),
     );
@@ -47,6 +53,20 @@ describe("createPackageSummaryTool — happy path", () => {
       {},
     );
     expect(result.isError).toBeUndefined();
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("express @ 4.18.2");
+    expect(text).toContain("Repository");
+    expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("returns JSON-stringified lean envelope when format=json", async () => {
+    const tool = createPackageSummaryTool(
+      createMockPackageIntelligenceService(),
+    );
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express", format: "json" },
+      {},
+    );
     const payload = parseText(result) as Record<string, unknown>;
     expect(payload.registry).toBe("npm");
     expect(payload.name).toBe("express");

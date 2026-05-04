@@ -10,17 +10,27 @@ function getText(result: ToolResult): string {
 }
 
 describe("searchLanguageTool", () => {
-  it("calls service and returns filtered JSON", async () => {
+  it("calls service and returns compact text by default", async () => {
     const service = createMockGitHitsService();
     const tool = createSearchLanguageTool(service);
 
     const result = await tool.handler({ query: "python" }, {});
-    const parsed = JSON.parse(getText(result));
 
     expect(result.isError).toBeUndefined();
+    expect(getText(result)).toContain("python (Python) aliases: py");
+    expect(() => JSON.parse(getText(result))).toThrow();
+    expect(service.getLanguages).toHaveBeenCalled();
+  });
+
+  it("returns filtered JSON when format=json", async () => {
+    const service = createMockGitHitsService();
+    const tool = createSearchLanguageTool(service);
+
+    const result = await tool.handler({ query: "python", format: "json" }, {});
+    const parsed = JSON.parse(getText(result));
+
     expect(parsed).toHaveLength(1);
     expect(parsed[0].name).toBe("python");
-    expect(service.getLanguages).toHaveBeenCalled();
   });
 
   it("returns error result on service failure", async () => {

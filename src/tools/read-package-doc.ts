@@ -3,13 +3,17 @@ import type { PackageIntelligenceService } from "../services/index.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { buildReadPackageDocParams } from "../shared/read-package-doc-request.js";
 import { buildReadPackageDocSuccessPayload } from "../shared/read-package-doc-response.js";
+import { renderReadPackageDocText } from "../shared/read-package-doc-text.js";
 import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
 export interface ReadPackageDocArgs {
   page_id: string;
   start_line?: number;
   end_line?: number;
+  format?: "json" | "text" | "text-v1";
 }
+
+const MCP_DOC_READ_MAX_SPAN = 150;
 
 const schema = {
   page_id: z
@@ -28,6 +32,12 @@ const schema = {
     .optional()
     .describe(
       "Ending line (inclusive). Omit for end of page. Must be ≥ `start_line` when both are set.",
+    ),
+  format: z
+    .enum(["json", "text", "text-v1"])
+    .optional()
+    .describe(
+      'Response format. Default `text-v1` — raw markdown content capped to 150 lines by default. Pass `format: "json"` for the structured envelope; explicit ranges still slice JSON content.',
     ),
 };
 
@@ -48,15 +58,17 @@ export function createReadPackageDocTool(
       try {
         const build = buildReadPackageDocParams({ pageId: args.page_id });
         const result = await service.readPackageDoc(build.params);
-        const range =
-          args.start_line !== undefined || args.end_line !== undefined
-            ? { startLine: args.start_line, endLine: args.end_line }
-            : undefined;
+        const textMode = isTextFormat(args.format);
+        const range = buildRange(args, textMode);
         const payload = buildReadPackageDocSuccessPayload(
           result,
           build.params.pageId,
-          range,
+          range?.range,
         );
+        if (range?.hint && payload.endLine !== undefined) {
+          payload.hint = range.hint(payload);
+        }
+        if (textMode) return textResult(renderReadPackageDocText(payload));
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapPackageIntelligenceError(error);
@@ -71,4 +83,42 @@ export function createReadPackageDocTool(
       }
     },
   };
+}
+
+function isTextFormat(format: ReadPackageDocArgs["format"]): boolean {
+  return format === undefined || format === "text" || format === "text-v1";
+}
+
+function buildRange(
+  args: ReadPackageDocArgs,
+  textMode: boolean,
+):
+  | {
+      range: { startLine?: number; endLine?: number };
+      hint?: (payload: {
+        startLine?: number;
+        endLine?: number;
+        totalLines?: number;
+      }) => string;
+    }
+  | undefined {
+  if (textMode) {
+    const startLine = args.start_line ?? 1;
+    const requestedEnd = args.end_line ?? startLine + MCP_DOC_READ_MAX_SPAN - 1;
+    const endLine = Math.min(
+      requestedEnd,
+      startLine + MCP_DOC_READ_MAX_SPAN - 1,
+    );
+    const wasClamped = requestedEnd > endLine;
+    return {
+      range: { startLine, endLine },
+      hint: wasClamped
+        ? (payload) =>
+            `Returned lines ${payload.startLine}-${payload.endLine}${payload.totalLines !== undefined ? `/${payload.totalLines}` : ""} (MCP text cap: ${MCP_DOC_READ_MAX_SPAN} lines per call; you requested lines ${startLine}-${requestedEnd}).`
+        : undefined,
+    };
+  }
+  return args.start_line !== undefined || args.end_line !== undefined
+    ? { range: { startLine: args.start_line, endLine: args.end_line } }
+    : undefined;
 }

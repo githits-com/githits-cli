@@ -23,6 +23,7 @@ describe("createListPackageDocsTool", () => {
       "version",
       "limit",
       "after",
+      "format",
     ]);
   });
 
@@ -47,7 +48,20 @@ describe("createListPackageDocsTool", () => {
     });
   });
 
-  it("returns JSON-stringified lean envelope on success", async () => {
+  it("returns JSON-stringified lean envelope when format=json", async () => {
+    const tool = createListPackageDocsTool(
+      createMockPackageIntelligenceService(),
+    );
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express", format: "json" },
+      {},
+    );
+    const payload = parseText(result) as Record<string, unknown>;
+    expect(payload.name).toBe("express");
+    expect(Array.isArray(payload.pages)).toBe(true);
+  });
+
+  it("defaults to compact text output", async () => {
     const tool = createListPackageDocsTool(
       createMockPackageIntelligenceService(),
     );
@@ -55,9 +69,10 @@ describe("createListPackageDocsTool", () => {
       { registry: "npm", package_name: "express" },
       {},
     );
-    const payload = parseText(result) as Record<string, unknown>;
-    expect(payload.name).toBe("express");
-    expect(Array.isArray(payload.pages)).toBe(true);
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("docs_list | npm:express");
+    expect(text).toContain("docs_read page_id=");
+    expect(() => JSON.parse(text)).toThrow();
   });
 
   it("omits nullish lastUpdatedAt values from the lean envelope", async () => {
@@ -86,7 +101,7 @@ describe("createListPackageDocsTool", () => {
     );
 
     const result = await tool.handler(
-      { registry: "npm", package_name: "ms" },
+      { registry: "npm", package_name: "ms", format: "json" },
       {},
     );
     const payload = parseText(result) as {
