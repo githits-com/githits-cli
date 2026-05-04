@@ -125,11 +125,11 @@ describe("package_dependencies parity", () => {
     expect((cli as { groups?: unknown }).groups).toBeUndefined();
   });
 
-  it("PARITY-JSON-KEYS: full-view express (no filter) CLI === MCP", async () => {
+  it("PARITY-JSON-KEYS: lifecycle=all full-view express CLI === MCP", async () => {
     const fn = mock(() => Promise.resolve(defaultDependencyReport));
     const cli = await cliJson(
       "npm:express",
-      { groups: true },
+      { lifecycle: "all" },
       cliDeps({
         packageIntelligenceService: createMockPackageIntelligenceService({
           packageDependencies: fn as never,
@@ -137,7 +137,7 @@ describe("package_dependencies parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "express" },
+      { registry: "npm", package_name: "express", lifecycle: "all" },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -229,7 +229,7 @@ describe("package_dependencies parity", () => {
     const fn = mock(() => Promise.resolve(cratesFeatureDependencyReport));
     const cli = await cliJson(
       "crates:tokio",
-      { groups: true },
+      { lifecycle: "all" },
       cliDeps({
         packageIntelligenceService: createMockPackageIntelligenceService({
           packageDependencies: fn as never,
@@ -237,7 +237,7 @@ describe("package_dependencies parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "crates", package_name: "tokio" },
+      { registry: "crates", package_name: "tokio", lifecycle: "all" },
       fn as never,
     );
     expect(cli).toEqual(json);

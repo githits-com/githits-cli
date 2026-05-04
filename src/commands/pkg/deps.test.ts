@@ -41,7 +41,9 @@ describe("pkgDepsAction", () => {
     const combined = writes.join("");
     expect(combined).toContain("express @ 5.2.1 · npm");
     expect(combined).toContain("3 direct runtime dependencies");
-    expect(combined).toContain("Hidden groups: development — use --groups.");
+    expect(combined).toContain(
+      "Hidden groups: development — use --lifecycle all.",
+    );
     writeSpy.mockRestore();
   });
 
@@ -54,11 +56,11 @@ describe("pkgDepsAction", () => {
     const payload = JSON.parse(output);
     expect(payload.registry).toBe("npm");
     expect(payload.runtime.count).toBe(3);
-    expect(payload.groups.items.length).toBe(2);
+    expect(payload.groups).toBeUndefined();
     logSpy.mockRestore();
   });
 
-  it("implies --groups when --lifecycle is set (groups block appears beneath direct deps list)", async () => {
+  it("shows groups when a non-runtime lifecycle is set", async () => {
     const writes: string[] = [];
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
       chunk: string | Uint8Array,

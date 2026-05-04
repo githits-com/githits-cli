@@ -21,11 +21,9 @@ export interface PackageDependenciesArgs {
  * `buildPackageDependenciesParams` is the single validation path so
  * raw Zod errors never surface to agents.
  *
- * No `include_groups` input. The data-first envelope emits the
- * `groups` block unconditionally when the backend returned
- * `dependencyGroups`, so an `include_groups: true` flag would have no
- * observable effect — and a silently ignored flag would confuse
- * agents.
+ * No `include_groups` input. `lifecycle` is the single breadth knob:
+ * omit it for runtime-only, pass a concrete lifecycle for filtered
+ * groups, or pass `all` for the full groups view.
  */
 const schema = {
   registry: z
@@ -46,7 +44,7 @@ const schema = {
     .union([z.string(), z.array(z.string())])
     .optional()
     .describe(
-      'Filter the `groups` block server-side by lifecycle phase. Accepts a single value, a comma-separated string (e.g. `"runtime,development"`), or an array of strings. Canonical values: `runtime`, `development`, `build`, `peer`, `optional`. Uppercase is tolerated. When the filter matches nothing the response still includes `groups: { items: [] }` so you can tell an empty-match apart from a registry that has no groups concept.',
+      "Lifecycle breadth. Omit for runtime-only. Use `runtime` for explicit runtime-only, a concrete non-runtime lifecycle (`development`, `build`, `peer`, `optional`) for runtime plus matching groups, or `all` for runtime plus all available groups. Accepts a single value, a comma-separated string, or an array; `all` cannot be combined with other values. Uppercase is tolerated.",
     ),
   include_transitive: z
     .boolean()
@@ -75,12 +73,10 @@ const DESCRIPTION =
   "Analyze a package's dependency graph. The response always includes " +
   "a `runtime` block listing the direct runtime dependencies as " +
   "`{name, version, constraint}` records (the backend resolves each " +
-  "constraint to a concrete version for you). It also always includes " +
-  "a structured `groups` block whenever the backend returns group " +
-  "metadata — one group per lifecycle (`runtime`, `development`, " +
-  "`build`, `peer`, `optional`) plus feature-conditional groups for " +
-  "registries that have them (PyPI extras, Crates features). Use " +
-  "`lifecycle` to filter `groups` server-side. Set " +
+  "constraint to a concrete version for you). Non-runtime groups are " +
+  "omitted by default for token efficiency. Use `lifecycle` with a " +
+  "concrete value for runtime plus matching groups, or `all` for " +
+  "runtime plus all available groups. Set " +
   "`include_transitive: true` to add a `transitive` block with the " +
   "full install footprint, conflict detection, and circular-" +
   "dependency flags; layer `include_importers: true` on top when you " +

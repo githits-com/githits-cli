@@ -13,9 +13,9 @@ import type { Dependencies } from "../container.js";
  * guidance for the same always-on tool surface the server registers.
  */
 
-const CORE_BLOCK = `GitHits provides verified, canonical code examples from global open source. Use it when you're stuck, repeated attempts failed, you need up-to-date API usage, the question is comparative across OSS projects (e.g. "how does X vs Y handle Z"), the answer requires reading how a real codebase implements a feature, or the user mentions GitHits.
+const CORE_BLOCK = `GitHits provides verified, canonical code examples from global open source. Use it for global solution synthesis and canonical examples when you're stuck, repeated attempts failed, you need up-to-date API usage, the question is comparative across OSS projects (e.g. "how does X vs Y handle Z"), the answer requires reading how a real codebase implements a feature, or the user mentions GitHits.
 
-Example workflow: call \`get_example\` with one focused question; pass \`language\` only when you know the exact language name, otherwise call \`search_language\` first. Send \`feedback\` on the returned solution_id. Reuse prior results before searching again.`;
+Example workflow: call \`get_example\` with one focused question; pass \`language\` only when you know the exact language name, otherwise call \`search_language\` first. Send \`feedback\` on the returned solution_id. Reuse prior results before searching again. For dependency-specific grounding, use package-scoped \`search\` before global \`get_example\`.`;
 
 const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Use them when a stack trace points into a dependency, you need to verify how a library works, or you're evaluating whether to add or upgrade a package.
 
@@ -34,13 +34,13 @@ const PKG_VULNS_BULLET =
   "- `pkg_vulns` — known CVE / OSV advisories for npm, PyPI, Hex, or Crates packages, optionally pinned to `@version`. Filter with `min_severity`; include retracted advisories with `include_withdrawn`.";
 
 const PKG_DEPS_BULLET =
-  "- `pkg_deps` — direct runtime deps plus lifecycle/feature groups when available. Use `lifecycle` to filter groups, `include_transitive` for the full graph, and `include_importers` for provenance. Supports npm, PyPI, Hex, Crates, vcpkg, and Zig.";
+  '- `pkg_deps` — direct runtime deps by default. Use `lifecycle: "runtime"` for explicit runtime-only, a concrete lifecycle for runtime plus matching non-runtime deps, or `lifecycle: "all"` for all groups. Use `include_transitive` for the full graph and `include_importers` for provenance. Supports npm, PyPI, Hex, Crates, vcpkg, and Zig.';
 
 const PKG_CHANGELOG_BULLET =
   "- `pkg_changelog` — release notes for a package or GitHub repo, newest-first. Default latest mode returns recent entries with markdown bodies; `from_version` switches to range mode. Set `include_bodies: false` for a compact timeline.";
 
 const SEARCH_BULLET =
-  '- `search` — unified search across indexed dependency code, docs, and symbols. Omit `sources` for AUTO. Default output is compact `text-v1`; pass `format: "json"` for locators, highlights, and source status. Complete by default; opt into partial hits with `allow_partial_results: true`. Incomplete responses carry a `searchRef`.';
+  '- `search` — unified search across indexed dependency code, docs, and symbols. Omit `sources` for AUTO. Use `sources:["code"]` for implementation/examples/tests text, `sources:["symbol"]` for precise API/entity lookup, and `sources:["docs"]` for guides/reference/changelogs. Default output is compact `text-v1` with ready-to-call follow-up arguments; pass `format: "json"` for structured locators, highlights, and source status. Complete by default; opt into partial hits with `allow_partial_results: true`. Incomplete responses carry a `searchRef`.';
 
 const SEARCH_STATUS_BULLET =
   "- `search_status` — follow up a prior `search` by `searchRef` to check progress, fetch partial hits, or fetch final results.";
@@ -55,7 +55,7 @@ const CODE_GREP_BULLET =
   "- `code_grep` — deterministic text or regex grep over indexed source. Use it when you know the pattern; use `search` for discovery. Narrow with `path`, `path_prefix`, `globs`, or `extensions`. Each match's `path:line` chains into `code_read`.";
 
 const SEARCH_VS_SYMBOLS_TIP =
-  'Prefer `get_example` for canonical example retrieval; prefer unified `search` for indexed dependency and repository discovery; use `sources:["symbol"]` when you want symbol-shaped results. Use `code_grep` for deterministic text matching and `code_read` for focused-window inspection of a known file.';
+  'Use code-first grounding for behavioral claims: source, symbols, tests, examples, and call sites beat docs prose. Prefer unified `search` for indexed dependency and repository discovery; use `sources:["symbol"]` when you want symbol-shaped results. Prefer `get_example` for global canonical example retrieval after package-scoped grounding. Use `code_grep` for deterministic text matching and `code_read` for focused-window inspection of a known file.';
 
 const REFERENCE_FIRST_TIP =
   "Strategy — reference-first, content-second. Locate symbols and lines with `search` / `code_grep` first, then read only the needed window with `code_read` using explicit `start_line` / `end_line` values, typically 80-150 lines around the match. The MCP `code_read` surface caps each call at 150 lines.";

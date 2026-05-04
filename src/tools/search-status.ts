@@ -3,11 +3,13 @@ import type { CodeNavigationService } from "../services/index.js";
 import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchStatusPayload,
+  renderUnifiedSearchStatusText,
 } from "../shared/index.js";
 import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
 export interface SearchStatusArgs {
   search_ref: string;
+  format?: "json" | "text" | "text-v1";
 }
 
 const schema = {
@@ -15,6 +17,12 @@ const schema = {
     .string()
     .min(1)
     .describe("Search reference returned by search."),
+  format: z
+    .enum(["json", "text", "text-v1"])
+    .optional()
+    .describe(
+      'Response format. Default `text-v1` — compact line-oriented output matching `search`. Pass `format: "json"` for the structured envelope.',
+    ),
 };
 
 const DESCRIPTION =
@@ -33,6 +41,9 @@ export function createSearchStatusTool(
       try {
         const outcome = await service.searchStatus(args.search_ref);
         const payload = buildUnifiedSearchStatusPayload(outcome);
+        if (isTextFormat(args.format)) {
+          return textResult(renderUnifiedSearchStatusText(payload));
+        }
         return textResult(JSON.stringify(payload));
       } catch (error) {
         return errorResult(
@@ -41,4 +52,8 @@ export function createSearchStatusTool(
       }
     },
   };
+}
+
+function isTextFormat(format: SearchStatusArgs["format"]): boolean {
+  return format === undefined || format === "text" || format === "text-v1";
 }

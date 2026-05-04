@@ -45,7 +45,10 @@ describe("searchStatusTool", () => {
       }),
     );
 
-    const result = await tool.handler({ search_ref: "search-ref-123" }, {});
+    const result = await tool.handler(
+      { search_ref: "search-ref-123", format: "json" },
+      {},
+    );
 
     expect(result.isError).toBeUndefined();
     expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
@@ -65,7 +68,10 @@ describe("searchStatusTool", () => {
   it("returns completed payload without fabricating initial query echo", async () => {
     const tool = createSearchStatusTool(createMockCodeNavigationService());
 
-    const result = await tool.handler({ search_ref: "search-ref-123" }, {});
+    const result = await tool.handler(
+      { search_ref: "search-ref-123", format: "json" },
+      {},
+    );
     const payload = JSON.parse(result.content[0]?.text ?? "{}");
 
     expect(result.isError).toBeUndefined();
@@ -88,11 +94,33 @@ describe("searchStatusTool", () => {
       }),
     );
 
-    const result = await tool.handler({ search_ref: "search-ref-timeout" }, {});
+    const result = await tool.handler(
+      { search_ref: "search-ref-timeout", format: "json" },
+      {},
+    );
     const payload = JSON.parse(result.content[0]?.text ?? "{}");
 
     expect(result.isError).toBeUndefined();
     expect(payload.completed).toBe(false);
     expect(payload.progress.status).toBe("TIMEOUT");
+  });
+
+  it("defaults to compact text output", async () => {
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() =>
+          Promise.resolve(createIncompleteOutcome("SEARCHING", "ref-text")),
+        ),
+      }),
+    );
+
+    const result = await tool.handler({ search_ref: "ref-text" }, {});
+    const text = result.content[0]?.text ?? "";
+
+    expect(result.isError).toBeUndefined();
+    expect(text).toContain("search_status | indexing | searchRef=ref-text");
+    expect(text).toContain("progress: SEARCHING, 0/1 targets ready");
+    expect(text).toContain('next: call search_status search_ref="ref-text"');
+    expect(() => JSON.parse(text)).toThrow();
   });
 });

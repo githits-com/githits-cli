@@ -50,6 +50,55 @@ describe("searchTool", () => {
     );
   });
 
+  it("accepts compact package string targets", async () => {
+    const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "handler",
+        target: "npm:express@4.18.2",
+      },
+      {},
+    );
+
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: [
+          expect.objectContaining({
+            registry: "NPM",
+            packageName: "express",
+            version: "4.18.2",
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("accepts compact repo string targets inside targets arrays", async () => {
+    const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "handler",
+        targets: ["https://github.com/expressjs/express#v5.0.0"],
+      },
+      {},
+    );
+
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: [
+          expect.objectContaining({
+            repoUrl: "https://github.com/expressjs/express",
+            gitRef: "v5.0.0",
+          }),
+        ],
+      }),
+    );
+  });
+
   it("returns invalid-argument error when target is missing", async () => {
     const tool = createSearchTool(createMockCodeNavigationService());
 

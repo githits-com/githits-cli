@@ -53,7 +53,7 @@ async function mcpJson(
     readPackageDocMock ? { readPackageDoc: readPackageDocMock as never } : {},
   );
   const tool = createReadPackageDocTool(service);
-  const result = await tool.handler(args, {});
+  const result = await tool.handler({ ...args, format: "json" }, {});
   return JSON.parse(result.content[0]?.text ?? "");
 }
 

@@ -19,7 +19,6 @@ function codeHit(
     title: "applyEdit",
     summary:
       "Search/replace block parser with fuzzy fallback when exact match fails.",
-    score: 0.87,
     locator: {
       registry: "npm",
       packageName: "cline",
@@ -39,7 +38,6 @@ function docsHit(): UnifiedSearchHitPayload {
     target: "aider-AI/aider@v0.55.0",
     title: "Edit Formats",
     summary: "Compares whole-file, diff-fenced, udiff, and editblock formats.",
-    score: 0.83,
     locator: {
       pageId: "aider/edit-formats",
       sourceUrl: "https://aider.chat/docs/more/edit-formats.html",
@@ -54,7 +52,6 @@ function symbolHit(): UnifiedSearchHitPayload {
     target: "continuedev/continue@v0.9.42",
     title: "diffLines",
     summary: "Myers diff core; line-level with O(ND) complexity.",
-    score: 0.91,
     locator: {
       filePath: "core/diff/myers.ts",
       startLine: 48,
@@ -90,9 +87,10 @@ describe("renderUnifiedSearchSuccess", () => {
 
   it("renders a single code hit with locator, title, and summary", () => {
     const text = renderUnifiedSearchSuccess(completed([codeHit()]));
-    expect(text).toContain("[1] cline/cline@v3.4.2  code  0.87");
+    expect(text).toContain("[1] cline/cline@v3.4.2  code");
+    expect(text).not.toContain("0.87");
     expect(text).toContain(
-      "    src/integrations/diff/strategies/multi-search-replace.ts:142-156  function",
+      '    code_read target="npm:cline@v3.4.2" path="src/integrations/diff/strategies/multi-search-replace.ts" start_line=142 end_line=156  function',
     );
     expect(text).toContain("    applyEdit");
     expect(text).toContain(
@@ -102,16 +100,16 @@ describe("renderUnifiedSearchSuccess", () => {
 
   it("uses pageId for documentation hits", () => {
     const text = renderUnifiedSearchSuccess(completed([docsHit()]));
-    expect(text).toContain("[1] aider-AI/aider@v0.55.0  docs  0.83");
-    expect(text).toContain("    pageId: aider/edit-formats");
+    expect(text).toContain("[1] aider-AI/aider@v0.55.0  docs");
+    expect(text).toContain('    docs_read page_id="aider/edit-formats"');
     expect(text).toContain("    Edit Formats");
   });
 
   it("renders qualifiedPath alongside file location for symbol hits", () => {
     const text = renderUnifiedSearchSuccess(completed([symbolHit()]));
-    expect(text).toContain("[1] continuedev/continue@v0.9.42  symbol  0.91");
+    expect(text).toContain("[1] continuedev/continue@v0.9.42  symbol");
     expect(text).toContain(
-      "    core/diff/myers.ts:48-112  core.diff.myers.diffLines | function",
+      "    follow-up unavailable: missing target  core.diff.myers.diffLines | function",
     );
     expect(text).toContain("    diffLines");
   });
@@ -173,6 +171,7 @@ describe("renderUnifiedSearchSuccess", () => {
       );
     expect(summaryLines.length).toBeGreaterThanOrEqual(1);
     for (const line of text.split("\n")) {
+      if (line.includes("code_read ")) continue;
       // 4-space indent + content; allow some slack for the wrap target.
       expect(line.length).toBeLessThanOrEqual(82);
     }

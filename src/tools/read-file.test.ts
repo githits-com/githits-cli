@@ -23,6 +23,7 @@ describe("createReadFileTool — metadata", () => {
     expect(tool.description).toContain("NOT_FOUND");
     expect(Object.keys(tool.schema).sort()).toEqual([
       "end_line",
+      "format",
       "path",
       "start_line",
       "target",
@@ -53,12 +54,40 @@ describe("createReadFileTool — happy path", () => {
     expect(calls[0]?.[0]?.filePath).toBe("src/index.js");
   });
 
-  it("emits the envelope with content + line range", async () => {
+  it("accepts compact package string targets", async () => {
+    const readFile = mock(() => Promise.resolve(defaultReadFileResult));
+    const service = createMockCodeNavigationService({ readFile });
+    const tool = createReadFileTool(service);
+
+    await tool.handler(
+      {
+        target: "npm:express@4.18.2",
+        path: "src/index.js",
+      },
+      {},
+    );
+
+    const calls = readFile.mock.calls as unknown as Array<
+      [
+        {
+          target: { registry?: string; packageName?: string; version?: string };
+        },
+      ]
+    >;
+    expect(calls[0]?.[0]?.target).toMatchObject({
+      registry: "NPM",
+      packageName: "express",
+      version: "4.18.2",
+    });
+  });
+
+  it("emits the envelope with content + line range when format=json", async () => {
     const tool = createReadFileTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
         target: { registry: "npm", package_name: "express" },
         path: "src/index.js",
+        format: "json",
       },
       {},
     );
@@ -77,6 +106,21 @@ describe("createReadFileTool — happy path", () => {
     expect(payload.totalLines).toBe(5);
     expect(payload.content).toContain("Express entry point");
     expect(payload.isBinary).toBeUndefined();
+  });
+
+  it("defaults to line-numbered text output", async () => {
+    const tool = createReadFileTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        path: "src/index.js",
+      },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("code_read | src/index.js | javascript");
+    expect(text).toContain("1  // Express entry point");
+    expect(() => JSON.parse(text)).toThrow();
   });
 
   it("passes start_line / end_line through to the wire", async () => {
@@ -116,6 +160,7 @@ describe("createReadFileTool — happy path", () => {
       {
         target: { registry: "npm", package_name: "express" },
         path: "assets/logo.png",
+        format: "json",
       },
       {},
     );
@@ -352,6 +397,7 @@ describe("createReadFileTool — span cap", () => {
         path: "src/index.js",
         start_line: 1,
         end_line: 600,
+        format: "json",
       },
       {},
     );
@@ -377,6 +423,7 @@ describe("createReadFileTool — span cap", () => {
       {
         target: { registry: "npm", package_name: "express" },
         path: "src/index.js",
+        format: "json",
       },
       {},
     );
@@ -392,6 +439,7 @@ describe("createReadFileTool — span cap", () => {
         path: "src/index.js",
         start_line: 10,
         end_line: 80,
+        format: "json",
       },
       {},
     );
@@ -409,6 +457,7 @@ describe("createReadFileTool — span cap", () => {
       {
         target: { registry: "npm", package_name: "express" },
         path: "src/index.js",
+        format: "json",
       },
       {},
     );
@@ -436,6 +485,7 @@ describe("createReadFileTool — span cap", () => {
         path: "src/index.js",
         start_line: 100,
         end_line: 600,
+        format: "json",
       },
       {},
     );
@@ -458,6 +508,7 @@ describe("createReadFileTool — span cap", () => {
       {
         target: { registry: "npm", package_name: "express" },
         path: "assets/logo.png",
+        format: "json",
       },
       {},
     );

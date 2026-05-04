@@ -51,6 +51,8 @@ export type DependencyLifecycle =
   | "peer"
   | "optional";
 
+export type DependencyLifecycleInput = DependencyLifecycle | "all";
+
 const LIFECYCLES: readonly DependencyLifecycle[] = [
   "runtime",
   "development",
@@ -112,7 +114,8 @@ export interface PackageDependenciesRequestBuildResult {
    * deduplicated). Surfaces verbatim as the envelope's
    * `filter.lifecycles` when non-empty. Empty array means "no filter".
    */
-  canonicalLifecycles: DependencyLifecycle[];
+  canonicalLifecycles: DependencyLifecycleInput[];
+  wireLifecycles: DependencyLifecycle[];
 }
 
 export function buildPackageDependenciesParams(
@@ -142,6 +145,10 @@ export function buildPackageDependenciesParams(
   const version = normaliseVersion(input.version);
 
   const canonicalLifecycles = resolveLifecycles(input.lifecycle);
+  const wireLifecycles = canonicalLifecycles.filter(
+    (entry): entry is DependencyLifecycle =>
+      entry !== "runtime" && entry !== "all",
+  );
 
   const maxDepth = input.maxDepth;
   if (maxDepth !== undefined) {
@@ -154,14 +161,14 @@ export function buildPackageDependenciesParams(
 
   return {
     canonicalLifecycles,
+    wireLifecycles,
     params: {
       registry,
       packageName: trimmedName,
       version,
       includeTransitive: input.includeTransitive,
       maxDepth,
-      lifecycle:
-        canonicalLifecycles.length > 0 ? canonicalLifecycles : undefined,
+      lifecycle: wireLifecycles.length > 0 ? wireLifecycles : undefined,
     },
   };
 }
@@ -180,28 +187,44 @@ function normaliseVersion(raw: string | undefined): string | undefined {
 
 function resolveLifecycles(
   raw: string | string[] | undefined,
-): DependencyLifecycle[] {
+): DependencyLifecycleInput[] {
   if (raw === undefined) return [];
   const tokens = Array.isArray(raw)
     ? raw.flatMap((entry) => entry.split(","))
     : raw.split(",");
-  const seen = new Set<DependencyLifecycle>();
+  const seen = new Set<DependencyLifecycleInput>();
   for (const token of tokens) {
     const trimmed = token.trim();
     if (trimmed.length === 0) continue;
     const lower = trimmed.toLowerCase();
-    if (!isLifecycle(lower)) {
+    if (!isLifecycleInput(lower)) {
       throw new InvalidPackageSpecError(
-        `Unknown lifecycle '${trimmed}'. Expected one of: ${LIFECYCLES.join(", ")}.`,
+        `Unknown lifecycle '${trimmed}'. Expected one of: ${LIFECYCLES.join(", ")}, all.`,
       );
     }
     seen.add(lower);
   }
-  return Array.from(seen).sort(
-    (a, b) => LIFECYCLE_ORDER[a] - LIFECYCLE_ORDER[b],
-  );
+  if (seen.has("all") && seen.size > 1) {
+    throw new InvalidPackageSpecError(
+      "lifecycle=all cannot be combined with other lifecycle values.",
+    );
+  }
+  return Array.from(seen).sort(lifecycleInputSort);
 }
 
 export function isLifecycle(value: string): value is DependencyLifecycle {
   return (LIFECYCLES as readonly string[]).includes(value);
+}
+
+function isLifecycleInput(value: string): value is DependencyLifecycleInput {
+  return value === "all" || isLifecycle(value);
+}
+
+function lifecycleInputSort(
+  a: DependencyLifecycleInput,
+  b: DependencyLifecycleInput,
+): number {
+  if (a === "all") return b === "all" ? 0 : 1;
+  if (b === "all") return -1;
+  return LIFECYCLE_ORDER[a] - LIFECYCLE_ORDER[b];
 }

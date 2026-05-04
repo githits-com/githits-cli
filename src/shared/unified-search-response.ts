@@ -48,7 +48,6 @@ export interface UnifiedSearchHitPayload {
   target: string;
   title?: string;
   summary?: string;
-  score?: number;
   highlights?: UnifiedSearchHighlightsPayload;
   locator: {
     registry?: string;
@@ -346,7 +345,6 @@ function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
   };
   if (hit.title) payload.title = hit.title;
   if (hit.summary) payload.summary = hit.summary;
-  if (typeof hit.score === "number") payload.score = hit.score;
   const highlights = buildHighlights(hit.highlights);
   if (highlights) payload.highlights = highlights;
   return payload;

@@ -29,7 +29,7 @@ describe("createPackageDependenciesTool — metadata", () => {
     expect(tool.annotations?.readOnlyHint).toBe(true);
   });
 
-  it("does NOT expose an include_groups input (data-first envelope makes it a no-op)", () => {
+  it("does NOT expose an include_groups input (lifecycle is the breadth knob)", () => {
     const tool = createPackageDependenciesTool(
       createMockPackageIntelligenceService(),
     );
@@ -74,12 +74,12 @@ describe("createPackageDependenciesTool — happy path", () => {
     expect(calls[0]?.[0]?.registry).toBe("NPM");
     expect(calls[0]?.[0]?.packageName).toBe("express");
     expect(calls[0]?.[0]?.version).toBe("5.2.1");
-    expect(calls[0]?.[0]?.lifecycle).toEqual(["runtime", "development"]);
+    expect(calls[0]?.[0]?.lifecycle).toEqual(["development"]);
     expect(calls[0]?.[0]?.includeTransitive).toBe(true);
     expect(calls[0]?.[0]?.maxDepth).toBe(3);
   });
 
-  it("emits the lean JSON envelope with runtime + groups blocks", async () => {
+  it("emits the lean JSON envelope with runtime block by default", async () => {
     const tool = createPackageDependenciesTool(
       createMockPackageIntelligenceService(),
     );
@@ -92,12 +92,12 @@ describe("createPackageDependenciesTool — happy path", () => {
       registry: string;
       name: string;
       runtime: { count: number };
-      groups: { items: unknown[] };
+      groups?: { items: unknown[] };
     };
     expect(payload.registry).toBe("npm");
     expect(payload.name).toBe("express");
     expect(payload.runtime.count).toBe(3);
-    expect(payload.groups.items.length).toBe(2);
+    expect(payload.groups).toBeUndefined();
   });
 
   it("surfaces filter.lifecycles when lifecycle is set", async () => {
