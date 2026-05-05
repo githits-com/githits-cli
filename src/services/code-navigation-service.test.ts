@@ -7,7 +7,6 @@ import {
   mock,
   spyOn,
 } from "bun:test";
-import { ClientUpdateRequiredError } from "./client-update-required-error.js";
 import {
   CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
@@ -668,6 +667,15 @@ describe("CodeNavigationServiceImpl", () => {
     expect(parsed.operation).toBe("search");
     expect(parsed.graphqlQuery).toContain("query UnifiedSearch(");
     expect(parsed.graphqlQuery).toContain("filters: $filters");
+    expect(parsed.graphqlQuery).toContain("requestedTargetLabel");
+    expect(parsed.graphqlQuery).toContain("freshTargetLabel");
+    expect(parsed.graphqlQuery).toContain("servedTargetLabel");
+    expect(parsed.graphqlQuery).toContain("freshness");
+    expect(parsed.graphqlQuery).toContain("requestedSources");
+    expect(parsed.graphqlQuery).toContain("targetMode");
+    expect(parsed.graphqlQuery).toContain("requestedTargets");
+    expect(parsed.graphqlQuery).toContain("resolvedRequested");
+    expect(parsed.graphqlQuery).toContain("requestedRefKind");
     expect(parsed.variables).toEqual({
       targets: [{ registry: "NPM", name: "express" }],
       query: "router middleware secret text",
@@ -761,7 +769,7 @@ describe("CodeNavigationServiceImpl", () => {
     }
   });
 
-  it("classifies GraphQL schema mismatch as ClientUpdateRequiredError", async () => {
+  it("classifies GraphQL schema mismatch as backend protocol error", async () => {
     mockFetch(() =>
       Promise.resolve(
         new Response(
@@ -787,7 +795,76 @@ describe("CodeNavigationServiceImpl", () => {
         targets: [{ registry: "NPM", packageName: "express" }],
         query: "middleware",
       }),
-    ).rejects.toBeInstanceOf(ClientUpdateRequiredError);
+    ).rejects.toMatchObject({
+      name: "CodeNavigationBackendError",
+      message: expect.stringContaining("Backend protocol mismatch"),
+    });
+  });
+
+  it("exposes GraphQL schema mismatch details when code-nav-wire debug is enabled", async () => {
+    process.env.GITHITS_DEBUG = "code-nav-wire";
+    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
+      () => true as never,
+    );
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: 'Cannot query field "search" on type "Query".',
+                extensions: { code: "GRAPHQL_VALIDATION_FAILED" },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    await expect(
+      service.search({
+        targets: [{ registry: "NPM", packageName: "express" }],
+        query: "middleware",
+      }),
+    ).rejects.toMatchObject({
+      name: "CodeNavigationBackendError",
+      message: 'Cannot query field "search" on type "Query".',
+    });
+    stderrSpy.mockRestore();
+  });
+
+  it("honors explicit backend CLIENT_UPDATE_REQUIRED errors", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: "Client version is no longer supported.",
+                extensions: { code: "CLIENT_UPDATE_REQUIRED" },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    await expect(
+      service.search({
+        targets: [{ registry: "NPM", packageName: "express" }],
+        query: "middleware",
+      }),
+    ).rejects.toMatchObject({ name: "ClientUpdateRequiredError" });
   });
 
   it("sends grepRepo variables with the correct shape", async () => {

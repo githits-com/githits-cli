@@ -105,6 +105,34 @@ describe("searchStatusTool", () => {
     expect(payload.progress.status).toBe("TIMEOUT");
   });
 
+  it("surfaces progress freshness warnings", async () => {
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() =>
+          Promise.resolve(
+            createIncompleteOutcome("INDEXING", "ref-stale", {
+              targets: [
+                {
+                  requested: "npm:express latest",
+                  resolvedRequested: "npm:express@5.2.1",
+                  served: "npm:express@5.1.0",
+                  freshness: "STALE",
+                },
+              ],
+            }),
+          ),
+        ),
+      }),
+    );
+
+    const result = await tool.handler({ search_ref: "ref-stale" }, {});
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("warnings:");
+    expect(text).toContain(
+      "requested npm:express latest; served stale npm:express@5.1.0 while npm:express@5.2.1 indexes.",
+    );
+  });
+
   it("defaults to compact text output", async () => {
     const tool = createSearchStatusTool(
       createMockCodeNavigationService({

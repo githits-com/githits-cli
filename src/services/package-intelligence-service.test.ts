@@ -1,5 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import { ClientUpdateRequiredError } from "./client-update-required-error.js";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+  spyOn,
+} from "bun:test";
 import { AuthenticationError } from "./githits-service.js";
 import {
   MalformedPackageIntelligenceResponseError,
@@ -83,6 +90,7 @@ describe("PackageIntelligenceServiceImpl", () => {
   const ENDPOINT = "https://pkgseer.dev";
 
   let originalFetch: typeof globalThis.fetch;
+  const originalDebug = process.env.GITHITS_DEBUG;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -90,6 +98,8 @@ describe("PackageIntelligenceServiceImpl", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (originalDebug === undefined) delete process.env.GITHITS_DEBUG;
+    else process.env.GITHITS_DEBUG = originalDebug;
   });
 
   it("maps a happy-path response to PackageSummary", async () => {
@@ -426,7 +436,7 @@ describe("PackageIntelligenceServiceImpl", () => {
     ).rejects.toBeInstanceOf(PackageIntelligenceValidationError);
   });
 
-  it("classifies GraphQL schema mismatch as ClientUpdateRequiredError", async () => {
+  it("classifies GraphQL schema mismatch as backend protocol error", async () => {
     const fetchFn = mock(() =>
       Promise.resolve(
         jsonResponse({
@@ -447,7 +457,66 @@ describe("PackageIntelligenceServiceImpl", () => {
 
     await expect(
       service.packageSummary({ registry: "NPM", packageName: "x" }),
-    ).rejects.toBeInstanceOf(ClientUpdateRequiredError);
+    ).rejects.toMatchObject({
+      name: "PackageIntelligenceBackendError",
+      message: expect.stringContaining("Backend protocol mismatch"),
+    });
+  });
+
+  it("exposes GraphQL schema mismatch details when pkg-graphql debug is enabled", async () => {
+    process.env.GITHITS_DEBUG = "pkg-graphql";
+    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
+      () => true as never,
+    );
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: 'Cannot query field "packageSummary" on type "Query".',
+              extensions: { code: "GRAPHQL_VALIDATION_FAILED" },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageSummary({ registry: "NPM", packageName: "x" }),
+    ).rejects.toMatchObject({
+      name: "PackageIntelligenceBackendError",
+      message: 'Cannot query field "packageSummary" on type "Query".',
+    });
+    stderrSpy.mockRestore();
+  });
+
+  it("honors explicit backend CLIENT_UPDATE_REQUIRED errors", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "Client version is no longer supported.",
+              extensions: { code: "CLIENT_UPDATE_REQUIRED" },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageSummary({ registry: "NPM", packageName: "x" }),
+    ).rejects.toMatchObject({ name: "ClientUpdateRequiredError" });
   });
 
   it("classifies 5xx plain-text body via parseDetail as PackageIntelligenceBackendError", async () => {

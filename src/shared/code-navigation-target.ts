@@ -8,6 +8,8 @@ import { InvalidArgumentError, parsePackageSpec } from "./package-spec.js";
  * Package targets use the shared package spec grammar, e.g.
  * `npm:react@18.2.0`. Repository targets are full URLs with an optional
  * `#gitRef` suffix, e.g. `https://github.com/facebook/react#HEAD`.
+ * Exact code-navigation tools require repository refs because their
+ * backend endpoints operate on a concrete repository identity.
  */
 export function parseCodeNavigationTargetSpec(
   spec: string,
@@ -32,7 +34,9 @@ export function parseCodeNavigationTargetSpec(
 function parseRepoTarget(spec: string): CodeNavigationTarget {
   const hashIndex = spec.lastIndexOf("#");
   if (hashIndex === -1) {
-    return { repoUrl: spec, gitRef: "HEAD" };
+    throw new InvalidArgumentError(
+      "Repository target must include #gitRef for exact code navigation.",
+    );
   }
 
   const repoUrl = spec.slice(0, hashIndex);

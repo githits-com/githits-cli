@@ -9,6 +9,7 @@ interface CodeReadCommandInput {
   filePath?: string;
   startLine?: number;
   endLine?: number;
+  preferPackageTarget?: boolean;
 }
 
 export function buildSearchHitFollowUpCommand(
@@ -28,6 +29,7 @@ export function buildSearchHitFollowUpCommand(
       filePath: loc.filePath,
       startLine: loc.startLine,
       endLine: loc.endLine,
+      preferPackageTarget: isPackageTarget(hit),
     });
   }
   if (hit.type === "repository_code" || hit.type === "repository_symbol") {
@@ -60,13 +62,27 @@ export function buildCodeReadCommand(input: CodeReadCommandInput): string {
 }
 
 function buildTargetSpec(input: CodeReadCommandInput): string | undefined {
+  if (input.preferPackageTarget && input.registry && input.packageName) {
+    return `${input.registry}:${input.packageName}${input.version ? `@${input.version}` : ""}`;
+  }
   if (input.repoUrl) {
-    return `${input.repoUrl}#${input.gitRef ?? "HEAD"}`;
+    if (!input.gitRef) return undefined;
+    return `${input.repoUrl}#${input.gitRef}`;
   }
   if (input.registry && input.packageName) {
     return `${input.registry}:${input.packageName}${input.version ? `@${input.version}` : ""}`;
   }
   return undefined;
+}
+
+function isPackageTarget(hit: UnifiedSearchHitPayload): boolean {
+  const registry = hit.locator.registry;
+  const packageName = hit.locator.packageName;
+  return Boolean(
+    registry &&
+      packageName &&
+      hit.target.startsWith(`${registry}:${packageName}`),
+  );
 }
 
 function appendRange(

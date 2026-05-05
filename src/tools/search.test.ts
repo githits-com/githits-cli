@@ -1,5 +1,8 @@
 import { describe, expect, it, mock } from "bun:test";
-import type { UnifiedSearchOutcome } from "../services/index.js";
+import type {
+  UnifiedSearchOutcome,
+  UnifiedSearchParams,
+} from "../services/index.js";
 import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,
@@ -26,7 +29,9 @@ describe("searchTool", () => {
   });
 
   it("passes compiled request through to code navigation service", async () => {
-    const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
     const tool = createSearchTool(createMockCodeNavigationService({ search }));
 
     await tool.handler(
@@ -51,7 +56,9 @@ describe("searchTool", () => {
   });
 
   it("accepts compact package string targets", async () => {
-    const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
     const tool = createSearchTool(createMockCodeNavigationService({ search }));
 
     await tool.handler(
@@ -76,7 +83,9 @@ describe("searchTool", () => {
   });
 
   it("accepts compact repo string targets inside targets arrays", async () => {
-    const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
     const tool = createSearchTool(createMockCodeNavigationService({ search }));
 
     await tool.handler(
@@ -110,8 +119,10 @@ describe("searchTool", () => {
     );
   });
 
-  it("defaults repo targets to HEAD when git_ref is omitted", async () => {
-    const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+  it("preserves omitted repo refs for backend default-branch discovery", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
     const tool = createSearchTool(createMockCodeNavigationService({ search }));
 
     await tool.handler(
@@ -122,16 +133,54 @@ describe("searchTool", () => {
       {},
     );
 
-    expect(search).toHaveBeenCalledWith(
-      expect.objectContaining({
-        targets: [
-          expect.objectContaining({
-            repoUrl: "https://github.com/expressjs/express",
-            gitRef: "HEAD",
-          }),
-        ],
-      }),
+    const call = search.mock.calls[0]?.[0];
+    expect(call?.targets[0]).toEqual({
+      repoUrl: "https://github.com/expressjs/express",
+    });
+  });
+
+  it("preserves omitted repo refs in compact target strings", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
     );
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "router middleware",
+        target: "https://github.com/expressjs/express",
+      },
+      {},
+    );
+
+    const call = search.mock.calls[0]?.[0];
+    expect(call?.targets[0]).toEqual({
+      repoUrl: "https://github.com/expressjs/express",
+    });
+  });
+
+  it("accepts mixed package and repo targets", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "router middleware",
+        targets: [
+          "npm:express@5.1.0",
+          { repo_url: "https://github.com/expressjs/express" },
+        ],
+      },
+      {},
+    );
+
+    const call = search.mock.calls[0]?.[0];
+    expect(call?.targets).toEqual([
+      { registry: "NPM", packageName: "express", version: "5.1.0" },
+      { repoUrl: "https://github.com/expressjs/express" },
+    ]);
   });
 
   it("preserves locator fields on repository_doc hits so agents can call read_package_doc or read_file", async () => {
@@ -187,7 +236,7 @@ describe("searchTool", () => {
       gitRef: "abc123",
       filePath: "README.md",
     });
-    expect(payload.results[0]).not.toHaveProperty("followUp");
+    expect(payload.results[0].followUp).toContain("docs_read page_id=");
     expect(payload.results[0]).not.toHaveProperty("alternateFollowUps");
   });
 

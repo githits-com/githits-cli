@@ -203,7 +203,49 @@ function buildTrailer(payload: SearchSuccessPayload): string[] {
     }
   }
 
+  const progress = "progress" in payload ? payload.progress : undefined;
+  if (progress?.targets?.length) {
+    lines.push("progress targets:");
+    for (const target of progress.targets) {
+      lines.push(`  - ${formatProgressTarget(target)}`);
+    }
+  }
+
   return lines;
+}
+
+export function formatProgressTarget(target: {
+  requested?: string;
+  resolvedRequested?: string;
+  served?: string;
+  freshness?: string;
+  indexingRef?: string;
+  requestedRefKind?: string;
+}): string {
+  const parts: string[] = [];
+  if (target.requested) parts.push(`requested=${target.requested}`);
+  if (target.resolvedRequested) parts.push(`fresh=${target.resolvedRequested}`);
+  if (target.served) parts.push(`served=${target.served}`);
+  if (target.freshness)
+    parts.push(`state=${describeFreshness(target.freshness)}`);
+  if (target.requestedRefKind) parts.push(`intent=${target.requestedRefKind}`);
+  if (target.indexingRef) parts.push(`indexingRef=${target.indexingRef}`);
+  return parts.length > 0 ? parts.join(SEP) : "target progress unavailable";
+}
+
+export function describeFreshness(value: string): string {
+  switch (value) {
+    case "PENDING":
+    case "INDEXING":
+      return "indexing fresh target";
+    case "STALE":
+      return "served stale evidence";
+    case "CURRENT":
+    case "INDEXED":
+      return "current";
+    default:
+      return value.toLowerCase();
+  }
 }
 
 function formatSourceStatus(entry: {

@@ -100,14 +100,6 @@ function resolveTargets(
     deduped.push(entry);
   }
 
-  const hasPackageTarget = deduped.some((entry) => entry.packageName);
-  const hasRepoTarget = deduped.some((entry) => entry.repoUrl);
-  if (hasPackageTarget && hasRepoTarget) {
-    throw new InvalidArgumentError(
-      "Do not mix package-scoped and repo-scoped targets in one search.",
-    );
-  }
-
   return deduped;
 }
 

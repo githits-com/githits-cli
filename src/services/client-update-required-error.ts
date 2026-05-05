@@ -14,18 +14,17 @@ export class ClientUpdateRequiredError extends Error {
 }
 
 export function isClientUpdateRequiredGraphQLError(input: {
+  message?: string;
+  code?: string;
+}): boolean {
+  return input.code === "CLIENT_UPDATE_REQUIRED";
+}
+
+export function isGraphQLSchemaMismatchError(input: {
   message: string;
   code?: string;
 }): boolean {
-  if (input.code === "CLIENT_UPDATE_REQUIRED") {
-    return true;
-  }
-
-  const message = input.message;
-  if (!isGraphQLSchemaMismatchMessage(message)) {
-    return false;
-  }
-
+  if (!isGraphQLSchemaMismatchMessage(input.message)) return false;
   return (
     !input.code ||
     input.code === "GRAPHQL_VALIDATION_FAILED" ||
