@@ -556,7 +556,10 @@ function formatSearchStatusCompletedTerminal(payload: {
     results: payload.result.results,
     searchRef: payload.searchRef,
     progress: undefined,
-    query: { warnings: payload.result.warnings },
+    query: {
+      raw: payload.result.query?.raw,
+      warnings: payload.result.warnings,
+    },
     sourceStatus: payload.result.sourceStatus,
   });
 }
@@ -573,7 +576,10 @@ function formatSearchStatusPartialTerminal(
     results: payload.result.results,
     searchRef: payload.searchRef,
     progress: payload.progress,
-    query: { warnings: payload.result.warnings },
+    query: {
+      raw: payload.result.query?.raw,
+      warnings: payload.result.warnings,
+    },
     sourceStatus: payload.result.sourceStatus,
   });
 }
@@ -851,14 +857,16 @@ function buildQueryTermRanges(
 
   const lowerText = text.toLowerCase();
   const ranges: Array<readonly [number, number]> = [];
-  for (const term of terms) {
+  for (const term of terms.sort((left, right) => right.length - left.length)) {
     const lowerTerm = term.toLowerCase();
     let cursor = 0;
     while (cursor < lowerText.length) {
       const start = lowerText.indexOf(lowerTerm, cursor);
       if (start === -1) break;
       const end = start + lowerTerm.length;
-      ranges.push([start, end]);
+      if (!ranges.some((range) => rangesOverlap(range, [start, end]))) {
+        ranges.push([start, end]);
+      }
       cursor = end;
     }
   }
@@ -871,17 +879,47 @@ function extractQueryHighlightTerms(rawQuery: string | undefined): string[] {
 
   const booleanOperators = new Set(["AND", "OR", "NOT"]);
   const terms = new Set<string>();
-  for (const [candidate] of rawQuery.matchAll(/[A-Za-z0-9_./@:-]+/g)) {
-    const normalised = /^[A-Za-z]+:.+/.test(candidate)
-      ? candidate.split(":").slice(1).join(":")
-      : candidate;
-    const term = normalised.replace(/^[-+]+/, "").replace(/[-+]+$/, "");
-    if (term.length < 2) continue;
-    if (booleanOperators.has(term.toUpperCase())) continue;
-    terms.add(term);
+  const quotedRanges: Array<readonly [number, number]> = [];
+  // Preserve quoted phrases as a single best-effort location term so a phrase
+  // query does not degrade into scattered word highlights in paths.
+  for (const match of rawQuery.matchAll(/"([^"]+)"/g)) {
+    const phrase = match[1];
+    if (phrase) addQueryHighlightTerm(phrase, terms, booleanOperators);
+    if (typeof match.index === "number") {
+      quotedRanges.push([match.index, match.index + match[0].length]);
+    }
   }
 
-  return Array.from(terms).sort((left, right) => right.length - left.length);
+  for (const match of rawQuery.matchAll(/[A-Za-z0-9_./@:-]+/g)) {
+    const index = match.index ?? 0;
+    if (quotedRanges.some(([start, end]) => index >= start && index < end)) {
+      continue;
+    }
+    addQueryHighlightTerm(match[0], terms, booleanOperators);
+  }
+
+  return Array.from(terms);
+}
+
+function addQueryHighlightTerm(
+  candidate: string,
+  terms: Set<string>,
+  booleanOperators: Set<string>,
+): void {
+  const normalised = /^[A-Za-z]+:.+/.test(candidate)
+    ? candidate.split(":").slice(1).join(":")
+    : candidate;
+  const term = normalised.replace(/^[-+]+/, "").replace(/[-+]+$/, "");
+  if (term.length < 2) return;
+  if (booleanOperators.has(term.toUpperCase())) return;
+  terms.add(term);
+}
+
+function rangesOverlap(
+  left: readonly [number, number],
+  right: readonly [number, number],
+): boolean {
+  return left[0] < right[1] && right[0] < left[1];
 }
 
 function mergeRanges(

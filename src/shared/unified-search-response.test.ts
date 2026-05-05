@@ -527,6 +527,10 @@ describe("buildUnifiedSearchStatusPayload", () => {
     }
 
     expect(payload.result).toEqual({
+      query: {
+        raw: "router middleware",
+        sources: ["code"],
+      },
       sources: ["code"],
       hasMore: false,
       results: [
