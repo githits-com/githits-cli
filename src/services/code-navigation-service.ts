@@ -9,6 +9,7 @@ import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
 import {
   ClientUpdateRequiredError,
   isClientUpdateRequiredGraphQLError,
+  isGraphQLSchemaMismatchError,
 } from "./client-update-required-error.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import { AuthenticationError } from "./githits-service.js";
@@ -116,6 +117,26 @@ export type UnifiedSearchSessionStatus =
   | "TIMEOUT"
   | "FAILED";
 
+export type CodeIndexState =
+  | "CURRENT"
+  | "INDEXED"
+  | "INDEXING"
+  | "STALE"
+  | "FAILED"
+  | "MISSING"
+  | string;
+
+export type DiscoveryRequestedRefKind =
+  | "OMITTED_VERSION"
+  | "LATEST_VERSION"
+  | "EXACT_VERSION"
+  | "DEFAULT_BRANCH"
+  | "HEAD"
+  | "BRANCH"
+  | "SHA";
+
+export type DiscoveryTargetMode = "PACKAGES" | "REPO" | "MIXED";
+
 export interface UnifiedSearchFilters {
   fileIntent?: FileIntent;
   kind?: SymbolKind;
@@ -168,6 +189,10 @@ export interface UnifiedSearchHit {
     summary?: Array<readonly [number, number]>;
   };
   locator: UnifiedSearchLocator;
+  requestedTargetLabel?: string;
+  freshTargetLabel?: string;
+  servedTargetLabel?: string;
+  freshness?: CodeIndexState;
 }
 
 export interface UnifiedSearchPageInfo {
@@ -180,8 +205,11 @@ export interface UnifiedSearchPageInfo {
 export interface UnifiedSearchSourceStatus {
   source: UnifiedSearchSource;
   targetLabel: string;
+  requestedTargetLabel?: string;
+  freshTargetLabel?: string;
+  servedTargetLabel?: string;
   indexingStatus?: string;
-  codeIndexState?: string;
+  codeIndexState?: CodeIndexState;
   resultCount?: number;
   appliedFilters: string[];
   ignoredFilters: string[];
@@ -190,6 +218,23 @@ export interface UnifiedSearchSourceStatus {
   ignoredQueryFeatures: string[];
   incompatibleQueryFeatures: string[];
   note?: string;
+}
+
+export interface UnifiedSearchProgressTarget {
+  requested?: string;
+  resolvedRequested?: string;
+  served?: string;
+  freshness?: CodeIndexState;
+  indexingRef?: string;
+  requestedRefKind?: DiscoveryRequestedRefKind;
+}
+
+export interface UnifiedSearchRequestedTarget {
+  registry?: CodeNavigationRegistry;
+  name?: string;
+  version?: string;
+  repoUrl?: string;
+  gitRef?: string;
 }
 
 export interface UnifiedSearchResult {
@@ -211,6 +256,13 @@ export interface UnifiedSearchProgress {
   query: string;
   queryWarnings: string[];
   sources: UnifiedSearchSource[];
+  requestedSources?: UnifiedSearchSource[];
+  targetMode?: DiscoveryTargetMode;
+  requestedTargets?: UnifiedSearchRequestedTarget[];
+  filters?: UnifiedSearchFilters;
+  limit?: number;
+  offset?: number;
+  targets?: UnifiedSearchProgressTarget[];
   expiresAt?: string;
 }
 
@@ -558,6 +610,10 @@ query UnifiedSearch(
         id
         resultType
         targetLabel
+        requestedTargetLabel
+        freshTargetLabel
+        servedTargetLabel
+        freshness
         title
         summary
         score
@@ -596,6 +652,9 @@ query UnifiedSearch(
       sourceStatus {
         source
         targetLabel
+        requestedTargetLabel
+        freshTargetLabel
+        servedTargetLabel
         indexingStatus
         codeIndexState
         resultCount
@@ -617,6 +676,32 @@ query UnifiedSearch(
       query
       queryWarnings
       sources
+      requestedSources
+      targetMode
+      requestedTargets {
+        registry
+        name
+        version
+        repoUrl
+        gitRef
+      }
+      filters {
+        fileIntent
+        kind
+        category
+        publicOnly
+        pathPrefix
+      }
+      limit
+      offset
+      targets {
+        requested
+        resolvedRequested
+        served
+        freshness
+        indexingRef
+        requestedRefKind
+      }
       expiresAt
     }
   }
@@ -633,6 +718,32 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
     query
     queryWarnings
     sources
+    requestedSources
+    targetMode
+    requestedTargets {
+      registry
+      name
+      version
+      repoUrl
+      gitRef
+    }
+    filters {
+      fileIntent
+      kind
+      category
+      publicOnly
+      pathPrefix
+    }
+    limit
+    offset
+    targets {
+      requested
+      resolvedRequested
+      served
+      freshness
+      indexingRef
+      requestedRefKind
+    }
     expiresAt
     results {
       query
@@ -642,6 +753,10 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
         id
         resultType
         targetLabel
+        requestedTargetLabel
+        freshTargetLabel
+        servedTargetLabel
+        freshness
         title
         summary
         score
@@ -680,6 +795,9 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
       sourceStatus {
         source
         targetLabel
+        requestedTargetLabel
+        freshTargetLabel
+        servedTargetLabel
         indexingStatus
         codeIndexState
         resultCount
@@ -806,6 +924,10 @@ const unifiedSearchHitSchema = z.object({
   id: z.string(),
   resultType: unifiedSearchResultTypeSchema,
   targetLabel: z.string(),
+  requestedTargetLabel: z.string().nullable().optional(),
+  freshTargetLabel: z.string().nullable().optional(),
+  servedTargetLabel: z.string().nullable().optional(),
+  freshness: z.string().nullable().optional(),
   title: z.string().nullable().optional(),
   summary: z.string().nullable().optional(),
   score: z.number().nullable().optional(),
@@ -835,6 +957,9 @@ const unifiedSearchPageInfoSchema = z.object({
 const unifiedSearchSourceStatusSchema = z.object({
   source: unifiedSearchSourceSchema,
   targetLabel: z.string(),
+  requestedTargetLabel: z.string().nullable().optional(),
+  freshTargetLabel: z.string().nullable().optional(),
+  servedTargetLabel: z.string().nullable().optional(),
   indexingStatus: z.string().nullable().optional(),
   codeIndexState: z.string().nullable().optional(),
   resultCount: z.number().int().nullable().optional(),
@@ -866,6 +991,34 @@ const unifiedSearchSessionStatusSchema = z.enum([
   "FAILED",
 ]);
 
+const unifiedSearchFiltersSchema = z
+  .object({
+    fileIntent: z.string().nullable().optional(),
+    kind: z.string().nullable().optional(),
+    category: z.string().nullable().optional(),
+    publicOnly: z.boolean().nullable().optional(),
+    pathPrefix: z.string().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+const unifiedSearchProgressTargetSchema = z.object({
+  requested: z.string().nullable().optional(),
+  resolvedRequested: z.string().nullable().optional(),
+  served: z.string().nullable().optional(),
+  freshness: z.string().nullable().optional(),
+  indexingRef: z.string().nullable().optional(),
+  requestedRefKind: z.string().nullable().optional(),
+});
+
+const unifiedSearchRequestedTargetSchema = z.object({
+  registry: z.string().nullable().optional(),
+  name: z.string().nullable().optional(),
+  version: z.string().nullable().optional(),
+  repoUrl: z.string().nullable().optional(),
+  gitRef: z.string().nullable().optional(),
+});
+
 const unifiedSearchProgressSchema = z.object({
   searchRef: z.string(),
   status: unifiedSearchSessionStatusSchema,
@@ -875,6 +1028,16 @@ const unifiedSearchProgressSchema = z.object({
   query: z.string(),
   queryWarnings: z.array(z.string()),
   sources: z.array(unifiedSearchSourceSchema),
+  requestedSources: z.array(unifiedSearchSourceSchema).nullable().optional(),
+  targetMode: z.string().nullable().optional(),
+  requestedTargets: z
+    .array(unifiedSearchRequestedTargetSchema)
+    .nullable()
+    .optional(),
+  filters: unifiedSearchFiltersSchema,
+  limit: z.number().int().nullable().optional(),
+  offset: z.number().int().nullable().optional(),
+  targets: z.array(unifiedSearchProgressTargetSchema).nullable().optional(),
   expiresAt: z.string().nullable().optional(),
   results: unifiedSearchResultSchema.nullable().optional(),
 });
@@ -1510,6 +1673,22 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       return new ClientUpdateRequiredError();
     }
 
+    if (isGraphQLSchemaMismatchError({ message, code })) {
+      const sanitized =
+        "Backend protocol mismatch. Your CLI may be newer than the server, or the server may require a newer CLI. Run `githits update-check` to verify your installed version. Set GITHITS_DEBUG=code-nav-wire to inspect GraphQL details during local development.";
+      debugLog("code-nav", {
+        event: "graphql-schema-mismatch",
+        code: code ?? "omitted",
+        message,
+      });
+      return new CodeNavigationBackendError(
+        isDebugAreaEnabled("code-nav-wire") ? message : sanitized,
+        undefined,
+        code,
+        retryable,
+      );
+    }
+
     // Direct dispatch on extensions.code — the April 2026 backend
     // contract populates this on every error. Fall back to message
     // heuristics below for older backend builds that haven't
@@ -1694,6 +1873,10 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         id: entry.id,
         resultType: entry.resultType,
         targetLabel: entry.targetLabel,
+        requestedTargetLabel: entry.requestedTargetLabel ?? undefined,
+        freshTargetLabel: entry.freshTargetLabel ?? undefined,
+        servedTargetLabel: entry.servedTargetLabel ?? undefined,
+        freshness: entry.freshness ?? undefined,
         title: entry.title ?? undefined,
         summary: entry.summary ?? undefined,
         score: entry.score ?? undefined,
@@ -1734,6 +1917,9 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       sourceStatus: result.sourceStatus.map((entry) => ({
         source: entry.source,
         targetLabel: entry.targetLabel,
+        requestedTargetLabel: entry.requestedTargetLabel ?? undefined,
+        freshTargetLabel: entry.freshTargetLabel ?? undefined,
+        servedTargetLabel: entry.servedTargetLabel ?? undefined,
         indexingStatus: entry.indexingStatus ?? undefined,
         codeIndexState: entry.codeIndexState ?? undefined,
         resultCount: entry.resultCount ?? undefined,
@@ -1760,6 +1946,28 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       query: progress.query,
       queryWarnings: progress.queryWarnings,
       sources: progress.sources,
+      requestedSources: progress.requestedSources ?? undefined,
+      targetMode: normaliseTargetMode(progress.targetMode),
+      requestedTargets: progress.requestedTargets?.map((target) => ({
+        registry: target.registry
+          ? (target.registry as CodeNavigationRegistry)
+          : undefined,
+        name: target.name ?? undefined,
+        version: target.version ?? undefined,
+        repoUrl: target.repoUrl ?? undefined,
+        gitRef: target.gitRef ?? undefined,
+      })),
+      filters: normaliseProgressFilters(progress.filters),
+      limit: progress.limit ?? undefined,
+      offset: progress.offset ?? undefined,
+      targets: progress.targets?.map((target) => ({
+        requested: target.requested ?? undefined,
+        resolvedRequested: target.resolvedRequested ?? undefined,
+        served: target.served ?? undefined,
+        freshness: target.freshness ?? undefined,
+        indexingRef: target.indexingRef ?? undefined,
+        requestedRefKind: normaliseRequestedRefKind(target.requestedRefKind),
+      })),
       expiresAt: progress.expiresAt ?? undefined,
     };
   }
@@ -2200,6 +2408,47 @@ function isAuthMessage(message: string): boolean {
     lower.includes("permission") ||
     lower.includes("authentication")
   );
+}
+
+function normaliseTargetMode(
+  value: string | null | undefined,
+): DiscoveryTargetMode | undefined {
+  if (value === "PACKAGES" || value === "REPO" || value === "MIXED") {
+    return value;
+  }
+  return undefined;
+}
+
+function normaliseRequestedRefKind(
+  value: string | null | undefined,
+): DiscoveryRequestedRefKind | undefined {
+  switch (value) {
+    case "OMITTED_VERSION":
+    case "LATEST_VERSION":
+    case "EXACT_VERSION":
+    case "DEFAULT_BRANCH":
+    case "HEAD":
+    case "BRANCH":
+    case "SHA":
+      return value;
+    default:
+      return undefined;
+  }
+}
+
+function normaliseProgressFilters(
+  filters: z.infer<typeof unifiedSearchFiltersSchema>,
+): UnifiedSearchFilters | undefined {
+  if (!filters) return undefined;
+  const out: UnifiedSearchFilters = {};
+  if (filters.fileIntent) out.fileIntent = filters.fileIntent as FileIntent;
+  if (filters.kind) out.kind = filters.kind as SymbolKind;
+  if (filters.category) out.category = filters.category as SymbolCategory;
+  if (typeof filters.publicOnly === "boolean") {
+    out.publicOnly = filters.publicOnly;
+  }
+  if (filters.pathPrefix) out.pathPrefix = filters.pathPrefix;
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /**

@@ -75,6 +75,43 @@ describe("createListPackageDocsTool", () => {
     expect(() => JSON.parse(text)).toThrow();
   });
 
+  it("uses served gitRef for repo-backed docs text follow-ups", async () => {
+    const tool = createListPackageDocsTool(
+      createMockPackageIntelligenceService({
+        listPackageDocs: mock(() =>
+          Promise.resolve({
+            registry: "npm",
+            packageName: "ms",
+            version: "2.1.3",
+            pages: [
+              {
+                id: "github:vercel/ms@sha/readme.md",
+                title: "readme.md",
+                sourceKind: "REPOSITORY",
+                sourceUrl: "https://github.com/vercel/ms/blob/sha/readme.md",
+                repoUrl: "https://github.com/vercel/ms",
+                gitRef: "served-sha",
+                requestedRef: "main",
+                filePath: "readme.md",
+              },
+            ],
+            pageInfo: { hasNextPage: false },
+          } satisfies PackageDocsList),
+        ),
+      }),
+    );
+
+    const result = await tool.handler(
+      { registry: "npm", package_name: "ms" },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain(
+      'code_read target="https://github.com/vercel/ms#served-sha"',
+    );
+    expect(text).not.toContain("#main");
+  });
+
   it("omits nullish lastUpdatedAt values from the lean envelope", async () => {
     const tool = createListPackageDocsTool(
       createMockPackageIntelligenceService({

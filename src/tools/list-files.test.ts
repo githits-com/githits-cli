@@ -285,6 +285,18 @@ describe("createListFilesTool — validation errors", () => {
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
   });
+
+  it("returns INVALID_ARGUMENT for repo targets without git refs", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      { target: "https://github.com/expressjs/express" },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    const payload = parseText(result) as { code: string; error: string };
+    expect(payload.code).toBe("INVALID_ARGUMENT");
+    expect(payload.error).toContain("#gitRef");
+  });
 });
 
 describe("createListFilesTool — service errors", () => {

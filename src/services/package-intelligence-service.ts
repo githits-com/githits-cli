@@ -17,6 +17,7 @@
  */
 
 import { z } from "zod";
+import { debugLog, isDebugAreaEnabled } from "../shared/debug-log.js";
 import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
@@ -27,6 +28,7 @@ import { withTelemetrySpan } from "../shared/telemetry.js";
 import {
   ClientUpdateRequiredError,
   isClientUpdateRequiredGraphQLError,
+  isGraphQLSchemaMismatchError,
 } from "./client-update-required-error.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import { AuthenticationError } from "./githits-service.js";
@@ -1403,6 +1405,22 @@ export class PackageIntelligenceServiceImpl
 
     if (isClientUpdateRequiredGraphQLError({ message, code })) {
       return new ClientUpdateRequiredError();
+    }
+
+    if (isGraphQLSchemaMismatchError({ message, code })) {
+      const sanitized =
+        "Backend protocol mismatch. Your CLI may be newer than the server, or the server may require a newer CLI. Run `githits update-check` to verify your installed version. Set GITHITS_DEBUG=pkg-graphql to inspect GraphQL details during local development.";
+      debugLog("pkg-graphql", {
+        event: "graphql-schema-mismatch",
+        code: code ?? "omitted",
+        message,
+      });
+      return new PackageIntelligenceBackendError(
+        isDebugAreaEnabled("pkg-graphql") ? message : sanitized,
+        undefined,
+        code,
+        retryable,
+      );
     }
 
     switch (code) {

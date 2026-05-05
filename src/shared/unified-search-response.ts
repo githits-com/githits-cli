@@ -9,6 +9,7 @@ import type {
 import { MalformedCodeNavigationResponseError } from "../services/index.js";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { mapCodeNavigationError } from "./code-navigation-error-map.js";
+import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
 import { DEFAULT_UNIFIED_SEARCH_LIMIT } from "./unified-search-request.js";
 
 /**
@@ -46,9 +47,14 @@ export interface UnifiedSearchHighlightsPayload {
 export interface UnifiedSearchHitPayload {
   type: string;
   target: string;
+  requestedTarget?: string;
+  freshTarget?: string;
+  servedTarget?: string;
+  freshness?: string;
   title?: string;
   summary?: string;
   highlights?: UnifiedSearchHighlightsPayload;
+  followUp?: string;
   locator: {
     registry?: string;
     packageName?: string;
@@ -74,12 +80,37 @@ export interface UnifiedSearchProgressPayload {
   targetsReady: number;
   targetsTotal: number;
   elapsedMs: number;
+  query?: string;
+  requestedSources?: string[];
+  targetMode?: string;
+  requestedTargets?: Array<{
+    registry?: string;
+    name?: string;
+    version?: string;
+    repoUrl?: string;
+    gitRef?: string;
+  }>;
+  filters?: UnifiedSearchQueryEcho["filters"];
+  limit?: number;
+  offset?: number;
+  targets?: Array<{
+    requested?: string;
+    resolvedRequested?: string;
+    served?: string;
+    freshness?: string;
+    indexingRef?: string;
+    requestedRefKind?: string;
+  }>;
   expiresAt?: string;
+  next?: string;
 }
 
 export interface UnifiedSearchSourceStatusPayload {
   source: string;
   targetLabel: string;
+  requestedTarget?: string;
+  freshTarget?: string;
+  servedTarget?: string;
   indexingStatus?: string;
   codeIndexState?: string;
   resultCount?: number;
@@ -147,6 +178,7 @@ export interface UnifiedSearchStatusIncompletePayload {
   searchRef: string;
   progress?: UnifiedSearchProgressPayload;
   result?: UnifiedSearchStatusResultPayload;
+  warnings?: string[];
 }
 
 export function buildUnifiedSearchSuccessPayload(
@@ -161,6 +193,7 @@ export function buildUnifiedSearchSuccessPayload(
       : (outcome.result?.queryWarnings ??
         outcome.progress?.queryWarnings ??
         []);
+  const progress = compactProgress(outcome.progress);
   const query = buildQueryEcho(params, rawQuery, compiledQuery, warnings);
 
   if (outcome.state === "incomplete") {
@@ -175,11 +208,15 @@ export function buildUnifiedSearchSuccessPayload(
     if (result?.page.hasMore === true) {
       payload.nextOffset = result.page.offset + result.page.returned;
     }
-    const progress = compactProgress(outcome.progress);
     if (progress) payload.progress = progress;
     const sourceStatus = compactSourceStatus(result?.sourceStatus);
     if (sourceStatus) payload.sourceStatus = sourceStatus;
-    const combinedWarnings = combineWarnings(warnings, sourceStatus);
+    const combinedWarnings = combineWarnings(
+      warnings,
+      sourceStatus,
+      payload.results,
+      progress,
+    );
     if (combinedWarnings.length > 0) payload.warnings = combinedWarnings;
     return payload;
   }
@@ -197,7 +234,12 @@ export function buildUnifiedSearchSuccessPayload(
   if (outcome.searchRef) completed.searchRef = outcome.searchRef;
   const sourceStatus = compactSourceStatus(outcome.result.sourceStatus);
   if (sourceStatus) completed.sourceStatus = sourceStatus;
-  const combinedWarnings = combineWarnings(warnings, sourceStatus);
+  const combinedWarnings = combineWarnings(
+    warnings,
+    sourceStatus,
+    completed.results,
+    progress,
+  );
   if (combinedWarnings.length > 0) completed.warnings = combinedWarnings;
   return completed;
 }
@@ -217,9 +259,13 @@ export function buildUnifiedSearchSuccessPayload(
 function combineWarnings(
   parserWarnings: readonly string[],
   sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
+  hits: UnifiedSearchHitPayload[] = [],
+  progress?: UnifiedSearchProgressPayload,
 ): string[] {
   const out: string[] = [];
   if (parserWarnings.length > 0) out.push(...parserWarnings);
+  out.push(...buildHitFreshnessWarnings(hits));
+  out.push(...buildProgressFreshnessWarnings(progress));
   out.push(...buildSourceStatusWarnings(sourceStatus));
   return out;
 }
@@ -251,6 +297,8 @@ export function buildUnifiedSearchStatusPayload(
     };
     const progress = compactProgress(outcome.progress);
     if (progress) payload.progress = progress;
+    const progressWarnings = buildProgressFreshnessWarnings(progress);
+    if (progressWarnings.length > 0) payload.warnings = progressWarnings;
     if (outcome.result) {
       payload.result = buildUnifiedSearchStatusResultPayload(outcome.result);
     }
@@ -343,10 +391,18 @@ function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
     target: hit.targetLabel,
     locator: buildLocatorPayload(hit),
   };
+  appendFreshness(payload, {
+    requestedTargetLabel: hit.requestedTargetLabel,
+    freshTargetLabel: hit.freshTargetLabel,
+    servedTargetLabel: hit.servedTargetLabel,
+    freshness: hit.freshness,
+  });
   if (hit.title) payload.title = hit.title;
   if (hit.summary) payload.summary = hit.summary;
   const highlights = buildHighlights(hit.highlights);
   if (highlights) payload.highlights = highlights;
+  const followUp = buildSearchHitFollowUpCommand(payload);
+  if (followUp) payload.followUp = followUp;
   return payload;
 }
 
@@ -403,8 +459,89 @@ function compactProgress(
     targetsTotal: progress.targetsTotal,
     elapsedMs: progress.elapsedMs,
   };
+  if (progress.query) payload.query = progress.query;
+  if (progress.requestedSources?.length) {
+    payload.requestedSources = progress.requestedSources.map((entry) =>
+      entry.toLowerCase(),
+    );
+  }
+  if (progress.targetMode) payload.targetMode = progress.targetMode;
+  if (progress.requestedTargets?.length) {
+    payload.requestedTargets = progress.requestedTargets;
+  }
+  if (progress.filters) payload.filters = buildFilterEcho(progress.filters);
+  if (typeof progress.limit === "number") payload.limit = progress.limit;
+  if (typeof progress.offset === "number") payload.offset = progress.offset;
+  const targets = progress.targets?.map(compactProgressTarget).filter(Boolean);
+  if (targets?.length) {
+    payload.targets = targets as NonNullable<
+      UnifiedSearchProgressPayload["targets"]
+    >;
+  }
   if (progress.expiresAt) payload.expiresAt = progress.expiresAt;
+  payload.next = `search_status search_ref=${JSON.stringify(progress.searchRef)}`;
   return payload;
+}
+
+function appendFreshness(
+  payload: {
+    requestedTarget?: string;
+    freshTarget?: string;
+    servedTarget?: string;
+    freshness?: string;
+  },
+  source: {
+    requestedTargetLabel?: string;
+    freshTargetLabel?: string;
+    servedTargetLabel?: string;
+    freshness?: string;
+  },
+): void {
+  if (
+    !isTrustRelevantFreshness(source.freshness) ||
+    !labelsDiverge({
+      requestedTarget: source.requestedTargetLabel,
+      freshTarget: source.freshTargetLabel,
+      servedTarget: source.servedTargetLabel,
+    })
+  ) {
+    return;
+  }
+  if (source.requestedTargetLabel)
+    payload.requestedTarget = source.requestedTargetLabel;
+  if (source.freshTargetLabel) payload.freshTarget = source.freshTargetLabel;
+  if (source.servedTargetLabel) payload.servedTarget = source.servedTargetLabel;
+  if (source.freshness) payload.freshness = source.freshness;
+}
+
+function compactProgressTarget(
+  target: NonNullable<UnifiedSearchProgress["targets"]>[number],
+): NonNullable<UnifiedSearchProgressPayload["targets"]>[number] | undefined {
+  const payload: NonNullable<UnifiedSearchProgressPayload["targets"]>[number] =
+    {};
+  if (target.requested) payload.requested = target.requested;
+  if (target.resolvedRequested)
+    payload.resolvedRequested = target.resolvedRequested;
+  if (target.served) payload.served = target.served;
+  if (target.freshness) payload.freshness = target.freshness;
+  if (target.indexingRef) payload.indexingRef = target.indexingRef;
+  if (target.requestedRefKind)
+    payload.requestedRefKind = target.requestedRefKind;
+  return Object.keys(payload).length > 0 ? payload : undefined;
+}
+
+function buildFilterEcho(
+  filters: NonNullable<UnifiedSearchProgress["filters"]>,
+): UnifiedSearchQueryEcho["filters"] | undefined {
+  const echo: NonNullable<UnifiedSearchQueryEcho["filters"]> = {};
+  if (filters.kind) echo.kind = filters.kind.toLowerCase();
+  if (filters.category) echo.category = filters.category.toLowerCase();
+  if (filters.pathPrefix) echo.pathPrefix = filters.pathPrefix;
+  if (filters.fileIntent) echo.fileIntent = filters.fileIntent.toLowerCase();
+  if (typeof filters.publicOnly === "boolean") {
+    echo.publicOnly = filters.publicOnly;
+  }
+  return Object.keys(echo).length > 0 ? echo : undefined;
 }
 
 /**
@@ -433,10 +570,78 @@ export function buildSourceStatusWarnings(
   return warnings;
 }
 
+function buildHitFreshnessWarnings(hits: UnifiedSearchHitPayload[]): string[] {
+  return hits
+    .map((hit) =>
+      freshnessWarning({
+        freshness: hit.freshness,
+        requestedTarget: hit.requestedTarget,
+        freshTarget: hit.freshTarget,
+        servedTarget: hit.servedTarget,
+      }),
+    )
+    .filter((entry): entry is string => Boolean(entry));
+}
+
+function buildProgressFreshnessWarnings(
+  progress: UnifiedSearchProgressPayload | undefined,
+): string[] {
+  return (progress?.targets ?? [])
+    .map((target) =>
+      freshnessWarning({
+        freshness: target.freshness,
+        requestedTarget: target.requested,
+        freshTarget: target.resolvedRequested,
+        servedTarget: target.served,
+      }),
+    )
+    .filter((entry): entry is string => Boolean(entry));
+}
+
+function freshnessWarning(input: {
+  freshness?: string;
+  requestedTarget?: string;
+  freshTarget?: string;
+  servedTarget?: string;
+}): string | undefined {
+  if (!isTrustRelevantFreshness(input.freshness)) return undefined;
+  if (!labelsDiverge(input)) return undefined;
+  const requested = input.requestedTarget ?? "requested target";
+  const served = input.servedTarget ?? "served target";
+  const fresh = input.freshTarget;
+  return fresh
+    ? `requested ${requested}; served stale ${served} while ${fresh} indexes.`
+    : `requested ${requested}; served stale ${served}.`;
+}
+
+function isTrustRelevantFreshness(value: string | undefined): boolean {
+  return value === "STALE" || value === "INDEXING";
+}
+
+function labelsDiverge(input: {
+  requestedTarget?: string;
+  freshTarget?: string;
+  servedTarget?: string;
+}): boolean {
+  const served = input.servedTarget;
+  if (!served) return false;
+  return Boolean(
+    (input.freshTarget && input.freshTarget !== served) ||
+      (input.requestedTarget && input.requestedTarget !== served),
+  );
+}
+
 function warningForEntry(
   entry: UnifiedSearchSourceStatusPayload,
 ): string | undefined {
   const reasons: string[] = [];
+  const freshness = freshnessWarning({
+    freshness: entry.codeIndexState,
+    requestedTarget: entry.requestedTarget,
+    freshTarget: entry.freshTarget,
+    servedTarget: entry.servedTarget,
+  });
+  if (freshness) return freshness;
   if (entry.incompatibleQueryFeatures?.length) {
     reasons.push(
       `incompatible query features [${entry.incompatibleQueryFeatures.join(", ")}]`,
@@ -463,7 +668,9 @@ function warningForEntry(
     reasons.push(`indexing status ${entry.indexingStatus}`);
   }
   if (entry.codeIndexState) {
-    reasons.push(`code index state ${entry.codeIndexState}`);
+    if (entry.codeIndexState !== "STALE") {
+      reasons.push(`code index state ${entry.codeIndexState}`);
+    }
   }
   // Source/target prefix anchors the message so an agent reading
   // multi-source warnings can tell which target each refers to.
@@ -498,6 +705,21 @@ function compactSourceStatusEntry(
   };
   let interesting = false;
 
+  const staleDiverges =
+    entry.codeIndexState === "STALE" &&
+    labelsDiverge({
+      requestedTarget: entry.requestedTargetLabel,
+      freshTarget: entry.freshTargetLabel,
+      servedTarget: entry.servedTargetLabel,
+    });
+  if (staleDiverges) {
+    payload.requestedTarget = entry.requestedTargetLabel;
+    payload.freshTarget = entry.freshTargetLabel;
+    payload.servedTarget = entry.servedTargetLabel;
+    payload.codeIndexState = entry.codeIndexState;
+    interesting = true;
+  }
+
   // Suppress healthy lifecycle states. INDEXED means searchable; CURRENT
   // and STALE both have data agents can use (STALE = served from a slightly
   // older navpack while a reindex runs — we do not warn agents about it).
@@ -508,7 +730,7 @@ function compactSourceStatusEntry(
   if (
     entry.codeIndexState &&
     entry.codeIndexState !== "CURRENT" &&
-    entry.codeIndexState !== "STALE"
+    (entry.codeIndexState !== "STALE" || staleDiverges)
   ) {
     payload.codeIndexState = entry.codeIndexState;
     interesting = true;

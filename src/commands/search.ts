@@ -829,7 +829,7 @@ function formatUnifiedSearchMetadata(
   }
 
   if (entry.type === "repository_doc" && entry.locator.filePath) {
-    const ref = entry.locator.requestedRef ?? entry.locator.gitRef;
+    const ref = entry.locator.gitRef;
     lines.push(
       `  ${dim("file:", useColors)} ${entry.locator.filePath}${ref ? ` @ ${ref}` : ""}`,
     );

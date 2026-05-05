@@ -30,7 +30,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
 
     expect(payload.completed).toBe(true);
     expect(payload.results.length).toBe(1);
-    expect(payload.results[0]).toEqual({
+    expect(payload.results[0]).toMatchObject({
       type: "repository_code",
       target: "npm:express@4.18.2",
       title: "router middleware",
@@ -44,6 +44,9 @@ describe("buildUnifiedSearchSuccessPayload", () => {
         language: "javascript",
       }),
     });
+    expect(payload.results[0]?.followUp).toBe(
+      'code_read target="npm:express@4.18.2" path="lib/router/index.js" start_line=42 end_line=57',
+    );
     expect(payload.results[0]).not.toHaveProperty("score");
   });
 
@@ -95,6 +98,8 @@ describe("buildUnifiedSearchSuccessPayload", () => {
         targetsReady: 0,
         targetsTotal: 1,
         elapsedMs: 200,
+        query: "router middleware",
+        next: 'search_status search_ref="search-ref-123"',
       },
     });
   });
@@ -133,6 +138,113 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.query.allowPartialResults).toBe(true);
     expect(payload.results.length).toBe(1);
     expect(payload.results[0]?.target).toBe("npm:express@4.18.2");
+  });
+
+  it("projects stale hit freshness into compact fields and warnings", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [
+          {
+            ...defaultUnifiedSearchOutcome.result.results[0]!,
+            requestedTargetLabel: "npm:express latest",
+            freshTargetLabel: "npm:express@5.2.1",
+            servedTargetLabel: "npm:express@5.1.0",
+            freshness: "STALE",
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      outcome,
+    );
+
+    expect(payload.results[0]).toMatchObject({
+      requestedTarget: "npm:express latest",
+      freshTarget: "npm:express@5.2.1",
+      servedTarget: "npm:express@5.1.0",
+      freshness: "STALE",
+    });
+    expect(payload.warnings).toContain(
+      "requested npm:express latest; served stale npm:express@5.1.0 while npm:express@5.2.1 indexes.",
+    );
+  });
+
+  it("omits non-actionable current freshness metadata from hits", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [
+          {
+            ...defaultUnifiedSearchOutcome.result.results[0]!,
+            requestedTargetLabel: "expressjs/express",
+            freshTargetLabel: "expressjs/express@master",
+            servedTargetLabel: "expressjs/express@master",
+            freshness: "CURRENT",
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      outcome,
+    );
+
+    expect(payload.results[0]).not.toHaveProperty("requestedTarget");
+    expect(payload.results[0]).not.toHaveProperty("freshTarget");
+    expect(payload.results[0]).not.toHaveProperty("servedTarget");
+    expect(payload.results[0]).not.toHaveProperty("freshness");
+    expect(payload.warnings).toBeUndefined();
+  });
+
+  it("projects progress freshness warnings without result hits", () => {
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        state: "incomplete",
+        completed: false,
+        searchRef: "search-ref-123",
+        progress: {
+          searchRef: "search-ref-123",
+          status: "INDEXING",
+          targetsTotal: 1,
+          targetsReady: 0,
+          elapsedMs: 200,
+          query: "router middleware",
+          queryWarnings: [],
+          sources: ["CODE"],
+          targets: [
+            {
+              requested: "https://github.com/foo/bar default branch",
+              resolvedRequested: "main@def456",
+              served: "main@abc123",
+              freshness: "STALE",
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.warnings).toContain(
+      "requested https://github.com/foo/bar default branch; served stale main@abc123 while main@def456 indexes.",
+    );
   });
 });
 
@@ -199,6 +311,35 @@ describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", ()
     expect(warnings.length).toBe(2);
     expect(warnings[0]).toContain("docs");
     expect(warnings[1]).toContain("code");
+  });
+
+  it("does not warn for stale source status without label divergence", () => {
+    expect(
+      buildSourceStatusWarnings([
+        {
+          source: "code",
+          targetLabel: "npm:express@5.1.0",
+          codeIndexState: "STALE",
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("warns for stale source status when labels diverge", () => {
+    expect(
+      buildSourceStatusWarnings([
+        {
+          source: "code",
+          targetLabel: "npm:express@5.1.0",
+          requestedTarget: "npm:express latest",
+          freshTarget: "npm:express@5.2.1",
+          servedTarget: "npm:express@5.1.0",
+          codeIndexState: "STALE",
+        },
+      ]),
+    ).toEqual([
+      "requested npm:express latest; served stale npm:express@5.1.0 while npm:express@5.2.1 indexes.",
+    ]);
   });
 });
 
@@ -365,6 +506,8 @@ describe("buildUnifiedSearchStatusPayload", () => {
         targetsReady: 0,
         targetsTotal: 1,
         elapsedMs: 200,
+        query: "router middleware",
+        next: 'search_status search_ref="search-ref-123"',
       },
     });
   });

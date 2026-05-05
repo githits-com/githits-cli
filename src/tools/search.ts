@@ -1,5 +1,10 @@
 import { z } from "zod";
-import type { CodeNavigationService } from "../services/index.js";
+import type {
+  CodeNavigationService,
+  CodeNavigationTarget,
+} from "../services/index.js";
+import { toCodeNavigationRegistry } from "../shared/code-navigation.js";
+import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchParams,
@@ -10,16 +15,21 @@ import {
   toSymbolCategory,
   toSymbolKind,
 } from "../shared/index.js";
+import { parseUnifiedSearchTargetSpec } from "../shared/unified-search-target.js";
 import {
   type CodeTargetArg,
-  codeTargetSchema,
-  resolveCodeTarget,
+  structuredCodeTargetSchema,
 } from "./code-navigation-shared.js";
-import { errorResult, type ToolDefinition, textResult } from "./types.js";
+import {
+  errorResult,
+  type ToolDefinition,
+  type ToolResult,
+  textResult,
+} from "./types.js";
 
-type ResolvedCodeTarget = Exclude<
-  ReturnType<typeof resolveCodeTarget>,
-  { content: unknown }
+type ResolvedSearchTarget = Exclude<
+  ReturnType<typeof resolveSearchTarget>,
+  ToolResult
 >;
 
 export interface SearchArgs {
@@ -77,6 +87,16 @@ export interface SearchArgs {
   format?: "json" | "text" | "text-v1";
 }
 
+const searchTargetSchema = z.union([
+  structuredCodeTargetSchema,
+  z
+    .string()
+    .min(1)
+    .describe(
+      "Compact discovery target string. Package: `npm:react@18.2.0`. Repository: `https://github.com/facebook/react` for backend default branch or `https://github.com/facebook/react#HEAD` for an explicit ref.",
+    ),
+]);
+
 const schema = {
   query: z
     .string()
@@ -84,8 +104,8 @@ const schema = {
     .describe(
       "Discovery query string. Supports implicit AND, uppercase OR, parentheses, unary -, quoted phrases, semantic qualifiers (kind:, category:, path:, lang:, name:, intent:), and routing qualifiers (registry:, package:, version:, repo:). Parsed once and compiled per source; it is not forwarded as a raw backend query.",
     ),
-  target: codeTargetSchema.optional(),
-  targets: z.array(codeTargetSchema).max(20).optional(),
+  target: searchTargetSchema.optional(),
+  targets: z.array(searchTargetSchema).max(20).optional(),
   sources: z
     .array(z.enum(["docs", "code", "symbol"]))
     .optional()
@@ -187,13 +207,13 @@ export function createSearchTool(
     handler: async (args) => {
       try {
         const resolvedTarget = args.target
-          ? resolveCodeTarget(args.target)
+          ? resolveSearchTarget(args.target)
           : undefined;
         if (resolvedTarget && "content" in resolvedTarget)
           return resolvedTarget;
 
         const resolvedTargets = args.targets?.map((entry) =>
-          resolveCodeTarget(entry),
+          resolveSearchTarget(entry),
         );
         const resolvedTargetsError = resolvedTargets?.find(
           (entry) => "content" in entry,
@@ -207,7 +227,7 @@ export function createSearchTool(
             resolvedTarget && !("content" in resolvedTarget)
               ? resolvedTarget
               : undefined,
-          targets: resolvedTargets?.filter(isResolvedCodeTarget),
+          targets: resolvedTargets?.filter(isResolvedSearchTarget),
           query: args.query,
           sources: args.sources?.map(
             (entry) => entry.toUpperCase() as "DOCS" | "CODE" | "SYMBOL",
@@ -247,10 +267,71 @@ export function createSearchTool(
   };
 }
 
-function isResolvedCodeTarget(
-  target: ReturnType<typeof resolveCodeTarget>,
-): target is ResolvedCodeTarget {
+function isResolvedSearchTarget(
+  target: ReturnType<typeof resolveSearchTarget>,
+): target is ResolvedSearchTarget {
   return !("content" in target);
+}
+
+function resolveSearchTarget(
+  target: CodeTargetArg,
+): CodeNavigationTarget | ToolResult {
+  if (typeof target === "string") {
+    try {
+      return parseUnifiedSearchTargetSpec(target);
+    } catch (error) {
+      const mapped = mapCodeNavigationError(error);
+      return errorResult(
+        JSON.stringify({
+          error: mapped.message,
+          code: mapped.code,
+          retryable: mapped.retryable ?? false,
+          ...(mapped.details ? { details: mapped.details } : {}),
+        }),
+      );
+    }
+  }
+
+  const hasPackageTarget = Boolean(target.registry || target.package_name);
+  const hasRepoTarget = Boolean(target.repo_url || target.git_ref);
+  if (hasPackageTarget && hasRepoTarget) {
+    return invalidSearchTargetResult(
+      "Invalid target: provide either registry + package_name or repo_url + git_ref, not both.",
+    );
+  }
+  if (!hasPackageTarget && !hasRepoTarget) {
+    return invalidSearchTargetResult(
+      "Missing target: provide registry + package_name or repo_url.",
+    );
+  }
+  if (hasPackageTarget) {
+    if (!target.registry || !target.package_name) {
+      return invalidSearchTargetResult(
+        "Incomplete package target: both registry and package_name are required.",
+      );
+    }
+    return {
+      registry: toCodeNavigationRegistry(target.registry),
+      packageName: target.package_name,
+      version: target.version,
+    };
+  }
+  if (!target.repo_url) {
+    return invalidSearchTargetResult(
+      "Incomplete repository target: repo_url is required.",
+    );
+  }
+  return { repoUrl: target.repo_url, gitRef: target.git_ref };
+}
+
+function invalidSearchTargetResult(message: string): ToolResult {
+  return errorResult(
+    JSON.stringify({
+      error: message,
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    }),
+  );
 }
 
 /**

@@ -66,7 +66,7 @@ export const codeTargetSchema = z.union([
     .string()
     .min(1)
     .describe(
-      "Compact target string. Package: `npm:react@18.2.0`. Repository: `https://github.com/facebook/react#HEAD` (git ref suffix optional, defaults to HEAD).",
+      "Compact target string. Package: `npm:react@18.2.0`. Repository: `https://github.com/facebook/react#HEAD` (git ref suffix required for exact code navigation).",
     ),
 ]);
 
@@ -134,10 +134,9 @@ export function resolveCodeTarget(
       );
     }
 
-    return {
-      repoUrl: target.repo_url,
-      gitRef: target.git_ref ?? "HEAD",
-    };
+    return invalidTargetResult(
+      "Incomplete repository target: git_ref is required for exact code navigation.",
+    );
   }
 
   return {

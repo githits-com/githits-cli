@@ -54,7 +54,9 @@ describe("searchAction", () => {
   }
 
   it("calls unified search service with parsed targets and filters", async () => {
-    const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
     const deps = createDeps({
       codeNavigationService: createMockCodeNavigationService({ search }),
     });
@@ -86,7 +88,9 @@ describe("searchAction", () => {
   });
 
   it("passes repeatable --source values through as source filters", async () => {
-    const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
     const deps = createDeps({
       codeNavigationService: createMockCodeNavigationService({ search }),
     });
@@ -106,6 +110,28 @@ describe("searchAction", () => {
         sources: ["CODE", "DOCS"],
       }),
     );
+    consoleSpy.mockRestore();
+  });
+
+  it("preserves omitted repo refs for CLI discovery search targets", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const deps = createDeps({
+      codeNavigationService: createMockCodeNavigationService({ search }),
+    });
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchAction(
+      "router middleware",
+      { in: ["https://github.com/expressjs/express"] },
+      deps,
+    );
+
+    const call = search.mock.calls[0]?.[0];
+    expect(call?.targets[0]).toEqual({
+      repoUrl: "https://github.com/expressjs/express",
+    });
     consoleSpy.mockRestore();
   });
 

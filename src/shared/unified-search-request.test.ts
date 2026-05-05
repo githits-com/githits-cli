@@ -122,15 +122,18 @@ describe("buildUnifiedSearchParams", () => {
     ]);
   });
 
-  it("rejects mixed package and repo targets", () => {
-    expect(() =>
-      buildUnifiedSearchParams({
-        targets: [
-          { registry: "NPM", packageName: "express" },
-          { repoUrl: "https://github.com/expressjs/express", gitRef: "main" },
-        ],
-        query: "router",
-      }),
-    ).toThrow("Do not mix package-scoped and repo-scoped targets");
+  it("accepts mixed package and repo targets", () => {
+    const built = buildUnifiedSearchParams({
+      targets: [
+        { registry: "NPM", packageName: "express" },
+        { repoUrl: "https://github.com/expressjs/express", gitRef: "main" },
+      ],
+      query: "router",
+    });
+
+    expect(built.params.targets).toEqual([
+      { registry: "NPM", packageName: "express" },
+      { repoUrl: "https://github.com/expressjs/express", gitRef: "main" },
+    ]);
   });
 });

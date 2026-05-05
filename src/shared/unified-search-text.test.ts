@@ -218,6 +218,24 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("source notes:");
   });
 
+  it("does not fabricate HEAD when repo follow-up lacks served gitRef", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          target: "https://github.com/expressjs/express default branch",
+          locator: {
+            repoUrl: "https://github.com/expressjs/express",
+            filePath: "lib/router/index.js",
+            requestedRef: "main",
+          },
+        }),
+      ]),
+    );
+
+    expect(text).toContain("follow-up unavailable: missing target");
+    expect(text).not.toContain("#HEAD");
+  });
+
   it("omits the warnings preamble when no warnings are present", () => {
     const text = renderUnifiedSearchSuccess(completed([codeHit()]));
     expect(text).not.toContain("warnings:");

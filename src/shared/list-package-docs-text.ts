@@ -32,7 +32,7 @@ export function renderListPackageDocsText(
       lines.push(
         `  ${buildCodeReadCommand({
           repoUrl: page.repoUrl,
-          gitRef: page.requestedRef ?? page.gitRef,
+          gitRef: page.gitRef,
           filePath: page.filePath,
           startLine: 1,
           endLine: 150,
