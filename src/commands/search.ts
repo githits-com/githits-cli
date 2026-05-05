@@ -813,7 +813,9 @@ function formatUnifiedSearchMetadata(
 
   const lines: string[] = [];
   if (entry.locator.pageId) {
-    lines.push(`  ${dim("pageId:", useColors)} ${entry.locator.pageId}`);
+    if (entry.type === "documentation_page") {
+      lines.push(`  ${dim("pageId:", useColors)} ${entry.locator.pageId}`);
+    }
   }
 
   const sourceBadge =
@@ -822,16 +824,9 @@ function formatUnifiedSearchMetadata(
       : entry.locator.sourceKind?.toLowerCase() === "crawled"
         ? "[crawled]"
         : undefined;
-  if (entry.locator.sourceUrl) {
+  if (entry.locator.sourceUrl && entry.type === "documentation_page") {
     lines.push(
       `  ${dim("source:", useColors)} ${sourceBadge ? `${sourceBadge} ` : ""}${entry.locator.sourceUrl}`,
-    );
-  }
-
-  if (entry.type === "repository_doc" && entry.locator.filePath) {
-    const ref = entry.locator.gitRef;
-    lines.push(
-      `  ${dim("file:", useColors)} ${entry.locator.filePath}${ref ? ` @ ${ref}` : ""}`,
     );
   }
 
