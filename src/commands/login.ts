@@ -39,6 +39,8 @@ export const silentLoginOutput: LoginOutput = {
 };
 
 const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const AUTH_TIMEOUT_MESSAGE =
+  "Authentication timed out after 5 minutes. The browser link has expired, so it will not work anymore. Run the same command again to try signing in again.";
 
 function randomPort(): number {
   return Math.floor(Math.random() * 2000) + 8000; // 8000-9999
@@ -92,6 +94,7 @@ export async function loginFlow(
   output: LoginOutput = stdoutLoginOutput,
 ): Promise<LoginFlowResult> {
   const { authService, authStorage, browserService, mcpUrl } = deps;
+  const existing = await authStorage.loadTokens(mcpUrl);
 
   // Validate port if provided
   if (
@@ -105,7 +108,6 @@ export async function loginFlow(
   }
 
   // Check if already logged in
-  const existing = await authStorage.loadTokens(mcpUrl);
   if (existing && !options.force) {
     const isExpired =
       existing.expiresAt && new Date(existing.expiresAt) < new Date();
@@ -132,6 +134,8 @@ export async function loginFlow(
 
   // Step 2: Load or register client via DCR
   let client = await authStorage.loadClient(mcpUrl);
+  const hadStoredClient = client !== null;
+  let shouldClearClientOnFailedAttempt = false;
   let port: number;
   let redirectUri: string;
 
@@ -153,6 +157,7 @@ export async function loginFlow(
           redirectUri,
           registeredAt: new Date().toISOString(),
         };
+        shouldClearClientOnFailedAttempt = !hadStoredClient;
       }
       port = options.port;
     } else {
@@ -175,6 +180,7 @@ export async function loginFlow(
       redirectUri,
       registeredAt: new Date().toISOString(),
     };
+    shouldClearClientOnFailedAttempt = !hadStoredClient;
   }
 
   // Step 3: Generate PKCE parameters
@@ -222,7 +228,7 @@ export async function loginFlow(
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(
-      () => reject(new Error("Authentication timed out")),
+      () => reject(new Error(AUTH_TIMEOUT_MESSAGE)),
       TIMEOUT_MS,
     );
   });
@@ -234,15 +240,21 @@ export async function loginFlow(
   } catch (error) {
     if (timeoutId) clearTimeout(timeoutId);
     await callbackServer.close().catch(() => {});
+    if (shouldClearClientOnFailedAttempt) {
+      await authStorage.clearClient(mcpUrl).catch(() => {});
+    }
     const msg =
       error instanceof Error ? error.message : "Authentication failed";
-    return { status: "failed", message: `${msg}.` };
+    return { status: "failed", message: ensureTerminalPeriod(msg) };
   }
 
   // Step 7: Handle callback outcome
   if (callback.type !== "success") {
     // Let the callback server finish sending the error page to the browser
     await new Promise((r) => setTimeout(r, 2000));
+    if (shouldClearClientOnFailedAttempt) {
+      await authStorage.clearClient(mcpUrl).catch(() => {});
+    }
     return {
       status: "failed",
       message: callback.message ?? "Authentication callback failed.",
@@ -327,6 +339,16 @@ export async function loginAction(
 
 function printLoginRecoveryHint(message: string): void {
   console.log("Recovery steps:");
+  if (message.includes("Authentication timed out")) {
+    console.log("  Run the same command again to open a fresh sign-in link.");
+    console.log(
+      "  githits login --no-browser  # if the browser did not open or you are on SSH",
+    );
+    console.log(
+      "  githits logout && githits login  # if sign-in keeps failing after a retry",
+    );
+    return;
+  }
   console.log("  githits auth status");
   console.log("  githits login --force");
   if (message.includes("Cannot persist OAuth credentials")) {
@@ -338,6 +360,34 @@ function printLoginRecoveryHint(message: string): void {
       "As a last resort, set GITHITS_AUTH_STORAGE=file to use plaintext file storage.",
     );
   }
+}
+
+export function printAutoLoginRecoveryHint(message: string): void {
+  if (message.includes("Authentication timed out")) {
+    console.error("Run the same command again to open a fresh sign-in link.");
+    console.error(
+      "If the browser did not open, run `githits login --no-browser` and follow the printed link.",
+    );
+    console.error(
+      "If sign-in keeps failing after a retry, run `githits logout` and then run your command again.",
+    );
+    return;
+  }
+
+  console.error("Run the same command again to try signing in again.");
+  console.error(
+    "Run `githits auth status` to check whether you are signed in.",
+  );
+  if (message.includes("Cannot persist OAuth credentials")) {
+    console.error(
+      "If your system keychain is locked or unavailable, unlock it and try again.",
+    );
+    console.error("For CI/automation, set GITHITS_API_TOKEN.");
+  }
+}
+
+function ensureTerminalPeriod(message: string): string {
+  return /[.!?]$/.test(message) ? message : `${message}.`;
 }
 
 const LOGIN_DESCRIPTION = `Authenticate with your GitHits account via browser.

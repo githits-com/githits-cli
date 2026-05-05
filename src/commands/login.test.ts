@@ -462,8 +462,9 @@ describe("loginFlow", () => {
     expect(writes).toContain("  http://example.com/auth\n");
   });
 
-  it("closes callback server when authentication wait fails", async () => {
+  it("closes callback server and clears fresh client when authentication wait fails", async () => {
     const close = mock(() => Promise.resolve());
+    const authStorage = createMockAuthStorage();
     const authService = createMockAuthService({
       startCallbackServer: mock(() =>
         Promise.resolve({
@@ -477,7 +478,7 @@ describe("loginFlow", () => {
       { port: 8080 },
       {
         authService,
-        authStorage: createMockAuthStorage(),
+        authStorage,
         browserService: createMockBrowserService(),
         mcpUrl,
       },
@@ -487,6 +488,130 @@ describe("loginFlow", () => {
     expect(result.status).toBe("failed");
     expect(result.message).toBe("callback failed.");
     expect(close).toHaveBeenCalledTimes(1);
+    expect(authStorage.clearClient).toHaveBeenCalledWith(mcpUrl);
+  });
+
+  it("returns actionable timeout message and clears fresh client", async () => {
+    const close = mock(() => Promise.resolve());
+    const authStorage = createMockAuthStorage();
+    const authService = createMockAuthService({
+      startCallbackServer: mock(() =>
+        Promise.resolve({
+          result: new Promise<never>(() => {}),
+          close,
+        }),
+      ),
+    });
+
+    const timeout = setTimeout;
+    globalThis.setTimeout = ((callback: () => void) => {
+      if (typeof callback === "function") callback();
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    }) as typeof setTimeout;
+
+    try {
+      const result = await loginFlow(
+        { port: 8080 },
+        {
+          authService,
+          authStorage,
+          browserService: createMockBrowserService(),
+          mcpUrl,
+        },
+        silentLoginOutput,
+      );
+
+      expect(result.status).toBe("failed");
+      expect(result.message).toContain(
+        "Authentication timed out after 5 minutes",
+      );
+      expect(result.message).toContain("Run the same command again");
+      expect(close).toHaveBeenCalledTimes(1);
+      expect(authStorage.clearClient).toHaveBeenCalledWith(mcpUrl);
+    } finally {
+      globalThis.setTimeout = timeout;
+    }
+  });
+
+  it("does not clear reused client when forced login times out", async () => {
+    const existingToken = createValidTokenData({
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+    const close = mock(() => Promise.resolve());
+    const authStorage = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(existingToken)),
+      loadClient: mock(() =>
+        Promise.resolve({
+          clientId: "existing-client",
+          clientSecret: "existing-secret",
+          redirectUri: "http://127.0.0.1:8080/callback",
+          registeredAt: "2025-01-01T00:00:00Z",
+        }),
+      ),
+    });
+    const authService = createMockAuthService({
+      startCallbackServer: mock(() =>
+        Promise.resolve({
+          result: Promise.reject(new Error("callback failed")),
+          close,
+        }),
+      ),
+    });
+
+    const result = await loginFlow(
+      { force: true },
+      {
+        authService,
+        authStorage,
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+      silentLoginOutput,
+    );
+
+    expect(result.status).toBe("failed");
+    expect(authStorage.clearClient).not.toHaveBeenCalledWith(mcpUrl);
+  });
+
+  it("does not clear stored client when changed-port login fails before saving", async () => {
+    const existingToken = createValidTokenData({
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+    const close = mock(() => Promise.resolve());
+    const authStorage = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(existingToken)),
+      loadClient: mock(() =>
+        Promise.resolve({
+          clientId: "existing-client",
+          clientSecret: "existing-secret",
+          redirectUri: "http://127.0.0.1:8080/callback",
+          registeredAt: "2025-01-01T00:00:00Z",
+        }),
+      ),
+    });
+    const authService = createMockAuthService({
+      startCallbackServer: mock(() =>
+        Promise.resolve({
+          result: Promise.reject(new Error("callback failed")),
+          close,
+        }),
+      ),
+    });
+
+    const result = await loginFlow(
+      { force: true, port: 9090 },
+      {
+        authService,
+        authStorage,
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+      silentLoginOutput,
+    );
+
+    expect(result.status).toBe("failed");
+    expect(authService.registerClient).toHaveBeenCalled();
+    expect(authStorage.clearClient).not.toHaveBeenCalledWith(mcpUrl);
   });
 
   it("does not open browser when callback server cannot start", async () => {
