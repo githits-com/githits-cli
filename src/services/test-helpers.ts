@@ -96,7 +96,12 @@ export function createMockAuthService(
     ),
     generatePkceParams: mock(() => defaultPkceParams),
     buildAuthUrl: mock(() => "http://example.com/auth"),
-    startCallbackServer: mock(() => Promise.resolve(defaultCallbackResult)),
+    startCallbackServer: mock(() =>
+      Promise.resolve({
+        result: Promise.resolve(defaultCallbackResult),
+        close: mock(() => Promise.resolve()),
+      }),
+    ),
     exchangeCodeForTokens: mock(() => Promise.resolve(defaultTokenResponse)),
     refreshAccessToken: mock(() => Promise.resolve(defaultTokenResponse)),
     ...impl,

@@ -52,8 +52,6 @@ export function createRootCliPreAction(
 
 function getPostLoginContinuationMessage(command: Command): string | undefined {
   switch (getCommandPath(command).join(" ")) {
-    case "init":
-      return "Authentication complete. Continuing setup...";
     case "example":
       return "Authentication complete. Running example search...";
     case "languages":

@@ -109,6 +109,7 @@ export async function initAction(
       console.log(
         `    ${warning(`Login failed: ${loginResult.message}`, useColors)}\n`,
       );
+      printAuthRecoveryHint();
       if (!options.yes) {
         try {
           const choice = await promptService.confirm3(
@@ -288,6 +289,19 @@ export async function initAction(
   }
 
   console.log();
+}
+
+function printAuthRecoveryHint(): void {
+  console.log(
+    "    You can still configure MCP, but GitHits tools will require auth.",
+  );
+  console.log("    Recovery steps:");
+  console.log("      githits auth status");
+  console.log("      githits login --force");
+  console.log("    For CI or locked-down machines, set GITHITS_API_TOKEN.");
+  console.log(
+    "    If your system keychain is unavailable, set GITHITS_AUTH_STORAGE=file after accepting plaintext storage.\n",
+  );
 }
 
 const INIT_DESCRIPTION = `Set up GitHits MCP server for your coding agents.

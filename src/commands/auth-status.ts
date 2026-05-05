@@ -53,9 +53,8 @@ export async function authStatusAction(
   if (!auth) {
     console.log("Not authenticated.\n");
     console.log(`  Environment: ${mcpUrl}\n`);
-    console.log("");
-    console.log("To authenticate:");
-    console.log("  githits login");
+    console.log(`  Storage: ${authStorage.getStorageLocation()}\n`);
+    printAuthTroubleshooting();
     return;
   }
 
@@ -81,8 +80,8 @@ export async function authStatusAction(
     console.log(
       `  Expired: ${new Date(auth.expiresAt).toLocaleDateString()}\n`,
     );
-    console.log("");
-    console.log("Run `githits login` to re-authenticate.");
+    console.log(`  Storage: ${authStorage.getStorageLocation()}\n`);
+    printAuthTroubleshooting("expired");
     return;
   }
 
@@ -90,6 +89,21 @@ export async function authStatusAction(
   console.log(`  Environment: ${mcpUrl}`);
   displayExpiry(auth.expiresAt);
   console.log(`\n  Storage: ${authStorage.getStorageLocation()}`);
+}
+
+function printAuthTroubleshooting(reason: "missing" | "expired" = "missing") {
+  const loginCommand =
+    reason === "expired" ? "githits login --force" : "githits login";
+  console.log("Recovery steps:");
+  console.log(`  ${loginCommand}`);
+  console.log("  githits auth status");
+  console.log("For CI/automation, set GITHITS_API_TOKEN.");
+  console.log(
+    "If your system keychain is locked or unavailable, unlock it and retry.",
+  );
+  console.log(
+    "As a last resort, set GITHITS_AUTH_STORAGE=file to use plaintext file storage.",
+  );
 }
 
 const STATUS_DESCRIPTION = `Show current authentication status.

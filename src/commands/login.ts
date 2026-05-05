@@ -190,7 +190,7 @@ export async function loginFlow(
   });
 
   // Step 5: Start callback server
-  const serverPromise = authService.startCallbackServer(port, state);
+  const callbackServer = await authService.startCallbackServer(port, state);
 
   // Step 6: Open browser or show URL
   if (options.browser === false) {
@@ -198,7 +198,14 @@ export async function loginFlow(
     output.write(`  ${authUrl}\n`);
   } else {
     output.write("Opening browser...");
-    await browserService.open(authUrl);
+    try {
+      await browserService.open(authUrl);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      output.write(`Could not open browser automatically: ${msg}\n`);
+      output.write("Open this URL in your browser:\n");
+      output.write(`  ${authUrl}\n`);
+    }
   }
 
   output.write("Waiting for authentication...\n");
@@ -212,12 +219,13 @@ export async function loginFlow(
     );
   });
 
-  let callback: Awaited<typeof serverPromise>;
+  let callback: Awaited<typeof callbackServer.result>;
   try {
-    callback = await Promise.race([serverPromise, timeoutPromise]);
+    callback = await Promise.race([callbackServer.result, timeoutPromise]);
     if (timeoutId) clearTimeout(timeoutId);
   } catch (error) {
     if (timeoutId) clearTimeout(timeoutId);
+    await callbackServer.close().catch(() => {});
     const msg =
       error instanceof Error ? error.message : "Authentication failed";
     return { status: "failed", message: `${msg}.` };

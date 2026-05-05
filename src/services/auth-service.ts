@@ -134,13 +134,18 @@ export interface AuthService {
   startCallbackServer(
     port: number,
     expectedState: string,
-  ): Promise<CallbackResult>;
+  ): Promise<CallbackServerHandle>;
 
   /** Exchange authorization code for tokens */
   exchangeCodeForTokens(params: ExchangeParams): Promise<TokenResponse>;
 
   /** Refresh an expired access token */
   refreshAccessToken(params: RefreshParams): Promise<RefreshTokenResponse>;
+}
+
+export interface CallbackServerHandle {
+  result: Promise<CallbackResult>;
+  close(): Promise<void>;
 }
 
 /**
@@ -227,13 +232,14 @@ export class AuthServiceImpl implements AuthService {
   startCallbackServer(
     port: number,
     expectedState: string,
-  ): Promise<CallbackResult> {
-    return new Promise((resolve, reject) => {
+  ): Promise<CallbackServerHandle> {
+    let closeTimer: ReturnType<typeof setTimeout> | undefined;
+    const server = createServer();
+    const result = new Promise<CallbackResult>((resolve, reject) => {
       let callbackHandled = false;
       let resolved = false;
-      let closeTimer: ReturnType<typeof setTimeout> | undefined;
 
-      const server = createServer((req, res) => {
+      server.on("request", (req, res) => {
         const url = new URL(req.url ?? "", `http://127.0.0.1:${port}`);
 
         // Browsers frequently request favicon right after loading callback page.
@@ -291,6 +297,14 @@ export class AuthServiceImpl implements AuthService {
       server.on("error", (err) => {
         reject(new Error(`Failed to start callback server: ${err.message}`));
       });
+    });
+
+    return Promise.resolve({
+      result,
+      close: async () => {
+        if (closeTimer) clearTimeout(closeTimer);
+        await closeServer(server);
+      },
     });
   }
 
@@ -670,8 +684,17 @@ function sendHtmlResponse(
 }
 
 /** Close server gracefully */
-function closeServer(server: Server): void {
-  server.close();
+function closeServer(server: Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!server.listening) {
+      resolve();
+      return;
+    }
+    server.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
 }
 
 /** Escape HTML to prevent XSS */
