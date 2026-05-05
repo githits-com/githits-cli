@@ -83,6 +83,7 @@ export async function initAction(
   const useColors = shouldUseColors();
   const { fileSystemService, promptService, execService, createLoginDeps } =
     deps;
+  let continuedWithoutAuth = false;
 
   // Header
   console.log(
@@ -109,6 +110,7 @@ export async function initAction(
       console.log(
         `    ${warning(`Login failed: ${loginResult.message}`, useColors)}\n`,
       );
+      printAuthRecoveryHint();
       if (!options.yes) {
         try {
           const choice = await promptService.confirm3(
@@ -128,6 +130,7 @@ export async function initAction(
           throw err;
         }
       }
+      continuedWithoutAuth = true;
       console.log("    Continuing without authentication...\n");
     }
   }
@@ -168,6 +171,13 @@ export async function initAction(
 
   // All detected agents already configured
   if (scan.needsSetup.length === 0) {
+    if (continuedWithoutAuth) {
+      console.log(
+        "  MCP is already configured, but authentication is still required.",
+      );
+      console.log("  Run `githits login` before using GitHits tools.\n");
+      return;
+    }
     console.log(
       "  All detected agents are already configured. Nothing to do.\n",
     );
@@ -267,6 +277,9 @@ export async function initAction(
 
   if (failed > 0) {
     console.log("  Setup completed with errors.");
+  } else if (continuedWithoutAuth && (configured > 0 || alreadyDone > 0)) {
+    console.log("  MCP is configured, but authentication is still required.");
+    console.log("  Run `githits login` before using GitHits tools.");
   } else if (configured > 0 || alreadyDone > 0) {
     console.log("  Done! GitHits is ready.");
   } else if (skipped > 0) {
@@ -288,6 +301,19 @@ export async function initAction(
   }
 
   console.log();
+}
+
+function printAuthRecoveryHint(): void {
+  console.log(
+    "    You can still configure MCP, but GitHits tools will require auth.",
+  );
+  console.log("    Recovery steps:");
+  console.log("      githits auth status");
+  console.log("      githits login --force");
+  console.log("    For CI or locked-down machines, set GITHITS_API_TOKEN.");
+  console.log(
+    "    If your system keychain is unavailable, set GITHITS_AUTH_STORAGE=file after accepting plaintext storage.\n",
+  );
 }
 
 const INIT_DESCRIPTION = `Set up GitHits MCP server for your coding agents.

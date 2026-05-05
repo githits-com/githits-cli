@@ -190,7 +190,15 @@ export async function loginFlow(
   });
 
   // Step 5: Start callback server
-  const serverPromise = authService.startCallbackServer(port, state);
+  let callbackServer: Awaited<
+    ReturnType<typeof authService.startCallbackServer>
+  >;
+  try {
+    callbackServer = await authService.startCallbackServer(port, state);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return { status: "failed", message: msg };
+  }
 
   // Step 6: Open browser or show URL
   if (options.browser === false) {
@@ -198,7 +206,14 @@ export async function loginFlow(
     output.write(`  ${authUrl}\n`);
   } else {
     output.write("Opening browser...");
-    await browserService.open(authUrl);
+    try {
+      await browserService.open(authUrl);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      output.write(`Could not open browser automatically: ${msg}\n`);
+      output.write("Open this URL in your browser:\n");
+      output.write(`  ${authUrl}\n`);
+    }
   }
 
   output.write("Waiting for authentication...\n");
@@ -212,12 +227,13 @@ export async function loginFlow(
     );
   });
 
-  let callback: Awaited<typeof serverPromise>;
+  let callback: Awaited<typeof callbackServer.result>;
   try {
-    callback = await Promise.race([serverPromise, timeoutPromise]);
+    callback = await Promise.race([callbackServer.result, timeoutPromise]);
     if (timeoutId) clearTimeout(timeoutId);
   } catch (error) {
     if (timeoutId) clearTimeout(timeoutId);
+    await callbackServer.close().catch(() => {});
     const msg =
       error instanceof Error ? error.message : "Authentication failed";
     return { status: "failed", message: `${msg}.` };
@@ -298,7 +314,7 @@ export async function loginAction(
 
   if (result.status === "failed") {
     console.error(`${result.message}\n`);
-    console.log("Run `githits login` to try again.");
+    printLoginRecoveryHint(result.message);
     process.exit(1);
   }
 
@@ -307,6 +323,21 @@ export async function loginAction(
   console.log(`  Environment: ${deps.mcpUrl}`);
   console.log(result.message.replace("Logged in successfully. ", "  "));
   console.log("\nYou're ready to use githits with your AI assistant.");
+}
+
+function printLoginRecoveryHint(message: string): void {
+  console.log("Recovery steps:");
+  console.log("  githits auth status");
+  console.log("  githits login --force");
+  if (message.includes("Cannot persist OAuth credentials")) {
+    console.log(
+      "If your system keychain is locked or unavailable, unlock it and retry.",
+    );
+    console.log("For CI/automation, set GITHITS_API_TOKEN.");
+    console.log(
+      "As a last resort, set GITHITS_AUTH_STORAGE=file to use plaintext file storage.",
+    );
+  }
 }
 
 const LOGIN_DESCRIPTION = `Authenticate with your GitHits account via browser.

@@ -437,6 +437,86 @@ describe("loginFlow", () => {
     consoleSpy.mockRestore();
   });
 
+  it("prints manual URL when browser opening fails", async () => {
+    const writes: string[] = [];
+    const browserService = createMockBrowserService({
+      open: mock(() => Promise.reject(new Error("no display"))),
+    });
+
+    const result = await loginFlow(
+      { port: 8080 },
+      {
+        authService: createMockAuthService(),
+        authStorage: createMockAuthStorage(),
+        browserService,
+        mcpUrl,
+      },
+      { write: (message: string) => writes.push(message) },
+    );
+
+    expect(result.status).toBe("success");
+    expect(writes).toContain(
+      "Could not open browser automatically: no display\n",
+    );
+    expect(writes).toContain("Open this URL in your browser:\n");
+    expect(writes).toContain("  http://example.com/auth\n");
+  });
+
+  it("closes callback server when authentication wait fails", async () => {
+    const close = mock(() => Promise.resolve());
+    const authService = createMockAuthService({
+      startCallbackServer: mock(() =>
+        Promise.resolve({
+          result: Promise.reject(new Error("callback failed")),
+          close,
+        }),
+      ),
+    });
+
+    const result = await loginFlow(
+      { port: 8080 },
+      {
+        authService,
+        authStorage: createMockAuthStorage(),
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+      silentLoginOutput,
+    );
+
+    expect(result.status).toBe("failed");
+    expect(result.message).toBe("callback failed.");
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not open browser when callback server cannot start", async () => {
+    const browserService = createMockBrowserService();
+    const authService = createMockAuthService({
+      startCallbackServer: mock(() =>
+        Promise.reject(
+          new Error("Failed to start callback server: EADDRINUSE"),
+        ),
+      ),
+    });
+
+    const result = await loginFlow(
+      { port: 8080 },
+      {
+        authService,
+        authStorage: createMockAuthStorage(),
+        browserService,
+        mcpUrl,
+      },
+      silentLoginOutput,
+    );
+
+    expect(result).toEqual({
+      status: "failed",
+      message: "Failed to start callback server: EADDRINUSE",
+    });
+    expect(browserService.open).not.toHaveBeenCalled();
+  });
+
   it("returns already_authenticated when valid tokens exist", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 

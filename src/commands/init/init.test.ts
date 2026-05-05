@@ -841,7 +841,58 @@ describe("initAction", () => {
 
       const logCalls = getLogOutput();
       expect(logCalls.some((msg) => msg.includes("Login failed"))).toBe(true);
+      expect(
+        logCalls.some((msg) => msg.includes("GitHits tools will require auth")),
+      ).toBe(true);
       expect(fs.atomicWriteFile).toHaveBeenCalled();
+    });
+
+    it("does not claim GitHits is ready after continuing without auth", async () => {
+      const fs = createFsWithDetection(["/home/test/.cursor"], {
+        "/home/test/.cursor/mcp.json": JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        }),
+      });
+      const promptService = createMockPromptService({
+        confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+      });
+      const createLoginDeps = mock(() =>
+        Promise.resolve({
+          authService: createMockAuthService({
+            discoverEndpoints: mock(() =>
+              Promise.reject(new Error("Network error")),
+            ),
+          }),
+          authStorage: createMockAuthStorage(),
+          browserService: createMockBrowserService(),
+          mcpUrl: "https://mcp.githits.com",
+        }),
+      );
+
+      await initAction(
+        {},
+        {
+          fileSystemService: fs,
+          promptService,
+          execService: createMockExecService(),
+          createLoginDeps,
+        },
+      );
+
+      const logCalls = getLogOutput();
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("authentication is still required"),
+        ),
+      ).toBe(true);
+      expect(
+        logCalls.some((msg) => msg.includes("Done! GitHits is ready")),
+      ).toBe(false);
     });
 
     it("cancels setup when login fails and user declines to continue", async () => {

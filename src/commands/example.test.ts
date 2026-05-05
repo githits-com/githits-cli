@@ -81,4 +81,31 @@ describe("exampleAction", () => {
       ),
     ).rejects.toThrow(AuthRequiredError);
   });
+
+  it("prints JSON auth error for --json when auth is missing", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    await expect(
+      exampleAction(
+        "test",
+        { json: true },
+        createDeps({ hasValidToken: false }),
+      ),
+    ).rejects.toThrow("process.exit");
+
+    const output = errorSpy.mock.calls[0]?.[0] as string;
+    expect(JSON.parse(output)).toEqual({
+      error:
+        "Authentication required. Run `githits login`, then retry this command.",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+    });
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
 });

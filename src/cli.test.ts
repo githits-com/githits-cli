@@ -234,7 +234,7 @@ describe("root CLI preAction", () => {
     errorSpy.mockRestore();
   });
 
-  it("triggers auto-login for init before setup runs", async () => {
+  it("leaves init auth handling to the init command", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const container = createLoginDeps({ hasValidToken: false });
     const createContainer = mock(() => Promise.resolve(container));
@@ -257,11 +257,9 @@ describe("root CLI preAction", () => {
     await program.parseAsync(["node", "githits", "init"]);
 
     expect(ran).toBe(true);
-    expect(createContainer).toHaveBeenCalledTimes(1);
-    expect(loginFlow).toHaveBeenCalledWith({}, container);
-    expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
-      "Authentication complete. Continuing setup...",
-    ]);
+    expect(createContainer).not.toHaveBeenCalled();
+    expect(loginFlow).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
     errorSpy.mockRestore();
   });
 

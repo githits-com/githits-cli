@@ -68,16 +68,16 @@ describe("isAutoLoginEligibleCommand", () => {
     ).toBe(true);
   });
 
-  it("allows interactive init invocations for first-run onboarding", () => {
+  it("leaves init auth handling to the init command", () => {
     expect(
       isAutoLoginEligibleCommand(createCommand(["init"]), {
         stdinIsTTY: true,
         stdoutIsTTY: true,
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("honors init --skip-login", () => {
+  it("does not special-case init --skip-login in root auto-login", () => {
     expect(
       isAutoLoginEligibleCommand(createCommand(["init"], { skipLogin: true }), {
         stdinIsTTY: true,

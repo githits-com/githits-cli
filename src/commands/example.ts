@@ -1,5 +1,6 @@
 import { type Command, Option } from "commander";
 import type { GitHitsService } from "../services/githits-service.js";
+import { AuthenticationError } from "../services/githits-service.js";
 import { extractSolutionId } from "../shared/extract-solution-id.js";
 import { AuthRequiredError, requireAuth } from "../shared/require-auth.js";
 
@@ -21,6 +22,15 @@ export async function exampleAction(
   options: ExampleOptions,
   deps: ExampleDependencies,
 ): Promise<void> {
+  if (!deps.hasValidToken && options.json) {
+    printExampleError(
+      "Authentication required. Run `githits login`, then retry this command.",
+      "AUTH_REQUIRED",
+      true,
+    );
+    process.exit(1);
+  }
+
   requireAuth(deps);
 
   try {
@@ -41,11 +51,29 @@ export async function exampleAction(
       console.log(result);
     }
   } catch (error) {
-    console.error(
+    if (error instanceof AuthenticationError) {
+      printExampleError(
+        "Authentication required. Run `githits login`, then retry this command.",
+        "AUTH_REQUIRED",
+        options.json ?? false,
+      );
+      process.exit(1);
+    }
+    printExampleError(
       `Failed to get example: ${error instanceof Error ? error.message : error}`,
+      "UNKNOWN",
+      options.json ?? false,
     );
     process.exit(1);
   }
+}
+
+function printExampleError(error: string, code: string, json: boolean): void {
+  if (json) {
+    console.error(JSON.stringify({ error, code, retryable: false }));
+    return;
+  }
+  console.error(error);
 }
 
 const EXAMPLE_DESCRIPTION = `Get verified, canonical code examples from global open source.
