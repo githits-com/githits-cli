@@ -22,11 +22,14 @@ import {
   registerPkgCommandGroup,
   registerUnifiedSearchCommands,
 } from "./commands/index.js";
+import { loginFlow, stderrLoginOutput } from "./commands/login.js";
+import { createContainer } from "./container.js";
 import {
   FileSystemServiceImpl,
   NpmRegistryUpdateCheckService,
 } from "./services/index.js";
 import {
+  createRootCliPreAction,
   endTelemetrySpan,
   flushTelemetry,
   isTelemetryEnabled,
@@ -74,21 +77,24 @@ if (isTelemetryEnabled()) {
   });
 }
 
+const rootCliPreAction = createRootCliPreAction({
+  createContainer,
+  loginFlow: (options, deps) => loginFlow(options, deps, stderrLoginOutput),
+});
+
 program
   .name("githits")
   .description("Code examples from global open source for your AI assistant")
   .version(version)
   .option("--no-color", "Disable colored output")
-  .hook("preAction", (thisCommand, actionCommand) => {
-    if (thisCommand.opts().color === false) {
-      process.env.NO_COLOR = "1";
-    }
-
+  .hook("preAction", async (thisCommand, actionCommand) => {
     const command = actionCommand ?? thisCommand;
     commandSpans.set(
       command,
       startTelemetrySpan(getTelemetryCommandName(command)),
     );
+
+    await rootCliPreAction(thisCommand, actionCommand);
   })
   .hook("postAction", (_thisCommand, actionCommand) => {
     endTelemetrySpan(commandSpans.get(actionCommand));
