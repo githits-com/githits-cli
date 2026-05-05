@@ -80,7 +80,7 @@ The original unified-search plan envisaged hiding partial mode entirely in v1 to
 
 **Highlighting.** The CLI applies the backend's structured `highlights` spans on titles and summaries, plus structural emphasis on headers and badges. It does **not** attempt client-side substring highlighting for terms the backend did not flag, since the compiled query is not a faithful match spec.
 
-**Source-status surfacing.** The JSON `sourceStatus` block is always passed through verbatim for debugging. Human-readable output surfaces only the actionable subset: ignored / incompatible filters, ignored / incompatible query features, free-form `note`s, and an `INDEXING` indicator when a source is still indexing on a partial-result payload. `STALE` (served from a slightly old index while a fresh reindex runs) is intentionally not shown in human output — agents and users do not need to second-guess otherwise-correct results, but it remains in JSON for diagnostics.
+**Trust signals.** The JSON `sourceStatus` block is always passed through verbatim for debugging. Human-readable output surfaces the actionable subset: ignored / incompatible filters, ignored / incompatible query features, free-form `note`s, an `INDEXING` indicator when a source is still indexing on a partial-result payload, and promoted freshness warnings when a floating target was served from stale evidence while a fresher index is building. Non-divergent `CURRENT` / `STALE` metadata stays JSON-only because it does not change how a user should interpret the displayed results.
 
 ### `githits search-status`
 

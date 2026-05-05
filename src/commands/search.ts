@@ -405,13 +405,15 @@ function formatUnifiedSearchTerminal(payload: {
   searchRef?: string;
   progress?: { targetsReady?: number; targetsTotal?: number };
   query: { raw?: string; warnings?: string[] };
+  warnings?: string[];
   sourceStatus?: SourceStatusEntry[];
 }): string {
   const lines: string[] = [];
   const useColors = shouldUseColors();
 
-  if (payload.query.warnings && payload.query.warnings.length > 0) {
-    for (const warning of payload.query.warnings) {
+  const warnings = payload.warnings ?? payload.query.warnings;
+  if (warnings && warnings.length > 0) {
+    for (const warning of warnings) {
       lines.push(`Warning: ${warning}`);
     }
     lines.push("");
@@ -560,6 +562,7 @@ function formatSearchStatusCompletedTerminal(payload: {
       raw: payload.result.query?.raw,
       warnings: payload.result.warnings,
     },
+    warnings: payload.result.warnings,
     sourceStatus: payload.result.sourceStatus,
   });
 }
@@ -580,6 +583,7 @@ function formatSearchStatusPartialTerminal(
       raw: payload.result.query?.raw,
       warnings: payload.result.warnings,
     },
+    warnings: payload.result.warnings,
     sourceStatus: payload.result.sourceStatus,
   });
 }
