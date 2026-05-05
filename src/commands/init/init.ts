@@ -83,6 +83,7 @@ export async function initAction(
   const useColors = shouldUseColors();
   const { fileSystemService, promptService, execService, createLoginDeps } =
     deps;
+  let continuedWithoutAuth = false;
 
   // Header
   console.log(
@@ -129,6 +130,7 @@ export async function initAction(
           throw err;
         }
       }
+      continuedWithoutAuth = true;
       console.log("    Continuing without authentication...\n");
     }
   }
@@ -169,6 +171,13 @@ export async function initAction(
 
   // All detected agents already configured
   if (scan.needsSetup.length === 0) {
+    if (continuedWithoutAuth) {
+      console.log(
+        "  MCP is already configured, but authentication is still required.",
+      );
+      console.log("  Run `githits login` before using GitHits tools.\n");
+      return;
+    }
     console.log(
       "  All detected agents are already configured. Nothing to do.\n",
     );
@@ -268,6 +277,9 @@ export async function initAction(
 
   if (failed > 0) {
     console.log("  Setup completed with errors.");
+  } else if (continuedWithoutAuth && (configured > 0 || alreadyDone > 0)) {
+    console.log("  MCP is configured, but authentication is still required.");
+    console.log("  Run `githits login` before using GitHits tools.");
   } else if (configured > 0 || alreadyDone > 0) {
     console.log("  Done! GitHits is ready.");
   } else if (skipped > 0) {

@@ -235,12 +235,15 @@ export class AuthServiceImpl implements AuthService {
   ): Promise<CallbackServerHandle> {
     let closeTimer: ReturnType<typeof setTimeout> | undefined;
     const server = createServer();
-    const result = new Promise<CallbackResult>((resolve, reject) => {
-      let callbackHandled = false;
-      let resolved = false;
+    let callbackHandled = false;
+    let resolved = false;
 
+    const result = new Promise<CallbackResult>((resolve) => {
       server.on("request", (req, res) => {
-        const url = new URL(req.url ?? "", `http://127.0.0.1:${port}`);
+        const address = server.address();
+        const actualPort =
+          typeof address === "object" && address !== null ? address.port : port;
+        const url = new URL(req.url ?? "", `http://127.0.0.1:${actualPort}`);
 
         // Browsers frequently request favicon right after loading callback page.
         // Keep this endpoint quiet to avoid noisy follow-up errors.
@@ -291,20 +294,24 @@ export class AuthServiceImpl implements AuthService {
         if (closeTimer) clearTimeout(closeTimer);
         closeTimer = setTimeout(() => closeServer(server), 1500);
       });
-
-      // Bind to 127.0.0.1 only for security
-      server.listen(port, "127.0.0.1");
-      server.on("error", (err) => {
-        reject(new Error(`Failed to start callback server: ${err.message}`));
-      });
     });
 
-    return Promise.resolve({
-      result,
-      close: async () => {
-        if (closeTimer) clearTimeout(closeTimer);
-        await closeServer(server);
-      },
+    return new Promise<CallbackServerHandle>((resolve, reject) => {
+      const onError = (err: Error) => {
+        reject(new Error(`Failed to start callback server: ${err.message}`));
+      };
+      server.once("error", onError);
+      server.listen(port, "127.0.0.1", () => {
+        server.off("error", onError);
+        server.on("error", () => {});
+        resolve({
+          result,
+          close: async () => {
+            if (closeTimer) clearTimeout(closeTimer);
+            await closeServer(server);
+          },
+        });
+      });
     });
   }
 

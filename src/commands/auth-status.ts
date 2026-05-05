@@ -96,7 +96,9 @@ function printAuthTroubleshooting(reason: "missing" | "expired" = "missing") {
     reason === "expired" ? "githits login --force" : "githits login";
   console.log("Recovery steps:");
   console.log(`  ${loginCommand}`);
-  console.log("  githits auth status");
+  if (reason === "missing") {
+    console.log("  githits login --force  # if a previous login is stale");
+  }
   console.log("For CI/automation, set GITHITS_API_TOKEN.");
   console.log(
     "If your system keychain is locked or unavailable, unlock it and retry.",

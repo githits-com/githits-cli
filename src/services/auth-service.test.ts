@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
+import { createServer } from "node:http";
 import { AuthServiceImpl, evaluateCallback } from "./auth-service.js";
 
 describe("AuthServiceImpl", () => {
@@ -55,6 +56,31 @@ describe("AuthServiceImpl", () => {
       await expect(
         service.discoverEndpoints("http://127.0.0.1:1"),
       ).rejects.toThrow();
+    });
+  });
+
+  describe("startCallbackServer", () => {
+    it("rejects before returning a handle when the callback port is unavailable", async () => {
+      const occupiedServer = createServer();
+      await new Promise<void>((resolve) => {
+        occupiedServer.listen(0, "127.0.0.1", resolve);
+      });
+      const address = occupiedServer.address();
+      const port =
+        typeof address === "object" && address !== null ? address.port : 0;
+
+      try {
+        await expect(
+          service.startCallbackServer(port, "state"),
+        ).rejects.toThrow("Failed to start callback server");
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          occupiedServer.close((error) => {
+            if (error) reject(error);
+            else resolve();
+          });
+        });
+      }
     });
   });
 

@@ -489,6 +489,34 @@ describe("loginFlow", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("does not open browser when callback server cannot start", async () => {
+    const browserService = createMockBrowserService();
+    const authService = createMockAuthService({
+      startCallbackServer: mock(() =>
+        Promise.reject(
+          new Error("Failed to start callback server: EADDRINUSE"),
+        ),
+      ),
+    });
+
+    const result = await loginFlow(
+      { port: 8080 },
+      {
+        authService,
+        authStorage: createMockAuthStorage(),
+        browserService,
+        mcpUrl,
+      },
+      silentLoginOutput,
+    );
+
+    expect(result).toEqual({
+      status: "failed",
+      message: "Failed to start callback server: EADDRINUSE",
+    });
+    expect(browserService.open).not.toHaveBeenCalled();
+  });
+
   it("returns already_authenticated when valid tokens exist", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
