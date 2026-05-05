@@ -358,6 +358,49 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("prints promoted freshness warnings in terminal output", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const outcomeWithStaleFreshness: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: defaultUnifiedSearchOutcome.result.results.map(
+          (entry, index) =>
+            index === 0
+              ? {
+                  ...entry,
+                  requestedTargetLabel: "npm:express latest",
+                  freshTargetLabel: "npm:express@5.2.1",
+                  servedTargetLabel: "npm:express@5.1.0",
+                  freshness: "STALE",
+                }
+              : entry,
+        ),
+      },
+    };
+
+    await searchAction(
+      "router middleware",
+      { in: ["npm:express"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcomeWithStaleFreshness)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Warning: requested npm:express latest; served stale npm:express@5.1.0 while npm:express@5.2.1 indexes.",
+    );
+    consoleSpy.mockRestore();
+  });
+
   it("renders backend summaries verbatim in terminal output", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
