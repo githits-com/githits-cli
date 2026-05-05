@@ -441,6 +441,40 @@ describe("searchAction", () => {
     }
   });
 
+  it("prefers longer overlapping query terms for location highlights", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const originalIsTTY = process.stdout.isTTY;
+    const noColor = process.env.NO_COLOR;
+    try {
+      delete process.env.NO_COLOR;
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: true,
+        configurable: true,
+      });
+
+      await searchAction("route router", { in: ["npm:express"] }, createDeps());
+
+      const output = String(consoleSpy.mock.calls[0]?.[0]);
+      expect(output).toContain(
+        "\u001b[1m\u001b[36mlib/\u001b[0m\u001b[1m\u001b[33mrouter\u001b[0m\u001b[1m\u001b[36m/index.js:42-57\u001b[0m",
+      );
+      expect(output).not.toContain(
+        "\u001b[1m\u001b[33mroute\u001b[0m\u001b[1m\u001b[36mr/index.js",
+      );
+    } finally {
+      consoleSpy.mockRestore();
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: originalIsTTY,
+        configurable: true,
+      });
+      if (noColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = noColor;
+      }
+    }
+  });
+
   it("preserves CRLF-based summary highlight offsets", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const originalIsTTY = process.stdout.isTTY;

@@ -857,7 +857,10 @@ function buildQueryTermRanges(
 
   const lowerText = text.toLowerCase();
   const ranges: Array<readonly [number, number]> = [];
-  for (const term of terms.sort((left, right) => right.length - left.length)) {
+  const orderedTerms = [...terms].sort(
+    (left, right) => right.length - left.length,
+  );
+  for (const term of orderedTerms) {
     const lowerTerm = term.toLowerCase();
     let cursor = 0;
     while (cursor < lowerText.length) {
@@ -884,7 +887,11 @@ function extractQueryHighlightTerms(rawQuery: string | undefined): string[] {
   // query does not degrade into scattered word highlights in paths.
   for (const match of rawQuery.matchAll(/"([^"]+)"/g)) {
     const phrase = match[1];
-    if (phrase) addQueryHighlightTerm(phrase, terms, booleanOperators);
+    if (phrase) {
+      addQueryHighlightTerm(phrase, terms, booleanOperators, {
+        stripQualifier: false,
+      });
+    }
     if (typeof match.index === "number") {
       quotedRanges.push([match.index, match.index + match[0].length]);
     }
@@ -905,10 +912,12 @@ function addQueryHighlightTerm(
   candidate: string,
   terms: Set<string>,
   booleanOperators: Set<string>,
+  options: { stripQualifier: boolean } = { stripQualifier: true },
 ): void {
-  const normalised = /^[A-Za-z]+:.+/.test(candidate)
-    ? candidate.split(":").slice(1).join(":")
-    : candidate;
+  const normalised =
+    options.stripQualifier && /^[A-Za-z]+:.+/.test(candidate)
+      ? candidate.split(":").slice(1).join(":")
+      : candidate;
   const term = normalised.replace(/^[-+]+/, "").replace(/[-+]+$/, "");
   if (term.length < 2) return;
   if (booleanOperators.has(term.toUpperCase())) return;

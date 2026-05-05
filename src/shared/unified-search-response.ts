@@ -340,6 +340,8 @@ function buildUnifiedSearchStatusResultPayload(
 function buildStatusQueryEcho(
   result: UnifiedSearchCompleted["result"],
 ): UnifiedSearchQueryEcho {
+  // Status responses only retain the backend result query. Request-only
+  // compile/filter metadata is not available when following up by searchRef.
   const query: UnifiedSearchQueryEcho = {
     raw: result.query,
   };
