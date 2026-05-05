@@ -370,43 +370,121 @@ function parseRefreshTokenResponse(data: unknown): RefreshTokenResponse {
 
 function successHtml(title = "Authentication successful"): string {
   return `<!DOCTYPE html>
-<html><head><title>GitHits CLI</title>
+<html><head>
+<title>GitHits CLI</title>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Lexend:wght@600&display=swap" rel="stylesheet">
 <style>
+  *, *::before, *::after { box-sizing: border-box; }
   body {
-    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    min-height: 100vh;
+    width: 100%;
+    padding: 16px;
+    background: #21262d;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
     display: flex;
-    justify-content: center;
     align-items: center;
-    height: 100vh;
-    margin: 0;
-    background: radial-gradient(circle at center center, #4d3648, #3a2835, #261a22, #0d1117);
+    justify-content: center;
   }
-  .card {
+  .content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 0 16px;
+  }
+  .message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .success-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 2px solid #57fec9;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .heading {
+    font-family: 'Lexend', sans-serif;
+    font-weight: 600;
+    font-size: 32px;
+    line-height: 40px;
+    color: #ffffff;
+    margin: 0;
     text-align: center;
-    background: rgba(13, 17, 23, 0.75);
-    padding: 3rem;
-    border-radius: 16px;
-    border: 1px solid rgba(244, 11, 166, 0.35);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-    max-width: 720px;
+    text-wrap: pretty;
   }
-  h1 {
-    color: #f40ba6;
-    margin-bottom: 0.75rem;
-    font-size: 3rem;
-    font-weight: 700;
-  }
-  p {
-    color: #f385a5;
-    font-size: 1.1rem;
+  .text {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-size: 16px;
+    line-height: 24px;
     margin: 0;
+    text-align: center;
+    text-wrap: pretty;
+  }
+  .text-muted {
+    color: #abb2bf;
+  }
+  .tip {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 20px;
+    color: #abb2bf;
+    margin: 0;
+    text-align: center;
+    text-wrap: pretty;
+  }
+  .tip-label {
+    font-weight: 600;
+    color: #ffffff;
+  }
+  code {
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: #ffffff;
   }
 </style>
 </head>
 <body>
-  <div class="card">
-    <h1>${escapeHtml(title)}</h1>
-    <p>You can close this window and return to the terminal.</p>
+  <div class="content">
+    <div class="success-icon" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#57fec9" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+    </div>
+    <div class="message">
+      <h1 class="heading">${escapeHtml(title)}</h1>
+      <p class="text text-muted">You can close this window and return to the terminal.</p>
+    </div>
+
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 554 129.3" width="103" height="24" role="img" aria-label="GitHits">
+      <title>GitHits</title>
+      <defs>
+        <linearGradient id="wm-grad" x1="234.9" y1="64.7" x2="555.5" y2="64.7" gradientUnits="userSpaceOnUse">
+          <stop offset="0" style="stop-color: #ff4fae" />
+          <stop offset="1" style="stop-color: #ff872f" />
+        </linearGradient>
+      </defs>
+      <path d="M148.6,29.1c7.9,0,14.4-6.4,14.4-14.4S156.6.3,148.6.3s-14.4,6.4-14.4,14.4,6.4,14.4,14.4,14.4Z" fill="#ff4fae" />
+      <path d="M383.9,29.1c7.9,0,14.4-6.4,14.4-14.4s-6.4-14.4-14.4-14.4-14.4,6.4-14.4,14.4,6.4,14.4,14.4,14.4ZM396.4,40.8h-25v86.6h25V40.8ZM454.3,8.5h-25v32.3h-18.8v24h18.8v62.6h25v-62.6h18.8v-24h-18.8V8.5ZM553.1,92.2c-.9-2.6-2.2-4.9-4.1-6.9-2.2-2.4-5.1-4.4-8.8-6.2-3.7-1.8-8.2-3.4-13.4-4.9-4.1-1.1-7.3-2.1-9.6-3-2.4-.9-4.1-1.7-5.3-2.4-1.1-.8-1.9-1.7-2.5-2.9-.6-1.1-.9-2.3-.9-3.5s.2-2.4.7-3.4,1.2-1.9,2.2-2.6c1-.7,2.2-1.3,3.7-1.6s3.2-.5,5-.5,4.5.4,7.1,1.3c2.6.9,5.2,2.1,7.7,3.7,2.5,1.6,4.7,3.3,6.7,5.2l12.5-14.2c-2.8-2.8-6-5.2-9.6-7.3-3.7-2.1-7.7-3.7-11.9-4.8-4.3-1.1-8.7-1.7-13.2-1.7s-8.8.7-12.9,1.9c-4.1,1.3-7.7,3.1-10.8,5.5s-5.6,5.2-7.3,8.5c-1.8,3.3-2.6,7-2.6,11s.5,6.4,1.6,9.2c1,2.8,2.5,5.3,4.5,7.7,2.3,2.5,5.4,4.7,9.3,6.7s8.6,3.7,14.2,5.1c3.6,1,6.6,1.9,8.9,2.8,2.3.8,4,1.6,5.1,2.3,2,1.4,3,3.3,3,5.7s-.2,2.4-.7,3.5-1.2,2-2.2,2.7-2.2,1.3-3.5,1.7c-1.4.4-2.9.6-4.5.6-4.2,0-8.4-.8-12.5-2.5-4.2-1.6-7.9-4.3-11.2-8l-14.7,12.8c3.8,4.8,8.9,8.6,15.2,11.4,6.3,2.8,13.5,4.1,21.7,4.1s12.5-1.2,17.8-3.7,9.4-5.8,12.4-10.1c3-4.3,4.5-9.2,4.5-14.7s-.4-6-1.3-8.6h-.3ZM327.2,60.5h-50.2V6h-25v121.4h25v-42.8h50.2v42.8h25V6h-25v54.5Z" fill="url(#wm-grad)" />
+      <path d="M239.1,64.8v-24h-18.8V8.5h-25v32.3h-18.8v24h18.8v62.6h25v-62.6h18.8ZM161.1,40.8h-25v86.6h25V40.8ZM91.6,84.6h-26.8v-24h54s1.2,4.3,1.1,12.1c-.3,30.6-25.3,55.5-55.9,55.7h-.5C27.4,128.4-1.6,98.3,0,61.8,1.5,29.6,27.4,3.4,59.6,1.4c21-1.2,40,7.7,52.4,22.4l-17.2,17.2c-7.7-10.1-20.3-16.4-34.3-15.4-19.4,1.4-35,17.1-36.4,36.5-1.6,23,16.6,42.2,39.3,42.2s28-19.7,28-19.7h.2Z" fill="#ff4fae" />
+    </svg>
+
+    <p class="tip"><span class="tip-label">TIP:</span> Run <code>npx githits --help</code> to discover what else you can do.</p>
   </div>
 </body></html>`;
 }
@@ -463,44 +541,121 @@ export function evaluateCallback(
 function errorHtml(error: string, nextStep?: string): string {
   const nextStepHtml = nextStep ? `<p>${escapeHtml(nextStep)}</p>` : "";
   return `<!DOCTYPE html>
-<html><head><title>GitHits CLI</title>
+<html><head>
+<title>GitHits CLI</title>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Lexend:wght@600&display=swap" rel="stylesheet">
 <style>
+  *, *::before, *::after { box-sizing: border-box; }
   body {
-    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    min-height: 100vh;
+    width: 100%;
+    padding: 16px;
+    background: #21262d;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
     display: flex;
-    justify-content: center;
     align-items: center;
-    height: 100vh;
-    margin: 0;
-    background: radial-gradient(circle at center center, #4d3648, #3a2835, #261a22, #0d1117);
+    justify-content: center;
   }
-  .card {
+  .content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 0 16px;
+  }
+  .message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .error-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 2px solid #ff5a6a;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .heading {
+    font-family: 'Lexend', sans-serif;
+    font-weight: 600;
+    font-size: 32px;
+    line-height: 40px;
+    color: #ffffff;
+    margin: 0;
     text-align: center;
-    background: rgba(13, 17, 23, 0.75);
-    padding: 3rem;
-    border-radius: 16px;
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-    max-width: 720px;
+    text-wrap: pretty;
   }
-  h1 {
-    color: #ef4444;
-    margin-bottom: 0.75rem;
-    font-size: 3rem;
-    font-weight: 700;
-  }
-  p {
-    color: #f385a5;
-    font-size: 1.1rem;
+  .text {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-size: 16px;
+    line-height: 24px;
     margin: 0;
+    text-align: center;
+    text-wrap: pretty;
+  }
+  .text-muted {
+    color: #abb2bf;
+  }
+  .footer-text {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 20px;
+    color: #abb2bf;
+    margin: 0;
+    text-align: center;
+    text-wrap: pretty;
+  }
+  .footer-link {
+    color: #ffffff;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .footer-link:hover {
+    color: #abb2bf;
   }
 </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Authentication failed</h1>
-    <p>${escapeHtml(error)}</p>
+  <div class="content">
+    <div class="error-icon" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ff5a6a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </div>
+
+    <div class="message">
+      <h1 class="heading">Authentication failed</h1>
+      <p class="text text-muted">${escapeHtml(error)}</p>
+    </div>
+
     ${nextStepHtml}
+
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 554 129.3" width="103" height="24" role="img" aria-label="GitHits">
+      <title>GitHits</title>
+      <defs>
+        <linearGradient id="wm-grad" x1="234.9" y1="64.7" x2="555.5" y2="64.7" gradientUnits="userSpaceOnUse">
+          <stop offset="0" style="stop-color: #ff4fae" />
+          <stop offset="1" style="stop-color: #ff872f" />
+        </linearGradient>
+      </defs>
+      <path d="M148.6,29.1c7.9,0,14.4-6.4,14.4-14.4S156.6.3,148.6.3s-14.4,6.4-14.4,14.4,6.4,14.4,14.4,14.4Z" fill="#ff4fae" />
+      <path d="M383.9,29.1c7.9,0,14.4-6.4,14.4-14.4s-6.4-14.4-14.4-14.4-14.4,6.4-14.4,14.4,6.4,14.4,14.4,14.4ZM396.4,40.8h-25v86.6h25V40.8ZM454.3,8.5h-25v32.3h-18.8v24h18.8v62.6h25v-62.6h18.8v-24h-18.8V8.5ZM553.1,92.2c-.9-2.6-2.2-4.9-4.1-6.9-2.2-2.4-5.1-4.4-8.8-6.2-3.7-1.8-8.2-3.4-13.4-4.9-4.1-1.1-7.3-2.1-9.6-3-2.4-.9-4.1-1.7-5.3-2.4-1.1-.8-1.9-1.7-2.5-2.9-.6-1.1-.9-2.3-.9-3.5s.2-2.4.7-3.4,1.2-1.9,2.2-2.6c1-.7,2.2-1.3,3.7-1.6s3.2-.5,5-.5,4.5.4,7.1,1.3c2.6.9,5.2,2.1,7.7,3.7,2.5,1.6,4.7,3.3,6.7,5.2l12.5-14.2c-2.8-2.8-6-5.2-9.6-7.3-3.7-2.1-7.7-3.7-11.9-4.8-4.3-1.1-8.7-1.7-13.2-1.7s-8.8.7-12.9,1.9c-4.1,1.3-7.7,3.1-10.8,5.5s-5.6,5.2-7.3,8.5c-1.8,3.3-2.6,7-2.6,11s.5,6.4,1.6,9.2c1,2.8,2.5,5.3,4.5,7.7,2.3,2.5,5.4,4.7,9.3,6.7s8.6,3.7,14.2,5.1c3.6,1,6.6,1.9,8.9,2.8,2.3.8,4,1.6,5.1,2.3,2,1.4,3,3.3,3,5.7s-.2,2.4-.7,3.5-1.2,2-2.2,2.7-2.2,1.3-3.5,1.7c-1.4.4-2.9.6-4.5.6-4.2,0-8.4-.8-12.5-2.5-4.2-1.6-7.9-4.3-11.2-8l-14.7,12.8c3.8,4.8,8.9,8.6,15.2,11.4,6.3,2.8,13.5,4.1,21.7,4.1s12.5-1.2,17.8-3.7,9.4-5.8,12.4-10.1c3-4.3,4.5-9.2,4.5-14.7s-.4-6-1.3-8.6h-.3ZM327.2,60.5h-50.2V6h-25v121.4h25v-42.8h50.2v42.8h25V6h-25v54.5Z" fill="url(#wm-grad)" />
+      <path d="M239.1,64.8v-24h-18.8V8.5h-25v32.3h-18.8v24h18.8v62.6h25v-62.6h18.8ZM161.1,40.8h-25v86.6h25V40.8ZM91.6,84.6h-26.8v-24h54s1.2,4.3,1.1,12.1c-.3,30.6-25.3,55.5-55.9,55.7h-.5C27.4,128.4-1.6,98.3,0,61.8,1.5,29.6,27.4,3.4,59.6,1.4c21-1.2,40,7.7,52.4,22.4l-17.2,17.2c-7.7-10.1-20.3-16.4-34.3-15.4-19.4,1.4-35,17.1-36.4,36.5-1.6,23,16.6,42.2,39.3,42.2s28-19.7,28-19.7h.2Z" fill="#ff4fae" />
+    </svg>
+
+    <p class="footer-text">Having trouble? Check our <a class="footer-link" href="https://app.githits.com/docs/" target="_blank" rel="noopener noreferrer">documentation</a> or contact <a class="footer-link" href="mailto:support@githits.com">support</a>.</p>
   </div>
 </body></html>`;
 }
