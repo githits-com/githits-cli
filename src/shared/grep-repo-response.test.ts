@@ -122,7 +122,7 @@ describe("formatGrepRepoTerminal", () => {
       useColors: true,
     });
     expect(stdout).toContain(
-      `src/index.js:10:const ${"\u001b[1m\u001b[36m"}app = e${"\u001b[0m"}xpress();`,
+      `src/index.js:10:const ${"\u001b[1m\u001b[33m"}app = e${"\u001b[0m"}xpress();`,
     );
   });
 

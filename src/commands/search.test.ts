@@ -420,9 +420,12 @@ describe("searchAction", () => {
       );
 
       const output = String(consoleSpy.mock.calls[0]?.[0]);
-      expect(output).toContain("\u001b[1m\u001b[36mmiddleware\u001b[0m");
+      expect(output).toContain("\u001b[1m\u001b[33mmiddleware\u001b[0m");
       expect(output).toContain(
-        "function \u001b[1m\u001b[36mrouter\u001b[0m(req, res, next) { ... }",
+        "\u001b[1m\u001b[36mlib/\u001b[0m\u001b[1m\u001b[33mrouter\u001b[0m\u001b[1m\u001b[36m/index.js:42-57\u001b[0m",
+      );
+      expect(output).toContain(
+        "function \u001b[1m\u001b[33mrouter\u001b[0m(req, res, next) { ... }",
       );
     } finally {
       consoleSpy.mockRestore();
@@ -483,7 +486,7 @@ describe("searchAction", () => {
       const output = String(consoleSpy.mock.calls[0]?.[0]);
       expect(output).toContain("  line 1");
       expect(output).toContain(
-        `  ${"\u001b[1m\u001b[36m"}line 2${"\u001b[0m"}`,
+        `  ${"\u001b[1m\u001b[33m"}line 2${"\u001b[0m"}`,
       );
     } finally {
       consoleSpy.mockRestore();

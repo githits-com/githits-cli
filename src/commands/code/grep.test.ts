@@ -91,7 +91,7 @@ describe("pkgGrepAction", () => {
     const output = writes.join("");
     expect(output).toContain("src/index.js\n4:module.exports = ");
     expect(output).toContain(
-      "\u001b[1m\u001b[36mrequire\u001b[0m('./lib/express');",
+      "\u001b[1m\u001b[33mrequire\u001b[0m('./lib/express');",
     );
     expect(output).not.toContain(
       "src/index.js:4:module.exports = require('./lib/express');",

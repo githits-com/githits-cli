@@ -11,6 +11,7 @@ import {
   buildUnifiedSearchSuccessPayload,
   dim,
   highlight,
+  highlightMatch,
   highlightRanges,
   InvalidArgumentError,
   knownSymbolCategoryList,
@@ -403,7 +404,7 @@ function formatUnifiedSearchTerminal(payload: {
   }>;
   searchRef?: string;
   progress?: { targetsReady?: number; targetsTotal?: number };
-  query: { warnings?: string[] };
+  query: { raw?: string; warnings?: string[] };
   sourceStatus?: SourceStatusEntry[];
 }): string {
   const lines: string[] = [];
@@ -458,7 +459,12 @@ function formatUnifiedSearchTerminal(payload: {
 
   for (const entry of display) {
     const location = formatUnifiedSearchLocation(entry.locator);
-    const header = formatUnifiedSearchHeader(entry, useColors, location);
+    const header = formatUnifiedSearchHeader(
+      entry,
+      useColors,
+      location,
+      payload.query.raw,
+    );
     lines.push(header);
     const metadata = formatUnifiedSearchMetadata(entry, useColors);
     if (metadata.length > 0) {
@@ -779,18 +785,124 @@ function formatUnifiedSearchHeader(
   },
   useColors: boolean,
   location: string | undefined,
+  rawQuery: string | undefined,
 ): string {
-  const primary =
-    entry.type === "documentation_page"
-      ? entry.target
-      : location
-        ? `${entry.target} ${location}`
-        : entry.target;
+  const primary = formatUnifiedSearchPrimary(
+    entry.type,
+    entry.target,
+    location,
+    rawQuery,
+    useColors,
+  );
   const badge = `[${formatUnifiedSearchResultLabel(entry.type)}]`;
   const title = entry.title
     ? highlightRanges(entry.title, entry.highlights?.title, useColors)
     : undefined;
-  return `${highlight(primary, useColors)} ${dim(badge, useColors)}${title ? ` - ${title}` : ""}`;
+  return `${primary} ${dim(badge, useColors)}${title ? ` - ${title}` : ""}`;
+}
+
+function formatUnifiedSearchPrimary(
+  type: string,
+  target: string,
+  location: string | undefined,
+  rawQuery: string | undefined,
+  useColors: boolean,
+): string {
+  const formattedTarget = highlight(target, useColors);
+  if (type === "documentation_page" || !location) {
+    return formattedTarget;
+  }
+
+  return `${formattedTarget} ${formatLocationWithQueryHighlights(
+    location,
+    rawQuery,
+    useColors,
+  )}`;
+}
+
+function formatLocationWithQueryHighlights(
+  location: string,
+  rawQuery: string | undefined,
+  useColors: boolean,
+): string {
+  const ranges = buildQueryTermRanges(location, rawQuery);
+  if (ranges.length === 0) return highlight(location, useColors);
+  if (!useColors) return location;
+
+  let result = "";
+  let cursor = 0;
+  for (const [start, end] of ranges) {
+    if (cursor < start)
+      result += highlight(location.slice(cursor, start), true);
+    result += highlightMatch(location.slice(start, end), true);
+    cursor = end;
+  }
+  if (cursor < location.length)
+    result += highlight(location.slice(cursor), true);
+  return result;
+}
+
+function buildQueryTermRanges(
+  text: string,
+  rawQuery: string | undefined,
+): Array<readonly [number, number]> {
+  const terms = extractQueryHighlightTerms(rawQuery);
+  if (terms.length === 0) return [];
+
+  const lowerText = text.toLowerCase();
+  const ranges: Array<readonly [number, number]> = [];
+  for (const term of terms) {
+    const lowerTerm = term.toLowerCase();
+    let cursor = 0;
+    while (cursor < lowerText.length) {
+      const start = lowerText.indexOf(lowerTerm, cursor);
+      if (start === -1) break;
+      const end = start + lowerTerm.length;
+      ranges.push([start, end]);
+      cursor = end;
+    }
+  }
+
+  return mergeRanges(ranges);
+}
+
+function extractQueryHighlightTerms(rawQuery: string | undefined): string[] {
+  if (!rawQuery) return [];
+
+  const booleanOperators = new Set(["AND", "OR", "NOT"]);
+  const terms = new Set<string>();
+  for (const [candidate] of rawQuery.matchAll(/[A-Za-z0-9_./@:-]+/g)) {
+    const normalised = /^[A-Za-z]+:.+/.test(candidate)
+      ? candidate.split(":").slice(1).join(":")
+      : candidate;
+    const term = normalised.replace(/^[-+]+/, "").replace(/[-+]+$/, "");
+    if (term.length < 2) continue;
+    if (booleanOperators.has(term.toUpperCase())) continue;
+    terms.add(term);
+  }
+
+  return Array.from(terms).sort((left, right) => right.length - left.length);
+}
+
+function mergeRanges(
+  ranges: Array<readonly [number, number]>,
+): Array<readonly [number, number]> {
+  const sorted = ranges
+    .filter(([start, end]) => end > start)
+    .sort((left, right) => left[0] - right[0] || left[1] - right[1]);
+  const merged: Array<readonly [number, number]> = [];
+  for (const current of sorted) {
+    const previous = merged[merged.length - 1];
+    if (!previous || current[0] > previous[1]) {
+      merged.push(current);
+      continue;
+    }
+    merged[merged.length - 1] = [
+      previous[0],
+      Math.max(previous[1], current[1]),
+    ];
+  }
+  return merged;
 }
 
 function formatUnifiedSearchMetadata(

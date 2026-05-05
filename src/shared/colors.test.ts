@@ -5,6 +5,8 @@ import {
   dim,
   error,
   highlight,
+  highlightMatch,
+  highlightRanges,
   shouldUseColors,
   success,
   warning,
@@ -111,5 +113,25 @@ describe("highlight", () => {
 
   it("returns plain text when disabled", () => {
     expect(highlight("important", false)).toBe("important");
+  });
+});
+
+describe("highlightMatch", () => {
+  it("wraps with bold yellow when enabled", () => {
+    const result = highlightMatch("match", true);
+    expect(result).toBe(`${colors.bold}${colors.yellow}match${colors.reset}`);
+  });
+
+  it("returns plain text when disabled", () => {
+    expect(highlightMatch("match", false)).toBe("match");
+  });
+});
+
+describe("highlightRanges", () => {
+  it("renders matched spans with the search-match color", () => {
+    const result = highlightRanges("router middleware", [[7, 17]], true);
+    expect(result).toBe(
+      `router ${colors.bold}${colors.yellow}middleware${colors.reset}`,
+    );
   });
 });

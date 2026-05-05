@@ -2044,7 +2044,7 @@ export class PackageIntelligenceServiceImpl
     // Backend returns source=null for package version entries that have no
     // changelog entry. Treat no-source as NOT_FOUND only when no entries
     // came back at all.
-    const source = data.source && data.source.trim() ? data.source : undefined;
+    const source = data.source?.trim() ? data.source : undefined;
     const rawEntries = data.entries ?? [];
     if (!source && rawEntries.length === 0) {
       const target =
