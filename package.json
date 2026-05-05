@@ -1,7 +1,7 @@
 {
   "name": "githits",
   "description": "CLI companion for GitHits - code examples from global open source for developers and AI assistants",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "type": "module",
   "files": [
     "dist",
