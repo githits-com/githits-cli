@@ -803,6 +803,9 @@ describe("CodeNavigationServiceImpl", () => {
 
   it("exposes GraphQL schema mismatch details when code-nav-wire debug is enabled", async () => {
     process.env.GITHITS_DEBUG = "code-nav-wire";
+    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
+      () => true as never,
+    );
     mockFetch(() =>
       Promise.resolve(
         new Response(
@@ -832,6 +835,7 @@ describe("CodeNavigationServiceImpl", () => {
       name: "CodeNavigationBackendError",
       message: 'Cannot query field "search" on type "Query".',
     });
+    stderrSpy.mockRestore();
   });
 
   it("honors explicit backend CLIENT_UPDATE_REQUIRED errors", async () => {
