@@ -420,9 +420,46 @@ describe("searchAction", () => {
       );
 
       const output = String(consoleSpy.mock.calls[0]?.[0]);
-      expect(output).toContain("\u001b[1m\u001b[36mmiddleware\u001b[0m");
+      expect(output).toContain("\u001b[1m\u001b[33mmiddleware\u001b[0m");
       expect(output).toContain(
-        "function \u001b[1m\u001b[36mrouter\u001b[0m(req, res, next) { ... }",
+        "\u001b[1m\u001b[36mlib/\u001b[0m\u001b[1m\u001b[33mrouter\u001b[0m\u001b[1m\u001b[36m/index.js:42-57\u001b[0m",
+      );
+      expect(output).toContain(
+        "function \u001b[1m\u001b[33mrouter\u001b[0m(req, res, next) { ... }",
+      );
+    } finally {
+      consoleSpy.mockRestore();
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: originalIsTTY,
+        configurable: true,
+      });
+      if (noColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = noColor;
+      }
+    }
+  });
+
+  it("prefers longer overlapping query terms for location highlights", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const originalIsTTY = process.stdout.isTTY;
+    const noColor = process.env.NO_COLOR;
+    try {
+      delete process.env.NO_COLOR;
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: true,
+        configurable: true,
+      });
+
+      await searchAction("route router", { in: ["npm:express"] }, createDeps());
+
+      const output = String(consoleSpy.mock.calls[0]?.[0]);
+      expect(output).toContain(
+        "\u001b[1m\u001b[36mlib/\u001b[0m\u001b[1m\u001b[33mrouter\u001b[0m\u001b[1m\u001b[36m/index.js:42-57\u001b[0m",
+      );
+      expect(output).not.toContain(
+        "\u001b[1m\u001b[33mroute\u001b[0m\u001b[1m\u001b[36mr/index.js",
       );
     } finally {
       consoleSpy.mockRestore();
@@ -483,7 +520,7 @@ describe("searchAction", () => {
       const output = String(consoleSpy.mock.calls[0]?.[0]);
       expect(output).toContain("  line 1");
       expect(output).toContain(
-        `  ${"\u001b[1m\u001b[36m"}line 2${"\u001b[0m"}`,
+        `  ${"\u001b[1m\u001b[33m"}line 2${"\u001b[0m"}`,
       );
     } finally {
       consoleSpy.mockRestore();
@@ -671,8 +708,40 @@ describe("searchStatusAction", () => {
     const payload = JSON.parse(String(consoleSpy.mock.calls[0]?.[0]));
     expect(payload.completed).toBe(true);
     expect(payload.searchRef).toBe("search-ref-123");
+    expect(payload.result.query.raw).toBe("router middleware");
     expect(payload.result.results).toHaveLength(1);
     expect(payload).not.toHaveProperty("query.raw");
     consoleSpy.mockRestore();
+  });
+
+  it("renders location term highlights for completed search-status results", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const originalIsTTY = process.stdout.isTTY;
+    const noColor = process.env.NO_COLOR;
+    try {
+      delete process.env.NO_COLOR;
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: true,
+        configurable: true,
+      });
+
+      await searchStatusAction("search-ref-123", {}, createDeps());
+
+      const output = String(consoleSpy.mock.calls[0]?.[0]);
+      expect(output).toContain(
+        "\u001b[1m\u001b[36mlib/\u001b[0m\u001b[1m\u001b[33mrouter\u001b[0m\u001b[1m\u001b[36m/index.js:42-57\u001b[0m",
+      );
+    } finally {
+      consoleSpy.mockRestore();
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: originalIsTTY,
+        configurable: true,
+      });
+      if (noColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = noColor;
+      }
+    }
   });
 });

@@ -31,6 +31,7 @@ export {
   dim,
   error,
   highlight,
+  highlightMatch,
   highlightRanges,
   shouldUseColors,
   success,

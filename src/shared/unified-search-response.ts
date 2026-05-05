@@ -159,6 +159,7 @@ export interface UnifiedSearchErrorPayload {
 }
 
 export interface UnifiedSearchStatusResultPayload {
+  query?: UnifiedSearchQueryEcho;
   warnings?: string[];
   sources?: string[];
   hasMore: boolean;
@@ -317,6 +318,7 @@ function buildUnifiedSearchStatusResultPayload(
   result: UnifiedSearchCompleted["result"],
 ): UnifiedSearchStatusResultPayload {
   const payload: UnifiedSearchStatusResultPayload = {
+    query: buildStatusQueryEcho(result),
     hasMore: result.page.hasMore,
     results: result.results.map(buildHitPayload),
   };
@@ -333,6 +335,23 @@ function buildUnifiedSearchStatusResultPayload(
     payload.warnings = combinedWarnings;
   }
   return payload;
+}
+
+function buildStatusQueryEcho(
+  result: UnifiedSearchCompleted["result"],
+): UnifiedSearchQueryEcho {
+  // Status responses only retain the backend result query. Request-only
+  // compile/filter metadata is not available when following up by searchRef.
+  const query: UnifiedSearchQueryEcho = {
+    raw: result.query,
+  };
+  if (result.queryWarnings.length > 0) {
+    query.warnings = result.queryWarnings;
+  }
+  if (result.sources.length > 0) {
+    query.sources = result.sources.map((entry) => entry.toLowerCase());
+  }
+  return query;
 }
 
 function buildQueryEcho(

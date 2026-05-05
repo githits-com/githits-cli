@@ -71,6 +71,14 @@ export function highlight(text: string, useColors: boolean): string {
 }
 
 /**
+ * Highlight matched search terms.
+ */
+export function highlightMatch(text: string, useColors: boolean): string {
+  if (!useColors) return text;
+  return `${colors.bold}${colors.yellow}${text}${colors.reset}`;
+}
+
+/**
  * Apply half-open character spans to a string.
  * Invalid or overlapping spans are ignored/merged conservatively.
  */
@@ -117,7 +125,7 @@ export function highlightRanges(
   let cursor = 0;
   for (const [start, end] of merged) {
     if (cursor < start) result += text.slice(cursor, start);
-    result += highlight(text.slice(start, end), useColors);
+    result += highlightMatch(text.slice(start, end), useColors);
     cursor = end;
   }
   if (cursor < text.length) result += text.slice(cursor);
