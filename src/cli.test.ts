@@ -325,7 +325,9 @@ describe("root CLI preAction", () => {
     expect(ran).toBe(false);
     expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
       "Authentication timed out.\n",
-      "Run `githits login` to try again.",
+      "Run the same command again to open a fresh sign-in link.",
+      "If the browser did not open, run `githits login --no-browser` and follow the printed link.",
+      "If sign-in keeps failing after a retry, run `githits logout` and then run your command again.",
     ]);
     errorSpy.mockRestore();
   });

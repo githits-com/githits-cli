@@ -1,8 +1,9 @@
 import type { Command } from "commander";
-import type {
-  LoginDependencies,
-  LoginFlowResult,
-  LoginOptions,
+import {
+  type LoginDependencies,
+  type LoginFlowResult,
+  type LoginOptions,
+  printAutoLoginRecoveryHint,
 } from "../commands/login.js";
 import { getCommandPath, maybeAutoLoginBeforeCommand } from "./auto-login.js";
 
@@ -44,8 +45,9 @@ export function createRootCliPreAction(
       return;
     }
 
-    console.error(`${authResult.message}\n`);
-    console.error("Run `githits login` to try again.");
+    const failureMessage = authResult.message ?? "Authentication failed.";
+    console.error(`${failureMessage}\n`);
+    printAutoLoginRecoveryHint(failureMessage);
     (deps.exit ?? process.exit)(1);
   };
 }
