@@ -20,6 +20,8 @@ describe("toPkgseerRegistry", () => {
       ["zig", "ZIG"],
       ["vcpkg", "VCPKG"],
       ["packagist", "PACKAGIST"],
+      ["rubygems", "RUBYGEMS"],
+      ["go", "GO"],
     ];
 
     for (const [arg, expected] of cases) {

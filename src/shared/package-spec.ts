@@ -1,17 +1,12 @@
+import {
+  PKGSEER_REGISTRY_ARGS,
+  PKGSEER_REGISTRY_LIST,
+} from "./pkgseer-registry.js";
+
 /**
  * Known package registries supported by code navigation targets.
  */
-export const KNOWN_REGISTRIES = [
-  "npm",
-  "pypi",
-  "hex",
-  "crates",
-  "nuget",
-  "maven",
-  "zig",
-  "vcpkg",
-  "packagist",
-] as const;
+export const KNOWN_REGISTRIES = PKGSEER_REGISTRY_ARGS;
 
 export type KnownRegistry = (typeof KNOWN_REGISTRIES)[number];
 
@@ -35,7 +30,7 @@ export interface ParsedPackageSpec {
 export class UnsupportedRegistryError extends Error {
   constructor(public readonly attempted: string) {
     super(
-      `Unsupported registry "${attempted}". Supported: ${KNOWN_REGISTRIES.join(", ")}.`,
+      `Unsupported registry "${attempted}". Supported: ${PKGSEER_REGISTRY_LIST}.`,
     );
     this.name = "UnsupportedRegistryError";
   }

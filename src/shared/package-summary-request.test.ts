@@ -4,6 +4,7 @@ import {
   UnsupportedRegistryError,
 } from "./package-spec.js";
 import { buildPackageSummaryParams } from "./package-summary-request.js";
+import { knownPkgseerRegistryArgs } from "./pkgseer-registry.js";
 
 describe("buildPackageSummaryParams", () => {
   it("maps lowercase registry to uppercase backend enum", () => {
@@ -53,18 +54,7 @@ describe("buildPackageSummaryParams", () => {
   });
 
   it("accepts every supported registry", () => {
-    const registries = [
-      "npm",
-      "pypi",
-      "hex",
-      "crates",
-      "nuget",
-      "maven",
-      "zig",
-      "vcpkg",
-      "packagist",
-    ];
-    for (const registry of registries) {
+    for (const registry of knownPkgseerRegistryArgs()) {
       expect(() =>
         buildPackageSummaryParams({ registry, packageName: "x" }),
       ).not.toThrow();

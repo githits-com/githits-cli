@@ -1,7 +1,10 @@
 import { z } from "zod";
 import type { PackageIntelligenceService } from "../services/index.js";
 import { InvalidPackageSpecError } from "../shared/index.js";
-import { buildPackageDependenciesParams } from "../shared/package-dependencies-request.js";
+import {
+  buildPackageDependenciesParams,
+  SUPPORTED_DEPS_REGISTRIES_HUMAN,
+} from "../shared/package-dependencies-request.js";
 import {
   buildPackageDependenciesSuccessPayload,
   formatPackageDependenciesTerminal,
@@ -33,7 +36,7 @@ const schema = {
   registry: z
     .string()
     .describe(
-      "Package registry. Dependency data is available on npm, pypi, hex, crates, vcpkg, and zig.",
+      `Package registry. Dependency data is available on ${SUPPORTED_DEPS_REGISTRIES_HUMAN}.`,
     ),
   package_name: z
     .string()
@@ -90,7 +93,7 @@ const DESCRIPTION =
   "full install footprint, conflict detection, and circular-" +
   "dependency flags; layer `include_importers: true` on top when you " +
   "also need per-package provenance. Supports npm, PyPI, Hex, Crates, " +
-  "vcpkg, and Zig.";
+  "RubyGems, Go, vcpkg, and Zig.";
 
 export function createPackageDependenciesTool(
   service: PackageIntelligenceService,

@@ -6,7 +6,10 @@ import {
   formatPackageChangelogTerminal,
 } from "../shared/package-changelog-response.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
-import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
+import {
+  PKGSEER_REGISTRY_LIST,
+  toPkgseerRegistryLowercase,
+} from "../shared/pkgseer-registry.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
 export interface PackageChangelogArgs {
@@ -41,7 +44,7 @@ const schema = {
     .string()
     .optional()
     .describe(
-      "Package registry (with `package_name`). Mutually exclusive with `repo_url`. Supported: npm, pypi, hex, crates, vcpkg, zig, nuget, maven, packagist.",
+      `Package registry (with \`package_name\`). Mutually exclusive with \`repo_url\`. Supported: ${PKGSEER_REGISTRY_LIST}.`,
     ),
   package_name: z
     .string()
@@ -107,7 +110,7 @@ const DESCRIPTION =
   "`include_bodies: false` for a version / date / URL timeline only. " +
   "Package-version entries without changelog text succeed with `source` " +
   "omitted; no-source plus no entries returns `NOT_FOUND`. Supports npm, " +
-  "PyPI, Hex, Crates, vcpkg, Zig, NuGet, Maven, Packagist.";
+  "PyPI, Hex, Crates, vcpkg, Zig, NuGet, Maven, Packagist, RubyGems, Go.";
 
 export function createPackageChangelogTool(
   service: PackageIntelligenceService,

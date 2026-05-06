@@ -6,6 +6,7 @@ import {
   buildPackageSummarySuccessPayload,
   formatPackageSummaryTerminal,
 } from "../shared/package-summary-response.js";
+import { PKGSEER_REGISTRY_LIST } from "../shared/pkgseer-registry.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
 export interface PackageSummaryArgs {
@@ -24,9 +25,7 @@ export interface PackageSummaryArgs {
 const schema = {
   registry: z
     .string()
-    .describe(
-      "Package registry. One of: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist.",
-    ),
+    .describe(`Package registry. One of: ${PKGSEER_REGISTRY_LIST}.`),
   package_name: z
     .string()
     .describe("Package name (scoped names ok: @types/node)."),
@@ -46,7 +45,7 @@ const DESCRIPTION =
   'Default output is compact text; pass `format: "json"` for the ' +
   "structured envelope. " +
   "Works across npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, " +
-  "vcpkg, and Zig. Always returns data for the latest published " +
+  "RubyGems, Go, vcpkg, and Zig. Always returns data for the latest published " +
   "version.";
 
 export function createPackageSummaryTool(

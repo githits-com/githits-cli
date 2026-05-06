@@ -16,7 +16,7 @@ The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` /
 | `feedback <solution_id>` | `--accept` or `--reject` | `-m, --message <text>`, `--json` | Submit feedback on a search result |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates) |
-| `pkg deps <spec>` | package spec (optional `@version`) | `--groups`, `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig) |
+| `pkg deps <spec>` | package spec (optional `@version`) | `--groups`, `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig/rubygems/go) |
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages for a package. Entries include page IDs for `docs read`; JSON includes exact repo-file follow-up metadata when available. |
 | `docs read <page-id>` | page ID from `docs list` or search results | `--lines`, `--verbose`, `--json` | Read a documentation page by page ID. Default output is content-only; `--lines` fetches a bounded range for long pages. |
@@ -124,7 +124,7 @@ githits pkg info npm:@types/node
 
 Shows a concise overview for a single package: latest version, license, description, repository + homepage, publication date, download count, GitHub metadata, install command, and known vulnerabilities. Default output is a compact terminal block. `--verbose` adds usage snippet, recent advisories, topics, and a recent-changes list. `--json` emits the lean hand-crafted envelope — every null field is omitted, every block that carries no actionable data is omitted entirely.
 
-**Package spec.** `<registry>:<name>`. Registries: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`. Scoped npm names (`npm:@types/node`) are supported.
+**Package spec.** `<registry>:<name>`. Registries: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`, `rubygems`, `go`. Scoped npm names (`npm:@types/node`) are supported.
 
 **Always latest.** `pkg info` returns the latest published version regardless of input. Passing `<spec>@<version>` is rejected with `INVALID_ARGUMENT` and a clear message — the tool never silently swaps to latest. Use `pkg vulns` or `pkg deps` for version-pinned queries.
 
@@ -182,9 +182,9 @@ githits pkg deps npm:express --transitive --depth 2
 githits pkg deps npm:express --json
 ```
 
-Analyses dependencies for a package on npm, PyPI, Hex, Crates, vcpkg, or Zig. Default terminal output is a flat list of direct runtime dependencies with a hint summarising hidden groups.
+Analyses dependencies for a package on npm, PyPI, Hex, Crates, vcpkg, Zig, RubyGems, or Go. Default terminal output is a flat list of direct runtime dependencies with a hint summarising hidden groups.
 
-**Package spec.** `<registry>:<name>[@<version>]`. `@<version>` is accepted (same as `pkg vulns`); defaults to latest. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` — callers must use the canonical version. Only `npm`, `pypi`, `hex`, `crates`, `vcpkg`, and `zig` are supported; other registries are rejected client-side with `pkg deps only supports npm, pypi, hex, crates, vcpkg, and zig. Got: ${registry}.`
+**Package spec.** `<registry>:<name>[@<version>]`. `@<version>` is accepted (same as `pkg vulns`); defaults to latest. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` — callers must use the canonical version. Only `npm`, `pypi`, `hex`, `crates`, `vcpkg`, `zig`, `rubygems`, and `go` are supported; other registries are rejected client-side with `pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, and go. Got: ${registry}.`
 
 **Two views.** The default runtime view collapses to a single-column list from `dependencies.direct` — the flat answer to "what does this pull in?". The structured groups view (`--groups`, or implicitly via `--lifecycle`) iterates `dependencyGroups.groups` and preserves registry-specific condition metadata (PyPI extras, Crates features). Dev / peer / build / optional deps live only in the groups view — the wire's `direct[]` is always runtime-only.
 

@@ -292,7 +292,7 @@ describe("createPackageDependenciesTool — validation errors via in-handler bui
     const payload = parseText(result) as { code: string; error: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
     expect(payload.error).toBe(
-      "pkg deps only supports npm, pypi, hex, crates, vcpkg, and zig. Got: nuget.",
+      "pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, and go. Got: nuget.",
     );
   });
 

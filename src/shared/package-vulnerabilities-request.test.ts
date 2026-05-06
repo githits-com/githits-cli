@@ -150,7 +150,15 @@ describe("buildPackageVulnerabilitiesParams", () => {
   });
 
   it("rejects known-but-unsupported registries with tool-specific message", () => {
-    const unsupported = ["vcpkg", "zig", "nuget", "maven", "packagist"];
+    const unsupported = [
+      "vcpkg",
+      "zig",
+      "nuget",
+      "maven",
+      "packagist",
+      "rubygems",
+      "go",
+    ];
     for (const registry of unsupported) {
       try {
         buildPackageVulnerabilitiesParams({
@@ -188,12 +196,14 @@ describe("supportsVulnerabilitiesRegistry", () => {
     expect(supportsVulnerabilitiesRegistry("CRATES")).toBe(true);
   });
 
-  it("rejects the five unsupported registries", () => {
+  it("rejects the unsupported registries", () => {
     expect(supportsVulnerabilitiesRegistry("NUGET")).toBe(false);
     expect(supportsVulnerabilitiesRegistry("MAVEN")).toBe(false);
     expect(supportsVulnerabilitiesRegistry("ZIG")).toBe(false);
     expect(supportsVulnerabilitiesRegistry("VCPKG")).toBe(false);
     expect(supportsVulnerabilitiesRegistry("PACKAGIST")).toBe(false);
+    expect(supportsVulnerabilitiesRegistry("RUBYGEMS")).toBe(false);
+    expect(supportsVulnerabilitiesRegistry("GO")).toBe(false);
   });
 });
 

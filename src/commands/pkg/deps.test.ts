@@ -216,7 +216,7 @@ describe("pkgDepsAction", () => {
     }
 
     expect(errorSpy.mock.calls[0]?.[0]).toBe(
-      "pkg deps only supports npm, pypi, hex, crates, vcpkg, and zig. Got: nuget.",
+      "pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, and go. Got: nuget.",
     );
     errorSpy.mockRestore();
     exitSpy.mockRestore();

@@ -26,6 +26,7 @@ import {
 } from "./package-spec.js";
 import {
   isKnownPkgseerRegistryArg,
+  PKGSEER_REGISTRY_LIST,
   type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
@@ -69,17 +70,19 @@ const LIFECYCLE_ORDER: Readonly<Record<DependencyLifecycle, number>> = {
   optional: 4,
 };
 
-const SUPPORTED_DEPS_REGISTRIES: ReadonlySet<PkgseerRegistry> = new Set([
+export const SUPPORTED_DEPS_REGISTRIES: ReadonlySet<PkgseerRegistry> = new Set([
   "NPM",
   "PYPI",
   "HEX",
   "CRATES",
   "VCPKG",
   "ZIG",
+  "RUBYGEMS",
+  "GO",
 ]);
 
-const SUPPORTED_DEPS_REGISTRIES_HUMAN =
-  "npm, pypi, hex, crates, vcpkg, and zig";
+export const SUPPORTED_DEPS_REGISTRIES_HUMAN =
+  "npm, pypi, hex, crates, vcpkg, zig, rubygems, and go";
 
 export function supportsDependenciesRegistry(
   registry: PkgseerRegistry,
@@ -129,7 +132,7 @@ export function buildPackageDependenciesParams(
   const normalisedRegistryArg = input.registry?.trim().toLowerCase() ?? "";
   if (!isKnownPkgseerRegistryArg(normalisedRegistryArg)) {
     throw new UnsupportedRegistryError(
-      `Unsupported registry '${input.registry}'. Supported: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist.`,
+      `Unsupported registry '${input.registry}'. Supported: ${PKGSEER_REGISTRY_LIST}.`,
     );
   }
 

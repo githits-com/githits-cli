@@ -62,7 +62,7 @@ The CLI mirrors the production MCP tool contract where equivalent tools exist. C
 
 **Omission rules.** Null scalars omitted; empty arrays dropped; zero-count `bySeverity` keys dropped; the `bySeverity` block itself dropped when `total === 0`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
 
-**Registry coverage.** Only npm, PyPI, Hex, and Crates have vulnerability data. The CLI + MCP reject the other five registries client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, and crates. Got: ${registry}.`) — rejection predicate lives in `src/shared/package-vulnerabilities-request.ts` rather than the shared registry module, since it is a tool-specific capability matrix.
+**Registry coverage.** Only npm, PyPI, Hex, and Crates have vulnerability data. The CLI + MCP reject the other registries client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, and crates. Got: ${registry}.`) — rejection predicate lives in `src/shared/package-vulnerabilities-request.ts` rather than the shared registry module, since it is a tool-specific capability matrix.
 
 `pkg_vulns` shares its envelope builder and text formatter with the CLI `githits pkg vulns` command via `src/shared/package-vulnerabilities-request.ts` and `src/shared/package-vulnerabilities-response.ts`. MCP defaults to compact text and uses `format: "json"` for structured output. The parity test (`src/tools/package-vulnerabilities-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across the service-sourced success and typed-error fixtures, and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` fixtures such as unsupported registries and tag-style `v`-prefixed versions.
 
@@ -80,7 +80,7 @@ The CLI mirrors the production MCP tool contract where equivalent tools exist. C
 
 **Typed decoder on GenericJSON payloads.** Backend declares `transitive.conflicts`, `transitive.circularDependencies`, and the DAG as `GenericJSON`. We ship best-effort decoders in the envelope builder that promote the two observed shapes (`{package_name, required_versions, conflicting_edges}` for conflicts; `{cycle: string[]}` for cycles) into typed arrays in the envelope. If any entry fails to decode against the expected shape, the field falls back to raw passthrough for that response — agents discriminate by checking `"name" in entry` / `Array.isArray(entry.cycle)` on the first element. `groups.environmentConstraints` remains raw `GenericJSON[]` (no observed live shape yet). The raw DAG is deliberately not exposed in this PR; a follow-up `pkg deps-dag` command will provide a typed graph surface for visualisation tooling.
 
-**Registry coverage.** Only npm, PyPI, Hex, Crates, vcpkg, and Zig support the `packageDependencies` query. NuGet / Maven / Packagist are rejected client-side with a tool-specific message (`pkg deps only supports npm, pypi, hex, crates, vcpkg, and zig. Got: ${registry}.`). Predicate lives in `src/shared/package-dependencies-request.ts`.
+**Registry coverage.** npm, PyPI, Hex, Crates, vcpkg, Zig, RubyGems, and Go support the `packageDependencies` query. NuGet / Maven / Packagist are rejected client-side with a tool-specific message (`pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, and go. Got: ${registry}.`). Predicate lives in `src/shared/package-dependencies-request.ts`.
 
 **Version validation.** Same rule as `pkg_vulns`: tag-style `v`-prefixed inputs are rejected client-side with `INVALID_ARGUMENT` before the backend call.
 

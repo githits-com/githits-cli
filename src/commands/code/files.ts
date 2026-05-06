@@ -16,7 +16,11 @@ import {
   buildListFilesSuccessPayload,
   formatListFilesTerminal,
 } from "../../shared/list-files-response.js";
-import { toPkgseerRegistryLowercase } from "../../shared/pkgseer-registry.js";
+import {
+  PKGSEER_REGISTRY_ARGS,
+  PKGSEER_REGISTRY_LIST,
+  toPkgseerRegistryLowercase,
+} from "../../shared/pkgseer-registry.js";
 import {
   formatIndexingError,
   handleCodeNavCommandError,
@@ -184,8 +188,10 @@ function buildCliListFilesParams(
 // a common user mistake where a package spec is passed together with
 // --repo-url. We'd otherwise silently treat it as a (meaningless)
 // path-prefix.
-const REGISTRY_SPEC_HINT =
-  /^(npm|pypi|hex|crates|nuget|maven|zig|vcpkg|packagist):/i;
+const REGISTRY_SPEC_HINT = new RegExp(
+  `^(${PKGSEER_REGISTRY_ARGS.join("|")}):`,
+  "i",
+);
 
 function resolvePositionals(
   firstArg: string | undefined,
@@ -224,8 +230,7 @@ and \`githits code grep\`.
 filters intersect on top.
 
 Addressing: <spec> (registry:name[@version]) OR --repo-url <url>
---git-ref <ref>. Supported registries: npm, pypi, hex, crates,
-vcpkg, zig, nuget, maven, packagist.
+--git-ref <ref>. Supported registries: ${PKGSEER_REGISTRY_LIST}.
 
 By default each result is a bare path for easy piping; pass
 --verbose to include language / file-type / size annotations.
