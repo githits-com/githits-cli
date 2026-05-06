@@ -198,7 +198,7 @@ groups). Concrete --lifecycle values include runtime plus matching groups.
 conflict detection, and circular-dependency flags.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
-npm, pypi, hex, crates, vcpkg, zig. Omit @<version> for the latest
+npm, pypi, hex, crates, vcpkg, zig, rubygems, go. Omit @<version> for the latest
 release.`;
 
 export function registerPkgDepsCommand(pkgCommand: Command): Command {

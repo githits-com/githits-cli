@@ -4,6 +4,7 @@ import { buildListPackageDocsParams } from "../shared/list-package-docs-request.
 import { buildListPackageDocsSuccessPayload } from "../shared/list-package-docs-response.js";
 import { renderListPackageDocsText } from "../shared/list-package-docs-text.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
+import { PKGSEER_REGISTRY_LIST } from "../shared/pkgseer-registry.js";
 import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
 export interface ListPackageDocsArgs {
@@ -18,9 +19,7 @@ export interface ListPackageDocsArgs {
 const schema = {
   registry: z
     .string()
-    .describe(
-      "Package registry. One of: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist.",
-    ),
+    .describe(`Package registry. One of: ${PKGSEER_REGISTRY_LIST}.`),
   package_name: z
     .string()
     .describe("Package name (scoped names ok: @types/node)."),

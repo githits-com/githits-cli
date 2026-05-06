@@ -72,7 +72,9 @@ interface McpArgs {
       | "maven"
       | "zig"
       | "vcpkg"
-      | "packagist";
+      | "packagist"
+      | "rubygems"
+      | "go";
     package_name?: string;
     version?: string;
     repo_url?: string;

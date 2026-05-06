@@ -65,6 +65,21 @@ describe("parsePackageSpec", () => {
     });
   });
 
+  it("parses rubygems and go registry prefixes", () => {
+    expect(parsePackageSpec("rubygems:rails@8.0.2")).toEqual({
+      registry: "rubygems",
+      registryExplicit: true,
+      name: "rails",
+      version: "8.0.2",
+    });
+    expect(parsePackageSpec("go:golang.org/x/text@0.26.0")).toEqual({
+      registry: "go",
+      registryExplicit: true,
+      name: "golang.org/x/text",
+      version: "0.26.0",
+    });
+  });
+
   it("throws UnsupportedRegistryError when the prefix is unknown", () => {
     expect(() => parsePackageSpec("foobar:baz")).toThrow(
       UnsupportedRegistryError,

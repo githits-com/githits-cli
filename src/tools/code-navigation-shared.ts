@@ -6,6 +6,10 @@ import {
 } from "../shared/code-navigation.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { parseCodeNavigationTargetSpec } from "../shared/code-navigation-target.js";
+import {
+  PKGSEER_REGISTRY_ARGS,
+  PKGSEER_REGISTRY_LIST,
+} from "../shared/pkgseer-registry.js";
 import { errorResult, type ToolResult } from "./types.js";
 
 // Re-export the wait-timeout default so callers already importing this
@@ -16,20 +20,10 @@ export { DEFAULT_WAIT_TIMEOUT_MS } from "../shared/code-navigation-defaults.js";
 export const structuredCodeTargetSchema = z
   .object({
     registry: z
-      .enum([
-        "npm",
-        "pypi",
-        "hex",
-        "crates",
-        "nuget",
-        "maven",
-        "zig",
-        "vcpkg",
-        "packagist",
-      ])
+      .enum(PKGSEER_REGISTRY_ARGS)
       .optional()
       .describe(
-        "Package registry (npm, pypi, hex, etc.). Required for package scope.",
+        `Package registry (${PKGSEER_REGISTRY_LIST}). Required for package scope.`,
       ),
     package_name: z
       .string()

@@ -6,7 +6,7 @@
  * Responsibilities:
  * - Trim whitespace on `packageName`; reject empty strings with
  *   `InvalidPackageSpecError`.
- * - Normalise registry case and validate against the known 9-value
+ * - Normalise registry case and validate against the shared registry
  *   surface via `pkgseer-registry`; reject unknown registries with
  *   the generic `UnsupportedRegistryError` message.
  * - Gate against the vulnerability-query's narrower registry support
@@ -35,6 +35,7 @@ import {
 } from "./package-spec.js";
 import {
   isKnownPkgseerRegistryArg,
+  PKGSEER_REGISTRY_LIST,
   type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
@@ -116,7 +117,7 @@ export function buildPackageVulnerabilitiesParams(
   const normalisedRegistryArg = input.registry?.trim().toLowerCase() ?? "";
   if (!isKnownPkgseerRegistryArg(normalisedRegistryArg)) {
     throw new UnsupportedRegistryError(
-      `Unsupported registry '${input.registry}'. Supported: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist.`,
+      `Unsupported registry '${input.registry}'. Supported: ${PKGSEER_REGISTRY_LIST}.`,
     );
   }
 

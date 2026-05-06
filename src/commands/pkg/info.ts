@@ -14,6 +14,7 @@ import {
   buildPackageSummarySuccessPayload,
   formatPackageSummaryTerminal,
 } from "../../shared/package-summary-response.js";
+import { PKGSEER_REGISTRY_LIST } from "../../shared/pkgseer-registry.js";
 
 export interface PkgInfoCommandOptions {
   verbose?: boolean;
@@ -103,8 +104,7 @@ repository, downloads, GitHub stars, install command, and known
 vulnerabilities. Use before picking a dependency or to orient on what
 a package is.
 
-Package spec: <registry>:<name>. Supported registries: npm, pypi, hex,
-crates, nuget, maven, zig, vcpkg, packagist.
+Package spec: <registry>:<name>. Supported registries: ${PKGSEER_REGISTRY_LIST}.
 
 Always returns data for the latest published version.`;
 

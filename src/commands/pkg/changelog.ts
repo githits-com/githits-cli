@@ -15,7 +15,10 @@ import {
   buildPackageChangelogSuccessPayload,
   formatPackageChangelogTerminal,
 } from "../../shared/package-changelog-response.js";
-import { toPkgseerRegistryLowercase } from "../../shared/pkgseer-registry.js";
+import {
+  PKGSEER_REGISTRY_LIST,
+  toPkgseerRegistryLowercase,
+} from "../../shared/pkgseer-registry.js";
 
 export interface PkgChangelogCommandOptions {
   repoUrl?: string;
@@ -189,8 +192,7 @@ Addressing: <spec> (registry:name) OR --repo-url <url>. Source
 (GitHub Releases, CHANGELOG.md, or HexDocs) is shown on the summary
 line.
 
-Package spec: <registry>:<name>. Supported registries: npm, pypi,
-hex, crates, vcpkg, zig, nuget, maven, packagist. \`<spec>@<version>\`
+Package spec: <registry>:<name>. Supported registries: ${PKGSEER_REGISTRY_LIST}. \`<spec>@<version>\`
 is NOT accepted here — use --to <version> for "entries up to this
 version".`;
 

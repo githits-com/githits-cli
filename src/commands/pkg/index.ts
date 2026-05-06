@@ -26,7 +26,7 @@ export async function registerPkgCommandGroup(
     .command("pkg")
     .summary("Package metadata: info, vulnerabilities, dependencies, changelog")
     .description(
-      "Inspect package metadata from npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, vcpkg, and Zig: overviews, advisories, dependency graphs, and changelogs. For source-level operations inside a dependency, use `githits code`.",
+      "Inspect package metadata from npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, vcpkg, and Zig: overviews, advisories, dependency graphs, and changelogs. For source-level operations inside a dependency, use `githits code`.",
     );
 
   registerPkgInfoCommand(pkgCommand);

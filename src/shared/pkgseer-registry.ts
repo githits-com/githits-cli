@@ -19,7 +19,25 @@ export type PkgseerRegistry =
   | "MAVEN"
   | "ZIG"
   | "VCPKG"
-  | "PACKAGIST";
+  | "PACKAGIST"
+  | "RUBYGEMS"
+  | "GO";
+
+export const PKGSEER_REGISTRY_ARGS = [
+  "npm",
+  "pypi",
+  "hex",
+  "crates",
+  "nuget",
+  "maven",
+  "zig",
+  "vcpkg",
+  "packagist",
+  "rubygems",
+  "go",
+] as const;
+
+export type PkgseerRegistryArg = (typeof PKGSEER_REGISTRY_ARGS)[number];
 
 const registryMap = {
   npm: "NPM",
@@ -31,9 +49,11 @@ const registryMap = {
   zig: "ZIG",
   vcpkg: "VCPKG",
   packagist: "PACKAGIST",
-} as const satisfies Record<string, PkgseerRegistry>;
+  rubygems: "RUBYGEMS",
+  go: "GO",
+} as const satisfies Record<PkgseerRegistryArg, PkgseerRegistry>;
 
-export type PkgseerRegistryArg = keyof typeof registryMap;
+export const PKGSEER_REGISTRY_LIST = PKGSEER_REGISTRY_ARGS.join(", ");
 
 /**
  * Lowercase surface value → uppercase backend enum. Exhaustive over
@@ -69,5 +89,5 @@ export function isKnownPkgseerRegistryArg(
 }
 
 export function knownPkgseerRegistryArgs(): ReadonlyArray<PkgseerRegistryArg> {
-  return Object.keys(registryMap) as PkgseerRegistryArg[];
+  return PKGSEER_REGISTRY_ARGS;
 }

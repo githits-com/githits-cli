@@ -16,6 +16,8 @@ describe("buildPackageDependenciesParams — registry matrix", () => {
     ["crates", "CRATES"],
     ["vcpkg", "VCPKG"],
     ["zig", "ZIG"],
+    ["rubygems", "RUBYGEMS"],
+    ["go", "GO"],
   ] as const)("accepts registry %s", (arg, expected) => {
     const result = buildPackageDependenciesParams({
       registry: arg,

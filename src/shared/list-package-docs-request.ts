@@ -5,6 +5,7 @@ import {
 } from "./package-spec.js";
 import {
   isKnownPkgseerRegistryArg,
+  PKGSEER_REGISTRY_LIST,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
 } from "./pkgseer-registry.js";
@@ -34,7 +35,7 @@ export function buildListPackageDocsParams(
   const registry = input.registry?.trim().toLowerCase() ?? "";
   if (!isKnownPkgseerRegistryArg(registry)) {
     throw new UnsupportedRegistryError(
-      `Unsupported registry '${input.registry}'. Supported: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist.`,
+      `Unsupported registry '${input.registry}'. Supported: ${PKGSEER_REGISTRY_LIST}.`,
     );
   }
 
