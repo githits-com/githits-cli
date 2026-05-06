@@ -237,6 +237,7 @@ export async function loginFlow(
   try {
     callback = await Promise.race([callbackServer.result, timeoutPromise]);
     if (timeoutId) clearTimeout(timeoutId);
+    await callbackServer.close().catch(() => {});
   } catch (error) {
     if (timeoutId) clearTimeout(timeoutId);
     await callbackServer.close().catch(() => {});
