@@ -241,7 +241,7 @@ describe("GitHitsServiceImpl", () => {
       ).rejects.toThrow("Server error (500): internal error");
     });
 
-    it("sends null solution_id when not provided (generic feedback)", async () => {
+    it("omits solution_id when not provided (generic feedback)", async () => {
       const fn = mockFetch(() =>
         Promise.resolve(
           new Response(JSON.stringify({ success: true }), {
@@ -257,7 +257,7 @@ describe("GitHitsServiceImpl", () => {
 
       const call = fn.mock.calls[0] as unknown as [string, RequestInit];
       const body = JSON.parse(call[1].body as string);
-      expect(body.solution_id).toBeNull();
+      expect("solution_id" in body).toBe(false);
       expect(body.accepted).toBe(true);
       expect(body.feedback_text).toBe("code_grep regex is great");
     });
