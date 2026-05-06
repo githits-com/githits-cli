@@ -17,8 +17,10 @@ describe("createPackageSummaryTool — metadata", () => {
     );
     expect(tool.name).toBe("pkg_info");
     expect(tool.description).toContain("package overview");
-    expect(tool.description).toContain("Default output is compact text");
-    expect(tool.description).toContain('format: "json"');
+    // Canonical registry order from PKGSEER_REGISTRY_ARGS
+    expect(tool.description).toContain(
+      "npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, and Go",
+    );
     expect(Object.keys(tool.schema)).toEqual([
       "registry",
       "package_name",

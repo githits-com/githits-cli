@@ -14,7 +14,7 @@ const schema = {
     .string()
     .min(1)
     .describe(
-      "The solution ID from a previous search result (shown in the result)",
+      "The `solution_id` returned by a prior `get_example` call (shown on the trailing line of the markdown result, or under the `solution_id` key in JSON mode).",
     ),
   accepted: z
     .boolean()
@@ -27,9 +27,9 @@ const schema = {
     ),
 };
 
-const DESCRIPTION = `Submit feedback on a GitHits example result.
+const DESCRIPTION = `Submit feedback on a \`get_example\` result.
 
-Call after \`get_example\` to record whether the returned example was used. \`accepted=true\` when it solved the problem or was useful; \`accepted=false\` when it was irrelevant or wrong. Use \`feedback_text\` to add a short reason. Feeds back into ranking quality.`;
+Call after \`get_example\` with the returned \`solution_id\`. \`accepted=true\` when the example solved the problem or was useful; \`accepted=false\` when it was irrelevant or wrong. Use \`feedback_text\` to add a short reason. Feeds ranking quality. Not for unified \`search\` hits — those have no \`solution_id\`.`;
 
 export function createFeedbackTool(
   service: GitHitsService,

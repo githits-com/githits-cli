@@ -127,4 +127,69 @@ describe("buildMcpInstructions", () => {
       expect(mentioned.has(name)).toBe(true);
     }
   });
+
+  it("ships a decision tree mentioning all three workflow tools in the core block", () => {
+    const deps = createTestDeps();
+    const instructions = buildMcpInstructions(deps);
+    const coreEnd = instructions.indexOf("Indexed package/source tools");
+    const coreSection = instructions.slice(0, coreEnd);
+
+    expect(coreSection).toContain("`get_example`");
+    expect(coreSection).toContain("`search`");
+    expect(coreSection).toContain("`feedback`");
+    expect(coreSection).toContain("`search_language`");
+  });
+
+  it("orders package-section bullets by agent decision flow", () => {
+    const deps = createTestDeps();
+    const instructions = buildMcpInstructions(deps);
+
+    const positions = {
+      search: instructions.indexOf("- `search` —"),
+      searchStatus: instructions.indexOf("- `search_status`"),
+      codeGrep: instructions.indexOf("- `code_grep`"),
+      codeRead: instructions.indexOf("- `code_read`"),
+      codeFiles: instructions.indexOf("- `code_files`"),
+      docsList: instructions.indexOf("- `docs_list`"),
+      docsRead: instructions.indexOf("- `docs_read`"),
+      pkgInfo: instructions.indexOf("- `pkg_info`"),
+      pkgVulns: instructions.indexOf("- `pkg_vulns`"),
+      pkgDeps: instructions.indexOf("- `pkg_deps`"),
+      pkgChangelog: instructions.indexOf("- `pkg_changelog`"),
+    };
+
+    for (const [name, idx] of Object.entries(positions)) {
+      expect(idx).toBeGreaterThan(-1);
+      expect(`${name}=${idx}`).not.toContain("=-1");
+    }
+
+    // Discovery first, then code reading (grep → read → files), then
+    // docs, then package metadata. `code_files` follows `code_read`
+    // because it is a path-discovery fallback, not the step after a hit.
+    expect(positions.search).toBeLessThan(positions.searchStatus);
+    expect(positions.searchStatus).toBeLessThan(positions.codeGrep);
+    expect(positions.codeGrep).toBeLessThan(positions.codeRead);
+    expect(positions.codeRead).toBeLessThan(positions.codeFiles);
+    expect(positions.codeFiles).toBeLessThan(positions.docsList);
+    expect(positions.docsList).toBeLessThan(positions.docsRead);
+    expect(positions.docsRead).toBeLessThan(positions.pkgInfo);
+    expect(positions.pkgInfo).toBeLessThan(positions.pkgVulns);
+    expect(positions.pkgVulns).toBeLessThan(positions.pkgDeps);
+    expect(positions.pkgDeps).toBeLessThan(positions.pkgChangelog);
+  });
+
+  it("places the strategy tip after the bullets and the delegation tip before them", () => {
+    const deps = createTestDeps();
+    const instructions = buildMcpInstructions(deps);
+
+    const delegationIdx = instructions.indexOf(
+      "Delegate multi-call work to a sub-agent",
+    );
+    const firstBulletIdx = instructions.indexOf("- `search` —");
+    const lastBulletIdx = instructions.indexOf("- `pkg_changelog`");
+    const strategyIdx = instructions.indexOf("Strategy — reference-first");
+
+    expect(delegationIdx).toBeLessThan(firstBulletIdx);
+    expect(strategyIdx).toBeGreaterThan(lastBulletIdx);
+  });
 });

@@ -16,9 +16,12 @@ describe("createPackageDependenciesTool — metadata", () => {
       createMockPackageIntelligenceService(),
     );
     expect(tool.name).toBe("pkg_deps");
-    expect(tool.description).toContain("npm, PyPI, Hex, Crates");
-    expect(tool.description).toContain("Default output is compact");
-    expect(tool.description).toContain('format: "json"');
+    // Canonical registry order from PKGSEER_REGISTRY_ARGS, restricted
+    // to the deps-supported subset.
+    expect(tool.description).toContain(
+      "npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, and Go",
+    );
+    expect(tool.description).toContain("dependency graph");
     expect(Object.keys(tool.schema).sort()).toEqual([
       "format",
       "include_importers",
@@ -292,7 +295,7 @@ describe("createPackageDependenciesTool — validation errors via in-handler bui
     const payload = parseText(result) as { code: string; error: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
     expect(payload.error).toBe(
-      "pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, and go. Got: nuget.",
+      "pkg deps only supports npm, pypi, hex, crates, zig, vcpkg, rubygems, go. Got: nuget.",
     );
   });
 

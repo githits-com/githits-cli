@@ -16,7 +16,9 @@ const schema = {
   search_ref: z
     .string()
     .min(1)
-    .describe("Search reference returned by search."),
+    .describe(
+      "The `searchRef` field from a prior `search` response (camelCase in the response, snake_case as this parameter). Pass it through unchanged.",
+    ),
   format: z
     .enum(["json", "text", "text-v1"])
     .optional()
@@ -26,8 +28,8 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Check progress, fetch partial hits when the original request used allow_partial_results: true, or fetch final results for a prior unified search. " +
-  "Pass the search_ref returned by `search` when the original request did not complete within the wait window.";
+  "Check progress, fetch partial hits (when the original request used `allow_partial_results: true`), or fetch final results for a prior `search` that returned a `searchRef`. " +
+  "Pass the `searchRef` from that response as `search_ref` here (response field is camelCase; this parameter is snake_case).";
 
 export function createSearchStatusTool(
   service: CodeNavigationService,

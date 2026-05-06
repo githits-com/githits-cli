@@ -16,9 +16,9 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
       createMockPackageIntelligenceService(),
     );
     expect(tool.name).toBe("pkg_vulns");
-    expect(tool.description).toContain("npm, PyPI, Hex, or");
-    expect(tool.description).toContain("Default output is compact text");
-    expect(tool.description).toContain('format: "json"');
+    // Capability subset is intentionally narrow for vulnerability data.
+    expect(tool.description).toContain("npm, PyPI, Hex, or Crates");
+    expect(tool.description).toContain("known vulnerabilities");
     expect(Object.keys(tool.schema).sort()).toEqual([
       "format",
       "include_withdrawn",

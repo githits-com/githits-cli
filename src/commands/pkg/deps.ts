@@ -10,7 +10,10 @@ import {
   parsePackageSpec,
   requireAuth,
 } from "../../shared/index.js";
-import { buildPackageDependenciesParams } from "../../shared/package-dependencies-request.js";
+import {
+  buildPackageDependenciesParams,
+  SUPPORTED_DEPS_REGISTRIES_LIST,
+} from "../../shared/package-dependencies-request.js";
 import {
   buildPackageDependenciesSuccessPayload,
   formatPackageDependenciesTerminal,
@@ -198,8 +201,7 @@ groups). Concrete --lifecycle values include runtime plus matching groups.
 conflict detection, and circular-dependency flags.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
-npm, pypi, hex, crates, vcpkg, zig, rubygems, go. Omit @<version> for the latest
-release.`;
+${SUPPORTED_DEPS_REGISTRIES_LIST}. Omit @<version> for the latest release.`;
 
 export function registerPkgDepsCommand(pkgCommand: Command): Command {
   return pkgCommand

@@ -33,7 +33,7 @@ const schema = {
     .enum(["json", "text", "text-v1"])
     .optional()
     .describe(
-      "Response format. Default `text-v1` is compact for agents. Pass `json` for the structured envelope.",
+      'Response format. Default `text-v1` — compact package overview. Pass `format: "json"` for the structured envelope.',
     ),
 };
 
@@ -42,11 +42,9 @@ const DESCRIPTION =
   "repository, downloads, GitHub stars, install command, recent " +
   "changes, and a count of known vulnerabilities. Use before " +
   "recommending a package or to orient on what a dependency is. " +
-  'Default output is compact text; pass `format: "json"` for the ' +
-  "structured envelope. " +
-  "Works across npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, " +
-  "RubyGems, Go, vcpkg, and Zig. Always returns data for the latest published " +
-  "version.";
+  "Works across npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, " +
+  "Packagist, RubyGems, and Go. Always returns data for the latest " +
+  "published version.";
 
 export function createPackageSummaryTool(
   service: PackageIntelligenceService,
