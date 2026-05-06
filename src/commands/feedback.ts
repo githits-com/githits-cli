@@ -18,9 +18,14 @@ export interface FeedbackDependencies {
 
 /**
  * Core feedback logic, separated for testability.
+ *
+ * `solutionId` is optional: when present, feedback is anchored to a
+ * specific `get_example` result; when omitted, the feedback is
+ * generic (covers code/package navigation, search, docs, or the
+ * overall experience).
  */
 export async function feedbackAction(
-  solutionId: string,
+  solutionId: string | undefined,
   options: FeedbackOptions,
   deps: FeedbackDependencies,
 ): Promise<void> {
@@ -55,15 +60,23 @@ export async function feedbackAction(
   }
 }
 
-const FEEDBACK_DESCRIPTION = `Submit feedback on a search result.
+const FEEDBACK_DESCRIPTION = `Submit feedback on a tool result or the GitHits experience.
 
-Rate whether a code example was helpful. Use --accept for positive
-feedback or --reject for negative. Optionally add a message.
+Two modes:
+  - Solution-tied: pass the [solution_id] from a prior 'githits example'
+    result (shown at the bottom of the markdown / under 'solution_id'
+    in --json) to anchor feedback to that specific result.
+  - Generic: omit [solution_id] to send feedback about any command
+    (search, pkg, docs, code) or the overall experience. A --message
+    is strongly recommended here.
+
+Use --accept for positive feedback or --reject for negative.
 
 Examples:
   githits feedback abc123 --accept
   githits feedback abc123 --reject -m "Example was outdated"
-  githits feedback abc123 --accept --message "Solved my problem" --json`;
+  githits feedback --accept -m "code_grep regex is fast on npm:lodash"
+  githits feedback --reject -m "search missing kotlin support"`;
 
 /**
  * Register the feedback command on the given program.
@@ -72,20 +85,25 @@ Examples:
 export function registerFeedbackCommand(program: Command) {
   program
     .command("feedback")
-    .summary("Submit feedback on a search result")
+    .summary("Submit feedback on a tool result or the GitHits experience")
     .description(FEEDBACK_DESCRIPTION)
-    .argument("<solution_id>", "Solution ID from search result")
+    .argument(
+      "[solution_id]",
+      "Solution ID from a prior 'githits example' result (omit for generic feedback)",
+    )
     .addOption(new Option("--accept", "Mark as helpful").conflicts("reject"))
     .addOption(new Option("--reject", "Mark as unhelpful").conflicts("accept"))
     .option("-m, --message <text>", "Feedback explanation")
     .option("--json", "Output as JSON for piping")
-    .action(async (solutionId: string, options: FeedbackOptions) => {
-      try {
-        const deps = await createContainer();
-        await feedbackAction(solutionId, options, deps);
-      } catch (error) {
-        if (error instanceof AuthRequiredError) process.exit(1);
-        throw error;
-      }
-    });
+    .action(
+      async (solutionId: string | undefined, options: FeedbackOptions) => {
+        try {
+          const deps = await createContainer();
+          await feedbackAction(solutionId, options, deps);
+        } catch (error) {
+          if (error instanceof AuthRequiredError) process.exit(1);
+          throw error;
+        }
+      },
+    );
 }

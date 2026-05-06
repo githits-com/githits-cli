@@ -241,6 +241,27 @@ describe("GitHitsServiceImpl", () => {
       ).rejects.toThrow("Server error (500): internal error");
     });
 
+    it("sends null solution_id when not provided (generic feedback)", async () => {
+      const fn = mockFetch(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ success: true }), {
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      await service.submitFeedback({
+        accepted: true,
+        feedbackText: "code_grep regex is great",
+      });
+
+      const call = fn.mock.calls[0] as unknown as [string, RequestInit];
+      const body = JSON.parse(call[1].body as string);
+      expect(body.solution_id).toBeNull();
+      expect(body.accepted).toBe(true);
+      expect(body.feedback_text).toBe("code_grep regex is great");
+    });
+
     it("sends null feedback_text when not provided", async () => {
       const fn = mockFetch(() =>
         Promise.resolve(

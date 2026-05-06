@@ -51,9 +51,14 @@ export interface SearchParams {
 
 /**
  * Parameters for feedback API call.
+ *
+ * `solutionId` is optional: when present, the feedback is anchored
+ * to a specific `get_example` result; when absent, the feedback is
+ * generic and applies to the overall tool surface (code/package
+ * navigation, search, docs, or the GitHits experience as a whole).
  */
 export interface FeedbackParams {
-  solutionId: string;
+  solutionId?: string;
   accepted: boolean;
   feedbackText?: string;
 }
@@ -130,7 +135,7 @@ export class GitHitsServiceImpl implements GitHitsService {
         method: "POST",
         headers: this.headers(),
         body: JSON.stringify({
-          solution_id: params.solutionId,
+          solution_id: params.solutionId ?? null,
           accepted: params.accepted,
           feedback_text: params.feedbackText ?? null,
         }),

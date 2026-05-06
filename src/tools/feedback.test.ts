@@ -53,6 +53,32 @@ describe("feedbackTool", () => {
     });
   });
 
+  it("submits generic feedback without solution_id", async () => {
+    const submitFeedback = mock(() =>
+      Promise.resolve({
+        success: true,
+        message: "Feedback submitted successfully",
+      }),
+    );
+    const service = createMockGitHitsService({ submitFeedback });
+    const tool = createFeedbackTool(service);
+
+    const result = await tool.handler(
+      {
+        accepted: false,
+        feedback_text: "search is missing kotlin support",
+      },
+      {},
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(submitFeedback).toHaveBeenCalledWith({
+      solutionId: undefined,
+      accepted: false,
+      feedbackText: "search is missing kotlin support",
+    });
+  });
+
   it("returns error result on service failure", async () => {
     const service = createMockGitHitsService({
       submitFeedback: mock(() => Promise.reject(new Error("Auth required"))),
