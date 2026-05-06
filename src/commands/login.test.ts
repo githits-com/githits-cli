@@ -395,11 +395,24 @@ describe("loginFlow", () => {
 
   it("returns success after completing OAuth flow", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const close = mock(() => Promise.resolve());
+    const authService = createMockAuthService({
+      startCallbackServer: mock(() =>
+        Promise.resolve({
+          result: Promise.resolve({
+            type: "success",
+            code: "test-code",
+            state: "test-state",
+          } as const),
+          close,
+        }),
+      ),
+    });
 
     const result = await loginFlow(
       { port: 8080 },
       {
-        authService: createMockAuthService(),
+        authService,
         authStorage: createMockAuthStorage(),
         browserService: createMockBrowserService(),
         mcpUrl,
@@ -408,6 +421,7 @@ describe("loginFlow", () => {
 
     expect(result.status).toBe("success");
     expect(result.message).toContain("Logged in successfully");
+    expect(close).toHaveBeenCalledTimes(1);
     consoleSpy.mockRestore();
   });
 
