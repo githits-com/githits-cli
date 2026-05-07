@@ -150,7 +150,8 @@ capped for readability; use --verbose for all advisory rows or --json for
 the complete structured envelope.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
-npm, pypi, hex, crates. Omit @<version> to check the latest release.
+npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go. vcpkg and zig are not supported.
+Omit @<version> to check the latest release.
 Example: githits pkg vulns npm:lodash@4.17.20 --severity high
 
 Severity filter (--severity) and withdrawn-advisory visibility
