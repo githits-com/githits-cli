@@ -412,6 +412,43 @@ async function runLiveSmoke(client: Client): Promise<void> {
     "pkg_vulns filtered json missing severity filter echo",
   );
 
+  const scopedVulnsText = assertDefaultText(
+    await callTool(client, "pkg_vulns", {
+      registry: "npm",
+      package_name: "express",
+      advisory_scope: "non_affecting",
+    }),
+    "pkg_vulns scoped default",
+  );
+  assert(
+    scopedVulnsText.includes("Scope   historical advisories only"),
+    "pkg_vulns scoped default missing scope echo",
+  );
+  assert(
+    scopedVulnsText.includes("No active vulnerabilities affect this version"),
+    "pkg_vulns scoped default missing current-risk statement",
+  );
+  assert(
+    !scopedVulnsText.includes("use -v"),
+    "pkg_vulns scoped default leaked CLI -v hint",
+  );
+
+  const scopedVulnsJson = assertJsonResult(
+    await callTool(client, "pkg_vulns", {
+      registry: "npm",
+      package_name: "express",
+      advisory_scope: "non_affecting",
+      format: "json",
+    }),
+    "pkg_vulns scoped json",
+  );
+  assertRecord(scopedVulnsJson, "pkg_vulns scoped json");
+  assertRecord(scopedVulnsJson.filter, "pkg_vulns scoped json filter");
+  assert(
+    scopedVulnsJson.filter.advisoryScope === "non_affecting",
+    "pkg_vulns scoped json missing advisory scope echo",
+  );
+
   const changelogText = assertDefaultText(
     await callTool(client, "pkg_changelog", {
       registry: "npm",

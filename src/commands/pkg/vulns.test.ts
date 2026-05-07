@@ -131,6 +131,37 @@ describe("pkgVulnsAction", () => {
     logSpy.mockRestore();
   });
 
+  it("passes --scope through and echoes it", async () => {
+    const packageVulnerabilities = mock(() =>
+      Promise.resolve(defaultVulnerabilityReport),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageVulnerabilities,
+    });
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+
+    await pkgVulnsAction(
+      "npm:express",
+      { scope: "non_affecting" },
+      createDeps({ packageIntelligenceService: service }),
+    );
+
+    const calls = packageVulnerabilities.mock.calls as unknown as Array<
+      [{ advisoryScope?: string }]
+    >;
+    expect(calls[0]?.[0]?.advisoryScope).toBe("NON_AFFECTING");
+    expect(writes.join("")).toContain("Scope   historical advisories only");
+    writeSpy.mockRestore();
+  });
+
   it("passes version from spec to the service", async () => {
     const packageVulnerabilities = mock(() =>
       Promise.resolve(defaultVulnerabilityReport),

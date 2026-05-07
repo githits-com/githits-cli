@@ -18,6 +18,7 @@ import {
 
 export interface PkgVulnsCommandOptions {
   severity?: string;
+  scope?: string;
   includeWithdrawn?: boolean;
   verbose?: boolean;
   json?: boolean;
@@ -57,6 +58,7 @@ export async function pkgVulnsAction(
       version: parsed.version,
       minSeverity: options.severity,
       includeWithdrawn: options.includeWithdrawn,
+      advisoryScope: options.scope,
     });
     const report =
       await deps.packageIntelligenceService.packageVulnerabilities(params);
@@ -146,8 +148,8 @@ function formatVulnsTerminalError(mapped: MappedError): string {
 
 const PKG_VULNS_DESCRIPTION = `Show known vulnerabilities for a package. Lists CVE / OSV advisories
 with severity, affected version ranges, and fix versions. Default text is
-capped for readability; use --verbose for all advisory rows or --json for
-the complete structured envelope.
+capped for readability; use --verbose for all selected advisory rows or --json
+for the complete structured envelope.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
 npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go. vcpkg and zig are not supported.
@@ -157,7 +159,9 @@ Example: githits pkg vulns npm:lodash@4.17.20 --severity high
 Severity filter (--severity) and withdrawn-advisory visibility
 (--include-withdrawn) are passed through to the backend; the
 returned count reflects whatever survived the filter and active filters
-are echoed in text and JSON output.`;
+are echoed in text and JSON output. Use --scope non_affecting to list
+historical advisories that do not affect the inspected version, or --scope all
+to list affected and historical package advisories together.`;
 
 export function registerPkgVulnsCommand(pkgCommand: Command): Command {
   return pkgCommand
@@ -168,6 +172,10 @@ export function registerPkgVulnsCommand(pkgCommand: Command): Command {
     .option(
       "-s, --severity <level>",
       "Only show advisories at or above this severity (low, medium, high, critical). Omit to see all.",
+    )
+    .option(
+      "--scope <scope>",
+      "Advisory rows to return: affected, non_affecting, all (default: affected)",
     )
     .option(
       "--include-withdrawn",

@@ -15,7 +15,7 @@ The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` /
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback <solution_id>` | `--accept` or `--reject` | `-m, --message <text>`, `--json` | Submit feedback on a search result |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
-| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates) |
+| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates) |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--groups`, `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig/rubygems/go) |
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages for a package. Entries include page IDs for `docs read`; JSON includes exact repo-file follow-up metadata when available. |
@@ -142,13 +142,14 @@ githits pkg vulns npm:express@4.17.0
 githits pkg vulns pypi:requests --severity high
 githits pkg vulns crates:serde --json
 githits pkg vulns npm:minimatch --include-withdrawn --verbose
+githits pkg vulns npm:express --scope non_affecting
 ```
 
-Lists known CVE / OSV advisories for a package: severity, affected version ranges, fix versions, and upgrade targets. Default text is capped at 5 advisory rows for readability; use `--verbose` for all rows or `--json` for the complete structured envelope. Malicious-package advisories (supply-chain attacks flagged by OSV) surface in a separate `MALWARE` bucket that sorts above all CVE advisories.
+Lists known CVE / OSV advisories for a package: severity, affected version ranges, fix versions, and upgrade targets. Default text is capped at 5 advisory rows for readability; use `--verbose` for all selected rows or `--json` for the complete structured envelope. Malicious-package advisories (supply-chain attacks flagged by OSV) surface in a separate `MALWARE` bucket that sorts above all CVE advisories.
 
 **Package spec.** `<registry>:<name>[@<version>]`. Unlike `pkg info`, `pkg vulns` supports `@<version>` so callers can inspect older pinned releases. Only `npm`, `pypi`, `hex`, and `crates` support vulnerability data; other registries are rejected client-side with `pkg vulns only supports npm, pypi, hex, and crates. Got: ${registry}.`
 
-**Filtering.** `--severity low|medium|high|critical` maps to a CVSS float threshold (`low=0.1, medium=4, high=7, critical=9`) and is applied by the service. The returned `vulnerabilityCount` reflects the filtered set — no client-side filtering, no dual-summary block. Callers wanting the full picture omit the flag. Active filters are echoed in text and under top-level JSON `filter`. `--include-withdrawn` includes retracted advisories; withdrawn advisories bucket below active ones in the terminal list.
+**Filtering and scope.** `--severity low|medium|high|critical` maps to a CVSS float threshold (`low=0.1, medium=4, high=7, critical=9`) and is applied by the service. The returned `summary.total` always means advisories affecting the inspected version. Advisory rows default to `--scope affected`; use `--scope non_affecting` for historical package advisories that do not affect the inspected version, or `--scope all` for affected + historical rows. Active filters and non-default scope are echoed in text and under top-level JSON `filter`. `--include-withdrawn` includes retracted advisories; withdrawn advisories bucket below active ones in the terminal list.
 
 **Zero-vulns hot path.** The common case (clean package) renders as header + one-line summary body (`No active vulnerabilities affect this version.`) — no breakdown, no advisory list, no footer. Filtered zero-results say `No vulnerabilities matching the filter affect this version.` so callers do not confuse a thresholded query with a clean package.
 
@@ -164,7 +165,7 @@ Lists known CVE / OSV advisories for a package: severity, affected version range
 
 **Upgrade-path ordering.** `upgradePaths` are de-duplicated and sorted ascending by semver-ish comparison (pre-release suffixes rank below the matching base release), so the footer presents the minimum-churn upgrade first: `Upgrade options: 3.11.0, 4.0.0-rc1, 4.5.0, 4.19.2, …` rather than the backend's advisory-iteration order.
 
-**Output envelope.** `{registry, name, version, requestedVersion?, filter?, summary: {total, affected?, bySeverity?}, advisories?, upgradePaths?}`. `filter` echoes only explicit caller filters. Each advisory: `{id?, aliases?, summary?, severity?, severityLabel?, affectedRanges?, fixedIn?, publishedAt?, modifiedAt?, withdrawnAt?, isMalicious?}`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
+**Output envelope.** `{registry, name, version, requestedVersion?, filter?, summary: {total, affected?, bySeverity?}, advisories?, upgradePaths?}`. `filter` echoes only explicit caller filters and non-default advisory scope. Each advisory: `{id?, aliases?, summary?, severity?, severityLabel?, affectedRanges?, affectsInspectedVersion?, matchedAffectedVersionRanges?, fixedIn?, publishedAt?, modifiedAt?, withdrawnAt?, isMalicious?}`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
 
 **Exit codes.** 0 on success including zero-vulns; 1 on any error. Under `--json`, the error envelope is written to **stderr**.
 

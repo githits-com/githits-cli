@@ -720,7 +720,7 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     expect(parsed.query).toContain(
       "packageVulnerabilities(\n    registry: $registry",
     );
-    expect(parsed.query).toContain("advisories(scope: AFFECTED");
+    expect(parsed.query).toContain("advisories(scope: $scope");
     expect(parsed.query).not.toContain("vulnerabilityCount");
     expect(parsed.variables).toEqual({
       registry: "NPM",
@@ -728,8 +728,31 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       version: "4.18.0",
       minSeverity: 7.0,
       includeWithdrawn: true,
+      scope: undefined,
       after: null,
     });
+  });
+
+  it("sends requested advisory scope on vulnerability queries", async () => {
+    let captured: string | undefined;
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      captured = init?.body as string;
+      return Promise.resolve(jsonResponse(VULNS_HAPPY_BODY));
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+      advisoryScope: "NON_AFFECTING",
+    });
+
+    const parsed = JSON.parse(captured ?? "{}");
+    expect(parsed.variables.scope).toBe("NON_AFFECTING");
   });
 
   it("throws MalformedPackageIntelligenceResponseError when name is null", async () => {

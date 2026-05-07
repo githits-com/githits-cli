@@ -13,6 +13,7 @@ export interface PackageVulnerabilitiesArgs {
   package_name: string;
   version?: string;
   min_severity?: string;
+  advisory_scope?: string;
   include_withdrawn?: boolean;
   verbose?: boolean;
   format?: "json" | "text" | "text-v1";
@@ -47,6 +48,12 @@ const schema = {
     .boolean()
     .optional()
     .describe("Include retracted advisories (default: false)."),
+  advisory_scope: z
+    .string()
+    .optional()
+    .describe(
+      "Advisory rows to return: `affected` (default), `non_affecting` for historical advisories that do not affect the inspected version, or `all` for both affected and historical advisories. Counts always include affected/non-affecting/all totals.",
+    ),
   verbose: z
     .boolean()
     .optional()
@@ -70,11 +77,13 @@ const DESCRIPTION =
   '`{"registry":"npm","package_name":"lodash","version":"4.17.20","min_severity":"high"}`. ' +
   "Pass `version` to inspect " +
   "a pinned release; omit it for latest. Default text is capped for " +
-  "readability; use `verbose:true` for all advisory rows or " +
+  "readability; use `verbose:true` for all selected advisory rows or " +
   '`format:"json"` for the complete envelope. Use ' +
   "`min_severity` to filter to a threshold (`low`, `medium`, `high`, " +
   "`critical`) and `include_withdrawn` to also see retracted " +
-  "advisories.";
+  'advisories. Use `advisory_scope:"non_affecting"` to list ' +
+  "historical advisories that do not affect the inspected version, or " +
+  '`advisory_scope:"all"` to list affected and historical advisories together.';
 
 export function createPackageVulnerabilitiesTool(
   service: PackageIntelligenceService,
@@ -92,6 +101,7 @@ export function createPackageVulnerabilitiesTool(
           version: args.version,
           minSeverity: args.min_severity,
           includeWithdrawn: args.include_withdrawn,
+          advisoryScope: args.advisory_scope,
         });
         const report = await service.packageVulnerabilities(params);
         const payload = buildPackageVulnerabilitiesSuccessPayload(report, {

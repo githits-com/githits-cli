@@ -98,7 +98,11 @@ export interface PackageVulnerabilitiesParams {
   minSeverity?: number;
   /** Optional — backend defaults to false when omitted. */
   includeWithdrawn?: boolean;
+  /** Advisory rows to return; counts always include all scopes. */
+  advisoryScope?: VulnerabilityScope;
 }
+
+export type VulnerabilityScope = "AFFECTED" | "NON_AFFECTING" | "ALL";
 
 export interface PackageVersionIdentity {
   name: string;
@@ -754,6 +758,7 @@ query PackageVulnerabilities(
   $version: String
   $minSeverity: Float
   $includeWithdrawn: Boolean
+  $scope: VulnerabilityScope = AFFECTED
   $after: String
 ) {
   packageVulnerabilities(
@@ -774,7 +779,7 @@ query PackageVulnerabilities(
       allVulnerabilityCount
       currentVersionAffected
       upgradePaths
-      advisories(scope: AFFECTED, first: 100, after: $after) {
+      advisories(scope: $scope, first: 100, after: $after) {
         entries {
           osvId
           summary
@@ -1638,6 +1643,7 @@ export class PackageIntelligenceServiceImpl
           version: params.version,
           minSeverity: params.minSeverity,
           includeWithdrawn: params.includeWithdrawn,
+          scope: params.advisoryScope,
           after,
         },
         fetchFn: this.fetchFn,
