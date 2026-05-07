@@ -179,6 +179,37 @@ describe("buildPackageVulnerabilitiesSuccessPayload — omission rules", () => {
     expect(payload.advisories).toBeUndefined();
   });
 
+  it("can return historical advisory rows while preserving zero active risk", () => {
+    const fixture = zeroVulnsFixture();
+    if (fixture.security) {
+      fixture.security.nonAffectingVulnerabilityCount = 1;
+      fixture.security.allVulnerabilityCount = 1;
+      fixture.security.vulnerabilities = [
+        {
+          osvId: "GHSA-old-old-old",
+          summary: "Old vulnerable range",
+          severityScore: 6.1,
+          affectedVersionRanges: ["< 1.0.0"],
+          affectedVersionRangesCount: 1,
+          affectedVersionRangesTruncated: false,
+          fixedInVersions: ["1.0.0"],
+          publishedAt: "2024-01-01T00:00:00Z",
+          affectsInspectedVersion: false,
+          matchedAffectedVersionRanges: [],
+          duplicateIds: [],
+        },
+      ];
+    }
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture, {
+      filter: { advisoryScope: "non_affecting" },
+    });
+    expect(payload.summary.total).toBe(0);
+    expect(payload.summary.bySeverity).toEqual({ medium: 1 });
+    expect(payload.filter).toEqual({ advisoryScope: "non_affecting" });
+    expect(payload.advisories).toHaveLength(1);
+    expect(payload.advisories?.[0]?.affectsInspectedVersion).toBe(false);
+  });
+
   it("omits empty aliases / fixedIn / affectedRanges arrays", () => {
     const fixture = cloneFixture();
     const malware = fixture.security?.vulnerabilities?.[0];
@@ -780,6 +811,39 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     expect(output).toBe(
       "clean @ 1.0.0 | npm\nFilter  severity >= high\nNo vulnerabilities matching the filter affect this version.\n",
     );
+  });
+
+  it("renders selected historical advisory rows under non-affecting scope", () => {
+    const fixture = zeroVulnsFixture();
+    if (fixture.security) {
+      fixture.security.nonAffectingVulnerabilityCount = 1;
+      fixture.security.allVulnerabilityCount = 1;
+      fixture.security.vulnerabilities = [
+        {
+          osvId: "GHSA-old-old-old",
+          summary: "Old vulnerable range",
+          severityScore: 6.1,
+          affectedVersionRanges: ["< 1.0.0"],
+          affectedVersionRangesCount: 1,
+          affectedVersionRangesTruncated: false,
+          fixedInVersions: ["1.0.0"],
+          publishedAt: "2024-01-01T00:00:00Z",
+          affectsInspectedVersion: false,
+          matchedAffectedVersionRanges: [],
+          duplicateIds: [],
+        },
+      ];
+    }
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+      filter: { advisoryScope: "non_affecting" },
+    });
+    expect(output).toContain("Scope   historical advisories only");
+    expect(output).toContain(
+      "No active vulnerabilities affect this version; historical advisories are listed below.",
+    );
+    expect(output).toContain("GHSA-old-old-old");
+    expect(output).toContain("affected < 1.0.0");
   });
 
   it("renders default terminal block with header, summary, breakdown, advisories, footer", () => {

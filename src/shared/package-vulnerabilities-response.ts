@@ -149,13 +149,9 @@ export function buildPackageVulnerabilitiesSuccessPayload(
     payload.filter = options.filter;
   }
 
-  if (total > 0) {
-    const sortedAdvisories = sortAdvisories(
-      dedupedAdvisories.map(buildAdvisory),
-    );
-    if (sortedAdvisories.length > 0) {
-      payload.advisories = sortedAdvisories;
-    }
+  const sortedAdvisories = sortAdvisories(dedupedAdvisories.map(buildAdvisory));
+  if (sortedAdvisories.length > 0) {
+    payload.advisories = sortedAdvisories;
   }
 
   const upgradePaths = security?.upgradePaths;
@@ -228,7 +224,7 @@ function buildSummary(
     summary.affected = security.currentVersionAffected;
   }
 
-  if (total === 0) return summary;
+  if (dedupedAdvisories.length === 0) return summary;
 
   const bySeverity = computeBySeverity(dedupedAdvisories);
   const anyCounted = Object.values(bySeverity).some((n) => n > 0);
@@ -793,6 +789,19 @@ export function formatPackageVulnerabilitiesTerminal(
     if (requestedLine) lines.push(requestedLine);
     lines.push(...filterLines);
     lines.push(formatNoAffectedVulnerabilitiesLine(payload));
+    if (payload.advisories && payload.advisories.length > 0) {
+      const rangeLimit = resolveAffectedRangesLimit(options.terminalWidth);
+      lines.push(
+        "",
+        formatAdvisoryList(
+          payload.advisories,
+          verbose,
+          useColors,
+          rangeLimit,
+          surface,
+        ),
+      );
+    }
     return `${lines.join("\n")}\n`;
   }
 
@@ -801,7 +810,17 @@ export function formatPackageVulnerabilitiesTerminal(
   if (requestedLine) headerBlock.push(requestedLine);
   headerBlock.push(...filterLines);
   headerBlock.push(formatSummaryLine(payload, useColors));
-  const breakdown = formatBreakdownLine(payload.summary, useColors);
+  const selectedAdvisoryCount = payload.advisories?.length ?? 0;
+  const scope = payload.filter?.advisoryScope;
+  const selectedCountLine = formatSelectedAdvisoryCountLine(
+    selectedAdvisoryCount,
+    scope,
+  );
+  if (selectedCountLine) headerBlock.push(selectedCountLine);
+  const breakdown =
+    scope === undefined
+      ? formatBreakdownLine(payload.summary, useColors)
+      : undefined;
   if (breakdown) headerBlock.push(breakdown);
   blocks.push(headerBlock.join("\n"));
 
@@ -837,6 +856,9 @@ function formatFilterLines(
 ): string[] {
   if (!filter) return [];
   const lines: string[] = [];
+  if (filter.advisoryScope) {
+    lines.push(`Scope   ${formatAdvisoryScope(filter.advisoryScope)}`);
+  }
   if (filter.minSeverity) {
     lines.push(`Filter  severity >= ${filter.minSeverity}`);
   }
@@ -844,6 +866,12 @@ function formatFilterLines(
     lines.push("Filter  include withdrawn");
   }
   return lines;
+}
+
+function formatAdvisoryScope(scope: string): string {
+  if (scope === "non_affecting") return "historical advisories only";
+  if (scope === "all") return "all package advisories";
+  return scope;
 }
 
 function formatSummaryLine(
@@ -868,6 +896,19 @@ function formatSummaryLine(
 function formatNoAffectedVulnerabilitiesLine(
   payload: LeanVulnerabilityReport,
 ): string {
+  const selectedAdvisoryCount = payload.advisories?.length ?? 0;
+  if (payload.filter?.advisoryScope === "non_affecting") {
+    if (selectedAdvisoryCount > 0) {
+      return "No active vulnerabilities affect this version; historical advisories are listed below.";
+    }
+    return "No active vulnerabilities affect this version; no historical advisories match the current filter.";
+  }
+  if (payload.filter?.advisoryScope === "all") {
+    if (selectedAdvisoryCount > 0) {
+      return "No active vulnerabilities affect this version; package advisories are listed below.";
+    }
+    return "No active vulnerabilities affect this version; no package advisories match the current filter.";
+  }
   if (payload.filter !== undefined) {
     return "No vulnerabilities matching the filter affect this version.";
   }
@@ -879,6 +920,21 @@ function formatNoAffectedVulnerabilitiesLine(
     return `No active vulnerabilities affect this version (${historical} ${noun} ${verb} not apply).`;
   }
   return "No active vulnerabilities affect this version.";
+}
+
+function formatSelectedAdvisoryCountLine(
+  count: number,
+  scope: string | undefined,
+): string | undefined {
+  if (scope === undefined) return undefined;
+  const noun = count === 1 ? "advisory" : "advisories";
+  if (scope === "non_affecting") {
+    return `  showing ${count} historical ${noun} that do not affect this version`;
+  }
+  if (scope === "all") {
+    return `  showing ${count} package ${noun} across affected and historical scopes`;
+  }
+  return undefined;
 }
 
 function formatBreakdownLine(

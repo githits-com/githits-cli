@@ -106,12 +106,23 @@ export interface PackageVulnerabilitiesRequestInput {
   minSeverity?: string;
   /** Optional flag to include withdrawn advisories. */
   includeWithdrawn?: boolean;
+  /** Advisory rows to return. Defaults to advisories affecting the inspected version. */
+  advisoryScope?: string;
 }
 
 export interface PackageVulnerabilitiesFilterEcho {
   minSeverity?: SeverityLabel;
   includeWithdrawn?: true;
+  advisoryScope?: AdvisoryScopeLabel;
 }
+
+export type AdvisoryScopeLabel = "affected" | "non_affecting" | "all";
+
+const ADVISORY_SCOPE_TO_GRAPHQL = {
+  affected: "AFFECTED",
+  non_affecting: "NON_AFFECTING",
+  all: "ALL",
+} as const;
 
 export interface PackageVulnerabilitiesRequestBuildResult {
   params: PackageVulnerabilitiesParams;
@@ -156,7 +167,12 @@ export function buildPackageVulnerabilitiesParams(
     );
   }
 
-  const filter = buildFilterEcho(severityLabel, input.includeWithdrawn);
+  const advisoryScope = resolveAdvisoryScope(input.advisoryScope);
+  const filterWithScope = buildFilterEcho(
+    severityLabel,
+    input.includeWithdrawn,
+    advisoryScope,
+  );
 
   return {
     params: {
@@ -168,8 +184,11 @@ export function buildPackageVulnerabilitiesParams(
           : undefined,
       minSeverity,
       includeWithdrawn: input.includeWithdrawn,
+      advisoryScope: advisoryScope
+        ? ADVISORY_SCOPE_TO_GRAPHQL[advisoryScope]
+        : undefined,
     },
-    ...(filter ? { filter } : {}),
+    ...(filterWithScope ? { filter: filterWithScope } : {}),
   };
 }
 
@@ -191,11 +210,30 @@ function resolveMinSeverityLabel(
 function buildFilterEcho(
   minSeverity: SeverityLabel | undefined,
   includeWithdrawn: boolean | undefined,
+  advisoryScope?: AdvisoryScopeLabel,
 ): PackageVulnerabilitiesFilterEcho | undefined {
   const filter: PackageVulnerabilitiesFilterEcho = {};
   if (minSeverity !== undefined) filter.minSeverity = minSeverity;
   if (includeWithdrawn === true) filter.includeWithdrawn = true;
+  if (advisoryScope !== undefined && advisoryScope !== "affected") {
+    filter.advisoryScope = advisoryScope;
+  }
   return Object.keys(filter).length > 0 ? filter : undefined;
+}
+
+function resolveAdvisoryScope(
+  raw: string | undefined,
+): AdvisoryScopeLabel | undefined {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return undefined;
+  const lower = trimmed.toLowerCase().replace(/-/g, "_");
+  if (lower === "affected" || lower === "non_affecting" || lower === "all") {
+    return lower;
+  }
+  throw new InvalidPackageSpecError(
+    `Unsupported advisory scope '${raw}'. Expected one of: affected, non_affecting, all.`,
+  );
 }
 
 export function isSeverityLabel(value: string): value is SeverityLabel {

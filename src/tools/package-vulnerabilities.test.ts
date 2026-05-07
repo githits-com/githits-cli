@@ -20,6 +20,7 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
     expect(tool.description).toContain("vcpkg and Zig");
     expect(tool.description).toContain("known vulnerabilities");
     expect(Object.keys(tool.schema).sort()).toEqual([
+      "advisory_scope",
       "format",
       "include_withdrawn",
       "min_severity",
@@ -48,6 +49,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
         package_name: "express",
         version: "4.18.0",
         min_severity: "high",
+        advisory_scope: "all",
         include_withdrawn: true,
       },
       {},
@@ -61,6 +63,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
           version?: string;
           minSeverity?: number;
           includeWithdrawn?: boolean;
+          advisoryScope?: string;
         },
       ]
     >;
@@ -69,6 +72,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     expect(calls[0]?.[0]?.version).toBe("4.18.0");
     expect(calls[0]?.[0]?.minSeverity).toBe(7.0);
     expect(calls[0]?.[0]?.includeWithdrawn).toBe(true);
+    expect(calls[0]?.[0]?.advisoryScope).toBe("ALL");
   });
 
   it("returns compact text on success by default", async () => {
@@ -137,6 +141,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
         registry: "npm",
         package_name: "express",
         min_severity: "HIGH",
+        advisory_scope: "non_affecting",
         include_withdrawn: true,
         format: "json",
       },
@@ -145,6 +150,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     const payload = parseText(result) as { filter?: unknown };
     expect(payload.filter).toEqual({
       minSeverity: "high",
+      advisoryScope: "non_affecting",
       includeWithdrawn: true,
     });
   });

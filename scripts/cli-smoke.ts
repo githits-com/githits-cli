@@ -504,6 +504,37 @@ async function runLiveSmoke(): Promise<void> {
     "pkg vulns filtered json missing severity filter echo",
   );
 
+  const scopedVulnsText = assertTerminalOutput(
+    await runCli(["pkg", "vulns", "npm:express", "--scope", "non_affecting"]),
+    "pkg vulns scoped terminal",
+  );
+  assert(
+    scopedVulnsText.includes("Scope   historical advisories only"),
+    "pkg vulns scoped terminal missing scope echo",
+  );
+  assert(
+    scopedVulnsText.includes("No active vulnerabilities affect this version"),
+    "pkg vulns scoped terminal missing current-risk statement",
+  );
+
+  const scopedVulnsJson = assertJsonOutput(
+    await runCli([
+      "pkg",
+      "vulns",
+      "npm:express",
+      "--scope",
+      "non_affecting",
+      "--json",
+    ]),
+    "pkg vulns scoped json",
+  );
+  assertRecord(scopedVulnsJson, "pkg vulns scoped json");
+  assertRecord(scopedVulnsJson.filter, "pkg vulns scoped json filter");
+  assert(
+    scopedVulnsJson.filter.advisoryScope === "non_affecting",
+    "pkg vulns scoped json missing advisory scope echo",
+  );
+
   const changelogText = assertTerminalOutput(
     await runCli(["pkg", "changelog", "npm:express", "--limit", "1"]),
     "pkg changelog terminal",

@@ -115,6 +115,34 @@ describe("buildPackageVulnerabilitiesParams", () => {
     expect(filter).toEqual({ minSeverity: "high", includeWithdrawn: true });
   });
 
+  it("maps advisory scope to backend enum and echoes non-default scope", () => {
+    const { params, filter } = buildPackageVulnerabilitiesParams({
+      registry: "npm",
+      packageName: "express",
+      advisoryScope: "non-affecting",
+    });
+    expect(params.advisoryScope).toBe("NON_AFFECTING");
+    expect(filter).toEqual({ advisoryScope: "non_affecting" });
+
+    expect(
+      buildPackageVulnerabilitiesParams({
+        registry: "npm",
+        packageName: "express",
+        advisoryScope: "all",
+      }).params.advisoryScope,
+    ).toBe("ALL");
+  });
+
+  it("does not echo default affected advisory scope", () => {
+    const { params, filter } = buildPackageVulnerabilitiesParams({
+      registry: "npm",
+      packageName: "express",
+      advisoryScope: "affected",
+    });
+    expect(params.advisoryScope).toBe("AFFECTED");
+    expect(filter).toBeUndefined();
+  });
+
   it("does not echo omitted or false filters", () => {
     expect(
       buildPackageVulnerabilitiesParams({
@@ -137,6 +165,16 @@ describe("buildPackageVulnerabilitiesParams", () => {
         registry: "npm",
         packageName: "express",
         minSeverity: "severe",
+      }),
+    ).toThrow(InvalidPackageSpecError);
+  });
+
+  it("rejects unknown advisory scopes", () => {
+    expect(() =>
+      buildPackageVulnerabilitiesParams({
+        registry: "npm",
+        packageName: "express",
+        advisoryScope: "historic",
       }),
     ).toThrow(InvalidPackageSpecError);
   });

@@ -80,6 +80,7 @@ async function mcpJson(
     package_name: string;
     version?: string;
     min_severity?: string;
+    advisory_scope?: string;
     include_withdrawn?: boolean;
   },
   packageVulnerabilitiesMock?: () => Promise<VulnerabilityReport>,
@@ -165,6 +166,55 @@ describe("package_vulnerabilities parity", () => {
     expect((cli as { filter?: unknown }).filter).toEqual({
       minSeverity: "high",
       includeWithdrawn: true,
+    });
+  });
+
+  it("PARITY-JSON-KEYS: advisory scope echo CLI === MCP", async () => {
+    const historicalReport: VulnerabilityReport = {
+      package: { name: "express", registry: "NPM", version: "5.2.1" },
+      security: {
+        affectedVulnerabilityCount: 0,
+        nonAffectingVulnerabilityCount: 1,
+        allVulnerabilityCount: 1,
+        currentVersionAffected: false,
+        upgradePaths: [],
+        vulnerabilities: [
+          {
+            osvId: "GHSA-old-old-old",
+            summary: "Old vulnerable range",
+            severityScore: 5,
+            affectedVersionRanges: ["<5.0.0"],
+            affectedVersionRangesCount: 1,
+            affectedVersionRangesTruncated: false,
+            fixedInVersions: ["5.0.0"],
+            affectsInspectedVersion: false,
+            matchedAffectedVersionRanges: [],
+            duplicateIds: [],
+          },
+        ],
+      },
+    };
+    const fn = mock(() => Promise.resolve(historicalReport));
+    const cli = await cliJson(
+      "npm:express",
+      { scope: "non_affecting" },
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageVulnerabilities: fn as never,
+        }),
+      }),
+    );
+    const { json } = await mcpJson(
+      {
+        registry: "npm",
+        package_name: "express",
+        advisory_scope: "non_affecting",
+      },
+      fn as never,
+    );
+    expect(cli).toEqual(json);
+    expect((cli as { filter?: unknown }).filter).toEqual({
+      advisoryScope: "non_affecting",
     });
   });
 
