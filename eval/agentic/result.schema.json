@@ -5,7 +5,6 @@
   "required": [
     "status",
     "answer",
-    "githitsToolsUsed",
     "toolIssues",
     "instructionIssues",
     "githitsUsefulness",
@@ -20,23 +19,19 @@
     "answer": {
       "type": "string"
     },
-    "githitsToolsUsed": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["tool", "purpose"],
-        "properties": {
-          "tool": { "type": "string" },
-          "purpose": { "type": "string" }
-        }
-      }
-    },
     "toolIssues": {
       "type": "array",
       "items": {
         "type": "string"
       }
+    },
+    "expectedToolUse": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "unexpectedToolUse": {
+      "type": "array",
+      "items": { "type": "string" }
     },
     "instructionIssues": {
       "type": "array",

@@ -23,6 +23,7 @@ export interface AgentEvalOptions {
   dryRun: boolean;
   repoRoot: string;
   schemaPath: string;
+  reportingPath: string;
 }
 
 export interface McpServerConfig {
@@ -45,6 +46,16 @@ interface WorkloadRunMetadata {
   command: string[];
   workspaceDir: string;
   workloadDir: string;
+  toolCallCount?: number;
+}
+
+interface ExtractedToolCall {
+  agent: AgentName;
+  server?: string;
+  tool: string;
+  status?: string;
+  arguments?: unknown;
+  error?: unknown;
 }
 
 const PASSTHROUGH_ENV_KEYS = [
@@ -127,6 +138,13 @@ export function parseArgs(
     dryRun: false,
     repoRoot,
     schemaPath: join(repoRoot, "eval", "agentic", "result.schema.json"),
+    reportingPath: join(
+      repoRoot,
+      "eval",
+      "agentic",
+      "workloads",
+      "REPORTING.md",
+    ),
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -180,6 +198,12 @@ export function parseArgs(
         options.schemaPath = resolve(repoRoot, value);
         break;
       }
+      case "--reporting": {
+        const value = argv[++i];
+        assert(value, "--reporting requires a path");
+        options.reportingPath = resolve(repoRoot, value);
+        break;
+      }
       case "--dry-run":
         options.dryRun = true;
         break;
@@ -213,6 +237,7 @@ Options:
   --timeout <seconds>             Per-workload timeout (default: 300)
   --published-package <spec>      Package for published mode (default: githits@latest)
   --schema <path>                 Result JSON schema path
+  --reporting <path>              Reporting contract markdown path
   --dry-run                       Generate artifacts without invoking Claude
 `);
 }
@@ -411,6 +436,16 @@ function extractFinalJson(stdout: string): unknown | undefined {
     if (!line) continue;
     try {
       const event = JSON.parse(line) as Record<string, unknown>;
+      const message = event.message;
+      if (message !== null && typeof message === "object") {
+        const text = extractTextFromContent(
+          (message as Record<string, unknown>).content,
+        );
+        if (text) {
+          const parsed = parseJsonFromText(text);
+          if (parsed !== undefined) return parsed;
+        }
+      }
       const candidates = [
         event.result,
         event.message,
@@ -435,6 +470,85 @@ function extractFinalJson(stdout: string): unknown | undefined {
     }
   }
   return undefined;
+}
+
+function extractTextFromContent(content: unknown): string | undefined {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return undefined;
+  const parts = content.flatMap((item): string[] => {
+    if (item === null || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    return record.type === "text" && typeof record.text === "string"
+      ? [record.text]
+      : [];
+  });
+  return parts.length > 0 ? parts.join("\n") : undefined;
+}
+
+function extractClaudeToolCalls(
+  event: Record<string, unknown>,
+): ExtractedToolCall[] {
+  const message = event.message;
+  if (message === null || typeof message !== "object") return [];
+  const content = (message as Record<string, unknown>).content;
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((item): ExtractedToolCall[] => {
+    if (item === null || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    if (record.type !== "tool_use" || typeof record.name !== "string")
+      return [];
+    const match = record.name.match(/^mcp__(.+)__(.+)$/);
+    return [
+      {
+        agent: "claude",
+        server: match?.[1],
+        tool: match?.[2] ?? record.name,
+        status: "started",
+        arguments: record.input,
+      },
+    ];
+  });
+}
+
+function extractCodexToolCall(
+  event: Record<string, unknown>,
+): ExtractedToolCall | undefined {
+  const item = event.item;
+  if (item === null || typeof item !== "object") return undefined;
+  const record = item as Record<string, unknown>;
+  if (record.type !== "mcp_tool_call" || typeof record.tool !== "string") {
+    return undefined;
+  }
+  return {
+    agent: "codex",
+    server: typeof record.server === "string" ? record.server : undefined,
+    tool: record.tool,
+    status: typeof record.status === "string" ? record.status : undefined,
+    arguments: record.arguments,
+    error: record.error,
+  };
+}
+
+export function extractToolCalls(
+  stdout: string,
+  agent: AgentName,
+): ExtractedToolCall[] {
+  const calls: ExtractedToolCall[] = [];
+  for (const line of stdout.split("\n")) {
+    if (line.trim().length === 0) continue;
+    try {
+      const event = JSON.parse(line) as Record<string, unknown>;
+      if (agent === "claude") {
+        calls.push(...extractClaudeToolCalls(event));
+      } else {
+        const call = extractCodexToolCall(event);
+        if (call) calls.push(call);
+      }
+    } catch {
+      // Ignore non-JSON lines.
+    }
+  }
+  return calls;
 }
 
 function parseJsonFromText(text: string): unknown | undefined {
@@ -462,19 +576,6 @@ function isStringArray(value: unknown): value is string[] {
   );
 }
 
-function isToolUseArray(value: unknown): boolean {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (item) =>
-        item !== null &&
-        typeof item === "object" &&
-        typeof (item as Record<string, unknown>).tool === "string" &&
-        typeof (item as Record<string, unknown>).purpose === "string",
-    )
-  );
-}
-
 function isToolIssueArray(value: unknown): boolean {
   return (
     Array.isArray(value) &&
@@ -489,6 +590,10 @@ function isToolIssueArray(value: unknown): boolean {
   );
 }
 
+function isOptionalStringArray(value: unknown): boolean {
+  return value === undefined || isStringArray(value);
+}
+
 export function isValidAgentReport(value: unknown): boolean {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return false;
@@ -497,12 +602,13 @@ export function isValidAgentReport(value: unknown): boolean {
   const allowedKeys = new Set([
     "status",
     "answer",
-    "githitsToolsUsed",
     "toolIssues",
     "instructionIssues",
     "githitsUsefulness",
     "githitsUsefulnessReason",
     "confidence",
+    "expectedToolUse",
+    "unexpectedToolUse",
   ]);
   if (Object.keys(report).some((key) => !allowedKeys.has(key))) {
     return false;
@@ -512,9 +618,10 @@ export function isValidAgentReport(value: unknown): boolean {
       report.status === "failure" ||
       report.status === "inconclusive") &&
     typeof report.answer === "string" &&
-    isToolUseArray(report.githitsToolsUsed) &&
     isToolIssueArray(report.toolIssues) &&
     isStringArray(report.instructionIssues) &&
+    isOptionalStringArray(report.expectedToolUse) &&
+    isOptionalStringArray(report.unexpectedToolUse) &&
     (report.githitsUsefulness === "helped" ||
       report.githitsUsefulness === "hurt" ||
       report.githitsUsefulness === "unused" ||
@@ -567,8 +674,10 @@ function buildClaudeCommand(prompt: string, mcpConfigPath: string): string[] {
     "--mcp-config",
     mcpConfigPath,
     "--strict-mcp-config",
+    "--disable-slash-commands",
     "--output-format",
-    "json",
+    "stream-json",
+    "--verbose",
     "--permission-mode",
     "bypassPermissions",
     "--no-session-persistence",
@@ -611,6 +720,10 @@ async function runWorkload(
   secretValues: string[],
 ): Promise<WorkloadRunMetadata> {
   assert(existsSync(workloadPath), `Workload not found: ${workloadPath}`);
+  assert(
+    existsSync(options.reportingPath),
+    `Reporting contract not found: ${options.reportingPath}`,
+  );
   const id = workloadId(workloadPath);
   const workloadDir = join(runDir, "workloads", id);
   const workspaceDir = mkdtempSync(
@@ -618,7 +731,9 @@ async function runWorkload(
   );
   mkdirSync(workloadDir, { recursive: true });
 
-  const prompt = readFileSync(workloadPath, "utf8");
+  const workloadPrompt = readFileSync(workloadPath, "utf8").trimEnd();
+  const reportingPrompt = readFileSync(options.reportingPath, "utf8").trim();
+  const prompt = `${workloadPrompt}\n\n${reportingPrompt}\n`;
   const mcpConfigPath = join(workloadDir, "mcp.json");
   const codexConfigPath = join(workloadDir, "codex-config.toml");
   const codexFinalPath = join(workloadDir, "codex-final.txt");
@@ -669,6 +784,12 @@ async function runWorkload(
       redactText(result.stderr, secretValues),
     );
 
+    const toolCalls = extractToolCalls(result.stdout, options.agent);
+    writeJson(
+      join(workloadDir, "tool-calls.json"),
+      redactValue(toolCalls, secretValues),
+    );
+
     const finalJson = extractFinalJson(result.stdout);
     const codexFinalText = existsSync(codexFinalPath)
       ? readFileSync(codexFinalPath, "utf8")
@@ -708,6 +829,7 @@ async function runWorkload(
       exitCode: result.exitCode,
       durationMs,
       timedOut: result.timedOut,
+      toolCallCount: toolCalls.length,
     };
   } finally {
     rmSync(workspaceDir, { recursive: true, force: true });
@@ -760,6 +882,7 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
     timeoutSeconds: options.timeoutSeconds,
     repoRoot: options.repoRoot,
     schemaPath: options.schemaPath,
+    reportingPath: options.reportingPath,
     git,
     claudeVersion: claude,
     codexVersion: codex,

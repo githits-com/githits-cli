@@ -65,12 +65,42 @@ Secret-like values are redacted in run metadata.
 Workloads are Markdown prompts. They should contain:
 
 - The task.
-- A reporting contract requiring the final answer, GitHits tools used, failed or
-  unclear tool calls, unclear or missing MCP guidance, usefulness, and
-  confidence.
+
+The harness appends `eval/agentic/workloads/REPORTING.md` to every workload so
+all agents return the same structured report. Workload files should not repeat
+that reporting contract.
 
 They should not contain instructions such as "call `search` first" or "use
 `code_read` after `search`". That guidance must come from the MCP server.
+
+### Workload Selection
+
+Use targeted workloads when a change affects a specific tool family. Use both
+Claude and Codex for instruction/tool-description changes when practical; use at
+least one agent for quick iteration.
+
+| Affected Area | Workload |
+|---|---|
+| Core global examples, `get_example`, `search_language`, `feedback` | `global-example.md` |
+| Unified `search` / `search_status` behavior | `unified-search-investigation.md` |
+| Package overview or vulnerability UX, `pkg_info`, `pkg_vulns` | `package-overview-vulnerabilities.md` |
+| Dependency graph UX, `pkg_deps` | `package-dependencies.md` |
+| Release notes UX, `pkg_changelog` | `package-changelog.md` |
+| Documentation browsing, `docs_list`, `docs_read` | `docs-discovery.md` |
+| File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md` |
+| Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |
+| Multi-tool code navigation strategy and MCP instructions | `express-router.md` |
+
+For broad MCP instruction edits, run at least:
+
+```bash
+bun run agent:e2e --agent claude --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
+```
+
+For tool-specific edits, add the workload from the table. Compare
+`tool-calls.json` plus the final JSON's `toolIssues`, `instructionIssues`, and
+`githitsUsefulnessReason` across branches or against a published run.
 
 ## Artifacts
 
@@ -78,13 +108,15 @@ Each run writes:
 
 - `run.json` with command, git, environment, and timing metadata.
 - One workload directory per workload with `prompt.md`, `mcp.json`,
-  `stdout.json`, `stderr.txt`, and `final.json` when parsing succeeds.
+  `stdout.json`, `stderr.txt`, `tool-calls.json`, and `final.json` when parsing
+  succeeds.
 
 Claude is launched with `--permission-mode bypassPermissions` so non-interactive
-evals can exercise configured MCP tools without a human approval prompt. Codex is
-launched with per-run `-c` MCP config overrides, `--ignore-rules`, and a
-read-only sandbox so it can use normal human auth without mutating global MCP
-configuration.
+evals can exercise configured MCP tools without a human approval prompt, and
+`--disable-slash-commands` to reduce plugin/skill contamination while preserving
+normal human auth. Codex is launched with per-run `-c` MCP config overrides,
+`--ignore-rules`, and a read-only sandbox so it can use normal human auth
+without mutating global MCP configuration.
 
 Malformed final JSON, schema mismatches, Claude failures, and timeouts are
 harness failures. Raw stdout and stderr are preserved for diagnosis with known

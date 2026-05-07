@@ -5,6 +5,7 @@ import {
   buildEvalEnv,
   buildMcpConfig,
   collectSecretValues,
+  extractToolCalls,
   isValidAgentReport,
   parseArgs,
   redactText,
@@ -147,8 +148,9 @@ describe("agent eval harness", () => {
       isValidAgentReport({
         status: "success",
         answer: "Router lives in lib/router/index.js.",
-        githitsToolsUsed: [{ tool: "search", purpose: "find router" }],
         toolIssues: [],
+        expectedToolUse: ["code_read"],
+        unexpectedToolUse: [],
         instructionIssues: [],
         githitsUsefulness: "helped",
         githitsUsefulnessReason: "It located source evidence.",
@@ -159,5 +161,59 @@ describe("agent eval harness", () => {
     expect(
       isValidAgentReport({ status: "success", answer: "missing fields" }),
     ).toBe(false);
+  });
+
+  it("extracts Codex MCP tool calls from JSONL events", () => {
+    const calls = extractToolCalls(
+      `${JSON.stringify({
+        type: "item.completed",
+        item: {
+          type: "mcp_tool_call",
+          server: "githits",
+          tool: "code_read",
+          status: "completed",
+          arguments: { path: "index.js" },
+        },
+      })}\n`,
+      "codex",
+    );
+
+    expect(calls).toEqual([
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "code_read",
+        status: "completed",
+        arguments: { path: "index.js" },
+      },
+    ]);
+  });
+
+  it("extracts Claude MCP tool calls from verbose stream events", () => {
+    const calls = extractToolCalls(
+      `${JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "mcp__githits__pkg_info",
+              input: { registry: "npm", package_name: "express" },
+            },
+          ],
+        },
+      })}\n`,
+      "claude",
+    );
+
+    expect(calls).toEqual([
+      {
+        agent: "claude",
+        server: "githits",
+        tool: "pkg_info",
+        status: "started",
+        arguments: { registry: "npm", package_name: "express" },
+      },
+    ]);
   });
 });
