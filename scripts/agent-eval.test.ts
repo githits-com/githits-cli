@@ -546,6 +546,8 @@ describe("agent eval harness", () => {
   it("compares same-agent reports with aggregate status counts", () => {
     const before = buildRunReportFromMetadata("/before", {
       agent: "codex",
+      model: "gpt-5.4-mini",
+      server: "local",
       workloads: [{ id: "pkg-vulns", status: "success" }],
     });
     const afterRunDir = createRunFixture();
@@ -555,6 +557,9 @@ describe("agent eval harness", () => {
     );
     const formatted = formatCompareReport(compareReports(before, after));
 
+    expect(formatted).toContain("before=/before (codex:gpt-5.4-mini/local)");
+    expect(formatted).toContain("after=");
+    expect(formatted).toContain("(codex/local)");
     expect(formatted).toContain("pkg-vulns status unchanged success");
     expect(formatted).toContain("raw events 0 -> 2");
     expect(formatted).toContain("+pkg_vulns");
