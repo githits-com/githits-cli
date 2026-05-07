@@ -60,7 +60,7 @@ const PKG_DEPS_BULLET =
   '- `pkg_deps` — compact direct runtime deps by default. Use `lifecycle: "runtime"` for explicit runtime-only, a concrete lifecycle for runtime plus matching non-runtime deps, or `lifecycle: "all"` for all groups. Use `include_transitive` for the full graph and `include_importers` for provenance. Pass `format: "json"` for the structured envelope.';
 
 const PKG_CHANGELOG_BULLET =
-  '- `pkg_changelog` — compact release notes for a package or GitHub repo, newest-first. Default latest mode returns recent entries with markdown body previews; `from_version` switches to range mode. Set `include_bodies: false` for a compact timeline or pass `format: "json"` for full bodies.';
+  '- `pkg_changelog` — compact release notes for a package or GitHub repo, newest-first (e.g. `npm` + `express` + `limit: 2`). Default latest mode returns recent entries with 10-line markdown previews; `from_version` switches to range mode. Set `body_lines` to tune text previews, `verbose: true` for full text bodies, `include_bodies: false` for a compact timeline, or `format: "json"` for the complete envelope.';
 
 /**
  * Combined strategy tip. Replaces the earlier

@@ -22,8 +22,10 @@ describe("createPackageChangelogTool — metadata", () => {
     expect(tool.description).toContain("latest mode");
     expect(tool.description).toContain("range mode");
     expect(tool.description).toContain("markdown body previews");
+    expect(tool.description).toContain("body_lines");
     expect(tool.description).toContain('format: "json"');
     expect(Object.keys(tool.schema).sort()).toEqual([
+      "body_lines",
       "format",
       "from_version",
       "git_ref",
@@ -33,6 +35,7 @@ describe("createPackageChangelogTool — metadata", () => {
       "registry",
       "repo_url",
       "to_version",
+      "verbose",
     ]);
     expect(tool.annotations?.readOnlyHint).toBe(true);
   });
@@ -66,7 +69,7 @@ describe("createPackageChangelogTool — happy path", () => {
     );
     expect(result.isError).toBeUndefined();
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("express · npm");
+    expect(text).toContain("express | npm");
     expect(text).toContain("2 entries");
     expect(() => JSON.parse(text)).toThrow();
   });
@@ -96,8 +99,101 @@ describe("createPackageChangelogTool — happy path", () => {
       {},
     );
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain('pass format="json" for full bodies');
+    expect(text).toContain(
+      'pass verbose=true, body_lines=<n>, or format="json"',
+    );
     expect(text).not.toContain("--verbose");
+  });
+
+  it("uses body_lines to cap MCP text previews", async () => {
+    const tool = createPackageChangelogTool(
+      createMockPackageIntelligenceService({
+        packageChangelog: mock(() =>
+          Promise.resolve({
+            ...defaultChangelogReport,
+            entries: [
+              {
+                ...defaultChangelogReport.entries[0]!,
+                body: Array.from({ length: 8 }, (_, i) => `line ${i + 1}`).join(
+                  "\n",
+                ),
+              },
+            ],
+          }),
+        ),
+      }),
+    );
+
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express", body_lines: 3 },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("line 3");
+    expect(text).not.toContain("line 4");
+    expect(text).toContain("... (+5 more lines");
+  });
+
+  it("verbose=true renders full MCP text bodies", async () => {
+    const tool = createPackageChangelogTool(
+      createMockPackageIntelligenceService({
+        packageChangelog: mock(() =>
+          Promise.resolve({
+            ...defaultChangelogReport,
+            entries: [
+              {
+                ...defaultChangelogReport.entries[0]!,
+                body: Array.from(
+                  { length: 12 },
+                  (_, i) => `line ${i + 1}`,
+                ).join("\n"),
+              },
+            ],
+          }),
+        ),
+      }),
+    );
+
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express", verbose: true },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("line 12");
+    expect(text).not.toContain("more line");
+  });
+
+  it("returns INVALID_ARGUMENT for conflicting or invalid text controls", async () => {
+    const packageChangelog = mock(() =>
+      Promise.resolve(defaultChangelogReport),
+    );
+    const tool = createPackageChangelogTool(
+      createMockPackageIntelligenceService({ packageChangelog }),
+    );
+
+    const conflict = await tool.handler(
+      {
+        registry: "npm",
+        package_name: "express",
+        include_bodies: false,
+        verbose: true,
+      },
+      {},
+    );
+    expect(conflict.isError).toBe(true);
+    expect((parseText(conflict) as { code: string }).code).toBe(
+      "INVALID_ARGUMENT",
+    );
+
+    const invalid = await tool.handler(
+      { registry: "npm", package_name: "express", body_lines: 0 },
+      {},
+    );
+    expect(invalid.isError).toBe(true);
+    expect((parseText(invalid) as { code: string }).code).toBe(
+      "INVALID_ARGUMENT",
+    );
+    expect(packageChangelog).not.toHaveBeenCalled();
   });
 
   it("emits the JSON envelope with entries.count computed client-side when format=json", async () => {
@@ -208,6 +304,27 @@ describe("createPackageChangelogTool — happy path", () => {
     for (const item of payload.entries.items) {
       expect(item.body).toBeUndefined();
     }
+  });
+
+  it("ignores text-only controls for JSON output shape", async () => {
+    const tool = createPackageChangelogTool(
+      createMockPackageIntelligenceService(),
+    );
+    const baseline = await tool.handler(
+      { registry: "npm", package_name: "express", format: "json" },
+      {},
+    );
+    const withTextControls = await tool.handler(
+      {
+        registry: "npm",
+        package_name: "express",
+        format: "json",
+        body_lines: 3,
+        verbose: true,
+      },
+      {},
+    );
+    expect(parseText(withTextControls)).toEqual(parseText(baseline));
   });
 
   it("keeps body fields by default", async () => {

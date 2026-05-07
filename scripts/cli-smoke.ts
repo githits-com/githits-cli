@@ -512,6 +512,10 @@ async function runLiveSmoke(): Promise<void> {
     changelogText.includes("express") || changelogText.includes("changelog"),
     "pkg changelog terminal missing context",
   );
+  assert(
+    !/[·…—–→]/.test(changelogText),
+    "pkg changelog terminal contains non-ASCII punctuation",
+  );
 
   const changelogJson = assertJsonOutput(
     await runCli(["pkg", "changelog", "npm:express", "--limit", "1", "--json"]),

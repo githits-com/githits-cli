@@ -97,7 +97,7 @@ least one agent for quick iteration.
 | Unified `search` / `search_status` behavior | `unified-search-investigation.md` |
 | Package overview or vulnerability UX, `pkg_info`, `pkg_vulns` | `package-overview-vulnerabilities.md` |
 | Dependency graph UX, `pkg_deps` | `package-dependencies.md` |
-| Release notes UX, `pkg_changelog` | `package-changelog.md` |
+| Release notes UX, `pkg_changelog` | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior |
 | Documentation browsing, `docs_list`, `docs_read` | `docs-discovery.md` |
 | File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md` |
 | Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |

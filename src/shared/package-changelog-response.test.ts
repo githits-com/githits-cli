@@ -244,7 +244,7 @@ describe("formatPackageChangelogTerminal", () => {
       verbose: false,
       useColors: false,
     });
-    expect(output).toContain("express · npm");
+    expect(output).toContain("express | npm");
     expect(output).toContain("source: GitHub Releases");
     expect(output).toContain("2 entries");
     expect(output).toContain("5.2.1");
@@ -292,6 +292,36 @@ describe("formatPackageChangelogTerminal", () => {
     expect(output).not.toContain("line 11");
     expect(output).toContain("+15 more lines");
     expect(output).toContain("use --verbose for the full body");
+    expect(output).toContain(
+      "... (+15 more lines - use --verbose for the full body)",
+    );
+  });
+
+  it("uses caller-supplied body preview line cap", () => {
+    const longBody = Array.from({ length: 8 }, (_, i) => `line ${i + 1}`).join(
+      "\n",
+    );
+    const report: ChangelogReport = {
+      ...baseReport,
+      entries: [
+        {
+          version: "1.0.0",
+          publishedAt: "2026-01-01T00:00:00Z",
+          htmlUrl: "https://example.com",
+          body: longBody,
+        },
+      ],
+    };
+    const envelope = buildPackageChangelogSuccessPayload(report, baseOptions);
+    const output = formatPackageChangelogTerminal(envelope, {
+      verbose: false,
+      useColors: false,
+      bodyPreviewLines: 3,
+      fullBodyHint: "pass verbose=true",
+    });
+    expect(output).toContain("line 3");
+    expect(output).not.toContain("line 4");
+    expect(output).toContain("... (+5 more lines - pass verbose=true)");
   });
 
   it("lifts the body cap under --verbose and omits the truncation footer", () => {
@@ -381,7 +411,7 @@ describe("formatPackageChangelogTerminal", () => {
       verbose: false,
       useColors: false,
     });
-    expect(output).toContain("—");
+    expect(output).toContain("-");
   });
 
   it("renders 'No entries in this range.' on zero-entry success", () => {
@@ -394,7 +424,7 @@ describe("formatPackageChangelogTerminal", () => {
     expect(output).toContain("No entries in this range.");
   });
 
-  it("labels range mode with from → to in the summary", () => {
+  it("labels range mode with from -> to in the summary", () => {
     const envelope = buildPackageChangelogSuccessPayload(baseReport, {
       ...baseOptions,
       mode: "range",
@@ -406,7 +436,36 @@ describe("formatPackageChangelogTerminal", () => {
       verbose: false,
       useColors: false,
     });
-    expect(output).toContain("range 4.0.0 → 5.0.0");
+    expect(output).toContain("range 4.0.0 -> 5.0.0");
+  });
+
+  it("renders printable ASCII punctuation", () => {
+    const longBody = Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join(
+      "\n",
+    );
+    const report: ChangelogReport = {
+      ...baseReport,
+      entries: [
+        {
+          version: "1.0.0",
+          publishedAt: undefined,
+          htmlUrl: "https://example.com",
+          body: longBody,
+        },
+      ],
+    };
+    const envelope = buildPackageChangelogSuccessPayload(report, {
+      ...baseOptions,
+      mode: "range",
+      fromVersion: "1.0.0",
+      toVersion: "2.0.0",
+      explicitFilterFields: new Set(["fromVersion", "toVersion"]),
+    });
+    const output = formatPackageChangelogTerminal(envelope, {
+      verbose: false,
+      useColors: false,
+    });
+    expect(output).not.toMatch(/[·…—–→]/);
   });
 
   it("labels latest mode with 'latest up to X' when toVersion is set", () => {

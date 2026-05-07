@@ -1,8 +1,6 @@
 /**
  * Hand-crafted response envelope for the `package_changelog` tool.
- * Shared by CLI `--json` output and MCP `content[0].text`. Terminal
- * formatter is CLI-only but reads from the same envelope shape so
- * the two surfaces cannot drift.
+ * Shared by CLI `--json`, CLI terminal output, and MCP `content[0].text`.
  *
  * Key design commitments:
  *
@@ -42,7 +40,7 @@
  */
 
 import type { ChangelogReport } from "../services/index.js";
-import { colorize, dim } from "./colors.js";
+import { colorize, dim, highlight } from "./colors.js";
 import type { ExplicitFilterField } from "./package-changelog-request.js";
 
 /** Two backend-documented modes, kept lowercase. */
@@ -183,13 +181,14 @@ function buildFilterBlock(
 }
 
 // --------------------------------------------------------------------
-// Terminal formatter (CLI-only).
+// Shared terminal/text formatter used by both CLI and MCP.
 // --------------------------------------------------------------------
 
 export interface FormatChangelogTerminalOptions {
   verbose?: boolean;
   useColors: boolean;
   fullBodyHint?: string;
+  bodyPreviewLines?: number;
 }
 
 /**
@@ -215,7 +214,7 @@ const DEFAULT_BODY_PREVIEW_LINES = 10;
  *
  * Edge cases:
  * - Empty entries: summary header + "No entries in this range.".
- * - Missing `publishedAt`: `—` in the date column.
+ * - Missing `publishedAt`: `-` in the date column.
  * - Missing `version`: `(unversioned)`; backend newest-first order
  *   preserved (we don't re-sort).
  * - Empty-string body: rendered with a neutral `(empty release
@@ -243,14 +242,14 @@ export function formatPackageChangelogTerminal(
     const version = entry.version ?? "(unversioned)";
     const date = entry.publishedAt
       ? formatDate(entry.publishedAt)
-      : dim("—", options.useColors);
+      : dim("-", options.useColors);
     const url = entry.htmlUrl
       ? dim(entry.htmlUrl, options.useColors)
       : dim("(no link)", options.useColors);
     const padded = padColumn(version, versionWidth);
     const datePadded = padColumn(date, dateWidth);
     lines.push(
-      `${colorize(padded, "bold", options.useColors)}  ${datePadded}  ${url}`,
+      `${highlight(`${padded}  ${datePadded}`, options.useColors)}  ${url}`,
     );
     if (entry.body != null) {
       appendBodyLines(lines, entry.body, options);
@@ -272,15 +271,17 @@ function appendBodyLines(
     return;
   }
   const bodyLines = body.split("\n");
-  const cap = options.verbose ? bodyLines.length : DEFAULT_BODY_PREVIEW_LINES;
+  const cap = options.verbose
+    ? bodyLines.length
+    : (options.bodyPreviewLines ?? DEFAULT_BODY_PREVIEW_LINES);
   const visible = bodyLines.slice(0, cap);
   for (const bodyLine of visible) {
-    lines.push(`  ${dim(bodyLine, options.useColors)}`);
+    lines.push(`  ${bodyLine}`);
   }
   const hidden = bodyLines.length - visible.length;
   if (hidden > 0) {
     lines.push(
-      `  ${dim(`… (+${hidden} more line${hidden === 1 ? "" : "s"} — ${options.fullBodyHint ?? "use --verbose for the full body"})`, options.useColors)}`,
+      `  ${dim(`... (+${hidden} more line${hidden === 1 ? "" : "s"} - ${options.fullBodyHint ?? "use --verbose for the full body"})`, options.useColors)}`,
     );
   }
 }
@@ -291,7 +292,7 @@ function buildSummaryLine(
 ): string {
   const identity =
     envelope.registry && envelope.name
-      ? `${envelope.name} · ${envelope.registry}`
+      ? `${envelope.name} | ${envelope.registry}`
       : (envelope.repoUrl ?? "(unknown)");
   const sourceLabel = envelope.source
     ? humanizeSource(envelope.source)
@@ -300,13 +301,13 @@ function buildSummaryLine(
     envelope.mode === "range" ? rangeLabel(envelope) : latestLabel(envelope);
   const countLabel = `${envelope.entries.count} ${plural("entry", "entries", envelope.entries.count)}`;
   const parts = [identity, `source: ${sourceLabel}`, modeLabel, countLabel];
-  return colorize(parts.join(" · "), "bold", options.useColors);
+  return colorize(parts.join(" | "), "bold", options.useColors);
 }
 
 function rangeLabel(envelope: LeanChangelogEnvelope): string {
   const from = envelope.filter?.fromVersion ?? "earliest";
   const to = envelope.filter?.toVersion ?? "latest";
-  return `range ${from} → ${to}`;
+  return `range ${from} -> ${to}`;
 }
 
 function latestLabel(envelope: LeanChangelogEnvelope): string {
