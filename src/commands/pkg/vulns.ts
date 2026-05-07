@@ -51,7 +51,7 @@ export async function pkgVulnsAction(
     }
 
     const parsed = parsePackageSpec(spec);
-    const { params } = buildPackageVulnerabilitiesParams({
+    const { params, filter } = buildPackageVulnerabilitiesParams({
       registry: parsed.registry,
       packageName: parsed.name,
       version: parsed.version,
@@ -64,6 +64,7 @@ export async function pkgVulnsAction(
     if (options.json) {
       const payload = buildPackageVulnerabilitiesSuccessPayload(report, {
         requestedVersion: parsed.version,
+        filter,
       });
       console.log(JSON.stringify(payload));
       return;
@@ -73,6 +74,8 @@ export async function pkgVulnsAction(
       verbose: options.verbose,
       useColors: shouldUseColors(),
       requestedVersion: parsed.version,
+      filter,
+      surface: "cli",
       terminalWidth: process.stdout.columns,
     });
     process.stdout.write(output);
@@ -135,22 +138,25 @@ function formatVulnsTerminalError(mapped: MappedError): string {
   if (available && available.length > 0) {
     const sample = available.slice(0, 5).join(", ");
     const more = available.length - 5;
-    const suffix = more > 0 ? `, … (+${more} more)` : "";
+    const suffix = more > 0 ? `, ... (+${more} more)` : "";
     lines.push(`  available: ${sample}${suffix}`);
   }
   return lines.join("\n");
 }
 
 const PKG_VULNS_DESCRIPTION = `Show known vulnerabilities for a package. Lists CVE / OSV advisories
-with severity, affected version ranges, and fix versions.
-Malicious-package advisories are flagged prominently.
+with severity, affected version ranges, and fix versions. Default text is
+capped for readability; use --verbose for all advisory rows or --json for
+the complete structured envelope.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
 npm, pypi, hex, crates. Omit @<version> to check the latest release.
+Example: githits pkg vulns npm:lodash@4.17.20 --severity high
 
 Severity filter (--severity) and withdrawn-advisory visibility
 (--include-withdrawn) are passed through to the backend; the
-returned count reflects whatever survived the filter.`;
+returned count reflects whatever survived the filter and active filters
+are echoed in text and JSON output.`;
 
 export function registerPkgVulnsCommand(pkgCommand: Command): Command {
   return pkgCommand

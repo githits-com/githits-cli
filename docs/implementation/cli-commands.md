@@ -144,19 +144,19 @@ githits pkg vulns crates:serde --json
 githits pkg vulns npm:minimatch --include-withdrawn --verbose
 ```
 
-Lists known CVE / OSV advisories for a package: severity, affected version ranges, fix versions, and upgrade targets. Malicious-package advisories (supply-chain attacks flagged by OSV) surface in a separate `MALWARE` bucket that sorts above all CVE advisories.
+Lists known CVE / OSV advisories for a package: severity, affected version ranges, fix versions, and upgrade targets. Default text is capped at 5 advisory rows for readability; use `--verbose` for all rows or `--json` for the complete structured envelope. Malicious-package advisories (supply-chain attacks flagged by OSV) surface in a separate `MALWARE` bucket that sorts above all CVE advisories.
 
 **Package spec.** `<registry>:<name>[@<version>]`. Unlike `pkg info`, `pkg vulns` supports `@<version>` so callers can inspect older pinned releases. Only `npm`, `pypi`, `hex`, and `crates` support vulnerability data; other registries are rejected client-side with `pkg vulns only supports npm, pypi, hex, and crates. Got: ${registry}.`
 
-**Filtering.** `--severity low|medium|high|critical` maps to a CVSS float threshold (`low=0.1, medium=4, high=7, critical=9`) and is applied by the service. The returned `vulnerabilityCount` reflects the filtered set — no client-side filtering, no dual-summary block. Callers wanting the full picture omit the flag. `--include-withdrawn` includes retracted advisories; withdrawn advisories bucket below active ones in the terminal list.
+**Filtering.** `--severity low|medium|high|critical` maps to a CVSS float threshold (`low=0.1, medium=4, high=7, critical=9`) and is applied by the service. The returned `vulnerabilityCount` reflects the filtered set — no client-side filtering, no dual-summary block. Callers wanting the full picture omit the flag. Active filters are echoed in text and under top-level JSON `filter`. `--include-withdrawn` includes retracted advisories; withdrawn advisories bucket below active ones in the terminal list.
 
-**Zero-vulns hot path.** The common case (clean package) renders as header + one-line summary body (`No known vulnerabilities.`) — no breakdown, no advisory list, no footer. Agents checking "am I safe?" pay minimal token cost on the happy path.
+**Zero-vulns hot path.** The common case (clean package) renders as header + one-line summary body (`No active vulnerabilities affect this version.`) — no breakdown, no advisory list, no footer. Filtered zero-results say `No vulnerabilities matching the filter affect this version.` so callers do not confuse a thresholded query with a clean package.
 
 **Version validation.** `pkg vulns` expects canonical package versions. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` and an actionable message telling the caller to drop the leading `v`, instead of forwarding the request and surfacing an opaque upstream failure.
 
-**Malware marker.** Advisories with `isMalicious: true` render with a red/bold `MALWARE` column (optionally combined as `MALWARE · crit` when both flags exist). Count surfaces in the summary breakdown line as `N MALWARE · N crit · …`. Buckets partition every returned advisory: `MALWARE + crit + high + medium + low + unrated = advisories.length`, which equals `summary.total` when the upstream count and list stay consistent. Non-malicious advisories without a CVSS score bucket under `unrated` so the breakdown reconciles with the header total (common for PyPI / Rust advisories where CVSS may be absent).
+**Malware marker.** Advisories with `isMalicious: true` render with a red/bold `MALWARE` column (optionally combined as `MALWARE | crit` when both flags exist). Count surfaces in the summary breakdown line as `N MALWARE | N crit | ...`. Buckets partition every returned advisory: `MALWARE + crit + high + medium + low + unrated = advisories.length`, which equals `summary.total` when the upstream count and list stay consistent. Non-malicious advisories without a CVSS score bucket under `unrated` so the breakdown reconciles with the header total (common for PyPI / Rust advisories where CVSS may be absent).
 
-**Affected-range truncation (terminal-width aware).** The `affected` detail row under each advisory caps at 4 ranges on narrow terminals (≤119 cols), 6 on standard-wide (120–159 cols), and 8 on ultrawide (≥160 cols). The remainder collapses into a dim `… (+N more; use -v)` hint. Verbose mode (`-v`) shows every range. JSON output is never truncated — machine consumers get the full list.
+**Affected-range truncation (terminal-width aware).** The `affected` detail row under each advisory caps at 4 ranges on narrow terminals (≤119 cols), 6 on standard-wide (120–159 cols), and 8 on ultrawide (≥160 cols). The remainder collapses into a dim `... (+N more; use -v)` hint. Verbose mode (`-v`) shows every range. JSON output is never truncated — machine consumers get the full list.
 
 **Unrated severity column.** Advisories with no CVSS score (common on RUSTSEC / PYSEC upstreams) render with a dim `unrated` label in the severity column rather than an empty gutter, matching the header-breakdown vocabulary. They sort below banded advisories within the active bucket.
 
@@ -164,7 +164,7 @@ Lists known CVE / OSV advisories for a package: severity, affected version range
 
 **Upgrade-path ordering.** `upgradePaths` are de-duplicated and sorted ascending by semver-ish comparison (pre-release suffixes rank below the matching base release), so the footer presents the minimum-churn upgrade first: `Upgrade options: 3.11.0, 4.0.0-rc1, 4.5.0, 4.19.2, …` rather than the backend's advisory-iteration order.
 
-**Output envelope.** `{registry, name, version, requestedVersion?, summary: {total, affected?, bySeverity?}, advisories?, upgradePaths?}`. Each advisory: `{id?, aliases?, summary?, severity?, severityLabel?, affectedRanges?, fixedIn?, publishedAt?, modifiedAt?, withdrawnAt?, isMalicious?}`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
+**Output envelope.** `{registry, name, version, requestedVersion?, filter?, summary: {total, affected?, bySeverity?}, advisories?, upgradePaths?}`. `filter` echoes only explicit caller filters. Each advisory: `{id?, aliases?, summary?, severity?, severityLabel?, affectedRanges?, fixedIn?, publishedAt?, modifiedAt?, withdrawnAt?, isMalicious?}`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
 
 **Exit codes.** 0 on success including zero-vulns; 1 on any error. Under `--json`, the error envelope is written to **stderr**.
 

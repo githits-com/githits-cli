@@ -102,8 +102,14 @@ export interface PackageVulnerabilitiesRequestInput {
   includeWithdrawn?: boolean;
 }
 
+export interface PackageVulnerabilitiesFilterEcho {
+  minSeverity?: SeverityLabel;
+  includeWithdrawn?: true;
+}
+
 export interface PackageVulnerabilitiesRequestBuildResult {
   params: PackageVulnerabilitiesParams;
+  filter?: PackageVulnerabilitiesFilterEcho;
 }
 
 export function buildPackageVulnerabilitiesParams(
@@ -130,7 +136,11 @@ export function buildPackageVulnerabilitiesParams(
     );
   }
 
-  const minSeverity = resolveMinSeverity(input.minSeverity);
+  const severityLabel = resolveMinSeverityLabel(input.minSeverity);
+  const minSeverity =
+    severityLabel !== undefined
+      ? SEVERITY_LABEL_TO_CVSS[severityLabel]
+      : undefined;
   const trimmedVersion = input.version?.trim();
   // Temporary guard until the backend returns a typed invalid-version
   // error with per-ecosystem version semantics.
@@ -139,6 +149,8 @@ export function buildPackageVulnerabilitiesParams(
       `Invalid version '${trimmedVersion}'. Use the canonical package version without a leading 'v' (for example '4.18.0', not 'v4.18.0').`,
     );
   }
+
+  const filter = buildFilterEcho(severityLabel, input.includeWithdrawn);
 
   return {
     params: {
@@ -151,10 +163,13 @@ export function buildPackageVulnerabilitiesParams(
       minSeverity,
       includeWithdrawn: input.includeWithdrawn,
     },
+    ...(filter ? { filter } : {}),
   };
 }
 
-function resolveMinSeverity(raw: string | undefined): number | undefined {
+function resolveMinSeverityLabel(
+  raw: string | undefined,
+): SeverityLabel | undefined {
   if (raw === undefined) return undefined;
   const trimmed = raw.trim();
   if (trimmed.length === 0) return undefined;
@@ -164,7 +179,17 @@ function resolveMinSeverity(raw: string | undefined): number | undefined {
       `Unsupported severity '${raw}'. Expected one of: low, medium, high, critical.`,
     );
   }
-  return SEVERITY_LABEL_TO_CVSS[lower];
+  return lower;
+}
+
+function buildFilterEcho(
+  minSeverity: SeverityLabel | undefined,
+  includeWithdrawn: boolean | undefined,
+): PackageVulnerabilitiesFilterEcho | undefined {
+  const filter: PackageVulnerabilitiesFilterEcho = {};
+  if (minSeverity !== undefined) filter.minSeverity = minSeverity;
+  if (includeWithdrawn === true) filter.includeWithdrawn = true;
+  return Object.keys(filter).length > 0 ? filter : undefined;
 }
 
 export function isSeverityLabel(value: string): value is SeverityLabel {

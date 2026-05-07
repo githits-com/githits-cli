@@ -14,6 +14,7 @@ export interface PackageVulnerabilitiesArgs {
   version?: string;
   min_severity?: string;
   include_withdrawn?: boolean;
+  verbose?: boolean;
   format?: "json" | "text" | "text-v1";
 }
 
@@ -46,6 +47,12 @@ const schema = {
     .boolean()
     .optional()
     .describe("Include retracted advisories (default: false)."),
+  verbose: z
+    .boolean()
+    .optional()
+    .describe(
+      "Text output only. Show every advisory and full detail rows; format=json always returns the complete structured envelope.",
+    ),
   format: z
     .enum(["json", "text", "text-v1"])
     .optional()
@@ -59,8 +66,12 @@ const DESCRIPTION =
   "Crates (other registries are not yet supported for vulnerability " +
   "data). Returns a count summary, each advisory with OSV ID, " +
   "severity, affected ranges, and fix versions. Malicious-package " +
-  "advisories surface in a separate bucket. Pass `version` to inspect " +
-  "a specific release; otherwise the latest is checked. Use " +
+  "advisories surface in a separate bucket. Example: " +
+  '`{"registry":"npm","package_name":"lodash","version":"4.17.20","min_severity":"high"}`. ' +
+  "Pass `version` to inspect " +
+  "a pinned release; omit it for latest. Default text is capped for " +
+  "readability; use `verbose:true` for all advisory rows or " +
+  '`format:"json"` for the complete envelope. Use ' +
   "`min_severity` to filter to a threshold (`low`, `medium`, `high`, " +
   "`critical`) and `include_withdrawn` to also see retracted " +
   "advisories.";
@@ -75,7 +86,7 @@ export function createPackageVulnerabilitiesTool(
     annotations: { readOnlyHint: true },
     handler: async (args) => {
       try {
-        const { params } = buildPackageVulnerabilitiesParams({
+        const { params, filter } = buildPackageVulnerabilitiesParams({
           registry: args.registry,
           packageName: args.package_name,
           version: args.version,
@@ -85,12 +96,16 @@ export function createPackageVulnerabilitiesTool(
         const report = await service.packageVulnerabilities(params);
         const payload = buildPackageVulnerabilitiesSuccessPayload(report, {
           requestedVersion: args.version,
+          filter,
         });
         if (isTextFormat(args.format)) {
           return textResult(
             formatPackageVulnerabilitiesTerminal(report, {
               useColors: false,
               requestedVersion: args.version,
+              filter,
+              verbose: args.verbose,
+              surface: "mcp",
             }).trimEnd(),
           );
         }

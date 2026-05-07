@@ -25,6 +25,7 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
       "min_severity",
       "package_name",
       "registry",
+      "verbose",
       "version",
     ]);
     expect(tool.annotations?.readOnlyHint).toBe(true);
@@ -80,9 +81,36 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     );
     expect(result.isError).toBeUndefined();
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("express @ 4.18.0 · npm");
+    expect(text).toContain("express @ 4.18.0 | npm");
     expect(text).toContain("vulnerabilities affect this version");
     expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("returns complete text when verbose=true", async () => {
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService(),
+    );
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express", verbose: true },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("GHSA-nnnn-nnnn-nnnn");
+    expect(text).not.toContain("use -v");
+    expect(text).not.toContain("... (+1 more");
+  });
+
+  it("uses MCP-native cap hint in default text", async () => {
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService(),
+    );
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express" },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("... (+1 more; use verbose=true or format=json)");
+    expect(text).not.toContain("use -v");
   });
 
   it("returns JSON-stringified lean envelope when format=json", async () => {
@@ -98,6 +126,47 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     expect(payload.name).toBe("express");
     expect(payload.version).toBe("4.18.0");
     expect((payload.summary as { total: number }).total).toBe(6);
+  });
+
+  it("echoes explicit filters in JSON", async () => {
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService(),
+    );
+    const result = await tool.handler(
+      {
+        registry: "npm",
+        package_name: "express",
+        min_severity: "HIGH",
+        include_withdrawn: true,
+        format: "json",
+      },
+      {},
+    );
+    const payload = parseText(result) as { filter?: unknown };
+    expect(payload.filter).toEqual({
+      minSeverity: "high",
+      includeWithdrawn: true,
+    });
+  });
+
+  it("ignores verbose for JSON output shape", async () => {
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService(),
+    );
+    const normal = await tool.handler(
+      { registry: "npm", package_name: "express", format: "json" },
+      {},
+    );
+    const verbose = await tool.handler(
+      {
+        registry: "npm",
+        package_name: "express",
+        format: "json",
+        verbose: true,
+      },
+      {},
+    );
+    expect(parseText(verbose)).toEqual(parseText(normal));
   });
 
   it("surfaces requestedVersion when caller passes a real-diff version", async () => {

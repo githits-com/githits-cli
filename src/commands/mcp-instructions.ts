@@ -54,7 +54,7 @@ const PKG_INFO_BULLET =
   '- `pkg_info` — latest-version package triage by `registry` + `package_name` (e.g. `npm` + `express`): license, repository popularity, downloads, publish age, and vulnerability status. Set `verbose: true` for GitHub language/topics/last-pushed, recent advisories, and recent changes; pass `format: "json"` for structured fields.';
 
 const PKG_VULNS_BULLET =
-  '- `pkg_vulns` — compact known CVE / OSV advisory summary for npm, PyPI, Hex, or Crates packages, optionally pinned to `version`. Filter with `min_severity`; include retracted advisories with `include_withdrawn`. Pass `format: "json"` for per-advisory structured fields.';
+  '- `pkg_vulns` — compact known CVE / OSV advisory summary for npm, PyPI, Hex, or Crates packages, optionally pinned to `version` (e.g. `npm` + `lodash` + `4.17.20`). Filter with `min_severity`; include retracted advisories with `include_withdrawn`. Default text is capped; use `verbose: true` for all rows or `format: "json"` for the complete per-advisory envelope.';
 
 const PKG_DEPS_BULLET =
   '- `pkg_deps` — compact direct runtime deps by default. Use `lifecycle: "runtime"` for explicit runtime-only, a concrete lifecycle for runtime plus matching non-runtime deps, or `lifecycle: "all"` for all groups. Use `include_transitive` for the full graph and `include_importers` for provenance. Pass `format: "json"` for the structured envelope.';

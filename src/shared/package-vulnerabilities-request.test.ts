@@ -105,6 +105,32 @@ describe("buildPackageVulnerabilitiesParams", () => {
     ).toBe(7.0);
   });
 
+  it("returns explicit filter metadata with canonical severity labels", () => {
+    const { filter } = buildPackageVulnerabilitiesParams({
+      registry: "npm",
+      packageName: "express",
+      minSeverity: "  High  ",
+      includeWithdrawn: true,
+    });
+    expect(filter).toEqual({ minSeverity: "high", includeWithdrawn: true });
+  });
+
+  it("does not echo omitted or false filters", () => {
+    expect(
+      buildPackageVulnerabilitiesParams({
+        registry: "npm",
+        packageName: "express",
+      }).filter,
+    ).toBeUndefined();
+    expect(
+      buildPackageVulnerabilitiesParams({
+        registry: "npm",
+        packageName: "express",
+        includeWithdrawn: false,
+      }).filter,
+    ).toBeUndefined();
+  });
+
   it("rejects unknown severity labels", () => {
     expect(() =>
       buildPackageVulnerabilitiesParams({

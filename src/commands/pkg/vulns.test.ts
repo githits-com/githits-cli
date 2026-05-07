@@ -39,10 +39,30 @@ describe("pkgVulnsAction", () => {
     await pkgVulnsAction("npm:express", {}, createDeps());
 
     const combined = writes.join("");
-    expect(combined).toContain("express @ 4.18.0 · npm");
+    expect(combined).toContain("express @ 4.18.0 | npm");
     expect(combined).toContain("6 vulnerabilities affect this version");
     expect(combined).toContain("MALWARE");
     expect(combined).toContain("Fix version: 4.18.2.");
+    expect(combined).toContain("... (+1 more; use -v)");
+    writeSpy.mockRestore();
+  });
+
+  it("--verbose renders all advisory rows", async () => {
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+
+    await pkgVulnsAction("npm:express", { verbose: true }, createDeps());
+
+    const combined = writes.join("");
+    expect(combined).toContain("GHSA-nnnn-nnnn-nnnn");
+    expect(combined).not.toContain("... (+1 more; use -v)");
     writeSpy.mockRestore();
   });
 
@@ -56,6 +76,58 @@ describe("pkgVulnsAction", () => {
     expect(payload.name).toBe("express");
     expect(payload.summary.total).toBe(6);
     expect(payload.summary.bySeverity.malware).toBe(1);
+    logSpy.mockRestore();
+  });
+
+  it("--json --verbose matches --json", async () => {
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await pkgVulnsAction("npm:express", { json: true }, createDeps());
+    await pkgVulnsAction(
+      "npm:express",
+      { json: true, verbose: true },
+      createDeps(),
+    );
+
+    expect(JSON.parse(logSpy.mock.calls[1]?.[0] as string)).toEqual(
+      JSON.parse(logSpy.mock.calls[0]?.[0] as string),
+    );
+    logSpy.mockRestore();
+  });
+
+  it("echoes filters in terminal text and JSON", async () => {
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+
+    await pkgVulnsAction(
+      "npm:express",
+      { severity: "HIGH", includeWithdrawn: true },
+      createDeps(),
+    );
+
+    const combined = writes.join("");
+    expect(combined).toContain("Filter  severity >= high");
+    expect(combined).toContain("Filter  include withdrawn");
+    writeSpy.mockRestore();
+
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    await pkgVulnsAction(
+      "npm:express",
+      { severity: "HIGH", includeWithdrawn: true, json: true },
+      createDeps(),
+    );
+    const payload = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+    expect(payload.filter).toEqual({
+      minSeverity: "high",
+      includeWithdrawn: true,
+    });
     logSpy.mockRestore();
   });
 
