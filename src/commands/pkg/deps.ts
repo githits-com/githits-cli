@@ -196,7 +196,7 @@ function formatDepsTerminalError(mapped: MappedError): string {
 const PKG_DEPS_DESCRIPTION = `Analyze package dependencies. By default shows the flat list of
 direct runtime dependencies. Use --lifecycle all for the structured view
 (dev / peer / build / optional, plus registry-specific feature / TFM
-groups). Concrete --lifecycle values include runtime plus matching groups.
+groups). Runtime group rows include resolved versions when available.
 --transitive opts into aggregate edge / unique-package counts,
 conflict detection, and circular-dependency flags.
 

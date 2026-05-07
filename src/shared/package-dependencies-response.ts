@@ -564,19 +564,20 @@ function lowerRegistry(value: string | undefined): string {
  * Semantic model (locked post-UX review):
  *
  * - **Summary row always.** Renders counts (`N direct runtime deps`
- *   plain; `+ M transitive edges · P unique packages (depth D)` when
+ *   plain; `+ M transitive edges | P unique packages (depth D)` when
  *   `--transitive`) and lists hidden non-runtime groups by name so the
  *   caller sees what exists without digging.
  * - **`--transitive` replaces the deps list.** Default shows direct
  *   deps; `--transitive` swaps the block to the full unique transitive
- *   list (alphabetical, one per line, `name@version`). No truncation —
+ *   list (alphabetical, one per line, `name@version`). No truncation -
  *   if you asked for transitive, you get it all.
  * - **`--verbose` with `--transitive` adds provenance.** Each
- *   transitive entry gets `(required by <importer>@<constraint>, …)`
+ *   transitive entry gets `(required by <importer>@<constraint>, ...)`
  *   derived from the typed dependency graph.
- * - **Groups is a separate block below the deps list.** Shown when
- *   `--lifecycle` is a non-runtime value or `all`, and composes cleanly with either
- *   the direct or transitive deps list above.
+ * - **Groups replace the default deps list.** Shown when `--lifecycle`
+ *   is a non-runtime value or `all`; runtime-group rows are enriched with
+ *   resolved versions from the runtime list so lifecycle output stays compact
+ *   without losing version signal.
  * - **Conflicts / cycles section** surfaces after the transitive list
  *   only (they come from the transitive graph).
  */
@@ -622,7 +623,7 @@ export function formatPackageDependenciesTerminal(
     blocks.push(formatTransitiveDepsList(payload, verbose, useColors));
     const issues = formatConflictsAndCycles(payload, verbose, useColors);
     if (issues) blocks.push(issues);
-  } else {
+  } else if (!showGroups) {
     blocks.push(formatDirectDepsList(payload, verbose, useColors));
   }
 
@@ -645,7 +646,7 @@ function formatHeaderBlock(
 ): string {
   const name = colorize(payload.name, "bold", useColors);
   const lines: string[] = [
-    `${name} @ ${payload.version} · ${payload.registry}`,
+    `${name} @ ${payload.version} | ${payload.registry}`,
   ];
   if (payload.requestedVersion) {
     lines.push(dim(`(requested ${payload.requestedVersion})`, useColors));
@@ -656,8 +657,8 @@ function formatHeaderBlock(
 
 /**
  * Single summary row that always renders. Combines runtime / transitive
- * counts with a "Hidden: …" mention listing non-runtime groups by
- * name. When the groups view is active the "Hidden: …" section is omitted
+ * counts with a "Hidden: ..." mention listing non-runtime groups by
+ * name. When the groups view is active the "Hidden: ..." section is omitted
  * because nothing is hidden.
  */
 function formatSummaryRow(
@@ -699,14 +700,14 @@ function formatSummaryRow(
       countParts.push(colorize(`${cycleCount} ${noun}`, "red", useColors));
     }
   }
-  const countLine = countParts.join(" · ");
+  const countLine = countParts.join(" | ");
 
   if (showGroups) return countLine;
 
   const hidden = collectHiddenGroupNames(payload);
   if (hidden.length === 0) return countLine;
   const hiddenLine = dim(
-    `Hidden groups: ${hidden.join(", ")} — ${options.hiddenGroupsHint ?? "use --lifecycle all."}`,
+    `Hidden groups: ${hidden.join(", ")} - ${options.hiddenGroupsHint ?? "use --lifecycle all."}`,
     useColors,
   );
   return `${countLine}\n${hiddenLine}`;
@@ -741,16 +742,18 @@ function formatDirectDepsList(
   const runtime = payload.runtime;
   if (!runtime || runtime.count === 0) return "";
   const sorted = sortAlphabetically(runtime.items, (i) => i.name);
+  const lines = ["Runtime dependencies:", ""];
 
   if (!verbose) {
-    return sorted.map((item) => `  ${formatDepLabel(item)}`).join("\n");
+    lines.push(...sorted.map((item) => `  ${formatDepLabel(item)}`));
+    return lines.join("\n");
   }
 
   // Verbose: multi-line entry per dep. Direct deps have exactly one
   // importer — the root package itself.
   const rootLabel = `${payload.name}@${payload.version}`;
-  return sorted
-    .map((item) => {
+  lines.push(
+    ...sorted.map((item) => {
       const head = `  ${formatDepLabel(item)}`;
       const constraintLabel = item.constraint ?? "*";
       const line = dim(
@@ -758,8 +761,9 @@ function formatDirectDepsList(
         useColors,
       );
       return `${head}\n${line}`;
-    })
-    .join("\n");
+    }),
+  );
+  return lines.join("\n");
 }
 
 function formatDepLabel(item: LeanDirectDependency): string {
@@ -786,19 +790,22 @@ function formatTransitiveDepsList(
     a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
   );
 
+  const lines = ["Transitive packages:", ""];
   if (!verbose) {
-    return sorted.map((pkg) => `  ${formatPackageLabel(pkg)}`).join("\n");
+    lines.push(...sorted.map((pkg) => `  ${formatPackageLabel(pkg)}`));
+    return lines.join("\n");
   }
 
-  return sorted
-    .map((pkg) => {
+  lines.push(
+    ...sorted.map((pkg) => {
       const head = `  ${formatPackageLabel(pkg)}`;
       const importers = pkg.importers ?? [];
       if (importers.length === 0) return head;
       const bullets = formatImporterBullets(importers, useColors);
       return `${head}\n${bullets}`;
-    })
-    .join("\n");
+    }),
+  );
+  return lines.join("\n");
 }
 
 function formatPackageLabel(pkg: LeanTransitivePackage): string {
@@ -885,7 +892,7 @@ function formatConflictsAndCycles(
     lines.push(
       colorize(`Circular dependencies (${cycles.length}):`, "red", useColors),
     );
-    for (const c of cycles) lines.push(`  ${c.cycle.join(" → ")}`);
+    for (const c of cycles) lines.push(`  ${c.cycle.join(" -> ")}`);
   }
 
   return lines.join("\n");
@@ -914,6 +921,8 @@ function formatGroupsBlock(
 
   const summary = summariseGroupsByLifecycle(groups.items);
   const groupNoun = groups.items.length === 1 ? "group" : "groups";
+  lines.push("Dependency groups:");
+  lines.push("");
   lines.push(
     colorize(
       `${groups.items.length} ${groupNoun} (${summary}):`,
@@ -958,15 +967,39 @@ function formatGroupsBlock(
     } else {
       const nameWidth = Math.max(...deps.map((d) => d.name.length));
       for (const dep of deps) {
-        const name = dep.name.padEnd(nameWidth);
-        const constraint = dep.constraint ?? "";
-        lines.push(`    ${name}  ${constraint}`.trimEnd());
+        lines.push(
+          `    ${formatGroupDependencyRow(dep, group, payload, nameWidth)}`,
+        );
       }
     }
     lines.push("");
   }
 
   return lines.join("\n").trimEnd();
+}
+
+function formatGroupDependencyRow(
+  dep: LeanGroupDependency,
+  group: LeanGroup,
+  payload: LeanDependencyReport,
+  nameWidth: number,
+): string {
+  const constraint = dep.constraint ?? "";
+  if (group.lifecycle !== "runtime") {
+    const name = dep.name.padEnd(nameWidth);
+    return `${name}  ${constraint}`.trimEnd();
+  }
+
+  const resolvedVersion = payload.runtime?.items.find(
+    (item) => item.name === dep.name,
+  )?.version;
+  if (!resolvedVersion) {
+    const name = dep.name.padEnd(nameWidth);
+    return `${name}  ${constraint}`.trimEnd();
+  }
+
+  const versionedName = `${dep.name}@${resolvedVersion}`.padEnd(nameWidth);
+  return `${versionedName}  ${constraint}`.trimEnd();
 }
 
 /**

@@ -330,12 +330,13 @@ describe("formatPackageDependenciesTerminal — runtime view", () => {
     const output = formatPackageDependenciesTerminal(defaultDependencyReport, {
       useColors: false,
     });
-    expect(output).toContain("express @ 5.2.1 · npm");
+    expect(output).toContain("express @ 5.2.1 | npm");
     expect(output).toContain("3 direct runtime dependencies");
+    expect(output).toContain("Runtime dependencies:");
     expect(output).toContain("accepts");
     expect(output).toContain("^2.0.0");
     expect(output).toContain(
-      "Hidden groups: development — use --lifecycle all.",
+      "Hidden groups: development - use --lifecycle all.",
     );
   });
 
@@ -378,7 +379,7 @@ describe("formatPackageDependenciesTerminal — runtime view", () => {
     const output = formatPackageDependenciesTerminal(fixture, {
       useColors: false,
     });
-    expect(output).not.toContain("hidden — use --lifecycle all");
+    expect(output).not.toContain("hidden - use --lifecycle all");
   });
 });
 
@@ -392,7 +393,8 @@ describe("formatPackageDependenciesTerminal — groups view", () => {
         canonicalLifecycles: ["all"],
       },
     );
-    expect(output).toContain("tokio @ 1.52.1 · crates");
+    expect(output).toContain("tokio @ 1.52.1 | crates");
+    expect(output).toContain("Dependency groups:");
     expect(output).toContain("3 groups");
     expect(output).toContain("1 runtime, 2 optional");
   });
@@ -552,7 +554,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
       maxDepth: 3,
     });
     expect(output).toContain(
-      "3 direct runtime dependencies · 80 transitive edges · 45 unique packages (max depth 3)",
+      "3 direct runtime dependencies | 80 transitive edges | 45 unique packages (max depth 3)",
     );
     expect(output).toContain("No version conflicts or circular dependencies");
   });
@@ -571,7 +573,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
       includeTransitive: true,
     });
     expect(output).toContain(
-      "3 direct runtime dependencies · 80 transitive edges · 45 unique packages",
+      "3 direct runtime dependencies | 80 transitive edges | 45 unique packages",
     );
     expect(output).not.toContain("depth");
   });
@@ -760,7 +762,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
     });
     // Both lines in the header block: count line then hidden-groups line.
     expect(output).toMatch(
-      /3 direct runtime dependencies\nHidden groups: development — use --lifecycle all\./,
+      /3 direct runtime dependencies\nHidden groups: development - use --lifecycle all\./,
     );
   });
 
@@ -785,16 +787,50 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
     expect(output).toContain("net");
   });
 
-  it("groups view composes as a separate block beneath direct deps list", () => {
+  it("groups view replaces the duplicated direct deps list", () => {
     const output = formatPackageDependenciesTerminal(defaultDependencyReport, {
       useColors: false,
       showGroups: true,
       canonicalLifecycles: ["all"],
     });
-    const directIdx = output.indexOf("accepts");
+    const directIdx = output.indexOf("Runtime dependencies:");
     const groupsHeadingIdx = output.indexOf("2 groups");
-    expect(directIdx).toBeGreaterThan(0);
-    expect(groupsHeadingIdx).toBeGreaterThan(directIdx);
+    expect(directIdx).toBe(-1);
+    expect(groupsHeadingIdx).toBeGreaterThan(0);
+    expect(output).toContain("accepts      ^2.0.0");
+    expect(output).not.toContain("accepts@2.0.0");
+  });
+
+  it("enriches runtime group rows with resolved versions when available", () => {
+    const fixture = clone(defaultDependencyReport);
+    fixture.dependencies = {
+      ...fixture.dependencies,
+      transitive: {
+        totalEdges: 3,
+        uniquePackagesCount: 3,
+        dependencyGraph: {
+          formatVersion: 1,
+          nodes: [
+            { registry: "npm", name: "express", version: "5.2.1" },
+            { registry: "npm", name: "accepts", version: "2.0.0" },
+            { registry: "npm", name: "body-parser", version: "2.2.1" },
+            { registry: "npm", name: "cookie", version: "0.7.1" },
+          ],
+          edges: [
+            { fromIndex: 0, toIndex: 1, constraint: "^2.0.0" },
+            { fromIndex: 0, toIndex: 2, constraint: "^2.2.1" },
+            { fromIndex: 0, toIndex: 3, constraint: "^0.7.1" },
+          ],
+        },
+      },
+    };
+
+    const output = formatPackageDependenciesTerminal(fixture, {
+      useColors: false,
+      showGroups: true,
+      canonicalLifecycles: ["all"],
+    });
+    expect(output).toContain("accepts@2.0.0  ^2.0.0");
   });
 
   it("groups block composes beneath transitive list under --transitive --lifecycle all", () => {
@@ -972,7 +1008,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
     );
   });
 
-  it("renders typed circular dependencies as `a → b → a` arrow chain under --verbose", () => {
+  it("renders typed circular dependencies as `a -> b -> a` arrow chain under --verbose", () => {
     const fixture = clone(defaultDependencyReport);
     fixture.dependencies = {
       direct: fixture.dependencies?.direct,
@@ -994,7 +1030,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
       verbose: true,
     });
     expect(output).toContain("Circular dependencies (1):");
-    expect(output).toContain("a → b → a");
+    expect(output).toContain("a -> b -> a");
   });
 
   it("keeps the zero-ack line when neither conflicts nor cycles are present", () => {

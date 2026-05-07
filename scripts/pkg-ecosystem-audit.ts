@@ -60,7 +60,7 @@ type Registry =
   | "rubygems"
   | "go";
 
-type ToolName = "pkg_info" | "pkg_changelog" | "pkg_vulns";
+type ToolName = "pkg_info" | "pkg_changelog" | "pkg_vulns" | "pkg_deps";
 
 const VULN_SUPPORTED_REGISTRIES = new Set<Registry>([
   "npm",
@@ -70,6 +70,17 @@ const VULN_SUPPORTED_REGISTRIES = new Set<Registry>([
   "nuget",
   "maven",
   "packagist",
+  "rubygems",
+  "go",
+]);
+
+const DEPS_SUPPORTED_REGISTRIES = new Set<Registry>([
+  "npm",
+  "pypi",
+  "hex",
+  "crates",
+  "zig",
+  "vcpkg",
   "rubygems",
   "go",
 ]);
@@ -165,16 +176,19 @@ async function runAudit(
   fixture: PackageFixture,
   tool: ToolName,
 ): Promise<AuditResult> {
-  const expectedUnsupported =
-    tool === "pkg_vulns" && !VULN_SUPPORTED_REGISTRIES.has(fixture.registry);
+  const expectedUnsupported = isExpectedUnsupported(fixture.registry, tool);
   const command = buildCommand(fixture, tool);
   const result = await run(command);
   const payload = parsePayload(result.stdout || result.stderr);
   const code = typeof payload?.code === "string" ? payload.code : undefined;
   const error = typeof payload?.error === "string" ? payload.error : undefined;
+  const validPayload =
+    payload !== undefined &&
+    error === undefined &&
+    hasExpectedShape(payload, fixture, tool);
   const ok = expectedUnsupported
     ? result.exitCode !== 0 && code === "INVALID_ARGUMENT"
-    : result.exitCode === 0 && payload !== undefined && error === undefined;
+    : result.exitCode === 0 && validPayload;
 
   return {
     registry: fixture.registry,
@@ -186,6 +200,40 @@ async function runAudit(
     error,
     durationMs: result.durationMs,
   };
+}
+
+function hasExpectedShape(
+  payload: unknown,
+  fixture: PackageFixture,
+  tool: ToolName,
+): boolean {
+  if (!payload || typeof payload !== "object") return false;
+  const record = payload as Record<string, unknown>;
+  if (record.registry !== fixture.registry || record.name !== fixture.name) {
+    return false;
+  }
+
+  switch (tool) {
+    case "pkg_info":
+      return typeof record.version === "string";
+    case "pkg_changelog":
+      return Array.isArray(
+        (record.entries as { items?: unknown } | undefined)?.items,
+      );
+    case "pkg_vulns":
+      return (
+        typeof (record.summary as { total?: unknown } | undefined)?.total ===
+        "number"
+      );
+    case "pkg_deps":
+      return (
+        typeof record.version === "string" &&
+        !!record.runtime &&
+        typeof record.runtime === "object" &&
+        typeof (record.runtime as { count?: unknown }).count === "number" &&
+        Array.isArray((record.runtime as { items?: unknown }).items)
+      );
+  }
 }
 
 function buildCommand(fixture: PackageFixture, tool: ToolName): string[] {
@@ -207,7 +255,15 @@ function buildCommand(fixture: PackageFixture, tool: ToolName): string[] {
       ];
     case "pkg_vulns":
       return ["bun", "run", "dev", "pkg", "vulns", spec, "--json"];
+    case "pkg_deps":
+      return ["bun", "run", "dev", "pkg", "deps", spec, "--json"];
   }
+}
+
+function isExpectedUnsupported(registry: Registry, tool: ToolName): boolean {
+  if (tool === "pkg_vulns") return !VULN_SUPPORTED_REGISTRIES.has(registry);
+  if (tool === "pkg_deps") return !DEPS_SUPPORTED_REGISTRIES.has(registry);
+  return false;
 }
 
 function run(command: string[]): Promise<CommandResult> {
@@ -312,7 +368,7 @@ function parseArgs(rawArgs: string[]): {
   const parsed = {
     help: false,
     registries: new Set<Registry>(),
-    tools: ["pkg_info", "pkg_changelog", "pkg_vulns"] as ToolName[],
+    tools: ["pkg_info", "pkg_changelog", "pkg_vulns", "pkg_deps"] as ToolName[],
     limitPackages: undefined as number | undefined,
     limitPackagesPerRegistry: undefined as number | undefined,
     out: undefined as string | undefined,
@@ -390,17 +446,19 @@ function isRegistry(value: string | undefined): value is Registry {
 }
 
 function isTool(value: string | undefined): value is ToolName {
-  return ["pkg_info", "pkg_changelog", "pkg_vulns"].includes(value ?? "");
+  return ["pkg_info", "pkg_changelog", "pkg_vulns", "pkg_deps"].includes(
+    value ?? "",
+  );
 }
 
 function printHelp(): void {
   console.log(`Usage: bun run scripts/pkg-ecosystem-audit.ts [options]
 
-Runs live pkg_info/pkg_changelog/pkg_vulns checks across representative ecosystems.
+Runs live pkg_info/pkg_changelog/pkg_vulns/pkg_deps checks across representative ecosystems.
 
 Options:
   --registry <registry>       Limit to one registry. Repeatable.
-  --tool <tool>               Limit to pkg_info, pkg_changelog, or pkg_vulns.
+  --tool <tool>               Limit to pkg_info, pkg_changelog, pkg_vulns, or pkg_deps.
   --limit-packages <count>    Limit selected fixtures after registry filtering.
   --limit-packages-per-registry <count>
                               Limit selected fixtures within each registry.

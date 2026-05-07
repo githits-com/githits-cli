@@ -436,13 +436,17 @@ async function runLiveSmoke(): Promise<void> {
     "pkg deps terminal",
   );
   assert(
-    depsText.includes("runtime"),
+    depsText.includes("Runtime dependencies:"),
     "pkg deps terminal missing runtime deps",
   );
 
   const depsAllText = assertTerminalOutput(
     await runCli(["pkg", "deps", "npm:express", "--lifecycle", "all"]),
     "pkg deps lifecycle all terminal",
+  );
+  assert(
+    depsAllText.includes("Dependency groups:"),
+    "pkg deps lifecycle all terminal missing groups heading",
   );
   assert(
     depsAllText.includes("development") ||
