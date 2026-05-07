@@ -7,6 +7,14 @@ server's own instructions and tool descriptions.
 It is not a smoke test. Smoke tests exercise CLI and MCP contracts directly.
 Agentic evals exercise agent behavior end-to-end.
 
+This harness is intentionally human/agent-driven, not CI. Use it to understand
+how MCP instruction or tool-description changes affect real agent behavior. Do
+not treat a live agent pass/fail result as a deterministic regression test: model
+behavior, backend indexing state, auth state, network conditions, and package
+data can all change. The useful output is the artifact set, especially
+`tool-calls.json`, `final.json`, `toolIssues`, `instructionIssues`, and the
+agent's usefulness assessment.
+
 ## What Is Under Test
 
 - Local mode starts the MCP server from this checkout with
@@ -14,6 +22,10 @@ Agentic evals exercise agent behavior end-to-end.
 - Published mode starts the MCP server with `npx -y githits@latest mcp start`
   by default.
 - To evaluate MCP instruction changes, change branch/source and run local mode.
+
+Smoke tests are the right fit for CI gating. Agentic evals are the right fit for
+qualitative review before/after instruction, tool-description, and agent-facing
+UX changes.
 
 The harness must not add GitHits usage guidance through agent system prompts,
 append prompts, alternate MCP instruction files, project instructions, or plugin
