@@ -7,7 +7,14 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import {
+  assertUniqueWorkloadIds,
+  buildRunReportFromMetadata,
+  formatRunReport,
+  workloadIdFromPath,
+  writeReportJson,
+} from "./agent-eval-report.ts";
 
 type AgentName = "claude" | "codex";
 type ServerMode = "local" | "published";
@@ -346,7 +353,7 @@ export function sanitizedEnvSummary(
 }
 
 function workloadId(workloadPath: string): string {
-  return basename(workloadPath).replace(/\.[^.]+$/, "");
+  return workloadIdFromPath(workloadPath);
 }
 
 function writeJson(path: string, value: unknown): void {
@@ -498,11 +505,15 @@ function extractClaudeToolCalls(
     if (record.type !== "tool_use" || typeof record.name !== "string")
       return [];
     const match = record.name.match(/^mcp__(.+)__(.+)$/);
+    if (!match) return [];
+    const server = match[1];
+    const tool = match[2];
+    if (!server || !tool) return [];
     return [
       {
         agent: "claude",
-        server: match?.[1],
-        tool: match?.[2] ?? record.name,
+        server,
+        tool,
         status: "started",
         arguments: record.input,
       },
@@ -842,6 +853,7 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
     `Schema not found: ${options.schemaPath}`,
   );
   mkdirSync(options.outDir, { recursive: true });
+  assertUniqueWorkloadIds(options.workloads);
   const env = buildEvalEnv(process.env);
   const secretValues = collectSecretValues(env);
   const mcpConfig = buildMcpConfig(options);
@@ -874,7 +886,7 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
     );
   }
 
-  writeJson(join(options.outDir, "run.json"), {
+  const runMetadata = {
     agent: options.agent,
     server: options.server,
     publishedPackage: options.publishedPackage,
@@ -888,7 +900,9 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
     codexVersion: codex,
     env: sanitizedEnvSummary(env),
     workloads: workloadResults,
-  });
+  };
+
+  writeJson(join(options.outDir, "run.json"), runMetadata);
 
   writeJson(join(options.outDir, "summary.json"), {
     status: workloadResults.some(
@@ -908,6 +922,10 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
       }),
     ),
   });
+
+  const report = buildRunReportFromMetadata(options.outDir, runMetadata);
+  writeReportJson(options.outDir, report);
+  console.log(formatRunReport(report).trimEnd());
 }
 
 async function main(): Promise<void> {
@@ -917,7 +935,6 @@ async function main(): Promise<void> {
     options.outDir = resolve(repoRoot, options.outDir);
   }
   await runAgentEval(options);
-  console.log(`Agent eval artifacts written to ${options.outDir}`);
 }
 
 if (import.meta.main) {

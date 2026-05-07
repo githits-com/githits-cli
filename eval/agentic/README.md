@@ -48,6 +48,8 @@ login should work by default. Automation can use `GITHITS_API_TOKEN`.
 bun run agent:e2e --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --server published --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e:report .agent-eval/runs/<run>
+bun run agent:e2e:report --compare .agent-eval/runs/<before> .agent-eval/runs/<after>
 ```
 
 Useful options:
@@ -71,6 +73,31 @@ Normal GitHits backend overrides are passed through when set:
 - `GITHITS_AUTH_STORAGE`
 
 Secret-like values are redacted in run metadata.
+
+After each run, the harness prints a concise summary with the run directory,
+per-workload status, unique GitHits tool count, raw tool event count,
+usefulness/confidence when available, key artifact paths, and reported
+tool/instruction issues. It also prints a `Next:` block with the exact report,
+compare, and raw-call inspection commands an agent should use for follow-up. The
+same summary can be regenerated later from persisted artifacts:
+
+```bash
+bun run agent:e2e:report .agent-eval/runs/<run>
+bun run agent:e2e:report --json .agent-eval/runs/<run>
+```
+
+Use comparison mode for before/after review against published or a saved main
+branch run:
+
+```bash
+bun run agent:e2e --server published --out .agent-eval/runs/published-baseline --workload eval/agentic/workloads/package-overview-vulnerabilities.md
+bun run agent:e2e --server local --out .agent-eval/runs/local-change --workload eval/agentic/workloads/package-overview-vulnerabilities.md
+bun run agent:e2e:report --compare .agent-eval/runs/published-baseline .agent-eval/runs/local-change
+```
+
+Same-agent comparisons include normalized aggregate status counts. Cross-agent
+comparisons intentionally degrade to tool-name presence with a warning because
+Claude and Codex expose different tool-call status events.
 
 ## Workloads
 
@@ -133,12 +160,17 @@ Notable findings to keep in mind when evaluating future changes:
   from delayed discovery.
 - `tool-calls.json` is the source of truth for tool usage. The final JSON is for
   the agent's assessment of clarity, issues, and usefulness.
+- `report.json` and `agent:e2e:report` are derived review aids. They normalize
+  tool names/statuses for readability but do not replace raw artifacts.
 
 ## Artifacts
 
 Each run writes:
 
 - `run.json` with command, git, environment, and timing metadata.
+- `summary.json` with backward-compatible execution status metadata.
+- `report.json` with derived review fields, normalized tool summaries, relative
+  artifact paths, and warnings for missing artifacts or self-report drift.
 - One workload directory per workload with `prompt.md`, `mcp.json`,
   `stdout.json`, `stderr.txt`, `tool-calls.json`, and `final.json` when parsing
   succeeds.

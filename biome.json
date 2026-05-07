@@ -6,6 +6,7 @@
       "**/*.json",
       "**/*.yml",
       "**/*.yaml",
+      "!.agent-eval",
       "!dist",
       "!node_modules"
     ],
