@@ -35,6 +35,7 @@
     "inspector": "npx @modelcontextprotocol/inspector bun run dev mcp",
     "smoke:cli": "bun run scripts/cli-smoke.ts",
     "smoke:mcp": "bun run scripts/mcp-smoke.ts",
+    "audit:pkg-ecosystems": "bun run scripts/pkg-ecosystem-audit.ts",
     "agent:e2e": "bun run scripts/agent-eval.ts",
     "test": "bun test",
     "typecheck": "tsc",

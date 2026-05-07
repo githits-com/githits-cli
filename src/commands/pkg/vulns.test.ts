@@ -240,7 +240,7 @@ describe("pkgVulnsAction", () => {
     }
 
     expect(errorSpy.mock.calls[0]?.[0]).toBe(
-      "pkg vulns only supports npm, pypi, hex, and crates. Got: vcpkg.",
+      "pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, and go. Got: vcpkg.",
     );
     errorSpy.mockRestore();
     exitSpy.mockRestore();

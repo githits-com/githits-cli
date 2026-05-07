@@ -10,7 +10,7 @@
  *   surface via `pkgseer-registry`; reject unknown registries with
  *   the generic `UnsupportedRegistryError` message.
  * - Gate against the vulnerability-query's narrower registry support
- *   (backend currently supports only npm, pypi, hex, crates). Known-
+ *   (backend currently excludes vcpkg and zig). Known-
  *   but-unsupported registries are rejected client-side with a
  *   tool-specific message so the backend never sees them. The
  *   predicate `supportsVulnerabilitiesRegistry` lives here (not in
@@ -73,13 +73,19 @@ const SUPPORTED_VULN_REGISTRIES: ReadonlySet<PkgseerRegistry> = new Set([
   "PYPI",
   "HEX",
   "CRATES",
+  "NUGET",
+  "MAVEN",
+  "PACKAGIST",
+  "RUBYGEMS",
+  "GO",
 ]);
 
-const SUPPORTED_VULN_REGISTRIES_HUMAN = "npm, pypi, hex, and crates";
+const SUPPORTED_VULN_REGISTRIES_HUMAN =
+  "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, and go";
 
 /**
- * Tool-local capability predicate. Only 4 of the 9 registries our
- * spec parser understands have vulnerability data on the backend.
+ * Tool-local capability predicate. Vulnerability data is unavailable
+ * for vcpkg and zig on the backend.
  * When a second tool needs per-tool registry restrictions, extract to
  * a dedicated `pkgseer-capabilities.ts` module.
  */

@@ -28,7 +28,7 @@ const schema = {
   registry: z
     .string()
     .describe(
-      "Package registry. Vulnerability data available on npm, pypi, hex, and crates only.",
+      "Package registry. Vulnerability data is unavailable for vcpkg and zig.",
     ),
   package_name: z
     .string()
@@ -62,9 +62,9 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Check known vulnerabilities for a package on npm, PyPI, Hex, or " +
-  "Crates (other registries are not yet supported for vulnerability " +
-  "data). Returns a count summary, each advisory with OSV ID, " +
+  "Check known vulnerabilities for a package on npm, PyPI, Hex, " +
+  "Crates, NuGet, Maven, Packagist, RubyGems, or Go (vcpkg and Zig " +
+  "are not supported for vulnerability data). Returns a count summary, each advisory with OSV ID, " +
   "severity, affected ranges, and fix versions. Malicious-package " +
   "advisories surface in a separate bucket. Example: " +
   '`{"registry":"npm","package_name":"lodash","version":"4.17.20","min_severity":"high"}`. ' +

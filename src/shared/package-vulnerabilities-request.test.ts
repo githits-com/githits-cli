@@ -176,15 +176,7 @@ describe("buildPackageVulnerabilitiesParams", () => {
   });
 
   it("rejects known-but-unsupported registries with tool-specific message", () => {
-    const unsupported = [
-      "vcpkg",
-      "zig",
-      "nuget",
-      "maven",
-      "packagist",
-      "rubygems",
-      "go",
-    ];
+    const unsupported = ["vcpkg", "zig"];
     for (const registry of unsupported) {
       try {
         buildPackageVulnerabilitiesParams({
@@ -195,14 +187,24 @@ describe("buildPackageVulnerabilitiesParams", () => {
       } catch (error) {
         expect(error).toBeInstanceOf(UnsupportedVulnerabilitiesRegistryError);
         expect((error as Error).message).toBe(
-          `pkg vulns only supports npm, pypi, hex, and crates. Got: ${registry}.`,
+          `pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, and go. Got: ${registry}.`,
         );
       }
     }
   });
 
-  it("accepts all four supported registries", () => {
-    const supported = ["npm", "pypi", "hex", "crates"];
+  it("accepts all supported registries", () => {
+    const supported = [
+      "npm",
+      "pypi",
+      "hex",
+      "crates",
+      "nuget",
+      "maven",
+      "packagist",
+      "rubygems",
+      "go",
+    ];
     for (const registry of supported) {
       expect(() =>
         buildPackageVulnerabilitiesParams({
@@ -215,21 +217,21 @@ describe("buildPackageVulnerabilitiesParams", () => {
 });
 
 describe("supportsVulnerabilitiesRegistry", () => {
-  it("accepts the four supported registries", () => {
+  it("accepts the supported registries", () => {
     expect(supportsVulnerabilitiesRegistry("NPM")).toBe(true);
     expect(supportsVulnerabilitiesRegistry("PYPI")).toBe(true);
     expect(supportsVulnerabilitiesRegistry("HEX")).toBe(true);
     expect(supportsVulnerabilitiesRegistry("CRATES")).toBe(true);
+    expect(supportsVulnerabilitiesRegistry("NUGET")).toBe(true);
+    expect(supportsVulnerabilitiesRegistry("MAVEN")).toBe(true);
+    expect(supportsVulnerabilitiesRegistry("PACKAGIST")).toBe(true);
+    expect(supportsVulnerabilitiesRegistry("RUBYGEMS")).toBe(true);
+    expect(supportsVulnerabilitiesRegistry("GO")).toBe(true);
   });
 
   it("rejects the unsupported registries", () => {
-    expect(supportsVulnerabilitiesRegistry("NUGET")).toBe(false);
-    expect(supportsVulnerabilitiesRegistry("MAVEN")).toBe(false);
     expect(supportsVulnerabilitiesRegistry("ZIG")).toBe(false);
     expect(supportsVulnerabilitiesRegistry("VCPKG")).toBe(false);
-    expect(supportsVulnerabilitiesRegistry("PACKAGIST")).toBe(false);
-    expect(supportsVulnerabilitiesRegistry("RUBYGEMS")).toBe(false);
-    expect(supportsVulnerabilitiesRegistry("GO")).toBe(false);
   });
 });
 
