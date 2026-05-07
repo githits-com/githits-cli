@@ -13,6 +13,7 @@ coverage
 
 # Agents
 .claude
+.agent-eval/
 
 # logs
 logs
