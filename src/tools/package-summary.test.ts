@@ -17,13 +17,14 @@ describe("createPackageSummaryTool — metadata", () => {
     );
     expect(tool.name).toBe("pkg_info");
     expect(tool.description).toContain("package overview");
-    // Canonical registry order from PKGSEER_REGISTRY_ARGS
-    expect(tool.description).toContain(
-      "npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, and Go",
-    );
+    expect(tool.description).toContain("for example `npm` + `express`");
+    expect(tool.description).toContain("[ARCHIVED]");
+    expect(tool.description).toContain("verbose: true");
+    expect(tool.description).toContain("pkg_vulns");
     expect(Object.keys(tool.schema)).toEqual([
       "registry",
       "package_name",
+      "verbose",
       "format",
     ]);
     expect(tool.annotations?.readOnlyHint).toBe(true);
@@ -58,7 +59,25 @@ describe("createPackageSummaryTool — happy path", () => {
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("express @ 4.18.2");
     expect(text).toContain("Repository");
+    expect(text).toContain("63k stars, 14k forks, 123 issues");
+    expect(text).toContain("Vulnerabilities");
+    expect(text).not.toContain("Install");
     expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("returns verbose text when verbose=true", async () => {
+    const tool = createPackageSummaryTool(
+      createMockPackageIntelligenceService(),
+    );
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express", verbose: true },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("GitHub");
+    expect(text).toContain("Recent advisories");
+    expect(text).toContain("Recent changes");
+    expect(text).not.toContain("Usage");
   });
 
   it("returns JSON-stringified lean envelope when format=json", async () => {
@@ -73,6 +92,8 @@ describe("createPackageSummaryTool — happy path", () => {
     expect(payload.registry).toBe("npm");
     expect(payload.name).toBe("express");
     expect(payload.version).toBe("4.18.2");
+    expect("install" in payload).toBe(false);
+    expect("usage" in payload).toBe(false);
   });
 });
 

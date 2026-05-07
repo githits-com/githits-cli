@@ -71,10 +71,6 @@ const HAPPY_BODY = {
           },
         ],
       },
-      quickstart: {
-        installCommand: "npm install express",
-        usageExample: "const express = require('express')",
-      },
       latestChangelogs: [
         {
           version: "4.18.2",
@@ -120,11 +116,10 @@ describe("PackageIntelligenceServiceImpl", () => {
     expect(result.package.downloadsLastMonth).toBe(86_000_000);
     expect(result.package.githubRepository?.stargazersCount).toBe(63_400);
     expect(result.security?.vulnerabilityCount).toBe(5);
-    expect(result.quickstart?.installCommand).toBe("npm install express");
     expect(result.latestChangelogs?.[0]?.version).toBe("4.18.2");
   });
 
-  it("preserves null blocks (security / quickstart / github absent)", async () => {
+  it("preserves null blocks (security / github absent)", async () => {
     const body = {
       data: {
         packageSummary: {
@@ -142,7 +137,6 @@ describe("PackageIntelligenceServiceImpl", () => {
             githubRepository: null,
           },
           security: null,
-          quickstart: null,
           latestChangelogs: null,
         },
       },
@@ -163,7 +157,6 @@ describe("PackageIntelligenceServiceImpl", () => {
     expect(result.package.name).toBe("obscure");
     expect(result.package.githubRepository).toBeUndefined();
     expect(result.security).toBeUndefined();
-    expect(result.quickstart).toBeUndefined();
     expect(result.latestChangelogs).toBeUndefined();
   });
 
@@ -173,7 +166,6 @@ describe("PackageIntelligenceServiceImpl", () => {
         packageSummary: {
           package: { name: null, latestVersion: "1.0.0" },
           security: null,
-          quickstart: null,
           latestChangelogs: null,
         },
       },
@@ -196,7 +188,6 @@ describe("PackageIntelligenceServiceImpl", () => {
         packageSummary: {
           package: { name: "x", latestVersion: null },
           security: null,
-          quickstart: null,
           latestChangelogs: null,
         },
       },
@@ -231,6 +222,9 @@ describe("PackageIntelligenceServiceImpl", () => {
     const parsed = JSON.parse(capturedBody ?? "{}");
     expect(parsed.query).toContain("packageSummary(registry: $registry");
     expect(parsed.query).toContain("latestChangelogs(limit: 3)");
+    expect(parsed.query).not.toContain("quickstart");
+    expect(parsed.query).not.toContain("installCommand");
+    expect(parsed.query).not.toContain("usageExample");
     expect(parsed.variables).toEqual({ registry: "NPM", name: "express" });
   });
 

@@ -12,6 +12,7 @@ import { type ToolDefinition, textResult } from "./types.js";
 export interface PackageSummaryArgs {
   registry: string;
   package_name: string;
+  verbose?: boolean;
   format?: "json" | "text" | "text-v1";
 }
 
@@ -29,6 +30,12 @@ const schema = {
   package_name: z
     .string()
     .describe("Package name (scoped names ok: @types/node)."),
+  verbose: z
+    .boolean()
+    .optional()
+    .describe(
+      "Text only. Adds GitHub language/topics/last-pushed, recent advisories, and recent changes. Ignored for format=json.",
+    ),
   format: z
     .enum(["json", "text", "text-v1"])
     .optional()
@@ -38,13 +45,14 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Get a package overview — latest version, license, description, " +
-  "repository, downloads, GitHub stars, install command, recent " +
-  "changes, and a count of known vulnerabilities. Use before " +
-  "recommending a package or to orient on what a dependency is. " +
-  "Works across npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, " +
-  "Packagist, RubyGems, and Go. Always returns data for the latest " +
-  "published version.";
+  "Latest-version package overview for dependency triage. Provide " +
+  "`registry` and `package_name` (for example `npm` + `express`). " +
+  "Default text returns license, description, repository popularity " +
+  "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
+  "publish age, and vulnerability status. Set `verbose: true` for " +
+  "GitHub language/topics/last-pushed, recent advisories, and recent " +
+  'changes. Pass `format: "json"` for structured fields. Use ' +
+  "`pkg_vulns` for version-specific vulnerability details.";
 
 export function createPackageSummaryTool(
   service: PackageIntelligenceService,
@@ -65,6 +73,7 @@ export function createPackageSummaryTool(
         if (isTextFormat(args.format)) {
           return textResult(
             formatPackageSummaryTerminal(summary, {
+              verbose: args.verbose,
               useColors: false,
             }).trimEnd(),
           );

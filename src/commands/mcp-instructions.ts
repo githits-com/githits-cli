@@ -51,7 +51,7 @@ const DOCS_READ_BULLET =
   "- `docs_read` — read a documentation page by pageId. Works for both hosted docs and repo-backed docs.";
 
 const PKG_INFO_BULLET =
-  '- `pkg_info` — compact package overview: latest version, license, downloads, quickstart, and active advisory count. Pass `format: "json"` for the structured envelope.';
+  '- `pkg_info` — latest-version package triage by `registry` + `package_name` (e.g. `npm` + `express`): license, repository popularity, downloads, publish age, and vulnerability status. Set `verbose: true` for GitHub language/topics/last-pushed, recent advisories, and recent changes; pass `format: "json"` for structured fields.';
 
 const PKG_VULNS_BULLET =
   '- `pkg_vulns` — compact known CVE / OSV advisory summary for npm, PyPI, Hex, or Crates packages, optionally pinned to `version`. Filter with `min_severity`; include retracted advisories with `include_withdrawn`. Pass `format: "json"` for per-advisory structured fields.';

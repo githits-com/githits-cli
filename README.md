@@ -106,7 +106,7 @@ GitHits also exposes indexed package/source tools:
 | `search_status` | Follow up a prior indexed `search` by `searchRef` |
 | `docs_list` | Browse mixed package documentation pages |
 | `docs_read` | Read a documentation page by page ID |
-| `pkg_info` | Quick package overview: version, license, downloads, quickstart, advisories |
+| `pkg_info` | Quick package triage: version, license, repository popularity, downloads, vulnerabilities |
 | `pkg_vulns` | CVE / OSV advisories for a package or specific version |
 | `pkg_deps` | Direct dependencies, dependency groups, and optional transitive graph |
 | `pkg_changelog` | Release notes / changelog entries for a package or GitHub repo |

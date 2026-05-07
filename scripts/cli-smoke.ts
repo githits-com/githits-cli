@@ -402,6 +402,18 @@ async function runLiveSmoke(): Promise<void> {
     pkgInfoText.includes("express"),
     "pkg info terminal missing package name",
   );
+  assert(
+    pkgInfoText.includes("Repository") && pkgInfoText.includes("stars"),
+    "pkg info terminal missing repository popularity",
+  );
+  assert(
+    pkgInfoText.includes("Vulnerabilities"),
+    "pkg info terminal missing vulnerability status",
+  );
+  assert(
+    !pkgInfoText.includes("Install") && !pkgInfoText.includes("Usage"),
+    "pkg info terminal should not include quickstart fields",
+  );
 
   const pkgInfoJson = assertJsonOutput(
     await runCli(["pkg", "info", "npm:express", "--json"]),
@@ -413,6 +425,10 @@ async function runLiveSmoke(): Promise<void> {
   assert(
     typeof pkgInfoJson.version === "string",
     "pkg info json missing version",
+  );
+  assert(
+    !("install" in pkgInfoJson) && !("usage" in pkgInfoJson),
+    "pkg info json should not include quickstart fields",
   );
 
   const depsText = assertTerminalOutput(

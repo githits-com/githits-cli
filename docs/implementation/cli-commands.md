@@ -122,7 +122,7 @@ githits pkg info crates:serde --json
 githits pkg info npm:@types/node
 ```
 
-Shows a concise overview for a single package: latest version, license, description, repository + homepage, publication date, download count, GitHub metadata, install command, and known vulnerabilities. Default output is a compact terminal block. `--verbose` adds usage snippet, recent advisories, topics, and a recent-changes list. `--json` emits the lean hand-crafted envelope — every null field is omitted, every block that carries no actionable data is omitted entirely.
+Shows a concise latest-version overview for dependency triage: license, description, repository popularity (stars/forks/issues and `[ARCHIVED]` when applicable), homepage, publication date, download count, and explicit vulnerability status. Default output is compact. `--verbose` adds GitHub language/topics/last-pushed, recent advisories, and a recent-changes list. `--json` emits the lean hand-crafted envelope — null scalars are omitted, and vulnerability data is emitted whenever the backend reports a numeric count, including zero.
 
 **Package spec.** `<registry>:<name>`. Registries: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`, `rubygems`, `go`. Scoped npm names (`npm:@types/node`) are supported.
 
@@ -130,7 +130,7 @@ Shows a concise overview for a single package: latest version, license, descript
 
 **`--verbose` + `--json`.** `--verbose` has no effect under `--json` — the JSON envelope always carries every field the verbose terminal view exposes (and more). The flag only affects human-readable output.
 
-**Output envelope.** Success payload is hand-crafted for agent token efficiency: `{registry, name, version, description?, license?, homepage?, repository?, publishedAt?, downloads?, github?, install?, usage?, vulnerabilities?, recentChanges?}`. Omitted fields reflect backend nulls, not dropped data. Error envelope: `{error, code, retryable, details?}` — shared classifier family. Under `--json` the error envelope is written to **stderr** so stdout stays clean for `jq`.
+**Output envelope.** Success payload is hand-crafted for agent token efficiency: `{registry, name, version, description?, license?, homepage?, repository?, publishedAt?, downloads?, github?, vulnerabilities?, recentChanges?}`. Omitted fields reflect backend nulls, not dropped data. Error envelope: `{error, code, retryable, details?}` — shared classifier family. Under `--json` the error envelope is written to **stderr** so stdout stays clean for `jq`.
 
 **Troubleshooting.** `GITHITS_DEBUG=pkg-intel` emits PII-safe classified-error diagnostics (area, event, code, error class, detail keys). Use `GITHITS_DEBUG=*` to enable all non-sensitive package/source diagnostics.
 

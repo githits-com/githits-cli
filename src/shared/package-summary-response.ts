@@ -78,8 +78,6 @@ export interface LeanPackageSummary {
   publishedAt?: string;
   downloads?: LeanDownloads;
   github?: LeanGithub;
-  install?: string;
-  usage?: string;
   vulnerabilities?: LeanVulnerabilities;
   recentChanges?: LeanRecentChange[];
 }
@@ -114,12 +112,6 @@ export function buildPackageSummarySuccessPayload(
 
   const github = buildGithub(pkg.githubRepository);
   if (github) payload.github = github;
-
-  if (summary.quickstart?.installCommand) {
-    payload.install = summary.quickstart.installCommand;
-  }
-  const usage = normaliseUsage(summary.quickstart?.usageExample);
-  if (usage) payload.usage = usage;
 
   const vulns = buildVulnerabilities(summary.security);
   if (vulns) payload.vulnerabilities = vulns;
@@ -191,20 +183,12 @@ function buildGithub(
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function normaliseUsage(usage: string | undefined): string | undefined {
-  if (!usage) return undefined;
-  // Guard against \r\n artefacts on Windows-authored backends so the
-  // output renders consistently and the MCP JSON stays clean.
-  const cleaned = usage.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  return cleaned.length > 0 ? cleaned : undefined;
-}
-
 function buildVulnerabilities(
   security: PackageSecurityOverview | undefined,
 ): LeanVulnerabilities | undefined {
   if (!security) return undefined;
-  const total = security.vulnerabilityCount ?? 0;
-  if (total === 0) return undefined;
+  if (typeof security.vulnerabilityCount !== "number") return undefined;
+  const total = security.vulnerabilityCount;
 
   const result: LeanVulnerabilities = {
     total,
@@ -264,7 +248,7 @@ function pickChangelogSummary(entry: ChangelogEntry): string | undefined {
   // we derive one from the first non-empty line of the body. Many
   // changelogs lead with markdown headers (`## What's Changed`,
   // `### Bug fixes`) — strip the `#` markers so the summary reads as
-  // prose. Trimmed to 120 chars with trailing ellipsis.
+  // prose. Trimmed to 120 chars with trailing ASCII ellipsis.
   if (!entry.body) return undefined;
   const firstLine = entry.body
     .split(/\r?\n/)
@@ -272,7 +256,7 @@ function pickChangelogSummary(entry: ChangelogEntry): string | undefined {
     .find((line) => line.length > 0);
   if (!firstLine) return undefined;
   return firstLine.length > 120
-    ? `${firstLine.slice(0, 120).trimEnd()}…`
+    ? `${firstLine.slice(0, 117).trimEnd()}...`
     : firstLine;
 }
 
@@ -311,9 +295,9 @@ export function formatPackageSummaryTerminal(
 
   const sections: string[] = [];
 
-  // Header — `name @ version · license`
+  // Header — `name @ version | license`
   const header = lean.license
-    ? `${colorize(lean.name, "bold", useColors)} @ ${lean.version} · ${lean.license}`
+    ? `${colorize(lean.name, "bold", useColors)} @ ${lean.version} | ${lean.license}`
     : `${colorize(lean.name, "bold", useColors)} @ ${lean.version}`;
   sections.push(header);
 
@@ -326,11 +310,6 @@ export function formatPackageSummaryTerminal(
   const fields = buildFieldList(lean, summary, useColors, now);
   if (fields.length > 0) {
     sections.push(fields.join("\n"));
-  }
-
-  // Vulnerabilities footer.
-  if (lean.vulnerabilities) {
-    sections.push(formatVulnFooter(lean.vulnerabilities, useColors));
   }
 
   if (options.verbose) {
@@ -386,10 +365,18 @@ function buildFieldList(
   const fields: LabelledField[] = [];
 
   if (lean.repository) {
+    const repositoryParts = [dim(lean.repository, useColors)];
+    const githubPopularity = formatGithubPopularity(lean.github);
+    if (githubPopularity) repositoryParts.push(`(${githubPopularity})`);
     fields.push({
       label: "Repository",
-      value: dim(lean.repository, useColors),
+      value: repositoryParts.join(" "),
     });
+  } else {
+    const githubPopularity = formatGithubPopularity(lean.github);
+    if (githubPopularity) {
+      fields.push({ label: "GitHub", value: githubPopularity });
+    }
   }
   if (lean.homepage) {
     fields.push({ label: "Homepage", value: dim(lean.homepage, useColors) });
@@ -415,12 +402,11 @@ function buildFieldList(
     });
   }
 
-  if (lean.github) {
-    fields.push({ label: "GitHub", value: formatGithubLine(lean.github) });
-  }
-
-  if (lean.install) {
-    fields.push({ label: "Install", value: lean.install });
+  if (lean.vulnerabilities) {
+    fields.push({
+      label: "Vulnerabilities",
+      value: formatVulnerabilityStatus(lean.vulnerabilities),
+    });
   }
 
   // Label column sized to the widest *raw* label (no ANSI, matching
@@ -432,31 +418,35 @@ function buildFieldList(
   );
 }
 
-function formatGithubLine(github: LeanGithub): string {
+function formatGithubPopularity(
+  github: LeanGithub | undefined,
+): string | undefined {
+  if (!github) return undefined;
   const parts: string[] = [];
+  if (github.archived) {
+    parts.push("[ARCHIVED]");
+  }
   if (github.stars !== undefined) {
-    parts.push(`★ ${formatCompactNumber(github.stars)}`);
+    parts.push(`${formatCompactNumber(github.stars)} stars`);
   }
   if (github.forks !== undefined) {
     parts.push(`${formatCompactNumber(github.forks)} forks`);
   }
   if (github.openIssues !== undefined) {
-    parts.push(`${formatCompactNumber(github.openIssues)} open issues`);
+    parts.push(`${formatCompactNumber(github.openIssues)} issues`);
   }
-  if (github.archived) {
-    parts.push("archived");
-  }
-  return parts.join(" · ");
+  return parts.length > 0 ? parts.join(", ") : undefined;
 }
 
-function formatVulnFooter(
-  vulns: LeanVulnerabilities,
-  useColors: boolean,
-): string {
+function formatVulnerabilityStatus(vulns: LeanVulnerabilities): string {
+  if (vulns.total === 0) {
+    return "No active vulnerabilities in latest published version";
+  }
   const noun = vulns.total === 1 ? "vulnerability" : "vulnerabilities";
-  const base = `${vulns.total} known ${noun}`;
-  const full = vulns.affectsLatest ? `${base} · latest affected` : base;
-  return colorize(full, "yellow", useColors);
+  if (vulns.affectsLatest) {
+    return `${vulns.total} active ${noun}; latest affected`;
+  }
+  return `${vulns.total} known ${noun}; latest not affected`;
 }
 
 function buildVerboseSections(
@@ -465,16 +455,9 @@ function buildVerboseSections(
 ): string {
   const blocks: string[] = [];
 
-  if (lean.usage) {
-    blocks.push(
-      [
-        highlight("Usage", useColors),
-        lean.usage
-          .split("\n")
-          .map((line) => `  ${line}`)
-          .join("\n"),
-      ].join("\n"),
-    );
+  if (lean.github) {
+    const github = formatVerboseGithub(lean.github, useColors);
+    if (github) blocks.push(github);
   }
 
   if (lean.vulnerabilities?.recent && lean.vulnerabilities.recent.length > 0) {
@@ -483,15 +466,35 @@ function buildVerboseSections(
     );
   }
 
-  if (lean.github?.topics && lean.github.topics.length > 0) {
-    blocks.push(`${"Topics".padEnd(10)}  ${lean.github.topics.join(", ")}`);
-  }
-
   if (lean.recentChanges && lean.recentChanges.length > 0) {
     blocks.push(formatVerboseChanges(lean.recentChanges, useColors));
   }
 
   return blocks.join("\n\n");
+}
+
+function formatVerboseGithub(
+  github: LeanGithub,
+  useColors: boolean,
+): string | undefined {
+  const fields: LabelledField[] = [];
+  if (github.language)
+    fields.push({ label: "Language", value: github.language });
+  if (github.lastPushedAt) {
+    fields.push({ label: "Last pushed", value: github.lastPushedAt });
+  }
+  if (github.topics && github.topics.length > 0) {
+    fields.push({ label: "Topics", value: github.topics.join(", ") });
+  }
+  const labelWidth = Math.max(10, ...fields.map((field) => field.label.length));
+  return fields.length > 0
+    ? [
+        highlight("GitHub", useColors),
+        ...fields.map(
+          (field) => `  ${field.label.padEnd(labelWidth)}  ${field.value}`,
+        ),
+      ].join("\n")
+    : undefined;
 }
 
 function formatVerboseAdvisories(

@@ -77,11 +77,6 @@ export interface PackageSecurityOverview {
   recentVulnerabilities?: VulnerabilityOverview[];
 }
 
-export interface QuickstartInfo {
-  installCommand?: string;
-  usageExample?: string;
-}
-
 export interface ChangelogEntry {
   version?: string;
   publishedAt?: string;
@@ -91,7 +86,6 @@ export interface ChangelogEntry {
 export interface PackageSummary {
   package: PackageIdentity;
   security?: PackageSecurityOverview;
-  quickstart?: QuickstartInfo;
   latestChangelogs?: ChangelogEntry[];
 }
 
@@ -615,14 +609,6 @@ const packageSecurityOverviewSchema = z
   .nullable()
   .optional();
 
-const quickstartInfoSchema = z
-  .object({
-    installCommand: z.string().nullable().optional(),
-    usageExample: z.string().nullable().optional(),
-  })
-  .nullable()
-  .optional();
-
 const changelogEntrySchema = z.object({
   version: z.string().nullable().optional(),
   publishedAt: z.string().nullable().optional(),
@@ -632,7 +618,6 @@ const changelogEntrySchema = z.object({
 const packageSummaryResponseSchema = z.object({
   package: packageIdentitySchema.nullable().optional(),
   security: packageSecurityOverviewSchema,
-  quickstart: quickstartInfoSchema,
   latestChangelogs: z.array(changelogEntrySchema).nullable().optional(),
 });
 
@@ -684,10 +669,6 @@ query PackageSummary($registry: Registry!, $name: String!) {
         severityScore
         publishedAt
       }
-    }
-    quickstart {
-      installCommand
-      usageExample
     }
     latestChangelogs(limit: 3) {
       version
@@ -1536,13 +1517,6 @@ export class PackageIntelligenceServiceImpl
         }
       : undefined;
 
-    const quickstart: QuickstartInfo | undefined = data.quickstart
-      ? {
-          installCommand: data.quickstart.installCommand ?? undefined,
-          usageExample: data.quickstart.usageExample ?? undefined,
-        }
-      : undefined;
-
     const latestChangelogs: ChangelogEntry[] | undefined =
       data.latestChangelogs?.map((entry) => ({
         version: entry.version ?? undefined,
@@ -1553,7 +1527,6 @@ export class PackageIntelligenceServiceImpl
     return {
       package: identity,
       security,
-      quickstart,
       latestChangelogs,
     };
   }
