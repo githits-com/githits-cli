@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "answer",
+    "githitsToolsUsed",
+    "toolIssues",
+    "instructionIssues",
+    "githitsUsefulness",
+    "githitsUsefulnessReason",
+    "confidence"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["success", "failure", "inconclusive"]
+    },
+    "answer": {
+      "type": "string"
+    },
+    "githitsToolsUsed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tool", "purpose"],
+        "properties": {
+          "tool": { "type": "string" },
+          "purpose": { "type": "string" }
+        }
+      }
+    },
+    "toolIssues": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["tool", "issue"],
+            "properties": {
+              "tool": { "type": "string" },
+              "issue": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "instructionIssues": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "githitsUsefulness": {
+      "type": "string",
+      "enum": ["helped", "hurt", "unused", "unclear"]
+    },
+    "githitsUsefulnessReason": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    }
+  }
+}
