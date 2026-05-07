@@ -22,6 +22,7 @@ type RunStatus = "dry-run" | "success" | "failed" | "timeout";
 
 export interface AgentEvalOptions {
   agent: AgentName;
+  model?: string;
   server: ServerMode;
   workloads: string[];
   outDir: string;
@@ -175,6 +176,12 @@ export function parseArgs(
         options.server = value;
         break;
       }
+      case "--model": {
+        const value = argv[++i];
+        assert(value, "--model requires a model name");
+        options.model = value;
+        break;
+      }
       case "--workload": {
         const value = argv[++i];
         assert(value, "--workload requires a path");
@@ -238,6 +245,7 @@ function printHelp(): void {
 
 Options:
   --agent claude|codex            Agent to run (default: claude)
+  --model <name>                  Agent model name or alias, e.g. sonnet, haiku, gpt-5.1-codex-mini
   --server local|published        MCP server mode (default: local)
   --workload <path>               Workload markdown path, repeatable
   --out <dir>                     Output directory
@@ -677,8 +685,12 @@ async function runWithTimeout(
   return { stdout, stderr, exitCode, timedOut };
 }
 
-function buildClaudeCommand(prompt: string, mcpConfigPath: string): string[] {
-  return [
+export function buildClaudeCommand(
+  prompt: string,
+  mcpConfigPath: string,
+  model?: string,
+): string[] {
+  const command = [
     "claude",
     "-p",
     prompt,
@@ -693,16 +705,21 @@ function buildClaudeCommand(prompt: string, mcpConfigPath: string): string[] {
     "bypassPermissions",
     "--no-session-persistence",
   ];
+  if (model) command.push("--model", model);
+  return command;
 }
 
-function buildCodexCommand(
+export function buildCodexCommand(
   prompt: string,
   workspaceDir: string,
   finalMessagePath: string,
   schemaPath: string,
-  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage" | "model"
+  >,
 ): string[] {
-  return [
+  const command = [
     "codex",
     "exec",
     ...buildCodexConfigArgs(options),
@@ -718,8 +735,10 @@ function buildCodexCommand(
     "--sandbox",
     "read-only",
     "--ignore-rules",
-    prompt,
   ];
+  if (options.model) command.push("-m", options.model);
+  command.push(prompt);
+  return command;
 }
 
 async function runWorkload(
@@ -754,7 +773,7 @@ async function runWorkload(
 
   const command =
     options.agent === "claude"
-      ? buildClaudeCommand(prompt, mcpConfigPath)
+      ? buildClaudeCommand(prompt, mcpConfigPath, options.model)
       : buildCodexCommand(
           prompt,
           workspaceDir,
@@ -888,6 +907,7 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
 
   const runMetadata = {
     agent: options.agent,
+    model: options.model,
     server: options.server,
     publishedPackage: options.publishedPackage,
     dryRun: options.dryRun,

@@ -10,6 +10,8 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
+  buildClaudeCommand,
+  buildCodexCommand,
   buildCodexConfig,
   buildCodexConfigArgs,
   buildEvalEnv,
@@ -129,6 +131,26 @@ describe("agent eval harness", () => {
     ]);
   });
 
+  it("passes selected models to agent commands", () => {
+    expect(buildClaudeCommand("prompt", "/tmp/mcp.json", "haiku")).toContain(
+      "haiku",
+    );
+    expect(
+      buildCodexCommand(
+        "prompt",
+        "/tmp/work",
+        "/tmp/final.txt",
+        "/tmp/schema.json",
+        {
+          server: "local",
+          repoRoot: "/repo/githits-cli",
+          publishedPackage: "githits@latest",
+          model: "gpt-5.1-codex-mini",
+        },
+      ),
+    ).toContain("gpt-5.1-codex-mini");
+  });
+
   it("preserves normal Claude and GitHits auth environment while filtering unrelated vars", () => {
     const env = buildEvalEnv({
       PATH: "/bin",
@@ -170,6 +192,8 @@ describe("agent eval harness", () => {
         "codex",
         "--server",
         "published",
+        "--model",
+        "gpt-5.1-codex-mini",
         "--published-package",
         "githits@0.4.2",
         "--workload",
@@ -182,6 +206,7 @@ describe("agent eval harness", () => {
     );
 
     expect(options.agent).toBe("codex");
+    expect(options.model).toBe("gpt-5.1-codex-mini");
     expect(options.server).toBe("published");
     expect(options.publishedPackage).toBe("githits@0.4.2");
     expect(options.timeoutSeconds).toBe(12);
