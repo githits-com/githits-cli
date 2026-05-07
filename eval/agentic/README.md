@@ -35,12 +35,14 @@ login should work by default. Automation can use `GITHITS_API_TOKEN`.
 ```bash
 bun run agent:e2e --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --server published --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
 ```
 
 Useful options:
 
 ```bash
---dry-run                       Generate artifacts without invoking Claude
+--agent <claude|codex>          Agent to run, default `claude`
+--dry-run                       Generate artifacts without invoking the agent
 --out <dir>                     Output directory, default `.agent-eval/runs/<timestamp>`
 --timeout <seconds>             Per-workload timeout, default 300
 --published-package <spec>      Published package spec, default `githits@latest`
@@ -79,7 +81,10 @@ Each run writes:
   `stdout.json`, `stderr.txt`, and `final.json` when parsing succeeds.
 
 Claude is launched with `--permission-mode bypassPermissions` so non-interactive
-evals can exercise configured MCP tools without a human approval prompt.
+evals can exercise configured MCP tools without a human approval prompt. Codex is
+launched with per-run `-c` MCP config overrides, `--ignore-rules`, and a
+read-only sandbox so it can use normal human auth without mutating global MCP
+configuration.
 
 Malformed final JSON, schema mismatches, Claude failures, and timeouts are
 harness failures. Raw stdout and stderr are preserved for diagnosis with known

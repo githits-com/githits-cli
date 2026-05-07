@@ -35,18 +35,7 @@
     "toolIssues": {
       "type": "array",
       "items": {
-        "oneOf": [
-          { "type": "string" },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["tool", "issue"],
-            "properties": {
-              "tool": { "type": "string" },
-              "issue": { "type": "string" }
-            }
-          }
-        ]
+        "type": "string"
       }
     },
     "instructionIssues": {

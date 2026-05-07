@@ -9,7 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
-type AgentName = "claude";
+type AgentName = "claude" | "codex";
 type ServerMode = "local" | "published";
 type RunStatus = "dry-run" | "success" | "failed" | "timeout";
 
@@ -134,7 +134,10 @@ export function parseArgs(
     switch (arg) {
       case "--agent": {
         const value = argv[++i];
-        assert(value === "claude", "--agent currently supports only claude");
+        assert(
+          value === "claude" || value === "codex",
+          "--agent must be claude or codex",
+        );
         options.agent = value;
         break;
       }
@@ -203,7 +206,7 @@ function printHelp(): void {
   console.log(`Usage: bun run agent:e2e [options]
 
 Options:
-  --agent claude                  Agent to run (default: claude)
+  --agent claude|codex            Agent to run (default: claude)
   --server local|published        MCP server mode (default: local)
   --workload <path>               Workload markdown path, repeatable
   --out <dir>                     Output directory
@@ -217,25 +220,52 @@ Options:
 export function buildMcpConfig(
   options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
 ): McpServerConfig {
+  const command = buildMcpCommand(options);
+  return {
+    mcpServers: {
+      githits: command,
+    },
+  };
+}
+
+function buildMcpCommand(
+  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+): McpServerConfig["mcpServers"]["githits"] {
   if (options.server === "local") {
     return {
-      mcpServers: {
-        githits: {
-          command: "bun",
-          args: ["run", "--cwd", options.repoRoot, "dev", "mcp", "start"],
-        },
-      },
+      command: "bun",
+      args: ["run", "--cwd", options.repoRoot, "dev", "mcp", "start"],
     };
   }
 
   return {
-    mcpServers: {
-      githits: {
-        command: "npx",
-        args: ["-y", options.publishedPackage, "mcp", "start"],
-      },
-    },
+    command: "npx",
+    args: ["-y", options.publishedPackage, "mcp", "start"],
   };
+}
+
+export function buildCodexConfig(
+  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+): string {
+  const command = buildMcpCommand(options);
+  return [
+    "[mcp_servers.githits]",
+    `command = ${JSON.stringify(command.command)}`,
+    `args = ${JSON.stringify(command.args)}`,
+    "",
+  ].join("\n");
+}
+
+export function buildCodexConfigArgs(
+  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+): string[] {
+  const command = buildMcpCommand(options);
+  return [
+    "-c",
+    `mcp_servers.githits.command=${JSON.stringify(command.command)}`,
+    "-c",
+    `mcp_servers.githits.args=${JSON.stringify(command.args)}`,
+  ];
 }
 
 export function buildEvalEnv(
@@ -354,11 +384,23 @@ async function claudeVersion(): Promise<string | undefined> {
   return commandOutput("claude", ["--version"], process.cwd());
 }
 
+async function codexVersion(): Promise<string | undefined> {
+  return commandOutput("codex", ["--version"], process.cwd());
+}
+
 async function assertClaudeAvailable(): Promise<void> {
   const version = await claudeVersion();
   assert(
     version,
     "claude CLI not found or not executable. Install Claude Code before running live agent evals.",
+  );
+}
+
+async function assertCodexAvailable(): Promise<void> {
+  const version = await codexVersion();
+  assert(
+    version,
+    "codex CLI not found or not executable. Install Codex before running live agent evals.",
   );
 }
 
@@ -533,6 +575,33 @@ function buildClaudeCommand(prompt: string, mcpConfigPath: string): string[] {
   ];
 }
 
+function buildCodexCommand(
+  prompt: string,
+  workspaceDir: string,
+  finalMessagePath: string,
+  schemaPath: string,
+  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+): string[] {
+  return [
+    "codex",
+    "exec",
+    ...buildCodexConfigArgs(options),
+    "--cd",
+    workspaceDir,
+    "--skip-git-repo-check",
+    "--ephemeral",
+    "--json",
+    "--output-last-message",
+    finalMessagePath,
+    "--output-schema",
+    schemaPath,
+    "--sandbox",
+    "read-only",
+    "--ignore-rules",
+    prompt,
+  ];
+}
+
 async function runWorkload(
   options: AgentEvalOptions,
   workloadPath: string,
@@ -551,10 +620,23 @@ async function runWorkload(
 
   const prompt = readFileSync(workloadPath, "utf8");
   const mcpConfigPath = join(workloadDir, "mcp.json");
+  const codexConfigPath = join(workloadDir, "codex-config.toml");
+  const codexFinalPath = join(workloadDir, "codex-final.txt");
   writeFileSync(join(workloadDir, "prompt.md"), prompt);
   writeJson(mcpConfigPath, mcpConfig);
+  writeFileSync(codexConfigPath, buildCodexConfig(options));
 
-  const command = buildClaudeCommand(prompt, mcpConfigPath);
+  const command =
+    options.agent === "claude"
+      ? buildClaudeCommand(prompt, mcpConfigPath)
+      : buildCodexCommand(
+          prompt,
+          workspaceDir,
+          codexFinalPath,
+          options.schemaPath,
+          options,
+        );
+  const workloadEnv = { ...env };
   const metadataBase = {
     id,
     path: workloadPath,
@@ -573,7 +655,7 @@ async function runWorkload(
     const result = await runWithTimeout(
       command,
       workspaceDir,
-      env,
+      workloadEnv,
       options.timeoutSeconds,
     );
     const durationMs = Date.now() - started;
@@ -588,16 +670,29 @@ async function runWorkload(
     );
 
     const finalJson = extractFinalJson(result.stdout);
-    const validFinalJson = isValidAgentReport(finalJson);
+    const codexFinalText = existsSync(codexFinalPath)
+      ? readFileSync(codexFinalPath, "utf8")
+      : undefined;
+    if (codexFinalText !== undefined) {
+      writeFileSync(
+        join(workloadDir, "codex-final.txt"),
+        redactText(codexFinalText, secretValues),
+      );
+    }
+    const reportJson =
+      options.agent === "codex" && codexFinalText !== undefined
+        ? parseJsonFromText(codexFinalText)
+        : finalJson;
+    const validFinalJson = isValidAgentReport(reportJson);
     if (validFinalJson) {
       writeJson(
         join(workloadDir, "final.json"),
-        redactValue(finalJson, secretValues),
+        redactValue(reportJson, secretValues),
       );
-    } else if (finalJson !== undefined) {
+    } else if (reportJson !== undefined) {
       writeJson(
         join(workloadDir, "invalid-final.json"),
-        redactValue(finalJson, secretValues),
+        redactValue(reportJson, secretValues),
       );
     }
 
@@ -630,12 +725,17 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
   const mcpConfig = buildMcpConfig(options);
 
   if (!options.dryRun) {
-    await assertClaudeAvailable();
+    if (options.agent === "claude") {
+      await assertClaudeAvailable();
+    } else {
+      await assertCodexAvailable();
+    }
   }
 
-  const [git, claude] = await Promise.all([
+  const [git, claude, codex] = await Promise.all([
     collectGitMetadata(options.repoRoot),
     claudeVersion(),
+    codexVersion(),
   ]);
 
   const workloadResults: WorkloadRunMetadata[] = [];
@@ -662,6 +762,7 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
     schemaPath: options.schemaPath,
     git,
     claudeVersion: claude,
+    codexVersion: codex,
     env: sanitizedEnvSummary(env),
     workloads: workloadResults,
   });

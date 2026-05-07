@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
+  buildCodexConfig,
+  buildCodexConfigArgs,
   buildEvalEnv,
   buildMcpConfig,
   collectSecretValues,
@@ -34,6 +36,33 @@ describe("agent eval harness", () => {
       command: "npx",
       args: ["-y", "githits@0.4.2", "mcp", "start"],
     });
+  });
+
+  it("builds Codex TOML config from the same MCP command", () => {
+    expect(
+      buildCodexConfig({
+        server: "local",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      }),
+    ).toBe(
+      '[mcp_servers.githits]\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n',
+    );
+  });
+
+  it("builds Codex config override args", () => {
+    expect(
+      buildCodexConfigArgs({
+        server: "published",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@0.4.2",
+      }),
+    ).toEqual([
+      "-c",
+      'mcp_servers.githits.command="npx"',
+      "-c",
+      'mcp_servers.githits.args=["-y","githits@0.4.2","mcp","start"]',
+    ]);
   });
 
   it("preserves normal Claude and GitHits auth environment while filtering unrelated vars", () => {
@@ -73,6 +102,8 @@ describe("agent eval harness", () => {
   it("parses repeatable workloads and dry-run options", () => {
     const options = parseArgs(
       [
+        "--agent",
+        "codex",
         "--server",
         "published",
         "--published-package",
@@ -86,6 +117,7 @@ describe("agent eval harness", () => {
       "/repo/githits-cli",
     );
 
+    expect(options.agent).toBe("codex");
     expect(options.server).toBe("published");
     expect(options.publishedPackage).toBe("githits@0.4.2");
     expect(options.timeoutSeconds).toBe(12);
