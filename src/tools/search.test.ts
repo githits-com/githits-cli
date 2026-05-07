@@ -114,9 +114,10 @@ describe("searchTool", () => {
     const result = await tool.handler({ query: "test" }, {});
 
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain(
-      "At least one target is required",
-    );
+    // Error names both parameters so an agent can fix the call without
+    // re-reading the description.
+    expect(result.content[0]?.text).toContain("`target`");
+    expect(result.content[0]?.text).toContain("`targets`");
   });
 
   it("preserves omitted repo refs for backend default-branch discovery", async () => {

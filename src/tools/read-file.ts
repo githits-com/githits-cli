@@ -227,9 +227,17 @@ function buildCappedHint(
   originalEnd: number | undefined,
 ): string {
   const requested = describeRequest(originalStart, originalEnd);
+  // Suppress the bare end-line if `endLine` is missing — exhaustive
+  // suppression already happens upstream in `shouldEmitCappedHint`,
+  // but we read `endLine` defensively here.
+  const continuation =
+    payload.endLine !== undefined
+      ? ` To continue, retry with start_line=${payload.endLine + 1}.`
+      : "";
   return (
     `Returned lines ${payload.startLine}-${payload.endLine}/${payload.totalLines} ` +
-    `(MCP cap: ${MCP_READ_MAX_SPAN} lines per call; you requested ${requested}). ` +
+    `(MCP cap: ${MCP_READ_MAX_SPAN} lines per call; you requested ${requested}).` +
+    `${continuation} ` +
     `Pick a focused start_line/end_line window — typical 80-150 lines around a search/code_grep match. ` +
     `Each retry also costs context, so aim for one well-sized read.`
   );

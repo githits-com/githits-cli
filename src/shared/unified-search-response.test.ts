@@ -178,6 +178,41 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
   });
 
+  it("dedupes identical freshness warnings across hits sharing a state", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const baseHit = defaultUnifiedSearchOutcome.result.results[0]!;
+    // Five hits all stale on the same target — agents should see one
+    // warning, not five copies of the same string.
+    const staleHit = {
+      ...baseHit,
+      requestedTargetLabel: "npm:zod latest",
+      freshTargetLabel: "npm:zod@4.4.4",
+      servedTargetLabel: "npm:zod@4.4.3",
+      freshness: "STALE" as const,
+    };
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [staleHit, staleHit, staleHit, staleHit, staleHit],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "schema",
+      "schema",
+      outcome,
+    );
+
+    const matches = (payload.warnings ?? []).filter((entry) =>
+      entry.includes("served stale npm:zod@4.4.3"),
+    );
+    expect(matches).toHaveLength(1);
+  });
+
   it("omits non-actionable current freshness metadata from hits", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");

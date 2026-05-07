@@ -268,7 +268,12 @@ function combineWarnings(
   out.push(...buildHitFreshnessWarnings(hits));
   out.push(...buildProgressFreshnessWarnings(progress));
   out.push(...buildSourceStatusWarnings(sourceStatus));
-  return out;
+  // Hit-level freshness warnings collapse to the same string when N
+  // hits share a target+freshness state ("served stale npm:zod@4.4.3
+  // while ... indexes" repeated per-hit). Dedupe at the envelope so
+  // the agent sees one signal per condition. Set preserves
+  // first-occurrence order, keeping parser warnings at the head.
+  return Array.from(new Set(out));
 }
 
 export function buildUnifiedSearchErrorPayload(

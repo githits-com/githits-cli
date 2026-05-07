@@ -409,6 +409,8 @@ describe("createReadFileTool — span cap", () => {
     expect(payload.hint).toContain("Returned lines 1-150/5000");
     expect(payload.hint).toContain("MCP cap: 150 lines");
     expect(payload.hint).toContain("you requested lines 1-600");
+    // Concrete next-call suggestion removes the math-on-the-agent.
+    expect(payload.hint).toContain("retry with start_line=151");
     expect(payload.hint).toContain("80-150 lines");
     expect(payload.hint).toContain("retry also costs context");
   });
