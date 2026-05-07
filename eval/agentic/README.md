@@ -49,7 +49,7 @@ bun run agent:e2e --server local --workload eval/agentic/workloads/express-route
 bun run agent:e2e --server published --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent claude --model haiku --workload eval/agentic/workloads/package-overview-vulnerabilities.md
-bun run agent:e2e --agent codex --model gpt-5.1-codex-mini --workload eval/agentic/workloads/package-overview-vulnerabilities.md
+bun run agent:e2e --agent codex --model gpt-5.4-mini --workload eval/agentic/workloads/package-overview-vulnerabilities.md
 bun run agent:e2e:report .agent-eval/runs/<run>
 bun run agent:e2e:report --compare .agent-eval/runs/<before> .agent-eval/runs/<after>
 ```
@@ -79,7 +79,7 @@ Secret-like values are redacted in run metadata.
 
 Use `--model` to evaluate smaller or cheaper models against the same workload.
 Claude accepts aliases such as `sonnet` and `haiku`; Codex accepts model IDs such
-as `gpt-5.1-codex-mini` or `gpt-5.1-codex-nano` when available. The harness
+as `gpt-5.4-mini` or `gpt-5.4-nano` when available. The harness
 stores the selected model in `run.json` and `report.json`, and includes it in the
 console summary.
 

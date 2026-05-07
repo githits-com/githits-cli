@@ -145,10 +145,10 @@ describe("agent eval harness", () => {
           server: "local",
           repoRoot: "/repo/githits-cli",
           publishedPackage: "githits@latest",
-          model: "gpt-5.1-codex-mini",
+          model: "gpt-5.4-mini",
         },
       ),
-    ).toContain("gpt-5.1-codex-mini");
+    ).toContain("gpt-5.4-mini");
   });
 
   it("preserves normal Claude and GitHits auth environment while filtering unrelated vars", () => {
@@ -193,7 +193,7 @@ describe("agent eval harness", () => {
         "--server",
         "published",
         "--model",
-        "gpt-5.1-codex-mini",
+        "gpt-5.4-mini",
         "--published-package",
         "githits@0.4.2",
         "--workload",
@@ -206,7 +206,7 @@ describe("agent eval harness", () => {
     );
 
     expect(options.agent).toBe("codex");
-    expect(options.model).toBe("gpt-5.1-codex-mini");
+    expect(options.model).toBe("gpt-5.4-mini");
     expect(options.server).toBe("published");
     expect(options.publishedPackage).toBe("githits@0.4.2");
     expect(options.timeoutSeconds).toBe(12);

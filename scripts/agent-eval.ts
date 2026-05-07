@@ -245,7 +245,7 @@ function printHelp(): void {
 
 Options:
   --agent claude|codex            Agent to run (default: claude)
-  --model <name>                  Agent model name or alias, e.g. sonnet, haiku, gpt-5.1-codex-mini
+  --model <name>                  Agent model name or alias, e.g. sonnet, haiku, gpt-5.4-mini
   --server local|published        MCP server mode (default: local)
   --workload <path>               Workload markdown path, repeatable
   --out <dir>                     Output directory
