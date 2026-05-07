@@ -5,6 +5,7 @@ import {
   buildPackageVulnerabilitiesSuccessPayload,
   compareVersionsAscending,
   computeBySeverity,
+  DEFAULT_ADVISORY_CAP,
   dedupAdvisoriesByAlias,
   formatPackageVulnerabilitiesTerminal,
   vulnSeverityLabel,
@@ -298,6 +299,25 @@ describe("buildPackageVulnerabilitiesSuccessPayload — requestedVersion echo", 
       { requestedVersion: "4.17" },
     );
     expect(payload.requestedVersion).toBe("4.17");
+  });
+
+  it("echoes explicit filters additively in the JSON payload", () => {
+    const payload = buildPackageVulnerabilitiesSuccessPayload(
+      defaultVulnerabilityReport,
+      { filter: { minSeverity: "high", includeWithdrawn: true } },
+    );
+    expect(payload.filter).toEqual({
+      minSeverity: "high",
+      includeWithdrawn: true,
+    });
+    expect(payload.advisories?.[0]?.id).toBe("GHSA-mmmm-mmmm-mmmm");
+  });
+
+  it("omits filter from JSON when caller supplied none", () => {
+    const payload = buildPackageVulnerabilitiesSuccessPayload(
+      defaultVulnerabilityReport,
+    );
+    expect(payload.filter).toBeUndefined();
   });
 
   it("partition invariant: bucket sum equals vulnerabilities.length (and summary.total when backend is consistent)", () => {
@@ -720,7 +740,7 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
       useColors: false,
     });
     expect(output).toBe(
-      "clean @ 1.0.0 · npm\nNo known vulnerabilities affect this version.\n",
+      "clean @ 1.0.0 | npm\nNo active vulnerabilities affect this version.\n",
     );
   });
 
@@ -734,7 +754,7 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
       useColors: false,
     });
     expect(output).toBe(
-      "clean @ 1.0.0 · npm\nNo vulnerabilities affect this version (2 historical advisories do not apply).\n",
+      "clean @ 1.0.0 | npm\nNo active vulnerabilities affect this version (2 historical advisories do not apply).\n",
     );
   });
 
@@ -748,23 +768,33 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
       useColors: false,
     });
     expect(output).toBe(
-      "clean @ 1.0.0 · npm\nNo vulnerabilities affect this version (1 historical advisory does not apply).\n",
+      "clean @ 1.0.0 | npm\nNo active vulnerabilities affect this version (1 historical advisory does not apply).\n",
+    );
+  });
+
+  it("renders filtered zero-vulns with filter context", () => {
+    const output = formatPackageVulnerabilitiesTerminal(zeroVulnsFixture(), {
+      useColors: false,
+      filter: { minSeverity: "high" },
+    });
+    expect(output).toBe(
+      "clean @ 1.0.0 | npm\nFilter  severity >= high\nNo vulnerabilities matching the filter affect this version.\n",
     );
   });
 
   it("renders default terminal block with header, summary, breakdown, advisories, footer", () => {
     const output = formatPackageVulnerabilitiesTerminal(
       defaultVulnerabilityReport,
-      { useColors: false },
+      { useColors: false, verbose: true },
     );
-    expect(output).toContain("express @ 4.18.0 · npm");
+    expect(output).toContain("express @ 4.18.0 | npm");
     expect(output).toContain("6 vulnerabilities affect this version");
     expect(output).toContain("MALWARE");
     expect(output).toContain("GHSA-mmmm-mmmm-mmmm");
     expect(output).toContain("Fix version: 4.18.2.");
   });
 
-  it("shows MALWARE · crit combined label for malicious + severe advisory", () => {
+  it("shows MALWARE | crit combined label for malicious + severe advisory", () => {
     const fixture = cloneFixture();
     if (fixture.security?.vulnerabilities?.[0]) {
       fixture.security.vulnerabilities[0].severityScore = 9.5;
@@ -772,7 +802,7 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     const output = formatPackageVulnerabilitiesTerminal(fixture, {
       useColors: false,
     });
-    expect(output).toContain("MALWARE · critical");
+    expect(output).toContain("MALWARE | critical");
   });
 
   it("omits breakdown line when total is 1", () => {
@@ -851,12 +881,12 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
   it("breakdown line includes unrated bucket so the sum reconciles with total", () => {
     const output = formatPackageVulnerabilitiesTerminal(
       defaultVulnerabilityReport,
-      { useColors: false },
+      { useColors: false, verbose: true },
     );
     // Fixture has 6 advisories: 1 malware, 1 crit, 1 high, 1 medium, 1 low,
     // 1 unrated. Breakdown line must enumerate all six to match the total.
     expect(output).toMatch(
-      /1 MALWARE · 1 crit · 1 high · 1 medium · 1 low · 1 unrated/,
+      /1 MALWARE \| 1 crit \| 1 high \| 1 medium \| 1 low \| 1 unrated/,
     );
   });
 
@@ -879,7 +909,7 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     });
     // First 4 ranges shown; the remaining 3 collapse into the hint.
     expect(output).toContain(
-      "affected ==1.0.0, ==1.0.1, ==1.0.2, ==1.0.3, … (+3 more; use -v)",
+      "affected ==1.0.0, ==1.0.1, ==1.0.2, ==1.0.3, ... (+3 more; use -v)",
     );
     expect(output).not.toContain("==1.0.4,");
   });
@@ -896,7 +926,7 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
       useColors: false,
     });
     expect(output).toContain(
-      "affected ==1.0.0, ==1.0.1, … (+3 ranges omitted by service)",
+      "affected ==1.0.0, ==1.0.1, ... (+3 ranges omitted by service)",
     );
   });
 
@@ -919,6 +949,58 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     });
     expect(output).toContain("==1.0.4, ==1.0.5");
     expect(output).not.toContain("+2 more");
+  });
+
+  it("caps default advisory rows and bases hidden count on rendered advisories", () => {
+    const fixture = cloneFixture();
+    if (fixture.security) {
+      fixture.security.affectedVulnerabilityCount = 99;
+    }
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+    });
+    expect(DEFAULT_ADVISORY_CAP).toBe(5);
+    expect(output).toContain("... (+1 more; use -v)");
+    expect(output).not.toContain("... (+94 more");
+    expect(output).not.toContain("GHSA-nnnn-nnnn-nnnn");
+  });
+
+  it("verbose mode shows all advisory rows", () => {
+    const output = formatPackageVulnerabilitiesTerminal(
+      defaultVulnerabilityReport,
+      { useColors: false, verbose: true },
+    );
+    expect(output).not.toContain("... (+1 more; use -v)");
+    expect(output).toContain("GHSA-nnnn-nnnn-nnnn");
+  });
+
+  it("uses MCP-native truncation hints", () => {
+    const output = formatPackageVulnerabilitiesTerminal(
+      defaultVulnerabilityReport,
+      { useColors: false, surface: "mcp" },
+    );
+    expect(output).toContain("... (+1 more; use verbose=true or format=json)");
+    expect(output).not.toContain("use -v");
+  });
+
+  it("echoes filters in the terminal header", () => {
+    const output = formatPackageVulnerabilitiesTerminal(
+      defaultVulnerabilityReport,
+      {
+        useColors: false,
+        filter: { minSeverity: "high", includeWithdrawn: true },
+      },
+    );
+    expect(output).toContain("Filter  severity >= high");
+    expect(output).toContain("Filter  include withdrawn");
+  });
+
+  it("pkg_vulns text output is printable ASCII", () => {
+    const output = formatPackageVulnerabilitiesTerminal(
+      defaultVulnerabilityReport,
+      { useColors: false, verbose: true },
+    );
+    expect(output).not.toMatch(/[·…—–]/);
   });
 
   it("singular vulnerability noun when total is 1", () => {
@@ -1024,7 +1106,7 @@ describe("unrated severity column", () => {
   it("fills the severity gutter for null-CVSS non-malicious advisories", () => {
     const output = formatPackageVulnerabilitiesTerminal(
       defaultVulnerabilityReport,
-      { useColors: false },
+      { useColors: false, verbose: true },
     );
     // The fixture's null-severity advisory (GHSA-nnnn) used to render
     // with a blank severity column. It now reads "unrated", matching
@@ -1051,7 +1133,7 @@ describe("affected-range cap adapts to terminal width", () => {
       buildManyRangesFixture(10),
       { useColors: false, terminalWidth: 80 },
     );
-    expect(output).toContain("==1.0.0, ==1.1.0, ==1.2.0, ==1.3.0, …");
+    expect(output).toContain("==1.0.0, ==1.1.0, ==1.2.0, ==1.3.0, ...");
     expect(output).toContain("(+6 more; use -v)");
     expect(output).not.toContain("==1.4.0");
   });

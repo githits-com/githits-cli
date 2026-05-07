@@ -467,6 +467,15 @@ async function runLiveSmoke(): Promise<void> {
     "pkg vulns terminal missing context",
   );
 
+  const filteredVulnsText = assertTerminalOutput(
+    await runCli(["pkg", "vulns", "npm:lodash@4.17.20", "--severity", "high"]),
+    "pkg vulns filtered terminal",
+  );
+  assert(
+    filteredVulnsText.includes("Filter  severity >= high"),
+    "pkg vulns filtered terminal missing filter echo",
+  );
+
   const vulnsJson = assertJsonOutput(
     await runCli(["pkg", "vulns", "npm:express", "--json"]),
     "pkg vulns json",
@@ -475,6 +484,24 @@ async function runLiveSmoke(): Promise<void> {
   assert(
     "summary" in vulnsJson || "advisories" in vulnsJson,
     "pkg vulns json missing vulnerability data",
+  );
+
+  const filteredVulnsJson = assertJsonOutput(
+    await runCli([
+      "pkg",
+      "vulns",
+      "npm:lodash@4.17.20",
+      "--severity",
+      "high",
+      "--json",
+    ]),
+    "pkg vulns filtered json",
+  );
+  assertRecord(filteredVulnsJson, "pkg vulns filtered json");
+  assertRecord(filteredVulnsJson.filter, "pkg vulns filtered json filter");
+  assert(
+    filteredVulnsJson.filter.minSeverity === "high",
+    "pkg vulns filtered json missing severity filter echo",
   );
 
   const changelogText = assertTerminalOutput(

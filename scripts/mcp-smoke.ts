@@ -361,6 +361,25 @@ async function runLiveSmoke(client: Client): Promise<void> {
     vulnsText.includes("express") || vulnsText.includes("vulnerab"),
     "pkg_vulns default missing context",
   );
+  assert(!vulnsText.includes("use -v"), "pkg_vulns leaked CLI -v hint");
+
+  const filteredVulnsText = assertDefaultText(
+    await callTool(client, "pkg_vulns", {
+      registry: "npm",
+      package_name: "lodash",
+      version: "4.17.20",
+      min_severity: "high",
+    }),
+    "pkg_vulns filtered default",
+  );
+  assert(
+    filteredVulnsText.includes("Filter  severity >= high"),
+    "pkg_vulns filtered default missing filter echo",
+  );
+  assert(
+    !filteredVulnsText.includes("use -v"),
+    "pkg_vulns filtered default leaked CLI -v hint",
+  );
 
   const vulnsJson = assertJsonResult(
     await callTool(client, "pkg_vulns", {
@@ -374,6 +393,23 @@ async function runLiveSmoke(client: Client): Promise<void> {
   assert(
     "summary" in vulnsJson || "advisories" in vulnsJson,
     "pkg_vulns json missing vulnerability data",
+  );
+
+  const filteredVulnsJson = assertJsonResult(
+    await callTool(client, "pkg_vulns", {
+      registry: "npm",
+      package_name: "lodash",
+      version: "4.17.20",
+      min_severity: "high",
+      format: "json",
+    }),
+    "pkg_vulns filtered json",
+  );
+  assertRecord(filteredVulnsJson, "pkg_vulns filtered json");
+  assertRecord(filteredVulnsJson.filter, "pkg_vulns filtered json filter");
+  assert(
+    filteredVulnsJson.filter.minSeverity === "high",
+    "pkg_vulns filtered json missing severity filter echo",
   );
 
   const changelogText = assertDefaultText(

@@ -1,7 +1,7 @@
 /**
  * Hand-crafted response envelope for the `package_vulnerabilities`
- * tool. Shared by CLI `--json` output and MCP `content[0].text`. The
- * terminal formatter is CLI-only.
+ * tool. Shared by CLI `--json`, CLI terminal output, and MCP
+ * `content[0].text`.
  *
  * Key design commitments (locked in the plan):
  * - Backend is the single source of truth for counts. `minSeverity`
@@ -47,6 +47,7 @@ import type {
 } from "../services/index.js";
 import { colorize, dim } from "./colors.js";
 import { toIsoDate } from "./format-date.js";
+import type { PackageVulnerabilitiesFilterEcho } from "./package-vulnerabilities-request.js";
 import { toPkgseerRegistryLowercase } from "./pkgseer-registry.js";
 
 export type VulnSeverityLabel = "critical" | "high" | "medium" | "low";
@@ -93,6 +94,7 @@ export interface LeanVulnerabilityReport {
   version: string;
   requestedVersion?: string;
   summary: LeanVulnerabilitySummary;
+  filter?: PackageVulnerabilitiesFilterEcho;
   advisories?: LeanAdvisory[];
   upgradePaths?: string[];
 }
@@ -100,7 +102,11 @@ export interface LeanVulnerabilityReport {
 export interface BuildVulnerabilitiesPayloadOptions {
   /** Raw caller-supplied version string (pre-normalisation). */
   requestedVersion?: string;
+  /** Caller-supplied filters, echoed from shared request parsing. */
+  filter?: PackageVulnerabilitiesFilterEcho;
 }
+
+export const DEFAULT_ADVISORY_CAP = 5;
 
 /**
  * Build the lean envelope from a validated {@link VulnerabilityReport}.
@@ -137,6 +143,10 @@ export function buildPackageVulnerabilitiesSuccessPayload(
   );
   if (requestedEcho !== undefined) {
     payload.requestedVersion = requestedEcho;
+  }
+
+  if (options.filter !== undefined) {
+    payload.filter = options.filter;
   }
 
   if (total > 0) {
@@ -740,13 +750,17 @@ function lowerRegistry(value: string | undefined): string {
 }
 
 // --------------------------------------------------------------------
-// Terminal formatter (CLI-only; MCP never invokes this)
+// Shared terminal/text formatter used by both CLI and MCP.
 // --------------------------------------------------------------------
+
+export type VulnerabilitiesTextSurface = "cli" | "mcp";
 
 export interface FormatVulnerabilitiesTerminalOptions {
   verbose?: boolean;
   useColors?: boolean;
   requestedVersion?: string;
+  filter?: PackageVulnerabilitiesFilterEcho;
+  surface?: VulnerabilitiesTextSurface;
   /**
    * Terminal width in columns. Used to decide how many
    * affected-version ranges to show before collapsing into a
@@ -762,18 +776,22 @@ export function formatPackageVulnerabilitiesTerminal(
 ): string {
   const payload = buildPackageVulnerabilitiesSuccessPayload(report, {
     requestedVersion: options.requestedVersion,
+    filter: options.filter,
   });
   const useColors = options.useColors ?? false;
   const verbose = options.verbose ?? false;
+  const surface = options.surface ?? "cli";
 
   const headerLine = formatHeader(payload, useColors);
   const requestedLine = payload.requestedVersion
     ? dim(`(requested ${payload.requestedVersion})`, useColors)
     : undefined;
+  const filterLines = formatFilterLines(payload.filter);
 
   if (payload.summary.total === 0) {
     const lines = [headerLine];
     if (requestedLine) lines.push(requestedLine);
+    lines.push(...filterLines);
     lines.push(formatNoAffectedVulnerabilitiesLine(payload));
     return `${lines.join("\n")}\n`;
   }
@@ -781,6 +799,7 @@ export function formatPackageVulnerabilitiesTerminal(
   const blocks: string[] = [];
   const headerBlock: string[] = [headerLine];
   if (requestedLine) headerBlock.push(requestedLine);
+  headerBlock.push(...filterLines);
   headerBlock.push(formatSummaryLine(payload, useColors));
   const breakdown = formatBreakdownLine(payload.summary, useColors);
   if (breakdown) headerBlock.push(breakdown);
@@ -789,7 +808,13 @@ export function formatPackageVulnerabilitiesTerminal(
   if (payload.advisories && payload.advisories.length > 0) {
     const rangeLimit = resolveAffectedRangesLimit(options.terminalWidth);
     blocks.push(
-      formatAdvisoryList(payload.advisories, verbose, useColors, rangeLimit),
+      formatAdvisoryList(
+        payload.advisories,
+        verbose,
+        useColors,
+        rangeLimit,
+        surface,
+      ),
     );
   }
 
@@ -804,7 +829,21 @@ function formatHeader(
   useColors: boolean,
 ): string {
   const name = colorize(payload.name, "bold", useColors);
-  return `${name} @ ${payload.version} · ${payload.registry}`;
+  return `${name} @ ${payload.version} | ${payload.registry}`;
+}
+
+function formatFilterLines(
+  filter: PackageVulnerabilitiesFilterEcho | undefined,
+): string[] {
+  if (!filter) return [];
+  const lines: string[] = [];
+  if (filter.minSeverity) {
+    lines.push(`Filter  severity >= ${filter.minSeverity}`);
+  }
+  if (filter.includeWithdrawn === true) {
+    lines.push("Filter  include withdrawn");
+  }
+  return lines;
 }
 
 function formatSummaryLine(
@@ -829,14 +868,17 @@ function formatSummaryLine(
 function formatNoAffectedVulnerabilitiesLine(
   payload: LeanVulnerabilityReport,
 ): string {
+  if (payload.filter !== undefined) {
+    return "No vulnerabilities matching the filter affect this version.";
+  }
   const historical = payload.summary.nonAffectingVulnerabilityCount ?? 0;
   if (historical > 0) {
     const noun =
       historical === 1 ? "historical advisory" : "historical advisories";
     const verb = historical === 1 ? "does" : "do";
-    return `No vulnerabilities affect this version (${historical} ${noun} ${verb} not apply).`;
+    return `No active vulnerabilities affect this version (${historical} ${noun} ${verb} not apply).`;
   }
-  return "No known vulnerabilities affect this version.";
+  return "No active vulnerabilities affect this version.";
 }
 
 function formatBreakdownLine(
@@ -866,7 +908,7 @@ function formatBreakdownLine(
     }
   }
   if (parts.length === 0) return undefined;
-  return `  ${parts.join(" · ")}`;
+  return `  ${parts.join(" | ")}`;
 }
 
 // --------------------------------------------------------------------
@@ -878,12 +920,16 @@ function formatAdvisoryList(
   verbose: boolean,
   useColors: boolean,
   rangeLimit: number,
+  surface: VulnerabilitiesTextSurface,
 ): string {
+  const renderedAdvisories = verbose
+    ? advisories
+    : advisories.slice(0, DEFAULT_ADVISORY_CAP);
   const labelWidth = Math.max(
-    ...advisories.map((a) => severityColumnLabel(a).length),
+    ...renderedAdvisories.map((a) => severityColumnLabel(a).length),
   );
   const lines: string[] = [];
-  for (const advisory of advisories) {
+  for (const advisory of renderedAdvisories) {
     lines.push(
       ...formatAdvisoryLines(
         advisory,
@@ -891,16 +937,29 @@ function formatAdvisoryList(
         verbose,
         useColors,
         rangeLimit,
+        surface,
       ),
     );
     lines.push("");
   }
+  const hidden = advisories.length - renderedAdvisories.length;
+  if (hidden > 0) {
+    lines.push(dim(formatAdvisoryCapHint(hidden, surface), useColors));
+  }
   return lines.join("\n").trimEnd();
+}
+
+function formatAdvisoryCapHint(
+  hidden: number,
+  surface: VulnerabilitiesTextSurface,
+): string {
+  const hint = surface === "mcp" ? "use verbose=true or format=json" : "use -v";
+  return `... (+${hidden} more; ${hint})`;
 }
 
 function severityColumnLabel(advisory: LeanAdvisory): string {
   if (advisory.isMalicious === true) {
-    if (advisory.severityLabel) return `MALWARE · ${advisory.severityLabel}`;
+    if (advisory.severityLabel) return `MALWARE | ${advisory.severityLabel}`;
     return "MALWARE";
   }
   // Filling the column with "unrated" (dim) when the advisory has no
@@ -955,6 +1014,7 @@ function formatAdvisoryLines(
   verbose: boolean,
   useColors: boolean,
   rangeLimit: number,
+  surface: VulnerabilitiesTextSurface,
 ): string[] {
   const rawLabel = severityColumnLabel(advisory);
   const padded = rawLabel.padEnd(labelWidth);
@@ -981,6 +1041,7 @@ function formatAdvisoryLines(
         verbose,
         useColors,
         rangeLimit,
+        surface,
         advisory.affectedVersionRangesCount,
         advisory.affectedVersionRangesTruncated,
       ),
@@ -1026,6 +1087,7 @@ function formatRangeList(
   verbose: boolean,
   useColors: boolean,
   limit: number,
+  surface: VulnerabilitiesTextSurface,
   totalCount: number | undefined,
   backendTruncated: boolean | undefined,
 ): string {
@@ -1035,7 +1097,7 @@ function formatRangeList(
   const appendBackendHint = (shown: string): string => {
     if (backendHidden > 0) {
       const hint = dim(
-        `… (+${backendHidden} ranges omitted by service)`,
+        `... (+${backendHidden} ranges omitted by service)`,
         useColors,
       );
       return shown.length > 0 ? `${shown}, ${hint}` : hint;
@@ -1048,10 +1110,11 @@ function formatRangeList(
   }
   const shown = ranges.slice(0, limit).join(", ");
   const localHidden = ranges.length - limit;
+  const localHint = surface === "mcp" ? "use verbose=true" : "use -v";
   const hintText =
     backendHidden > 0
-      ? `… (+${localHidden} more with -v; +${backendHidden} omitted by service)`
-      : `… (+${localHidden} more; use -v)`;
+      ? `... (+${localHidden} more with ${localHint}; +${backendHidden} omitted by service)`
+      : `... (+${localHidden} more; ${localHint})`;
   const hint = dim(hintText, useColors);
   return `${shown}, ${hint}`;
 }

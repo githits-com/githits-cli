@@ -120,6 +120,75 @@ describe("package_vulnerabilities parity", () => {
     expect(cli).toEqual(json);
   });
 
+  it("PARITY-JSON-KEYS: include_withdrawn filter echo CLI === MCP", async () => {
+    const fn = mock(() => Promise.resolve(defaultVulnerabilityReport));
+    const cli = await cliJson(
+      "npm:express",
+      { includeWithdrawn: true },
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageVulnerabilities: fn as never,
+        }),
+      }),
+    );
+    const { json } = await mcpJson(
+      { registry: "npm", package_name: "express", include_withdrawn: true },
+      fn as never,
+    );
+    expect(cli).toEqual(json);
+    expect((cli as { filter?: unknown }).filter).toEqual({
+      includeWithdrawn: true,
+    });
+  });
+
+  it("PARITY-JSON-KEYS: combined filter echo CLI === MCP", async () => {
+    const fn = mock(() => Promise.resolve(defaultVulnerabilityReport));
+    const cli = await cliJson(
+      "npm:express",
+      { severity: "HIGH", includeWithdrawn: true },
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageVulnerabilities: fn as never,
+        }),
+      }),
+    );
+    const { json } = await mcpJson(
+      {
+        registry: "npm",
+        package_name: "express",
+        min_severity: "HIGH",
+        include_withdrawn: true,
+      },
+      fn as never,
+    );
+    expect(cli).toEqual(json);
+    expect((cli as { filter?: unknown }).filter).toEqual({
+      minSeverity: "high",
+      includeWithdrawn: true,
+    });
+  });
+
+  it("PARITY-JSON-KEYS: filtered zero response CLI === MCP", async () => {
+    const fn = mock(() => Promise.resolve(zeroVulnsReport()));
+    const cli = await cliJson(
+      "npm:clean",
+      { severity: "high" },
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageVulnerabilities: fn as never,
+        }),
+      }),
+    );
+    const { json } = await mcpJson(
+      { registry: "npm", package_name: "clean", min_severity: "high" },
+      fn as never,
+    );
+    expect(cli).toEqual(json);
+    expect((cli as { filter?: unknown }).filter).toEqual({
+      minSeverity: "high",
+    });
+  });
+
   it("PARITY-JSON-KEYS: zero-vulns hot path CLI === MCP", async () => {
     const zeroFn = mock(() => Promise.resolve(zeroVulnsReport()));
     const cli = await cliJson(
