@@ -17,6 +17,7 @@ export interface AgentEvalReportOptions {
 
 export interface AgentEvalRunMetadata {
   agent?: string;
+  model?: string;
   server?: string;
   dryRun?: boolean;
   git?: Record<string, string | undefined>;
@@ -73,6 +74,7 @@ export interface AgentEvalReport {
   schemaVersion: 1;
   status: string;
   agent?: string;
+  model?: string;
   server?: string;
   dryRun?: boolean;
   git?: Record<string, string | undefined>;
@@ -416,6 +418,7 @@ export function buildRunReportFromMetadata(
     schemaVersion: 1,
     status,
     agent: metadata.agent,
+    model: metadata.model,
     server: metadata.server,
     dryRun: metadata.dryRun,
     git: metadata.git,
@@ -439,7 +442,7 @@ function formatDuration(ms: number | undefined): string {
 
 export function formatRunReport(report: AgentEvalReport): string {
   const lines = [
-    `Agent eval: ${report.status} (${report.agent ?? "unknown"}/${report.server ?? "unknown"}) ${report.runDir}`,
+    `Agent eval: ${report.status} (${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.server ?? "unknown"}) ${report.runDir}`,
   ];
   for (const workload of report.workloads) {
     const final = workload.finalReport;
@@ -504,6 +507,12 @@ function formatStatusCounts(summary: ToolCallSummary): string {
     .join(" ");
 }
 
+function formatRunLabel(
+  report: Pick<AgentEvalReport, "agent" | "model" | "server">,
+): string {
+  return `${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.server ?? "unknown"}`;
+}
+
 export function compareReports(
   before: AgentEvalReport,
   after: AgentEvalReport,
@@ -522,7 +531,7 @@ export function compareReports(
         "cross-agent comparison: status/event counts are not comparable; showing tool-name presence only",
       ];
   const lines = [
-    `Agent eval compare: before=${before.runDir} after=${after.runDir}`,
+    `Agent eval compare: before=${before.runDir} (${formatRunLabel(before)}) after=${after.runDir} (${formatRunLabel(after)})`,
     ...warnings.map((warning) => `Warning: ${warning}`),
   ];
   for (const id of ids) {
