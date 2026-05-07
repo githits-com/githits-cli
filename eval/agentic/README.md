@@ -102,6 +102,26 @@ For tool-specific edits, add the workload from the table. Compare
 `tool-calls.json` plus the final JSON's `toolIssues`, `instructionIssues`, and
 `githitsUsefulnessReason` across branches or against a published run.
 
+### Current Baseline Observations
+
+The initial local baseline ran all workloads against Claude and Codex. Expected
+tool families were exercised after tightening the shared reporting contract.
+Notable findings to keep in mind when evaluating future changes:
+
+- `global-example.md` exercises `get_example`; agents may combine it with docs,
+  source, or package metadata when they need stronger canonical evidence.
+- `code-grep-investigation.md` surfaced a real `code_grep` regex limitation for
+  short/stopword-heavy patterns; literal grep is the reliable path for that
+  workload.
+- `unified-search-investigation.md` intentionally exposes `search` warnings and
+  follow-up needs. Agents should inspect warnings and use `code_read`,
+  `docs_read`, or `code_grep` when top search hits are incomplete/noisy.
+- Codex sometimes reports a tool as unavailable until it performs additional
+  tool discovery. Use `tool-calls.json` to distinguish actual unavailable tools
+  from delayed discovery.
+- `tool-calls.json` is the source of truth for tool usage. The final JSON is for
+  the agent's assessment of clarity, issues, and usefulness.
+
 ## Artifacts
 
 Each run writes:

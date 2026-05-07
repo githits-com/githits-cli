@@ -6,6 +6,8 @@
     "status",
     "answer",
     "toolIssues",
+    "expectedToolUse",
+    "unexpectedToolUse",
     "instructionIssues",
     "githitsUsefulness",
     "githitsUsefulnessReason",
