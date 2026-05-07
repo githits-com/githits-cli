@@ -161,7 +161,6 @@ export type {
   PackageSummaryParams,
   PackageVersionIdentity,
   PackageVulnerabilitiesParams,
-  QuickstartInfo,
   ReadPackageDocParams,
   TransitiveDependencySummary,
   UntypedGenericJSON,

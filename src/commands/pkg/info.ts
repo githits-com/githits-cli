@@ -99,12 +99,16 @@ function handlePkgInfoCommandError(error: unknown, json: boolean): never {
   process.exit(1);
 }
 
-const PKG_INFO_DESCRIPTION = `Get a package overview — latest version, license, description,
-repository, downloads, GitHub stars, install command, and known
-vulnerabilities. Use before picking a dependency or to orient on what
-a package is.
+const PKG_INFO_DESCRIPTION = `Latest-version package overview for dependency triage.
+
+Default output shows license, description, repository popularity
+(stars/forks/issues and [ARCHIVED] when applicable), downloads,
+publish age, and vulnerability status. --verbose adds GitHub
+language/topics/last-pushed, recent advisories, and recent changes.
 
 Package spec: <registry>:<name>. Supported registries: ${PKGSEER_REGISTRY_LIST}.
+
+Example: githits pkg info npm:express
 
 Always returns data for the latest published version.`;
 
@@ -116,7 +120,7 @@ export function registerPkgInfoCommand(pkgCommand: Command): Command {
     .argument("<spec>", "Package spec, e.g. npm:express or pypi:requests")
     .option(
       "-v, --verbose",
-      "Show advisories, install usage, topics, and recent changes",
+      "Show GitHub language/topics/last-pushed, recent advisories, and recent changes",
     )
     .option("--json", "Emit the lean JSON envelope")
     .action(async (spec: string, options: PkgInfoCommandOptions) => {

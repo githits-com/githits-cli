@@ -36,9 +36,11 @@ describe("pkgInfoAction", () => {
     await pkgInfoAction("npm:express", {}, createDeps());
 
     const combined = writes.join("");
-    expect(combined).toContain("express @ 4.18.2 · MIT");
+    expect(combined).toContain("express @ 4.18.2 | MIT");
     expect(combined).toContain("Repository");
-    expect(combined).toContain("Install");
+    expect(combined).toContain("63k stars, 14k forks, 123 issues");
+    expect(combined).toContain("Vulnerabilities");
+    expect(combined).not.toContain("Install");
     writeSpy.mockRestore();
   });
 
@@ -52,6 +54,8 @@ describe("pkgInfoAction", () => {
     expect(payload.name).toBe("express");
     expect(payload.registry).toBe("npm");
     expect(payload.version).toBe("4.18.2");
+    expect("install" in payload).toBe(false);
+    expect("usage" in payload).toBe(false);
     logSpy.mockRestore();
   });
 

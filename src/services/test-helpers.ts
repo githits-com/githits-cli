@@ -429,10 +429,6 @@ export const defaultPackageSummary: PackageSummary = {
       },
     ],
   },
-  quickstart: {
-    installCommand: "npm install express",
-    usageExample: "const express = require('express')\nconst app = express()",
-  },
   latestChangelogs: [
     {
       version: "4.18.2",

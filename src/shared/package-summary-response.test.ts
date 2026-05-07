@@ -26,7 +26,8 @@ describe("buildPackageSummarySuccessPayload — happy path", () => {
     expect(payload.publishedAt).toBe("2023-05-28");
     expect(payload.downloads?.lastMonth).toBe(86_000_000);
     expect(payload.github?.stars).toBe(63_400);
-    expect(payload.install).toBe("npm install express");
+    expect("install" in payload).toBe(false);
+    expect("usage" in payload).toBe(false);
     expect(payload.vulnerabilities?.total).toBe(5);
     expect(payload.vulnerabilities?.affectsLatest).toBe(true);
     expect(payload.vulnerabilities?.recent?.[0]?.severityLabel).toBe("high");
@@ -87,7 +88,7 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
     expect(payload.github?.topics).toBeUndefined();
   });
 
-  it("omits vulnerabilities block when total is 0", () => {
+  it("keeps vulnerabilities block when total is 0", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 0,
@@ -95,7 +96,10 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
       recentVulnerabilities: [],
     };
     const payload = buildPackageSummarySuccessPayload(fixture);
-    expect(payload.vulnerabilities).toBeUndefined();
+    expect(payload.vulnerabilities).toEqual({
+      total: 0,
+      affectsLatest: false,
+    });
   });
 
   it("omits vulnerabilities block when vulnerabilityCount is null/missing", () => {
@@ -126,14 +130,6 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
     expect(payload.vulnerabilities?.total).toBe(3);
     expect(payload.vulnerabilities?.affectsLatest).toBe(true);
     expect(payload.vulnerabilities?.recent).toBeUndefined();
-  });
-
-  it("omits install/usage individually when null, and drops quickstart block when empty", () => {
-    const fixture = happyFixture();
-    fixture.quickstart = { installCommand: undefined, usageExample: undefined };
-    const payload = buildPackageSummarySuccessPayload(fixture);
-    expect(payload.install).toBeUndefined();
-    expect(payload.usage).toBeUndefined();
   });
 
   it("drops recentChanges entries with null version but preserves backend order", () => {
@@ -173,8 +169,8 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
     const summary =
       buildPackageSummarySuccessPayload(fixture).recentChanges?.[0]?.summary;
     expect(summary).toBeDefined();
-    expect(summary?.length).toBeLessThanOrEqual(121); // 120 + trailing ellipsis
-    expect(summary?.endsWith("…")).toBe(true);
+    expect(summary?.length).toBeLessThanOrEqual(120);
+    expect(summary?.endsWith("...")).toBe(true);
   });
 });
 
@@ -185,15 +181,6 @@ describe("buildPackageSummarySuccessPayload — data transformations", () => {
     fixture.package.latestVersionPublishedAt = "2024-05-10T23:59:00Z";
     const payload = buildPackageSummarySuccessPayload(fixture);
     expect(payload.publishedAt).toBe("2024-05-10");
-  });
-
-  it("normalises \\r\\n in usage to \\n", () => {
-    const fixture = happyFixture();
-    if (fixture.quickstart) {
-      fixture.quickstart.usageExample = "line 1\r\nline 2\r\nline 3";
-    }
-    const payload = buildPackageSummarySuccessPayload(fixture);
-    expect(payload.usage).toBe("line 1\nline 2\nline 3");
   });
 
   it("omits severity/severityLabel when the score is null or non-positive", () => {
@@ -238,29 +225,51 @@ describe("severityLabel — CVSS banding boundaries", () => {
 });
 
 describe("formatPackageSummaryTerminal", () => {
-  it("renders the default block with header, description, fields, and vuln footer", () => {
+  it("renders the default triage block with repository popularity and vulnerability status", () => {
     const output = formatPackageSummaryTerminal(defaultPackageSummary, {
       useColors: false,
       now: FIXED_NOW,
     });
-    expect(output).toContain("express @ 4.18.2 · MIT");
+    expect(output).toContain("express @ 4.18.2 | MIT");
     expect(output).toContain("Fast, unopinionated");
-    expect(output).toContain("Repository");
-    expect(output).toContain("5 known vulnerabilities · latest affected");
+    expect(output).toContain(
+      "Repository       https://github.com/expressjs/express (63k stars, 14k forks, 123 issues)",
+    );
+    expect(output).toContain(
+      "Vulnerabilities  5 active vulnerabilities; latest affected",
+    );
+    expect(output).not.toContain("Install");
+    expect(output).not.toContain("Usage");
   });
 
-  it("verbose mode adds Usage, Recent advisories, Topics, and Recent changes", () => {
+  it("verbose mode adds GitHub details, Recent advisories, and Recent changes", () => {
     const output = formatPackageSummaryTerminal(defaultPackageSummary, {
       verbose: true,
       useColors: false,
       now: FIXED_NOW,
     });
-    expect(output).toContain("Usage");
-    expect(output).toContain("const express");
+    expect(output).toContain("GitHub");
+    expect(output).toContain("  Language     JavaScript");
+    expect(output).toContain(
+      "  Topics       framework, http, middleware, nodejs, web",
+    );
     expect(output).toContain("Recent advisories");
     expect(output).toContain("GHSA-xxxx-xxxx-xxxx");
-    expect(output).toContain("Topics");
     expect(output).toContain("Recent changes");
+  });
+
+  it("text output stays printable ASCII", () => {
+    const output = formatPackageSummaryTerminal(defaultPackageSummary, {
+      verbose: true,
+      useColors: false,
+      now: FIXED_NOW,
+    });
+    for (const char of output) {
+      const code = char.charCodeAt(0);
+      expect(
+        code === 9 || code === 10 || code === 13 || (code >= 32 && code <= 126),
+      ).toBe(true);
+    }
   });
 
   it("no-color output contains no ANSI escape sequences", () => {
@@ -272,7 +281,7 @@ describe("formatPackageSummaryTerminal", () => {
     expect(output).not.toContain("\x1b[");
   });
 
-  it("vuln footer uses singular form for total = 1", () => {
+  it("vulnerability status uses singular form for total = 1", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 1,
@@ -283,10 +292,10 @@ describe("formatPackageSummaryTerminal", () => {
       useColors: false,
       now: FIXED_NOW,
     });
-    expect(output).toContain("1 known vulnerability");
+    expect(output).toContain("1 active vulnerability; latest affected");
   });
 
-  it("omits the vuln footer when there are zero vulnerabilities", () => {
+  it("renders explicit zero-vulnerability status", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 0,
@@ -297,8 +306,9 @@ describe("formatPackageSummaryTerminal", () => {
       useColors: false,
       now: FIXED_NOW,
     });
-    expect(output).not.toContain("known vulnerabilities");
-    expect(output).not.toContain("known vulnerability");
+    expect(output).toContain(
+      "Vulnerabilities  No active vulnerabilities in latest published version",
+    );
   });
 
   it("omits license separator when license is null", () => {
@@ -319,7 +329,33 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
     });
     expect(output).not.toContain("GitHub");
-    expect(output).not.toContain("★");
+    expect(output).not.toContain("stars");
+  });
+
+  it("renders GitHub popularity when repository URL is missing", () => {
+    const fixture = happyFixture();
+    fixture.package.repositoryUrl = undefined;
+    const output = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+    });
+    expect(output).toContain(
+      "GitHub           63k stars, 14k forks, 123 issues",
+    );
+  });
+
+  it("marks archived repositories in default popularity text", () => {
+    const fixture = happyFixture();
+    if (fixture.package.githubRepository) {
+      fixture.package.githubRepository.archived = true;
+    }
+    const output = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+    });
+    expect(output).toContain(
+      "Repository       https://github.com/expressjs/express ([ARCHIVED], 63k stars, 14k forks, 123 issues)",
+    );
   });
 
   it("wraps description at 80 cols and uses 80-col fallback when stdout.columns is undefined", () => {
@@ -338,13 +374,15 @@ describe("formatPackageSummaryTerminal", () => {
     }
   });
 
-  it("renders topics in verbose mode without colorizing the label gutter", () => {
+  it("renders topics in verbose GitHub block", () => {
     const output = formatPackageSummaryTerminal(defaultPackageSummary, {
       verbose: true,
       useColors: false,
       now: FIXED_NOW,
     });
-    // The label "Topics" starts at column 0 with a fixed-width gutter
-    expect(output).toMatch(/\nTopics\s{4}\s{2}framework/);
+    expect(output).toContain(
+      "  Topics       framework, http, middleware, nodejs, web",
+    );
+    expect(output.match(/Topics/g)?.length).toBe(1);
   });
 });
