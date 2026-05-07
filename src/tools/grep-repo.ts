@@ -89,11 +89,11 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Deterministic text grep over indexed dependency and repository source files. " +
-  "Use this when you know the text pattern you want; use `search` for discovery. " +
+  "Deterministic text or regex grep over indexed dependency and repository source files. " +
+  'Use this when you know the pattern (literal by default; pass `pattern_type: "regex"` for RE2). ' +
+  "Use `search` for discovery instead. " +
   "Whole-target grep is the default — narrow with `path`, `path_prefix`, `globs`, or `extensions` to keep responses small. " +
-  'Default response is a compact line-oriented listing (`format: "text-v1"`); pass `format: "json"` for the structured envelope. ' +
-  "Matches chain directly into `code_read` (the `path` and `line` from each match feed straight into `start_line` / `end_line`).";
+  "Each match's `path` chains into `code_read.path`; pick a window around `match.line` for `code_read.start_line` / `end_line`.";
 
 export function createGrepRepoTool(
   service: CodeNavigationService,

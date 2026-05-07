@@ -33,7 +33,7 @@ const schema = {
     .enum(["json", "text", "text-v1"])
     .optional()
     .describe(
-      "Response format. Default `text-v1` returns markdown directly with a trailing `solution_id` line when available. Pass `json` for `{result, solution_id?}`.",
+      'Response format. Default `text-v1` returns markdown directly with a trailing `solution_id` line when available. Pass `format: "json"` for `{result, solution_id?}`.',
     ),
 };
 

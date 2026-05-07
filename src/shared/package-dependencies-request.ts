@@ -7,10 +7,10 @@
  * Responsibilities:
  * - Trim + validate `packageName`.
  * - Normalise registry case and restrict to the registries that the
- *   upstream `packageDependencies` resolver supports (`npm, pypi, hex,
- *   crates, vcpkg, zig`). Other known registries are rejected with a
- *   tool-specific message; truly unknown registries fall through to
- *   the shared `UnsupportedRegistryError`.
+ *   upstream `packageDependencies` resolver supports (see
+ *   `SUPPORTED_DEPS_REGISTRIES`). Other known registries are rejected
+ *   with a tool-specific message; truly unknown registries fall
+ *   through to the shared `UnsupportedRegistryError`.
  * - Reject tag-style versions (`v4.18.0`) client-side — the `v` prefix
  *   is a git-tag convention, not a canonical version on any supported
  *   registry.
@@ -26,6 +26,7 @@ import {
 } from "./package-spec.js";
 import {
   isKnownPkgseerRegistryArg,
+  PKGSEER_REGISTRY_ARGS,
   PKGSEER_REGISTRY_LIST,
   type PkgseerRegistry,
   type PkgseerRegistryArg,
@@ -81,8 +82,15 @@ export const SUPPORTED_DEPS_REGISTRIES: ReadonlySet<PkgseerRegistry> = new Set([
   "GO",
 ]);
 
-export const SUPPORTED_DEPS_REGISTRIES_HUMAN =
-  "npm, pypi, hex, crates, vcpkg, zig, rubygems, and go";
+/**
+ * Lowercase deps-supported registries, comma-separated, in the
+ * canonical order defined by `PKGSEER_REGISTRY_ARGS`. Derived rather
+ * than hand-rolled so the order propagates from the single source of
+ * truth and a future registry addition shows up here automatically.
+ */
+export const SUPPORTED_DEPS_REGISTRIES_LIST = PKGSEER_REGISTRY_ARGS.filter(
+  (arg) => SUPPORTED_DEPS_REGISTRIES.has(toPkgseerRegistry(arg)),
+).join(", ");
 
 export function supportsDependenciesRegistry(
   registry: PkgseerRegistry,
@@ -141,7 +149,7 @@ export function buildPackageDependenciesParams(
   );
   if (!supportsDependenciesRegistry(registry)) {
     throw new UnsupportedDependenciesRegistryError(
-      `pkg deps only supports ${SUPPORTED_DEPS_REGISTRIES_HUMAN}. Got: ${normalisedRegistryArg}.`,
+      `pkg deps only supports ${SUPPORTED_DEPS_REGISTRIES_LIST}. Got: ${normalisedRegistryArg}.`,
     );
   }
 

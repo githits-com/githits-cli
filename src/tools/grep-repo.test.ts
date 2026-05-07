@@ -17,7 +17,7 @@ describe("createGrepRepoTool — metadata", () => {
   it("registers the correct tool name and schema keys", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     expect(tool.name).toBe("code_grep");
-    expect(tool.description).toContain("Deterministic text grep");
+    expect(tool.description).toContain("Deterministic text or regex grep");
     expect(Object.keys(tool.schema).sort()).toEqual([
       "case_sensitive",
       "context_lines",

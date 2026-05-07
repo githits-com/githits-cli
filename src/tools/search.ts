@@ -183,16 +183,15 @@ const schema = {
     .enum(["json", "text", "text-v1"])
     .optional()
     .describe(
-      'Response format. Default `text-v1` — compact line-oriented output tuned for agent context efficiency. Pass `format: "json"` for the structured envelope (programmatic consumers, parity testing). `text` is an alias for `text-v1`. The text format is a public, snapshot-tested contract.',
+      'Response format. Default `text-v1` — compact line-oriented output. Pass `format: "json"` for the structured envelope. `text` is an alias for `text-v1`. The text format is a public, snapshot-tested contract.',
     ),
 };
 
 const DESCRIPTION =
   "Search indexed dependency and repository code, docs, and explicit symbols. " +
   "Provide either `target` for one target or `targets` for many; omit `sources` to use backend AUTO. " +
-  "The query field uses GitHits discovery syntax (AND/OR/parens/qualifiers; see the parameter description). " +
-  "Structured parameters combine with that query using AND semantics. " +
-  "Results are complete by default — if indexing is still running, the response carries a `searchRef` and no hits; pass it to `search_status` to follow up. " +
+  "Structured parameters combine with the `query` using AND semantics. " +
+  "Complete by default — if indexing is still running, the response carries a `searchRef` and no hits; pass it to `search_status` to follow up. " +
   "Set `allow_partial_results: true` to opt into hits from sources that finished while others continue indexing. " +
   "Each hit's `type` tells you the follow-up tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present).";
 

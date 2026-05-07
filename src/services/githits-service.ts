@@ -51,9 +51,14 @@ export interface SearchParams {
 
 /**
  * Parameters for feedback API call.
+ *
+ * `solutionId` is optional: when present, the feedback is anchored
+ * to a specific `get_example` result; when absent, the feedback is
+ * generic and applies to the overall tool surface (code/package
+ * navigation, search, docs, or the GitHits experience as a whole).
  */
 export interface FeedbackParams {
-  solutionId: string;
+  solutionId?: string;
   accepted: boolean;
   feedbackText?: string;
 }
@@ -126,11 +131,17 @@ export class GitHitsServiceImpl implements GitHitsService {
 
   async submitFeedback(params: FeedbackParams): Promise<FeedbackResult> {
     return withTelemetrySpan("githits.feedback.request", async () => {
+      // `solution_id` is omitted entirely when undefined — the backend
+      // accepts the key absent for generic feedback. `feedback_text`
+      // still uses null-on-omit because backend infrastructure was
+      // already shaped that way; revisit if/when it changes.
       const response = await fetch(`${this.apiUrl}/feedbacks`, {
         method: "POST",
         headers: this.headers(),
         body: JSON.stringify({
-          solution_id: params.solutionId,
+          ...(params.solutionId !== undefined && {
+            solution_id: params.solutionId,
+          }),
           accepted: params.accepted,
           feedback_text: params.feedbackText ?? null,
         }),

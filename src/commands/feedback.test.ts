@@ -112,6 +112,32 @@ describe("feedbackAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("submits generic feedback when solution_id positional is omitted", async () => {
+    const submitFn = mock(() =>
+      Promise.resolve({
+        success: true,
+        message: "Feedback submitted successfully",
+      }),
+    );
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({ submitFeedback: submitFn }),
+    });
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await feedbackAction(
+      undefined,
+      { accept: true, message: "code_grep regex is fast on npm:lodash" },
+      deps,
+    );
+
+    expect(submitFn).toHaveBeenCalledWith({
+      solutionId: undefined,
+      accepted: true,
+      feedbackText: "code_grep regex is fast on npm:lodash",
+    });
+    consoleSpy.mockRestore();
+  });
+
   it("exits with error when neither --accept nor --reject", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {

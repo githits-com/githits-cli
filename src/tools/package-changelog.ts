@@ -92,7 +92,7 @@ const schema = {
     .enum(["json", "text", "text-v1"])
     .optional()
     .describe(
-      "Response format. Default `text-v1` is compact for agents. Pass `json` for the structured envelope.",
+      'Response format. Default `text-v1` — compact entry timeline with body previews. Pass `format: "json"` for the structured envelope with full markdown bodies.',
     ),
 };
 
@@ -104,13 +104,13 @@ const DESCRIPTION =
   "Address via `registry` + `package_name` or `repo_url` (mutually " +
   'exclusive). Response includes optional `source` (`"releases"` / ' +
   '`"changelog_file"` / `"hexdocs"`) when a concrete changelog source ' +
-  'exists, `mode` (`"latest"` or `"range"`), ' +
-  'and entries with markdown body previews. Pass `format: "json"` ' +
-  "for the structured envelope with full markdown bodies. Set " +
-  "`include_bodies: false` for a version / date / URL timeline only. " +
-  "Package-version entries without changelog text succeed with `source` " +
-  "omitted; no-source plus no entries returns `NOT_FOUND`. Supports npm, " +
-  "PyPI, Hex, Crates, vcpkg, Zig, NuGet, Maven, Packagist, RubyGems, Go.";
+  'exists, `mode` (`"latest"` or `"range"`), and entries with ' +
+  "markdown body previews. Set `include_bodies: false` for a " +
+  'version / date / URL timeline only; pass `format: "json"` for ' +
+  "full markdown bodies. Package-version entries without changelog " +
+  "text succeed with `source` omitted; no-source plus no entries " +
+  "returns `NOT_FOUND`. Supports npm, PyPI, Hex, Crates, NuGet, " +
+  "Maven, Zig, vcpkg, Packagist, RubyGems, and Go.";
 
 export function createPackageChangelogTool(
   service: PackageIntelligenceService,

@@ -3,7 +3,7 @@ import type { PackageIntelligenceService } from "../services/index.js";
 import { InvalidPackageSpecError } from "../shared/index.js";
 import {
   buildPackageDependenciesParams,
-  SUPPORTED_DEPS_REGISTRIES_HUMAN,
+  SUPPORTED_DEPS_REGISTRIES_LIST,
 } from "../shared/package-dependencies-request.js";
 import {
   buildPackageDependenciesSuccessPayload,
@@ -36,7 +36,7 @@ const schema = {
   registry: z
     .string()
     .describe(
-      `Package registry. Dependency data is available on ${SUPPORTED_DEPS_REGISTRIES_HUMAN}.`,
+      `Package registry. Dependency data is available on ${SUPPORTED_DEPS_REGISTRIES_LIST}.`,
     ),
   package_name: z
     .string()
@@ -78,22 +78,21 @@ const schema = {
     .enum(["json", "text", "text-v1"])
     .optional()
     .describe(
-      "Response format. Default `text-v1` is compact for agents. Pass `json` for the structured envelope.",
+      'Response format. Default `text-v1` — compact dependency listing. Pass `format: "json"` for the structured envelope.',
     ),
 };
 
 const DESCRIPTION =
-  "Analyze a package's dependency graph. Default output is compact " +
-  "text listing direct runtime dependencies with resolved versions; " +
-  'pass `format: "json"` for the structured envelope. Non-runtime ' +
-  "groups are omitted by default for token efficiency. Use `lifecycle` " +
-  "with a concrete value for runtime plus matching groups, or `all` " +
-  "for runtime plus all available groups. Set " +
-  "`include_transitive: true` to add a `transitive` block with the " +
-  "full install footprint, conflict detection, and circular-" +
-  "dependency flags; layer `include_importers: true` on top when you " +
-  "also need per-package provenance. Supports npm, PyPI, Hex, Crates, " +
-  "RubyGems, Go, vcpkg, and Zig.";
+  "Analyze a package's dependency graph. Lists direct runtime " +
+  "dependencies with resolved versions; non-runtime groups are " +
+  "omitted by default. Use `lifecycle` with a concrete value for " +
+  "runtime plus matching groups, or `all` for runtime plus every " +
+  "available group. Set `include_transitive: true` to add a " +
+  "`transitive` block with the full install footprint, conflict " +
+  "detection, and circular-dependency flags; layer " +
+  "`include_importers: true` on top when you also need per-package " +
+  "provenance. Supports npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, " +
+  "and Go.";
 
 export function createPackageDependenciesTool(
   service: PackageIntelligenceService,

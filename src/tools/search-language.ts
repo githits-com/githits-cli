@@ -20,7 +20,7 @@ const schema = {
     .enum(["json", "text", "text-v1"])
     .optional()
     .describe(
-      "Response format. Default `text-v1` returns one language per line. Pass `json` for the structured array.",
+      'Response format. Default `text-v1` returns one language per line. Pass `format: "json"` for the structured array.',
     ),
 };
 

@@ -82,13 +82,15 @@ function resolveTargets(
 ): CodeNavigationTarget[] {
   if (target && targets) {
     throw new InvalidArgumentError(
-      "Provide either target or targets, not both.",
+      "Provide either `target` for one search target or `targets` for multiple, not both.",
     );
   }
 
   const resolved = target ? [target] : (targets ?? []);
   if (resolved.length === 0) {
-    throw new InvalidArgumentError("At least one target is required.");
+    throw new InvalidArgumentError(
+      "Provide either `target` for one search target or `targets` for multiple; neither was set.",
+    );
   }
 
   const deduped: CodeNavigationTarget[] = [];

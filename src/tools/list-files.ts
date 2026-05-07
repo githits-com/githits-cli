@@ -103,23 +103,23 @@ const schema = {
     .enum(["json", "text", "text-v1"])
     .optional()
     .describe(
-      'Response format. Default `text-v1` — compact paths-only listing tuned for agent context efficiency. Pass `format: "json"` for the structured envelope. `text` is an alias for `text-v1`. Errors stay JSON-formatted in either mode for now.',
+      'Response format. Default `text-v1` — compact paths-only listing. Pass `format: "json"` for the structured envelope. `text` is an alias for `text-v1`. Errors stay JSON-formatted in either mode for now.',
     ),
 };
 
 const DESCRIPTION =
-  "List files in an indexed dependency. Default response is a compact " +
-  'paths-only listing (`format: "text-v1"`); pass `format: "json"` ' +
-  "for the structured envelope `{total, hasMore, files: [{path, name, " +
-  "language, fileType, byteSize}], resolution, indexedVersion}`. " +
-  "Address via `target.registry` + `target.package_name` (package " +
-  "scope) or `target.repo_url` + `target.git_ref` (repo scope), " +
-  "mutually exclusive. Narrow with `path`, `path_prefix`, `globs`, " +
+  "List files in an indexed dependency. Use this to discover paths " +
+  "before `code_read` (when `code_read` returns `FILE_NOT_FOUND` or " +
+  "you don't yet know the path) and to scope `code_grep`. Address " +
+  "via `target.registry` + `target.package_name` (package scope) or " +
+  "`target.repo_url` + `target.git_ref` (repo scope), mutually " +
+  "exclusive. Narrow with `path`, `path_prefix`, `globs`, " +
   "`extensions`, `file_types`, `languages`, or file-intent filters. " +
-  "The returned paths feed directly into `code_read` and help scope " +
-  "`code_grep`. Returns an `INDEXING` error envelope when the " +
-  "dependency is being indexed on-demand — retry with a longer " +
-  "`wait_timeout_ms` or use a version from `details.availableVersions`.";
+  "JSON envelope shape: `{total, hasMore, files: [{path, name, " +
+  "language, fileType, byteSize}], resolution, indexedVersion}`. " +
+  "Returns an `INDEXING` error envelope when the dependency is being " +
+  "indexed on-demand — retry with a longer `wait_timeout_ms` or use " +
+  "a version from `details.availableVersions`.";
 
 export function createListFilesTool(
   service: CodeNavigationService,
