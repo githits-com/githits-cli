@@ -176,7 +176,7 @@ function formatChangelogTerminalError(mapped: MappedError): string {
   if (available && available.length > 0) {
     const sample = available.slice(0, 5).join(", ");
     const more = available.length - 5;
-    const suffix = more > 0 ? `, … (+${more} more)` : "";
+    const suffix = more > 0 ? `, ... (+${more} more)` : "";
     lines.push(`  available: ${sample}${suffix}`);
   }
   return lines.join("\n");

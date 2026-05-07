@@ -429,10 +429,32 @@ async function runLiveSmoke(client: Client): Promise<void> {
     changelogText.includes("full bodies")
   ) {
     assert(
-      changelogText.includes('pass format="json" for full bodies'),
+      changelogText.includes(
+        'pass verbose=true, body_lines=<n>, or format="json"',
+      ),
       "pkg_changelog truncation hint is not MCP-native",
     );
   }
+
+  const changelogBodyLinesText = assertDefaultText(
+    await callTool(client, "pkg_changelog", {
+      registry: "npm",
+      package_name: "express",
+      limit: 2,
+      body_lines: 3,
+    }),
+    "pkg_changelog body_lines",
+  );
+  assert(
+    changelogBodyLinesText.includes(
+      'pass verbose=true, body_lines=<n>, or format="json"',
+    ),
+    "pkg_changelog body_lines missing MCP-native truncation hint",
+  );
+  assert(
+    !changelogBodyLinesText.includes("--verbose"),
+    "pkg_changelog body_lines leaked CLI verbose flag",
+  );
 
   const changelogJson = assertJsonResult(
     await callTool(client, "pkg_changelog", {
@@ -445,6 +467,20 @@ async function runLiveSmoke(client: Client): Promise<void> {
   );
   assertRecord(changelogJson, "pkg_changelog json");
   assertRecord(changelogJson.entries, "pkg_changelog json entries");
+
+  const changelogTimeline = assertDefaultText(
+    await callTool(client, "pkg_changelog", {
+      registry: "npm",
+      package_name: "express",
+      limit: 2,
+      include_bodies: false,
+    }),
+    "pkg_changelog timeline",
+  );
+  assert(
+    !changelogTimeline.includes("What's Changed"),
+    "pkg_changelog include_bodies=false still emitted bodies",
+  );
 
   const docsText = assertDefaultText(
     await callTool(client, "docs_list", {

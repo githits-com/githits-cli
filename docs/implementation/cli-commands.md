@@ -225,7 +225,7 @@ Fetches release notes or changelog entries for a package or GitHub repository. O
 
 **Pre-release versions.** Normalised versions flow through unchanged (`5.0.0-rc.1`, `2.32.0.dev0`, `1.7.0-rc.5` round-trip cleanly on `--from` / `--to`). Tag-style `v`-prefixed inputs are rejected on any version flag, consistent with `pkg vulns` / `pkg deps`.
 
-**Default terminal output.** Summary header (`name · registry · source · mode · entry count`) followed by each entry's `version  date  url` header plus the first 10 lines of its markdown body, indented and dimmed. Bodies longer than the cap show a footer `… (+N more lines — use --verbose for the full body)`. Missing dates render as `—`; missing versions render as `(unversioned)`. The version column is padded to the longest entry in the current response (no fixed width).
+**Default terminal output.** Summary header (`name | registry | source | mode | entry count`) followed by each entry's `version  date  url` header plus the first 10 lines of its markdown body, indented and dimmed. Bodies longer than the cap show a footer `... (+N more lines - use --verbose for the full body)`. Missing dates render as `-`; missing versions render as `(unversioned)`. The version column is padded to the longest entry in the current response (no fixed width).
 
 **`--verbose`.** Uncaps the body preview — every entry's full markdown body renders, indented and dimmed, with no truncation footer. Terminal-only — does not change `--json` output.
 

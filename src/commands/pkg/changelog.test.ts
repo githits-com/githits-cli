@@ -42,13 +42,13 @@ describe("pkgChangelogAction", () => {
     await pkgChangelogAction("npm:express", {}, createDeps());
 
     const combined = writes.join("");
-    expect(combined).toContain("express · npm");
+    expect(combined).toContain("express | npm");
     expect(combined).toContain("source: GitHub Releases");
     expect(combined).toContain("2 entries");
     expect(combined).toContain("5.2.1");
     // Default now shows bodies (capped at 10 lines). Fixture bodies
     // are well under the cap, so full content appears without the
-    // "… more lines" footer.
+    // "... more lines" footer.
     expect(combined).toContain("## Patch");
     expect(combined).toContain("- fixed a thing");
     expect(combined).not.toContain("use --verbose");
@@ -99,7 +99,9 @@ describe("pkgChangelogAction", () => {
     expect(combined).toContain("line 10");
     expect(combined).not.toContain("line 11");
     expect(combined).toContain("+15 more lines");
-    expect(combined).toContain("use --verbose for the full body");
+    expect(combined).toContain(
+      "... (+15 more lines - use --verbose for the full body)",
+    );
     writeSpy.mockRestore();
   });
 
