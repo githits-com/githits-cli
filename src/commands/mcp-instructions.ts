@@ -45,10 +45,10 @@ const CODE_FILES_BULLET =
   '- `code_files` — list files in an indexed dependency. `path`, `path_prefix`, and `globs` are OR-ed selectors; extensions, language, file type, and file-intent filters intersect on top. Returned paths feed into `code_read` and help scope `code_grep`; pass `format: "json"` for language/type/size metadata.';
 
 const DOCS_LIST_BULLET =
-  "- `docs_list` — browse hosted and repository-backed package docs. Entries include stable pageIds, source URLs, and repo-file follow-up metadata when available.";
+  '- `docs_list` — browse hosted and repository-backed package docs when you need the available pages. It is not topic search; for "find docs about X", call `search` with `sources:["docs"]`, then pass the returned `pageId` to `docs_read`. Entries include stable pageIds, source URLs, and repo-file follow-up metadata when available.';
 
 const DOCS_READ_BULLET =
-  "- `docs_read` — read a documentation page by pageId. Works for both hosted docs and repo-backed docs.";
+  "- `docs_read` — read a documentation page by pageId. Works for both hosted docs and repo-backed docs. Prefer focused `start_line` / `end_line` windows from `search` hits or prior `docs_read` `totalLines` metadata instead of rereading large pages.";
 
 const PKG_INFO_BULLET =
   '- `pkg_info` — latest-version package triage by `registry` + `package_name` (e.g. `npm` + `express`): license, repository popularity, downloads, publish age, and vulnerability status. Set `verbose: true` for GitHub language/topics/last-pushed, recent advisories, and recent changes; pass `format: "json"` for structured fields.';

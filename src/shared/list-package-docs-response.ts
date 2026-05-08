@@ -129,6 +129,11 @@ export function formatListPackageDocsTerminal(
     lines.push("");
   }
 
+  lines.push(
+    dim("Read a page: githits docs read '<pageId>'", options.useColors),
+  );
+  lines.push("");
+
   if (envelope.nextCursor) {
     lines.push(dim(`Next cursor: ${envelope.nextCursor}`, options.useColors));
   }
@@ -148,7 +153,7 @@ function buildSummaryHeader(
     envelope.registry && envelope.name
       ? `${envelope.registry}:${envelope.name}${envelope.version ? `@${envelope.version}` : ""}`
       : "package docs";
-  const summary = `${target} · ${envelope.pages.length} page${envelope.pages.length === 1 ? "" : "s"}`;
+  const summary = `${target} | ${envelope.pages.length} page${envelope.pages.length === 1 ? "" : "s"}`;
   const suffix = envelope.total !== undefined ? ` of ${envelope.total}` : "";
   return `${colorize(summary, "bold", useColors)}${dim(suffix, useColors)}`;
 }
