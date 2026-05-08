@@ -322,6 +322,10 @@ async function runLiveSmoke(client: Client): Promise<void> {
     "pkg_deps default",
   );
   assert(
+    depsText.includes("Runtime dependencies:"),
+    "pkg_deps default missing runtime heading",
+  );
+  assert(
     depsText.includes('pass lifecycle="all"'),
     "pkg_deps default missing MCP-native lifecycle hint",
   );
@@ -333,6 +337,10 @@ async function runLiveSmoke(client: Client): Promise<void> {
       lifecycle: "all",
     }),
     "pkg_deps lifecycle all",
+  );
+  assert(
+    depsAllText.includes("Dependency groups:"),
+    "pkg_deps lifecycle all missing groups heading",
   );
   assert(
     !depsAllText.includes("Hidden groups:"),

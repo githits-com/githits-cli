@@ -39,10 +39,11 @@ describe("pkgDepsAction", () => {
     await pkgDepsAction("npm:express", {}, createDeps());
 
     const combined = writes.join("");
-    expect(combined).toContain("express @ 5.2.1 · npm");
+    expect(combined).toContain("express @ 5.2.1 | npm");
     expect(combined).toContain("3 direct runtime dependencies");
+    expect(combined).toContain("Runtime dependencies:");
     expect(combined).toContain(
-      "Hidden groups: development — use --lifecycle all.",
+      "Hidden groups: development - use --lifecycle all.",
     );
     writeSpy.mockRestore();
   });

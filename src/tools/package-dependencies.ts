@@ -86,8 +86,9 @@ const DESCRIPTION =
   "Analyze a package's dependency graph. Lists direct runtime " +
   "dependencies with resolved versions; non-runtime groups are " +
   "omitted by default. Use `lifecycle` with a concrete value for " +
-  "runtime plus matching groups, or `all` for runtime plus every " +
-  "available group. Set `include_transitive: true` to add a " +
+  "matching dependency groups, or `all` for every available group. " +
+  "Runtime group rows include resolved versions when available. " +
+  "Set `include_transitive: true` to add a " +
   "`transitive` block with the full install footprint, conflict " +
   "detection, and circular-dependency flags; layer " +
   "`include_importers: true` on top when you also need per-package " +
