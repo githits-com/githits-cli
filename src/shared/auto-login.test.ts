@@ -77,6 +77,15 @@ describe("isAutoLoginEligibleCommand", () => {
     ).toBe(false);
   });
 
+  it("does not auto-login for init uninstall", () => {
+    expect(
+      isAutoLoginEligibleCommand(createCommand(["init", "uninstall"]), {
+        stdinIsTTY: true,
+        stdoutIsTTY: true,
+      }),
+    ).toBe(false);
+  });
+
   it("does not special-case init --skip-login in root auto-login", () => {
     expect(
       isAutoLoginEligibleCommand(createCommand(["init"], { skipLogin: true }), {

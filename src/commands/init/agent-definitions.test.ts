@@ -469,6 +469,18 @@ describe("getSetupConfig", () => {
     }
   });
 
+  it("claude-code returns uninstall command for declared marketplace name", () => {
+    const fs = createMockFileSystemService();
+    const agent = agentDefinitions.find((a) => a.id === "claude-code")!;
+    const config = agent.getUninstallConfig?.(fs);
+    expect(config?.method).toBe("cli");
+    if (config?.method !== "cli") throw new Error("expected cli uninstall");
+    expect(config.commands[1]).toEqual({
+      command: "claude",
+      args: ["plugin", "marketplace", "remove", "githits-plugins"],
+    });
+  });
+
   it("cursor returns config-file setup with npm MCP command", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
@@ -950,7 +962,7 @@ describe("scanAgents", () => {
     expect(result.alreadyConfigured.some((a) => a.id === "cursor")).toBe(false);
   });
 
-  it("categorizes CLI agent as alreadyConfigured when check command matches", async () => {
+  it("categorizes Claude Code as alreadyConfigured when installed plugin row matches", async () => {
     const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
       detectedDirs: [],
@@ -962,7 +974,7 @@ describe("scanAgents", () => {
         },
         "claude plugin list": {
           exitCode: 0,
-          stdout: "githits-plugin\nother\n",
+          stdout: "githits@githits-plugins\nother\n",
           stderr: "",
         },
       },
@@ -972,6 +984,54 @@ describe("scanAgents", () => {
       true,
     );
     expect(result.needsSetup.some((a) => a.id === "claude-code")).toBe(false);
+  });
+
+  it("does not categorize Claude Code as configured for marketplace-only output", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        [`${lookupCmd} claude`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/claude\n",
+          stderr: "",
+        },
+        "claude plugin list": {
+          exitCode: 0,
+          stdout: "marketplace githits-plugins available\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.needsSetup.some((a) => a.id === "claude-code")).toBe(true);
+    expect(result.alreadyConfigured.some((a) => a.id === "claude-code")).toBe(
+      false,
+    );
+  });
+
+  it("does not categorize Claude Code as configured for incidental githits output", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        [`${lookupCmd} claude`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/claude\n",
+          stderr: "",
+        },
+        "claude plugin list": {
+          exitCode: 0,
+          stdout: "No githits plugins installed\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.needsSetup.some((a) => a.id === "claude-code")).toBe(true);
+    expect(result.alreadyConfigured.some((a) => a.id === "claude-code")).toBe(
+      false,
+    );
   });
 
   it("categorizes gemini CLI as alreadyConfigured for config check outputs", async () => {
@@ -1078,6 +1138,60 @@ describe("scanAgents", () => {
     const result = await scanAgents(agentDefinitions, fs, execService);
     expect(result.needsSetup.some((a) => a.id === "codex-cli")).toBe(true);
     expect(result.notDetected.some((a) => a.id === "codex-cli")).toBe(false);
+  });
+
+  it("categorizes Codex CLI as alreadyConfigured when githits is a listed server row", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        [`${lookupCmd} codex`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/codex\n",
+          stderr: "",
+        },
+        "codex mcp list": {
+          exitCode: 0,
+          stdout: "githits  npx -y githits@latest mcp start\n",
+          stderr: "",
+        },
+      },
+    });
+
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.alreadyConfigured.some((a) => a.id === "codex-cli")).toBe(
+      true,
+    );
+    expect(result.needsSetup.some((a) => a.id === "codex-cli")).toBe(false);
+  });
+
+  it("does not categorize Codex CLI as configured for incidental githits text", async () => {
+    const lookupCmd = lookupCommandFor();
+    const outputs = ["try githits docs\n", "not-githits\n"];
+
+    for (const output of outputs) {
+      const { fs, execService } = createScanMocks({
+        detectedDirs: [],
+        execResults: {
+          [`${lookupCmd} codex`]: {
+            exitCode: 0,
+            stdout: "/usr/bin/codex\n",
+            stderr: "",
+          },
+          "codex mcp list": {
+            exitCode: 0,
+            stdout: output,
+            stderr: "",
+          },
+        },
+      });
+
+      const result = await scanAgents(agentDefinitions, fs, execService);
+      expect(result.needsSetup.some((a) => a.id === "codex-cli")).toBe(true);
+      expect(result.alreadyConfigured.some((a) => a.id === "codex-cli")).toBe(
+        false,
+      );
+    }
   });
 
   it("detects opencode from config directory when binary is missing", async () => {
@@ -1215,7 +1329,7 @@ describe("scanAgents", () => {
         },
         "claude plugin list": {
           exitCode: 0,
-          stdout: "githits-plugin\n",
+          stdout: "githits@githits-plugins\n",
           stderr: "",
         },
       },
@@ -1358,7 +1472,7 @@ describe("scanAgents", () => {
       },
       "claude plugin list": {
         exitCode: 0,
-        stdout: "githits-plugin\n",
+        stdout: "githits@githits-plugins\n",
         stderr: "",
       },
       [`${whichCmd} codex`]: {
@@ -1516,7 +1630,7 @@ describe("scanAgents", () => {
             },
             "claude plugin list": {
               exitCode: 0,
-              stdout: "githits-plugin\n",
+              stdout: "githits@githits-plugins\n",
               stderr: "",
             },
             [`${whichCmd} codex`]: {

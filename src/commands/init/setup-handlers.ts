@@ -8,6 +8,7 @@ import type { FileSystemService } from "../../services/filesystem-service.js";
 import type {
   CliCommand,
   CliSetup,
+  CliUninstall,
   ConfigFileSetup,
 } from "./agent-definitions.js";
 
@@ -38,6 +39,18 @@ export type MergeResult =
   | { status: "added" | "updated"; content: string }
   | { status: "already_configured" }
   | { status: "parse_error"; error: string };
+
+/** Result of removing server config from an existing config file */
+export type RemoveResult =
+  | { status: "removed"; content: string }
+  | { status: "not_configured" }
+  | { status: "parse_error"; error: string };
+
+/** Result of checking whether a config file has a removable server entry. */
+export type ConfigUninstallCheckResult =
+  | { status: "configured" }
+  | { status: "not_configured" }
+  | { status: "failed"; message: string };
 
 export type ConfigFormat = "json" | "jsonc" | "invalid";
 
@@ -291,6 +304,15 @@ export interface SetupResult {
   message: string;
 }
 
+/** Result of executing an uninstall operation */
+export interface UninstallResult {
+  status: "removed" | "not_configured" | "failed";
+  /** Human-readable message describing the outcome */
+  message: string;
+  /** Non-fatal cleanup or verification warnings. */
+  warnings?: string[];
+}
+
 /**
  * Merge a new MCP server entry into existing JSON config content.
  * Pure function — no IO, no side effects.
@@ -360,6 +382,84 @@ export function mergeServerConfig(
 }
 
 /**
+ * Remove GitHits MCP server entries from existing JSON/JSONC config content.
+ * Pure function — no IO, no side effects.
+ */
+export function removeServerConfig(
+  existingContent: string,
+  serversKey: string,
+  serverName: string,
+): RemoveResult {
+  const parsedConfig = parseConfigObject(existingContent);
+  if (parsedConfig.format === "invalid") {
+    return {
+      status: "parse_error",
+      error: parsedConfig.error,
+    };
+  }
+
+  const config = parsedConfig.value;
+  const servers = config[serversKey];
+  if (servers === undefined) {
+    return { status: "not_configured" };
+  }
+  if (
+    typeof servers !== "object" ||
+    servers === null ||
+    Array.isArray(servers)
+  ) {
+    return {
+      status: "parse_error",
+      error: `"${serversKey}" is not a JSON object`,
+    };
+  }
+
+  const serversObj = servers as Record<string, unknown>;
+  const matchingKeys = getMatchingServerKeys(serversObj, serverName);
+  if (matchingKeys.length === 0) {
+    return { status: "not_configured" };
+  }
+
+  for (const key of matchingKeys) {
+    delete serversObj[key];
+  }
+
+  return {
+    status: "removed",
+    content: `${JSON.stringify(config, null, 2)}\n`,
+  };
+}
+
+/**
+ * Check whether config content contains any case-insensitive GitHits server key.
+ * Used by uninstall so legacy or non-current GitHits entries can be removed.
+ */
+export function hasServerConfigEntry(
+  existingContent: string,
+  serversKey: string,
+  serverName: string,
+): boolean {
+  const parsedConfig = parseConfigObject(existingContent);
+  if (parsedConfig.format === "invalid") {
+    return false;
+  }
+
+  const servers = parsedConfig.value[serversKey];
+  if (
+    typeof servers !== "object" ||
+    servers === null ||
+    Array.isArray(servers)
+  ) {
+    return false;
+  }
+
+  return (
+    getMatchingServerKeys(servers as Record<string, unknown>, serverName)
+      .length > 0
+  );
+}
+
+/**
  * Format a setup config for display to the user before confirmation.
  * Returns human-readable description of what will happen.
  */
@@ -375,6 +475,18 @@ export function formatSetupPreview(config: CliSetup | ConfigFileSetup): string {
     2,
   );
   return `Will add to ${config.configPath}:\n\n${snippet}`;
+}
+
+/** Format an uninstall config for display to the user before confirmation. */
+export function formatUninstallPreview(
+  config: CliUninstall | ConfigFileSetup,
+): string {
+  if (config.method === "cli") {
+    return config.commands
+      .map((cmd) => `Will run: ${cmd.command} ${cmd.args.join(" ")}`)
+      .join("\n");
+  }
+  return `Will remove ${config.serverName} from ${config.configPath}`;
 }
 
 /**
@@ -418,6 +530,69 @@ export async function isAlreadyConfigured(
 }
 
 /**
+ * Check if GitHits has any removable config entry in a config file.
+ * Read-only — never writes. Returns false on missing or malformed files.
+ */
+export async function isConfiguredForUninstall(
+  config: ConfigFileSetup,
+  fs: FileSystemService,
+): Promise<boolean> {
+  return (
+    (await getConfigUninstallCheckStatus(config, fs)).status === "configured"
+  );
+}
+
+/**
+ * Inspect config file uninstallability without writing.
+ * Preserves read/parse failures so callers can surface them to users.
+ */
+export async function getConfigUninstallCheckStatus(
+  config: ConfigFileSetup,
+  fs: FileSystemService,
+): Promise<ConfigUninstallCheckResult> {
+  try {
+    const content = await fs.readFile(config.configPath);
+    const parsedConfig = parseConfigObject(content);
+    if (parsedConfig.format === "invalid") {
+      return {
+        status: "failed",
+        message: `Cannot parse ${config.configPath}: ${parsedConfig.error}. File left unchanged.`,
+      };
+    }
+
+    const servers = parsedConfig.value[config.serversKey];
+    if (servers === undefined) {
+      return { status: "not_configured" };
+    }
+    if (
+      typeof servers !== "object" ||
+      servers === null ||
+      Array.isArray(servers)
+    ) {
+      return {
+        status: "failed",
+        message: `Cannot parse ${config.configPath}: "${config.serversKey}" is not a JSON object. File left unchanged.`,
+      };
+    }
+
+    const hasEntry =
+      getMatchingServerKeys(
+        servers as Record<string, unknown>,
+        config.serverName,
+      ).length > 0;
+    return { status: hasEntry ? "configured" : "not_configured" };
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === "ENOENT") {
+      return { status: "not_configured" };
+    }
+    return {
+      status: "failed",
+      message: `Cannot read ${config.configPath}: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+/**
  * Check if a CLI agent is already configured by running a read-only check command.
  * Checks pattern against combined stdout+stderr regardless of exit code.
  * Returns false on ENOENT or when pattern does not match.
@@ -439,12 +614,12 @@ export async function getCliCheckStatus(
 ): Promise<CliCheckStatus> {
   try {
     const result = await execService.exec(check.command, check.args);
-    if (check.requireExitCodeZero && result.exitCode !== 0) {
-      return "probe_failed";
-    }
     const combined = `${result.stdout} ${result.stderr}`;
     if (check.notConfiguredPattern?.test(combined)) {
       return "not_configured";
+    }
+    if (check.requireExitCodeZero && result.exitCode !== 0) {
+      return "probe_failed";
     }
     if (check.configuredPattern) {
       return check.configuredPattern.test(combined)
@@ -468,9 +643,22 @@ const ALREADY_EXISTS_PATTERNS = [
   /extension\s+"githits"\s+is\s+already\s+installed/i,
 ];
 
+/** Patterns in CLI output that indicate GitHits was already absent */
+const ALREADY_ABSENT_PATTERNS = [
+  /(?:plugin|extension|server|mcp server)\s+["']?githits["']?\s+(?:was\s+)?not\s+found/i,
+  /["']?githits["']?\s+(?:plugin|extension|server)?\s*(?:does\s+not\s+exist|is\s+not\s+installed|not\s+installed)/i,
+  /unknown\s+(?:plugin|extension|server)\s+["']?githits["']?/i,
+  /marketplace\s+["']?githits-plugins["']?\s+(?:was\s+)?not\s+found/i,
+];
+
 /** Check if CLI output indicates the server is already configured */
 function isAlreadyConfiguredOutput(output: string): boolean {
   return ALREADY_EXISTS_PATTERNS.some((pattern) => pattern.test(output));
+}
+
+/** Check if CLI output indicates GitHits is already absent */
+function isAlreadyAbsentOutput(output: string): boolean {
+  return ALREADY_ABSENT_PATTERNS.some((pattern) => pattern.test(output));
 }
 
 /**
@@ -516,6 +704,45 @@ async function executeCliCommand(
   }
 }
 
+/** Execute a single CLI uninstall command step. */
+async function executeCliUninstallCommand(
+  cmd: CliCommand,
+  execService: ExecService,
+): Promise<UninstallResult> {
+  try {
+    const result = await execService.exec(cmd.command, cmd.args);
+    const combined = `${result.stdout} ${result.stderr}`;
+
+    if (result.exitCode === 0) {
+      return { status: "removed", message: "Removed successfully" };
+    }
+
+    if (isAlreadyAbsentOutput(combined)) {
+      return {
+        status: "not_configured",
+        message: `GitHits not configured via ${cmd.command}`,
+      };
+    }
+
+    const detail = result.stderr.trim() || result.stdout.trim();
+    return {
+      status: "failed",
+      message: `Command exited with code ${result.exitCode}${detail ? `: ${detail}` : ""}`,
+    };
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === "ENOENT") {
+      return {
+        status: "failed",
+        message: `"${cmd.command}" not found on PATH. Install it or remove GitHits manually.`,
+      };
+    }
+    return {
+      status: "failed",
+      message: `Failed to run command: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
 /**
  * Execute a CLI-based setup with one or more sequential commands.
  * Returns a result object — does not throw on failure.
@@ -549,6 +776,61 @@ export async function executeCliSetup(
   }
 
   return { status: "success", message: "Configured successfully" };
+}
+
+/** Execute a CLI-based uninstall with one or more sequential commands. */
+export async function executeCliUninstall(
+  uninstall: CliUninstall,
+  execService: ExecService,
+): Promise<UninstallResult> {
+  if (uninstall.commands.length === 0) {
+    return {
+      status: "failed",
+      message: "No uninstall commands configured.",
+    };
+  }
+
+  let anyRemoved = false;
+  let anyNotConfigured = false;
+  const warnings: string[] = [];
+
+  for (let index = 0; index < uninstall.commands.length; index += 1) {
+    const cmd = uninstall.commands[index]!;
+    const result = await executeCliUninstallCommand(cmd, execService);
+
+    if (result.status === "failed") {
+      if (anyRemoved) {
+        warnings.push(result.message);
+        continue;
+      }
+      return result;
+    }
+    if (result.status === "removed") {
+      anyRemoved = true;
+    }
+    if (result.status === "not_configured") {
+      if (anyRemoved) {
+        warnings.push(result.message);
+        continue;
+      }
+      anyNotConfigured = true;
+    }
+  }
+
+  if (anyRemoved) {
+    return {
+      status: "removed",
+      message: "Removed successfully",
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
+  }
+  if (anyNotConfigured) {
+    return {
+      status: "not_configured",
+      message: `GitHits not configured via ${uninstall.commands[0]?.command}`,
+    };
+  }
+  return { status: "removed", message: "Removed successfully" };
 }
 
 /**
@@ -618,6 +900,65 @@ export async function executeConfigFileSetup(
     return {
       status: "failed",
       message: `Failed to configure: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+/** Execute a config-file-based uninstall (read/remove/atomic-write). */
+export async function executeConfigFileUninstall(
+  setup: ConfigFileSetup,
+  fs: FileSystemService,
+): Promise<UninstallResult> {
+  try {
+    let existingContent = "";
+    try {
+      existingContent = await fs.readFile(setup.configPath);
+    } catch (err) {
+      if (err instanceof Error && "code" in err && err.code === "ENOENT") {
+        return {
+          status: "not_configured",
+          message: `GitHits not configured in ${setup.configPath}`,
+        };
+      }
+      return {
+        status: "failed",
+        message: `Cannot read ${setup.configPath}: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+
+    const result = removeServerConfig(
+      existingContent,
+      setup.serversKey,
+      setup.serverName,
+    );
+
+    if (result.status === "not_configured") {
+      return {
+        status: "not_configured",
+        message: `GitHits not configured in ${setup.configPath}`,
+      };
+    }
+
+    if (result.status === "parse_error") {
+      return {
+        status: "failed",
+        message: `Cannot parse ${setup.configPath}: ${result.error}. File left unchanged.`,
+      };
+    }
+
+    await fs.atomicWriteFile(setup.configPath, result.content);
+
+    return { status: "removed", message: "Removed successfully" };
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === "EACCES") {
+      return {
+        status: "failed",
+        message: `Permission denied writing to ${setup.configPath}. Check file permissions.`,
+      };
+    }
+    return {
+      status: "failed",
+      message: `Failed to uninstall: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 }
