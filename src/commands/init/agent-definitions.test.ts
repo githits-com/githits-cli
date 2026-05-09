@@ -12,8 +12,8 @@ import {
 } from "./agent-definitions.js";
 
 describe("agentDefinitions", () => {
-  it("defines 10 agents", () => {
-    expect(agentDefinitions).toHaveLength(10);
+  it("defines 11 agents", () => {
+    expect(agentDefinitions).toHaveLength(11);
   });
 
   it("has unique ids", () => {
@@ -73,6 +73,12 @@ describe("detection configuration", () => {
   it("gemini-cli uses binary detection only", () => {
     const agent = agentDefinitions.find((a) => a.id === "gemini-cli")!;
     expect(agent.detectBinary).toBeDefined();
+    expect(agent.detectPaths).toBeUndefined();
+  });
+
+  it("pi uses binary detection only", () => {
+    const agent = agentDefinitions.find((a) => a.id === "pi")!;
+    expect(agent.detectCommand).toBeDefined();
     expect(agent.detectPaths).toBeUndefined();
   });
 
@@ -733,6 +739,68 @@ describe("getSetupConfig", () => {
     }
   });
 
+  it("pi returns composite setup with adapter install and Pi-owned MCP config", () => {
+    const fs = createMockFileSystemService({
+      getHomeDir: mock(() => "/home/test"),
+      joinPath: mock((...segments: string[]) => segments.join("/")),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "pi")!;
+    const config = agent.getSetupConfig(fs);
+    expect(config.method).toBe("composite");
+    if (config.method === "composite") {
+      expect(config.steps).toHaveLength(2);
+      const installStep = config.steps[0]!;
+      const configStep = config.steps[1]!;
+      expect(installStep.method).toBe("cli");
+      if (installStep.method === "cli") {
+        expect(installStep.commands).toEqual([
+          { command: "pi", args: ["install", "npm:pi-mcp-adapter"] },
+        ]);
+        expect(installStep.checkCommand).toEqual(
+          expect.objectContaining({ command: "pi", args: ["list"] }),
+        );
+      }
+      expect(configStep.method).toBe("config-file");
+      if (configStep.method === "config-file") {
+        expect(configStep.configPath).toBe("/home/test/.pi/agent/mcp.json");
+        expect(configStep.serversKey).toBe("mcpServers");
+        expect(configStep.serverName).toBe("GitHits");
+        expect(configStep.serverConfig).toEqual({
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+          lifecycle: "eager",
+        });
+      }
+    }
+  });
+
+  it("pi respects PI_CODING_AGENT_DIR for MCP config path", () => {
+    const originalPiDir = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = "~/custom-pi";
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "pi")!;
+      const config = agent.getSetupConfig(fs);
+      if (config.method !== "composite") {
+        throw new Error("expected pi composite setup");
+      }
+      const configStep = config.steps[1]!;
+      if (configStep.method !== "config-file") {
+        throw new Error("expected config-file setup step");
+      }
+      expect(configStep.configPath).toBe("/home/test/custom-pi/mcp.json");
+    } finally {
+      if (originalPiDir !== undefined) {
+        process.env.PI_CODING_AGENT_DIR = originalPiDir;
+      } else {
+        delete process.env.PI_CODING_AGENT_DIR;
+      }
+    }
+  });
+
   it("google-antigravity returns config-file setup with npm MCP command", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
@@ -875,6 +943,7 @@ describe("detectAgents", () => {
     expect(detected).toHaveLength(7);
     expect(detected).not.toContain("claude-code");
     expect(detected).not.toContain("codex-cli");
+    expect(detected).not.toContain("pi");
     expect(detected).not.toContain("gemini-cli");
     expect(detected).toContain("opencode");
   });
@@ -1080,6 +1149,300 @@ describe("scanAgents", () => {
     expect(result.notDetected.some((a) => a.id === "codex-cli")).toBe(false);
   });
 
+  it("detects pi via detectBinary and requires adapter plus Pi-owned config", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        [`${lookupCmd} pi`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/pi\n",
+          stderr: "",
+        },
+        "pi list": {
+          exitCode: 0,
+          stdout: "npm:pi-mcp-adapter\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.needsSetup.some((a) => a.id === "pi")).toBe(true);
+    expect(result.notDetected.some((a) => a.id === "pi")).toBe(false);
+  });
+
+  it("detects pi from npm global bin when not on PATH", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      existingFiles: ["/npm-global/bin/pi"],
+      execResults: {
+        [`${lookupCmd} pi`]: { exitCode: 1, stdout: "", stderr: "" },
+        "npm prefix -g": {
+          exitCode: 0,
+          stdout: "/npm-global\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    const piAgent = result.needsSetup.find((a) => a.id === "pi");
+    expect(piAgent).toBeDefined();
+    const config = piAgent?.resolvedSetupConfig;
+    expect(config?.method).toBe("composite");
+    if (config?.method === "composite") {
+      const installStep = config.steps[0]!;
+      expect(installStep.method).toBe("cli");
+      if (installStep.method === "cli") {
+        expect(installStep.commands[0]!.command).toBe("/npm-global/bin/pi");
+        expect(installStep.checkCommand?.command).toBe("/npm-global/bin/pi");
+      }
+    }
+  });
+
+  it("detects pi from pnpm global bin when npm candidate is missing", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      existingFiles: ["/pnpm-global/bin/pi"],
+      execResults: {
+        [`${lookupCmd} pi`]: { exitCode: 1, stdout: "", stderr: "" },
+        "npm prefix -g": {
+          exitCode: 0,
+          stdout: "/npm-global\n",
+          stderr: "",
+        },
+        "pnpm bin -g": {
+          exitCode: 0,
+          stdout: "/pnpm-global/bin\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    const piAgent = result.needsSetup.find((a) => a.id === "pi");
+    expect(piAgent).toBeDefined();
+    const config = piAgent?.resolvedSetupConfig;
+    if (config?.method !== "composite") {
+      throw new Error("expected pi composite setup");
+    }
+    const installStep = config.steps[0]!;
+    if (installStep.method !== "cli") {
+      throw new Error("expected pi cli setup step");
+    }
+    expect(installStep.commands[0]!.command).toBe("/pnpm-global/bin/pi");
+  });
+
+  it("detects pi from bun global bin when earlier candidates are missing", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      existingFiles: ["/bun-global/bin/pi"],
+      execResults: {
+        [`${lookupCmd} pi`]: { exitCode: 1, stdout: "", stderr: "" },
+        "npm prefix -g": {
+          exitCode: 0,
+          stdout: "/npm-global\n",
+          stderr: "",
+        },
+        "pnpm bin -g": {
+          exitCode: 0,
+          stdout: "/pnpm-global/bin\n",
+          stderr: "",
+        },
+        "bun pm bin -g": {
+          exitCode: 0,
+          stdout: "/bun-global/bin\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    const piAgent = result.needsSetup.find((a) => a.id === "pi");
+    expect(piAgent).toBeDefined();
+    const config = piAgent?.resolvedSetupConfig;
+    if (config?.method !== "composite") {
+      throw new Error("expected pi composite setup");
+    }
+    const installStep = config.steps[0]!;
+    if (installStep.method !== "cli") {
+      throw new Error("expected pi cli setup step");
+    }
+    expect(installStep.commands[0]!.command).toBe("/bun-global/bin/pi");
+  });
+
+  it("does not detect pi when global bin candidates are missing", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        [`${lookupCmd} pi`]: { exitCode: 1, stdout: "", stderr: "" },
+        "npm prefix -g": {
+          exitCode: 0,
+          stdout: "/npm-global\n",
+          stderr: "",
+        },
+        "pnpm bin -g": {
+          exitCode: 0,
+          stdout: "/pnpm-global/bin\n",
+          stderr: "",
+        },
+        "bun pm bin -g": {
+          exitCode: 0,
+          stdout: "/bun-global/bin\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.notDetected.some((a) => a.id === "pi")).toBe(true);
+  });
+
+  it("detects pi.cmd from npm global bin on win32", async () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", {
+      value: "win32",
+      configurable: true,
+    });
+    try {
+      const { fs, execService } = createScanMocks({
+        detectedDirs: [],
+        existingFiles: ["C:\\npm/pi.cmd"],
+        execResults: {
+          "where pi": { exitCode: 1, stdout: "", stderr: "" },
+          "npm prefix -g": {
+            exitCode: 0,
+            stdout: "C:\\npm\n",
+            stderr: "",
+          },
+        },
+      });
+      const result = await scanAgents(agentDefinitions, fs, execService);
+      const piAgent = result.needsSetup.find((a) => a.id === "pi");
+      expect(piAgent).toBeDefined();
+      const config = piAgent?.resolvedSetupConfig;
+      if (config?.method !== "composite") {
+        throw new Error("expected pi composite setup");
+      }
+      const installStep = config.steps[0]!;
+      if (installStep.method !== "cli") {
+        throw new Error("expected pi cli setup step");
+      }
+      expect(installStep.commands[0]!.command).toBe("C:\\npm/pi.cmd");
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+    }
+  });
+
+  it("categorizes pi as alreadyConfigured when adapter and Pi-owned config exist", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      configFiles: {
+        "/home/test/.pi/agent/mcp.json": JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+              lifecycle: "eager",
+            },
+          },
+        }),
+        "C:\\Users\\test\\.pi/agent/mcp.json": JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        }),
+      },
+      execResults: {
+        [`${lookupCmd} pi`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/pi\n",
+          stderr: "",
+        },
+        "pi list": {
+          exitCode: 0,
+          stdout: "npm:pi-mcp-adapter@1.0.0\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.alreadyConfigured.some((a) => a.id === "pi")).toBe(true);
+    expect(result.needsSetup.some((a) => a.id === "pi")).toBe(false);
+  });
+
+  it("categorizes pi as alreadyConfigured with plain versioned adapter output", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      configFiles: {
+        "/home/test/.pi/agent/mcp.json": JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+              lifecycle: "eager",
+            },
+          },
+        }),
+      },
+      execResults: {
+        [`${lookupCmd} pi`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/pi\n",
+          stderr: "",
+        },
+        "pi list": {
+          exitCode: 0,
+          stdout: "pi-mcp-adapter@1.0.0\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.alreadyConfigured.some((a) => a.id === "pi")).toBe(true);
+  });
+
+  it("does not categorize pi as configured for similarly named adapter output", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      configFiles: {
+        "/home/test/.pi/agent/mcp.json": JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+              lifecycle: "eager",
+            },
+          },
+        }),
+      },
+      execResults: {
+        [`${lookupCmd} pi`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/pi\n",
+          stderr: "",
+        },
+        "pi list": {
+          exitCode: 0,
+          stdout: "pi-mcp-adapter-extra\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.needsSetup.some((a) => a.id === "pi")).toBe(true);
+    expect(result.alreadyConfigured.some((a) => a.id === "pi")).toBe(false);
+  });
+
   it("detects opencode from config directory when binary is missing", async () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", {
@@ -1238,15 +1601,18 @@ describe("scanAgents", () => {
       detectedDirs: [
         "/home/test/.claude",
         "/home/test/.codex",
+        "/home/test/.pi",
         "/home/test/.gemini",
       ],
     });
     const result = await scanAgents(agentDefinitions, fs, execService);
     expect(result.notDetected.some((a) => a.id === "claude-code")).toBe(true);
     expect(result.notDetected.some((a) => a.id === "codex-cli")).toBe(true);
+    expect(result.notDetected.some((a) => a.id === "pi")).toBe(true);
     expect(result.notDetected.some((a) => a.id === "gemini-cli")).toBe(true);
     expect(result.needsSetup.some((a) => a.id === "claude-code")).toBe(false);
     expect(result.needsSetup.some((a) => a.id === "codex-cli")).toBe(false);
+    expect(result.needsSetup.some((a) => a.id === "pi")).toBe(false);
     expect(result.needsSetup.some((a) => a.id === "gemini-cli")).toBe(false);
   });
 
@@ -1298,6 +1664,7 @@ describe("scanAgents", () => {
           GitHits: {
             command: "npx",
             args: ["-y", "githits@latest", "mcp", "start"],
+            lifecycle: "eager",
           },
         },
       }),
@@ -1306,6 +1673,7 @@ describe("scanAgents", () => {
           GitHits: {
             command: "npx",
             args: ["-y", "githits@latest", "mcp", "start"],
+            lifecycle: "eager",
           },
         },
       }),
@@ -1327,6 +1695,15 @@ describe("scanAgents", () => {
           },
         },
       }),
+      "C:\\Users\\test\\.pi/agent/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+            lifecycle: "eager",
+          },
+        },
+      }),
       "/home/test/.gemini/antigravity/mcp_config.json": JSON.stringify({
         mcpServers: {
           GitHits: {
@@ -1341,6 +1718,15 @@ describe("scanAgents", () => {
             type: "local",
             command: ["npx", "-y", "githits@latest", "mcp", "start"],
             enabled: true,
+          },
+        },
+      }),
+      "/home/test/.pi/agent/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+            lifecycle: "eager",
           },
         },
       }),
@@ -1369,6 +1755,16 @@ describe("scanAgents", () => {
       "codex mcp list": {
         exitCode: 0,
         stdout: "githits  npx -y githits@latest mcp start\n",
+        stderr: "",
+      },
+      [`${whichCmd} pi`]: {
+        exitCode: 0,
+        stdout: "/usr/bin/pi\n",
+        stderr: "",
+      },
+      "pi list": {
+        exitCode: 0,
+        stdout: "npm:pi-mcp-adapter\n",
         stderr: "",
       },
       [`${whichCmd} gemini`]: {
@@ -1412,7 +1808,7 @@ describe("scanAgents", () => {
           execResults: allCliConfigured,
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
-        expect(result.alreadyConfigured).toHaveLength(10);
+        expect(result.alreadyConfigured).toHaveLength(11);
         expect(result.needsSetup).toHaveLength(0);
         expect(result.notDetected).toHaveLength(0);
       });
@@ -1455,6 +1851,11 @@ describe("scanAgents", () => {
               stdout: "/usr/bin/gemini\n",
               stderr: "",
             },
+            [`${whichCmd} pi`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/pi\n",
+              stderr: "",
+            },
             [`${whichCmd} opencode`]: {
               exitCode: 0,
               stdout: "/usr/bin/opencode\n",
@@ -1464,7 +1865,7 @@ describe("scanAgents", () => {
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
-        expect(result.needsSetup).toHaveLength(10);
+        expect(result.needsSetup).toHaveLength(11);
         expect(result.notDetected).toHaveLength(0);
       });
 
@@ -1473,7 +1874,7 @@ describe("scanAgents", () => {
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
         expect(result.needsSetup).toHaveLength(0);
-        expect(result.notDetected).toHaveLength(10);
+        expect(result.notDetected).toHaveLength(11);
       });
 
       it("mixed: 3 configured, 4 unconfigured, 3 not detected", async () => {
@@ -1486,7 +1887,7 @@ describe("scanAgents", () => {
             "/home/test/.codeium/windsurf",
             vscodePath,
             // CLI tools are detected via binary checks below
-            // Not detected: cline, gemini-cli, google-antigravity
+            // Not detected: cline, pi, gemini-cli, google-antigravity
           ],
           configFiles: {
             "/home/test/.cursor/mcp.json": JSON.stringify({
@@ -1535,7 +1936,7 @@ describe("scanAgents", () => {
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(3);
         expect(result.needsSetup).toHaveLength(4);
-        expect(result.notDetected).toHaveLength(3);
+        expect(result.notDetected).toHaveLength(4);
 
         expect(result.alreadyConfigured.map((a) => a.id).sort()).toEqual(
           ["claude-code", "claude-desktop", "cursor"].sort(),
@@ -1544,7 +1945,7 @@ describe("scanAgents", () => {
           ["codex-cli", "opencode", "vscode", "windsurf"].sort(),
         );
         expect(result.notDetected.map((a) => a.id).sort()).toEqual(
-          ["cline", "gemini-cli", "google-antigravity"].sort(),
+          ["cline", "gemini-cli", "google-antigravity", "pi"].sort(),
         );
       });
 

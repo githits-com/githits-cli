@@ -8,7 +8,9 @@ import type { FileSystemService } from "../../services/filesystem-service.js";
 import type {
   CliCommand,
   CliSetup,
+  CompositeSetup,
   ConfigFileSetup,
+  SetupConfig,
 } from "./agent-definitions.js";
 
 /** A read-only command to check if a CLI agent is already configured. */
@@ -363,7 +365,10 @@ export function mergeServerConfig(
  * Format a setup config for display to the user before confirmation.
  * Returns human-readable description of what will happen.
  */
-export function formatSetupPreview(config: CliSetup | ConfigFileSetup): string {
+export function formatSetupPreview(config: SetupConfig): string {
+  if (config.method === "composite") {
+    return config.steps.map((step) => formatSetupPreview(step)).join("\n");
+  }
   if (config.method === "cli") {
     return config.commands
       .map((cmd) => `Will run: ${cmd.command} ${cmd.args.join(" ")}`)
@@ -415,6 +420,34 @@ export async function isAlreadyConfigured(
   } catch {
     return false;
   }
+}
+
+/**
+ * Check whether a setup is fully configured without mutating user state.
+ * Composite setups are configured only when every child step is configured.
+ */
+export async function isSetupAlreadyConfigured(
+  config: SetupConfig,
+  fs: FileSystemService,
+  execService: ExecService,
+): Promise<boolean> {
+  if (config.method === "config-file") {
+    return isAlreadyConfigured(config, fs);
+  }
+
+  if (config.method === "cli") {
+    if (!config.checkCommand) {
+      return false;
+    }
+    return isCliAlreadyConfigured(config.checkCommand, execService);
+  }
+
+  for (const step of config.steps) {
+    if (!(await isSetupAlreadyConfigured(step, fs, execService))) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -620,4 +653,41 @@ export async function executeConfigFileSetup(
       message: `Failed to configure: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
+}
+
+/**
+ * Execute a composite setup by skipping already configured child steps and
+ * applying missing steps in order. Stops on the first failure.
+ */
+export async function executeCompositeSetup(
+  setup: CompositeSetup,
+  fs: FileSystemService,
+  execService: ExecService,
+): Promise<SetupResult> {
+  let executedAny = false;
+
+  for (const step of setup.steps) {
+    if (await isSetupAlreadyConfigured(step, fs, execService)) {
+      continue;
+    }
+
+    executedAny = true;
+    const result =
+      step.method === "cli"
+        ? await executeCliSetup(step, execService)
+        : await executeConfigFileSetup(step, fs);
+
+    if (result.status === "failed") {
+      return result;
+    }
+  }
+
+  if (!executedAny) {
+    return {
+      status: "already_configured",
+      message: "GitHits already configured",
+    };
+  }
+
+  return { status: "success", message: "Configured successfully" };
 }

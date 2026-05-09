@@ -3,16 +3,22 @@ import {
   createMockExecService,
   createMockFileSystemService,
 } from "../../services/test-helpers.js";
-import type { CliSetup, ConfigFileSetup } from "./agent-definitions.js";
+import type {
+  CliSetup,
+  CompositeSetup,
+  ConfigFileSetup,
+} from "./agent-definitions.js";
 import type { CliCheckCommand, MergeResult } from "./setup-handlers.js";
 import {
   detectConfigFormat,
   executeCliSetup,
+  executeCompositeSetup,
   executeConfigFileSetup,
   formatSetupPreview,
   getCliCheckStatus,
   isAlreadyConfigured,
   isCliAlreadyConfigured,
+  isSetupAlreadyConfigured,
   mergeServerConfig,
 } from "./setup-handlers.js";
 
@@ -561,6 +567,32 @@ describe("mergeServerConfig", () => {
     expect(parsed.mcpServers.GitHits).toEqual(serverConfig);
   });
 
+  it("updates existing Pi GitHits config when lifecycle is missing", () => {
+    const eagerServerConfig = {
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+      lifecycle: "eager",
+    };
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+
+    const result = mergeServerConfig(
+      existing,
+      "mcpServers",
+      "GitHits",
+      eagerServerConfig,
+    );
+    const content = expectUpdated(result);
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers.GitHits).toEqual(eagerServerConfig);
+  });
+
   it("returns updated and normalizes lowercase githits key to GitHits", () => {
     const existing = JSON.stringify({
       mcpServers: {
@@ -857,6 +889,35 @@ describe("formatSetupPreview", () => {
     expect(preview).toContain("Will add to /home/test/.cursor/mcp.json:");
     expect(preview).toContain('"GitHits"');
     expect(preview).toContain('"command"');
+  });
+
+  it("formats composite setup with command and config previews", () => {
+    const setup: CompositeSetup = {
+      method: "composite",
+      steps: [
+        {
+          method: "cli",
+          commands: [
+            { command: "pi", args: ["install", "npm:pi-mcp-adapter"] },
+          ],
+        },
+        {
+          method: "config-file",
+          configPath: "/home/test/.pi/agent/mcp.json",
+          serversKey: "mcpServers",
+          serverName: "GitHits",
+          serverConfig: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      ],
+    };
+
+    const preview = formatSetupPreview(setup);
+    expect(preview).toContain("Will run: pi install npm:pi-mcp-adapter");
+    expect(preview).toContain("Will add to /home/test/.pi/agent/mcp.json:");
+    expect(preview).toContain('"GitHits"');
   });
 });
 
@@ -1305,5 +1366,145 @@ describe("executeConfigFileSetup", () => {
     // Should use atomic write, not regular write
     expect(atomicWrite).toHaveBeenCalled();
     expect(writeFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("executeCompositeSetup", () => {
+  const piConfigSetup: ConfigFileSetup = {
+    method: "config-file",
+    configPath: "/home/test/.pi/agent/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: {
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+    },
+  };
+
+  const piSetup: CompositeSetup = {
+    method: "composite",
+    steps: [
+      {
+        method: "cli",
+        commands: [{ command: "pi", args: ["install", "npm:pi-mcp-adapter"] }],
+        checkCommand: {
+          command: "pi",
+          args: ["list"],
+          configuredPattern: /pi-mcp-adapter/i,
+        },
+      },
+      piConfigSetup,
+    ],
+  };
+
+  it("reports already_configured when all steps are configured", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(
+          JSON.stringify({
+            mcpServers: { GitHits: piConfigSetup.serverConfig },
+          }),
+        ),
+      ),
+    });
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: "npm:pi-mcp-adapter\n",
+          stderr: "",
+        }),
+      ),
+    });
+
+    expect(await isSetupAlreadyConfigured(piSetup, fs, execService)).toBe(true);
+    const result = await executeCompositeSetup(piSetup, fs, execService);
+    expect(result.status).toBe("already_configured");
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("writes missing config when adapter is already installed", async () => {
+    const enoent = Object.assign(new Error("File not found"), {
+      code: "ENOENT",
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.reject(enoent)),
+      getDirname: mock(() => "/home/test/.pi/agent"),
+      atomicWriteFile: mock(() => Promise.resolve()),
+    });
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: "pi-mcp-adapter\n",
+          stderr: "",
+        }),
+      ),
+    });
+
+    const result = await executeCompositeSetup(piSetup, fs, execService);
+    expect(result.status).toBe("success");
+    expect(execService.exec).toHaveBeenCalledTimes(1);
+    expect(execService.exec).toHaveBeenCalledWith("pi", ["list"]);
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("installs adapter when config is already present", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(
+          JSON.stringify({
+            mcpServers: { GitHits: piConfigSetup.serverConfig },
+          }),
+        ),
+      ),
+    });
+    const execService = createMockExecService({
+      exec: mock((command: string, args: string[]) => {
+        if (command === "pi" && args.join(" ") === "list") {
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
+        }
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: "installed\n",
+          stderr: "",
+        });
+      }),
+    });
+
+    const result = await executeCompositeSetup(piSetup, fs, execService);
+    expect(result.status).toBe("success");
+    expect(execService.exec).toHaveBeenCalledWith("pi", [
+      "install",
+      "npm:pi-mcp-adapter",
+    ]);
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("stops on failed install before writing config", async () => {
+    const enoent = Object.assign(new Error("File not found"), {
+      code: "ENOENT",
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.reject(enoent)),
+      atomicWriteFile: mock(() => Promise.resolve()),
+    });
+    const execService = createMockExecService({
+      exec: mock((command: string, args: string[]) => {
+        if (command === "pi" && args.join(" ") === "list") {
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
+        }
+        return Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "install failed",
+        });
+      }),
+    });
+
+    const result = await executeCompositeSetup(piSetup, fs, execService);
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("install failed");
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
 });

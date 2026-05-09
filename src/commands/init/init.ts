@@ -22,6 +22,7 @@ import { loginFlow } from "../login.js";
 import { agentDefinitions, scanAgents } from "./agent-definitions.js";
 import {
   executeCliSetup,
+  executeCompositeSetup,
   executeConfigFileSetup,
   formatSetupPreview,
 } from "./setup-handlers.js";
@@ -192,7 +193,8 @@ export async function initAction(
   for (const agent of toSetup) {
     console.log(`  Setting up ${colorize(agent.name, "bold", useColors)}...\n`);
 
-    const config = agent.getSetupConfig(fileSystemService);
+    const config =
+      agent.resolvedSetupConfig ?? agent.getSetupConfig(fileSystemService);
 
     // Show preview
     const preview = formatSetupPreview(config);
@@ -228,7 +230,9 @@ export async function initAction(
     let result =
       config.method === "cli"
         ? await executeCliSetup(config, execService)
-        : await executeConfigFileSetup(config, fileSystemService);
+        : config.method === "config-file"
+          ? await executeConfigFileSetup(config, fileSystemService)
+          : await executeCompositeSetup(config, fileSystemService, execService);
 
     if (result.status === "success" || result.status === "already_configured") {
       const verification = await verifyAgentConfigured(
@@ -320,10 +324,11 @@ const INIT_DESCRIPTION = `Set up GitHits MCP server for your coding agents.
 
 Authenticates with your GitHits account, then scans for available agents
 (Claude Code, Cursor, Windsurf, VS Code, Cline, Claude Desktop, Codex CLI,
-Gemini CLI, Google Antigravity), checks which are already configured,
+Pi, Gemini CLI, Google Antigravity), checks which are already configured,
 and sets up unconfigured ones with your confirmation.
 
-Supports CLI-based setup (Claude Code, Codex, Gemini CLI) and config
+Supports CLI-based setup (Claude Code, Codex, Gemini CLI), Pi package setup,
+and config
 file editing (Cursor, Windsurf, VS Code, Cline, Claude Desktop,
 Google Antigravity) with atomic writes.`;
 

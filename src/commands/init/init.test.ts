@@ -190,6 +190,209 @@ describe("initAction", () => {
     ).toBe(true);
   });
 
+  it("sets up Pi by installing adapter and writing Pi-owned MCP config", async () => {
+    const enoent = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection([], {});
+    fs.readFile = mock((path: string) => {
+      if (path in configFiles) {
+        return Promise.resolve(configFiles[path]!);
+      }
+      return Promise.reject(enoent);
+    });
+    const atomicWriteFile = mock((path: string, content: string) => {
+      configFiles[path] = content;
+      return Promise.resolve();
+    });
+    fs.atomicWriteFile = atomicWriteFile;
+    const promptService = createMockPromptService({
+      confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+    });
+    let adapterInstalled = false;
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCommandFor()} pi`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/pi\n",
+            stderr: "",
+          });
+        }
+        if (key === "pi list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: adapterInstalled ? "pi-mcp-adapter\n" : "",
+            stderr: "",
+          });
+        }
+        if (key === "pi install npm:pi-mcp-adapter") {
+          adapterInstalled = true;
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "installed\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(execService.exec).toHaveBeenCalledWith("pi", [
+      "install",
+      "npm:pi-mcp-adapter",
+    ]);
+    expect(atomicWriteFile).toHaveBeenCalled();
+    const calls = atomicWriteFile.mock.calls;
+    expect(calls[0]?.[0]).toBe("/home/test/.pi/agent/mcp.json");
+    const written = String(calls[0]?.[1] ?? "");
+    expect(JSON.parse(written).mcpServers.GitHits).toEqual({
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+      lifecycle: "eager",
+    });
+  });
+
+  it("sets up Pi using npm global bin fallback when pi is not on PATH", async () => {
+    const enoent = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection([], {});
+    fs.exists = mock((path: string) =>
+      Promise.resolve(path === "/npm-global/bin/pi"),
+    );
+    fs.readFile = mock((path: string) => {
+      if (path in configFiles) {
+        return Promise.resolve(configFiles[path]!);
+      }
+      return Promise.reject(enoent);
+    });
+    const atomicWriteFile = mock((path: string, content: string) => {
+      configFiles[path] = content;
+      return Promise.resolve();
+    });
+    fs.atomicWriteFile = atomicWriteFile;
+    const promptService = createMockPromptService({
+      confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+    });
+    let adapterInstalled = false;
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCommandFor()} pi`) {
+          return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+        }
+        if (key === "npm prefix -g") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/npm-global\n",
+            stderr: "",
+          });
+        }
+        if (key === "/npm-global/bin/pi list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: adapterInstalled ? "pi-mcp-adapter@1.0.0\n" : "",
+            stderr: "",
+          });
+        }
+        if (key === "/npm-global/bin/pi install npm:pi-mcp-adapter") {
+          adapterInstalled = true;
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "installed\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(execService.exec).toHaveBeenCalledWith("/npm-global/bin/pi", [
+      "install",
+      "npm:pi-mcp-adapter",
+    ]);
+    expect(execService.exec).toHaveBeenCalledWith("/npm-global/bin/pi", [
+      "list",
+    ]);
+    expect(atomicWriteFile).toHaveBeenCalled();
+    const calls = atomicWriteFile.mock.calls;
+    const written = String(calls[0]?.[1] ?? "");
+    expect(JSON.parse(written).mcpServers.GitHits.lifecycle).toBe("eager");
+  });
+
+  it("skips already configured Pi without prompting", async () => {
+    const fs = createFsWithDetection([], {
+      "/home/test/.pi/agent/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+            lifecycle: "eager",
+          },
+        },
+      }),
+    });
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCommandFor()} pi`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/pi\n",
+            stderr: "",
+          });
+        }
+        if (key === "pi list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "pi-mcp-adapter\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+    const promptService = createMockPromptService();
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(promptService.confirm3).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(
+      getLogOutput().some(
+        (msg) => msg.includes("Pi") && msg.includes("already configured"),
+      ),
+    ).toBe(true);
+  });
+
   it("shows all agents as already configured when all check commands match", async () => {
     const lookupCmd = lookupCommandFor();
     // Detect Claude Code (CLI) and Cursor (config-file), both configured
@@ -284,8 +487,8 @@ describe("initAction", () => {
       },
     );
 
-    // 4 binary detections + 1 check + 2 setup commands + 2 post-setup verification calls = 9
-    expect(execService.exec).toHaveBeenCalledTimes(9);
+    // Includes Pi fallback global-bin probes when pi is not on PATH.
+    expect(execService.exec).toHaveBeenCalledTimes(13);
     expect(execService.exec).toHaveBeenCalledWith("claude", expect.any(Array));
   });
 
@@ -366,8 +569,8 @@ describe("initAction", () => {
       },
     );
 
-    // One PATH lookup is attempted for each binary-detected agent
-    expect(execService.exec).toHaveBeenCalledTimes(4);
+    // One PATH lookup is attempted for each binary-detected agent, plus Pi fallback probes.
+    expect(execService.exec).toHaveBeenCalledTimes(8);
     const logCalls = getLogOutput();
     expect(
       logCalls.some((msg) => msg.includes("No coding agents detected")),
