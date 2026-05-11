@@ -176,6 +176,64 @@ describe("root CLI preAction", () => {
     errorSpy.mockRestore();
   });
 
+  it("uses auth metadata to avoid startup container creation", async () => {
+    const createContainer = mock(() => Promise.resolve(createLoginDeps()));
+    const loginFlow = mock(() =>
+      Promise.resolve({
+        status: "success" as const,
+        message: "Logged in successfully.",
+      }),
+    );
+    const loadAuthSessionMetadata = mock(() =>
+      Promise.resolve({
+        createdAt: "2026-01-01T00:00:00Z",
+        expiresAt: "2999-01-01T00:00:00Z",
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+    const program = createProgramWithRootPreAction({
+      createContainer,
+      loadAuthSessionMetadata,
+      loginFlow,
+    });
+
+    let ran = false;
+    program.command("example").action(() => {
+      ran = true;
+    });
+
+    await program.parseAsync(["node", "githits", "example"]);
+
+    expect(ran).toBe(true);
+    expect(loadAuthSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(createContainer).not.toHaveBeenCalled();
+    expect(loginFlow).not.toHaveBeenCalled();
+  });
+
+  it("clears stale metadata when stored credentials are missing", async () => {
+    const createContainer = mock(() =>
+      Promise.resolve(createLoginDeps({ hasValidToken: false })),
+    );
+    const clearAuthSessionMetadata = mock(() => Promise.resolve());
+    const loginFlow = mock(() =>
+      Promise.resolve({
+        status: "success" as const,
+        message: "Logged in successfully.",
+      }),
+    );
+    const program = createProgramWithRootPreAction({
+      createContainer,
+      clearAuthSessionMetadata,
+      loginFlow,
+    });
+
+    program.command("example").action(() => {});
+
+    await program.parseAsync(["node", "githits", "example"]);
+
+    expect(clearAuthSessionMetadata).toHaveBeenCalledTimes(1);
+  });
+
   it("prints the languages continuation message after successful auto-login", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const container = createLoginDeps({ hasValidToken: false });

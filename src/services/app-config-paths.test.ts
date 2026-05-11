@@ -4,6 +4,8 @@ import {
   getAuthConfigPath,
   getAuthFileStorageDir,
   getLegacyAuthStorageDir,
+  getLegacyMacAuthConfigPath,
+  getLegacyMacAuthFileStorageDir,
 } from "./app-config-paths.js";
 import { createMockFileSystemService } from "./test-helpers.js";
 
@@ -48,10 +50,22 @@ describe("app config paths", () => {
     }
   });
 
-  it("uses Application Support on macOS", () => {
+  it("uses ~/.config on macOS", () => {
     withPlatform("darwin", () => {
       expect(getAppConfigDir(createMockFileSystemService())).toBe(
-        "/home/test/Library/Application Support/githits",
+        "/home/test/.config/githits",
+      );
+    });
+  });
+
+  it("keeps legacy macOS Application Support paths for migration", () => {
+    withPlatform("darwin", () => {
+      const fs = createMockFileSystemService();
+      expect(getLegacyMacAuthConfigPath(fs)).toBe(
+        "/home/test/Library/Application Support/githits/config.toml",
+      );
+      expect(getLegacyMacAuthFileStorageDir(fs)).toBe(
+        "/home/test/Library/Application Support/githits/auth",
       );
     });
   });

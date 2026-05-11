@@ -5,9 +5,12 @@ import {
   type LoginOptions,
   printAutoLoginRecoveryHint,
 } from "../commands/login.js";
+import type { AuthSessionMetadata } from "../services/auth-session-metadata-storage.js";
 import { getCommandPath, maybeAutoLoginBeforeCommand } from "./auto-login.js";
 
 export interface RootCliPreActionDependencies {
+  loadAuthSessionMetadata?: () => Promise<AuthSessionMetadata | null>;
+  clearAuthSessionMetadata?: () => Promise<void>;
   createContainer: () => Promise<
     LoginDependencies & { hasValidToken: boolean }
   >;

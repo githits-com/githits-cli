@@ -1,4 +1,5 @@
 import type { AuthStorageMode } from "./auth-config.js";
+import type { AuthSessionMetadataStore } from "./auth-session-metadata-storage.js";
 import type {
   AuthStorage,
   ClientRegistration,
@@ -14,7 +15,8 @@ type CredentialKind = "tokens" | "client";
 
 interface Candidate<T> {
   data: T;
-  source: "file" | "legacy" | "keychain";
+  source: "file" | "legacy";
+  storage: AuthStorage;
   timestamp: string;
   ambiguous: boolean;
 }
@@ -34,6 +36,8 @@ export class MigratingAuthStorage implements AuthStorage {
     private readonly mode: AuthStorageMode,
     private readonly configPath = "your GitHits config.toml",
     private readonly onWarning: (message: string) => void = () => {},
+    private readonly metadata?: AuthSessionMetadataStore,
+    private readonly additionalLegacyStores: AuthStorage[] = [],
   ) {}
 
   async loadTokens(baseUrl: string): Promise<TokenData | null> {
@@ -46,10 +50,12 @@ export class MigratingAuthStorage implements AuthStorage {
   async saveTokens(baseUrl: string, data: TokenData): Promise<void> {
     if (this.mode === "file") {
       await this.file.saveTokens(baseUrl, data);
+      await this.saveMetadataBestEffort(baseUrl, data);
       return;
     }
     try {
       await this.primary.saveTokens(baseUrl, data);
+      await this.saveMetadataBestEffort(baseUrl, data);
     } catch (error) {
       throw this.toPolicyError(error);
     }
@@ -72,6 +78,12 @@ export class MigratingAuthStorage implements AuthStorage {
     );
     await this.clearBestEffort(() => this.file.clearTokens(baseUrl));
     await this.clearBestEffort(() => this.legacy.clearTokens(baseUrl));
+    for (const legacy of this.additionalLegacyStores) {
+      await this.clearBestEffort(() => legacy.clearTokens(baseUrl));
+    }
+    await this.clearBestEffort(
+      () => this.metadata?.clear(baseUrl) ?? Promise.resolve(),
+    );
     if (primaryError && !(primaryError instanceof KeychainUnavailableError)) {
       throw primaryError;
     }
@@ -112,6 +124,9 @@ export class MigratingAuthStorage implements AuthStorage {
     );
     await this.clearBestEffort(() => this.file.clearClient(baseUrl));
     await this.clearBestEffort(() => this.legacy.clearClient(baseUrl));
+    for (const legacy of this.additionalLegacyStores) {
+      await this.clearBestEffort(() => legacy.clearClient(baseUrl));
+    }
     if (primaryError && !(primaryError instanceof KeychainUnavailableError)) {
       throw primaryError;
     }
@@ -124,10 +139,12 @@ export class MigratingAuthStorage implements AuthStorage {
   ): Promise<void> {
     if (this.mode === "file") {
       await this.file.saveAuthSession(baseUrl, client, tokens);
+      await this.saveMetadataBestEffort(baseUrl, tokens);
       return;
     }
     try {
       await this.primary.saveAuthSession(baseUrl, client, tokens);
+      await this.saveMetadataBestEffort(baseUrl, tokens);
     } catch (error) {
       throw this.toPolicyError(error);
     }
@@ -139,6 +156,12 @@ export class MigratingAuthStorage implements AuthStorage {
     );
     await this.clearBestEffort(() => this.file.clearAuthSession(baseUrl));
     await this.clearBestEffort(() => this.legacy.clearAuthSession(baseUrl));
+    for (const legacy of this.additionalLegacyStores) {
+      await this.clearBestEffort(() => legacy.clearAuthSession(baseUrl));
+    }
+    await this.clearBestEffort(
+      () => this.metadata?.clear(baseUrl) ?? Promise.resolve(),
+    );
     if (primaryError && !(primaryError instanceof KeychainUnavailableError)) {
       throw primaryError;
     }
@@ -155,7 +178,10 @@ export class MigratingAuthStorage implements AuthStorage {
   ): Promise<TokenData | null> {
     try {
       const primaryTokens = await this.primary.loadTokens(baseUrl);
-      if (primaryTokens) return primaryTokens;
+      if (primaryTokens) {
+        await this.saveMetadataBestEffort(baseUrl, primaryTokens);
+        return primaryTokens;
+      }
     } catch (error) {
       if (!(error instanceof KeychainUnavailableError)) throw error;
     }
@@ -174,8 +200,10 @@ export class MigratingAuthStorage implements AuthStorage {
       baseUrl,
       "tokens",
       candidate.source,
+      candidate.storage,
       candidate.ambiguous,
     );
+    await this.saveMetadataBestEffort(baseUrl, candidate.data);
     return candidate.data;
   }
 
@@ -184,8 +212,11 @@ export class MigratingAuthStorage implements AuthStorage {
     if (candidate) {
       if (candidate.source === "legacy") {
         await this.file.saveTokens(baseUrl, candidate.data);
-        await this.clearBestEffort(() => this.legacy.clearTokens(baseUrl));
+        await this.clearBestEffort(() =>
+          candidate.storage.clearTokens(baseUrl),
+        );
       }
+      await this.saveMetadataBestEffort(baseUrl, candidate.data);
       return candidate.data;
     }
 
@@ -199,6 +230,7 @@ export class MigratingAuthStorage implements AuthStorage {
 
     this.warnKeychainExport();
     await this.file.saveTokens(baseUrl, primaryTokens);
+    await this.saveMetadataBestEffort(baseUrl, primaryTokens);
     return primaryTokens;
   }
 
@@ -226,6 +258,7 @@ export class MigratingAuthStorage implements AuthStorage {
       baseUrl,
       "client",
       candidate.source,
+      candidate.storage,
       candidate.ambiguous,
     );
     return candidate.data;
@@ -238,7 +271,9 @@ export class MigratingAuthStorage implements AuthStorage {
     if (candidate) {
       if (candidate.source === "legacy") {
         await this.file.saveClient(baseUrl, candidate.data);
-        await this.clearBestEffort(() => this.legacy.clearClient(baseUrl));
+        await this.clearBestEffort(() =>
+          candidate.storage.clearClient(baseUrl),
+        );
       }
       return candidate.data;
     }
@@ -265,18 +300,22 @@ export class MigratingAuthStorage implements AuthStorage {
       candidates.push({
         data: fileTokens,
         source: "file",
+        storage: this.file,
         timestamp: fileTokens.createdAt,
         ambiguous: false,
       });
     }
-    const legacyTokens = await this.legacy.loadTokens(baseUrl);
-    if (legacyTokens) {
-      candidates.push({
-        data: legacyTokens,
-        source: "legacy",
-        timestamp: legacyTokens.createdAt,
-        ambiguous: false,
-      });
+    for (const legacy of this.getLegacyStores()) {
+      const legacyTokens = await legacy.loadTokens(baseUrl);
+      if (legacyTokens) {
+        candidates.push({
+          data: legacyTokens,
+          source: "legacy",
+          storage: legacy,
+          timestamp: legacyTokens.createdAt,
+          ambiguous: false,
+        });
+      }
     }
     return this.selectNewestCandidate(candidates);
   }
@@ -290,18 +329,22 @@ export class MigratingAuthStorage implements AuthStorage {
       candidates.push({
         data: fileClient,
         source: "file",
+        storage: this.file,
         timestamp: fileClient.registeredAt,
         ambiguous: false,
       });
     }
-    const legacyClient = await this.legacy.loadClient(baseUrl);
-    if (legacyClient) {
-      candidates.push({
-        data: legacyClient,
-        source: "legacy",
-        timestamp: legacyClient.registeredAt,
-        ambiguous: false,
-      });
+    for (const legacy of this.getLegacyStores()) {
+      const legacyClient = await legacy.loadClient(baseUrl);
+      if (legacyClient) {
+        candidates.push({
+          data: legacyClient,
+          source: "legacy",
+          storage: legacy,
+          timestamp: legacyClient.registeredAt,
+          ambiguous: false,
+        });
+      }
     }
     return this.selectNewestCandidate(candidates);
   }
@@ -319,9 +362,7 @@ export class MigratingAuthStorage implements AuthStorage {
     if (parsed.some((entry) => Number.isNaN(entry.timestampMs))) {
       this.warnAmbiguousPlaintext();
       const selected =
-        candidates.find((candidate) => candidate.source === "file") ??
-        candidates[0] ??
-        null;
+        candidates.find((candidate) => candidate.source === "file") ?? null;
       if (selected) selected.ambiguous = true;
       return selected;
     }
@@ -333,8 +374,8 @@ export class MigratingAuthStorage implements AuthStorage {
     if (second && first.timestampMs === second.timestampMs) {
       this.warnAmbiguousPlaintext();
       const selected =
-        candidates.find((candidate) => candidate.source === "file") ??
-        first.candidate;
+        candidates.find((candidate) => candidate.source === "file") ?? null;
+      if (!selected) return null;
       selected.ambiguous = true;
       return selected;
     }
@@ -344,12 +385,15 @@ export class MigratingAuthStorage implements AuthStorage {
   private async clearMigratedPlaintext(
     baseUrl: string,
     kind: CredentialKind,
-    source: "file" | "legacy" | "keychain",
+    source: "file" | "legacy",
+    storage: AuthStorage,
     ambiguous = false,
   ): Promise<void> {
     if (!ambiguous) {
       await this.clearPlaintextSource(this.file, baseUrl, kind);
-      await this.clearPlaintextSource(this.legacy, baseUrl, kind);
+      for (const legacy of this.getLegacyStores()) {
+        await this.clearPlaintextSource(legacy, baseUrl, kind);
+      }
       return;
     }
     if (source === "file") {
@@ -357,8 +401,12 @@ export class MigratingAuthStorage implements AuthStorage {
       return;
     }
     if (source === "legacy") {
-      await this.clearPlaintextSource(this.legacy, baseUrl, kind);
+      await this.clearPlaintextSource(storage, baseUrl, kind);
     }
+  }
+
+  private getLegacyStores(): AuthStorage[] {
+    return [...this.additionalLegacyStores, this.legacy];
   }
 
   private async clearPlaintextSource(
@@ -380,6 +428,15 @@ export class MigratingAuthStorage implements AuthStorage {
     } catch (error) {
       return error;
     }
+  }
+
+  private async saveMetadataBestEffort(
+    baseUrl: string,
+    tokens: TokenData,
+  ): Promise<void> {
+    await this.clearBestEffort(
+      () => this.metadata?.saveFromTokens(baseUrl, tokens) ?? Promise.resolve(),
+    );
   }
 
   private toPolicyError(error: unknown): unknown {

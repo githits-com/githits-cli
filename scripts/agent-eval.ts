@@ -732,8 +732,7 @@ export function buildCodexCommand(
     finalMessagePath,
     "--output-schema",
     schemaPath,
-    "--sandbox",
-    "read-only",
+    "--dangerously-bypass-approvals-and-sandbox",
     "--ignore-rules",
   ];
   if (options.model) command.push("-m", options.model);

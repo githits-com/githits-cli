@@ -151,6 +151,23 @@ describe("agent eval harness", () => {
     ).toContain("gpt-5.4-mini");
   });
 
+  it("runs Codex evals without interactive approval prompts", () => {
+    const command = buildCodexCommand(
+      "prompt",
+      "/tmp/work",
+      "/tmp/final.txt",
+      "/tmp/schema.json",
+      {
+        server: "local",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+    );
+
+    expect(command).toContain("--dangerously-bypass-approvals-and-sandbox");
+    expect(command).not.toContain("--sandbox");
+  });
+
   it("preserves normal Claude and GitHits auth environment while filtering unrelated vars", () => {
     const env = buildEvalEnv({
       PATH: "/bin",

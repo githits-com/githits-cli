@@ -56,7 +56,7 @@ Package/source access uses the package/source service URL from `GITHITS_CODE_NAV
 GitHits config uses the platform config directory:
 
 ```toml
-# ~/.config/githits/config.toml on Linux
+# ~/.config/githits/config.toml on macOS/Linux
 [auth]
 storage = "keychain"
 ```
@@ -68,14 +68,17 @@ storage = "keychain"
 
 Invalid `GITHITS_AUTH_STORAGE` or `auth.storage` values fail fast with a message that includes the expected values. Runtime keychain-unavailable errors include the exact config file path and the `[auth] storage = "file"` snippet, plus a plaintext-storage warning.
 
+Auto-login startup checks use non-secret metadata before touching the credential store. This avoids keychain reads during ordinary command startup when the local metadata was updated recently and says an unexpired session exists. Missing, stale, expired, or malformed metadata falls back to the credential store so existing users recover after the next successful keychain/file read.
+
 When file mode is enabled, storage uses secure file permissions but is not encrypted:
 
 ```text
-~/.config/githits/          (0700 on Linux)
+~/.config/githits/          (0700 on Unix-like platforms)
   config.toml              (0600 when written by GitHits)
   auth/                    (0700)
     auth.json              (0600) — OAuth tokens keyed by MCP URL
     client.json            (0600) — DCR client registrations keyed by MCP URL
+    metadata.json          (0600) — non-secret session expiry metadata keyed by MCP URL
 ```
 
 Platform roots:
@@ -83,10 +86,10 @@ Platform roots:
 | Platform | Config root |
 |---|---|
 | Linux/Unix | `$XDG_CONFIG_HOME/githits`, or `~/.config/githits` |
-| macOS | `~/Library/Application Support/githits` |
+| macOS | `$XDG_CONFIG_HOME/githits`, or `~/.config/githits` |
 | Windows | `%APPDATA%\githits`, or `~/AppData/Roaming/githits` |
 
-Legacy `~/.githits/auth.json` and `~/.githits/client.json` are still read for migration and cleared by logout, but new plaintext writes use the platform config auth path.
+Legacy `~/.githits/auth.json`, `~/.githits/client.json`, and the old macOS `~/Library/Application Support/githits` auth/config paths are still read for migration and cleared by logout where applicable, but new plaintext writes use the canonical config auth path.
 
 When writing config or auth files, use `FileSystemService` rather than `node:fs` directly — this enables testing via mock implementations from `src/services/test-helpers.ts`. Auth credential rewrites should use `atomicWriteFile()` to avoid truncated JSON on crashes.
 

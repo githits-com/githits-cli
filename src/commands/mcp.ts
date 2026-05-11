@@ -208,7 +208,7 @@ Authenticated tool calls require a valid GitHits token.`,
         showMcpSetupInstructions();
         return;
       }
-      const deps = await createContainer();
+      const deps = await createContainer({ resolveStoredToken: false });
       await startMcpServer(deps);
     });
 
@@ -222,7 +222,7 @@ This command explicitly starts the server and is intended for use
 in MCP configuration files. Use 'githits mcp' for interactive setup.`,
     )
     .action(async () => {
-      const deps = await createContainer();
+      const deps = await createContainer({ resolveStoredToken: false });
       await startMcpServer(deps);
     });
 }

@@ -188,8 +188,9 @@ Claude is launched with `--permission-mode bypassPermissions` so non-interactive
 evals can exercise configured MCP tools without a human approval prompt, and
 `--disable-slash-commands` to reduce plugin/skill contamination while preserving
 normal human auth. Codex is launched with per-run `-c` MCP config overrides,
-`--ignore-rules`, and a read-only sandbox so it can use normal human auth
-without mutating global MCP configuration.
+`--ignore-rules`, and `--dangerously-bypass-approvals-and-sandbox` so
+non-interactive MCP calls are not cancelled by Codex's approval layer. Keep
+workloads controlled and run them from the harness's empty temporary workspace.
 
 Malformed final JSON, schema mismatches, Claude failures, and timeouts are
 harness failures. Raw stdout and stderr are preserved for diagnosis with known
