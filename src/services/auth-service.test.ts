@@ -150,8 +150,12 @@ describe("AuthServiceImpl", () => {
         message: "access_denied: Denied",
       });
       expect(callback.statusCode).toBe(200);
-      expect(callback.html).toContain("Authentication failed");
-      expect(callback.html).toContain("Run `githits login` to try again.");
+      expect(callback.html).toContain("Sign-in failed");
+      expect(callback.html).toContain("Access was denied.");
+      expect(callback.html).toContain("Error code: <code>access_denied</code>");
+      expect(callback.html).toContain(
+        "Run <code>npx githits@latest logout</code> and then <code>npx githits@latest login</code> to try again.",
+      );
     });
 
     it("returns invalid callback outcome for missing params", () => {
@@ -168,9 +172,7 @@ describe("AuthServiceImpl", () => {
         message: "Authentication callback missing required parameters",
       });
       expect(callback.statusCode).toBe(400);
-      expect(callback.html).toContain(
-        "Authentication callback was missing required",
-      );
+      expect(callback.html).toContain("Sign-in did not complete correctly.");
     });
 
     it("returns state mismatch outcome and security failure HTML", () => {
@@ -187,8 +189,10 @@ describe("AuthServiceImpl", () => {
         message: "Security validation failed (state mismatch)",
       });
       expect(callback.statusCode).toBe(400);
-      expect(callback.html).toContain("Authentication failed");
-      expect(callback.html).toContain("state mismatch");
+      expect(callback.html).toContain("Sign-in failed");
+      expect(callback.html).toContain(
+        "Sign-in could not be verified for security reasons.",
+      );
     });
   });
 });

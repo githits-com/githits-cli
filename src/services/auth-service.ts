@@ -510,6 +510,22 @@ function successHtml(title = "Authentication successful"): string {
 </body></html>`;
 }
 
+const RETRY_HINT =
+  "Run `npx githits@latest logout` and then `npx githits@latest login` to try again.";
+
+const KNOWN_OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  access_denied: "Access was denied.",
+};
+
+function describeOauthError(code: string, description: string | null): string {
+  const mapped = KNOWN_OAUTH_ERROR_MESSAGES[code];
+  if (mapped) return mapped;
+  if (description) {
+    return /[.!?]$/.test(description) ? description : `${description}.`;
+  }
+  return "Something went wrong while signing in.";
+}
+
 export function evaluateCallback(
   input: CallbackEvaluationInput,
 ): CallbackEvaluationOutput {
@@ -517,9 +533,13 @@ export function evaluateCallback(
     const message = input.errorDescription
       ? `${input.error}: ${input.errorDescription}`
       : input.error;
+    const browserMessage = describeOauthError(
+      input.error,
+      input.errorDescription,
+    );
     return {
       statusCode: 200,
-      html: errorHtml(message, "Run `githits login` to try again."),
+      html: errorHtml(browserMessage, RETRY_HINT, input.error),
       result: { type: "oauth_error", message },
     };
   }
@@ -529,8 +549,8 @@ export function evaluateCallback(
       return {
         statusCode: 400,
         html: errorHtml(
-          "Authentication failed security validation (state mismatch)",
-          "Run `githits login` to try again.",
+          "Sign-in could not be verified for security reasons.",
+          RETRY_HINT,
         ),
         result: {
           type: "state_mismatch",
@@ -548,10 +568,7 @@ export function evaluateCallback(
 
   return {
     statusCode: 400,
-    html: errorHtml(
-      "Authentication callback was missing required parameters",
-      "Run `githits login` to try again.",
-    ),
+    html: errorHtml("Sign-in did not complete correctly.", RETRY_HINT),
     result: {
       type: "invalid_callback",
       message: "Authentication callback missing required parameters",
@@ -559,8 +576,15 @@ export function evaluateCallback(
   };
 }
 
-function errorHtml(error: string, nextStep?: string): string {
-  const nextStepHtml = nextStep ? `<p>${escapeHtml(nextStep)}</p>` : "";
+function errorHtml(
+  error: string,
+  nextStep?: string,
+  errorCode?: string,
+): string {
+  const nextStepHtml = nextStep ? `<p>${renderInlineCode(nextStep)}</p>` : "";
+  const errorCodeHtml = errorCode
+    ? `<p class="error-code">Error code: <code>${escapeHtml(errorCode)}</code></p>`
+    : "";
   return `<!DOCTYPE html>
 <html><head>
 <title>GitHits CLI</title>
@@ -645,6 +669,28 @@ function errorHtml(error: string, nextStep?: string): string {
   .footer-link:hover {
     color: #abb2bf;
   }
+  .error-code {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-size: 12px;
+    line-height: 16px;
+    color: #abb2bf;
+    opacity: 0.7;
+    margin: 4px 0 0;
+    text-align: center;
+  }
+  .error-code code {
+    font-size: 11px;
+    padding: 0 5px;
+  }
+  code {
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: #ffffff;
+  }
 </style>
 </head>
 <body>
@@ -657,8 +703,9 @@ function errorHtml(error: string, nextStep?: string): string {
     </div>
 
     <div class="message">
-      <h1 class="heading">Authentication failed</h1>
+      <h1 class="heading">Sign-in failed</h1>
       <p class="text text-muted">${escapeHtml(error)}</p>
+      ${errorCodeHtml}
     </div>
 
     ${nextStepHtml}
@@ -705,6 +752,15 @@ function closeServer(server: Server): Promise<void> {
 }
 
 /** Escape HTML to prevent XSS */
+function renderInlineCode(text: string): string {
+  return text
+    .split("`")
+    .map((part, i) =>
+      i % 2 === 0 ? escapeHtml(part) : `<code>${escapeHtml(part)}</code>`,
+    )
+    .join("");
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
