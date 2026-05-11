@@ -153,13 +153,7 @@ function formatVerboseBody(
   lines.push(buildHeader(envelope, options));
   lines.push("");
 
-  const content = envelope.content ?? "";
-  const bodyLines = content.split("\n");
-  // If the backend trailing-newline-terminates, drop the trailing
-  // empty line so the gutter doesn't render a ghost line.
-  if (bodyLines.length > 0 && bodyLines[bodyLines.length - 1] === "") {
-    bodyLines.pop();
-  }
+  const bodyLines = splitReadFileContentLines(envelope);
   const startLine = envelope.startLine ?? 1;
   const endLine = startLine + bodyLines.length - 1;
   const gutterWidth = String(endLine).length;
@@ -177,6 +171,38 @@ function formatVerboseBody(
   }
   lines.push("");
   return lines.join("\n");
+}
+
+export function splitReadFileContentLines(
+  envelope: Pick<LeanReadFileEnvelope, "content" | "startLine" | "endLine">,
+): string[] {
+  if (!envelope.content) return [];
+
+  const bodyLines = envelope.content.split("\n");
+  const expectedCount = expectedLineCount(envelope);
+  if (expectedCount === undefined) {
+    if (bodyLines[bodyLines.length - 1] === "") bodyLines.pop();
+    return bodyLines;
+  }
+
+  while (
+    bodyLines.length > 0 &&
+    bodyLines[bodyLines.length - 1] === "" &&
+    bodyLines.length > expectedCount
+  ) {
+    bodyLines.pop();
+  }
+  return bodyLines;
+}
+
+function expectedLineCount(
+  envelope: Pick<LeanReadFileEnvelope, "startLine" | "endLine">,
+): number | undefined {
+  if (envelope.startLine === undefined || envelope.endLine === undefined) {
+    return undefined;
+  }
+  if (envelope.endLine < envelope.startLine) return undefined;
+  return envelope.endLine - envelope.startLine + 1;
 }
 
 function buildHeader(

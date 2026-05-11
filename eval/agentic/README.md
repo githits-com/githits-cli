@@ -135,7 +135,7 @@ least one agent for quick iteration.
 | Dependency graph UX, `pkg_deps` | `package-dependencies.md` |
 | Release notes UX, `pkg_changelog` | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior |
 | Documentation browsing, `docs_list`, `docs_read` | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery |
-| File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md` |
+| File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md`; use `code-read-window.md` for focused source-window behavior |
 | Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |
 | Multi-tool code navigation strategy and MCP instructions | `express-router.md` |
 
@@ -167,6 +167,10 @@ Notable findings to keep in mind when evaluating future changes:
 - Codex sometimes reports a tool as unavailable until it performs additional
   tool discovery. Use `tool-calls.json` to distinguish actual unavailable tools
   from delayed discovery.
+- `code-read-window.md` should show focused bounded reads when the prompt already
+  names a source file and line area. Claude Haiku does this directly; Codex mini
+  has been observed doing package/search preflight before the eventual bounded
+  `code_read`, so review raw calls when tuning general tool-selection guidance.
 - `tool-calls.json` is the source of truth for tool usage. The final JSON is for
   the agent's assessment of clarity, issues, and usefulness.
 - `report.json` and `agent:e2e:report` are derived review aids. They normalize
