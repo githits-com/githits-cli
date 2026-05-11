@@ -126,6 +126,29 @@ describe("formatGrepRepoTerminal", () => {
     );
   });
 
+  it("maps UTF-8 byte offsets to string indexes for highlighting", () => {
+    const envelope = buildGrepRepoSuccessPayload(
+      {
+        ...baseResult,
+        matches: [
+          {
+            ...baseResult.matches[0]!,
+            lineContent: "const café = express();",
+            matchStartByte: 14,
+            matchEndByte: 21,
+          },
+        ],
+      },
+      baseOptions,
+    );
+    const { stdout } = formatGrepRepoTerminal(envelope, {
+      useColors: true,
+    });
+    expect(stdout).toContain(
+      `const café = ${"\u001b[1m\u001b[33m"}express${"\u001b[0m"}();`,
+    );
+  });
+
   it("heading mode emits a file heading with compact line rows", () => {
     const envelope = buildGrepRepoSuccessPayload(baseResult, baseOptions);
     const { stdout } = formatGrepRepoTerminal(envelope, {
@@ -145,6 +168,38 @@ describe("formatGrepRepoTerminal", () => {
     expect(stdout).toContain("1 match in 1 file");
     expect(stdout).toContain("src/index.js\n");
     expect(stdout).toContain("> 10  const app = express();");
+  });
+
+  it("verbose mode renders minimal symbol hints", () => {
+    const envelope = buildGrepRepoSuccessPayload(
+      {
+        ...baseResult,
+        matches: [
+          {
+            ...baseResult.matches[0]!,
+            symbol: {
+              ...baseResult.matches[0]!.symbol,
+              category: "callable",
+              isPublic: true,
+              startLine: 1,
+              endLine: 20,
+              parentPath: "express",
+            },
+          },
+        ],
+      },
+      baseOptions,
+    );
+
+    const { stdout } = formatGrepRepoTerminal(envelope, {
+      useColors: false,
+      verbose: true,
+    });
+    expect(stdout).toContain(
+      "in: express.createRouter (function) public L1-20",
+    );
+    expect(stdout).not.toContain("category=callable");
+    expect(stdout).not.toContain("parent=express");
   });
 
   it("renders context in chronological order", () => {

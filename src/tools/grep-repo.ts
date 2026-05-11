@@ -93,7 +93,7 @@ const DESCRIPTION =
   'Use this when you know the pattern (literal by default; pass `pattern_type: "regex"` for RE2). ' +
   "Use `search` for discovery instead. " +
   "Whole-target grep is the default — narrow with `path`, `path_prefix`, `globs`, or `extensions` to keep responses small. " +
-  "Each match's `path` chains into `code_read.path`; pick a window around `match.line` for `code_read.start_line` / `end_line`.";
+  "Each match's `filePath` (or text file heading) chains into `code_read.path`; pick a window around `match.line` for `code_read.start_line` / `end_line`.";
 
 export function createGrepRepoTool(
   service: CodeNavigationService,

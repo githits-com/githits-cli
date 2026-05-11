@@ -168,7 +168,7 @@ describe("renderGrepRepoText", () => {
     expect(text).toContain("regex,case-sensitive");
   });
 
-  it("echoes filter inputs in header when set", () => {
+  it("keeps filter inputs out of the header", () => {
     const text = renderGrepRepoText(
       envelope({
         totalMatches: 1,
@@ -181,9 +181,33 @@ describe("renderGrepRepoText", () => {
         },
       }),
     );
-    expect(text).toContain('path_prefix="src/integrations"');
-    expect(text).toContain("exts=ts,tsx");
-    expect(text).toContain("max_matches=30");
+    const header = text.split("\n")[0] ?? "";
+    expect(header).toBe('code_grep | 1 match in 1 file | pattern="applyEdit"');
+  });
+
+  it("keeps symbol metadata out of text output", () => {
+    const text = renderGrepRepoText(
+      envelope({
+        totalMatches: 1,
+        uniqueFilesMatched: 1,
+        matches: [
+          match({
+            symbol: {
+              name: "applyEdit",
+              qualifiedPath: "diff.applyEdit",
+              kind: "function",
+              startLine: 140,
+              endLine: 160,
+            },
+          }),
+        ],
+      }),
+    );
+    expect(text).toContain(
+      "  142: export function applyEdit(input: string): string {",
+    );
+    expect(text).not.toContain("Symbols:");
+    expect(text).not.toContain("diff.applyEdit");
   });
 
   it("uses ASCII separators only", () => {

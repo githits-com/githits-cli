@@ -218,7 +218,7 @@ More files available. Pass limit=N or refine the filter.
 **Grep anatomy** (`code_grep` text-v1):
 
 ```
-code_grep | <N> matches in <M> files | pattern="..." [regex,case-sensitive] [filter echo]
+code_grep | <N> matches in <M> files | pattern="..." [regex,case-sensitive]
 [blank]
 <filePath> (<count>)
   142: matching line content
@@ -234,7 +234,7 @@ code_grep | <N> matches in <M> files | pattern="..." [regex,case-sensitive] [fil
 [More matches available. Pass cursor=<token> for the next page.]
 ```
 
-Standard grep -A/-B notation: `:` separator on match lines, `-` on context lines. Non-adjacent blocks within the same file are separated by `--`. The `(<count>)` after the file path is the per-file match count; the header sums across files. Header flags (`regex`, `case-sensitive`) appear only when the request used them. Filter echoes (`path_prefix=`, `exts=`, `max_matches=`, etc.) appear only when the caller supplied them. Match-line offsets, file content hashes, file intent, and symbol metadata are dropped in text mode — agents that need them can request `format: "json"`.
+Standard grep -A/-B notation: `:` separator on match lines, `-` on context lines. Non-adjacent blocks within the same file are separated by `--`. The `(<count>)` after the file path is the per-file match count; the header sums across files. Header flags (`regex`, `case-sensitive`) appear only when the request used them. Scope filters are not echoed in text mode; agents already have the tool call arguments in context, and `format: "json"` preserves exact request/filter metadata for programmatic use. Match-line offsets, file content hashes, file intent, and symbol metadata are dropped in text mode — agents that need them can request `format: "json"`.
 
 **Errors in text mode.** `search` errors render as text in `text-v1` mode: `search | ERROR | code=<CODE> [| retryable]\n<message>` followed by an indented `details:` block when present. `code_files` and `code_grep` keep errors JSON-formatted in either mode for now — revisit if agent feedback warrants.
 
