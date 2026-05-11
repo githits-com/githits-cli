@@ -134,6 +134,7 @@ describe("AuthServiceImpl", () => {
       expect(callback.html).toContain(
         "You can close this window and return to your terminal.",
       );
+      expect(callback.html).toContain('data-copy="npx githits@latest --help"');
     });
 
     it("returns oauth error outcome and failure HTML", () => {
@@ -154,8 +155,10 @@ describe("AuthServiceImpl", () => {
       expect(callback.html).toContain("Access was denied.");
       expect(callback.html).toContain("Error code: <code>access_denied</code>");
       expect(callback.html).toContain(
-        "Run <code>npx githits@latest logout</code> and then <code>npx githits@latest login</code> to try again.",
+        "To try again, run these commands in your terminal:",
       );
+      expect(callback.html).toContain('data-copy="npx githits@latest logout"');
+      expect(callback.html).toContain('data-copy="npx githits@latest login"');
     });
 
     it("returns invalid callback outcome for missing params", () => {

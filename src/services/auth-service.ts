@@ -394,6 +394,7 @@ function successHtml(title = "You're signed in"): string {
 <html><head>
 <title>GitHits CLI</title>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Lexend:wght@600&display=swap" rel="stylesheet">
@@ -455,29 +456,7 @@ function successHtml(title = "You're signed in"): string {
   }
   .text-muted {
     color: #abb2bf;
-  }
-  .tip {
-    font-family: 'Inter', sans-serif;
-    font-weight: 400;
-    font-size: 14px;
-    line-height: 20px;
-    color: #abb2bf;
-    margin: 16px 0 0;
-    text-align: center;
-    text-wrap: pretty;
-  }
-  .tip-label {
-    font-weight: 600;
-    color: #ffffff;
-  }
-  code {
-    font-family: 'Consolas', monospace;
-    font-size: 13px;
-    background: rgba(255, 255, 255, 0.08);
-    padding: 1px 6px;
-    border-radius: 4px;
-    color: #ffffff;
-  }
+  }${COPY_BTN_CSS}
 </style>
 </head>
 <body>
@@ -492,7 +471,7 @@ function successHtml(title = "You're signed in"): string {
       <p class="text text-muted">You can close this window and return to your terminal.</p>
     </div>
 
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 554 129.3" width="103" height="24" role="img" aria-label="GitHits">
+    <svg class="wordmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 554 129.3" width="103" height="24" role="img" aria-label="GitHits">
       <title>GitHits</title>
       <defs>
         <linearGradient id="wm-grad" x1="234.9" y1="64.7" x2="555.5" y2="64.7" gradientUnits="userSpaceOnUse">
@@ -505,13 +484,11 @@ function successHtml(title = "You're signed in"): string {
       <path d="M239.1,64.8v-24h-18.8V8.5h-25v32.3h-18.8v24h18.8v62.6h25v-62.6h18.8ZM161.1,40.8h-25v86.6h25V40.8ZM91.6,84.6h-26.8v-24h54s1.2,4.3,1.1,12.1c-.3,30.6-25.3,55.5-55.9,55.7h-.5C27.4,128.4-1.6,98.3,0,61.8,1.5,29.6,27.4,3.4,59.6,1.4c21-1.2,40,7.7,52.4,22.4l-17.2,17.2c-7.7-10.1-20.3-16.4-34.3-15.4-19.4,1.4-35,17.1-36.4,36.5-1.6,23,16.6,42.2,39.3,42.2s28-19.7,28-19.7h.2Z" fill="#ff4fae" />
     </svg>
 
-    <p class="tip"><span class="tip-label">TIP:</span> Run <code>npx githits@latest --help</code> to discover what else you can do.</p>
+    ${HELP_CTA}
   </div>
+  ${COPY_SCRIPT_HTML}
 </body></html>`;
 }
-
-const RETRY_HINT =
-  "Run `npx githits@latest logout` and then `npx githits@latest login` to try again.";
 
 const KNOWN_OAUTH_ERROR_MESSAGES: Record<string, string> = {
   access_denied: "Access was denied.",
@@ -539,7 +516,7 @@ export function evaluateCallback(
     );
     return {
       statusCode: 200,
-      html: errorHtml(browserMessage, RETRY_HINT, input.error),
+      html: errorHtml(browserMessage, input.error, RETRY_CTA),
       result: { type: "oauth_error", message },
     };
   }
@@ -550,7 +527,8 @@ export function evaluateCallback(
         statusCode: 400,
         html: errorHtml(
           "Sign-in could not be verified for security reasons.",
-          RETRY_HINT,
+          undefined,
+          RETRY_CTA,
         ),
         result: {
           type: "state_mismatch",
@@ -568,7 +546,11 @@ export function evaluateCallback(
 
   return {
     statusCode: 400,
-    html: errorHtml("Sign-in did not complete correctly.", RETRY_HINT),
+    html: errorHtml(
+      "Sign-in did not complete correctly.",
+      undefined,
+      RETRY_CTA,
+    ),
     result: {
       type: "invalid_callback",
       message: "Authentication callback missing required parameters",
@@ -578,10 +560,9 @@ export function evaluateCallback(
 
 function errorHtml(
   error: string,
-  nextStep?: string,
   errorCode?: string,
+  ctaHtml?: string,
 ): string {
-  const nextStepHtml = nextStep ? `<p>${renderInlineCode(nextStep)}</p>` : "";
   const errorCodeHtml = errorCode
     ? `<p class="error-code">Error code: <code>${escapeHtml(errorCode)}</code></p>`
     : "";
@@ -589,6 +570,7 @@ function errorHtml(
 <html><head>
 <title>GitHits CLI</title>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Lexend:wght@600&display=swap" rel="stylesheet">
@@ -654,20 +636,17 @@ function errorHtml(
   .footer-text {
     font-family: 'Inter', sans-serif;
     font-weight: 400;
-    font-size: 14px;
-    line-height: 20px;
+    font-size: 12px;
+    line-height: 16px;
     color: #abb2bf;
     margin: 0;
     text-align: center;
     text-wrap: pretty;
   }
   .footer-link {
-    color: #ffffff;
+    color: inherit;
     text-decoration: underline;
     text-underline-offset: 2px;
-  }
-  .footer-link:hover {
-    color: #abb2bf;
   }
   .error-code {
     font-family: 'Inter', sans-serif;
@@ -690,7 +669,7 @@ function errorHtml(
     padding: 1px 6px;
     border-radius: 4px;
     color: #ffffff;
-  }
+  }${COPY_BTN_CSS}
 </style>
 </head>
 <body>
@@ -708,9 +687,9 @@ function errorHtml(
       ${errorCodeHtml}
     </div>
 
-    ${nextStepHtml}
+    ${ctaHtml ?? ""}
 
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 554 129.3" width="103" height="24" role="img" aria-label="GitHits">
+    <svg class="wordmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 554 129.3" width="103" height="24" role="img" aria-label="GitHits">
       <title>GitHits</title>
       <defs>
         <linearGradient id="wm-grad" x1="234.9" y1="64.7" x2="555.5" y2="64.7" gradientUnits="userSpaceOnUse">
@@ -725,6 +704,7 @@ function errorHtml(
 
     <p class="footer-text">Having trouble? Check our <a class="footer-link" href="https://app.githits.com/docs/" target="_blank" rel="noopener noreferrer">documentation</a> or contact <a class="footer-link" href="mailto:support@githits.com">support</a>.</p>
   </div>
+  ${COPY_SCRIPT_HTML}
 </body></html>`;
 }
 
@@ -751,16 +731,119 @@ function closeServer(server: Server): Promise<void> {
   });
 }
 
-/** Escape HTML to prevent XSS */
-function renderInlineCode(text: string): string {
-  return text
-    .split("`")
-    .map((part, i) =>
-      i % 2 === 0 ? escapeHtml(part) : `<code>${escapeHtml(part)}</code>`,
-    )
-    .join("");
+const COPY_ICON_SVG = `<svg class="githits-cli-icon githits-cli-icon-copy" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+
+const CHECK_ICON_SVG = `<svg class="githits-cli-icon githits-cli-icon-check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+function commandButton(cmd: string): string {
+  const escaped = escapeHtml(cmd);
+  return `<button type="button" class="githits-cli-btn" data-copy="${escaped}" aria-label="Copy command: ${escaped}"><span class="githits-cli-cmd">${escaped}</span>${COPY_ICON_SVG}${CHECK_ICON_SVG}</button>`;
 }
 
+function ctaBlock(introHtml: string, commands: string[]): string {
+  const buttons = commands.map(commandButton).join("\n      ");
+  return `<div class="cli-cta">
+      <p class="tip">${introHtml}</p>
+      ${buttons}
+    </div>`;
+}
+
+const COPY_BTN_CSS = `
+  .wordmark {
+    margin: 16px 0;
+  }
+  .cli-cta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0 0;
+  }
+  .wordmark + .cli-cta {
+    margin-top: 0;
+  }
+  .tip {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 20px;
+    color: #d5d9df;
+    margin: 0;
+    text-align: center;
+    text-wrap: pretty;
+  }
+  .githits-cli-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: rgba(255, 255, 255, 0.08);
+    border: none;
+    border-radius: 0.5rem;
+    padding: 1rem 1.25rem;
+    font-family: Consolas, ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 14px;
+    font-weight: 500;
+    color: #abb2bf;
+    cursor: pointer;
+    line-height: 1;
+    transition: background-color 0.2s ease, transform 0.1s ease, color 0.2s ease;
+  }
+  .githits-cli-btn:hover {
+    color: #d5d9df;
+  }
+  .githits-cli-btn:active {
+    transform: scale(0.98);
+  }
+  .githits-cli-btn:focus-visible {
+    outline: 2px solid #abb2bf;
+    outline-offset: 2px;
+  }
+  .githits-cli-cmd {
+    white-space: nowrap;
+  }
+  .githits-cli-icon {
+    width: 14px;
+    height: 14px;
+    color: #abb2bf;
+    flex-shrink: 0;
+  }
+  .githits-cli-btn.copied .githits-cli-icon-copy { display: none; }
+  .githits-cli-btn:not(.copied) .githits-cli-icon-check { display: none; }
+  .githits-cli-btn.copied .githits-cli-icon { color: #abb2bf; }`;
+
+const COPY_SCRIPT_HTML = `<script>
+(function() {
+  var timers = new WeakMap();
+  var buttons = document.querySelectorAll('.githits-cli-btn');
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].addEventListener('click', function(e) {
+      var target = e.currentTarget;
+      var text = target.getAttribute('data-copy');
+      if (!text || !navigator.clipboard) return;
+      navigator.clipboard.writeText(text).then(function() {
+        target.classList.add('copied');
+        var existing = timers.get(target);
+        if (existing) clearTimeout(existing);
+        timers.set(target, setTimeout(function() {
+          target.classList.remove('copied');
+          timers.delete(target);
+        }, 1500));
+      });
+    });
+  }
+})();
+</script>`;
+
+const RETRY_CTA = ctaBlock(
+  "To try again, run these commands in your terminal:",
+  ["npx githits@latest logout", "npx githits@latest login"],
+);
+
+const HELP_CTA = ctaBlock("Explore available commands with:", [
+  "npx githits@latest --help",
+]);
+
+/** Escape HTML to prevent XSS */
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
