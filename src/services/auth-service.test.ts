@@ -130,9 +130,9 @@ describe("AuthServiceImpl", () => {
         state: "state-ok",
       });
       expect(callback.statusCode).toBe(200);
-      expect(callback.html).toContain("Authentication successful");
+      expect(callback.html).toContain("signed in");
       expect(callback.html).toContain(
-        "You can close this window and return to the terminal.",
+        "You can close this window and return to your terminal.",
       );
     });
 

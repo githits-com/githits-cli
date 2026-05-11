@@ -259,7 +259,7 @@ export class AuthServiceImpl implements AuthService {
             sendHtmlResponse(
               res,
               200,
-              successHtml("Authentication already completed."),
+              successHtml("You're already signed in."),
             );
             return;
           }
@@ -389,7 +389,7 @@ function parseRefreshTokenResponse(data: unknown): RefreshTokenResponse {
   };
 }
 
-function successHtml(title = "Authentication successful"): string {
+function successHtml(title = "You're signed in"): string {
   return `<!DOCTYPE html>
 <html><head>
 <title>GitHits CLI</title>
@@ -489,7 +489,7 @@ function successHtml(title = "Authentication successful"): string {
     </div>
     <div class="message">
       <h1 class="heading">${escapeHtml(title)}</h1>
-      <p class="text text-muted">You can close this window and return to the terminal.</p>
+      <p class="text text-muted">You can close this window and return to your terminal.</p>
     </div>
 
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 554 129.3" width="103" height="24" role="img" aria-label="GitHits">
