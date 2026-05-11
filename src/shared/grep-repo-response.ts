@@ -1,5 +1,6 @@
 import type { GrepRepoMatch, GrepRepoResult } from "../services/index.js";
 import { colorize, dim, highlightRanges } from "./colors.js";
+import { shellQuote } from "./shell-quote.js";
 
 export interface LeanGrepRepoMatch {
   filePath: string;
@@ -613,10 +614,6 @@ function formatCount(
   plural = `${singular}s`,
 ): string {
   return `${count} ${count === 1 ? singular : plural}`;
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
 function padLeft(text: string, width: number): string {

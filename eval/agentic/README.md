@@ -134,7 +134,7 @@ least one agent for quick iteration.
 | Package overview or vulnerability UX, `pkg_info`, `pkg_vulns` | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior; use `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior |
 | Dependency graph UX, `pkg_deps` | `package-dependencies.md` |
 | Release notes UX, `pkg_changelog` | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior |
-| Documentation browsing, `docs_list`, `docs_read` | `docs-discovery.md` |
+| Documentation browsing, `docs_list`, `docs_read` | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery |
 | File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md` |
 | Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |
 | Multi-tool code navigation strategy and MCP instructions | `express-router.md` |

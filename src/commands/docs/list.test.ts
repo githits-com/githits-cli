@@ -37,6 +37,7 @@ describe("docsListAction", () => {
     expect(output).toContain("123-getting-started");
     expect(output).toContain("[crawled]");
     expect(output).toContain("[repo]");
+    expect(output).toContain("Read a page: githits docs read '<pageId>'");
     writeSpy.mockRestore();
   });
 

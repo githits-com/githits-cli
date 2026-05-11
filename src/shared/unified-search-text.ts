@@ -102,7 +102,7 @@ function appendHit(
   index: number,
   hit: UnifiedSearchHitPayload,
 ): void {
-  const headerParts: string[] = [hit.target, shortType(hit.type)];
+  const headerParts: string[] = [formatHitPrimary(hit), shortType(hit.type)];
   lines.push(`[${index}] ${headerParts.join("  ")}`);
 
   const locator = buildLocatorLine(hit);
@@ -120,6 +120,36 @@ function appendHit(
       lines.push(`    ${wrapped}`);
     }
   }
+}
+
+function formatHitPrimary(hit: UnifiedSearchHitPayload): string {
+  const loc = hit.locator;
+  if (hit.type === "documentation_page" && loc.pageId) {
+    const target = formatDocsPageTarget(loc, hit.target);
+    return target ? `${loc.pageId} ${target}` : loc.pageId;
+  }
+  if (hit.type === "repository_doc" && loc.filePath) {
+    return `${hit.target} ${loc.filePath}${formatLineRange(loc.startLine, loc.endLine)}`;
+  }
+  return hit.target;
+}
+
+function formatDocsPageTarget(
+  locator: {
+    registry?: string;
+    packageName?: string;
+  },
+  fallbackTarget?: string,
+): string {
+  return locator.registry && locator.packageName
+    ? `${locator.registry}:${locator.packageName}`
+    : stripVersionFromTarget(fallbackTarget);
+}
+
+function stripVersionFromTarget(value: string | undefined): string {
+  if (!value) return "";
+  const atIndex = value.lastIndexOf("@");
+  return atIndex > 0 ? value.slice(0, atIndex) : value;
 }
 
 /**

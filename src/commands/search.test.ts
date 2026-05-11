@@ -621,11 +621,57 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain(
-      "npm:express@4.18.2 [docs page] - Using Express middleware",
+      "docs-123 [docs page] npm:express - Using Express middleware - hexdocs.pm/express/getting-started.html",
     );
-    expect(output).toContain("pageId:");
     expect(output).toContain("docs-123");
-    expect(output).toContain("[crawled]");
+    expect(output).not.toContain("source:");
+    expect(output).not.toContain("npm:express@4.18.2 [docs page]");
+    expect(output).not.toContain("read:");
+    consoleSpy.mockRestore();
+  });
+
+  it("falls back to target attribution for docs pages without package locator fields", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const docsOutcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [
+          {
+            ...defaultUnifiedSearchOutcome.result.results[0]!,
+            resultType: "DOCUMENTATION_PAGE",
+            targetLabel: "docs.example@stable",
+            title: "Routing",
+            highlights: undefined,
+            locator: {
+              pageId: "docs-routing",
+              sourceKind: "CRAWLED",
+              sourceUrl: "https://docs.example/routing",
+            },
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router middleware",
+      { in: ["npm:express"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(docsOutcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "docs-routing [docs page] docs.example - Routing - docs.example/routing",
+    );
     consoleSpy.mockRestore();
   });
 });
