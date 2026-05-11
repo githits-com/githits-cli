@@ -49,7 +49,7 @@ export interface GrepRepoRequestPathSelectorInput {
 
 export interface GrepRepoRequestInput {
   target: CodeNavigationTarget;
-  pattern: string;
+  pattern?: string;
   path?: string;
   pathPrefix?: string;
   globs?: string[];
@@ -95,7 +95,7 @@ export function buildGrepRepoParams(
   const pattern = input.pattern ?? "";
   if (pattern.length === 0 || pattern.trim().length === 0) {
     throw new InvalidPackageSpecError(
-      "`pattern` is required — pass the text to search for.",
+      "`pattern` is required — pass the text to search for. If you are trying to list files or count files in scope, use `code_files` instead.",
     );
   }
   if (Buffer.byteLength(pattern, "utf8") > PATTERN_MAX) {

@@ -106,6 +106,15 @@ describe("buildGrepRepoParams", () => {
     });
     expect(params.pattern).toBe(" middleware ");
   });
+
+  it("rejects omitted patterns with a code_files recovery hint", () => {
+    expect(() =>
+      buildGrepRepoParams({
+        target,
+        pathPrefix: "lib/",
+      }),
+    ).toThrow(/pattern.*code_files/);
+  });
 });
 
 describe("GREP_REPO_PATTERN_NOTE", () => {

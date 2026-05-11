@@ -135,7 +135,7 @@ least one agent for quick iteration.
 | Dependency graph UX, `pkg_deps` | `package-dependencies.md` |
 | Release notes UX, `pkg_changelog` | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior |
 | Documentation browsing, `docs_list`, `docs_read` | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery |
-| File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md`; use `code-read-window.md` for focused source-window behavior |
+| File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior |
 | Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |
 | Multi-tool code navigation strategy and MCP instructions | `express-router.md` |
 
@@ -171,6 +171,12 @@ Notable findings to keep in mind when evaluating future changes:
   names a source file and line area. Claude Haiku does this directly; Codex mini
   has been observed doing package/search preflight before the eventual bounded
   `code_read`, so review raw calls when tuning general tool-selection guidance.
+- `code-files-listing.md` should show direct path enumeration with `code_files`.
+  Claude Haiku does this directly. Codex mini has been observed oscillating
+  between `code_read`, `code_grep`, and `code_files`, and can self-report that
+  `code_files` is unavailable even when earlier runs used it; treat raw calls as
+  the source of truth and fix concrete validation/error issues rather than
+  overfitting instructions to one noisy run.
 - `tool-calls.json` is the source of truth for tool usage. The final JSON is for
   the agent's assessment of clarity, issues, and usefulness.
 - `report.json` and `agent:e2e:report` are derived review aids. They normalize

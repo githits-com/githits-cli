@@ -20,7 +20,7 @@ import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
 export interface GrepRepoArgs {
   target: CodeTargetArg;
-  pattern: string;
+  pattern?: string;
   path?: string;
   path_prefix?: string;
   globs?: string[];
@@ -42,7 +42,7 @@ export interface GrepRepoArgs {
 
 const schema = {
   target: codeTargetSchema,
-  pattern: z.string().describe(GREP_REPO_PATTERN_NOTE),
+  pattern: z.string().optional().describe(GREP_REPO_PATTERN_NOTE),
   path: z
     .string()
     .optional()

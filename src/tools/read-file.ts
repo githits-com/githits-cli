@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { CodeNavigationService } from "../services/index.js";
-import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
+import {
+  type MappedError,
+  mapCodeNavigationError,
+} from "../shared/code-navigation-error-map.js";
 import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
 import { buildReadFileParams } from "../shared/read-file-request.js";
 import {
@@ -41,7 +44,7 @@ const schema = {
   path: z
     .string()
     .describe(
-      "Path to the file. Package addressing: package-relative. Repo addressing: repo-relative. This is the same `path` key that `code_files` emits for each entry, so chaining needs no renaming.",
+      "Exact file path to read, not a directory. Package addressing: package-relative. Repo addressing: repo-relative. Use `code_files` with `path_prefix` to list directories, then pass an emitted `path` here.",
     ),
   start_line: z
     .number()
@@ -70,7 +73,9 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Read a file from an indexed dependency. **MCP cap: " +
+  "Read one exact file from an indexed dependency; it does not list " +
+  "directories. Use `code_files` with `path_prefix` for file/path " +
+  "enumeration. **MCP cap: " +
   `${MCP_READ_MAX_SPAN} lines per call** — broader requests (or no ` +
   `range) silently truncate to the first ${MCP_READ_MAX_SPAN} lines ` +
   "from your start, with a `hint` describing what was returned vs. " +
@@ -177,7 +182,10 @@ export function createReadFileTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
-        const mapped = mapCodeNavigationError(error);
+        const mapped = withReadFileRecovery(
+          mapCodeNavigationError(error),
+          args.path,
+        );
         return errorResult(
           JSON.stringify({
             error: mapped.message,
@@ -189,6 +197,43 @@ export function createReadFileTool(
       }
     },
   };
+}
+
+function withReadFileRecovery(
+  mapped: MappedError,
+  requestedPath: string,
+): MappedError {
+  if (mapped.code !== "FILE_NOT_FOUND" && mapped.code !== "NOT_FOUND") {
+    return mapped;
+  }
+
+  return {
+    ...mapped,
+    details: {
+      ...mapped.details,
+      action: buildReadFileNotFoundAction(requestedPath),
+    },
+  };
+}
+
+function buildReadFileNotFoundAction(requestedPath: string): string {
+  const prefix = buildPathPrefixSuggestion(requestedPath);
+  return (
+    "`code_read` reads files only, not directories. " +
+    `Use \`code_files\` with \`path_prefix: ${JSON.stringify(prefix)}\` ` +
+    "to list candidate files, then pass an emitted `path` back to `code_read`."
+  );
+}
+
+function buildPathPrefixSuggestion(requestedPath: string): string {
+  const trimmed = requestedPath.trim();
+  if (trimmed === "") return "";
+  if (trimmed.endsWith("/")) return trimmed;
+
+  const slash = trimmed.lastIndexOf("/");
+  const basename = slash === -1 ? trimmed : trimmed.slice(slash + 1);
+  if (!basename.includes(".")) return `${trimmed}/`;
+  return slash === -1 ? "" : trimmed.slice(0, slash + 1);
 }
 
 function isTextFormat(format: ReadFileArgs["format"]): boolean {
