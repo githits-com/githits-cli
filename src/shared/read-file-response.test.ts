@@ -4,6 +4,7 @@ import {
   buildReadFileSuccessPayload,
   formatReadFileTerminal,
 } from "./read-file-response.js";
+import { renderReadFileText } from "./read-file-text.js";
 
 const baseResult: ReadFileResult = {
   filePath: "src/index.js",
@@ -139,6 +140,56 @@ describe("formatReadFileTerminal", () => {
     expect(output).toContain("src/index.js · javascript · lines 1-5 of 5");
     expect(output).toContain("1  // Express entry point");
     expect(output).toContain("2  'use strict';");
+  });
+
+  it("verbose mode: preserves a trailing blank line when it is inside the returned range", () => {
+    const envelope = buildReadFileSuccessPayload(
+      {
+        filePath: "lib/application.js",
+        language: "javascript",
+        totalLines: 632,
+        startLine: 33,
+        endLine: 35,
+        content:
+          "var slice = Array.prototype.slice;\nvar flatten = Array.prototype.flat;\n",
+        isBinary: false,
+      },
+      { ...baseOptions, requestedFilePath: "lib/application.js" },
+    );
+    const output = formatReadFileTerminal(envelope, {
+      useColors: false,
+      verbose: true,
+    });
+    expect(output).toContain("33  var slice = Array.prototype.slice;");
+    expect(output).toContain("34  var flatten = Array.prototype.flat;");
+    expect(output).toContain("35  \n");
+
+    const text = renderReadFileText(envelope);
+    expect(text.endsWith("35  ")).toBe(true);
+  });
+
+  it("verbose mode: drops only one trailing transport newline when range metadata is absent", () => {
+    const envelope = buildReadFileSuccessPayload(
+      {
+        filePath: "src/no-range.js",
+        language: "javascript",
+        content: "line 1\n\n",
+        isBinary: false,
+      },
+      { ...baseOptions, requestedFilePath: "src/no-range.js" },
+    );
+    const output = formatReadFileTerminal(envelope, {
+      useColors: false,
+      verbose: true,
+    });
+    expect(output).toContain("1  line 1");
+    expect(output).toContain("2  \n");
+    expect(output).not.toContain("3  ");
+
+    const text = renderReadFileText(envelope);
+    expect(text).toContain("1  line 1");
+    expect(text.endsWith("2  ")).toBe(true);
+    expect(text).not.toContain("3  ");
   });
 
   it("plain mode: binary sentinel only — no header", () => {
