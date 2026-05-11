@@ -2,7 +2,7 @@ Return only valid JSON matching the provided schema. Do not include markdown,
 prose, code fences, or any text outside the JSON object. Include:
 
 - `status`: `success`, `failure`, or `inconclusive`.
-- `answer`: your final answer with evidence.
+- `answer`: your final answer with evidence as a string.
 - `toolIssues`: string descriptions of GitHits tool calls that failed or
   returned unclear output, if any.
 - `expectedToolUse`: string list of GitHits tools you expected to use for this

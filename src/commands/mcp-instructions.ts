@@ -36,7 +36,7 @@ const SEARCH_STATUS_BULLET =
   "- `search_status` — follow up a prior `search` by `searchRef` to check progress, fetch partial hits, or fetch final results.";
 
 const CODE_GREP_BULLET =
-  "- `code_grep` — deterministic text or regex grep over indexed source. Use it when you know the pattern; use `search` for discovery. Narrow with `path`, `path_prefix`, `globs`, or `extensions`. Each match's `path:line` chains into `code_read`.";
+  "- `code_grep` — deterministic text or regex grep over indexed source. Use it when you know the pattern; use `search` for discovery. Narrow with `path`, `path_prefix`, `globs`, or `extensions`. Each match's `filePath`/file heading plus line number chains into `code_read`.";
 
 const CODE_READ_BULLET =
   "- `code_read` — read a dependency file by `path`. **MCP cap: 150 lines per call**. When you already have an exact path (e.g. from a stack trace), call this directly; otherwise locate it first with `search` or `code_grep` and pick a focused `start_line` / `end_line` window. Binary files set `isBinary: true` and omit `content`. On `FILE_NOT_FOUND` / `NOT_FOUND`, call `code_files` for the actual path.";
