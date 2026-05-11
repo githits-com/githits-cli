@@ -19,42 +19,57 @@ function withPlatform<T>(platform: NodeJS.Platform, fn: () => T): T {
   }
 }
 
+function withEnvVar<T>(key: string, value: string | undefined, fn: () => T): T {
+  const original = process.env[key];
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+  try {
+    return fn();
+  } finally {
+    if (original === undefined) delete process.env[key];
+    else process.env[key] = original;
+  }
+}
+
 describe("app config paths", () => {
   it("uses XDG_CONFIG_HOME on linux", () => {
-    const original = process.env.XDG_CONFIG_HOME;
-    process.env.XDG_CONFIG_HOME = "/xdg/config";
-    try {
+    withEnvVar("XDG_CONFIG_HOME", "/xdg/config", () => {
       withPlatform("linux", () => {
         const fs = createMockFileSystemService();
         expect(getAppConfigDir(fs)).toBe("/xdg/config/githits");
         expect(getAuthConfigPath(fs)).toBe("/xdg/config/githits/config.toml");
         expect(getAuthFileStorageDir(fs)).toBe("/xdg/config/githits/auth");
       });
-    } finally {
-      if (original === undefined) delete process.env.XDG_CONFIG_HOME;
-      else process.env.XDG_CONFIG_HOME = original;
-    }
+    });
   });
 
   it("falls back to ~/.config on linux", () => {
-    const original = process.env.XDG_CONFIG_HOME;
-    delete process.env.XDG_CONFIG_HOME;
-    try {
+    withEnvVar("XDG_CONFIG_HOME", undefined, () => {
       withPlatform("linux", () => {
         expect(getAppConfigDir(createMockFileSystemService())).toBe(
           "/home/test/.config/githits",
         );
       });
-    } finally {
-      if (original !== undefined) process.env.XDG_CONFIG_HOME = original;
-    }
+    });
   });
 
   it("uses ~/.config on macOS", () => {
-    withPlatform("darwin", () => {
-      expect(getAppConfigDir(createMockFileSystemService())).toBe(
-        "/home/test/.config/githits",
-      );
+    withEnvVar("XDG_CONFIG_HOME", undefined, () => {
+      withPlatform("darwin", () => {
+        expect(getAppConfigDir(createMockFileSystemService())).toBe(
+          "/home/test/.config/githits",
+        );
+      });
+    });
+  });
+
+  it("uses XDG_CONFIG_HOME on macOS when set", () => {
+    withEnvVar("XDG_CONFIG_HOME", "/xdg/config", () => {
+      withPlatform("darwin", () => {
+        expect(getAppConfigDir(createMockFileSystemService())).toBe(
+          "/xdg/config/githits",
+        );
+      });
     });
   });
 
