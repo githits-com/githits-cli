@@ -81,6 +81,22 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("Delegate multi-call work to a sub-agent");
   });
 
+  it("steers file enumeration to code_files instead of directory probes", () => {
+    const deps = createTestDeps();
+    const instructions = buildMcpInstructions(deps);
+
+    expect(instructions).toContain(
+      "First choice for file-listing/path-enumeration tasks",
+    );
+    expect(instructions).toContain(
+      "do not use `code_read` to probe directories",
+    );
+    expect(instructions).toContain(
+      "never test directory paths with `code_read`",
+    );
+    expect(instructions).toContain('path_prefix: "lib/"');
+  });
+
   it("expands core trigger criteria to cover comparative cross-OSS questions", () => {
     const deps = createTestDeps();
     const instructions = buildMcpInstructions(deps);
@@ -163,14 +179,13 @@ describe("buildMcpInstructions", () => {
       expect(`${name}=${idx}`).not.toContain("=-1");
     }
 
-    // Discovery first, then code reading (grep → read → files), then
-    // docs, then package metadata. `code_files` follows `code_read`
-    // because it is a path-discovery fallback, not the step after a hit.
+    // Discovery first, then file/path enumeration, then code grep/read,
+    // docs, then package metadata.
     expect(positions.search).toBeLessThan(positions.searchStatus);
-    expect(positions.searchStatus).toBeLessThan(positions.codeGrep);
+    expect(positions.searchStatus).toBeLessThan(positions.codeFiles);
+    expect(positions.codeFiles).toBeLessThan(positions.codeGrep);
     expect(positions.codeGrep).toBeLessThan(positions.codeRead);
-    expect(positions.codeRead).toBeLessThan(positions.codeFiles);
-    expect(positions.codeFiles).toBeLessThan(positions.docsList);
+    expect(positions.codeRead).toBeLessThan(positions.docsList);
     expect(positions.docsList).toBeLessThan(positions.docsRead);
     expect(positions.docsRead).toBeLessThan(positions.pkgInfo);
     expect(positions.pkgInfo).toBeLessThan(positions.pkgVulns);

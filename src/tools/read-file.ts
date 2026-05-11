@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { CodeNavigationService } from "../services/index.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
+import { withReadFileRecovery } from "../shared/read-file-error.js";
 import { buildReadFileParams } from "../shared/read-file-request.js";
 import {
   buildReadFileSuccessPayload,
@@ -41,7 +42,7 @@ const schema = {
   path: z
     .string()
     .describe(
-      "Path to the file. Package addressing: package-relative. Repo addressing: repo-relative. This is the same `path` key that `code_files` emits for each entry, so chaining needs no renaming.",
+      "Exact file path to read, not a directory. Package addressing: package-relative. Repo addressing: repo-relative. Use `code_files` with `path_prefix` to list directories, then pass an emitted `path` here.",
     ),
   start_line: z
     .number()
@@ -70,7 +71,9 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Read a file from an indexed dependency. **MCP cap: " +
+  "Read one exact file from an indexed dependency; it does not list " +
+  "directories. Use `code_files` with `path_prefix` for file/path " +
+  "enumeration. **MCP cap: " +
   `${MCP_READ_MAX_SPAN} lines per call** — broader requests (or no ` +
   `range) silently truncate to the first ${MCP_READ_MAX_SPAN} lines ` +
   "from your start, with a `hint` describing what was returned vs. " +
@@ -177,7 +180,10 @@ export function createReadFileTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
-        const mapped = mapCodeNavigationError(error);
+        const mapped = withReadFileRecovery(
+          mapCodeNavigationError(error),
+          args.path,
+        );
         return errorResult(
           JSON.stringify({
             error: mapped.message,

@@ -39,10 +39,10 @@ const CODE_GREP_BULLET =
   "- `code_grep` — deterministic text or regex grep over indexed source. Use it when you know the pattern; use `search` for discovery. Narrow with `path`, `path_prefix`, `globs`, or `extensions`. Each match's `filePath`/file heading plus line number chains into `code_read`.";
 
 const CODE_READ_BULLET =
-  "- `code_read` — read a dependency file by `path`. **MCP cap: 150 lines per call**. When you already have an exact path (e.g. from a stack trace), call this directly; otherwise locate it first with `search` or `code_grep` and pick a focused `start_line` / `end_line` window. Binary files set `isBinary: true` and omit `content`. On `FILE_NOT_FOUND` / `NOT_FOUND`, call `code_files` for the actual path.";
+  "- `code_read` — read one exact dependency file by `path`; do not use it to probe/list directories like `lib` or `lib/`. **MCP cap: 150 lines per call**. When you already have an exact path (e.g. from a stack trace), call this directly; otherwise locate it first with `search`, `code_grep`, or `code_files` and pick a focused `start_line` / `end_line` window. Binary files set `isBinary: true` and omit `content`. On `FILE_NOT_FOUND` / `NOT_FOUND`, follow `details.action` or call `code_files` for the actual path.";
 
 const CODE_FILES_BULLET =
-  '- `code_files` — list files in an indexed dependency. `path`, `path_prefix`, and `globs` are OR-ed selectors; extensions, language, file type, and file-intent filters intersect on top. Returned paths feed into `code_read` and help scope `code_grep`; pass `format: "json"` for language/type/size metadata.';
+  '- `code_files` — list or discover file paths in an indexed dependency. First choice for file-listing/path-enumeration tasks such as "files under lib/" (`path_prefix: "lib/"`, optional `extensions: ["js"]`); do not use `code_read` to probe directories and do not use `code_grep` with empty or generic patterns to list files. `path`, `path_prefix`, and `globs` are OR-ed selectors; extensions, language, file type, and file-intent filters intersect on top. Returned paths feed into `code_read` and help scope `code_grep`; pass `format: "json"` for language/type/size metadata.';
 
 const DOCS_LIST_BULLET =
   '- `docs_list` — browse hosted and repository-backed package docs when you need the available pages. It is not topic search; for "find docs about X", call `search` with `sources:["docs"]`, then pass the returned `pageId` to `docs_read`. Entries include stable pageIds, source URLs, and repo-file follow-up metadata when available.';
@@ -71,7 +71,7 @@ const PKG_CHANGELOG_BULLET =
  * habits and the test invariant continue to anchor here.
  */
 const STRATEGY_TIP =
-  'Strategy — reference-first. Locate symbols and lines with `search` or `code_grep` first, then read the needed window with `code_read` using explicit `start_line` / `end_line` (typical 80-150 lines around the match; the MCP `code_read` surface caps each call at 150 lines). Source, symbols, tests, and call sites beat docs prose for behavioral claims; use `sources:["symbol"]` when you want symbol-shaped results, `code_grep` for deterministic text matching, and `get_example` for global canonical examples after package-scoped grounding.';
+  'Strategy — reference-first. For file/path enumeration, call `code_files` directly; never test directory paths with `code_read`. For behavioral claims, locate symbols and lines with `search` or `code_grep` first, then read the needed window with `code_read` using explicit `start_line` / `end_line` (typical 80-150 lines around the match; the MCP `code_read` surface caps each call at 150 lines). Source, symbols, tests, and call sites beat docs prose; use `sources:["symbol"]` when you want symbol-shaped results, `code_grep` for deterministic text matching, and `get_example` for global canonical examples after package-scoped grounding.';
 
 /**
  * Build the server-level instructions string for the current session.
@@ -82,17 +82,15 @@ const STRATEGY_TIP =
  */
 export function buildMcpInstructions(_deps: Dependencies): string {
   // Bullets ordered by agent decision flow: discovery (search) →
-  // code reading (grep, read, files) → docs → package metadata.
-  // `code_files` follows `code_read` because it is the path-
-  // discovery fallback when a known path doesn't resolve, not the
-  // step after a hit. Each bullet name↔registration is enforced by
+  // file/path enumeration (files) → source grep/read → docs →
+  // package metadata. Each bullet name↔registration is enforced by
   // `mcp-instructions.test.ts`.
   const bullets = [
     SEARCH_BULLET,
     SEARCH_STATUS_BULLET,
+    CODE_FILES_BULLET,
     CODE_GREP_BULLET,
     CODE_READ_BULLET,
-    CODE_FILES_BULLET,
     DOCS_LIST_BULLET,
     DOCS_READ_BULLET,
     PKG_INFO_BULLET,
