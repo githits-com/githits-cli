@@ -217,8 +217,9 @@ export function handleCodeNavCommandError(
   json: boolean,
   terminalRenderer: (mapped: MappedError) => string,
   exitCode = 1,
+  mapMappedError: (mapped: MappedError) => MappedError = (mapped) => mapped,
 ): never {
-  const mapped = mapCodeNavigationError(error);
+  const mapped = mapMappedError(mapCodeNavigationError(error));
   if (json) {
     // eslint-disable-next-line no-console
     console.error(

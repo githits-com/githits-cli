@@ -1,10 +1,8 @@
 import { z } from "zod";
 import type { CodeNavigationService } from "../services/index.js";
-import {
-  type MappedError,
-  mapCodeNavigationError,
-} from "../shared/code-navigation-error-map.js";
+import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
+import { withReadFileRecovery } from "../shared/read-file-error.js";
 import { buildReadFileParams } from "../shared/read-file-request.js";
 import {
   buildReadFileSuccessPayload,
@@ -197,43 +195,6 @@ export function createReadFileTool(
       }
     },
   };
-}
-
-function withReadFileRecovery(
-  mapped: MappedError,
-  requestedPath: string,
-): MappedError {
-  if (mapped.code !== "FILE_NOT_FOUND" && mapped.code !== "NOT_FOUND") {
-    return mapped;
-  }
-
-  return {
-    ...mapped,
-    details: {
-      ...mapped.details,
-      action: buildReadFileNotFoundAction(requestedPath),
-    },
-  };
-}
-
-function buildReadFileNotFoundAction(requestedPath: string): string {
-  const prefix = buildPathPrefixSuggestion(requestedPath);
-  return (
-    "`code_read` reads files only, not directories. " +
-    `Use \`code_files\` with \`path_prefix: ${JSON.stringify(prefix)}\` ` +
-    "to list candidate files, then pass an emitted `path` back to `code_read`."
-  );
-}
-
-function buildPathPrefixSuggestion(requestedPath: string): string {
-  const trimmed = requestedPath.trim();
-  if (trimmed === "") return "";
-  if (trimmed.endsWith("/")) return trimmed;
-
-  const slash = trimmed.lastIndexOf("/");
-  const basename = slash === -1 ? trimmed : trimmed.slice(slash + 1);
-  if (!basename.includes(".")) return `${trimmed}/`;
-  return slash === -1 ? "" : trimmed.slice(0, slash + 1);
 }
 
 function isTextFormat(format: ReadFileArgs["format"]): boolean {
