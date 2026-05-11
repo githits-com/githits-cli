@@ -25,6 +25,51 @@ describe("MigratingAuthStorage", () => {
     expect(legacy.loadTokens).not.toHaveBeenCalled();
   });
 
+  it("records metadata when keychain mode reads keychain tokens", async () => {
+    const token = createValidTokenData();
+    const primary = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(token)),
+    });
+    const metadata = {
+      load: mock(() => Promise.resolve(null)),
+      saveFromTokens: mock(() => Promise.resolve()),
+      clear: mock(() => Promise.resolve()),
+    };
+    const storage = new MigratingAuthStorage(
+      primary,
+      createMockAuthStorage(),
+      createMockAuthStorage(),
+      "keychain",
+      "test-config.toml",
+      () => {},
+      metadata,
+    );
+
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(token);
+    expect(metadata.saveFromTokens).toHaveBeenCalledWith(BASE_URL, token);
+  });
+
+  it("clears metadata when clearing auth session", async () => {
+    const metadata = {
+      load: mock(() => Promise.resolve(null)),
+      saveFromTokens: mock(() => Promise.resolve()),
+      clear: mock(() => Promise.resolve()),
+    };
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      createMockAuthStorage(),
+      createMockAuthStorage(),
+      "keychain",
+      "test-config.toml",
+      () => {},
+      metadata,
+    );
+
+    await storage.clearAuthSession(BASE_URL);
+
+    expect(metadata.clear).toHaveBeenCalledWith(BASE_URL);
+  });
+
   it("keychain mode migrates new file tokens into keychain", async () => {
     const token = createValidTokenData();
     const primary = createMockAuthStorage();
@@ -243,6 +288,59 @@ describe("MigratingAuthStorage", () => {
     expect(file.clearTokens).toHaveBeenCalledWith(BASE_URL);
     expect(legacy.clearTokens).not.toHaveBeenCalled();
     expect(warning).toHaveBeenCalledWith(expect.stringContaining("ambiguous"));
+  });
+
+  it("does not migrate when only legacy stores have ambiguous timestamps", async () => {
+    const token = createValidTokenData({ createdAt: "not-a-date" });
+    const additionalLegacy = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(token)),
+    });
+    const legacy = createMockAuthStorage({
+      loadTokens: mock(() =>
+        Promise.resolve(
+          createValidTokenData({
+            accessToken: "other-token",
+            createdAt: "also-not-a-date",
+          }),
+        ),
+      ),
+    });
+    const warning = mock(() => {});
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      createMockAuthStorage(),
+      legacy,
+      "keychain",
+      "test-config.toml",
+      warning,
+      undefined,
+      [additionalLegacy],
+    );
+
+    await expect(storage.loadTokens(BASE_URL)).resolves.toBeNull();
+    expect(additionalLegacy.clearTokens).not.toHaveBeenCalled();
+    expect(legacy.clearTokens).not.toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("ambiguous"));
+  });
+
+  it("clears all legacy stores during logout", async () => {
+    const additionalLegacy = createMockAuthStorage();
+    const legacy = createMockAuthStorage();
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      createMockAuthStorage(),
+      legacy,
+      "keychain",
+      "test-config.toml",
+      () => {},
+      undefined,
+      [additionalLegacy],
+    );
+
+    await storage.clearAuthSession(BASE_URL);
+
+    expect(additionalLegacy.clearAuthSession).toHaveBeenCalledWith(BASE_URL);
+    expect(legacy.clearAuthSession).toHaveBeenCalledWith(BASE_URL);
   });
 
   it("keychain mode clears both plaintext clients after unambiguous migration", async () => {

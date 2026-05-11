@@ -1,6 +1,9 @@
 import { parse as parseToml } from "smol-toml";
 import { z } from "zod";
-import { getAuthConfigPath } from "./app-config-paths.js";
+import {
+  getAuthConfigPath,
+  getLegacyMacAuthConfigPath,
+} from "./app-config-paths.js";
 import type { FileSystemService } from "./filesystem-service.js";
 
 export const AUTH_STORAGE_MODES = ["keychain", "file"] as const;
@@ -42,7 +45,7 @@ export function parseAuthStorageMode(value: string): AuthStorageMode {
 export async function loadAuthConfig(
   fs: FileSystemService,
 ): Promise<AuthConfig> {
-  const configPath = getAuthConfigPath(fs);
+  let configPath = getAuthConfigPath(fs);
   const envMode = process.env.GITHITS_AUTH_STORAGE;
   if (envMode !== undefined && envMode.trim() !== "") {
     try {
@@ -58,7 +61,15 @@ export async function loadAuthConfig(
   }
 
   if (!(await fs.exists(configPath))) {
-    return { storage: "keychain", configPath };
+    const legacyMacConfigPath = getLegacyMacAuthConfigPath(fs);
+    if (
+      process.platform === "darwin" &&
+      (await fs.exists(legacyMacConfigPath))
+    ) {
+      configPath = legacyMacConfigPath;
+    } else {
+      return { storage: "keychain", configPath };
+    }
   }
 
   let rawConfig: unknown;

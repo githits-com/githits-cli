@@ -3,6 +3,9 @@ export {
   getAuthConfigPath,
   getAuthFileStorageDir,
   getLegacyAuthStorageDir,
+  getLegacyMacAppConfigDir,
+  getLegacyMacAuthConfigPath,
+  getLegacyMacAuthFileStorageDir,
 } from "./app-config-paths.js";
 export type { AuthConfig, AuthStorageMode } from "./auth-config.js";
 export {
@@ -22,6 +25,11 @@ export type {
   TokenResponse,
 } from "./auth-service.js";
 export { AuthServiceImpl } from "./auth-service.js";
+export type {
+  AuthSessionMetadata,
+  AuthSessionMetadataStore,
+} from "./auth-session-metadata-storage.js";
+export { AuthSessionMetadataStorage } from "./auth-session-metadata-storage.js";
 export type {
   AuthStorage,
   ClientRegistration,
