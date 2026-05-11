@@ -462,7 +462,7 @@ function successHtml(title = "Authentication successful"): string {
     font-size: 14px;
     line-height: 20px;
     color: #abb2bf;
-    margin: 0;
+    margin: 16px 0 0;
     text-align: center;
     text-wrap: pretty;
   }
@@ -505,7 +505,7 @@ function successHtml(title = "Authentication successful"): string {
       <path d="M239.1,64.8v-24h-18.8V8.5h-25v32.3h-18.8v24h18.8v62.6h25v-62.6h18.8ZM161.1,40.8h-25v86.6h25V40.8ZM91.6,84.6h-26.8v-24h54s1.2,4.3,1.1,12.1c-.3,30.6-25.3,55.5-55.9,55.7h-.5C27.4,128.4-1.6,98.3,0,61.8,1.5,29.6,27.4,3.4,59.6,1.4c21-1.2,40,7.7,52.4,22.4l-17.2,17.2c-7.7-10.1-20.3-16.4-34.3-15.4-19.4,1.4-35,17.1-36.4,36.5-1.6,23,16.6,42.2,39.3,42.2s28-19.7,28-19.7h.2Z" fill="#ff4fae" />
     </svg>
 
-    <p class="tip"><span class="tip-label">TIP:</span> Run <code>npx githits --help</code> to discover what else you can do.</p>
+    <p class="tip"><span class="tip-label">TIP:</span> Run <code>npx githits@latest --help</code> to discover what else you can do.</p>
   </div>
 </body></html>`;
 }
