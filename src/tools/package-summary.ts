@@ -7,6 +7,7 @@ import {
   formatPackageSummaryTerminal,
 } from "../shared/package-summary-response.js";
 import { PKGSEER_REGISTRY_LIST } from "../shared/pkgseer-registry.js";
+import { PKG_INFO_GUARDRAIL } from "./guardrails.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
 export interface PackageSummaryArgs {
@@ -44,7 +45,7 @@ const schema = {
     ),
 };
 
-const DESCRIPTION =
+export const DESCRIPTION =
   "Latest-version package overview for dependency triage. Provide " +
   "`registry` and `package_name` (for example `npm` + `express`). " +
   "Default text returns license, description, repository popularity " +
@@ -52,7 +53,8 @@ const DESCRIPTION =
   "publish age, and vulnerability status. Set `verbose: true` for " +
   "GitHub language/topics/last-pushed, recent advisories, and recent " +
   'changes. Pass `format: "json"` for structured fields. Use ' +
-  "`pkg_vulns` for version-specific vulnerability details.";
+  "`pkg_vulns` for version-specific vulnerability details." +
+  `\n\n${PKG_INFO_GUARDRAIL}`;
 
 export function createPackageSummaryTool(
   service: PackageIntelligenceService,

@@ -81,6 +81,28 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("Delegate multi-call work to a sub-agent");
   });
 
+  it("includes the external-content posture by default", () => {
+    const deps = createTestDeps();
+    const instructions = buildMcpInstructions(deps);
+
+    expect(instructions).toContain("External-content posture");
+  });
+
+  it("omits the external-content posture when explicitly opted out", () => {
+    // The eval mock MCP server opts out so it can control whether the
+    // shared block is included per cell, comparing baseline vs
+    // guardrailed cohorts cleanly. Production never opts out.
+    const deps = createTestDeps();
+    const instructions = buildMcpInstructions(deps, {
+      includeExternalContentPosture: false,
+    });
+
+    expect(instructions).not.toContain("External-content posture");
+    // Still has the core block and package section.
+    expect(instructions).toContain("GitHits provides verified");
+    expect(instructions).toContain("Indexed package/source tools");
+  });
+
   it("steers file enumeration to code_files instead of directory probes", () => {
     const deps = createTestDeps();
     const instructions = buildMcpInstructions(deps);

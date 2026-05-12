@@ -20,6 +20,7 @@ import {
   type CodeTargetArg,
   structuredCodeTargetSchema,
 } from "./code-navigation-shared.js";
+import { SEARCH_GUARDRAIL } from "./guardrails.js";
 import {
   errorResult,
   type ToolDefinition,
@@ -193,7 +194,8 @@ const DESCRIPTION =
   "Structured parameters combine with the `query` using AND semantics. " +
   "Complete by default — if indexing is still running, the response carries a `searchRef` and no hits; pass it to `search_status` to follow up. " +
   "Set `allow_partial_results: true` to opt into hits from sources that finished while others continue indexing. " +
-  "Each hit's `type` tells you the follow-up tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present).";
+  "Each hit's `type` tells you the follow-up tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present)." +
+  `\n\n${SEARCH_GUARDRAIL}`;
 
 export function createSearchTool(
   service: CodeNavigationService,

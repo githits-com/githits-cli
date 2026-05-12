@@ -14,6 +14,7 @@ import {
   codeTargetSchema,
   resolveCodeTarget,
 } from "./code-navigation-shared.js";
+import { CODE_READ_GUARDRAIL } from "./guardrails.js";
 import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
 /**
@@ -70,7 +71,7 @@ const schema = {
     ),
 };
 
-const DESCRIPTION =
+export const DESCRIPTION =
   "Read one exact file from an indexed dependency; it does not list " +
   "directories. Use `code_files` with `path_prefix` for file/path " +
   "enumeration. **MCP cap: " +
@@ -85,7 +86,8 @@ const DESCRIPTION =
   "scope) or `target.repo_url` + `target.git_ref` (repo scope), " +
   "mutually exclusive. On `INDEXING` retry with a longer " +
   "`wait_timeout_ms`. On `NOT_FOUND` / `FILE_NOT_FOUND` call " +
-  "`code_files` to discover the actual path.";
+  "`code_files` to discover the actual path." +
+  `\n\n${CODE_READ_GUARDRAIL}`;
 
 interface BoundedRange {
   startLine: number;
