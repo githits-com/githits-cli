@@ -88,6 +88,25 @@ function getLogOutput(): string[] {
   return (logSpy.mock.calls as unknown[][]).map((c) => String(c[0] ?? ""));
 }
 
+function expectReadyNextSteps(logCalls: string[]): void {
+  expect(logCalls.some((msg) => msg.includes("Setup complete"))).toBe(true);
+  expect(
+    logCalls.some((msg) => msg.includes("You're ready to use GitHits")),
+  ).toBe(true);
+  expect(
+    logCalls.some((msg) =>
+      msg.includes(
+        'npx githits@latest example "How do I use useEffect cleanup?"',
+      ),
+    ),
+  ).toBe(true);
+  expect(
+    logCalls.some((msg) =>
+      msg.includes("query planner selects join strategies"),
+    ),
+  ).toBe(true);
+}
+
 function lookupCommandFor(platform: string = process.platform): string {
   return platform === "win32" ? "where" : "which";
 }
@@ -147,7 +166,7 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("already configured"))).toBe(
       true,
     );
-    expect(logCalls.some((msg) => msg.includes("Nothing to do"))).toBe(true);
+    expectReadyNextSteps(logCalls);
   });
 
   it("handles mixed status: configured + unconfigured", async () => {
@@ -243,7 +262,7 @@ describe("initAction", () => {
 
     expect(promptService.confirm3).not.toHaveBeenCalled();
     const logCalls = getLogOutput();
-    expect(logCalls.some((msg) => msg.includes("Nothing to do"))).toBe(true);
+    expectReadyNextSteps(logCalls);
   });
 
   it("sets up CLI agents that are not yet configured", async () => {
@@ -402,7 +421,7 @@ describe("initAction", () => {
     );
 
     const logCalls = getLogOutput();
-    expect(logCalls.some((msg) => msg.includes("Nothing to do"))).toBe(true);
+    expectReadyNextSteps(logCalls);
   });
 
   it("treats equivalent local npx @latest configs as already configured", async () => {
@@ -429,7 +448,7 @@ describe("initAction", () => {
 
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     const logCalls = getLogOutput();
-    expect(logCalls.some((msg) => msg.includes("Nothing to do"))).toBe(true);
+    expectReadyNextSteps(logCalls);
   });
 
   it("migrates non-@latest local config to @latest", async () => {
@@ -546,9 +565,9 @@ describe("initAction", () => {
     expect(
       logCalls.some((msg) => msg.includes("Setup completed with errors")),
     ).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("Done! GitHits is ready"))).toBe(
-      false,
-    );
+    expect(
+      logCalls.some((msg) => msg.includes("You're ready to use GitHits")),
+    ).toBe(false);
     expect(logCalls.some((msg) => msg.includes("- Claude Code:"))).toBe(true);
   });
 
@@ -895,9 +914,9 @@ describe("initAction", () => {
           msg.includes("authentication is still required"),
         ),
       ).toBe(true);
-      expect(
-        logCalls.some((msg) => msg.includes("Done! GitHits is ready")),
-      ).toBe(false);
+      expect(logCalls.some((msg) => msg.includes("Setup complete"))).toBe(
+        false,
+      );
     });
 
     it("cancels setup when login fails and user declines to continue", async () => {
