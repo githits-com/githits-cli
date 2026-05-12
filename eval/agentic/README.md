@@ -134,8 +134,8 @@ least one agent for quick iteration.
 | Package overview or vulnerability UX, `pkg_info`, `pkg_vulns` | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior; use `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior |
 | Dependency graph UX, `pkg_deps` | `package-dependencies.md` |
 | Release notes UX, `pkg_changelog` | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior |
-| Documentation browsing, `docs_list`, `docs_read` | `docs-discovery.md` |
-| File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md` |
+| Documentation browsing, `docs_list`, `docs_read` | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery |
+| File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior |
 | Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |
 | Multi-tool code navigation strategy and MCP instructions | `express-router.md` |
 
@@ -167,6 +167,16 @@ Notable findings to keep in mind when evaluating future changes:
 - Codex sometimes reports a tool as unavailable until it performs additional
   tool discovery. Use `tool-calls.json` to distinguish actual unavailable tools
   from delayed discovery.
+- `code-read-window.md` should show focused bounded reads when the prompt already
+  names a source file and line area. Claude Haiku does this directly; Codex mini
+  has been observed doing package/search preflight before the eventual bounded
+  `code_read`, so review raw calls when tuning general tool-selection guidance.
+- `code-files-listing.md` should show direct path enumeration with `code_files`.
+  Claude Haiku does this directly. Codex mini has been observed oscillating
+  between `code_read`, `code_grep`, and `code_files`, and can self-report that
+  `code_files` is unavailable even when earlier runs used it; treat raw calls as
+  the source of truth and fix concrete validation/error issues rather than
+  overfitting instructions to one noisy run.
 - `tool-calls.json` is the source of truth for tool usage. The final JSON is for
   the agent's assessment of clarity, issues, and usefulness.
 - `report.json` and `agent:e2e:report` are derived review aids. They normalize
@@ -188,8 +198,9 @@ Claude is launched with `--permission-mode bypassPermissions` so non-interactive
 evals can exercise configured MCP tools without a human approval prompt, and
 `--disable-slash-commands` to reduce plugin/skill contamination while preserving
 normal human auth. Codex is launched with per-run `-c` MCP config overrides,
-`--ignore-rules`, and a read-only sandbox so it can use normal human auth
-without mutating global MCP configuration.
+`--ignore-rules`, and `--dangerously-bypass-approvals-and-sandbox` so
+non-interactive MCP calls are not cancelled by Codex's approval layer. Keep
+workloads controlled and run them from the harness's empty temporary workspace.
 
 Malformed final JSON, schema mismatches, Claude failures, and timeouts are
 harness failures. Raw stdout and stderr are preserved for diagnosis with known

@@ -108,7 +108,10 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "List files in an indexed dependency. Use this to discover paths " +
+  "List files in an indexed dependency. First choice for file/path " +
+  "enumeration tasks such as files under a directory; use " +
+  "`path_prefix` for directory prefixes (e.g. `lib/`) and optional " +
+  "`extensions` for language filtering. Use this to discover paths " +
   "before `code_read` (when `code_read` returns `FILE_NOT_FOUND` or " +
   "you don't yet know the path) and to scope `code_grep`. Address " +
   "via `target.registry` + `target.package_name` (package scope) or " +

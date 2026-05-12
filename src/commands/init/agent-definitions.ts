@@ -14,6 +14,8 @@ export interface CliCommand {
   args: string[];
 }
 
+export type NonEmptyCliCommands = [CliCommand, ...CliCommand[]];
+
 /**
  * Setup configuration for agents that use CLI commands.
  * Supports multi-step installs (e.g., plugin marketplace add + plugin install).
@@ -24,6 +26,15 @@ export interface CliSetup {
   commands: CliCommand[];
   /** Optional read-only command to check if already configured before setup. */
   checkCommand?: CliCheckCommand;
+}
+
+/**
+ * Uninstall configuration for agents that remove GitHits via CLI commands.
+ */
+export interface CliUninstall {
+  method: "cli";
+  /** One or more commands to execute sequentially */
+  commands: NonEmptyCliCommands;
 }
 
 /**
@@ -51,6 +62,8 @@ export interface CompositeSetup {
 export type SetupStep = CliSetup | ConfigFileSetup;
 export type SetupConfig = SetupStep | CompositeSetup;
 
+export type UninstallConfig = CliUninstall | ConfigFileSetup;
+
 const GITHITS_SERVER_NAME = "GitHits";
 const GITHITS_MCP_COMMAND = "npx";
 const GITHITS_MCP_ARGS = ["-y", "githits@latest", "mcp", "start"] as const;
@@ -58,6 +71,10 @@ const GITHITS_MCP_INVOCATION = [
   GITHITS_MCP_COMMAND,
   ...GITHITS_MCP_ARGS,
 ] as const;
+const CLAUDE_GITHITS_PLUGIN = "githits";
+const CLAUDE_GITHITS_MARKETPLACE = "githits-plugins";
+const CLAUDE_GITHITS_PLUGIN_REF = `${CLAUDE_GITHITS_PLUGIN}@${CLAUDE_GITHITS_MARKETPLACE}`;
+const CLAUDE_GITHITS_MARKETPLACE_SOURCE = "githits-com/githits-cli";
 
 /** How an agent is considered present on the machine. */
 type DetectionMethod = "binary" | "path" | "hybrid";
@@ -100,6 +117,8 @@ export interface AgentDefinition {
   ) => SetupConfig;
   /** Setup config resolved during scan, including any detected command path. */
   resolvedSetupConfig?: SetupConfig;
+  /** Returns CLI uninstall config when the agent cannot be removed via config editing. */
+  getUninstallConfig?: (fs: FileSystemService) => UninstallConfig;
 }
 
 /**
@@ -284,18 +303,36 @@ const claudeCode: AgentDefinition = {
     commands: [
       {
         command: "claude",
-        args: ["plugin", "marketplace", "add", "githits-com/githits-cli"],
+        args: [
+          "plugin",
+          "marketplace",
+          "add",
+          CLAUDE_GITHITS_MARKETPLACE_SOURCE,
+        ],
       },
       {
         command: "claude",
-        args: ["plugin", "install", "githits@githits-plugins"],
+        args: ["plugin", "install", CLAUDE_GITHITS_PLUGIN_REF],
       },
     ],
     checkCommand: {
       command: "claude",
       args: ["plugin", "list"],
-      configuredPattern: /githits/i,
+      configuredPattern: /(^|\s)githits@githits-plugins\b/i,
     },
+  }),
+  getUninstallConfig: () => ({
+    method: "cli",
+    commands: [
+      {
+        command: "claude",
+        args: ["plugin", "uninstall", CLAUDE_GITHITS_PLUGIN],
+      },
+      {
+        command: "claude",
+        args: ["plugin", "marketplace", "remove", CLAUDE_GITHITS_MARKETPLACE],
+      },
+    ],
   }),
 };
 
@@ -398,8 +435,17 @@ const codexCli: AgentDefinition = {
     checkCommand: {
       command: "codex",
       args: ["mcp", "list"],
-      configuredPattern: /githits/i,
+      configuredPattern: /^\s*githits\b/im,
     },
+  }),
+  getUninstallConfig: () => ({
+    method: "cli",
+    commands: [
+      {
+        command: "codex",
+        args: ["mcp", "remove", "githits"],
+      },
+    ],
   }),
 };
 
@@ -525,9 +571,18 @@ const geminiCli: AgentDefinition = {
       requireExitCodeZero: true,
     },
   }),
+  getUninstallConfig: () => ({
+    method: "cli",
+    commands: [
+      {
+        command: "gemini",
+        args: ["extensions", "uninstall", "githits"],
+      },
+    ],
+  }),
 };
 
-async function isGeminiExtensionInstalledFromFilesystem(
+export async function isGeminiExtensionInstalledFromFilesystem(
   fs: FileSystemService,
 ): Promise<boolean> {
   const extensionManifestPath = fs.joinPath(

@@ -3,6 +3,7 @@ import type {
   LoginFlowResult,
   LoginOptions,
 } from "../commands/login.js";
+import type { AuthSessionMetadata } from "../services/auth-session-metadata-storage.js";
 
 const AUTO_LOGIN_ELIGIBLE_COMMANDS = new Set([
   "example",
@@ -20,6 +21,7 @@ const AUTO_LOGIN_ELIGIBLE_COMMANDS = new Set([
   "pkg deps",
   "pkg changelog",
 ]);
+const AUTH_METADATA_TRUST_WINDOW_MS = 10 * 60 * 1000;
 
 export interface CommandLike {
   name(): string;
@@ -28,6 +30,8 @@ export interface CommandLike {
 }
 
 export interface AutoLoginBootstrapDependencies {
+  loadAuthSessionMetadata?: () => Promise<AuthSessionMetadata | null>;
+  clearAuthSessionMetadata?: () => Promise<void>;
   createContainer: () => Promise<
     LoginDependencies & { hasValidToken: boolean }
   >;
@@ -96,10 +100,16 @@ export async function maybeAutoLoginBeforeCommand(
     return { status: "skipped" };
   }
 
+  const metadata = await deps.loadAuthSessionMetadata?.();
+  if (metadata && isUnexpiredAuthSessionMetadata(metadata, new Date())) {
+    return { status: "already-authenticated" };
+  }
+
   const container = await deps.createContainer();
   if (container.hasValidToken) {
     return { status: "already-authenticated" };
   }
+  await deps.clearAuthSessionMetadata?.();
 
   const result = await deps.loginFlow({}, container);
   switch (result.status) {
@@ -110,4 +120,19 @@ export async function maybeAutoLoginBeforeCommand(
     case "failed":
       return { status: "failed", message: result.message };
   }
+}
+
+export function isUnexpiredAuthSessionMetadata(
+  metadata: Pick<AuthSessionMetadata, "expiresAt" | "updatedAt">,
+  now: Date,
+): boolean {
+  const updatedAtMs = Date.parse(metadata.updatedAt);
+  if (Number.isNaN(updatedAtMs)) return false;
+  if (now.getTime() - updatedAtMs > AUTH_METADATA_TRUST_WINDOW_MS) {
+    return false;
+  }
+  if (metadata.expiresAt === null) return true;
+  const expiresAtMs = Date.parse(metadata.expiresAt);
+  if (Number.isNaN(expiresAtMs)) return false;
+  return now.getTime() < expiresAtMs;
 }

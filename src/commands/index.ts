@@ -20,7 +20,9 @@ export {
 export {
   type InitDependencies,
   type InitOptions,
+  type InitUninstallOptions,
   initAction,
+  initUninstallAction,
   registerInitCommand,
 } from "./init/index.js";
 export {

@@ -9,6 +9,7 @@ import {
   type CommandLike,
   getCommandPath,
   isAutoLoginEligibleCommand,
+  isUnexpiredAuthSessionMetadata,
   maybeAutoLoginBeforeCommand,
 } from "./auto-login.js";
 
@@ -71,6 +72,15 @@ describe("isAutoLoginEligibleCommand", () => {
   it("leaves init auth handling to the init command", () => {
     expect(
       isAutoLoginEligibleCommand(createCommand(["init"]), {
+        stdinIsTTY: true,
+        stdoutIsTTY: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not auto-login for init uninstall", () => {
+    expect(
+      isAutoLoginEligibleCommand(createCommand(["init", "uninstall"]), {
         stdinIsTTY: true,
         stdoutIsTTY: true,
       }),
@@ -146,6 +156,65 @@ describe("isAutoLoginEligibleCommand", () => {
 });
 
 describe("maybeAutoLoginBeforeCommand", () => {
+  it("skips container creation when unexpired metadata exists", async () => {
+    const createContainer = mock(() => Promise.resolve(createLoginDeps()));
+    const login = mock(() =>
+      Promise.resolve({
+        status: "success" as const,
+        message: "Logged in successfully.",
+      }),
+    );
+
+    const result = await maybeAutoLoginBeforeCommand(
+      createCommand(["example"]),
+      {
+        loadAuthSessionMetadata: mock(() =>
+          Promise.resolve({
+            createdAt: "2026-01-01T00:00:00Z",
+            expiresAt: "2999-01-01T00:00:00Z",
+            updatedAt: new Date().toISOString(),
+          }),
+        ),
+        createContainer,
+        loginFlow: login,
+        stdinIsTTY: true,
+        stdoutIsTTY: true,
+      },
+    );
+
+    expect(result).toEqual({ status: "already-authenticated" });
+    expect(createContainer).not.toHaveBeenCalled();
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it("falls back to container verification when metadata is expired", async () => {
+    const createContainer = mock(() =>
+      Promise.resolve(createLoginDeps({ hasValidToken: true })),
+    );
+
+    const result = await maybeAutoLoginBeforeCommand(
+      createCommand(["example"]),
+      {
+        loadAuthSessionMetadata: mock(() =>
+          Promise.resolve({
+            createdAt: "2026-01-01T00:00:00Z",
+            expiresAt: "2000-01-01T00:00:00Z",
+            updatedAt: new Date().toISOString(),
+          }),
+        ),
+        createContainer,
+        loginFlow: mock(() =>
+          Promise.resolve({ status: "failed" as const, message: "unexpected" }),
+        ),
+        stdinIsTTY: true,
+        stdoutIsTTY: true,
+      },
+    );
+
+    expect(result).toEqual({ status: "already-authenticated" });
+    expect(createContainer).toHaveBeenCalledTimes(1);
+  });
+
   it("skips bootstrap for ineligible commands", async () => {
     const createContainer = mock(() => Promise.resolve(createLoginDeps()));
     const login = mock(() =>
@@ -223,6 +292,28 @@ describe("maybeAutoLoginBeforeCommand", () => {
     expect(login).toHaveBeenCalledWith({}, container);
   });
 
+  it("clears stale metadata before running login", async () => {
+    const container = createLoginDeps({ hasValidToken: false });
+    const clearAuthSessionMetadata = mock(() => Promise.resolve());
+    const login = mock(() =>
+      Promise.resolve({
+        status: "success" as const,
+        message: "Logged in successfully.",
+      }),
+    );
+
+    await maybeAutoLoginBeforeCommand(createCommand(["example"]), {
+      createContainer: mock(() => Promise.resolve(container)),
+      clearAuthSessionMetadata,
+      loginFlow: login,
+      stdinIsTTY: true,
+      stdoutIsTTY: true,
+    });
+
+    expect(clearAuthSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(login).toHaveBeenCalledWith({}, container);
+  });
+
   it("returns the login failure without continuing", async () => {
     const createContainer = mock(() => Promise.resolve(createLoginDeps()));
     const login = mock(() =>
@@ -246,5 +337,47 @@ describe("maybeAutoLoginBeforeCommand", () => {
       status: "failed",
       message: "Authentication timed out.",
     });
+  });
+});
+
+describe("isUnexpiredAuthSessionMetadata", () => {
+  it("treats non-expiring metadata as usable", () => {
+    expect(
+      isUnexpiredAuthSessionMetadata(
+        { expiresAt: null, updatedAt: "2026-01-01T00:00:00Z" },
+        new Date("2026-01-01T00:00:00Z"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects expired or invalid expiry metadata", () => {
+    const now = new Date("2026-01-01T00:00:00Z");
+    expect(
+      isUnexpiredAuthSessionMetadata(
+        {
+          expiresAt: "2025-01-01T00:00:00Z",
+          updatedAt: "2026-01-01T00:00:00Z",
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isUnexpiredAuthSessionMetadata(
+        { expiresAt: "bad", updatedAt: "2026-01-01T00:00:00Z" },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects stale metadata even when token expiry is still valid", () => {
+    expect(
+      isUnexpiredAuthSessionMetadata(
+        {
+          expiresAt: "2026-01-01T01:00:00Z",
+          updatedAt: "2026-01-01T00:00:00Z",
+        },
+        new Date("2026-01-01T00:11:00Z"),
+      ),
+    ).toBe(false);
   });
 });

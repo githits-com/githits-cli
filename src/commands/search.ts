@@ -448,15 +448,15 @@ function formatUnifiedSearchTerminal(payload: {
     payload.results,
   );
 
-  const baseCount = `${display.length} result(s)`;
+  const baseCount = `${display.length} result${display.length === 1 ? "" : "s"}`;
   const countSuffix = [
     payload.hasMore ? " (more available)" : "",
     duplicatesFolded > 0 ? ` (+${duplicatesFolded} near-duplicate folded)` : "",
   ].join("");
+  const typeSummary = formatUnifiedSearchTypeSummary(display);
   lines.push(
-    `${highlight(baseCount, useColors)}${dim(countSuffix, useColors)}`,
+    `${highlight(baseCount, useColors)}${dim(countSuffix, useColors)}${typeSummary ? dim(` | ${typeSummary}`, useColors) : ""}`,
   );
-  lines.push(dim(formatUnifiedSearchTypeSummary(display), useColors));
   lines.push("");
 
   for (const entry of display) {
@@ -701,7 +701,7 @@ function formatUnifiedSearchTypeSummary(
 
   return Array.from(counts.entries())
     .map(([type, count]) => formatUnifiedSearchCountLabel(type, count))
-    .join(" · ");
+    .join(", ");
 }
 
 function formatUnifiedSearchResultLabel(type: string): string {
@@ -787,9 +787,12 @@ function formatUnifiedSearchHeader(
       startLine?: number;
       endLine?: number;
       pageId?: string;
+      registry?: string;
+      packageName?: string;
       sourceKind?: string;
       sourceUrl?: string;
       requestedRef?: string;
+      version?: string;
     };
     title?: string;
   },
@@ -797,6 +800,10 @@ function formatUnifiedSearchHeader(
   location: string | undefined,
   rawQuery: string | undefined,
 ): string {
+  if (entry.type === "documentation_page") {
+    return formatDocumentationPageHeader(entry, useColors);
+  }
+
   const primary = formatUnifiedSearchPrimary(
     entry.type,
     entry.target,
@@ -809,6 +816,54 @@ function formatUnifiedSearchHeader(
     ? highlightRanges(entry.title, entry.highlights?.title, useColors)
     : undefined;
   return `${primary} ${dim(badge, useColors)}${title ? ` - ${title}` : ""}`;
+}
+
+function formatDocumentationPageHeader(
+  entry: {
+    target: string;
+    highlights?: { title?: Array<readonly [number, number]> };
+    locator: {
+      pageId?: string;
+      registry?: string;
+      packageName?: string;
+      sourceUrl?: string;
+    };
+    title?: string;
+  },
+  useColors: boolean,
+): string {
+  const pageId = entry.locator.pageId ?? "unknown";
+  const title = entry.title
+    ? highlightRanges(entry.title, entry.highlights?.title, useColors)
+    : "Untitled documentation page";
+  const source = entry.locator.sourceUrl
+    ? ` - ${formatDisplayUrl(entry.locator.sourceUrl)}`
+    : "";
+  const target = formatDocsPageTarget(entry.locator, entry.target);
+  return `${highlight(pageId, useColors)} ${dim("[docs page]", useColors)}${target ? ` ${dim(target, useColors)}` : ""} - ${title}${dim(source, useColors)}`;
+}
+
+function formatDisplayUrl(value: string): string {
+  return value.replace(/^https?:\/\//, "");
+}
+
+function formatDocsPageTarget(
+  locator: {
+    registry?: string;
+    packageName?: string;
+    version?: string;
+  },
+  fallbackTarget?: string,
+): string {
+  return locator.registry && locator.packageName
+    ? `${locator.registry}:${locator.packageName}`
+    : stripVersionFromTarget(fallbackTarget);
+}
+
+function stripVersionFromTarget(value: string | undefined): string {
+  if (!value) return "";
+  const atIndex = value.lastIndexOf("@");
+  return atIndex > 0 ? value.slice(0, atIndex) : value;
 }
 
 function formatUnifiedSearchPrimary(
@@ -963,9 +1018,6 @@ function formatUnifiedSearchMetadata(
       pageId?: string;
       sourceKind?: string;
       sourceUrl?: string;
-      filePath?: string;
-      gitRef?: string;
-      requestedRef?: string;
     };
   },
   useColors: boolean,
@@ -975,22 +1027,8 @@ function formatUnifiedSearchMetadata(
   }
 
   const lines: string[] = [];
-  if (entry.locator.pageId) {
-    if (entry.type === "documentation_page") {
-      lines.push(`  ${dim("pageId:", useColors)} ${entry.locator.pageId}`);
-    }
-  }
-
-  const sourceBadge =
-    entry.locator.sourceKind?.toLowerCase() === "repository"
-      ? "[repo]"
-      : entry.locator.sourceKind?.toLowerCase() === "crawled"
-        ? "[crawled]"
-        : undefined;
-  if (entry.locator.sourceUrl && entry.type === "documentation_page") {
-    lines.push(
-      `  ${dim("source:", useColors)} ${sourceBadge ? `${sourceBadge} ` : ""}${entry.locator.sourceUrl}`,
-    );
+  if (entry.type === "documentation_page") {
+    return lines;
   }
 
   return lines;

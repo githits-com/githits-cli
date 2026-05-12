@@ -23,7 +23,11 @@ import {
   registerUnifiedSearchCommands,
 } from "./commands/index.js";
 import { loginFlow, stderrLoginOutput } from "./commands/login.js";
-import { createContainer } from "./container.js";
+import {
+  clearAutoLoginAuthSessionMetadata,
+  createContainer,
+  loadAutoLoginAuthSessionMetadata,
+} from "./container.js";
 import {
   FileSystemServiceImpl,
   NpmRegistryUpdateCheckService,
@@ -79,6 +83,8 @@ if (isTelemetryEnabled()) {
 
 const rootCliPreAction = createRootCliPreAction({
   createContainer,
+  loadAuthSessionMetadata: loadAutoLoginAuthSessionMetadata,
+  clearAuthSessionMetadata: clearAutoLoginAuthSessionMetadata,
   loginFlow: (options, deps) => loginFlow(options, deps, stderrLoginOutput),
 });
 

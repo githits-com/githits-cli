@@ -88,29 +88,7 @@ function buildHeader(envelope: LeanGrepRepoEnvelope): string {
   if (envelope.caseSensitive) flags.push("case-sensitive");
   if (flags.length > 0) parts.push(flags.join(","));
 
-  const filterEcho = buildFilterEcho(envelope);
-  if (filterEcho) parts.push(filterEcho);
-
   return parts.join(SEP);
-}
-
-function buildFilterEcho(envelope: LeanGrepRepoEnvelope): string {
-  const filter = envelope.filter;
-  if (!filter) return "";
-  const parts: string[] = [];
-  if (filter.path) parts.push(`path=${quote(filter.path)}`);
-  if (filter.pathPrefix) parts.push(`path_prefix=${quote(filter.pathPrefix)}`);
-  if (filter.globs?.length) parts.push(`globs=${filter.globs.join(",")}`);
-  if (filter.extensions?.length) {
-    parts.push(`exts=${filter.extensions.join(",")}`);
-  }
-  if (typeof filter.maxMatches === "number") {
-    parts.push(`max_matches=${filter.maxMatches}`);
-  }
-  if (typeof filter.maxMatchesPerFile === "number") {
-    parts.push(`max_matches_per_file=${filter.maxMatchesPerFile}`);
-  }
-  return parts.join(" ");
 }
 
 function buildTrailer(envelope: LeanGrepRepoEnvelope): string[] {

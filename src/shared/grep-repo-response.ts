@@ -1,5 +1,8 @@
 import type { GrepRepoMatch, GrepRepoResult } from "../services/index.js";
 import { colorize, dim, highlightRanges } from "./colors.js";
+import { shellQuote } from "./shell-quote.js";
+
+const UTF8_ENCODER = new TextEncoder();
 
 export interface LeanGrepRepoMatch {
   filePath: string;
@@ -524,7 +527,7 @@ function renderVerboseLine(
     const matchRow = `${colorize(">", "bold", useColors)} ${gutter}  ${highlightRanges(line.content, line.highlightRanges, useColors)}`;
     if (line.symbolHint) {
       const hintIndent = " ".repeat(2 + gutterWidth + 2);
-      return `${matchRow}\n${hintIndent}${dim(`↳ in: ${line.symbolHint}`, useColors)}`;
+      return `${matchRow}\n${hintIndent}${dim(`in: ${line.symbolHint}`, useColors)}`;
     }
     return matchRow;
   }
@@ -542,8 +545,9 @@ function formatSymbolHint(
   if (symbol.kind) parts.push(`(${symbol.kind})`);
   if (symbol.isPublic === true) parts.push("public");
   if (symbol.arity !== undefined) parts.push(`arity=${symbol.arity}`);
-  if (symbol.callerCount !== undefined)
+  if (symbol.callerCount !== undefined) {
     parts.push(`callers=${symbol.callerCount}`);
+  }
   if (symbol.startLine !== undefined && symbol.endLine !== undefined) {
     parts.push(`L${symbol.startLine}-${symbol.endLine}`);
   }
@@ -615,10 +619,6 @@ function formatCount(
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'"'"'`)}'`;
-}
-
 function padLeft(text: string, width: number): string {
   return text.length >= width
     ? text
@@ -650,5 +650,18 @@ function mergeRanges(
 }
 
 function clampCharacterOffset(text: string, offset: number): number {
-  return Math.max(0, Math.min(text.length, offset));
+  if (offset <= 0) return 0;
+
+  let byteOffset = 0;
+  for (let index = 0; index < text.length; ) {
+    const codePoint = text.codePointAt(index);
+    if (codePoint === undefined) break;
+    const char = String.fromCodePoint(codePoint);
+    const nextByteOffset = byteOffset + UTF8_ENCODER.encode(char).length;
+    if (nextByteOffset > offset) return index;
+    byteOffset = nextByteOffset;
+    index += char.length;
+  }
+
+  return text.length;
 }

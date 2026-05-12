@@ -8,6 +8,7 @@ import {
 import { shouldUseColors } from "../../shared/colors.js";
 import { InvalidPackageSpecError, requireAuth } from "../../shared/index.js";
 import { toPkgseerRegistryLowercase } from "../../shared/pkgseer-registry.js";
+import { withReadFileRecovery } from "../../shared/read-file-error.js";
 import { buildReadFileParams } from "../../shared/read-file-request.js";
 import {
   buildReadFileSuccessPayload,
@@ -60,6 +61,8 @@ export async function pkgReadAction(
 ): Promise<void> {
   requireAuth(deps);
 
+  let requestedFilePath = "";
+
   try {
     if (!deps.codeNavigationUrl || !deps.codeNavigationService) {
       throw new InvalidPackageSpecError(
@@ -83,6 +86,7 @@ export async function pkgReadAction(
 
     const target = resolveCliCodeNavTarget(spec, options);
     const pathWithRange = parsePathWithOptionalRange(path.trim());
+    requestedFilePath = pathWithRange.filePath;
     const range = resolveLineRange(options, pathWithRange);
     const wait = parseIntCliOption(
       options.wait,
@@ -126,6 +130,8 @@ export async function pkgReadAction(
       error,
       options.json ?? false,
       formatFileErrorWithFilesHint,
+      1,
+      (mapped) => withReadFileRecovery(mapped, requestedFilePath),
     );
   }
 }

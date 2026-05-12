@@ -5,6 +5,7 @@ import {
 } from "../../services/test-helpers.js";
 import type {
   CliSetup,
+  CliUninstall,
   CompositeSetup,
   ConfigFileSetup,
 } from "./agent-definitions.js";
@@ -12,14 +13,21 @@ import type { CliCheckCommand, MergeResult } from "./setup-handlers.js";
 import {
   detectConfigFormat,
   executeCliSetup,
+  executeCliUninstall,
   executeCompositeSetup,
   executeConfigFileSetup,
+  executeConfigFileUninstall,
   formatSetupPreview,
+  formatUninstallPreview,
   getCliCheckStatus,
+  getConfigUninstallCheckStatus,
+  hasServerConfigEntry,
   isAlreadyConfigured,
   isCliAlreadyConfigured,
+  isConfiguredForUninstall,
   isSetupAlreadyConfigured,
   mergeServerConfig,
+  removeServerConfig,
 } from "./setup-handlers.js";
 
 describe("detectConfigFormat", () => {
@@ -63,6 +71,12 @@ function expectParseError(result: MergeResult): string {
   expect(result.status).toBe("parse_error");
   if (result.status !== "parse_error") throw new Error("unreachable");
   return result.error;
+}
+
+function expectRemoved(result: ReturnType<typeof removeServerConfig>): string {
+  expect(result.status).toBe("removed");
+  if (result.status !== "removed") throw new Error("unreachable");
+  return result.content;
 }
 
 // -- isAlreadyConfigured (read-only check) --
@@ -431,6 +445,25 @@ describe("getCliCheckStatus", () => {
       exec: mock(() =>
         Promise.resolve({
           exitCode: 0,
+          stdout: "",
+          stderr: 'Extension "githits" is not installed.\n',
+        }),
+      ),
+    });
+    expect(await getCliCheckStatus(check, execService)).toBe("not_configured");
+  });
+
+  it("returns not_configured when non-zero output matches notConfiguredPattern", async () => {
+    const check: CliCheckCommand = {
+      command: "gemini",
+      args: ["extensions", "config", "githits"],
+      notConfiguredPattern: /not installed/i,
+      requireExitCodeZero: true,
+    };
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
           stdout: "",
           stderr: 'Extension "githits" is not installed.\n',
         }),
@@ -838,6 +871,108 @@ describe("mergeServerConfig", () => {
   });
 });
 
+describe("removeServerConfig", () => {
+  it("removes GitHits while preserving other servers", () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: { command: "npx" },
+        other: { command: "other" },
+      },
+      setting: true,
+    });
+    const content = expectRemoved(
+      removeServerConfig(existing, "mcpServers", "GitHits"),
+    );
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers.GitHits).toBeUndefined();
+    expect(parsed.mcpServers.other).toEqual({ command: "other" });
+    expect(parsed.setting).toBe(true);
+  });
+
+  it("removes lowercase githits key", () => {
+    const existing = JSON.stringify({
+      mcpServers: { githits: { command: "npx" } },
+    });
+    const content = expectRemoved(
+      removeServerConfig(existing, "mcpServers", "GitHits"),
+    );
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers.githits).toBeUndefined();
+  });
+
+  it("removes duplicate case-variant keys", () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: { command: "npx" },
+        githits: { command: "npx" },
+        GITHITS: { command: "npx" },
+      },
+    });
+    const content = expectRemoved(
+      removeServerConfig(existing, "mcpServers", "GitHits"),
+    );
+    const parsed = JSON.parse(content);
+    expect(Object.keys(parsed.mcpServers)).toEqual([]);
+  });
+
+  it("returns not_configured when GitHits is absent", () => {
+    const result = removeServerConfig(
+      JSON.stringify({ mcpServers: { other: {} } }),
+      "mcpServers",
+      "GitHits",
+    );
+    expect(result.status).toBe("not_configured");
+  });
+
+  it("returns parse_error for malformed content", () => {
+    const result = removeServerConfig("{invalid", "mcpServers", "GitHits");
+    expect(result.status).toBe("parse_error");
+  });
+
+  it("supports JSONC and writes canonical JSON", () => {
+    const existing = `{
+      // comment
+      "mcpServers": {
+        "GitHits": { "command": "npx" },
+        "other": { "command": "other", },
+      },
+    }`;
+    const content = expectRemoved(
+      removeServerConfig(existing, "mcpServers", "GitHits"),
+    );
+    expect(content).toEndWith("\n");
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers.GitHits).toBeUndefined();
+    expect(parsed.mcpServers.other).toEqual({ command: "other" });
+  });
+
+  it("supports VS Code servers key", () => {
+    const content = expectRemoved(
+      removeServerConfig(
+        JSON.stringify({ servers: { GitHits: {}, other: {} } }),
+        "servers",
+        "GitHits",
+      ),
+    );
+    const parsed = JSON.parse(content);
+    expect(parsed.servers.GitHits).toBeUndefined();
+    expect(parsed.servers.other).toEqual({});
+  });
+
+  it("supports OpenCode mcp key", () => {
+    const content = expectRemoved(
+      removeServerConfig(
+        JSON.stringify({ mcp: { GitHits: {}, other: {} } }),
+        "mcp",
+        "GitHits",
+      ),
+    );
+    const parsed = JSON.parse(content);
+    expect(parsed.mcp.GitHits).toBeUndefined();
+    expect(parsed.mcp.other).toEqual({});
+  });
+});
+
 // -- formatSetupPreview --
 
 describe("formatSetupPreview", () => {
@@ -918,6 +1053,127 @@ describe("formatSetupPreview", () => {
     expect(preview).toContain("Will run: pi install npm:pi-mcp-adapter");
     expect(preview).toContain("Will add to /home/test/.pi/agent/mcp.json:");
     expect(preview).toContain('"GitHits"');
+  });
+});
+
+describe("hasServerConfigEntry", () => {
+  it("returns true for legacy and case-variant GitHits entries", () => {
+    expect(
+      hasServerConfigEntry(
+        JSON.stringify({
+          mcpServers: { githits: { url: "https://mcp.githits.com" } },
+        }),
+        "mcpServers",
+        "GitHits",
+      ),
+    ).toBe(true);
+  });
+
+  it("returns false when server entry is absent or malformed", () => {
+    expect(
+      hasServerConfigEntry(
+        JSON.stringify({ mcpServers: { other: {} } }),
+        "mcpServers",
+        "GitHits",
+      ),
+    ).toBe(false);
+    expect(hasServerConfigEntry("{invalid", "mcpServers", "GitHits")).toBe(
+      false,
+    );
+  });
+});
+
+describe("isConfiguredForUninstall", () => {
+  const configSetup: ConfigFileSetup = {
+    method: "config-file",
+    configPath: "/home/test/.cursor/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: {},
+  };
+
+  it("detects legacy removable config entries", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(
+          JSON.stringify({
+            mcpServers: { GitHits: { url: "https://mcp.githits.com" } },
+          }),
+        ),
+      ),
+    });
+
+    expect(await isConfiguredForUninstall(configSetup, fs)).toBe(true);
+  });
+
+  it("returns false when file is missing", async () => {
+    const fs = createMockFileSystemService();
+    expect(await isConfiguredForUninstall(configSetup, fs)).toBe(false);
+  });
+
+  it("returns false when file is malformed", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve("{invalid")),
+    });
+    expect(await isConfiguredForUninstall(configSetup, fs)).toBe(false);
+  });
+});
+
+describe("getConfigUninstallCheckStatus", () => {
+  const configSetup: ConfigFileSetup = {
+    method: "config-file",
+    configPath: "/home/test/.cursor/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: {},
+  };
+
+  it("returns failed for malformed config", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve("{invalid")),
+    });
+
+    const result = await getConfigUninstallCheckStatus(configSetup, fs);
+    expect(result.status).toBe("failed");
+    if (result.status !== "failed") throw new Error("unreachable");
+    expect(result.message).toContain("Cannot parse");
+    expect(result.message).toContain("File left unchanged");
+  });
+
+  it("returns failed for non-ENOENT read errors", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.reject(Object.assign(new Error("Disk error"), { code: "EIO" })),
+      ),
+    });
+
+    const result = await getConfigUninstallCheckStatus(configSetup, fs);
+    expect(result.status).toBe("failed");
+    if (result.status !== "failed") throw new Error("unreachable");
+    expect(result.message).toContain("Cannot read");
+  });
+});
+
+describe("formatUninstallPreview", () => {
+  it("formats CLI uninstall as commands", () => {
+    const preview = formatUninstallPreview({
+      method: "cli",
+      commands: [{ command: "codex", args: ["mcp", "remove", "githits"] }],
+    });
+    expect(preview).toBe("Will run: codex mcp remove githits");
+  });
+
+  it("formats config-file uninstall with path", () => {
+    const preview = formatUninstallPreview({
+      method: "config-file",
+      configPath: "/home/test/.cursor/mcp.json",
+      serversKey: "mcpServers",
+      serverName: "GitHits",
+      serverConfig: {},
+    });
+    expect(preview).toBe(
+      "Will remove GitHits from /home/test/.cursor/mcp.json",
+    );
   });
 });
 
@@ -1091,6 +1347,176 @@ describe("executeCliSetup", () => {
   });
 });
 
+describe("executeCliUninstall", () => {
+  const uninstall: CliUninstall = {
+    method: "cli",
+    commands: [{ command: "codex", args: ["mcp", "remove", "githits"] }],
+  };
+
+  it("returns removed on exit code 0", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 0, stdout: "Removed\n", stderr: "" }),
+      ),
+    });
+
+    const result = await executeCliUninstall(uninstall, execService);
+    expect(result.status).toBe("removed");
+    expect(execService.exec).toHaveBeenCalledWith("codex", [
+      "mcp",
+      "remove",
+      "githits",
+    ]);
+  });
+
+  it("returns not_configured for already-absent output", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "MCP server githits not found\n",
+        }),
+      ),
+    });
+
+    const result = await executeCliUninstall(uninstall, execService);
+    expect(result.status).toBe("not_configured");
+  });
+
+  it("returns failed for unrelated missing command output", async () => {
+    for (const stderr of ['command "mcp" not found\n', "no such command\n"]) {
+      const execService = createMockExecService({
+        exec: mock(() =>
+          Promise.resolve({
+            exitCode: 1,
+            stdout: "",
+            stderr,
+          }),
+        ),
+      });
+
+      const result = await executeCliUninstall(uninstall, execService);
+      expect(result.status).toBe("failed");
+    }
+  });
+
+  it("returns failed without executing when no uninstall commands are configured", async () => {
+    const execService = createMockExecService();
+    const result = await executeCliUninstall(
+      { method: "cli", commands: [] } as never,
+      execService,
+    );
+
+    expect(result.status).toBe("failed");
+    expect(result.message).toBe("No uninstall commands configured.");
+    expect(execService.exec).not.toHaveBeenCalled();
+  });
+
+  it("treats successful output with absent wording as removed", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: "Removed githits; backup not found\n",
+          stderr: "",
+        }),
+      ),
+    });
+
+    const result = await executeCliUninstall(uninstall, execService);
+    expect(result.status).toBe("removed");
+  });
+
+  it("treats cleanup not_configured after removal as removed with warning", async () => {
+    const multi: CliUninstall = {
+      method: "cli",
+      commands: [
+        { command: "claude", args: ["plugin", "uninstall", "githits"] },
+        {
+          command: "claude",
+          args: ["plugin", "marketplace", "remove", "githits-plugins"],
+        },
+      ],
+    };
+    let callCount = 0;
+    const execService = createMockExecService({
+      exec: mock(() => {
+        callCount += 1;
+        if (callCount === 1) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Removed\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "Marketplace githits-plugins not found\n",
+        });
+      }),
+    });
+
+    const result = await executeCliUninstall(multi, execService);
+    expect(result.status).toBe("removed");
+    expect(result.warnings).toHaveLength(1);
+  });
+
+  it("treats cleanup hard failure after removal as removed with warning", async () => {
+    const multi: CliUninstall = {
+      method: "cli",
+      commands: [
+        { command: "claude", args: ["plugin", "uninstall", "githits"] },
+        {
+          command: "claude",
+          args: ["plugin", "marketplace", "remove", "githits-plugins"],
+        },
+      ],
+    };
+    let callCount = 0;
+    const execService = createMockExecService({
+      exec: mock(() => {
+        callCount += 1;
+        if (callCount === 1) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Removed\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "boom\n" });
+      }),
+    });
+
+    const result = await executeCliUninstall(multi, execService);
+    expect(result.status).toBe("removed");
+    expect(result.warnings?.[0]).toContain("boom");
+  });
+
+  it("stops on first hard failure", async () => {
+    const multi: CliUninstall = {
+      method: "cli",
+      commands: [
+        { command: "claude", args: ["plugin", "uninstall", "githits"] },
+        {
+          command: "claude",
+          args: ["plugin", "marketplace", "remove", "githits-plugins"],
+        },
+      ],
+    };
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 1, stdout: "", stderr: "boom\n" }),
+      ),
+    });
+
+    const result = await executeCliUninstall(multi, execService);
+    expect(result.status).toBe("failed");
+    expect(execService.exec).toHaveBeenCalledTimes(1);
+  });
+});
+
 // -- executeConfigFileSetup --
 
 describe("executeConfigFileSetup", () => {
@@ -1123,7 +1549,8 @@ describe("executeConfigFileSetup", () => {
     expect(result.status).toBe("success");
     expect(atomicWrite).toHaveBeenCalled();
     // Verify the written content is valid JSON with the server entry
-    const writtenContent = atomicWrite.mock.calls[0]![1];
+    const calls = atomicWrite.mock.calls as unknown as [string, string][];
+    const writtenContent = calls[0]![1];
     const parsed = JSON.parse(writtenContent);
     expect(parsed.mcpServers.GitHits).toEqual(configSetup.serverConfig);
   });
@@ -1212,7 +1639,9 @@ describe("executeConfigFileSetup", () => {
         },
       },
     });
-    const atomicWrite = mock(() => Promise.resolve());
+    const atomicWrite = mock((_path: string, _content: string) =>
+      Promise.resolve(),
+    );
     const fs = createMockFileSystemService({
       readFile: mock(() => Promise.resolve(existing)),
       getDirname: mock(() => "/home/test/.cursor"),
@@ -1254,7 +1683,9 @@ describe("executeConfigFileSetup", () => {
   });
 
   it("returns failed on malformed JSON without writing", async () => {
-    const atomicWrite = mock(() => Promise.resolve());
+    const atomicWrite = mock((_path: string, _content: string) =>
+      Promise.resolve(),
+    );
     const fs = createMockFileSystemService({
       readFile: mock(() => Promise.resolve("{invalid")),
       getDirname: mock(() => "/home/test/.cursor"),
@@ -1506,5 +1937,81 @@ describe("executeCompositeSetup", () => {
     expect(result.status).toBe("failed");
     expect(result.message).toContain("install failed");
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("executeConfigFileUninstall", () => {
+  const configSetup: ConfigFileSetup = {
+    method: "config-file",
+    configPath: "/home/test/.cursor/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: {
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+    },
+  };
+
+  it("removes GitHits and preserves other entries", async () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: { command: "npx" },
+        other: { command: "other" },
+      },
+    });
+    const atomicWrite = mock(() => Promise.resolve());
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+      atomicWriteFile: atomicWrite,
+    });
+
+    const result = await executeConfigFileUninstall(configSetup, fs);
+    expect(result.status).toBe("removed");
+    expect(fs.ensureDir).not.toHaveBeenCalled();
+    const calls = atomicWrite.mock.calls as unknown as [string, string][];
+    const writtenContent = calls[0]![1];
+    const parsed = JSON.parse(writtenContent);
+    expect(parsed.mcpServers.GitHits).toBeUndefined();
+    expect(parsed.mcpServers.other).toEqual({ command: "other" });
+  });
+
+  it("returns not_configured when file is missing", async () => {
+    const enoent = Object.assign(new Error("File not found"), {
+      code: "ENOENT",
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.reject(enoent)),
+    });
+
+    const result = await executeConfigFileUninstall(configSetup, fs);
+    expect(result.status).toBe("not_configured");
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("returns failed on malformed JSON without writing", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve("{invalid")),
+    });
+
+    const result = await executeConfigFileUninstall(configSetup, fs);
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("File left unchanged");
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("returns failed on write permission errors", async () => {
+    const eacces = Object.assign(new Error("Permission denied"), {
+      code: "EACCES",
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(JSON.stringify({ mcpServers: { GitHits: {} } })),
+      ),
+      atomicWriteFile: mock(() => Promise.reject(eacces)),
+    });
+
+    const result = await executeConfigFileUninstall(configSetup, fs);
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("Permission denied");
   });
 });

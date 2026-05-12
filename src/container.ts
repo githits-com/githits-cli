@@ -2,6 +2,8 @@ import type { GitHitsService } from "./services/index.js";
 import {
   type AuthService,
   AuthServiceImpl,
+  type AuthSessionMetadata,
+  AuthSessionMetadataStorage,
   type AuthStorage,
   AuthStorageImpl,
   type AuthStorageMode,
@@ -18,6 +20,7 @@ import {
   getCodeNavigationUrl,
   getEnvApiToken,
   getLegacyAuthStorageDir,
+  getLegacyMacAuthFileStorageDir,
   getMcpUrl,
   KeychainAuthStorage,
   KeyringServiceImpl,
@@ -68,6 +71,15 @@ function createAuthStorageForMode(
     fileSystemService,
     getLegacyAuthStorageDir(fileSystemService),
   );
+  const additionalLegacyStores =
+    process.platform === "darwin"
+      ? [
+          new AuthStorageImpl(
+            fileSystemService,
+            getLegacyMacAuthFileStorageDir(fileSystemService),
+          ),
+        ]
+      : [];
 
   const rawKeyring = new KeyringServiceImpl();
   // Windows Credential Manager limits entries to 2560 UTF-16 chars.
@@ -77,6 +89,7 @@ function createAuthStorageForMode(
       ? new ChunkingKeyringService(rawKeyring, WINDOWS_MAX_ENTRY_SIZE)
       : rawKeyring;
   const keychainStorage = new KeychainAuthStorage(keyring);
+  const metadataStorage = new AuthSessionMetadataStorage(fileSystemService);
 
   return new LockedAuthStorage(
     new MigratingAuthStorage(
@@ -86,9 +99,29 @@ function createAuthStorageForMode(
       mode,
       configPath,
       (message) => console.error(message),
+      metadataStorage,
+      additionalLegacyStores,
     ),
     fileSystemService,
   );
+}
+
+export async function loadAutoLoginAuthSessionMetadata(): Promise<AuthSessionMetadata | null> {
+  const envToken = getEnvApiToken();
+  if (envToken) {
+    const now = new Date().toISOString();
+    return { createdAt: now, expiresAt: null, updatedAt: now };
+  }
+
+  const fileSystemService = new FileSystemServiceImpl();
+  const metadataStorage = new AuthSessionMetadataStorage(fileSystemService);
+  return metadataStorage.load(getMcpUrl());
+}
+
+export async function clearAutoLoginAuthSessionMetadata(): Promise<void> {
+  const fileSystemService = new FileSystemServiceImpl();
+  const metadataStorage = new AuthSessionMetadataStorage(fileSystemService);
+  await metadataStorage.clear(getMcpUrl());
 }
 
 export interface AuthCommandDependencies {
@@ -164,6 +197,11 @@ export interface Dependencies {
   githitsService: GitHitsService;
 }
 
+export interface CreateContainerOptions {
+  /** Resolve stored OAuth immediately. Disable for MCP startup to avoid keychain prompts until first tool use. */
+  resolveStoredToken?: boolean;
+}
+
 function createStaticTokenProvider(token: string): TokenProvider {
   return {
     getToken: async () => token,
@@ -175,8 +213,11 @@ function createStaticTokenProvider(token: string): TokenProvider {
  * Creates the production dependency container.
  * Async because token resolution requires reading stored auth.
  */
-export async function createContainer(): Promise<Dependencies> {
+export async function createContainer(
+  options: CreateContainerOptions = {},
+): Promise<Dependencies> {
   return withTelemetrySpan("container.create", async () => {
+    const resolveStoredToken = options.resolveStoredToken ?? true;
     const mcpUrl = getMcpUrl();
     const apiUrl = getApiUrl();
     const codeNavigationUrl = getCodeNavigationUrl();
@@ -221,9 +262,14 @@ export async function createContainer(): Promise<Dependencies> {
     // Create token manager for stored auth with auto-refresh
     const authStorage = await createAuthStorage(fileSystemService);
     const tokenManager = new TokenManager({ authService, authStorage, mcpUrl });
-    const apiToken = await withTelemetrySpan("container.token.get", () =>
-      tokenManager.getToken(),
-    );
+    const apiToken = resolveStoredToken
+      ? await withTelemetrySpan("container.token.get", () =>
+          tokenManager.getToken(),
+        )
+      : undefined;
+    if (resolveStoredToken && apiToken === undefined) {
+      await new AuthSessionMetadataStorage(fileSystemService).clear(mcpUrl);
+    }
     const codeNavigationService = new CodeNavigationServiceImpl(
       codeNavigationUrl,
       tokenManager,

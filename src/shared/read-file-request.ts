@@ -35,6 +35,11 @@ export function buildReadFileParams(
       "`file_path` is required — pass the path to the file within the package or repo.",
     );
   }
+  if (filePath.endsWith("/")) {
+    throw new InvalidPackageSpecError(
+      `\`file_path\` must be an exact file path, not a directory prefix. Use \`code_files\` with \`path_prefix: ${JSON.stringify(filePath)}\` to list files, then pass an emitted \`path\` to \`code_read\`.`,
+    );
+  }
 
   const startLine = normaliseLine(input.startLine, "start_line");
   const endLine = normaliseLine(input.endLine, "end_line");

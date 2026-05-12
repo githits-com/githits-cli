@@ -226,6 +226,38 @@ describe("createGrepRepoTool — validation errors", () => {
       "INVALID_ARGUMENT",
     );
   });
+
+  it("returns INVALID_ARGUMENT envelope when pattern is omitted", async () => {
+    const tool = createGrepRepoTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        path_prefix: "lib/",
+      },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    const payload = parseText(result) as { code: string; error: string };
+    expect(payload.code).toBe("INVALID_ARGUMENT");
+    expect(payload.error).toContain("`pattern` is required");
+    expect(payload.error).toContain("use `code_files` instead");
+  });
+
+  it("returns INVALID_ARGUMENT for out-of-range numeric arguments", async () => {
+    const tool = createGrepRepoTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        pattern: "middleware",
+        max_matches: 1001,
+      },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    expect((parseText(result) as { code: string }).code).toBe(
+      "INVALID_ARGUMENT",
+    );
+  });
 });
 
 describe("createGrepRepoTool — service errors", () => {

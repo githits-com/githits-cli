@@ -21,6 +21,19 @@ async function withEnv<T>(
   }
 }
 
+async function withPlatform<T>(
+  platform: NodeJS.Platform,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const originalPlatform = process.platform;
+  Object.defineProperty(process, "platform", { value: platform });
+  try {
+    return await fn();
+  } finally {
+    Object.defineProperty(process, "platform", { value: originalPlatform });
+  }
+}
+
 describe("auth config", () => {
   it("parses storage modes case-insensitively", () => {
     expect(parseAuthStorageMode("keychain")).toBe("keychain");
@@ -53,6 +66,26 @@ describe("auth config", () => {
         }),
       );
       expect(config.storage).toBe("file");
+    });
+  });
+
+  it("falls back to the old macOS config path for existing installs", async () => {
+    await withEnv(undefined, async () => {
+      await withPlatform("darwin", async () => {
+        const config = await loadAuthConfig(
+          createMockFileSystemService({
+            exists: mock((path: string) =>
+              Promise.resolve(path.includes("Library/Application Support")),
+            ),
+            readFile: mock(() => Promise.resolve('[auth]\nstorage = "file"\n')),
+          }),
+        );
+        expect(config).toEqual({
+          storage: "file",
+          configPath:
+            "/home/test/Library/Application Support/githits/config.toml",
+        });
+      });
     });
   });
 

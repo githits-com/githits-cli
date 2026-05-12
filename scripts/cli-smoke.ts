@@ -348,12 +348,18 @@ async function assertLiveOrAuthRequired(): Promise<boolean> {
     result.exitCode !== 0,
     "languages auth probe: expected non-zero auth failure",
   );
-  const stderr = result.stderr.trim();
+  // Auth guidance currently comes from requireAuth(), which writes friendly
+  // instructions to stdout before throwing. Accept either stream so this smoke
+  // gate validates guidance without forcing a broader CLI stream-policy change.
+  const authGuidance = `${result.stderr}\n${result.stdout}`.trim();
   assert(
-    stderr.includes("Authentication required"),
+    authGuidance.includes("Authentication required"),
     "auth probe missing authentication guidance",
   );
-  assert(stderr.includes("githits login"), "auth probe missing login guidance");
+  assert(
+    authGuidance.includes("githits login"),
+    "auth probe missing login guidance",
+  );
   console.log("AUTH_REQUIRED: live CLI smoke skipped");
   return false;
 }

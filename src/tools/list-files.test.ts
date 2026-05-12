@@ -18,6 +18,10 @@ describe("createListFilesTool — metadata", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     expect(tool.name).toBe("code_files");
     expect(tool.description).toContain("List files in an indexed dependency");
+    expect(tool.description).toContain(
+      "First choice for file/path enumeration",
+    );
+    expect(tool.description).toContain("`path_prefix` for directory prefixes");
     expect(Object.keys(tool.schema).sort()).toEqual([
       "exclude_doc_files",
       "exclude_file_intents",

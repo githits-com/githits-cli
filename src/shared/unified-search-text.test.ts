@@ -100,7 +100,7 @@ describe("renderUnifiedSearchSuccess", () => {
 
   it("uses pageId for documentation hits", () => {
     const text = renderUnifiedSearchSuccess(completed([docsHit()]));
-    expect(text).toContain("[1] aider-AI/aider@v0.55.0  docs");
+    expect(text).toContain("[1] aider/edit-formats aider-AI/aider  docs");
     expect(text).toContain('    docs_read page_id="aider/edit-formats"');
     expect(text).toContain("    Edit Formats");
   });
@@ -248,7 +248,7 @@ describe("renderUnifiedSearchSuccess", () => {
     const hitHeaders = text.split("\n").filter((line) => /^\[\d\]/.test(line));
     expect(hitHeaders).toHaveLength(3);
     expect(text).toContain("[1] cline/cline@v3.4.2");
-    expect(text).toContain("[2] aider-AI/aider@v0.55.0");
+    expect(text).toContain("[2] aider/edit-formats aider-AI/aider");
     expect(text).toContain("[3] continuedev/continue@v0.9.42");
   });
 });

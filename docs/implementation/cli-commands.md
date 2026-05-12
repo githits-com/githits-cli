@@ -9,6 +9,7 @@ The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` /
 | Command | Required Args | Options | Description |
 |---|---|---|---|
 | `init` | — | `-y, --yes`, `--skip-login` | Authenticate and set up MCP server for coding agents |
+| `init uninstall` | — | `-y, --yes` | Remove GitHits MCP server configuration from coding agents |
 | `example <query>` | `<query>` | `-l, --lang <language>`, `--license <mode>`, `--explain`, `--json` | Search for code examples |
 | `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols. Defaults to 10 results. |
 | `search-status <search-ref>` | `<search-ref>` | `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search |
@@ -30,6 +31,8 @@ The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` /
 githits init              # Interactive: authenticate, scan, configure unconfigured agents
 githits init --yes        # Non-interactive: authenticate, configure all unconfigured agents
 githits init --skip-login # Skip authentication, configure tools only
+githits init uninstall    # Interactive: remove GitHits MCP config from configured agents
+githits init uninstall -y # Non-interactive: remove all detected GitHits MCP configs
 ```
 
 Authenticates with GitHits (via OAuth in the browser), then scans for available coding agents, checks which are already configured, and sets up unconfigured ones with your confirmation. All agents are pre-checked before any setup begins, so the status display is fully resolved. CLI agents are considered available only when their executable is on `PATH`; related dot-directories alone do not count. Config-file agents remain filesystem-detected using their known app/config directories. If already authenticated, the login step is skipped automatically. If login fails, the user is prompted to continue with tool setup anyway. If all detected agents are already configured, exits early with a summary.
@@ -37,6 +40,8 @@ Authenticates with GitHits (via OAuth in the browser), then scans for available 
 Supports Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Gemini CLI, Google Antigravity, and OpenCode. Uses plugin install (Claude Code), CLI commands (Codex, Gemini CLI), and atomic config file writes (Cursor, Windsurf, VS Code, Cline, Claude Desktop, Google Antigravity, OpenCode). CLI agents use read-only check commands (e.g., `claude plugin list`) to determine configuration status before prompting.
 
 The command uses `createContainer()` lazily for the login step. Tool detection and configuration use lightweight dependencies that don't require auth.
+
+`githits init uninstall` reverses the tool configuration performed by init. It scans the same supported agents, removes only GitHits MCP/plugin entries, and leaves authentication credentials untouched. Use `githits logout` separately to remove stored credentials. Config-file uninstall removes `GitHits`/case-variant server entries while preserving other MCP servers and user settings; it never deletes config files or directories. JSONC-style files are accepted on read and rewritten as canonical JSON only when changed, matching setup behavior.
 
 **File structure:** The init command uses a subdirectory (`src/commands/init/`) because it has distinct submodules (agent definitions, setup handlers, orchestrator). This is an accepted variation for commands with significant internal complexity.
 
