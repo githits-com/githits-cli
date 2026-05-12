@@ -62,6 +62,14 @@ interface WorkloadRunMetadata {
   skillInstallation?: SkillInstallationMetadata;
 }
 
+const MCP_CONFIG_ENV_KEYS = [
+  "GITHITS_API_URL",
+  "GITHITS_MCP_URL",
+  "GITHITS_CODE_NAV_URL",
+  "PKGSEER_URL",
+  "GITHITS_AUTH_STORAGE",
+] as const;
+
 interface ExtractedToolCall {
   agent: AgentName;
   server?: string;
@@ -282,8 +290,9 @@ Options:
 
 export function buildMcpConfig(
   options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  baseEnv: NodeJS.ProcessEnv = process.env,
 ): McpServerConfig {
-  const command = buildMcpCommand(options);
+  const command = buildMcpCommand(options, baseEnv);
   return {
     mcpServers: {
       githits: command,
@@ -293,42 +302,75 @@ export function buildMcpConfig(
 
 function buildMcpCommand(
   options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  baseEnv: NodeJS.ProcessEnv = process.env,
 ): McpServerConfig["mcpServers"]["githits"] {
+  const env = buildMcpServerEnv(baseEnv);
   if (options.server === "local") {
     return {
       command: "bun",
       args: ["run", "--cwd", options.repoRoot, "dev", "mcp", "start"],
+      ...(env ? { env } : {}),
     };
   }
 
   return {
     command: "npx",
     args: ["-y", options.publishedPackage, "mcp", "start"],
+    ...(env ? { env } : {}),
   };
+}
+
+function buildMcpServerEnv(
+  baseEnv: NodeJS.ProcessEnv,
+): Record<string, string> | undefined {
+  const env: Record<string, string> = {};
+  for (const key of MCP_CONFIG_ENV_KEYS) {
+    const value = baseEnv[key];
+    if (value !== undefined) env[key] = value;
+  }
+  return Object.keys(env).length > 0 ? env : undefined;
 }
 
 export function buildCodexConfig(
   options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  baseEnv: NodeJS.ProcessEnv = process.env,
 ): string {
-  const command = buildMcpCommand(options);
-  return [
+  const command = buildMcpCommand(options, baseEnv);
+  const lines = [
     "[mcp_servers.githits]",
     `command = ${JSON.stringify(command.command)}`,
     `args = ${JSON.stringify(command.args)}`,
-    "",
-  ].join("\n");
+  ];
+  if (command.env && Object.keys(command.env).length > 0) {
+    lines.push("", "[mcp_servers.githits.env]");
+    for (const [key, value] of Object.entries(command.env)) {
+      lines.push(`${key} = ${JSON.stringify(value)}`);
+    }
+  }
+  lines.push("");
+  return lines.join("\n");
 }
 
 export function buildCodexConfigArgs(
   options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  baseEnv: NodeJS.ProcessEnv = process.env,
 ): string[] {
-  const command = buildMcpCommand(options);
-  return [
+  const command = buildMcpCommand(options, baseEnv);
+  const args = [
     "-c",
     `mcp_servers.githits.command=${JSON.stringify(command.command)}`,
     "-c",
     `mcp_servers.githits.args=${JSON.stringify(command.args)}`,
   ];
+  if (command.env) {
+    for (const [key, value] of Object.entries(command.env)) {
+      args.push(
+        "-c",
+        `mcp_servers.githits.env.${key}=${JSON.stringify(value)}`,
+      );
+    }
+  }
+  return args;
 }
 
 function shQuote(value: string): string {

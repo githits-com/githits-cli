@@ -17,6 +17,7 @@ import {
   createPackageChangelogTool,
   createPackageDependenciesTool,
   createPackageSummaryTool,
+  createPackageUpgradeReviewTool,
   createPackageVulnerabilitiesTool,
   createReadFileTool,
   createReadPackageDocTool,
@@ -64,6 +65,9 @@ export function getMcpToolDefinitions(
   );
   tools.push(
     eraseTool(createPackageChangelogTool(deps.packageIntelligenceService)),
+  );
+  tools.push(
+    eraseTool(createPackageUpgradeReviewTool(deps.packageIntelligenceService)),
   );
 
   return tools;

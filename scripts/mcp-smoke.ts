@@ -27,6 +27,7 @@ const EXPECTED_TOOLS = [
   "pkg_deps",
   "pkg_vulns",
   "pkg_changelog",
+  "pkg_upgrade_review",
   "docs_list",
   "docs_read",
   "code_files",
@@ -526,6 +527,62 @@ async function runLiveSmoke(client: Client): Promise<void> {
     !changelogTimeline.includes("What's Changed"),
     "pkg_changelog include_bodies=false still emitted bodies",
   );
+
+  const upgradeReviewText = assertDefaultText(
+    await callTool(client, "pkg_upgrade_review", {
+      registry: "npm",
+      package_name: "express",
+      current_version: "5.0.0",
+      target_version: "5.2.1",
+      include_transitive_security: false,
+    }),
+    "pkg_upgrade_review default",
+  );
+  assert(
+    upgradeReviewText.includes("pkg_upgrade_review") &&
+      upgradeReviewText.includes("vulnerabilities") &&
+      upgradeReviewText.includes("changes"),
+    "pkg_upgrade_review default missing evidence sections",
+  );
+  assert(
+    !upgradeReviewText.includes("recommendation") &&
+      !upgradeReviewText.includes("risk level"),
+    "pkg_upgrade_review default leaked assessment language",
+  );
+
+  const upgradeReviewJson = assertJsonResult(
+    await callTool(client, "pkg_upgrade_review", {
+      registry: "npm",
+      package_name: "express",
+      current_version: "5.0.0",
+      target_version: "5.2.1",
+      include_transitive_security: false,
+      format: "json",
+    }),
+    "pkg_upgrade_review json",
+  );
+  assertRecord(upgradeReviewJson, "pkg_upgrade_review json");
+  assertRecord(upgradeReviewJson.summary, "pkg_upgrade_review json summary");
+  assert(
+    Array.isArray(upgradeReviewJson.reviews),
+    "pkg_upgrade_review json missing reviews array",
+  );
+  const firstUpgradeReview = upgradeReviewJson.reviews[0] as
+    | Record<string, unknown>
+    | undefined;
+  assert(firstUpgradeReview, "pkg_upgrade_review json missing first review");
+  for (const forbidden of [
+    "risk",
+    "riskLevel",
+    "recommendation",
+    "findings",
+    "verification",
+  ]) {
+    assert(
+      !(forbidden in firstUpgradeReview),
+      `pkg_upgrade_review json leaked judgment field ${forbidden}`,
+    );
+  }
 
   const docsText = assertDefaultText(
     await callTool(client, "docs_list", {

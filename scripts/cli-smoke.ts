@@ -55,6 +55,27 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     },
   },
   {
+    name: "pkg_upgrade_review",
+    cliArgs: [
+      "pkg",
+      "upgrade-review",
+      "npm:express@5.0.0",
+      "--to",
+      "5.2.1",
+      "--no-transitive-security",
+      "--json",
+    ],
+    mcpTool: "pkg_upgrade_review",
+    mcpArgs: {
+      registry: "npm",
+      package_name: "express",
+      current_version: "5.0.0",
+      target_version: "5.2.1",
+      include_transitive_security: false,
+      format: "json",
+    },
+  },
+  {
     name: "docs_list",
     cliArgs: ["docs", "list", "npm:express", "--limit", "2", "--json"],
     mcpTool: "docs_list",
@@ -285,6 +306,20 @@ function assertDeepEqual(
   );
 }
 
+function canonicalizeParityPayload(name: string, payload: unknown): unknown {
+  if (name !== "pkg_info") return payload;
+  const clone = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
+  const github = clone.github;
+  if (github && typeof github === "object" && !Array.isArray(github)) {
+    const mutableGithub = github as Record<string, unknown>;
+    delete mutableGithub.stars;
+    delete mutableGithub.forks;
+    delete mutableGithub.openIssues;
+    delete mutableGithub.lastPushedAt;
+  }
+  return clone;
+}
+
 async function assertJsonParity(): Promise<void> {
   for (const fixture of JSON_PARITY_FIXTURES) {
     const cliPayload = assertJsonOutput(
@@ -292,7 +327,11 @@ async function assertJsonParity(): Promise<void> {
       `${fixture.name} CLI parity`,
     );
     const mcpPayload = await runMcpJson(fixture.mcpTool, fixture.mcpArgs);
-    assertDeepEqual(mcpPayload, cliPayload, `${fixture.name} CLI/MCP`);
+    assertDeepEqual(
+      canonicalizeParityPayload(fixture.name, mcpPayload),
+      canonicalizeParityPayload(fixture.name, cliPayload),
+      `${fixture.name} CLI/MCP`,
+    );
   }
 }
 
@@ -564,6 +603,64 @@ async function runLiveSmoke(): Promise<void> {
   );
   assertRecord(changelogJson, "pkg changelog json");
   assertRecord(changelogJson.entries, "pkg changelog json entries");
+
+  const upgradeReviewText = assertTerminalOutput(
+    await runCli([
+      "pkg",
+      "upgrade-review",
+      "npm:express@5.0.0",
+      "--to",
+      "5.2.1",
+      "--no-transitive-security",
+    ]),
+    "pkg upgrade-review terminal",
+  );
+  assert(
+    upgradeReviewText.includes("pkg_upgrade_review") &&
+      upgradeReviewText.includes("vulnerabilities") &&
+      upgradeReviewText.includes("changes"),
+    "pkg upgrade-review terminal missing evidence sections",
+  );
+  assert(
+    !upgradeReviewText.includes("recommendation") &&
+      !upgradeReviewText.includes("risk level"),
+    "pkg upgrade-review terminal leaked assessment language",
+  );
+
+  const upgradeReviewJson = assertJsonOutput(
+    await runCli([
+      "pkg",
+      "upgrade-review",
+      "npm:express@5.0.0",
+      "--to",
+      "5.2.1",
+      "--no-transitive-security",
+      "--json",
+    ]),
+    "pkg upgrade-review json",
+  );
+  assertRecord(upgradeReviewJson, "pkg upgrade-review json");
+  assertRecord(upgradeReviewJson.summary, "pkg upgrade-review json summary");
+  assert(
+    Array.isArray(upgradeReviewJson.reviews),
+    "pkg upgrade-review json missing reviews array",
+  );
+  const firstUpgradeReview = upgradeReviewJson.reviews[0] as
+    | Record<string, unknown>
+    | undefined;
+  assert(firstUpgradeReview, "pkg upgrade-review json missing first review");
+  for (const forbidden of [
+    "risk",
+    "riskLevel",
+    "recommendation",
+    "findings",
+    "verification",
+  ]) {
+    assert(
+      !(forbidden in firstUpgradeReview),
+      `pkg upgrade-review json leaked judgment field ${forbidden}`,
+    );
+  }
 
   const docsText = assertTerminalOutput(
     await runCli(["docs", "list", "npm:express", "--limit", "2"]),

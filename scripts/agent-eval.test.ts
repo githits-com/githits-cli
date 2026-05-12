@@ -86,11 +86,14 @@ function createRunFixture(status = "success"): string {
 
 describe("agent eval harness", () => {
   it("builds local MCP config with explicit repo cwd", () => {
-    const config = buildMcpConfig({
-      server: "local",
-      repoRoot: "/repo/githits-cli",
-      publishedPackage: "githits@latest",
-    });
+    const config = buildMcpConfig(
+      {
+        server: "local",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+      {},
+    );
 
     expect(config.mcpServers.githits).toEqual({
       command: "bun",
@@ -99,11 +102,14 @@ describe("agent eval harness", () => {
   });
 
   it("builds published MCP config with pinned package spec", () => {
-    const config = buildMcpConfig({
-      server: "published",
-      repoRoot: "/repo/githits-cli",
-      publishedPackage: "githits@0.4.2",
-    });
+    const config = buildMcpConfig(
+      {
+        server: "published",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@0.4.2",
+      },
+      {},
+    );
 
     expect(config.mcpServers.githits).toEqual({
       command: "npx",
@@ -113,11 +119,14 @@ describe("agent eval harness", () => {
 
   it("builds Codex TOML config from the same MCP command", () => {
     expect(
-      buildCodexConfig({
-        server: "local",
-        repoRoot: "/repo/githits-cli",
-        publishedPackage: "githits@latest",
-      }),
+      buildCodexConfig(
+        {
+          server: "local",
+          repoRoot: "/repo/githits-cli",
+          publishedPackage: "githits@latest",
+        },
+        {},
+      ),
     ).toBe(
       '[mcp_servers.githits]\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n',
     );
@@ -125,17 +134,54 @@ describe("agent eval harness", () => {
 
   it("builds Codex config override args", () => {
     expect(
-      buildCodexConfigArgs({
-        server: "published",
-        repoRoot: "/repo/githits-cli",
-        publishedPackage: "githits@0.4.2",
-      }),
+      buildCodexConfigArgs(
+        {
+          server: "published",
+          repoRoot: "/repo/githits-cli",
+          publishedPackage: "githits@0.4.2",
+        },
+        {},
+      ),
     ).toEqual([
       "-c",
       'mcp_servers.githits.command="npx"',
       "-c",
       'mcp_servers.githits.args=["-y","githits@0.4.2","mcp","start"]',
     ]);
+  });
+
+  it("embeds non-secret backend override env in MCP configs", () => {
+    const env = {
+      GITHITS_API_URL: "https://api-dev.githits.com",
+      PKGSEER_URL: "https://pkgseer-backend-dev.fly.dev",
+      GITHITS_API_TOKEN: "secret-token",
+    };
+
+    const mcpConfig = buildMcpConfig(
+      {
+        server: "local",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+      env,
+    );
+    expect(mcpConfig.mcpServers.githits.env).toEqual({
+      GITHITS_API_URL: "https://api-dev.githits.com",
+      PKGSEER_URL: "https://pkgseer-backend-dev.fly.dev",
+    });
+
+    expect(
+      buildCodexConfigArgs(
+        {
+          server: "local",
+          repoRoot: "/repo/githits-cli",
+          publishedPackage: "githits@latest",
+        },
+        env,
+      ),
+    ).toContain(
+      'mcp_servers.githits.env.PKGSEER_URL="https://pkgseer-backend-dev.fly.dev"',
+    );
   });
 
   it("passes selected models to agent commands", () => {
