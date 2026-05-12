@@ -87,6 +87,20 @@ interface UninstallScanResult {
   failed: AgentUninstallOutcome[];
 }
 
+function printReadyNextSteps(): void {
+  console.log("  Setup complete. You're ready to use GitHits.");
+  console.log();
+  console.log("  Try a quick code example search:");
+  console.log(
+    '    npx githits@latest example "How do I use useEffect cleanup?"',
+  );
+  console.log();
+  console.log("  Or ask your agent to explore a real codebase:");
+  console.log(
+    "    Use GitHits to inspect postgres/postgres and explain how the query planner selects join strategies.",
+  );
+}
+
 async function verifyAgentConfigured(
   agent: (typeof agentDefinitions)[number],
   fileSystemService: FileSystemService,
@@ -330,9 +344,9 @@ export async function initAction(
       console.log("  Run `githits login` before using GitHits tools.\n");
       return;
     }
-    console.log(
-      "  All detected agents are already configured. Nothing to do.\n",
-    );
+    console.log("  All detected agents are already configured.");
+    printReadyNextSteps();
+    console.log();
     return;
   }
 
@@ -433,7 +447,7 @@ export async function initAction(
     console.log("  MCP is configured, but authentication is still required.");
     console.log("  Run `githits login` before using GitHits tools.");
   } else if (configured > 0 || alreadyDone > 0) {
-    console.log("  Done! GitHits is ready.");
+    printReadyNextSteps();
   } else if (skipped > 0) {
     console.log("  Setup skipped.");
   }
