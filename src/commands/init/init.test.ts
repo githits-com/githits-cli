@@ -8,6 +8,7 @@ import {
   spyOn,
 } from "bun:test";
 import { ExitPromptError } from "@inquirer/core";
+import { Command } from "commander";
 import type { ConfirmChoice } from "../../services/prompt-service.js";
 import {
   createMockAuthService,
@@ -19,7 +20,11 @@ import {
   createValidTokenData,
 } from "../../services/test-helpers.js";
 import type { LoginDependencies } from "../login.js";
-import { initAction } from "./init.js";
+import {
+  initAction,
+  initUninstallAction,
+  registerInitCommand,
+} from "./init.js";
 
 /** Suppress console.log during tests */
 let logSpy: ReturnType<typeof spyOn>;
@@ -216,7 +221,7 @@ describe("initAction", () => {
         if (key === "claude plugin list") {
           return Promise.resolve({
             exitCode: 0,
-            stdout: "githits-plugin\n",
+            stdout: "githits@githits-plugins\n",
             stderr: "",
           });
         }
@@ -1004,5 +1009,812 @@ describe("initAction", () => {
       ).toBe(false);
       expect(fs.atomicWriteFile).toHaveBeenCalled();
     });
+  });
+});
+
+describe("initUninstallAction", () => {
+  it("prompts and removes configured config-file agents", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+        other: { command: "other" },
+      },
+    });
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": currentConfig,
+    });
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/home/test/.cursor/mcp.json") {
+          return currentConfig;
+        }
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (_path: string, content: string) => {
+        currentConfig = content;
+      },
+    );
+    const promptService = createMockPromptService({
+      confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+    });
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(promptService.confirm3).toHaveBeenCalledTimes(1);
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+    const parsed = JSON.parse(currentConfig);
+    expect(parsed.mcpServers.GitHits).toBeUndefined();
+    expect(parsed.mcpServers.other).toEqual({ command: "other" });
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("Done!"))).toBe(true);
+  });
+
+  it("--yes skips prompts", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": currentConfig,
+    });
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async () => currentConfig,
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (_path: string, content: string) => {
+        currentConfig = content;
+      },
+    );
+    const promptService = createMockPromptService();
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(promptService.confirm3).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes legacy config entries that setup would migrate", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        githits: { url: "https://mcp.githits.com" },
+        other: { command: "other" },
+      },
+    });
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": currentConfig,
+    });
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async () => currentConfig,
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (_path: string, content: string) => {
+        currentConfig = content;
+      },
+    );
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+    const parsed = JSON.parse(currentConfig);
+    expect(parsed.mcpServers.githits).toBeUndefined();
+    expect(parsed.mcpServers.other).toEqual({ command: "other" });
+  });
+
+  it("reports malformed detected config as failure without prompting", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": "{invalid",
+    });
+    const promptService = createMockPromptService();
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(promptService.confirm3).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("Uninstall completed with errors")),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("- Cursor:"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Cannot parse"))).toBe(true);
+  });
+
+  it("reports non-ENOENT config read errors as failure", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(async () => {
+      throw Object.assign(new Error("Disk error"), { code: "EIO" });
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("Uninstall completed with errors")),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Cannot read"))).toBe(true);
+  });
+
+  it("skips agent when user responds no", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    });
+    const promptService = createMockPromptService({
+      confirm3: mock(() => Promise.resolve("no" as ConfirmChoice)),
+    });
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("Uninstall skipped"))).toBe(
+      true,
+    );
+  });
+
+  it("stops prompting after always response", async () => {
+    let cursorConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    let windsurfConfig = cursorConfig;
+    const fs = createFsWithDetection([
+      "/home/test/.cursor",
+      "/home/test/.codeium/windsurf",
+    ]);
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/home/test/.cursor/mcp.json") return cursorConfig;
+        if (path === "/home/test/.codeium/windsurf/mcp_config.json") {
+          return windsurfConfig;
+        }
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string, content: string) => {
+        if (path === "/home/test/.cursor/mcp.json") cursorConfig = content;
+        if (path === "/home/test/.codeium/windsurf/mcp_config.json") {
+          windsurfConfig = content;
+        }
+      },
+    );
+    const confirm3 = mock(() => Promise.resolve("always" as ConfirmChoice));
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService({ confirm3 }),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(confirm3).toHaveBeenCalledTimes(1);
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("removes configured CLI agents with verified commands", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} codex`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/codex\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "githits\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp remove githits") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Removed\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    expect(execService.exec).toHaveBeenCalledWith("codex", [
+      "mcp",
+      "remove",
+      "githits",
+    ]);
+  });
+
+  it("reports Claude marketplace cleanup failure as warning after plugin removal", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    let pluginInstalled = true;
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} claude`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/claude\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: pluginInstalled ? "githits@githits-plugins\n" : "",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin uninstall githits") {
+          pluginInstalled = false;
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Removed\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin marketplace remove githits-plugins") {
+          return Promise.resolve({ exitCode: 1, stdout: "", stderr: "boom\n" });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("Claude Code removed"))).toBe(
+      true,
+    );
+    expect(logCalls.some((msg) => msg.includes("Warning:"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Uninstall completed with errors")),
+    ).toBe(false);
+  });
+
+  it("reports CLI probe failures as inspection failures without prompting", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    const promptService = createMockPromptService();
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} codex`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/codex\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp list") {
+          return Promise.reject(new Error("probe exploded"));
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+      },
+    );
+
+    expect(promptService.confirm3).not.toHaveBeenCalled();
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("Uninstall completed with errors")),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("- Codex CLI:"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Cannot inspect Codex CLI")),
+    ).toBe(true);
+  });
+
+  it("uses Gemini filesystem fallback when config probe fails", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    (fs.exists as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) =>
+        path === "/home/test/.gemini/extensions/githits/gemini-extension.json",
+    );
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} gemini`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/gemini\n",
+            stderr: "",
+          });
+        }
+        if (key === "gemini extensions config githits") {
+          return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+        }
+        if (key === "gemini extensions uninstall githits") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Removed\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    expect(execService.exec).toHaveBeenCalledWith("gemini", [
+      "extensions",
+      "uninstall",
+      "githits",
+    ]);
+  });
+
+  it("reports Gemini probe failure as inspection failure without fallback", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} gemini`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/gemini\n",
+            stderr: "",
+          });
+        }
+        if (key === "gemini extensions config githits") {
+          return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("- Gemini CLI:"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Cannot inspect Gemini CLI")),
+    ).toBe(true);
+  });
+
+  it("reports Gemini explicit not installed output as not configured", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    const promptService = createMockPromptService();
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} gemini`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/gemini\n",
+            stderr: "",
+          });
+        }
+        if (key === "gemini extensions config githits") {
+          return Promise.resolve({
+            exitCode: 1,
+            stdout: "",
+            stderr: 'Extension "githits" is not installed.\n',
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+      },
+    );
+
+    expect(promptService.confirm3).not.toHaveBeenCalled();
+    expect(execService.exec).not.toHaveBeenCalledWith("gemini", [
+      "extensions",
+      "uninstall",
+      "githits",
+    ]);
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some(
+        (msg) => msg.includes("Gemini CLI") && msg.includes("not configured"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Cannot inspect Gemini CLI")),
+    ).toBe(false);
+  });
+
+  it("preserves warnings when verification fails after removal", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} claude`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/claude\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "githits@githits-plugins\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin uninstall githits") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Removed\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin marketplace remove githits-plugins") {
+          return Promise.resolve({ exitCode: 1, stdout: "", stderr: "boom\n" });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("still configured after uninstall")),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Warning:"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("boom"))).toBe(true);
+  });
+
+  it("fails verification when CLI agent is not detected after uninstall", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    let lookupCount = 0;
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} codex`) {
+          lookupCount += 1;
+          return Promise.resolve(
+            lookupCount === 1
+              ? { exitCode: 0, stdout: "/usr/bin/codex\n", stderr: "" }
+              : { exitCode: 1, stdout: "", stderr: "" },
+          );
+        }
+        if (key === "codex mcp list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "githits\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp remove githits") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Removed\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    expect(execService.exec).toHaveBeenCalledWith("codex", [
+      "mcp",
+      "remove",
+      "githits",
+    ]);
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("Uninstall completed with errors")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("removal could not be confirmed")),
+    ).toBe(true);
+  });
+
+  it("prints not configured headline when configured agent becomes absent before removal", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} codex`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/codex\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "githits\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp remove githits") {
+          return Promise.resolve({
+            exitCode: 1,
+            stdout: "",
+            stderr: "MCP server githits not found\n",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes(
+          "No GitHits MCP configurations were active. Nothing to remove.",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Done! GitHits MCP configuration was removed"),
+      ),
+    ).toBe(false);
+  });
+
+  it("continues to next agent when one uninstall fails", async () => {
+    const lookupCmd = lookupCommandFor();
+    let cursorConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": cursorConfig,
+    });
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async () => cursorConfig,
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (_path: string, content: string) => {
+        cursorConfig = content;
+      },
+    );
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} codex`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/codex\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "githits\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp remove githits") {
+          return Promise.resolve({ exitCode: 1, stdout: "", stderr: "boom\n" });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("Uninstall completed with errors")),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("- Codex CLI:"))).toBe(true);
+  });
+
+  it("handles Ctrl+C on confirm prompt gracefully", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    });
+    const promptService = createMockPromptService({
+      confirm3: mock(() =>
+        Promise.reject(new ExitPromptError("User force closed")),
+      ),
+    });
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("Uninstall cancelled"))).toBe(
+      true,
+    );
+  });
+
+  it("shows nothing to uninstall when no GitHits configs are found", async () => {
+    const fs = createFsWithDetection([]);
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("Nothing to uninstall"))).toBe(
+      true,
+    );
+  });
+});
+
+describe("registerInitCommand", () => {
+  it("registers init and init uninstall commands", () => {
+    const program = new Command();
+    registerInitCommand(program);
+
+    const initCommand = program.commands.find((cmd) => cmd.name() === "init");
+    expect(initCommand).toBeDefined();
+    expect(
+      initCommand?.commands.some((cmd) => cmd.name() === "uninstall"),
+    ).toBe(true);
   });
 });

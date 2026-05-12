@@ -186,15 +186,16 @@ githits auth status
 ## Commands
 
 ```
-githits init           Authenticate and configure your coding tools with GitHits MCP
-githits login          Authenticate with your GitHits account (also runs as part of init)
-githits logout         Remove stored credentials
-githits mcp            Show setup instructions in a terminal; starts MCP server when piped
-githits mcp start      Always start MCP server (for use in MCP config files)
-githits auth status    Show current authentication status
-githits example        Get canonical code examples from global open source
-githits languages      List or filter supported language names
-githits feedback       Send feedback on a returned example
+githits init             Authenticate and configure your coding tools with GitHits MCP
+githits init uninstall   Remove GitHits MCP configuration from your coding tools
+githits login            Authenticate with your GitHits account (also runs as part of init)
+githits logout           Remove stored credentials
+githits mcp              Show setup instructions in a terminal; starts MCP server when piped
+githits mcp start        Always start MCP server (for use in MCP config files)
+githits auth status      Show current authentication status
+githits example          Get canonical code examples from global open source
+githits languages        List or filter supported language names
+githits feedback         Send feedback on a returned example
 ```
 
 These indexed package/source commands are also available:
@@ -245,6 +246,8 @@ A typical MCP config looks like this (check your tool's docs for exact schema/ke
 ```
 
 If you'd like another tool to be included in `githits init` for auto-configuration, open an issue or PR.
+
+To undo automatic setup, run `githits init uninstall`. It removes only GitHits MCP/plugin configuration and preserves stored credentials; use `githits logout` separately to remove credentials.
 
 ## Development
 

@@ -129,11 +129,12 @@ Commands receive the full `Dependencies` object. Services receive only what they
 
 ### Init config parsing behavior
 
-`githits init` now accepts both strict JSON and JSONC-style config files when reading agent MCP config files (for example files containing comments or trailing commas).
+`githits init` and `githits init uninstall` accept both strict JSON and JSONC-style config files when reading agent MCP config files (for example files containing comments or trailing commas).
 
 - Parsing flow first attempts strict JSON, then falls back to JSONC parsing.
 - If parsing still fails, setup reports a parse error and leaves the file unchanged.
-- Successful writes are still emitted as canonical JSON with 2-space indentation and a trailing newline.
+- Successful setup and uninstall writes are still emitted as canonical JSON with 2-space indentation and a trailing newline.
+- Uninstall removes only GitHits/case-variant server entries and leaves other MCP servers, config files, and directories in place.
 
 ## Key Reference Files
 
