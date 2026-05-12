@@ -184,6 +184,7 @@ export interface BuildPackageUpgradeReviewOptions {
 export interface FormatPackageUpgradeReviewTerminalOptions {
   verbose?: boolean;
   useColors?: boolean;
+  directVulnerabilityFiltered?: boolean;
 }
 
 const DEFAULT_CONCURRENCY = 3;
@@ -1196,7 +1197,13 @@ export function formatPackageUpgradeReviewTerminal(
         useColors,
       ),
     );
-    lines.push(...formatVulnerabilitySection(review.security, options));
+    lines.push(
+      ...formatVulnerabilitySection(review.security, {
+        ...options,
+        directVulnerabilityFiltered:
+          hasDirectVulnerabilityFilterUnknown(review),
+      }),
+    );
     const deprecation = formatDeprecationLine(review);
     if (deprecation) lines.push(deprecation);
     lines.push(...formatChangesSection(review.changelog, options));
@@ -1261,6 +1268,12 @@ function formatVulnerabilitySection(
   return lines;
 }
 
+function hasDirectVulnerabilityFilterUnknown(review: UpgradeReview): boolean {
+  return review.unknowns.includes(
+    "direct vulnerability checks were filtered by min_severity",
+  );
+}
+
 function appendAdvisoryLines(
   lines: string[],
   label: string,
@@ -1297,8 +1310,10 @@ function formatTransitiveVulnerabilitySubsection(
   if (!transitive) return ["  transitive package advisories: not checked"];
   const lines = [
     `  transitive package advisories: current affected packages=${transitive.currentAffected}, target affected packages=${transitive.targetAffected}, fixed packages=${transitive.fixedPackageDetails.length}, added packages=${transitive.introducedPackageDetails.length}`,
-    "  note: transitive counts are not filtered by min_severity",
   ];
+  if (options.directVulnerabilityFiltered === true) {
+    lines.push("  note: transitive counts are not filtered by min_severity");
+  }
   const limit = options.verbose ? Number.POSITIVE_INFINITY : 5;
   appendTransitivePackageLines(
     lines,

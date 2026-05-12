@@ -309,6 +309,43 @@ describe("package upgrade review response", () => {
     );
   });
 
+  it("does not show the transitive min_severity caveat when no filter was requested", async () => {
+    const request = buildPackageUpgradeReviewRequest({
+      registry: "npm",
+      packageName: "zod",
+      currentVersion: "4.3.6",
+      targetVersion: "4.4.3",
+    });
+    const service = serviceWith({
+      packageVulnerabilities: mock((params) =>
+        Promise.resolve(cleanVulnReport(params.version ?? "4.4.3", false)),
+      ) as never,
+      packageChangelog: mock(() =>
+        Promise.resolve({
+          source: "releases",
+          entries: [{ version: "4.4.3", body: "Patch fixes." }],
+        } satisfies ChangelogReport),
+      ),
+      packageUpgradeDependencyProbe: mock((params) =>
+        Promise.resolve(
+          cleanDependencyReport(params.version, {
+            transitive: { vulnerabilitySummary: transitiveSummary([]) },
+          }),
+        ),
+      ) as never,
+    });
+
+    const response = await buildPackageUpgradeReview(
+      service,
+      request.packages,
+      request.options,
+    );
+
+    expect(formatPackageUpgradeReviewTerminal(response)).not.toContain(
+      "transitive counts are not filtered by min_severity",
+    );
+  });
+
   it("detects changelog signals outside the displayed changelog limit", async () => {
     const request = buildPackageUpgradeReviewRequest({
       registry: "npm",
