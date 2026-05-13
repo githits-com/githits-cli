@@ -30,9 +30,22 @@ Flags: `--repo-url <url>`, `--from <version>`, `--to <version>`, `--limit 1-50`,
 
 Do not use `registry:name@version` for changelog. Use `--to <version>`.
 
+## Upgrade Review
+
+`githits pkg upgrade-review <registry:name@current> --to <target>` compares current and target package versions and reports upgrade evidence without assigning risk.
+
+Batch form: `githits pkg upgrade-review --package <registry:name@current>..<target> --package <registry:name@current>..<target>`.
+
+Evidence includes current and target direct vulnerabilities, changelog range evidence, target deprecation metadata, peer dependency changes, dependency changes, and optional transitive security or dependency-issue diffs.
+
+Flags: `--package <spec>`, `--to <version>`, `--no-transitive-security`, `--dependency-issues`, `--min-severity low|medium|high|critical`, `--verbose`, `--json`.
+
+Use `pkg upgrade-review` for dependency update assessment instead of inferring safety from semver alone. Use `pkg changelog` directly only when you need release notes without a current-to-target comparison.
+
 ## Command Name Mapping
 
 - `githits pkg info` maps to MCP `pkg_info`.
 - `githits pkg vulns` maps to MCP `pkg_vulns`.
 - `githits pkg deps` maps to MCP `pkg_deps`.
 - `githits pkg changelog` maps to MCP `pkg_changelog`.
+- `githits pkg upgrade-review` maps to MCP `pkg_upgrade_review`.
