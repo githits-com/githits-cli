@@ -93,6 +93,7 @@ describe("createPackageUpgradeReviewTool", () => {
       registry: "NPM",
       packageName: "express",
       version: "4.18.0",
+      minSeverity: 7,
       includeTransitiveSecurity: true,
       includeDependencyIssues: true,
       includeDependencyChanges: true,
