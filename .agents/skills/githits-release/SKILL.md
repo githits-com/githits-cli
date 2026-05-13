@@ -16,6 +16,7 @@ Use this skill for GitHits release work, version-bump PRs, release-readiness rev
 - Bump every release version together: `package.json`, `.plugin/plugin.json`, `.claude-plugin/plugin.json`, `plugins/claude/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `gemini-extension.json`.
 - Run or rely on `src/plugin-version-consistency.test.ts` to verify package and plugin versions stay aligned.
 - Collect a changelog of user-visible changes before release. Include CLI behavior, MCP tool behavior, Agent Skills, auth/error UX, output format changes, and agent-facing instruction changes.
+- Review public skills before signoff whenever user-facing CLI/MCP behavior changed. After the behavior is released or included in the same release branch, update `skills/githits-code/SKILL.md`, `skills/githits-package/SKILL.md`, and their references so `skills.sh` users get instructions that match the released surface.
 - Keep PR titles and labels release-note friendly; GitHub release notes are generated from merged PRs and `.github/release.yml` categories.
 - Run `bun run build` before release-readiness signoff. Run targeted smoke/eval commands when MCP tools, CLI commands, shared formatters, auth/error envelopes, Agent Skills, or agent-facing instructions changed.
 
@@ -23,7 +24,7 @@ Use this skill for GitHits release work, version-bump PRs, release-readiness rev
 
 - User-facing skills under `skills/` are picked up by `skills.sh` from `main`, not from npm release artifacts.
 - Do not update `skills/` to describe unreleased CLI/MCP behavior. A merge to `main` can expose those skill instructions immediately.
-- After the backing CLI/MCP behavior is released or otherwise available to users, update `skills/` so skill descriptions and examples match the released surface.
+- After the backing CLI/MCP behavior is released or part of the release being prepared, update `skills/` so skill descriptions, decision flows, examples, detailed references, and command-to-MCP mappings match the released surface.
 - When MCP instructions, tool descriptions, or guardrails change, review `skills/githits-code/SKILL.md`, `skills/githits-package/SKILL.md`, and their references for parity. Keep MCP instructions as the quality baseline; they are currently strong and should not be weakened casually.
 - If a skill update is intentionally delayed until after release, note that in the release/change plan so it is not forgotten.
 
