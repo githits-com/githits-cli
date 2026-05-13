@@ -80,6 +80,7 @@ export function createClaudeCliDriver(
         "json",
       ];
       let envOverrides: Record<string, string | undefined> | undefined;
+      let cwd: string | undefined;
 
       if (sendOpts?.mcp) {
         const mcpConfigPath = writeMcpConfig(sendOpts.mcp.serverScriptPath, {
@@ -96,6 +97,23 @@ export function createClaudeCliDriver(
           "bypassPermissions",
         );
         envOverrides = { EVAL_MCP_STATE_FILE: sendOpts.mcp.stateFilePath };
+      } else if (sendOpts?.skills) {
+        const mcpConfigPath = writeEmptyMcpConfig();
+        cmd.push(
+          "--mcp-config",
+          mcpConfigPath,
+          "--strict-mcp-config",
+          "--permission-mode",
+          "bypassPermissions",
+          "--setting-sources",
+          "project",
+        );
+        envOverrides = {
+          EVAL_MCP_STATE_FILE: sendOpts.skills.stateFilePath,
+          PATH: `${sendOpts.skills.binDir}${process.env.PATH ? `:${process.env.PATH}` : ""}`,
+          ...(sendOpts.skills.extraEnv ?? {}),
+        };
+        cwd = sendOpts.skills.workspaceDir;
       } else {
         cmd.push("--tools", "");
       }
@@ -103,6 +121,7 @@ export function createClaudeCliDriver(
 
       const result = await runProcess({
         cmd,
+        cwd,
         timeoutMs: PER_CALL_TIMEOUT_MS,
         env: envOverrides,
       });
@@ -144,6 +163,13 @@ export function createClaudeCliDriver(
       }
     },
   };
+}
+
+function writeEmptyMcpConfig(): string {
+  const dir = mkdtempSync(join(tmpdir(), "eval-empty-mcp-"));
+  const path = join(dir, "mcp.json");
+  writeFileSync(path, JSON.stringify({ mcpServers: {} }), "utf8");
+  return path;
 }
 
 /**

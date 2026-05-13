@@ -77,6 +77,7 @@ export function createCodexCliDriver(
       const startedAt = Date.now();
       const cmd: string[] = ["codex", "exec"];
       if (opts.model) cmd.push("--model", opts.model);
+      const runCwd = sendOpts?.skills?.workspaceDir ?? cwd;
       cmd.push(
         "--sandbox",
         "read-only",
@@ -84,7 +85,7 @@ export function createCodexCliDriver(
         "--ephemeral",
         "--ignore-user-config",
         "--cd",
-        cwd,
+        runCwd,
       );
       if (sendOpts?.mcp) {
         // Codex configures MCP servers via inline TOML overrides on `-c`.
@@ -113,6 +114,14 @@ export function createCodexCliDriver(
         cmd,
         stdin: prompt,
         timeoutMs: PER_CALL_TIMEOUT_MS,
+        cwd: runCwd,
+        env: sendOpts?.skills
+          ? {
+              EVAL_MCP_STATE_FILE: sendOpts.skills.stateFilePath,
+              PATH: `${sendOpts.skills.binDir}${process.env.PATH ? `:${process.env.PATH}` : ""}`,
+              ...(sendOpts.skills.extraEnv ?? {}),
+            }
+          : undefined,
       });
       const durationMs = Date.now() - startedAt;
 

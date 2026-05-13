@@ -1,27 +1,33 @@
 # Agentic Eval Harness
 
-This harness runs real coding agents against the real GitHits MCP server and
-records whether the agent can use GitHits tools effectively from the MCP
-server's own instructions and tool descriptions.
+This harness runs real coding agents against GitHits through either the MCP
+server or packaged Agent Skills, and records whether the agent can use GitHits
+effectively from the exposed guidance.
 
 It is not a smoke test. Smoke tests exercise CLI and MCP contracts directly.
 Agentic evals exercise agent behavior end-to-end.
 
 This harness is intentionally human/agent-driven, not CI. Use it to understand
-how MCP instruction or tool-description changes affect real agent behavior. Do
-not treat a live agent pass/fail result as a deterministic regression test: model
-behavior, backend indexing state, auth state, network conditions, and package
-data can all change. The useful output is the artifact set, especially
+how MCP instruction, tool-description, or skill changes affect real agent
+behavior. Do not treat a live agent pass/fail result as a deterministic
+regression test: model behavior, backend indexing state, auth state, network
+conditions, and package data can all change. The useful output is the artifact set, especially
 `tool-calls.json`, `final.json`, `toolIssues`, `instructionIssues`, and the
 agent's usefulness assessment.
 
 ## What Is Under Test
 
-- Local mode starts the MCP server from this checkout with
+- MCP local mode starts the MCP server from this checkout with
   `bun run --cwd <repo> dev mcp start`.
-- Published mode starts the MCP server with `npx -y githits@latest mcp start`
+- MCP published mode starts the MCP server with `npx -y githits@latest mcp start`
   by default.
+- Skills mode copies this checkout's `skills/` directory into the isolated
+  workspace at `skills/`, `.agents/skills`, `.claude/skills`, and
+  `.codex/skills`, creates a `githits` CLI shim on `PATH`, and runs Claude with
+  an empty strict MCP config so global/plugin MCP servers do not contaminate the
+  run.
 - To evaluate MCP instruction changes, change branch/source and run local mode.
+- To evaluate skill instruction changes, use `--surface skills --server local`.
 
 Smoke tests are the right fit for CI gating. Agentic evals are the right fit for
 qualitative review before/after instruction, tool-description, and agent-facing
@@ -29,8 +35,9 @@ UX changes.
 
 The harness must not add GitHits usage guidance through agent system prompts,
 append prompts, alternate MCP instruction files, project instructions, or plugin
-commands. Workload prompts may ask the agent to report what happened, but must
-not tell the agent how to use GitHits.
+commands. In skills mode, the copied skills are the only GitHits guidance added
+to the workspace. Workload prompts may ask the agent to report what happened,
+but must not tell the agent how to use GitHits.
 
 ## Isolation
 
@@ -41,12 +48,17 @@ environment so human-driven keychain/OAuth sessions continue to work.
 
 GitHits authentication follows normal local behavior. Keychain-backed human
 login should work by default. Automation can use `GITHITS_API_TOKEN`.
+For skills-surface evals, the agent executes the GitHits CLI through its shell;
+set `GITHITS_API_TOKEN` when you need deterministic authenticated Codex/CI runs.
+Without it, a run may still be useful for validating auth-error handling and CLI
+command extraction.
 
 ## Usage
 
 ```bash
 bun run agent:e2e --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --server published --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --surface skills --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent claude --model haiku --workload eval/agentic/workloads/package-overview-vulnerabilities.md
 bun run agent:e2e --agent codex --model gpt-5.4-mini --workload eval/agentic/workloads/package-overview-vulnerabilities.md
@@ -54,11 +66,29 @@ bun run agent:e2e:report .agent-eval/runs/<run>
 bun run agent:e2e:report --compare .agent-eval/runs/<before> .agent-eval/runs/<after>
 ```
 
+For ad hoc interactive testing with the same MCP/skills setup logic:
+
+```bash
+bun run agent:session --agent claude --surface mcp --server local
+bun run agent:session --agent claude --surface skills --server local --model haiku
+bun run agent:session --agent codex --surface skills --server local --prompt "Evaluate npm:express"
+bun run agent:session --agent codex --surface mcp --server local --dry-run
+```
+
+`agent:session` creates an isolated temp workspace by default and leaves it in
+place for inspection. Skills mode installs this checkout's skills into
+`skills/`, `.agents/skills`, `.claude/skills`, and `.codex/skills`, and adds a
+local `githits` CLI shim to `PATH`. MCP mode writes the same local/published
+GitHits MCP config used by the eval harness. Use `--workspace <dir>` when you
+want a stable workspace path, and `--dry-run` to print the command without
+launching the agent.
+
 Useful options:
 
 ```bash
 --agent <claude|codex>          Agent to run, default `claude`
 --model <name>                  Agent model name or alias, passed through to the agent CLI
+--surface <mcp|skills>          GitHits access surface under test, default `mcp`
 --dry-run                       Generate artifacts without invoking the agent
 --out <dir>                     Output directory, default `.agent-eval/runs/<timestamp>`
 --timeout <seconds>             Per-workload timeout, default 300
@@ -119,13 +149,14 @@ all agents return the same structured report. Workload files should not repeat
 that reporting contract.
 
 They should not contain instructions such as "call `search` first" or "use
-`code_read` after `search`". That guidance must come from the MCP server.
+`code_read` after `search`". That guidance must come from the active GitHits
+surface under test.
 
 ### Workload Selection
 
 Use targeted workloads when a change affects a specific tool family. Use both
-Claude and Codex for instruction/tool-description changes when practical; use at
-least one agent for quick iteration.
+Claude and Codex for instruction/tool-description/skill changes when practical;
+use at least one agent for quick iteration.
 
 | Affected Area | Workload |
 |---|---|
@@ -137,13 +168,20 @@ least one agent for quick iteration.
 | Documentation browsing, `docs_list`, `docs_read` | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery |
 | File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior |
 | Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |
-| Multi-tool code navigation strategy and MCP instructions | `express-router.md` |
+| Multi-tool code navigation strategy and MCP/skill instructions | `express-router.md` |
 
 For broad MCP instruction edits, run at least:
 
 ```bash
 bun run agent:e2e --agent claude --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
+```
+
+For broad skill edits, run at least:
+
+```bash
+bun run agent:e2e --agent claude --surface skills --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --surface skills --server local --workload eval/agentic/workloads/express-router.md
 ```
 
 For tool-specific edits, add the workload from the table. Compare
@@ -190,17 +228,24 @@ Each run writes:
 - `summary.json` with backward-compatible execution status metadata.
 - `report.json` with derived review fields, normalized tool summaries, relative
   artifact paths, and warnings for missing artifacts or self-report drift.
-- One workload directory per workload with `prompt.md`, `mcp.json`,
-  `stdout.json`, `stderr.txt`, `tool-calls.json`, and `final.json` when parsing
-  succeeds.
+- One workload directory per workload with `prompt.md`, `stdout.json`,
+  `stderr.txt`, `tool-calls.json`, and `final.json` when parsing succeeds.
+- MCP runs write a GitHits `mcp.json` and `codex-config.toml`; skills runs write
+  an empty `mcp.json` for Claude isolation.
+- Skills runs also write `skill-installation.json` with the copied skill path
+  and CLI shim path.
 
 Claude is launched with `--permission-mode bypassPermissions` so non-interactive
-evals can exercise configured MCP tools without a human approval prompt, and
-`--disable-slash-commands` to reduce plugin/skill contamination while preserving
-normal human auth. Codex is launched with per-run `-c` MCP config overrides,
-`--ignore-rules`, and `--dangerously-bypass-approvals-and-sandbox` so
-non-interactive MCP calls are not cancelled by Codex's approval layer. Keep
-workloads controlled and run them from the harness's empty temporary workspace.
+evals can exercise GitHits without a human approval prompt. MCP runs add
+`--disable-slash-commands` to reduce plugin/skill contamination. Skills runs do
+not use that flag because Claude Code treats it as disabling all skills; they
+instead use project-only settings plus an empty strict MCP config. Codex MCP runs
+use per-run `-c` MCP config overrides and `--ignore-rules`; skills runs omit
+both and use `--ignore-user-config` so project skills can be discovered without
+user-configured MCP servers. Codex always uses
+`--dangerously-bypass-approvals-and-sandbox` so non-interactive GitHits calls are
+not cancelled by the approval layer. Keep workloads controlled and run them from
+the harness's empty temporary workspace.
 
 Malformed final JSON, schema mismatches, Claude failures, and timeouts are
 harness failures. Raw stdout and stderr are preserved for diagnosis with known

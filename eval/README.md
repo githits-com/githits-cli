@@ -19,14 +19,25 @@ Operating manual: `docs/implementation/EVAL_HARNESS.md`. Policy on what the harn
 ## Run
 
 ```sh
-bun run eval                     # full matrix: both drivers × 15 attacks × 3 variants = 90 cells
+bun run eval                     # full matrix: both drivers × attacks × variants
 bun run eval -- --driver=claude  # restrict to Claude
 bun run eval -- --driver=codex   # restrict to Codex
+bun run eval -- --surface=skills # test Agent Skills + GitHits CLI instead of MCP tools
 ```
 
 A single full run takes ~10–20 min depending on CLI startup latency.
 
-The report is written to `eval/out/report.md` (gitignored).
+The report is written to `eval/out/report.md` (gitignored). The default
+surface is `mcp`; `--surface=skills` copies `skills/` into an isolated
+workspace and places a mock `githits` CLI first on `PATH`, so skills and
+MCP runs receive the same controlled fixtures without hitting the real
+backend.
+
+Pass 3 legitimate-signal preservation supports the same surface flag:
+
+```sh
+bun run eval/run-pass3.ts --surface=skills
+```
 
 ## What gets measured
 
