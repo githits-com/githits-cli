@@ -5,6 +5,8 @@ description: >-
   release-version consistency, plugin manifests, user-visible changelog notes,
   MCP instruction quality, and the special lifecycle for published Agent Skills.
 compatibility: Project-local skill for GitHits maintainers; not packaged for end users.
+metadata:
+  internal: true
 ---
 
 Use this skill for GitHits release work, version-bump PRs, release-readiness reviews, and release notes.
