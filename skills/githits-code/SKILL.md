@@ -40,7 +40,7 @@ githits search '"body parser" OR multer' --in npm:express --source docs --json
 githits search-status <searchRef>
 
 githits code files npm:express lib/ --ext js --limit 100
-githits code read npm:express lib/router/index.js --lines 80-180
+githits code read npm:express lib/express.js --lines 1-90
 githits code grep npm:express "process_params" lib/ -C 3
 githits code grep --repo-url https://github.com/expressjs/express --git-ref HEAD "Router" lib/
 

@@ -25,7 +25,7 @@ const CORE_BLOCK = `GitHits provides verified, canonical code examples from glob
 
 const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Use them when a stack trace points into a dependency, you need to verify how a library works, or you're evaluating whether to add or upgrade a package.
 
-Package spec: \`registry:name[@version]\`. Default outputs are compact \`text-v1\` for agent context efficiency; pass \`format: "json"\` only when you need structured fields for programmatic parsing.`;
+Targets: \`registry:name[@version]\` (\`registry:name\` = latest release). For \`search\`, repo URL without \`#\` uses the backend default-branch snapshot; exact \`code_*\` tools need \`#ref\` such as \`#HEAD\`. Default outputs are compact \`text-v1\`; pass \`format: "json"\` only for structured parsing.`;
 
 const MULTI_TURN_TIP =
   '**Delegate multi-call work to a sub-agent.** Code-navigation work (`search`, `code_grep`, `code_read`, `code_files`) often takes 3-10 calls. For cross-project comparisons, codebase mapping, pattern surveys, or "how does X actually work" investigations, spawn a sub-task/sub-agent and ask for a compact synthesis. Do it inline only when the raw snippet belongs in the main conversation.';
