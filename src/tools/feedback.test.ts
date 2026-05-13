@@ -24,6 +24,7 @@ describe("feedbackTool", () => {
       solutionId: "abc-123",
       accepted: true,
       feedbackText: undefined,
+      toolName: undefined,
     });
   });
 
@@ -50,6 +51,7 @@ describe("feedbackTool", () => {
       solutionId: "abc-123",
       accepted: false,
       feedbackText: "Example was outdated",
+      toolName: undefined,
     });
   });
 
@@ -67,6 +69,7 @@ describe("feedbackTool", () => {
       {
         accepted: false,
         feedback_text: "search is missing kotlin support",
+        tool_name: "search",
       },
       {},
     );
@@ -76,6 +79,7 @@ describe("feedbackTool", () => {
       solutionId: undefined,
       accepted: false,
       feedbackText: "search is missing kotlin support",
+      toolName: "search",
     });
   });
 

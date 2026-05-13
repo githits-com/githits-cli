@@ -19,7 +19,7 @@ const CORE_BLOCK = `GitHits provides verified, canonical code examples from glob
 - Need a canonical example or cross-project pattern with no specific package pinned (you're stuck, repeated attempts failed, the user wants up-to-date API usage, or the user mentioned GitHits) — call \`get_example\` for global solution synthesis.
 - Inspecting a specific known dependency or repository (stack trace points there, verifying how a particular library works, evaluating an upgrade) — call \`search\` plus the indexed code, docs, and package tools listed below.
 - Question is comparative across OSS projects (e.g. "how does X vs Y handle Z") or requires reading how a real codebase implements a feature — combine the two: \`search\` for known targets, \`get_example\` for cross-project synthesis.
-- Rate a result or share tool/UX feedback — call \`feedback\` with a \`solution_id\` from a prior \`get_example\` response (solution-tied) or omit it for generic feedback about any tool (\`search\`, \`code_*\`, \`docs_*\`, \`pkg_*\`) or the overall experience.
+- Rate a result or share tool/UX feedback — call \`feedback\` with a \`solution_id\` from a prior \`get_example\` response (solution-tied) or omit it for generic session feedback about any tool (\`search\`, \`code_*\`, \`docs_*\`, \`pkg_*\`) or the overall experience. Pass \`tool_name\` when rating a specific tool result.
 
 \`get_example\` workflow: pass \`language\` only when you know the exact name; otherwise call \`search_language\` first. Default output is markdown with a trailing \`solution_id\`. Reuse prior results before searching again. For dependency-specific grounding, prefer package-scoped \`search\` before global \`get_example\`.`;
 

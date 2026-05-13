@@ -31,7 +31,7 @@ This plugin connects to the GitHits MCP server and always exposes these core too
   language. Requires `query`; `language` is optional and inferred when omitted.
 - **search_language** — Look up supported programming language names when you
   need to force a specific language.
-- **feedback** — Rate a search result to improve future quality.
+- **feedback** — Submit result or session feedback to improve future quality.
 
 Additional indexed dependency/package tools are available by default:
 `search`, `search_status`, `docs_list`, `docs_read`, `pkg_info`, `pkg_vulns`,
