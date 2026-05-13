@@ -28,6 +28,7 @@ import {
   executeCliSetup,
   executeCliUninstall,
   executeCompositeSetup,
+  executeCompositeUninstall,
   executeConfigFileSetup,
   executeConfigFileUninstall,
   formatSetupPreview,
@@ -81,6 +82,12 @@ type UninstallInspectionResult =
   | "not_configured"
   | { status: "failed"; message: string };
 
+interface CompositeInspectionAccumulator {
+  configured: boolean;
+  notConfigured: boolean;
+  failure?: { status: "failed"; message: string };
+}
+
 interface UninstallScanResult {
   configured: (typeof agentDefinitions)[number][];
   notConfigured: (typeof agentDefinitions)[number][];
@@ -130,37 +137,69 @@ async function verifyAgentUnconfigured(
   };
 }
 
-async function scanCliAgentForUninstall(
+async function inspectSetupForUninstall(
   agent: (typeof agentDefinitions)[number],
+  config: ReturnType<(typeof agentDefinitions)[number]["getSetupConfig"]>,
   fileSystemService: FileSystemService,
   execService: ExecService,
 ): Promise<UninstallInspectionResult> {
-  const config = agent.getSetupConfig(fileSystemService);
-  if (config.method !== "cli" || !config.checkCommand) {
+  if (config.method === "config-file") {
+    const check = await getConfigUninstallCheckStatus(
+      config,
+      fileSystemService,
+    );
+    if (check.status === "configured") return "configured";
+    if (check.status === "not_configured") return "not_configured";
+    return { status: "failed", message: check.message };
+  }
+
+  if (config.method === "cli") {
+    if (!config.checkCommand) {
+      return {
+        status: "failed",
+        message: `${agent.name} does not have a verified uninstall check command.`,
+      };
+    }
+    const checkStatus = await getCliCheckStatus(
+      config.checkCommand,
+      execService,
+    );
+    if (checkStatus === "configured") return "configured";
+    if (checkStatus === "not_configured") return "not_configured";
+    if (
+      agent.id === "gemini-cli" &&
+      (await isGeminiExtensionInstalledFromFilesystem(fileSystemService))
+    ) {
+      return "configured";
+    }
     return {
       status: "failed",
-      message: `${agent.name} does not have a verified uninstall check command.`,
+      message: `Cannot inspect ${agent.name}: ${config.checkCommand.command} ${config.checkCommand.args.join(" ")} failed.`,
     };
   }
 
-  const checkStatus = await getCliCheckStatus(config.checkCommand, execService);
-  if (checkStatus === "configured") {
-    return "configured";
-  }
-  if (checkStatus === "not_configured") {
-    return "not_configured";
-  }
-  if (
-    agent.id === "gemini-cli" &&
-    (await isGeminiExtensionInstalledFromFilesystem(fileSystemService))
-  ) {
-    return "configured";
-  }
-
-  return {
-    status: "failed",
-    message: `Cannot inspect ${agent.name}: ${config.checkCommand.command} ${config.checkCommand.args.join(" ")} failed.`,
+  const accumulated: CompositeInspectionAccumulator = {
+    configured: false,
+    notConfigured: false,
   };
+  for (const step of config.steps) {
+    const check = await inspectSetupForUninstall(
+      agent,
+      step,
+      fileSystemService,
+      execService,
+    );
+    if (check === "configured") {
+      accumulated.configured = true;
+    } else if (check === "not_configured") {
+      accumulated.notConfigured = true;
+    } else {
+      accumulated.failure = check;
+    }
+  }
+  if (accumulated.configured) return "configured";
+  if (accumulated.failure) return accumulated.failure;
+  return "not_configured";
 }
 
 async function scanAgentsForUninstall(
@@ -183,42 +222,26 @@ async function scanAgentsForUninstall(
     ...setupScan.alreadyConfigured,
     ...setupScan.needsSetup,
   ]) {
-    const config = agent.getSetupConfig(fileSystemService);
-    if (config.method === "config-file") {
-      const check = await getConfigUninstallCheckStatus(
-        config,
-        fileSystemService,
-      );
-      if (check.status === "configured") {
-        result.configured.push(agent);
-      } else if (check.status === "failed") {
-        result.failed.push({
-          id: agent.id,
-          name: agent.name,
-          status: "failed",
-          message: check.message,
-        });
-      } else {
-        result.notConfigured.push(agent);
-      }
+    const config =
+      agent.resolvedSetupConfig ??
+      agent.getSetupConfig(fileSystemService, agent.resolvedSetupContext);
+    const check = await inspectSetupForUninstall(
+      agent,
+      config,
+      fileSystemService,
+      execService,
+    );
+    if (check === "configured") {
+      result.configured.push(agent);
+    } else if (check === "not_configured") {
+      result.notConfigured.push(agent);
     } else {
-      const check = await scanCliAgentForUninstall(
-        agent,
-        fileSystemService,
-        execService,
-      );
-      if (check === "configured") {
-        result.configured.push(agent);
-      } else if (check === "not_configured") {
-        result.notConfigured.push(agent);
-      } else {
-        result.failed.push({
-          id: agent.id,
-          name: agent.name,
-          status: "failed",
-          message: check.message,
-        });
-      }
+      result.failed.push({
+        id: agent.id,
+        name: agent.name,
+        status: "failed",
+        message: check.message,
+      });
     }
   }
 
@@ -516,7 +539,10 @@ export async function initUninstallAction(
     const uninstallConfig =
       setupConfig.method === "config-file"
         ? setupConfig
-        : agent.getUninstallConfig?.(fileSystemService);
+        : agent.getUninstallConfig?.(
+            fileSystemService,
+            agent.resolvedSetupContext,
+          );
 
     if (!uninstallConfig) {
       outcomes.push({
@@ -562,7 +588,13 @@ export async function initUninstallAction(
     let result =
       uninstallConfig.method === "cli"
         ? await executeCliUninstall(uninstallConfig, execService)
-        : await executeConfigFileUninstall(uninstallConfig, fileSystemService);
+        : uninstallConfig.method === "config-file"
+          ? await executeConfigFileUninstall(uninstallConfig, fileSystemService)
+          : await executeCompositeUninstall(
+              uninstallConfig,
+              fileSystemService,
+              execService,
+            );
 
     if (result.status === "removed") {
       const verification = await verifyAgentUnconfigured(

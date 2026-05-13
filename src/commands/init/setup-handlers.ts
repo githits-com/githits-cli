@@ -10,8 +10,10 @@ import type {
   CliSetup,
   CliUninstall,
   CompositeSetup,
+  CompositeUninstall,
   ConfigFileSetup,
   SetupConfig,
+  UninstallConfig,
 } from "./agent-definitions.js";
 
 /** A read-only command to check if a CLI agent is already configured. */
@@ -483,9 +485,10 @@ export function formatSetupPreview(config: SetupConfig): string {
 }
 
 /** Format an uninstall config for display to the user before confirmation. */
-export function formatUninstallPreview(
-  config: CliUninstall | ConfigFileSetup,
-): string {
+export function formatUninstallPreview(config: UninstallConfig): string {
+  if (config.method === "composite") {
+    return config.steps.map((step) => formatUninstallPreview(step)).join("\n");
+  }
   if (config.method === "cli") {
     return config.commands
       .map((cmd) => `Will run: ${cmd.command} ${cmd.args.join(" ")}`)
@@ -680,6 +683,7 @@ const ALREADY_EXISTS_PATTERNS = [
 const ALREADY_ABSENT_PATTERNS = [
   /(?:plugin|extension|server|mcp server)\s+["']?githits["']?\s+(?:was\s+)?not\s+found/i,
   /["']?githits["']?\s+(?:plugin|extension|server)?\s*(?:does\s+not\s+exist|is\s+not\s+installed|not\s+installed)/i,
+  /(?:package\s+)?["']?pi-mcp-adapter["']?\s+(?:is\s+)?not\s+installed/i,
   /unknown\s+(?:plugin|extension|server)\s+["']?githits["']?/i,
   /marketplace\s+["']?githits-plugins["']?\s+(?:was\s+)?not\s+found/i,
 ];
@@ -864,6 +868,62 @@ export async function executeCliUninstall(
     };
   }
   return { status: "removed", message: "Removed successfully" };
+}
+
+/** Execute an uninstall made from ordered CLI/config-file cleanup steps. */
+export async function executeCompositeUninstall(
+  uninstall: CompositeUninstall,
+  fs: FileSystemService,
+  execService: ExecService,
+): Promise<UninstallResult> {
+  let anyRemoved = false;
+  let anyNotConfigured = false;
+  const warnings: string[] = [];
+
+  for (const step of uninstall.steps) {
+    const result =
+      step.method === "cli"
+        ? await executeCliUninstall(step, execService)
+        : await executeConfigFileUninstall(step, fs);
+
+    if (result.status === "removed") {
+      anyRemoved = true;
+      warnings.push(...(result.warnings ?? []));
+      continue;
+    }
+
+    if (result.status === "not_configured") {
+      if (anyRemoved) {
+        warnings.push(result.message);
+      } else {
+        anyNotConfigured = true;
+      }
+      continue;
+    }
+
+    if (anyRemoved) {
+      warnings.push(result.message);
+      continue;
+    }
+    return result;
+  }
+
+  if (anyRemoved) {
+    return {
+      status: "removed",
+      message: "Removed successfully",
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
+  }
+
+  if (anyNotConfigured) {
+    return {
+      status: "not_configured",
+      message: "GitHits not configured",
+    };
+  }
+
+  return { status: "not_configured", message: "GitHits not configured" };
 }
 
 /**

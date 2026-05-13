@@ -813,6 +813,83 @@ describe("getSetupConfig", () => {
     }
   });
 
+  it("pi returns composite uninstall for Pi-owned config and adapter removal", () => {
+    const fs = createMockFileSystemService({
+      getHomeDir: mock(() => "/home/test"),
+      joinPath: mock((...segments: string[]) => segments.join("/")),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "pi")!;
+    const config = agent.getUninstallConfig?.(fs);
+    expect(config?.method).toBe("composite");
+    if (config?.method !== "composite") {
+      throw new Error("expected pi composite uninstall");
+    }
+    expect(config.steps).toHaveLength(2);
+    const configStep = config.steps[0]!;
+    const removeStep = config.steps[1]!;
+    expect(configStep.method).toBe("config-file");
+    if (configStep.method === "config-file") {
+      expect(configStep.configPath).toBe("/home/test/.pi/agent/mcp.json");
+      expect(configStep.serversKey).toBe("mcpServers");
+      expect(configStep.serverName).toBe("GitHits");
+    }
+    expect(removeStep.method).toBe("cli");
+    if (removeStep.method === "cli") {
+      expect(removeStep.commands).toEqual([
+        { command: "pi", args: ["remove", "npm:pi-mcp-adapter"] },
+      ]);
+    }
+  });
+
+  it("pi uninstall uses resolved command context", () => {
+    const fs = createMockFileSystemService({
+      getHomeDir: mock(() => "/home/test"),
+      joinPath: mock((...segments: string[]) => segments.join("/")),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "pi")!;
+    const config = agent.getUninstallConfig?.(fs, {
+      command: "/npm-global/bin/pi",
+    });
+    if (config?.method !== "composite") {
+      throw new Error("expected pi composite uninstall");
+    }
+    const removeStep = config.steps[1]!;
+    if (removeStep.method !== "cli") {
+      throw new Error("expected pi cli uninstall step");
+    }
+    expect(removeStep.commands[0]).toEqual({
+      command: "/npm-global/bin/pi",
+      args: ["remove", "npm:pi-mcp-adapter"],
+    });
+  });
+
+  it("pi uninstall respects PI_CODING_AGENT_DIR for MCP config path", () => {
+    const originalPiDir = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = "~/custom-pi";
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "pi")!;
+      const config = agent.getUninstallConfig?.(fs);
+      if (config?.method !== "composite") {
+        throw new Error("expected pi composite uninstall");
+      }
+      const configStep = config.steps[0]!;
+      if (configStep.method !== "config-file") {
+        throw new Error("expected config-file uninstall step");
+      }
+      expect(configStep.configPath).toBe("/home/test/custom-pi/mcp.json");
+    } finally {
+      if (originalPiDir !== undefined) {
+        process.env.PI_CODING_AGENT_DIR = originalPiDir;
+      } else {
+        delete process.env.PI_CODING_AGENT_DIR;
+      }
+    }
+  });
+
   it("google-antigravity returns config-file setup with npm MCP command", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),

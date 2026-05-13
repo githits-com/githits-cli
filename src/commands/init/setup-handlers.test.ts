@@ -7,6 +7,7 @@ import type {
   CliSetup,
   CliUninstall,
   CompositeSetup,
+  CompositeUninstall,
   ConfigFileSetup,
 } from "./agent-definitions.js";
 import type { CliCheckCommand, MergeResult } from "./setup-handlers.js";
@@ -15,6 +16,7 @@ import {
   executeCliSetup,
   executeCliUninstall,
   executeCompositeSetup,
+  executeCompositeUninstall,
   executeConfigFileSetup,
   executeConfigFileUninstall,
   formatSetupPreview,
@@ -1175,6 +1177,28 @@ describe("formatUninstallPreview", () => {
       "Will remove GitHits from /home/test/.cursor/mcp.json",
     );
   });
+
+  it("formats composite uninstall as ordered step previews", () => {
+    const preview = formatUninstallPreview({
+      method: "composite",
+      steps: [
+        {
+          method: "config-file",
+          configPath: "/home/test/.pi/agent/mcp.json",
+          serversKey: "mcpServers",
+          serverName: "GitHits",
+          serverConfig: {},
+        },
+        {
+          method: "cli",
+          commands: [{ command: "pi", args: ["remove", "npm:pi-mcp-adapter"] }],
+        },
+      ],
+    });
+    expect(preview).toBe(
+      "Will remove GitHits from /home/test/.pi/agent/mcp.json\nWill run: pi remove npm:pi-mcp-adapter",
+    );
+  });
 });
 
 // -- executeCliSetup --
@@ -2013,5 +2037,158 @@ describe("executeConfigFileUninstall", () => {
     const result = await executeConfigFileUninstall(configSetup, fs);
     expect(result.status).toBe("failed");
     expect(result.message).toContain("Permission denied");
+  });
+});
+
+describe("executeCompositeUninstall", () => {
+  const piConfigUninstall: ConfigFileSetup = {
+    method: "config-file",
+    configPath: "/home/test/.pi/agent/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: {},
+  };
+  const piUninstall: CompositeUninstall = {
+    method: "composite",
+    steps: [
+      piConfigUninstall,
+      {
+        method: "cli",
+        commands: [{ command: "pi", args: ["remove", "npm:pi-mcp-adapter"] }],
+      },
+    ],
+  };
+
+  it("removes config and adapter when both are present", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(JSON.stringify({ mcpServers: { GitHits: {} } })),
+      ),
+    });
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 0, stdout: "Removed\n", stderr: "" }),
+      ),
+    });
+
+    const result = await executeCompositeUninstall(
+      piUninstall,
+      fs,
+      execService,
+    );
+    expect(result.status).toBe("removed");
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+    expect(execService.exec).toHaveBeenCalledWith("pi", [
+      "remove",
+      "npm:pi-mcp-adapter",
+    ]);
+  });
+
+  it("returns removed with warning when only config is present", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(JSON.stringify({ mcpServers: { GitHits: {} } })),
+      ),
+    });
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "Package pi-mcp-adapter is not installed\n",
+        }),
+      ),
+    });
+
+    const result = await executeCompositeUninstall(
+      piUninstall,
+      fs,
+      execService,
+    );
+    expect(result.status).toBe("removed");
+    expect(result.warnings).toHaveLength(1);
+  });
+
+  it("returns removed when only adapter is present", async () => {
+    const enoent = Object.assign(new Error("File not found"), {
+      code: "ENOENT",
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.reject(enoent)),
+    });
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 0, stdout: "Removed\n", stderr: "" }),
+      ),
+    });
+
+    const result = await executeCompositeUninstall(
+      piUninstall,
+      fs,
+      execService,
+    );
+    expect(result.status).toBe("removed");
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("returns not_configured when all steps are absent", async () => {
+    const enoent = Object.assign(new Error("File not found"), {
+      code: "ENOENT",
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.reject(enoent)),
+    });
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "Package pi-mcp-adapter is not installed\n",
+        }),
+      ),
+    });
+
+    const result = await executeCompositeUninstall(
+      piUninstall,
+      fs,
+      execService,
+    );
+    expect(result.status).toBe("not_configured");
+  });
+
+  it("fails on first hard failure before any removal", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve("{invalid")),
+    });
+    const execService = createMockExecService();
+
+    const result = await executeCompositeUninstall(
+      piUninstall,
+      fs,
+      execService,
+    );
+    expect(result.status).toBe("failed");
+    expect(execService.exec).not.toHaveBeenCalled();
+  });
+
+  it("returns removed with warning on later hard failure", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(JSON.stringify({ mcpServers: { GitHits: {} } })),
+      ),
+    });
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 1, stdout: "", stderr: "boom\n" }),
+      ),
+    });
+
+    const result = await executeCompositeUninstall(
+      piUninstall,
+      fs,
+      execService,
+    );
+    expect(result.status).toBe("removed");
+    expect(result.warnings?.[0]).toContain("boom");
   });
 });

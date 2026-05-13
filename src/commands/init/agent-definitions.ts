@@ -37,6 +37,13 @@ export interface CliUninstall {
   commands: NonEmptyCliCommands;
 }
 
+/** Uninstall made from multiple existing uninstall primitives. */
+export interface CompositeUninstall {
+  method: "composite";
+  /** Ordered uninstall steps. Later steps still run after non-fatal absence. */
+  steps: UninstallStep[];
+}
+
 /**
  * Setup configuration for agents that need config file editing.
  */
@@ -62,7 +69,8 @@ export interface CompositeSetup {
 export type SetupStep = CliSetup | ConfigFileSetup;
 export type SetupConfig = SetupStep | CompositeSetup;
 
-export type UninstallConfig = CliUninstall | ConfigFileSetup;
+export type UninstallStep = CliUninstall | ConfigFileSetup;
+export type UninstallConfig = UninstallStep | CompositeUninstall;
 
 const GITHITS_SERVER_NAME = "GitHits";
 const GITHITS_MCP_COMMAND = "npx";
@@ -118,7 +126,12 @@ export interface AgentDefinition {
   /** Setup config resolved during scan, including any detected command path. */
   resolvedSetupConfig?: SetupConfig;
   /** Returns CLI uninstall config when the agent cannot be removed via config editing. */
-  getUninstallConfig?: (fs: FileSystemService) => UninstallConfig;
+  getUninstallConfig?: (
+    fs: FileSystemService,
+    context?: AgentSetupContext,
+  ) => UninstallConfig;
+  /** Setup context resolved during scan, including any detected command path. */
+  resolvedSetupContext?: AgentSetupContext;
 }
 
 /**
@@ -489,6 +502,31 @@ const pi: AgentDefinition = {
       ],
     };
   },
+  getUninstallConfig: (fs, context) => {
+    const piCommand = context?.command ?? "pi";
+    return {
+      method: "composite",
+      steps: [
+        {
+          method: "config-file",
+          configPath: getPiMcpConfigPath(fs),
+          serversKey: "mcpServers",
+          serverName: GITHITS_SERVER_NAME,
+          // Config-file uninstall ignores serverConfig; keep the shape shared.
+          serverConfig: {},
+        },
+        {
+          method: "cli",
+          commands: [
+            {
+              command: piCommand,
+              args: ["remove", "npm:pi-mcp-adapter"],
+            },
+          ],
+        },
+      ],
+    };
+  },
 };
 
 /** VS Code / Copilot: detected by platform-specific Code directory, uses npm MCP command */
@@ -780,6 +818,7 @@ export async function scanAgents(
     const scannedAgent: AgentDefinition = {
       ...agent,
       resolvedSetupConfig: config,
+      resolvedSetupContext: setupContext,
     };
     if (agent.id === "gemini-cli" && config.method === "cli") {
       if (config.checkCommand) {
