@@ -30,7 +30,10 @@ import {
 import { type JudgeResult, judge } from "./judge.js";
 import { writeState } from "./mock-mcp/state.js";
 import { renderReport } from "./report.js";
+import { prepareSkillsFixtureWorkspace } from "./skills-workspace.js";
 import { type FramingVariant, VARIANTS } from "./variants.js";
+
+type EvalSurface = "mcp" | "skills";
 
 export interface RunCell {
   driver: DriverName;
@@ -53,6 +56,11 @@ const REPORT_PATH = "eval/out/report.md";
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+  if (args.surface === "skills" && args.guardrail) {
+    console.warn(
+      "--guardrail only affects the MCP mock server; skills runs use the authored skill instructions.",
+    );
+  }
 
   const allDrivers: AgentDriver[] = [
     createClaudeCliDriver(args.claudeModel ? { model: args.claudeModel } : {}),
@@ -101,11 +109,11 @@ async function main(): Promise<void> {
   const cellBudget = args.limit ?? fullCellCount;
   const plannedCells = Math.min(cellBudget, fullCellCount);
   console.log(
-    `running ${plannedCells} cells: ${drivers.length} driver(s) × ${filteredAttacks.length} attacks × ${filteredVariants.length} variants × ${runs} run(s)${
+    `running ${plannedCells} cells: ${drivers.length} driver(s) × ${filteredAttacks.length} attacks × ${filteredVariants.length} variants × ${runs} run(s) (surface=${args.surface})${
       args.limit && args.limit < fullCellCount
         ? ` (limited from ${fullCellCount})`
         : ""
-    }${args.onlyIds ? ` (attacks: ${[...args.onlyIds].join(",")})` : ""}${args.onlyVariants ? ` (variants: ${[...args.onlyVariants].join(",")})` : ""}${args.guardrail && args.guardrail !== "off" ? ` (guardrail=${args.guardrail})` : ""}`,
+    }${args.onlyIds ? ` (attacks: ${[...args.onlyIds].join(",")})` : ""}${args.onlyVariants ? ` (variants: ${[...args.onlyVariants].join(",")})` : ""}${args.surface === "mcp" && args.guardrail && args.guardrail !== "off" ? ` (guardrail=${args.guardrail})` : ""}`,
   );
 
   // Mock MCP plumbing — one persistent state file per run, rewritten
@@ -113,6 +121,14 @@ async function main(): Promise<void> {
   const mcpDir = mkdtempSync(join(tmpdir(), "eval-mcp-run-"));
   const stateFilePath = join(mcpDir, "state.json");
   const serverScriptPath = resolve("eval/mock-mcp/server.ts");
+  const skillsWorkspace =
+    args.surface === "skills"
+      ? prepareSkillsFixtureWorkspace({
+          repoRoot: resolve("."),
+          workspaceDir: mkdtempSync(join(tmpdir(), "eval-skills-run-")),
+          mockCliScriptPath: resolve("eval/mock-cli/githits.ts"),
+        })
+      : undefined;
 
   const results: RunCell[] = [];
   let cell = 0;
@@ -137,16 +153,27 @@ async function main(): Promise<void> {
           });
           const prompt = buildAgentPrompt(tool);
           const startedAt = Date.now();
-          const reply = await driver.send(prompt, {
-            mcp: {
-              stateFilePath,
-              serverScriptPath,
-              extraEnv:
-                args.guardrail && args.guardrail !== "off"
-                  ? { EVAL_MCP_GUARDRAIL: args.guardrail }
-                  : undefined,
-            },
-          });
+          const reply = await driver.send(
+            prompt,
+            args.surface === "skills" && skillsWorkspace
+              ? {
+                  skills: {
+                    workspaceDir: skillsWorkspace.workspaceDir,
+                    binDir: skillsWorkspace.binDir,
+                    stateFilePath,
+                  },
+                }
+              : {
+                  mcp: {
+                    stateFilePath,
+                    serverScriptPath,
+                    extraEnv:
+                      args.guardrail && args.guardrail !== "off"
+                        ? { EVAL_MCP_GUARDRAIL: args.guardrail }
+                        : undefined,
+                  },
+                },
+          );
           const judgement = judge(reply.response, attack.marker);
           const elapsed = Date.now() - startedAt;
           const errored = reply.response === "" && !!reply.stderr;
@@ -205,6 +232,7 @@ async function main(): Promise<void> {
       invocation,
       claudeModel: args.claudeModel,
       codexModel: args.codexModel,
+      surface: args.surface,
     }),
   );
   console.log(`\nreport written to ${REPORT_PATH}`);
@@ -232,6 +260,7 @@ function buildAgentPrompt(tool: FixtureTool): string {
 }
 
 interface ParsedArgs {
+  surface: EvalSurface;
   driver?: DriverName;
   limit?: number;
   verbose: boolean;
@@ -250,9 +279,16 @@ interface ParsedArgs {
 }
 
 function parseArgs(argv: readonly string[]): ParsedArgs {
-  const result: ParsedArgs = { verbose: false };
+  const result: ParsedArgs = { surface: "mcp", verbose: false };
   for (const arg of argv) {
-    if (arg.startsWith("--driver=")) {
+    if (arg.startsWith("--surface=")) {
+      const value = arg.slice("--surface=".length);
+      if (value !== "mcp" && value !== "skills") {
+        console.error(`--surface must be one of: mcp, skills (got "${value}")`);
+        process.exit(2);
+      }
+      result.surface = value;
+    } else if (arg.startsWith("--driver=")) {
       const value = arg.slice("--driver=".length);
       if (value !== "claude" && value !== "codex") {
         console.error(`unknown driver filter: ${value}`);
@@ -335,6 +371,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     } else if (arg === "--help" || arg === "-h") {
       console.log(
         "usage: bun run eval [-- --driver=claude|codex] [--limit=N] [--verbose]\n" +
+          "         [--surface=mcp|skills]\n" +
           "         [--claude-model=<id>] [--codex-model=<id>] [--model=<id>]\n" +
           "         [--only=<id1,id2,...>] [--variants=<id1,id2,...>]\n" +
           "         [--runs=N] [--guardrail=off|tool|instructions|both]\n" +

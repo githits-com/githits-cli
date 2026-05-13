@@ -18,6 +18,7 @@ export interface AgentEvalReportOptions {
 export interface AgentEvalRunMetadata {
   agent?: string;
   model?: string;
+  surface?: string;
   server?: string;
   dryRun?: boolean;
   git?: Record<string, string | undefined>;
@@ -75,6 +76,7 @@ export interface AgentEvalReport {
   status: string;
   agent?: string;
   model?: string;
+  surface?: string;
   server?: string;
   dryRun?: boolean;
   git?: Record<string, string | undefined>;
@@ -189,7 +191,7 @@ export function parseReportArgs(argv: string[]): AgentEvalReportOptions {
 
 export function normalizeToolName(name: string): string {
   const trimmed = name.trim();
-  const claude = trimmed.match(/^mcp__[^_.]+__\.?(.+)$/);
+  const claude = trimmed.match(/^mcp__.+__\.?(.+)$/);
   if (claude?.[1]) return claude[1].replace(/^\./, "");
   const dotted = trimmed.match(/^mcp__[^.]+\.([^\s]+)$/);
   if (dotted?.[1]) return dotted[1];
@@ -327,6 +329,7 @@ function buildWorkloadReport(
     final: join(workloadDir, "final.json"),
     invalidFinal: join(workloadDir, "invalid-final.json"),
     stderr: join(workloadDir, "stderr.txt"),
+    skillInstallation: join(workloadDir, "skill-installation.json"),
   };
   const artifacts: Record<string, string> = {};
   const missingArtifacts: string[] = [];
@@ -419,6 +422,7 @@ export function buildRunReportFromMetadata(
     status,
     agent: metadata.agent,
     model: metadata.model,
+    surface: metadata.surface,
     server: metadata.server,
     dryRun: metadata.dryRun,
     git: metadata.git,
@@ -442,7 +446,7 @@ function formatDuration(ms: number | undefined): string {
 
 export function formatRunReport(report: AgentEvalReport): string {
   const lines = [
-    `Agent eval: ${report.status} (${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.server ?? "unknown"}) ${report.runDir}`,
+    `Agent eval: ${report.status} (${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}) ${report.runDir}`,
   ];
   for (const workload of report.workloads) {
     const final = workload.finalReport;
@@ -456,6 +460,7 @@ export function formatRunReport(report: AgentEvalReport): string {
       workload.artifacts.toolCalls,
       workload.artifacts.final ?? workload.artifacts.invalidFinal,
       workload.artifacts.stderr,
+      workload.artifacts.skillInstallation,
     ].filter(Boolean);
     if (artifacts.length > 0)
       lines.push(`  artifacts: ${artifacts.join(", ")}`);
@@ -508,9 +513,9 @@ function formatStatusCounts(summary: ToolCallSummary): string {
 }
 
 function formatRunLabel(
-  report: Pick<AgentEvalReport, "agent" | "model" | "server">,
+  report: Pick<AgentEvalReport, "agent" | "model" | "surface" | "server">,
 ): string {
-  return `${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.server ?? "unknown"}`;
+  return `${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}`;
 }
 
 export function compareReports(

@@ -31,6 +31,22 @@ export interface SendOptions {
     /** Extra env vars forwarded into the spawned MCP server process. */
     extraEnv?: Record<string, string>;
   };
+  /**
+   * If set, the driver runs from an isolated workspace containing the
+   * GitHits Agent Skills and a mock `githits` CLI shim on PATH. The shim
+   * reads the same state file as the mock MCP server so skills and MCP
+   * surfaces receive identical fixture content.
+   */
+  skills?: {
+    /** Workspace containing copied skill directories. */
+    workspaceDir: string;
+    /** Directory containing the mock `githits` executable. */
+    binDir: string;
+    /** Absolute path to the eval state JSON the mock CLI reads. */
+    stateFilePath: string;
+    /** Extra env vars forwarded to the agent and mock CLI. */
+    extraEnv?: Record<string, string>;
+  };
 }
 
 export interface AgentDriver {
@@ -46,9 +62,10 @@ export interface AgentDriver {
   /**
    * Send a single-turn prompt and return the model's response.
    *
-   * When `opts.mcp` is set, the driver attaches the mock MCP server
-   * so the agent can call our test `pkg_vulns` tool. Otherwise the
-   * driver runs tool-less for direct-prompt evals.
+   * When `opts.mcp` is set, the driver attaches the mock MCP server.
+   * When `opts.skills` is set, the driver exposes copied Agent Skills
+   * plus a mock GitHits CLI. Otherwise the driver runs tool-less for
+   * direct-prompt evals.
    *
    * Should not throw on non-zero exit codes; instead surface them via
    * stderr in the returned object so the runner can log + continue.

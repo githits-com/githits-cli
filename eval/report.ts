@@ -15,6 +15,7 @@ import type { RunCell } from "./run.js";
 
 export interface ReportMetadata {
   invocation: string;
+  surface?: string;
   claudeModel?: string;
   codexModel?: string;
 }
@@ -28,6 +29,7 @@ export function renderReport(
   lines.push("");
   lines.push(`Generated: ${new Date().toISOString()}`);
   lines.push(`Cells: ${cells.length}`);
+  if (meta.surface) lines.push(`Surface: \`${meta.surface}\``);
   lines.push(`Invocation: \`${meta.invocation}\``);
   if (meta.claudeModel) lines.push(`Claude model: \`${meta.claudeModel}\``);
   if (meta.codexModel) lines.push(`Codex model: \`${meta.codexModel}\``);

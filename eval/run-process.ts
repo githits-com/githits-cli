@@ -13,6 +13,8 @@ export interface ProcessResult {
 export interface RunProcessOptions {
   /** Command + args. */
   cmd: readonly string[];
+  /** Optional working directory for the subprocess. */
+  cwd?: string;
   /** Optional stdin to write before closing. */
   stdin?: string;
   /** Optional env overrides on top of `process.env`. */
@@ -25,6 +27,7 @@ export async function runProcess(
   opts: RunProcessOptions,
 ): Promise<ProcessResult> {
   const proc = Bun.spawn([...opts.cmd], {
+    cwd: opts.cwd,
     stdin: opts.stdin === undefined ? undefined : "pipe",
     stdout: "pipe",
     stderr: "pipe",

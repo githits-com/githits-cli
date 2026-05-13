@@ -1,4 +1,6 @@
 import {
+  chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -16,13 +18,15 @@ import {
   writeReportJson,
 } from "./agent-eval-report.ts";
 
-type AgentName = "claude" | "codex";
-type ServerMode = "local" | "published";
+export type AgentName = "claude" | "codex";
+export type ServerMode = "local" | "published";
+export type EvalSurface = "mcp" | "skills";
 type RunStatus = "dry-run" | "success" | "failed" | "timeout";
 
 export interface AgentEvalOptions {
   agent: AgentName;
   model?: string;
+  surface: EvalSurface;
   server: ServerMode;
   workloads: string[];
   outDir: string;
@@ -55,6 +59,7 @@ interface WorkloadRunMetadata {
   workspaceDir: string;
   workloadDir: string;
   toolCallCount?: number;
+  skillInstallation?: SkillInstallationMetadata;
 }
 
 interface ExtractedToolCall {
@@ -64,6 +69,13 @@ interface ExtractedToolCall {
   status?: string;
   arguments?: unknown;
   error?: unknown;
+}
+
+export interface SkillInstallationMetadata {
+  sourceDir: string;
+  installedDirs: string[];
+  cliShim: string;
+  cliMode: ServerMode;
 }
 
 const PASSTHROUGH_ENV_KEYS = [
@@ -138,6 +150,7 @@ export function parseArgs(
 ): AgentEvalOptions {
   const options: AgentEvalOptions = {
     agent: "claude",
+    surface: "mcp",
     server: "local",
     workloads: [],
     outDir: defaultOutDir(repoRoot),
@@ -174,6 +187,15 @@ export function parseArgs(
           "--server must be local or published",
         );
         options.server = value;
+        break;
+      }
+      case "--surface": {
+        const value = argv[++i];
+        assert(
+          value === "mcp" || value === "skills",
+          "--surface must be mcp or skills",
+        );
+        options.surface = value;
         break;
       }
       case "--model": {
@@ -246,7 +268,8 @@ function printHelp(): void {
 Options:
   --agent claude|codex            Agent to run (default: claude)
   --model <name>                  Agent model name or alias, e.g. sonnet, haiku, gpt-5.4-mini
-  --server local|published        MCP server mode (default: local)
+  --surface mcp|skills            GitHits access surface under test (default: mcp)
+  --server local|published        GitHits source mode: local checkout or published package (default: local)
   --workload <path>               Workload markdown path, repeatable
   --out <dir>                     Output directory
   --timeout <seconds>             Per-workload timeout (default: 300)
@@ -306,6 +329,54 @@ export function buildCodexConfigArgs(
     "-c",
     `mcp_servers.githits.args=${JSON.stringify(command.args)}`,
   ];
+}
+
+function shQuote(value: string): string {
+  return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+function writeGitHitsShim(
+  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  binDir: string,
+): string {
+  mkdirSync(binDir, { recursive: true });
+  const shimPath = join(binDir, "githits");
+  const command =
+    options.server === "local"
+      ? `exec bun run --cwd ${shQuote(options.repoRoot)} dev "$@"`
+      : `exec npx -y ${shQuote(options.publishedPackage)} "$@"`;
+  writeFileSync(shimPath, `#!/bin/sh\n${command}\n`);
+  chmodSync(shimPath, 0o755);
+  return shimPath;
+}
+
+export function prepareSkillsWorkspace(
+  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  workspaceDir: string,
+): SkillInstallationMetadata {
+  const sourceDir = join(options.repoRoot, "skills");
+  assert(existsSync(sourceDir), `Skills directory not found: ${sourceDir}`);
+  const installedDirs = [
+    join(workspaceDir, "skills"),
+    join(workspaceDir, ".agents", "skills"),
+    join(workspaceDir, ".claude", "skills"),
+    join(workspaceDir, ".codex", "skills"),
+  ];
+  for (const installedDir of installedDirs) {
+    rmSync(installedDir, { recursive: true, force: true });
+    mkdirSync(dirname(installedDir), { recursive: true });
+    cpSync(sourceDir, installedDir, { recursive: true });
+  }
+  const cliShim = writeGitHitsShim(
+    options,
+    join(workspaceDir, ".agent-eval-bin"),
+  );
+  return {
+    sourceDir,
+    installedDirs,
+    cliShim,
+    cliMode: options.server,
+  };
 }
 
 export function buildEvalEnv(
@@ -548,9 +619,97 @@ function extractCodexToolCall(
   };
 }
 
+function commandStringFromArgv(value: unknown): string | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const parts = value.filter(
+    (item): item is string => typeof item === "string",
+  );
+  if (parts.length === 0) return undefined;
+  return parts.join(" ");
+}
+
+function collectCommandStrings(value: unknown): string[] {
+  if (value === null || typeof value !== "object") return [];
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectCommandStrings(item));
+  }
+  const commands: string[] = [];
+  for (const [key, item] of Object.entries(value)) {
+    if (
+      (key === "command" || key === "cmd" || key === "shell_command") &&
+      typeof item === "string"
+    ) {
+      commands.push(item);
+    }
+    if ((key === "argv" || key === "args") && Array.isArray(item)) {
+      const command = commandStringFromArgv(item);
+      if (command) commands.push(command);
+    }
+    commands.push(...collectCommandStrings(item));
+  }
+  return commands;
+}
+
+function stripShellQuoting(value: string): string {
+  return value.replace(/["']/g, "");
+}
+
+function commandPartsAfterGitHits(command: string): string[] | undefined {
+  const normalized = stripShellQuoting(command).replace(/\s+/g, " ").trim();
+  const githits = normalized.match(/(?:^|\s)githits\s+(.+)$/);
+  if (githits?.[1]) return githits[1].split(" ");
+  const npx = normalized.match(/(?:^|\s)npx\s+-y\s+githits(?:@\S+)?\s+(.+)$/);
+  if (npx?.[1]) return npx[1].split(" ");
+  const bunDev = normalized.match(/(?:^|\s)bun\s+run\s+.*\s+dev\s+(.+)$/);
+  if (bunDev?.[1]) return bunDev[1].split(" ");
+  return undefined;
+}
+
+function cliToolNameFromCommand(command: string): string | undefined {
+  const parts = commandPartsAfterGitHits(command);
+  if (!parts) return undefined;
+  const positional = parts.filter((part) => !part.startsWith("-"));
+  const [first, second] = positional;
+  if (!first) return undefined;
+  if (first === "example") return "get_example";
+  if (first === "languages") return "search_language";
+  if (first === "feedback") return "feedback";
+  if (first === "search") return "search";
+  if (first === "search-status") return "search_status";
+  if (first === "code" && second) return `code_${second.replace(/-/g, "_")}`;
+  if (first === "docs" && second) return `docs_${second.replace(/-/g, "_")}`;
+  if (first === "pkg" && second) return `pkg_${second.replace(/-/g, "_")}`;
+  return undefined;
+}
+
+function extractCliToolCalls(
+  event: Record<string, unknown>,
+  agent: AgentName,
+): ExtractedToolCall[] {
+  const commands = collectCommandStrings(event);
+  const seen = new Set<string>();
+  return commands.flatMap((command): ExtractedToolCall[] => {
+    const tool = cliToolNameFromCommand(command);
+    if (!tool) return [];
+    const key = `${tool}\0${command}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [
+      {
+        agent,
+        server: "githits-cli",
+        tool,
+        status: "started",
+        arguments: { command },
+      },
+    ];
+  });
+}
+
 export function extractToolCalls(
   stdout: string,
   agent: AgentName,
+  surface: EvalSurface = "mcp",
 ): ExtractedToolCall[] {
   const calls: ExtractedToolCall[] = [];
   for (const line of stdout.split("\n")) {
@@ -558,10 +717,21 @@ export function extractToolCalls(
     try {
       const event = JSON.parse(line) as Record<string, unknown>;
       if (agent === "claude") {
-        calls.push(...extractClaudeToolCalls(event));
+        if (surface === "skills") {
+          calls.push(...extractCliToolCalls(event, agent));
+          calls.push(...extractClaudeToolCalls(event));
+        } else {
+          calls.push(...extractClaudeToolCalls(event));
+        }
       } else {
-        const call = extractCodexToolCall(event);
-        if (call) calls.push(call);
+        if (surface === "skills") {
+          calls.push(...extractCliToolCalls(event, agent));
+          const call = extractCodexToolCall(event);
+          if (call) calls.push(call);
+        } else {
+          const call = extractCodexToolCall(event);
+          if (call) calls.push(call);
+        }
       }
     } catch {
       // Ignore non-JSON lines.
@@ -687,17 +857,14 @@ async function runWithTimeout(
 
 export function buildClaudeCommand(
   prompt: string,
-  mcpConfigPath: string,
+  mcpConfigPath: string | undefined,
   model?: string,
+  surface: EvalSurface = "mcp",
 ): string[] {
   const command = [
     "claude",
     "-p",
     prompt,
-    "--mcp-config",
-    mcpConfigPath,
-    "--strict-mcp-config",
-    "--disable-slash-commands",
     "--output-format",
     "stream-json",
     "--verbose",
@@ -705,6 +872,15 @@ export function buildClaudeCommand(
     "bypassPermissions",
     "--no-session-persistence",
   ];
+  if (surface === "mcp" || surface === "skills") {
+    assert(mcpConfigPath, `${surface} surface requires an MCP config path`);
+    command.splice(3, 0, "--mcp-config", mcpConfigPath, "--strict-mcp-config");
+  }
+  if (surface === "mcp") {
+    command.push("--disable-slash-commands");
+  } else if (surface === "skills") {
+    command.push("--setting-sources", "project");
+  }
   if (model) command.push("--model", model);
   return command;
 }
@@ -717,12 +893,11 @@ export function buildCodexCommand(
   options: Pick<
     AgentEvalOptions,
     "server" | "repoRoot" | "publishedPackage" | "model"
-  >,
+  > & { surface?: EvalSurface },
 ): string[] {
   const command = [
     "codex",
     "exec",
-    ...buildCodexConfigArgs(options),
     "--cd",
     workspaceDir,
     "--skip-git-repo-check",
@@ -733,8 +908,13 @@ export function buildCodexCommand(
     "--output-schema",
     schemaPath,
     "--dangerously-bypass-approvals-and-sandbox",
-    "--ignore-rules",
   ];
+  if (options.surface !== "skills") {
+    command.splice(2, 0, ...buildCodexConfigArgs(options));
+    command.push("--ignore-rules");
+  } else {
+    command.push("--ignore-user-config");
+  }
   if (options.model) command.push("-m", options.model);
   command.push(prompt);
   return command;
@@ -767,12 +947,28 @@ async function runWorkload(
   const codexConfigPath = join(workloadDir, "codex-config.toml");
   const codexFinalPath = join(workloadDir, "codex-final.txt");
   writeFileSync(join(workloadDir, "prompt.md"), prompt);
-  writeJson(mcpConfigPath, mcpConfig);
-  writeFileSync(codexConfigPath, buildCodexConfig(options));
+  const skillInstallation =
+    options.surface === "skills"
+      ? prepareSkillsWorkspace(options, workspaceDir)
+      : undefined;
+  if (options.surface === "mcp") {
+    writeJson(mcpConfigPath, mcpConfig);
+    writeFileSync(codexConfigPath, buildCodexConfig(options));
+  } else {
+    writeJson(mcpConfigPath, { mcpServers: {} });
+  }
+  if (skillInstallation) {
+    writeJson(join(workloadDir, "skill-installation.json"), skillInstallation);
+  }
 
   const command =
     options.agent === "claude"
-      ? buildClaudeCommand(prompt, mcpConfigPath, options.model)
+      ? buildClaudeCommand(
+          prompt,
+          mcpConfigPath,
+          options.model,
+          options.surface,
+        )
       : buildCodexCommand(
           prompt,
           workspaceDir,
@@ -781,12 +977,16 @@ async function runWorkload(
           options,
         );
   const workloadEnv = { ...env };
+  if (skillInstallation) {
+    workloadEnv.PATH = `${dirname(skillInstallation.cliShim)}${workloadEnv.PATH ? `:${workloadEnv.PATH}` : ""}`;
+  }
   const metadataBase = {
     id,
     path: workloadPath,
     command,
     workspaceDir,
     workloadDir,
+    ...(skillInstallation ? { skillInstallation } : {}),
   };
 
   try {
@@ -813,7 +1013,11 @@ async function runWorkload(
       redactText(result.stderr, secretValues),
     );
 
-    const toolCalls = extractToolCalls(result.stdout, options.agent);
+    const toolCalls = extractToolCalls(
+      result.stdout,
+      options.agent,
+      options.surface,
+    );
     writeJson(
       join(workloadDir, "tool-calls.json"),
       redactValue(toolCalls, secretValues),
@@ -907,6 +1111,7 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
   const runMetadata = {
     agent: options.agent,
     model: options.model,
+    surface: options.surface,
     server: options.server,
     publishedPackage: options.publishedPackage,
     dryRun: options.dryRun,

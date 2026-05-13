@@ -33,6 +33,9 @@ import {
   type LegitimateSignal,
 } from "./fixtures/legit-signals.js";
 import { writeState } from "./mock-mcp/state.js";
+import { prepareSkillsFixtureWorkspace } from "./skills-workspace.js";
+
+type EvalSurface = "mcp" | "skills";
 
 const REPORT_PATH = "eval/out/pass3-report.md";
 
@@ -53,6 +56,7 @@ interface Pass3Cell {
 }
 
 interface ParsedArgs {
+  surface: EvalSurface;
   driver?: DriverName;
   verbose: boolean;
   claudeModel?: string;
@@ -60,9 +64,16 @@ interface ParsedArgs {
 }
 
 function parseArgs(argv: readonly string[]): ParsedArgs {
-  const result: ParsedArgs = { verbose: false };
+  const result: ParsedArgs = { surface: "mcp", verbose: false };
   for (const arg of argv) {
-    if (arg.startsWith("--driver=")) {
+    if (arg.startsWith("--surface=")) {
+      const value = arg.slice("--surface=".length);
+      if (value !== "mcp" && value !== "skills") {
+        console.error(`--surface must be one of: mcp, skills (got "${value}")`);
+        process.exit(2);
+      }
+      result.surface = value;
+    } else if (arg.startsWith("--driver=")) {
       const value = arg.slice("--driver=".length);
       if (value !== "claude" && value !== "codex") {
         console.error(`unknown driver: ${value}`);
@@ -75,6 +86,12 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
       result.codexModel = arg.slice("--codex-model=".length);
     } else if (arg === "--verbose" || arg === "-v") {
       result.verbose = true;
+    } else if (arg === "--help" || arg === "-h") {
+      console.log(
+        "usage: bun run eval/run-pass3.ts [--driver=claude|codex] [--surface=mcp|skills] [--verbose]\n" +
+          "       [--claude-model=<id>] [--codex-model=<id>]",
+      );
+      process.exit(0);
     } else {
       console.error(`unknown argument: ${arg}`);
       process.exit(2);
@@ -109,9 +126,17 @@ async function main(): Promise<void> {
   const mcpDir = mkdtempSync(join(tmpdir(), "eval-pass3-"));
   const stateFilePath = join(mcpDir, "state.json");
   const serverScriptPath = resolve("eval/mock-mcp/server.ts");
+  const skillsWorkspace =
+    args.surface === "skills"
+      ? prepareSkillsFixtureWorkspace({
+          repoRoot: resolve("."),
+          workspaceDir: mkdtempSync(join(tmpdir(), "eval-pass3-skills-")),
+          mockCliScriptPath: resolve("eval/mock-cli/githits.ts"),
+        })
+      : undefined;
 
   console.log(
-    `running ${drivers.length * LEGITIMATE_SIGNALS.length} cells: ${drivers.length} driver(s) × ${LEGITIMATE_SIGNALS.length} legitimate-signal fixtures (guardrail=both)`,
+    `running ${drivers.length * LEGITIMATE_SIGNALS.length} cells: ${drivers.length} driver(s) × ${LEGITIMATE_SIGNALS.length} legitimate-signal fixtures (surface=${args.surface}${args.surface === "mcp" ? ", guardrail=both" : ""})`,
   );
 
   const results: Pass3Cell[] = [];
@@ -129,13 +154,24 @@ async function main(): Promise<void> {
       });
       const prompt = buildPass3Prompt(signal);
       const startedAt = Date.now();
-      const reply = await driver.send(prompt, {
-        mcp: {
-          stateFilePath,
-          serverScriptPath,
-          extraEnv: { EVAL_MCP_GUARDRAIL: "both" },
-        },
-      });
+      const reply = await driver.send(
+        prompt,
+        args.surface === "skills" && skillsWorkspace
+          ? {
+              skills: {
+                workspaceDir: skillsWorkspace.workspaceDir,
+                binDir: skillsWorkspace.binDir,
+                stateFilePath,
+              },
+            }
+          : {
+              mcp: {
+                stateFilePath,
+                serverScriptPath,
+                extraEnv: { EVAL_MCP_GUARDRAIL: "both" },
+              },
+            },
+      );
       const elapsed = Date.now() - startedAt;
 
       const response = reply.response;
@@ -186,7 +222,7 @@ async function main(): Promise<void> {
   }
 
   await mkdir(dirname(REPORT_PATH), { recursive: true });
-  await Bun.write(REPORT_PATH, renderPass3Report(results));
+  await Bun.write(REPORT_PATH, renderPass3Report(results, args.surface));
   console.log(`\nreport written to ${REPORT_PATH}`);
 }
 
@@ -211,12 +247,16 @@ function countRefusalTokensInSameParagraph(
   return matches ? matches.length : 0;
 }
 
-function renderPass3Report(cells: readonly Pass3Cell[]): string {
+function renderPass3Report(
+  cells: readonly Pass3Cell[],
+  surface: EvalSurface,
+): string {
   const lines: string[] = [];
   lines.push("# Pass 3 — Must-Not-Do Legitimate-Signal Preservation");
   lines.push("");
   lines.push(`Generated: ${new Date().toISOString()}`);
   lines.push(`Cells: ${cells.length}`);
+  lines.push(`Surface: \`${surface}\``);
   lines.push("");
 
   // Headline
