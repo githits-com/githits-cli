@@ -6,6 +6,7 @@ import {
   buildPackageVulnerabilitiesSuccessPayload,
   formatPackageVulnerabilitiesTerminal,
 } from "../shared/package-vulnerabilities-response.js";
+import { PKG_VULNS_GUARDRAIL } from "./guardrails.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
 export interface PackageVulnerabilitiesArgs {
@@ -68,7 +69,7 @@ const schema = {
     ),
 };
 
-const DESCRIPTION =
+export const DESCRIPTION =
   "Check known vulnerabilities for a package on npm, PyPI, Hex, " +
   "Crates, NuGet, Maven, Packagist, RubyGems, or Go (vcpkg and Zig " +
   "are not supported for vulnerability data). Returns a count summary, each advisory with OSV ID, " +
@@ -83,7 +84,8 @@ const DESCRIPTION =
   "`critical`) and `include_withdrawn` to also see retracted " +
   'advisories. Use `advisory_scope:"non_affecting"` to list ' +
   "historical advisories that do not affect the inspected version, or " +
-  '`advisory_scope:"all"` to list affected and historical advisories together.';
+  '`advisory_scope:"all"` to list affected and historical advisories together.' +
+  `\n\n${PKG_VULNS_GUARDRAIL}`;
 
 export function createPackageVulnerabilitiesTool(
   service: PackageIntelligenceService,

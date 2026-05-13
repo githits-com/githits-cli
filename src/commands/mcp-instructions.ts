@@ -1,4 +1,5 @@
 import type { Dependencies } from "../container.js";
+import { EXTERNAL_CONTENT_POSTURE } from "../tools/guardrails.js";
 
 /**
  * Server-level MCP instructions.
@@ -80,7 +81,22 @@ const STRATEGY_TIP =
  * Mirrors `getMcpToolDefinitions` so the instructions stay aligned
  * with the registered tool surface.
  */
-export function buildMcpInstructions(_deps: Dependencies): string {
+export interface BuildMcpInstructionsOptions {
+  /**
+   * Include the external-content posture (shared guardrail block).
+   * Defaults to `true` — production always wants it. The eval mock
+   * MCP server passes `false` so it can compare baseline (no
+   * guardrail) vs guardrailed instructions cleanly.
+   */
+  includeExternalContentPosture?: boolean;
+}
+
+export function buildMcpInstructions(
+  _deps: Dependencies,
+  options: BuildMcpInstructionsOptions = {},
+): string {
+  const includeExternalContentPosture =
+    options.includeExternalContentPosture ?? true;
   // Bullets ordered by agent decision flow: discovery (search) →
   // file/path enumeration (files) → source grep/read → docs →
   // package metadata. Each bullet name↔registration is enforced by
@@ -109,5 +125,12 @@ export function buildMcpInstructions(_deps: Dependencies): string {
     STRATEGY_TIP,
   ].join("\n\n");
 
-  return [CORE_BLOCK, packageSection].join("\n\n");
+  // External-content posture lands between the core orientation and the
+  // package/code tool section so the agent reads how to treat third-
+  // party content before scanning the tool inventory. Designed and
+  // empirically validated in `docs/implementation/TOOL_GUARDRAILS.md`.
+  const sections = includeExternalContentPosture
+    ? [CORE_BLOCK, EXTERNAL_CONTENT_POSTURE, packageSection]
+    : [CORE_BLOCK, packageSection];
+  return sections.join("\n\n");
 }

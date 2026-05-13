@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { GitHitsService } from "../services/githits-service.js";
 import { extractSolutionId } from "../shared/extract-solution-id.js";
+import { GET_EXAMPLE_GUARDRAIL } from "./guardrails.js";
 import { withErrorHandling } from "./shared.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
@@ -39,7 +40,9 @@ const schema = {
 
 const DESCRIPTION = `Get verified, canonical code examples from global open source.
 
-Default output is markdown, with a trailing \`solution_id: ...\` line when available. Pass \`format: "json"\` for \`{result, solution_id?}\`. Pass \`solution_id\` to \`feedback\` after using or rejecting the example. For searching indexed dependency and repository code/docs, use the unified \`search\` tool instead.`;
+Default output is markdown, with a trailing \`solution_id: ...\` line when available. Pass \`format: "json"\` for \`{result, solution_id?}\`. Pass \`solution_id\` to \`feedback\` after using or rejecting the example. For searching indexed dependency and repository code/docs, use the unified \`search\` tool instead.
+
+${GET_EXAMPLE_GUARDRAIL}`;
 
 export function createGetExampleTool(
   service: GitHitsService,

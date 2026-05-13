@@ -162,7 +162,7 @@ When a new tool lands with both MCP and CLI surfaces:
 | `src/shared/code-navigation-defaults.ts` | Canonical cross-surface defaults and sentinels. |
 | `src/shared/code-navigation-error-map.ts` | `mapCodeNavigationError` classifier and `MappedError` union. |
 | `src/shared/pkgseer-graphql.ts` | Low-level authenticated package/source POST helper shared by the service clients. |
-| `src/shared/pkgseer-registry.ts` | Registry taxonomy (`PkgseerRegistry` union + lowercase↔uppercase converters). |
+| `src/shared/pkgseer-registry.ts` | Registry taxonomy (registry union type + lowercase↔uppercase converters). |
 | `src/shared/unified-search-request.ts` | Shared request builder for unified `search`; compiles structured query fields and applies defaulting. |
 | `src/shared/unified-search-response.ts` | Shared JSON envelope builders for unified `search` and follow-up `search_status`. |
 | `src/shared/package-summary-request.ts` | Shared request builder for `pkg_info`. |
