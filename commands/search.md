@@ -23,4 +23,5 @@ Optional parameters:
   licenses), or `"custom"` (user's blocklist).
 
 Present the results clearly. After the user has reviewed the result, use the
-`feedback` tool to report whether the example was helpful.
+`feedback` tool to report whether the result was helpful. Omit `solution_id`
+for generic session feedback about indexed search results.

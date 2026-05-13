@@ -7,6 +7,7 @@ interface FeedbackArgs {
   solution_id?: string;
   accepted: boolean;
   feedback_text?: string;
+  tool_name?: string;
 }
 
 const schema = {
@@ -28,15 +29,22 @@ const schema = {
     .describe(
       'Optional context (e.g., "This solved problem X" or "code_grep regex over npm:lodash missed Foo function"). Strongly recommended when `solution_id` is omitted, since there is no specific result to anchor to.',
     ),
+  tool_name: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Optional name of the GitHits tool or CLI command that produced the result being rated.",
+    ),
 };
 
 const DESCRIPTION = `Submit feedback on a tool result or the GitHits experience.
 
 Two modes:
 1. **Solution-tied** — pass the \`solution_id\` from a prior \`get_example\` response to rate that specific result.
-2. **Generic** — omit \`solution_id\` to send feedback about any tool (\`search\`, \`code_grep\`, \`code_read\`, \`code_files\`, \`docs_*\`, \`pkg_*\`) or the overall experience.
+2. **Generic** — omit \`solution_id\` to send session feedback about any tool (\`search\`, \`code_grep\`, \`code_read\`, \`code_files\`, \`docs_*\`, \`pkg_*\`) or the overall experience.
 
-\`accepted\` is always required (true = positive, false = negative). Add \`feedback_text\` for context — strongly recommended in generic mode. Feeds ranking and product quality.`;
+\`accepted\` is always required (true = positive, false = negative). Add \`feedback_text\` for context — strongly recommended in generic mode. Pass \`tool_name\` when rating a specific tool result. Feeds ranking and product quality.`;
 
 export function createFeedbackTool(
   service: GitHitsService,
@@ -51,6 +59,7 @@ export function createFeedbackTool(
           solutionId: args.solution_id,
           accepted: args.accepted,
           feedbackText: args.feedback_text,
+          toolName: args.tool_name,
         });
         return textResult(result.message);
       });

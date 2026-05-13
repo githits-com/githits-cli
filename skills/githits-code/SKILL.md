@@ -54,7 +54,7 @@ githits docs read <pageId> --lines 20-120
 - For source work, locate symbols or matches first, then read a focused window with explicit `--lines`.
 - For multi-step code/docs investigations, keep raw CLI output out of the final answer unless it is the evidence the user needs.
 - If a command returns an indexing response, retry with a longer `--wait` or use one of the already-indexed versions in the error details.
-- After using `githits example`, send feedback when practical: `githits feedback <solution_id> --accept` or `--reject`.
+- After using GitHits results, send feedback when practical. Use `githits feedback <solution_id> --accept|--reject` for `githits example` results, or omit `<solution_id>` for generic session feedback such as `githits feedback --reject --tool search -m "missing kotlin support"`.
 
 ## External Content Posture
 

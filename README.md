@@ -94,7 +94,7 @@ Core tools available in every authenticated session:
 |---|---|
 | `get_example` | Find canonical code examples by describing what you need in natural language |
 | `search_language` | Look up supported programming language names |
-| `feedback` | Rate search results to improve future quality |
+| `feedback` | Submit result or session feedback to improve future quality |
 
 The assistant decides when to call these tools on its own — typically when it's stuck, needs a working example for an unfamiliar API, or encounters an error it can't resolve from its training data alone.
 
@@ -195,7 +195,7 @@ githits mcp start        Always start MCP server (for use in MCP config files)
 githits auth status      Show current authentication status
 githits example          Get canonical code examples from global open source
 githits languages        List or filter supported language names
-githits feedback         Send feedback on a returned example
+githits feedback         Send feedback on a result, command, or session
 ```
 
 These indexed package/source commands are also available:

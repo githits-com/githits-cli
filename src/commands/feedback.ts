@@ -7,6 +7,7 @@ export interface FeedbackOptions {
   accept?: boolean;
   reject?: boolean;
   message?: string;
+  tool?: string;
   json?: boolean;
 }
 
@@ -21,8 +22,8 @@ export interface FeedbackDependencies {
  *
  * `solutionId` is optional: when present, feedback is anchored to a
  * specific `get_example` result; when omitted, the feedback is
- * generic (covers code/package navigation, search, docs, or the
- * overall experience).
+ * generic session feedback. `tool` optionally records which command
+ * produced the result being rated.
  */
 export async function feedbackAction(
   solutionId: string | undefined,
@@ -43,6 +44,7 @@ export async function feedbackAction(
       solutionId,
       accepted,
       feedbackText: options.message,
+      toolName: options.tool,
     });
 
     if (options.json) {
@@ -69,14 +71,15 @@ Two modes:
   - Generic: omit [solution_id] to send feedback about any command
     (search, pkg, docs, code) or the overall experience. A --message
     is strongly recommended here.
+  - Add --tool when the feedback is about a specific command/tool.
 
 Use --accept for positive feedback or --reject for negative.
 
 Examples:
   githits feedback abc123 --accept
   githits feedback abc123 --reject -m "Example was outdated"
-  githits feedback --accept -m "code_grep regex is fast on npm:lodash"
-  githits feedback --reject -m "search missing kotlin support"`;
+  githits feedback --accept --tool code_grep -m "regex is fast on npm:lodash"
+  githits feedback --reject --tool search -m "missing kotlin support"`;
 
 /**
  * Register the feedback command on the given program.
@@ -94,6 +97,7 @@ export function registerFeedbackCommand(program: Command) {
     .addOption(new Option("--accept", "Mark as helpful").conflicts("reject"))
     .addOption(new Option("--reject", "Mark as unhelpful").conflicts("accept"))
     .option("-m, --message <text>", "Feedback explanation")
+    .option("--tool <name>", "Command or MCP tool name being rated")
     .option("--json", "Output as JSON for piping")
     .action(
       async (solutionId: string | undefined, options: FeedbackOptions) => {

@@ -24,13 +24,14 @@ Look up supported programming language names. Use this before calling `get_examp
 
 ### feedback
 
-Rate a search result. Submit feedback after each search to improve future result quality.
+Submit feedback on a search result, a GitHits tool result, or the current GitHits session. Use it when a result was useful or when a tool/UX issue should be recorded.
 
 **Parameters:**
 
-- `solution_id` (string, required) - the ID of the search result
+- `solution_id` (string, optional) - ID from a `get_example` result; omit for generic session feedback
 - `accepted` (boolean, required) - whether the result was useful
 - `feedback_text` (string, optional) - additional context about why the result was or was not helpful
+- `tool_name` (string, optional) - GitHits tool or command being rated for generic feedback
 
 ## When to Use
 
@@ -64,7 +65,7 @@ Do not use `get_example` for:
 - Formulate queries as natural language questions (e.g., "How to stream responses with the Vercel AI SDK in Next.js")
 - Include specific error messages, library names, or API names when relevant
 - Keep queries focused: 3-4 technical terms maximum
-- Submit `feedback` after every search result you use or discard
+- Submit `feedback` after GitHits results you use or discard; omit `solution_id` for generic tool/session feedback
 
 ## Indexed Package/Source Tools
 
