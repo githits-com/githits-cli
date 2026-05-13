@@ -47,7 +47,7 @@ export const structuredCodeTargetSchema = z
       .string()
       .optional()
       .describe(
-        "Git ref - tag, branch, or commit. Required with repo_url. Use HEAD for latest.",
+        "Git ref - tag, branch, or commit. Required with repo_url for code_files/code_read/code_grep. Use HEAD for latest.",
       ),
   })
   .describe(
@@ -60,7 +60,7 @@ export const codeTargetSchema = z.union([
     .string()
     .min(1)
     .describe(
-      "Compact target string. Package: `npm:react@18.2.0`. Repository: `https://github.com/facebook/react#HEAD` (git ref suffix required for exact code navigation).",
+      "Compact target string. Package: `npm:react@18.2.0` or `npm:react` for latest release. Repository: `https://github.com/facebook/react#HEAD` (git ref required for code_files/code_read/code_grep).",
     ),
 ]);
 
@@ -129,7 +129,7 @@ export function resolveCodeTarget(
     }
 
     return invalidTargetResult(
-      "Incomplete repository target: git_ref is required for exact code navigation.",
+      "Incomplete repository target: git_ref is required for code_files/code_read/code_grep.",
     );
   }
 

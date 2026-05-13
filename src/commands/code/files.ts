@@ -230,7 +230,7 @@ and \`githits code grep\`.
 filters intersect on top.
 
 Addressing: <spec> (registry:name[@version]) OR --repo-url <url>
---git-ref <ref>. Supported registries: ${PKGSEER_REGISTRY_LIST}.
+--git-ref <ref>. Omitted version means latest release. Supported registries: ${PKGSEER_REGISTRY_LIST}.
 
 By default each result is a bare path for easy piping; pass
 --verbose to include language / file-type / size annotations.

@@ -1,6 +1,6 @@
 # GitHits Code And Docs CLI Reference
 
-Package target syntax is `registry:name[@version]`, for example `npm:express@5.2.1`. Repository target syntax uses `--repo-url <url> --git-ref <ref>` for `code` commands, or `--in https://github.com/org/repo#ref` for `search`.
+Package target syntax is `registry:name[@version]`, for example `npm:express@5.2.1`; omit `@version` for the latest release. Repository target syntax uses `--repo-url <url> --git-ref <ref>` for `code` commands. For `search`, use `--in https://github.com/org/repo` for the backend default-branch snapshot or append `#ref` such as `#HEAD` for a specific/latest ref.
 
 ## Search
 

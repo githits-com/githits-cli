@@ -153,10 +153,15 @@ describe("buildListFilesParams — waitTimeoutMs bounds", () => {
 });
 
 describe("buildListFilesParams — filter validation", () => {
-  it("rejects an empty exact path", () => {
-    expect(() =>
-      buildListFilesParams({ target: packageTarget, path: "   " }),
-    ).toThrow(/`path` cannot be empty/);
+  it("treats an empty exact path as absent", () => {
+    const { params, explicit, filterEcho } = buildListFilesParams({
+      target: packageTarget,
+      path: "   ",
+    });
+
+    expect(params.pathSelectors).toBeUndefined();
+    expect(explicit.path).toBe(false);
+    expect(filterEcho.path).toBeUndefined();
   });
 
   it("rejects empty list entries", () => {

@@ -94,7 +94,7 @@ const searchTargetSchema = z.union([
     .string()
     .min(1)
     .describe(
-      "Compact discovery target string. Package: `npm:react@18.2.0`. Repository: `https://github.com/facebook/react` for backend default branch or `https://github.com/facebook/react#HEAD` for an explicit ref.",
+      "Compact discovery target string. Package: `npm:react@18.2.0` or `npm:react` for latest release. Repository: `https://github.com/facebook/react` for default-branch snapshot or `https://github.com/facebook/react#HEAD` for latest.",
     ),
 ]);
 
@@ -297,7 +297,7 @@ function resolveSearchTarget(
   const hasRepoTarget = Boolean(target.repo_url || target.git_ref);
   if (hasPackageTarget && hasRepoTarget) {
     return invalidSearchTargetResult(
-      "Invalid target: provide either registry + package_name or repo_url + git_ref, not both.",
+      "Invalid target: provide either registry + package_name or repo_url with optional git_ref, not both.",
     );
   }
   if (!hasPackageTarget && !hasRepoTarget) {
