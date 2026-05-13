@@ -75,8 +75,7 @@ Validation rules:
 - Keep `include_transitive_security` default `true` because direct-only security hides important dependency-tree evidence. Allow callers to pass `false` when latency is more important than transitive vulnerability context.
 - Keep `include_dependency_issues` default `false` initially for the same reason. Turn it on automatically only when the caller explicitly asks for lockfile/dependency-tree evidence, or document that agents should pass it for lockfile reviews.
 - Changelog keyword detection scans the full backend range response and keyword-hit entries are surfaced separately so relevant signals are not hidden by the ordinary sample limit. The ordinary non-keyword sample cap is internal; agents should not need to tune it.
-- `min_severity` maps to the same CVSS thresholds as `pkg_vulns` (`low=0`, `medium=4`, `high=7`, `critical=9`). In v1 it filters direct current/target vulnerability queries only. Transitive aggregate counts from `vulnerabilitySummary` are unfiltered by backend design and must be labeled as unfiltered when shown beside filtered direct counts.
-- Backend follow-up: add severity-filtered transitive vulnerability aggregates so `min_severity` can apply consistently to direct and transitive evidence. Until then, only show the transitive unfiltered caveat when `min_severity` was actually requested.
+- `min_severity` maps to the same CVSS thresholds as `pkg_vulns` (`low=0`, `medium=4`, `high=7`, `critical=9`). It filters direct current/target vulnerability queries and transitive `vulnerabilitySummary(minSeverity:)` aggregates.
 
 CLI shape:
 
@@ -501,7 +500,7 @@ Add the tool in the same style as current package tools:
 - `pkg_deps` existing JSON/text/parity tests continue to pass unchanged, proving the upgrade-review dependency probe did not regress the existing dependency command.
 - Batch execution limits package-level concurrency to 3 by default.
 - `include_transitive_security` defaults on and can be disabled; `include_dependency_issues` selects lazy backend fields only when requested.
-- Text output explicitly labels transitive vulnerability aggregate counts as unfiltered when `min_severity` is supplied.
+- Text output keeps direct and transitive vulnerability counts aligned when `min_severity` is supplied.
 
 ## Resolved Decisions
 

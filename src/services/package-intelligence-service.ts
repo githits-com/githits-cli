@@ -172,6 +172,7 @@ export interface PackageUpgradeDependencyProbeParams {
   registry: PkgseerRegistry;
   packageName: string;
   version: string;
+  minSeverity?: number;
   includeTransitiveSecurity?: boolean;
   includeDependencyIssues?: boolean;
   includeDependencyChanges?: boolean;
@@ -1287,6 +1288,7 @@ query PackageUpgradeDependencyProbe(
   $includeDependencyChanges: Boolean!
   $includeGroups: Boolean!
   $lifecycle: [String!]
+  $minSeverity: Float
 ) {
   packageDependencies(
     registry: $registry
@@ -1324,7 +1326,7 @@ query PackageUpgradeDependencyProbe(
             dependencyType
           }
         }
-        vulnerabilitySummary @include(if: $includeTransitiveSecurity) {
+        vulnerabilitySummary(minSeverity: $minSeverity) @include(if: $includeTransitiveSecurity) {
           affected {
             totalVulnerabilities
             critical
@@ -1377,7 +1379,7 @@ query PackageUpgradeDependencyProbe(
               aliases
               isMalicious
             }
-            advisoryOccurrences(scope: AFFECTED, limit: 5) {
+            advisoryOccurrences(scope: AFFECTED, minSeverity: $minSeverity, limit: 5) {
               version
               affectsResolvedVersion
               matchedAffectedVersionRanges
@@ -2245,6 +2247,7 @@ export class PackageIntelligenceServiceImpl
           includeDependencyChanges: params.includeDependencyChanges === true,
           includeGroups: params.includeGroups === true,
           lifecycle: params.includeGroups === true ? ["peer"] : undefined,
+          minSeverity: params.minSeverity,
         },
         fetchFn: this.fetchFn,
       });
