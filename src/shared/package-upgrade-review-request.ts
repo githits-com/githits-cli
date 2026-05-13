@@ -117,6 +117,7 @@ export function buildUpgradeDependencyProbeParams(
     registry: pkg.registry,
     packageName: pkg.packageName,
     version,
+    minSeverity: options.minSeverity,
     includeGroups: true,
     includeTransitiveSecurity: options.includeTransitiveSecurity,
     includeDependencyIssues: options.includeDependencyIssues,

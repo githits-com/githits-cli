@@ -272,8 +272,8 @@ describe("package upgrade review response", () => {
     expect(response.reviews[0]?.unknowns).toContain(
       "direct vulnerability checks were filtered by min_severity",
     );
-    expect(formatPackageUpgradeReviewTerminal(response)).toContain(
-      "note: transitive counts are not filtered by min_severity",
+    expect(formatPackageUpgradeReviewTerminal(response)).not.toContain(
+      "transitive counts are not filtered by min_severity",
     );
   });
 
@@ -306,43 +306,6 @@ describe("package upgrade review response", () => {
     expect(request.options.minSeverity).toBeUndefined();
     expect(response.reviews[0]?.unknowns).not.toContain(
       "direct vulnerability checks were filtered by min_severity",
-    );
-  });
-
-  it("does not show the transitive min_severity caveat when no filter was requested", async () => {
-    const request = buildPackageUpgradeReviewRequest({
-      registry: "npm",
-      packageName: "zod",
-      currentVersion: "4.3.6",
-      targetVersion: "4.4.3",
-    });
-    const service = serviceWith({
-      packageVulnerabilities: mock((params) =>
-        Promise.resolve(cleanVulnReport(params.version ?? "4.4.3", false)),
-      ) as never,
-      packageChangelog: mock(() =>
-        Promise.resolve({
-          source: "releases",
-          entries: [{ version: "4.4.3", body: "Patch fixes." }],
-        } satisfies ChangelogReport),
-      ),
-      packageUpgradeDependencyProbe: mock((params) =>
-        Promise.resolve(
-          cleanDependencyReport(params.version, {
-            transitive: { vulnerabilitySummary: transitiveSummary([]) },
-          }),
-        ),
-      ) as never,
-    });
-
-    const response = await buildPackageUpgradeReview(
-      service,
-      request.packages,
-      request.options,
-    );
-
-    expect(formatPackageUpgradeReviewTerminal(response)).not.toContain(
-      "transitive counts are not filtered by min_severity",
     );
   });
 
