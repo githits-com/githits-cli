@@ -345,7 +345,7 @@ Fixed in: 2.0.0
  * — the natural prose surface for changelog content.
  */
 export function buildPkgChangelogFixture(
-  attack: Attack,
+  _attack: Attack,
   framedInjection: string,
 ): string {
   return `${FIXTURE_PACKAGE} · ${FIXTURE_REGISTRY}
@@ -370,7 +370,7 @@ https://github.com/example/widget-kit/releases/tag/v1.8.0
  * — the natural maintainer-controlled surface on a registry record.
  */
 export function buildPkgInfoFixture(
-  attack: Attack,
+  _attack: Attack,
   framedInjection: string,
 ): string {
   return `${FIXTURE_PACKAGE} @ ${FIXTURE_VERSION} · ${FIXTURE_REGISTRY}
@@ -393,7 +393,7 @@ usage:   import { widget } from "@example/widget-kit"
  * — the natural way attacker-controlled prose hides in source.
  */
 export function buildCodeReadFixture(
-  attack: Attack,
+  _attack: Attack,
   framedInjection: string,
 ): string {
   // Indent the injection so it reads as a single multi-line comment
@@ -431,7 +431,7 @@ ${(() => {
  * — the natural surface for README / docs-site content.
  */
 export function buildDocsReadFixture(
-  attack: Attack,
+  _attack: Attack,
   framedInjection: string,
 ): string {
   return `${FIXTURE_PACKAGE} @ ${FIXTURE_VERSION} · ${FIXTURE_REGISTRY}

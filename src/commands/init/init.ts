@@ -20,13 +20,18 @@ import {
 import type { LoginDependencies, LoginFlowResult } from "../login.js";
 import { loginFlow } from "../login.js";
 import {
+  type AgentDefinition,
   agentDefinitions,
+  type ConfigFileSetup,
   isGeminiExtensionInstalledFromFilesystem,
+  type SetupConfig,
   scanAgents,
 } from "./agent-definitions.js";
 import {
   executeCliSetup,
   executeCliUninstall,
+  executeCompositeSetup,
+  executeCompositeUninstall,
   executeConfigFileSetup,
   executeConfigFileUninstall,
   formatSetupPreview,
@@ -80,11 +85,44 @@ type UninstallInspectionResult =
   | "not_configured"
   | { status: "failed"; message: string };
 
+interface CompositeInspectionAccumulator {
+  configured: boolean;
+  notConfigured: boolean;
+  failure?: { status: "failed"; message: string };
+}
+
 interface UninstallScanResult {
   configured: (typeof agentDefinitions)[number][];
   notConfigured: (typeof agentDefinitions)[number][];
   notDetected: (typeof agentDefinitions)[number][];
   failed: AgentUninstallOutcome[];
+}
+
+function getResolvedSetupConfig(
+  agent: AgentDefinition,
+  fileSystemService: FileSystemService,
+): SetupConfig {
+  return (
+    agent.resolvedSetupConfig ??
+    agent.getSetupConfig(fileSystemService, agent.resolvedSetupContext)
+  );
+}
+
+function getPiConfigFileUninstall(
+  agent: AgentDefinition,
+  fileSystemService: FileSystemService,
+): ConfigFileSetup | null {
+  if (agent.id !== "pi") {
+    return null;
+  }
+  const uninstallConfig = agent.getUninstallConfig?.(fileSystemService);
+  if (uninstallConfig?.method !== "composite") {
+    return null;
+  }
+  const configStep = uninstallConfig.steps
+    .map(({ step }) => step)
+    .find((step): step is ConfigFileSetup => step.method === "config-file");
+  return configStep ?? null;
 }
 
 function printReadyNextSteps(): void {
@@ -143,37 +181,69 @@ async function verifyAgentUnconfigured(
   };
 }
 
-async function scanCliAgentForUninstall(
+async function inspectSetupForUninstall(
   agent: (typeof agentDefinitions)[number],
+  config: ReturnType<(typeof agentDefinitions)[number]["getSetupConfig"]>,
   fileSystemService: FileSystemService,
   execService: ExecService,
 ): Promise<UninstallInspectionResult> {
-  const config = agent.getSetupConfig(fileSystemService);
-  if (config.method !== "cli" || !config.checkCommand) {
+  if (config.method === "config-file") {
+    const check = await getConfigUninstallCheckStatus(
+      config,
+      fileSystemService,
+    );
+    if (check.status === "configured") return "configured";
+    if (check.status === "not_configured") return "not_configured";
+    return { status: "failed", message: check.message };
+  }
+
+  if (config.method === "cli") {
+    if (!config.checkCommand) {
+      return {
+        status: "failed",
+        message: `${agent.name} does not have a verified uninstall check command.`,
+      };
+    }
+    const checkStatus = await getCliCheckStatus(
+      config.checkCommand,
+      execService,
+    );
+    if (checkStatus === "configured") return "configured";
+    if (checkStatus === "not_configured") return "not_configured";
+    if (
+      agent.id === "gemini-cli" &&
+      (await isGeminiExtensionInstalledFromFilesystem(fileSystemService))
+    ) {
+      return "configured";
+    }
     return {
       status: "failed",
-      message: `${agent.name} does not have a verified uninstall check command.`,
+      message: `Cannot inspect ${agent.name}: ${config.checkCommand.command} ${config.checkCommand.args.join(" ")} failed.`,
     };
   }
 
-  const checkStatus = await getCliCheckStatus(config.checkCommand, execService);
-  if (checkStatus === "configured") {
-    return "configured";
-  }
-  if (checkStatus === "not_configured") {
-    return "not_configured";
-  }
-  if (
-    agent.id === "gemini-cli" &&
-    (await isGeminiExtensionInstalledFromFilesystem(fileSystemService))
-  ) {
-    return "configured";
-  }
-
-  return {
-    status: "failed",
-    message: `Cannot inspect ${agent.name}: ${config.checkCommand.command} ${config.checkCommand.args.join(" ")} failed.`,
+  const accumulated: CompositeInspectionAccumulator = {
+    configured: false,
+    notConfigured: false,
   };
+  for (const step of config.steps) {
+    const check = await inspectSetupForUninstall(
+      agent,
+      step,
+      fileSystemService,
+      execService,
+    );
+    if (check === "configured") {
+      accumulated.configured = true;
+    } else if (check === "not_configured") {
+      accumulated.notConfigured = true;
+    } else {
+      accumulated.failure = check;
+    }
+  }
+  if (accumulated.failure) return accumulated.failure;
+  if (accumulated.configured) return "configured";
+  return "not_configured";
 }
 
 async function scanAgentsForUninstall(
@@ -196,42 +266,53 @@ async function scanAgentsForUninstall(
     ...setupScan.alreadyConfigured,
     ...setupScan.needsSetup,
   ]) {
-    const config = agent.getSetupConfig(fileSystemService);
-    if (config.method === "config-file") {
-      const check = await getConfigUninstallCheckStatus(
-        config,
-        fileSystemService,
-      );
-      if (check.status === "configured") {
-        result.configured.push(agent);
-      } else if (check.status === "failed") {
-        result.failed.push({
-          id: agent.id,
-          name: agent.name,
-          status: "failed",
-          message: check.message,
-        });
-      } else {
-        result.notConfigured.push(agent);
-      }
+    const config = getResolvedSetupConfig(agent, fileSystemService);
+    const check = await inspectSetupForUninstall(
+      agent,
+      config,
+      fileSystemService,
+      execService,
+    );
+    if (check === "configured") {
+      result.configured.push(agent);
+    } else if (check === "not_configured") {
+      result.notConfigured.push(agent);
     } else {
-      const check = await scanCliAgentForUninstall(
-        agent,
-        fileSystemService,
-        execService,
-      );
-      if (check === "configured") {
-        result.configured.push(agent);
-      } else if (check === "not_configured") {
-        result.notConfigured.push(agent);
-      } else {
-        result.failed.push({
-          id: agent.id,
-          name: agent.name,
-          status: "failed",
-          message: check.message,
-        });
-      }
+      result.failed.push({
+        id: agent.id,
+        name: agent.name,
+        status: "failed",
+        message: check.message,
+      });
+    }
+  }
+
+  for (const agent of setupScan.notDetected) {
+    const piConfigUninstall = getPiConfigFileUninstall(
+      agent,
+      fileSystemService,
+    );
+    if (!piConfigUninstall) {
+      continue;
+    }
+    const check = await getConfigUninstallCheckStatus(
+      piConfigUninstall,
+      fileSystemService,
+    );
+    if (check.status === "configured") {
+      result.configured.push({
+        ...agent,
+        resolvedUninstallConfig: piConfigUninstall,
+        skipUninstallVerification: true,
+      });
+      result.notDetected = result.notDetected.filter((a) => a.id !== agent.id);
+    } else if (check.status === "failed") {
+      result.failed.push({
+        id: agent.id,
+        name: agent.name,
+        status: "failed",
+        message: check.message,
+      });
     }
   }
 
@@ -358,7 +439,8 @@ export async function initAction(
   for (const agent of toSetup) {
     console.log(`  Setting up ${colorize(agent.name, "bold", useColors)}...\n`);
 
-    const config = agent.getSetupConfig(fileSystemService);
+    const config =
+      agent.resolvedSetupConfig ?? agent.getSetupConfig(fileSystemService);
 
     // Show preview
     const preview = formatSetupPreview(config);
@@ -394,7 +476,9 @@ export async function initAction(
     let result =
       config.method === "cli"
         ? await executeCliSetup(config, execService)
-        : await executeConfigFileSetup(config, fileSystemService);
+        : config.method === "config-file"
+          ? await executeConfigFileSetup(config, fileSystemService)
+          : await executeCompositeSetup(config, fileSystemService, execService);
 
     if (result.status === "success" || result.status === "already_configured") {
       const verification = await verifyAgentConfigured(
@@ -522,11 +606,15 @@ export async function initUninstallAction(
       `  Uninstalling from ${colorize(agent.name, "bold", useColors)}...\n`,
     );
 
-    const setupConfig = agent.getSetupConfig(fileSystemService);
+    const setupConfig = getResolvedSetupConfig(agent, fileSystemService);
     const uninstallConfig =
-      setupConfig.method === "config-file"
+      agent.resolvedUninstallConfig ??
+      (setupConfig.method === "config-file"
         ? setupConfig
-        : agent.getUninstallConfig?.(fileSystemService);
+        : agent.getUninstallConfig?.(
+            fileSystemService,
+            agent.resolvedSetupContext,
+          ));
 
     if (!uninstallConfig) {
       outcomes.push({
@@ -572,9 +660,15 @@ export async function initUninstallAction(
     let result =
       uninstallConfig.method === "cli"
         ? await executeCliUninstall(uninstallConfig, execService)
-        : await executeConfigFileUninstall(uninstallConfig, fileSystemService);
+        : uninstallConfig.method === "config-file"
+          ? await executeConfigFileUninstall(uninstallConfig, fileSystemService)
+          : await executeCompositeUninstall(
+              uninstallConfig,
+              fileSystemService,
+              execService,
+            );
 
-    if (result.status === "removed") {
+    if (result.status === "removed" && !agent.skipUninstallVerification) {
       const verification = await verifyAgentUnconfigured(
         agent,
         fileSystemService,
@@ -680,10 +774,11 @@ const INIT_DESCRIPTION = `Set up GitHits MCP server for your coding agents.
 
 Authenticates with your GitHits account, then scans for available agents
 (Claude Code, Cursor, Windsurf, VS Code, Cline, Claude Desktop, Codex CLI,
-Gemini CLI, Google Antigravity), checks which are already configured,
+Pi, Gemini CLI, Google Antigravity), checks which are already configured,
 and sets up unconfigured ones with your confirmation.
 
-Supports CLI-based setup (Claude Code, Codex, Gemini CLI) and config
+Supports CLI-based setup (Claude Code, Codex, Gemini CLI), Pi package setup,
+and config
 file editing (Cursor, Windsurf, VS Code, Cline, Claude Desktop,
 Google Antigravity) with atomic writes.`;
 

@@ -1020,7 +1020,7 @@ function formatUnifiedSearchMetadata(
       sourceUrl?: string;
     };
   },
-  useColors: boolean,
+  _useColors: boolean,
 ): string[] {
   if (entry.type !== "documentation_page" && entry.type !== "repository_doc") {
     return [];

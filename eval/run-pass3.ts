@@ -314,7 +314,7 @@ function renderPass3Report(
     }
   }
 
-  return lines.join("\n") + "\n";
+  return `${lines.join("\n")}\n`;
 }
 
 main().catch((err) => {

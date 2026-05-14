@@ -9,7 +9,12 @@ import type {
   CliCommand,
   CliSetup,
   CliUninstall,
+  CompositeSetup,
+  CompositeUninstall,
   ConfigFileSetup,
+  SetupConfig,
+  UninstallConfig,
+  UninstallStep,
 } from "./agent-definitions.js";
 
 /** A read-only command to check if a CLI agent is already configured. */
@@ -463,7 +468,10 @@ export function hasServerConfigEntry(
  * Format a setup config for display to the user before confirmation.
  * Returns human-readable description of what will happen.
  */
-export function formatSetupPreview(config: CliSetup | ConfigFileSetup): string {
+export function formatSetupPreview(config: SetupConfig): string {
+  if (config.method === "composite") {
+    return config.steps.map((step) => formatSetupPreview(step)).join("\n");
+  }
   if (config.method === "cli") {
     return config.commands
       .map((cmd) => `Will run: ${cmd.command} ${cmd.args.join(" ")}`)
@@ -478,9 +486,12 @@ export function formatSetupPreview(config: CliSetup | ConfigFileSetup): string {
 }
 
 /** Format an uninstall config for display to the user before confirmation. */
-export function formatUninstallPreview(
-  config: CliUninstall | ConfigFileSetup,
-): string {
+export function formatUninstallPreview(config: UninstallConfig): string {
+  if (config.method === "composite") {
+    return config.steps
+      .map(({ step }) => formatUninstallPreview(step))
+      .join("\n");
+  }
   if (config.method === "cli") {
     return config.commands
       .map((cmd) => `Will run: ${cmd.command} ${cmd.args.join(" ")}`)
@@ -593,6 +604,34 @@ export async function getConfigUninstallCheckStatus(
 }
 
 /**
+ * Check whether a setup is fully configured without mutating user state.
+ * Composite setups are configured only when every child step is configured.
+ */
+export async function isSetupAlreadyConfigured(
+  config: SetupConfig,
+  fs: FileSystemService,
+  execService: ExecService,
+): Promise<boolean> {
+  if (config.method === "config-file") {
+    return isAlreadyConfigured(config, fs);
+  }
+
+  if (config.method === "cli") {
+    if (!config.checkCommand) {
+      return false;
+    }
+    return isCliAlreadyConfigured(config.checkCommand, execService);
+  }
+
+  for (const step of config.steps) {
+    if (!(await isSetupAlreadyConfigured(step, fs, execService))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Check if a CLI agent is already configured by running a read-only check command.
  * Checks pattern against combined stdout+stderr regardless of exit code.
  * Returns false on ENOENT or when pattern does not match.
@@ -647,6 +686,7 @@ const ALREADY_EXISTS_PATTERNS = [
 const ALREADY_ABSENT_PATTERNS = [
   /(?:plugin|extension|server|mcp server)\s+["']?githits["']?\s+(?:was\s+)?not\s+found/i,
   /["']?githits["']?\s+(?:plugin|extension|server)?\s*(?:does\s+not\s+exist|is\s+not\s+installed|not\s+installed)/i,
+  /(?:package\s+)?["']?pi-mcp-adapter["']?\s+(?:is\s+)?not\s+installed/i,
   /unknown\s+(?:plugin|extension|server)\s+["']?githits["']?/i,
   /marketplace\s+["']?githits-plugins["']?\s+(?:was\s+)?not\s+found/i,
 ];
@@ -794,8 +834,7 @@ export async function executeCliUninstall(
   let anyNotConfigured = false;
   const warnings: string[] = [];
 
-  for (let index = 0; index < uninstall.commands.length; index += 1) {
-    const cmd = uninstall.commands[index]!;
+  for (const cmd of uninstall.commands) {
     const result = await executeCliUninstallCommand(cmd, execService);
 
     if (result.status === "failed") {
@@ -831,6 +870,69 @@ export async function executeCliUninstall(
     };
   }
   return { status: "removed", message: "Removed successfully" };
+}
+
+/** Execute an uninstall made from ordered CLI/config-file cleanup steps. */
+export async function executeCompositeUninstall(
+  uninstall: CompositeUninstall,
+  fs: FileSystemService,
+  execService: ExecService,
+): Promise<UninstallResult> {
+  let anyRemoved = false;
+  let anyNotConfigured = false;
+  const warnings: string[] = [];
+
+  for (const { step, failureMode } of uninstall.steps) {
+    const result = await executeUninstallStep(step, fs, execService);
+
+    if (result.status === "removed") {
+      anyRemoved = true;
+      warnings.push(...(result.warnings ?? []));
+      continue;
+    }
+
+    if (result.status === "not_configured") {
+      if (anyRemoved) {
+        warnings.push(result.message);
+      } else {
+        anyNotConfigured = true;
+      }
+      continue;
+    }
+
+    if (failureMode === "best-effort" && anyRemoved) {
+      warnings.push(result.message);
+      continue;
+    }
+    return result;
+  }
+
+  if (anyRemoved) {
+    return {
+      status: "removed",
+      message: "Removed successfully",
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
+  }
+
+  if (anyNotConfigured) {
+    return {
+      status: "not_configured",
+      message: "GitHits not configured",
+    };
+  }
+
+  return { status: "not_configured", message: "GitHits not configured" };
+}
+
+async function executeUninstallStep(
+  step: UninstallStep,
+  fs: FileSystemService,
+  execService: ExecService,
+): Promise<UninstallResult> {
+  return step.method === "cli"
+    ? executeCliUninstall(step, execService)
+    : executeConfigFileUninstall(step, fs);
 }
 
 /**
@@ -902,6 +1004,43 @@ export async function executeConfigFileSetup(
       message: `Failed to configure: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
+}
+
+/**
+ * Execute a composite setup by skipping already configured child steps and
+ * applying missing steps in order. Stops on the first failure.
+ */
+export async function executeCompositeSetup(
+  setup: CompositeSetup,
+  fs: FileSystemService,
+  execService: ExecService,
+): Promise<SetupResult> {
+  let executedAny = false;
+
+  for (const step of setup.steps) {
+    if (await isSetupAlreadyConfigured(step, fs, execService)) {
+      continue;
+    }
+
+    executedAny = true;
+    const result =
+      step.method === "cli"
+        ? await executeCliSetup(step, execService)
+        : await executeConfigFileSetup(step, fs);
+
+    if (result.status === "failed") {
+      return result;
+    }
+  }
+
+  if (!executedAny) {
+    return {
+      status: "already_configured",
+      message: "GitHits already configured",
+    };
+  }
+
+  return { status: "success", message: "Configured successfully" };
 }
 
 /** Execute a config-file-based uninstall (read/remove/atomic-write). */

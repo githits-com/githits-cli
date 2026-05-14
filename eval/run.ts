@@ -85,8 +85,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const filteredAttacks = args.onlyIds
-    ? ATTACKS.filter((a) => args.onlyIds!.has(a.id))
+  const onlyIds = args.onlyIds;
+  const filteredAttacks = onlyIds
+    ? ATTACKS.filter((a) => onlyIds.has(a.id))
     : ATTACKS;
   if (filteredAttacks.length === 0) {
     console.error(
@@ -94,8 +95,9 @@ async function main(): Promise<void> {
     );
     process.exit(2);
   }
-  const filteredVariants = args.onlyVariants
-    ? VARIANTS.filter((v) => args.onlyVariants!.has(v.id))
+  const onlyVariants = args.onlyVariants;
+  const filteredVariants = onlyVariants
+    ? VARIANTS.filter((v) => onlyVariants.has(v.id))
     : VARIANTS;
   if (filteredVariants.length === 0) {
     console.error(

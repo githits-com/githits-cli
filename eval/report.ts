@@ -40,7 +40,7 @@ export function renderReport(
   renderPerCellTable(lines, cells);
   renderErrorsIfAny(lines, cells);
 
-  return lines.join("\n") + "\n";
+  return `${lines.join("\n")}\n`;
 }
 
 function renderHeadline(lines: string[], cells: readonly RunCell[]): void {

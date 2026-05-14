@@ -3,7 +3,7 @@ import type { FileSystemService } from "../../services/index.js";
 import {
   type CliCheckCommand,
   getCliCheckStatus,
-  isAlreadyConfigured,
+  isSetupAlreadyConfigured,
 } from "./setup-handlers.js";
 
 /** A single CLI command step (command + arguments). */
@@ -37,6 +37,18 @@ export interface CliUninstall {
   commands: NonEmptyCliCommands;
 }
 
+/** Uninstall made from multiple existing uninstall primitives. */
+export interface CompositeUninstall {
+  method: "composite";
+  /** Ordered uninstall steps. Required steps fail the uninstall; best-effort steps warn after earlier removals. */
+  steps: CompositeUninstallStep[];
+}
+
+export interface CompositeUninstallStep {
+  step: UninstallStep;
+  failureMode: "required" | "best-effort";
+}
+
 /**
  * Setup configuration for agents that need config file editing.
  */
@@ -52,9 +64,18 @@ export interface ConfigFileSetup {
   serverConfig: Record<string, unknown>;
 }
 
-export type SetupConfig = CliSetup | ConfigFileSetup;
+/** A setup made from multiple existing setup primitives. */
+export interface CompositeSetup {
+  method: "composite";
+  /** Ordered setup steps. Later steps only run when earlier steps succeed. */
+  steps: SetupStep[];
+}
 
-export type UninstallConfig = CliUninstall | ConfigFileSetup;
+export type SetupStep = CliSetup | ConfigFileSetup;
+export type SetupConfig = SetupStep | CompositeSetup;
+
+export type UninstallStep = CliUninstall | ConfigFileSetup;
+export type UninstallConfig = UninstallStep | CompositeUninstall;
 
 const GITHITS_SERVER_NAME = "GitHits";
 const GITHITS_MCP_COMMAND = "npx";
@@ -70,6 +91,14 @@ const CLAUDE_GITHITS_MARKETPLACE_SOURCE = "githits-com/githits-cli";
 
 /** How an agent is considered present on the machine. */
 type DetectionMethod = "binary" | "path" | "hybrid";
+
+interface ResolvedAgentCommand {
+  command: string;
+}
+
+export interface AgentSetupContext {
+  command?: string;
+}
 
 /**
  * Represents a coding agent that can be configured with GitHits MCP server.
@@ -87,12 +116,31 @@ export interface AgentDefinition {
   detectPaths?: (fs: FileSystemService) => string[];
   /** Executable detection for binary/hybrid agents. */
   detectBinary?: (exec: ExecService) => Promise<boolean>;
+  /** Resolve a runnable command when PATH lookup alone is insufficient. */
+  detectCommand?: (
+    exec: ExecService,
+    fs: FileSystemService,
+  ) => Promise<ResolvedAgentCommand | null>;
   /** How this agent is configured */
-  setupMethod: "cli" | "config-file";
+  setupMethod: "cli" | "config-file" | "composite";
   /** Returns the setup config for this agent. Uses FileSystemService for path resolution. */
-  getSetupConfig: (fs: FileSystemService) => SetupConfig;
+  getSetupConfig: (
+    fs: FileSystemService,
+    context?: AgentSetupContext,
+  ) => SetupConfig;
+  /** Setup config resolved during scan, including any detected command path. */
+  resolvedSetupConfig?: SetupConfig;
   /** Returns CLI uninstall config when the agent cannot be removed via config editing. */
-  getUninstallConfig?: (fs: FileSystemService) => UninstallConfig;
+  getUninstallConfig?: (
+    fs: FileSystemService,
+    context?: AgentSetupContext,
+  ) => UninstallConfig;
+  /** Setup context resolved during scan, including any detected command path. */
+  resolvedSetupContext?: AgentSetupContext;
+  /** Uninstall config resolved during uninstall scan for special cases. */
+  resolvedUninstallConfig?: UninstallConfig;
+  /** Skip generic scan-based verification when uninstall scan used config-only fallback cleanup. */
+  skipUninstallVerification?: boolean;
 }
 
 /**
@@ -141,6 +189,28 @@ function getOpenCodeConfigDir(fs: FileSystemService): string {
   return fs.joinPath(fs.getHomeDir(), ".config", "opencode");
 }
 
+function expandHomePath(fs: FileSystemService, path: string): string {
+  if (path === "~") {
+    return fs.getHomeDir();
+  }
+  if (path.startsWith("~/")) {
+    return fs.joinPath(fs.getHomeDir(), path.slice(2));
+  }
+  return path;
+}
+
+function getPiAgentDir(fs: FileSystemService): string {
+  const configuredDir = process.env.PI_CODING_AGENT_DIR?.trim();
+  if (configuredDir) {
+    return expandHomePath(fs, configuredDir);
+  }
+  return fs.joinPath(fs.getHomeDir(), ".pi", "agent");
+}
+
+function getPiMcpConfigPath(fs: FileSystemService): string {
+  return fs.joinPath(getPiAgentDir(fs), "mcp.json");
+}
+
 function getOpenCodeDesktopDetectPaths(fs: FileSystemService): string[] {
   const userDataRoot = getUserDataRoot(fs);
   return [
@@ -166,6 +236,81 @@ async function isExecutableAvailable(
   } catch {
     return false;
   }
+}
+
+async function resolveExecutableFromPath(
+  exec: ExecService,
+  executable: string,
+): Promise<boolean> {
+  return isExecutableAvailable(exec, executable);
+}
+
+const PI_GLOBAL_BIN_PROBES = [
+  { command: "npm", args: ["prefix", "-g"], output: "prefix" },
+  { command: "pnpm", args: ["bin", "-g"], output: "binDir" },
+  { command: "bun", args: ["pm", "bin", "-g"], output: "binDir" },
+] as const;
+
+type PiGlobalBinProbe = (typeof PI_GLOBAL_BIN_PROBES)[number];
+
+const PI_ADAPTER_CONFIGURED_PATTERN =
+  /(?:^|\s|:)(?:npm:)?pi-mcp-adapter(?:[\s@:]|$)/i;
+
+function getPiExecutableNames(): string[] {
+  return process.platform === "win32" ? ["pi.cmd", "pi.exe", "pi"] : ["pi"];
+}
+
+async function runGlobalBinProbe(
+  exec: ExecService,
+  probe: PiGlobalBinProbe,
+): Promise<string | null> {
+  try {
+    const result = await exec.exec(probe.command, [...probe.args]);
+    if (result.exitCode !== 0) {
+      return null;
+    }
+    const probePath = result.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0);
+    if (!probePath) {
+      return null;
+    }
+    if (probe.output === "prefix" && process.platform !== "win32") {
+      return fsJoinPathLike(probePath, "bin");
+    }
+    return probePath;
+  } catch {
+    return null;
+  }
+}
+
+function fsJoinPathLike(base: string, child: string): string {
+  return base.endsWith("/") ? `${base}${child}` : `${base}/${child}`;
+}
+
+async function detectPiExecutable(
+  exec: ExecService,
+  fs: FileSystemService,
+): Promise<ResolvedAgentCommand | null> {
+  if (await resolveExecutableFromPath(exec, "pi")) {
+    return { command: "pi" };
+  }
+
+  for (const probe of PI_GLOBAL_BIN_PROBES) {
+    const binDir = await runGlobalBinProbe(exec, probe);
+    if (!binDir) {
+      continue;
+    }
+    for (const executableName of getPiExecutableNames()) {
+      const candidate = fs.joinPath(binDir, executableName);
+      if (await fs.exists(candidate)) {
+        return { command: candidate };
+      }
+    }
+  }
+
+  return null;
 }
 
 /** Claude Code: detected by claude executable, configured via plugin install */
@@ -324,6 +469,79 @@ const codexCli: AgentDefinition = {
       },
     ],
   }),
+};
+
+/** Pi: detected by pi executable, configured through adapter package + Pi-owned MCP config */
+const pi: AgentDefinition = {
+  name: "Pi",
+  id: "pi",
+  detectionMethod: "binary",
+  setupMethod: "composite",
+  detectCommand: detectPiExecutable,
+  getSetupConfig: (fs, context) => {
+    const piCommand = context?.command ?? "pi";
+    return {
+      method: "composite",
+      steps: [
+        {
+          method: "cli",
+          commands: [
+            {
+              command: piCommand,
+              args: ["install", "npm:pi-mcp-adapter"],
+            },
+          ],
+          checkCommand: {
+            command: piCommand,
+            args: ["list"],
+            configuredPattern: PI_ADAPTER_CONFIGURED_PATTERN,
+          },
+        },
+        {
+          method: "config-file",
+          configPath: getPiMcpConfigPath(fs),
+          serversKey: "mcpServers",
+          serverName: GITHITS_SERVER_NAME,
+          serverConfig: {
+            command: GITHITS_MCP_COMMAND,
+            args: [...GITHITS_MCP_ARGS],
+            lifecycle: "eager",
+          },
+        },
+      ],
+    };
+  },
+  getUninstallConfig: (fs, context) => {
+    const piCommand = context?.command ?? "pi";
+    return {
+      method: "composite",
+      steps: [
+        {
+          failureMode: "required",
+          step: {
+            method: "config-file",
+            configPath: getPiMcpConfigPath(fs),
+            serversKey: "mcpServers",
+            serverName: GITHITS_SERVER_NAME,
+            // Config-file uninstall ignores serverConfig; keep the shape shared.
+            serverConfig: {},
+          },
+        },
+        {
+          failureMode: "required",
+          step: {
+            method: "cli",
+            commands: [
+              {
+                command: piCommand,
+                args: ["remove", "npm:pi-mcp-adapter"],
+              },
+            ],
+          },
+        },
+      ],
+    };
+  },
 };
 
 /** VS Code / Copilot: detected by platform-specific Code directory, uses npm MCP command */
@@ -488,6 +706,7 @@ export const agentDefinitions: AgentDefinition[] = [
   cline,
   claudeDesktop,
   codexCli,
+  pi,
   geminiCli,
   googleAntigravity,
   openCode,
@@ -553,8 +772,19 @@ export async function scanAgents(
   for (const agent of definitions) {
     // Check if available using the agent's declared detection contract
     let detected = false;
+    let setupContext: AgentSetupContext | undefined;
 
-    if (agent.detectionMethod === "binary" && agent.detectBinary) {
+    if (agent.detectCommand) {
+      try {
+        const resolvedCommand = await agent.detectCommand(execService, fs);
+        if (resolvedCommand) {
+          detected = true;
+          setupContext = { command: resolvedCommand.command };
+        }
+      } catch {
+        detected = false;
+      }
+    } else if (agent.detectionMethod === "binary" && agent.detectBinary) {
       try {
         detected = await agent.detectBinary(execService);
       } catch {
@@ -599,40 +829,36 @@ export async function scanAgents(
     }
 
     // Detected — check configuration status
-    if (agent.setupMethod === "config-file") {
-      const config = agent.getSetupConfig(fs);
-      if (
-        config.method === "config-file" &&
-        (await isAlreadyConfigured(config, fs))
-      ) {
-        result.alreadyConfigured.push(agent);
-      } else {
-        result.needsSetup.push(agent);
-      }
-    } else {
-      // CLI agent — try checkCommand if available
-      const config = agent.getSetupConfig(fs);
-      if (config.method === "cli" && config.checkCommand) {
+    const config = agent.getSetupConfig(fs, setupContext);
+    const scannedAgent: AgentDefinition = {
+      ...agent,
+      resolvedSetupConfig: config,
+      resolvedSetupContext: setupContext,
+    };
+    if (agent.id === "gemini-cli" && config.method === "cli") {
+      if (config.checkCommand) {
         const checkStatus = await getCliCheckStatus(
           config.checkCommand,
           execService,
         );
         let configured = checkStatus === "configured";
-        if (!configured && agent.id === "gemini-cli") {
-          // Only use filesystem fallback when the CLI probe itself failed.
-          // If Gemini explicitly reports "not installed", do not override it.
-          if (checkStatus === "probe_failed") {
-            configured = await isGeminiExtensionInstalledFromFilesystem(fs);
-          }
+        // Only use filesystem fallback when the CLI probe itself failed.
+        // If Gemini explicitly reports "not installed", do not override it.
+        if (!configured && checkStatus === "probe_failed") {
+          configured = await isGeminiExtensionInstalledFromFilesystem(fs);
         }
         if (configured) {
-          result.alreadyConfigured.push(agent);
+          result.alreadyConfigured.push(scannedAgent);
         } else {
-          result.needsSetup.push(agent);
+          result.needsSetup.push(scannedAgent);
         }
       } else {
-        result.needsSetup.push(agent);
+        result.needsSetup.push(scannedAgent);
       }
+    } else if (await isSetupAlreadyConfigured(config, fs, execService)) {
+      result.alreadyConfigured.push(scannedAgent);
+    } else {
+      result.needsSetup.push(scannedAgent);
     }
   }
 

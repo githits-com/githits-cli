@@ -1,5 +1,37 @@
 import { spawn } from "node:child_process";
 
+interface SpawnCommand {
+  command: string;
+  args: string[];
+  shell?: boolean;
+}
+
+function isWindowsAbsolutePath(command: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(command) || command.startsWith("\\\\");
+}
+
+/**
+ * Windows shell mode splits unquoted command paths on spaces. Absolute shim
+ * paths are trusted internal values, so quote only the executable segment.
+ */
+export function normalizeSpawnCommand(
+  command: string,
+  args: string[],
+  platform: NodeJS.Platform = process.platform,
+): SpawnCommand {
+  if (platform !== "win32") {
+    return { command, args };
+  }
+  if (isWindowsAbsolutePath(command) && /\s/.test(command)) {
+    return {
+      command: `"${command.replaceAll('"', '\\"')}"`,
+      args,
+      shell: true,
+    };
+  }
+  return { command, args, shell: true };
+}
+
 /** Result of executing a CLI command */
 export interface ExecResult {
   exitCode: number;
@@ -26,10 +58,11 @@ export interface ExecService {
 export class ExecServiceImpl implements ExecService {
   async exec(command: string, args: string[]): Promise<ExecResult> {
     return new Promise((resolve, reject) => {
-      const child = spawn(command, args, {
+      const spawnCommand = normalizeSpawnCommand(command, args);
+      const child = spawn(spawnCommand.command, spawnCommand.args, {
         stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env },
-        ...(process.platform === "win32" && { shell: true }),
+        ...(spawnCommand.shell !== undefined && { shell: spawnCommand.shell }),
       });
 
       const stdoutChunks: Buffer[] = [];
