@@ -14,6 +14,7 @@ import type {
   ConfigFileSetup,
   SetupConfig,
   UninstallConfig,
+  UninstallStep,
 } from "./agent-definitions.js";
 
 /** A read-only command to check if a CLI agent is already configured. */
@@ -487,7 +488,9 @@ export function formatSetupPreview(config: SetupConfig): string {
 /** Format an uninstall config for display to the user before confirmation. */
 export function formatUninstallPreview(config: UninstallConfig): string {
   if (config.method === "composite") {
-    return config.steps.map((step) => formatUninstallPreview(step)).join("\n");
+    return config.steps
+      .map(({ step }) => formatUninstallPreview(step))
+      .join("\n");
   }
   if (config.method === "cli") {
     return config.commands
@@ -831,8 +834,7 @@ export async function executeCliUninstall(
   let anyNotConfigured = false;
   const warnings: string[] = [];
 
-  for (let index = 0; index < uninstall.commands.length; index += 1) {
-    const cmd = uninstall.commands[index]!;
+  for (const cmd of uninstall.commands) {
     const result = await executeCliUninstallCommand(cmd, execService);
 
     if (result.status === "failed") {
@@ -880,11 +882,8 @@ export async function executeCompositeUninstall(
   let anyNotConfigured = false;
   const warnings: string[] = [];
 
-  for (const step of uninstall.steps) {
-    const result =
-      step.method === "cli"
-        ? await executeCliUninstall(step, execService)
-        : await executeConfigFileUninstall(step, fs);
+  for (const { step, failureMode } of uninstall.steps) {
+    const result = await executeUninstallStep(step, fs, execService);
 
     if (result.status === "removed") {
       anyRemoved = true;
@@ -901,7 +900,7 @@ export async function executeCompositeUninstall(
       continue;
     }
 
-    if (anyRemoved) {
+    if (failureMode === "best-effort" && anyRemoved) {
       warnings.push(result.message);
       continue;
     }
@@ -924,6 +923,16 @@ export async function executeCompositeUninstall(
   }
 
   return { status: "not_configured", message: "GitHits not configured" };
+}
+
+async function executeUninstallStep(
+  step: UninstallStep,
+  fs: FileSystemService,
+  execService: ExecService,
+): Promise<UninstallResult> {
+  return step.method === "cli"
+    ? executeCliUninstall(step, execService)
+    : executeConfigFileUninstall(step, fs);
 }
 
 /**

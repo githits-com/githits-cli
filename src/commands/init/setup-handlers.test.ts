@@ -1183,15 +1183,23 @@ describe("formatUninstallPreview", () => {
       method: "composite",
       steps: [
         {
-          method: "config-file",
-          configPath: "/home/test/.pi/agent/mcp.json",
-          serversKey: "mcpServers",
-          serverName: "GitHits",
-          serverConfig: {},
+          failureMode: "required",
+          step: {
+            method: "config-file",
+            configPath: "/home/test/.pi/agent/mcp.json",
+            serversKey: "mcpServers",
+            serverName: "GitHits",
+            serverConfig: {},
+          },
         },
         {
-          method: "cli",
-          commands: [{ command: "pi", args: ["remove", "npm:pi-mcp-adapter"] }],
+          failureMode: "required",
+          step: {
+            method: "cli",
+            commands: [
+              { command: "pi", args: ["remove", "npm:pi-mcp-adapter"] },
+            ],
+          },
         },
       ],
     });
@@ -2051,10 +2059,16 @@ describe("executeCompositeUninstall", () => {
   const piUninstall: CompositeUninstall = {
     method: "composite",
     steps: [
-      piConfigUninstall,
       {
-        method: "cli",
-        commands: [{ command: "pi", args: ["remove", "npm:pi-mcp-adapter"] }],
+        failureMode: "required",
+        step: piConfigUninstall,
+      },
+      {
+        failureMode: "required",
+        step: {
+          method: "cli",
+          commands: [{ command: "pi", args: ["remove", "npm:pi-mcp-adapter"] }],
+        },
       },
     ],
   };
@@ -2084,7 +2098,7 @@ describe("executeCompositeUninstall", () => {
     ]);
   });
 
-  it("returns removed with warning when only config is present", async () => {
+  it("returns removed when required adapter is already absent after config removal", async () => {
     const fs = createMockFileSystemService({
       readFile: mock(() =>
         Promise.resolve(JSON.stringify({ mcpServers: { GitHits: {} } })),
@@ -2107,6 +2121,40 @@ describe("executeCompositeUninstall", () => {
     );
     expect(result.status).toBe("removed");
     expect(result.warnings).toHaveLength(1);
+  });
+
+  it("returns removed with warning for best-effort failure after removal", async () => {
+    const bestEffortUninstall: CompositeUninstall = {
+      method: "composite",
+      steps: [
+        { failureMode: "required", step: piConfigUninstall },
+        {
+          failureMode: "best-effort",
+          step: {
+            method: "cli",
+            commands: [{ command: "pi", args: ["cleanup"] }],
+          },
+        },
+      ],
+    };
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(JSON.stringify({ mcpServers: { GitHits: {} } })),
+      ),
+    });
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 1, stdout: "", stderr: "boom\n" }),
+      ),
+    });
+
+    const result = await executeCompositeUninstall(
+      bestEffortUninstall,
+      fs,
+      execService,
+    );
+    expect(result.status).toBe("removed");
+    expect(result.warnings?.[0]).toContain("boom");
   });
 
   it("returns removed when only adapter is present", async () => {
@@ -2171,7 +2219,7 @@ describe("executeCompositeUninstall", () => {
     expect(execService.exec).not.toHaveBeenCalled();
   });
 
-  it("returns removed with warning on later hard failure", async () => {
+  it("fails on later required hard failure", async () => {
     const fs = createMockFileSystemService({
       readFile: mock(() =>
         Promise.resolve(JSON.stringify({ mcpServers: { GitHits: {} } })),
@@ -2188,7 +2236,7 @@ describe("executeCompositeUninstall", () => {
       fs,
       execService,
     );
-    expect(result.status).toBe("removed");
-    expect(result.warnings?.[0]).toContain("boom");
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("boom");
   });
 });

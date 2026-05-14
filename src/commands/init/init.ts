@@ -20,8 +20,11 @@ import {
 import type { LoginDependencies, LoginFlowResult } from "../login.js";
 import { loginFlow } from "../login.js";
 import {
+  type AgentDefinition,
   agentDefinitions,
+  type ConfigFileSetup,
   isGeminiExtensionInstalledFromFilesystem,
+  type SetupConfig,
   scanAgents,
 } from "./agent-definitions.js";
 import {
@@ -93,6 +96,33 @@ interface UninstallScanResult {
   notConfigured: (typeof agentDefinitions)[number][];
   notDetected: (typeof agentDefinitions)[number][];
   failed: AgentUninstallOutcome[];
+}
+
+function getResolvedSetupConfig(
+  agent: AgentDefinition,
+  fileSystemService: FileSystemService,
+): SetupConfig {
+  return (
+    agent.resolvedSetupConfig ??
+    agent.getSetupConfig(fileSystemService, agent.resolvedSetupContext)
+  );
+}
+
+function getPiConfigFileUninstall(
+  agent: AgentDefinition,
+  fileSystemService: FileSystemService,
+): ConfigFileSetup | null {
+  if (agent.id !== "pi") {
+    return null;
+  }
+  const uninstallConfig = agent.getUninstallConfig?.(fileSystemService);
+  if (uninstallConfig?.method !== "composite") {
+    return null;
+  }
+  const configStep = uninstallConfig.steps
+    .map(({ step }) => step)
+    .find((step): step is ConfigFileSetup => step.method === "config-file");
+  return configStep ?? null;
 }
 
 async function verifyAgentConfigured(
@@ -197,8 +227,8 @@ async function inspectSetupForUninstall(
       accumulated.failure = check;
     }
   }
-  if (accumulated.configured) return "configured";
   if (accumulated.failure) return accumulated.failure;
+  if (accumulated.configured) return "configured";
   return "not_configured";
 }
 
@@ -222,9 +252,7 @@ async function scanAgentsForUninstall(
     ...setupScan.alreadyConfigured,
     ...setupScan.needsSetup,
   ]) {
-    const config =
-      agent.resolvedSetupConfig ??
-      agent.getSetupConfig(fileSystemService, agent.resolvedSetupContext);
+    const config = getResolvedSetupConfig(agent, fileSystemService);
     const check = await inspectSetupForUninstall(
       agent,
       config,
@@ -236,6 +264,35 @@ async function scanAgentsForUninstall(
     } else if (check === "not_configured") {
       result.notConfigured.push(agent);
     } else {
+      result.failed.push({
+        id: agent.id,
+        name: agent.name,
+        status: "failed",
+        message: check.message,
+      });
+    }
+  }
+
+  for (const agent of setupScan.notDetected) {
+    const piConfigUninstall = getPiConfigFileUninstall(
+      agent,
+      fileSystemService,
+    );
+    if (!piConfigUninstall) {
+      continue;
+    }
+    const check = await getConfigUninstallCheckStatus(
+      piConfigUninstall,
+      fileSystemService,
+    );
+    if (check.status === "configured") {
+      result.configured.push({
+        ...agent,
+        resolvedUninstallConfig: piConfigUninstall,
+        skipUninstallVerification: true,
+      });
+      result.notDetected = result.notDetected.filter((a) => a.id !== agent.id);
+    } else if (check.status === "failed") {
       result.failed.push({
         id: agent.id,
         name: agent.name,
@@ -535,14 +592,15 @@ export async function initUninstallAction(
       `  Uninstalling from ${colorize(agent.name, "bold", useColors)}...\n`,
     );
 
-    const setupConfig = agent.getSetupConfig(fileSystemService);
+    const setupConfig = getResolvedSetupConfig(agent, fileSystemService);
     const uninstallConfig =
-      setupConfig.method === "config-file"
+      agent.resolvedUninstallConfig ??
+      (setupConfig.method === "config-file"
         ? setupConfig
         : agent.getUninstallConfig?.(
             fileSystemService,
             agent.resolvedSetupContext,
-          );
+          ));
 
     if (!uninstallConfig) {
       outcomes.push({
@@ -596,7 +654,7 @@ export async function initUninstallAction(
               execService,
             );
 
-    if (result.status === "removed") {
+    if (result.status === "removed" && !agent.skipUninstallVerification) {
       const verification = await verifyAgentUnconfigured(
         agent,
         fileSystemService,

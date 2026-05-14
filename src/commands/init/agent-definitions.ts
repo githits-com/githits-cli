@@ -40,8 +40,13 @@ export interface CliUninstall {
 /** Uninstall made from multiple existing uninstall primitives. */
 export interface CompositeUninstall {
   method: "composite";
-  /** Ordered uninstall steps. Later steps still run after non-fatal absence. */
-  steps: UninstallStep[];
+  /** Ordered uninstall steps. Required steps fail the uninstall; best-effort steps warn after earlier removals. */
+  steps: CompositeUninstallStep[];
+}
+
+export interface CompositeUninstallStep {
+  step: UninstallStep;
+  failureMode: "required" | "best-effort";
 }
 
 /**
@@ -132,6 +137,10 @@ export interface AgentDefinition {
   ) => UninstallConfig;
   /** Setup context resolved during scan, including any detected command path. */
   resolvedSetupContext?: AgentSetupContext;
+  /** Uninstall config resolved during uninstall scan for special cases. */
+  resolvedUninstallConfig?: UninstallConfig;
+  /** Skip generic scan-based verification when uninstall scan used config-only fallback cleanup. */
+  skipUninstallVerification?: boolean;
 }
 
 /**
@@ -508,21 +517,27 @@ const pi: AgentDefinition = {
       method: "composite",
       steps: [
         {
-          method: "config-file",
-          configPath: getPiMcpConfigPath(fs),
-          serversKey: "mcpServers",
-          serverName: GITHITS_SERVER_NAME,
-          // Config-file uninstall ignores serverConfig; keep the shape shared.
-          serverConfig: {},
+          failureMode: "required",
+          step: {
+            method: "config-file",
+            configPath: getPiMcpConfigPath(fs),
+            serversKey: "mcpServers",
+            serverName: GITHITS_SERVER_NAME,
+            // Config-file uninstall ignores serverConfig; keep the shape shared.
+            serverConfig: {},
+          },
         },
         {
-          method: "cli",
-          commands: [
-            {
-              command: piCommand,
-              args: ["remove", "npm:pi-mcp-adapter"],
-            },
-          ],
+          failureMode: "required",
+          step: {
+            method: "cli",
+            commands: [
+              {
+                command: piCommand,
+                args: ["remove", "npm:pi-mcp-adapter"],
+              },
+            ],
+          },
         },
       ],
     };

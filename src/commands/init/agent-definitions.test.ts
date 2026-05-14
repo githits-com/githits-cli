@@ -825,8 +825,10 @@ describe("getSetupConfig", () => {
       throw new Error("expected pi composite uninstall");
     }
     expect(config.steps).toHaveLength(2);
-    const configStep = config.steps[0]!;
-    const removeStep = config.steps[1]!;
+    const configStep = config.steps[0]!.step;
+    const removeStep = config.steps[1]!.step;
+    expect(config.steps[0]!.failureMode).toBe("required");
+    expect(config.steps[1]!.failureMode).toBe("required");
     expect(configStep.method).toBe("config-file");
     if (configStep.method === "config-file") {
       expect(configStep.configPath).toBe("/home/test/.pi/agent/mcp.json");
@@ -853,7 +855,7 @@ describe("getSetupConfig", () => {
     if (config?.method !== "composite") {
       throw new Error("expected pi composite uninstall");
     }
-    const removeStep = config.steps[1]!;
+    const removeStep = config.steps[1]!.step;
     if (removeStep.method !== "cli") {
       throw new Error("expected pi cli uninstall step");
     }
@@ -876,7 +878,7 @@ describe("getSetupConfig", () => {
       if (config?.method !== "composite") {
         throw new Error("expected pi composite uninstall");
       }
-      const configStep = config.steps[0]!;
+      const configStep = config.steps[0]!.step;
       if (configStep.method !== "config-file") {
         throw new Error("expected config-file uninstall step");
       }
@@ -1045,7 +1047,7 @@ describe("scanAgents", () => {
 
   /** Helper to create fs + exec mocks for scan tests */
   function createScanMocks(opts: {
-    detectedDirs: string[];
+    detectedDirs?: string[];
     configFiles?: Record<string, string>;
     existingFiles?: string[];
     execResults?: Record<string, ExecResult | Error>;
@@ -1054,7 +1056,7 @@ describe("scanAgents", () => {
       getHomeDir: mock(() => "/home/test"),
       joinPath: mock((...segments: string[]) => segments.join("/")),
       isDirectory: mock(async (path: string) =>
-        opts.detectedDirs.includes(path),
+        (opts.detectedDirs ?? []).includes(path),
       ),
       readFile: mock(async (path: string) => {
         if (opts.configFiles && path in opts.configFiles) {
@@ -1520,6 +1522,46 @@ describe("scanAgents", () => {
         throw new Error("expected pi cli setup step");
       }
       expect(installStep.commands[0]!.command).toBe("C:\\npm/pi.cmd");
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
+        configurable: true,
+      });
+    }
+  });
+
+  it("detects pi.cmd from npm global bin path with spaces on win32", async () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", {
+      value: "win32",
+      configurable: true,
+    });
+    try {
+      const { fs, execService } = createScanMocks({
+        existingFiles: ["C:\\Users\\Jane Doe\\AppData\\Roaming\\npm/pi.cmd"],
+        execResults: {
+          "where pi": { exitCode: 1, stdout: "", stderr: "" },
+          "npm prefix -g": {
+            exitCode: 0,
+            stdout: "C:\\Users\\Jane Doe\\AppData\\Roaming\\npm\n",
+            stderr: "",
+          },
+        },
+      });
+
+      const result = await scanAgents(agentDefinitions, fs, execService);
+      const piAgent = result.needsSetup.find((a) => a.id === "pi");
+      const config = piAgent?.resolvedSetupConfig;
+      if (config?.method !== "composite") {
+        throw new Error("expected pi composite setup");
+      }
+      const installStep = config.steps[0]!;
+      if (installStep.method !== "cli") {
+        throw new Error("expected pi cli setup step");
+      }
+      expect(installStep.commands[0]!.command).toBe(
+        "C:\\Users\\Jane Doe\\AppData\\Roaming\\npm/pi.cmd",
+      );
     } finally {
       Object.defineProperty(process, "platform", {
         value: originalPlatform,
