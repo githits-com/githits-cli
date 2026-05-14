@@ -25,7 +25,7 @@ export async function registerCodeCommandGroup(
     .command("code")
     .summary("Source-level operations on indexed dependencies")
     .description(
-      "List files, read files, and grep substrings inside indexed dependency source. Every command accepts either `<spec>` (registry:name[@version]) or `--repo-url <url> --git-ref <ref>`. For symbol or unified discovery search use `githits search`; for package-level metadata use `githits pkg`.",
+      "List files, read files, and grep substrings inside indexed dependency source. Every command accepts either `<spec>` (registry:name[@version]) or `--repo-url <url> --git-ref <ref>`. Omitted versions use the latest release. For repo default-branch discovery without refs use `githits search`; for package-level metadata use `githits pkg`.",
     );
 
   registerCodeFilesCommand(codeCommand);

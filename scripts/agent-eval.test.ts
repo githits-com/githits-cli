@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -36,6 +37,12 @@ import {
   summarizeFinalReport,
   summarizeToolCalls,
 } from "./agent-eval-report.ts";
+import {
+  buildClaudeSessionCommand,
+  buildCodexSessionCommand,
+  parseSessionArgs,
+  prepareAgentSession,
+} from "./agent-session.ts";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
@@ -79,11 +86,14 @@ function createRunFixture(status = "success"): string {
 
 describe("agent eval harness", () => {
   it("builds local MCP config with explicit repo cwd", () => {
-    const config = buildMcpConfig({
-      server: "local",
-      repoRoot: "/repo/githits-cli",
-      publishedPackage: "githits@latest",
-    });
+    const config = buildMcpConfig(
+      {
+        server: "local",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+      {},
+    );
 
     expect(config.mcpServers.githits).toEqual({
       command: "bun",
@@ -92,11 +102,14 @@ describe("agent eval harness", () => {
   });
 
   it("builds published MCP config with pinned package spec", () => {
-    const config = buildMcpConfig({
-      server: "published",
-      repoRoot: "/repo/githits-cli",
-      publishedPackage: "githits@0.4.2",
-    });
+    const config = buildMcpConfig(
+      {
+        server: "published",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@0.4.2",
+      },
+      {},
+    );
 
     expect(config.mcpServers.githits).toEqual({
       command: "npx",
@@ -106,11 +119,14 @@ describe("agent eval harness", () => {
 
   it("builds Codex TOML config from the same MCP command", () => {
     expect(
-      buildCodexConfig({
-        server: "local",
-        repoRoot: "/repo/githits-cli",
-        publishedPackage: "githits@latest",
-      }),
+      buildCodexConfig(
+        {
+          server: "local",
+          repoRoot: "/repo/githits-cli",
+          publishedPackage: "githits@latest",
+        },
+        {},
+      ),
     ).toBe(
       '[mcp_servers.githits]\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n',
     );
@@ -118,11 +134,14 @@ describe("agent eval harness", () => {
 
   it("builds Codex config override args", () => {
     expect(
-      buildCodexConfigArgs({
-        server: "published",
-        repoRoot: "/repo/githits-cli",
-        publishedPackage: "githits@0.4.2",
-      }),
+      buildCodexConfigArgs(
+        {
+          server: "published",
+          repoRoot: "/repo/githits-cli",
+          publishedPackage: "githits@0.4.2",
+        },
+        {},
+      ),
     ).toEqual([
       "-c",
       'mcp_servers.githits.command="npx"',
@@ -131,10 +150,44 @@ describe("agent eval harness", () => {
     ]);
   });
 
-  it("passes selected models to agent commands", () => {
-    expect(buildClaudeCommand("prompt", "/tmp/mcp.json", "haiku")).toContain(
-      "haiku",
+  it("embeds non-secret backend override env in MCP configs", () => {
+    const env = {
+      GITHITS_API_URL: "https://api-dev.githits.com",
+      PKGSEER_URL: "https://pkgseer-backend-dev.fly.dev",
+      GITHITS_API_TOKEN: "secret-token",
+    };
+
+    const mcpConfig = buildMcpConfig(
+      {
+        server: "local",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+      env,
     );
+    expect(mcpConfig.mcpServers.githits.env).toEqual({
+      GITHITS_API_URL: "https://api-dev.githits.com",
+      PKGSEER_URL: "https://pkgseer-backend-dev.fly.dev",
+    });
+
+    expect(
+      buildCodexConfigArgs(
+        {
+          server: "local",
+          repoRoot: "/repo/githits-cli",
+          publishedPackage: "githits@latest",
+        },
+        env,
+      ),
+    ).toContain(
+      'mcp_servers.githits.env.PKGSEER_URL="https://pkgseer-backend-dev.fly.dev"',
+    );
+  });
+
+  it("passes selected models to agent commands", () => {
+    expect(
+      buildClaudeCommand("prompt", "/tmp/mcp.json", "haiku", "mcp"),
+    ).toContain("haiku");
     expect(
       buildCodexCommand(
         "prompt",
@@ -143,6 +196,7 @@ describe("agent eval harness", () => {
         "/tmp/schema.json",
         {
           server: "local",
+          surface: "mcp",
           repoRoot: "/repo/githits-cli",
           publishedPackage: "githits@latest",
           model: "gpt-5.4-mini",
@@ -159,6 +213,7 @@ describe("agent eval harness", () => {
       "/tmp/schema.json",
       {
         server: "local",
+        surface: "mcp",
         repoRoot: "/repo/githits-cli",
         publishedPackage: "githits@latest",
       },
@@ -166,6 +221,115 @@ describe("agent eval harness", () => {
 
     expect(command).toContain("--dangerously-bypass-approvals-and-sandbox");
     expect(command).not.toContain("--sandbox");
+  });
+
+  it("builds agent commands without GitHits MCP config in skills mode", () => {
+    const claude = buildClaudeCommand(
+      "prompt",
+      "/tmp/empty-mcp.json",
+      undefined,
+      "skills",
+    );
+    expect(claude).toContain("--mcp-config");
+    expect(claude).toContain("/tmp/empty-mcp.json");
+    expect(claude).toContain("--strict-mcp-config");
+    expect(claude).not.toContain("--disable-slash-commands");
+    expect(claude).toContain("--setting-sources");
+
+    const codex = buildCodexCommand(
+      "prompt",
+      "/tmp/work",
+      "/tmp/final.txt",
+      "/tmp/schema.json",
+      {
+        server: "local",
+        surface: "skills",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+    );
+    expect(codex).not.toContain("mcp_servers.githits.command");
+    expect(codex).not.toContain("--ignore-rules");
+    expect(codex).toContain("--ignore-user-config");
+  });
+
+  it("builds interactive Claude and Codex session commands", () => {
+    const claudeOptions = parseSessionArgs(
+      ["--agent", "claude", "--surface", "skills", "--model", "haiku"],
+      "/repo/githits-cli",
+    );
+    expect(buildClaudeSessionCommand(claudeOptions, "/tmp/mcp.json")).toEqual([
+      "claude",
+      "--mcp-config",
+      "/tmp/mcp.json",
+      "--strict-mcp-config",
+      "--setting-sources",
+      "project",
+      "--model",
+      "haiku",
+    ]);
+
+    const codexOptions = parseSessionArgs(
+      ["--agent", "codex", "--surface", "mcp", "--bypass-permissions"],
+      "/repo/githits-cli",
+    );
+    const codexCommand = buildCodexSessionCommand(codexOptions);
+    expect(codexCommand).toContain("mcp_servers={}");
+    expect(codexCommand).toContain('mcp_servers.githits.command="bun"');
+    expect(codexCommand).toContain(
+      "--dangerously-bypass-approvals-and-sandbox",
+    );
+
+    const codexSkillsOptions = parseSessionArgs(
+      ["--agent", "codex", "--surface", "skills"],
+      "/repo/githits-cli",
+    );
+    const codexSkillsCommand = buildCodexSessionCommand(codexSkillsOptions);
+    expect(codexSkillsCommand).toContain("--ignore-user-config");
+  });
+
+  it("prepares an interactive skills workspace", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
+    const prepared = prepareAgentSession({
+      agent: "claude",
+      surface: "skills",
+      server: "local",
+      workspaceDir,
+      repoRoot: process.cwd(),
+      publishedPackage: "githits@latest",
+      dryRun: true,
+      bypassPermissions: false,
+    });
+
+    expect(prepared.skillInstallation?.installedDirs).toContain(
+      join(workspaceDir, "skills"),
+    );
+    expect(readFileSync(prepared.mcpConfigPath, "utf8")).toContain(
+      '"mcpServers": {}',
+    );
+  });
+
+  it("removes stale skills when preparing a reused workspace", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
+    const staleSkillDir = join(workspaceDir, "skills", "search");
+    mkdirSync(staleSkillDir, { recursive: true });
+    writeFileSync(join(staleSkillDir, "SKILL.md"), "stale");
+
+    prepareAgentSession({
+      agent: "claude",
+      surface: "skills",
+      server: "local",
+      workspaceDir,
+      repoRoot: process.cwd(),
+      publishedPackage: "githits@latest",
+      dryRun: true,
+      bypassPermissions: false,
+    });
+
+    expect(existsSync(join(staleSkillDir, "SKILL.md"))).toBe(false);
+    expect(
+      existsSync(join(workspaceDir, "skills", "githits-code", "SKILL.md")),
+    ).toBe(true);
   });
 
   it("preserves normal Claude and GitHits auth environment while filtering unrelated vars", () => {
@@ -209,6 +373,8 @@ describe("agent eval harness", () => {
         "codex",
         "--server",
         "published",
+        "--surface",
+        "skills",
         "--model",
         "gpt-5.4-mini",
         "--published-package",
@@ -225,6 +391,7 @@ describe("agent eval harness", () => {
     expect(options.agent).toBe("codex");
     expect(options.model).toBe("gpt-5.4-mini");
     expect(options.server).toBe("published");
+    expect(options.surface).toBe("skills");
     expect(options.publishedPackage).toBe("githits@0.4.2");
     expect(options.timeoutSeconds).toBe(12);
     expect(options.dryRun).toBe(true);
@@ -320,6 +487,51 @@ describe("agent eval harness", () => {
         arguments: { registry: "npm", package_name: "express" },
       },
     ]);
+  });
+
+  it("extracts GitHits CLI calls from skill-surface shell commands", () => {
+    const calls = extractToolCalls(
+      `${JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "Bash",
+              input: {
+                command:
+                  "githits pkg vulns npm:lodash@4.17.20 --severity high --json",
+              },
+            },
+          ],
+        },
+      })}\n${JSON.stringify({
+        item: {
+          type: "function_call",
+          arguments: {
+            command:
+              "npx -y githits@latest code read npm:express lib/router/index.js --lines 1-80",
+          },
+        },
+      })}\n${JSON.stringify({
+        item: {
+          type: "function_call",
+          arguments: {
+            command:
+              "bun run --cwd /repo/githits-cli dev pkg info npm:express --json",
+          },
+        },
+      })}\n`,
+      "claude",
+      "skills",
+    );
+
+    expect(calls.map((call) => call.tool)).toEqual([
+      "pkg_vulns",
+      "code_read",
+      "pkg_info",
+    ]);
+    expect(calls[0]?.server).toBe("githits-cli");
   });
 
   it("ignores non-MCP Claude tool calls", () => {
@@ -574,9 +786,11 @@ describe("agent eval harness", () => {
     );
     const formatted = formatCompareReport(compareReports(before, after));
 
-    expect(formatted).toContain("before=/before (codex:gpt-5.4-mini/local)");
+    expect(formatted).toContain(
+      "before=/before (codex:gpt-5.4-mini/mcp/local)",
+    );
     expect(formatted).toContain("after=");
-    expect(formatted).toContain("(codex/local)");
+    expect(formatted).toContain("(codex/mcp/local)");
     expect(formatted).toContain("pkg-vulns status unchanged success");
     expect(formatted).toContain("raw events 0 -> 2");
     expect(formatted).toContain("+pkg_vulns");

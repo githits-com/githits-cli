@@ -52,15 +52,17 @@ export interface SearchParams {
 /**
  * Parameters for feedback API call.
  *
- * `solutionId` is optional: when present, the feedback is anchored
- * to a specific `get_example` result; when absent, the feedback is
- * generic and applies to the overall tool surface (code/package
- * navigation, search, docs, or the GitHits experience as a whole).
+ * Feedback can target an example, a solution, or the current CLI/MCP
+ * session. When neither `exampleId` nor `solutionId` is present, the
+ * backend uses the `x-githits-session-id` header from `buildClientHeaders()`
+ * to create generic session feedback.
  */
 export interface FeedbackParams {
+  exampleId?: string;
   solutionId?: string;
   accepted: boolean;
   feedbackText?: string;
+  toolName?: string;
 }
 
 /**
@@ -81,7 +83,7 @@ export interface GitHitsService {
   /** Get all supported languages. */
   getLanguages(): Promise<Language[]>;
 
-  /** Submit feedback on a search result. */
+  /** Submit feedback on a result or the current GitHits session. */
   submitFeedback(params: FeedbackParams): Promise<FeedbackResult>;
 }
 
@@ -131,19 +133,24 @@ export class GitHitsServiceImpl implements GitHitsService {
 
   async submitFeedback(params: FeedbackParams): Promise<FeedbackResult> {
     return withTelemetrySpan("githits.feedback.request", async () => {
-      // `solution_id` is omitted entirely when undefined — the backend
-      // accepts the key absent for generic feedback. `feedback_text`
-      // still uses null-on-omit because backend infrastructure was
-      // already shaped that way; revisit if/when it changes.
+      // For generic feedback, omit body targets entirely. The backend
+      // then uses the valid x-githits-session-id header emitted by
+      // buildClientHeaders() as the feedback target.
       const response = await fetch(`${this.apiUrl}/feedbacks`, {
         method: "POST",
         headers: this.headers(),
         body: JSON.stringify({
+          ...(params.exampleId !== undefined && {
+            example_id: params.exampleId,
+          }),
           ...(params.solutionId !== undefined && {
             solution_id: params.solutionId,
           }),
           accepted: params.accepted,
           feedback_text: params.feedbackText ?? null,
+          ...(params.toolName !== undefined && {
+            tool_name: params.toolName,
+          }),
         }),
       });
 

@@ -11,6 +11,7 @@ import {
   PKGSEER_REGISTRY_LIST,
   toPkgseerRegistryLowercase,
 } from "../shared/pkgseer-registry.js";
+import { PKG_CHANGELOG_GUARDRAIL } from "./guardrails.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
 export interface PackageChangelogArgs {
@@ -111,7 +112,7 @@ const schema = {
     ),
 };
 
-const DESCRIPTION =
+export const DESCRIPTION =
   "Release notes for a package or GitHub repo, newest-first. Default " +
   "latest mode returns the ten most recent entries (`limit` 1–50). " +
   "With `from_version`, returns every entry in the " +
@@ -129,7 +130,8 @@ const DESCRIPTION =
   "Package-version entries without changelog " +
   "text succeed with `source` omitted; no-source plus no entries " +
   "returns `NOT_FOUND`. Supports npm, PyPI, Hex, Crates, NuGet, " +
-  "Maven, Zig, vcpkg, Packagist, RubyGems, and Go.";
+  "Maven, Zig, vcpkg, Packagist, RubyGems, and Go." +
+  `\n\n${PKG_CHANGELOG_GUARDRAIL}`;
 
 export function createPackageChangelogTool(
   service: PackageIntelligenceService,

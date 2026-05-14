@@ -28,7 +28,7 @@ import { debugLog } from "./debug-log.js";
 import { buildClientHeaders } from "./request-headers.js";
 
 export interface PkgseerGraphqlRequest {
-  /** Full endpoint URL, e.g. `https://pkgseer.dev`. Trailing slashes tolerated. */
+  /** Full base URL for the package/source service. Trailing slashes tolerated. */
   endpointUrl: string;
   /** Resolved bearer token. Caller is responsible for obtaining + refreshing. */
   token: string;

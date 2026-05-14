@@ -108,6 +108,9 @@ export interface PackageVersionIdentity {
   name: string;
   registry?: string;
   version: string;
+  publishedAt?: string;
+  deprecated?: boolean;
+  deprecationReason?: string;
 }
 
 export interface VulnerabilityDetail {
@@ -163,6 +166,17 @@ export interface PackageDependenciesParams {
    * `peer`, `optional`.
    */
   lifecycle?: string[];
+}
+
+export interface PackageUpgradeDependencyProbeParams {
+  registry: PkgseerRegistry;
+  packageName: string;
+  version: string;
+  minSeverity?: number;
+  includeTransitiveSecurity?: boolean;
+  includeDependencyIssues?: boolean;
+  includeDependencyChanges?: boolean;
+  includeGroups?: boolean;
 }
 
 export interface DirectDependency {
@@ -261,6 +275,118 @@ export interface TransitiveDependencySummary {
    * `package_dependencies` envelope.
    */
   dependencyGraph?: DependencyGraph;
+  vulnerabilitySummary?: TransitiveVulnerabilitySummary;
+  dependencyIssues?: DependencyIssuesSummary;
+}
+
+export interface VulnerabilityCountSummary {
+  totalVulnerabilities: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  unknown: number;
+}
+
+export interface VulnerabilitySummaryDetail {
+  osvId?: string;
+  registry?: string;
+  packageName?: string;
+  summary?: string;
+  severityScore?: number;
+  severityType?: string;
+  affectedVersionRanges?: string[];
+  fixedInVersions?: string[];
+  publishedAt?: string;
+  modifiedAt?: string;
+  withdrawnAt?: string;
+  aliases?: string[];
+  isMalicious?: boolean;
+}
+
+export interface TransitiveDependencyVulnerability {
+  version: string;
+  affectsResolvedVersion: boolean;
+  matchedAffectedVersionRanges: string[];
+  fixVersionsAboveResolved: string[];
+  nearestFixedVersion?: string;
+  advisory: VulnerabilitySummaryDetail;
+}
+
+export interface TransitiveVulnerablePackage {
+  registry: string;
+  name: string;
+  versions: string[];
+  affectedCount: number;
+  nonAffectingCount: number;
+  totalCount: number;
+  maxSeverityScore?: number;
+  maxSeverityLabel?: string;
+  advisoryIds: string[];
+  mostCritical?: VulnerabilitySummaryDetail;
+  advisoryOccurrences?: TransitiveDependencyVulnerability[];
+}
+
+export interface TransitiveVulnerabilitySummary {
+  affected: VulnerabilityCountSummary;
+  nonAffecting: VulnerabilityCountSummary;
+  combined: VulnerabilityCountSummary;
+  totalPackagesAnalyzed: number;
+  affectedPackageCount: number;
+  packages: TransitiveVulnerablePackage[];
+  calculatedAt?: string;
+}
+
+export interface DependencyDeprecationReason {
+  version: string;
+  reason?: string;
+}
+
+export interface DeprecatedDependency {
+  registry: string;
+  name: string;
+  versions: string[];
+  reasons: DependencyDeprecationReason[];
+}
+
+export interface OutdatedDependencyVersion {
+  version: string;
+  severity: string;
+}
+
+export interface OutdatedDependency {
+  registry: string;
+  name: string;
+  latestVersion?: string;
+  severity: string;
+  versions: OutdatedDependencyVersion[];
+  repositoryUrl?: string;
+}
+
+export interface DuplicateDependency {
+  registry?: string;
+  name: string;
+  versions: string[];
+}
+
+export interface DependencyIssueConflict {
+  registry?: string;
+  name: string;
+  versions: string[];
+  requiredVersions: string[];
+  conflictingEdges: DependencyConflictEdge[];
+}
+
+export interface DependencyIssuesSummary {
+  totalCount: number;
+  deprecatedCount: number;
+  outdatedCount: number;
+  duplicateCount: number;
+  conflictCount: number;
+  deprecatedPackages: DeprecatedDependency[];
+  outdatedPackages: OutdatedDependency[];
+  duplicatePackages: DuplicateDependency[];
+  conflicts: DependencyIssueConflict[];
 }
 
 export interface DependencyBundle {
@@ -445,6 +571,9 @@ export interface PackageIntelligenceService {
   ): Promise<VulnerabilityReport>;
   packageDependencies(
     params: PackageDependenciesParams,
+  ): Promise<DependencyReport>;
+  packageUpgradeDependencyProbe(
+    params: PackageUpgradeDependencyProbeParams,
   ): Promise<DependencyReport>;
   packageChangelog(params: PackageChangelogParams): Promise<ChangelogReport>;
   listPackageDocs(params: ListPackageDocsParams): Promise<PackageDocsList>;
@@ -690,6 +819,9 @@ const packageVersionIdentitySchema = z.object({
   name: z.string().nullable().optional(),
   registry: z.string().nullable().optional(),
   version: z.string().nullable().optional(),
+  publishedAt: z.string().nullable().optional(),
+  deprecated: z.boolean().nullable().optional(),
+  deprecationReason: z.string().nullable().optional(),
 });
 
 const vulnerabilityDetailSchema = z.object({
@@ -837,6 +969,102 @@ const dependencyGraphSchema = z.object({
   edges: z.array(dependencyGraphEdgeSchema),
 });
 
+const vulnerabilityCountSummarySchema = z.object({
+  totalVulnerabilities: z.number().int(),
+  critical: z.number().int(),
+  high: z.number().int(),
+  medium: z.number().int(),
+  low: z.number().int(),
+  unknown: z.number().int(),
+});
+
+const vulnerabilitySummaryDetailSchema = z.object({
+  osvId: z.string().nullable().optional(),
+  registry: z.string().nullable().optional(),
+  packageName: z.string().nullable().optional(),
+  summary: z.string().nullable().optional(),
+  severityScore: z.number().nullable().optional(),
+  severityType: z.string().nullable().optional(),
+  affectedVersionRanges: z.array(z.string()).nullable().optional(),
+  fixedInVersions: z.array(z.string()).nullable().optional(),
+  publishedAt: z.string().nullable().optional(),
+  modifiedAt: z.string().nullable().optional(),
+  withdrawnAt: z.string().nullable().optional(),
+  aliases: z.array(z.string()).nullable().optional(),
+  isMalicious: z.boolean().nullable().optional(),
+});
+
+const transitiveDependencyVulnerabilitySchema = z.object({
+  version: z.string(),
+  affectsResolvedVersion: z.boolean(),
+  matchedAffectedVersionRanges: z.array(z.string()),
+  fixVersionsAboveResolved: z.array(z.string()),
+  nearestFixedVersion: z.string().nullable().optional(),
+  advisory: vulnerabilitySummaryDetailSchema,
+});
+
+const transitiveVulnerablePackageSchema = z.object({
+  registry: z.string(),
+  name: z.string(),
+  versions: z.array(z.string()),
+  affectedCount: z.number().int(),
+  nonAffectingCount: z.number().int(),
+  totalCount: z.number().int(),
+  maxSeverityScore: z.number().nullable().optional(),
+  maxSeverityLabel: z.string().nullable().optional(),
+  advisoryIds: z.array(z.string()),
+  mostCritical: vulnerabilitySummaryDetailSchema.nullable().optional(),
+  advisoryOccurrences: z
+    .array(transitiveDependencyVulnerabilitySchema)
+    .nullable()
+    .optional(),
+});
+
+const transitiveVulnerabilitySummarySchema = z
+  .object({
+    affected: vulnerabilityCountSummarySchema,
+    nonAffecting: vulnerabilityCountSummarySchema,
+    combined: vulnerabilityCountSummarySchema,
+    totalPackagesAnalyzed: z.number().int(),
+    affectedPackageCount: z.number().int(),
+    packages: z.array(transitiveVulnerablePackageSchema),
+    calculatedAt: z.string().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+const dependencyDeprecationReasonSchema = z.object({
+  version: z.string(),
+  reason: z.string().nullable().optional(),
+});
+
+const deprecatedDependencySchema = z.object({
+  registry: z.string(),
+  name: z.string(),
+  versions: z.array(z.string()),
+  reasons: z.array(dependencyDeprecationReasonSchema),
+});
+
+const outdatedDependencyVersionSchema = z.object({
+  version: z.string(),
+  severity: z.string(),
+});
+
+const outdatedDependencySchema = z.object({
+  registry: z.string(),
+  name: z.string(),
+  latestVersion: z.string().nullable().optional(),
+  severity: z.string(),
+  versions: z.array(outdatedDependencyVersionSchema),
+  repositoryUrl: z.string().nullable().optional(),
+});
+
+const duplicateDependencySchema = z.object({
+  registry: z.string().nullable().optional(),
+  name: z.string(),
+  versions: z.array(z.string()),
+});
+
 const dependencyConflictEdgeSchema = z.object({
   fromIndex: z.number().int().nullable().optional(),
   toIndex: z.number().int(),
@@ -849,6 +1077,29 @@ const dependencyConflictSchema = z.object({
   requiredVersions: z.array(z.string()),
   conflictingEdges: z.array(dependencyConflictEdgeSchema),
 });
+
+const dependencyIssueConflictSchema = z.object({
+  registry: z.string().nullable().optional(),
+  name: z.string(),
+  versions: z.array(z.string()),
+  requiredVersions: z.array(z.string()),
+  conflictingEdges: z.array(dependencyConflictEdgeSchema),
+});
+
+const dependencyIssuesSummarySchema = z
+  .object({
+    totalCount: z.number().int(),
+    deprecatedCount: z.number().int(),
+    outdatedCount: z.number().int(),
+    duplicateCount: z.number().int(),
+    conflictCount: z.number().int(),
+    deprecatedPackages: z.array(deprecatedDependencySchema),
+    outdatedPackages: z.array(outdatedDependencySchema),
+    duplicatePackages: z.array(duplicateDependencySchema),
+    conflicts: z.array(dependencyIssueConflictSchema),
+  })
+  .nullable()
+  .optional();
 
 const circularDependencyCycleSchema = z.object({
   cycleStart: z.string(),
@@ -876,6 +1127,8 @@ const transitiveDependencySchema = z
       .nullable()
       .optional(),
     dependencyGraph: dependencyGraphSchema.nullable().optional(),
+    vulnerabilitySummary: transitiveVulnerabilitySummarySchema,
+    dependencyIssues: dependencyIssuesSummarySchema,
   })
   .nullable()
   .optional();
@@ -999,6 +1252,204 @@ query PackageDependencies(
       }
     }
     dependencyGroups {
+      primaryGroup
+      environmentMarkers {
+        type
+        value
+        raw
+      }
+      groups {
+        name
+        lifecycle
+        conditionType
+        conditionValue
+        selectionMode
+        exclusiveGroup
+        fallbackPriority
+        compatibleWith
+        defaultEnabled
+        dependencies {
+          name
+          constraint
+        }
+      }
+    }
+  }
+}`;
+
+const PACKAGE_UPGRADE_DEPENDENCY_PROBE_QUERY = `
+query PackageUpgradeDependencyProbe(
+  $registry: Registry!
+  $name: String!
+  $version: String!
+  $includeTransitiveRisk: Boolean!
+  $includeTransitiveSecurity: Boolean!
+  $includeDependencyIssues: Boolean!
+  $includeDependencyChanges: Boolean!
+  $includeGroups: Boolean!
+  $lifecycle: [String!]
+  $minSeverity: Float
+) {
+  packageDependencies(
+    registry: $registry
+    name: $name
+    version: $version
+    includeTransitive: $includeTransitiveRisk
+    lifecycle: $lifecycle
+  ) {
+    package {
+      name
+      registry
+      version
+      publishedAt
+      deprecated
+      deprecationReason
+    }
+    dependencies {
+      direct {
+        name
+        versionConstraint
+        type
+      }
+      transitive @include(if: $includeTransitiveRisk) {
+        dependencyGraph @include(if: $includeDependencyChanges) {
+          formatVersion
+          nodes {
+            registry
+            name
+            version
+          }
+          edges {
+            fromIndex
+            toIndex
+            constraint
+            dependencyType
+          }
+        }
+        vulnerabilitySummary(minSeverity: $minSeverity) @include(if: $includeTransitiveSecurity) {
+          affected {
+            totalVulnerabilities
+            critical
+            high
+            medium
+            low
+            unknown
+          }
+          nonAffecting {
+            totalVulnerabilities
+            critical
+            high
+            medium
+            low
+            unknown
+          }
+          combined {
+            totalVulnerabilities
+            critical
+            high
+            medium
+            low
+            unknown
+          }
+          totalPackagesAnalyzed
+          affectedPackageCount
+          calculatedAt
+          packages {
+            registry
+            name
+            versions
+            affectedCount
+            nonAffectingCount
+            totalCount
+            maxSeverityScore
+            maxSeverityLabel
+            advisoryIds(scope: AFFECTED)
+            mostCritical {
+              osvId
+              registry
+              packageName
+              summary
+              severityScore
+              severityType
+              affectedVersionRanges
+              fixedInVersions
+              publishedAt
+              modifiedAt
+              withdrawnAt
+              aliases
+              isMalicious
+            }
+            advisoryOccurrences(scope: AFFECTED, minSeverity: $minSeverity, limit: 5) {
+              version
+              affectsResolvedVersion
+              matchedAffectedVersionRanges
+              fixVersionsAboveResolved
+              nearestFixedVersion
+              advisory {
+                osvId
+                registry
+                packageName
+                summary
+                severityScore
+                severityType
+                affectedVersionRanges
+                fixedInVersions
+                publishedAt
+                modifiedAt
+                withdrawnAt
+                aliases
+                isMalicious
+              }
+            }
+          }
+        }
+        dependencyIssues @include(if: $includeDependencyIssues) {
+          totalCount
+          deprecatedCount
+          outdatedCount
+          duplicateCount
+          conflictCount
+          deprecatedPackages {
+            registry
+            name
+            versions
+            reasons {
+              version
+              reason
+            }
+          }
+          outdatedPackages {
+            registry
+            name
+            latestVersion
+            severity
+            versions {
+              version
+              severity
+            }
+            repositoryUrl
+          }
+          duplicatePackages {
+            registry
+            name
+            versions
+          }
+          conflicts {
+            registry
+            name
+            versions
+            requiredVersions
+            conflictingEdges {
+              fromIndex
+              toIndex
+              versionConstraint
+              dependencyType
+            }
+          }
+        }
+      }
+    }
+    dependencyGroups @include(if: $includeGroups) {
       primaryGroup
       environmentMarkers {
         type
@@ -1703,6 +2154,9 @@ export class PackageIntelligenceServiceImpl
       name,
       version,
       registry: data.package?.registry ?? undefined,
+      publishedAt: data.package?.publishedAt ?? undefined,
+      deprecated: data.package?.deprecated ?? undefined,
+      deprecationReason: data.package?.deprecationReason ?? undefined,
     };
 
     const security: VulnerabilitySecurityDetails | undefined = data.security
@@ -1753,6 +2207,88 @@ export class PackageIntelligenceServiceImpl
           this.executePackageDependencies(token, params),
       }),
     );
+  }
+
+  async packageUpgradeDependencyProbe(
+    params: PackageUpgradeDependencyProbeParams,
+  ): Promise<DependencyReport> {
+    return withTelemetrySpan("pkg-intel.upgrade-dependency-probe.request", () =>
+      executeWithTokenRefresh({
+        getToken: () => this.tokenProvider.getToken(),
+        forceRefresh: () => this.tokenProvider.forceRefresh(),
+        shouldRefresh: (error) => error instanceof AuthenticationError,
+        executeWithToken: (token) =>
+          this.executePackageUpgradeDependencyProbe(token, params),
+      }),
+    );
+  }
+
+  private async executePackageUpgradeDependencyProbe(
+    token: string,
+    params: PackageUpgradeDependencyProbeParams,
+  ): Promise<DependencyReport> {
+    const includeTransitiveRisk =
+      params.includeTransitiveSecurity === true ||
+      params.includeDependencyIssues === true ||
+      params.includeDependencyChanges === true;
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.endpointUrl,
+        token,
+        query: PACKAGE_UPGRADE_DEPENDENCY_PROBE_QUERY,
+        variables: {
+          registry: params.registry,
+          name: params.packageName,
+          version: params.version,
+          includeTransitiveRisk,
+          includeTransitiveSecurity: params.includeTransitiveSecurity === true,
+          includeDependencyIssues: params.includeDependencyIssues === true,
+          includeDependencyChanges: params.includeDependencyChanges === true,
+          includeGroups: params.includeGroups === true,
+          lifecycle: params.includeGroups === true ? ["peer"] : undefined,
+          minSeverity: params.minSeverity,
+        },
+        fetchFn: this.fetchFn,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw new PackageIntelligenceNetworkError(
+          "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
+          { cause },
+        );
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = dependenciesGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Malformed response from the package-intelligence service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw promoteGenericVersionNotFound(
+        this.createGraphQLError(parsed.data.errors),
+        params,
+      );
+    }
+
+    const data = parsed.data.data?.packageDependencies;
+    if (!data) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Empty response from the package-intelligence service.",
+      );
+    }
+
+    return this.normaliseDependencyReport(data);
   }
 
   private async executePackageDependencies(
@@ -1833,6 +2369,9 @@ export class PackageIntelligenceServiceImpl
       name,
       version,
       registry: data.package?.registry ?? undefined,
+      publishedAt: data.package?.publishedAt ?? undefined,
+      deprecated: data.package?.deprecated ?? undefined,
+      deprecationReason: data.package?.deprecationReason ?? undefined,
     };
 
     const bundle = data.dependencies;
@@ -1901,6 +2440,13 @@ export class PackageIntelligenceServiceImpl
                       ),
                     }
                   : undefined,
+                vulnerabilitySummary:
+                  this.normaliseTransitiveVulnerabilitySummary(
+                    bundle.transitive.vulnerabilitySummary,
+                  ),
+                dependencyIssues: this.normaliseDependencyIssuesSummary(
+                  bundle.transitive.dependencyIssues,
+                ),
               }
             : undefined,
         }
@@ -1938,6 +2484,116 @@ export class PackageIntelligenceServiceImpl
       package: identity,
       dependencies,
       dependencyGroups,
+    };
+  }
+
+  private normaliseTransitiveVulnerabilitySummary(
+    summary: z.infer<typeof transitiveVulnerabilitySummarySchema>,
+  ): TransitiveVulnerabilitySummary | undefined {
+    if (!summary) return undefined;
+    return {
+      affected: summary.affected,
+      nonAffecting: summary.nonAffecting,
+      combined: summary.combined,
+      totalPackagesAnalyzed: summary.totalPackagesAnalyzed,
+      affectedPackageCount: summary.affectedPackageCount,
+      calculatedAt: summary.calculatedAt ?? undefined,
+      packages: summary.packages.map((pkg) => ({
+        registry: pkg.registry,
+        name: pkg.name,
+        versions: pkg.versions,
+        affectedCount: pkg.affectedCount,
+        nonAffectingCount: pkg.nonAffectingCount,
+        totalCount: pkg.totalCount,
+        maxSeverityScore: pkg.maxSeverityScore ?? undefined,
+        maxSeverityLabel: pkg.maxSeverityLabel ?? undefined,
+        advisoryIds: pkg.advisoryIds,
+        mostCritical: pkg.mostCritical
+          ? this.normaliseVulnerabilitySummaryDetail(pkg.mostCritical)
+          : undefined,
+        advisoryOccurrences:
+          pkg.advisoryOccurrences?.map((occurrence) => ({
+            version: occurrence.version,
+            affectsResolvedVersion: occurrence.affectsResolvedVersion,
+            matchedAffectedVersionRanges:
+              occurrence.matchedAffectedVersionRanges,
+            fixVersionsAboveResolved: occurrence.fixVersionsAboveResolved,
+            nearestFixedVersion: occurrence.nearestFixedVersion ?? undefined,
+            advisory: this.normaliseVulnerabilitySummaryDetail(
+              occurrence.advisory,
+            ),
+          })) ?? undefined,
+      })),
+    };
+  }
+
+  private normaliseVulnerabilitySummaryDetail(
+    advisory: z.infer<typeof vulnerabilitySummaryDetailSchema>,
+  ): VulnerabilitySummaryDetail {
+    return {
+      osvId: advisory.osvId ?? undefined,
+      registry: advisory.registry ?? undefined,
+      packageName: advisory.packageName ?? undefined,
+      summary: advisory.summary ?? undefined,
+      severityScore: advisory.severityScore ?? undefined,
+      severityType: advisory.severityType ?? undefined,
+      affectedVersionRanges: advisory.affectedVersionRanges ?? undefined,
+      fixedInVersions: advisory.fixedInVersions ?? undefined,
+      publishedAt: advisory.publishedAt ?? undefined,
+      modifiedAt: advisory.modifiedAt ?? undefined,
+      withdrawnAt: advisory.withdrawnAt ?? undefined,
+      aliases: advisory.aliases ?? undefined,
+      isMalicious: advisory.isMalicious ?? undefined,
+    };
+  }
+
+  private normaliseDependencyIssuesSummary(
+    issues: z.infer<typeof dependencyIssuesSummarySchema>,
+  ): DependencyIssuesSummary | undefined {
+    if (!issues) return undefined;
+    return {
+      totalCount: issues.totalCount,
+      deprecatedCount: issues.deprecatedCount,
+      outdatedCount: issues.outdatedCount,
+      duplicateCount: issues.duplicateCount,
+      conflictCount: issues.conflictCount,
+      deprecatedPackages: issues.deprecatedPackages.map((pkg) => ({
+        registry: pkg.registry,
+        name: pkg.name,
+        versions: pkg.versions,
+        reasons: pkg.reasons.map((reason) => ({
+          version: reason.version,
+          reason: reason.reason ?? undefined,
+        })),
+      })),
+      outdatedPackages: issues.outdatedPackages.map((pkg) => ({
+        registry: pkg.registry,
+        name: pkg.name,
+        latestVersion: pkg.latestVersion ?? undefined,
+        severity: pkg.severity,
+        versions: pkg.versions.map((version) => ({
+          version: version.version,
+          severity: version.severity,
+        })),
+        repositoryUrl: pkg.repositoryUrl ?? undefined,
+      })),
+      duplicatePackages: issues.duplicatePackages.map((pkg) => ({
+        registry: pkg.registry ?? undefined,
+        name: pkg.name,
+        versions: pkg.versions,
+      })),
+      conflicts: issues.conflicts.map((conflict) => ({
+        registry: conflict.registry ?? undefined,
+        name: conflict.name,
+        versions: conflict.versions,
+        requiredVersions: conflict.requiredVersions,
+        conflictingEdges: conflict.conflictingEdges.map((edge) => ({
+          fromIndex: edge.fromIndex ?? undefined,
+          toIndex: edge.toIndex,
+          versionConstraint: edge.versionConstraint,
+          dependencyType: edge.dependencyType,
+        })),
+      })),
     };
   }
 

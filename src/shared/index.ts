@@ -131,6 +131,34 @@ export {
   severityLabel,
 } from "./package-summary-response.js";
 export {
+  buildPackageUpgradeReviewRequest,
+  buildUpgradeDependencyProbeParams,
+  type PackageUpgradeReviewOptions,
+  type PackageUpgradeReviewRequestBuildResult,
+  type PackageUpgradeReviewRequestInput,
+  type UpgradeReviewPackageInput,
+  type UpgradeReviewPackageRequest,
+} from "./package-upgrade-review-request.js";
+export {
+  buildPackageUpgradeReview,
+  formatPackageUpgradeReviewTerminal,
+  type UpgradeAdvisorySummary,
+  type UpgradeChangelog,
+  type UpgradeChangelogEntry,
+  type UpgradeCompatibility,
+  type UpgradeDependencyChangeGroup,
+  type UpgradeDependencyChangeItem,
+  type UpgradeDependencyChanges,
+  type UpgradeDependencyIssues,
+  type UpgradeReview,
+  type UpgradeReviewResponse,
+  type UpgradeSecurity,
+  type UpgradeTransitiveSecurity,
+  type UpgradeTransitiveVulnerablePackage,
+  type VersionDelta,
+  type VersionVulnerabilitySummary,
+} from "./package-upgrade-review-response.js";
+export {
   buildPackageVulnerabilitiesParams,
   type PackageVulnerabilitiesRequestBuildResult,
   type PackageVulnerabilitiesRequestInput,
@@ -141,6 +169,7 @@ export {
 export {
   buildPackageVulnerabilitiesSuccessPayload,
   computeBySeverity,
+  dedupAdvisoriesByAlias,
   formatPackageVulnerabilitiesTerminal,
   type LeanAdvisory,
   type LeanVulnerabilityReport,

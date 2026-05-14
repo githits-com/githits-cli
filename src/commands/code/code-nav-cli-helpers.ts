@@ -68,7 +68,7 @@ export function resolveCliCodeNavTarget(
   }
   if (hasRepoUrl && !hasGitRef) {
     throw new InvalidPackageSpecError(
-      "`--repo-url` requires `--git-ref` (a tag, branch, commit, or `HEAD`).",
+      "`--repo-url` requires `--git-ref` for code files/read/grep (a tag, branch, commit, or `HEAD`).",
     );
   }
 

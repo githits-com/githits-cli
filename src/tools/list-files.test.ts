@@ -301,6 +301,22 @@ describe("createListFilesTool — validation errors", () => {
     expect(payload.code).toBe("INVALID_ARGUMENT");
     expect(payload.error).toContain("#gitRef");
   });
+
+  it("treats empty optional selectors as omitted", async () => {
+    const tool = createListFilesTool(createMockCodeNavigationService());
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        path: "",
+        path_prefix: "",
+        format: "json",
+      },
+      {},
+    );
+    expect(result.isError).toBeUndefined();
+    const payload = parseText(result) as { filter?: unknown };
+    expect(payload.filter).toBeUndefined();
+  });
 });
 
 describe("createListFilesTool — service errors", () => {

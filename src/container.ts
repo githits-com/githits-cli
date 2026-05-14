@@ -189,8 +189,9 @@ export interface Dependencies {
   codeNavigationService: CodeNavigationService;
   /**
    * Package intelligence service — reads registry metadata,
-   * vulnerabilities, dependencies, and changelogs from the pkgseer
-   * endpoint shared with the code-navigation service.
+   * vulnerabilities, dependencies, and changelogs from the
+   * package/source service endpoint shared with the code-navigation
+   * service.
    */
   packageIntelligenceService: PackageIntelligenceService;
   /** GitHits REST API service */

@@ -200,6 +200,30 @@ describe("GitHitsServiceImpl", () => {
       expect(body.feedback_text).toBe("Helpful");
     });
 
+    it("sends optional example and tool targets when provided", async () => {
+      const fn = mockFetch(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ success: true }), {
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      await service.submitFeedback({
+        exampleId: "example-123",
+        accepted: false,
+        feedbackText: "Wrong result",
+        toolName: "get_example",
+      });
+
+      const call = fn.mock.calls[0] as unknown as [string, RequestInit];
+      const body = JSON.parse(call[1].body as string);
+      expect(body.example_id).toBe("example-123");
+      expect(body.accepted).toBe(false);
+      expect(body.feedback_text).toBe("Wrong result");
+      expect(body.tool_name).toBe("get_example");
+    });
+
     it("throws AuthenticationError on 401", async () => {
       mockFetch(() => Promise.resolve(new Response("", { status: 401 })));
 
@@ -258,8 +282,12 @@ describe("GitHitsServiceImpl", () => {
       const call = fn.mock.calls[0] as unknown as [string, RequestInit];
       const body = JSON.parse(call[1].body as string);
       expect("solution_id" in body).toBe(false);
+      expect("example_id" in body).toBe(false);
       expect(body.accepted).toBe(true);
       expect(body.feedback_text).toBe("code_grep regex is great");
+
+      const headers = call[1].headers as Record<string, string>;
+      expect(headers["x-githits-session-id"]).toMatch(/^[0-9a-f]{16}$/);
     });
 
     it("sends null feedback_text when not provided", async () => {

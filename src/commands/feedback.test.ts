@@ -35,6 +35,7 @@ describe("feedbackAction", () => {
       solutionId: "abc-123",
       accepted: true,
       feedbackText: undefined,
+      toolName: undefined,
     });
     consoleSpy.mockRestore();
   });
@@ -57,6 +58,7 @@ describe("feedbackAction", () => {
       solutionId: "abc-123",
       accepted: false,
       feedbackText: undefined,
+      toolName: undefined,
     });
     consoleSpy.mockRestore();
   });
@@ -83,6 +85,7 @@ describe("feedbackAction", () => {
       solutionId: "abc-123",
       accepted: true,
       feedbackText: "Solved my problem",
+      toolName: undefined,
     });
     consoleSpy.mockRestore();
   });
@@ -134,6 +137,38 @@ describe("feedbackAction", () => {
       solutionId: undefined,
       accepted: true,
       feedbackText: "code_grep regex is fast on npm:lodash",
+      toolName: undefined,
+    });
+    consoleSpy.mockRestore();
+  });
+
+  it("includes tool name when provided", async () => {
+    const submitFn = mock(() =>
+      Promise.resolve({
+        success: true,
+        message: "Feedback submitted successfully",
+      }),
+    );
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({ submitFeedback: submitFn }),
+    });
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await feedbackAction(
+      undefined,
+      {
+        reject: true,
+        message: "search missing kotlin support",
+        tool: "search",
+      },
+      deps,
+    );
+
+    expect(submitFn).toHaveBeenCalledWith({
+      solutionId: undefined,
+      accepted: false,
+      feedbackText: "search missing kotlin support",
+      toolName: "search",
     });
     consoleSpy.mockRestore();
   });

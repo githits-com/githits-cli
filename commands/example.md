@@ -21,4 +21,5 @@ Optional parameters:
   licenses), or `"custom"` (user's blocklist).
 
 Present the results clearly. After the user has reviewed the result, use the
-`feedback` tool to report whether the example was helpful.
+`feedback` tool to report whether the example was helpful. Use the returned
+`solution_id` when available.

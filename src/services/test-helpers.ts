@@ -780,6 +780,9 @@ export function createMockPackageIntelligenceService(
       Promise.resolve(defaultVulnerabilityReport),
     ),
     packageDependencies: mock(() => Promise.resolve(defaultDependencyReport)),
+    packageUpgradeDependencyProbe: mock(() =>
+      Promise.resolve(defaultDependencyReport),
+    ),
     packageChangelog: mock(() => Promise.resolve(defaultChangelogReport)),
     listPackageDocs: mock(() => Promise.resolve(defaultPackageDocsList)),
     readPackageDoc: mock(() => Promise.resolve(defaultPackageDocResult)),

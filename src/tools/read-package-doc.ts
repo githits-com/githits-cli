@@ -4,6 +4,7 @@ import { mapPackageIntelligenceError } from "../shared/package-intelligence-erro
 import { buildReadPackageDocParams } from "../shared/read-package-doc-request.js";
 import { buildReadPackageDocSuccessPayload } from "../shared/read-package-doc-response.js";
 import { renderReadPackageDocText } from "../shared/read-package-doc-text.js";
+import { DOCS_GUARDRAIL } from "./guardrails.js";
 import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
 export interface ReadPackageDocArgs {
@@ -41,10 +42,11 @@ const schema = {
     ),
 };
 
-const DESCRIPTION =
+export const DESCRIPTION =
   "Read a documentation page by page ID. Works for both hosted/crawled docs and repository-backed docs. " +
   "Pass `start_line` / `end_line` to fetch only a slice when a page is too long — response carries `totalLines` so you can target the next slice. " +
-  "Repo-backed results additionally include exact file follow-up metadata for `code_read`.";
+  "Repo-backed results additionally include exact file follow-up metadata for `code_read`." +
+  `\n\n${DOCS_GUARDRAIL}`;
 
 export function createReadPackageDocTool(
   service: PackageIntelligenceService,

@@ -20,6 +20,7 @@ import {
   type CodeTargetArg,
   structuredCodeTargetSchema,
 } from "./code-navigation-shared.js";
+import { SEARCH_GUARDRAIL } from "./guardrails.js";
 import {
   errorResult,
   type ToolDefinition,
@@ -93,7 +94,7 @@ const searchTargetSchema = z.union([
     .string()
     .min(1)
     .describe(
-      "Compact discovery target string. Package: `npm:react@18.2.0`. Repository: `https://github.com/facebook/react` for backend default branch or `https://github.com/facebook/react#HEAD` for an explicit ref.",
+      "Compact discovery target string. Package: `npm:react@18.2.0` or `npm:react` for latest release. Repository: `https://github.com/facebook/react` for default-branch snapshot or `https://github.com/facebook/react#HEAD` for latest.",
     ),
 ]);
 
@@ -193,7 +194,8 @@ const DESCRIPTION =
   "Structured parameters combine with the `query` using AND semantics. " +
   "Complete by default — if indexing is still running, the response carries a `searchRef` and no hits; pass it to `search_status` to follow up. " +
   "Set `allow_partial_results: true` to opt into hits from sources that finished while others continue indexing. " +
-  "Each hit's `type` tells you the follow-up tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present).";
+  "Each hit's `type` tells you the follow-up tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present)." +
+  `\n\n${SEARCH_GUARDRAIL}`;
 
 export function createSearchTool(
   service: CodeNavigationService,
@@ -295,7 +297,7 @@ function resolveSearchTarget(
   const hasRepoTarget = Boolean(target.repo_url || target.git_ref);
   if (hasPackageTarget && hasRepoTarget) {
     return invalidSearchTargetResult(
-      "Invalid target: provide either registry + package_name or repo_url + git_ref, not both.",
+      "Invalid target: provide either registry + package_name or repo_url with optional git_ref, not both.",
     );
   }
   if (!hasPackageTarget && !hasRepoTarget) {

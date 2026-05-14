@@ -251,6 +251,7 @@ ${CLI_GREP_PATTERN_NOTE}
 Use \`githits search\` for discovery; use \`githits code grep\` when you know the text or regex to match.
 
 Addressing: <spec> (registry:name[@version]) OR --repo-url <url> --git-ref <ref>.
+Omitted version means latest release.
 In spec mode pass <spec> <pattern> [path-prefix]; in repo-URL mode pass only <pattern> [path-prefix].
 
 [path-prefix] matches the same literal prefix semantics as \`githits code files\`.

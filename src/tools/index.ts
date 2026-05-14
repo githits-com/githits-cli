@@ -6,6 +6,7 @@ export { createListPackageDocsTool } from "./list-package-docs.js";
 export { createPackageChangelogTool } from "./package-changelog.js";
 export { createPackageDependenciesTool } from "./package-dependencies.js";
 export { createPackageSummaryTool } from "./package-summary.js";
+export { createPackageUpgradeReviewTool } from "./package-upgrade-review.js";
 export { createPackageVulnerabilitiesTool } from "./package-vulnerabilities.js";
 export { createReadFileTool } from "./read-file.js";
 export { createReadPackageDocTool } from "./read-package-doc.js";

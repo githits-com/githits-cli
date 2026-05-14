@@ -198,16 +198,11 @@ function buildPathSelectors(input: {
 
 function normalizeOptionalNonEmpty(
   value: string | undefined,
-  field: string,
+  _field: string,
 ): string | undefined {
   if (value === undefined) return undefined;
   const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    throw new InvalidPackageSpecError(
-      `\`${field}\` cannot be empty when provided.`,
-    );
-  }
-  return trimmed;
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function normalizeStringList(

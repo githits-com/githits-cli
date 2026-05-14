@@ -3,6 +3,8 @@ name: search
 description:
   Use GitHits MCP tools to find real-world code examples when model knowledge
   is insufficient.
+metadata:
+  internal: true
 ---
 
 Use GitHits when:

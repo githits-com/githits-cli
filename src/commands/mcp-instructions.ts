@@ -1,4 +1,5 @@
 import type { Dependencies } from "../container.js";
+import { EXTERNAL_CONTENT_POSTURE } from "../tools/guardrails.js";
 
 /**
  * Server-level MCP instructions.
@@ -18,13 +19,13 @@ const CORE_BLOCK = `GitHits provides verified, canonical code examples from glob
 - Need a canonical example or cross-project pattern with no specific package pinned (you're stuck, repeated attempts failed, the user wants up-to-date API usage, or the user mentioned GitHits) — call \`get_example\` for global solution synthesis.
 - Inspecting a specific known dependency or repository (stack trace points there, verifying how a particular library works, evaluating an upgrade) — call \`search\` plus the indexed code, docs, and package tools listed below.
 - Question is comparative across OSS projects (e.g. "how does X vs Y handle Z") or requires reading how a real codebase implements a feature — combine the two: \`search\` for known targets, \`get_example\` for cross-project synthesis.
-- Rate a result or share tool/UX feedback — call \`feedback\` with a \`solution_id\` from a prior \`get_example\` response (solution-tied) or omit it for generic feedback about any tool (\`search\`, \`code_*\`, \`docs_*\`, \`pkg_*\`) or the overall experience.
+- Rate a result or share tool/UX feedback — call \`feedback\` with a \`solution_id\` from a prior \`get_example\` response (solution-tied) or omit it for generic session feedback about any tool (\`search\`, \`code_*\`, \`docs_*\`, \`pkg_*\`) or the overall experience. Pass \`tool_name\` when rating a specific tool result.
 
 \`get_example\` workflow: pass \`language\` only when you know the exact name; otherwise call \`search_language\` first. Default output is markdown with a trailing \`solution_id\`. Reuse prior results before searching again. For dependency-specific grounding, prefer package-scoped \`search\` before global \`get_example\`.`;
 
 const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Use them when a stack trace points into a dependency, you need to verify how a library works, or you're evaluating whether to add or upgrade a package.
 
-Package spec: \`registry:name[@version]\`. Default outputs are compact \`text-v1\` for agent context efficiency; pass \`format: "json"\` only when you need structured fields for programmatic parsing.`;
+Targets: \`registry:name[@version]\` (\`registry:name\` = latest release). For \`search\`, repo URL without \`#\` uses the backend default-branch snapshot; exact \`code_*\` tools need \`#ref\` such as \`#HEAD\`. Default outputs are compact \`text-v1\`; pass \`format: "json"\` only for structured parsing.`;
 
 const MULTI_TURN_TIP =
   '**Delegate multi-call work to a sub-agent.** Code-navigation work (`search`, `code_grep`, `code_read`, `code_files`) often takes 3-10 calls. For cross-project comparisons, codebase mapping, pattern surveys, or "how does X actually work" investigations, spawn a sub-task/sub-agent and ask for a compact synthesis. Do it inline only when the raw snippet belongs in the main conversation.';
@@ -54,13 +55,16 @@ const PKG_INFO_BULLET =
   '- `pkg_info` — latest-version package triage by `registry` + `package_name` (e.g. `npm` + `express`): license, repository popularity, downloads, publish age, and vulnerability status. Set `verbose: true` for GitHub language/topics/last-pushed, recent advisories, and recent changes; pass `format: "json"` for structured fields.';
 
 const PKG_VULNS_BULLET =
-  '- `pkg_vulns` — compact known CVE / OSV advisory summary for npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, or Go packages; vcpkg and Zig are not supported. Optionally pin `version` (e.g. `npm` + `lodash` + `4.17.20`). Filter with `min_severity`; include retracted advisories with `include_withdrawn`; set `advisory_scope: "non_affecting"` for historical advisories or `"all"` for affected + historical rows. Default text is capped; use `verbose: true` for all selected rows or `format: "json"` for the complete per-advisory envelope.';
+  '- `pkg_vulns` — compact known CVE / OSV advisory summary for npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, or Go packages; vcpkg and Zig are not supported. Optionally pin `version` (e.g. `npm` + `lodash` + `4.17.20`). Filter with `min_severity`; include retracted advisories with `include_withdrawn`; set `advisory_scope: "non_affecting"` for historical advisories or `"all"` for affected + historical rows. For upgrade reviews, check the target version explicitly or prefer `pkg_upgrade_review`. Default text is capped; use `verbose: true` for all selected rows or `format: "json"` for the complete per-advisory envelope.';
 
 const PKG_DEPS_BULLET =
-  '- `pkg_deps` — compact direct runtime deps by default. Use `lifecycle: "runtime"` for explicit runtime-only, a concrete lifecycle for runtime plus matching non-runtime deps, or `lifecycle: "all"` for all groups. Use `include_transitive` for the full graph and `include_importers` for provenance. Pass `format: "json"` for the structured envelope.';
+  '- `pkg_deps` — compact direct runtime deps by default. Use `lifecycle: "runtime"` for explicit runtime-only, a concrete lifecycle for runtime plus matching non-runtime deps, or `lifecycle: "all"` for all groups. Use `include_transitive` for the full graph and `include_importers` for provenance. For upgrade evidence, prefer `pkg_upgrade_review` because it diffs current vs target dependency facts. Pass `format: "json"` for the structured envelope.';
 
 const PKG_CHANGELOG_BULLET =
-  '- `pkg_changelog` — compact release notes for a package or GitHub repo, newest-first (e.g. `npm` + `express` + `limit: 2`). Default latest mode returns recent entries with 10-line markdown previews; `from_version` switches to range mode. Set `body_lines` to tune text previews, `verbose: true` for full text bodies, `include_bodies: false` for a compact timeline, or `format: "json"` for the complete envelope.';
+  '- `pkg_changelog` — compact release notes for a package or GitHub repo, newest-first (e.g. `npm` + `express` + `limit: 2`). Default latest mode returns recent entries with 10-line markdown previews; `from_version` switches to range mode. Use range mode for every manual upgrade review, including patches, unless `pkg_upgrade_review` fits. Set `body_lines` to tune text previews, `verbose: true` for full text bodies, `include_bodies: false` for a compact timeline, or `format: "json"` for the complete envelope.';
+
+const PKG_UPGRADE_REVIEW_BULLET =
+  "- `pkg_upgrade_review` — preferred tool when the user asks for evidence about dependency updates, outdated dependency bumps, or lockfile/package updates. It compares current vs target direct and transitive vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and optional dependency issues. It reports facts only; the calling agent owns the final assessment. Do not infer acceptability from semver alone; patch updates still require changelog and vulnerability evidence.";
 
 /**
  * Combined strategy tip. Replaces the earlier
@@ -80,7 +84,22 @@ const STRATEGY_TIP =
  * Mirrors `getMcpToolDefinitions` so the instructions stay aligned
  * with the registered tool surface.
  */
-export function buildMcpInstructions(_deps: Dependencies): string {
+export interface BuildMcpInstructionsOptions {
+  /**
+   * Include the external-content posture (shared guardrail block).
+   * Defaults to `true` — production always wants it. The eval mock
+   * MCP server passes `false` so it can compare baseline (no
+   * guardrail) vs guardrailed instructions cleanly.
+   */
+  includeExternalContentPosture?: boolean;
+}
+
+export function buildMcpInstructions(
+  _deps: Dependencies,
+  options: BuildMcpInstructionsOptions = {},
+): string {
+  const includeExternalContentPosture =
+    options.includeExternalContentPosture ?? true;
   // Bullets ordered by agent decision flow: discovery (search) →
   // file/path enumeration (files) → source grep/read → docs →
   // package metadata. Each bullet name↔registration is enforced by
@@ -97,6 +116,7 @@ export function buildMcpInstructions(_deps: Dependencies): string {
     PKG_VULNS_BULLET,
     PKG_DEPS_BULLET,
     PKG_CHANGELOG_BULLET,
+    PKG_UPGRADE_REVIEW_BULLET,
   ];
 
   // Lead with delegation because it is the highest-leverage decision
@@ -109,5 +129,12 @@ export function buildMcpInstructions(_deps: Dependencies): string {
     STRATEGY_TIP,
   ].join("\n\n");
 
-  return [CORE_BLOCK, packageSection].join("\n\n");
+  // External-content posture lands between the core orientation and the
+  // package/code tool section so the agent reads how to treat third-
+  // party content before scanning the tool inventory. Designed and
+  // empirically validated in `docs/implementation/TOOL_GUARDRAILS.md`.
+  const sections = includeExternalContentPosture
+    ? [CORE_BLOCK, EXTERNAL_CONTENT_POSTURE, packageSection]
+    : [CORE_BLOCK, packageSection];
+  return sections.join("\n\n");
 }

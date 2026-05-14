@@ -135,6 +135,30 @@ describe("createGrepRepoTool — happy path", () => {
     );
   });
 
+  it("treats empty optional selectors as omitted", async () => {
+    const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
+    const tool = createGrepRepoTool(
+      createMockCodeNavigationService({ grepRepo }),
+    );
+
+    await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        pattern: "middleware",
+        path: "",
+        path_prefix: "",
+        cursor: "",
+      },
+      {},
+    );
+
+    const calls = grepRepo.mock.calls as unknown as Array<
+      [{ pathSelectors?: unknown; cursor?: string }]
+    >;
+    expect(calls[0]?.[0]?.pathSelectors).toBeUndefined();
+    expect(calls[0]?.[0]?.cursor).toBeUndefined();
+  });
+
   it("emits the JSON envelope shape when format=json", async () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     const result = await tool.handler(
