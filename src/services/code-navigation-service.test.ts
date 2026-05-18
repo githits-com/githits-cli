@@ -187,6 +187,19 @@ describe("CodeNavigationServiceImpl", () => {
                 codeIndexState: "INDEXING",
                 indexingRef: "ref_xyz",
                 availableVersions: [{ version: "4.21.0", ref: "v4.21.0" }],
+                targetResolution: {
+                  requested: {
+                    repoUrl: "https://github.com/expressjs/express",
+                    gitRef: "HEAD",
+                  },
+                  resolvedRequested: null,
+                  served: null,
+                  freshness: "indexing",
+                  freshnessReason: "requested_ref_indexing",
+                  indexingRef: "ref_xyz",
+                  availableVersions: [],
+                  availableRefs: [{ ref: "main" }, { ref: "v4.18.2" }],
+                },
               },
             },
           }),
@@ -211,7 +224,67 @@ describe("CodeNavigationServiceImpl", () => {
       expect(typed.availableVersions).toEqual([
         { version: "4.21.0", ref: "v4.21.0" },
       ]);
+      expect(typed.availableRefs).toEqual([
+        { ref: "main" },
+        { ref: "v4.18.2" },
+      ]);
+      expect(typed.targetResolution?.freshness).toBe("indexing");
     }
+  });
+
+  it("retries with a compatibility query on targetResolution schema mismatch", async () => {
+    const bodies: string[] = [];
+    globalThis.fetch = mock((_, init?: RequestInit) => {
+      bodies.push(String(init?.body ?? ""));
+      if (bodies.length === 1) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              errors: [
+                {
+                  message:
+                    'Cannot query field "availableRefs" on type "TargetResolution".',
+                  extensions: { code: "GRAPHQL_VALIDATION_FAILED" },
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              listRepoFiles: {
+                files: [],
+                total: 0,
+                hasMore: false,
+                indexedVersion: "v5.2.1",
+                resolution: null,
+                diagnostics: null,
+                codeIndexState: "CURRENT",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+    }) as unknown as typeof fetch;
+
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    const result = await service.listFiles({
+      target: { registry: "NPM", packageName: "express" },
+    });
+
+    expect(result.indexedVersion).toBe("v5.2.1");
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0]).toContain("availableRefs");
+    expect(bodies[1]).not.toContain("availableRefs");
   });
 
   it("surfaces diagnostics.hint on listFiles empty responses", async () => {

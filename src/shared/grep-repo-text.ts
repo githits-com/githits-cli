@@ -15,6 +15,7 @@ import type {
   LeanGrepRepoEnvelope,
   LeanGrepRepoMatch,
 } from "./grep-repo-response.js";
+import { buildTargetResolutionNotes } from "./target-resolution.js";
 
 const SEP = " | ";
 
@@ -120,6 +121,10 @@ function buildTrailer(envelope: LeanGrepRepoEnvelope): string[] {
   }
   if (skipNotes.length > 0) {
     lines.push(`Note: ${skipNotes.join(", ")}.`);
+  }
+
+  for (const note of buildTargetResolutionNotes(envelope.targetResolution)) {
+    lines.push(note);
   }
 
   return lines;

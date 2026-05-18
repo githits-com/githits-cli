@@ -97,7 +97,7 @@ const schema = {
     .number()
     .optional()
     .describe(
-      "Max milliseconds to wait for indexing (0–60000, default 20000). On an `INDEXING` error envelope, retry with a longer timeout or pass a version from `details.availableVersions`.",
+      "Max milliseconds to wait for indexing (0–60000, default 20000). On an `INDEXING` error envelope, retry with a longer timeout or pass a version/ref from `details.availableVersions` / `details.availableRefs`.",
     ),
   format: z
     .enum(["json", "text", "text-v1"])
@@ -115,14 +115,16 @@ const DESCRIPTION =
   "before `code_read` (when `code_read` returns `FILE_NOT_FOUND` or " +
   "you don't yet know the path) and to scope `code_grep`. Address " +
   "via `target.registry` + `target.package_name` (package scope) or " +
-  "`target.repo_url` + `target.git_ref` (repo scope), mutually " +
+  "`target.repo_url` + optional `target.git_ref` (repo scope), mutually " +
   "exclusive. Narrow with `path`, `path_prefix`, `globs`, " +
   "`extensions`, `file_types`, `languages`, or file-intent filters. " +
   "JSON envelope shape: `{total, hasMore, files: [{path, name, " +
   "language, fileType, byteSize}], resolution, indexedVersion}`. " +
-  "Returns an `INDEXING` error envelope when the dependency is being " +
-  "indexed on-demand — retry with a longer `wait_timeout_ms` or use " +
-  "a version from `details.availableVersions`.";
+  "When fresh data is not ready within the wait window, responses may " +
+  "include `targetResolution` provenance and immediately-queryable " +
+  "alternatives. On an `INDEXING` error envelope, retry with a longer " +
+  "`wait_timeout_ms` or use a version/ref from `details.availableVersions` " +
+  "/ `details.availableRefs`.";
 
 export function createListFilesTool(
   service: CodeNavigationService,

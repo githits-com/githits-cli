@@ -16,6 +16,11 @@
  */
 
 import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
+import {
+  buildResolutionFromRetryCandidates,
+  buildTargetResolutionNotes,
+  type LeanTargetResolution,
+} from "./target-resolution.js";
 import type {
   UnifiedSearchCompletedPayload,
   UnifiedSearchErrorPayload,
@@ -39,7 +44,7 @@ export function renderUnifiedSearchSuccess(
   lines.push("");
 
   if (payload.results.length === 0) {
-    lines.push(payload.completed ? "No hits." : "No hits yet - indexing.");
+    lines.push(payload.completed ? "No hits." : noHitsYetMessage(payload));
   } else {
     appendUnifiedSearchHits(lines, payload.results);
   }
@@ -51,6 +56,15 @@ export function renderUnifiedSearchSuccess(
   }
 
   return lines.join("\n");
+}
+
+function noHitsYetMessage(payload: SearchSuccessPayload): string {
+  if (payload.completed) return "No hits.";
+  const status = payload.progress?.status;
+  if (status === "TIMEOUT") return "No hits yet - timed out waiting.";
+  if (status === "FAILED") return "No hits - search failed.";
+  if (status === "SEARCHING") return "No hits yet - searching.";
+  return "No hits yet - indexing.";
 }
 
 /** Render an error envelope as compact text. */
@@ -221,8 +235,17 @@ function buildTrailer(payload: SearchSuccessPayload): string[] {
   }
 
   if (!payload.completed && payload.searchRef) {
+    const status = payload.progress?.status;
+    const action =
+      status === "TIMEOUT"
+        ? "Search timed out waiting for fresh data."
+        : status === "FAILED"
+          ? "Search failed before completion."
+          : status === "SEARCHING"
+            ? "Search in progress."
+            : "Indexing in progress.";
     lines.push(
-      `Indexing in progress. Call search_status with searchRef=${payload.searchRef} to follow up.`,
+      `${action} Call search_status with searchRef=${payload.searchRef} to follow up.`,
     );
   }
 
@@ -251,6 +274,9 @@ export function formatProgressTarget(target: {
   freshness?: string;
   indexingRef?: string;
   requestedRefKind?: string;
+  targetResolution?: LeanTargetResolution;
+  availableVersions?: Array<{ version?: string; ref: string }>;
+  availableRefs?: Array<{ version?: string; ref: string }>;
 }): string {
   const parts: string[] = [];
   if (target.requested) parts.push(`requested=${target.requested}`);
@@ -260,6 +286,11 @@ export function formatProgressTarget(target: {
     parts.push(`state=${describeFreshness(target.freshness)}`);
   if (target.requestedRefKind) parts.push(`intent=${target.requestedRefKind}`);
   if (target.indexingRef) parts.push(`indexingRef=${target.indexingRef}`);
+  for (const note of buildTargetResolutionNotes(
+    target.targetResolution ?? buildResolutionFromRetryCandidates(target),
+  )) {
+    parts.push(note);
+  }
   return parts.length > 0 ? parts.join(SEP) : "target progress unavailable";
 }
 
@@ -278,9 +309,10 @@ export function describeFreshness(value: string): string {
   }
 }
 
-function formatSourceStatus(entry: {
+export function formatSourceStatus(entry: {
   source: string;
   targetLabel: string;
+  targetResolution?: LeanTargetResolution;
   indexingStatus?: string;
   codeIndexState?: string;
   ignoredFilters?: string[];
@@ -289,6 +321,11 @@ function formatSourceStatus(entry: {
   incompatibleQueryFeatures?: string[];
   note?: string;
 }): string {
+  const terminalReason = terminalLifecycleReason(entry);
+  if (terminalReason) {
+    return `${entry.source} (${entry.targetLabel})${SEP}${terminalReason}`;
+  }
+
   const parts: string[] = [`${entry.source} (${entry.targetLabel})`];
   if (entry.indexingStatus) parts.push(`indexing=${entry.indexingStatus}`);
   if (entry.codeIndexState) parts.push(`codeIndex=${entry.codeIndexState}`);
@@ -307,7 +344,26 @@ function formatSourceStatus(entry: {
     );
   }
   if (entry.note) parts.push(entry.note);
+  for (const note of buildTargetResolutionNotes(entry.targetResolution)) {
+    parts.push(note);
+  }
   return parts.join(SEP);
+}
+
+function terminalLifecycleReason(entry: {
+  indexingStatus?: string;
+  codeIndexState?: string;
+  note?: string;
+}): string | undefined {
+  const states = Array.from(
+    new Set([entry.indexingStatus, entry.codeIndexState].filter(Boolean)),
+  ) as string[];
+  const terminalStates = states.filter(
+    (state) => state !== "INDEXING" && state !== "STALE",
+  );
+  if (terminalStates.length === 0) return undefined;
+  const status = terminalStates.join("/");
+  return entry.note ? `${entry.note} (${status})` : `status ${status}`;
 }
 
 function quote(value: string): string {

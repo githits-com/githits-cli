@@ -170,6 +170,42 @@ describe("formatGrepRepoTerminal", () => {
     expect(stdout).toContain("> 10  const app = express();");
   });
 
+  it("verbose mode explains zero-match results", () => {
+    const envelope = buildGrepRepoSuccessPayload(
+      {
+        ...baseResult,
+        matches: [],
+        totalMatches: 0,
+        uniqueFilesMatched: 0,
+      },
+      baseOptions,
+    );
+    const { stdout } = formatGrepRepoTerminal(envelope, {
+      useColors: false,
+      verbose: true,
+    });
+
+    expect(stdout).toContain("0 matches in 0 files");
+    expect(stdout).toContain("No matches.");
+  });
+
+  it("plain mode preserves grep-style silence for zero-match results", () => {
+    const envelope = buildGrepRepoSuccessPayload(
+      {
+        ...baseResult,
+        matches: [],
+        totalMatches: 0,
+        uniqueFilesMatched: 0,
+      },
+      baseOptions,
+    );
+    const { stdout } = formatGrepRepoTerminal(envelope, {
+      useColors: false,
+    });
+
+    expect(stdout).toBe("");
+  });
+
   it("verbose mode renders minimal symbol hints", () => {
     const envelope = buildGrepRepoSuccessPayload(
       {

@@ -101,6 +101,29 @@ export interface IndexResolution {
   commitSha?: string;
 }
 
+export interface TargetResolutionIdentity {
+  kind?: string;
+  registry?: string;
+  packageName?: string;
+  version?: string;
+  repoUrl?: string;
+  gitRef?: string;
+  commitSha?: string;
+}
+
+export type AvailableRef = AvailableVersion;
+
+export interface TargetResolution {
+  requested?: TargetResolutionIdentity;
+  resolvedRequested?: TargetResolutionIdentity;
+  served?: TargetResolutionIdentity;
+  freshness?: string;
+  freshnessReason?: string;
+  indexingRef?: string;
+  availableVersions: AvailableVersion[];
+  availableRefs: AvailableRef[];
+}
+
 export type UnifiedSearchSource = "AUTO" | "DOCS" | "CODE" | "SYMBOL";
 
 export type UnifiedSearchResultType =
@@ -208,6 +231,7 @@ export interface UnifiedSearchSourceStatus {
   requestedTargetLabel?: string;
   freshTargetLabel?: string;
   servedTargetLabel?: string;
+  targetResolution?: TargetResolution;
   indexingStatus?: string;
   codeIndexState?: CodeIndexState;
   resultCount?: number;
@@ -227,6 +251,9 @@ export interface UnifiedSearchProgressTarget {
   freshness?: CodeIndexState;
   indexingRef?: string;
   requestedRefKind?: DiscoveryRequestedRefKind;
+  targetResolution?: TargetResolution;
+  availableVersions?: AvailableVersion[];
+  availableRefs?: AvailableRef[];
 }
 
 export interface UnifiedSearchRequestedTarget {
@@ -325,6 +352,7 @@ export interface ListFilesResult {
   hasMore: boolean;
   indexedVersion?: string;
   resolution?: IndexResolution;
+  targetResolution?: TargetResolution;
   hint?: string;
 }
 
@@ -347,6 +375,8 @@ export interface ReadFileResult {
   endLine?: number;
   content?: string;
   isBinary?: boolean;
+  targetResolution?: TargetResolution;
+  availableVersions?: AvailableVersion[];
 }
 
 export type GrepRepoPatternType = "LITERAL" | "REGEX";
@@ -431,6 +461,7 @@ export interface GrepRepoResult {
   uniqueFilesMatched: number;
   indexedVersion?: string;
   resolution?: IndexResolution;
+  targetResolution?: TargetResolution;
 }
 
 export interface CodeNavigationService {
@@ -463,6 +494,8 @@ export class CodeNavigationIndexingError extends Error {
     message: string,
     public readonly indexingRef?: string,
     public readonly availableVersions?: AvailableVersion[],
+    public readonly availableRefs?: AvailableRef[],
+    public readonly targetResolution?: TargetResolution,
   ) {
     super(message);
     this.name = "CodeNavigationIndexingError";
@@ -579,6 +612,67 @@ export class CodeNavigationBackendError extends Error {
   }
 }
 
+const TARGET_RESOLUTION_AVAILABLE_REFS_SELECTION = `
+availableRefs {
+  version
+  ref
+}`;
+
+const TARGET_RESOLUTION_SELECTION = `
+targetResolution {
+  requested {
+    kind
+    registry
+    packageName
+    version
+    repoUrl
+    gitRef
+    commitSha
+  }
+  resolvedRequested {
+    kind
+    registry
+    packageName
+    version
+    repoUrl
+    gitRef
+    commitSha
+  }
+  served {
+    kind
+    registry
+    packageName
+    version
+    repoUrl
+    gitRef
+    commitSha
+  }
+  freshness
+  freshnessReason
+  indexingRef
+  availableVersions {
+    version
+    ref
+  }
+  ${TARGET_RESOLUTION_AVAILABLE_REFS_SELECTION}
+}`;
+
+const CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION = `
+availableVersions {
+  version
+  ref
+}`;
+
+const DISCOVERY_TARGET_PROGRESS_RETRY_SELECTION = `
+availableVersions {
+  version
+  ref
+}
+availableRefs {
+  version
+  ref
+}`;
+
 const UNIFIED_SEARCH_QUERY = `
 query UnifiedSearch(
   $targets: [SearchPackageInput!]!
@@ -655,6 +749,7 @@ query UnifiedSearch(
         requestedTargetLabel
         freshTargetLabel
         servedTargetLabel
+        ${TARGET_RESOLUTION_SELECTION}
         indexingStatus
         codeIndexState
         resultCount
@@ -701,6 +796,8 @@ query UnifiedSearch(
         freshness
         indexingRef
         requestedRefKind
+        ${TARGET_RESOLUTION_SELECTION}
+        ${DISCOVERY_TARGET_PROGRESS_RETRY_SELECTION}
       }
       expiresAt
     }
@@ -743,6 +840,8 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
       freshness
       indexingRef
       requestedRefKind
+      ${TARGET_RESOLUTION_SELECTION}
+      ${DISCOVERY_TARGET_PROGRESS_RETRY_SELECTION}
     }
     expiresAt
     results {
@@ -798,6 +897,7 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
         requestedTargetLabel
         freshTargetLabel
         servedTargetLabel
+        ${TARGET_RESOLUTION_SELECTION}
         indexingStatus
         codeIndexState
         resultCount
@@ -890,6 +990,33 @@ const availableVersionSchema = z.object({
   ref: z.string(),
 });
 
+const targetResolutionIdentitySchema = z
+  .object({
+    kind: z.string().nullable().optional(),
+    registry: z.string().nullable().optional(),
+    packageName: z.string().nullable().optional(),
+    version: z.string().nullable().optional(),
+    repoUrl: z.string().nullable().optional(),
+    gitRef: z.string().nullable().optional(),
+    commitSha: z.string().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+const targetResolutionSchema = z
+  .object({
+    requested: targetResolutionIdentitySchema,
+    resolvedRequested: targetResolutionIdentitySchema,
+    served: targetResolutionIdentitySchema,
+    freshness: z.string().nullable().optional(),
+    freshnessReason: z.string().nullable().optional(),
+    indexingRef: z.string().nullable().optional(),
+    availableVersions: z.array(availableVersionSchema).nullable().optional(),
+    availableRefs: z.array(availableVersionSchema).nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
 const unifiedSearchSourceSchema = z.enum(["AUTO", "DOCS", "CODE", "SYMBOL"]);
 
 const unifiedSearchResultTypeSchema = z.enum([
@@ -960,6 +1087,7 @@ const unifiedSearchSourceStatusSchema = z.object({
   requestedTargetLabel: z.string().nullable().optional(),
   freshTargetLabel: z.string().nullable().optional(),
   servedTargetLabel: z.string().nullable().optional(),
+  targetResolution: targetResolutionSchema,
   indexingStatus: z.string().nullable().optional(),
   codeIndexState: z.string().nullable().optional(),
   resultCount: z.number().int().nullable().optional(),
@@ -1009,6 +1137,9 @@ const unifiedSearchProgressTargetSchema = z.object({
   freshness: z.string().nullable().optional(),
   indexingRef: z.string().nullable().optional(),
   requestedRefKind: z.string().nullable().optional(),
+  targetResolution: targetResolutionSchema,
+  availableVersions: z.array(availableVersionSchema).nullable().optional(),
+  availableRefs: z.array(availableVersionSchema).nullable().optional(),
 });
 
 const unifiedSearchRequestedTargetSchema = z.object({
@@ -1095,6 +1226,7 @@ const listRepoFilesResponseSchema = z.object({
   hasMore: z.boolean(),
   indexedVersion: z.string().nullable().optional(),
   resolution: navigationResolutionSchema,
+  targetResolution: targetResolutionSchema,
   diagnostics: navigationDiagnosticsSchema,
   codeIndexState: z.string(),
   indexingRef: z.string().nullable().optional(),
@@ -1168,6 +1300,7 @@ query ListRepoFiles(
       resolvedRef
       commitSha
     }
+    ${TARGET_RESOLUTION_SELECTION}
     diagnostics {
       hint
     }
@@ -1196,6 +1329,8 @@ const codeContextResponseSchema = z.object({
   isBinary: z.boolean().nullable().optional(),
   codeIndexState: z.string(),
   indexingRef: z.string().nullable().optional(),
+  availableVersions: z.array(availableVersionSchema).nullable().optional(),
+  targetResolution: targetResolutionSchema,
 });
 
 const fetchCodeContextGraphQLResponseSchema = z.object({
@@ -1242,6 +1377,8 @@ query FetchCodeContext(
     isBinary
     codeIndexState
     indexingRef
+    ${CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION}
+    ${TARGET_RESOLUTION_SELECTION}
   }
 }`;
 
@@ -1299,6 +1436,7 @@ const grepRepoResponseSchema = z.object({
   uniqueFilesMatched: z.number().int(),
   indexedVersion: z.string().nullable().optional(),
   resolution: navigationResolutionSchema,
+  targetResolution: targetResolutionSchema,
   codeIndexState: z.string(),
   indexingRef: z.string().nullable().optional(),
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
@@ -1419,6 +1557,7 @@ query GrepRepo(
       resolvedRef
       commitSha
     }
+    ${TARGET_RESOLUTION_SELECTION}
     codeIndexState
     indexingRef
     availableVersions {
@@ -1457,6 +1596,42 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     private readonly tokenProvider: TokenProvider,
     private readonly fetchFn: typeof fetch = globalThis.fetch,
   ) {}
+
+  private async postGraphqlWithTargetResolutionFallback(input: {
+    token: string;
+    query: string;
+    variables: Record<string, unknown>;
+  }): Promise<PkgseerGraphqlResponse> {
+    const response = await postPkgseerGraphql({
+      endpointUrl: this.codeNavigationUrl,
+      token: input.token,
+      query: input.query,
+      variables: input.variables,
+      fetchFn: this.fetchFn,
+    });
+    if (response.status < 200 || response.status >= 300) return response;
+    if (!hasSchemaMismatchErrors(response.parsedBody)) return response;
+
+    for (const fallbackQuery of buildTargetResolutionFallbackQueries(
+      input.query,
+    )) {
+      debugLog("code-nav", {
+        event: "target-resolution-query-fallback",
+      });
+      const fallbackResponse = await postPkgseerGraphql({
+        endpointUrl: this.codeNavigationUrl,
+        token: input.token,
+        query: fallbackQuery,
+        variables: input.variables,
+        fetchFn: this.fetchFn,
+      });
+      if (!hasSchemaMismatchErrors(fallbackResponse.parsedBody)) {
+        return fallbackResponse;
+      }
+    }
+
+    return response;
+  }
 
   async search(params: UnifiedSearchParams): Promise<UnifiedSearchOutcome> {
     return executeWithTokenRefresh({
@@ -1507,12 +1682,10 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     debugUnifiedSearchRequest(variables);
     debugGraphqlWireRequest("search", UNIFIED_SEARCH_QUERY, variables);
     try {
-      response = await postPkgseerGraphql({
-        endpointUrl: this.codeNavigationUrl,
+      response = await this.postGraphqlWithTargetResolutionFallback({
         token,
         query: UNIFIED_SEARCH_QUERY,
         variables,
-        fetchFn: this.fetchFn,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -1557,15 +1730,13 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
   ): Promise<UnifiedSearchOutcome> {
     let response: PkgseerGraphqlResponse;
     try {
-      response = await postPkgseerGraphql({
-        endpointUrl: this.codeNavigationUrl,
+      response = await this.postGraphqlWithTargetResolutionFallback({
         token,
         query: UNIFIED_SEARCH_STATUS_QUERY,
         variables: {
           searchRef,
           includeResults: true,
         },
-        fetchFn: this.fetchFn,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -1699,6 +1870,8 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
           this.createIndexingMessage(indexingRef),
           indexingRef,
           parseAvailableVersions(extensions),
+          parseAvailableRefs(extensions),
+          parseTargetResolution(extensions),
         );
 
       case "GREP_PATTERN_TOO_SHORT":
@@ -1920,6 +2093,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         requestedTargetLabel: entry.requestedTargetLabel ?? undefined,
         freshTargetLabel: entry.freshTargetLabel ?? undefined,
         servedTargetLabel: entry.servedTargetLabel ?? undefined,
+        targetResolution: normaliseTargetResolution(entry.targetResolution),
         indexingStatus: entry.indexingStatus ?? undefined,
         codeIndexState: entry.codeIndexState ?? undefined,
         resultCount: entry.resultCount ?? undefined,
@@ -1967,6 +2141,9 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         freshness: target.freshness ?? undefined,
         indexingRef: target.indexingRef ?? undefined,
         requestedRefKind: normaliseRequestedRefKind(target.requestedRefKind),
+        targetResolution: normaliseTargetResolution(target.targetResolution),
+        availableVersions: normaliseAvailableVersions(target.availableVersions),
+        availableRefs: normaliseAvailableVersions(target.availableRefs),
       })),
       expiresAt: progress.expiresAt ?? undefined,
     };
@@ -1982,15 +2159,19 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     codeIndexState: string;
     indexingRef?: string | null;
     availableVersions?: Array<{ version?: string | null; ref: string }> | null;
+    targetResolution?: z.infer<typeof targetResolutionSchema>;
   }): void {
     if (data.codeIndexState === "INDEXING") {
+      const targetResolution = normaliseTargetResolution(data.targetResolution);
       throw new CodeNavigationIndexingError(
-        this.createIndexingMessage(data.indexingRef ?? undefined),
-        data.indexingRef ?? undefined,
-        data.availableVersions?.map((entry) => ({
-          version: entry.version ?? undefined,
-          ref: entry.ref,
-        })),
+        this.createIndexingMessage(
+          data.indexingRef ?? targetResolution?.indexingRef,
+        ),
+        data.indexingRef ?? targetResolution?.indexingRef,
+        normaliseAvailableVersions(data.availableVersions) ??
+          targetResolution?.availableVersions,
+        targetResolution?.availableRefs,
+        targetResolution,
       );
     }
   }
@@ -2014,8 +2195,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
   ): Promise<ListFilesResult> {
     let response: PkgseerGraphqlResponse;
     try {
-      response = await postPkgseerGraphql({
-        endpointUrl: this.codeNavigationUrl,
+      response = await this.postGraphqlWithTargetResolutionFallback({
         token,
         query: LIST_REPO_FILES_QUERY,
         variables: {
@@ -2041,7 +2221,6 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
           limit: params.limit,
           waitTimeoutMs: params.waitTimeoutMs,
         },
-        fetchFn: this.fetchFn,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2098,6 +2277,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
             commitSha: data.resolution.commitSha ?? undefined,
           }
         : undefined,
+      targetResolution: normaliseTargetResolution(data.targetResolution),
       hint: data.diagnostics?.hint ?? undefined,
     };
   }
@@ -2121,8 +2301,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
   ): Promise<ReadFileResult> {
     let response: PkgseerGraphqlResponse;
     try {
-      response = await postPkgseerGraphql({
-        endpointUrl: this.codeNavigationUrl,
+      response = await this.postGraphqlWithTargetResolutionFallback({
         token,
         query: FETCH_CODE_CONTEXT_QUERY,
         variables: {
@@ -2136,7 +2315,6 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
           endLine: params.endLine,
           waitTimeoutMs: params.waitTimeoutMs,
         },
-        fetchFn: this.fetchFn,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2172,12 +2350,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       );
     }
 
-    // `fetchCodeContext` doesn't return availableVersions; pass a
-    // minimal object to the shared helper.
-    this.throwIfIndexing({
-      codeIndexState: data.codeIndexState,
-      indexingRef: data.indexingRef,
-    });
+    this.throwIfIndexing(data);
 
     return {
       filePath: data.filePath ?? undefined,
@@ -2187,6 +2360,8 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       endLine: data.endLine ?? undefined,
       content: data.content ?? undefined,
       isBinary: data.isBinary ?? undefined,
+      targetResolution: normaliseTargetResolution(data.targetResolution),
+      availableVersions: normaliseAvailableVersions(data.availableVersions),
     };
   }
 
@@ -2209,8 +2384,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
   ): Promise<GrepRepoResult> {
     let response: PkgseerGraphqlResponse;
     try {
-      response = await postPkgseerGraphql({
-        endpointUrl: this.codeNavigationUrl,
+      response = await this.postGraphqlWithTargetResolutionFallback({
         token,
         query: buildGrepRepoQuery(params.symbolFields),
         variables: {
@@ -2238,7 +2412,6 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
           cursor: params.cursor,
           symbolFields: params.symbolFields,
         },
-        fetchFn: this.fetchFn,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2325,6 +2498,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
             commitSha: data.resolution.commitSha ?? undefined,
           }
         : undefined,
+      targetResolution: normaliseTargetResolution(data.targetResolution),
     };
   }
 }
@@ -2341,6 +2515,41 @@ function parseDetail(body: string): string | undefined {
   }
 
   return undefined;
+}
+
+function buildTargetResolutionFallbackQueries(query: string): string[] {
+  const candidates = [
+    query.replaceAll(TARGET_RESOLUTION_AVAILABLE_REFS_SELECTION, ""),
+    query.replaceAll(DISCOVERY_TARGET_PROGRESS_RETRY_SELECTION, ""),
+    query.replaceAll(CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION, ""),
+    query
+      .replaceAll(TARGET_RESOLUTION_SELECTION, "")
+      .replaceAll(DISCOVERY_TARGET_PROGRESS_RETRY_SELECTION, "")
+      .replaceAll(CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION, ""),
+  ];
+  return candidates.filter(
+    (candidate, index, all) =>
+      candidate !== query && all.indexOf(candidate) === index,
+  );
+}
+
+function hasSchemaMismatchErrors(parsedBody: unknown): boolean {
+  if (!parsedBody || typeof parsedBody !== "object") return false;
+  const errors = (parsedBody as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) return false;
+  return errors.some((entry) => {
+    if (!entry || typeof entry !== "object") return false;
+    const error = entry as {
+      message?: unknown;
+      extensions?: { code?: unknown };
+    };
+    if (typeof error.message !== "string") return false;
+    const code =
+      typeof error.extensions?.code === "string"
+        ? error.extensions.code
+        : undefined;
+    return isGraphQLSchemaMismatchError({ message: error.message, code });
+  });
 }
 
 /**
@@ -2383,6 +2592,26 @@ function parseAvailableVersions(
   extensions: Record<string, unknown> | undefined,
 ): AvailableVersion[] | undefined {
   const raw = extensions?.available_versions ?? extensions?.availableVersions;
+  return parseAvailableArtifacts(raw);
+}
+
+function parseAvailableRefs(
+  extensions: Record<string, unknown> | undefined,
+): AvailableRef[] | undefined {
+  const raw = extensions?.available_refs ?? extensions?.availableRefs;
+  return parseAvailableArtifacts(raw);
+}
+
+function parseTargetResolution(
+  extensions: Record<string, unknown> | undefined,
+): TargetResolution | undefined {
+  const raw = extensions?.target_resolution ?? extensions?.targetResolution;
+  const parsed = targetResolutionSchema.safeParse(raw);
+  if (!parsed.success) return undefined;
+  return normaliseTargetResolution(parsed.data);
+}
+
+function parseAvailableArtifacts(raw: unknown): AvailableVersion[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const parsed: AvailableVersion[] = [];
   for (const item of raw) {
@@ -2398,6 +2627,50 @@ function parseAvailableVersions(
     }
   }
   return parsed.length > 0 ? parsed : undefined;
+}
+
+function normaliseAvailableVersions(
+  entries: Array<{ version?: string | null; ref: string }> | null | undefined,
+): AvailableVersion[] | undefined {
+  if (!entries || entries.length === 0) return undefined;
+  return entries.map((entry) => ({
+    version: entry.version ?? undefined,
+    ref: entry.ref,
+  }));
+}
+
+function normaliseTargetResolution(
+  resolution: z.infer<typeof targetResolutionSchema>,
+): TargetResolution | undefined {
+  if (!resolution) return undefined;
+  return {
+    requested: normaliseTargetResolutionIdentity(resolution.requested),
+    resolvedRequested: normaliseTargetResolutionIdentity(
+      resolution.resolvedRequested,
+    ),
+    served: normaliseTargetResolutionIdentity(resolution.served),
+    freshness: resolution.freshness ?? undefined,
+    freshnessReason: resolution.freshnessReason ?? undefined,
+    indexingRef: resolution.indexingRef ?? undefined,
+    availableVersions:
+      normaliseAvailableVersions(resolution.availableVersions) ?? [],
+    availableRefs: normaliseAvailableVersions(resolution.availableRefs) ?? [],
+  };
+}
+
+function normaliseTargetResolutionIdentity(
+  identity: z.infer<typeof targetResolutionIdentitySchema>,
+): TargetResolutionIdentity | undefined {
+  if (!identity) return undefined;
+  const out: TargetResolutionIdentity = {};
+  if (identity.kind) out.kind = identity.kind;
+  if (identity.registry) out.registry = identity.registry;
+  if (identity.packageName) out.packageName = identity.packageName;
+  if (identity.version) out.version = identity.version;
+  if (identity.repoUrl) out.repoUrl = identity.repoUrl;
+  if (identity.gitRef) out.gitRef = identity.gitRef;
+  if (identity.commitSha) out.commitSha = identity.commitSha;
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function isAuthMessage(message: string): boolean {

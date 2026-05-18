@@ -433,7 +433,10 @@ function formatUnifiedSearchTerminal(payload: {
     lines.push("Partial results:");
   }
 
-  const sourceStatusNotes = formatSourceStatusNotes(payload.sourceStatus);
+  const sourceStatusNotes = formatSourceStatusNotes(
+    payload.sourceStatus,
+    warnings,
+  );
 
   if (payload.results.length === 0) {
     lines.push("No results.");
@@ -601,6 +604,7 @@ interface SourceStatusEntry {
 
 function formatSourceStatusNotes(
   sourceStatus: SourceStatusEntry[] | undefined,
+  warnings: string[] | undefined,
 ): string[] {
   const useColors = shouldUseColors();
   if (!sourceStatus) {
@@ -609,6 +613,10 @@ function formatSourceStatusNotes(
 
   const lines: string[] = [];
   for (const entry of sourceStatus) {
+    const warningPrefix = `Source '${entry.source.toLowerCase()}' for ${entry.targetLabel}:`;
+    if (warnings?.some((warning) => warning.startsWith(warningPrefix))) {
+      continue;
+    }
     const label = `${entry.source.toLowerCase()} on ${entry.targetLabel}`;
     if (entry.ignoredFilters && entry.ignoredFilters.length > 0) {
       lines.push(

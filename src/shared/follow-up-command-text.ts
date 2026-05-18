@@ -6,6 +6,7 @@ interface CodeReadCommandInput {
   version?: string;
   repoUrl?: string;
   gitRef?: string;
+  requestedRef?: string;
   filePath?: string;
   startLine?: number;
   endLine?: number;
@@ -26,6 +27,7 @@ export function buildSearchHitFollowUpCommand(
       version: loc.version,
       repoUrl: loc.repoUrl,
       gitRef: loc.gitRef,
+      requestedRef: loc.requestedRef,
       filePath: loc.filePath,
       startLine: loc.startLine,
       endLine: loc.endLine,
@@ -66,8 +68,8 @@ function buildTargetSpec(input: CodeReadCommandInput): string | undefined {
     return `${input.registry}:${input.packageName}${input.version ? `@${input.version}` : ""}`;
   }
   if (input.repoUrl) {
-    if (!input.gitRef) return undefined;
-    return `${input.repoUrl}#${input.gitRef}`;
+    const ref = input.gitRef ?? input.requestedRef;
+    return ref ? `${input.repoUrl}#${ref}` : input.repoUrl;
   }
   if (input.registry && input.packageName) {
     return `${input.registry}:${input.packageName}${input.version ? `@${input.version}` : ""}`;

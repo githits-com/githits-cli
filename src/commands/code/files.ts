@@ -58,7 +58,7 @@ export interface PkgFilesCommandDependencies {
  * Core `code files` action. Positional order mirrors the sibling
  * file-exploration commands:
  *   `code files <spec> [path-prefix]`
- *   `code files --repo-url <url> --git-ref <ref> [path-prefix]`
+ *   `code files --repo-url <url> [--git-ref <ref>] [path-prefix]`
  * Commander binds left-to-right; we resolve (spec, path-prefix) from
  * the two optional positionals based on whether repo-URL mode is
  * active.
@@ -209,7 +209,7 @@ function resolvePositionals(
     }
     if (firstArg && REGISTRY_SPEC_HINT.test(firstArg)) {
       throw new InvalidPackageSpecError(
-        `'${firstArg}' looks like a package spec. Provide either a package spec or \`--repo-url\` + \`--git-ref\`, not both.`,
+        `'${firstArg}' looks like a package spec. Provide either a package spec or \`--repo-url\` with optional \`--git-ref\`, not both.`,
       );
     }
     return { spec: undefined, pathPrefix: firstArg };
@@ -254,11 +254,11 @@ export function registerCodeFilesCommand(pkgCommand: Command): Command {
     )
     .option(
       "--repo-url <url>",
-      "Repository URL addressing (requires --git-ref)",
+      "Repository URL addressing (defaults to the repo default branch)",
     )
     .option(
       "--git-ref <ref>",
-      "Tag, commit, branch, or HEAD. Required with --repo-url.",
+      "Optional tag, commit, branch, or HEAD for --repo-url.",
     )
     .option("--path <path>", "Exact file selector")
     .option("--glob <glob>", "Glob selector (repeatable)", collectRepeatable)

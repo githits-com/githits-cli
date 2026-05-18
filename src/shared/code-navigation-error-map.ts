@@ -3,6 +3,7 @@ import {
   ClientUpdateRequiredError,
 } from "../services/client-update-required-error.js";
 import {
+  type AvailableRef,
   type AvailableVersion,
   CodeNavigationAccessError,
   CodeNavigationBackendError,
@@ -16,6 +17,7 @@ import {
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
   MalformedCodeNavigationResponseError,
+  type TargetResolution,
 } from "../services/code-navigation-service.js";
 import { AuthenticationError } from "../services/githits-service.js";
 import { debugLog } from "./debug-log.js";
@@ -40,6 +42,8 @@ export type MappedErrorCode =
 export interface MappedErrorDetails {
   action?: string;
   availableVersions?: AvailableVersion[];
+  availableRefs?: AvailableRef[];
+  targetResolution?: TargetResolution;
   indexingRef?: string;
   status?: number;
   graphqlCode?: string;
@@ -147,6 +151,12 @@ function classify(error: unknown): MappedError {
     if (error.indexingRef) details.indexingRef = error.indexingRef;
     if (error.availableVersions && error.availableVersions.length > 0) {
       details.availableVersions = error.availableVersions;
+    }
+    if (error.availableRefs && error.availableRefs.length > 0) {
+      details.availableRefs = error.availableRefs;
+    }
+    if (error.targetResolution) {
+      details.targetResolution = error.targetResolution;
     }
     return {
       code: "INDEXING",

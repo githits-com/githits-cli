@@ -41,7 +41,7 @@ export interface PkgReadCommandDependencies {
 
 /**
  * Core `code read` action. Accepts `<spec>` OR
- * `--repo-url <url> --git-ref <ref>` (mutually exclusive) and a
+ * `--repo-url <url> [--git-ref <ref>]` (mutually exclusive) and a
  * required `<path>` positional.
  *
  * Line-range grammar:
@@ -74,7 +74,7 @@ export async function pkgReadAction(
     // Resolve our (spec, path) pair based on whether repo-URL mode
     // is active:
     //   `code read <spec> <path>`         → firstArg=spec, secondArg=path
-    //   `code read --repo-url X --git-ref Y <path>`
+    //   `code read --repo-url X [--git-ref Y] <path>`
     //                                     → firstArg=path, secondArg=undefined
     const hasRepoUrl = Boolean(options.repoUrl);
     const { spec, path } = resolvePositionals(firstArg, secondArg, hasRepoUrl);
@@ -347,11 +347,11 @@ export function registerCodeReadCommand(pkgCommand: Command): Command {
     )
     .option(
       "--repo-url <url>",
-      "Repository URL addressing (requires --git-ref)",
+      "Repository URL addressing (defaults to the repo default branch)",
     )
     .option(
       "--git-ref <ref>",
-      "Tag, commit, branch, or HEAD. Required with --repo-url.",
+      "Optional tag, commit, branch, or HEAD for --repo-url.",
     )
     .option(
       "--lines <start-end>",
