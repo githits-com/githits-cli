@@ -440,27 +440,30 @@ describe("pkgGrepAction", () => {
   it("sets exit code 1 on zero-match JSON while preserving output", async () => {
     const originalExitCode = process.exitCode;
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
-    const service = createMockCodeNavigationService({
-      grepRepo: mock(() =>
-        Promise.resolve({
-          ...defaultGrepRepoResult,
-          matches: [],
-          totalMatches: 0,
-          uniqueFilesMatched: 0,
-        }),
-      ),
-    });
-    await pkgGrepAction(
-      "npm:express",
-      "nothing",
-      undefined,
-      { json: true },
-      createDeps({ codeNavigationService: service }),
-    );
-    expect(logSpy.mock.calls.length).toBe(1);
-    expect(process.exitCode).toBe(1);
-    logSpy.mockRestore();
-    process.exitCode = originalExitCode;
+    try {
+      const service = createMockCodeNavigationService({
+        grepRepo: mock(() =>
+          Promise.resolve({
+            ...defaultGrepRepoResult,
+            matches: [],
+            totalMatches: 0,
+            uniqueFilesMatched: 0,
+          }),
+        ),
+      });
+      await pkgGrepAction(
+        "npm:express",
+        "nothing",
+        undefined,
+        { json: true },
+        createDeps({ codeNavigationService: service }),
+      );
+      expect(logSpy.mock.calls.length).toBe(1);
+      expect(process.exitCode).toBe(1);
+    } finally {
+      logSpy.mockRestore();
+      process.exitCode = originalExitCode ?? 0;
+    }
   });
 
   it("prints zero-match text before setting exit code 1", async () => {
@@ -474,29 +477,32 @@ describe("pkgGrepAction", () => {
       );
       return true;
     }) as typeof process.stdout.write);
-    const service = createMockCodeNavigationService({
-      grepRepo: mock(() =>
-        Promise.resolve({
-          ...defaultGrepRepoResult,
-          matches: [],
-          totalMatches: 0,
-          uniqueFilesMatched: 0,
-        }),
-      ),
-    });
+    try {
+      const service = createMockCodeNavigationService({
+        grepRepo: mock(() =>
+          Promise.resolve({
+            ...defaultGrepRepoResult,
+            matches: [],
+            totalMatches: 0,
+            uniqueFilesMatched: 0,
+          }),
+        ),
+      });
 
-    await pkgGrepAction(
-      "npm:express",
-      "nothing",
-      undefined,
-      { verbose: true },
-      createDeps({ codeNavigationService: service }),
-    );
+      await pkgGrepAction(
+        "npm:express",
+        "nothing",
+        undefined,
+        { verbose: true },
+        createDeps({ codeNavigationService: service }),
+      );
 
-    expect(writes.join("")).toContain("No matches.");
-    expect(process.exitCode).toBe(1);
-    writeSpy.mockRestore();
-    process.exitCode = originalExitCode;
+      expect(writes.join("")).toContain("No matches.");
+      expect(process.exitCode).toBe(1);
+    } finally {
+      writeSpy.mockRestore();
+      process.exitCode = originalExitCode ?? 0;
+    }
   });
 
   it("exits 2 on error paths", async () => {
