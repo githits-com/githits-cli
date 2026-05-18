@@ -91,7 +91,7 @@
     "@types/semver": "^7.7.1",
     "bunup": "^0.16.31",
     "husky": "^9.1.7",
-    "lint-staged": "^16.4.0",
+    "lint-staged": "^17.0.4",
     "typescript": "^5.9.3"
   }
 }
