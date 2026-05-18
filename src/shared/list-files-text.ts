@@ -11,6 +11,7 @@
  */
 
 import type { LeanListFilesEnvelope } from "./list-files-response.js";
+import { buildTargetResolutionNotes } from "./target-resolution.js";
 
 const SEP = " | ";
 
@@ -21,6 +22,7 @@ export function renderListFilesText(envelope: LeanListFilesEnvelope): string {
 
   if (envelope.files.length === 0) {
     lines.push(envelope.hint ?? "No files match the requested filter.");
+    appendTargetResolutionNotes(lines, envelope);
     return lines.join("\n");
   }
 
@@ -38,7 +40,19 @@ export function renderListFilesText(envelope: LeanListFilesEnvelope): string {
     lines.push(envelope.hint);
   }
 
+  appendTargetResolutionNotes(lines, envelope);
+
   return lines.join("\n");
+}
+
+function appendTargetResolutionNotes(
+  lines: string[],
+  envelope: LeanListFilesEnvelope,
+): void {
+  const notes = buildTargetResolutionNotes(envelope.targetResolution);
+  if (notes.length === 0) return;
+  lines.push("");
+  for (const note of notes) lines.push(note);
 }
 
 function buildHeader(envelope: LeanListFilesEnvelope): string {

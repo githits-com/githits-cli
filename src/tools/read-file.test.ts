@@ -173,6 +173,49 @@ describe("createReadFileTool — happy path", () => {
     expect(payload.isBinary).toBe(true);
     expect(payload.content).toBeUndefined();
   });
+
+  it("emits targetResolution provenance and retry candidates", async () => {
+    const tool = createReadFileTool(
+      createMockCodeNavigationService({
+        readFile: mock(() =>
+          Promise.resolve({
+            ...defaultReadFileResult,
+            targetResolution: {
+              requested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "HEAD",
+              },
+              resolvedRequested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "main",
+                commitSha: "def456789abc",
+              },
+              served: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "main",
+                commitSha: "abc123789def",
+              },
+              freshness: "fallback_recent",
+              freshnessReason: "head_refresh_deferred",
+              availableVersions: [],
+              availableRefs: [{ ref: "main" }],
+            },
+          }),
+        ),
+      }),
+    );
+    const result = await tool.handler(
+      {
+        target: "https://github.com/expressjs/express#HEAD",
+        path: "src/index.js",
+      },
+      {},
+    );
+
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("using recent index");
+    expect(text).toContain("queryable now: refs=main");
+  });
 });
 
 describe("createReadFileTool — validation errors", () => {

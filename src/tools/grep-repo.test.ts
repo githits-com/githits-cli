@@ -186,6 +186,48 @@ describe("createGrepRepoTool — happy path", () => {
       line: 4,
     });
   });
+
+  it("renders targetResolution retry candidates in text output", async () => {
+    const tool = createGrepRepoTool(
+      createMockCodeNavigationService({
+        grepRepo: mock(() =>
+          Promise.resolve({
+            ...defaultGrepRepoResult,
+            targetResolution: {
+              requested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "HEAD",
+              },
+              resolvedRequested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "main",
+              },
+              served: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "main",
+                commitSha: "abc123789def",
+              },
+              freshness: "fallback_recent",
+              freshnessReason: "head_refresh_deferred",
+              availableVersions: [],
+              availableRefs: [{ ref: "main" }],
+            },
+          }),
+        ),
+      }),
+    );
+    const result = await tool.handler(
+      {
+        target: "https://github.com/expressjs/express#HEAD",
+        pattern: "middleware",
+      },
+      {},
+    );
+
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("using recent index");
+    expect(text).toContain("queryable now: refs=main");
+  });
 });
 
 describe("createGrepRepoTool — text format", () => {

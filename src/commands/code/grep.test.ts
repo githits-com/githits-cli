@@ -437,15 +437,9 @@ describe("pkgGrepAction", () => {
     exitSpy.mockRestore();
   });
 
-  it("exits 1 on zero matches", async () => {
+  it("sets exit code 1 on zero-match JSON while preserving output", async () => {
+    const originalExitCode = process.exitCode;
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
-    const exitCalls: number[] = [];
-    const exitSpy = spyOn(process, "exit").mockImplementation(((
-      code?: number,
-    ) => {
-      exitCalls.push(code ?? 0);
-      return undefined as never;
-    }) as typeof process.exit);
     const service = createMockCodeNavigationService({
       grepRepo: mock(() =>
         Promise.resolve({
@@ -464,9 +458,45 @@ describe("pkgGrepAction", () => {
       createDeps({ codeNavigationService: service }),
     );
     expect(logSpy.mock.calls.length).toBe(1);
-    expect(exitCalls).toEqual([1]);
+    expect(process.exitCode).toBe(1);
     logSpy.mockRestore();
-    exitSpy.mockRestore();
+    process.exitCode = originalExitCode;
+  });
+
+  it("prints zero-match text before setting exit code 1", async () => {
+    const originalExitCode = process.exitCode;
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+    const service = createMockCodeNavigationService({
+      grepRepo: mock(() =>
+        Promise.resolve({
+          ...defaultGrepRepoResult,
+          matches: [],
+          totalMatches: 0,
+          uniqueFilesMatched: 0,
+        }),
+      ),
+    });
+
+    await pkgGrepAction(
+      "npm:express",
+      "nothing",
+      undefined,
+      { verbose: true },
+      createDeps({ codeNavigationService: service }),
+    );
+
+    expect(writes.join("")).toContain("No matches.");
+    expect(process.exitCode).toBe(1);
+    writeSpy.mockRestore();
+    process.exitCode = originalExitCode;
   });
 
   it("exits 2 on error paths", async () => {

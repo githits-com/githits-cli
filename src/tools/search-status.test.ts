@@ -105,6 +105,21 @@ describe("searchStatusTool", () => {
     expect(payload.progress.status).toBe("TIMEOUT");
   });
 
+  it("renders TIMEOUT text without claiming active indexing", async () => {
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() =>
+          Promise.resolve(createIncompleteOutcome("TIMEOUT", "ref-timeout")),
+        ),
+      }),
+    );
+
+    const result = await tool.handler({ search_ref: "ref-timeout" }, {});
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("search_status | timeout | searchRef=ref-timeout");
+    expect(text).not.toContain("search_status | indexing");
+  });
+
   it("surfaces progress freshness warnings", async () => {
     const tool = createSearchStatusTool(
       createMockCodeNavigationService({
@@ -133,6 +148,106 @@ describe("searchStatusTool", () => {
     );
   });
 
+  it("renders source targetResolution notes in completed text", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const completedOutcome = defaultUnifiedSearchOutcome;
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() =>
+          Promise.resolve({
+            ...completedOutcome,
+            result: {
+              ...completedOutcome.result,
+              sourceStatus: [
+                {
+                  ...completedOutcome.result.sourceStatus[0]!,
+                  targetResolution: {
+                    requested: { registry: "NPM", packageName: "express" },
+                    resolvedRequested: {
+                      registry: "NPM",
+                      packageName: "express",
+                      version: "5.2.1",
+                    },
+                    served: {
+                      registry: "NPM",
+                      packageName: "express",
+                      version: "4.18.2",
+                    },
+                    freshness: "fallback_recent",
+                    freshnessReason: "refresh_deferred",
+                    availableVersions: [{ version: "4.18.2", ref: "v4.18.2" }],
+                    availableRefs: [],
+                  },
+                },
+              ],
+            },
+          }),
+        ),
+      }),
+    );
+
+    const result = await tool.handler({ search_ref: "search-ref-123" }, {});
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("source notes:");
+    expect(text).toContain("using recent index");
+    expect(text).toContain("queryable now: versions=4.18.2@v4.18.2");
+  });
+
+  it("renders terminal source status compactly in completed text", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const completedOutcome = defaultUnifiedSearchOutcome;
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() =>
+          Promise.resolve({
+            ...completedOutcome,
+            result: {
+              ...completedOutcome.result,
+              results: [],
+              sourceStatus: [
+                {
+                  ...completedOutcome.result.sourceStatus[0]!,
+                  source: "CODE" as const,
+                  targetLabel: "githits-com/no-such-repo",
+                  indexingStatus: "UNRESOLVABLE",
+                  codeIndexState: "UNRESOLVABLE",
+                  note: "Repository ref cannot be resolved",
+                  targetResolution: {
+                    requested: {
+                      repoUrl: "https://github.com/githits-com/no-such-repo",
+                    },
+                    resolvedRequested: {
+                      repoUrl: "https://github.com/githits-com/no-such-repo",
+                      gitRef: "HEAD",
+                    },
+                    freshness: "indexing",
+                    freshnessReason: "no_current_fallback",
+                    availableVersions: [],
+                    availableRefs: [],
+                  },
+                },
+              ],
+            },
+          }),
+        ),
+      }),
+    );
+
+    const result = await tool.handler(
+      { search_ref: "search-ref-terminal" },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain(
+      "code (githits-com/no-such-repo) | Repository ref cannot be resolved (UNRESOLVABLE)",
+    );
+    expect(text).not.toContain("indexing fresh target");
+  });
+
   it("defaults to compact text output", async () => {
     const tool = createSearchStatusTool(
       createMockCodeNavigationService({
@@ -146,7 +261,7 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
 
     expect(result.isError).toBeUndefined();
-    expect(text).toContain("search_status | indexing | searchRef=ref-text");
+    expect(text).toContain("search_status | searching | searchRef=ref-text");
     expect(text).toContain("progress: SEARCHING, 0/1 targets ready");
     expect(text).toContain('next: call search_status search_ref="ref-text"');
     expect(() => JSON.parse(text)).toThrow();

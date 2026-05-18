@@ -10,6 +10,13 @@ import { MalformedCodeNavigationResponseError } from "../services/index.js";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { mapCodeNavigationError } from "./code-navigation-error-map.js";
 import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
+import {
+  buildResolutionFromRetryCandidates,
+  buildTargetResolutionNotes,
+  type LeanAvailableArtifact,
+  type LeanTargetResolution,
+  projectTargetResolution,
+} from "./target-resolution.js";
 import { DEFAULT_UNIFIED_SEARCH_LIMIT } from "./unified-search-request.js";
 
 /**
@@ -100,6 +107,9 @@ export interface UnifiedSearchProgressPayload {
     freshness?: string;
     indexingRef?: string;
     requestedRefKind?: string;
+    targetResolution?: LeanTargetResolution;
+    availableVersions?: LeanAvailableArtifact[];
+    availableRefs?: LeanAvailableArtifact[];
   }>;
   expiresAt?: string;
   next?: string;
@@ -111,6 +121,7 @@ export interface UnifiedSearchSourceStatusPayload {
   requestedTarget?: string;
   freshTarget?: string;
   servedTarget?: string;
+  targetResolution?: LeanTargetResolution;
   indexingStatus?: string;
   codeIndexState?: string;
   resultCount?: number;
@@ -551,6 +562,14 @@ function compactProgressTarget(
   if (target.indexingRef) payload.indexingRef = target.indexingRef;
   if (target.requestedRefKind)
     payload.requestedRefKind = target.requestedRefKind;
+  const targetResolution = projectTargetResolution(target.targetResolution);
+  if (targetResolution) payload.targetResolution = targetResolution;
+  if (target.availableVersions?.length) {
+    payload.availableVersions = target.availableVersions;
+  }
+  if (target.availableRefs?.length) {
+    payload.availableRefs = target.availableRefs;
+  }
   return Object.keys(payload).length > 0 ? payload : undefined;
 }
 
@@ -619,7 +638,21 @@ function buildProgressFreshnessWarnings(
         servedTarget: target.served,
       }),
     )
+    .concat(
+      (progress?.targets ?? [])
+        .map((target) => progressTargetResolutionWarning(target))
+        .filter((entry): entry is string => Boolean(entry)),
+    )
     .filter((entry): entry is string => Boolean(entry));
+}
+
+function progressTargetResolutionWarning(
+  target: NonNullable<UnifiedSearchProgressPayload["targets"]>[number],
+): string | undefined {
+  const notes = buildTargetResolutionNotes(
+    target.targetResolution ?? buildResolutionFromRetryCandidates(target),
+  );
+  return notes.length > 0 ? notes.join(" ") : undefined;
 }
 
 function freshnessWarning(input: {
@@ -649,10 +682,7 @@ function labelsDiverge(input: {
 }): boolean {
   const served = input.servedTarget;
   if (!served) return false;
-  return Boolean(
-    (input.freshTarget && input.freshTarget !== served) ||
-      (input.requestedTarget && input.requestedTarget !== served),
-  );
+  return Boolean(input.freshTarget && input.freshTarget !== served);
 }
 
 function warningForEntry(
@@ -666,6 +696,13 @@ function warningForEntry(
     servedTarget: entry.servedTarget,
   });
   if (freshness) return freshness;
+  const terminalLifecycleReason = terminalLifecycleWarningReason(entry);
+  if (terminalLifecycleReason) {
+    reasons.push(terminalLifecycleReason);
+  } else {
+    const targetResolutionWarning = targetResolutionWarningForEntry(entry);
+    if (targetResolutionWarning) reasons.push(targetResolutionWarning);
+  }
   if (entry.incompatibleQueryFeatures?.length) {
     reasons.push(
       `incompatible query features [${entry.incompatibleQueryFeatures.join(", ")}]`,
@@ -688,10 +725,18 @@ function warningForEntry(
   // already filtered out upstream in `compactSourceStatusEntry`; if
   // these fields are present here, the state is genuinely worth
   // surfacing.
-  if (entry.indexingStatus) {
+  if (
+    !terminalLifecycleReason &&
+    reasons.length === 0 &&
+    entry.indexingStatus
+  ) {
     reasons.push(`indexing status ${entry.indexingStatus}`);
   }
-  if (entry.codeIndexState) {
+  if (
+    !terminalLifecycleReason &&
+    reasons.length === 0 &&
+    entry.codeIndexState
+  ) {
     if (entry.codeIndexState !== "STALE") {
       reasons.push(`code index state ${entry.codeIndexState}`);
     }
@@ -706,6 +751,27 @@ function warningForEntry(
     return `${prefix}: ${entry.note}`;
   }
   return undefined;
+}
+
+function terminalLifecycleWarningReason(
+  entry: UnifiedSearchSourceStatusPayload,
+): string | undefined {
+  const states = Array.from(
+    new Set([entry.indexingStatus, entry.codeIndexState].filter(Boolean)),
+  ) as string[];
+  const terminalStates = states.filter(
+    (state) => state !== "INDEXING" && state !== "STALE",
+  );
+  if (terminalStates.length === 0) return undefined;
+  const status = terminalStates.join("/");
+  return entry.note ? `${entry.note} (${status})` : `status ${status}`;
+}
+
+function targetResolutionWarningForEntry(
+  entry: UnifiedSearchSourceStatusPayload,
+): string | undefined {
+  const notes = buildTargetResolutionNotes(entry.targetResolution);
+  return notes.length > 0 ? notes.join(" ") : undefined;
 }
 
 function compactSourceStatus(
@@ -742,6 +808,14 @@ function compactSourceStatusEntry(
     payload.servedTarget = entry.servedTargetLabel;
     payload.codeIndexState = entry.codeIndexState;
     interesting = true;
+  }
+
+  const targetResolution = projectTargetResolution(entry.targetResolution);
+  if (targetResolution) {
+    payload.targetResolution = targetResolution;
+    if (buildTargetResolutionNotes(targetResolution).length > 0) {
+      interesting = true;
+    }
   }
 
   // Suppress healthy lifecycle states. INDEXED means searchable; CURRENT
@@ -799,7 +873,7 @@ function assertSearchFollowUpInvariant(hit: UnifiedSearchHit): void {
 
   if (
     hit.resultType === "REPOSITORY_DOC" &&
-    (!hit.locator.repoUrl || !hit.locator.gitRef || !hit.locator.filePath)
+    (!hit.locator.repoUrl || !hit.locator.filePath)
   ) {
     throw new MalformedCodeNavigationResponseError(
       "REPOSITORY_DOC search hit missing repo locator fields.",

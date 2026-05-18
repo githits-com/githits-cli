@@ -1,5 +1,6 @@
 import type { LeanReadFileEnvelope } from "./read-file-response.js";
 import { splitReadFileContentLines } from "./read-file-response.js";
+import { buildTargetResolutionNotes } from "./target-resolution.js";
 
 const SEP = " | ";
 
@@ -24,6 +25,11 @@ export function renderReadFileText(envelope: LeanReadFileEnvelope): string {
   if (envelope.hint) {
     lines.push("");
     lines.push(`hint: ${envelope.hint}`);
+  }
+  const resolutionNotes = buildTargetResolutionNotes(envelope.targetResolution);
+  if (resolutionNotes.length > 0) {
+    lines.push("");
+    for (const note of resolutionNotes) lines.push(note);
   }
   return lines.join("\n");
 }

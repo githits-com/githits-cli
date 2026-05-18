@@ -18,6 +18,11 @@
 
 import type { ListFilesResult, RepoFileEntry } from "../services/index.js";
 import { colorize, dim } from "./colors.js";
+import {
+  buildTargetResolutionNotes,
+  type LeanTargetResolution,
+  projectTargetResolution,
+} from "./target-resolution.js";
 
 export interface LeanRepoFileEntry {
   path: string;
@@ -62,6 +67,7 @@ export interface LeanListFilesEnvelope {
    *  backend returned a resolution block. */
   indexedVersion?: string;
   resolution?: LeanListFilesResolution;
+  targetResolution?: LeanTargetResolution;
   total: number;
   hasMore: boolean;
   files: LeanRepoFileEntry[];
@@ -130,6 +136,8 @@ export function buildListFilesSuccessPayload(
   if (result.indexedVersion) envelope.indexedVersion = result.indexedVersion;
   if (result.resolution)
     envelope.resolution = projectResolution(result.resolution);
+  const targetResolution = projectTargetResolution(result.targetResolution);
+  if (targetResolution) envelope.targetResolution = targetResolution;
   if (result.hint) envelope.hint = result.hint;
 
   const filter = buildFilterBlock(options);
@@ -297,6 +305,7 @@ function formatVerbose(
   if (envelope.resolution || envelope.indexedVersion) {
     lines.push(buildResolutionLine(envelope, options));
   }
+  appendTargetResolutionNotes(lines, envelope, options);
   lines.push("");
 
   const pathWidth = longestPathLength(envelope.files);
@@ -340,6 +349,7 @@ function formatEmpty(
   if (envelope.resolution || envelope.indexedVersion) {
     lines.push(buildResolutionLine(envelope, options));
   }
+  appendTargetResolutionNotes(lines, envelope, options);
   lines.push("");
   lines.push(dim(hint, options.useColors));
   lines.push("");
@@ -372,6 +382,15 @@ function buildResolutionLine(
   const commit = envelope.resolution?.commitSha;
   if (commit) parts.push(`commit ${commit.slice(0, 7)}`);
   return dim(parts.join(" · "), options.useColors);
+}
+
+function appendTargetResolutionNotes(
+  lines: string[],
+  envelope: LeanListFilesEnvelope,
+  options: FormatListFilesTerminalOptions,
+): void {
+  const notes = buildTargetResolutionNotes(envelope.targetResolution);
+  for (const note of notes) lines.push(dim(note, options.useColors));
 }
 
 function buildIdentityLabel(envelope: LeanListFilesEnvelope): string {

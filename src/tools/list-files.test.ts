@@ -290,16 +290,13 @@ describe("createListFilesTool — validation errors", () => {
     expect(payload.code).toBe("INVALID_ARGUMENT");
   });
 
-  it("returns INVALID_ARGUMENT for repo targets without git refs", async () => {
+  it("allows repo targets without git refs for default-branch intent", async () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
       { target: "https://github.com/expressjs/express" },
       {},
     );
-    expect(result.isError).toBe(true);
-    const payload = parseText(result) as { code: string; error: string };
-    expect(payload.code).toBe("INVALID_ARGUMENT");
-    expect(payload.error).toContain("#gitRef");
+    expect(result.isError).toBeUndefined();
   });
 
   it("treats empty optional selectors as omitted", async () => {
@@ -328,6 +325,7 @@ describe("createListFilesTool — service errors", () => {
             "Target is still indexing.",
             "ref_abc",
             [{ version: "4.21.0", ref: "v4.21.0" }],
+            [{ ref: "main" }],
           ),
         ),
       ),
@@ -341,12 +339,17 @@ describe("createListFilesTool — service errors", () => {
     const payload = parseText(result) as {
       code: string;
       retryable: boolean;
-      details?: { indexingRef?: string; availableVersions?: unknown };
+      details?: {
+        indexingRef?: string;
+        availableVersions?: unknown;
+        availableRefs?: unknown;
+      };
     };
     expect(payload.code).toBe("INDEXING");
     expect(payload.retryable).toBe(true);
     expect(payload.details?.indexingRef).toBe("ref_abc");
     expect(payload.details?.availableVersions).toBeTruthy();
+    expect(payload.details?.availableRefs).toBeTruthy();
   });
 
   it("classifies CodeNavigationTargetNotFoundError as NOT_FOUND", async () => {

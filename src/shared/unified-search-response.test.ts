@@ -50,6 +50,43 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.results[0]).not.toHaveProperty("score");
   });
 
+  it("allows repository doc hits without gitRef", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const hit = defaultUnifiedSearchOutcome.result.results[0]!;
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        ...defaultUnifiedSearchOutcome,
+        result: {
+          ...defaultUnifiedSearchOutcome.result,
+          results: [
+            {
+              ...hit,
+              resultType: "REPOSITORY_DOC",
+              targetLabel: "expressjs/express",
+              locator: {
+                ...hit.locator,
+                pageId: "github:expressjs/express/README.md",
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: undefined,
+                filePath: "README.md",
+              },
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.results[0]?.type).toBe("repository_doc");
+    expect(payload.results[0]?.followUp).toContain(
+      'docs_read page_id="github:expressjs/express/README.md"',
+    );
+  });
+
   it("omits default-valued query echo fields", () => {
     const payload = buildUnifiedSearchSuccessPayload(
       params,
@@ -178,6 +215,95 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
   });
 
+  it("keeps follow-up commands pinned to served locator identity", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [
+          {
+            ...defaultUnifiedSearchOutcome.result.results[0]!,
+            targetLabel: "npm:express latest",
+            requestedTargetLabel: "npm:express latest",
+            freshTargetLabel: "npm:express@5.2.1",
+            servedTargetLabel: "npm:express@4.18.2",
+            freshness: "STALE",
+            locator: {
+              ...defaultUnifiedSearchOutcome.result.results[0]!.locator,
+              version: "4.18.2",
+            },
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      outcome,
+    );
+
+    expect(payload.results[0]?.followUp).toContain(
+      'target="npm:express@4.18.2"',
+    );
+    expect(payload.results[0]?.followUp).not.toContain("5.2.1");
+  });
+
+  it("projects source targetResolution into actionable warnings", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        sourceStatus: [
+          {
+            ...defaultUnifiedSearchOutcome.result.sourceStatus[0]!,
+            targetResolution: {
+              requested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "HEAD",
+              },
+              resolvedRequested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "main",
+                commitSha: "def456789abc",
+              },
+              served: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "main",
+                commitSha: "abc123789def",
+              },
+              freshness: "fallback_recent",
+              freshnessReason: "head_refresh_deferred",
+              indexingRef: "idx_123",
+              availableVersions: [],
+              availableRefs: [{ ref: "main" }, { ref: "v4.18.2" }],
+            },
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      outcome,
+    );
+
+    expect(payload.sourceStatus?.[0]?.targetResolution?.freshness).toBe(
+      "fallback_recent",
+    );
+    expect(payload.warnings?.join("\n")).toContain("using recent index");
+    expect(payload.warnings?.join("\n")).toContain("queryable now");
+  });
+
   it("dedupes identical freshness warnings across hits sharing a state", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
@@ -281,6 +407,62 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       "requested https://github.com/foo/bar default branch; served stale main@abc123 while main@def456 indexes.",
     );
   });
+
+  it("projects progress targetResolution retry candidates without result hits", () => {
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        state: "incomplete",
+        completed: false,
+        searchRef: "search-ref-123",
+        progress: {
+          searchRef: "search-ref-123",
+          status: "INDEXING",
+          targetsTotal: 1,
+          targetsReady: 0,
+          elapsedMs: 200,
+          query: "router middleware",
+          queryWarnings: [],
+          sources: ["CODE"],
+          targets: [
+            {
+              requested: "https://github.com/foo/bar default branch",
+              freshness: "INDEXING",
+              indexingRef: "idx_123",
+              targetResolution: {
+                requested: {
+                  repoUrl: "https://github.com/foo/bar",
+                },
+                resolvedRequested: {
+                  repoUrl: "https://github.com/foo/bar",
+                  gitRef: "main",
+                },
+                freshness: "indexing",
+                freshnessReason: "requested_ref_indexing",
+                indexingRef: "idx_123",
+                availableVersions: [],
+                availableRefs: [{ ref: "main" }, { ref: "v1.2.3" }],
+              },
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.completed).toBe(false);
+    if (payload.completed) {
+      throw new Error("expected incomplete payload");
+    }
+    expect(payload.progress?.targets?.[0]?.targetResolution?.freshness).toBe(
+      "indexing",
+    );
+    expect(
+      payload.progress?.targets?.[0]?.targetResolution?.availableRefs,
+    ).toEqual([{ ref: "main" }, { ref: "v1.2.3" }]);
+    expect(payload.warnings?.join("\n")).toContain("queryable now");
+  });
 });
 
 describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", () => {
@@ -330,6 +512,33 @@ describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", ()
     ]);
   });
 
+  it("prefers compact lifecycle note over raw target-resolution details for terminal states", () => {
+    const warnings = buildSourceStatusWarnings([
+      {
+        source: "code",
+        targetLabel: "githits-com/no-such-repo",
+        targetResolution: {
+          requested: { repoUrl: "https://github.com/githits-com/no-such-repo" },
+          resolvedRequested: {
+            repoUrl: "https://github.com/githits-com/no-such-repo",
+            gitRef: "HEAD",
+          },
+          freshness: "indexing",
+          freshnessReason: "no_current_fallback",
+          availableVersions: [],
+          availableRefs: [],
+        },
+        indexingStatus: "UNRESOLVABLE",
+        codeIndexState: "UNRESOLVABLE",
+        note: "Repository ref cannot be resolved",
+      },
+    ]);
+
+    expect(warnings).toEqual([
+      "Source 'code' for githits-com/no-such-repo: Repository ref cannot be resolved (UNRESOLVABLE)",
+    ]);
+  });
+
   it("produces one warning per source-status entry, preserving order", () => {
     const warnings = buildSourceStatusWarnings([
       {
@@ -354,6 +563,21 @@ describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", ()
         {
           source: "code",
           targetLabel: "npm:express@5.1.0",
+          codeIndexState: "STALE",
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("does not warn when requested is floating but fresh and served match", () => {
+    expect(
+      buildSourceStatusWarnings([
+        {
+          source: "code",
+          targetLabel: "githits-com/githits-cli",
+          requestedTarget: "githits-com/githits-cli",
+          freshTarget: "githits-com/githits-cli@HEAD",
+          servedTarget: "githits-com/githits-cli@HEAD",
           codeIndexState: "STALE",
         },
       ]),
@@ -440,6 +664,43 @@ describe("buildUnifiedSearchSuccessPayload — sourceStatus warnings on complete
       defaultUnifiedSearchOutcome,
     );
     expect(payload.warnings).toBeUndefined();
+  });
+
+  it("omits warnings[] for current targetResolution on floating repo targets", () => {
+    const outcome = buildOutcomeWithStatus({
+      source: "CODE",
+      targetLabel: "githits-com/githits-cli",
+      targetResolution: {
+        requested: {
+          kind: "repo_default_branch",
+          repoUrl: "https://github.com/githits-com/githits-cli",
+        },
+        resolvedRequested: {
+          repoUrl: "https://github.com/githits-com/githits-cli",
+          gitRef: "HEAD",
+          commitSha: "fd3d47cec611714272f68692b6fc91db575b41bf",
+        },
+        served: {
+          repoUrl: "https://github.com/githits-com/githits-cli",
+          gitRef: "HEAD",
+          commitSha: "fd3d47cec611714272f68692b6fc91db575b41bf",
+        },
+        freshness: "current",
+        freshnessReason: "head_refresh_deferred_within_ttl",
+        availableVersions: [],
+        availableRefs: [],
+      },
+    });
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "tracking",
+      "tracking",
+      outcome,
+    );
+
+    expect(payload.warnings).toBeUndefined();
+    expect(payload.sourceStatus).toBeUndefined();
   });
 
   it("includes parser warnings ahead of sourceStatus warnings at top level", () => {

@@ -371,24 +371,26 @@ describe("pkgFilesAction", () => {
     exitSpy.mockRestore();
   });
 
-  it("rejects --repo-url without --git-ref", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit");
-    });
-    try {
-      await pkgFilesAction(
-        undefined,
-        undefined,
-        { repoUrl: "https://github.com/x/y" },
-        createDeps(),
-      );
-    } catch {
-      /* expected */
-    }
-    expect(errorSpy.mock.calls[0]?.[0]).toMatch(/--git-ref/);
-    errorSpy.mockRestore();
-    exitSpy.mockRestore();
+  it("allows --repo-url without --git-ref for default-branch intent", async () => {
+    const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
+    const service = createMockCodeNavigationService({ listFiles });
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+
+    await pkgFilesAction(
+      undefined,
+      undefined,
+      { repoUrl: "https://github.com/x/y" },
+      createDeps({ codeNavigationService: service }),
+    );
+
+    const calls = listFiles.mock.calls as unknown as Array<
+      [{ target: { repoUrl?: string; gitRef?: string } }]
+    >;
+    expect(calls[0]?.[0]?.target.repoUrl).toBe("https://github.com/x/y");
+    expect(calls[0]?.[0]?.target.gitRef).toBeUndefined();
+    writeSpy.mockRestore();
   });
 
   it("rejects missing addressing entirely", async () => {

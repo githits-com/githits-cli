@@ -160,7 +160,7 @@ export async function pkgGrepAction(
 
     if (options.json) {
       console.log(JSON.stringify(payload));
-      if (payload.totalMatches === 0) process.exit(1);
+      if (payload.totalMatches === 0) process.exitCode = 1;
       return;
     }
 
@@ -175,7 +175,7 @@ export async function pkgGrepAction(
     });
     process.stdout.write(rendered.stdout);
     if (rendered.stderr) process.stderr.write(rendered.stderr);
-    if (payload.totalMatches === 0) process.exit(1);
+    if (payload.totalMatches === 0) process.exitCode = 1;
   } catch (error) {
     handleCodeNavCommandError(
       error,
@@ -206,7 +206,7 @@ function resolvePositionals(
   }
   if (first !== undefined && second === undefined) {
     throw new InvalidPackageSpecError(
-      "In spec mode, pass at least <spec> <pattern>. If you meant to target a repository instead, pass --repo-url <url> --git-ref <ref>.",
+      "In spec mode, pass at least <spec> <pattern>. If you meant to target a repository instead, pass --repo-url <url> with optional --git-ref <ref>.",
     );
   }
   return { spec: first, pattern: second, pathPrefix: third };
@@ -250,7 +250,7 @@ const PKG_GREP_DESCRIPTION = `Deterministic text grep over indexed dependency an
 ${CLI_GREP_PATTERN_NOTE}
 Use \`githits search\` for discovery; use \`githits code grep\` when you know the text or regex to match.
 
-Addressing: <spec> (registry:name[@version]) OR --repo-url <url> --git-ref <ref>.
+Addressing: <spec> (registry:name[@version]) OR --repo-url <url> [--git-ref <ref>].
 Omitted version means latest release.
 In spec mode pass <spec> <pattern> [path-prefix]; in repo-URL mode pass only <pattern> [path-prefix].
 
@@ -284,11 +284,11 @@ export function registerCodeGrepCommand(pkgCommand: Command): Command {
     )
     .option(
       "--repo-url <url>",
-      "Repository URL addressing (requires --git-ref)",
+      "Repository URL addressing (defaults to the repo default branch)",
     )
     .option(
       "--git-ref <ref>",
-      "Tag, commit, branch, or HEAD. Required with --repo-url.",
+      "Optional tag, commit, branch, or HEAD for --repo-url.",
     )
     .option("--path <path>", "Exact file path to grep")
     .option(

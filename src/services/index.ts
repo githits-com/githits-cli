@@ -48,6 +48,7 @@ export {
   isClientUpdateRequiredGraphQLError,
 } from "./client-update-required-error.js";
 export type {
+  AvailableRef,
   AvailableVersion,
   CodeNavigationRegistry,
   CodeNavigationService,
@@ -70,6 +71,8 @@ export type {
   RepoFileEntry,
   SymbolCategory,
   SymbolKind,
+  TargetResolution,
+  TargetResolutionIdentity,
   UnifiedSearchCompleted,
   UnifiedSearchFilters,
   UnifiedSearchHit,

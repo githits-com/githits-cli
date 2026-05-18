@@ -1,6 +1,11 @@
 import type { GrepRepoMatch, GrepRepoResult } from "../services/index.js";
 import { colorize, dim, highlightRanges } from "./colors.js";
 import { shellQuote } from "./shell-quote.js";
+import {
+  buildTargetResolutionNotes,
+  type LeanTargetResolution,
+  projectTargetResolution,
+} from "./target-resolution.js";
 
 const UTF8_ENCODER = new TextEncoder();
 
@@ -78,6 +83,7 @@ export interface LeanGrepRepoEnvelope {
   uniqueFilesMatched: number;
   indexedVersion?: string;
   resolution?: LeanGrepRepoResolution;
+  targetResolution?: LeanTargetResolution;
   filter?: LeanGrepRepoFilter;
 }
 
@@ -158,6 +164,8 @@ export function buildGrepRepoSuccessPayload(
   if (result.resolution) {
     envelope.resolution = projectResolution(result.resolution);
   }
+  const targetResolution = projectTargetResolution(result.targetResolution);
+  if (targetResolution) envelope.targetResolution = targetResolution;
 
   const filter = buildFilterBlock(options);
   if (filter) envelope.filter = filter;
@@ -281,8 +289,11 @@ export function formatGrepRepoTerminal(
   envelope: LeanGrepRepoEnvelope,
   options: FormatGrepRepoTerminalOptions,
 ): FormattedGrepRepoTerminal {
-  if (envelope.matches.length === 0) {
-    return { stdout: "" };
+  if (envelope.matches.length === 0 && !options.verbose) {
+    return {
+      stdout: "",
+      stderr: formatTerminalNotes(envelope, options.useColors),
+    };
   }
 
   const blocks = buildRenderBlocks(envelope.matches);
@@ -364,6 +375,11 @@ function formatVerbose(
   lines.push("");
 
   const blocksByFile = groupBlocksByFile(blocks);
+  if (blocksByFile.size === 0) {
+    lines.push("No matches.");
+    lines.push("");
+  }
+
   for (const [filePath, fileBlocks] of blocksByFile) {
     lines.push(colorize(filePath, "bold", options.useColors));
     const gutterWidth = widestLineNumberInBlocks(fileBlocks);
@@ -586,6 +602,10 @@ function formatTerminalNotes(
         useColors,
       ),
     );
+  }
+
+  for (const note of buildTargetResolutionNotes(envelope.targetResolution)) {
+    lines.push(dim(note, useColors));
   }
 
   if (lines.length === 0) return undefined;

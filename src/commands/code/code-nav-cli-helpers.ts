@@ -43,7 +43,7 @@ export interface SharedCodeNavCliOptions {
 
 /**
  * Resolve a `CodeNavigationTarget` from CLI input. `<spec>` mode
- * and `--repo-url <url> --git-ref <ref>` mode are mutually
+ * and `--repo-url <url> [--git-ref <ref>]` mode are mutually
  * exclusive; each command parses its own positionals and calls
  * this with the resolved spec string (or `undefined` in repo-URL
  * mode).
@@ -58,20 +58,14 @@ export function resolveCliCodeNavTarget(
 
   if (hasSpec && (hasRepoUrl || hasGitRef)) {
     throw new InvalidPackageSpecError(
-      "Provide either a package spec (e.g. `npm:express`) or `--repo-url` + `--git-ref`, not both.",
+      "Provide either a package spec (e.g. `npm:express`) or `--repo-url` with optional `--git-ref`, not both.",
     );
   }
   if (!hasSpec && !hasRepoUrl) {
     throw new InvalidPackageSpecError(
-      "A package spec (e.g. `npm:express`) or `--repo-url` + `--git-ref` is required.",
+      "A package spec (e.g. `npm:express`) or `--repo-url` is required.",
     );
   }
-  if (hasRepoUrl && !hasGitRef) {
-    throw new InvalidPackageSpecError(
-      "`--repo-url` requires `--git-ref` for code files/read/grep (a tag, branch, commit, or `HEAD`).",
-    );
-  }
-
   if (hasSpec) {
     const parsed = parsePackageSpec(spec as string);
     return {
@@ -139,6 +133,16 @@ export function formatIndexingError(mapped: MappedError): string {
     const more = versions.length - 5;
     const suffix = more > 0 ? ` (+${more} more)` : "";
     lines.push(`  already-indexed versions: ${shown}${suffix}`);
+  }
+  const refs = detail.availableRefs;
+  if (refs && refs.length > 0) {
+    const shown = refs
+      .slice(0, 5)
+      .map((entry) => entry.ref)
+      .join(", ");
+    const more = refs.length - 5;
+    const suffix = more > 0 ? ` (+${more} more)` : "";
+    lines.push(`  already-indexed refs: ${shown}${suffix}`);
   }
   return lines.join("\n");
 }

@@ -47,11 +47,11 @@ export const structuredCodeTargetSchema = z
       .string()
       .optional()
       .describe(
-        "Git ref - tag, branch, or commit. Required with repo_url for code_files/code_read/code_grep. Use HEAD for latest.",
+        "Git ref - tag, branch, commit, or HEAD. Omit with repo_url to request the backend-resolved default branch.",
       ),
   })
   .describe(
-    "Target: provide registry + package_name (package scope) or repo_url + git_ref (repo scope).",
+    "Target: provide registry + package_name (package scope) or repo_url with optional git_ref (repo scope; omitted ref means default branch intent).",
   );
 
 export const codeTargetSchema = z.union([
@@ -60,7 +60,7 @@ export const codeTargetSchema = z.union([
     .string()
     .min(1)
     .describe(
-      "Compact target string. Package: `npm:react@18.2.0` or `npm:react` for latest release. Repository: `https://github.com/facebook/react#HEAD` (git ref required for code_files/code_read/code_grep).",
+      "Compact target string. Package: `npm:react@18.2.0` or `npm:react` for latest release. Repository: `https://github.com/facebook/react#HEAD` or `https://github.com/facebook/react` for default branch intent.",
     ),
 ]);
 
@@ -97,13 +97,13 @@ export function resolveCodeTarget(
 
   if (hasPackageTarget && hasRepoTarget) {
     return invalidTargetResult(
-      "Invalid target: provide either registry + package_name or repo_url + git_ref, not both.",
+      "Invalid target: provide either registry + package_name or repo_url with optional git_ref, not both.",
     );
   }
 
   if (!hasPackageTarget && !hasRepoTarget) {
     return invalidTargetResult(
-      "Missing target: provide registry + package_name or repo_url + git_ref.",
+      "Missing target: provide registry + package_name or repo_url.",
     );
   }
 
@@ -121,15 +121,9 @@ export function resolveCodeTarget(
     };
   }
 
-  if (!target.repo_url || !target.git_ref) {
-    if (!target.repo_url) {
-      return invalidTargetResult(
-        "Incomplete repository target: repo_url is required.",
-      );
-    }
-
+  if (!target.repo_url) {
     return invalidTargetResult(
-      "Incomplete repository target: git_ref is required for code_files/code_read/code_grep.",
+      "Incomplete repository target: repo_url is required.",
     );
   }
 

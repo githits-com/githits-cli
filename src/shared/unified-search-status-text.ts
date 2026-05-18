@@ -6,6 +6,7 @@ import type {
 import {
   appendUnifiedSearchHits,
   formatProgressTarget,
+  formatSourceStatus,
 } from "./unified-search-text.js";
 
 const SEP = " | ";
@@ -46,7 +47,9 @@ export function renderUnifiedSearchStatusText(payload: StatusPayload): string {
 }
 
 function buildHeader(payload: StatusPayload): string {
-  const state = payload.completed ? "complete" : "indexing";
+  const state = payload.completed
+    ? "complete"
+    : (payload.progress?.status.toLowerCase() ?? "incomplete");
   const parts = [`search_status${SEP}${state}`];
   if (payload.searchRef) parts.push(`searchRef=${payload.searchRef}`);
   return parts.join(SEP);
@@ -82,38 +85,6 @@ function appendResult(
       lines.push(`  - ${formatSourceStatus(entry)}`);
     }
   }
-}
-
-function formatSourceStatus(entry: {
-  source: string;
-  targetLabel: string;
-  indexingStatus?: string;
-  codeIndexState?: string;
-  ignoredFilters?: string[];
-  incompatibleFilters?: string[];
-  ignoredQueryFeatures?: string[];
-  incompatibleQueryFeatures?: string[];
-  note?: string;
-}): string {
-  const parts: string[] = [`${entry.source} (${entry.targetLabel})`];
-  if (entry.indexingStatus) parts.push(`indexing=${entry.indexingStatus}`);
-  if (entry.codeIndexState) parts.push(`codeIndex=${entry.codeIndexState}`);
-  if (entry.ignoredFilters?.length) {
-    parts.push(`ignored=${entry.ignoredFilters.join(",")}`);
-  }
-  if (entry.incompatibleFilters?.length) {
-    parts.push(`incompatible=${entry.incompatibleFilters.join(",")}`);
-  }
-  if (entry.ignoredQueryFeatures?.length) {
-    parts.push(`ignoredQuery=${entry.ignoredQueryFeatures.join(",")}`);
-  }
-  if (entry.incompatibleQueryFeatures?.length) {
-    parts.push(
-      `incompatibleQuery=${entry.incompatibleQueryFeatures.join(",")}`,
-    );
-  }
-  if (entry.note) parts.push(entry.note);
-  return parts.join(SEP);
 }
 
 function formatProgress(progress: {

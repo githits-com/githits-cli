@@ -218,7 +218,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("source notes:");
   });
 
-  it("does not fabricate HEAD when repo follow-up lacks served gitRef", () => {
+  it("uses requestedRef when repo follow-up lacks served gitRef", () => {
     const text = renderUnifiedSearchSuccess(
       completed([
         codeHit({
@@ -232,8 +232,47 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
 
-    expect(text).toContain("follow-up unavailable: missing target");
+    expect(text).toContain(
+      'code_read target="https://github.com/expressjs/express#main" path="lib/router/index.js"',
+    );
     expect(text).not.toContain("#HEAD");
+  });
+
+  it("renders terminal source status compactly without raw target-resolution details", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        warnings: [
+          "Source 'code' for githits-com/no-such-repo: Repository ref cannot be resolved (UNRESOLVABLE)",
+        ],
+        sourceStatus: [
+          {
+            source: "code",
+            targetLabel: "githits-com/no-such-repo",
+            indexingStatus: "UNRESOLVABLE",
+            codeIndexState: "UNRESOLVABLE",
+            note: "Repository ref cannot be resolved",
+            targetResolution: {
+              requested: {
+                repoUrl: "https://github.com/githits-com/no-such-repo",
+              },
+              resolvedRequested: {
+                repoUrl: "https://github.com/githits-com/no-such-repo",
+                gitRef: "HEAD",
+              },
+              freshness: "indexing",
+              freshnessReason: "no_current_fallback",
+              availableVersions: [],
+              availableRefs: [],
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "code (githits-com/no-such-repo) | Repository ref cannot be resolved (UNRESOLVABLE)",
+    );
+    expect(text).not.toContain("indexing fresh target");
   });
 
   it("omits the warnings preamble when no warnings are present", () => {

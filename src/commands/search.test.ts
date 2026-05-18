@@ -265,7 +265,7 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
-  it("prints source-status notes when the backend ignored an explicitly-set filter", async () => {
+  it("prints one compact source-status warning when a filter is ignored", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -305,12 +305,13 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain(
-      "Note: docs on npm:express@4.18.2 ignored filters: fileIntent",
+      "Warning: Source 'docs' for npm:express@4.18.2: ignored filters [fileIntent]",
     );
+    expect(output).not.toContain("Note: docs on npm:express@4.18.2");
     consoleSpy.mockRestore();
   });
 
-  it("renders ignored and incompatible query-feature notes", async () => {
+  it("renders ignored and incompatible query-feature warnings once", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -350,11 +351,9 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain(
-      "Note: docs on npm:express@4.18.2 ignored query features: kind",
+      "Warning: Source 'docs' for npm:express@4.18.2: incompatible query features [name]; ignored query features [kind]",
     );
-    expect(output).toContain(
-      "Note: docs on npm:express@4.18.2 incompatible query features: name",
-    );
+    expect(output).not.toContain("Note: docs on npm:express@4.18.2");
     consoleSpy.mockRestore();
   });
 

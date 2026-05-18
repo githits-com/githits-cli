@@ -10,6 +10,11 @@
 
 import type { ReadFileResult } from "../services/index.js";
 import { colorize, dim } from "./colors.js";
+import {
+  buildTargetResolutionNotes,
+  type LeanTargetResolution,
+  projectTargetResolution,
+} from "./target-resolution.js";
 
 export interface LeanReadFileEnvelope {
   registry?: string;
@@ -30,6 +35,7 @@ export interface LeanReadFileEnvelope {
   content?: string;
   /** Present and `true` when the file is binary; absent otherwise. */
   isBinary?: boolean;
+  targetResolution?: LeanTargetResolution;
   /**
    * Optional one-line guidance for the agent. Set by the MCP tool
    * handler when it caps the returned span (see
@@ -70,6 +76,8 @@ export function buildReadFileSuccessPayload(
   } else if (result.content != null) {
     envelope.content = result.content;
   }
+  const targetResolution = projectTargetResolution(result.targetResolution);
+  if (targetResolution) envelope.targetResolution = targetResolution;
   return envelope;
 }
 
@@ -169,8 +177,20 @@ function formatVerboseBody(
     lines.push("");
     lines.push(dim(envelope.hint, options.useColors));
   }
+  appendTargetResolutionNotes(lines, envelope, options);
   lines.push("");
   return lines.join("\n");
+}
+
+function appendTargetResolutionNotes(
+  lines: string[],
+  envelope: LeanReadFileEnvelope,
+  options: FormatReadFileTerminalOptions,
+): void {
+  const notes = buildTargetResolutionNotes(envelope.targetResolution);
+  if (notes.length === 0) return;
+  lines.push("");
+  for (const note of notes) lines.push(dim(note, options.useColors));
 }
 
 export function splitReadFileContentLines(

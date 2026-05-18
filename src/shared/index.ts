@@ -204,6 +204,14 @@ export {
   type RootCliPreActionDependencies,
 } from "./root-cli-pre-action.js";
 export {
+  buildRetryCandidateLine,
+  buildTargetResolutionNotes,
+  type LeanAvailableArtifact,
+  type LeanTargetResolution,
+  type LeanTargetResolutionIdentity,
+  projectTargetResolution,
+} from "./target-resolution.js";
+export {
   endTelemetrySpan,
   flushTelemetry,
   isTelemetryEnabled,
