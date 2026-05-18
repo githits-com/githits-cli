@@ -353,7 +353,7 @@ function buildDirectVersionLookup(
       edge.fromIndex === rootIdx;
     if (!fromRoot) continue;
     const node = graph.nodes[edge.toIndex];
-    if (!node || !node.version) continue;
+    if (!node?.version) continue;
     if (!out.has(node.name)) {
       out.set(node.name, node.version);
     }
