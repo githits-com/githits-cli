@@ -18,6 +18,11 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
       - name: Cache bun dependencies
         uses: actions/cache@v5
         with:
@@ -43,64 +48,78 @@ jobs:
       - name: Test
         run: bun test
 
+      - name: Pack npm package
+        run: |
+          mkdir -p package-artifact
+          npm pack --pack-destination package-artifact
+
+      - name: Upload npm package
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: package-artifact/*.tgz
+          if-no-files-found: error
+
   compat:
     name: Compat / ${{ matrix.runtime }}
+    needs: ci
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runtime: Node (.node-version)
-            use-node: true
+          - runtime: Node 20
+            node-version: "20"
+          - runtime: Node 22
+            node-version: "22"
+          - runtime: Node 24
+            node-version: "24"
+          - runtime: Node 26
+            node-version: "26"
           - runtime: Bun
-            use-node: false
+            bun-version: latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Download npm package
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: package-artifact
 
       - name: Setup Bun
+        if: matrix.bun-version
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: ${{ matrix.bun-version }}
 
-      - name: Setup Node.js from .node-version
-        if: matrix.use-node
+      - name: Setup Node.js
+        if: matrix.node-version
         uses: actions/setup-node@v6
         with:
-          node-version-file: ".node-version"
+          node-version: ${{ matrix.node-version }}
 
-      - name: Cache bun dependencies
-        uses: actions/cache@v5
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build
-        run: bun run build
-
-      - name: Verify CLI version (Node)
-        if: matrix.use-node
+      - name: Verify package with Node
+        if: matrix.node-version
         run: |
-          VERSION=$(node dist/cli.js --version)
-          EXPECTED=$(jq -r '.version' package.json)
+          mkdir node-compat
+          cd node-compat
+          npm init -y
+          npm install ../package-artifact/*.tgz
+          VERSION=$(./node_modules/.bin/githits --version)
+          EXPECTED=$(node -p "require('./node_modules/githits/package.json').version")
           echo "node $(node --version): githits $VERSION"
           [ "$VERSION" = "$EXPECTED" ] || { echo "::error::Version mismatch: got '$VERSION', expected '$EXPECTED'"; exit 1; }
+          ./node_modules/.bin/githits --help
 
-      - name: Verify CLI help (Node)
-        if: matrix.use-node
-        run: node dist/cli.js --help
-
-      - name: Verify CLI version (Bun)
+      - name: Verify package with Bun
+        if: matrix.bun-version
         run: |
-          VERSION=$(bun dist/cli.js --version)
-          EXPECTED=$(jq -r '.version' package.json)
+          mkdir bun-compat
+          cd bun-compat
+          bun -e 'await Bun.write("package.json", JSON.stringify({ private: true }, null, 2))'
+          bun add ../package-artifact/*.tgz
+          VERSION=$(bun node_modules/githits/dist/cli.js --version)
+          EXPECTED=$(bun -e "console.log(require('./node_modules/githits/package.json').version)")
           echo "bun $(bun --version): githits $VERSION"
           [ "$VERSION" = "$EXPECTED" ] || { echo "::error::Version mismatch: got '$VERSION', expected '$EXPECTED'"; exit 1; }
-
-      - name: Verify CLI help (Bun)
-        run: bun dist/cli.js --help
+          bun node_modules/githits/dist/cli.js --help
