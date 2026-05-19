@@ -1007,6 +1007,93 @@ describe("initAction", () => {
       expect(fs.atomicWriteFile).toHaveBeenCalled();
     });
 
+    it("skips browser login when token resolution already refreshed auth", async () => {
+      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const promptService = createMockPromptService({
+        confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+      });
+      const discoverEndpoints = mock(() =>
+        Promise.reject(new Error("login flow should not run")),
+      );
+      const open = mock(() =>
+        Promise.reject(new Error("browser not expected")),
+      );
+      const loadTokens = mock(() =>
+        Promise.resolve(
+          createValidTokenData({
+            expiresAt: new Date(Date.now() - 3600_000).toISOString(),
+          }),
+        ),
+      );
+      const createLoginDeps = mock(() =>
+        Promise.resolve({
+          authService: createMockAuthService({ discoverEndpoints }),
+          authStorage: createMockAuthStorage({ loadTokens }),
+          browserService: createMockBrowserService({ open }),
+          mcpUrl: "https://mcp.githits.com",
+          hasValidToken: true,
+        }),
+      );
+
+      await initAction(
+        {},
+        {
+          fileSystemService: fs,
+          promptService,
+          execService: createMockExecService(),
+          createLoginDeps,
+        },
+      );
+
+      const logCalls = getLogOutput();
+      expect(
+        logCalls.some((msg) => msg.includes("Already authenticated")),
+      ).toBe(true);
+      expect(discoverEndpoints).not.toHaveBeenCalled();
+      expect(open).not.toHaveBeenCalled();
+      expect(loadTokens).not.toHaveBeenCalled();
+      expect(fs.atomicWriteFile).toHaveBeenCalled();
+    });
+
+    it("clears stale client before init login when token resolution found no token", async () => {
+      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const promptService = createMockPromptService({
+        confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+      });
+      const authStorage = createMockAuthStorage({
+        loadTokens: mock(() => Promise.resolve(null)),
+      });
+      const createLoginDeps = mock(() =>
+        Promise.resolve({
+          authService: createMockAuthService(),
+          authStorage,
+          browserService: createMockBrowserService(),
+          mcpUrl: "https://mcp.githits.com",
+          hasValidToken: false,
+        }),
+      );
+
+      await initAction(
+        {},
+        {
+          fileSystemService: fs,
+          promptService,
+          execService: createMockExecService(),
+          createLoginDeps,
+        },
+      );
+
+      expect(authStorage.clearClient).toHaveBeenCalledWith(
+        "https://mcp.githits.com",
+      );
+      expect(authStorage.saveAuthSession).toHaveBeenCalledWith(
+        "https://mcp.githits.com",
+        expect.any(Object),
+        expect.any(Object),
+      );
+      expect(fs.atomicWriteFile).toHaveBeenCalled();
+    });
+
     it("runs login flow and proceeds on success", async () => {
       const fs = createFsWithDetection(["/home/test/.cursor"]);
       const promptService = createMockPromptService({

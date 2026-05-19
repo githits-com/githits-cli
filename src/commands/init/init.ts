@@ -1,6 +1,6 @@
 import { ExitPromptError } from "@inquirer/core";
 import type { Command } from "commander";
-import { createAuthCommandDependencies } from "../../container.js";
+import { createContainer } from "../../container.js";
 import type { ExecService } from "../../services/exec-service.js";
 import { ExecServiceImpl } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
@@ -54,13 +54,17 @@ export interface InitUninstallOptions {
   yes?: boolean;
 }
 
+interface InitLoginDependencies extends LoginDependencies {
+  hasValidToken?: boolean;
+}
+
 /** Dependencies for the init command */
 export interface InitDependencies {
   fileSystemService: FileSystemService;
   promptService: PromptService;
   execService: ExecService;
   /** Factory to create auth deps for the login step. Omit to skip login. */
-  createLoginDeps?: () => Promise<LoginDependencies>;
+  createLoginDeps?: () => Promise<InitLoginDependencies>;
 }
 
 /** Tracks per-agent setup outcome for the summary */
@@ -343,7 +347,9 @@ export async function initAction(
     let loginResult: LoginFlowResult;
     try {
       const loginDeps = await createLoginDeps();
-      loginResult = await loginFlow({}, loginDeps);
+      loginResult = loginDeps.hasValidToken
+        ? { status: "already_authenticated", message: "Already logged in." }
+        : await loginFlow({}, loginDeps);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       loginResult = { status: "failed", message: msg };
@@ -807,7 +813,7 @@ export function registerInitCommand(program: Command) {
         fileSystemService,
         promptService,
         execService,
-        createLoginDeps: () => createAuthCommandDependencies(),
+        createLoginDeps: () => createContainer(),
       });
     });
 
