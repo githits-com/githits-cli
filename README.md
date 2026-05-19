@@ -10,7 +10,7 @@ GitHits gives your AI coding assistant access to verified, canonical code exampl
 npx githits init
 ```
 
-`init` authenticates with your [GitHits](https://githits.com) account, then auto-detects your installed coding tools and configures each one with GitHits MCP.
+`init` explains the setup options, lets you install the local GitHits MCP server or use GitHits Skills, detects supported coding tools, signs you in, and connects the selected agents to GitHits.
 
 Supported tools: Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Gemini CLI, Google Antigravity, and OpenCode.
 

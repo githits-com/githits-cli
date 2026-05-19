@@ -851,7 +851,25 @@ export function createMockPromptService(
   impl: Partial<PromptService> = {},
 ): PromptService {
   return {
-    checkbox: mock(() => Promise.resolve([])) as PromptService["checkbox"],
+    select: mock(
+      <T>(_message: string, choices: { value: T }[], defaultValue?: T) =>
+        Promise.resolve((defaultValue ?? choices[0]?.value) as T),
+    ) as PromptService["select"],
+    checkbox: mock(
+      <T>(
+        _message: string,
+        choices: {
+          value: T;
+          checked?: boolean;
+          disabled?: boolean | string;
+        }[],
+      ) =>
+        Promise.resolve(
+          choices
+            .filter((choice) => choice.checked && !choice.disabled)
+            .map((choice) => choice.value),
+        ),
+    ) as PromptService["checkbox"],
     confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
     ...impl,
   };
