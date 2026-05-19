@@ -262,7 +262,7 @@ After the initial `npm link`, only `bun run build` is needed for subsequent chan
 
 ## Requirements
 
-- Node.js 24 or later
+- Node.js 20.12+, 22.13+, or later
 
 ## License
 
