@@ -195,9 +195,32 @@ describe("initAction", () => {
     expect(promptService.confirm3).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).toHaveBeenCalled();
     const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("source-backed open-source context")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("stores tokens in your OS keychain")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("https://docs.githits.com/quickstart"),
+      ),
+    ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("What will happen"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("1. Detect tools"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("2. Choose tools"))).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("1. Detect tools") &&
+          msg.includes("Find supported AI coding tools"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("2. Choose tools") &&
+          msg.includes("Pick which detected tools"),
+      ),
+    ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("3. Sign in"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("4. Install and verify"))).toBe(
       true,

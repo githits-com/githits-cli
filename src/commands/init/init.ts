@@ -288,31 +288,50 @@ function printTask(
 function printInitIntro(useColors: boolean): void {
   console.log(colorize(GITHITS_ASCII_LOGO, "magenta", useColors));
   console.log(
-    "  GitHits gives AI coding agents real open-source examples, dependency",
+    "  GitHits adds source-backed open-source context to your AI coding tool.",
   );
   console.log(
-    "  source code, docs, and package metadata when local context is not enough.",
-  );
-  console.log();
-  console.log("  Choose how you want your agent to use GitHits:");
-  console.log(
-    "    MCP server   Default path. Your agent can call GitHits tools directly.",
+    "  When local files and model memory are not enough, your agent can use",
   );
   console.log(
-    "    Agent Skills Use Skills instead of MCP when your coding tool supports them.",
+    "  GitHits for real open-source examples, dependency source code, docs,",
   );
+  console.log("  and package metadata.");
   console.log();
   console.log(
-    "  MCP setup adds a local MCP server entry. It does not write secrets into",
+    "  Most users should install the local MCP server. It lets your agent call",
   );
-  console.log("  your coding tool config.");
+  console.log(
+    "  GitHits tools directly, stores tokens in your OS keychain, and does not",
+  );
+  console.log("  write secrets into your coding tool config.");
+  console.log();
+  console.log("  Choose how you want to connect GitHits:");
+  console.log(
+    "    MCP server   Recommended. Configure your AI coding tool automatically.",
+  );
+  console.log(
+    "    Agent Skills Use Skills instead if you prefer that workflow over MCP.",
+  );
+  console.log();
+  console.log("  More info: https://docs.githits.com/quickstart");
   console.log();
   console.log("  What will happen:");
-  console.log("    1. Detect tools");
-  console.log("    2. Choose tools");
-  console.log("    3. Sign in");
-  console.log("    4. Install and verify");
-  console.log("    5. Ready");
+  console.log(
+    "    1. Detect tools        Find supported AI coding tools on this machine.",
+  );
+  console.log(
+    "    2. Choose tools        Pick which detected tools should get GitHits MCP.",
+  );
+  console.log(
+    "    3. Sign in             Connect this CLI to GitHits, unless already signed in.",
+  );
+  console.log(
+    "    4. Install and verify  Add the local MCP server entry and confirm it works.",
+  );
+  console.log(
+    "    5. Ready               Restart or open your coding tool and start coding.",
+  );
   console.log();
 }
 
