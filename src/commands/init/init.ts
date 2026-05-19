@@ -182,7 +182,7 @@ function formatCommand(command: string, useColors: boolean): string {
   return colorizeBrand(command, "secondary", useColors, { bold: true });
 }
 
-function printReadyNextSteps(): void {
+function printReadyNextSteps(useColors: boolean): void {
   console.log("  GitHits is connected to your coding agent.");
   console.log();
   console.log("  Your agent can now:");
@@ -202,6 +202,34 @@ function printReadyNextSteps(): void {
   console.log();
   console.log(
     "    “Compare how different OSS projects structure background jobs.”",
+  );
+  console.log();
+  const snippetHeading = "Agent instruction snippet";
+  console.log(`  ${snippetHeading}`);
+  console.log(
+    `  ${colorize("-".repeat(snippetHeading.length), "dim", useColors)}`,
+  );
+  console.log();
+  console.log("  Add this to your AGENTS.md or CLAUDE.md:");
+  console.log();
+  const snippetBody = [
+    "When work depends on open-source libraries, use GitHits before guessing.",
+    "",
+    "Use:",
+    "- Code Examples for real-world implementation patterns",
+    "- Code Navigation to inspect dependency source code",
+    "- Documentation Access for hosted and repo-backed docs",
+    "- Package Inspection for metadata, vulnerabilities, and changelogs",
+    "",
+    "Prefer grounded implementations over guessing.",
+  ];
+  for (const line of snippetBody) {
+    console.log(line ? `  ${colorize(line, "italic", useColors)}` : "");
+  }
+  console.log();
+  console.log("  Full version:");
+  console.log(
+    "  https://docs.githits.com/guides/trigger-githits#agent-instruction-snippet",
   );
   console.log();
   console.log("  Docs: https://docs.githits.com");
@@ -689,7 +717,7 @@ function printPostSetupNextSteps(
     useColors,
   );
   if (shouldPrintReady(authStatus)) {
-    printReadyNextSteps();
+    printReadyNextSteps(useColors);
   } else if (authStatus === "failed_continue") {
     printAuthRequiredNextSteps(useColors);
   } else {

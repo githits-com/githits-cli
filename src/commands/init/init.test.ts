@@ -103,6 +103,9 @@ function expectReadyNextSteps(logCalls: string[]): void {
       msg.includes("How does Next.js implement route prefetching"),
     ),
   ).toBe(true);
+  expect(
+    logCalls.some((msg) => msg.includes("Agent instruction snippet")),
+  ).toBe(true);
 }
 
 function expectAuthNotCheckedNextSteps(logCalls: string[]): void {
