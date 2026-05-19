@@ -12,7 +12,7 @@ npx githits init
 
 `init` authenticates with your [GitHits](https://githits.com) account, then auto-detects your installed coding tools and configures each one with GitHits MCP.
 
-Supported tools: Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Gemini CLI, Google Antigravity, and OpenCode.
+Supported tools: Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI, Google Antigravity, and OpenCode.
 
 If you are using a tool that is not listed above, use the manual MCP setup instructions near the end of this README.
 
@@ -110,6 +110,7 @@ GitHits also exposes indexed package/source tools:
 | `pkg_vulns` | CVE / OSV advisories for a package or specific version, with filter echo and compact/verbose modes |
 | `pkg_deps` | Direct dependencies, dependency groups, and optional transitive graph |
 | `pkg_changelog` | Release notes / changelog entries for a package or GitHub repo, with compact timeline and body-preview controls |
+| `pkg_upgrade_review` | Evidence for dependency upgrades, including vulnerabilities, changelog entries, deprecation metadata, peer changes, and dependency changes |
 | `code_files` | Discover what files a dependency or repo contains |
 | `code_read` | Read a dependency file by path |
 | `code_grep` | Deterministic text grep across indexed dependency or repo files |
@@ -203,7 +204,7 @@ These indexed package/source commands are also available:
 ```
 githits search ...     Unified indexed dependency/repository search
 githits search-status  Follow up a prior indexed search
-githits pkg ...        Package metadata: overview, advisories, deps, changelog
+githits pkg ...        Package metadata: overview, advisories, deps, changelog, upgrade reviews
 githits docs ...       Package documentation: browse pages and read content
 githits code ...       Dependency source inspection: search, files, read, grep
 ```

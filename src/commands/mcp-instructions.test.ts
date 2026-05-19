@@ -46,6 +46,7 @@ const KNOWN_TOOLS = [
   "pkg_vulns",
   "pkg_deps",
   "pkg_changelog",
+  "pkg_upgrade_review",
 ] as const;
 
 function mentionedTools(instructions: string): Set<string> {
@@ -75,6 +76,7 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("`pkg_vulns`");
     expect(instructions).toContain("`pkg_deps`");
     expect(instructions).toContain("`pkg_changelog`");
+    expect(instructions).toContain("`pkg_upgrade_review`");
     expect(instructions).toContain("`search`");
     expect(instructions).toContain("`search_status`");
     expect(instructions).toContain("reference-first");
@@ -159,6 +161,7 @@ describe("buildMcpInstructions", () => {
       "pkg_vulns",
       "pkg_deps",
       "pkg_changelog",
+      "pkg_upgrade_review",
     ];
     for (const name of packageAndCodeTools) {
       expect(registered.has(name)).toBe(true);
@@ -194,6 +197,7 @@ describe("buildMcpInstructions", () => {
       pkgVulns: instructions.indexOf("- `pkg_vulns`"),
       pkgDeps: instructions.indexOf("- `pkg_deps`"),
       pkgChangelog: instructions.indexOf("- `pkg_changelog`"),
+      pkgUpgradeReview: instructions.indexOf("- `pkg_upgrade_review`"),
     };
 
     for (const [name, idx] of Object.entries(positions)) {
@@ -213,6 +217,7 @@ describe("buildMcpInstructions", () => {
     expect(positions.pkgInfo).toBeLessThan(positions.pkgVulns);
     expect(positions.pkgVulns).toBeLessThan(positions.pkgDeps);
     expect(positions.pkgDeps).toBeLessThan(positions.pkgChangelog);
+    expect(positions.pkgChangelog).toBeLessThan(positions.pkgUpgradeReview);
   });
 
   it("places the strategy tip after the bullets and the delegation tip before them", () => {
