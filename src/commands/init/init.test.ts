@@ -196,10 +196,10 @@ describe("initAction", () => {
     expect(fs.atomicWriteFile).toHaveBeenCalled();
     const logCalls = getLogOutput();
     expect(logCalls.some((msg) => msg.includes("What will happen"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("1. Detect Agents"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("2. Choose Agents"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("3. Sign In"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("4. Install And Verify"))).toBe(
+    expect(logCalls.some((msg) => msg.includes("1. Detect tools"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("2. Choose tools"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("3. Sign in"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("4. Install and verify"))).toBe(
       true,
     );
     expect(logCalls.some((msg) => msg.includes("5. Ready"))).toBe(true);
@@ -699,7 +699,7 @@ describe("initAction", () => {
     const logCalls = getLogOutput();
     expect(
       logCalls.some((msg) =>
-        msg.includes("No supported coding agents detected"),
+        msg.includes("No supported AI coding tools detected"),
       ),
     ).toBe(true);
   });
@@ -1011,7 +1011,7 @@ describe("initAction", () => {
 
     const logCalls = getLogOutput();
     expect(
-      logCalls.some((msg) => msg.includes("supported agents not found")),
+      logCalls.some((msg) => msg.includes("supported tools not found")),
     ).toBe(true);
     expect(
       logCalls.some(

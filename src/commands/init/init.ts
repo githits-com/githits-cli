@@ -175,10 +175,13 @@ function getPiConfigFileUninstall(
 }
 
 function printReadyNextSteps(): void {
-  console.log("  GitHits is connected to your coding agent.");
+  console.log("  GitHits is connected to your AI coding tool.");
   console.log();
   console.log("  Start a coding task as usual. When your agent needs real");
-  console.log("  open-source examples or package context, it can use GitHits.");
+  console.log(
+    "  open-source examples, dependency source code, docs, or package",
+  );
+  console.log("  metadata, it can use GitHits.");
   console.log();
   console.log("  Try the CLI directly:");
   console.log(
@@ -296,17 +299,17 @@ function printInitIntro(useColors: boolean): void {
     "    MCP server   Default path. Your agent can call GitHits tools directly.",
   );
   console.log(
-    "    Agent Skills Use Skills instead of MCP when your harness supports them.",
+    "    Agent Skills Use Skills instead of MCP when your coding tool supports them.",
   );
   console.log();
   console.log(
-    "  MCP setup adds a local server entry. It does not write secrets into",
+    "  MCP setup adds a local MCP server entry. It does not write secrets into",
   );
-  console.log("  your agent config.");
+  console.log("  your coding tool config.");
   console.log();
   console.log("  What will happen:");
-  console.log("    1. Detect agents");
-  console.log("    2. Choose agents");
+  console.log("    1. Detect tools");
+  console.log("    2. Choose tools");
   console.log("    3. Sign in");
   console.log("    4. Install and verify");
   console.log("    5. Ready");
@@ -319,12 +322,12 @@ function printSkillsInstructions(): void {
   console.log("    npx skills add githits-com/githits-cli");
   console.log();
   console.log(
-    "  During installation, choose which harnesses should receive the Skills.",
+    "  During installation, choose which coding tools should receive the Skills.",
   );
   console.log(
-    "  Do not use GitHits Skills and GitHits MCP in the same harness at the",
+    "  Do not use GitHits Skills and GitHits MCP in the same coding tool at the",
   );
-  console.log("  same time; they provide overlapping guidance.");
+  console.log("  same time; they expose overlapping capabilities.");
   console.log();
   console.log("  GitHits still needs sign-in before tools can access results:");
   console.log();
@@ -358,7 +361,7 @@ function createScanProgressReporter(useColors: boolean): ScanProgressReporter {
       const width = 20;
       const filled = Math.round((progress.completed / progress.total) * width);
       const bar = `${colorize("#".repeat(filled), "magenta", useColors)}${"-".repeat(width - filled)}`;
-      const line = `  Scanning agents [${bar}] ${progress.completed}/${progress.total} ${progress.agent.name}`;
+      const line = `  Scanning tools [${bar}] ${progress.completed}/${progress.total} ${progress.agent.name}`;
       process.stdout.write(`\r\x1b[2K${line}`);
       wrote = true;
     },
@@ -451,7 +454,7 @@ function printScanSummary(scan: ScanResult, useColors: boolean): void {
   if (scan.notDetected.length > 0) {
     printTask(
       "skipped",
-      `${scan.notDetected.length} supported agent${scan.notDetected.length !== 1 ? "s" : ""} not found`,
+      `${scan.notDetected.length} supported tool${scan.notDetected.length !== 1 ? "s" : ""} not found`,
       formatAgentNames(scan.notDetected),
       useColors,
     );
@@ -459,7 +462,7 @@ function printScanSummary(scan: ScanResult, useColors: boolean): void {
   if (detected > 0) {
     console.log();
     console.log(
-      `    Found ${detected} supported agent${detected !== 1 ? "s" : ""}.`,
+      `    Found ${detected} supported tool${detected !== 1 ? "s" : ""}.`,
     );
   }
 }
@@ -477,7 +480,7 @@ function printAuthExplanation(): void {
   );
   console.log("    Tokens are stored in your OS keychain.");
   console.log();
-  console.log("    No secrets are written into your agent MCP config.");
+  console.log("    No secrets are written into your tool's MCP config.");
   console.log(
     "    For CI or headless machines, use GITHITS_API_TOKEN instead.",
   );
@@ -860,8 +863,8 @@ export async function initAction(
     }
   }
 
-  printSection(1, "Detect Agents", useColors);
-  console.log("    Scanning supported coding agents...");
+  printSection(1, "Detect tools", useColors);
+  console.log("    Scanning supported AI coding tools...");
   renderScanProgress = true;
   if (lastScanProgress) {
     progress.onProgress(lastScanProgress);
@@ -877,8 +880,8 @@ export async function initAction(
   if (scan.needsSetup.length === 0 && scan.alreadyConfigured.length === 0) {
     printTask(
       "warning",
-      "No supported coding agents detected",
-      "install an agent and run `githits init` again",
+      "No supported AI coding tools detected",
+      "install a supported tool and run `githits init` again",
       useColors,
     );
     console.log();
@@ -886,11 +889,11 @@ export async function initAction(
   }
 
   let toSetup = scan.needsSetup;
-  printSection(2, "Choose Agents", useColors);
+  printSection(2, "Choose tools", useColors);
   if (!options.yes && scan.needsSetup.length > 0) {
     try {
       toSetup = await promptService.checkbox(
-        "  Select agents to configure with GitHits MCP:",
+        "  Select AI coding tools to configure with GitHits MCP:",
         buildInitAgentChoices(scan),
       );
     } catch (err) {
@@ -903,23 +906,23 @@ export async function initAction(
   } else if (scan.needsSetup.length === 0) {
     printTask(
       "success",
-      "No agent changes needed",
-      "all detected agents already have GitHits MCP",
+      "No tool changes needed",
+      "all detected tools already have GitHits MCP",
       useColors,
     );
   } else {
-    printTask("success", "Selected all detected agents", "--yes", useColors);
+    printTask("success", "Selected all detected tools", "--yes", useColors);
   }
 
   const outcomes: AgentOutcome[] = [];
 
   if (toSetup.length === 0 && scan.needsSetup.length > 0) {
-    printTask("skipped", "Setup skipped", "no agents selected", useColors);
+    printTask("skipped", "Setup skipped", "no tools selected", useColors);
     console.log();
     return;
   }
 
-  printSection(3, "Sign In", useColors);
+  printSection(3, "Sign in", useColors);
   const authStatus = await runInitAuthentication(
     options,
     promptService,
@@ -930,12 +933,12 @@ export async function initAction(
     return;
   }
 
-  printSection(4, "Install And Verify", useColors);
+  printSection(4, "Install and verify", useColors);
   if (toSetup.length === 0) {
     printTask(
       "success",
       "Nothing to install",
-      "all detected agents are already configured",
+      "all detected tools are already configured",
       useColors,
     );
     printPostSetupNextSteps(authStatus, useColors);
@@ -1017,7 +1020,7 @@ export async function initAction(
 
   if (failed > 0) {
     console.log(
-      `  ${failed} agent${failed !== 1 ? "s" : ""} failed to configure.`,
+      `  ${failed} tool${failed !== 1 ? "s" : ""} failed to configure.`,
     );
     for (const outcome of outcomes.filter((o) => o.status === "failed")) {
       console.log(
@@ -1027,7 +1030,7 @@ export async function initAction(
   }
   if (scan.alreadyConfigured.length > 0) {
     console.log(
-      `  ${scan.alreadyConfigured.length} agent${scan.alreadyConfigured.length !== 1 ? "s" : ""} already configured.`,
+      `  ${scan.alreadyConfigured.length} tool${scan.alreadyConfigured.length !== 1 ? "s" : ""} already configured.`,
     );
   }
 
@@ -1251,13 +1254,13 @@ function printAuthRecoveryHint(): void {
   );
 }
 
-const INIT_DESCRIPTION = `Set up GitHits for your coding agents.
+const INIT_DESCRIPTION = `Set up GitHits for your AI coding tools.
 
-Explains GitHits setup options, lets you install the GitHits MCP server or use
-Agent Skills, scans for available agents (Claude Code, Cursor, Windsurf,
+Walks through GitHits setup options, lets you install the local GitHits MCP
+server or use Agent Skills, scans for available tools (Claude Code, Cursor, Windsurf,
 VS Code, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI, Google Antigravity),
 checks which are already configured, signs you in, and configures selected
-agents with GitHits MCP.
+tools with GitHits MCP.
 
 Supports CLI-based setup (Claude Code, Codex, Gemini CLI), Pi package setup,
 and config
@@ -1277,9 +1280,9 @@ tokens are not removed; use \`githits logout\` to remove stored credentials.`;
 export function registerInitCommand(program: Command) {
   const initCommand = program
     .command("init")
-    .summary("Set up MCP server for your coding agents")
+    .summary("Set up MCP server for your AI coding tools")
     .description(INIT_DESCRIPTION)
-    .option("-y, --yes", "Skip prompts, configure all detected agents")
+    .option("-y, --yes", "Skip prompts, configure all detected tools")
     .option("--skip-login", "Skip authentication step")
     .action(async (options: InitOptions) => {
       const fileSystemService = new FileSystemServiceImpl();
