@@ -146,6 +146,7 @@ describe("initAction", () => {
       ),
     ).toBe(true);
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(execService.exec).not.toHaveBeenCalled();
     expect(createLoginDeps).not.toHaveBeenCalled();
   });
 
@@ -168,6 +169,7 @@ describe("initAction", () => {
 
     const logCalls = getLogOutput();
     expect(logCalls.some((msg) => msg.includes("No changes made"))).toBe(true);
+    expect(execService.exec).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
 
