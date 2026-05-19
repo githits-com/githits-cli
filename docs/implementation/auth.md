@@ -45,6 +45,7 @@ Tokens are JWTs with a configurable expiration (typically 1 hour). The CLI handl
 - **Shared retry helper** — GitHits REST calls and package/source service calls both use the same token-refresh/retry flow, so auth drift is handled consistently across both service families.
 - **Concurrent coalescing** — Multiple concurrent refresh requests share a single in-flight Promise. Storage writes use compare-and-swap helpers so a failed refresh cannot overwrite or clear credentials another process already updated.
 - **At login** (`src/commands/login.ts`) — Checks if existing token is still valid before starting the OAuth flow. Respects `--force` flag to re-authenticate regardless.
+- **At init** (`src/commands/init/init.ts`) — Resolves auth through `createContainer()` at the login step so standard token refresh runs before falling back to browser login.
 - **At auth status** (`src/commands/auth-status.ts`) — Attempts refresh before reporting "Token expired".
 
 For short-lived CLI commands, each invocation gets a fresh `TokenManager`. For the long-running MCP server, the same `TokenManager` + `RefreshingGitHitsService` instance is reused across all tool calls, ensuring tokens stay fresh throughout the session.
