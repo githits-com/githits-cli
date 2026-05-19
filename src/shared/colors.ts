@@ -31,8 +31,8 @@ export type BrandColorName = keyof typeof brandColors;
  */
 export const brandColors = {
   primary: {
-    hex: "#FF4FAE",
-    rgb: [255, 79, 174],
+    hex: "#FF72BE",
+    rgb: [255, 114, 190],
     ansi256: 205,
     ansi16: "magenta",
   },

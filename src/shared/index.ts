@@ -203,6 +203,8 @@ export {
   createRootCliPreAction,
   type RootCliPreActionDependencies,
 } from "./root-cli-pre-action.js";
+export { type Spinner, startSpinner } from "./spinner.js";
+export { SPINNER_MESSAGES } from "./spinner-messages.js";
 export {
   buildRetryCandidateLine,
   buildTargetResolutionNotes,

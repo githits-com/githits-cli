@@ -11,6 +11,8 @@ import {
   mapPackageIntelligenceError,
   parsePackageSpec,
   requireAuth,
+  SPINNER_MESSAGES,
+  startSpinner,
 } from "../../shared/index.js";
 
 export interface DocsListCommandOptions {
@@ -50,9 +52,10 @@ export async function docsListAction(
       limit,
       after: options.after,
     });
-    const result = await deps.packageIntelligenceService.listPackageDocs(
-      build.params,
-    );
+    const spinner = startSpinner(SPINNER_MESSAGES.docs, !options.json);
+    const result = await deps.packageIntelligenceService
+      .listPackageDocs(build.params)
+      .finally(() => spinner.stop());
     const payload = buildListPackageDocsSuccessPayload(result, {
       limitExplicit: build.limitExplicit,
       afterExplicit: build.afterExplicit,

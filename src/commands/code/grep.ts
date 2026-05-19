@@ -15,6 +15,8 @@ import {
   type GrepRepoRequestInput,
   InvalidPackageSpecError,
   requireAuth,
+  SPINNER_MESSAGES,
+  startSpinner,
 } from "../../shared/index.js";
 import { toPkgseerRegistryLowercase } from "../../shared/pkgseer-registry.js";
 import {
@@ -130,7 +132,10 @@ export async function pkgGrepAction(
       symbolFields: options.symbolField,
       waitTimeoutMs: wait,
     });
-    const result = await deps.codeNavigationService.grepRepo(build.params);
+    const spinner = startSpinner(SPINNER_MESSAGES.code, !options.json);
+    const result = await deps.codeNavigationService
+      .grepRepo(build.params)
+      .finally(() => spinner.stop());
 
     const payload = buildGrepRepoSuccessPayload(result, {
       registry: target.registry

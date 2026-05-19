@@ -95,16 +95,12 @@ function expectReadyNextSteps(logCalls: string[]): void {
   expect(logCalls.some((msg) => msg.includes("GitHits is connected"))).toBe(
     true,
   );
+  expect(logCalls.some((msg) => msg.includes("Your agent can now:"))).toBe(
+    true,
+  );
   expect(
     logCalls.some((msg) =>
-      msg.includes(
-        'npx githits@latest example "How do I use useEffect cleanup?"',
-      ),
-    ),
-  ).toBe(true);
-  expect(
-    logCalls.some((msg) =>
-      msg.includes("HTTP retries with exponential backoff"),
+      msg.includes("How does Next.js implement route prefetching"),
     ),
   ).toBe(true);
 }
@@ -196,36 +192,25 @@ describe("initAction", () => {
     expect(fs.atomicWriteFile).toHaveBeenCalled();
     const logCalls = getLogOutput();
     expect(
-      logCalls.some((msg) => msg.includes("source-backed open-source context")),
-    ).toBe(true);
-    expect(
-      logCalls.some((msg) => msg.includes("stores tokens in your OS keychain")),
+      logCalls.some((msg) =>
+        msg.includes("GitHits helps coding agents stop guessing"),
+      ),
     ).toBe(true);
     expect(
       logCalls.some((msg) =>
-        msg.includes("https://docs.githits.com/quickstart"),
+        msg.includes("grounded context from real open-source code"),
       ),
     ).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("What will happen"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Your agent can:"))).toBe(true);
     expect(
-      logCalls.some(
-        (msg) =>
-          msg.includes("1. Detect tools") &&
-          msg.includes("Find supported AI coding tools"),
-      ),
+      logCalls.some((msg) => msg.includes("https://docs.githits.com")),
     ).toBe(true);
-    expect(
-      logCalls.some(
-        (msg) =>
-          msg.includes("2. Choose tools") &&
-          msg.includes("Pick which detected tools"),
-      ),
-    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("1. Detect tools"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("2. Choose tools"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("3. Sign in"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("4. Install and verify"))).toBe(
       true,
     );
-    expect(logCalls.some((msg) => msg.includes("5. Ready"))).toBe(true);
     expect(
       logCalls.some(
         (msg) => msg.includes("Cursor") && msg.includes("installing"),

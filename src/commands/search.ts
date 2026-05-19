@@ -18,7 +18,9 @@ import {
   knownSymbolKindList,
   parseUnifiedSearchTargetSpec,
   requireAuth,
+  SPINNER_MESSAGES,
   shouldUseColors,
+  startSpinner,
   toFileIntent,
   toSymbolCategory,
   toSymbolKind,
@@ -87,7 +89,10 @@ export async function searchAction(
       waitTimeoutMs: parseWaitMs(options.wait),
     });
 
-    const outcome = await service.search(built.params);
+    const spinner = startSpinner(SPINNER_MESSAGES.search, !options.json);
+    const outcome = await service
+      .search(built.params)
+      .finally(() => spinner.stop());
     const payload = buildUnifiedSearchSuccessPayload(
       built.params,
       built.rawQuery,
@@ -172,7 +177,7 @@ the original request used --allow-partial, or final results.`;
 export function registerSearchCommand(program: Command) {
   program
     .command("search")
-    .summary("Search indexed dependency and repository code, docs, and symbols")
+    .summary("Explore repository code, dependencies, docs and symbols")
     .description(SEARCH_DESCRIPTION)
     .argument("<query>", "Search query")
     .requiredOption(
@@ -240,7 +245,7 @@ export function registerSearchCommand(program: Command) {
 
   program
     .command("search-status")
-    .summary("Check status of a prior search")
+    .summary("Check the status of a previous search")
     .description(SEARCH_STATUS_DESCRIPTION)
     .argument("<search-ref>", "Search reference returned by githits search")
     .option("--json", "Output as JSON")

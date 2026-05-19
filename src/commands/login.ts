@@ -408,7 +408,7 @@ to get a URL you can open on another device.`;
 export function registerLoginCommand(program: Command) {
   program
     .command("login")
-    .summary("Authenticate with your GitHits account")
+    .summary("Sign in to your GitHits account")
     .description(LOGIN_DESCRIPTION)
     .option("--no-browser", "Print URL instead of opening browser")
     .option("--port <port>", "Port for local callback server", parseInt)
