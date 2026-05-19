@@ -43,8 +43,13 @@ import {
 } from "./shared/index.js";
 
 const program = new Command();
-const useColors = shouldUseColors();
 const argv = process.argv.slice(2);
+// Bridge the --no-color flag to the NO_COLOR convention that every
+// shouldUseColors() call across the CLI reads.
+if (argv.includes("--no-color")) {
+  process.env.NO_COLOR = "1";
+}
+const useColors = shouldUseColors();
 const commandSpans = new WeakMap<
   Command,
   ReturnType<typeof startTelemetrySpan>
