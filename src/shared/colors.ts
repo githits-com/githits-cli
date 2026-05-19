@@ -102,6 +102,7 @@ export function colorizeTerminal(
 ): string {
   if (!useColors) return text;
   const colorDepth = options.colorDepth ?? getColorDepth();
+  if (colorDepth <= 1) return text;
   const prefix = `${options.bold ? colors.bold : ""}${options.dim ? colors.dim : ""}${foregroundColorCode(color, colorDepth)}`;
   return `${prefix}${text}${colors.reset}`;
 }

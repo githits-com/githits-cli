@@ -79,6 +79,13 @@ describe("colorizeTerminal", () => {
     expect(result).toBe(`${colors.magenta}GitHits${colors.reset}`);
   });
 
+  it("returns plain text when the terminal reports no color support", () => {
+    const result = colorizeTerminal("GitHits", brandColors.primary, true, {
+      colorDepth: 1,
+    });
+    expect(result).toBe("GitHits");
+  });
+
   it("combines style and terminal color", () => {
     const result = colorizeBrand("GitHits", "secondary", true, {
       bold: true,

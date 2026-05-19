@@ -843,20 +843,6 @@ export async function initAction(
     deps;
   printInitIntro(useColors);
 
-  const progress = createScanProgressReporter(useColors);
-  let renderScanProgress = false;
-  let lastScanProgress: ScanProgress | undefined;
-  const scanPromise = startSafeInitScan(
-    fileSystemService,
-    execService,
-    (scanProgress) => {
-      lastScanProgress = scanProgress;
-      if (renderScanProgress) {
-        progress.onProgress(scanProgress);
-      }
-    },
-  );
-
   if (!options.yes) {
     let intent: InitIntent;
     try {
@@ -887,10 +873,12 @@ export async function initAction(
 
   printSection(1, "Detect tools", useColors);
   console.log("    Scanning supported AI coding tools...");
-  renderScanProgress = true;
-  if (lastScanProgress) {
-    progress.onProgress(lastScanProgress);
-  }
+  const progress = createScanProgressReporter(useColors);
+  const scanPromise = startSafeInitScan(
+    fileSystemService,
+    execService,
+    (scanProgress) => progress.onProgress(scanProgress),
+  );
   let scan: ScanResult;
   try {
     scan = await unwrapSafeScan(scanPromise);
