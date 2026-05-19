@@ -14,6 +14,7 @@ import type {
 import { PromptServiceImpl } from "../../services/prompt-service.js";
 import {
   colorize,
+  colorizeBrand,
   error as errorFmt,
   shouldUseColors,
   success,
@@ -263,7 +264,9 @@ const AUTH_START_CHOICES: SelectChoice<InitAuthStartChoice>[] = [
 
 function printSection(index: number, title: string, useColors: boolean): void {
   console.log();
-  console.log(`  ${colorize(`${index}. ${title}`, "bold", useColors)}`);
+  console.log(
+    `  ${colorizeBrand(`${index}. ${title}`, "primary", useColors, { bold: true })}`,
+  );
   console.log(`  ${colorize("-".repeat(title.length + 3), "dim", useColors)}`);
 }
 
@@ -286,7 +289,7 @@ function printTask(
 }
 
 function printInitIntro(useColors: boolean): void {
-  console.log(colorize(GITHITS_ASCII_LOGO, "magenta", useColors));
+  console.log(colorizeBrand(GITHITS_ASCII_LOGO, "primary", useColors));
   console.log(
     "  GitHits adds source-backed open-source context to your AI coding tool.",
   );
@@ -379,7 +382,7 @@ function createScanProgressReporter(useColors: boolean): ScanProgressReporter {
     onProgress: (progress) => {
       const width = 20;
       const filled = Math.round((progress.completed / progress.total) * width);
-      const bar = `${colorize("#".repeat(filled), "magenta", useColors)}${"-".repeat(width - filled)}`;
+      const bar = `${colorizeBrand("#".repeat(filled), "primary", useColors)}${"-".repeat(width - filled)}`;
       const line = `  Scanning tools [${bar}] ${progress.completed}/${progress.total} ${progress.agent.name}`;
       process.stdout.write(`\r\x1b[2K${line}`);
       wrote = true;
@@ -407,9 +410,9 @@ function createInstallTaskReporter(useColors: boolean): InstallTaskReporter {
     start: (label) => {
       let frame = 0;
       const render = () => {
-        const spinner = colorize(
+        const spinner = colorizeBrand(
           frames[frame % frames.length] ?? "-",
-          "magenta",
+          "primary",
           useColors,
         );
         frame += 1;
@@ -1068,7 +1071,7 @@ export async function initUninstallAction(
   const { fileSystemService, promptService, execService } = deps;
 
   console.log(
-    `\n  ${colorize("GitHits", "bold", useColors)} — Remove MCP server from your coding agents\n`,
+    `\n  ${colorizeBrand("GitHits", "primary", useColors, { bold: true })} — Remove MCP server from your coding agents\n`,
   );
 
   console.log("  Scanning for configured agents...\n");

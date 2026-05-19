@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
+  brandColors,
   colorize,
+  colorizeBrand,
+  colorizeTerminal,
   colors,
   dim,
   error,
@@ -51,6 +54,41 @@ describe("colorize", () => {
 
   it("returns plain text when disabled", () => {
     expect(colorize("hello", "cyan", false)).toBe("hello");
+  });
+});
+
+describe("colorizeTerminal", () => {
+  it("uses truecolor when terminal color depth supports it", () => {
+    const result = colorizeTerminal("GitHits", brandColors.primary, true, {
+      colorDepth: 24,
+    });
+    expect(result).toBe("\x1b[38;2;255;79;174mGitHits\x1b[0m");
+  });
+
+  it("falls back to 256-color when truecolor is unavailable", () => {
+    const result = colorizeTerminal("GitHits", brandColors.primary, true, {
+      colorDepth: 8,
+    });
+    expect(result).toBe("\x1b[38;5;205mGitHits\x1b[0m");
+  });
+
+  it("falls back to 16-color when only basic color is available", () => {
+    const result = colorizeTerminal("GitHits", brandColors.primary, true, {
+      colorDepth: 4,
+    });
+    expect(result).toBe(`${colors.magenta}GitHits${colors.reset}`);
+  });
+
+  it("combines style and terminal color", () => {
+    const result = colorizeBrand("GitHits", "secondary", true, {
+      bold: true,
+      colorDepth: 8,
+    });
+    expect(result).toBe(`${colors.bold}\x1b[38;5;208mGitHits${colors.reset}`);
+  });
+
+  it("returns plain text when disabled", () => {
+    expect(colorizeBrand("GitHits", "primary", false)).toBe("GitHits");
   });
 });
 
