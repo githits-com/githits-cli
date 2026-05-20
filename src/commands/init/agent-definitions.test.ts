@@ -5,6 +5,7 @@ import {
   createMockFileSystemService,
 } from "../../services/test-helpers.js";
 import {
+  type AgentDefinition,
   agentDefinitions,
   buildCheckboxChoices,
   detectAgents,
@@ -1045,6 +1046,23 @@ describe("scanAgents", () => {
     return platform === "win32" ? "where" : "which";
   }
 
+  function createPathOnlyAgent(id: string): AgentDefinition {
+    return {
+      id,
+      name: id,
+      detectionMethod: "path",
+      setupMethod: "config-file",
+      detectPaths: () => [`/agents/${id}`],
+      getSetupConfig: () => ({
+        method: "config-file",
+        configPath: `/agents/${id}/mcp.json`,
+        serversKey: "mcpServers",
+        serverName: "GitHits",
+        serverConfig: {},
+      }),
+    };
+  }
+
   /** Helper to create fs + exec mocks for scan tests */
   function createScanMocks(opts: {
     detectedDirs?: string[];
@@ -1081,6 +1099,35 @@ describe("scanAgents", () => {
     });
     return { fs, execService };
   }
+
+  it("scans agents in parallel and reports progress", async () => {
+    let activeChecks = 0;
+    let maxActiveChecks = 0;
+    const fs = createMockFileSystemService({
+      isDirectory: mock(async () => {
+        activeChecks += 1;
+        maxActiveChecks = Math.max(maxActiveChecks, activeChecks);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        activeChecks -= 1;
+        return false;
+      }),
+    });
+    const execService = createMockExecService();
+    const progress: number[] = [];
+
+    const result = await scanAgents(
+      [createPathOnlyAgent("one"), createPathOnlyAgent("two")],
+      fs,
+      execService,
+      {
+        onProgress: ({ completed }) => progress.push(completed),
+      },
+    );
+
+    expect(result.notDetected.map((agent) => agent.id)).toEqual(["one", "two"]);
+    expect(maxActiveChecks).toBe(2);
+    expect(progress).toEqual([1, 2]);
+  });
 
   it("categorizes config-file agent as alreadyConfigured when config has GitHits", async () => {
     const { fs, execService } = createScanMocks({

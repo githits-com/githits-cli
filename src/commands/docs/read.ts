@@ -10,7 +10,9 @@ import {
   mapPackageIntelligenceError,
   parseLinesOption,
   requireAuth,
+  SPINNER_MESSAGES,
   shouldUseColors,
+  startSpinner,
 } from "../../shared/index.js";
 
 export interface DocsReadCommandOptions {
@@ -43,9 +45,10 @@ export async function docsReadAction(
     const range = options.lines ? parseLinesOption(options.lines) : undefined;
 
     const build = buildReadPackageDocParams({ pageId });
-    const result = await deps.packageIntelligenceService.readPackageDoc(
-      build.params,
-    );
+    const spinner = startSpinner(SPINNER_MESSAGES.docs, !options.json);
+    const result = await deps.packageIntelligenceService
+      .readPackageDoc(build.params)
+      .finally(() => spinner.stop());
     const payload = buildReadPackageDocSuccessPayload(
       result,
       build.params.pageId,

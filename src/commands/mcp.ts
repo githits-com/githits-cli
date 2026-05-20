@@ -198,7 +198,7 @@ function showMcpSetupInstructions(): void {
 export function registerMcpCommand(program: Command) {
   const mcpCommand = program
     .command("mcp")
-    .summary("Show setup instructions or start MCP server")
+    .summary("Show MCP setup instructions or start the local MCP server")
     .description(
       `Start the Model Context Protocol (MCP) server using STDIO transport.
 

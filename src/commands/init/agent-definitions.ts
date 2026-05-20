@@ -752,113 +752,157 @@ export interface ScanResult {
   notDetected: AgentDefinition[];
 }
 
+export interface ScanProgress {
+  completed: number;
+  total: number;
+  agent: AgentDefinition;
+}
+
+export interface ScanAgentsOptions {
+  onProgress?: (progress: ScanProgress) => void;
+}
+
+type AgentScanOutcome =
+  | { status: "needs_setup"; agent: AgentDefinition }
+  | { status: "already_configured"; agent: AgentDefinition }
+  | { status: "not_detected"; agent: AgentDefinition };
+
+async function scanSingleAgent(
+  agent: AgentDefinition,
+  fs: FileSystemService,
+  execService: ExecService,
+): Promise<AgentScanOutcome> {
+  // Check if available using the agent's declared detection contract.
+  let detected = false;
+  let setupContext: AgentSetupContext | undefined;
+
+  if (agent.detectCommand) {
+    try {
+      const resolvedCommand = await agent.detectCommand(execService, fs);
+      if (resolvedCommand) {
+        detected = true;
+        setupContext = { command: resolvedCommand.command };
+      }
+    } catch {
+      detected = false;
+    }
+  } else if (agent.detectionMethod === "binary" && agent.detectBinary) {
+    try {
+      detected = await agent.detectBinary(execService);
+    } catch {
+      detected = false;
+    }
+  } else if (agent.detectionMethod === "path" && agent.detectPaths) {
+    const paths = agent.detectPaths(fs);
+    for (const path of paths) {
+      if (await fs.isDirectory(path)) {
+        detected = true;
+        break;
+      }
+    }
+  } else if (agent.detectionMethod === "hybrid") {
+    let binaryDetected = false;
+    let pathDetected = false;
+
+    if (agent.detectBinary) {
+      try {
+        binaryDetected = await agent.detectBinary(execService);
+      } catch {
+        binaryDetected = false;
+      }
+    }
+
+    if (!binaryDetected && agent.detectPaths) {
+      const paths = agent.detectPaths(fs);
+      for (const path of paths) {
+        if (await fs.isDirectory(path)) {
+          pathDetected = true;
+          break;
+        }
+      }
+    }
+
+    detected = binaryDetected || pathDetected;
+  }
+
+  if (!detected) {
+    return { status: "not_detected", agent };
+  }
+
+  const config = agent.getSetupConfig(fs, setupContext);
+  const scannedAgent: AgentDefinition = {
+    ...agent,
+    resolvedSetupConfig: config,
+    resolvedSetupContext: setupContext,
+  };
+  if (agent.id === "gemini-cli" && config.method === "cli") {
+    if (!config.checkCommand) {
+      return { status: "needs_setup", agent: scannedAgent };
+    }
+
+    const checkStatus = await getCliCheckStatus(
+      config.checkCommand,
+      execService,
+    );
+    let configured = checkStatus === "configured";
+    // Only use filesystem fallback when the CLI probe itself failed.
+    // If Gemini explicitly reports "not installed", do not override it.
+    if (!configured && checkStatus === "probe_failed") {
+      configured = await isGeminiExtensionInstalledFromFilesystem(fs);
+    }
+    return {
+      status: configured ? "already_configured" : "needs_setup",
+      agent: scannedAgent,
+    };
+  }
+
+  if (await isSetupAlreadyConfigured(config, fs, execService)) {
+    return { status: "already_configured", agent: scannedAgent };
+  }
+  return { status: "needs_setup", agent: scannedAgent };
+}
+
 /**
  * Scan all agents: detect availability and check configuration status.
  * Config-file agents get a pre-check via isAlreadyConfigured().
  * CLI agents with a checkCommand get a pre-check via isCliAlreadyConfigured().
  * CLI agents without a checkCommand are treated as needsSetup.
+ * Agent probes run in parallel while output order remains definition order.
  */
 export async function scanAgents(
   definitions: AgentDefinition[],
   fs: FileSystemService,
   execService: ExecService,
+  options: ScanAgentsOptions = {},
 ): Promise<ScanResult> {
   const result: ScanResult = {
     needsSetup: [],
     alreadyConfigured: [],
     notDetected: [],
   };
+  let completed = 0;
 
-  for (const agent of definitions) {
-    // Check if available using the agent's declared detection contract
-    let detected = false;
-    let setupContext: AgentSetupContext | undefined;
+  const outcomes = await Promise.all(
+    definitions.map((agent) =>
+      scanSingleAgent(agent, fs, execService).then((outcome) => {
+        completed += 1;
+        options.onProgress?.({
+          completed,
+          total: definitions.length,
+          agent: outcome.agent,
+        });
+        return outcome;
+      }),
+    ),
+  );
 
-    if (agent.detectCommand) {
-      try {
-        const resolvedCommand = await agent.detectCommand(execService, fs);
-        if (resolvedCommand) {
-          detected = true;
-          setupContext = { command: resolvedCommand.command };
-        }
-      } catch {
-        detected = false;
-      }
-    } else if (agent.detectionMethod === "binary" && agent.detectBinary) {
-      try {
-        detected = await agent.detectBinary(execService);
-      } catch {
-        detected = false;
-      }
-    } else if (agent.detectionMethod === "path" && agent.detectPaths) {
-      const paths = agent.detectPaths(fs);
-      for (const path of paths) {
-        if (await fs.isDirectory(path)) {
-          detected = true;
-          break;
-        }
-      }
-    } else if (agent.detectionMethod === "hybrid") {
-      let binaryDetected = false;
-      let pathDetected = false;
-
-      if (agent.detectBinary) {
-        try {
-          binaryDetected = await agent.detectBinary(execService);
-        } catch {
-          binaryDetected = false;
-        }
-      }
-
-      if (!binaryDetected && agent.detectPaths) {
-        const paths = agent.detectPaths(fs);
-        for (const path of paths) {
-          if (await fs.isDirectory(path)) {
-            pathDetected = true;
-            break;
-          }
-        }
-      }
-
-      detected = binaryDetected || pathDetected;
-    }
-
-    if (!detected) {
-      result.notDetected.push(agent);
-      continue;
-    }
-
-    // Detected — check configuration status
-    const config = agent.getSetupConfig(fs, setupContext);
-    const scannedAgent: AgentDefinition = {
-      ...agent,
-      resolvedSetupConfig: config,
-      resolvedSetupContext: setupContext,
-    };
-    if (agent.id === "gemini-cli" && config.method === "cli") {
-      if (config.checkCommand) {
-        const checkStatus = await getCliCheckStatus(
-          config.checkCommand,
-          execService,
-        );
-        let configured = checkStatus === "configured";
-        // Only use filesystem fallback when the CLI probe itself failed.
-        // If Gemini explicitly reports "not installed", do not override it.
-        if (!configured && checkStatus === "probe_failed") {
-          configured = await isGeminiExtensionInstalledFromFilesystem(fs);
-        }
-        if (configured) {
-          result.alreadyConfigured.push(scannedAgent);
-        } else {
-          result.needsSetup.push(scannedAgent);
-        }
-      } else {
-        result.needsSetup.push(scannedAgent);
-      }
-    } else if (await isSetupAlreadyConfigured(config, fs, execService)) {
-      result.alreadyConfigured.push(scannedAgent);
+  for (const outcome of outcomes) {
+    if (outcome.status === "already_configured") {
+      result.alreadyConfigured.push(outcome.agent);
+    } else if (outcome.status === "needs_setup") {
+      result.needsSetup.push(outcome.agent);
     } else {
-      result.needsSetup.push(scannedAgent);
+      result.notDetected.push(outcome.agent);
     }
   }
 

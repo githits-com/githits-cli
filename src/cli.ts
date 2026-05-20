@@ -32,6 +32,7 @@ import {
   FileSystemServiceImpl,
   NpmRegistryUpdateCheckService,
 } from "./services/index.js";
+import { colorizeBrand, shouldUseColors } from "./shared/colors.js";
 import {
   createRootCliPreAction,
   endTelemetrySpan,
@@ -43,6 +44,12 @@ import {
 
 const program = new Command();
 const argv = process.argv.slice(2);
+// Bridge the --no-color flag to the NO_COLOR convention that every
+// shouldUseColors() call across the CLI reads.
+if (argv.includes("--no-color")) {
+  process.env.NO_COLOR = "1";
+}
+const useColors = shouldUseColors();
 const commandSpans = new WeakMap<
   Command,
   ReturnType<typeof startTelemetrySpan>
@@ -90,9 +97,13 @@ const rootCliPreAction = createRootCliPreAction({
 
 program
   .name("githits")
-  .description("Code examples from global open source for your AI assistant")
+  .description("Grounded open-source context for AI coding agents")
   .version(version)
   .option("--no-color", "Disable colored output")
+  .configureHelp({
+    styleTitle: (title: string) =>
+      colorizeBrand(title, "primary", useColors, { bold: true }),
+  })
   .hook("preAction", async (thisCommand, actionCommand) => {
     const command = actionCommand ?? thisCommand;
     commandSpans.set(
@@ -108,14 +119,14 @@ program
   .addHelpText(
     "after",
     `
-Getting started:
-  githits init                         Set up MCP for your coding agents
-  githits login                        Authenticate with your GitHits account
+${colorizeBrand("Getting started:", "primary", useColors, { bold: true })}
+  githits init                         Connect GitHits to your coding agents
+  githits login                        Sign in to your GitHits account
   githits mcp                          Show MCP setup instructions
-  githits example "query"              Get code examples
+  githits example "query"              Find real-world implementations
 
 Learn more at https://githits.com
-Docs: https://app.githits.com/docs/
+Docs: https://docs.githits.com
 Support: support@githits.com`,
   );
 

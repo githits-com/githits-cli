@@ -9,7 +9,10 @@ import {
 } from "bun:test";
 import { ExitPromptError } from "@inquirer/core";
 import { Command } from "commander";
-import type { ConfirmChoice } from "../../services/prompt-service.js";
+import type {
+  ConfirmChoice,
+  PromptService,
+} from "../../services/prompt-service.js";
 import {
   createMockAuthService,
   createMockAuthStorage,
@@ -89,22 +92,25 @@ function getLogOutput(): string[] {
 }
 
 function expectReadyNextSteps(logCalls: string[]): void {
-  expect(logCalls.some((msg) => msg.includes("Setup complete"))).toBe(true);
-  expect(
-    logCalls.some((msg) => msg.includes("You're ready to use GitHits")),
-  ).toBe(true);
-  expect(
-    logCalls.some((msg) =>
-      msg.includes(
-        'npx githits@latest example "How do I use useEffect cleanup?"',
-      ),
-    ),
-  ).toBe(true);
+  expect(logCalls.some((msg) => msg.includes("GitHits is now connected"))).toBe(
+    true,
+  );
+  expect(logCalls.some((msg) => msg.includes("new abilities"))).toBe(true);
   expect(
     logCalls.some((msg) =>
-      msg.includes("query planner selects join strategies"),
+      msg.includes("How does Next.js implement route prefetching"),
     ),
   ).toBe(true);
+  expect(logCalls.some((msg) => msg.includes("trigger guides"))).toBe(true);
+}
+
+function expectAuthNotCheckedNextSteps(logCalls: string[]): void {
+  expect(logCalls.some((msg) => msg.includes("Sign-in was not checked"))).toBe(
+    true,
+  );
+  expect(logCalls.some((msg) => msg.includes("npx githits@latest login"))).toBe(
+    true,
+  );
 }
 
 function lookupCommandFor(platform: string = process.platform): string {
@@ -112,12 +118,64 @@ function lookupCommandFor(platform: string = process.platform): string {
 }
 
 describe("initAction", () => {
+  it("prints Agent Skills instructions without changing MCP config", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const execService = createMockExecService();
+    const createLoginDeps = mock(() =>
+      Promise.resolve({} as LoginDependencies),
+    );
+    const promptService = createMockPromptService({
+      select: mock(() => Promise.resolve("skills")) as PromptService["select"],
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps,
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("npx skills add githits-com/githits-cli"),
+      ),
+    ).toBe(true);
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(execService.exec).not.toHaveBeenCalled();
+    expect(createLoginDeps).not.toHaveBeenCalled();
+  });
+
+  it("exits cleanly when user chooses Later", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const execService = createMockExecService();
+    const promptService = createMockPromptService({
+      select: mock(() => Promise.resolve("later")) as PromptService["select"],
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("No changes made"))).toBe(true);
+    expect(execService.exec).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
   it("scans agents and sets up unconfigured ones", async () => {
     // Cursor detected but not configured
     const fs = createFsWithDetection(["/home/test/.cursor"]);
-    const promptService = createMockPromptService({
-      confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
-    });
+    const promptService = createMockPromptService();
 
     await initAction(
       {},
@@ -129,10 +187,36 @@ describe("initAction", () => {
       },
     );
 
-    // Should attempt to write cursor config (no checkbox prompt)
-    expect(promptService.checkbox).not.toHaveBeenCalled();
-    expect(promptService.confirm3).toHaveBeenCalled();
+    // Checkbox selection is the approval boundary.
+    expect(promptService.checkbox).toHaveBeenCalled();
+    expect(promptService.confirm3).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).toHaveBeenCalled();
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Your agent can read your local codebase"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("navigate the open-source code your app depends on"),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("With GitHits"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("https://docs.githits.com")),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("1. Detect tools"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("2. Choose tools"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("3. Sign in"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("4. Install and verify"))).toBe(
+      true,
+    );
+    expect(
+      logCalls.some(
+        (msg) => msg.includes("Cursor") && msg.includes("installing"),
+      ),
+    ).toBe(true);
   });
 
   it("skips already-configured agents without prompting", async () => {
@@ -184,9 +268,7 @@ describe("initAction", () => {
         }),
       },
     );
-    const promptService = createMockPromptService({
-      confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
-    });
+    const promptService = createMockPromptService();
 
     await initAction(
       {},
@@ -199,7 +281,8 @@ describe("initAction", () => {
     );
 
     // Should only set up windsurf
-    expect(promptService.confirm3).toHaveBeenCalledTimes(1);
+    expect(promptService.checkbox).toHaveBeenCalledTimes(1);
+    expect(promptService.confirm3).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).toHaveBeenCalled();
     const logCalls = getLogOutput();
     expect(
@@ -212,6 +295,34 @@ describe("initAction", () => {
         (msg) => msg.includes("Windsurf") && msg.includes("needs setup"),
       ),
     ).toBe(true);
+  });
+
+  it("configures only the agents selected in the checkbox", async () => {
+    const fs = createFsWithDetection([
+      "/home/test/.cursor",
+      "/home/test/.codeium/windsurf",
+    ]);
+    const promptService = createMockPromptService({
+      checkbox: mock((_message, choices) =>
+        Promise.resolve([choices[0]!.value]),
+      ),
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/home/test/.cursor/mcp.json",
+      expect.any(String),
+    );
   });
 
   it("sets up Pi by installing adapter and writing Pi-owned MCP config", async () => {
@@ -516,14 +627,13 @@ describe("initAction", () => {
     expect(execService.exec).toHaveBeenCalledWith("claude", expect.any(Array));
   });
 
-  it("stops prompting after 'always' response", async () => {
+  it("uses one checkbox prompt for multiple unconfigured agents", async () => {
     // Two unconfigured config-file agents
     const fs = createFsWithDetection([
       "/home/test/.cursor",
       "/home/test/.codeium/windsurf",
     ]);
-    const confirm3 = mock(() => Promise.resolve("always" as ConfirmChoice));
-    const promptService = createMockPromptService({ confirm3 });
+    const promptService = createMockPromptService();
 
     await initAction(
       {},
@@ -535,14 +645,14 @@ describe("initAction", () => {
       },
     );
 
-    // confirm3 called once (first agent), then "always" kicks in
-    expect(confirm3).toHaveBeenCalledTimes(1);
+    expect(promptService.checkbox).toHaveBeenCalledTimes(1);
+    expect(promptService.confirm3).not.toHaveBeenCalled();
   });
 
-  it("skips agent when user responds 'no'", async () => {
+  it("skips setup when user selects no agents", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"]);
     const promptService = createMockPromptService({
-      confirm3: mock(() => Promise.resolve("no" as ConfirmChoice)),
+      checkbox: mock(() => Promise.resolve([])),
     });
 
     await initAction(
@@ -597,7 +707,9 @@ describe("initAction", () => {
     expect(execService.exec).toHaveBeenCalledTimes(8);
     const logCalls = getLogOutput();
     expect(
-      logCalls.some((msg) => msg.includes("No coding agents detected")),
+      logCalls.some((msg) =>
+        msg.includes("No supported AI coding tools detected"),
+      ),
     ).toBe(true);
   });
 
@@ -768,18 +880,16 @@ describe("initAction", () => {
     expect(
       logCalls.some((msg) => msg.includes("Setup completed with errors")),
     ).toBe(true);
-    expect(
-      logCalls.some((msg) => msg.includes("You're ready to use GitHits")),
-    ).toBe(false);
+    expect(logCalls.some((msg) => msg.includes("GitHits is connected"))).toBe(
+      false,
+    );
     expect(logCalls.some((msg) => msg.includes("- Claude Code:"))).toBe(true);
   });
 
   it("treats Gemini already-installed setup output as already configured", async () => {
     const lookupCmd = lookupCommandFor();
     const fs = createFsWithDetection([]);
-    const promptService = createMockPromptService({
-      confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
-    });
+    const promptService = createMockPromptService();
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -910,9 +1020,7 @@ describe("initAction", () => {
 
     const logCalls = getLogOutput();
     expect(
-      logCalls.some(
-        (msg) => msg.includes("Gemini CLI") && msg.includes("not detected"),
-      ),
+      logCalls.some((msg) => msg.includes("supported tools not found")),
     ).toBe(true);
     expect(
       logCalls.some(
@@ -922,10 +1030,10 @@ describe("initAction", () => {
     expect(promptService.confirm3).not.toHaveBeenCalled();
   });
 
-  it("handles Ctrl+C on confirm3 prompt gracefully", async () => {
+  it("handles Ctrl+C on checkbox prompt gracefully", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"]);
     const promptService = createMockPromptService({
-      confirm3: mock(() =>
+      checkbox: mock(() =>
         Promise.reject(new ExitPromptError("User force closed")),
       ),
     });
@@ -944,10 +1052,10 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("cancelled"))).toBe(true);
   });
 
-  it("rethrows non-ExitPromptError from confirm3", async () => {
+  it("rethrows non-ExitPromptError from checkbox", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"]);
     const promptService = createMockPromptService({
-      confirm3: mock(() => Promise.reject(new Error("Unexpected error"))),
+      checkbox: mock(() => Promise.reject(new Error("Unexpected error"))),
     });
 
     await expect(
@@ -966,7 +1074,7 @@ describe("initAction", () => {
   it("shows 'Setup skipped' when all unconfigured agents are skipped", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"]);
     const promptService = createMockPromptService({
-      confirm3: mock(() => Promise.resolve("no" as ConfirmChoice)),
+      checkbox: mock(() => Promise.resolve([])),
     });
 
     await initAction(
@@ -1001,9 +1109,9 @@ describe("initAction", () => {
       );
 
       const logCalls = getLogOutput();
-      expect(
-        logCalls.some((msg) => msg.includes("Already authenticated")),
-      ).toBe(true);
+      expect(logCalls.some((msg) => msg.includes("Already signed in"))).toBe(
+        true,
+      );
       expect(fs.atomicWriteFile).toHaveBeenCalled();
     });
 
@@ -1046,9 +1154,9 @@ describe("initAction", () => {
       );
 
       const logCalls = getLogOutput();
-      expect(
-        logCalls.some((msg) => msg.includes("Already authenticated")),
-      ).toBe(true);
+      expect(logCalls.some((msg) => msg.includes("Already signed in"))).toBe(
+        true,
+      );
       expect(discoverEndpoints).not.toHaveBeenCalled();
       expect(open).not.toHaveBeenCalled();
       expect(loadTokens).not.toHaveBeenCalled();
@@ -1120,7 +1228,7 @@ describe("initAction", () => {
 
       const logCalls = getLogOutput();
       expect(
-        logCalls.some((msg) => msg.includes("Logged in successfully")),
+        logCalls.some((msg) => msg.includes("Signed in successfully")),
       ).toBe(true);
       expect(fs.atomicWriteFile).toHaveBeenCalled();
     });
@@ -1128,7 +1236,12 @@ describe("initAction", () => {
     it("prompts to continue when login fails", async () => {
       const fs = createFsWithDetection(["/home/test/.cursor"]);
       const promptService = createMockPromptService({
-        confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+        select: mock((message, choices, defaultValue) => {
+          if (String(message).includes("Authentication failed")) {
+            return Promise.resolve("continue_without_auth");
+          }
+          return Promise.resolve(defaultValue ?? choices[0]?.value);
+        }),
       });
       const createLoginDeps = mock(() =>
         Promise.resolve({
@@ -1156,24 +1269,27 @@ describe("initAction", () => {
       const logCalls = getLogOutput();
       expect(logCalls.some((msg) => msg.includes("Login failed"))).toBe(true);
       expect(
-        logCalls.some((msg) => msg.includes("GitHits tools will require auth")),
+        logCalls.some((msg) =>
+          msg.includes("Continuing without authentication"),
+        ),
       ).toBe(true);
       expect(fs.atomicWriteFile).toHaveBeenCalled();
     });
 
     it("does not claim GitHits is ready after continuing without auth", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"], {
-        "/home/test/.cursor/mcp.json": JSON.stringify({
-          mcpServers: {
-            GitHits: {
-              command: "npx",
-              args: ["-y", "githits@latest", "mcp", "start"],
-            },
-          },
-        }),
+      const configFiles: Record<string, string> = {};
+      const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+      fs.atomicWriteFile = mock((path: string, content: string) => {
+        configFiles[path] = content;
+        return Promise.resolve();
       });
       const promptService = createMockPromptService({
-        confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+        select: mock((message, choices, defaultValue) => {
+          if (String(message).includes("Authentication failed")) {
+            return Promise.resolve("continue_without_auth");
+          }
+          return Promise.resolve(defaultValue ?? choices[0]?.value);
+        }),
       });
       const createLoginDeps = mock(() =>
         Promise.resolve({
@@ -1200,11 +1316,9 @@ describe("initAction", () => {
 
       const logCalls = getLogOutput();
       expect(
-        logCalls.some((msg) =>
-          msg.includes("authentication is still required"),
-        ),
+        logCalls.some((msg) => msg.includes("sign-in is still needed")),
       ).toBe(true);
-      expect(logCalls.some((msg) => msg.includes("Setup complete"))).toBe(
+      expect(logCalls.some((msg) => msg.includes("GitHits is connected"))).toBe(
         false,
       );
     });
@@ -1212,7 +1326,12 @@ describe("initAction", () => {
     it("cancels setup when login fails and user declines to continue", async () => {
       const fs = createFsWithDetection(["/home/test/.cursor"]);
       const promptService = createMockPromptService({
-        confirm3: mock(() => Promise.resolve("no" as ConfirmChoice)),
+        select: mock((message, choices, defaultValue) => {
+          if (String(message).includes("Authentication failed")) {
+            return Promise.resolve("cancel");
+          }
+          return Promise.resolve(defaultValue ?? choices[0]?.value);
+        }),
       });
       const createLoginDeps = mock(() =>
         Promise.resolve({
@@ -1298,7 +1417,12 @@ describe("initAction", () => {
     });
 
     it("skips login when createLoginDeps is not provided", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const configFiles: Record<string, string> = {};
+      const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+      fs.atomicWriteFile = mock((path: string, content: string) => {
+        configFiles[path] = content;
+        return Promise.resolve();
+      });
       const promptService = createMockPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
@@ -1316,6 +1440,10 @@ describe("initAction", () => {
       expect(
         logCalls.some((msg) => msg.includes("Checking authentication")),
       ).toBe(false);
+      expect(logCalls.some((msg) => msg.includes("GitHits is connected"))).toBe(
+        false,
+      );
+      expectAuthNotCheckedNextSteps(logCalls);
       expect(fs.atomicWriteFile).toHaveBeenCalled();
     });
   });

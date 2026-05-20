@@ -6,24 +6,35 @@ import { ExecServiceImpl } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
 import { FileSystemServiceImpl } from "../../services/filesystem-service.js";
 import type {
+  CheckboxChoice,
   ConfirmChoice,
   PromptService,
+  SelectChoice,
 } from "../../services/prompt-service.js";
 import { PromptServiceImpl } from "../../services/prompt-service.js";
 import {
   colorize,
+  colorizeBrand,
+  colorizeTerminal,
   error as errorFmt,
   shouldUseColors,
   success,
+  type TerminalColor,
   warning,
 } from "../../shared/colors.js";
-import type { LoginDependencies, LoginFlowResult } from "../login.js";
+import type {
+  LoginDependencies,
+  LoginFlowResult,
+  LoginOutput,
+} from "../login.js";
 import { loginFlow } from "../login.js";
 import {
   type AgentDefinition,
   agentDefinitions,
   type ConfigFileSetup,
   isGeminiExtensionInstalledFromFilesystem,
+  type ScanProgress,
+  type ScanResult,
   type SetupConfig,
   scanAgents,
 } from "./agent-definitions.js";
@@ -34,10 +45,10 @@ import {
   executeCompositeUninstall,
   executeConfigFileSetup,
   executeConfigFileUninstall,
-  formatSetupPreview,
   formatUninstallPreview,
   getCliCheckStatus,
   getConfigUninstallCheckStatus,
+  type SetupResult,
 } from "./setup-handlers.js";
 
 /** Options for the init command */
@@ -102,6 +113,43 @@ interface UninstallScanResult {
   failed: AgentUninstallOutcome[];
 }
 
+type InitIntent = "mcp" | "skills" | "later";
+
+type InitAuthStartChoice = "sign_in" | "skip" | "cancel";
+
+type InitAuthRecoveryChoice = "retry" | "continue_without_auth" | "cancel";
+
+type InitAuthStatus =
+  | "authenticated"
+  | "skipped"
+  | "unavailable"
+  | "failed_continue"
+  | "cancelled";
+
+type SafeScanResult =
+  | { ok: true; scan: ScanResult }
+  | { ok: false; error: Error };
+
+interface ScanProgressReporter {
+  onProgress(progress: ScanProgress): void;
+  finish(): void;
+}
+
+interface InstallTaskReporter {
+  start(label: string): () => void;
+}
+
+function createInitLoginOutput(): LoginOutput {
+  return {
+    write: (message) => {
+      const lines = message.replace(/\n$/, "").split("\n");
+      for (const line of lines) {
+        console.log(line.length > 0 ? `    ${line}` : "");
+      }
+    },
+  };
+}
+
 function getResolvedSetupConfig(
   agent: AgentDefinition,
   fileSystemService: FileSystemService,
@@ -129,18 +177,549 @@ function getPiConfigFileUninstall(
   return configStep ?? null;
 }
 
+/** Style a CLI command so it stands out from surrounding text. */
+function formatCommand(command: string, useColors: boolean): string {
+  return colorizeBrand(command, "secondary", useColors, { bold: true });
+}
+
 function printReadyNextSteps(): void {
-  console.log("  Setup complete. You're ready to use GitHits.");
+  console.log("  GitHits is now connected to your coding agents.");
   console.log();
-  console.log("  Try a quick code example search:");
   console.log(
-    '    npx githits@latest example "How do I use useEffect cleanup?"',
+    "  Here are some examples of the new abilities that your agent just got:",
   );
   console.log();
-  console.log("  Or ask your agent to explore a real codebase:");
+  console.log("  • Find usage examples");
   console.log(
-    "    Use GitHits to inspect postgres/postgres and explain how the query planner selects join strategies.",
+    "      -> “Find a real example of using Azure Speech SDK TranscribeDefinition”",
   );
+  console.log();
+  console.log(
+    "  • Search, grep, list files, and read exact lines in any repo or package to gather information",
+  );
+  console.log(
+    "      -> “How does Next.js implement route prefetching internally?”",
+  );
+  console.log();
+  console.log(
+    "  • Inspect dependency versions, changelogs, and upgrade changes",
+  );
+  console.log("      -> “What changed between pydantic-ai 1.95 and 1.99?”");
+  console.log();
+  console.log(
+    "  Open a new coding agent session and try out one of the above.",
+  );
+  console.log();
+  console.log(
+    '  In your normal workflow, your agent will call GitHits automatically depending on the task, but you can prompt it to use GitHits explicitly by adding "use GitHits".',
+  );
+  console.log();
+  console.log(
+    "  See docs for more use cases and trigger guides: https://docs.githits.com",
+  );
+}
+
+function printAuthRequiredNextSteps(useColors: boolean): void {
+  console.log("  GitHits MCP is configured, but sign-in is still needed.");
+  console.log();
+  console.log("  Sign in when you're ready:");
+  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
+}
+
+function printAuthNotCheckedNextSteps(useColors: boolean): void {
+  console.log("  GitHits MCP is configured. Sign-in was not checked.");
+  console.log();
+  console.log("  If your agent asks you to sign in, run:");
+  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
+}
+
+const GITHITS_ASCII_LOGO = String.raw`
+   ____ _ _   _   _ _ _       
+  / ___(_) |_| | | (_) |_ ___ 
+ | |  _| | __| |_| | | __/ __|
+ | |_| | | |_|  _  | | |_\__ \
+  \____|_|\__|_| |_|_|\__|___/
+`;
+
+/** Per-column color stops for the logo's warm gradient. */
+const LOGO_GRADIENT: ReadonlyArray<{ until: number; color: TerminalColor }> = [
+  {
+    until: 13,
+    color: {
+      hex: "#FF4FAE",
+      rgb: [255, 79, 174],
+      ansi256: 205,
+      ansi16: "magenta",
+    },
+  },
+  {
+    until: 19,
+    color: {
+      hex: "#FF5D8E",
+      rgb: [255, 93, 142],
+      ansi256: 204,
+      ansi16: "magenta",
+    },
+  },
+  {
+    until: 21,
+    color: {
+      hex: "#FF6B6F",
+      rgb: [255, 107, 111],
+      ansi256: 203,
+      ansi16: "red",
+    },
+  },
+  {
+    until: 25,
+    color: { hex: "#FF794F", rgb: [255, 121, 79], ansi256: 209, ansi16: "red" },
+  },
+  {
+    until: 30,
+    color: {
+      hex: "#FF872F",
+      rgb: [255, 135, 47],
+      ansi256: 208,
+      ansi16: "yellow",
+    },
+  },
+];
+
+/** Apply the column-based gradient to each row of the ASCII logo. */
+function colorizeLogo(logo: string, useColors: boolean): string {
+  if (!useColors) {
+    return logo;
+  }
+  return logo
+    .split("\n")
+    .map((line) => {
+      if (line.length === 0) {
+        return line;
+      }
+      let cursor = 0;
+      let colored = "";
+      for (const { until, color } of LOGO_GRADIENT) {
+        if (cursor >= line.length) {
+          break;
+        }
+        colored += colorizeTerminal(
+          line.slice(cursor, until),
+          color,
+          useColors,
+        );
+        cursor = until;
+      }
+      return cursor < line.length ? colored + line.slice(cursor) : colored;
+    })
+    .join("\n");
+}
+
+const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
+  {
+    name: "Connect GitHits to my agent (Recommended)",
+    value: "mcp",
+    description:
+      "Install the local GitHits MCP server for your coding agents. Allows agents to seamlessly use GitHits.",
+  },
+  {
+    name: "Use Agent Skills instead",
+    value: "skills",
+    description: "Use Skills instead of the local MCP server.",
+  },
+  {
+    name: "Exit",
+    value: "later",
+    description: "Leave setup without making changes.",
+  },
+];
+
+const AUTH_RECOVERY_CHOICES: SelectChoice<InitAuthRecoveryChoice>[] = [
+  { name: "Retry sign in", value: "retry" },
+  {
+    name: "Configure MCP without signing in",
+    value: "continue_without_auth",
+    description: "Your agent will ask you to sign in before using GitHits.",
+  },
+  { name: "Cancel setup", value: "cancel" },
+];
+
+const AUTH_START_CHOICES: SelectChoice<InitAuthStartChoice>[] = [
+  {
+    name: "Sign in now",
+    value: "sign_in",
+    description: "Open your browser and connect this CLI to GitHits.",
+  },
+  {
+    name: "Skip for now",
+    value: "skip",
+    description: "Finish MCP setup and sign in later with `githits login`.",
+  },
+  { name: "Cancel setup", value: "cancel" },
+];
+
+function printSection(index: number, title: string, useColors: boolean): void {
+  console.log();
+  console.log(
+    `  ${colorizeBrand(`${index}. ${title}`, "primary", useColors, { bold: true })}`,
+  );
+  console.log(`  ${colorize("-".repeat(title.length + 3), "dim", useColors)}`);
+}
+
+function printTask(
+  status: "success" | "warning" | "skipped" | "failed",
+  label: string,
+  detail: string | undefined,
+  useColors: boolean,
+): void {
+  const suffix = detail ? `  ${colorize(detail, "dim", useColors)}` : "";
+  if (status === "success") {
+    console.log(`    ${success(label, useColors)}${suffix}`);
+  } else if (status === "failed") {
+    console.log(`    ${errorFmt(label, useColors)}${suffix}`);
+  } else if (status === "warning") {
+    console.log(`    ${warning(label, useColors)}${suffix}`);
+  } else {
+    console.log(`    ${colorize("○", "dim", useColors)} ${label}${suffix}`);
+  }
+}
+
+function printInitIntro(useColors: boolean): void {
+  console.log(colorizeLogo(GITHITS_ASCII_LOGO, useColors));
+  console.log("  Your agent can read your local codebase.");
+  console.log();
+  console.log(
+    "  GitHits lets it navigate the open-source code your app depends on.",
+  );
+  console.log();
+  console.log(
+    `  ${colorizeBrand("With GitHits, your agent can:", "primary", useColors)}`,
+  );
+  console.log(
+    "  • Find implementation examples from open-source code, issues, discussions, and pull requests",
+  );
+  console.log(
+    "  • Search, grep, list files, and read exact lines in any repo or package",
+  );
+  console.log(
+    "  • Inspect dependency internals, versions, changelogs, and upgrade changes",
+  );
+  console.log("  • Access package documentation");
+  console.log();
+  console.log(
+    "  No cloning or local indexing required. GitHits handles everything automatically.",
+  );
+  console.log();
+  console.log(
+    "  Works with Cursor, Claude Code, Codex, OpenCode, Pi, VS Code, Windsurf, and more.",
+  );
+  console.log();
+  console.log("  More info: https://docs.githits.com");
+  console.log();
+}
+
+function printSkillsInstructions(useColors: boolean): void {
+  console.log("\n  Install GitHits Agent Skills:");
+  console.log();
+  console.log(
+    `    ${formatCommand("npx skills add githits-com/githits-cli", useColors)}`,
+  );
+  console.log();
+  console.log("  During setup, choose where you want to enable GitHits.");
+  console.log();
+  console.log(
+    "  IMPORTANT: Use either Agent Skills or the local MCP server in the same",
+  );
+  console.log("  coding tool, not both.");
+  console.log();
+  console.log("  Then sign in so your agent can use GitHits:");
+  console.log();
+  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
+  console.log();
+}
+
+function startSafeInitScan(
+  fileSystemService: FileSystemService,
+  execService: ExecService,
+  onProgress?: (progress: ScanProgress) => void,
+): Promise<SafeScanResult> {
+  return scanAgents(agentDefinitions, fileSystemService, execService, {
+    onProgress,
+  })
+    .then((scan) => ({ ok: true as const, scan }))
+    .catch((error: unknown) => ({
+      ok: false as const,
+      error: error instanceof Error ? error : new Error(String(error)),
+    }));
+}
+
+function createScanProgressReporter(useColors: boolean): ScanProgressReporter {
+  if (!process.stdout.isTTY) {
+    return { onProgress: () => {}, finish: () => {} };
+  }
+
+  let wrote = false;
+  return {
+    onProgress: (progress) => {
+      const width = 20;
+      const filled = Math.round((progress.completed / progress.total) * width);
+      const bar = `${colorizeBrand("#".repeat(filled), "primary", useColors)}${"-".repeat(width - filled)}`;
+      const line = `  Scanning tools [${bar}] ${progress.completed}/${progress.total} ${progress.agent.name}`;
+      process.stdout.write(`\r\x1b[2K${line}`);
+      wrote = true;
+    },
+    finish: () => {
+      if (wrote) {
+        process.stdout.write("\r\x1b[2K");
+      }
+    },
+  };
+}
+
+function createInstallTaskReporter(useColors: boolean): InstallTaskReporter {
+  if (!process.stdout.isTTY) {
+    return {
+      start: (label) => {
+        printTask("skipped", label, "installing...", useColors);
+        return () => {};
+      },
+    };
+  }
+
+  const frames = ["-", "\\", "|", "/"];
+  return {
+    start: (label) => {
+      let frame = 0;
+      const render = () => {
+        const spinner = colorizeBrand(
+          frames[frame % frames.length] ?? "-",
+          "primary",
+          useColors,
+        );
+        frame += 1;
+        process.stdout.write(`\r\x1b[2K    ${spinner} ${label}  installing...`);
+      };
+      render();
+      const interval = setInterval(render, 80);
+      return () => {
+        clearInterval(interval);
+        process.stdout.write("\r\x1b[2K");
+      };
+    },
+  };
+}
+
+async function unwrapSafeScan(
+  scanPromise: Promise<SafeScanResult>,
+): Promise<ScanResult> {
+  const result = await scanPromise;
+  if (!result.ok) {
+    throw result.error;
+  }
+  return result.scan;
+}
+
+function formatAgentNames(agents: AgentDefinition[]): string {
+  if (agents.length === 0) return "none";
+  if (agents.length === 1) return agents[0]?.name ?? "unknown";
+  if (agents.length === 2) {
+    return `${agents[0]?.name ?? "unknown"} and ${agents[1]?.name ?? "unknown"}`;
+  }
+  const names = agents.map((agent) => agent.name);
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+
+function buildInitAgentChoices(
+  scan: ScanResult,
+): CheckboxChoice<AgentDefinition>[] {
+  return [
+    ...scan.needsSetup.map((agent) => ({
+      name: `${agent.name} (detected)`,
+      value: agent,
+      checked: true,
+    })),
+    ...scan.alreadyConfigured.map((agent) => ({
+      name: `${agent.name} (already configured)`,
+      value: agent,
+      disabled: "already configured",
+    })),
+  ];
+}
+
+function printScanSummary(scan: ScanResult, useColors: boolean): void {
+  const detected = scan.needsSetup.length + scan.alreadyConfigured.length;
+  for (const agent of scan.alreadyConfigured) {
+    printTask("success", agent.name, "already configured", useColors);
+  }
+  for (const agent of scan.needsSetup) {
+    printTask("warning", agent.name, "needs setup", useColors);
+  }
+  if (scan.notDetected.length > 0) {
+    printTask(
+      "skipped",
+      `${scan.notDetected.length} supported tool${scan.notDetected.length !== 1 ? "s" : ""} not found`,
+      formatAgentNames(scan.notDetected),
+      useColors,
+    );
+  }
+  if (detected > 0) {
+    console.log();
+    console.log(
+      `    Found ${detected} supported tool${detected !== 1 ? "s" : ""}.`,
+    );
+  }
+}
+
+function printAuthExplanation(): void {
+  console.log(
+    "    GitHits authentication is required before your agent can use GitHits tools.",
+  );
+  console.log();
+  console.log("    We'll open your browser to connect your account.");
+  console.log("    Credentials are stored securely in your OS keychain.");
+  console.log();
+  console.log("    No API keys or secrets are written into your MCP config.");
+  console.log();
+}
+
+async function runInitAuthentication(
+  options: InitOptions,
+  promptService: PromptService,
+  createLoginDeps: InitDependencies["createLoginDeps"],
+  useColors: boolean,
+): Promise<InitAuthStatus> {
+  if (options.skipLogin) {
+    console.log("  Skipping authentication (--skip-login).\n");
+    return "skipped";
+  }
+  if (!createLoginDeps) {
+    printTask(
+      "warning",
+      "Sign-in unavailable",
+      "sign in later with `githits login`",
+      useColors,
+    );
+    return "unavailable";
+  }
+
+  while (true) {
+    let loginResult: LoginFlowResult;
+    try {
+      const loginDeps = await createLoginDeps();
+      if (loginDeps.hasValidToken) {
+        printTask("success", "Already signed in", undefined, useColors);
+        return "authenticated";
+      }
+
+      printAuthExplanation();
+      if (!options.yes) {
+        let authChoice: InitAuthStartChoice;
+        try {
+          authChoice = await promptService.select(
+            "  Continue with browser sign-in?",
+            AUTH_START_CHOICES,
+            "sign_in",
+          );
+        } catch (err) {
+          if (err instanceof ExitPromptError) {
+            console.log("\n  Setup cancelled.\n");
+            return "cancelled";
+          }
+          throw err;
+        }
+
+        if (authChoice === "skip") {
+          printTask(
+            "warning",
+            "Sign-in skipped",
+            "your agent will ask you to sign in later",
+            useColors,
+          );
+          return "skipped";
+        }
+        if (authChoice === "cancel") {
+          console.log(
+            "\n  Setup cancelled. Run `githits login` to authenticate.\n",
+          );
+          return "cancelled";
+        }
+      }
+
+      loginResult = await loginFlow({}, loginDeps, createInitLoginOutput());
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      loginResult = { status: "failed", message: msg };
+    }
+
+    if (loginResult.status === "already_authenticated") {
+      printTask("success", "Already signed in", undefined, useColors);
+      return "authenticated";
+    }
+    if (loginResult.status === "success") {
+      printTask("success", "Signed in successfully", undefined, useColors);
+      return "authenticated";
+    }
+
+    console.log(
+      `    ${warning(`Login failed: ${loginResult.message}`, useColors)}\n`,
+    );
+    printAuthRecoveryHint(useColors);
+
+    if (options.yes) {
+      console.log("    Continuing without authentication...\n");
+      return "failed_continue";
+    }
+
+    let choice: InitAuthRecoveryChoice;
+    try {
+      choice = await promptService.select(
+        "  Authentication failed. What would you like to do?",
+        AUTH_RECOVERY_CHOICES,
+        "retry",
+      );
+    } catch (err) {
+      if (err instanceof ExitPromptError) {
+        console.log("\n  Setup cancelled.\n");
+        return "cancelled";
+      }
+      throw err;
+    }
+
+    if (choice === "retry") {
+      console.log();
+      continue;
+    }
+    if (choice === "cancel") {
+      console.log(
+        "\n  Setup cancelled. Run `githits login` to authenticate.\n",
+      );
+      return "cancelled";
+    }
+
+    console.log("    Continuing without authentication...\n");
+    return "failed_continue";
+  }
+}
+
+function shouldPrintReady(authStatus: InitAuthStatus): boolean {
+  return authStatus === "authenticated";
+}
+
+function printPostSetupNextSteps(
+  authStatus: InitAuthStatus,
+  useColors: boolean,
+): void {
+  printSection(
+    5,
+    shouldPrintReady(authStatus) ? "Ready" : "Next Steps",
+    useColors,
+  );
+  if (shouldPrintReady(authStatus)) {
+    printReadyNextSteps();
+  } else if (authStatus === "failed_continue") {
+    printAuthRequiredNextSteps(useColors);
+  } else {
+    printAuthNotCheckedNextSteps(useColors);
+  }
 }
 
 async function verifyAgentConfigured(
@@ -334,177 +913,163 @@ export async function initAction(
   const useColors = shouldUseColors();
   const { fileSystemService, promptService, execService, createLoginDeps } =
     deps;
-  let continuedWithoutAuth = false;
+  printInitIntro(useColors);
 
-  // Header
-  console.log(
-    `\n  ${colorize("GitHits", "bold", useColors)} — Set up MCP server for your coding agents\n`,
-  );
-
-  // Login step (before tool configuration)
-  if (!options.skipLogin && createLoginDeps) {
-    console.log("  Checking authentication...\n");
-    let loginResult: LoginFlowResult;
+  if (!options.yes) {
+    let intent: InitIntent;
     try {
-      const loginDeps = await createLoginDeps();
-      loginResult = loginDeps.hasValidToken
-        ? { status: "already_authenticated", message: "Already logged in." }
-        : await loginFlow({}, loginDeps);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      loginResult = { status: "failed", message: msg };
-    }
-
-    if (loginResult.status === "already_authenticated") {
-      console.log(`    ${success("Already authenticated", useColors)}\n`);
-    } else if (loginResult.status === "success") {
-      console.log(`    ${success("Logged in successfully", useColors)}\n`);
-    } else {
-      console.log(
-        `    ${warning(`Login failed: ${loginResult.message}`, useColors)}\n`,
+      intent = await promptService.select(
+        "  What do you want to do?",
+        INIT_INTENT_CHOICES,
+        "mcp",
       );
-      printAuthRecoveryHint();
-      if (!options.yes) {
-        try {
-          const choice = await promptService.confirm3(
-            "Continue without authentication?",
-          );
-          if (choice === "no") {
-            console.log(
-              "\n  Setup cancelled. Run `githits login` to authenticate.\n",
-            );
-            return;
-          }
-        } catch (err) {
-          if (err instanceof ExitPromptError) {
-            console.log("\n  Setup cancelled.\n");
-            return;
-          }
-          throw err;
-        }
+    } catch (err) {
+      if (err instanceof ExitPromptError) {
+        console.log("\n  Setup cancelled. No changes made.\n");
+        return;
       }
-      continuedWithoutAuth = true;
-      console.log("    Continuing without authentication...\n");
+      throw err;
     }
-  }
 
-  // Scan for available agents and check configuration status
-  console.log("  Scanning for available agents...\n");
-  const scan = await scanAgents(
-    agentDefinitions,
-    fileSystemService,
-    execService,
-  );
-
-  // Display status list
-  for (const agent of scan.alreadyConfigured) {
-    console.log(
-      `    ${success(`${agent.name} — already configured`, useColors)}`,
-    );
-  }
-  for (const agent of scan.needsSetup) {
-    console.log(
-      `    ${colorize(`● ${agent.name} — needs setup`, "cyan", useColors)}`,
-    );
-  }
-  for (const agent of scan.notDetected) {
-    console.log(
-      `    ${colorize(`${agent.name} — not detected`, "dim", useColors)}`,
-    );
-  }
-  console.log();
-
-  // All agents not detected
-  if (scan.needsSetup.length === 0 && scan.alreadyConfigured.length === 0) {
-    console.log(
-      "  No coding agents detected. Install an agent and try again.\n",
-    );
-    return;
-  }
-
-  // All detected agents already configured
-  if (scan.needsSetup.length === 0) {
-    if (continuedWithoutAuth) {
-      console.log(
-        "  MCP is already configured, but authentication is still required.",
-      );
-      console.log("  Run `githits login` before using GitHits tools.\n");
+    if (intent === "skills") {
+      printSkillsInstructions(useColors);
       return;
     }
-    console.log("  All detected agents are already configured.");
-    printReadyNextSteps();
+    if (intent === "later") {
+      console.log(
+        "\n  No changes made. Run `githits init` whenever you're ready.\n",
+      );
+      return;
+    }
+  }
+
+  printSection(1, "Detect tools", useColors);
+  console.log("    Scanning for compatible AI coding tools...");
+  const progress = createScanProgressReporter(useColors);
+  const scanPromise = startSafeInitScan(
+    fileSystemService,
+    execService,
+    (scanProgress) => progress.onProgress(scanProgress),
+  );
+  let scan: ScanResult;
+  try {
+    scan = await unwrapSafeScan(scanPromise);
+  } finally {
+    progress.finish();
+  }
+  printScanSummary(scan, useColors);
+
+  if (scan.needsSetup.length === 0 && scan.alreadyConfigured.length === 0) {
+    printTask(
+      "warning",
+      "No supported AI coding tools detected",
+      "install a supported tool and run `githits init` again",
+      useColors,
+    );
     console.log();
     return;
   }
 
-  // Sequential setup for unconfigured agents
-  const toSetup = scan.needsSetup;
-  const outcomes: AgentOutcome[] = [];
-  let alwaysMode = options.yes ?? false;
-
-  for (const agent of toSetup) {
-    console.log(`  Setting up ${colorize(agent.name, "bold", useColors)}...\n`);
-
-    const config =
-      agent.resolvedSetupConfig ?? agent.getSetupConfig(fileSystemService);
-
-    // Show preview
-    const preview = formatSetupPreview(config);
-    for (const line of preview.split("\n")) {
-      console.log(`    ${line}`);
-    }
-    console.log();
-
-    // Confirm (unless --yes or "always" mode)
-    if (!alwaysMode) {
-      let choice: ConfirmChoice;
-      try {
-        choice = await promptService.confirm3("Proceed?");
-      } catch (err) {
-        if (err instanceof ExitPromptError) {
-          console.log("\n  Setup cancelled.\n");
-          return;
-        }
-        throw err;
-      }
-
-      if (choice === "no") {
-        outcomes.push({ id: agent.id, name: agent.name, status: "skipped" });
-        console.log();
-        continue;
-      }
-      if (choice === "always") {
-        alwaysMode = true;
-      }
-    }
-
-    // Execute setup
-    let result =
-      config.method === "cli"
-        ? await executeCliSetup(config, execService)
-        : config.method === "config-file"
-          ? await executeConfigFileSetup(config, fileSystemService)
-          : await executeCompositeSetup(config, fileSystemService, execService);
-
-    if (result.status === "success" || result.status === "already_configured") {
-      const verification = await verifyAgentConfigured(
-        agent,
-        fileSystemService,
-        execService,
+  let toSetup = scan.needsSetup;
+  printSection(2, "Choose tools", useColors);
+  if (!options.yes && scan.needsSetup.length > 0) {
+    try {
+      toSetup = await promptService.checkbox(
+        "  Select which tools should use GitHits:",
+        buildInitAgentChoices(scan),
       );
-      if (!verification.ok) {
-        result = {
-          status: "failed",
-          message:
-            agent.id === "gemini-cli"
-              ? "Gemini installation did not complete. Retry, or run: gemini extensions install --consent https://github.com/githits-com/githits-cli"
-              : (verification.message ??
-                `${agent.name} verification failed after setup.`),
-        };
+    } catch (err) {
+      if (err instanceof ExitPromptError) {
+        console.log("\n  Setup cancelled. No changes made.\n");
+        return;
       }
+      throw err;
+    }
+  } else if (scan.needsSetup.length === 0) {
+    printTask(
+      "success",
+      "No tool changes needed",
+      "all detected tools already have GitHits MCP",
+      useColors,
+    );
+  } else {
+    printTask("success", "Selected all detected tools", "--yes", useColors);
+  }
+
+  const outcomes: AgentOutcome[] = [];
+
+  if (toSetup.length === 0 && scan.needsSetup.length > 0) {
+    printTask("skipped", "Setup skipped", "no tools selected", useColors);
+    console.log();
+    return;
+  }
+
+  printSection(3, "Sign in", useColors);
+  const authStatus = await runInitAuthentication(
+    options,
+    promptService,
+    createLoginDeps,
+    useColors,
+  );
+  if (authStatus === "cancelled") {
+    return;
+  }
+
+  printSection(4, "Install and verify", useColors);
+  if (toSetup.length === 0) {
+    printTask(
+      "success",
+      "Nothing to install",
+      "all detected tools are already configured",
+      useColors,
+    );
+    printPostSetupNextSteps(authStatus, useColors);
+    console.log();
+    return;
+  }
+
+  const installTasks = createInstallTaskReporter(useColors);
+  for (const agent of toSetup) {
+    const config = getResolvedSetupConfig(agent, fileSystemService);
+    const finishTask = installTasks.start(agent.name);
+
+    let result: SetupResult;
+    try {
+      result =
+        config.method === "cli"
+          ? await executeCliSetup(config, execService)
+          : config.method === "config-file"
+            ? await executeConfigFileSetup(config, fileSystemService)
+            : await executeCompositeSetup(
+                config,
+                fileSystemService,
+                execService,
+              );
+
+      if (
+        result.status === "success" ||
+        result.status === "already_configured"
+      ) {
+        const verification = await verifyAgentConfigured(
+          agent,
+          fileSystemService,
+          execService,
+        );
+        if (!verification.ok) {
+          result = {
+            status: "failed",
+            message:
+              agent.id === "gemini-cli"
+                ? "Gemini installation did not complete. Retry, or run: gemini extensions install --consent https://github.com/githits-com/githits-cli"
+                : (verification.message ??
+                  `${agent.name} verification failed after setup.`),
+          };
+        }
+      }
+    } finally {
+      finishTask();
     }
 
-    // Record and display outcome
     outcomes.push({
       id: agent.id,
       name: agent.name,
@@ -513,38 +1078,31 @@ export async function initAction(
     });
 
     if (result.status === "success") {
-      console.log(`    ${success(`${agent.name} configured`, useColors)}\n`);
+      printTask("success", agent.name, "configured and verified", useColors);
     } else if (result.status === "already_configured") {
-      console.log(
-        `    ${warning(`${agent.name} already configured`, useColors)}\n`,
-      );
+      printTask("warning", agent.name, "already configured", useColors);
     } else {
-      console.log(`    ${errorFmt(result.message, useColors)}\n`);
+      printTask("failed", agent.name, result.message, useColors);
     }
   }
 
-  // Summary
+  console.log();
+
   const configured = outcomes.filter((o) => o.status === "success").length;
   const alreadyDone =
     outcomes.filter((o) => o.status === "already_configured").length +
     scan.alreadyConfigured.length;
   const failed = outcomes.filter((o) => o.status === "failed").length;
-  const skipped = outcomes.filter((o) => o.status === "skipped").length;
 
   if (failed > 0) {
     console.log("  Setup completed with errors.");
-  } else if (continuedWithoutAuth && (configured > 0 || alreadyDone > 0)) {
-    console.log("  MCP is configured, but authentication is still required.");
-    console.log("  Run `githits login` before using GitHits tools.");
   } else if (configured > 0 || alreadyDone > 0) {
-    printReadyNextSteps();
-  } else if (skipped > 0) {
-    console.log("  Setup skipped.");
+    printPostSetupNextSteps(authStatus, useColors);
   }
 
   if (failed > 0) {
     console.log(
-      `  ${failed} agent${failed !== 1 ? "s" : ""} failed to configure.`,
+      `  ${failed} tool${failed !== 1 ? "s" : ""} failed to configure.`,
     );
     for (const outcome of outcomes.filter((o) => o.status === "failed")) {
       console.log(
@@ -552,8 +1110,10 @@ export async function initAction(
       );
     }
   }
-  if (skipped > 0) {
-    console.log(`  ${skipped} agent${skipped !== 1 ? "s" : ""} skipped.`);
+  if (scan.alreadyConfigured.length > 0) {
+    console.log(
+      `  ${scan.alreadyConfigured.length} tool${scan.alreadyConfigured.length !== 1 ? "s" : ""} already configured.`,
+    );
   }
 
   console.log();
@@ -571,7 +1131,10 @@ export async function initUninstallAction(
   const { fileSystemService, promptService, execService } = deps;
 
   console.log(
-    `\n  ${colorize("GitHits", "bold", useColors)} — Remove MCP server from your coding agents\n`,
+    `\n  ${colorize("Disconnect GitHits from your coding agents.", "bold", useColors)}`,
+  );
+  console.log(
+    `  ${colorize("Removes the local GitHits MCP configuration.", "dim", useColors)}\n`,
   );
 
   console.log("  Scanning for configured agents...\n");
@@ -763,30 +1326,24 @@ export async function initUninstallAction(
   console.log();
 }
 
-function printAuthRecoveryHint(): void {
+function printAuthRecoveryHint(useColors: boolean): void {
   console.log(
     "    You can still configure MCP, but GitHits tools will require auth.",
   );
   console.log("    Recovery steps:");
-  console.log("      githits auth status");
-  console.log("      githits login --force");
+  console.log(`      ${formatCommand("githits auth status", useColors)}`);
+  console.log(`      ${formatCommand("githits login --force", useColors)}`);
   console.log("    For CI or locked-down machines, set GITHITS_API_TOKEN.");
   console.log(
     "    If your system keychain is unavailable, set GITHITS_AUTH_STORAGE=file after accepting plaintext storage.\n",
   );
 }
 
-const INIT_DESCRIPTION = `Set up GitHits MCP server for your coding agents.
+const INIT_DESCRIPTION = `Connect GitHits to your coding agents.
 
-Authenticates with your GitHits account, then scans for available agents
-(Claude Code, Cursor, Windsurf, VS Code, Cline, Claude Desktop, Codex CLI,
-Pi, Gemini CLI, Google Antigravity), checks which are already configured,
-and sets up unconfigured ones with your confirmation.
-
-Supports CLI-based setup (Claude Code, Codex, Gemini CLI), Pi package setup,
-and config
-file editing (Cursor, Windsurf, VS Code, Cline, Claude Desktop,
-Google Antigravity) with atomic writes.`;
+Installs the local GitHits MCP server — the recommended way to connect — or
+sets up Agent Skills instead. Detects supported coding tools on this machine,
+signs you in, and configures the tools you select.`;
 
 const INIT_UNINSTALL_DESCRIPTION = `Remove GitHits MCP server configuration from your coding agents.
 
@@ -801,9 +1358,9 @@ tokens are not removed; use \`githits logout\` to remove stored credentials.`;
 export function registerInitCommand(program: Command) {
   const initCommand = program
     .command("init")
-    .summary("Set up MCP server for your coding agents")
+    .summary("Connect GitHits to your coding agents")
     .description(INIT_DESCRIPTION)
-    .option("-y, --yes", "Skip prompts, configure all detected agents")
+    .option("-y, --yes", "Skip prompts, configure all detected tools")
     .option("--skip-login", "Skip authentication step")
     .action(async (options: InitOptions) => {
       const fileSystemService = new FileSystemServiceImpl();

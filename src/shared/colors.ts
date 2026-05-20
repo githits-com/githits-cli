@@ -7,6 +7,7 @@ export const colors = {
   reset: "\x1b[0m",
   bold: "\x1b[1m",
   dim: "\x1b[2m",
+  italic: "\x1b[3m",
   green: "\x1b[32m",
   yellow: "\x1b[33m",
   blue: "\x1b[34m",
@@ -14,6 +15,41 @@ export const colors = {
   cyan: "\x1b[36m",
   red: "\x1b[31m",
 };
+
+export interface TerminalColor {
+  /** Source token hex value, kept here so CLI brand colors are easy to audit. */
+  hex: `#${string}`;
+  rgb: readonly [number, number, number];
+  ansi256: number;
+  ansi16: keyof typeof colors;
+}
+
+export type BrandColorName = keyof typeof brandColors;
+
+/**
+ * CLI projection of the GitHits brand palette.
+ * Source: githits-frontend design tokens and brand guidelines PDF.
+ */
+export const brandColors = {
+  primary: {
+    hex: "#FF72BE",
+    rgb: [255, 114, 190],
+    ansi256: 205,
+    ansi16: "magenta",
+  },
+  secondary: {
+    hex: "#FF872F",
+    rgb: [255, 135, 47],
+    ansi256: 208,
+    ansi16: "yellow",
+  },
+} as const satisfies Record<string, TerminalColor>;
+
+export interface ColorizeTerminalOptions {
+  bold?: boolean;
+  dim?: boolean;
+  colorDepth?: number;
+}
 
 /**
  * Check if we should use colors (TTY and not disabled)
@@ -36,6 +72,49 @@ export function colorize(
 ): string {
   if (!useColors) return text;
   return `${colors[color]}${text}${colors.reset}`;
+}
+
+function getColorDepth(): number {
+  const stream = process.stdout as typeof process.stdout & {
+    getColorDepth?: () => number;
+  };
+  return stream.getColorDepth?.() ?? 1;
+}
+
+function foregroundColorCode(color: TerminalColor, colorDepth: number): string {
+  if (colorDepth >= 24) {
+    const [red, green, blue] = color.rgb;
+    return `\x1b[38;2;${red};${green};${blue}m`;
+  }
+  if (colorDepth >= 8) {
+    return `\x1b[38;5;${color.ansi256}m`;
+  }
+  return colors[color.ansi16];
+}
+
+/**
+ * Colorize text with RGB -> 256-color -> 16-color fallback.
+ */
+export function colorizeTerminal(
+  text: string,
+  color: TerminalColor,
+  useColors: boolean,
+  options: ColorizeTerminalOptions = {},
+): string {
+  if (!useColors) return text;
+  const colorDepth = options.colorDepth ?? getColorDepth();
+  if (colorDepth <= 1) return text;
+  const prefix = `${options.bold ? colors.bold : ""}${options.dim ? colors.dim : ""}${foregroundColorCode(color, colorDepth)}`;
+  return `${prefix}${text}${colors.reset}`;
+}
+
+export function colorizeBrand(
+  text: string,
+  colorName: BrandColorName,
+  useColors: boolean,
+  options?: ColorizeTerminalOptions,
+): string {
+  return colorizeTerminal(text, brandColors[colorName], useColors, options);
 }
 
 /**

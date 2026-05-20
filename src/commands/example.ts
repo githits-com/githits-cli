@@ -3,6 +3,8 @@ import type { GitHitsService } from "../services/githits-service.js";
 import { AuthenticationError } from "../services/githits-service.js";
 import { extractSolutionId } from "../shared/extract-solution-id.js";
 import { AuthRequiredError, requireAuth } from "../shared/require-auth.js";
+import { startSpinner } from "../shared/spinner.js";
+import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
 
 export interface ExampleOptions {
   lang?: string;
@@ -34,12 +36,15 @@ export async function exampleAction(
   requireAuth(deps);
 
   try {
-    const result = await deps.githitsService.search({
-      query,
-      language: options.lang,
-      licenseMode: options.license,
-      includeExplanation: options.explain,
-    });
+    const spinner = startSpinner(SPINNER_MESSAGES.example, !options.json);
+    const result = await deps.githitsService
+      .search({
+        query,
+        language: options.lang,
+        licenseMode: options.license,
+        includeExplanation: options.explain,
+      })
+      .finally(() => spinner.stop());
 
     if (options.json) {
       const solutionId = extractSolutionId(result);
@@ -90,7 +95,7 @@ Examples:
 export function registerExampleCommand(program: Command) {
   program
     .command("example")
-    .summary("Get code examples from global open source")
+    .summary("Find real-world implementations from open-source code")
     .description(EXAMPLE_DESCRIPTION)
     .argument("<query>", "Natural language example-search query")
     .option(
