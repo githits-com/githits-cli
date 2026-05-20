@@ -31,13 +31,20 @@ import {
 
 /** Suppress console.log during tests */
 let logSpy: ReturnType<typeof spyOn>;
+let errorSpy: ReturnType<typeof spyOn>;
+let originalExitCode: string | number | null | undefined;
 
 beforeEach(() => {
+  originalExitCode = process.exitCode;
+  process.exitCode = 0;
   logSpy = spyOn(console, "log").mockImplementation(() => {});
+  errorSpy = spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
   logSpy.mockRestore();
+  errorSpy.mockRestore();
+  process.exitCode = originalExitCode;
 });
 
 /** Create mock login deps that report already authenticated */
@@ -91,6 +98,10 @@ function getLogOutput(): string[] {
   return (logSpy.mock.calls as unknown[][]).map((c) => String(c[0] ?? ""));
 }
 
+function getErrorOutput(): string[] {
+  return (errorSpy.mock.calls as unknown[][]).map((c) => String(c[0] ?? ""));
+}
+
 function expectReadyNextSteps(logCalls: string[]): void {
   expect(logCalls.some((msg) => msg.includes("GitHits is now connected"))).toBe(
     true,
@@ -118,6 +129,230 @@ function lookupCommandFor(platform: string = process.platform): string {
 }
 
 describe("initAction", () => {
+  it("prints agent-safe guidance without side effects in non-interactive mode", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const execService = createMockExecService();
+    const promptService = createMockPromptService();
+    const createLoginDeps = mock(() =>
+      Promise.resolve({} as LoginDependencies),
+    );
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps,
+        isInteractive: false,
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("non-interactive"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("githits init --detect-agents")),
+    ).toBe(true);
+    expect(promptService.select).not.toHaveBeenCalled();
+    expect(promptService.checkbox).not.toHaveBeenCalled();
+    expect(execService.exec).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(createLoginDeps).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-interactive --yes before scan, writes, or auth", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const execService = createMockExecService();
+    const promptService = createMockPromptService();
+    const createLoginDeps = mock(() =>
+      Promise.resolve({} as LoginDependencies),
+    );
+
+    await initAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps,
+        isInteractive: false,
+      },
+    );
+
+    expect(process.exitCode).toBe(1);
+    expect(getErrorOutput().some((msg) => msg.includes("--yes"))).toBe(true);
+    expect(promptService.select).not.toHaveBeenCalled();
+    expect(promptService.checkbox).not.toHaveBeenCalled();
+    expect(execService.exec).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(createLoginDeps).not.toHaveBeenCalled();
+  });
+
+  it("detects agents without writing config or authenticating", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const execService = createMockExecService();
+    const createLoginDeps = mock(() =>
+      Promise.resolve({} as LoginDependencies),
+    );
+
+    await initAction(
+      { detectAgents: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+        createLoginDeps,
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("Detected supported tools")),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("cursor"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("needs setup"))).toBe(true);
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(createLoginDeps).not.toHaveBeenCalled();
+  });
+
+  it("emits JSON for agent detection", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+
+    await initAction(
+      { detectAgents: true, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.mode).toBe("detect-agents");
+    expect(payload.installableIds).toContain("cursor");
+    expect(payload.suggestedCommand).toContain("--install-agents cursor");
+  });
+
+  it("installs only explicitly requested agents in staged install mode", async () => {
+    const fs = createFsWithDetection([
+      "/home/test/.cursor",
+      "/home/test/.codeium/windsurf",
+    ]);
+
+    await initAction(
+      { installAgents: "cursor" },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/home/test/.cursor/mcp.json",
+      expect.any(String),
+    );
+    const writtenPaths = (fs.atomicWriteFile as ReturnType<typeof mock>).mock
+      .calls as unknown[][];
+    expect(
+      writtenPaths.some((call) =>
+        String(call[0] ?? "").includes(".codeium/windsurf"),
+      ),
+    ).toBe(false);
+    expect(getLogOutput().some((msg) => msg.includes("githits login"))).toBe(
+      true,
+    );
+  });
+
+  it("treats already configured staged install targets as idempotent", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    });
+
+    await initAction(
+      { installAgents: "cursor" },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(
+      getLogOutput().some((msg) => msg.includes("already configured")),
+    ).toBe(true);
+  });
+
+  it("rejects unknown staged install IDs before writing", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+
+    await initAction(
+      { installAgents: "cursor,unknown-agent" },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(process.exitCode).toBe(1);
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(getErrorOutput().some((msg) => msg.includes("unknown-agent"))).toBe(
+      true,
+    );
+  });
+
+  it("rejects undetected staged install IDs before writing", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+
+    await initAction(
+      { installAgents: "windsurf" },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(process.exitCode).toBe(1);
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(getErrorOutput().some((msg) => msg.includes("not detected"))).toBe(
+      true,
+    );
+  });
+
+  it("rejects --yes with staged init modes", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+
+    await initAction(
+      { yes: true, detectAgents: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(process.exitCode).toBe(1);
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(getErrorOutput().some((msg) => msg.includes("--yes"))).toBe(true);
+  });
+
   it("prints Agent Skills instructions without changing MCP config", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"]);
     const execService = createMockExecService();
@@ -2584,5 +2819,17 @@ describe("registerInitCommand", () => {
     expect(
       initCommand?.commands.some((cmd) => cmd.name() === "uninstall"),
     ).toBe(true);
+  });
+
+  it("registers staged agent-safe init options", () => {
+    const program = new Command();
+    registerInitCommand(program);
+
+    const initCommand = program.commands.find((cmd) => cmd.name() === "init");
+    const optionLongNames = initCommand?.options.map((option) => option.long);
+
+    expect(optionLongNames).toContain("--detect-agents");
+    expect(optionLongNames).toContain("--install-agents");
+    expect(optionLongNames).toContain("--json");
   });
 });
