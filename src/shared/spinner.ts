@@ -10,6 +10,13 @@ export interface Spinner {
   stop(): void;
 }
 
+interface SpinnerRuntime {
+  stdoutIsTTY?: boolean;
+  stderrIsTTY?: boolean;
+  writeStderr?: (chunk: string) => void;
+  useColors?: boolean;
+}
+
 /**
  * Start an animated progress spinner on stderr.
  *
@@ -23,21 +30,27 @@ export interface Spinner {
 export function startSpinner(
   message: string | readonly string[],
   enabled = true,
+  runtime: SpinnerRuntime = {},
 ): Spinner {
-  if (!enabled || !process.stdout.isTTY || !process.stderr.isTTY) {
+  const stdoutIsTTY = runtime.stdoutIsTTY ?? process.stdout.isTTY;
+  const stderrIsTTY = runtime.stderrIsTTY ?? process.stderr.isTTY;
+  const writeStderr =
+    runtime.writeStderr ?? ((chunk) => process.stderr.write(chunk));
+
+  if (!enabled || !stdoutIsTTY || !stderrIsTTY) {
     return { stop: () => {} };
   }
 
   const messages = typeof message === "string" ? [message] : message;
   const framesPerMessage = Math.round(MESSAGE_INTERVAL_MS / FRAME_INTERVAL_MS);
-  const useColors = process.env.NO_COLOR === undefined;
+  const useColors = runtime.useColors ?? process.env.NO_COLOR === undefined;
   let frame = 0;
   const render = (): void => {
     const glyph = SPINNER_FRAMES[frame % SPINNER_FRAMES.length] ?? "|";
     const label =
       messages[Math.floor(frame / framesPerMessage) % messages.length] ?? "";
     frame += 1;
-    process.stderr.write(
+    writeStderr(
       `\r\x1b[2K${colorizeBrand(glyph, "primary", useColors)} ${label}`,
     );
   };
@@ -48,7 +61,7 @@ export function startSpinner(
   return {
     stop: () => {
       clearInterval(interval);
-      process.stderr.write("\r\x1b[2K");
+      writeStderr("\r\x1b[2K");
     },
   };
 }
