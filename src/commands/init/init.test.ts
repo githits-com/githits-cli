@@ -171,6 +171,10 @@ describe("initAction", () => {
         msg.includes("npx -y githits@latest init --detect-agents"),
       ),
     ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("githits init -y"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("--detect-agents --json"))).toBe(
+      true,
+    );
     expect(promptService.select).not.toHaveBeenCalled();
     expect(promptService.checkbox).not.toHaveBeenCalled();
     expect(execService.exec).not.toHaveBeenCalled();
@@ -255,6 +259,38 @@ describe("initAction", () => {
     ).toBe(false);
   });
 
+  it("warns agents not to run init yes when detected tools are configured", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    });
+
+    await initAction(
+      { detectAgents: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("No detected tools need setup")),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("githits init -y"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("verification step"))).toBe(
+      true,
+    );
+  });
+
   it("emits JSON for agent detection", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"]);
 
@@ -272,6 +308,12 @@ describe("initAction", () => {
     expect(payload.mode).toBe("detect-agents");
     expect(payload.installableIds).toContain("cursor");
     expect(payload.suggestedCommand).toContain("--install-agents cursor");
+    expect(payload.instructions).toContain(
+      "Do not run `githits init -y` or `githits init --yes` unless the user explicitly asks to configure every detected tool.",
+    );
+    expect(payload.instructions).toContain(
+      "Do not run init again after a successful --install-agents run; verify with --detect-agents --json instead.",
+    );
   });
 
   it("installs only explicitly requested agents in staged install mode", async () => {
