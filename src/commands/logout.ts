@@ -16,16 +16,10 @@ export interface LogoutDependencies {
 export async function logoutAction(deps: LogoutDependencies): Promise<void> {
   const { authStorage, mcpUrl } = deps;
 
-  const auth = await authStorage.loadTokens(mcpUrl);
   await authStorage.clearAuthSession(mcpUrl);
 
-  if (!auth) {
-    console.log("Not currently logged in.\n");
-    console.log(`  Environment: ${mcpUrl}`);
-  } else {
-    console.log("Logged out.\n");
-    console.log(`  Environment: ${mcpUrl}`);
-  }
+  console.log("Logged out.\n");
+  console.log(`  Environment: ${mcpUrl}`);
 }
 
 const LOGOUT_DESCRIPTION = `Remove stored credentials.
