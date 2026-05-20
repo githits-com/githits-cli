@@ -67,6 +67,22 @@ function createAlreadyAuthLoginDeps(): () => Promise<LoginDependencies> {
   );
 }
 
+function createUnauthLoginDeps(): () => Promise<
+  LoginDependencies & { hasValidToken: boolean }
+> {
+  return mock(() =>
+    Promise.resolve({
+      authService: createMockAuthService(),
+      authStorage: createMockAuthStorage({
+        loadTokens: mock(() => Promise.resolve(null)),
+      }),
+      browserService: createMockBrowserService(),
+      mcpUrl: "https://mcp.githits.com",
+      hasValidToken: false,
+    }),
+  );
+}
+
 /**
  * Create a FileSystemService mock that detects specific agents
  * and optionally has config files with content.
@@ -226,7 +242,7 @@ describe("initAction", () => {
         fileSystemService: fs,
         promptService: createMockPromptService(),
         execService: createMockExecService(),
-        createLoginDeps: createAlreadyAuthLoginDeps(),
+        createLoginDeps: createUnauthLoginDeps(),
       },
     );
 
@@ -252,7 +268,7 @@ describe("initAction", () => {
         fileSystemService: fs,
         promptService: createMockPromptService(),
         execService: createMockExecService(),
-        createLoginDeps: createAlreadyAuthLoginDeps(),
+        createLoginDeps: createUnauthLoginDeps(),
       },
     );
 
@@ -271,6 +287,34 @@ describe("initAction", () => {
     expect(
       getLogOutput().some((msg) => msg.includes("npx -y githits@latest login")),
     ).toBe(true);
+  });
+
+  it("does not print login instructions when staged install finds existing auth", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    });
+
+    await initAction(
+      { installAgents: "cursor", json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.auth.required).toBe(false);
+    expect(payload.auth.status).toBe("authenticated");
+    expect(JSON.stringify(payload)).not.toContain("githits@latest login");
   });
 
   it("treats already configured staged install targets as idempotent", async () => {

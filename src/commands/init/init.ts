@@ -142,6 +142,8 @@ type InitAuthStatus =
   | "failed_continue"
   | "cancelled";
 
+type StagedInstallAuthStatus = "authenticated" | "required" | "not_checked";
+
 type SafeScanResult =
   | { ok: true; scan: ScanResult }
   | { ok: false; error: Error };
@@ -274,6 +276,19 @@ function printAgenticLoginInstructions(useColors: boolean): void {
   console.log(
     `    ${formatCommand(AGENT_LOGIN_NO_BROWSER_COMMAND, useColors)}`,
   );
+}
+
+function printAgenticAlreadyAuthenticated(): void {
+  console.log("  GitHits MCP is installed and you are already signed in.");
+  console.log();
+  console.log("  Open a new coding agent session so it reloads MCP config.");
+}
+
+function printAgenticAuthNotChecked(useColors: boolean): void {
+  console.log("  GitHits MCP is installed. Sign-in status was not checked.");
+  console.log();
+  console.log("  If the user is not already signed in, ask before running:");
+  console.log(`    ${formatCommand(AGENT_LOGIN_COMMAND, useColors)}`);
 }
 
 function printNonInteractiveInitGuidance(useColors: boolean): void {
@@ -870,7 +885,70 @@ function hasUsableInstallOutcome(outcomes: AgentOutcome[]): boolean {
   );
 }
 
-function printAgenticInstallJson(outcomes: AgentOutcome[]): void {
+async function getStagedInstallAuthStatus(
+  createLoginDeps: InitDependencies["createLoginDeps"],
+): Promise<StagedInstallAuthStatus> {
+  if (!createLoginDeps) return "not_checked";
+  try {
+    const loginDeps = await createLoginDeps();
+    if (typeof loginDeps.hasValidToken === "boolean") {
+      return loginDeps.hasValidToken ? "authenticated" : "required";
+    }
+    const tokens = await loginDeps.authStorage.loadTokens(loginDeps.mcpUrl);
+    const expired = tokens?.expiresAt
+      ? new Date(tokens.expiresAt) < new Date()
+      : false;
+    return tokens && !expired ? "authenticated" : "required";
+  } catch {
+    return "not_checked";
+  }
+}
+
+function buildAgenticInstallAuthPayload(
+  authStatus: StagedInstallAuthStatus,
+): Record<string, unknown> {
+  if (authStatus === "authenticated") {
+    return { required: false, status: "authenticated" };
+  }
+  if (authStatus === "required") {
+    return {
+      required: true,
+      status: "required",
+      command: AGENT_LOGIN_COMMAND,
+      noBrowserCommand: AGENT_LOGIN_NO_BROWSER_COMMAND,
+    };
+  }
+  return {
+    required: null,
+    status: "not_checked",
+    command: AGENT_LOGIN_COMMAND,
+    noBrowserCommand: AGENT_LOGIN_NO_BROWSER_COMMAND,
+  };
+}
+
+function buildAgenticInstallInstructions(
+  authStatus: StagedInstallAuthStatus,
+): string[] {
+  if (authStatus === "authenticated") {
+    return ["Open a new coding agent session so it reloads MCP config."];
+  }
+  if (authStatus === "required") {
+    return [
+      `Ask the user before running ${AGENT_LOGIN_COMMAND}.`,
+      "Browser sign-in happens outside chat and terminal input.",
+      "Do not ask the user to paste passwords, tokens, cookies, or OAuth codes into chat.",
+    ];
+  }
+  return [
+    "Sign-in status was not checked.",
+    `If the user is not already signed in, ask before running ${AGENT_LOGIN_COMMAND}.`,
+  ];
+}
+
+function printAgenticInstallJson(
+  outcomes: AgentOutcome[],
+  authStatus: StagedInstallAuthStatus,
+): void {
   const canAuthenticate = hasUsableInstallOutcome(outcomes);
   console.log(
     JSON.stringify(
@@ -878,21 +956,14 @@ function printAgenticInstallJson(outcomes: AgentOutcome[]): void {
         mode: "install-agents",
         outcomes,
         auth: canAuthenticate
-          ? {
-              required: true,
-              command: AGENT_LOGIN_COMMAND,
-              noBrowserCommand: AGENT_LOGIN_NO_BROWSER_COMMAND,
-            }
+          ? buildAgenticInstallAuthPayload(authStatus)
           : {
               required: false,
+              status: "not_applicable",
               reason: "Fix installation errors before starting sign-in.",
             },
         instructions: canAuthenticate
-          ? [
-              `Ask the user before running ${AGENT_LOGIN_COMMAND}.`,
-              "Browser sign-in happens outside chat and terminal input.",
-              "Do not ask the user to paste passwords, tokens, cookies, or OAuth codes into chat.",
-            ]
+          ? buildAgenticInstallInstructions(authStatus)
           : ["Fix installation errors before asking the user to sign in."],
       },
       null,
@@ -924,6 +995,7 @@ async function runInstallAgentsMode(
   options: InitOptions,
   fileSystemService: FileSystemService,
   execService: ExecService,
+  createLoginDeps: InitDependencies["createLoginDeps"],
   useColors: boolean,
 ): Promise<void> {
   const requestedIds = parseAgentIdList(options.installAgents);
@@ -955,12 +1027,15 @@ async function runInstallAgentsMode(
 
   const failed = outcomes.filter((outcome) => outcome.status === "failed");
   const canAuthenticate = hasUsableInstallOutcome(outcomes);
+  const authStatus = canAuthenticate
+    ? await getStagedInstallAuthStatus(createLoginDeps)
+    : "not_checked";
   if (failed.length > 0) {
     process.exitCode = 1;
   }
 
   if (options.json) {
-    printAgenticInstallJson(outcomes);
+    printAgenticInstallJson(outcomes, authStatus);
     return;
   }
 
@@ -975,7 +1050,13 @@ async function runInstallAgentsMode(
   }
   console.log();
   if (canAuthenticate) {
-    printAgenticLoginInstructions(useColors);
+    if (authStatus === "authenticated") {
+      printAgenticAlreadyAuthenticated();
+    } else if (authStatus === "required") {
+      printAgenticLoginInstructions(useColors);
+    } else {
+      printAgenticAuthNotChecked(useColors);
+    }
   } else {
     console.log("Fix installation errors before starting sign-in.");
   }
@@ -1442,6 +1523,7 @@ export async function initAction(
       options,
       fileSystemService,
       execService,
+      createLoginDeps,
       useColors,
     );
     return;
