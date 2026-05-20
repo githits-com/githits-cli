@@ -88,7 +88,7 @@ Examples:
 export function registerFeedbackCommand(program: Command) {
   program
     .command("feedback")
-    .summary("Submit feedback on a tool result or the GitHits experience")
+    .summary("Submit feedback about GitHits results or experience")
     .description(FEEDBACK_DESCRIPTION)
     .argument(
       "[solution_id]",

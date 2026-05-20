@@ -62,7 +62,7 @@ describe("colorizeTerminal", () => {
     const result = colorizeTerminal("GitHits", brandColors.primary, true, {
       colorDepth: 24,
     });
-    expect(result).toBe("\x1b[38;2;255;79;174mGitHits\x1b[0m");
+    expect(result).toBe("\x1b[38;2;255;114;190mGitHits\x1b[0m");
   });
 
   it("falls back to 256-color when truecolor is unavailable", () => {

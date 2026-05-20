@@ -6,7 +6,12 @@ import {
   MAX_WAIT_TIMEOUT_MS,
 } from "../../shared/code-navigation-defaults.js";
 import { shouldUseColors } from "../../shared/colors.js";
-import { InvalidPackageSpecError, requireAuth } from "../../shared/index.js";
+import {
+  InvalidPackageSpecError,
+  requireAuth,
+  SPINNER_MESSAGES,
+  startSpinner,
+} from "../../shared/index.js";
 import {
   buildListFilesParams,
   type ListFilesRequestBuildResult,
@@ -110,7 +115,10 @@ export async function pkgFilesAction(
       limit,
       waitTimeoutMs: wait,
     });
-    const result = await deps.codeNavigationService.listFiles(build.params);
+    const spinner = startSpinner(SPINNER_MESSAGES.code, !options.json);
+    const result = await deps.codeNavigationService
+      .listFiles(build.params)
+      .finally(() => spinner.stop());
 
     const payload = buildListFilesSuccessPayload(result, {
       registry: target.registry

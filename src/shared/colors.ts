@@ -7,6 +7,7 @@ export const colors = {
   reset: "\x1b[0m",
   bold: "\x1b[1m",
   dim: "\x1b[2m",
+  italic: "\x1b[3m",
   green: "\x1b[32m",
   yellow: "\x1b[33m",
   blue: "\x1b[34m",
@@ -31,8 +32,8 @@ export type BrandColorName = keyof typeof brandColors;
  */
 export const brandColors = {
   primary: {
-    hex: "#FF4FAE",
-    rgb: [255, 79, 174],
+    hex: "#FF72BE",
+    rgb: [255, 114, 190],
     ansi256: 205,
     ansi16: "magenta",
   },

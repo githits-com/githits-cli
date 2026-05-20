@@ -15,9 +15,11 @@ import { PromptServiceImpl } from "../../services/prompt-service.js";
 import {
   colorize,
   colorizeBrand,
+  colorizeTerminal,
   error as errorFmt,
   shouldUseColors,
   success,
+  type TerminalColor,
   warning,
 } from "../../shared/colors.js";
 import type {
@@ -175,40 +177,62 @@ function getPiConfigFileUninstall(
   return configStep ?? null;
 }
 
-function printReadyNextSteps(): void {
-  console.log("  GitHits is connected to your AI coding tool.");
-  console.log();
-  console.log("  Start a coding task as usual. When your agent needs real");
-  console.log(
-    "  open-source examples, dependency source code, docs, or package",
-  );
-  console.log("  metadata, it can use GitHits.");
-  console.log();
-  console.log("  Try the CLI directly:");
-  console.log(
-    '    npx githits@latest example "How do I use useEffect cleanup?"',
-  );
-  console.log();
-  console.log("  Or ask your agent:");
-  console.log(
-    "    Use GitHits Code Examples to find a real open-source implementation of HTTP retries with exponential backoff in Python.",
-  );
-  console.log();
-  console.log("  Docs: https://docs.githits.com");
+/** Style a CLI command so it stands out from surrounding text. */
+function formatCommand(command: string, useColors: boolean): string {
+  return colorizeBrand(command, "secondary", useColors, { bold: true });
 }
 
-function printAuthRequiredNextSteps(): void {
+function printReadyNextSteps(useColors: boolean): void {
+  console.log("  GitHits is now connected to your coding agents.");
+  console.log();
+  console.log(
+    "  Here are some examples of the new abilities that your agent just got:",
+  );
+  console.log();
+  console.log("  • Find usage examples");
+  console.log(
+    "      -> ”Use get example to find how to use Azure Speech SDK TranscribeDefinition”",
+  );
+  console.log();
+  console.log(
+    "  • Search, grep, list files, and read exact lines in any repo or package to gather information",
+  );
+  console.log(
+    "      -> “How does Next.js implement route prefetching internally?”",
+  );
+  console.log();
+  console.log(
+    "  • Inspect dependency versions, changelogs, and upgrade changes",
+  );
+  console.log(
+    "      -> “What kind of changes there were between pydantic-ai version 1.95 and 1.99?”",
+  );
+  console.log();
+  console.log(
+    "  Open a new coding agent session and try out one of the above.",
+  );
+  console.log();
+  console.log(
+    '  In you normal workflow, your agent will call GitHits automatically depending on the task, but you can prompt it to use GitHits explicitly by adding "use GitHits".',
+  );
+  console.log();
+  console.log(
+    "  See docs for more use cases and trigger guides: https://docs.githits.com",
+  );
+}
+
+function printAuthRequiredNextSteps(useColors: boolean): void {
   console.log("  GitHits MCP is configured, but sign-in is still needed.");
   console.log();
   console.log("  Sign in when you're ready:");
-  console.log("    npx githits@latest login");
+  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
 }
 
-function printAuthNotCheckedNextSteps(): void {
+function printAuthNotCheckedNextSteps(useColors: boolean): void {
   console.log("  GitHits MCP is configured. Sign-in was not checked.");
   console.log();
   console.log("  If your agent asks you to sign in, run:");
-  console.log("    npx githits@latest login");
+  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
 }
 
 const GITHITS_ASCII_LOGO = String.raw`
@@ -219,22 +243,95 @@ const GITHITS_ASCII_LOGO = String.raw`
   \____|_|\__|_| |_|_|\__|___/
 `;
 
+/** Per-column color stops for the logo's warm gradient. */
+const LOGO_GRADIENT: ReadonlyArray<{ until: number; color: TerminalColor }> = [
+  {
+    until: 13,
+    color: {
+      hex: "#FF4FAE",
+      rgb: [255, 79, 174],
+      ansi256: 205,
+      ansi16: "magenta",
+    },
+  },
+  {
+    until: 19,
+    color: {
+      hex: "#FF5D8E",
+      rgb: [255, 93, 142],
+      ansi256: 204,
+      ansi16: "magenta",
+    },
+  },
+  {
+    until: 21,
+    color: {
+      hex: "#FF6B6F",
+      rgb: [255, 107, 111],
+      ansi256: 203,
+      ansi16: "red",
+    },
+  },
+  {
+    until: 25,
+    color: { hex: "#FF794F", rgb: [255, 121, 79], ansi256: 209, ansi16: "red" },
+  },
+  {
+    until: 30,
+    color: {
+      hex: "#FF872F",
+      rgb: [255, 135, 47],
+      ansi256: 208,
+      ansi16: "yellow",
+    },
+  },
+];
+
+/** Apply the column-based gradient to each row of the ASCII logo. */
+function colorizeLogo(logo: string, useColors: boolean): string {
+  if (!useColors) {
+    return logo;
+  }
+  return logo
+    .split("\n")
+    .map((line) => {
+      if (line.length === 0) {
+        return line;
+      }
+      let cursor = 0;
+      let colored = "";
+      for (const { until, color } of LOGO_GRADIENT) {
+        if (cursor >= line.length) {
+          break;
+        }
+        colored += colorizeTerminal(
+          line.slice(cursor, until),
+          color,
+          useColors,
+        );
+        cursor = until;
+      }
+      return cursor < line.length ? colored + line.slice(cursor) : colored;
+    })
+    .join("\n");
+}
+
 const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
   {
-    name: "Install GitHits MCP server",
+    name: "Connect GitHits to my agent (Recommended)",
     value: "mcp",
-    description: "Recommended. Lets your agent call GitHits tools directly.",
-  },
-  {
-    name: "I'd rather use Agent Skills",
-    value: "skills",
     description:
-      "Use instruction-driven Skills instead of the local MCP server.",
+      "Install the local GitHits MCP server for your coding agents. Allows agents to seamlessly use GitHits.",
   },
   {
-    name: "Later",
+    name: "Use Agent Skills instead",
+    value: "skills",
+    description: "Use Skills instead of the local MCP server.",
+  },
+  {
+    name: "Exit",
     value: "later",
-    description: "Exit without changing anything.",
+    description: "Leave setup without making changes.",
   },
 ];
 
@@ -289,71 +386,56 @@ function printTask(
 }
 
 function printInitIntro(useColors: boolean): void {
-  console.log(colorizeBrand(GITHITS_ASCII_LOGO, "primary", useColors));
-  console.log(
-    "  GitHits adds source-backed open-source context to your AI coding tool.",
-  );
-  console.log(
-    "  When local files and model memory are not enough, your agent can use",
-  );
-  console.log(
-    "  GitHits for real open-source examples, dependency source code, docs,",
-  );
-  console.log("  and package metadata.");
+  console.log(colorizeLogo(GITHITS_ASCII_LOGO, useColors));
+  console.log("  Your agent can read your local codebase.");
   console.log();
   console.log(
-    "  Most users should install the local MCP server. It lets your agent call",
-  );
-  console.log(
-    "  GitHits tools directly, stores tokens in your OS keychain, and does not",
-  );
-  console.log("  write secrets into your coding tool config.");
-  console.log();
-  console.log("  Choose how you want to connect GitHits:");
-  console.log(
-    "    MCP server   Recommended. Configure your AI coding tool automatically.",
-  );
-  console.log(
-    "    Agent Skills Use Skills instead if you prefer that workflow over MCP.",
+    "  GitHits lets it navigate the open-source code your app depends on.",
   );
   console.log();
-  console.log("  More info: https://docs.githits.com/quickstart");
+  console.log(
+    `  ${colorizeBrand("With GitHits, your agent can:", "primary", useColors)}`,
+  );
+  console.log(
+    "  • Find implementation examples from open-source code, issues, discussions, and pull requests",
+  );
+  console.log(
+    "  • Search, grep, list files, and read exact lines in any repo or package",
+  );
+  console.log(
+    "  • Inspect dependency internals, versions, changelogs, and upgrade changes",
+  );
+  console.log("  • Access package documentation");
   console.log();
-  console.log("  What will happen:");
   console.log(
-    "    1. Detect tools        Find supported AI coding tools on this machine.",
+    "  No cloning or local indexing required. GitHits handles everything automatically.",
   );
+  console.log();
   console.log(
-    "    2. Choose tools        Pick which detected tools should get GitHits MCP.",
+    "  Works with Cursor, Claude Code, Codex, OpenCode, Pi, VS Code, Windsurf, and more.",
   );
-  console.log(
-    "    3. Sign in             Connect this CLI to GitHits, unless already signed in.",
-  );
-  console.log(
-    "    4. Install and verify  Add the local MCP server entry and confirm it works.",
-  );
-  console.log(
-    "    5. Ready               Restart or open your coding tool and start coding.",
-  );
+  console.log();
+  console.log("  More info: https://docs.githits.com");
   console.log();
 }
 
-function printSkillsInstructions(): void {
+function printSkillsInstructions(useColors: boolean): void {
   console.log("\n  Install GitHits Agent Skills:");
   console.log();
-  console.log("    npx skills add githits-com/githits-cli");
+  console.log(
+    `    ${formatCommand("npx skills add githits-com/githits-cli", useColors)}`,
+  );
+  console.log();
+  console.log("  During setup, choose where you want to enable GitHits.");
   console.log();
   console.log(
-    "  During installation, choose which coding tools should receive the Skills.",
+    "  IMPORTANT: Use either Agent Skills or the local MCP server in the same",
   );
-  console.log(
-    "  Do not use GitHits Skills and GitHits MCP in the same coding tool at the",
-  );
-  console.log("  same time; they expose overlapping capabilities.");
+  console.log("  coding tool, not both.");
   console.log();
-  console.log("  GitHits still needs sign-in before tools can access results:");
+  console.log("  Then sign in so your agent can use GitHits:");
   console.log();
-  console.log("    npx githits@latest login");
+  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
   console.log();
 }
 
@@ -491,21 +573,13 @@ function printScanSummary(scan: ScanResult, useColors: boolean): void {
 
 function printAuthExplanation(): void {
   console.log(
-    "    GitHits tools require sign-in before they can return results.",
+    "    GitHits authentication is required before your agent can use GitHits tools.",
   );
   console.log();
-  console.log(
-    "    We will open your browser to GitHits. After you approve access,",
-  );
-  console.log(
-    "    the browser redirects back to this terminal through localhost.",
-  );
-  console.log("    Tokens are stored in your OS keychain.");
+  console.log("    We'll open your browser to connect your account.");
+  console.log("    Credentials are stored securely in your OS keychain.");
   console.log();
-  console.log("    No secrets are written into your tool's MCP config.");
-  console.log(
-    "    For CI or headless machines, use GITHITS_API_TOKEN instead.",
-  );
+  console.log("    No API keys or secrets are written into your MCP config.");
   console.log();
 }
 
@@ -590,7 +664,7 @@ async function runInitAuthentication(
     console.log(
       `    ${warning(`Login failed: ${loginResult.message}`, useColors)}\n`,
     );
-    printAuthRecoveryHint();
+    printAuthRecoveryHint(useColors);
 
     if (options.yes) {
       console.log("    Continuing without authentication...\n");
@@ -642,11 +716,11 @@ function printPostSetupNextSteps(
     useColors,
   );
   if (shouldPrintReady(authStatus)) {
-    printReadyNextSteps();
+    printReadyNextSteps(useColors);
   } else if (authStatus === "failed_continue") {
-    printAuthRequiredNextSteps();
+    printAuthRequiredNextSteps(useColors);
   } else {
-    printAuthNotCheckedNextSteps();
+    printAuthNotCheckedNextSteps(useColors);
   }
 }
 
@@ -847,7 +921,7 @@ export async function initAction(
     let intent: InitIntent;
     try {
       intent = await promptService.select(
-        "  How would you like to use GitHits?",
+        "  What do you want to do?",
         INIT_INTENT_CHOICES,
         "mcp",
       );
@@ -860,7 +934,7 @@ export async function initAction(
     }
 
     if (intent === "skills") {
-      printSkillsInstructions();
+      printSkillsInstructions(useColors);
       return;
     }
     if (intent === "later") {
@@ -872,7 +946,7 @@ export async function initAction(
   }
 
   printSection(1, "Detect tools", useColors);
-  console.log("    Scanning supported AI coding tools...");
+  console.log("    Scanning for compatible AI coding tools...");
   const progress = createScanProgressReporter(useColors);
   const scanPromise = startSafeInitScan(
     fileSystemService,
@@ -903,7 +977,7 @@ export async function initAction(
   if (!options.yes && scan.needsSetup.length > 0) {
     try {
       toSetup = await promptService.checkbox(
-        "  Select AI coding tools to configure with GitHits MCP:",
+        "  Select which tools should use GitHits:",
         buildInitAgentChoices(scan),
       );
     } catch (err) {
@@ -1059,7 +1133,10 @@ export async function initUninstallAction(
   const { fileSystemService, promptService, execService } = deps;
 
   console.log(
-    `\n  ${colorizeBrand("GitHits", "primary", useColors, { bold: true })} — Remove MCP server from your coding agents\n`,
+    `\n  ${colorize("Disconnect GitHits from your coding agents.", "bold", useColors)}`,
+  );
+  console.log(
+    `  ${colorize("Removes the local GitHits MCP configuration.", "dim", useColors)}\n`,
   );
 
   console.log("  Scanning for configured agents...\n");
@@ -1251,31 +1328,24 @@ export async function initUninstallAction(
   console.log();
 }
 
-function printAuthRecoveryHint(): void {
+function printAuthRecoveryHint(useColors: boolean): void {
   console.log(
     "    You can still configure MCP, but GitHits tools will require auth.",
   );
   console.log("    Recovery steps:");
-  console.log("      githits auth status");
-  console.log("      githits login --force");
+  console.log(`      ${formatCommand("githits auth status", useColors)}`);
+  console.log(`      ${formatCommand("githits login --force", useColors)}`);
   console.log("    For CI or locked-down machines, set GITHITS_API_TOKEN.");
   console.log(
     "    If your system keychain is unavailable, set GITHITS_AUTH_STORAGE=file after accepting plaintext storage.\n",
   );
 }
 
-const INIT_DESCRIPTION = `Set up GitHits for your AI coding tools.
+const INIT_DESCRIPTION = `Connect GitHits to your coding agents.
 
-Walks through GitHits setup options, lets you install the local GitHits MCP
-server or use Agent Skills, scans for available tools (Claude Code, Cursor, Windsurf,
-VS Code, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI, Google Antigravity),
-checks which are already configured, signs you in, and configures selected
-tools with GitHits MCP.
-
-Supports CLI-based setup (Claude Code, Codex, Gemini CLI), Pi package setup,
-and config
-file editing (Cursor, Windsurf, VS Code, Cline, Claude Desktop,
-Google Antigravity) with atomic writes.`;
+Installs the local GitHits MCP server — the recommended way to connect — or
+sets up Agent Skills instead. Detects supported coding tools on this machine,
+signs you in, and configures the tools you select.`;
 
 const INIT_UNINSTALL_DESCRIPTION = `Remove GitHits MCP server configuration from your coding agents.
 
@@ -1290,7 +1360,7 @@ tokens are not removed; use \`githits logout\` to remove stored credentials.`;
 export function registerInitCommand(program: Command) {
   const initCommand = program
     .command("init")
-    .summary("Set up MCP server for your AI coding tools")
+    .summary("Connect GitHits to your coding agents")
     .description(INIT_DESCRIPTION)
     .option("-y, --yes", "Skip prompts, configure all detected tools")
     .option("--skip-login", "Skip authentication step")
