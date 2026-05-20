@@ -198,6 +198,12 @@ function formatCommand(command: string, useColors: boolean): string {
   return colorizeBrand(command, "secondary", useColors, { bold: true });
 }
 
+const AGENT_SAFE_CLI = "npx -y githits@latest";
+const AGENT_DETECT_COMMAND = `${AGENT_SAFE_CLI} init --detect-agents`;
+const AGENT_INSTALL_COMMAND = `${AGENT_SAFE_CLI} init --install-agents`;
+const AGENT_LOGIN_COMMAND = `${AGENT_SAFE_CLI} login`;
+const AGENT_LOGIN_NO_BROWSER_COMMAND = `${AGENT_SAFE_CLI} login --no-browser`;
+
 function printReadyNextSteps(): void {
   console.log("  GitHits is now connected to your coding agents.");
   console.log();
@@ -258,14 +264,16 @@ function printAgenticLoginInstructions(useColors: boolean): void {
   console.log();
   console.log("  Ask the user:");
   console.log(
-    '    "GitHits needs to open a browser sign-in page. The sign-in happens in your browser, not in this chat or terminal. I will not see or handle your credentials. Should I run `githits login` now?"',
+    `    "GitHits needs to open a browser sign-in page. The sign-in happens in your browser, not in this chat or terminal. I will not see or handle your credentials. Should I run \`${AGENT_LOGIN_COMMAND}\` now?"`,
   );
   console.log();
   console.log("  If the user approves, run:");
-  console.log(`    ${formatCommand("githits login", useColors)}`);
+  console.log(`    ${formatCommand(AGENT_LOGIN_COMMAND, useColors)}`);
   console.log();
   console.log("  If the browser cannot open, run:");
-  console.log(`    ${formatCommand("githits login --no-browser", useColors)}`);
+  console.log(
+    `    ${formatCommand(AGENT_LOGIN_NO_BROWSER_COMMAND, useColors)}`,
+  );
 }
 
 function printNonInteractiveInitGuidance(useColors: boolean): void {
@@ -278,9 +286,7 @@ function printNonInteractiveInitGuidance(useColors: boolean): void {
   );
   console.log();
   console.log("  1. Run:");
-  console.log(
-    `     ${formatCommand("githits init --detect-agents", useColors)}`,
-  );
+  console.log(`     ${formatCommand(AGENT_DETECT_COMMAND, useColors)}`);
   console.log();
   console.log("  2. Show the detected tools to the user.");
   console.log();
@@ -288,7 +294,7 @@ function printNonInteractiveInitGuidance(useColors: boolean): void {
   console.log();
   console.log("  4. Only after approval, run:");
   console.log(
-    `     ${formatCommand("githits init --install-agents <ids>", useColors)}`,
+    `     ${formatCommand(`${AGENT_INSTALL_COMMAND} <ids>`, useColors)}`,
   );
   console.log();
   console.log("  Do not choose tools for the user.");
@@ -300,11 +306,9 @@ function printNonInteractiveYesRejected(useColors: boolean): void {
   );
   console.error();
   console.error("Use the agent-safe staged flow instead:");
+  console.error(`  ${formatCommand(AGENT_DETECT_COMMAND, useColors)}`);
   console.error(
-    `  ${formatCommand("githits init --detect-agents", useColors)}`,
-  );
-  console.error(
-    `  ${formatCommand("githits init --install-agents <ids>", useColors)}`,
+    `  ${formatCommand(`${AGENT_INSTALL_COMMAND} <ids>`, useColors)}`,
   );
   process.exitCode = 1;
 }
@@ -708,7 +712,7 @@ function printAgenticDetectSummary(scan: ScanResult, useColors: boolean): void {
   console.log();
   console.log("  If the user approves all detected tools needing setup, run:");
   console.log(
-    `    ${formatCommand(`githits init --install-agents ${installableIds.join(",")}`, useColors)}`,
+    `    ${formatCommand(`${AGENT_INSTALL_COMMAND} ${installableIds.join(",")}`, useColors)}`,
   );
   console.log();
   console.log("  Do not choose tools for the user.");
@@ -727,7 +731,7 @@ function printAgenticDetectJson(scan: ScanResult): void {
         installableIds,
         suggestedCommand:
           installableIds.length > 0
-            ? `githits init --install-agents ${installableIds.join(",")}`
+            ? `${AGENT_INSTALL_COMMAND} ${installableIds.join(",")}`
             : null,
         instructions: [
           "Show detected tools to the user.",
@@ -876,8 +880,8 @@ function printAgenticInstallJson(outcomes: AgentOutcome[]): void {
         auth: canAuthenticate
           ? {
               required: true,
-              command: "githits login",
-              noBrowserCommand: "githits login --no-browser",
+              command: AGENT_LOGIN_COMMAND,
+              noBrowserCommand: AGENT_LOGIN_NO_BROWSER_COMMAND,
             }
           : {
               required: false,
@@ -885,7 +889,7 @@ function printAgenticInstallJson(outcomes: AgentOutcome[]): void {
             },
         instructions: canAuthenticate
           ? [
-              "Ask the user before running githits login.",
+              `Ask the user before running ${AGENT_LOGIN_COMMAND}.`,
               "Browser sign-in happens outside chat and terminal input.",
               "Do not ask the user to paste passwords, tokens, cookies, or OAuth codes into chat.",
             ]
