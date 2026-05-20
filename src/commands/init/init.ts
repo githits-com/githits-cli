@@ -205,6 +205,12 @@ const AGENT_DETECT_COMMAND = `${AGENT_SAFE_CLI} init --detect-agents`;
 const AGENT_INSTALL_COMMAND = `${AGENT_SAFE_CLI} init --install-agents`;
 const AGENT_LOGIN_COMMAND = `${AGENT_SAFE_CLI} login`;
 const AGENT_LOGIN_NO_BROWSER_COMMAND = `${AGENT_SAFE_CLI} login --no-browser`;
+const AGENTIC_INIT_YES_WARNING =
+  "Do not run `githits init -y` or `githits init --yes` unless the user explicitly asks to configure every detected tool.";
+const AGENTIC_INIT_VERIFY_INSTRUCTION =
+  "After a successful --install-agents run, verify with --detect-agents --json instead of running init again.";
+const AGENTIC_INIT_JSON_VERIFY_INSTRUCTION =
+  "Do not run init again after a successful --install-agents run; verify with --detect-agents --json instead.";
 
 function printReadyNextSteps(): void {
   console.log("  GitHits is now connected to your coding agents.");
@@ -312,7 +318,8 @@ function printNonInteractiveInitGuidance(useColors: boolean): void {
     `     ${formatCommand(`${AGENT_INSTALL_COMMAND} <ids>`, useColors)}`,
   );
   console.log();
-  console.log("  Do not choose tools for the user.");
+  console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
+  console.log(`  ${AGENTIC_INIT_VERIFY_INSTRUCTION}`);
 }
 
 function printNonInteractiveYesRejected(useColors: boolean): void {
@@ -724,6 +731,8 @@ function printAgenticDetectSummary(scan: ScanResult, useColors: boolean): void {
     console.log(
       "  Tell the user that GitHits is already configured for detected tools.",
     );
+    console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
+    console.log("  Do not run init again as a verification step.");
     return;
   }
 
@@ -740,7 +749,8 @@ function printAgenticDetectSummary(scan: ScanResult, useColors: boolean): void {
     `    ${formatCommand(`${AGENT_INSTALL_COMMAND} ${installableIds.join(",")}`, useColors)}`,
   );
   console.log();
-  console.log("  Do not choose tools for the user.");
+  console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
+  console.log(`  ${AGENTIC_INIT_VERIFY_INSTRUCTION}`);
 }
 
 function printAgenticDetectJson(scan: ScanResult): void {
@@ -761,8 +771,9 @@ function printAgenticDetectJson(scan: ScanResult): void {
         instructions: [
           "Show detected tools to the user.",
           "Ask which tools should receive the GitHits MCP server.",
-          "Run --install-agents only with user-approved IDs.",
-          "Do not choose tools for the user.",
+          "Only run --install-agents with user-approved IDs.",
+          AGENTIC_INIT_YES_WARNING,
+          AGENTIC_INIT_JSON_VERIFY_INSTRUCTION,
         ],
       },
       null,
