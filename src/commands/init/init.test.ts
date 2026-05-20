@@ -233,6 +233,28 @@ describe("initAction", () => {
     expect(createLoginDeps).not.toHaveBeenCalled();
   });
 
+  it("prints no-tools guidance when staged detection finds no agents", async () => {
+    const fs = createFsWithDetection([]);
+
+    await initAction(
+      { detectAgents: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("No supported AI coding tools")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("already configured for detected")),
+    ).toBe(false);
+  });
+
   it("emits JSON for agent detection", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"]);
 
