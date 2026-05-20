@@ -92,20 +92,16 @@ function getLogOutput(): string[] {
 }
 
 function expectReadyNextSteps(logCalls: string[]): void {
-  expect(logCalls.some((msg) => msg.includes("GitHits is connected"))).toBe(
+  expect(logCalls.some((msg) => msg.includes("GitHits is now connected"))).toBe(
     true,
   );
-  expect(logCalls.some((msg) => msg.includes("Your agent can now:"))).toBe(
-    true,
-  );
+  expect(logCalls.some((msg) => msg.includes("new abilities"))).toBe(true);
   expect(
     logCalls.some((msg) =>
       msg.includes("How does Next.js implement route prefetching"),
     ),
   ).toBe(true);
-  expect(
-    logCalls.some((msg) => msg.includes("Agent instruction snippet")),
-  ).toBe(true);
+  expect(logCalls.some((msg) => msg.includes("trigger guides"))).toBe(true);
 }
 
 function expectAuthNotCheckedNextSteps(logCalls: string[]): void {
@@ -198,15 +194,15 @@ describe("initAction", () => {
     const logCalls = getLogOutput();
     expect(
       logCalls.some((msg) =>
-        msg.includes("GitHits helps coding agents stop guessing"),
+        msg.includes("Your agent can read your local codebase"),
       ),
     ).toBe(true);
     expect(
       logCalls.some((msg) =>
-        msg.includes("grounded context from real open-source code"),
+        msg.includes("navigate the open-source code your app depends on"),
       ),
     ).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("Your agent can:"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("With GitHits"))).toBe(true);
     expect(
       logCalls.some((msg) => msg.includes("https://docs.githits.com")),
     ).toBe(true);

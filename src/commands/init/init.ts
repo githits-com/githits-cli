@@ -183,56 +183,42 @@ function formatCommand(command: string, useColors: boolean): string {
 }
 
 function printReadyNextSteps(useColors: boolean): void {
-  console.log("  GitHits is connected to your coding agent.");
-  console.log();
-  console.log("  Your agent can now:");
-  console.log("  • Explore real open-source repositories");
-  console.log("  • Inspect dependency internals");
-  console.log("  • Navigate unfamiliar codebases");
-  console.log("  • Ground responses in production code");
-  console.log("  • Use real implementations instead of guessing");
-  console.log();
-  console.log("  Try asking your agent:");
-  console.log();
-  console.log("    “How does Next.js implement route prefetching internally?”");
-  console.log();
-  console.log("    “Trace how authentication flows through this repo.”");
-  console.log();
-  console.log("    “Find where retries are handled in the Stripe SDK.”");
+  console.log("  GitHits is now connected to your coding agents.");
   console.log();
   console.log(
-    "    “Compare how different OSS projects structure background jobs.”",
+    "  Here are some examples of the new abilities that your agent just got:",
   );
   console.log();
-  const snippetHeading = "Agent instruction snippet";
-  console.log(`  ${snippetHeading}`);
+  console.log("  • Find usage examples");
   console.log(
-    `  ${colorize("-".repeat(snippetHeading.length), "dim", useColors)}`,
+    "      -> ”Use get example to find how to use Azure Speech SDK TranscribeDefinition”",
   );
   console.log();
-  console.log("  Add this to your AGENTS.md or CLAUDE.md:");
-  console.log();
-  const snippetBody = [
-    "When work depends on open-source libraries, use GitHits before guessing.",
-    "",
-    "Use:",
-    "- Code Examples for real-world implementation patterns",
-    "- Code Navigation to inspect dependency source code",
-    "- Documentation Access for hosted and repo-backed docs",
-    "- Package Inspection for metadata, vulnerabilities, and changelogs",
-    "",
-    "Prefer grounded implementations over guessing.",
-  ];
-  for (const line of snippetBody) {
-    console.log(line ? `  ${colorize(line, "italic", useColors)}` : "");
-  }
-  console.log();
-  console.log("  Full version:");
   console.log(
-    "  https://docs.githits.com/guides/trigger-githits#agent-instruction-snippet",
+    "  • Search, grep, list files, and read exact lines in any repo or package to gather information",
+  );
+  console.log(
+    "      -> “How does Next.js implement route prefetching internally?”",
   );
   console.log();
-  console.log("  Docs: https://docs.githits.com");
+  console.log(
+    "  • Inspect dependency versions, changelogs, and upgrade changes",
+  );
+  console.log(
+    "      -> “What kind of changes there were between pydantic-ai version 1.95 and 1.99?”",
+  );
+  console.log();
+  console.log(
+    "  Open a new coding agent session and try out one of the above.",
+  );
+  console.log();
+  console.log(
+    '  In you normal workflow, your agent will call GitHits automatically depending on the task, but you can prompt it to use GitHits explicitly by adding "use GitHits".',
+  );
+  console.log();
+  console.log(
+    "  See docs for more use cases and trigger guides: https://docs.githits.com",
+  );
 }
 
 function printAuthRequiredNextSteps(useColors: boolean): void {
@@ -334,7 +320,8 @@ const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
   {
     name: "Connect GitHits to my agent (Recommended)",
     value: "mcp",
-    description: "Installs the local GitHits MCP server.",
+    description:
+      "Install the local GitHits MCP server for your coding agents. Allows agents to seamlessly use GitHits.",
   },
   {
     name: "Use Agent Skills instead",
@@ -400,20 +387,32 @@ function printTask(
 
 function printInitIntro(useColors: boolean): void {
   console.log(colorizeLogo(GITHITS_ASCII_LOGO, useColors));
-  console.log("  GitHits helps coding agents stop guessing.");
-  console.log();
-  console.log("  Instead of retry loops and hallucinated solutions,");
-  console.log("  your agent gets grounded context from real open-source code.");
-  console.log();
-  console.log(`  ${colorizeBrand("Your agent can:", "primary", useColors)}`);
-  console.log("  • Explore production codebases");
-  console.log("  • Inspect dependency internals");
-  console.log("  • Navigate large repositories");
-  console.log("  • Find real implementations");
-  console.log("  • Ground responses in actual code instead of guesses");
+  console.log("  Your agent can read your local codebase.");
   console.log();
   console.log(
-    "  Works with Cursor, Claude Code, Codex CLI, VS Code and Windsurf, plus more.",
+    "  GitHits lets it navigate the open-source code your app depends on.",
+  );
+  console.log();
+  console.log(
+    `  ${colorizeBrand("With GitHits, your agent can:", "primary", useColors)}`,
+  );
+  console.log(
+    "  • Find implementation examples from open-source code, issues, discussions, and pull requests",
+  );
+  console.log(
+    "  • Search, grep, list files, and read exact lines in any repo or package",
+  );
+  console.log(
+    "  • Inspect dependency internals, versions, changelogs, and upgrade changes",
+  );
+  console.log("  • Access package documentation");
+  console.log();
+  console.log(
+    "  No cloning or local indexing required. GitHits handles everything automatically.",
+  );
+  console.log();
+  console.log(
+    "  Works with Cursor, Claude Code, Codex, OpenCode, Pi, VS Code, Windsurf, and more.",
   );
   console.log();
   console.log("  More info: https://docs.githits.com");
