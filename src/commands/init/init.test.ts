@@ -235,10 +235,14 @@ describe("initAction", () => {
   });
 
   it("installs only explicitly requested agents in staged install mode", async () => {
-    const fs = createFsWithDetection([
-      "/home/test/.cursor",
-      "/home/test/.codeium/windsurf",
-    ]);
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(
+      ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
+      configFiles,
+    );
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
 
     await initAction(
       { installAgents: "cursor" },
@@ -293,6 +297,56 @@ describe("initAction", () => {
     expect(
       getLogOutput().some((msg) => msg.includes("already configured")),
     ).toBe(true);
+  });
+
+  it("does not print login instructions when all staged installs fail", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    fs.atomicWriteFile = mock(async () => {
+      throw Object.assign(new Error("Permission denied"), { code: "EACCES" });
+    }) as typeof fs.atomicWriteFile;
+
+    await initAction(
+      { installAgents: "cursor" },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(process.exitCode).toBe(1);
+    expect(logCalls.some((msg) => msg.includes("completed with errors"))).toBe(
+      true,
+    );
+    expect(
+      logCalls.some((msg) => msg.includes("Fix installation errors")),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("githits login"))).toBe(false);
+  });
+
+  it("marks auth not required in JSON when all staged installs fail", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    fs.atomicWriteFile = mock(async () => {
+      throw Object.assign(new Error("Permission denied"), { code: "EACCES" });
+    }) as typeof fs.atomicWriteFile;
+
+    await initAction(
+      { installAgents: "cursor", json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(process.exitCode).toBe(1);
+    expect(payload.outcomes[0].status).toBe("failed");
+    expect(payload.auth.required).toBe(false);
+    expect(JSON.stringify(payload)).not.toContain("githits login");
   });
 
   it("rejects unknown staged install IDs before writing", async () => {

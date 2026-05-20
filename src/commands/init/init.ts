@@ -859,22 +859,37 @@ function printInstallValidationFailure(
   process.exitCode = 1;
 }
 
+function hasUsableInstallOutcome(outcomes: AgentOutcome[]): boolean {
+  return outcomes.some(
+    (outcome) =>
+      outcome.status === "success" || outcome.status === "already_configured",
+  );
+}
+
 function printAgenticInstallJson(outcomes: AgentOutcome[]): void {
+  const canAuthenticate = hasUsableInstallOutcome(outcomes);
   console.log(
     JSON.stringify(
       {
         mode: "install-agents",
         outcomes,
-        auth: {
-          required: true,
-          command: "githits login",
-          noBrowserCommand: "githits login --no-browser",
-        },
-        instructions: [
-          "Ask the user before running githits login.",
-          "Browser sign-in happens outside chat and terminal input.",
-          "Do not ask the user to paste passwords, tokens, cookies, or OAuth codes into chat.",
-        ],
+        auth: canAuthenticate
+          ? {
+              required: true,
+              command: "githits login",
+              noBrowserCommand: "githits login --no-browser",
+            }
+          : {
+              required: false,
+              reason: "Fix installation errors before starting sign-in.",
+            },
+        instructions: canAuthenticate
+          ? [
+              "Ask the user before running githits login.",
+              "Browser sign-in happens outside chat and terminal input.",
+              "Do not ask the user to paste passwords, tokens, cookies, or OAuth codes into chat.",
+            ]
+          : ["Fix installation errors before asking the user to sign in."],
       },
       null,
       2,
@@ -935,6 +950,7 @@ async function runInstallAgentsMode(
   );
 
   const failed = outcomes.filter((outcome) => outcome.status === "failed");
+  const canAuthenticate = hasUsableInstallOutcome(outcomes);
   if (failed.length > 0) {
     process.exitCode = 1;
   }
@@ -954,7 +970,11 @@ async function runInstallAgentsMode(
     }
   }
   console.log();
-  printAgenticLoginInstructions(useColors);
+  if (canAuthenticate) {
+    printAgenticLoginInstructions(useColors);
+  } else {
+    console.log("Fix installation errors before starting sign-in.");
+  }
   console.log();
 }
 
