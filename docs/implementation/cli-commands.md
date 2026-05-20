@@ -8,7 +8,7 @@ The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` /
 
 | Command | Required Args | Options | Description |
 |---|---|---|---|
-| `init` | — | `-y, --yes`, `--skip-login` | Authenticate and set up MCP server for coding agents |
+| `init` | — | `-y, --yes`, `--skip-login`, `--detect-agents`, `--install-agents <ids>`, `--json` | Authenticate and set up MCP server for coding agents; staged flags support agent-safe non-interactive onboarding |
 | `init uninstall` | — | `-y, --yes` | Remove GitHits MCP server configuration from coding agents |
 | `example <query>` | `<query>` | `-l, --lang <language>`, `--license <mode>`, `--explain`, `--json` | Search for code examples |
 | `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols. Defaults to 10 results. |
@@ -29,14 +29,19 @@ The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` /
 ### `githits init`
 
 ```
-githits init              # Interactive: authenticate, scan, configure unconfigured agents
-githits init --yes        # Non-interactive: authenticate, configure all unconfigured agents
-githits init --skip-login # Skip authentication, configure tools only
-githits init uninstall    # Interactive: remove GitHits MCP config from configured agents
-githits init uninstall -y # Non-interactive: remove all detected GitHits MCP configs
+githits init                         # Interactive: authenticate, scan, configure unconfigured agents
+githits init --yes                   # Interactive shortcut: configure all detected unconfigured agents
+githits init --skip-login            # Skip authentication, configure tools only
+githits init --detect-agents         # Agent-safe discovery: scan and print detected agent IDs/statuses
+githits init --detect-agents --json  # Machine-readable discovery output for agents
+githits init --install-agents cursor # Agent-safe install: configure only explicit detected IDs
+githits init uninstall               # Interactive: remove GitHits MCP config from configured agents
+githits init uninstall -y            # Non-interactive: remove all detected GitHits MCP configs
 ```
 
 Authenticates with GitHits (via OAuth in the browser), then scans for available coding agents, checks which are already configured, and sets up unconfigured ones with your confirmation. All agents are pre-checked before any setup begins, so the status display is fully resolved. CLI agents are considered available only when their executable is on `PATH`; related dot-directories alone do not count. Config-file agents remain filesystem-detected using their known app/config directories. If already authenticated, the login step is skipped automatically. If login fails, the user is prompted to continue with tool setup anyway. If all detected agents are already configured, exits early with a summary.
+
+When `init` is run without a TTY, it prints agent onboarding guidance and exits without scanning, writing config, prompting, or authenticating. Non-interactive `--yes` is rejected for safety because it can configure tools without explicit per-tool user approval. Agentic onboarding must use the staged flow instead: `--detect-agents` first, then `--install-agents <ids>` after the user approves the exact detected IDs. `--install-agents` rescans, rejects unknown or currently undetected IDs before writing, installs only the requested agents, verifies setup, and does not authenticate. After successful or already-configured outcomes it instructs agents to ask before running the separate `githits login` command; if every install fails, it reports installation errors and suppresses auth guidance. `--json` is supported for the staged detect/install modes so agents do not need to scrape prose.
 
 Supports Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI, Google Antigravity, and OpenCode. Uses plugin install (Claude Code), CLI commands (Codex, Gemini CLI), Pi adapter setup plus Pi-owned MCP config writes (Pi), and atomic config file writes (Cursor, Windsurf, VS Code, Cline, Claude Desktop, Google Antigravity, OpenCode). CLI agents use read-only check commands (e.g., `claude plugin list`) to determine configuration status before prompting.
 
