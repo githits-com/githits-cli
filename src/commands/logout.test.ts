@@ -1,9 +1,6 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import { KeychainUnavailableError } from "../services/keyring-service.js";
-import {
-  createMockAuthStorage,
-  createValidTokenData,
-} from "../services/test-helpers.js";
+import { createMockAuthStorage } from "../services/test-helpers.js";
 import { logoutAction } from "./logout.js";
 
 describe("logoutAction", () => {
@@ -11,17 +8,16 @@ describe("logoutAction", () => {
 
   it("clears tokens and client registration when logged in", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
-    const authStorage = createMockAuthStorage({
-      loadTokens: mock(() => Promise.resolve(createValidTokenData())),
-    });
+    const authStorage = createMockAuthStorage();
 
     await logoutAction({ authStorage, mcpUrl });
 
+    expect(authStorage.loadTokens).not.toHaveBeenCalled();
     expect(authStorage.clearAuthSession).toHaveBeenCalledWith(mcpUrl);
     consoleSpy.mockRestore();
   });
 
-  it("clears both tokens and client even when not logged in", async () => {
+  it("clears both tokens and client without checking login state", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const authStorage = createMockAuthStorage();
 
@@ -29,15 +25,15 @@ describe("logoutAction", () => {
 
     // Idempotent cleanup removes orphaned client registrations.
     expect(authStorage.clearAuthSession).toHaveBeenCalledWith(mcpUrl);
+    expect(authStorage.loadTokens).not.toHaveBeenCalled();
     const output = consoleSpy.mock.calls.map((c) => c[0]).join("\n");
-    expect(output).toContain("Not currently logged in");
+    expect(output).toContain("Logged out");
     consoleSpy.mockRestore();
   });
 
   it("propagates session clear failures", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const authStorage = createMockAuthStorage({
-      loadTokens: mock(() => Promise.resolve(createValidTokenData())),
       clearAuthSession: mock(() =>
         Promise.reject(new KeychainUnavailableError("keychain locked")),
       ),
@@ -46,6 +42,7 @@ describe("logoutAction", () => {
     await expect(logoutAction({ authStorage, mcpUrl })).rejects.toThrow(
       KeychainUnavailableError,
     );
+    expect(authStorage.loadTokens).not.toHaveBeenCalled();
     expect(authStorage.clearAuthSession).toHaveBeenCalledWith(mcpUrl);
     consoleSpy.mockRestore();
   });
