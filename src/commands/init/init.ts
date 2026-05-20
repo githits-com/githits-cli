@@ -57,6 +57,12 @@ export interface InitOptions {
   yes?: boolean;
   /** Skip the login step */
   skipLogin?: boolean;
+  /** Scan supported agents without installing anything */
+  detectAgents?: boolean;
+  /** Comma-separated agent IDs to install non-interactively */
+  installAgents?: string;
+  /** Emit machine-readable output for staged non-interactive modes */
+  json?: boolean;
 }
 
 /** Options for the init uninstall command */
@@ -76,6 +82,8 @@ export interface InitDependencies {
   execService: ExecService;
   /** Factory to create auth deps for the login step. Omit to skip login. */
   createLoginDeps?: () => Promise<InitLoginDependencies>;
+  /** Whether this invocation can safely prompt on stdin/stdout. */
+  isInteractive?: boolean;
 }
 
 /** Tracks per-agent setup outcome for the summary */
@@ -84,6 +92,14 @@ interface AgentOutcome {
   name: string;
   status: "success" | "already_configured" | "failed" | "skipped";
   message?: string;
+}
+
+type StagedAgentStatus = "needs_setup" | "already_configured" | "not_detected";
+
+interface StagedAgentEntry {
+  id: string;
+  name: string;
+  status: StagedAgentStatus;
 }
 
 /** Tracks per-agent uninstall outcome for the summary */
@@ -125,6 +141,8 @@ type InitAuthStatus =
   | "unavailable"
   | "failed_continue"
   | "cancelled";
+
+type StagedInstallAuthStatus = "authenticated" | "required" | "not_checked";
 
 type SafeScanResult =
   | { ok: true; scan: ScanResult }
@@ -182,6 +200,12 @@ function formatCommand(command: string, useColors: boolean): string {
   return colorizeBrand(command, "secondary", useColors, { bold: true });
 }
 
+const AGENT_SAFE_CLI = "npx -y githits@latest";
+const AGENT_DETECT_COMMAND = `${AGENT_SAFE_CLI} init --detect-agents`;
+const AGENT_INSTALL_COMMAND = `${AGENT_SAFE_CLI} init --install-agents`;
+const AGENT_LOGIN_COMMAND = `${AGENT_SAFE_CLI} login`;
+const AGENT_LOGIN_NO_BROWSER_COMMAND = `${AGENT_SAFE_CLI} login --no-browser`;
+
 function printReadyNextSteps(): void {
   console.log("  GitHits is now connected to your coding agents.");
   console.log();
@@ -231,6 +255,77 @@ function printAuthNotCheckedNextSteps(useColors: boolean): void {
   console.log();
   console.log("  If your agent asks you to sign in, run:");
   console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
+}
+
+function printAgenticLoginInstructions(useColors: boolean): void {
+  console.log(
+    "  Authentication is still required before agents can use GitHits.",
+  );
+  console.log();
+  console.log("  Agent instruction:");
+  console.log();
+  console.log("  Ask the user:");
+  console.log(
+    `    "GitHits needs to open a browser sign-in page. The sign-in happens in your browser, not in this chat or terminal. I will not see or handle your credentials. Should I run \`${AGENT_LOGIN_COMMAND}\` now?"`,
+  );
+  console.log();
+  console.log("  If the user approves, run:");
+  console.log(`    ${formatCommand(AGENT_LOGIN_COMMAND, useColors)}`);
+  console.log();
+  console.log("  If the browser cannot open, run:");
+  console.log(
+    `    ${formatCommand(AGENT_LOGIN_NO_BROWSER_COMMAND, useColors)}`,
+  );
+}
+
+function printAgenticAlreadyAuthenticated(): void {
+  console.log("  GitHits MCP is installed and you are already signed in.");
+  console.log();
+  console.log("  Open a new coding agent session so it reloads MCP config.");
+}
+
+function printAgenticAuthNotChecked(useColors: boolean): void {
+  console.log("  GitHits MCP is installed. Sign-in status was not checked.");
+  console.log();
+  console.log("  If the user is not already signed in, ask before running:");
+  console.log(`    ${formatCommand(AGENT_LOGIN_COMMAND, useColors)}`);
+}
+
+function printNonInteractiveInitGuidance(useColors: boolean): void {
+  console.log(
+    "  This setup is interactive. Because this session is non-interactive, no changes were made.",
+  );
+  console.log();
+  console.log(
+    "  If you are an AI coding agent helping a user install GitHits:",
+  );
+  console.log();
+  console.log("  1. Run:");
+  console.log(`     ${formatCommand(AGENT_DETECT_COMMAND, useColors)}`);
+  console.log();
+  console.log("  2. Show the detected tools to the user.");
+  console.log();
+  console.log("  3. Ask which tools should receive the GitHits MCP server.");
+  console.log();
+  console.log("  4. Only after approval, run:");
+  console.log(
+    `     ${formatCommand(`${AGENT_INSTALL_COMMAND} <ids>`, useColors)}`,
+  );
+  console.log();
+  console.log("  Do not choose tools for the user.");
+}
+
+function printNonInteractiveYesRejected(useColors: boolean): void {
+  console.error(
+    "Non-interactive `githits init --yes` is not supported because it can configure tools without explicit per-tool approval.",
+  );
+  console.error();
+  console.error("Use the agent-safe staged flow instead:");
+  console.error(`  ${formatCommand(AGENT_DETECT_COMMAND, useColors)}`);
+  console.error(
+    `  ${formatCommand(`${AGENT_INSTALL_COMMAND} <ids>`, useColors)}`,
+  );
+  process.exitCode = 1;
 }
 
 const GITHITS_ASCII_LOGO = String.raw`
@@ -569,6 +664,415 @@ function printScanSummary(scan: ScanResult, useColors: boolean): void {
   }
 }
 
+function buildStagedAgentEntries(scan: ScanResult): StagedAgentEntry[] {
+  const statuses = new Map<string, StagedAgentStatus>();
+  for (const agent of scan.needsSetup) statuses.set(agent.id, "needs_setup");
+  for (const agent of scan.alreadyConfigured) {
+    statuses.set(agent.id, "already_configured");
+  }
+  for (const agent of scan.notDetected) statuses.set(agent.id, "not_detected");
+
+  return agentDefinitions.map((agent) => ({
+    id: agent.id,
+    name: agent.name,
+    status: statuses.get(agent.id) ?? "not_detected",
+  }));
+}
+
+function printAgenticDetectSummary(scan: ScanResult, useColors: boolean): void {
+  const entries = buildStagedAgentEntries(scan);
+  const detected = entries.filter((entry) => entry.status !== "not_detected");
+  const installable = entries.filter((entry) => entry.status === "needs_setup");
+  const notDetected = entries.filter(
+    (entry) => entry.status === "not_detected",
+  );
+
+  console.log("Detected supported tools:");
+  console.log();
+  if (detected.length === 0) {
+    console.log("  None detected.");
+  } else {
+    console.log("  ID                 Tool                  Status");
+    for (const entry of detected) {
+      console.log(
+        `  ${entry.id.padEnd(18)} ${entry.name.padEnd(21)} ${entry.status.replace("_", " ")}`,
+      );
+    }
+  }
+
+  console.log();
+  console.log("Not detected:");
+  console.log(
+    `  ${notDetected.length > 0 ? notDetected.map((entry) => entry.id).join(", ") : "none"}`,
+  );
+  console.log();
+
+  if (detected.length === 0) {
+    console.log("No supported AI coding tools detected.");
+    console.log();
+    console.log("Next step for agents:");
+    console.log(
+      "  Tell the user to install a supported coding tool, then run detection again.",
+    );
+    return;
+  }
+
+  if (installable.length === 0) {
+    console.log("No detected tools need setup.");
+    console.log();
+    console.log("Next step for agents:");
+    console.log(
+      "  Tell the user that GitHits is already configured for detected tools.",
+    );
+    return;
+  }
+
+  const installableIds = installable.map((entry) => entry.id);
+  console.log("Next step for agents:");
+  console.log();
+  console.log("  Ask the user:");
+  console.log(
+    `    "GitHits can be installed for ${installable.map((entry) => entry.name).join(", ")}. Which should I configure?"`,
+  );
+  console.log();
+  console.log("  If the user approves all detected tools needing setup, run:");
+  console.log(
+    `    ${formatCommand(`${AGENT_INSTALL_COMMAND} ${installableIds.join(",")}`, useColors)}`,
+  );
+  console.log();
+  console.log("  Do not choose tools for the user.");
+}
+
+function printAgenticDetectJson(scan: ScanResult): void {
+  const entries = buildStagedAgentEntries(scan);
+  const installableIds = entries
+    .filter((entry) => entry.status === "needs_setup")
+    .map((entry) => entry.id);
+  console.log(
+    JSON.stringify(
+      {
+        mode: "detect-agents",
+        agents: entries,
+        installableIds,
+        suggestedCommand:
+          installableIds.length > 0
+            ? `${AGENT_INSTALL_COMMAND} ${installableIds.join(",")}`
+            : null,
+        instructions: [
+          "Show detected tools to the user.",
+          "Ask which tools should receive the GitHits MCP server.",
+          "Run --install-agents only with user-approved IDs.",
+          "Do not choose tools for the user.",
+        ],
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+function getStagedModeCount(options: InitOptions): number {
+  return [
+    options.detectAgents === true,
+    options.installAgents !== undefined,
+  ].filter(Boolean).length;
+}
+
+function failInitArgument(message: string, json: boolean | undefined): void {
+  if (json) {
+    console.error(JSON.stringify({ error: message, code: "INVALID_ARGUMENT" }));
+  } else {
+    console.error(message);
+  }
+  process.exitCode = 1;
+}
+
+function validateInitModeOptions(options: InitOptions): boolean {
+  const stagedModeCount = getStagedModeCount(options);
+  if (stagedModeCount > 1) {
+    failInitArgument(
+      "Use only one staged init mode: --detect-agents or --install-agents.",
+      options.json,
+    );
+    return false;
+  }
+  if (options.yes && stagedModeCount > 0) {
+    failInitArgument(
+      "--yes cannot be combined with --detect-agents or --install-agents.",
+      options.json,
+    );
+    return false;
+  }
+  if (options.json && stagedModeCount === 0) {
+    failInitArgument(
+      "--json is only supported with --detect-agents or --install-agents.",
+      options.json,
+    );
+    return false;
+  }
+  return true;
+}
+
+function parseAgentIdList(value: string | undefined): string[] {
+  if (!value) return [];
+  const ids = value
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+  return [...new Set(ids)];
+}
+
+function findAgentsByIds(scan: ScanResult, ids: string[]): AgentDefinition[] {
+  const detected = [...scan.needsSetup, ...scan.alreadyConfigured];
+  return ids
+    .map((id) => detected.find((agent) => agent.id === id))
+    .filter((agent): agent is AgentDefinition => Boolean(agent));
+}
+
+function validateInstallAgentIds(
+  scan: ScanResult,
+  ids: string[],
+): { ok: true } | { ok: false; message: string; detectedIds: string[] } {
+  const supportedIds = new Set(agentDefinitions.map((agent) => agent.id));
+  const detectedIds = [...scan.needsSetup, ...scan.alreadyConfigured].map(
+    (agent) => agent.id,
+  );
+  const detectedIdSet = new Set(detectedIds);
+  if (ids.length === 0) {
+    return {
+      ok: false,
+      message:
+        detectedIds.length > 0
+          ? `Provide at least one agent ID. Detected IDs: ${detectedIds.join(", ")}.`
+          : "Provide at least one agent ID. No supported agents are currently detected.",
+      detectedIds,
+    };
+  }
+
+  const unknown = ids.filter((id) => !supportedIds.has(id));
+  if (unknown.length > 0) {
+    return {
+      ok: false,
+      message: `Unsupported agent ID${unknown.length !== 1 ? "s" : ""}: ${unknown.join(", ")}.`,
+      detectedIds,
+    };
+  }
+
+  const undetected = ids.filter((id) => !detectedIdSet.has(id));
+  if (undetected.length > 0) {
+    return {
+      ok: false,
+      message: `Agent ID${undetected.length !== 1 ? "s" : ""} not detected: ${undetected.join(", ")}. Detected IDs: ${detectedIds.length > 0 ? detectedIds.join(", ") : "none"}.`,
+      detectedIds,
+    };
+  }
+
+  return { ok: true };
+}
+
+function printInstallValidationFailure(
+  failure: { message: string; detectedIds: string[] },
+  json: boolean | undefined,
+): void {
+  if (json) {
+    console.error(
+      JSON.stringify({
+        error: failure.message,
+        code: "INVALID_ARGUMENT",
+        detectedIds: failure.detectedIds,
+      }),
+    );
+  } else {
+    console.error(failure.message);
+  }
+  process.exitCode = 1;
+}
+
+function hasUsableInstallOutcome(outcomes: AgentOutcome[]): boolean {
+  return outcomes.some(
+    (outcome) =>
+      outcome.status === "success" || outcome.status === "already_configured",
+  );
+}
+
+async function getStagedInstallAuthStatus(
+  createLoginDeps: InitDependencies["createLoginDeps"],
+): Promise<StagedInstallAuthStatus> {
+  if (!createLoginDeps) return "not_checked";
+  try {
+    const loginDeps = await createLoginDeps();
+    if (typeof loginDeps.hasValidToken === "boolean") {
+      return loginDeps.hasValidToken ? "authenticated" : "required";
+    }
+    const tokens = await loginDeps.authStorage.loadTokens(loginDeps.mcpUrl);
+    const expired = tokens?.expiresAt
+      ? new Date(tokens.expiresAt) < new Date()
+      : false;
+    return tokens && !expired ? "authenticated" : "required";
+  } catch {
+    return "not_checked";
+  }
+}
+
+function buildAgenticInstallAuthPayload(
+  authStatus: StagedInstallAuthStatus,
+): Record<string, unknown> {
+  if (authStatus === "authenticated") {
+    return { required: false, status: "authenticated" };
+  }
+  if (authStatus === "required") {
+    return {
+      required: true,
+      status: "required",
+      command: AGENT_LOGIN_COMMAND,
+      noBrowserCommand: AGENT_LOGIN_NO_BROWSER_COMMAND,
+    };
+  }
+  return {
+    required: null,
+    status: "not_checked",
+    command: AGENT_LOGIN_COMMAND,
+    noBrowserCommand: AGENT_LOGIN_NO_BROWSER_COMMAND,
+  };
+}
+
+function buildAgenticInstallInstructions(
+  authStatus: StagedInstallAuthStatus,
+): string[] {
+  if (authStatus === "authenticated") {
+    return ["Open a new coding agent session so it reloads MCP config."];
+  }
+  if (authStatus === "required") {
+    return [
+      `Ask the user before running ${AGENT_LOGIN_COMMAND}.`,
+      "Browser sign-in happens outside chat and terminal input.",
+      "Do not ask the user to paste passwords, tokens, cookies, or OAuth codes into chat.",
+    ];
+  }
+  return [
+    "Sign-in status was not checked.",
+    `If the user is not already signed in, ask before running ${AGENT_LOGIN_COMMAND}.`,
+  ];
+}
+
+function printAgenticInstallJson(
+  outcomes: AgentOutcome[],
+  authStatus: StagedInstallAuthStatus,
+): void {
+  const canAuthenticate = hasUsableInstallOutcome(outcomes);
+  console.log(
+    JSON.stringify(
+      {
+        mode: "install-agents",
+        outcomes,
+        auth: canAuthenticate
+          ? buildAgenticInstallAuthPayload(authStatus)
+          : {
+              required: false,
+              status: "not_applicable",
+              reason: "Fix installation errors before starting sign-in.",
+            },
+        instructions: canAuthenticate
+          ? buildAgenticInstallInstructions(authStatus)
+          : ["Fix installation errors before asking the user to sign in."],
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+async function runDetectAgentsMode(
+  options: InitOptions,
+  fileSystemService: FileSystemService,
+  execService: ExecService,
+  useColors: boolean,
+): Promise<void> {
+  const scan = await scanAgents(
+    agentDefinitions,
+    fileSystemService,
+    execService,
+  );
+  if (options.json) {
+    printAgenticDetectJson(scan);
+    return;
+  }
+
+  printAgenticDetectSummary(scan, useColors);
+}
+
+async function runInstallAgentsMode(
+  options: InitOptions,
+  fileSystemService: FileSystemService,
+  execService: ExecService,
+  createLoginDeps: InitDependencies["createLoginDeps"],
+  useColors: boolean,
+): Promise<void> {
+  const requestedIds = parseAgentIdList(options.installAgents);
+  const scan = await scanAgents(
+    agentDefinitions,
+    fileSystemService,
+    execService,
+  );
+  const validation = validateInstallAgentIds(scan, requestedIds);
+  if (!validation.ok) {
+    printInstallValidationFailure(validation, options.json);
+    return;
+  }
+
+  const agents = findAgentsByIds(scan, requestedIds);
+  if (!options.json) {
+    console.log("Installing GitHits MCP:");
+    console.log();
+  }
+
+  const outcomes = await installSelectedAgents(
+    agents,
+    scan,
+    fileSystemService,
+    execService,
+    useColors,
+    !options.json,
+  );
+
+  const failed = outcomes.filter((outcome) => outcome.status === "failed");
+  const canAuthenticate = hasUsableInstallOutcome(outcomes);
+  const authStatus = canAuthenticate
+    ? await getStagedInstallAuthStatus(createLoginDeps)
+    : "not_checked";
+  if (failed.length > 0) {
+    process.exitCode = 1;
+  }
+
+  if (options.json) {
+    printAgenticInstallJson(outcomes, authStatus);
+    return;
+  }
+
+  console.log();
+  if (failed.length === 0) {
+    console.log("GitHits MCP installation complete.");
+  } else {
+    console.log("GitHits MCP installation completed with errors.");
+    for (const outcome of failed) {
+      console.log(`  ${outcome.name}: ${outcome.message ?? "Unknown error"}`);
+    }
+  }
+  console.log();
+  if (canAuthenticate) {
+    if (authStatus === "authenticated") {
+      printAgenticAlreadyAuthenticated();
+    } else if (authStatus === "required") {
+      printAgenticLoginInstructions(useColors);
+    } else {
+      printAgenticAuthNotChecked(useColors);
+    }
+  } else {
+    console.log("Fix installation errors before starting sign-in.");
+  }
+  console.log();
+}
+
 function printAuthExplanation(): void {
   console.log(
     "    GitHits authentication is required before your agent can use GitHits tools.",
@@ -743,6 +1247,101 @@ async function verifyAgentConfigured(
   };
 }
 
+async function executeAgentSetupWithVerification(
+  agent: AgentDefinition,
+  fileSystemService: FileSystemService,
+  execService: ExecService,
+): Promise<SetupResult> {
+  const config = getResolvedSetupConfig(agent, fileSystemService);
+  let result =
+    config.method === "cli"
+      ? await executeCliSetup(config, execService)
+      : config.method === "config-file"
+        ? await executeConfigFileSetup(config, fileSystemService)
+        : await executeCompositeSetup(config, fileSystemService, execService);
+
+  if (result.status === "success" || result.status === "already_configured") {
+    const verification = await verifyAgentConfigured(
+      agent,
+      fileSystemService,
+      execService,
+    );
+    if (!verification.ok) {
+      result = {
+        status: "failed",
+        message:
+          agent.id === "gemini-cli"
+            ? "Gemini installation did not complete. Retry, or run: gemini extensions install --consent https://github.com/githits-com/githits-cli"
+            : (verification.message ??
+              `${agent.name} verification failed after setup.`),
+      };
+    }
+  }
+
+  return result;
+}
+
+async function installSelectedAgents(
+  agents: AgentDefinition[],
+  scan: ScanResult,
+  fileSystemService: FileSystemService,
+  execService: ExecService,
+  useColors: boolean,
+  printResults: boolean,
+): Promise<AgentOutcome[]> {
+  const alreadyConfiguredIds = new Set(
+    scan.alreadyConfigured.map((agent) => agent.id),
+  );
+  const outcomes: AgentOutcome[] = [];
+  const installTasks = createInstallTaskReporter(useColors);
+
+  for (const agent of agents) {
+    if (alreadyConfiguredIds.has(agent.id)) {
+      outcomes.push({
+        id: agent.id,
+        name: agent.name,
+        status: "already_configured",
+      });
+      if (printResults) {
+        printTask("warning", agent.name, "already configured", useColors);
+      }
+      continue;
+    }
+
+    const finishTask = printResults ? installTasks.start(agent.name) : () => {};
+    let result: SetupResult;
+    try {
+      result = await executeAgentSetupWithVerification(
+        agent,
+        fileSystemService,
+        execService,
+      );
+    } finally {
+      finishTask();
+    }
+
+    outcomes.push({
+      id: agent.id,
+      name: agent.name,
+      status: result.status,
+      message: result.status === "failed" ? result.message : undefined,
+    });
+
+    if (!printResults) {
+      continue;
+    }
+    if (result.status === "success") {
+      printTask("success", agent.name, "configured and verified", useColors);
+    } else if (result.status === "already_configured") {
+      printTask("warning", agent.name, "already configured", useColors);
+    } else {
+      printTask("failed", agent.name, result.message, useColors);
+    }
+  }
+
+  return outcomes;
+}
+
 async function verifyAgentUnconfigured(
   agent: (typeof agentDefinitions)[number],
   fileSystemService: FileSystemService,
@@ -913,7 +1512,44 @@ export async function initAction(
   const useColors = shouldUseColors();
   const { fileSystemService, promptService, execService, createLoginDeps } =
     deps;
+  const isInteractive = deps.isInteractive ?? true;
+
+  if (!validateInitModeOptions(options)) {
+    return;
+  }
+
+  if (options.detectAgents) {
+    await runDetectAgentsMode(
+      options,
+      fileSystemService,
+      execService,
+      useColors,
+    );
+    return;
+  }
+
+  if (options.installAgents !== undefined) {
+    await runInstallAgentsMode(
+      options,
+      fileSystemService,
+      execService,
+      createLoginDeps,
+      useColors,
+    );
+    return;
+  }
+
   printInitIntro(useColors);
+
+  if (!isInteractive) {
+    if (options.yes) {
+      printNonInteractiveYesRejected(useColors);
+      return;
+    }
+    printNonInteractiveInitGuidance(useColors);
+    console.log();
+    return;
+  }
 
   if (!options.yes) {
     let intent: InitIntent;
@@ -996,8 +1632,6 @@ export async function initAction(
     printTask("success", "Selected all detected tools", "--yes", useColors);
   }
 
-  const outcomes: AgentOutcome[] = [];
-
   if (toSetup.length === 0 && scan.needsSetup.length > 0) {
     printTask("skipped", "Setup skipped", "no tools selected", useColors);
     console.log();
@@ -1028,63 +1662,14 @@ export async function initAction(
     return;
   }
 
-  const installTasks = createInstallTaskReporter(useColors);
-  for (const agent of toSetup) {
-    const config = getResolvedSetupConfig(agent, fileSystemService);
-    const finishTask = installTasks.start(agent.name);
-
-    let result: SetupResult;
-    try {
-      result =
-        config.method === "cli"
-          ? await executeCliSetup(config, execService)
-          : config.method === "config-file"
-            ? await executeConfigFileSetup(config, fileSystemService)
-            : await executeCompositeSetup(
-                config,
-                fileSystemService,
-                execService,
-              );
-
-      if (
-        result.status === "success" ||
-        result.status === "already_configured"
-      ) {
-        const verification = await verifyAgentConfigured(
-          agent,
-          fileSystemService,
-          execService,
-        );
-        if (!verification.ok) {
-          result = {
-            status: "failed",
-            message:
-              agent.id === "gemini-cli"
-                ? "Gemini installation did not complete. Retry, or run: gemini extensions install --consent https://github.com/githits-com/githits-cli"
-                : (verification.message ??
-                  `${agent.name} verification failed after setup.`),
-          };
-        }
-      }
-    } finally {
-      finishTask();
-    }
-
-    outcomes.push({
-      id: agent.id,
-      name: agent.name,
-      status: result.status,
-      message: result.status === "failed" ? result.message : undefined,
-    });
-
-    if (result.status === "success") {
-      printTask("success", agent.name, "configured and verified", useColors);
-    } else if (result.status === "already_configured") {
-      printTask("warning", agent.name, "already configured", useColors);
-    } else {
-      printTask("failed", agent.name, result.message, useColors);
-    }
-  }
+  const outcomes = await installSelectedAgents(
+    toSetup,
+    scan,
+    fileSystemService,
+    execService,
+    useColors,
+    true,
+  );
 
   console.log();
 
@@ -1362,6 +1947,12 @@ export function registerInitCommand(program: Command) {
     .description(INIT_DESCRIPTION)
     .option("-y, --yes", "Skip prompts, configure all detected tools")
     .option("--skip-login", "Skip authentication step")
+    .option("--detect-agents", "Scan supported agents without installing")
+    .option(
+      "--install-agents <ids>",
+      "Install MCP server for comma-separated agent IDs from --detect-agents",
+    )
+    .option("--json", "Emit JSON for --detect-agents or --install-agents")
     .action(async (options: InitOptions) => {
       const fileSystemService = new FileSystemServiceImpl();
       const promptService = new PromptServiceImpl();
@@ -1371,6 +1962,8 @@ export function registerInitCommand(program: Command) {
         promptService,
         execService,
         createLoginDeps: () => createContainer(),
+        isInteractive:
+          process.stdin.isTTY === true && process.stdout.isTTY === true,
       });
     });
 
