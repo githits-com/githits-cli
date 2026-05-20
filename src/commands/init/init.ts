@@ -707,6 +707,16 @@ function printAgenticDetectSummary(scan: ScanResult, useColors: boolean): void {
   );
   console.log();
 
+  if (detected.length === 0) {
+    console.log("No supported AI coding tools detected.");
+    console.log();
+    console.log("Next step for agents:");
+    console.log(
+      "  Tell the user to install a supported coding tool, then run detection again.",
+    );
+    return;
+  }
+
   if (installable.length === 0) {
     console.log("No detected tools need setup.");
     console.log();
