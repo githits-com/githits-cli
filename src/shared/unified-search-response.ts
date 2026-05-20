@@ -682,7 +682,33 @@ function labelsDiverge(input: {
 }): boolean {
   const served = input.servedTarget;
   if (!served) return false;
-  return Boolean(input.freshTarget && input.freshTarget !== served);
+  return Boolean(
+    input.freshTarget &&
+      canonicalTargetLabel(input.freshTarget) !== canonicalTargetLabel(served),
+  );
+}
+
+function canonicalTargetLabel(label: string): string {
+  const parsed = parsePackageVersionLabel(label);
+  if (!parsed) return label;
+  const version = parsed.version.replace(/^v(?=\d)/i, "");
+  return `${parsed.registry.toLowerCase()}:${parsed.packageName}@${version}`;
+}
+
+function parsePackageVersionLabel(
+  label: string,
+): { registry: string; packageName: string; version: string } | undefined {
+  const registryEnd = label.indexOf(":");
+  if (registryEnd <= 0) return undefined;
+  const versionStart = label.lastIndexOf("@");
+  if (versionStart <= registryEnd + 1) return undefined;
+  const version = label.slice(versionStart + 1);
+  if (!version) return undefined;
+  return {
+    registry: label.slice(0, registryEnd),
+    packageName: label.slice(registryEnd + 1, versionStart),
+    version,
+  };
 }
 
 function warningForEntry(
