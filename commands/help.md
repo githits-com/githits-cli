@@ -35,7 +35,8 @@ This plugin connects to the GitHits MCP server and always exposes these core too
 
 Additional indexed dependency/package tools are available by default:
 `search`, `search_status`, `docs_list`, `docs_read`, `pkg_info`, `pkg_vulns`,
-`pkg_deps`, `pkg_changelog`, `code_files`, `code_read`, and `code_grep`.
+`pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`,
+`code_read`, and `code_grep`.
 
 ## Authentication
 

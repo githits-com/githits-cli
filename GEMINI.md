@@ -71,7 +71,8 @@ Do not use `get_example` for:
 
 GitHits also exposes indexed dependency/package tools such as `search`,
 `search_status`, `docs_list`, `docs_read`, `pkg_info`, `pkg_vulns`,
-`pkg_deps`, `pkg_changelog`, `code_files`, `code_read`, and `code_grep`.
+`pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`,
+`code_read`, and `code_grep`.
 
 ## License Filtering
 

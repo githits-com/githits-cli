@@ -215,6 +215,37 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
   });
 
+  it("suppresses version-prefix-only package stale hit warnings", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [
+          {
+            ...defaultUnifiedSearchOutcome.result.results[0]!,
+            requestedTargetLabel: "npm:express@5.2.1",
+            freshTargetLabel: "npm:express@5.2.1",
+            servedTargetLabel: "npm:express@v5.2.1",
+            freshness: "STALE",
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      outcome,
+    );
+
+    expect(payload.results[0]).not.toHaveProperty("freshness");
+    expect(payload.warnings).toBeUndefined();
+  });
+
   it("keeps follow-up commands pinned to served locator identity", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
@@ -578,6 +609,21 @@ describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", ()
           requestedTarget: "githits-com/githits-cli",
           freshTarget: "githits-com/githits-cli@HEAD",
           servedTarget: "githits-com/githits-cli@HEAD",
+          codeIndexState: "STALE",
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("does not warn when only a package version v-prefix differs", () => {
+    expect(
+      buildSourceStatusWarnings([
+        {
+          source: "code",
+          targetLabel: "npm:express@5.2.1",
+          requestedTarget: "npm:express@5.2.1",
+          freshTarget: "npm:express@5.2.1",
+          servedTarget: "npm:express@v5.2.1",
           codeIndexState: "STALE",
         },
       ]),
