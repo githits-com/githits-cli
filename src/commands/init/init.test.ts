@@ -151,7 +151,9 @@ describe("initAction", () => {
     const logCalls = getLogOutput();
     expect(logCalls.some((msg) => msg.includes("non-interactive"))).toBe(true);
     expect(
-      logCalls.some((msg) => msg.includes("githits init --detect-agents")),
+      logCalls.some((msg) =>
+        msg.includes("npx -y githits@latest init --detect-agents"),
+      ),
     ).toBe(true);
     expect(promptService.select).not.toHaveBeenCalled();
     expect(promptService.checkbox).not.toHaveBeenCalled();
@@ -266,9 +268,9 @@ describe("initAction", () => {
         String(call[0] ?? "").includes(".codeium/windsurf"),
       ),
     ).toBe(false);
-    expect(getLogOutput().some((msg) => msg.includes("githits login"))).toBe(
-      true,
-    );
+    expect(
+      getLogOutput().some((msg) => msg.includes("npx -y githits@latest login")),
+    ).toBe(true);
   });
 
   it("treats already configured staged install targets as idempotent", async () => {
@@ -323,7 +325,9 @@ describe("initAction", () => {
     expect(
       logCalls.some((msg) => msg.includes("Fix installation errors")),
     ).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("githits login"))).toBe(false);
+    expect(logCalls.some((msg) => msg.includes("githits@latest login"))).toBe(
+      false,
+    );
   });
 
   it("marks auth not required in JSON when all staged installs fail", async () => {
@@ -346,7 +350,7 @@ describe("initAction", () => {
     expect(process.exitCode).toBe(1);
     expect(payload.outcomes[0].status).toBe("failed");
     expect(payload.auth.required).toBe(false);
-    expect(JSON.stringify(payload)).not.toContain("githits login");
+    expect(JSON.stringify(payload)).not.toContain("githits@latest login");
   });
 
   it("rejects unknown staged install IDs before writing", async () => {
