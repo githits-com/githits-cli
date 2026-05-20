@@ -13,9 +13,9 @@ export interface Spinner {
 /**
  * Start an animated progress spinner on stderr.
  *
- * Renders only when stderr is an interactive TTY, so piped output,
+ * Renders only when stdout and stderr are interactive TTYs, so piped output,
  * `--json` consumers, and agent/MCP callers never see spinner frames.
- * Writing to stderr keeps stdout (the command result) clean.
+ * Writing to stderr keeps stdout (the command result) clean when interactive.
  *
  * Pass an array of labels to rotate them every ~2s while the glyph
  * keeps spinning; a single string stays fixed.
@@ -24,7 +24,7 @@ export function startSpinner(
   message: string | readonly string[],
   enabled = true,
 ): Spinner {
-  if (!enabled || !process.stderr.isTTY) {
+  if (!enabled || !process.stdout.isTTY || !process.stderr.isTTY) {
     return { stop: () => {} };
   }
 

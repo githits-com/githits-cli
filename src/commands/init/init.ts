@@ -182,7 +182,7 @@ function formatCommand(command: string, useColors: boolean): string {
   return colorizeBrand(command, "secondary", useColors, { bold: true });
 }
 
-function printReadyNextSteps(useColors: boolean): void {
+function printReadyNextSteps(): void {
   console.log("  GitHits is now connected to your coding agents.");
   console.log();
   console.log(
@@ -191,7 +191,7 @@ function printReadyNextSteps(useColors: boolean): void {
   console.log();
   console.log("  • Find usage examples");
   console.log(
-    "      -> ”Use get example to find how to use Azure Speech SDK TranscribeDefinition”",
+    "      -> “Find a real example of using Azure Speech SDK TranscribeDefinition”",
   );
   console.log();
   console.log(
@@ -204,16 +204,14 @@ function printReadyNextSteps(useColors: boolean): void {
   console.log(
     "  • Inspect dependency versions, changelogs, and upgrade changes",
   );
-  console.log(
-    "      -> “What kind of changes there were between pydantic-ai version 1.95 and 1.99?”",
-  );
+  console.log("      -> “What changed between pydantic-ai 1.95 and 1.99?”");
   console.log();
   console.log(
     "  Open a new coding agent session and try out one of the above.",
   );
   console.log();
   console.log(
-    '  In you normal workflow, your agent will call GitHits automatically depending on the task, but you can prompt it to use GitHits explicitly by adding "use GitHits".',
+    '  In your normal workflow, your agent will call GitHits automatically depending on the task, but you can prompt it to use GitHits explicitly by adding "use GitHits".',
   );
   console.log();
   console.log(
@@ -716,7 +714,7 @@ function printPostSetupNextSteps(
     useColors,
   );
   if (shouldPrintReady(authStatus)) {
-    printReadyNextSteps(useColors);
+    printReadyNextSteps();
   } else if (authStatus === "failed_continue") {
     printAuthRequiredNextSteps(useColors);
   } else {
