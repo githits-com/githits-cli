@@ -5,6 +5,7 @@ export {
   type CliCommand,
   type CliSetup,
   type CliUninstall,
+  type ConfigFileFormat,
   type ConfigFileSetup,
   detectAgents,
   isGeminiExtensionInstalledFromFilesystem,

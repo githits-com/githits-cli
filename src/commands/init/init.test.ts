@@ -1024,7 +1024,7 @@ describe("initAction", () => {
     );
 
     // Includes Pi fallback global-bin probes when pi is not on PATH.
-    expect(execService.exec).toHaveBeenCalledTimes(13);
+    expect(execService.exec).toHaveBeenCalledTimes(14);
     expect(execService.exec).toHaveBeenCalledWith("claude", expect.any(Array));
   });
 
@@ -1105,7 +1105,7 @@ describe("initAction", () => {
     );
 
     // One PATH lookup is attempted for each binary-detected agent, plus Pi fallback probes.
-    expect(execService.exec).toHaveBeenCalledTimes(8);
+    expect(execService.exec).toHaveBeenCalledTimes(9);
     const logCalls = getLogOutput();
     expect(
       logCalls.some((msg) =>

@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import { parse as parseYaml } from "yaml";
 import {
   createMockExecService,
   createMockFileSystemService,
@@ -871,6 +872,156 @@ describe("mergeServerConfig", () => {
     const parsed = JSON.parse(content);
     expect(parsed.servers.GitHits).toEqual(vscodeConfig);
   });
+
+  it("adds server to empty YAML config", () => {
+    const result = mergeServerConfig(
+      "",
+      "mcp_servers",
+      "GitHits",
+      serverConfig,
+      "yaml",
+    );
+    const content = expectAdded(result);
+    const parsed = parseYaml(content);
+    expect(parsed.mcp_servers.GitHits).toEqual(serverConfig);
+  });
+
+  it("preserves unrelated YAML keys", () => {
+    const existing = [
+      "provider: openrouter",
+      "mcp_servers:",
+      "  other:",
+      '    command: "other"',
+      "",
+    ].join("\n");
+    const result = mergeServerConfig(
+      existing,
+      "mcp_servers",
+      "GitHits",
+      serverConfig,
+      "yaml",
+    );
+    const content = expectAdded(result);
+    const parsed = parseYaml(content);
+    expect(parsed.provider).toBe("openrouter");
+    expect(parsed.mcp_servers.other).toEqual({ command: "other" });
+    expect(parsed.mcp_servers.GitHits).toEqual(serverConfig);
+  });
+
+  it("treats null YAML servers section as missing and initializes it", () => {
+    const existing = ["mcp_servers:", "provider: openrouter", ""].join("\n");
+    const result = mergeServerConfig(
+      existing,
+      "mcp_servers",
+      "GitHits",
+      serverConfig,
+      "yaml",
+    );
+    const content = expectAdded(result);
+    const parsed = parseYaml(content);
+    expect(parsed.provider).toBe("openrouter");
+    expect(parsed.mcp_servers.GitHits).toEqual(serverConfig);
+  });
+
+  it("preserves YAML comments when adding GitHits", () => {
+    const existing = [
+      "# top comment",
+      "provider: openrouter",
+      "mcp_servers:",
+      "  # keep other",
+      "  other:",
+      "    command: other",
+      "",
+    ].join("\n");
+    const result = mergeServerConfig(
+      existing,
+      "mcp_servers",
+      "GitHits",
+      serverConfig,
+      "yaml",
+    );
+    const content = expectAdded(result);
+    expect(content).toContain("# top comment");
+    expect(content).toContain("# keep other");
+    expect(content).toContain("provider: openrouter");
+    expect(content).toContain("other:");
+    expect(content).toContain("GitHits:");
+  });
+
+  it("returns already_configured for matching YAML config", () => {
+    const existing = [
+      "mcp_servers:",
+      "  GitHits:",
+      '    command: "npx"',
+      '    args: ["-y", "githits@latest", "mcp", "start"]',
+      "",
+    ].join("\n");
+    const result = mergeServerConfig(
+      existing,
+      "mcp_servers",
+      "GitHits",
+      serverConfig,
+      "yaml",
+    );
+    expect(result.status).toBe("already_configured");
+  });
+
+  it("returns updated and normalizes lowercase githits key in YAML config", () => {
+    const existing = [
+      "mcp_servers:",
+      "  githits:",
+      '    command: "npx"',
+      '    args: ["-y", "githits@latest", "mcp", "start"]',
+      "",
+    ].join("\n");
+    const result = mergeServerConfig(
+      existing,
+      "mcp_servers",
+      "GitHits",
+      serverConfig,
+      "yaml",
+    );
+    const content = expectUpdated(result);
+    const parsed = parseYaml(content);
+    expect(parsed.mcp_servers.GitHits).toEqual(serverConfig);
+    expect(parsed.mcp_servers.githits).toBeUndefined();
+  });
+
+  it("returns parse_error for malformed YAML", () => {
+    const result = mergeServerConfig(
+      "mcp_servers:\n  GitHits: [unterminated",
+      "mcp_servers",
+      "GitHits",
+      serverConfig,
+      "yaml",
+    );
+    const error = expectParseError(result);
+    expect(error).toContain("Invalid YAML");
+  });
+
+  it("returns parse_error when YAML root is not an object", () => {
+    const result = mergeServerConfig(
+      "- one\n- two\n",
+      "mcp_servers",
+      "GitHits",
+      serverConfig,
+      "yaml",
+    );
+    const error = expectParseError(result);
+    expect(error).toContain("not a YAML object");
+  });
+
+  it("returns parse_error when YAML serversKey is not an object", () => {
+    const result = mergeServerConfig(
+      "mcp_servers: disabled\n",
+      "mcp_servers",
+      "GitHits",
+      serverConfig,
+      "yaml",
+    );
+    const error = expectParseError(result);
+    expect(error).toContain("not a YAML object");
+  });
 });
 
 describe("removeServerConfig", () => {
@@ -973,6 +1124,49 @@ describe("removeServerConfig", () => {
     expect(parsed.mcp.GitHits).toBeUndefined();
     expect(parsed.mcp.other).toEqual({});
   });
+
+  it("removes GitHits from YAML while preserving other servers", () => {
+    const existing = [
+      "mcp_servers:",
+      "  GitHits:",
+      '    command: "npx"',
+      "  other:",
+      '    command: "other"',
+      "setting: true",
+      "",
+    ].join("\n");
+    const content = expectRemoved(
+      removeServerConfig(existing, "mcp_servers", "GitHits", "yaml"),
+    );
+    const parsed = parseYaml(content);
+    expect(parsed.mcp_servers.GitHits).toBeUndefined();
+    expect(parsed.mcp_servers.other).toEqual({ command: "other" });
+    expect(parsed.setting).toBe(true);
+  });
+
+  it("removes lowercase GitHits key from YAML", () => {
+    const existing = [
+      "mcp_servers:",
+      "  githits:",
+      '    command: "npx"',
+      "",
+    ].join("\n");
+    const content = expectRemoved(
+      removeServerConfig(existing, "mcp_servers", "GitHits", "yaml"),
+    );
+    const parsed = parseYaml(content);
+    expect(parsed.mcp_servers.githits).toBeUndefined();
+  });
+
+  it("returns not_configured when YAML servers section is null", () => {
+    const result = removeServerConfig(
+      "mcp_servers:\nprovider: openrouter\n",
+      "mcp_servers",
+      "GitHits",
+      "yaml",
+    );
+    expect(result.status).toBe("not_configured");
+  });
 });
 
 // -- formatSetupPreview --
@@ -1026,6 +1220,24 @@ describe("formatSetupPreview", () => {
     expect(preview).toContain("Will add to /home/test/.cursor/mcp.json:");
     expect(preview).toContain('"GitHits"');
     expect(preview).toContain('"command"');
+  });
+
+  it("formats YAML config file setup with YAML snippet", () => {
+    const setup: ConfigFileSetup = {
+      method: "config-file",
+      format: "yaml",
+      configPath: "/home/test/.hermes/config.yaml",
+      serversKey: "mcp_servers",
+      serverName: "GitHits",
+      serverConfig: {
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
+      },
+    };
+    const preview = formatSetupPreview(setup);
+    expect(preview).toContain("Will add to /home/test/.hermes/config.yaml:");
+    expect(preview).toContain("GitHits:");
+    expect(preview).toContain("command: npx");
   });
 
   it("formats composite setup with command and config previews", () => {
@@ -1082,6 +1294,28 @@ describe("hasServerConfigEntry", () => {
     expect(hasServerConfigEntry("{invalid", "mcpServers", "GitHits")).toBe(
       false,
     );
+  });
+
+  it("returns true for case-variant YAML GitHits entries", () => {
+    expect(
+      hasServerConfigEntry(
+        "mcp_servers:\n  githits:\n    command: npx\n",
+        "mcp_servers",
+        "GitHits",
+        "yaml",
+      ),
+    ).toBe(true);
+  });
+
+  it("returns false for YAML null servers section", () => {
+    expect(
+      hasServerConfigEntry(
+        "mcp_servers:\nprovider: openrouter\n",
+        "mcp_servers",
+        "GitHits",
+        "yaml",
+      ),
+    ).toBe(false);
   });
 });
 
@@ -1153,6 +1387,24 @@ describe("getConfigUninstallCheckStatus", () => {
     expect(result.status).toBe("failed");
     if (result.status !== "failed") throw new Error("unreachable");
     expect(result.message).toContain("Cannot read");
+  });
+
+  it("returns not_configured for YAML null servers section", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve("mcp_servers:\nprovider: openrouter\n"),
+      ),
+    });
+    const result = await getConfigUninstallCheckStatus(
+      {
+        ...configSetup,
+        configPath: "/home/test/.hermes/config.yaml",
+        serversKey: "mcp_servers",
+        format: "yaml",
+      },
+      fs,
+    );
+    expect(result.status).toBe("not_configured");
   });
 });
 
@@ -1830,6 +2082,120 @@ describe("executeConfigFileSetup", () => {
     expect(atomicWrite).toHaveBeenCalled();
     expect(writeFile).not.toHaveBeenCalled();
   });
+
+  it("writes YAML config for Hermes-style setup", async () => {
+    const hermesSetup: ConfigFileSetup = {
+      method: "config-file",
+      format: "yaml",
+      configPath: "/home/test/.hermes/config.yaml",
+      serversKey: "mcp_servers",
+      serverName: "GitHits",
+      serverConfig: configSetup.serverConfig,
+    };
+    const existing = "provider: openrouter\nmcp_servers: {}\n";
+    const atomicWrite = mock((_path: string, _content: string) =>
+      Promise.resolve(),
+    );
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+      getDirname: mock(() => "/home/test/.hermes"),
+      ensureDir: mock(() => Promise.resolve()),
+      atomicWriteFile: atomicWrite,
+    });
+
+    const result = await executeConfigFileSetup(hermesSetup, fs);
+    expect(result.status).toBe("success");
+    const writtenContent = atomicWrite.mock.calls[0]![1];
+    const parsed = parseYaml(writtenContent);
+    expect(parsed.provider).toBe("openrouter");
+    expect(parsed.mcp_servers.GitHits).toEqual(hermesSetup.serverConfig);
+  });
+
+  it("writes YAML config when servers section is null", async () => {
+    const hermesSetup: ConfigFileSetup = {
+      method: "config-file",
+      format: "yaml",
+      configPath: "/home/test/.hermes/config.yaml",
+      serversKey: "mcp_servers",
+      serverName: "GitHits",
+      serverConfig: configSetup.serverConfig,
+    };
+    const existing = "mcp_servers:\nprovider: openrouter\n";
+    const atomicWrite = mock((_path: string, _content: string) =>
+      Promise.resolve(),
+    );
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+      getDirname: mock(() => "/home/test/.hermes"),
+      ensureDir: mock(() => Promise.resolve()),
+      atomicWriteFile: atomicWrite,
+    });
+
+    const result = await executeConfigFileSetup(hermesSetup, fs);
+    expect(result.status).toBe("success");
+    const writtenContent = atomicWrite.mock.calls[0]![1];
+    const parsed = parseYaml(writtenContent);
+    expect(parsed.provider).toBe("openrouter");
+    expect(parsed.mcp_servers.GitHits).toEqual(hermesSetup.serverConfig);
+  });
+
+  it("does not rewrite matching YAML config", async () => {
+    const hermesSetup: ConfigFileSetup = {
+      method: "config-file",
+      format: "yaml",
+      configPath: "/home/test/.hermes/config.yaml",
+      serversKey: "mcp_servers",
+      serverName: "GitHits",
+      serverConfig: configSetup.serverConfig,
+    };
+    const existing = [
+      "mcp_servers:",
+      "  GitHits:",
+      '    command: "npx"',
+      '    args: ["-y", "githits@latest", "mcp", "start"]',
+      "",
+    ].join("\n");
+    const atomicWrite = mock((_path: string, _content: string) =>
+      Promise.resolve(),
+    );
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+      getDirname: mock(() => "/home/test/.hermes"),
+      ensureDir: mock(() => Promise.resolve()),
+      atomicWriteFile: atomicWrite,
+    });
+
+    const result = await executeConfigFileSetup(hermesSetup, fs);
+    expect(result.status).toBe("already_configured");
+    expect(atomicWrite).not.toHaveBeenCalled();
+  });
+
+  it("leaves YAML file unchanged on parse error", async () => {
+    const hermesSetup: ConfigFileSetup = {
+      method: "config-file",
+      format: "yaml",
+      configPath: "/home/test/.hermes/config.yaml",
+      serversKey: "mcp_servers",
+      serverName: "GitHits",
+      serverConfig: configSetup.serverConfig,
+    };
+    const atomicWrite = mock((_path: string, _content: string) =>
+      Promise.resolve(),
+    );
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve("mcp_servers:\n  GitHits: [unterminated"),
+      ),
+      getDirname: mock(() => "/home/test/.hermes"),
+      ensureDir: mock(() => Promise.resolve()),
+      atomicWriteFile: atomicWrite,
+    });
+
+    const result = await executeConfigFileSetup(hermesSetup, fs);
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("Invalid YAML");
+    expect(atomicWrite).not.toHaveBeenCalled();
+  });
 });
 
 describe("executeCompositeSetup", () => {
@@ -2028,6 +2394,81 @@ describe("executeConfigFileUninstall", () => {
     const result = await executeConfigFileUninstall(configSetup, fs);
     expect(result.status).toBe("failed");
     expect(result.message).toContain("File left unchanged");
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("removes GitHits from YAML config and preserves other entries", async () => {
+    const hermesSetup: ConfigFileSetup = {
+      method: "config-file",
+      format: "yaml",
+      configPath: "/home/test/.hermes/config.yaml",
+      serversKey: "mcp_servers",
+      serverName: "GitHits",
+      serverConfig: {},
+    };
+    const existing = [
+      "mcp_servers:",
+      "  GitHits:",
+      '    command: "npx"',
+      "  other:",
+      '    command: "other"',
+      "provider: openrouter",
+      "",
+    ].join("\n");
+    const atomicWrite = mock(() => Promise.resolve());
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+      atomicWriteFile: atomicWrite,
+    });
+
+    const result = await executeConfigFileUninstall(hermesSetup, fs);
+    expect(result.status).toBe("removed");
+    const calls = atomicWrite.mock.calls as unknown as [string, string][];
+    const writtenContent = calls[0]![1];
+    const parsed = parseYaml(writtenContent);
+    expect(parsed.mcp_servers.GitHits).toBeUndefined();
+    expect(parsed.mcp_servers.other).toEqual({ command: "other" });
+    expect(parsed.provider).toBe("openrouter");
+  });
+
+  it("returns not_configured for YAML null servers section during uninstall", async () => {
+    const hermesSetup: ConfigFileSetup = {
+      method: "config-file",
+      format: "yaml",
+      configPath: "/home/test/.hermes/config.yaml",
+      serversKey: "mcp_servers",
+      serverName: "GitHits",
+      serverConfig: {},
+    };
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve("mcp_servers:\nprovider: openrouter\n"),
+      ),
+    });
+
+    const result = await executeConfigFileUninstall(hermesSetup, fs);
+    expect(result.status).toBe("not_configured");
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("leaves YAML file unchanged on uninstall parse error", async () => {
+    const hermesSetup: ConfigFileSetup = {
+      method: "config-file",
+      format: "yaml",
+      configPath: "/home/test/.hermes/config.yaml",
+      serversKey: "mcp_servers",
+      serverName: "GitHits",
+      serverConfig: {},
+    };
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve("mcp_servers:\n  GitHits: [unterminated"),
+      ),
+    });
+
+    const result = await executeConfigFileUninstall(hermesSetup, fs);
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("Invalid YAML");
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
 
