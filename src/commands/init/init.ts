@@ -1584,7 +1584,7 @@ export async function initAction(
     }
     if (intent === "later") {
       console.log(
-        "\n  No changes made. Run `githits init` whenever you're ready.\n",
+        "\n  No changes made. Run `npx githits@latest init` whenever you're ready.\n",
       );
       return;
     }
