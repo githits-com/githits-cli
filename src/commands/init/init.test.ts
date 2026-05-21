@@ -569,6 +569,11 @@ describe("initAction", () => {
 
     const logCalls = getLogOutput();
     expect(logCalls.some((msg) => msg.includes("No changes made"))).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Run `npx githits@latest init` whenever you're ready"),
+      ),
+    ).toBe(true);
     expect(execService.exec).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
