@@ -600,7 +600,7 @@ describe("initAction", () => {
     const logCalls = getLogOutput();
     expect(
       logCalls.some((msg) =>
-        msg.includes("Your agent can read your local codebase"),
+        msg.includes("Your agent can only read your local codebase"),
       ),
     ).toBe(true);
     expect(

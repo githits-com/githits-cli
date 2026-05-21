@@ -487,7 +487,7 @@ function printTask(
 
 function printInitIntro(useColors: boolean): void {
   console.log(colorizeLogo(GITHITS_ASCII_LOGO, useColors));
-  console.log("  Your agent can read your local codebase.");
+  console.log("  Your agent can only read your local codebase.");
   console.log();
   console.log(
     "  GitHits lets it navigate the open-source code your app depends on.",
