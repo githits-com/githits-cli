@@ -13,8 +13,8 @@ import {
 } from "./agent-definitions.js";
 
 describe("agentDefinitions", () => {
-  it("defines 11 agents", () => {
-    expect(agentDefinitions).toHaveLength(11);
+  it("defines 12 agents", () => {
+    expect(agentDefinitions).toHaveLength(12);
   });
 
   it("has unique ids", () => {
@@ -97,6 +97,50 @@ describe("detection configuration", () => {
     const agent = agentDefinitions.find((a) => a.id === "opencode")!;
     expect(agent.detectBinary).toBeDefined();
     expect(agent.detectPaths).toBeDefined();
+  });
+
+  it("hermes-agent uses hybrid detection", () => {
+    const agent = agentDefinitions.find((a) => a.id === "hermes-agent")!;
+    expect(agent.detectBinary).toBeDefined();
+    expect(agent.detectPaths).toBeDefined();
+  });
+
+  it("hermes-agent detects default ~/.hermes directory", () => {
+    const originalHermesHome = process.env.HERMES_HOME;
+    delete process.env.HERMES_HOME;
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "hermes-agent")!;
+      const paths = agent.detectPaths?.(fs);
+      expect(paths).toEqual(["/home/test/.hermes"]);
+    } finally {
+      if (originalHermesHome !== undefined) {
+        process.env.HERMES_HOME = originalHermesHome;
+      }
+    }
+  });
+
+  it("hermes-agent respects HERMES_HOME for detection", () => {
+    const originalHermesHome = process.env.HERMES_HOME;
+    process.env.HERMES_HOME = "~/custom-hermes";
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "hermes-agent")!;
+      const paths = agent.detectPaths?.(fs);
+      expect(paths).toEqual(["/home/test/custom-hermes"]);
+    } finally {
+      if (originalHermesHome !== undefined) {
+        process.env.HERMES_HOME = originalHermesHome;
+      } else {
+        delete process.env.HERMES_HOME;
+      }
+    }
   });
 
   it("opencode includes desktop and config detection paths on linux", () => {
@@ -970,6 +1014,57 @@ describe("getSetupConfig", () => {
     }
   });
 
+  it("hermes-agent returns YAML config-file setup with mcp_servers key", () => {
+    const originalHermesHome = process.env.HERMES_HOME;
+    delete process.env.HERMES_HOME;
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "hermes-agent")!;
+      const config = agent.getSetupConfig(fs);
+      expect(config.method).toBe("config-file");
+      if (config.method === "config-file") {
+        expect(config.format).toBe("yaml");
+        expect(config.configPath).toBe("/home/test/.hermes/config.yaml");
+        expect(config.serversKey).toBe("mcp_servers");
+        expect(config.serverName).toBe("GitHits");
+        expect(config.serverConfig).toEqual({
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        });
+      }
+    } finally {
+      if (originalHermesHome !== undefined) {
+        process.env.HERMES_HOME = originalHermesHome;
+      }
+    }
+  });
+
+  it("hermes-agent respects HERMES_HOME for config path", () => {
+    const originalHermesHome = process.env.HERMES_HOME;
+    process.env.HERMES_HOME = "~/custom-hermes";
+    try {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "hermes-agent")!;
+      const config = agent.getSetupConfig(fs);
+      expect(config.method).toBe("config-file");
+      if (config.method === "config-file") {
+        expect(config.configPath).toBe("/home/test/custom-hermes/config.yaml");
+      }
+    } finally {
+      if (originalHermesHome !== undefined) {
+        process.env.HERMES_HOME = originalHermesHome;
+      } else {
+        delete process.env.HERMES_HOME;
+      }
+    }
+  });
+
   it("all config-file agents use npm githits@latest mcp start command", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
@@ -986,6 +1081,13 @@ describe("getSetupConfig", () => {
             type: "local",
             command: ["npx", "-y", "githits@latest", "mcp", "start"],
             enabled: true,
+          });
+        } else if (agent.id === "hermes-agent") {
+          expect(config.format).toBe("yaml");
+          expect(config.serversKey).toBe("mcp_servers");
+          expect(config.serverConfig).toEqual({
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
           });
         } else {
           expect(config.serverConfig).toEqual({
@@ -1032,12 +1134,13 @@ describe("detectAgents", () => {
     });
     const detected = await detectAgents(agentDefinitions, fs);
     // detectAgents (deprecated) checks path and hybrid agents
-    expect(detected).toHaveLength(7);
+    expect(detected).toHaveLength(8);
     expect(detected).not.toContain("claude-code");
     expect(detected).not.toContain("codex-cli");
     expect(detected).not.toContain("pi");
     expect(detected).not.toContain("gemini-cli");
     expect(detected).toContain("opencode");
+    expect(detected).toContain("hermes-agent");
   });
 });
 
@@ -1316,6 +1419,40 @@ describe("scanAgents", () => {
     const result = await scanAgents(agentDefinitions, fs, execService);
     expect(result.needsSetup.some((a) => a.id === "opencode")).toBe(true);
     expect(result.notDetected.some((a) => a.id === "opencode")).toBe(false);
+  });
+
+  it("detects Hermes Agent via hermes-agent binary when directory does not exist", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        [`${lookupCmd} hermes-agent`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/hermes-agent\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.needsSetup.some((a) => a.id === "hermes-agent")).toBe(true);
+    expect(result.notDetected.some((a) => a.id === "hermes-agent")).toBe(false);
+  });
+
+  it("does not detect Hermes Agent from generic hermes binary alone", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        [`${lookupCmd} hermes`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/hermes\n",
+          stderr: "",
+        },
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.notDetected.some((a) => a.id === "hermes-agent")).toBe(true);
+    expect(result.needsSetup.some((a) => a.id === "hermes-agent")).toBe(false);
   });
 
   it("detects codex via detectBinary when directory does not exist", async () => {
@@ -1827,6 +1964,55 @@ describe("scanAgents", () => {
     }
   });
 
+  it("detects Hermes Agent from default config directory when binary is missing", async () => {
+    const originalHermesHome = process.env.HERMES_HOME;
+    delete process.env.HERMES_HOME;
+    try {
+      const { fs, execService } = createScanMocks({
+        detectedDirs: ["/home/test/.hermes"],
+      });
+      const result = await scanAgents(agentDefinitions, fs, execService);
+      expect(result.notDetected.some((a) => a.id === "hermes-agent")).toBe(
+        false,
+      );
+      expect(result.needsSetup.some((a) => a.id === "hermes-agent")).toBe(true);
+    } finally {
+      if (originalHermesHome !== undefined) {
+        process.env.HERMES_HOME = originalHermesHome;
+      }
+    }
+  });
+
+  it("categorizes Hermes Agent as alreadyConfigured when YAML config has GitHits", async () => {
+    const originalHermesHome = process.env.HERMES_HOME;
+    delete process.env.HERMES_HOME;
+    try {
+      const { fs, execService } = createScanMocks({
+        detectedDirs: ["/home/test/.hermes"],
+        configFiles: {
+          "/home/test/.hermes/config.yaml": [
+            "mcp_servers:",
+            "  GitHits:",
+            '    command: "npx"',
+            '    args: ["-y", "githits@latest", "mcp", "start"]',
+            "",
+          ].join("\n"),
+        },
+      });
+      const result = await scanAgents(agentDefinitions, fs, execService);
+      expect(
+        result.alreadyConfigured.some((a) => a.id === "hermes-agent"),
+      ).toBe(true);
+      expect(result.needsSetup.some((a) => a.id === "hermes-agent")).toBe(
+        false,
+      );
+    } finally {
+      if (originalHermesHome !== undefined) {
+        process.env.HERMES_HOME = originalHermesHome;
+      }
+    }
+  });
+
   it("categorizes undetected agent as notDetected", async () => {
     const { fs, execService } = createScanMocks({ detectedDirs: [] });
     const result = await scanAgents(agentDefinitions, fs, execService);
@@ -1913,6 +2099,7 @@ describe("scanAgents", () => {
       "/home/test/.codeium/windsurf",
       "/home/test/.cline",
       "/home/test/.gemini/antigravity",
+      "/home/test/.hermes",
     ];
     // Platform-dependent detect dirs
     const vscodePath = `${appDataPrefix}/Code`;
@@ -2000,6 +2187,13 @@ describe("scanAgents", () => {
           },
         },
       }),
+      "/home/test/.hermes/config.yaml": [
+        "mcp_servers:",
+        "  GitHits:",
+        '    command: "npx"',
+        '    args: ["-y", "githits@latest", "mcp", "start"]',
+        "",
+      ].join("\n"),
       "/home/test/.pi/agent/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
@@ -2061,6 +2255,11 @@ describe("scanAgents", () => {
         stdout: "/usr/bin/opencode\n",
         stderr: "",
       },
+      [`${whichCmd} hermes-agent`]: {
+        exitCode: 0,
+        stdout: "/usr/bin/hermes-agent\n",
+        stderr: "",
+      },
     };
 
     describe(`comprehensive all-agents scenarios (${platform})`, () => {
@@ -2087,7 +2286,7 @@ describe("scanAgents", () => {
           execResults: allCliConfigured,
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
-        expect(result.alreadyConfigured).toHaveLength(11);
+        expect(result.alreadyConfigured).toHaveLength(12);
         expect(result.needsSetup).toHaveLength(0);
         expect(result.notDetected).toHaveLength(0);
       });
@@ -2110,6 +2309,7 @@ describe("scanAgents", () => {
           [`${opencodePath}/opencode.json`]: JSON.stringify({
             mcp: {},
           }),
+          "/home/test/.hermes/config.yaml": "mcp_servers: {}\n",
         };
         const { fs, execService } = createScanMocks({
           detectedDirs: allDetectDirs,
@@ -2140,11 +2340,16 @@ describe("scanAgents", () => {
               stdout: "/usr/bin/opencode\n",
               stderr: "",
             },
+            [`${whichCmd} hermes-agent`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/hermes-agent\n",
+              stderr: "",
+            },
           },
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
-        expect(result.needsSetup).toHaveLength(11);
+        expect(result.needsSetup).toHaveLength(12);
         expect(result.notDetected).toHaveLength(0);
       });
 
@@ -2153,10 +2358,10 @@ describe("scanAgents", () => {
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
         expect(result.needsSetup).toHaveLength(0);
-        expect(result.notDetected).toHaveLength(11);
+        expect(result.notDetected).toHaveLength(12);
       });
 
-      it("mixed: 3 configured, 4 unconfigured, 3 not detected", async () => {
+      it("mixed: 3 configured, 4 unconfigured, 5 not detected", async () => {
         const { fs, execService } = createScanMocks({
           detectedDirs: [
             // Configured: cursor, claude-desktop, claude-code
@@ -2166,7 +2371,7 @@ describe("scanAgents", () => {
             "/home/test/.codeium/windsurf",
             vscodePath,
             // CLI tools are detected via binary checks below
-            // Not detected: cline, pi, gemini-cli, google-antigravity
+            // Not detected: cline, pi, gemini-cli, google-antigravity, hermes-agent
           ],
           configFiles: {
             "/home/test/.cursor/mcp.json": JSON.stringify({
@@ -2215,7 +2420,7 @@ describe("scanAgents", () => {
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(3);
         expect(result.needsSetup).toHaveLength(4);
-        expect(result.notDetected).toHaveLength(4);
+        expect(result.notDetected).toHaveLength(5);
 
         expect(result.alreadyConfigured.map((a) => a.id).sort()).toEqual(
           ["claude-code", "claude-desktop", "cursor"].sort(),
@@ -2224,7 +2429,13 @@ describe("scanAgents", () => {
           ["codex-cli", "opencode", "vscode", "windsurf"].sort(),
         );
         expect(result.notDetected.map((a) => a.id).sort()).toEqual(
-          ["cline", "gemini-cli", "google-antigravity", "pi"].sort(),
+          [
+            "cline",
+            "gemini-cli",
+            "google-antigravity",
+            "hermes-agent",
+            "pi",
+          ].sort(),
         );
       });
 

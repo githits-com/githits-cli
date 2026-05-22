@@ -49,6 +49,8 @@ export interface CompositeUninstallStep {
   failureMode: "required" | "best-effort";
 }
 
+export type ConfigFileFormat = "json" | "yaml";
+
 /**
  * Setup configuration for agents that need config file editing.
  */
@@ -56,6 +58,8 @@ export interface ConfigFileSetup {
   method: "config-file";
   /** Absolute path to the config file */
   configPath: string;
+  /** Config file format. Omitted means JSON/JSONC for backward compatibility. */
+  format?: ConfigFileFormat;
   /** Key in the config where MCP servers live (e.g., "mcpServers") */
   serversKey: string;
   /** Server name to add */
@@ -209,6 +213,18 @@ function getPiAgentDir(fs: FileSystemService): string {
 
 function getPiMcpConfigPath(fs: FileSystemService): string {
   return fs.joinPath(getPiAgentDir(fs), "mcp.json");
+}
+
+function getHermesHomeDir(fs: FileSystemService): string {
+  const configuredDir = process.env.HERMES_HOME?.trim();
+  if (configuredDir) {
+    return expandHomePath(fs, configuredDir);
+  }
+  return fs.joinPath(fs.getHomeDir(), ".hermes");
+}
+
+function getHermesConfigPath(fs: FileSystemService): string {
+  return fs.joinPath(getHermesHomeDir(fs), "config.yaml");
 }
 
 function getOpenCodeDesktopDetectPaths(fs: FileSystemService): string[] {
@@ -693,6 +709,29 @@ const openCode: AgentDefinition = {
   }),
 };
 
+/** Hermes Agent: detected by hermes-agent executable or ~/.hermes, configured via YAML MCP config */
+const hermesAgent: AgentDefinition = {
+  name: "Hermes Agent",
+  id: "hermes-agent",
+  detectionMethod: "hybrid",
+  setupMethod: "config-file",
+  detectPaths: (fs) => [getHermesHomeDir(fs)],
+  // Probe hermes-agent specifically to avoid false positives from other
+  // toolchains that ship a generic `hermes` binary (e.g., Facebook Hermes).
+  detectBinary: async (exec) => isExecutableAvailable(exec, "hermes-agent"),
+  getSetupConfig: (fs) => ({
+    method: "config-file",
+    format: "yaml",
+    configPath: getHermesConfigPath(fs),
+    serversKey: "mcp_servers",
+    serverName: GITHITS_SERVER_NAME,
+    serverConfig: {
+      command: GITHITS_MCP_COMMAND,
+      args: [...GITHITS_MCP_ARGS],
+    },
+  }),
+};
+
 /**
  * All supported agent definitions, ordered by popularity/likelihood.
  * New agents should be added here.
@@ -710,6 +749,7 @@ export const agentDefinitions: AgentDefinition[] = [
   geminiCli,
   googleAntigravity,
   openCode,
+  hermesAgent,
 ];
 
 /**

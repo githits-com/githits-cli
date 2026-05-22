@@ -3,6 +3,15 @@ import {
   parse as parseJsonc,
   printParseErrorCode,
 } from "jsonc-parser";
+import {
+  type Document,
+  isMap,
+  isScalar,
+  parseDocument,
+  parse as parseYaml,
+  stringify as stringifyYaml,
+  type YAMLMap,
+} from "yaml";
 import type { ExecService } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
 import type {
@@ -11,6 +20,7 @@ import type {
   CliUninstall,
   CompositeSetup,
   CompositeUninstall,
+  ConfigFileFormat,
   ConfigFileSetup,
   SetupConfig,
   UninstallConfig,
@@ -69,11 +79,47 @@ type ParsedConfigResult =
       error: string;
     };
 
-function parseConfigObject(content: string): ParsedConfigResult {
-  let normalizedContent = content;
-  if (normalizedContent.charCodeAt(0) === 0xfeff) {
-    normalizedContent = normalizedContent.slice(1);
+type ParsedConfigObjectResult =
+  | {
+      value: Record<string, unknown>;
+    }
+  | {
+      error: string;
+    };
+
+type ParsedYamlDocumentResult =
+  | {
+      status: "ok";
+      doc: Document.Parsed;
+      root: YAMLMap<unknown, unknown>;
+    }
+  | {
+      status: "error";
+      error: string;
+    };
+
+type ParsedYamlServersMapResult =
+  | {
+      status: "ok";
+      serversMap: YAMLMap<unknown, unknown>;
+    }
+  | {
+      status: "not_configured";
+    }
+  | {
+      status: "error";
+      error: string;
+    };
+
+function normalizeConfigContent(content: string): string {
+  if (content.charCodeAt(0) === 0xfeff) {
+    return content.slice(1);
   }
+  return content;
+}
+
+function parseConfigObject(content: string): ParsedConfigResult {
+  const normalizedContent = normalizeConfigContent(content);
 
   const trimmed = normalizedContent.trim();
   if (trimmed === "") {
@@ -128,6 +174,293 @@ function parseConfigObject(content: string): ParsedConfigResult {
       value: parsed,
     };
   }
+}
+
+function parseYamlConfigObject(content: string): ParsedConfigObjectResult {
+  const normalizedContent = normalizeConfigContent(content);
+  if (normalizedContent.trim() === "") {
+    return { value: {} };
+  }
+
+  try {
+    const parsed = parseYaml(normalizedContent);
+    if (parsed === null || parsed === undefined) {
+      return { value: {} };
+    }
+    if (!isPlainObject(parsed)) {
+      return { error: "Config file root is not a YAML object" };
+    }
+    return { value: parsed as Record<string, unknown> };
+  } catch (err) {
+    return {
+      error: `Invalid YAML: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+function formatYamlError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function parseYamlConfigDocument(content: string): ParsedYamlDocumentResult {
+  const normalizedContent = normalizeConfigContent(content);
+  const source = normalizedContent.trim() === "" ? "{}\n" : normalizedContent;
+
+  let doc: Document.Parsed;
+  try {
+    doc = parseDocument(source);
+  } catch (err) {
+    return {
+      status: "error",
+      error: `Invalid YAML: ${formatYamlError(err)}`,
+    };
+  }
+
+  if (doc.errors.length > 0) {
+    const firstError = doc.errors[0];
+    return {
+      status: "error",
+      error: `Invalid YAML: ${formatYamlError(firstError)}`,
+    };
+  }
+
+  const contents = doc.contents;
+  if (!contents || !isMap(contents)) {
+    return {
+      status: "error",
+      error: "Config file root is not a YAML object",
+    };
+  }
+
+  return {
+    status: "ok",
+    doc,
+    root: contents,
+  };
+}
+
+function toYamlConfigShapeError(serversKey: string): string {
+  return `"${serversKey}" is not a YAML object`;
+}
+
+function toYamlKeyString(key: unknown): string | null {
+  if (typeof key === "string") {
+    return key;
+  }
+  if (!isScalar(key) || typeof key.value !== "string") {
+    return null;
+  }
+  return key.value;
+}
+
+function getYamlMatchingServerKeys(
+  serversMap: YAMLMap<unknown, unknown>,
+  serverName: string,
+): string[] {
+  const normalizedTarget = serverName.toLowerCase();
+  return serversMap.items
+    .map((pair) => toYamlKeyString(pair.key))
+    .filter(
+      (key): key is string =>
+        typeof key === "string" && key.toLowerCase() === normalizedTarget,
+    );
+}
+
+function yamlNodeToJsValue(value: unknown): unknown {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toJSON" in value &&
+    typeof value.toJSON === "function"
+  ) {
+    return value.toJSON();
+  }
+  return value;
+}
+
+function createEmptyYamlMapNode(): YAMLMap<unknown, unknown> {
+  const map = parseDocument("{}\n").contents;
+  if (!map || !isMap(map)) {
+    throw new Error("Failed to initialize YAML object node");
+  }
+  return map;
+}
+
+function ensureYamlServersMapForSetup(
+  root: YAMLMap<unknown, unknown>,
+  serversKey: string,
+): ParsedYamlServersMapResult {
+  const existingServers = root.get(serversKey, true);
+  if (
+    existingServers === undefined ||
+    existingServers === null ||
+    (isScalar(existingServers) && existingServers.value === null)
+  ) {
+    root.set(serversKey, createEmptyYamlMapNode());
+    const initializedServers = root.get(serversKey, true);
+    if (!initializedServers || !isMap(initializedServers)) {
+      return {
+        status: "error",
+        error: toYamlConfigShapeError(serversKey),
+      };
+    }
+    return {
+      status: "ok",
+      serversMap: initializedServers,
+    };
+  }
+
+  if (!isMap(existingServers)) {
+    return {
+      status: "error",
+      error: toYamlConfigShapeError(serversKey),
+    };
+  }
+
+  return {
+    status: "ok",
+    serversMap: existingServers,
+  };
+}
+
+function getYamlServersMapForUninstall(
+  root: YAMLMap<unknown, unknown>,
+  serversKey: string,
+): ParsedYamlServersMapResult {
+  const existingServers = root.get(serversKey, true);
+  if (
+    existingServers === undefined ||
+    existingServers === null ||
+    (isScalar(existingServers) && existingServers.value === null)
+  ) {
+    return { status: "not_configured" };
+  }
+  if (!isMap(existingServers)) {
+    return {
+      status: "error",
+      error: toYamlConfigShapeError(serversKey),
+    };
+  }
+  return {
+    status: "ok",
+    serversMap: existingServers,
+  };
+}
+
+function renderYamlDocument(doc: Document.Parsed): string {
+  const rendered = doc.toString();
+  return rendered.endsWith("\n") ? rendered : `${rendered}\n`;
+}
+
+function mergeYamlServerConfig(
+  existingContent: string,
+  serversKey: string,
+  serverName: string,
+  serverConfig: Record<string, unknown>,
+): MergeResult {
+  const parsed = parseYamlConfigDocument(existingContent);
+  if (parsed.status === "error") {
+    return { status: "parse_error", error: parsed.error };
+  }
+
+  const serversResult = ensureYamlServersMapForSetup(parsed.root, serversKey);
+  if (serversResult.status !== "ok") {
+    return {
+      status: "parse_error",
+      error:
+        serversResult.status === "error"
+          ? serversResult.error
+          : toYamlConfigShapeError(serversKey),
+    };
+  }
+
+  const { serversMap } = serversResult;
+  const matchingKeys = getYamlMatchingServerKeys(serversMap, serverName);
+  if (matchingKeys.length === 1 && matchingKeys[0] === serverName) {
+    const existingValue = yamlNodeToJsValue(serversMap.get(serverName, true));
+    if (isEquivalentConfiguredValue(existingValue, serverConfig)) {
+      return { status: "already_configured" };
+    }
+  }
+
+  for (const key of matchingKeys) {
+    serversMap.delete(key);
+  }
+  const hadExisting = matchingKeys.length > 0;
+  serversMap.set(serverName, serverConfig);
+
+  return {
+    status: hadExisting ? "updated" : "added",
+    content: renderYamlDocument(parsed.doc),
+  };
+}
+
+function removeYamlServerConfig(
+  existingContent: string,
+  serversKey: string,
+  serverName: string,
+): RemoveResult {
+  const parsed = parseYamlConfigDocument(existingContent);
+  if (parsed.status === "error") {
+    return { status: "parse_error", error: parsed.error };
+  }
+
+  const serversResult = getYamlServersMapForUninstall(parsed.root, serversKey);
+  if (serversResult.status === "not_configured") {
+    return { status: "not_configured" };
+  }
+  if (serversResult.status === "error") {
+    return {
+      status: "parse_error",
+      error: serversResult.error,
+    };
+  }
+
+  const matchingKeys = getYamlMatchingServerKeys(
+    serversResult.serversMap,
+    serverName,
+  );
+  if (matchingKeys.length === 0) {
+    return { status: "not_configured" };
+  }
+
+  for (const key of matchingKeys) {
+    serversResult.serversMap.delete(key);
+  }
+
+  return {
+    status: "removed",
+    content: renderYamlDocument(parsed.doc),
+  };
+}
+
+function parseConfigObjectForFormat(
+  content: string,
+  format: ConfigFileFormat = "json",
+): ParsedConfigObjectResult {
+  if (format === "yaml") {
+    return parseYamlConfigObject(content);
+  }
+
+  const parsed = parseConfigObject(content);
+  if (parsed.format === "invalid") {
+    return { error: parsed.error };
+  }
+  return { value: parsed.value };
+}
+
+function renderConfigObjectForFormat(
+  config: Record<string, unknown>,
+  format: ConfigFileFormat = "json",
+): string {
+  if (format === "yaml") {
+    const rendered = stringifyYaml(config);
+    return rendered.endsWith("\n") ? rendered : `${rendered}\n`;
+  }
+  return `${JSON.stringify(config, null, 2)}\n`;
 }
 
 /**
@@ -334,9 +667,19 @@ export function mergeServerConfig(
   serversKey: string,
   serverName: string,
   serverConfig: Record<string, unknown>,
+  format: ConfigFileFormat = "json",
 ): MergeResult {
-  const parsedConfig = parseConfigObject(existingContent);
-  if (parsedConfig.format === "invalid") {
+  if (format === "yaml") {
+    return mergeYamlServerConfig(
+      existingContent,
+      serversKey,
+      serverName,
+      serverConfig,
+    );
+  }
+
+  const parsedConfig = parseConfigObjectForFormat(existingContent, format);
+  if ("error" in parsedConfig) {
     return {
       status: "parse_error",
       error: parsedConfig.error,
@@ -382,7 +725,7 @@ export function mergeServerConfig(
 
   return {
     status: hadExisting ? "updated" : "added",
-    content: `${JSON.stringify(config, null, 2)}\n`,
+    content: renderConfigObjectForFormat(config, format),
   };
 }
 
@@ -394,9 +737,14 @@ export function removeServerConfig(
   existingContent: string,
   serversKey: string,
   serverName: string,
+  format: ConfigFileFormat = "json",
 ): RemoveResult {
-  const parsedConfig = parseConfigObject(existingContent);
-  if (parsedConfig.format === "invalid") {
+  if (format === "yaml") {
+    return removeYamlServerConfig(existingContent, serversKey, serverName);
+  }
+
+  const parsedConfig = parseConfigObjectForFormat(existingContent, format);
+  if ("error" in parsedConfig) {
     return {
       status: "parse_error",
       error: parsedConfig.error,
@@ -431,7 +779,7 @@ export function removeServerConfig(
 
   return {
     status: "removed",
-    content: `${JSON.stringify(config, null, 2)}\n`,
+    content: renderConfigObjectForFormat(config, format),
   };
 }
 
@@ -443,9 +791,10 @@ export function hasServerConfigEntry(
   existingContent: string,
   serversKey: string,
   serverName: string,
+  format: ConfigFileFormat = "json",
 ): boolean {
-  const parsedConfig = parseConfigObject(existingContent);
-  if (parsedConfig.format === "invalid") {
+  const parsedConfig = parseConfigObjectForFormat(existingContent, format);
+  if ("error" in parsedConfig) {
     return false;
   }
 
@@ -482,7 +831,14 @@ export function formatSetupPreview(config: SetupConfig): string {
     null,
     2,
   );
-  return `Will add to ${config.configPath}:\n\n${snippet}`;
+  const formattedSnippet =
+    config.format === "yaml"
+      ? renderConfigObjectForFormat(
+          { [config.serverName]: config.serverConfig },
+          "yaml",
+        ).trimEnd()
+      : snippet;
+  return `Will add to ${config.configPath}:\n\n${formattedSnippet}`;
 }
 
 /** Format an uninstall config for display to the user before confirmation. */
@@ -510,8 +866,8 @@ export async function isAlreadyConfigured(
 ): Promise<boolean> {
   try {
     const content = await fs.readFile(config.configPath);
-    const parsedConfig = parseConfigObject(content);
-    if (parsedConfig.format === "invalid") {
+    const parsedConfig = parseConfigObjectForFormat(content, config.format);
+    if ("error" in parsedConfig) {
       return false;
     }
     const parsed = parsedConfig.value;
@@ -563,8 +919,8 @@ export async function getConfigUninstallCheckStatus(
 ): Promise<ConfigUninstallCheckResult> {
   try {
     const content = await fs.readFile(config.configPath);
-    const parsedConfig = parseConfigObject(content);
-    if (parsedConfig.format === "invalid") {
+    const parsedConfig = parseConfigObjectForFormat(content, config.format);
+    if ("error" in parsedConfig) {
       return {
         status: "failed",
         message: `Cannot parse ${config.configPath}: ${parsedConfig.error}. File left unchanged.`,
@@ -572,7 +928,7 @@ export async function getConfigUninstallCheckStatus(
     }
 
     const servers = parsedConfig.value[config.serversKey];
-    if (servers === undefined) {
+    if (servers === undefined || servers === null) {
       return { status: "not_configured" };
     }
     if (
@@ -582,7 +938,7 @@ export async function getConfigUninstallCheckStatus(
     ) {
       return {
         status: "failed",
-        message: `Cannot parse ${config.configPath}: "${config.serversKey}" is not a JSON object. File left unchanged.`,
+        message: `Cannot parse ${config.configPath}: "${config.serversKey}" is not a ${config.format === "yaml" ? "YAML" : "JSON"} object. File left unchanged.`,
       };
     }
 
@@ -972,6 +1328,7 @@ export async function executeConfigFileSetup(
       setup.serversKey,
       setup.serverName,
       setup.serverConfig,
+      setup.format,
     );
 
     if (result.status === "already_configured") {
@@ -1069,6 +1426,7 @@ export async function executeConfigFileUninstall(
       existingContent,
       setup.serversKey,
       setup.serverName,
+      setup.format,
     );
 
     if (result.status === "not_configured") {

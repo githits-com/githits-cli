@@ -12,7 +12,7 @@ npx githits init
 
 `init` walks you through setup: choose the local MCP server or Agent Skills, detect your coding tools, sign in, and connect everything to GitHits.
 
-Supported tools: Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI, Google Antigravity, and OpenCode.
+Supported tools: Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI, Google Antigravity, OpenCode, and Hermes Agent.
 
 If you are using a tool that is not listed above, use the manual MCP setup instructions near the end of this README.
 
