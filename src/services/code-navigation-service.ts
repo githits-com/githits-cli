@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { debugLog, isDebugAreaEnabled } from "../shared/debug-log.js";
+import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
 import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
@@ -1689,10 +1690,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw new CodeNavigationNetworkError(
-          "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
+        throw this.createTransportError(cause);
       }
       throw cause;
     }
@@ -1740,10 +1738,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw new CodeNavigationNetworkError(
-          "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
+        throw this.createTransportError(cause);
       }
       throw cause;
     }
@@ -1824,6 +1819,21 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     return new CodeNavigationBackendError(
       detail ?? `Request failed with status ${status}`,
       status,
+    );
+  }
+
+  private createTransportError(error: PkgseerTransportError): Error {
+    if (isFetchTimeoutError(error.cause)) {
+      return new CodeNavigationBackendError(
+        "Code navigation request timed out.",
+        undefined,
+        "TIMEOUT",
+        true,
+      );
+    }
+    return new CodeNavigationNetworkError(
+      "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
+      { cause: error },
     );
   }
 
@@ -2224,10 +2234,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw new CodeNavigationNetworkError(
-          "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
+        throw this.createTransportError(cause);
       }
       throw cause;
     }
@@ -2318,10 +2325,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw new CodeNavigationNetworkError(
-          "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
+        throw this.createTransportError(cause);
       }
       throw cause;
     }
@@ -2415,10 +2419,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw new CodeNavigationNetworkError(
-          "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
+        throw this.createTransportError(cause);
       }
       throw cause;
     }

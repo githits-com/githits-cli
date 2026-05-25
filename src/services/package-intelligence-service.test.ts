@@ -7,6 +7,7 @@ import {
   mock,
   spyOn,
 } from "bun:test";
+import { FetchTimeoutError } from "../shared/fetch-timeout.js";
 import { AuthenticationError } from "./githits-service.js";
 import {
   MalformedPackageIntelligenceResponseError,
@@ -588,6 +589,26 @@ describe("PackageIntelligenceServiceImpl", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(PackageIntelligenceNetworkError);
       expect((error as PackageIntelligenceNetworkError).cause).toBeDefined();
+    }
+  });
+
+  it("classifies client-side timeouts as PackageIntelligenceBackendError TIMEOUT", async () => {
+    const fetchFn = mock(() => Promise.reject(new FetchTimeoutError(1)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    try {
+      await service.packageSummary({ registry: "NPM", packageName: "x" });
+      throw new Error("expected timeout error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PackageIntelligenceBackendError);
+      expect((error as PackageIntelligenceBackendError).graphqlCode).toBe(
+        "TIMEOUT",
+      );
+      expect((error as PackageIntelligenceBackendError).retryable).toBe(true);
     }
   });
 });

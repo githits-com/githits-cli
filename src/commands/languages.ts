@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
 import type { GitHitsService } from "../services/githits-service.js";
+import { AuthenticationError } from "../services/githits-service.js";
 import { colorize, dim, shouldUseColors } from "../shared/colors.js";
 import {
   filterLanguages,
@@ -64,11 +65,23 @@ export async function languagesAction(
       }
     }
   } catch (error) {
+    if (options.json && error instanceof AuthenticationError) {
+      console.error(JSON.stringify(toAuthRequiredPayload(error.message)));
+      process.exit(1);
+    }
     console.error(
       `Failed to list languages: ${error instanceof Error ? error.message : error}`,
     );
     process.exit(1);
   }
+}
+
+function toAuthRequiredPayload(message: string): {
+  error: string;
+  code: "AUTH_REQUIRED";
+  retryable: false;
+} {
+  return { error: message, code: "AUTH_REQUIRED", retryable: false };
 }
 
 const LANGUAGES_DESCRIPTION = `List supported programming languages.

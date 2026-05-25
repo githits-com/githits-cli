@@ -1,6 +1,7 @@
 import { type Command, Option } from "commander";
 import { createContainer } from "../container.js";
 import type { GitHitsService } from "../services/githits-service.js";
+import { AuthenticationError } from "../services/githits-service.js";
 import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
@@ -67,11 +68,23 @@ export async function feedbackAction(
       console.log(result.message);
     }
   } catch (error) {
+    if (options.json && error instanceof AuthenticationError) {
+      console.error(JSON.stringify(toAuthRequiredPayload(error.message)));
+      process.exit(1);
+    }
     console.error(
       `Failed to submit feedback: ${error instanceof Error ? error.message : error}`,
     );
     process.exit(1);
   }
+}
+
+function toAuthRequiredPayload(message: string): {
+  error: string;
+  code: "AUTH_REQUIRED";
+  retryable: false;
+} {
+  return { error: message, code: "AUTH_REQUIRED", retryable: false };
 }
 
 const FEEDBACK_DESCRIPTION = `Submit feedback on a tool result or the GitHits experience.

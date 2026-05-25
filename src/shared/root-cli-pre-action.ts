@@ -50,10 +50,29 @@ export function createRootCliPreAction(
     }
 
     const failureMessage = authResult.message ?? "Authentication failed.";
+    if (shouldRenderJsonAuthFailure(command)) {
+      console.error(
+        JSON.stringify({
+          error: failureMessage,
+          code: "AUTH_REQUIRED",
+          retryable: false,
+        }),
+      );
+      (deps.exit ?? process.exit)(1);
+      return;
+    }
+
     console.error(`${failureMessage}\n`);
     printAutoLoginRecoveryHint(failureMessage);
     (deps.exit ?? process.exit)(1);
   };
+}
+
+function shouldRenderJsonAuthFailure(command: Command): boolean {
+  const metadata = getAuthenticatedCommandMetadata(
+    getCommandPath(command).join(" "),
+  );
+  return metadata?.jsonCapable === true && command.opts().json === true;
 }
 
 function getPostLoginContinuationMessage(command: Command): string | undefined {

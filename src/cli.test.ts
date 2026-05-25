@@ -429,6 +429,46 @@ describe("root CLI preAction", () => {
     logSpy.mockRestore();
     errorSpy.mockRestore();
   });
+
+  it("emits JSON when interactive --json auto-login fails", async () => {
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const createContainer = mock(() => Promise.resolve(createLoginDeps()));
+    const loginFlow = mock(() =>
+      Promise.resolve({
+        status: "failed" as const,
+        message: "Authentication timed out.",
+      }),
+    );
+    const exit = mock(() => {
+      throw new Error("process.exit");
+    });
+    const program = createProgramWithRootPreAction({
+      createContainer,
+      loginFlow,
+      exit,
+    });
+
+    program
+      .command("example")
+      .option("--json", "Output JSON")
+      .action(() => {});
+
+    await expect(
+      program.parseAsync(["node", "githits", "example", "--json"]),
+    ).rejects.toThrow("process.exit");
+
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toEqual({
+      error: "Authentication timed out.",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+    });
+    expect(exit).toHaveBeenCalledWith(1);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
 });
 
 describe("CLI help surface", () => {
