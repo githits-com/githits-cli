@@ -13,6 +13,7 @@ import {
 import type { PackageIntelligenceService } from "../services/index.js";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { createPackageUpgradeReviewTool } from "./package-upgrade-review.js";
+import { isProcessExitSentinel } from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<PkgUpgradeReviewCommandDependencies> = {},
@@ -39,8 +40,8 @@ async function cliJson(
   try {
     try {
       await pkgUpgradeReviewAction(spec, { ...options, json: true }, deps);
-    } catch {
-      /* CLI error paths call process.exit — caught. */
+    } catch (error) {
+      if (!isProcessExitSentinel(error)) throw error;
     }
     const fromLog = logSpy.mock.calls[0]?.[0] as string | undefined;
     const fromErr = errSpy.mock.calls[0]?.[0] as string | undefined;

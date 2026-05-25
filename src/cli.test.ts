@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { Command } from "commander";
 import {
   registerCodeCommandGroup,
+  registerDocsCommandGroup,
   registerExampleCommand,
   registerFeedbackCommand,
   registerLanguagesCommand,
@@ -114,6 +115,7 @@ async function createProgramForHelpSurface(options: {
   registerFeedbackCommand(program);
   await registerUnifiedSearchCommands(program, options);
   await registerCodeCommandGroup(program, options);
+  await registerDocsCommandGroup(program, options);
   await registerPkgCommandGroup(program, options);
 
   return program;
@@ -442,6 +444,7 @@ describe("CLI help surface", () => {
     expect(help).toMatch(/^\s{2}feedback\b/m);
     expect(help).not.toMatch(/^\s{2}search\b/m);
     expect(help).not.toMatch(/^\s{2}code\b/m);
+    expect(help).not.toMatch(/^\s{2}docs\b/m);
     expect(help).not.toMatch(/^\s{2}pkg\b/m);
   });
 
@@ -454,6 +457,7 @@ describe("CLI help surface", () => {
 
     expect(help).toMatch(/^\s{2}search\b/m);
     expect(help).toMatch(/^\s{2}code\b/m);
+    expect(help).toMatch(/^\s{2}docs\b/m);
     expect(help).toMatch(/^\s{2}pkg\b/m);
   });
 });

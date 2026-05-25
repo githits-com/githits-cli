@@ -20,6 +20,7 @@ import {
   defaultListFilesResult,
 } from "../services/test-helpers.js";
 import { createListFilesTool } from "./list-files.js";
+import { isProcessExitSentinel } from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<PkgFilesCommandDependencies> = {},
@@ -52,8 +53,8 @@ async function cliJson(
       const first = hasRepoUrl ? pathPrefix : spec;
       const second = hasRepoUrl ? undefined : pathPrefix;
       await pkgFilesAction(first, second, { ...options, json: true }, deps);
-    } catch {
-      /* error paths call process.exit — caught */
+    } catch (error) {
+      if (!isProcessExitSentinel(error)) throw error;
     }
     const raw =
       (logSpy.mock.calls[0]?.[0] as string | undefined) ??

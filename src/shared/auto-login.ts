@@ -4,23 +4,8 @@ import type {
   LoginOptions,
 } from "../commands/login.js";
 import type { AuthSessionMetadata } from "../services/auth-session-metadata-storage.js";
+import { getAuthenticatedCommandMetadata } from "./command-metadata.js";
 
-const AUTO_LOGIN_ELIGIBLE_COMMANDS = new Set([
-  "example",
-  "languages",
-  "feedback",
-  "search",
-  "search-status",
-  "code files",
-  "code read",
-  "code grep",
-  "docs list",
-  "docs read",
-  "pkg info",
-  "pkg vulns",
-  "pkg deps",
-  "pkg changelog",
-]);
 const AUTH_METADATA_TRUST_WINDOW_MS = 10 * 60 * 1000;
 
 export interface CommandLike {
@@ -76,7 +61,8 @@ export function isAutoLoginEligibleCommand(
   },
 ): boolean {
   const commandPath = getCommandPath(command).join(" ");
-  if (!AUTO_LOGIN_ELIGIBLE_COMMANDS.has(commandPath)) {
+  const metadata = getAuthenticatedCommandMetadata(commandPath);
+  if (!metadata?.autoLoginEligible) {
     return false;
   }
 
