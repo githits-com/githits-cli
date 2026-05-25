@@ -21,6 +21,7 @@ import {
 } from "../services/code-navigation-service.js";
 import { AuthenticationError } from "../services/githits-service.js";
 import { debugLog } from "./debug-log.js";
+import { AuthRequiredError } from "./require-auth.js";
 
 export type MappedErrorCode =
   | "NOT_FOUND"
@@ -182,12 +183,18 @@ function classify(error: unknown): MappedError {
       retryable: false,
     };
   }
-  if (error instanceof AuthenticationError) {
+  if (
+    error instanceof AuthenticationError ||
+    error instanceof AuthRequiredError
+  ) {
     return {
       code: "AUTH_REQUIRED",
       message: error.message,
       retryable: false,
-      details: { action: "Run `githits login`, then retry this tool call." },
+      details:
+        error instanceof AuthenticationError
+          ? { action: "Run `githits login`, then retry this tool call." }
+          : undefined,
     };
   }
   if (error instanceof CodeNavigationNetworkError) {

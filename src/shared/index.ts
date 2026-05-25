@@ -1,3 +1,4 @@
+export { parseIntCliOption } from "./cli-options.js";
 export {
   type CodeNavigationRegistryArg,
   type FileIntentArg,
@@ -198,7 +199,12 @@ export {
   type LeanPackageDocEnvelope,
 } from "./read-package-doc-response.js";
 export { renderReadPackageDocText } from "./read-package-doc-text.js";
-export { AuthRequiredError, requireAuth } from "./require-auth.js";
+export {
+  AuthRequiredError,
+  buildAuthRequiredErrorPayload,
+  formatAuthRequiredForTerminal,
+  requireAuth,
+} from "./require-auth.js";
 export {
   createRootCliPreAction,
   type RootCliPreActionDependencies,

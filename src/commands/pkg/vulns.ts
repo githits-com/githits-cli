@@ -42,7 +42,12 @@ export async function pkgVulnsAction(
   options: PkgVulnsCommandOptions,
   deps: PkgVulnsCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) handlePkgVulnsCommandError(error, true);
+    throw error;
+  }
 
   try {
     if (!deps.codeNavigationUrl || !deps.packageIntelligenceService) {

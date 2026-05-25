@@ -74,7 +74,13 @@ export async function pkgFilesAction(
   options: PkgFilesCommandOptions,
   deps: PkgFilesCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json)
+      handleCodeNavCommandError(error, true, formatIndexingError);
+    throw error;
+  }
 
   try {
     if (!deps.codeNavigationUrl || !deps.codeNavigationService) {

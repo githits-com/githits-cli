@@ -49,7 +49,12 @@ export async function pkgDepsAction(
   options: PkgDepsCommandOptions,
   deps: PkgDepsCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) handlePkgDepsCommandError(error, true);
+    throw error;
+  }
 
   try {
     if (!deps.codeNavigationUrl || !deps.packageIntelligenceService) {

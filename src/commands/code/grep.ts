@@ -62,7 +62,14 @@ export async function pkgGrepAction(
   options: PkgGrepCommandOptions,
   deps: PkgGrepCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) {
+      handleCodeNavCommandError(error, true, formatFileErrorWithFilesHint, 2);
+    }
+    throw error;
+  }
 
   try {
     if (!deps.codeNavigationUrl || !deps.codeNavigationService) {

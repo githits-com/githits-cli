@@ -6,7 +6,11 @@ import {
   filterLanguages,
   type LanguageMatch,
 } from "../shared/language-filter.js";
-import { AuthRequiredError, requireAuth } from "../shared/require-auth.js";
+import {
+  AuthRequiredError,
+  buildAuthRequiredErrorPayload,
+  requireAuth,
+} from "../shared/require-auth.js";
 
 export interface LanguagesOptions {
   json?: boolean;
@@ -26,7 +30,15 @@ export async function languagesAction(
   options: LanguagesOptions,
   deps: LanguagesDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json && error instanceof AuthRequiredError) {
+      console.error(JSON.stringify(buildAuthRequiredErrorPayload(error)));
+      process.exit(1);
+    }
+    throw error;
+  }
 
   try {
     const allLanguages = await deps.githitsService.getLanguages();
@@ -81,12 +93,7 @@ export function registerLanguagesCommand(program: Command) {
     .argument("[query]", "Filter by name, display name, or alias")
     .option("--json", "Output as JSON for piping")
     .action(async (query: string | undefined, options: LanguagesOptions) => {
-      try {
-        const deps = await createContainer();
-        await languagesAction(query, options, deps);
-      } catch (error) {
-        if (error instanceof AuthRequiredError) process.exit(1);
-        throw error;
-      }
+      const deps = await createContainer();
+      await languagesAction(query, options, deps);
     });
 }

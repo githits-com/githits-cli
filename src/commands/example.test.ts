@@ -98,8 +98,7 @@ describe("exampleAction", () => {
 
     const output = errorSpy.mock.calls[0]?.[0] as string;
     expect(JSON.parse(output)).toEqual({
-      error:
-        "Authentication required. Run `githits login`, then retry this command.",
+      error: "Authentication required.",
       code: "AUTH_REQUIRED",
       retryable: false,
     });

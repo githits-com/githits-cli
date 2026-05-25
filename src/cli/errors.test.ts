@@ -11,19 +11,28 @@ describe("handleCliError", () => {
     }) as (code: number) => never;
 
     expect(() =>
-      handleCliError(new AuthRequiredError("Authentication required"), {
-        stderr: {
-          write: (chunk: string | Uint8Array) => {
-            stderrWrites.push(String(chunk));
-            return true;
+      handleCliError(
+        new AuthRequiredError(
+          "Authentication required.",
+          "https://mcp.githits.com",
+        ),
+        {
+          stderr: {
+            write: (chunk: string | Uint8Array) => {
+              stderrWrites.push(String(chunk));
+              return true;
+            },
           },
+          exit,
         },
-        exit,
-      }),
+      ),
     ).toThrow("process.exit:1");
 
-    expect(stderrWrites.join("")).not.toContain("AuthRequiredError");
-    expect(stderrWrites.join("")).not.toContain("at ");
+    const output = stderrWrites.join("");
+    expect(output).toContain("Authentication required.");
+    expect(output).toContain("githits login");
+    expect(output).not.toContain("AuthRequiredError");
+    expect(output).not.toContain("at ");
   });
 
   it("prints lock timeout errors without an uncaught stack trace", () => {
