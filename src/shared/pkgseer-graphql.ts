@@ -39,7 +39,7 @@ export interface PkgseerGraphqlRequest {
   variables: Record<string, unknown>;
   /** Fetch implementation — defaults to `globalThis.fetch`. Injected for tests. */
   fetchFn?: typeof fetch;
-  /** Per-request timeout in milliseconds. Defaults to 30s. */
+  /** Per-request timeout in milliseconds. Defaults to 120s. */
   timeoutMs?: number;
   /** Override `User-Agent`. Defaults to `githits-cli/<version>`. */
   userAgent?: string;

@@ -1,4 +1,4 @@
-export const DEFAULT_FETCH_TIMEOUT_MS = 30_000;
+export const DEFAULT_FETCH_TIMEOUT_MS = 120_000;
 
 export class FetchTimeoutError extends Error {
   readonly timeoutMs: number;
