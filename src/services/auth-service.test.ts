@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 import { createServer } from "node:http";
+import { FetchTimeoutError } from "../shared/fetch-timeout.js";
 import { AuthServiceImpl, evaluateCallback } from "./auth-service.js";
+
+function asFetchFn<T extends (...args: never[]) => unknown>(
+  fn: T,
+): typeof fetch {
+  return fn as unknown as typeof fetch;
+}
 
 describe("AuthServiceImpl", () => {
   const service = new AuthServiceImpl();
@@ -57,6 +64,15 @@ describe("AuthServiceImpl", () => {
         service.discoverEndpoints("http://127.0.0.1:1"),
       ).rejects.toThrow();
     });
+
+    it("times out stalled discovery requests", async () => {
+      const fetchFn = mock(() => new Promise<Response>(() => {}));
+      const timeoutService = new AuthServiceImpl(asFetchFn(fetchFn), 1);
+
+      await expect(
+        timeoutService.discoverEndpoints("https://mcp.example.com"),
+      ).rejects.toThrow(FetchTimeoutError);
+    });
   });
 
   describe("startCallbackServer", () => {
@@ -111,6 +127,20 @@ describe("AuthServiceImpl", () => {
         refreshToken: undefined,
         expiresIn: 60,
       });
+    });
+
+    it("times out stalled token refresh requests", async () => {
+      const fetchFn = mock(() => new Promise<Response>(() => {}));
+      const timeoutService = new AuthServiceImpl(asFetchFn(fetchFn), 1);
+
+      await expect(
+        timeoutService.refreshAccessToken({
+          tokenEndpoint: "https://auth.example.com/oauth/token",
+          clientId: "client-id",
+          clientSecret: "client-secret",
+          refreshToken: "refresh-token",
+        }),
+      ).rejects.toThrow(FetchTimeoutError);
     });
   });
 

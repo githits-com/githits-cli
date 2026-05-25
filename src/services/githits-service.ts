@@ -1,4 +1,8 @@
 import { version } from "../../package.json";
+import {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  fetchWithTimeout,
+} from "../shared/fetch-timeout.js";
 import { buildClientHeaders } from "../shared/request-headers.js";
 import { withTelemetrySpan } from "../shared/telemetry.js";
 
@@ -94,20 +98,26 @@ export class GitHitsServiceImpl implements GitHitsService {
   constructor(
     private readonly apiUrl: string,
     private readonly token: string,
+    private readonly fetchFn?: typeof fetch,
+    private readonly fetchTimeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS,
   ) {}
 
   async search(params: SearchParams): Promise<string> {
     return withTelemetrySpan("githits.search.request", async () => {
-      const response = await fetch(`${this.apiUrl}/search`, {
-        method: "POST",
-        headers: this.headers(),
-        body: JSON.stringify({
-          query: params.query,
-          language: params.language,
-          license_mode: params.licenseMode ?? "strict",
-          include_explanation: params.includeExplanation ?? false,
-        }),
-      });
+      const response = await fetchWithTimeout(
+        `${this.apiUrl}/search`,
+        {
+          method: "POST",
+          headers: this.headers(),
+          body: JSON.stringify({
+            query: params.query,
+            language: params.language,
+            license_mode: params.licenseMode ?? "strict",
+            include_explanation: params.includeExplanation ?? false,
+          }),
+        },
+        this.fetchOptions(),
+      );
 
       if (!response.ok) {
         throw await this.createError(response);
@@ -119,9 +129,13 @@ export class GitHitsServiceImpl implements GitHitsService {
 
   async getLanguages(): Promise<Language[]> {
     return withTelemetrySpan("githits.languages.request", async () => {
-      const response = await fetch(`${this.apiUrl}/languages`, {
-        headers: this.headers(),
-      });
+      const response = await fetchWithTimeout(
+        `${this.apiUrl}/languages`,
+        {
+          headers: this.headers(),
+        },
+        this.fetchOptions(),
+      );
 
       if (!response.ok) {
         throw await this.createError(response);
@@ -136,23 +150,27 @@ export class GitHitsServiceImpl implements GitHitsService {
       // For generic feedback, omit body targets entirely. The backend
       // then uses the valid x-githits-session-id header emitted by
       // buildClientHeaders() as the feedback target.
-      const response = await fetch(`${this.apiUrl}/feedbacks`, {
-        method: "POST",
-        headers: this.headers(),
-        body: JSON.stringify({
-          ...(params.exampleId !== undefined && {
-            example_id: params.exampleId,
+      const response = await fetchWithTimeout(
+        `${this.apiUrl}/feedbacks`,
+        {
+          method: "POST",
+          headers: this.headers(),
+          body: JSON.stringify({
+            ...(params.exampleId !== undefined && {
+              example_id: params.exampleId,
+            }),
+            ...(params.solutionId !== undefined && {
+              solution_id: params.solutionId,
+            }),
+            accepted: params.accepted,
+            feedback_text: params.feedbackText ?? null,
+            ...(params.toolName !== undefined && {
+              tool_name: params.toolName,
+            }),
           }),
-          ...(params.solutionId !== undefined && {
-            solution_id: params.solutionId,
-          }),
-          accepted: params.accepted,
-          feedback_text: params.feedbackText ?? null,
-          ...(params.toolName !== undefined && {
-            tool_name: params.toolName,
-          }),
-        }),
-      });
+        },
+        this.fetchOptions(),
+      );
 
       if (!response.ok) {
         throw await this.createError(response);
@@ -168,6 +186,16 @@ export class GitHitsServiceImpl implements GitHitsService {
       Authorization: `Bearer ${this.token}`,
       "Content-Type": "application/json",
       "User-Agent": `githits-cli/${version}`,
+    };
+  }
+
+  private fetchOptions(): {
+    fetchFn?: typeof fetch;
+    timeoutMs: number;
+  } {
+    return {
+      fetchFn: this.fetchFn,
+      timeoutMs: this.fetchTimeoutMs,
     };
   }
 

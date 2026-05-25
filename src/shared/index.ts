@@ -42,6 +42,12 @@ export { debugLog } from "./debug-log.js";
 export { lowerDocSourceKind } from "./docs-follow-up.js";
 export { extractSolutionId } from "./extract-solution-id.js";
 export {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  FetchTimeoutError,
+  fetchWithTimeout,
+  isFetchTimeoutError,
+} from "./fetch-timeout.js";
+export {
   buildCodeReadCommand,
   buildDocsReadCommand,
   buildSearchHitFollowUpCommand,
