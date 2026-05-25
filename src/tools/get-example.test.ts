@@ -3,6 +3,19 @@ import { createMockGitHitsService } from "../services/test-helpers.js";
 import { createGetExampleTool } from "./get-example.js";
 
 describe("getExampleTool", () => {
+  it("tells agents to report source repository provenance", () => {
+    const tool = createGetExampleTool(createMockGitHitsService());
+
+    expect(tool.description).toContain("source repository provenance");
+    expect(tool.description).toContain("source repositories/citations");
+    expect(tool.description).toContain(
+      "GitHits' generated references/provenance section",
+    );
+    expect(tool.schema.format.description).toContain(
+      "source repository provenance",
+    );
+  });
+
   it("returns markdown result from service", async () => {
     const service = createMockGitHitsService();
     const tool = createGetExampleTool(service);

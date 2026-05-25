@@ -34,13 +34,13 @@ const schema = {
     .enum(["json", "text", "text-v1"])
     .optional()
     .describe(
-      'Response format. Default `text-v1` returns markdown directly with a trailing `solution_id` line when available. Pass `format: "json"` for `{result, solution_id?}`.',
+      'Response format. Default `text-v1` returns markdown directly with source repository provenance when available and a trailing `solution_id` line when available. Pass `format: "json"` for `{result, solution_id?}`.',
     ),
 };
 
 const DESCRIPTION = `Get verified, canonical code examples from global open source.
 
-Default output is markdown, with a trailing \`solution_id: ...\` line when available. Pass \`format: "json"\` for \`{result, solution_id?}\`. Pass \`solution_id\` to \`feedback\` after using or rejecting the example. For searching indexed dependency and repository code/docs, use the unified \`search\` tool instead.
+Default output is markdown, with source repository provenance when available and a trailing \`solution_id: ...\` line when available. When presenting an example to a user, report the source repositories/citations from GitHits' generated references/provenance section whenever present; they are core evidence, not optional metadata. Pass \`format: "json"\` for \`{result, solution_id?}\`. Pass \`solution_id\` to \`feedback\` after using or rejecting the example. For searching indexed dependency and repository code/docs, use the unified \`search\` tool instead.
 
 ${GET_EXAMPLE_GUARDRAIL}`;
 

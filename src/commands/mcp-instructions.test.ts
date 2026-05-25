@@ -88,6 +88,7 @@ describe("buildMcpInstructions", () => {
     const instructions = buildMcpInstructions(deps);
 
     expect(instructions).toContain("External-content posture");
+    expect(instructions).toContain("tool-owned reference/provenance sections");
   });
 
   it("omits the external-content posture when explicitly opted out", () => {
@@ -179,6 +180,17 @@ describe("buildMcpInstructions", () => {
     expect(coreSection).toContain("`search`");
     expect(coreSection).toContain("`feedback`");
     expect(coreSection).toContain("`search_language`");
+  });
+
+  it("tells agents to report get_example source repositories", () => {
+    const deps = createTestDeps();
+    const instructions = buildMcpInstructions(deps);
+
+    expect(instructions).toContain("source repository provenance");
+    expect(instructions).toContain("source repositories/citations");
+    expect(instructions).toContain(
+      "GitHits' generated references/provenance section",
+    );
   });
 
   it("orders package-section bullets by agent decision flow", () => {
