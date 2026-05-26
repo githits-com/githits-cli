@@ -42,7 +42,7 @@ export {
   logoutAction,
   registerLogoutCommand,
 } from "./logout.js";
-export { createMcpServer, registerMcpCommand } from "./mcp.js";
+export { registerMcpCommand } from "./mcp.js";
 export { registerPkgCommandGroup } from "./pkg/index.js";
 export {
   registerSearchCommand,

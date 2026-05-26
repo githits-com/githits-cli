@@ -5,7 +5,7 @@ shared block and per-tool addenda that defend agent flows against
 indirect prompt injection delivered via tool results. It was
 empirically validated by the eval harness in `eval/` against
 Codex gpt-5.4-mini on the `pkg_changelog` surface, and ships in
-`src/tools/guardrails.ts` + `src/commands/mcp-instructions.ts` +
+`src/tools/guardrails.ts` + `src/mcp/instructions.ts` +
 each tool's `DESCRIPTION` constant.
 
 ## Threat model (summary)
@@ -92,7 +92,7 @@ additional consideration.
     `CODE_GREP_GUARDRAIL`, `SEARCH_GUARDRAIL`, `GET_EXAMPLE_GUARDRAIL`
     — currently empty strings, reserved for restoration if a tool
     surface regresses.
-- Shared-block wiring: `src/commands/mcp-instructions.ts` — inserted
+- Shared-block wiring: `src/mcp/instructions.ts` — inserted
   between `CORE_BLOCK` and `PACKAGE_TOOLS_PREAMBLE`.
 - Per-tool wiring: each tool file imports its guardrail constant
   and appends it to `DESCRIPTION` with `\n\n` separator. Empty
