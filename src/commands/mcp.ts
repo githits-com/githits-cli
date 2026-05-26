@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Command } from "commander";
 import { version } from "../../package.json";
-import { createContainer, type Dependencies } from "../container.js";
+import { createContainer } from "../container.js";
 import { dim, highlight, shouldUseColors } from "../shared/colors.js";
 import {
   setClientMode,
@@ -27,47 +27,52 @@ import {
   type ToolDefinition,
   type ZodRawShape,
 } from "../tools/index.js";
+import type { McpToolServices } from "../tools/tool-services.js";
 import { buildMcpInstructions } from "./mcp-instructions.js";
 
 /**
  * Returns the MCP tools enabled for the current startup state.
  */
 export function getMcpToolDefinitions(
-  deps: Dependencies,
+  services: McpToolServices,
 ): ToolDefinition<unknown>[] {
   const tools: ToolDefinition<unknown>[] = [
-    eraseTool(createGetExampleTool(deps.githitsService)),
-    eraseTool(createSearchLanguageTool(deps.githitsService)),
-    eraseTool(createFeedbackTool(deps.githitsService)),
+    eraseTool(createGetExampleTool(services.githitsService)),
+    eraseTool(createSearchLanguageTool(services.githitsService)),
+    eraseTool(createFeedbackTool(services.githitsService)),
   ];
 
-  tools.push(eraseTool(createSearchTool(deps.codeNavigationService)));
-  tools.push(eraseTool(createSearchStatusTool(deps.codeNavigationService)));
-  tools.push(eraseTool(createListFilesTool(deps.codeNavigationService)));
-  tools.push(eraseTool(createReadFileTool(deps.codeNavigationService)));
-  tools.push(eraseTool(createGrepRepoTool(deps.codeNavigationService)));
+  tools.push(eraseTool(createSearchTool(services.codeNavigationService)));
+  tools.push(eraseTool(createSearchStatusTool(services.codeNavigationService)));
+  tools.push(eraseTool(createListFilesTool(services.codeNavigationService)));
+  tools.push(eraseTool(createReadFileTool(services.codeNavigationService)));
+  tools.push(eraseTool(createGrepRepoTool(services.codeNavigationService)));
   tools.push(
-    eraseTool(createListPackageDocsTool(deps.packageIntelligenceService)),
+    eraseTool(createListPackageDocsTool(services.packageIntelligenceService)),
   );
   tools.push(
-    eraseTool(createReadPackageDocTool(deps.packageIntelligenceService)),
+    eraseTool(createReadPackageDocTool(services.packageIntelligenceService)),
   );
   tools.push(
-    eraseTool(createPackageSummaryTool(deps.packageIntelligenceService)),
+    eraseTool(createPackageSummaryTool(services.packageIntelligenceService)),
   );
   tools.push(
     eraseTool(
-      createPackageVulnerabilitiesTool(deps.packageIntelligenceService),
+      createPackageVulnerabilitiesTool(services.packageIntelligenceService),
     ),
   );
   tools.push(
-    eraseTool(createPackageDependenciesTool(deps.packageIntelligenceService)),
+    eraseTool(
+      createPackageDependenciesTool(services.packageIntelligenceService),
+    ),
   );
   tools.push(
-    eraseTool(createPackageChangelogTool(deps.packageIntelligenceService)),
+    eraseTool(createPackageChangelogTool(services.packageIntelligenceService)),
   );
   tools.push(
-    eraseTool(createPackageUpgradeReviewTool(deps.packageIntelligenceService)),
+    eraseTool(
+      createPackageUpgradeReviewTool(services.packageIntelligenceService),
+    ),
   );
 
   return tools;
@@ -85,18 +90,18 @@ function eraseTool<TArgs, TSchema extends ZodRawShape>(
 /**
  * Creates the MCP server with injected dependencies.
  */
-export function createMcpServer(deps: Dependencies): McpServer {
+export function createMcpServer(services: McpToolServices): McpServer {
   const server = new McpServer(
     {
       name: "githits",
       version,
     },
     {
-      instructions: buildMcpInstructions(deps),
+      instructions: buildMcpInstructions(),
     },
   );
 
-  const tools = getMcpToolDefinitions(deps);
+  const tools = getMcpToolDefinitions(services);
 
   for (const tool of tools) {
     server.registerTool(
@@ -130,10 +135,10 @@ export function createMcpServer(deps: Dependencies): McpServer {
  *   pattern had where the first tool call could slip through
  *   before the notification dispatched.
  */
-export async function startMcpServer(deps: Dependencies): Promise<void> {
+export async function startMcpServer(services: McpToolServices): Promise<void> {
   setClientMode("mcp");
 
-  const server = createMcpServer(deps);
+  const server = createMcpServer(services);
   const transport = new StdioServerTransport();
 
   setMcpClientVersionProvider(() => {

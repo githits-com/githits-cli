@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import type { Dependencies } from "../container.js";
 import {
-  createMockAuthService,
-  createMockAuthStorage,
-  createMockBrowserService,
   createMockCodeNavigationService,
-  createMockFileSystemService,
   createMockGitHitsService,
   createMockPackageIntelligenceService,
 } from "../services/test-helpers.js";
@@ -13,24 +8,17 @@ import {
   buildClientHeaders,
   resetRequestHeadersState,
 } from "../shared/request-headers.js";
+import type { McpToolServices } from "../tools/tool-services.js";
 import {
   createMcpServer,
   getMcpToolDefinitions,
   startMcpServer,
 } from "./mcp.js";
 
-function createTestDeps(overrides: Partial<Dependencies> = {}): Dependencies {
+function createTestServices(
+  overrides: Partial<McpToolServices> = {},
+): McpToolServices {
   return {
-    authStorage: createMockAuthStorage(),
-    authService: createMockAuthService(),
-    browserService: createMockBrowserService(),
-    fileSystemService: createMockFileSystemService(),
-    mcpUrl: "https://mcp.githits.com",
-    apiUrl: "https://api.githits.com",
-    apiToken: "test-token",
-    hasValidToken: true,
-    envApiToken: undefined,
-    codeNavigationUrl: "https://pkgseer.dev",
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
     githitsService: createMockGitHitsService(),
@@ -38,10 +26,36 @@ function createTestDeps(overrides: Partial<Dependencies> = {}): Dependencies {
   };
 }
 
+const EXPECTED_TOOL_NAMES = [
+  "get_example",
+  "search_language",
+  "feedback",
+  "search",
+  "search_status",
+  "code_files",
+  "code_read",
+  "code_grep",
+  "docs_list",
+  "docs_read",
+  "pkg_info",
+  "pkg_vulns",
+  "pkg_deps",
+  "pkg_changelog",
+  "pkg_upgrade_review",
+] as const;
+
 describe("createMcpServer", () => {
+  it("constructs tools from service-only dependencies", () => {
+    const services = createTestServices();
+
+    const tools = getMcpToolDefinitions(services);
+
+    expect(tools.map((tool) => tool.name)).toEqual([...EXPECTED_TOOL_NAMES]);
+  });
+
   it("creates server with default tools registered", () => {
-    const deps = createTestDeps();
-    const server = createMcpServer(deps);
+    const services = createTestServices();
+    const server = createMcpServer(services);
 
     // McpServer should be created without error
     expect(server).toBeDefined();
@@ -52,16 +66,16 @@ describe("createMcpServer", () => {
     // in the instructions pipeline (composer import, SDK options
     // shape) surfaces here even though the SDK hides `instructions`
     // behind a private field.
-    const deps = createTestDeps();
-    const server = createMcpServer(deps);
+    const services = createTestServices();
+    const server = createMcpServer(services);
 
     expect(server).toBeDefined();
   });
 
   it("adds unified search tools by default", () => {
-    const deps = createTestDeps();
+    const services = createTestServices();
 
-    const tools = getMcpToolDefinitions(deps);
+    const tools = getMcpToolDefinitions(services);
     const names = tools.map((tool) => tool.name);
     for (const name of [
       "get_example",
@@ -78,18 +92,18 @@ describe("createMcpServer", () => {
   });
 
   it("adds package_summary by default", () => {
-    const deps = createTestDeps();
+    const services = createTestServices();
 
-    const tools = getMcpToolDefinitions(deps);
+    const tools = getMcpToolDefinitions(services);
     expect(tools.map((tool) => tool.name)).toContain("docs_list");
     expect(tools.map((tool) => tool.name)).toContain("docs_read");
     expect(tools.map((tool) => tool.name)).toContain("pkg_info");
   });
 
   it("advertises package_summary with unified search", () => {
-    const deps = createTestDeps();
+    const services = createTestServices();
 
-    const names = getMcpToolDefinitions(deps).map((t) => t.name);
+    const names = getMcpToolDefinitions(services).map((t) => t.name);
     if (names.includes("pkg_info")) {
       expect(names).toContain("search");
       expect(names).toContain("search_status");
@@ -97,32 +111,32 @@ describe("createMcpServer", () => {
   });
 
   it("adds package_vulnerabilities by default", () => {
-    const deps = createTestDeps();
+    const services = createTestServices();
 
-    const tools = getMcpToolDefinitions(deps);
+    const tools = getMcpToolDefinitions(services);
     expect(tools.map((tool) => tool.name)).toContain("pkg_vulns");
   });
 
   it("advertises package_summary and package_vulnerabilities together (shared predicate)", () => {
-    const deps = createTestDeps();
+    const services = createTestServices();
 
-    const names = getMcpToolDefinitions(deps).map((t) => t.name);
+    const names = getMcpToolDefinitions(services).map((t) => t.name);
     if (names.includes("pkg_info")) {
       expect(names).toContain("pkg_vulns");
     }
   });
 
   it("adds package_dependencies by default", () => {
-    const deps = createTestDeps();
+    const services = createTestServices();
 
-    const tools = getMcpToolDefinitions(deps);
+    const tools = getMcpToolDefinitions(services);
     expect(tools.map((tool) => tool.name)).toContain("pkg_deps");
   });
 
   it("advertises every package tool together (shared predicate covers deps too)", () => {
-    const deps = createTestDeps();
+    const services = createTestServices();
 
-    const names = getMcpToolDefinitions(deps).map((t) => t.name);
+    const names = getMcpToolDefinitions(services).map((t) => t.name);
     if (names.includes("pkg_info")) {
       expect(names).toContain("pkg_vulns");
       expect(names).toContain("pkg_deps");
@@ -139,19 +153,19 @@ describe("startMcpServer", () => {
     resetRequestHeadersState();
   });
 
-  it("starts successfully without a valid token", async () => {
-    const deps = createTestDeps({ hasValidToken: false });
+  it("starts successfully with service-only dependencies", async () => {
+    const services = createTestServices();
 
     // Server should start and connect transport without throwing.
     // Auth errors are deferred to individual tool calls.
-    await expect(startMcpServer(deps)).resolves.toBeUndefined();
+    await expect(startMcpServer(services)).resolves.toBeUndefined();
   });
 
   it("sets clientMode to githits-cli/mcp", async () => {
     // After startMcpServer runs, subsequent buildClientHeaders calls
     // tag the client as MCP-mode. Pins the telemetry contract.
-    const deps = createTestDeps({ hasValidToken: false });
-    await startMcpServer(deps);
+    const services = createTestServices();
+    await startMcpServer(services);
     const headers = buildClientHeaders({});
     expect(headers["x-githits-client-name"]).toBe("githits-cli/mcp");
   });
@@ -161,8 +175,8 @@ describe("startMcpServer", () => {
     // that can race the first tool call. The provider pattern reads
     // clientInfo synchronously on every buildClientHeaders call,
     // eliminating the race. This test pins the provider-based flow.
-    const deps = createTestDeps({ hasValidToken: false });
-    await startMcpServer(deps);
+    const services = createTestServices();
+    await startMcpServer(services);
 
     // Before the initialize handshake lands, the provider returns
     // undefined — `buildClientHeaders` falls back to env detection
