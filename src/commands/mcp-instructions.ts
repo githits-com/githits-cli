@@ -1,4 +1,3 @@
-import type { Dependencies } from "../container.js";
 import { EXTERNAL_CONTENT_POSTURE } from "../tools/guardrails.js";
 
 /**
@@ -95,7 +94,6 @@ export interface BuildMcpInstructionsOptions {
 }
 
 export function buildMcpInstructions(
-  _deps: Dependencies,
   options: BuildMcpInstructionsOptions = {},
 ): string {
   const includeExternalContentPosture =
