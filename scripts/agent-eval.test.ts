@@ -223,6 +223,25 @@ describe("agent eval harness", () => {
     expect(command).not.toContain("--sandbox");
   });
 
+  it("isolates Codex MCP evals from user config and global skills", () => {
+    const command = buildCodexCommand(
+      "prompt",
+      "/tmp/work",
+      "/tmp/final.txt",
+      "/tmp/schema.json",
+      {
+        server: "local",
+        surface: "mcp",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+    );
+
+    expect(command).toContain("--ignore-user-config");
+    expect(command).toContain("--ignore-rules");
+    expect(command).toContain('mcp_servers.githits.command="bun"');
+  });
+
   it("builds agent commands without GitHits MCP config in skills mode", () => {
     const claude = buildClaudeCommand(
       "prompt",

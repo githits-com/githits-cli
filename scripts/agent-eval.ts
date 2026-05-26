@@ -954,6 +954,7 @@ export function buildCodexCommand(
   if (options.surface !== "skills") {
     command.splice(2, 0, ...buildCodexConfigArgs(options));
     command.push("--ignore-rules");
+    command.push("--ignore-user-config");
   } else {
     command.push("--ignore-user-config");
   }

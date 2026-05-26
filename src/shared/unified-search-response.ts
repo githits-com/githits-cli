@@ -591,7 +591,7 @@ function buildFilterEcho(
  * Promote noteworthy `sourceStatus` entries into top-level human-readable
  * warning strings so callers see them without inspecting the nested
  * structured block. Mitigation for backend issue B5 (search responses
- * with `sources: ["docs"]` plus a `kind:`/`lang:` qualifier silently
+ * with internal `sources: ["DOCS"]` plus a `kind:`/`lang:` qualifier silently
  * return empty results because the only signal — incompatibility — is
  * buried inside `sourceStatus[].note`).
  *

@@ -55,6 +55,47 @@ describe("searchTool", () => {
     );
   });
 
+  it("passes single source selection through to code navigation service", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "routing",
+        target: { registry: "npm", package_name: "express" },
+        source: "docs",
+      },
+      {},
+    );
+
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({ sources: ["DOCS"] }),
+    );
+  });
+
+  it("ignores empty targets arrays when target is provided", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "routing",
+        target: { registry: "npm", package_name: "express" },
+        targets: [],
+      },
+      {},
+    );
+
+    const call = search.mock.calls[0]?.[0];
+    expect(call?.targets).toEqual([
+      { registry: "NPM", packageName: "express" },
+    ]);
+  });
+
   it("accepts compact package string targets", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),
