@@ -9,8 +9,9 @@
  *   packageName) or (b) `repoUrl`. Reject both-present, none-present,
  *   and malformed `<spec>`.
  * - Reject tag-style versions (`v4.18.0`) on `fromVersion` /
- *   `toVersion` — leading `v` is a git-tag convention, not a
- *   canonical version.
+ *   `toVersion` for most registries — leading `v` is a git-tag
+ *   convention, not a canonical version. Swift is the exception because
+ *   SwiftPM packages commonly publish `v`-prefixed release tags.
  * - Reject `<spec>@<version>`: the `pkg changelog` family does not
  *   give `@version` a meaning (unlike `pkg vulns` and `pkg deps`).
  *   Redirect callers to `--to` / `to_version`.
@@ -30,6 +31,7 @@ import {
 import {
   isKnownPkgseerRegistryArg,
   PKGSEER_REGISTRY_LIST,
+  type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
 } from "./pkgseer-registry.js";
@@ -87,8 +89,16 @@ export function buildPackageChangelogParams(
 
   const addressing = resolveAddressing(input);
   const gitRef = normaliseGitRef(input.gitRef);
-  const fromVersion = normaliseVersion(input.fromVersion, "from");
-  const toVersion = normaliseVersion(input.toVersion, "to");
+  const fromVersion = normaliseVersion(
+    input.fromVersion,
+    "from",
+    addressing.registry,
+  );
+  const toVersion = normaliseVersion(
+    input.toVersion,
+    "to",
+    addressing.registry,
+  );
   const limit = normaliseLimit(input.limit);
 
   if (fromVersion !== undefined && limit !== undefined) {
@@ -176,11 +186,12 @@ function normaliseGitRef(raw: string | undefined): string | undefined {
 function normaliseVersion(
   raw: string | undefined,
   field: "from" | "to",
+  registry: PkgseerRegistry | undefined,
 ): string | undefined {
   if (raw === undefined) return undefined;
   const trimmed = raw.trim();
   if (trimmed.length === 0) return undefined;
-  if (/^v[0-9]/i.test(trimmed)) {
+  if (registry !== "SWIFT" && /^v[0-9]/i.test(trimmed)) {
     const flag = field === "from" ? "--from" : "--to";
     throw new InvalidPackageSpecError(
       `Version '${trimmed}' looks like a git tag. Use the canonical version without a leading 'v' (e.g. ${flag} ${trimmed.slice(1)}).`,

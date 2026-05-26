@@ -21,7 +21,8 @@ export type PkgseerRegistry =
   | "VCPKG"
   | "PACKAGIST"
   | "RUBYGEMS"
-  | "GO";
+  | "GO"
+  | "SWIFT";
 
 export const PKGSEER_REGISTRY_ARGS = [
   "npm",
@@ -35,6 +36,7 @@ export const PKGSEER_REGISTRY_ARGS = [
   "packagist",
   "rubygems",
   "go",
+  "swift",
 ] as const;
 
 export type PkgseerRegistryArg = (typeof PKGSEER_REGISTRY_ARGS)[number];
@@ -51,6 +53,7 @@ const registryMap = {
   packagist: "PACKAGIST",
   rubygems: "RUBYGEMS",
   go: "GO",
+  swift: "SWIFT",
 } as const satisfies Record<PkgseerRegistryArg, PkgseerRegistry>;
 
 export const PKGSEER_REGISTRY_LIST = PKGSEER_REGISTRY_ARGS.join(", ");

@@ -880,6 +880,35 @@ describe("package upgrade review response", () => {
     expect(response.reviews[0]?.versionDelta).toBe("major");
   });
 
+  it("classifies v-prefixed Swift versions", async () => {
+    const request = buildPackageUpgradeReviewRequest({
+      registry: "swift",
+      packageName: "github.com/apple/swift-crypto",
+      currentVersion: "v3.10.0",
+      targetVersion: "v4.5.0",
+      includeTransitiveSecurity: false,
+    });
+    const service = serviceWith({
+      packageVulnerabilities: mock((params) =>
+        Promise.resolve(cleanVulnReport(params.version ?? "4.5.0", false)),
+      ) as never,
+      packageChangelog: mock(() =>
+        Promise.resolve({
+          source: "releases",
+          entries: [{ version: "4.5.0", body: "Release notes." }],
+        } satisfies ChangelogReport),
+      ),
+    });
+
+    const response = await buildPackageUpgradeReview(
+      service,
+      request.packages,
+      request.options,
+    );
+
+    expect(response.reviews[0]?.versionDelta).toBe("major");
+  });
+
   it("does not count the target root package being outdated as a transitive issue", async () => {
     const request = buildPackageUpgradeReviewRequest({
       registry: "npm",

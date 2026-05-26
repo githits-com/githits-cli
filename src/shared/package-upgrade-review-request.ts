@@ -152,8 +152,13 @@ function parsePackageInput(
   const currentVersion = normaliseVersion(
     input.currentVersion,
     "current_version",
+    registryArg,
   );
-  const targetVersion = normaliseVersion(input.targetVersion, "target_version");
+  const targetVersion = normaliseVersion(
+    input.targetVersion,
+    "target_version",
+    registryArg,
+  );
   return {
     registry: toPkgseerRegistry(registryArg as PkgseerRegistryArg),
     registryLabel: registryArg,
@@ -163,12 +168,16 @@ function parsePackageInput(
   };
 }
 
-function normaliseVersion(raw: string | undefined, fieldName: string): string {
+function normaliseVersion(
+  raw: string | undefined,
+  fieldName: string,
+  registryArg: string,
+): string {
   const version = raw?.trim() ?? "";
   if (version.length === 0) {
     throw new InvalidPackageSpecError(`${fieldName} is required.`);
   }
-  if (/^v[0-9]/i.test(version)) {
+  if (registryArg !== "swift" && /^v[0-9]/i.test(version)) {
     throw new InvalidPackageSpecError(
       `Invalid ${fieldName} '${version}'. Use the canonical package version without a leading 'v'.`,
     );

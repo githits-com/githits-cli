@@ -36,7 +36,8 @@
  *   the backend's typed `{type, value, raw}` marker list. No raw-JSON
  *   passthrough.
  * - **No v-prefix normalisation.** Tag-style inputs are rejected in
- *   the request builder before we get here.
+ *   the request builder before we get here, except for Swift where the
+ *   backend owns `v`-prefixed release tag normalization.
  * - **Terminal-only dedup.** JSON preserves every tuple the backend
  *   sent (including Crates target-cfg duplicates). Terminal
  *   rendering strips duplicates inside each group for scannability.

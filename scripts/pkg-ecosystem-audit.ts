@@ -58,7 +58,8 @@ type Registry =
   | "vcpkg"
   | "packagist"
   | "rubygems"
-  | "go";
+  | "go"
+  | "swift";
 
 type ToolName = "pkg_info" | "pkg_changelog" | "pkg_vulns" | "pkg_deps";
 
@@ -72,6 +73,7 @@ const VULN_SUPPORTED_REGISTRIES = new Set<Registry>([
   "packagist",
   "rubygems",
   "go",
+  "swift",
 ]);
 
 const DEPS_SUPPORTED_REGISTRIES = new Set<Registry>([
@@ -83,6 +85,7 @@ const DEPS_SUPPORTED_REGISTRIES = new Set<Registry>([
   "vcpkg",
   "rubygems",
   "go",
+  "swift",
 ]);
 
 const DEFAULT_FIXTURES: PackageFixture[] = [
@@ -119,6 +122,9 @@ const DEFAULT_FIXTURES: PackageFixture[] = [
   { registry: "go", name: "github.com/gin-gonic/gin" },
   { registry: "go", name: "github.com/spf13/cobra" },
   { registry: "go", name: "golang.org/x/text" },
+  { registry: "swift", name: "github.com/apple/swift-crypto" },
+  { registry: "swift", name: "github.com/apple/swift-nio" },
+  { registry: "swift", name: "github.com/vapor/vapor" },
 ];
 
 const args = parseArgs(process.argv.slice(2));
@@ -442,6 +448,7 @@ function isRegistry(value: string | undefined): value is Registry {
     "packagist",
     "rubygems",
     "go",
+    "swift",
   ].includes(value ?? "");
 }
 

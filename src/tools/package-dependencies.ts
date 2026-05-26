@@ -45,7 +45,7 @@ const schema = {
     .string()
     .optional()
     .describe(
-      "Specific version to inspect. Defaults to latest when omitted. Tag-style inputs with a leading `v` (for example `v4.18.0`) are rejected — pass the canonical version (`4.18.0`).",
+      "Specific version to inspect. Defaults to latest when omitted. Tag-style inputs with a leading `v` (for example `v4.18.0`) are rejected except for Swift — pass the canonical version (`4.18.0`) for other registries.",
     ),
   lifecycle: z
     .union([z.string(), z.array(z.string())])
@@ -93,7 +93,7 @@ const DESCRIPTION =
   "detection, and circular-dependency flags; layer " +
   "`include_importers: true` on top when you also need per-package " +
   "provenance. Supports npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, " +
-  "and Go.";
+  "Go, and Swift.";
 
 export function createPackageDependenciesTool(
   service: PackageIntelligenceService,
