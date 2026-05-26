@@ -30,6 +30,7 @@ import {
 } from "../services/index.js";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { createPackageSummaryTool } from "./package-summary.js";
+import { isProcessExitSentinel } from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<PkgInfoCommandDependencies> = {},
@@ -55,8 +56,8 @@ async function cliJson(
   try {
     try {
       await pkgInfoAction(spec, { json: true }, deps);
-    } catch {
-      // CLI error paths call process.exit — caught.
+    } catch (error) {
+      if (!isProcessExitSentinel(error)) throw error;
     }
     const fromLog = logSpy.mock.calls[0]?.[0] as string | undefined;
     const fromErr = errSpy.mock.calls[0]?.[0] as string | undefined;

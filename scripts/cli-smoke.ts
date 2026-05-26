@@ -392,14 +392,22 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
   try {
     const result = await runCliWithEnv(["languages", "python", "--json"], env);
     assert(result.exitCode !== 0, "unauthenticated languages should fail");
-    const output = `${result.stdout}\n${result.stderr}`;
     assert(
-      output.includes("Authentication required"),
-      "unauthenticated probe missing authentication guidance",
+      result.stdout.trim() === "",
+      "unauthenticated JSON probe should keep stdout clean",
     );
-    assert(
-      output.includes("githits login"),
-      "unauthenticated probe missing login guidance",
+    const payload = assertCleanErrorEnvelope(
+      result.stderr,
+      "unauthenticated languages",
+    );
+    assertDeepEqual(
+      payload,
+      {
+        error: "Authentication required.",
+        code: "AUTH_REQUIRED",
+        retryable: false,
+      },
+      "unauthenticated languages JSON envelope",
     );
   } finally {
     if (env.HOME) {

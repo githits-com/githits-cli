@@ -109,6 +109,7 @@ describe("isAutoLoginEligibleCommand", () => {
       ["pkg", "vulns"],
       ["pkg", "deps"],
       ["pkg", "changelog"],
+      ["pkg", "upgrade-review"],
     ]) {
       expect(
         isAutoLoginEligibleCommand(createCommand(path), {

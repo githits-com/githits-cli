@@ -1,4 +1,5 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
+import { AuthenticationError } from "../services/githits-service.js";
 import { createMockGitHitsService } from "../services/test-helpers.js";
 import { AuthRequiredError } from "../shared/require-auth.js";
 import { type LanguagesDependencies, languagesAction } from "./languages.js";
@@ -122,6 +123,33 @@ describe("languagesAction", () => {
     const output = errorSpy.mock.calls.map((c) => c[0]).join("\n");
     expect(output).toContain("Failed to list languages");
     expect(output).toContain("API error");
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("emits JSON auth envelope when service returns 401 in JSON mode", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({
+        getLanguages: mock(() =>
+          Promise.reject(new AuthenticationError("Authentication required.")),
+        ),
+      }),
+    });
+
+    await expect(
+      languagesAction(undefined, { json: true }, deps),
+    ).rejects.toThrow("process.exit");
+
+    expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toEqual({
+      error: "Authentication required.",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+    });
     expect(exitSpy).toHaveBeenCalledWith(1);
     errorSpy.mockRestore();
     exitSpy.mockRestore();

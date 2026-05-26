@@ -1,7 +1,12 @@
 import { type Command, Option } from "commander";
 import { createContainer } from "../container.js";
 import type { GitHitsService } from "../services/githits-service.js";
-import { AuthRequiredError, requireAuth } from "../shared/require-auth.js";
+import { AuthenticationError } from "../services/githits-service.js";
+import {
+  AuthRequiredError,
+  buildAuthRequiredErrorPayload,
+  requireAuth,
+} from "../shared/require-auth.js";
 
 export interface FeedbackOptions {
   accept?: boolean;
@@ -30,7 +35,15 @@ export async function feedbackAction(
   options: FeedbackOptions,
   deps: FeedbackDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json && error instanceof AuthRequiredError) {
+      console.error(JSON.stringify(buildAuthRequiredErrorPayload(error)));
+      process.exit(1);
+    }
+    throw error;
+  }
 
   if (!options.accept && !options.reject) {
     console.error("Error: Specify either --accept or --reject.");
@@ -55,11 +68,23 @@ export async function feedbackAction(
       console.log(result.message);
     }
   } catch (error) {
+    if (options.json && error instanceof AuthenticationError) {
+      console.error(JSON.stringify(toAuthRequiredPayload(error.message)));
+      process.exit(1);
+    }
     console.error(
       `Failed to submit feedback: ${error instanceof Error ? error.message : error}`,
     );
     process.exit(1);
   }
+}
+
+function toAuthRequiredPayload(message: string): {
+  error: string;
+  code: "AUTH_REQUIRED";
+  retryable: false;
+} {
+  return { error: message, code: "AUTH_REQUIRED", retryable: false };
 }
 
 const FEEDBACK_DESCRIPTION = `Submit feedback on a tool result or the GitHits experience.
@@ -101,13 +126,8 @@ export function registerFeedbackCommand(program: Command) {
     .option("--json", "Output as JSON for piping")
     .action(
       async (solutionId: string | undefined, options: FeedbackOptions) => {
-        try {
-          const deps = await createContainer();
-          await feedbackAction(solutionId, options, deps);
-        } catch (error) {
-          if (error instanceof AuthRequiredError) process.exit(1);
-          throw error;
-        }
+        const deps = await createContainer();
+        await feedbackAction(solutionId, options, deps);
       },
     );
 }

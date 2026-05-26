@@ -1,12 +1,17 @@
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
 import type { GitHitsService } from "../services/githits-service.js";
+import { AuthenticationError } from "../services/githits-service.js";
 import { colorize, dim, shouldUseColors } from "../shared/colors.js";
 import {
   filterLanguages,
   type LanguageMatch,
 } from "../shared/language-filter.js";
-import { AuthRequiredError, requireAuth } from "../shared/require-auth.js";
+import {
+  AuthRequiredError,
+  buildAuthRequiredErrorPayload,
+  requireAuth,
+} from "../shared/require-auth.js";
 
 export interface LanguagesOptions {
   json?: boolean;
@@ -26,7 +31,15 @@ export async function languagesAction(
   options: LanguagesOptions,
   deps: LanguagesDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json && error instanceof AuthRequiredError) {
+      console.error(JSON.stringify(buildAuthRequiredErrorPayload(error)));
+      process.exit(1);
+    }
+    throw error;
+  }
 
   try {
     const allLanguages = await deps.githitsService.getLanguages();
@@ -52,11 +65,23 @@ export async function languagesAction(
       }
     }
   } catch (error) {
+    if (options.json && error instanceof AuthenticationError) {
+      console.error(JSON.stringify(toAuthRequiredPayload(error.message)));
+      process.exit(1);
+    }
     console.error(
       `Failed to list languages: ${error instanceof Error ? error.message : error}`,
     );
     process.exit(1);
   }
+}
+
+function toAuthRequiredPayload(message: string): {
+  error: string;
+  code: "AUTH_REQUIRED";
+  retryable: false;
+} {
+  return { error: message, code: "AUTH_REQUIRED", retryable: false };
 }
 
 const LANGUAGES_DESCRIPTION = `List supported programming languages.
@@ -81,12 +106,7 @@ export function registerLanguagesCommand(program: Command) {
     .argument("[query]", "Filter by name, display name, or alias")
     .option("--json", "Output as JSON for piping")
     .action(async (query: string | undefined, options: LanguagesOptions) => {
-      try {
-        const deps = await createContainer();
-        await languagesAction(query, options, deps);
-      } catch (error) {
-        if (error instanceof AuthRequiredError) process.exit(1);
-        throw error;
-      }
+      const deps = await createContainer();
+      await languagesAction(query, options, deps);
     });
 }

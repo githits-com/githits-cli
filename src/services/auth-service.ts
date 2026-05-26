@@ -4,6 +4,10 @@ import {
   generateCodeVerifier,
   generateState,
 } from "../auth/pkce.js";
+import {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  fetchWithTimeout,
+} from "../shared/fetch-timeout.js";
 
 /**
  * OAuth Authorization Server metadata from .well-known endpoint.
@@ -152,9 +156,14 @@ export interface CallbackServerHandle {
  * Production implementation of AuthService using OAuth PKCE with DCR.
  */
 export class AuthServiceImpl implements AuthService {
+  constructor(
+    private readonly fetchFn?: typeof fetch,
+    private readonly fetchTimeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS,
+  ) {}
+
   async discoverEndpoints(mcpBaseUrl: string): Promise<OAuthMetadata> {
     const url = `${mcpBaseUrl}/.well-known/oauth-authorization-server`;
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url, {}, this.fetchOptions());
 
     if (!response.ok) {
       throw new Error(
@@ -181,17 +190,21 @@ export class AuthServiceImpl implements AuthService {
   async registerClient(
     params: RegisterClientParams,
   ): Promise<{ clientId: string; clientSecret: string }> {
-    const response = await fetch(params.registrationEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        client_name: "GitHits CLI",
-        redirect_uris: [params.redirectUri],
-        grant_types: ["authorization_code", "refresh_token"],
-        response_types: ["code"],
-        token_endpoint_auth_method: "client_secret_post",
-      }),
-    });
+    const response = await fetchWithTimeout(
+      params.registrationEndpoint,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_name: "GitHits CLI",
+          redirect_uris: [params.redirectUri],
+          grant_types: ["authorization_code", "refresh_token"],
+          response_types: ["code"],
+          token_endpoint_auth_method: "client_secret_post",
+        }),
+      },
+      this.fetchOptions(),
+    );
 
     if (!response.ok) {
       const error = await response.text();
@@ -325,11 +338,15 @@ export class AuthServiceImpl implements AuthService {
       redirect_uri: params.redirectUri,
     });
 
-    const response = await fetch(params.tokenEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
-    });
+    const response = await fetchWithTimeout(
+      params.tokenEndpoint,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      },
+      this.fetchOptions(),
+    );
 
     if (!response.ok) {
       const error = await response.text();
@@ -349,11 +366,15 @@ export class AuthServiceImpl implements AuthService {
       refresh_token: params.refreshToken,
     });
 
-    const response = await fetch(params.tokenEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
-    });
+    const response = await fetchWithTimeout(
+      params.tokenEndpoint,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      },
+      this.fetchOptions(),
+    );
 
     if (!response.ok) {
       const error = await response.text();
@@ -361,6 +382,16 @@ export class AuthServiceImpl implements AuthService {
     }
 
     return parseRefreshTokenResponse(await response.json());
+  }
+
+  private fetchOptions(): {
+    fetchFn?: typeof fetch;
+    timeoutMs: number;
+  } {
+    return {
+      fetchFn: this.fetchFn,
+      timeoutMs: this.fetchTimeoutMs,
+    };
   }
 }
 

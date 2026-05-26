@@ -5,6 +5,7 @@ import {
 } from "../commands/docs/read.js";
 import { PackageIntelligenceTargetNotFoundError } from "../services/index.js";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
+import { isProcessExitSentinel } from "./parity-test-helpers.js";
 import { createReadPackageDocTool } from "./read-package-doc.js";
 
 function cliDeps(
@@ -31,8 +32,8 @@ async function cliJson(
   try {
     try {
       await docsReadAction(pageId, { json: true }, deps);
-    } catch {
-      // expected on error paths
+    } catch (error) {
+      if (!isProcessExitSentinel(error)) throw error;
     }
     const raw =
       (logSpy.mock.calls[0]?.[0] as string | undefined) ??

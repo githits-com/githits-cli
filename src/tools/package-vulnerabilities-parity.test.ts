@@ -34,6 +34,7 @@ import {
   defaultVulnerabilityReport,
 } from "../services/test-helpers.js";
 import { createPackageVulnerabilitiesTool } from "./package-vulnerabilities.js";
+import { isProcessExitSentinel } from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<PkgVulnsCommandDependencies> = {},
@@ -60,8 +61,8 @@ async function cliJson(
   try {
     try {
       await pkgVulnsAction(spec, { ...options, json: true }, deps);
-    } catch {
-      // CLI error paths call process.exit — caught.
+    } catch (error) {
+      if (!isProcessExitSentinel(error)) throw error;
     }
     const fromLog = logSpy.mock.calls[0]?.[0] as string | undefined;
     const fromErr = errSpy.mock.calls[0]?.[0] as string | undefined;

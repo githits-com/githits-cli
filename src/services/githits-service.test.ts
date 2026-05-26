@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { FetchTimeoutError } from "../shared/fetch-timeout.js";
 import { AuthenticationError, GitHitsServiceImpl } from "./githits-service.js";
 
 // Helper to mock global fetch with proper typing
@@ -6,6 +7,12 @@ function mockFetch(impl: () => Promise<Response>) {
   const fn = mock(impl);
   globalThis.fetch = fn as unknown as typeof fetch;
   return fn;
+}
+
+function asFetchFn<T extends (...args: never[]) => unknown>(
+  fn: T,
+): typeof fetch {
+  return fn as unknown as typeof fetch;
 }
 
 describe("GitHitsServiceImpl", () => {
@@ -77,6 +84,20 @@ describe("GitHitsServiceImpl", () => {
       const call = fn.mock.calls[0] as unknown as [string, RequestInit];
       const body = JSON.parse(call[1].body as string);
       expect(body.license_mode).toBe("yolo");
+    });
+
+    it("times out stalled requests", async () => {
+      const fetchFn = mock(() => new Promise<Response>(() => {}));
+      const timeoutService = new GitHitsServiceImpl(
+        API_URL,
+        TOKEN,
+        asFetchFn(fetchFn),
+        1,
+      );
+
+      await expect(timeoutService.search({ query: "probe" })).rejects.toThrow(
+        FetchTimeoutError,
+      );
     });
 
     it("omits language from JSON when not provided", async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import { FetchTimeoutError } from "../shared/fetch-timeout.js";
 import type { TokenData } from "./auth-storage.js";
 import {
   createMockAuthService,
@@ -277,6 +278,29 @@ describe("TokenManager", () => {
       expect(result2).toBe(tokenData.accessToken);
     });
 
+    it("returns current token when proactive endpoint discovery times out", async () => {
+      const tokenData = createValidTokenData({
+        createdAt: new Date(Date.now() - 58 * 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + 2 * 60_000).toISOString(),
+      });
+      const authService = createMockAuthService({
+        discoverEndpoints: mock(() => Promise.reject(new FetchTimeoutError(1))),
+      });
+      const { manager, authStorage } = createTokenManager({
+        authService,
+        authStorage: createMockAuthStorage({
+          loadTokens: mock(() => Promise.resolve(tokenData)),
+          loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+        }),
+      });
+
+      const result = await manager.getToken();
+
+      expect(result).toBe(tokenData.accessToken);
+      expect(authService.discoverEndpoints).toHaveBeenCalledWith(MCP_URL);
+      expect(authStorage.clearTokensIfUnchanged).not.toHaveBeenCalled();
+    });
+
     it("returns undefined when expired token refresh fails", async () => {
       const tokenData = createValidTokenData({
         createdAt: new Date(Date.now() - 7200_000).toISOString(),
@@ -295,6 +319,32 @@ describe("TokenManager", () => {
       });
 
       const result = await manager.getToken();
+      expect(result).toBeUndefined();
+      expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
+        MCP_URL,
+        tokenData,
+      );
+    });
+
+    it("clears expired tokens when forced refresh times out", async () => {
+      const tokenData = createValidTokenData({
+        createdAt: new Date(Date.now() - 7200_000).toISOString(),
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      const { manager, authStorage } = createTokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() =>
+            Promise.reject(new FetchTimeoutError(1)),
+          ),
+        }),
+        authStorage: createMockAuthStorage({
+          loadTokens: mock(() => Promise.resolve(tokenData)),
+          loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+        }),
+      });
+
+      const result = await manager.forceRefresh();
+
       expect(result).toBeUndefined();
       expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
         MCP_URL,

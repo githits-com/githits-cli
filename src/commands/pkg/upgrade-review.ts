@@ -35,7 +35,13 @@ export async function pkgUpgradeReviewAction(
   options: PkgUpgradeReviewCommandOptions,
   deps: PkgUpgradeReviewCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) handlePkgUpgradeReviewCommandError(error, true);
+    throw error;
+  }
+
   try {
     if (!deps.codeNavigationUrl || !deps.packageIntelligenceService) {
       throw new InvalidPackageSpecError(
@@ -67,21 +73,28 @@ export async function pkgUpgradeReviewAction(
       }),
     );
   } catch (error) {
-    const mapped = mapPackageIntelligenceError(error);
-    if (options.json) {
-      console.error(
-        JSON.stringify({
-          error: mapped.message,
-          code: mapped.code,
-          retryable: mapped.retryable ?? false,
-          ...(mapped.details ? { details: mapped.details } : {}),
-        }),
-      );
-    } else {
-      console.error(formatMappedErrorForTerminal(mapped));
-    }
-    process.exit(1);
+    handlePkgUpgradeReviewCommandError(error, options.json ?? false);
   }
+}
+
+function handlePkgUpgradeReviewCommandError(
+  error: unknown,
+  json: boolean,
+): never {
+  const mapped = mapPackageIntelligenceError(error);
+  if (json) {
+    console.error(
+      JSON.stringify({
+        error: mapped.message,
+        code: mapped.code,
+        retryable: mapped.retryable ?? false,
+        ...(mapped.details ? { details: mapped.details } : {}),
+      }),
+    );
+  } else {
+    console.error(formatMappedErrorForTerminal(mapped));
+  }
+  process.exit(1);
 }
 
 function parseSingleSpec(

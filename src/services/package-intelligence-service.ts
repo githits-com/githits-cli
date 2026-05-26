@@ -18,6 +18,7 @@
 
 import { z } from "zod";
 import { debugLog, isDebugAreaEnabled } from "../shared/debug-log.js";
+import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
 import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
@@ -1766,10 +1767,7 @@ export class PackageIntelligenceServiceImpl
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw new PackageIntelligenceNetworkError(
-          "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
+        throw this.createTransportError(cause);
       }
       throw cause;
     }
@@ -1825,6 +1823,21 @@ export class PackageIntelligenceServiceImpl
     return new PackageIntelligenceBackendError(
       detail ?? `Request failed with status ${status}`,
       status,
+    );
+  }
+
+  private createTransportError(error: PkgseerTransportError): Error {
+    if (isFetchTimeoutError(error.cause)) {
+      return new PackageIntelligenceBackendError(
+        "Package intelligence request timed out.",
+        undefined,
+        "TIMEOUT",
+        true,
+      );
+    }
+    return new PackageIntelligenceNetworkError(
+      "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
+      { cause: error },
     );
   }
 
@@ -2101,10 +2114,7 @@ export class PackageIntelligenceServiceImpl
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw new PackageIntelligenceNetworkError(
-          "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
+        throw this.createTransportError(cause);
       }
       throw cause;
     }
@@ -2253,10 +2263,7 @@ export class PackageIntelligenceServiceImpl
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw new PackageIntelligenceNetworkError(
-          "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
+        throw this.createTransportError(cause);
       }
       throw cause;
     }
@@ -2316,10 +2323,7 @@ export class PackageIntelligenceServiceImpl
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw new PackageIntelligenceNetworkError(
-          "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
+        throw this.createTransportError(cause);
       }
       throw cause;
     }
@@ -2634,10 +2638,7 @@ export class PackageIntelligenceServiceImpl
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw new PackageIntelligenceNetworkError(
-          "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
+        throw this.createTransportError(cause);
       }
       throw cause;
     }
@@ -2753,10 +2754,7 @@ export class PackageIntelligenceServiceImpl
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw new PackageIntelligenceNetworkError(
-          "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
+        throw this.createTransportError(cause);
       }
       throw cause;
     }
@@ -2854,10 +2852,7 @@ export class PackageIntelligenceServiceImpl
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw new PackageIntelligenceNetworkError(
-          "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
-          { cause },
-        );
+        throw this.createTransportError(cause);
       }
       throw cause;
     }

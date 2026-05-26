@@ -52,7 +52,12 @@ export async function pkgChangelogAction(
   options: PkgChangelogCommandOptions,
   deps: PkgChangelogCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) handlePkgChangelogCommandError(error, true);
+    throw error;
+  }
 
   try {
     if (!deps.codeNavigationUrl || !deps.packageIntelligenceService) {

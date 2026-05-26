@@ -158,6 +158,35 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it.each([
+    [{ limit: "10abc" }, "--limit"],
+    [{ limit: "5.5" }, "--limit"],
+    [{ offset: "2.5" }, "--offset"],
+    [{ wait: "1szzz" }, "--wait"],
+  ] as const)("rejects partial numeric option %p", async (partial, flag) => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await expect(
+        searchAction(
+          "router middleware",
+          { in: ["npm:express"], json: true, ...partial },
+          createDeps(),
+        ),
+      ).rejects.toThrow("process.exit");
+
+      const payload = JSON.parse(String(errorSpy.mock.calls[0]?.[0]));
+      expect(payload.code).toBe("INVALID_ARGUMENT");
+      expect(payload.error).toContain(flag);
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
   it("does not send a file-intent filter unless the caller explicitly set one", async () => {
     const search = mock<
       (

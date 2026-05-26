@@ -34,6 +34,7 @@ The dual-surface tools today are:
 - `pkg_vulns` ↔ `githits pkg vulns`
 - `pkg_deps` ↔ `githits pkg deps`
 - `pkg_changelog` ↔ `githits pkg changelog`
+- `pkg_upgrade_review` ↔ `githits pkg upgrade-review`
 - `docs_list` ↔ `githits docs list`
 - `docs_read` ↔ `githits docs read`
 

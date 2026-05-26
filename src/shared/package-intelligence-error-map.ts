@@ -29,6 +29,7 @@ import type {
 } from "./code-navigation-error-map.js";
 import { buildUpdateRequiredError } from "./code-navigation-error-map.js";
 import { debugLog } from "./debug-log.js";
+import { AuthRequiredError } from "./require-auth.js";
 
 // Re-export for caller convenience — callers of
 // `mapPackageIntelligenceError` use the same envelope type as code-nav
@@ -106,12 +107,18 @@ function classify(error: unknown): MappedError {
       retryable: false,
     };
   }
-  if (error instanceof AuthenticationError) {
+  if (
+    error instanceof AuthenticationError ||
+    error instanceof AuthRequiredError
+  ) {
     return {
       code: "AUTH_REQUIRED",
       message: error.message,
       retryable: false,
-      details: { action: "Run `githits login`, then retry this tool call." },
+      details:
+        error instanceof AuthenticationError
+          ? { action: "Run `githits login`, then retry this tool call." }
+          : undefined,
     };
   }
   if (error instanceof PackageIntelligenceNetworkError) {
