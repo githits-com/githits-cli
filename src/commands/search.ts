@@ -31,7 +31,7 @@ import {
 
 export interface SearchCommandOptions {
   in?: string[];
-  source?: string[];
+  source?: string;
   kind?: string;
   category?: string;
   pathPrefix?: string;
@@ -200,12 +200,17 @@ export function registerSearchCommand(program: Command) {
     .addOption(
       new Option(
         "--source <source>",
-        "Source to search (repeatable; default: auto)",
+        "Restrict results to docs, code, or symbol; omit to let GitHits select the best sources",
       )
         .choices(["docs", "code", "symbol"])
-        .argParser((value, previous: string[] = []) =>
-          collectRepeatable(value.toLowerCase(), previous),
-        )
+        .argParser((value, previous: string | undefined) => {
+          if (previous !== undefined) {
+            throw new InvalidArgumentError(
+              "Pass --source at most once; omit it to let GitHits select the best sources.",
+            );
+          }
+          return value.toLowerCase();
+        })
         .default(undefined),
     )
     .addOption(
@@ -316,21 +321,19 @@ function warnIfUnprefixedTargetSpec(spec: string): void {
 }
 
 function parseSources(
-  values: string[] | undefined,
+  value: string | undefined,
 ): UnifiedSearchSource[] | undefined {
-  if (!values || values.length === 0) return undefined;
-  return values.map((value) => {
-    switch (value) {
-      case "docs":
-        return "DOCS";
-      case "code":
-        return "CODE";
-      case "symbol":
-        return "SYMBOL";
-      default:
-        throw new InvalidArgumentError(`Unsupported source '${value}'.`);
-    }
-  });
+  if (!value) return undefined;
+  switch (value) {
+    case "docs":
+      return ["DOCS"];
+    case "code":
+      return ["CODE"];
+    case "symbol":
+      return ["SYMBOL"];
+    default:
+      throw new InvalidArgumentError(`Unsupported source '${value}'.`);
+  }
 }
 
 function parseOptionalInt(

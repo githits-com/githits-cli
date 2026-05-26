@@ -31,7 +31,7 @@ const MULTI_TURN_TIP =
   '**Delegate multi-call work to a sub-agent.** Code-navigation work (`search`, `code_grep`, `code_read`, `code_files`) often takes 3-10 calls. For cross-project comparisons, codebase mapping, pattern surveys, or "how does X actually work" investigations, spawn a sub-task/sub-agent and ask for a compact synthesis. Do it inline only when the raw snippet belongs in the main conversation.';
 
 const SEARCH_BULLET =
-  '- `search` — unified search across indexed dependency code, docs, and symbols. Omit `sources` for AUTO. Use `sources:["code"]` for implementation/examples/tests text, `sources:["symbol"]` for precise API/entity lookup, and `sources:["docs"]` for guides/reference/changelogs. Default output is compact `text-v1` with ready-to-call follow-up arguments; pass `format: "json"` for structured locators, highlights, and source status. Complete by default; opt into partial hits with `allow_partial_results: true`. Incomplete responses carry a `searchRef`.';
+  '- `search` — unified search across indexed dependency code, docs, and symbols. Required: `query` plus `target` or `targets`; pass one target field, not both. Omit `source` to let GitHits select the best sources. To restrict results to one evidence type, use `source:"docs"` for guides/reference, `"code"` for implementation/examples/tests, or `"symbol"` for APIs/entities. Default `text-v1` output includes ready-to-call follow-ups; use `format:"json"` for structured locators. Complete by default; `allow_partial_results:true` returns available hits plus a `searchRef` while indexing continues.';
 
 const SEARCH_STATUS_BULLET =
   "- `search_status` — follow up a prior `search` by `searchRef` to check progress, fetch partial hits, or fetch final results.";
@@ -46,7 +46,7 @@ const CODE_FILES_BULLET =
   '- `code_files` — list or discover file paths in an indexed dependency. First choice for file-listing/path-enumeration tasks such as "files under lib/" (`path_prefix: "lib/"`, optional `extensions: ["js"]`); do not use `code_read` to probe directories and do not use `code_grep` with empty or generic patterns to list files. `path`, `path_prefix`, and `globs` are OR-ed selectors; extensions, language, file type, and file-intent filters intersect on top. Returned paths feed into `code_read` and help scope `code_grep`; pass `format: "json"` for language/type/size metadata.';
 
 const DOCS_LIST_BULLET =
-  '- `docs_list` — browse hosted and repository-backed package docs when you need the available pages. It is not topic search; for "find docs about X", call `search` with `sources:["docs"]`, then pass the returned `pageId` to `docs_read`. Entries include stable pageIds, source URLs, and repo-file follow-up metadata when available.';
+  '- `docs_list` — browse hosted and repository-backed package docs when you need the available pages. It is not topic search; for "find docs about X", call `search` with `source:"docs"`, then pass the returned `pageId` to `docs_read`. Entries include stable pageIds, source URLs, and repo-file follow-up metadata when available.';
 
 const DOCS_READ_BULLET =
   "- `docs_read` — read a documentation page by pageId. Works for both hosted docs and repo-backed docs. Prefer focused `start_line` / `end_line` windows from `search` hits or prior `docs_read` `totalLines` metadata instead of rereading large pages.";
@@ -75,7 +75,7 @@ const PKG_UPGRADE_REVIEW_BULLET =
  * habits and the test invariant continue to anchor here.
  */
 const STRATEGY_TIP =
-  'Strategy — reference-first. For file/path enumeration, call `code_files` directly; never test directory paths with `code_read`. For behavioral claims, locate symbols and lines with `search` or `code_grep` first, then read the needed window with `code_read` using explicit `start_line` / `end_line` (typical 80-150 lines around the match; the MCP `code_read` surface caps each call at 150 lines). Source, symbols, tests, and call sites beat docs prose; use `sources:["symbol"]` when you want symbol-shaped results, `code_grep` for deterministic text matching, and `get_example` for global canonical examples after package-scoped grounding.';
+  'Strategy — reference-first. For file/path enumeration, call `code_files` directly; never test directory paths with `code_read`. For behavioral claims, locate symbols and lines with `search` or `code_grep` first, then read the needed window with `code_read` using explicit `start_line` / `end_line` (typical 80-150 lines around the match; the MCP `code_read` surface caps each call at 150 lines). Source, symbols, tests, and call sites beat docs prose; use `source:"symbol"` when you want symbol-shaped results, `code_grep` for deterministic text matching, and `get_example` for global canonical examples after package-scoped grounding.';
 
 /**
  * Build the server-level instructions string for the current session.

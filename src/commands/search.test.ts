@@ -87,7 +87,7 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
-  it("passes repeatable --source values through as source filters", async () => {
+  it("passes --source through as a single source filter", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),
     );
@@ -100,14 +100,14 @@ describe("searchAction", () => {
       "router middleware",
       {
         in: ["npm:express"],
-        source: ["code", "docs"],
+        source: "code",
       },
       deps,
     );
 
     expect(search).toHaveBeenCalledWith(
       expect.objectContaining({
-        sources: ["CODE", "DOCS"],
+        sources: ["CODE"],
       }),
     );
     consoleSpy.mockRestore();
