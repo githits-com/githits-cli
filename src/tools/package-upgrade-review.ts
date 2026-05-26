@@ -35,11 +35,13 @@ const packageSchema = z.object({
   current_version: z
     .string()
     .describe(
-      "Currently used package version. Tag-style v-prefixes are rejected.",
+      "Currently used package version. Tag-style v-prefixes are rejected except for Swift.",
     ),
   target_version: z
     .string()
-    .describe("Target package version. Tag-style v-prefixes are rejected."),
+    .describe(
+      "Target package version. Tag-style v-prefixes are rejected except for Swift.",
+    ),
 });
 
 const schema = {
@@ -56,11 +58,15 @@ const schema = {
   current_version: z
     .string()
     .optional()
-    .describe("Currently used version for single-package mode."),
+    .describe(
+      "Currently used version for single-package mode. Tag-style v-prefixes are rejected except for Swift.",
+    ),
   target_version: z
     .string()
     .optional()
-    .describe("Target version for single-package mode."),
+    .describe(
+      "Target version for single-package mode. Tag-style v-prefixes are rejected except for Swift.",
+    ),
   packages: z
     .array(packageSchema)
     .optional()

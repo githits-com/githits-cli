@@ -1095,6 +1095,12 @@ describe("compareVersionsAscending — semver-ish display ordering", () => {
     expect(sorted).toEqual(["3.11.0", "4.0.0-alpha.1", "4.0.0-rc1", "4.0.0"]);
   });
 
+  it("orders Swift v-prefixed versions numerically", () => {
+    const input = ["v4.5.0", "v3.11.0", "v3.10.0", "v4.0.0-rc1"];
+    const sorted = input.slice().sort(compareVersionsAscending);
+    expect(sorted).toEqual(["v3.10.0", "v3.11.0", "v4.0.0-rc1", "v4.5.0"]);
+  });
+
   it("recovers exotic strings via lex fallback without throwing", () => {
     const input = ["abc", "1.2.3", "zzz", "0.1.0"];
     const sorted = input.slice().sort(compareVersionsAscending);
@@ -1133,6 +1139,20 @@ describe("upgrade-path display ordering", () => {
       "5.0.0-beta.3",
       "5.0.0",
     ]);
+  });
+
+  it("sorts Swift v-prefixed upgradePaths ascending", () => {
+    const fixture = structuredClone(defaultVulnerabilityReport);
+    if (fixture.security) {
+      fixture.security.upgradePaths = [
+        "v4.5.0",
+        "v3.11.0",
+        "v3.10.0",
+        "v4.5.0",
+      ];
+    }
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture);
+    expect(payload.upgradePaths).toEqual(["v3.10.0", "v3.11.0", "v4.5.0"]);
   });
 });
 

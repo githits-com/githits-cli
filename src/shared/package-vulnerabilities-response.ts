@@ -29,12 +29,10 @@
  *   always partition `security.vulnerabilities[]` after dedup.
  * - `requestedVersion` surfaces whenever the backend-resolved
  *   `version` differs from the caller's (trimmed) input. `v`-prefix
- *   normalisation is intentionally *not* applied here: the `v4.17.0`
- *   form is a git-tag convention, not a version-string convention —
- *   no supported registry (npm, PyPI, Hex, Crates) accepts it as a
- *   canonical version, so the backend will reject it rather than
- *   resolve it to `4.17.0`. Masking that error would hide a real
- *   caller mistake.
+ *   normalisation is intentionally *not* applied here: non-Swift
+ *   registries reject tag-style versions client-side, while Swift
+ *   normalization is backend-owned and should remain visible as
+ *   `requestedVersion` when it differs from the resolved version.
  * - `modifiedAt` is included only when it differs from `publishedAt`.
  * - Sort order: malware bucket first; within a bucket, severity desc,
  *   then `publishedAt` desc, then `osvId` asc (deterministic
@@ -171,11 +169,10 @@ export function buildPackageVulnerabilitiesSuccessPayload(
 
 /**
  * Stable, locale-independent version compare used to sort upgrade
- * paths. Handles semver-ish `MAJOR.MINOR.PATCH[-pre]` shapes which
- * covers every vulnerability-capable registry (npm, PyPI, Hex,
- * Crates) well enough for display ordering. Unparseable segments
- * fall back to lexicographic compare so exotic strings never crash
- * the pipeline.
+ * paths. Handles semver-ish `MAJOR.MINOR.PATCH[-pre]` shapes, including
+ * Swift's common `vMAJOR.MINOR.PATCH` tag form, well enough for display
+ * ordering. Unparseable segments fall back to lexicographic compare so
+ * exotic strings never crash the pipeline.
  */
 export function compareVersionsAscending(a: string, b: string): number {
   const pa = parseVersionForSort(a);
@@ -194,8 +191,9 @@ export function compareVersionsAscending(a: string, b: string): number {
 }
 
 function parseVersionForSort(v: string): { main: number[]; pre?: string } {
-  const [mainStr, ...preParts] = v.split("-");
+  const [rawMainStr, ...preParts] = v.split("-");
   const pre = preParts.length > 0 ? preParts.join("-") : undefined;
+  const mainStr = rawMainStr?.replace(/^v(?=\d)/i, "");
   const main = (mainStr ?? "").split(".").map((segment) => {
     const n = Number.parseInt(segment, 10);
     return Number.isFinite(n) ? n : 0;

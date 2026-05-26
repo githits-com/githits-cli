@@ -75,7 +75,8 @@ interface McpArgs {
       | "vcpkg"
       | "packagist"
       | "rubygems"
-      | "go";
+      | "go"
+      | "swift";
     package_name?: string;
     version?: string;
     repo_url?: string;

@@ -138,6 +138,18 @@ describe("buildPackageChangelogParams — version validation", () => {
     ).toThrow(/git tag/);
   });
 
+  it("allows v-prefixed Swift versions", () => {
+    const { params } = buildPackageChangelogParams({
+      registry: "swift",
+      packageName: "github.com/apple/swift-crypto",
+      fromVersion: "v3.10.0",
+      toVersion: "v3.11.0",
+    });
+    expect(params.registry).toBe("SWIFT");
+    expect(params.fromVersion).toBe("v3.10.0");
+    expect(params.toVersion).toBe("v3.11.0");
+  });
+
   it.each([
     "5.0.0-rc.1",
     "2.32.0.dev0",

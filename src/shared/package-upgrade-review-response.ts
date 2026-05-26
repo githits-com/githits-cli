@@ -1122,7 +1122,7 @@ function parseVersion(
 ):
   | { major: number; minor: number; patch: number; prerelease?: string }
   | undefined {
-  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+]([^\s]+))?$/.exec(value);
+  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+]([^\s]+))?$/i.exec(value);
   if (!match) return undefined;
   return {
     major: Number.parseInt(match[1] ?? "0", 10),

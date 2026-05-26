@@ -66,13 +66,13 @@ const schema = {
     .string()
     .optional()
     .describe(
-      "Start of version range. When set, the response returns every entry between `from_version` and `to_version` (or latest) with no count cap — range mode. Mutually exclusive with `limit`. Tag-style `v`-prefixed inputs are rejected.",
+      "Start of version range. When set, the response returns every entry between `from_version` and `to_version` (or latest) with no count cap — range mode. Mutually exclusive with `limit`. Tag-style `v`-prefixed inputs are rejected except for Swift.",
     ),
   to_version: z
     .string()
     .optional()
     .describe(
-      "End of range / latest-mode cap. Works in either mode. Defaults to latest on the wire. Tag-style `v`-prefixed inputs are rejected.",
+      "End of range / latest-mode cap. Works in either mode. Defaults to latest on the wire. Tag-style `v`-prefixed inputs are rejected except for Swift.",
     ),
   limit: z
     .number()
@@ -130,7 +130,7 @@ export const DESCRIPTION =
   "Package-version entries without changelog " +
   "text succeed with `source` omitted; no-source plus no entries " +
   "returns `NOT_FOUND`. Supports npm, PyPI, Hex, Crates, NuGet, " +
-  "Maven, Zig, vcpkg, Packagist, RubyGems, and Go." +
+  "Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift." +
   `\n\n${PKG_CHANGELOG_GUARDRAIL}`;
 
 export function createPackageChangelogTool(

@@ -30,7 +30,7 @@ const schema = {
   registry: z
     .string()
     .describe(
-      "Package registry. Vulnerability data is unavailable for vcpkg and zig.",
+      "Package registry. Vulnerability data is available for npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift; unavailable for vcpkg and zig.",
     ),
   package_name: z
     .string()
@@ -38,7 +38,9 @@ const schema = {
   version: z
     .string()
     .optional()
-    .describe("Specific version to check. Defaults to latest when omitted."),
+    .describe(
+      "Specific version to check. Defaults to latest when omitted. Tag-style `v`-prefixed inputs are rejected except for Swift.",
+    ),
   min_severity: z
     .string()
     .optional()
@@ -71,7 +73,7 @@ const schema = {
 
 export const DESCRIPTION =
   "Check known vulnerabilities for a package on npm, PyPI, Hex, " +
-  "Crates, NuGet, Maven, Packagist, RubyGems, or Go (vcpkg and Zig " +
+  "Crates, NuGet, Maven, Packagist, RubyGems, Go, or Swift (vcpkg and Zig " +
   "are not supported for vulnerability data). Returns a count summary, each advisory with OSV ID, " +
   "severity, affected ranges, and fix versions. Malicious-package " +
   "advisories surface in a separate bucket. Example: " +

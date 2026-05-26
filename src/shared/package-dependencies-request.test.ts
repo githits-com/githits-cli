@@ -18,6 +18,7 @@ describe("buildPackageDependenciesParams — registry matrix", () => {
     ["zig", "ZIG"],
     ["rubygems", "RUBYGEMS"],
     ["go", "GO"],
+    ["swift", "SWIFT"],
   ] as const)("accepts registry %s", (arg, expected) => {
     const result = buildPackageDependenciesParams({
       registry: arg,
@@ -72,6 +73,15 @@ describe("buildPackageDependenciesParams — version handling", () => {
       expect((err as Error).message).toContain("git tag");
       expect((err as Error).message).toContain("4.18.0");
     }
+  });
+
+  it("allows v-prefixed Swift versions", () => {
+    const { params } = buildPackageDependenciesParams({
+      registry: "swift",
+      packageName: "github.com/apple/swift-crypto",
+      version: "v3.11.0",
+    });
+    expect(params.version).toBe("v3.11.0");
   });
 
   it("rejects a bare 'v' (would be ambiguous as 'latest')", () => {
