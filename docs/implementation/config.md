@@ -28,7 +28,7 @@ The container (`src/container.ts`) resolves authentication in priority order:
 
 2. **Stored OAuth JWT** — Loaded from the configured auth store. If expired, the container automatically attempts a refresh using the stored refresh token. If refresh fails, auth is cleared silently.
 
-3. **Unauthenticated** — No token available. Auth-required CLI commands fail on use, and the MCP server can start but every authenticated tool call will fail. Commands like `auth status` still work to help the user diagnose the issue.
+3. **Unauthenticated** — No token available. Auth-required CLI commands fail on use, and the MCP server can start but every authenticated tool call will fail. Commands like `auth status` and `doctor` still work to help the user diagnose the issue.
 
 ### Auth Mode Capabilities
 
@@ -50,6 +50,7 @@ Package/source access uses the package/source service URL from `GITHITS_CODE_NAV
 | `GITHITS_API_TOKEN` | API token for authentication | `ghi-abc123...` |
 | `GITHITS_AUTH_STORAGE` | Override OAuth credential storage for the current process (`keychain` or `file`) | `file` |
 | `GITHITS_TELEMETRY` | Emit end-of-run timing spans to stderr for local profiling | `1` |
+| `GITHITS_DISABLE_UPDATE_CHECK` | Disable npm latest-version update notices | `1` |
 
 ## Local Storage
 
@@ -126,6 +127,7 @@ Commands receive the full `Dependencies` object. Services receive only what they
 - **Custom environment not working** — Make sure both `GITHITS_MCP_URL` and `GITHITS_API_URL` are set. They point to different services.
 - **Tokens from wrong environment** — Tokens are stored per MCP URL. If you switched `GITHITS_MCP_URL`, you need to re-authenticate for the new URL.
 - **System keychain unavailable** — Default keychain mode fails rather than writing plaintext OAuth credentials. Use `GITHITS_API_TOKEN`, fix/unlock the keychain, or set `auth.storage = "file"` / `GITHITS_AUTH_STORAGE=file` if unencrypted file storage is acceptable.
+- **Environment-specific failures** — Run `githits doctor --json` in each terminal or agent and compare `runtime`, `environment`, `services`, `config`, and `auth` fields. The report redacts token and secret values.
 
 ### Init config parsing behavior
 
@@ -148,4 +150,5 @@ Commands receive the full `Dependencies` object. Services receive only what they
 | `src/services/filesystem-service.ts` | File system abstraction for testable storage |
 | `src/services/update-check-service.ts` | Non-secret update-check cache and npm latest lookup |
 | `src/commands/auth-status.ts` | Diagnosing current auth state (reached via `githits auth status`) |
+| `src/commands/doctor.ts` | Redacted diagnostics for runtime, environment, config, and auth storage |
 | `src/commands/mcp.ts` | MCP tool registration and deferred-auth startup behavior |

@@ -184,6 +184,10 @@ To inspect the current auth setup, run:
 githits auth status
 ```
 
+For redacted environment/configuration diagnostics when GitHits behaves
+differently across terminals or agents, run `githits doctor` or
+`githits doctor --json`.
+
 ## Commands
 
 ```
@@ -194,6 +198,7 @@ githits logout           Remove stored credentials
 githits mcp              Show setup instructions in a terminal; starts MCP server when piped
 githits mcp start        Always start MCP server (for use in MCP config files)
 githits auth status      Show current authentication status
+githits doctor           Print redacted diagnostics for config/auth troubleshooting
 githits example          Get canonical code examples from global open source
 githits languages        List or filter supported language names
 githits feedback         Send feedback on a result, command, or session
