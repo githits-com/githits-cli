@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test";
+import { buildMcpInstructions } from "../mcp/instructions.js";
+import { getMcpToolDefinitions } from "../mcp/server.js";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
   createMockPackageIntelligenceService,
 } from "../services/test-helpers.js";
 import type { McpToolServices } from "../tools/tool-services.js";
-import { getMcpToolDefinitions } from "./mcp.js";
-import { buildMcpInstructions } from "./mcp-instructions.js";
 
 function createTestServices(
   overrides: Partial<McpToolServices> = {},

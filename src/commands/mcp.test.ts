@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { createMcpServer, getMcpToolDefinitions } from "../mcp/server.js";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
@@ -9,11 +10,7 @@ import {
   resetRequestHeadersState,
 } from "../shared/request-headers.js";
 import type { McpToolServices } from "../tools/tool-services.js";
-import {
-  createMcpServer,
-  getMcpToolDefinitions,
-  startMcpServer,
-} from "./mcp.js";
+import { startMcpServer } from "./mcp.js";
 
 function createTestServices(
   overrides: Partial<McpToolServices> = {},
@@ -44,6 +41,8 @@ const EXPECTED_TOOL_NAMES = [
   "pkg_upgrade_review",
 ] as const;
 
+const TEST_MCP_SERVER_METADATA = { name: "githits-test", version: "0.0.0" };
+
 describe("createMcpServer", () => {
   it("constructs tools from service-only dependencies", () => {
     const services = createTestServices();
@@ -55,7 +54,7 @@ describe("createMcpServer", () => {
 
   it("creates server with default tools registered", () => {
     const services = createTestServices();
-    const server = createMcpServer(services);
+    const server = createMcpServer(services, TEST_MCP_SERVER_METADATA);
 
     // McpServer should be created without error
     expect(server).toBeDefined();
@@ -67,7 +66,7 @@ describe("createMcpServer", () => {
     // shape) surfaces here even though the SDK hides `instructions`
     // behind a private field.
     const services = createTestServices();
-    const server = createMcpServer(services);
+    const server = createMcpServer(services, TEST_MCP_SERVER_METADATA);
 
     expect(server).toBeDefined();
   });

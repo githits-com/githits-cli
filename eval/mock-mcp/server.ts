@@ -27,7 +27,7 @@ import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { buildMcpInstructions } from "../../src/commands/mcp-instructions.js";
+import { buildMcpInstructions } from "../../src/mcp/instructions.js";
 import {
   CODE_READ_GUARDRAIL,
   DOCS_GUARDRAIL,

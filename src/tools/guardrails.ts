@@ -4,7 +4,7 @@
  * specific framing if a future Pass 1 shows a surface regression.
  *
  * Consumers:
- * - `src/commands/mcp-instructions.ts` inserts the shared block
+ * - `src/mcp/instructions.ts` inserts the shared block
  *   between `CORE_BLOCK` and `PACKAGE_TOOLS_PREAMBLE`.
  * - Each tool that surfaces third-party prose appends its per-tool
  *   addendum to its `DESCRIPTION` constant. The addendum is currently

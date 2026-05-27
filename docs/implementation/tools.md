@@ -246,7 +246,7 @@ Standard grep -A/-B notation: `:` separator on match lines, `-` on context lines
 
 The MCP server advertises a short, cross-tool orientation via the protocol's server-level `instructions` field. This is distinct from per-tool `description` text: instructions cover rationale, workflow glue, and decisions that span multiple tools, while per-tool descriptions remain the source of truth for arguments, output shape, and tool-specific constraints.
 
-`src/commands/mcp-instructions.ts` owns two sections:
+`src/mcp/instructions.ts` owns two sections:
 
 - **Core block** — always loaded. Introduces GitHits, expands trigger criteria to include comparative cross-OSS questions and "how does X actually implement this" archaeology, and walks through the `get_example` / `search_language` / `feedback` workflow.
 - **Package-tools block** — always appended. Contains a preamble plus one bullet per package/code tool, plus three cross-tool tips:
@@ -268,19 +268,22 @@ The MCP server starts without a synchronous auth check; auth errors surface per-
 ## Architecture
 
 ```
-MCP SDK Server (src/commands/mcp.ts)
-  └─ registers tools using deps.githitsService from container
-       └─ each tool: createXxxTool(service)
-            └─ ToolDefinition { name, description, schema, handler, annotations? }
-                 └─ handler calls GitHitsService or CodeNavigationService methods
-                      └─ service implementation makes HTTP calls
+CLI stdio wrapper (src/commands/mcp.ts)
+  └─ creates local services from the CLI container and connects StdioServerTransport
+       └─ transport-neutral MCP server (src/mcp/server.ts)
+            └─ registers tools using McpToolServices
+                 └─ each tool: createXxxTool(service)
+                      └─ ToolDefinition { name, description, schema, handler, annotations? }
+                           └─ handler calls GitHitsService / CodeNavigationService / PackageIntelligenceService
+                                └─ service implementation makes HTTP calls
 ```
 
 The layering is intentional:
 
 - **Tool definitions** (`src/tools/*.ts`) own the MCP contract: names, descriptions, schemas, and response formatting
 - **GitHitsService / CodeNavigationService** own the HTTP transport: endpoints, headers, error mapping
-- **MCP server setup** (`src/commands/mcp.ts`) owns wiring: creates the service, registers tools with the MCP SDK
+- **Transport-neutral MCP server setup** (`src/mcp/server.ts`) owns MCP SDK tool registration from `McpToolServices`
+- **CLI MCP command** (`src/commands/mcp.ts`) owns local stdio startup: creates services from the CLI container, sets request-header mode, connects `StdioServerTransport`, and prints TTY setup instructions
 
 This separation means tool logic can be tested without HTTP calls, and service logic can be tested without MCP SDK dependencies.
 
@@ -303,11 +306,7 @@ When the backend adds a new tool, follow this checklist:
 1. **Create tool file** — `src/tools/new-tool.ts` with `Args` interface, `schema`, `DESCRIPTION`, and `createNewTool(service)` factory
 2. **Add service method** — Add the method to `GitHitsService` interface and `GitHitsServiceImpl` in `src/services/githits-service.ts`
 3. **Export from tools barrel** — Add `export { createNewTool } from "./new-tool.js"` to `src/tools/index.ts`
-4. **Register in MCP server** — In `src/commands/mcp.ts`:
-   - Add the tool name to the `ToolName` type union
-   - Import and add the factory to `TOOL_FACTORIES`
-   - Add the name to `ALL_TOOLS`
-   - Update the "Available tools" text in both command descriptions
+4. **Register in MCP server** — In `src/mcp/server.ts`, import the factory and add it to `getMcpToolDefinitions()`
 5. **Add tests** — Create `src/tools/new-tool.test.ts` with metadata, service call, success, and error path tests
 6. **Update mock service** — Add the new method to `createMockGitHitsService()` in `src/services/test-helpers.ts`
 7. **Add CLI command** — Create a corresponding CLI command in `src/commands/` (see `docs/implementation/cli-commands.md`)
@@ -350,7 +349,9 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 | `src/tools/types.ts` | `ToolDefinition` interface, `textResult`/`errorResult` helpers |
 | `src/tools/shared.ts` | `withErrorHandling()` wrapper |
 | `src/services/test-helpers.ts` | `createMockGitHitsService()` and `createMockCodeNavigationService()` factories |
-| `src/commands/mcp.ts` | Tool registration, MCP server setup, and TTY detection |
+| `src/mcp/server.ts` | Transport-neutral MCP server construction and tool registration |
+| `src/mcp/instructions.ts` | Server-level MCP instructions advertised to clients |
+| `src/commands/mcp.ts` | CLI stdio startup, request-header mode setup, and TTY setup instructions |
 | `src/services/githits-service.ts` | REST API client for example search, languages, and feedback |
 | `src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, `code_files`, `code_read`, and `code_grep` |
 | `src/shared/language-filter.ts` | Pure `filterLanguages()` function shared between MCP tool and CLI |
