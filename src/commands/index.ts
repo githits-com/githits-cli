@@ -6,6 +6,14 @@ export {
 export { registerCodeCommandGroup } from "./code/index.js";
 export { registerDocsCommandGroup } from "./docs/index.js";
 export {
+  buildDoctorReport,
+  type DoctorDependencies,
+  type DoctorOptions,
+  type DoctorReport,
+  doctorAction,
+  registerDoctorCommand,
+} from "./doctor.js";
+export {
   type ExampleDependencies,
   type ExampleOptions,
   exampleAction,
