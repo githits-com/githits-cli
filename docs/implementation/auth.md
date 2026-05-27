@@ -171,6 +171,7 @@ The MCP server starts without a synchronous auth gate. Tool calls resolve tokens
 ## Troubleshooting
 
 - **"Authentication required" from a command or MCP tool** — No valid token found. Run `githits login` or set `GITHITS_API_TOKEN`.
+- **Different auth behavior across terminals or agents** — Run `githits doctor` or `githits doctor --json` to compare redacted runtime, environment, config, and auth-storage diagnostics without exposing token values.
 - **"Already logged in."** — Token is still valid. Use `githits login --force` to re-authenticate.
 - **Port conflicts on login** — The callback server uses the port from the stored client registration. On first login, a random port (8000–9999) is chosen and saved. Use `--port <port>` to change it (triggers re-registration).
 - **Token refresh fails silently** — By design. The token manager first reloads storage in case another process refreshed credentials. If the expired token is still unchanged, it clears that stale token and later calls prompt re-login.
@@ -194,6 +195,7 @@ The MCP server starts without a synchronous auth gate. Tool calls resolve tokens
 | `src/services/locked-auth-storage.ts` | Cross-process auth-storage lock and conditional write serialization |
 | `src/services/auth-config.ts` | `config.toml` and `GITHITS_AUTH_STORAGE` parsing |
 | `src/services/app-config-paths.ts` | Platform-specific config/auth path resolution |
+| `src/commands/doctor.ts` | Redacted runtime/config/auth diagnostics for support and environment comparisons |
 | `src/services/mode-aware-file-auth-storage.ts` | File-write guard for `auth.storage` policy |
 | `src/services/keyring-service.ts` | `KeyringService` interface wrapping `@napi-rs/keyring` |
 | `src/services/chunking-keyring-service.ts` | `KeyringService` decorator for chunked storage (Windows 2560-char limit) |

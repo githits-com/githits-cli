@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
+The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
 
 ## Commands
 
@@ -15,9 +15,10 @@ The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` /
 | `search-status <search-ref>` | `<search-ref>` | `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search |
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback [solution_id]` | `--accept` or `--reject` | `-m, --message <text>`, `--tool <name>`, `--json` | Submit solution-tied or generic session feedback |
+| `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
-| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go) |
-| `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig/rubygems/go) |
+| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift) |
+| `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig/rubygems/go/swift) |
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
 | `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and optional transitive evidence. Reports facts only. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages for a package. Entries include page IDs for `docs read`; JSON includes exact repo-file follow-up metadata when available. |
@@ -43,7 +44,7 @@ Authenticates with GitHits (via OAuth in the browser), then scans for available 
 
 When `init` is run without a TTY, it prints agent onboarding guidance and exits without scanning, writing config, prompting, or authenticating. Non-interactive `--yes` is rejected for safety because it can configure tools without explicit per-tool user approval. Agentic onboarding must use the staged flow instead: `npx -y githits@latest init --detect-agents` first, then `npx -y githits@latest init --install-agents <ids>` after the user approves the exact detected IDs. Agent-facing guidance explicitly forbids `githits init -y` / `githits init --yes` unless the user asks to configure every detected tool, and tells agents to verify successful staged installs with `--detect-agents --json` instead of running init again. `--install-agents` rescans, rejects unknown or currently undetected IDs before writing, installs only the requested agents, verifies setup, and does not authenticate. After successful or already-configured outcomes it instructs agents to ask before running the separate `npx -y githits@latest login` command; if every install fails, it reports installation errors and suppresses auth guidance. `--json` is supported for the staged detect/install modes so agents do not need to scrape prose.
 
-Supports Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI, Google Antigravity, and OpenCode. Uses plugin install (Claude Code), CLI commands (Codex, Gemini CLI), Pi adapter setup plus Pi-owned MCP config writes (Pi), and atomic config file writes (Cursor, Windsurf, VS Code, Cline, Claude Desktop, Google Antigravity, OpenCode). CLI agents use read-only check commands (e.g., `claude plugin list`) to determine configuration status before prompting.
+Supports Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI, Google Antigravity, OpenCode, and Hermes Agent. Uses plugin install (Claude Code), CLI commands (Codex, Gemini CLI), Pi adapter setup plus Pi-owned MCP config writes (Pi), and atomic config file writes (Cursor, Windsurf, VS Code, Cline, Claude Desktop, Google Antigravity, OpenCode, Hermes Agent). CLI agents use read-only check commands (e.g., `claude plugin list`) to determine configuration status before prompting.
 
 The command uses `createContainer()` lazily for the login step. Tool detection and configuration use lightweight dependencies that don't require auth.
 
@@ -124,6 +125,15 @@ githits feedback --reject --tool search -m "missing kotlin support"
 ```
 
 Passing `[solution_id]` anchors feedback to a prior `githits example` result. Omitting it creates generic feedback for the current CLI/MCP session via the `x-githits-session-id` header; `--tool` records the command or MCP tool that produced the result being rated. `--accept` and `--reject` are mutually exclusive (enforced by Commander's `.conflicts()` API). At least one must be provided (validated in the action function). JSON output is `{ "success": true, "message": "..." }`.
+
+### `githits doctor`
+
+```
+githits doctor
+githits doctor --json
+```
+
+Prints redacted diagnostics for comparing GitHits behavior across terminals or agents. The report includes CLI/runtime identity, selected environment variables, service URL sources, config file status, active and legacy auth storage locations, token/client/metadata presence and timestamps, and recommendations. Secret-bearing values such as tokens, client secrets, API tokens, and proxy credentials are never printed; presence is reported as `set` / `present` only. JSON output uses `schemaVersion: 1` for support tooling.
 
 ### `githits pkg info`
 
