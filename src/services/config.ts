@@ -7,9 +7,9 @@
  * - Code navigation URL: For indexed package/source calls
  */
 
-const DEFAULT_MCP_URL = "https://mcp.githits.com";
-const DEFAULT_API_URL = "https://api.githits.com";
-const DEFAULT_CODE_NAV_URL = "https://pkgseer.dev";
+export const DEFAULT_MCP_URL = "https://mcp.githits.com";
+export const DEFAULT_API_URL = "https://api.githits.com";
+export const DEFAULT_CODE_NAV_URL = "https://pkgseer.dev";
 
 /**
  * Get the MCP server base URL (for OAuth discovery).
