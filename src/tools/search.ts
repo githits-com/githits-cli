@@ -3,7 +3,10 @@ import type {
   CodeNavigationService,
   CodeNavigationTarget,
 } from "../services/index.js";
-import { toCodeNavigationRegistry } from "../shared/code-navigation.js";
+import {
+  type CodeNavigationRegistryArg,
+  toCodeNavigationRegistry,
+} from "../shared/code-navigation.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import {
   buildUnifiedSearchErrorPayload,
@@ -220,16 +223,22 @@ export function createSearchTool(
     annotations: { readOnlyHint: true },
     handler: async (args) => {
       try {
-        const resolvedTarget = args.target
-          ? resolveSearchTarget(args.target)
+        const effectiveTarget = isBlankSearchTarget(args.target)
+          ? undefined
+          : args.target;
+        const resolvedTarget = effectiveTarget
+          ? resolveSearchTarget(effectiveTarget)
           : undefined;
         if (resolvedTarget && "content" in resolvedTarget)
           return resolvedTarget;
 
-        const effectiveTargets = args.targets?.length
-          ? args.targets
+        const effectiveTargets = args.targets?.filter(
+          (target) => !isBlankSearchTarget(target),
+        );
+        const nonEmptyTargets = effectiveTargets?.length
+          ? effectiveTargets
           : undefined;
-        const resolvedTargets = effectiveTargets?.map((entry) =>
+        const resolvedTargets = nonEmptyTargets?.map((entry) =>
           resolveSearchTarget(entry),
         );
         const resolvedTargetsError = resolvedTargets?.find(
@@ -284,6 +293,26 @@ export function createSearchTool(
   };
 }
 
+function isBlankSearchTarget(
+  target: SearchArgs["target"] | undefined,
+): boolean {
+  if (target === undefined) return true;
+  if (typeof target === "string") return target.trim().length === 0;
+  return !(
+    normaliseOptionalValue(target.registry) ||
+    normaliseOptionalValue(target.package_name) ||
+    normaliseOptionalValue(target.version) ||
+    normaliseOptionalValue(target.repo_url) ||
+    normaliseOptionalValue(target.git_ref)
+  );
+}
+
+function normaliseOptionalValue(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function isResolvedSearchTarget(
   target: ReturnType<typeof resolveSearchTarget>,
 ): target is ResolvedSearchTarget {
@@ -309,8 +338,13 @@ function resolveSearchTarget(
     }
   }
 
-  const hasPackageTarget = Boolean(target.registry || target.package_name);
-  const hasRepoTarget = Boolean(target.repo_url || target.git_ref);
+  const registry = normaliseOptionalValue(target.registry)?.toLowerCase();
+  const packageName = normaliseOptionalValue(target.package_name);
+  const version = normaliseOptionalValue(target.version);
+  const repoUrl = normaliseOptionalValue(target.repo_url);
+  const gitRef = normaliseOptionalValue(target.git_ref);
+  const hasPackageTarget = registry !== undefined || packageName !== undefined;
+  const hasRepoTarget = repoUrl !== undefined || gitRef !== undefined;
   if (hasPackageTarget && hasRepoTarget) {
     return invalidSearchTargetResult(
       "Invalid target: provide either registry + package_name or repo_url with optional git_ref, not both.",
@@ -322,23 +356,23 @@ function resolveSearchTarget(
     );
   }
   if (hasPackageTarget) {
-    if (!target.registry || !target.package_name) {
+    if (!registry || !packageName) {
       return invalidSearchTargetResult(
         "Incomplete package target: both registry and package_name are required.",
       );
     }
     return {
-      registry: toCodeNavigationRegistry(target.registry),
-      packageName: target.package_name,
-      version: target.version,
+      registry: toCodeNavigationRegistry(registry as CodeNavigationRegistryArg),
+      packageName,
+      version,
     };
   }
-  if (!target.repo_url) {
+  if (!repoUrl) {
     return invalidSearchTargetResult(
       "Incomplete repository target: repo_url is required.",
     );
   }
-  return { repoUrl: target.repo_url, gitRef: target.git_ref };
+  return { repoUrl, gitRef };
 }
 
 function invalidSearchTargetResult(message: string): ToolResult {

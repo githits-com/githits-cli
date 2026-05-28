@@ -22,6 +22,18 @@ describe("buildPackageChangelogParams — addressing XOR", () => {
     expect(params.packageName).toBeUndefined();
   });
 
+  it("treats blank spec fields as absent for repo-url input", () => {
+    const { params } = buildPackageChangelogParams({
+      registry: " ",
+      packageName: "\t",
+      repoUrl: "https://github.com/expressjs/express",
+    });
+
+    expect(params.repoUrl).toBe("https://github.com/expressjs/express");
+    expect(params.registry).toBeUndefined();
+    expect(params.packageName).toBeUndefined();
+  });
+
   it("rejects when both spec and repo-url are provided", () => {
     expect(() =>
       buildPackageChangelogParams({

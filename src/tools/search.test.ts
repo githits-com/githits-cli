@@ -96,6 +96,82 @@ describe("searchTool", () => {
     ]);
   });
 
+  it("ignores blank singular target objects when targets are provided", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "routing",
+        target: {
+          registry: " " as never,
+          package_name: "",
+          version: "\t",
+          repo_url: "",
+          git_ref: " ",
+        },
+        targets: [{ registry: "npm", package_name: "express" }],
+      },
+      {},
+    );
+
+    const call = search.mock.calls[0]?.[0];
+    expect(call?.targets).toEqual([
+      { registry: "NPM", packageName: "express" },
+    ]);
+  });
+
+  it("rejects whitespace-only required fields in structured targets", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    const result = await tool.handler(
+      {
+        query: "routing",
+        target: { repo_url: " ", git_ref: "HEAD" },
+      },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    expect(search).not.toHaveBeenCalled();
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toMatchObject({
+      code: "INVALID_ARGUMENT",
+    });
+  });
+
+  it("ignores blank targets array entries", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "routing",
+        targets: [
+          {
+            registry: " " as never,
+            package_name: "",
+            repo_url: "",
+            git_ref: "\t",
+          },
+          { repo_url: "https://github.com/expressjs/express" },
+        ],
+      },
+      {},
+    );
+
+    const call = search.mock.calls[0]?.[0];
+    expect(call?.targets).toEqual([
+      { repoUrl: "https://github.com/expressjs/express" },
+    ]);
+  });
+
   it("accepts compact package string targets", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),

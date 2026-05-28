@@ -80,13 +80,14 @@ function resolveTargets(
   target: CodeNavigationTarget | undefined,
   targets: CodeNavigationTarget[] | undefined,
 ): CodeNavigationTarget[] {
-  if (target && targets) {
+  const nonEmptyTargets = targets?.length ? targets : undefined;
+  if (target && nonEmptyTargets) {
     throw new InvalidArgumentError(
       "Provide either `target` for one search target or `targets` for multiple, not both.",
     );
   }
 
-  const resolved = target ? [target] : (targets ?? []);
+  const resolved = target ? [target] : (nonEmptyTargets ?? []);
   if (resolved.length === 0) {
     throw new InvalidArgumentError(
       "Provide either `target` for one search target or `targets` for multiple; neither was set.",

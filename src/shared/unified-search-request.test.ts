@@ -122,6 +122,18 @@ describe("buildUnifiedSearchParams", () => {
     ]);
   });
 
+  it("treats an empty targets array as absent when target is provided", () => {
+    const built = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      targets: [],
+      query: "router",
+    });
+
+    expect(built.params.targets).toEqual([
+      { registry: "NPM", packageName: "express" },
+    ]);
+  });
+
   it("accepts mixed package and repo targets", () => {
     const built = buildUnifiedSearchParams({
       targets: [
