@@ -105,6 +105,7 @@ function createFsWithDetection(
       }
       throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     }),
+    exists: mock(async (path: string) => path in configFiles),
     atomicWriteFile: mock(() => Promise.resolve()),
   });
 }
@@ -288,9 +289,7 @@ describe("initAction", () => {
     );
 
     const logCalls = getLogOutput();
-    expect(
-      logCalls.some((msg) => msg.includes("Detected supported tools")),
-    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Detected tools"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("cursor"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("needs setup"))).toBe(true);
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
@@ -366,17 +365,18 @@ describe("initAction", () => {
 
     const payload = JSON.parse(getLogOutput()[0] ?? "{}");
     expect(payload.mode).toBe("detect-agents");
+    expect(payload.scope).toBe("user");
     expect(payload.installableIds).toContain("cursor");
     expect(payload.suggestedCommand).toContain("--install-agents cursor");
     expect(payload.instructions).toContain(
       "Do not run `githits init -y` or `githits init --yes` unless the user explicitly asks to configure every detected tool.",
     );
     expect(payload.instructions).toContain(
-      "Do not run init again after a successful --install-agents run; verify with --detect-agents --json instead.",
+      "Do not run init again after a successful --install-agents run; verify with npx -y githits@latest init --detect-agents --json instead.",
     );
   });
 
-  it("rejects project setup flag in staged detection mode", async () => {
+  it("emits project-scoped JSON for agent detection", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"]);
     const createLoginDeps = mock(() =>
       Promise.resolve({} as LoginDependencies),
@@ -392,14 +392,120 @@ describe("initAction", () => {
       },
     );
 
-    expect(process.exitCode).toBe(1);
-    expect(JSON.parse(getErrorOutput()[0] ?? "{}").code).toBe(
-      "INVALID_ARGUMENT",
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(process.exitCode).toBe(0);
+    expect(payload.scope).toBe("project");
+    expect(payload.suggestedCommand).toContain(
+      "--project --install-agents cursor",
     );
-    expect(JSON.parse(getErrorOutput()[0] ?? "{}").error).toContain(
-      "Project setup is now available from interactive",
+    expect(payload.instructions).toContain(
+      "Explain that project-level install writes MCP config files into the current repo and those files may be committed.",
     );
     expect(createLoginDeps).not.toHaveBeenCalled();
+  });
+
+  it("marks detected tools without project config as unsupported in staged project detection", async () => {
+    const fs = createFsWithDetection(["/home/test/.codeium/windsurf"]);
+
+    await initAction(
+      { detectAgents: true, json: true, project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    const windsurf = payload.agents.find(
+      (agent: { id: string }) => agent.id === "windsurf",
+    );
+    expect(windsurf.status).toBe("unsupported_project_config");
+    expect(windsurf.reason).toContain("not verified");
+    expect(payload.installableIds).not.toContain("windsurf");
+    expect(payload.suggestedCommand).toBeNull();
+    expect(payload.instructions).toContain(
+      "Do not ask the user to choose project install IDs.",
+    );
+    expect(payload.instructions).not.toContain(
+      "Ask which tools should receive the GitHits MCP server.",
+    );
+  });
+
+  it("does not ask for project install IDs when configured and unsupported tools are detected", async () => {
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.cursor", "/home/test/.codeium/windsurf"],
+      {
+        "/repo/.cursor/mcp.json": JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        }),
+      },
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+
+    await initAction(
+      { detectAgents: true, json: true, project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.installableIds).toEqual([]);
+    expect(payload.instructions).toContain(
+      "Explain that GitHits is already configured for detected project-configurable tools.",
+    );
+    expect(payload.instructions).toContain(
+      "Do not ask the user to choose project install IDs.",
+    );
+    expect(payload.instructions).not.toContain(
+      "Explain that no detected tools have verified project-level MCP support.",
+    );
+    expect(payload.instructions).not.toContain(
+      "Ask which tools should receive the GitHits MCP server.",
+    );
+  });
+
+  it("does not tell agents unsupported-only project detection is already configured", async () => {
+    const fs = createFsWithDetection(["/home/test/.codeium/windsurf"]);
+
+    await initAction(
+      { detectAgents: true, project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("Detected tools (project-level")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("unsupported project config")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("not verified for Windsurf")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("No detected tools can be installed with project-level"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("already configured for detected")),
+    ).toBe(false);
+    expect(logCalls.some((msg) => msg.includes("user-level install"))).toBe(
+      true,
+    );
   });
 
   it("installs only explicitly requested agents in staged install mode", async () => {
@@ -439,8 +545,16 @@ describe("initAction", () => {
     ).toBe(true);
   });
 
-  it("rejects project setup flag in staged install mode", async () => {
-    const fs = createFsWithDetection(["/home/test/.cursor"]);
+  it("installs project config in staged install mode", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.cursor"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
 
     await initAction(
       { installAgents: "cursor", json: true, project: true },
@@ -452,12 +566,39 @@ describe("initAction", () => {
       },
     );
 
+    expect(process.exitCode).toBe(0);
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.cursor/mcp.json",
+      expect.any(String),
+    );
+    expect(fs.atomicWriteFile).not.toHaveBeenCalledWith(
+      "/home/test/.cursor/mcp.json",
+      expect.any(String),
+    );
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.scope).toBe("project");
+    expect(payload.instructions).toContain(
+      "Do not run init again after a successful --install-agents run; verify with npx -y githits@latest init --project --detect-agents --json instead.",
+    );
+  });
+
+  it("rejects unsupported project agent IDs in staged install mode", async () => {
+    const fs = createFsWithDetection(["/home/test/.codeium/windsurf"]);
+
+    await initAction(
+      { installAgents: "windsurf", json: true, project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
     expect(process.exitCode).toBe(1);
     const payload = JSON.parse(getErrorOutput()[0] ?? "{}");
     expect(payload.code).toBe("INVALID_ARGUMENT");
-    expect(payload.error).toContain(
-      "Project setup is now available from interactive",
-    );
+    expect(payload.error).toContain("cannot use project-level install");
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
 
@@ -840,9 +981,9 @@ describe("initAction", () => {
       "/repo/.mcp.json",
       expect.any(String),
     );
-    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+    expect(fs.atomicWriteFile).not.toHaveBeenCalledWith(
       "/repo/.githits/init/project-setup.json",
-      expect.stringContaining("npm:pi-mcp-adapter"),
+      expect.any(String),
     );
     const written = JSON.parse(configFiles["/repo/.mcp.json"] ?? "{}");
     expect(written.mcpServers.GitHits).toEqual({
@@ -860,67 +1001,6 @@ describe("initAction", () => {
         msg.includes("Found 1 tool. 1 supports project-level config."),
       ),
     ).toBe(true);
-  });
-
-  it("sanitizes malformed existing project marker when recording Pi ownership", async () => {
-    const configFiles: Record<string, string> = {
-      "/repo/.githits/init/project-setup.json": JSON.stringify({
-        version: 1,
-        projectSetup: {
-          bad: null,
-          pi: { installedPackages: "npm:pi-mcp-adapter" },
-        },
-      }),
-    };
-    const fs = createFsWithDetection(["/repo"], configFiles);
-    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
-    fs.atomicWriteFile = mock(async (path: string, content: string) => {
-      configFiles[path] = content;
-    }) as typeof fs.atomicWriteFile;
-    let adapterInstalled = false;
-    const execService = createMockExecService({
-      exec: mock(async (command: string, args: string[]) => {
-        const key = `${command} ${args.join(" ")}`;
-        if (key === `${lookupCommandFor()} pi`) {
-          return { stdout: "/usr/bin/pi\n", stderr: "", exitCode: 0 };
-        }
-        if (key === "pi list") {
-          return {
-            stdout: adapterInstalled ? "pi-mcp-adapter\n" : "",
-            stderr: "",
-            exitCode: 0,
-          };
-        }
-        if (key === "pi install npm:pi-mcp-adapter") {
-          adapterInstalled = true;
-          return { stdout: "installed\n", stderr: "", exitCode: 0 };
-        }
-        return { stdout: "", stderr: "", exitCode: 1 };
-      }),
-    });
-    const promptService = createMockPromptService({
-      select: createProjectScopeSelectMock(),
-      checkbox: createSelectAllCheckboxMock(),
-    });
-
-    await initAction(
-      { skipLogin: true },
-      {
-        fileSystemService: fs,
-        promptService,
-        execService,
-        createLoginDeps: createUnauthLoginDeps(),
-      },
-    );
-
-    expect(
-      JSON.parse(configFiles["/repo/.githits/init/project-setup.json"] ?? "{}"),
-    ).toEqual({
-      version: 1,
-      projectSetup: {
-        pi: { installedPackages: ["npm:pi-mcp-adapter"] },
-      },
-    });
   });
 
   it("does not record Pi project ownership when adapter already existed", async () => {
@@ -2607,7 +2687,9 @@ describe("initUninstallAction", () => {
       "/repo/.mcp.json",
       expect.any(String),
     );
-    expect(fs.deleteFile).not.toHaveBeenCalled();
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/repo/.githits/init/project-setup.json",
+    );
     const parsed = JSON.parse(currentConfig);
     expect(parsed.mcpServers.GitHits).toBeUndefined();
     expect(parsed.mcpServers.Other).toEqual({ command: "other" });
@@ -3030,7 +3112,7 @@ describe("initUninstallAction", () => {
 
     expect(JSON.parse(currentConfig).mcpServers?.GitHits).toBeUndefined();
     expect(execService.exec).not.toHaveBeenCalled();
-    expect(fs.deleteFile).not.toHaveBeenCalledWith(
+    expect(fs.deleteFile).toHaveBeenCalledWith(
       "/repo/.githits/init/project-setup.json",
     );
   });
@@ -3236,7 +3318,7 @@ describe("initUninstallAction", () => {
     expect(execService.exec).not.toHaveBeenCalled();
   });
 
-  it("does not run project cleanup when no project GitHits config exists", async () => {
+  it("cleans legacy marker without claiming MCP config was removed", async () => {
     const fs = createFsWithDetection(["/repo"], {
       "/repo/.mcp.json": JSON.stringify({ mcpServers: {} }),
       "/repo/.githits/init/project-setup.json": JSON.stringify({
@@ -3258,6 +3340,20 @@ describe("initUninstallAction", () => {
 
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     expect(execService.exec).not.toHaveBeenCalled();
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/repo/.githits/init/project-setup.json",
+    );
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Removed legacy GitHits project setup marker"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("MCP configuration was removed from this project"),
+      ),
+    ).toBe(false);
   });
 
   it("keeps project uninstall failure exit code when sibling config removes", async () => {
@@ -3304,6 +3400,61 @@ describe("initUninstallAction", () => {
     const logCalls = getLogOutput();
     expect(logCalls.some((msg) => msg.includes("Cannot parse"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("Done!"))).toBe(false);
+  });
+
+  it("still removes project config when legacy marker probe fails", async () => {
+    let cursorConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const fs = createFsWithDetection(["/repo"], {
+      "/repo/.cursor/mcp.json": cursorConfig,
+    });
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.cursor/mcp.json") return cursorConfig;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string, content: string) => {
+        if (path === "/repo/.cursor/mcp.json") cursorConfig = content;
+      },
+    );
+    (fs.exists as ReturnType<typeof mock>).mockImplementation(async (path) => {
+      if (path === "/repo/.githits/init/project-setup.json") {
+        throw new Error("marker stat failed");
+      }
+      return false;
+    });
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(process.exitCode).toBe(1);
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.cursor/mcp.json",
+      expect.any(String),
+    );
+    expect(JSON.parse(cursorConfig).mcpServers?.GitHits).toBeUndefined();
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("marker stat failed"))).toBe(
+      true,
+    );
+    expect(logCalls.some((msg) => msg.includes("completed with errors"))).toBe(
+      true,
+    );
   });
 
   it("does not write when uninstall scope prompt is cancelled", async () => {
@@ -4559,7 +4710,7 @@ describe("registerInitCommand", () => {
     expect(optionLongNames).toContain("--detect-agents");
     expect(optionLongNames).toContain("--install-agents");
     expect(optionLongNames).toContain("--json");
-    expect(optionLongNames).not.toContain("--project");
+    expect(optionLongNames).toContain("--project");
   });
 
   it("registers uninstall --project as a boolean option", () => {
@@ -4596,6 +4747,22 @@ describe("registerInitCommand", () => {
       logCalls.some((msg) =>
         msg.includes("Project uninstall needs confirmation"),
       ),
+    ).toBe(false);
+  });
+
+  it("routes parent init --project before uninstall to project uninstall", async () => {
+    await withNonInteractiveStdio(() =>
+      parseRegisteredInit(["init", "--project", "uninstall", "--yes"]),
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Remove GitHits from this project's MCP config"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Scanning for configured agents")),
     ).toBe(false);
   });
 
