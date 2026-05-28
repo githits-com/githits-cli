@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import {
   createMockExecService,
@@ -873,6 +874,22 @@ describe("mergeServerConfig", () => {
     expect(parsed.servers.GitHits).toEqual(vscodeConfig);
   });
 
+  it("adds Codex project config as TOML", () => {
+    const result = mergeServerConfig(
+      'model = "gpt-5"\n',
+      "mcp_servers",
+      "githits",
+      serverConfig,
+      "toml",
+    );
+    const content = expectAdded(result);
+    const parsed = parseToml(content) as Record<string, unknown>;
+    expect(parsed.model).toBe("gpt-5");
+    expect((parsed.mcp_servers as Record<string, unknown>).githits).toEqual(
+      serverConfig,
+    );
+  });
+
   it("adds server to empty YAML config", () => {
     const result = mergeServerConfig(
       "",
@@ -1123,6 +1140,26 @@ describe("removeServerConfig", () => {
     const parsed = JSON.parse(content);
     expect(parsed.mcp.GitHits).toBeUndefined();
     expect(parsed.mcp.other).toEqual({});
+  });
+
+  it("removes Codex project config from TOML", () => {
+    const existing = `model = "gpt-5"
+
+[mcp_servers.other]
+command = "other"
+
+[mcp_servers.githits]
+command = "npx"
+args = ["-y", "githits@latest", "mcp", "start"]
+`;
+    const content = expectRemoved(
+      removeServerConfig(existing, "mcp_servers", "githits", "toml"),
+    );
+    const parsed = parseToml(content) as Record<string, unknown>;
+    const servers = parsed.mcp_servers as Record<string, unknown>;
+    expect(parsed.model).toBe("gpt-5");
+    expect(servers.githits).toBeUndefined();
+    expect(servers.other).toEqual({ command: "other" });
   });
 
   it("removes GitHits from YAML while preserving other servers", () => {

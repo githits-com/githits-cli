@@ -725,7 +725,7 @@ describe("getSetupConfig", () => {
     }
   });
 
-  it("vscode returns config-file setup with servers key and npm MCP command", () => {
+  it("vscode returns config-file setup with servers key and stdio MCP command", () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", {
       value: "darwin",
@@ -746,6 +746,7 @@ describe("getSetupConfig", () => {
         expect(config.serversKey).toBe("servers");
         expect(config.serverName).toBe("GitHits");
         expect(config.serverConfig).toEqual({
+          type: "stdio",
           command: "npx",
           args: ["-y", "githits@latest", "mcp", "start"],
         });
@@ -754,6 +755,28 @@ describe("getSetupConfig", () => {
       Object.defineProperty(process, "platform", {
         value: originalPlatform,
         configurable: true,
+      });
+    }
+  });
+
+  it("vscode project setup includes required stdio type", () => {
+    const fs = createMockFileSystemService({
+      getCwd: mock(() => "/repo"),
+      joinPath: mock((...segments: string[]) => segments.join("/")),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "vscode")!;
+    const config = agent.projectSetup?.supported
+      ? agent.projectSetup.getSetupConfig(fs)
+      : null;
+
+    expect(config?.method).toBe("config-file");
+    if (config?.method === "config-file") {
+      expect(config.configPath).toBe("/repo/.vscode/mcp.json");
+      expect(config.serversKey).toBe("servers");
+      expect(config.serverConfig).toEqual({
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
       });
     }
   });
@@ -1081,6 +1104,12 @@ describe("getSetupConfig", () => {
             type: "local",
             command: ["npx", "-y", "githits@latest", "mcp", "start"],
             enabled: true,
+          });
+        } else if (agent.id === "vscode") {
+          expect(config.serverConfig).toEqual({
+            type: "stdio",
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
           });
         } else if (agent.id === "hermes-agent") {
           expect(config.format).toBe("yaml");
@@ -2137,9 +2166,9 @@ describe("scanAgents", () => {
       [`${vscodePath}/User/mcp.json`]: JSON.stringify({
         servers: {
           GitHits: {
+            type: "stdio",
             command: "npx",
             args: ["-y", "githits@latest", "mcp", "start"],
-            lifecycle: "eager",
           },
         },
       }),

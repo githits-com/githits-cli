@@ -49,7 +49,9 @@ export interface CompositeUninstallStep {
   failureMode: "required" | "best-effort";
 }
 
-export type ConfigFileFormat = "json" | "yaml";
+export type ConfigFileFormat = "json" | "yaml" | "toml";
+
+export type InitSetupScope = "user" | "project";
 
 /**
  * Setup configuration for agents that need config file editing.
@@ -81,7 +83,7 @@ export type SetupConfig = SetupStep | CompositeSetup;
 export type UninstallStep = CliUninstall | ConfigFileSetup;
 export type UninstallConfig = UninstallStep | CompositeUninstall;
 
-const GITHITS_SERVER_NAME = "GitHits";
+export const GITHITS_SERVER_NAME = "GitHits";
 const GITHITS_MCP_COMMAND = "npx";
 const GITHITS_MCP_ARGS = ["-y", "githits@latest", "mcp", "start"] as const;
 const GITHITS_MCP_INVOCATION = [
@@ -103,6 +105,19 @@ interface ResolvedAgentCommand {
 export interface AgentSetupContext {
   command?: string;
 }
+
+export type ProjectSetupSupport =
+  | {
+      supported: true;
+      getSetupConfig: (
+        fs: FileSystemService,
+        context?: AgentSetupContext,
+      ) => SetupConfig;
+    }
+  | {
+      supported: false;
+      reason: string;
+    };
 
 /**
  * Represents a coding agent that can be configured with GitHits MCP server.
@@ -132,6 +147,8 @@ export interface AgentDefinition {
     fs: FileSystemService,
     context?: AgentSetupContext,
   ) => SetupConfig;
+  /** Project-local MCP setup support, when the agent auto-loads repository config. */
+  projectSetup?: ProjectSetupSupport;
   /** Setup config resolved during scan, including any detected command path. */
   resolvedSetupConfig?: SetupConfig;
   /** Returns CLI uninstall config when the agent cannot be removed via config editing. */
@@ -225,6 +242,67 @@ function getHermesHomeDir(fs: FileSystemService): string {
 
 function getHermesConfigPath(fs: FileSystemService): string {
   return fs.joinPath(getHermesHomeDir(fs), "config.yaml");
+}
+
+export function getStandardMcpServerConfig(): Record<string, unknown> {
+  return {
+    command: GITHITS_MCP_COMMAND,
+    args: [...GITHITS_MCP_ARGS],
+  };
+}
+
+function getVsCodeMcpServerConfig(): Record<string, unknown> {
+  return {
+    type: "stdio",
+    ...getStandardMcpServerConfig(),
+  };
+}
+
+function getProjectPath(fs: FileSystemService): string {
+  return fs.getCwd();
+}
+
+function getProjectJsonConfig(
+  fs: FileSystemService,
+  relativePath: string[],
+  serversKey: string,
+  serverConfig: Record<string, unknown> = getStandardMcpServerConfig(),
+): ConfigFileSetup {
+  return {
+    method: "config-file",
+    configPath: fs.joinPath(getProjectPath(fs), ...relativePath),
+    serversKey,
+    serverName: GITHITS_SERVER_NAME,
+    serverConfig,
+  };
+}
+
+function getUnsupportedProjectSetup(reason: string): ProjectSetupSupport {
+  return { supported: false, reason };
+}
+
+export function getAgentSetupConfig(
+  agent: AgentDefinition,
+  fs: FileSystemService,
+  scope: InitSetupScope = "user",
+  context?: AgentSetupContext,
+): SetupConfig | null {
+  if (scope === "project") {
+    if (agent.projectSetup?.supported) {
+      return agent.projectSetup.getSetupConfig(fs, context);
+    }
+    return null;
+  }
+  return agent.getSetupConfig(fs, context);
+}
+
+export function getProjectSetupUnsupportedReason(
+  agent: AgentDefinition,
+): string | null {
+  if (agent.projectSetup?.supported) {
+    return null;
+  }
+  return agent.projectSetup?.reason ?? "project-level MCP config not verified";
 }
 
 function getOpenCodeDesktopDetectPaths(fs: FileSystemService): string[] {
@@ -372,6 +450,11 @@ const claudeCode: AgentDefinition = {
       },
     ],
   }),
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) =>
+      getProjectJsonConfig(fs, [".mcp.json"], "mcpServers"),
+  },
 };
 
 /** Cursor: detected by ~/.cursor/ directory, configured via npm MCP command */
@@ -386,11 +469,13 @@ const cursor: AgentDefinition = {
     configPath: fs.joinPath(fs.getHomeDir(), ".cursor", "mcp.json"),
     serversKey: "mcpServers",
     serverName: GITHITS_SERVER_NAME,
-    serverConfig: {
-      command: GITHITS_MCP_COMMAND,
-      args: [...GITHITS_MCP_ARGS],
-    },
+    serverConfig: getStandardMcpServerConfig(),
   }),
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) =>
+      getProjectJsonConfig(fs, [".cursor", "mcp.json"], "mcpServers"),
+  },
 };
 
 /**
@@ -413,11 +498,11 @@ const windsurf: AgentDefinition = {
     ),
     serversKey: "mcpServers",
     serverName: GITHITS_SERVER_NAME,
-    serverConfig: {
-      command: GITHITS_MCP_COMMAND,
-      args: [...GITHITS_MCP_ARGS],
-    },
+    serverConfig: getStandardMcpServerConfig(),
   }),
+  projectSetup: getUnsupportedProjectSetup(
+    "project-level MCP config not verified for Windsurf",
+  ),
 };
 
 /** Claude Desktop: detected by platform-specific Claude directory, uses npm MCP command */
@@ -447,12 +532,12 @@ const claudeDesktop: AgentDefinition = {
       configPath: fs.joinPath(appData, "claude_desktop_config.json"),
       serversKey: "mcpServers",
       serverName: GITHITS_SERVER_NAME,
-      serverConfig: {
-        command: GITHITS_MCP_COMMAND,
-        args: [...GITHITS_MCP_ARGS],
-      },
+      serverConfig: getStandardMcpServerConfig(),
     };
   },
+  projectSetup: getUnsupportedProjectSetup(
+    "Claude Desktop uses user-level desktop config",
+  ),
 };
 
 /** Codex CLI: detected by codex executable, configured via npm/stdio */
@@ -485,6 +570,17 @@ const codexCli: AgentDefinition = {
       },
     ],
   }),
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) => ({
+      method: "config-file",
+      format: "toml",
+      configPath: fs.joinPath(getProjectPath(fs), ".codex", "config.toml"),
+      serversKey: "mcp_servers",
+      serverName: "githits",
+      serverConfig: getStandardMcpServerConfig(),
+    }),
+  },
 };
 
 /** Pi: detected by pi executable, configured through adapter package + Pi-owned MCP config */
@@ -519,8 +615,7 @@ const pi: AgentDefinition = {
           serversKey: "mcpServers",
           serverName: GITHITS_SERVER_NAME,
           serverConfig: {
-            command: GITHITS_MCP_COMMAND,
-            args: [...GITHITS_MCP_ARGS],
+            ...getStandardMcpServerConfig(),
             lifecycle: "eager",
           },
         },
@@ -558,6 +653,34 @@ const pi: AgentDefinition = {
       ],
     };
   },
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs, context) => {
+      const piCommand = context?.command ?? "pi";
+      return {
+        method: "composite",
+        steps: [
+          {
+            method: "cli",
+            commands: [
+              {
+                command: piCommand,
+                args: ["install", "npm:pi-mcp-adapter"],
+              },
+            ],
+            checkCommand: {
+              command: piCommand,
+              args: ["list"],
+              configuredPattern: PI_ADAPTER_CONFIGURED_PATTERN,
+            },
+          },
+          // Project .mcp.json is shared with Claude Code and Pi's adapter, so
+          // keep it to the standard MCP shape instead of Pi's eager lifecycle.
+          getProjectJsonConfig(fs, [".mcp.json"], "mcpServers"),
+        ],
+      };
+    },
+  },
 };
 
 /** VS Code / Copilot: detected by platform-specific Code directory, uses npm MCP command */
@@ -577,11 +700,18 @@ const vscode: AgentDefinition = {
       configPath: fs.joinPath(appData, "User", "mcp.json"),
       serversKey: "servers",
       serverName: GITHITS_SERVER_NAME,
-      serverConfig: {
-        command: GITHITS_MCP_COMMAND,
-        args: [...GITHITS_MCP_ARGS],
-      },
+      serverConfig: getVsCodeMcpServerConfig(),
     };
+  },
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) =>
+      getProjectJsonConfig(
+        fs,
+        [".vscode", "mcp.json"],
+        "servers",
+        getVsCodeMcpServerConfig(),
+      ),
   },
 };
 
@@ -603,11 +733,11 @@ const cline: AgentDefinition = {
     ),
     serversKey: "mcpServers",
     serverName: GITHITS_SERVER_NAME,
-    serverConfig: {
-      command: GITHITS_MCP_COMMAND,
-      args: [...GITHITS_MCP_ARGS],
-    },
+    serverConfig: getStandardMcpServerConfig(),
   }),
+  projectSetup: getUnsupportedProjectSetup(
+    "Cline MCP settings are documented as user-level config; project MCP auto-load not verified",
+  ),
 };
 
 /** Gemini CLI: detected by gemini executable, configured via extensions install */
@@ -649,6 +779,11 @@ const geminiCli: AgentDefinition = {
       },
     ],
   }),
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) =>
+      getProjectJsonConfig(fs, [".gemini", "settings.json"], "mcpServers"),
+  },
 };
 
 export async function isGeminiExtensionInstalledFromFilesystem(
@@ -681,11 +816,11 @@ const googleAntigravity: AgentDefinition = {
     ),
     serversKey: "mcpServers",
     serverName: GITHITS_SERVER_NAME,
-    serverConfig: {
-      command: GITHITS_MCP_COMMAND,
-      args: [...GITHITS_MCP_ARGS],
-    },
+    serverConfig: getStandardMcpServerConfig(),
   }),
+  projectSetup: getUnsupportedProjectSetup(
+    "Google Antigravity project-level MCP config not verified",
+  ),
 };
 
 /** OpenCode: detected by CLI binary or desktop/config directories, configured via config file */
@@ -707,6 +842,15 @@ const openCode: AgentDefinition = {
       enabled: true,
     },
   }),
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) =>
+      getProjectJsonConfig(fs, ["opencode.json"], "mcp", {
+        type: "local",
+        command: [...GITHITS_MCP_INVOCATION],
+        enabled: true,
+      }),
+  },
 };
 
 /** Hermes Agent: detected by hermes-agent executable or ~/.hermes, configured via YAML MCP config */
@@ -725,11 +869,11 @@ const hermesAgent: AgentDefinition = {
     configPath: getHermesConfigPath(fs),
     serversKey: "mcp_servers",
     serverName: GITHITS_SERVER_NAME,
-    serverConfig: {
-      command: GITHITS_MCP_COMMAND,
-      args: [...GITHITS_MCP_ARGS],
-    },
+    serverConfig: getStandardMcpServerConfig(),
   }),
+  projectSetup: getUnsupportedProjectSetup(
+    "Hermes Agent project-level MCP config not verified",
+  ),
 };
 
 /**
@@ -790,6 +934,8 @@ export interface ScanResult {
   alreadyConfigured: AgentDefinition[];
   /** Not installed */
   notDetected: AgentDefinition[];
+  /** Detected but not supported for the selected setup scope. */
+  unsupported: Array<{ agent: AgentDefinition; reason: string }>;
 }
 
 export interface ScanProgress {
@@ -800,17 +946,20 @@ export interface ScanProgress {
 
 export interface ScanAgentsOptions {
   onProgress?: (progress: ScanProgress) => void;
+  scope?: InitSetupScope;
 }
 
 type AgentScanOutcome =
   | { status: "needs_setup"; agent: AgentDefinition }
   | { status: "already_configured"; agent: AgentDefinition }
-  | { status: "not_detected"; agent: AgentDefinition };
+  | { status: "not_detected"; agent: AgentDefinition }
+  | { status: "unsupported"; agent: AgentDefinition; reason: string };
 
 async function scanSingleAgent(
   agent: AgentDefinition,
   fs: FileSystemService,
   execService: ExecService,
+  scope: InitSetupScope,
 ): Promise<AgentScanOutcome> {
   // Check if available using the agent's declared detection contract.
   let detected = false;
@@ -869,7 +1018,16 @@ async function scanSingleAgent(
     return { status: "not_detected", agent };
   }
 
-  const config = agent.getSetupConfig(fs, setupContext);
+  const config = getAgentSetupConfig(agent, fs, scope, setupContext);
+  if (!config) {
+    return {
+      status: "unsupported",
+      agent,
+      reason:
+        getProjectSetupUnsupportedReason(agent) ??
+        "project-level MCP config not verified",
+    };
+  }
   const scannedAgent: AgentDefinition = {
     ...agent,
     resolvedSetupConfig: config,
@@ -919,20 +1077,23 @@ export async function scanAgents(
     needsSetup: [],
     alreadyConfigured: [],
     notDetected: [],
+    unsupported: [],
   };
   let completed = 0;
 
   const outcomes = await Promise.all(
     definitions.map((agent) =>
-      scanSingleAgent(agent, fs, execService).then((outcome) => {
-        completed += 1;
-        options.onProgress?.({
-          completed,
-          total: definitions.length,
-          agent: outcome.agent,
-        });
-        return outcome;
-      }),
+      scanSingleAgent(agent, fs, execService, options.scope ?? "user").then(
+        (outcome) => {
+          completed += 1;
+          options.onProgress?.({
+            completed,
+            total: definitions.length,
+            agent: outcome.agent,
+          });
+          return outcome;
+        },
+      ),
     ),
   );
 
@@ -941,6 +1102,11 @@ export async function scanAgents(
       result.alreadyConfigured.push(outcome.agent);
     } else if (outcome.status === "needs_setup") {
       result.needsSetup.push(outcome.agent);
+    } else if (outcome.status === "unsupported") {
+      result.unsupported.push({
+        agent: outcome.agent,
+        reason: outcome.reason,
+      });
     } else {
       result.notDetected.push(outcome.agent);
     }
