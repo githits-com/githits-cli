@@ -64,6 +64,37 @@ describe("createListFilesTool — happy path", () => {
     expect(calls[0]?.[0]?.target?.packageName).toBe("express");
   });
 
+  it("ignores blank repo fields on package targets", async () => {
+    const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
+    const service = createMockCodeNavigationService({ listFiles });
+    const tool = createListFilesTool(service);
+
+    await tool.handler(
+      {
+        target: {
+          registry: "npm",
+          package_name: "express",
+          repo_url: " ",
+          git_ref: "\t",
+        },
+      },
+      {},
+    );
+
+    const calls = listFiles.mock.calls as unknown as Array<
+      [
+        {
+          target: { registry?: string; packageName?: string; repoUrl?: string };
+        },
+      ]
+    >;
+    expect(calls[0]?.[0]?.target).toMatchObject({
+      registry: "NPM",
+      packageName: "express",
+    });
+    expect(calls[0]?.[0]?.target?.repoUrl).toBeUndefined();
+  });
+
   it("accepts compact repo string targets", async () => {
     const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
     const service = createMockCodeNavigationService({ listFiles });

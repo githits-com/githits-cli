@@ -92,8 +92,13 @@ export function resolveCodeTarget(
     }
   }
 
-  const hasPackageTarget = Boolean(target.registry || target.package_name);
-  const hasRepoTarget = Boolean(target.repo_url || target.git_ref);
+  const registry = normaliseOptionalValue(target.registry)?.toLowerCase();
+  const packageName = normaliseOptionalValue(target.package_name);
+  const version = normaliseOptionalValue(target.version);
+  const repoUrl = normaliseOptionalValue(target.repo_url);
+  const gitRef = normaliseOptionalValue(target.git_ref);
+  const hasPackageTarget = registry !== undefined || packageName !== undefined;
+  const hasRepoTarget = repoUrl !== undefined || gitRef !== undefined;
 
   if (hasPackageTarget && hasRepoTarget) {
     return invalidTargetResult(
@@ -108,29 +113,35 @@ export function resolveCodeTarget(
   }
 
   if (hasPackageTarget) {
-    if (!target.registry || !target.package_name) {
+    if (!registry || !packageName) {
       return invalidTargetResult(
         "Incomplete package target: both registry and package_name are required.",
       );
     }
 
     return {
-      registry: toCodeNavigationRegistry(target.registry),
-      packageName: target.package_name,
-      version: target.version,
+      registry: toCodeNavigationRegistry(registry as CodeNavigationRegistryArg),
+      packageName,
+      version,
     };
   }
 
-  if (!target.repo_url) {
+  if (!repoUrl) {
     return invalidTargetResult(
       "Incomplete repository target: repo_url is required.",
     );
   }
 
   return {
-    repoUrl: target.repo_url,
-    gitRef: target.git_ref,
+    repoUrl,
+    gitRef,
   };
+}
+
+function normaliseOptionalValue(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function mappedInvalidTargetResult(error: unknown): ToolResult {

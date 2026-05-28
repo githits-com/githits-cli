@@ -100,6 +100,73 @@ describe("createPackageUpgradeReviewTool", () => {
     });
   });
 
+  it("ignores empty optional mode fields emitted by tool-call harnesses", async () => {
+    const packageVulnerabilities = mock((params) =>
+      Promise.resolve(cleanVuln(params.version ?? "5.0.0")),
+    );
+    const packageUpgradeDependencyProbe = mock((params) =>
+      Promise.resolve(deps(params.version)),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageVulnerabilities: packageVulnerabilities as never,
+      packageUpgradeDependencyProbe: packageUpgradeDependencyProbe as never,
+    });
+    const tool = createPackageUpgradeReviewTool(service);
+
+    const single = await tool.handler(
+      {
+        registry: "npm",
+        package_name: "express",
+        current_version: "4.18.0",
+        target_version: "5.0.0",
+        packages: [
+          {
+            registry: " ",
+            package_name: "",
+            current_version: "\t",
+            target_version: "",
+          },
+        ],
+        format: "json",
+      },
+      {},
+    );
+
+    const batch = await tool.handler(
+      {
+        registry: "",
+        package_name: " ",
+        current_version: "",
+        target_version: "\t",
+        packages: [
+          {
+            registry: " ",
+            package_name: "",
+            current_version: "\t",
+            target_version: "",
+          },
+          {
+            registry: "npm",
+            package_name: "express",
+            current_version: "4.18.0",
+            target_version: "5.0.0",
+          },
+        ],
+        format: "json",
+      },
+      {},
+    );
+
+    expect(single.isError).toBeUndefined();
+    expect(batch.isError).toBeUndefined();
+    expect(
+      (parseText(single) as { summary?: { total?: number } }).summary?.total,
+    ).toBe(1);
+    expect(
+      (parseText(batch) as { summary?: { total?: number } }).summary?.total,
+    ).toBe(1);
+  });
+
   it("returns text by default and JSON when requested", async () => {
     const service = createMockPackageIntelligenceService({
       packageVulnerabilities: mock((params) =>

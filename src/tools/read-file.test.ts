@@ -56,6 +56,24 @@ describe("createReadFileTool — happy path", () => {
     expect(calls[0]?.[0]?.filePath).toBe("src/index.js");
   });
 
+  it("returns invalid argument for whitespace-only package registry", async () => {
+    const readFile = mock(() => Promise.resolve(defaultReadFileResult));
+    const service = createMockCodeNavigationService({ readFile });
+    const tool = createReadFileTool(service);
+
+    const result = await tool.handler(
+      {
+        target: { registry: " " as never, package_name: "express" },
+        path: "src/index.js",
+      },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    expect(readFile).not.toHaveBeenCalled();
+    expect(parseText(result)).toMatchObject({ code: "INVALID_ARGUMENT" });
+  });
+
   it("accepts compact package string targets", async () => {
     const readFile = mock(() => Promise.resolve(defaultReadFileResult));
     const service = createMockCodeNavigationService({ readFile });

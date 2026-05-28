@@ -113,6 +113,24 @@ describe("createGrepRepoTool — happy path", () => {
     });
   });
 
+  it("returns invalid argument for whitespace-only repo_url with git_ref", async () => {
+    const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
+    const service = createMockCodeNavigationService({ grepRepo });
+    const tool = createGrepRepoTool(service);
+
+    const result = await tool.handler(
+      {
+        target: { repo_url: " ", git_ref: "HEAD" },
+        pattern: "middleware",
+      },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    expect(grepRepo).not.toHaveBeenCalled();
+    expect(parseText(result)).toMatchObject({ code: "INVALID_ARGUMENT" });
+  });
+
   it("passes symbol field hydration through to grepRepo", async () => {
     const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
     const tool = createGrepRepoTool(

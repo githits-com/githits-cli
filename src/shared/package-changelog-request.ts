@@ -136,7 +136,8 @@ type ResolvedAddressing =
 function resolveAddressing(
   input: PackageChangelogRequestInput,
 ): ResolvedAddressing {
-  const hasSpec = Boolean(input.registry || input.packageName);
+  const hasSpec =
+    hasNonBlankValue(input.registry) || hasNonBlankValue(input.packageName);
   const hasRepoUrl = Boolean(input.repoUrl?.trim());
 
   if (hasSpec && hasRepoUrl) {
@@ -175,6 +176,10 @@ function resolveAddressing(
     normalisedRegistryArg as PkgseerRegistryArg,
   );
   return { registry, packageName };
+}
+
+function hasNonBlankValue(value: string | undefined): boolean {
+  return value !== undefined && value.trim().length > 0;
 }
 
 function normaliseGitRef(raw: string | undefined): string | undefined {

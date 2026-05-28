@@ -60,13 +60,13 @@ const DEFAULT_CHANGELOG_LIMIT = 20;
 export function buildPackageUpgradeReviewRequest(
   input: PackageUpgradeReviewRequestInput,
 ): PackageUpgradeReviewRequestBuildResult {
-  const batch = input.packages;
-  const hasBatch = batch !== undefined;
+  const batch = input.packages?.filter((pkg) => !isBlankPackageInput(pkg));
+  const hasBatch = Array.isArray(batch) && batch.length > 0;
   const hasSingle =
-    input.registry !== undefined ||
-    input.packageName !== undefined ||
-    input.currentVersion !== undefined ||
-    input.targetVersion !== undefined;
+    hasNonBlankValue(input.registry) ||
+    hasNonBlankValue(input.packageName) ||
+    hasNonBlankValue(input.currentVersion) ||
+    hasNonBlankValue(input.targetVersion);
 
   if (hasBatch && hasSingle) {
     throw new InvalidPackageSpecError(
@@ -123,6 +123,19 @@ export function buildUpgradeDependencyProbeParams(
     includeDependencyIssues: options.includeDependencyIssues,
     includeDependencyChanges: options.includeDependencyChanges,
   };
+}
+
+function hasNonBlankValue(value: string | undefined): boolean {
+  return value !== undefined && value.trim().length > 0;
+}
+
+function isBlankPackageInput(input: UpgradeReviewPackageInput): boolean {
+  return !(
+    hasNonBlankValue(input.registry) ||
+    hasNonBlankValue(input.packageName) ||
+    hasNonBlankValue(input.currentVersion) ||
+    hasNonBlankValue(input.targetVersion)
+  );
 }
 
 function parseBatch(
