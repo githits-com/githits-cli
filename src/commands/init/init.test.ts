@@ -603,6 +603,45 @@ describe("initAction", () => {
     });
   });
 
+  it("prints standard ready copy for authenticated project setup", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.cursor"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const promptService = createMockPromptService({
+      select: createProjectScopeSelectMock(),
+      checkbox: createSelectAllCheckboxMock(),
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expectReadyNextSteps(logCalls);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("GitHits MCP is configured for this project."),
+      ),
+    ).toBe(false);
+    expect(logCalls.some((msg) => msg.includes("loads .mcp.json"))).toBe(false);
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.cursor/mcp.json",
+      expect.any(String),
+    );
+  });
+
   it("prints project-specific next steps when project auth fails and user continues", async () => {
     const configFiles: Record<string, string> = {};
     const fs = createFsWithDetection(

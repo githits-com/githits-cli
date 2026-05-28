@@ -1534,11 +1534,7 @@ function printProjectNextSteps(authStatus: InitAuthStatus, useColors: boolean) {
     useColors,
   );
   if (shouldPrintReady(authStatus)) {
-    console.log("  GitHits MCP is configured for this project.");
-    console.log();
-    console.log(
-      "  Open an MCP-compatible coding agent in this project so it loads .mcp.json.",
-    );
+    printReadyNextSteps();
   } else if (authStatus === "failed_continue") {
     printProjectAuthRequiredNextSteps(useColors);
   } else {
