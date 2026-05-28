@@ -28,6 +28,11 @@ export interface TokenManagerDeps {
   mcpUrl: string;
 }
 
+interface RefreshResult {
+  accessToken: string | undefined;
+  refreshedViaEndpoint: boolean;
+}
+
 /**
  * Determine whether a token should be refreshed.
  * Pure function extracted for testability.
@@ -84,7 +89,8 @@ export class TokenManager implements TokenProvider {
   private readonly authStorage: AuthStorage;
   private readonly mcpUrl: string;
   private cachedToken: TokenData | null = null;
-  private refreshPromise: Promise<string | undefined> | null = null;
+  private softRefreshPromise: Promise<RefreshResult> | null = null;
+  private forceRefreshPromise: Promise<RefreshResult> | null = null;
 
   constructor(deps: TokenManagerDeps) {
     this.authService = deps.authService;
@@ -94,6 +100,10 @@ export class TokenManager implements TokenProvider {
 
   async getToken(): Promise<string | undefined> {
     return withTelemetrySpan("token-manager.get-token", async () => {
+      if (this.forceRefreshPromise) {
+        return (await this.forceRefreshPromise).accessToken;
+      }
+
       // Load from storage on first call
       if (!this.cachedToken) {
         this.cachedToken = await withTelemetrySpan(
@@ -115,7 +125,9 @@ export class TokenManager implements TokenProvider {
       }
 
       // Attempt refresh (coalesced if already in-flight)
-      const refreshedToken = await this.doRefresh();
+      const refreshedToken = await this.doRefresh({
+        allowFreshExternalToken: true,
+      });
 
       if (refreshedToken) {
         return refreshedToken;
@@ -133,39 +145,77 @@ export class TokenManager implements TokenProvider {
 
   async forceRefresh(): Promise<string | undefined> {
     return withTelemetrySpan("token-manager.force-refresh", () =>
-      this.doRefresh(),
+      this.doRefresh({ allowFreshExternalToken: false }),
     );
   }
 
   /**
    * Execute a refresh, coalescing concurrent requests.
    */
-  private async doRefresh(): Promise<string | undefined> {
-    if (this.refreshPromise) {
-      return this.refreshPromise;
+  private async doRefresh(options: {
+    allowFreshExternalToken: boolean;
+  }): Promise<string | undefined> {
+    const result = await this.doRefreshResult(options);
+    return result.accessToken;
+  }
+
+  private async doRefreshResult(options: {
+    allowFreshExternalToken: boolean;
+  }): Promise<RefreshResult> {
+    if (!options.allowFreshExternalToken) {
+      if (this.forceRefreshPromise) return this.forceRefreshPromise;
+
+      this.forceRefreshPromise = (async () => {
+        // A force refresh must not reuse a softer getToken refresh that may
+        // return externally written credentials without hitting the token
+        // endpoint, but later getToken calls should join this stricter work.
+        const softResult = await this.softRefreshPromise?.catch(
+          () => undefined,
+        );
+        if (softResult?.accessToken && softResult.refreshedViaEndpoint) {
+          return softResult;
+        }
+        return this.executeRefresh(options);
+      })();
+      try {
+        return await this.forceRefreshPromise;
+      } finally {
+        this.forceRefreshPromise = null;
+      }
     }
 
-    this.refreshPromise = this.executeRefresh();
+    if (this.forceRefreshPromise) return this.forceRefreshPromise;
+    if (this.softRefreshPromise) return this.softRefreshPromise;
+
+    this.softRefreshPromise = this.executeRefresh(options);
     try {
-      return await this.refreshPromise;
+      return await this.softRefreshPromise;
     } finally {
-      this.refreshPromise = null;
+      this.softRefreshPromise = null;
     }
   }
 
-  private async executeRefresh(): Promise<string | undefined> {
+  private async executeRefresh(options: {
+    allowFreshExternalToken: boolean;
+  }): Promise<RefreshResult> {
     return withTelemetrySpan("token-manager.refresh", async () => {
-      const tokens =
-        this.cachedToken ??
-        (await withTelemetrySpan("token-manager.load-tokens", () =>
-          this.authStorage.loadTokens(this.mcpUrl),
-        ));
-      if (!tokens) return undefined;
+      const candidate = await this.loadRefreshCandidate();
+      if (!candidate) return refreshResult(undefined, false);
+      if (candidate.externallyUpdated && options.allowFreshExternalToken) {
+        const { shouldRefresh } = shouldRefreshToken(
+          candidate.tokens,
+          PROACTIVE_REFRESH_RATIO,
+          new Date(),
+        );
+        if (!shouldRefresh)
+          return refreshResult(candidate.tokens.accessToken, false);
+      }
+      const tokens = candidate.tokens;
 
       const client = await withTelemetrySpan("token-manager.load-client", () =>
         this.authStorage.loadClient(this.mcpUrl),
       );
-      if (!client) return undefined;
+      if (!client) return refreshResult(undefined, false);
 
       let response: RefreshTokenResponse;
       try {
@@ -185,18 +235,25 @@ export class TokenManager implements TokenProvider {
         );
       } catch {
         const reloadedToken = await this.loadExternallyUpdatedToken(tokens);
-        if (reloadedToken) return reloadedToken.accessToken;
+        if (reloadedToken)
+          return refreshResult(reloadedToken.accessToken, false);
+
+        const isExpired = tokens.expiresAt
+          ? new Date() >= new Date(tokens.expiresAt)
+          : false;
+        if (candidate.externallyUpdated && !isExpired) {
+          return refreshResult(tokens.accessToken, false);
+        }
 
         // Only clear tokens if they are actually expired and still match the
         // failed in-memory refresh token. A separate `githits login` may have
         // already written fresh tokens for long-running MCP servers.
-        const isExpired = tokens.expiresAt
-          ? new Date() >= new Date(tokens.expiresAt)
-          : false;
         if (isExpired) {
           const currentStoredTokens =
             await this.loadExternallyUpdatedToken(tokens);
-          if (currentStoredTokens) return currentStoredTokens.accessToken;
+          if (currentStoredTokens) {
+            return refreshResult(currentStoredTokens.accessToken, false);
+          }
 
           const cleared = await withTelemetrySpan(
             "token-manager.clear-tokens-if-unchanged",
@@ -205,11 +262,11 @@ export class TokenManager implements TokenProvider {
           if (!cleared) {
             const currentToken = await this.authStorage.loadTokens(this.mcpUrl);
             this.cachedToken = currentToken;
-            return currentToken?.accessToken;
+            return refreshResult(currentToken?.accessToken, false);
           }
           this.cachedToken = null;
         }
-        return undefined;
+        return refreshResult(undefined, false);
       }
 
       const newTokenData: TokenData = {
@@ -224,15 +281,6 @@ export class TokenManager implements TokenProvider {
         createdAt: new Date().toISOString(),
       };
 
-      const externallyUpdatedToken = await this.loadExternallyUpdatedToken(
-        tokens,
-        {
-          treatMissingAsExternalUpdate: true,
-        },
-      );
-      if (externallyUpdatedToken === null) return undefined;
-      if (externallyUpdatedToken) return externallyUpdatedToken.accessToken;
-
       const saved = await withTelemetrySpan("token-manager.save-tokens", () =>
         this.authStorage.saveTokensIfUnchanged(
           this.mcpUrl,
@@ -241,27 +289,103 @@ export class TokenManager implements TokenProvider {
         ),
       );
       if (!saved) {
-        const currentToken = await this.authStorage.loadTokens(this.mcpUrl);
-        this.cachedToken = currentToken;
-        return currentToken?.accessToken;
+        return this.resolveSuccessfulRefreshConflict(
+          tokens,
+          response,
+          newTokenData,
+        );
       }
       this.cachedToken = newTokenData;
-      return response.accessToken;
+      return refreshResult(response.accessToken, true);
     });
+  }
+
+  private async resolveSuccessfulRefreshConflict(
+    refreshedFrom: TokenData,
+    response: RefreshTokenResponse,
+    newTokenData: TokenData,
+  ): Promise<RefreshResult> {
+    const currentToken = await withTelemetrySpan(
+      "token-manager.reload-tokens",
+      () => this.authStorage.loadTokens(this.mcpUrl),
+    );
+
+    // Respect explicit logout/deletion that happened while refresh was in flight.
+    if (!currentToken) {
+      this.cachedToken = null;
+      return refreshResult(undefined, false);
+    }
+
+    // If the server did not rotate the refresh token, or storage now belongs to
+    // a different session/refresh lineage, the external writer should win.
+    if (
+      !response.refreshToken ||
+      currentToken.refreshToken !== refreshedFrom.refreshToken
+    ) {
+      this.cachedToken = currentToken;
+      return refreshResult(currentToken.accessToken, false);
+    }
+
+    const saved = await withTelemetrySpan(
+      "token-manager.save-rotated-tokens-after-conflict",
+      () =>
+        this.authStorage.saveTokensIfUnchanged(
+          this.mcpUrl,
+          currentToken,
+          newTokenData,
+        ),
+    );
+
+    if (saved) {
+      this.cachedToken = newTokenData;
+      return refreshResult(newTokenData.accessToken, true);
+    }
+
+    const latestToken = await withTelemetrySpan(
+      "token-manager.reload-tokens",
+      () => this.authStorage.loadTokens(this.mcpUrl),
+    );
+    this.cachedToken = latestToken;
+    return refreshResult(latestToken?.accessToken, false);
+  }
+
+  private async loadRefreshCandidate(): Promise<{
+    tokens: TokenData;
+    externallyUpdated: boolean;
+  } | null> {
+    const storedTokens = await withTelemetrySpan(
+      "token-manager.load-tokens",
+      () => this.authStorage.loadTokens(this.mcpUrl),
+    );
+
+    if (!this.cachedToken) {
+      this.cachedToken = storedTokens;
+      return storedTokens
+        ? { tokens: storedTokens, externallyUpdated: false }
+        : null;
+    }
+
+    if (!storedTokens) {
+      this.cachedToken = null;
+      return null;
+    }
+
+    if (!areSameTokenData(storedTokens, this.cachedToken)) {
+      this.cachedToken = storedTokens;
+      return { tokens: storedTokens, externallyUpdated: true };
+    }
+
+    return { tokens: this.cachedToken, externallyUpdated: false };
   }
 
   private async loadExternallyUpdatedToken(
     failedTokens: TokenData,
-    options: { treatMissingAsExternalUpdate?: boolean } = {},
-  ): Promise<TokenData | null | undefined> {
+  ): Promise<TokenData | undefined> {
     const storedTokens = await withTelemetrySpan(
       "token-manager.reload-tokens",
       () => this.authStorage.loadTokens(this.mcpUrl),
     );
-    if (!storedTokens) {
-      if (options.treatMissingAsExternalUpdate) this.cachedToken = null;
-      return options.treatMissingAsExternalUpdate ? null : undefined;
-    }
+    if (!storedTokens) return undefined;
     if (areSameTokenData(storedTokens, failedTokens)) return undefined;
 
     this.cachedToken = storedTokens;
@@ -276,4 +400,11 @@ function areSameTokenData(a: TokenData, b: TokenData): boolean {
     a.expiresAt === b.expiresAt &&
     a.createdAt === b.createdAt
   );
+}
+
+function refreshResult(
+  accessToken: string | undefined,
+  refreshedViaEndpoint: boolean,
+): RefreshResult {
+  return { accessToken, refreshedViaEndpoint };
 }

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. All of these commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
+The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
 
 ## Commands
 
@@ -15,9 +15,10 @@ The CLI exposes `example`, `languages`, `feedback`, top-level indexed `search` /
 | `search-status <search-ref>` | `<search-ref>` | `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search |
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback [solution_id]` | `--accept` or `--reject` | `-m, --message <text>`, `--tool <name>`, `--json` | Submit solution-tied or generic session feedback |
+| `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
-| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go) |
-| `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig/rubygems/go) |
+| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift) |
+| `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--transitive`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional transitive graph (npm/pypi/hex/crates/vcpkg/zig/rubygems/go/swift) |
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
 | `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and optional transitive evidence. Reports facts only. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages for a package. Entries include page IDs for `docs read`; JSON includes exact repo-file follow-up metadata when available. |
@@ -47,7 +48,7 @@ Interactive MCP setup asks where GitHits should be configured. User-level setup 
 
 When `init` is run without a TTY, it prints agent onboarding guidance and exits without scanning, writing config, prompting, or authenticating. Non-interactive `--yes` is rejected for safety because it can configure tools without explicit per-tool user approval. Agentic onboarding must use the staged flow instead: `npx -y githits@latest init --detect-agents` first, then `npx -y githits@latest init --install-agents <ids>` after the user approves the exact detected IDs. Agent-facing guidance explicitly forbids `githits init -y` / `githits init --yes` unless the user asks to configure every detected tool, and tells agents to verify successful staged installs with `--detect-agents --json` instead of running init again. `--install-agents` rescans, rejects unknown or currently undetected IDs before writing, installs only the requested agents, verifies setup, and does not authenticate. After successful or already-configured outcomes it instructs agents to ask before running the separate `npx -y githits@latest login` command; if every install fails, it reports installation errors and suppresses auth guidance. `--json` is supported only for staged detect/install modes so agents do not need to scrape prose.
 
-Global setup supports Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI, Google Antigravity, and OpenCode. It uses plugin install (Claude Code), CLI commands (Codex, Gemini CLI), Pi adapter setup plus Pi-owned MCP config writes (Pi), and atomic config file writes (Cursor, Windsurf, VS Code, Cline, Claude Desktop, Google Antigravity, OpenCode). CLI agents use read-only check commands (e.g., `claude plugin list`) to determine global configuration status before prompting.
+Global setup supports Claude Code, Cursor, Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI, Google Antigravity, OpenCode, and Hermes Agent. It uses plugin install (Claude Code), CLI commands (Codex, Gemini CLI), Pi adapter setup plus Pi-owned MCP config writes (Pi), and atomic config file writes (Cursor, Windsurf, VS Code, Cline, Claude Desktop, Google Antigravity, OpenCode, Hermes Agent). CLI agents use read-only check commands (e.g., `claude plugin list`) to determine global configuration status before prompting.
 
 The command uses `createContainer()` lazily for the login step. Tool detection and configuration use lightweight dependencies that don't require auth.
 
@@ -85,7 +86,7 @@ Unified search spans indexed dependency and repository code, docs, and explicit 
 
 **Targets.** `--in <target>` is repeatable and required. Package targets use `registry:name[@version]` (for example `npm:express`, `pypi:requests@2.32.3`). Repo targets use `https://github.com/org/repo[#ref]`; omitted refs default to `HEAD`. Exact duplicate targets are deduplicated while preserving order. Mixing package and repo targets in the same request is rejected client-side.
 
-**Sources and filters.** `--source docs|code|symbol` is repeatable; omitting it delegates source selection to backend AUTO. Use `--source symbol` when you want symbol-shaped search results. `--category` is the broad filter (`callable`, `type`, `module`, `data`, `documentation`); `--kind` is the precise taxonomy. `--path-prefix`, `--intent`, and `--public` narrow the result set further. `--name` and `--lang` compile into query qualifiers instead of becoming separate backend fields.
+**Sources and filters.** `--source docs|code|symbol` restricts results to one evidence type; omit it to let GitHits select the best sources. Use `--source symbol` when you want symbol-shaped search results. `--category` is the broad filter (`callable`, `type`, `module`, `data`, `documentation`); `--kind` is the precise taxonomy. `--path-prefix`, `--intent`, and `--public` narrow the result set further. `--name` and `--lang` compile into query qualifiers instead of becoming separate backend fields.
 
 **Intent filter.** When `--intent` is omitted, unified search sends no file-intent filter. Pass `--intent production` or another specific intent only when you want to narrow the result set. Some sources can still ignore `fileIntent`; when they do, the JSON `sourceStatus` block and terminal notes report that explicitly.
 
@@ -131,6 +132,15 @@ githits feedback --reject --tool search -m "missing kotlin support"
 
 Passing `[solution_id]` anchors feedback to a prior `githits example` result. Omitting it creates generic feedback for the current CLI/MCP session via the `x-githits-session-id` header; `--tool` records the command or MCP tool that produced the result being rated. `--accept` and `--reject` are mutually exclusive (enforced by Commander's `.conflicts()` API). At least one must be provided (validated in the action function). JSON output is `{ "success": true, "message": "..." }`.
 
+### `githits doctor`
+
+```
+githits doctor
+githits doctor --json
+```
+
+Prints redacted diagnostics for comparing GitHits behavior across terminals or agents. The report includes CLI/runtime identity, selected environment variables, service URL sources, config file status, active and legacy auth storage locations, token/client/metadata presence and timestamps, and recommendations. Secret-bearing values such as tokens, client secrets, API tokens, and proxy credentials are never printed; presence is reported as `set` / `present` only. JSON output uses `schemaVersion: 1` for support tooling.
+
 ### `githits pkg info`
 
 ```
@@ -165,7 +175,7 @@ githits pkg vulns npm:express --scope non_affecting
 
 Lists known CVE / OSV advisories for a package: severity, affected version ranges, fix versions, and upgrade targets. Default text is capped at 5 advisory rows for readability; use `--verbose` for all selected rows or `--json` for the complete structured envelope. Malicious-package advisories (supply-chain attacks flagged by OSV) surface in a separate `MALWARE` bucket that sorts above all CVE advisories.
 
-**Package spec.** `<registry>:<name>[@<version>]`. Unlike `pkg info`, `pkg vulns` supports `@<version>` so callers can inspect older pinned releases. `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `packagist`, `rubygems`, and `go` support vulnerability data; vcpkg and Zig are rejected client-side with `pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, and go. Got: ${registry}.`
+**Package spec.** `<registry>:<name>[@<version>]`. Unlike `pkg info`, `pkg vulns` supports `@<version>` so callers can inspect older pinned releases. `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `packagist`, `rubygems`, `go`, and `swift` support vulnerability data; vcpkg and Zig are rejected client-side with `pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.` Swift accepts `v`-prefixed release tags because SwiftPM packages commonly publish them.
 
 **Filtering and scope.** `--severity low|medium|high|critical` maps to a CVSS float threshold (`low=0.1, medium=4, high=7, critical=9`) and is applied by the service. The returned `summary.total` always means advisories affecting the inspected version. Advisory rows default to `--scope affected`; use `--scope non_affecting` for historical package advisories that do not affect the inspected version, or `--scope all` for affected + historical rows. Active filters and non-default scope are echoed in text and under top-level JSON `filter`. `--include-withdrawn` includes retracted advisories; withdrawn advisories bucket below active ones in the terminal list.
 
@@ -201,9 +211,9 @@ githits pkg deps npm:express --transitive --depth 2
 githits pkg deps npm:express --json
 ```
 
-Analyses dependencies for a package on npm, PyPI, Hex, Crates, vcpkg, Zig, RubyGems, or Go. Default terminal output is a flat list of direct runtime dependencies with a hint summarising hidden groups.
+Analyses dependencies for a package on npm, PyPI, Hex, Crates, vcpkg, Zig, RubyGems, Go, or Swift. Default terminal output is a flat list of direct runtime dependencies with a hint summarising hidden groups.
 
-**Package spec.** `<registry>:<name>[@<version>]`. `@<version>` is accepted (same as `pkg vulns`); defaults to latest. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` — callers must use the canonical version. Only `npm`, `pypi`, `hex`, `crates`, `vcpkg`, `zig`, `rubygems`, and `go` are supported; other registries are rejected client-side with `pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, and go. Got: ${registry}.`
+**Package spec.** `<registry>:<name>[@<version>]`. `@<version>` is accepted (same as `pkg vulns`); defaults to latest. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` except for Swift, where `v`-prefixed release tags are accepted. Only `npm`, `pypi`, `hex`, `crates`, `vcpkg`, `zig`, `rubygems`, `go`, and `swift` are supported; other registries are rejected client-side with `pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, go, swift. Got: ${registry}.`
 
 **Two views.** The default runtime view renders a labelled `Runtime dependencies:` list from `dependencies.direct` — the flat answer to "what does this pull in?". The structured groups view (`--lifecycle all` or a concrete non-runtime lifecycle) renders a labelled `Dependency groups:` block and preserves registry-specific condition metadata (PyPI extras, Crates features). Dev / peer / build / optional deps live only in the groups view — the wire's `direct[]` is always runtime-only. The groups view does not repeat the resolved runtime list above the group block; runtime group rows include resolved versions when available.
 

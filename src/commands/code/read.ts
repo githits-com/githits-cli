@@ -64,9 +64,16 @@ export async function pkgReadAction(
   options: PkgReadCommandOptions,
   deps: PkgReadCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
-
   let requestedFilePath = "";
+
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) {
+      handleCodeNavCommandError(error, true, formatFileErrorWithFilesHint);
+    }
+    throw error;
+  }
 
   try {
     if (!deps.codeNavigationUrl || !deps.codeNavigationService) {

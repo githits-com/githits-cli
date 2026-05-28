@@ -34,7 +34,12 @@ export async function docsListAction(
   options: DocsListCommandOptions,
   deps: DocsListCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) handleDocsListError(error, true);
+    throw error;
+  }
 
   try {
     if (!deps.codeNavigationUrl || !deps.packageIntelligenceService) {

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { Command } from "commander";
 import {
   registerCodeCommandGroup,
+  registerDocsCommandGroup,
   registerExampleCommand,
   registerFeedbackCommand,
   registerLanguagesCommand,
@@ -114,6 +115,7 @@ async function createProgramForHelpSurface(options: {
   registerFeedbackCommand(program);
   await registerUnifiedSearchCommands(program, options);
   await registerCodeCommandGroup(program, options);
+  await registerDocsCommandGroup(program, options);
   await registerPkgCommandGroup(program, options);
 
   return program;
@@ -427,6 +429,46 @@ describe("root CLI preAction", () => {
     logSpy.mockRestore();
     errorSpy.mockRestore();
   });
+
+  it("emits JSON when interactive --json auto-login fails", async () => {
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const createContainer = mock(() => Promise.resolve(createLoginDeps()));
+    const loginFlow = mock(() =>
+      Promise.resolve({
+        status: "failed" as const,
+        message: "Authentication timed out.",
+      }),
+    );
+    const exit = mock(() => {
+      throw new Error("process.exit");
+    });
+    const program = createProgramWithRootPreAction({
+      createContainer,
+      loginFlow,
+      exit,
+    });
+
+    program
+      .command("example")
+      .option("--json", "Output JSON")
+      .action(() => {});
+
+    await expect(
+      program.parseAsync(["node", "githits", "example", "--json"]),
+    ).rejects.toThrow("process.exit");
+
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toEqual({
+      error: "Authentication timed out.",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+    });
+    expect(exit).toHaveBeenCalledWith(1);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
 });
 
 describe("CLI help surface", () => {
@@ -442,6 +484,7 @@ describe("CLI help surface", () => {
     expect(help).toMatch(/^\s{2}feedback\b/m);
     expect(help).not.toMatch(/^\s{2}search\b/m);
     expect(help).not.toMatch(/^\s{2}code\b/m);
+    expect(help).not.toMatch(/^\s{2}docs\b/m);
     expect(help).not.toMatch(/^\s{2}pkg\b/m);
   });
 
@@ -454,6 +497,7 @@ describe("CLI help surface", () => {
 
     expect(help).toMatch(/^\s{2}search\b/m);
     expect(help).toMatch(/^\s{2}code\b/m);
+    expect(help).toMatch(/^\s{2}docs\b/m);
     expect(help).toMatch(/^\s{2}pkg\b/m);
   });
 });

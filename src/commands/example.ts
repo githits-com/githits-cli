@@ -2,7 +2,11 @@ import { type Command, Option } from "commander";
 import type { GitHitsService } from "../services/githits-service.js";
 import { AuthenticationError } from "../services/githits-service.js";
 import { extractSolutionId } from "../shared/extract-solution-id.js";
-import { AuthRequiredError, requireAuth } from "../shared/require-auth.js";
+import {
+  AuthRequiredError,
+  buildAuthRequiredErrorPayload,
+  requireAuth,
+} from "../shared/require-auth.js";
 import { startSpinner } from "../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
 
@@ -24,18 +28,9 @@ export async function exampleAction(
   options: ExampleOptions,
   deps: ExampleDependencies,
 ): Promise<void> {
-  if (!deps.hasValidToken && options.json) {
-    printExampleError(
-      "Authentication required. Run `githits login`, then retry this command.",
-      "AUTH_REQUIRED",
-      true,
-    );
-    process.exit(1);
-  }
-
-  requireAuth(deps);
-
   try {
+    requireAuth(deps);
+
     const spinner = startSpinner(SPINNER_MESSAGES.example, !options.json);
     const result = await deps.githitsService
       .search({
@@ -56,6 +51,13 @@ export async function exampleAction(
       console.log(result);
     }
   } catch (error) {
+    if (error instanceof AuthRequiredError) {
+      if (options.json) {
+        console.error(JSON.stringify(buildAuthRequiredErrorPayload(error)));
+        process.exit(1);
+      }
+      throw error;
+    }
     if (error instanceof AuthenticationError) {
       printExampleError(
         "Authentication required. Run `githits login`, then retry this command.",
@@ -110,13 +112,8 @@ export function registerExampleCommand(program: Command) {
     .option("--explain", "Include AI-generated explanation")
     .option("--json", "Output as JSON for piping")
     .action(async (query: string, options: ExampleOptions) => {
-      try {
-        const deps = await loadContainer();
-        await exampleAction(query, options, deps);
-      } catch (error) {
-        if (error instanceof AuthRequiredError) process.exit(1);
-        throw error;
-      }
+      const deps = await loadContainer();
+      await exampleAction(query, options, deps);
     });
 }
 

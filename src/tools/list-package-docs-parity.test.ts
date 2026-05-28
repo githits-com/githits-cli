@@ -9,6 +9,7 @@ import {
   defaultPackageDocsList,
 } from "../services/test-helpers.js";
 import { createListPackageDocsTool } from "./list-package-docs.js";
+import { isProcessExitSentinel } from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<DocsListCommandDependencies> = {},
@@ -34,8 +35,8 @@ async function cliJson(
   try {
     try {
       await docsListAction(spec, { json: true }, deps);
-    } catch {
-      // expected on error paths
+    } catch (error) {
+      if (!isProcessExitSentinel(error)) throw error;
     }
     const raw =
       (logSpy.mock.calls[0]?.[0] as string | undefined) ??

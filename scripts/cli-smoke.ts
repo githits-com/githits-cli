@@ -1,6 +1,12 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  formatCliCommand,
+  mapWithConcurrency,
+  printSmokeTimingSummary,
+  trackSmokeStep,
+} from "./smoke-telemetry.ts";
 
 interface CommandResult {
   command: string[];
@@ -24,6 +30,9 @@ interface JsonParityFixture {
 
 const DEFAULT_TEXT_LIMIT = 20_000;
 const AUTH_ENV_KEYS = ["GITHITS_API_TOKEN", "GITHITS_TOKEN"] as const;
+const JSON_PARITY_CONCURRENCY = 2;
+const SMOKE_PACKAGE_SPEC = "npm:express@5.2.1";
+
 const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
   {
     name: "pkg_info",
@@ -77,11 +86,12 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
   },
   {
     name: "docs_list",
-    cliArgs: ["docs", "list", "npm:express", "--limit", "2", "--json"],
+    cliArgs: ["docs", "list", SMOKE_PACKAGE_SPEC, "--limit", "2", "--json"],
     mcpTool: "docs_list",
     mcpArgs: {
       registry: "npm",
       package_name: "express",
+      version: "5.2.1",
       limit: 2,
       format: "json",
     },
@@ -91,7 +101,7 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     cliArgs: [
       "code",
       "files",
-      "npm:express",
+      SMOKE_PACKAGE_SPEC,
       "package.json",
       "--limit",
       "1",
@@ -99,7 +109,7 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     ],
     mcpTool: "code_files",
     mcpArgs: {
-      target: { registry: "npm", package_name: "express" },
+      target: { registry: "npm", package_name: "express", version: "5.2.1" },
       path_prefix: "package.json",
       limit: 1,
       format: "json",
@@ -110,7 +120,7 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     cliArgs: [
       "code",
       "read",
-      "npm:express",
+      SMOKE_PACKAGE_SPEC,
       "package.json",
       "--lines",
       "1-5",
@@ -118,7 +128,7 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     ],
     mcpTool: "code_read",
     mcpArgs: {
-      target: { registry: "npm", package_name: "express" },
+      target: { registry: "npm", package_name: "express", version: "5.2.1" },
       path: "package.json",
       start_line: 1,
       end_line: 5,
@@ -130,7 +140,7 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     cliArgs: [
       "code",
       "grep",
-      "npm:express",
+      SMOKE_PACKAGE_SPEC,
       "express",
       "package.json",
       "--limit",
@@ -139,7 +149,7 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     ],
     mcpTool: "code_grep",
     mcpArgs: {
-      target: { registry: "npm", package_name: "express" },
+      target: { registry: "npm", package_name: "express", version: "5.2.1" },
       pattern: "express",
       path_prefix: "package.json",
       max_matches: 1,
@@ -253,44 +263,48 @@ async function runCliWithEnv(
   args: string[],
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined>,
 ): Promise<CommandResult> {
-  const proc = Bun.spawn(["bun", "run", "dev", ...args], {
-    stdout: "pipe",
-    stderr: "pipe",
-    env: {
-      ...baseEnv,
-      NO_COLOR: "1",
-    },
+  return trackSmokeStep(`cli ${formatCliCommand(args)}`, async () => {
+    const proc = Bun.spawn(["bun", "run", "dev", ...args], {
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...baseEnv,
+        NO_COLOR: "1",
+      },
+    });
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    return { command: args, exitCode, stdout, stderr };
   });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  return { command: args, exitCode, stdout, stderr };
 }
 
 async function runMcpJson(
   toolName: string,
   args: Record<string, unknown>,
 ): Promise<unknown> {
-  const proc = Bun.spawn(
-    ["bun", "run", "scripts/mcp-call.ts", toolName, JSON.stringify(args)],
-    {
-      stdout: "pipe",
-      stderr: "pipe",
-      env: process.env,
-    },
-  );
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  assert(
-    exitCode === 0,
-    `${toolName} MCP parity call failed (${exitCode})\n${stderr}`,
-  );
-  return parseJson(stdout, `${toolName} MCP parity`);
+  return trackSmokeStep(`mcp parity ${toolName}`, async () => {
+    const proc = Bun.spawn(
+      ["bun", "run", "scripts/mcp-call.ts", toolName, JSON.stringify(args)],
+      {
+        stdout: "pipe",
+        stderr: "pipe",
+        env: process.env,
+      },
+    );
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    assert(
+      exitCode === 0,
+      `${toolName} MCP parity call failed (${exitCode})\n${stderr}`,
+    );
+    return parseJson(stdout, `${toolName} MCP parity`);
+  });
 }
 
 function assertDeepEqual(
@@ -330,21 +344,28 @@ function jsonContractShape(value: unknown): unknown {
 }
 
 async function assertJsonParity(): Promise<void> {
-  for (const fixture of JSON_PARITY_FIXTURES) {
-    const cliPayload = assertJsonOutput(
-      await runCli(fixture.cliArgs),
-      `${fixture.name} CLI parity`,
-    );
-    const mcpPayload = await runMcpJson(fixture.mcpTool, fixture.mcpArgs);
-    // Dev endpoints may return stale cached data first and refresh in the
-    // background, so sequential CLI/MCP calls can legitimately see different
-    // values. Parity still verifies both surfaces expose the same JSON contract.
-    assertDeepEqual(
-      jsonContractShape(mcpPayload),
-      jsonContractShape(cliPayload),
-      `${fixture.name} CLI/MCP JSON shape`,
-    );
-  }
+  await mapWithConcurrency(
+    JSON_PARITY_FIXTURES,
+    JSON_PARITY_CONCURRENCY,
+    async (fixture) => {
+      await trackSmokeStep(`json parity ${fixture.name}`, async () => {
+        const [cliPayload, mcpPayload] = await Promise.all([
+          runCli(fixture.cliArgs).then((result) =>
+            assertJsonOutput(result, `${fixture.name} CLI parity`),
+          ),
+          runMcpJson(fixture.mcpTool, fixture.mcpArgs),
+        ]);
+        // Dev endpoints may return stale cached data first and refresh in the
+        // background, so concurrent CLI/MCP calls can legitimately see different
+        // values. Parity still verifies both surfaces expose the same JSON contract.
+        assertDeepEqual(
+          jsonContractShape(mcpPayload),
+          jsonContractShape(cliPayload),
+          `${fixture.name} CLI/MCP JSON shape`,
+        );
+      });
+    },
+  );
 }
 
 function isolatedUnauthenticatedEnv(): Record<string, string> {
@@ -371,14 +392,22 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
   try {
     const result = await runCliWithEnv(["languages", "python", "--json"], env);
     assert(result.exitCode !== 0, "unauthenticated languages should fail");
-    const output = `${result.stdout}\n${result.stderr}`;
     assert(
-      output.includes("Authentication required"),
-      "unauthenticated probe missing authentication guidance",
+      result.stdout.trim() === "",
+      "unauthenticated JSON probe should keep stdout clean",
     );
-    assert(
-      output.includes("githits login"),
-      "unauthenticated probe missing login guidance",
+    const payload = assertCleanErrorEnvelope(
+      result.stderr,
+      "unauthenticated languages",
+    );
+    assertDeepEqual(
+      payload,
+      {
+        error: "Authentication required.",
+        code: "AUTH_REQUIRED",
+        retryable: false,
+      },
+      "unauthenticated languages JSON envelope",
     );
   } finally {
     if (env.HOME) {
@@ -675,7 +704,7 @@ async function runLiveSmoke(): Promise<void> {
   }
 
   const docsText = assertTerminalOutput(
-    await runCli(["docs", "list", "npm:express", "--limit", "2"]),
+    await runCli(["docs", "list", SMOKE_PACKAGE_SPEC, "--limit", "2"]),
     "docs list terminal",
   );
   assert(
@@ -684,7 +713,14 @@ async function runLiveSmoke(): Promise<void> {
   );
 
   const docsJson = assertJsonOutput(
-    await runCli(["docs", "list", "npm:express", "--limit", "2", "--json"]),
+    await runCli([
+      "docs",
+      "list",
+      SMOKE_PACKAGE_SPEC,
+      "--limit",
+      "2",
+      "--json",
+    ]),
     "docs list json",
   );
   assertRecord(docsJson, "docs list json");
@@ -722,7 +758,7 @@ async function runLiveSmoke(): Promise<void> {
     await runCli([
       "code",
       "files",
-      "npm:express",
+      SMOKE_PACKAGE_SPEC,
       "package.json",
       "--limit",
       "1",
@@ -738,7 +774,7 @@ async function runLiveSmoke(): Promise<void> {
     await runCli([
       "code",
       "files",
-      "npm:express",
+      SMOKE_PACKAGE_SPEC,
       "package.json",
       "--limit",
       "1",
@@ -756,7 +792,7 @@ async function runLiveSmoke(): Promise<void> {
     await runCli([
       "code",
       "read",
-      "npm:express",
+      SMOKE_PACKAGE_SPEC,
       "package.json",
       "--lines",
       "1-5",
@@ -772,7 +808,7 @@ async function runLiveSmoke(): Promise<void> {
     await runCli([
       "code",
       "read",
-      "npm:express",
+      SMOKE_PACKAGE_SPEC,
       "package.json",
       "--lines",
       "1-5",
@@ -791,7 +827,7 @@ async function runLiveSmoke(): Promise<void> {
     await runCli([
       "code",
       "grep",
-      "npm:express",
+      SMOKE_PACKAGE_SPEC,
       "express",
       "package.json",
       "--limit",
@@ -808,7 +844,7 @@ async function runLiveSmoke(): Promise<void> {
     await runCli([
       "code",
       "grep",
-      "npm:express",
+      SMOKE_PACKAGE_SPEC,
       "express",
       "package.json",
       "--limit",
@@ -824,7 +860,14 @@ async function runLiveSmoke(): Promise<void> {
   );
 
   const searchText = assertTerminalOutput(
-    await runCli(["search", "router", "--in", "npm:express", "--limit", "1"]),
+    await runCli([
+      "search",
+      "router",
+      "--in",
+      SMOKE_PACKAGE_SPEC,
+      "--limit",
+      "1",
+    ]),
     "search terminal",
   );
   assert(
@@ -837,7 +880,7 @@ async function runLiveSmoke(): Promise<void> {
       "search",
       "router",
       "--in",
-      "npm:express",
+      SMOKE_PACKAGE_SPEC,
       "--limit",
       "1",
       "--json",
@@ -903,4 +946,8 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+try {
+  await main();
+} finally {
+  printSmokeTimingSummary();
+}

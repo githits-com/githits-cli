@@ -38,7 +38,12 @@ export async function pkgInfoAction(
   options: PkgInfoCommandOptions,
   deps: PkgInfoCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) handlePkgInfoCommandError(error, true);
+    throw error;
+  }
 
   try {
     if (!deps.codeNavigationUrl || !deps.packageIntelligenceService) {

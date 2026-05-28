@@ -42,7 +42,12 @@ export async function pkgVulnsAction(
   options: PkgVulnsCommandOptions,
   deps: PkgVulnsCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) handlePkgVulnsCommandError(error, true);
+    throw error;
+  }
 
   try {
     if (!deps.codeNavigationUrl || !deps.packageIntelligenceService) {
@@ -152,7 +157,7 @@ capped for readability; use --verbose for all selected advisory rows or --json
 for the complete structured envelope.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
-npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go. vcpkg and zig are not supported.
+npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift. vcpkg and zig are not supported.
 Omit @<version> to check the latest release.
 Example: githits pkg vulns npm:lodash@4.17.20 --severity high
 

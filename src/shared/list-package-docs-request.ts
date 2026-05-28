@@ -6,6 +6,7 @@ import {
 import {
   isKnownPkgseerRegistryArg,
   PKGSEER_REGISTRY_LIST,
+  type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
 } from "./pkgseer-registry.js";
@@ -27,8 +28,8 @@ export interface ListPackageDocsRequestBuildResult {
 export function buildListPackageDocsParams(
   input: ListPackageDocsRequestInput,
 ): ListPackageDocsRequestBuildResult {
-  const packageName = input.packageName?.trim() ?? "";
-  if (!packageName) {
+  const rawPackageName = input.packageName?.trim() ?? "";
+  if (!rawPackageName) {
     throw new InvalidPackageSpecError("Package name is required.");
   }
 
@@ -39,9 +40,10 @@ export function buildListPackageDocsParams(
     );
   }
 
+  const backendRegistry = toPkgseerRegistry(registry as PkgseerRegistryArg);
   const params: ListPackageDocsParams = {
-    registry: toPkgseerRegistry(registry as PkgseerRegistryArg),
-    packageName,
+    registry: backendRegistry,
+    packageName: normalisePackageName(rawPackageName, backendRegistry),
   };
 
   const version = input.version?.trim();
@@ -68,4 +70,14 @@ export function buildListPackageDocsParams(
     limitExplicit: input.limit !== undefined,
     afterExplicit: Boolean(after),
   };
+}
+
+function normalisePackageName(
+  packageName: string,
+  registry: PkgseerRegistry,
+): string {
+  if (registry === "SWIFT" && /^github\.com\//i.test(packageName)) {
+    return packageName.toLowerCase();
+  }
+  return packageName;
 }

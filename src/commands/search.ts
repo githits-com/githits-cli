@@ -16,6 +16,7 @@ import {
   InvalidArgumentError,
   knownSymbolCategoryList,
   knownSymbolKindList,
+  parseIntCliOption,
   parseUnifiedSearchTargetSpec,
   requireAuth,
   SPINNER_MESSAGES,
@@ -30,7 +31,7 @@ import {
 
 export interface SearchCommandOptions {
   in?: string[];
-  source?: string[];
+  source?: string;
   kind?: string;
   category?: string;
   pathPrefix?: string;
@@ -68,7 +69,12 @@ export async function searchAction(
   options: SearchCommandOptions,
   deps: SearchCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) handleSearchError(error, true);
+    throw error;
+  }
 
   try {
     const service = requireSearchService(deps);
@@ -116,7 +122,12 @@ export async function searchStatusAction(
   options: SearchStatusCommandOptions,
   deps: SearchCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) handleSearchError(error, true, "status");
+    throw error;
+  }
 
   try {
     const service = requireSearchService(deps);
@@ -189,12 +200,17 @@ export function registerSearchCommand(program: Command) {
     .addOption(
       new Option(
         "--source <source>",
-        "Source to search (repeatable; default: auto)",
+        "Restrict results to docs, code, or symbol; omit to let GitHits select the best sources",
       )
         .choices(["docs", "code", "symbol"])
-        .argParser((value, previous: string[] = []) =>
-          collectRepeatable(value.toLowerCase(), previous),
-        )
+        .argParser((value, previous: string | undefined) => {
+          if (previous !== undefined) {
+            throw new InvalidArgumentError(
+              "Pass --source at most once; omit it to let GitHits select the best sources.",
+            );
+          }
+          return value.toLowerCase();
+        })
         .default(undefined),
     )
     .addOption(
@@ -305,21 +321,19 @@ function warnIfUnprefixedTargetSpec(spec: string): void {
 }
 
 function parseSources(
-  values: string[] | undefined,
+  value: string | undefined,
 ): UnifiedSearchSource[] | undefined {
-  if (!values || values.length === 0) return undefined;
-  return values.map((value) => {
-    switch (value) {
-      case "docs":
-        return "DOCS";
-      case "code":
-        return "CODE";
-      case "symbol":
-        return "SYMBOL";
-      default:
-        throw new InvalidArgumentError(`Unsupported source '${value}'.`);
-    }
-  });
+  if (!value) return undefined;
+  switch (value) {
+    case "docs":
+      return ["DOCS"];
+    case "code":
+      return ["CODE"];
+    case "symbol":
+      return ["SYMBOL"];
+    default:
+      throw new InvalidArgumentError(`Unsupported source '${value}'.`);
+  }
 }
 
 function parseOptionalInt(
@@ -328,25 +342,19 @@ function parseOptionalInt(
   min: number,
   max = Number.MAX_SAFE_INTEGER,
 ): number | undefined {
-  if (value === undefined) return undefined;
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
-    throw new InvalidArgumentError(
-      `${flag} must be an integer between ${min} and ${max}.`,
-    );
-  }
-  return parsed;
+  return parseIntCliOption(value, flag, min, max);
 }
 
 function parseWaitMs(value: string | undefined): number | undefined {
   if (value === undefined) return undefined;
-  const trimmed = value.trim().replace(/s$/i, "");
-  const seconds = Number.parseInt(trimmed, 10);
-  if (!Number.isFinite(seconds) || seconds < 0 || seconds > 60) {
+  const match = /^(?<seconds>-?\d+)s?$/i.exec(value.trim());
+  if (!match?.groups?.seconds) {
     throw new InvalidArgumentError(
       "--wait must be an integer between 0 and 60 seconds.",
     );
   }
+  const seconds = parseIntCliOption(match.groups.seconds, "--wait", 0, 60);
+  if (seconds === undefined) return undefined;
   return seconds * 1000;
 }
 

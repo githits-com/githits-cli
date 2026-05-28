@@ -49,6 +49,16 @@ describe("buildPackageVulnerabilitiesParams", () => {
     ).toThrow(InvalidPackageSpecError);
   });
 
+  it("allows v-prefixed Swift versions", () => {
+    const { params } = buildPackageVulnerabilitiesParams({
+      registry: "swift",
+      packageName: "github.com/apple/swift-crypto",
+      version: "v3.11.0",
+    });
+    expect(params.registry).toBe("SWIFT");
+    expect(params.version).toBe("v3.11.0");
+  });
+
   it("omits version when not supplied", () => {
     const { params } = buildPackageVulnerabilitiesParams({
       registry: "npm",
@@ -225,7 +235,7 @@ describe("buildPackageVulnerabilitiesParams", () => {
       } catch (error) {
         expect(error).toBeInstanceOf(UnsupportedVulnerabilitiesRegistryError);
         expect((error as Error).message).toBe(
-          `pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, and go. Got: ${registry}.`,
+          `pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.`,
         );
       }
     }
@@ -242,6 +252,7 @@ describe("buildPackageVulnerabilitiesParams", () => {
       "packagist",
       "rubygems",
       "go",
+      "swift",
     ];
     for (const registry of supported) {
       expect(() =>
@@ -265,6 +276,7 @@ describe("supportsVulnerabilitiesRegistry", () => {
     expect(supportsVulnerabilitiesRegistry("PACKAGIST")).toBe(true);
     expect(supportsVulnerabilitiesRegistry("RUBYGEMS")).toBe(true);
     expect(supportsVulnerabilitiesRegistry("GO")).toBe(true);
+    expect(supportsVulnerabilitiesRegistry("SWIFT")).toBe(true);
   });
 
   it("rejects the unsupported registries", () => {

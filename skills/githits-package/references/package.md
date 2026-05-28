@@ -4,7 +4,7 @@
 
 `githits pkg info <registry:name>` returns latest-version triage: license, description, repository popularity, downloads, publish age, and vulnerability status. Use `--verbose` for GitHub language/topics/last-pushed, recent advisories, and recent changes. Use `--json` for structured fields.
 
-Supported registries include npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, vcpkg, and Zig.
+Supported registries include npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, vcpkg, and Zig.
 
 ## Vulnerabilities
 
@@ -12,7 +12,7 @@ Supported registries include npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, Ru
 
 Flags: `--severity low|medium|high|critical`, `--scope affected|non_affecting|all`, `--include-withdrawn`, `--verbose`, `--json`.
 
-Supported registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go. vcpkg and Zig are unsupported for vulnerability data.
+Supported registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift. vcpkg and Zig are unsupported for vulnerability data.
 
 ## Dependencies
 

@@ -12,8 +12,9 @@
  *   with a tool-specific message; truly unknown registries fall
  *   through to the shared `UnsupportedRegistryError`.
  * - Reject tag-style versions (`v4.18.0`) client-side — the `v` prefix
- *   is a git-tag convention, not a canonical version on any supported
- *   registry.
+ *   is a git-tag convention, not a canonical version on most supported
+ *   registries. Swift is the exception: SwiftPM packages commonly use
+ *   `v`-prefixed release tags and the backend normalizes them.
  * - Parse the comma-separated lifecycle list into the canonical
  *   lowercase enum set; reject unknown tokens.
  * - Enforce `maxDepth` bounds (1–10).
@@ -80,6 +81,7 @@ export const SUPPORTED_DEPS_REGISTRIES: ReadonlySet<PkgseerRegistry> = new Set([
   "ZIG",
   "RUBYGEMS",
   "GO",
+  "SWIFT",
 ]);
 
 /**
@@ -153,7 +155,7 @@ export function buildPackageDependenciesParams(
     );
   }
 
-  const version = normaliseVersion(input.version);
+  const version = normaliseVersion(input.version, registry);
 
   const canonicalLifecycles = resolveLifecycles(input.lifecycle);
   const wireLifecycles = canonicalLifecycles.filter(
@@ -184,11 +186,14 @@ export function buildPackageDependenciesParams(
   };
 }
 
-function normaliseVersion(raw: string | undefined): string | undefined {
+function normaliseVersion(
+  raw: string | undefined,
+  registry: PkgseerRegistry,
+): string | undefined {
   if (raw === undefined) return undefined;
   const trimmed = raw.trim();
   if (trimmed.length === 0) return undefined;
-  if (/^v[0-9]/i.test(trimmed)) {
+  if (registry !== "SWIFT" && /^v[0-9]/i.test(trimmed)) {
     throw new InvalidPackageSpecError(
       `Version '${trimmed}' looks like a git tag. Use the canonical version without a leading 'v' (e.g. ${trimmed.slice(1)}).`,
     );

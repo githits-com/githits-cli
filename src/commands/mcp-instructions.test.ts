@@ -1,29 +1,17 @@
 import { describe, expect, it } from "bun:test";
-import type { Dependencies } from "../container.js";
+import { buildMcpInstructions } from "../mcp/instructions.js";
+import { getMcpToolDefinitions } from "../mcp/server.js";
 import {
-  createMockAuthService,
-  createMockAuthStorage,
-  createMockBrowserService,
   createMockCodeNavigationService,
-  createMockFileSystemService,
   createMockGitHitsService,
   createMockPackageIntelligenceService,
 } from "../services/test-helpers.js";
-import { getMcpToolDefinitions } from "./mcp.js";
-import { buildMcpInstructions } from "./mcp-instructions.js";
+import type { McpToolServices } from "../tools/tool-services.js";
 
-function createTestDeps(overrides: Partial<Dependencies> = {}): Dependencies {
+function createTestServices(
+  overrides: Partial<McpToolServices> = {},
+): McpToolServices {
   return {
-    authStorage: createMockAuthStorage(),
-    authService: createMockAuthService(),
-    browserService: createMockBrowserService(),
-    fileSystemService: createMockFileSystemService(),
-    mcpUrl: "https://mcp.githits.com",
-    apiUrl: "https://api.githits.com",
-    apiToken: "test-token",
-    hasValidToken: true,
-    envApiToken: undefined,
-    codeNavigationUrl: "https://pkgseer.dev",
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
     githitsService: createMockGitHitsService(),
@@ -59,14 +47,13 @@ function mentionedTools(instructions: string): Set<string> {
   return mentioned;
 }
 
-function registeredTools(deps: Dependencies): Set<string> {
-  return new Set(getMcpToolDefinitions(deps).map((tool) => tool.name));
+function registeredTools(services: McpToolServices): Set<string> {
+  return new Set(getMcpToolDefinitions(services).map((tool) => tool.name));
 }
 
 describe("buildMcpInstructions", () => {
   it("returns core + package/code tools section by default", () => {
-    const deps = createTestDeps();
-    const instructions = buildMcpInstructions(deps);
+    const instructions = buildMcpInstructions();
 
     expect(instructions).toContain("GitHits provides verified");
     expect(instructions).toContain("Indexed package/source tools");
@@ -84,18 +71,17 @@ describe("buildMcpInstructions", () => {
   });
 
   it("includes the external-content posture by default", () => {
-    const deps = createTestDeps();
-    const instructions = buildMcpInstructions(deps);
+    const instructions = buildMcpInstructions();
 
     expect(instructions).toContain("External-content posture");
+    expect(instructions).toContain("tool-owned reference/provenance sections");
   });
 
   it("omits the external-content posture when explicitly opted out", () => {
     // The eval mock MCP server opts out so it can control whether the
     // shared block is included per cell, comparing baseline vs
     // guardrailed cohorts cleanly. Production never opts out.
-    const deps = createTestDeps();
-    const instructions = buildMcpInstructions(deps, {
+    const instructions = buildMcpInstructions({
       includeExternalContentPosture: false,
     });
 
@@ -106,8 +92,7 @@ describe("buildMcpInstructions", () => {
   });
 
   it("steers file enumeration to code_files instead of directory probes", () => {
-    const deps = createTestDeps();
-    const instructions = buildMcpInstructions(deps);
+    const instructions = buildMcpInstructions();
 
     expect(instructions).toContain(
       "First choice for file-listing/path-enumeration tasks",
@@ -122,15 +107,13 @@ describe("buildMcpInstructions", () => {
   });
 
   it("expands core trigger criteria to cover comparative cross-OSS questions", () => {
-    const deps = createTestDeps();
-    const instructions = buildMcpInstructions(deps);
+    const instructions = buildMcpInstructions();
     expect(instructions).toContain("comparative across OSS projects");
     expect(instructions).toContain("how a real codebase implements");
   });
 
   it("keeps the core block first", () => {
-    const deps = createTestDeps();
-    const instructions = buildMcpInstructions(deps);
+    const instructions = buildMcpInstructions();
 
     const coreIdx = instructions.indexOf("GitHits provides verified");
     const packageToolsIdx = instructions.indexOf(
@@ -141,9 +124,9 @@ describe("buildMcpInstructions", () => {
   });
 
   it("keeps mentioned package/code tools aligned with registration", () => {
-    const deps = createTestDeps();
-    const mentioned = mentionedTools(buildMcpInstructions(deps));
-    const registered = registeredTools(deps);
+    const services = createTestServices();
+    const mentioned = mentionedTools(buildMcpInstructions());
+    const registered = registeredTools(services);
 
     for (const name of mentioned) {
       expect(registered.has(name)).toBe(true);
@@ -170,8 +153,7 @@ describe("buildMcpInstructions", () => {
   });
 
   it("ships a decision tree mentioning all three workflow tools in the core block", () => {
-    const deps = createTestDeps();
-    const instructions = buildMcpInstructions(deps);
+    const instructions = buildMcpInstructions();
     const coreEnd = instructions.indexOf("Indexed package/source tools");
     const coreSection = instructions.slice(0, coreEnd);
 
@@ -181,9 +163,18 @@ describe("buildMcpInstructions", () => {
     expect(coreSection).toContain("`search_language`");
   });
 
+  it("tells agents to report get_example source repositories", () => {
+    const instructions = buildMcpInstructions();
+
+    expect(instructions).toContain("source repository provenance");
+    expect(instructions).toContain("source repositories/citations");
+    expect(instructions).toContain(
+      "GitHits' generated references/provenance section",
+    );
+  });
+
   it("orders package-section bullets by agent decision flow", () => {
-    const deps = createTestDeps();
-    const instructions = buildMcpInstructions(deps);
+    const instructions = buildMcpInstructions();
 
     const positions = {
       search: instructions.indexOf("- `search` —"),
@@ -221,8 +212,7 @@ describe("buildMcpInstructions", () => {
   });
 
   it("places the strategy tip after the bullets and the delegation tip before them", () => {
-    const deps = createTestDeps();
-    const instructions = buildMcpInstructions(deps);
+    const instructions = buildMcpInstructions();
 
     const delegationIdx = instructions.indexOf(
       "Delegate multi-call work to a sub-agent",

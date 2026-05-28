@@ -1,11 +1,18 @@
 export {
   getAppConfigDir,
+  getAppConfigDirForEnv,
   getAuthConfigPath,
+  getAuthConfigPathForEnv,
   getAuthFileStorageDir,
+  getAuthFileStorageDirForEnv,
   getLegacyAuthStorageDir,
+  getLegacyAuthStorageDirForEnv,
   getLegacyMacAppConfigDir,
+  getLegacyMacAppConfigDirForEnv,
   getLegacyMacAuthConfigPath,
+  getLegacyMacAuthConfigPathForEnv,
   getLegacyMacAuthFileStorageDir,
+  getLegacyMacAuthFileStorageDirForEnv,
 } from "./app-config-paths.js";
 export type { AuthConfig, AuthStorageMode } from "./auth-config.js";
 export {
@@ -104,6 +111,9 @@ export {
   MalformedCodeNavigationResponseError,
 } from "./code-navigation-service.js";
 export {
+  DEFAULT_API_URL,
+  DEFAULT_CODE_NAV_URL,
+  DEFAULT_MCP_URL,
   getApiUrl,
   getCodeNavigationUrl,
   getEnvApiToken,

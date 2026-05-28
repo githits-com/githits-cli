@@ -3,6 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import {
+  printSmokeTimingSummary,
+  summarizeMcpArgs,
+  trackSmokeStep,
+} from "./smoke-telemetry.ts";
 
 interface TextContent {
   type: "text";
@@ -40,6 +45,12 @@ const EXPECTED_TOOLS = [
 
 const DEFAULT_TEXT_LIMIT = 12_000;
 const AUTH_ENV_KEYS = ["GITHITS_API_TOKEN", "GITHITS_TOKEN"] as const;
+const SMOKE_PACKAGE_VERSION = "5.2.1";
+const SMOKE_PACKAGE_TARGET = {
+  registry: "npm",
+  package_name: "express",
+  version: SMOKE_PACKAGE_VERSION,
+} as const;
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -144,7 +155,11 @@ async function callTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<ToolCallResult> {
-  return (await client.callTool({ name, arguments: args })) as ToolCallResult;
+  return trackSmokeStep(
+    `mcp ${name}${summarizeMcpArgs(args)}`,
+    async () =>
+      (await client.callTool({ name, arguments: args })) as ToolCallResult,
+  );
 }
 
 function isolatedUnauthenticatedEnv(): Record<string, string> {
@@ -189,7 +204,10 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
   const home = env.HOME;
   try {
     await withMcpClient(env, async (client) => {
-      const toolsResponse = await client.listTools();
+      const toolsResponse = await trackSmokeStep(
+        "mcp listTools unauthenticated",
+        () => client.listTools(),
+      );
       assert(
         toolsResponse.tools.length > 0,
         "unauthenticated listTools returned no tools",
@@ -586,8 +604,7 @@ async function runLiveSmoke(client: Client): Promise<void> {
 
   const docsText = assertDefaultText(
     await callTool(client, "docs_list", {
-      registry: "npm",
-      package_name: "express",
+      ...SMOKE_PACKAGE_TARGET,
       limit: 2,
     }),
     "docs_list default",
@@ -599,8 +616,7 @@ async function runLiveSmoke(client: Client): Promise<void> {
 
   const docsJson = assertJsonResult(
     await callTool(client, "docs_list", {
-      registry: "npm",
-      package_name: "express",
+      ...SMOKE_PACKAGE_TARGET,
       limit: 2,
       format: "json",
     }),
@@ -641,7 +657,7 @@ async function runLiveSmoke(client: Client): Promise<void> {
 
   const codeFilesText = assertDefaultText(
     await callTool(client, "code_files", {
-      target: { registry: "npm", package_name: "express" },
+      target: SMOKE_PACKAGE_TARGET,
       path_prefix: "package.json",
       limit: 1,
     }),
@@ -654,7 +670,7 @@ async function runLiveSmoke(client: Client): Promise<void> {
 
   const codeFilesJson = assertJsonResult(
     await callTool(client, "code_files", {
-      target: { registry: "npm", package_name: "express" },
+      target: SMOKE_PACKAGE_TARGET,
       path_prefix: "package.json",
       limit: 1,
       format: "json",
@@ -669,7 +685,7 @@ async function runLiveSmoke(client: Client): Promise<void> {
 
   const codeReadText = assertDefaultText(
     await callTool(client, "code_read", {
-      target: { registry: "npm", package_name: "express" },
+      target: SMOKE_PACKAGE_TARGET,
       path: "package.json",
       start_line: 1,
       end_line: 5,
@@ -680,7 +696,7 @@ async function runLiveSmoke(client: Client): Promise<void> {
 
   const codeReadJson = assertJsonResult(
     await callTool(client, "code_read", {
-      target: { registry: "npm", package_name: "express" },
+      target: SMOKE_PACKAGE_TARGET,
       path: "package.json",
       start_line: 1,
       end_line: 5,
@@ -693,7 +709,7 @@ async function runLiveSmoke(client: Client): Promise<void> {
 
   const codeGrepText = assertDefaultText(
     await callTool(client, "code_grep", {
-      target: { registry: "npm", package_name: "express" },
+      target: SMOKE_PACKAGE_TARGET,
       pattern: "express",
       path: "package.json",
       max_matches: 1,
@@ -707,7 +723,7 @@ async function runLiveSmoke(client: Client): Promise<void> {
 
   const codeGrepJson = assertJsonResult(
     await callTool(client, "code_grep", {
-      target: { registry: "npm", package_name: "express" },
+      target: SMOKE_PACKAGE_TARGET,
       pattern: "express",
       path: "package.json",
       max_matches: 1,
@@ -723,7 +739,7 @@ async function runLiveSmoke(client: Client): Promise<void> {
 
   const searchText = assertDefaultText(
     await callTool(client, "search", {
-      target: { registry: "npm", package_name: "express" },
+      target: SMOKE_PACKAGE_TARGET,
       query: "router",
       limit: 1,
     }),
@@ -738,7 +754,7 @@ async function runLiveSmoke(client: Client): Promise<void> {
 
   const searchJson = assertJsonResult(
     await callTool(client, "search", {
-      target: { registry: "npm", package_name: "express" },
+      target: SMOKE_PACKAGE_TARGET,
       query: "router",
       limit: 1,
       format: "json",
@@ -788,7 +804,9 @@ async function runLiveSmoke(client: Client): Promise<void> {
 async function main(): Promise<void> {
   await assertUnauthenticatedBehavior();
   await withMcpClient(undefined, async (client) => {
-    const toolsResponse = await client.listTools();
+    const toolsResponse = await trackSmokeStep("mcp listTools", () =>
+      client.listTools(),
+    );
     const toolNames = new Set(toolsResponse.tools.map((tool) => tool.name));
     for (const expected of EXPECTED_TOOLS) {
       assert(toolNames.has(expected), `listTools missing ${expected}`);
@@ -801,4 +819,8 @@ async function main(): Promise<void> {
   });
 }
 
-await main();
+try {
+  await main();
+} finally {
+  printSmokeTimingSummary();
+}

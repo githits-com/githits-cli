@@ -49,7 +49,12 @@ export async function pkgDepsAction(
   options: PkgDepsCommandOptions,
   deps: PkgDepsCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) handlePkgDepsCommandError(error, true);
+    throw error;
+  }
 
   try {
     if (!deps.codeNavigationUrl || !deps.packageIntelligenceService) {
@@ -201,7 +206,7 @@ groups). Runtime group rows include resolved versions when available.
 conflict detection, and circular-dependency flags.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
-${SUPPORTED_DEPS_REGISTRIES_LIST}. Omit @<version> for the latest release.`;
+${SUPPORTED_DEPS_REGISTRIES_LIST}. Omit @<version> for the latest release. v-prefixed versions are accepted for Swift only.`;
 
 export function registerPkgDepsCommand(pkgCommand: Command): Command {
   return pkgCommand

@@ -27,8 +27,7 @@ import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { buildMcpInstructions } from "../../src/commands/mcp-instructions.js";
-import type { Dependencies } from "../../src/container.js";
+import { buildMcpInstructions } from "../../src/mcp/instructions.js";
 import {
   CODE_READ_GUARDRAIL,
   DOCS_GUARDRAIL,
@@ -72,7 +71,7 @@ function withGuardrail(base: string, addendum: string): string {
 // external-content posture so we can control whether it's included
 // per cell. Production always inherits the shared block; the eval
 // needs `--guardrail=off` to be a clean baseline.
-const baseInstructions = buildMcpInstructions({} as Dependencies, {
+const baseInstructions = buildMcpInstructions({
   includeExternalContentPosture: false,
 });
 const instructions = includeShared

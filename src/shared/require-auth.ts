@@ -3,15 +3,25 @@
  * Caught at the CLI boundary to trigger process.exit(1).
  */
 export class AuthRequiredError extends Error {
-  constructor(message: string) {
+  readonly mcpUrl: string;
+
+  constructor(message: string, mcpUrl: string) {
     super(message);
     this.name = "AuthRequiredError";
+    this.mcpUrl = mcpUrl;
   }
 }
 
+export interface AuthRequiredErrorPayload {
+  error: string;
+  code: "AUTH_REQUIRED";
+  retryable: false;
+}
+
 /**
- * Print friendly message when auth is missing and throw AuthRequiredError.
- * Shared between MCP server startup and CLI commands.
+ * Throw AuthRequiredError when auth is missing.
+ * Rendering belongs to the CLI/MCP boundary so JSON callers never receive
+ * terminal prose on stdout.
  *
  * @param context - Optional context appended to the message (e.g., "to start MCP server")
  * @throws AuthRequiredError - Always throws when hasValidToken is false
@@ -26,17 +36,32 @@ export function requireAuth(
   if (deps.hasValidToken) return;
 
   const suffix = context ? ` ${context}` : "";
-  console.log(`Authentication required${suffix}.\n`);
+  throw new AuthRequiredError(`Authentication required${suffix}.`, deps.mcpUrl);
+}
 
-  if (deps.mcpUrl !== "https://mcp.githits.com") {
-    console.log(`  Environment: ${deps.mcpUrl}`);
-    console.log("  You're using a custom environment.\n");
+export function buildAuthRequiredErrorPayload(
+  error: AuthRequiredError,
+): AuthRequiredErrorPayload {
+  return {
+    error: error.message,
+    code: "AUTH_REQUIRED",
+    retryable: false,
+  };
+}
+
+export function formatAuthRequiredForTerminal(
+  error: AuthRequiredError,
+): string {
+  const lines = [`${error.message}\n`];
+
+  if (error.mcpUrl !== "https://mcp.githits.com") {
+    lines.push(`  Environment: ${error.mcpUrl}`);
+    lines.push("  You're using a custom environment.\n");
   }
 
-  console.log("To authenticate:");
-  console.log("  githits login\n");
-  console.log("Or set GITHITS_API_TOKEN environment variable.");
-  console.log("\nNeed help? support@githits.com");
-
-  throw new AuthRequiredError(`Authentication required${suffix}`);
+  lines.push("To authenticate:");
+  lines.push("  githits login\n");
+  lines.push("Or set GITHITS_API_TOKEN environment variable.");
+  lines.push("\nNeed help? support@githits.com");
+  return lines.join("\n");
 }

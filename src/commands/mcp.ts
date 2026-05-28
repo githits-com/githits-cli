@@ -1,117 +1,16 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Command } from "commander";
 import { version } from "../../package.json";
-import { createContainer, type Dependencies } from "../container.js";
+import { createContainer } from "../container.js";
+import { createMcpServer } from "../mcp/server.js";
 import { dim, highlight, shouldUseColors } from "../shared/colors.js";
 import {
   setClientMode,
   setMcpClientVersionProvider,
 } from "../shared/request-headers.js";
-import {
-  createFeedbackTool,
-  createGetExampleTool,
-  createGrepRepoTool,
-  createListFilesTool,
-  createListPackageDocsTool,
-  createPackageChangelogTool,
-  createPackageDependenciesTool,
-  createPackageSummaryTool,
-  createPackageUpgradeReviewTool,
-  createPackageVulnerabilitiesTool,
-  createReadFileTool,
-  createReadPackageDocTool,
-  createSearchLanguageTool,
-  createSearchStatusTool,
-  createSearchTool,
-  type ToolDefinition,
-  type ZodRawShape,
-} from "../tools/index.js";
-import { buildMcpInstructions } from "./mcp-instructions.js";
+import type { McpToolServices } from "../tools/tool-services.js";
 
-/**
- * Returns the MCP tools enabled for the current startup state.
- */
-export function getMcpToolDefinitions(
-  deps: Dependencies,
-): ToolDefinition<unknown>[] {
-  const tools: ToolDefinition<unknown>[] = [
-    eraseTool(createGetExampleTool(deps.githitsService)),
-    eraseTool(createSearchLanguageTool(deps.githitsService)),
-    eraseTool(createFeedbackTool(deps.githitsService)),
-  ];
-
-  tools.push(eraseTool(createSearchTool(deps.codeNavigationService)));
-  tools.push(eraseTool(createSearchStatusTool(deps.codeNavigationService)));
-  tools.push(eraseTool(createListFilesTool(deps.codeNavigationService)));
-  tools.push(eraseTool(createReadFileTool(deps.codeNavigationService)));
-  tools.push(eraseTool(createGrepRepoTool(deps.codeNavigationService)));
-  tools.push(
-    eraseTool(createListPackageDocsTool(deps.packageIntelligenceService)),
-  );
-  tools.push(
-    eraseTool(createReadPackageDocTool(deps.packageIntelligenceService)),
-  );
-  tools.push(
-    eraseTool(createPackageSummaryTool(deps.packageIntelligenceService)),
-  );
-  tools.push(
-    eraseTool(
-      createPackageVulnerabilitiesTool(deps.packageIntelligenceService),
-    ),
-  );
-  tools.push(
-    eraseTool(createPackageDependenciesTool(deps.packageIntelligenceService)),
-  );
-  tools.push(
-    eraseTool(createPackageChangelogTool(deps.packageIntelligenceService)),
-  );
-  tools.push(
-    eraseTool(createPackageUpgradeReviewTool(deps.packageIntelligenceService)),
-  );
-
-  return tools;
-}
-
-function eraseTool<TArgs, TSchema extends ZodRawShape>(
-  tool: ToolDefinition<TArgs, TSchema>,
-): ToolDefinition<unknown> {
-  return {
-    ...tool,
-    handler: (args, extra) => tool.handler(args as TArgs, extra),
-  };
-}
-
-/**
- * Creates the MCP server with injected dependencies.
- */
-export function createMcpServer(deps: Dependencies): McpServer {
-  const server = new McpServer(
-    {
-      name: "githits",
-      version,
-    },
-    {
-      instructions: buildMcpInstructions(deps),
-    },
-  );
-
-  const tools = getMcpToolDefinitions(deps);
-
-  for (const tool of tools) {
-    server.registerTool(
-      tool.name,
-      {
-        description: tool.description,
-        inputSchema: tool.schema,
-        annotations: tool.annotations,
-      },
-      tool.handler,
-    );
-  }
-
-  return server;
-}
+const LOCAL_MCP_SERVER_METADATA = { name: "githits", version };
 
 /**
  * Start the MCP server. Exported for testability.
@@ -130,10 +29,10 @@ export function createMcpServer(deps: Dependencies): McpServer {
  *   pattern had where the first tool call could slip through
  *   before the notification dispatched.
  */
-export async function startMcpServer(deps: Dependencies): Promise<void> {
+export async function startMcpServer(services: McpToolServices): Promise<void> {
   setClientMode("mcp");
 
-  const server = createMcpServer(deps);
+  const server = createMcpServer(services, LOCAL_MCP_SERVER_METADATA);
   const transport = new StdioServerTransport();
 
   setMcpClientVersionProvider(() => {

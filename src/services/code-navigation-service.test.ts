@@ -7,6 +7,7 @@ import {
   mock,
   spyOn,
 } from "bun:test";
+import { FetchTimeoutError } from "../shared/fetch-timeout.js";
 import {
   CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
@@ -169,6 +170,27 @@ describe("CodeNavigationServiceImpl", () => {
       limit: 25,
       waitTimeoutMs: 1234,
     });
+  });
+
+  it("classifies client-side timeouts as CodeNavigationBackendError TIMEOUT", async () => {
+    globalThis.fetch = mock(() =>
+      Promise.reject(new FetchTimeoutError(1)),
+    ) as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    try {
+      await service.listFiles({
+        target: { registry: "NPM", packageName: "express" },
+      });
+      throw new Error("expected timeout error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationBackendError);
+      expect((error as CodeNavigationBackendError).graphqlCode).toBe("TIMEOUT");
+      expect((error as CodeNavigationBackendError).retryable).toBe(true);
+    }
   });
 
   it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on listFiles", async () => {

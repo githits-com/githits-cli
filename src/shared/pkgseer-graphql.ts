@@ -25,6 +25,7 @@
 
 import { version } from "../../package.json";
 import { debugLog } from "./debug-log.js";
+import { DEFAULT_FETCH_TIMEOUT_MS, fetchWithTimeout } from "./fetch-timeout.js";
 import { buildClientHeaders } from "./request-headers.js";
 
 export interface PkgseerGraphqlRequest {
@@ -38,6 +39,8 @@ export interface PkgseerGraphqlRequest {
   variables: Record<string, unknown>;
   /** Fetch implementation — defaults to `globalThis.fetch`. Injected for tests. */
   fetchFn?: typeof fetch;
+  /** Per-request timeout in milliseconds. Defaults to 120s. */
+  timeoutMs?: number;
   /** Override `User-Agent`. Defaults to `githits-cli/<version>`. */
   userAgent?: string;
 }
@@ -83,24 +86,28 @@ function baseUrl(endpointUrl: string): string {
 export async function postPkgseerGraphql(
   request: PkgseerGraphqlRequest,
 ): Promise<PkgseerGraphqlResponse> {
-  const fetchFn = request.fetchFn ?? globalThis.fetch;
   const userAgent = request.userAgent ?? `githits-cli/${version}`;
+  const timeoutMs = request.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
 
   let response: Response;
   try {
-    response = await fetchFn(`${baseUrl(request.endpointUrl)}/api/graphql`, {
-      method: "POST",
-      headers: {
-        ...buildClientHeaders(),
-        Authorization: `Bearer ${request.token}`,
-        "Content-Type": "application/json",
-        "User-Agent": userAgent,
+    response = await fetchWithTimeout(
+      `${baseUrl(request.endpointUrl)}/api/graphql`,
+      {
+        method: "POST",
+        headers: {
+          ...buildClientHeaders(),
+          Authorization: `Bearer ${request.token}`,
+          "Content-Type": "application/json",
+          "User-Agent": userAgent,
+        },
+        body: JSON.stringify({
+          query: request.query,
+          variables: request.variables,
+        }),
       },
-      body: JSON.stringify({
-        query: request.query,
-        variables: request.variables,
-      }),
-    });
+      { fetchFn: request.fetchFn, timeoutMs },
+    );
   } catch (cause) {
     debugLog("pkg-graphql", {
       event: "transport-error",

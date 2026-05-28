@@ -3,7 +3,10 @@ import {
   AuthStorageLockTimeoutError,
   AuthStoragePolicyError,
 } from "../services/index.js";
-import { AuthRequiredError } from "../shared/require-auth.js";
+import {
+  AuthRequiredError,
+  formatAuthRequiredForTerminal,
+} from "../shared/require-auth.js";
 
 export interface CliErrorHandlerDeps {
   stderr: Pick<NodeJS.WriteStream, "write">;
@@ -15,6 +18,7 @@ export function handleCliError(
   deps: CliErrorHandlerDeps,
 ): never {
   if (error instanceof AuthRequiredError) {
+    deps.stderr.write(`${formatAuthRequiredForTerminal(error)}\n`);
     deps.exit(1);
   }
 

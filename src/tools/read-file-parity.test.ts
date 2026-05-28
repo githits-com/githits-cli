@@ -17,6 +17,7 @@ import {
   createMockCodeNavigationService,
   defaultReadFileResult,
 } from "../services/test-helpers.js";
+import { isProcessExitSentinel } from "./parity-test-helpers.js";
 import { createReadFileTool } from "./read-file.js";
 
 function cliDeps(
@@ -45,8 +46,8 @@ async function cliJson(
   try {
     try {
       await pkgReadAction(spec, path, { ...options, json: true }, deps);
-    } catch {
-      /* error paths call process.exit — caught */
+    } catch (error) {
+      if (!isProcessExitSentinel(error)) throw error;
     }
     const raw =
       (logSpy.mock.calls[0]?.[0] as string | undefined) ??
@@ -72,7 +73,8 @@ interface McpArgs {
       | "vcpkg"
       | "packagist"
       | "rubygems"
-      | "go";
+      | "go"
+      | "swift";
     package_name?: string;
     version?: string;
     repo_url?: string;

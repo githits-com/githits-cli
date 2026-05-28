@@ -33,7 +33,12 @@ export async function docsReadAction(
   options: DocsReadCommandOptions,
   deps: DocsReadCommandDependencies,
 ): Promise<void> {
-  requireAuth(deps);
+  try {
+    requireAuth(deps);
+  } catch (error) {
+    if (options.json) handleDocsReadError(error, true);
+    throw error;
+  }
 
   try {
     if (!deps.codeNavigationUrl || !deps.packageIntelligenceService) {

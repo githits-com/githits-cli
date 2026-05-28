@@ -12,6 +12,7 @@ import {
   registerAuthStatusCommand,
   registerCodeCommandGroup,
   registerDocsCommandGroup,
+  registerDoctorCommand,
   registerExampleCommand,
   registerFeedbackCommand,
   registerInitCommand,
@@ -144,6 +145,7 @@ registerMcpCommand(program);
 registerExampleCommand(program);
 registerLanguagesCommand(program);
 registerFeedbackCommand(program);
+registerDoctorCommand(program);
 const registrationArgv = stripRootRegistrationOptions(argv);
 
 if (shouldEagerLoadSearchCommands(registrationArgv)) {

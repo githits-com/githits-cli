@@ -22,6 +22,7 @@ describe("toPkgseerRegistry", () => {
       ["packagist", "PACKAGIST"],
       ["rubygems", "RUBYGEMS"],
       ["go", "GO"],
+      ["swift", "SWIFT"],
     ];
 
     for (const [arg, expected] of cases) {

@@ -23,6 +23,8 @@ import {
   toPkgseerRegistry,
 } from "../../shared/index.js";
 
+export { parseIntCliOption } from "../../shared/cli-options.js";
+
 /**
  * Fields every indexed `code` command shares.
  */
@@ -79,33 +81,6 @@ export function resolveCliCodeNavTarget(
     repoUrl: options.repoUrl,
     gitRef: options.gitRef,
   };
-}
-
-/**
- * Parse an optional `--flag N` integer option with bounds.
- * Returns `undefined` when the caller didn't supply the flag.
- * Throws `InvalidPackageSpecError` on non-integer or out-of-range
- * input so the error classifier routes to `INVALID_ARGUMENT`.
- */
-export function parseIntCliOption(
-  raw: string | undefined,
-  name: string,
-  min: number,
-  max: number,
-): number | undefined {
-  if (raw === undefined) return undefined;
-  if (!/^-?\d+$/.test(raw.trim())) {
-    throw new InvalidPackageSpecError(
-      `${name} expects an integer between ${min} and ${max}. Got '${raw}'.`,
-    );
-  }
-  const parsed = Number.parseInt(raw, 10);
-  if (parsed < min || parsed > max) {
-    throw new InvalidPackageSpecError(
-      `${name} expects an integer between ${min} and ${max}. Got ${parsed}.`,
-    );
-  }
-  return parsed;
 }
 
 /**

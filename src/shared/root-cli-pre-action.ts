@@ -7,6 +7,7 @@ import {
 } from "../commands/login.js";
 import type { AuthSessionMetadata } from "../services/auth-session-metadata-storage.js";
 import { getCommandPath, maybeAutoLoginBeforeCommand } from "./auto-login.js";
+import { getAuthenticatedCommandMetadata } from "./command-metadata.js";
 
 export interface RootCliPreActionDependencies {
   loadAuthSessionMetadata?: () => Promise<AuthSessionMetadata | null>;
@@ -49,33 +50,32 @@ export function createRootCliPreAction(
     }
 
     const failureMessage = authResult.message ?? "Authentication failed.";
+    if (shouldRenderJsonAuthFailure(command)) {
+      console.error(
+        JSON.stringify({
+          error: failureMessage,
+          code: "AUTH_REQUIRED",
+          retryable: false,
+        }),
+      );
+      (deps.exit ?? process.exit)(1);
+      return;
+    }
+
     console.error(`${failureMessage}\n`);
     printAutoLoginRecoveryHint(failureMessage);
     (deps.exit ?? process.exit)(1);
   };
 }
 
+function shouldRenderJsonAuthFailure(command: Command): boolean {
+  const metadata = getAuthenticatedCommandMetadata(
+    getCommandPath(command).join(" "),
+  );
+  return metadata?.jsonCapable === true && command.opts().json === true;
+}
+
 function getPostLoginContinuationMessage(command: Command): string | undefined {
-  switch (getCommandPath(command).join(" ")) {
-    case "example":
-      return "Authentication complete. Running example search...";
-    case "languages":
-      return "Authentication complete. Loading supported languages...";
-    case "feedback":
-      return "Authentication complete. Submitting feedback...";
-    case "search":
-    case "search-status":
-    case "code files":
-    case "code read":
-    case "code grep":
-    case "docs list":
-    case "docs read":
-    case "pkg info":
-    case "pkg vulns":
-    case "pkg deps":
-    case "pkg changelog":
-      return "Authentication complete. Running command...";
-    default:
-      return undefined;
-  }
+  return getAuthenticatedCommandMetadata(getCommandPath(command).join(" "))
+    ?.postLoginMessage;
 }

@@ -37,7 +37,7 @@ export interface SearchArgs {
   query: string;
   target?: CodeTargetArg;
   targets?: CodeTargetArg[];
-  sources?: Array<"docs" | "code" | "symbol">;
+  source?: "docs" | "code" | "symbol";
   category?: "callable" | "type" | "module" | "data" | "documentation";
   kind?:
     | "function"
@@ -103,14 +103,26 @@ const schema = {
     .string()
     .min(1)
     .describe(
-      "Discovery query string. Supports implicit AND, uppercase OR, parentheses, unary -, quoted phrases, semantic qualifiers (kind:, category:, path:, lang:, name:, intent:), and routing qualifiers (registry:, package:, version:, repo:). Parsed once and compiled per source; it is not forwarded as a raw backend query.",
+      "What to find in the target. Use natural terms, API names, or quoted phrases; optional qualifiers like `path:`, `name:`, `lang:`, `kind:`, and `repo:` are supported for precision.",
     ),
-  target: searchTargetSchema.optional(),
-  targets: z.array(searchTargetSchema).max(20).optional(),
-  sources: z
-    .array(z.enum(["docs", "code", "symbol"]))
+  target: searchTargetSchema
     .optional()
-    .describe("Optional source selection. Omit for backend AUTO."),
+    .describe(
+      "One package or repository target. Pass `target` or `targets`, not both.",
+    ),
+  targets: z
+    .array(searchTargetSchema)
+    .max(20)
+    .optional()
+    .describe(
+      "Multiple package or repository targets. Pass `targets` or `target`, not both.",
+    ),
+  source: z
+    .enum(["docs", "code", "symbol"])
+    .optional()
+    .describe(
+      "Optional result source: `docs` for guides/reference pages, `code` for source and tests, or `symbol` for APIs/entities. Omit to let GitHits select the best sources.",
+    ),
   category: z
     .enum(["callable", "type", "module", "data", "documentation"])
     .optional(),
@@ -190,7 +202,8 @@ const schema = {
 
 const DESCRIPTION =
   "Search indexed dependency and repository code, docs, and explicit symbols. " +
-  "Provide either `target` for one target or `targets` for many; omit `sources` to use backend AUTO. " +
+  "Required: `query` plus either `target` or `targets`; pass `target` or `targets`, not both. " +
+  "Omit `source` to let GitHits select the best sources; set it only to restrict results to docs, code, or symbols. " +
   "Structured parameters combine with the `query` using AND semantics. " +
   "Complete by default — if indexing is still running, the response carries a `searchRef` and no hits; pass it to `search_status` to follow up. " +
   "Set `allow_partial_results: true` to opt into hits from sources that finished while others continue indexing. " +
@@ -213,7 +226,10 @@ export function createSearchTool(
         if (resolvedTarget && "content" in resolvedTarget)
           return resolvedTarget;
 
-        const resolvedTargets = args.targets?.map((entry) =>
+        const effectiveTargets = args.targets?.length
+          ? args.targets
+          : undefined;
+        const resolvedTargets = effectiveTargets?.map((entry) =>
           resolveSearchTarget(entry),
         );
         const resolvedTargetsError = resolvedTargets?.find(
@@ -230,9 +246,9 @@ export function createSearchTool(
               : undefined,
           targets: resolvedTargets?.filter(isResolvedSearchTarget),
           query: args.query,
-          sources: args.sources?.map(
-            (entry) => entry.toUpperCase() as "DOCS" | "CODE" | "SYMBOL",
-          ),
+          sources: args.source
+            ? [args.source.toUpperCase() as "DOCS" | "CODE" | "SYMBOL"]
+            : undefined,
           kind: toSymbolKind(args.kind),
           category: toSymbolCategory(args.category),
           pathPrefix: args.path_prefix,

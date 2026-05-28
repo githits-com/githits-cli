@@ -20,12 +20,12 @@ The CLI mirrors the production MCP tool contract where equivalent tools exist. C
 | `get_example` | `query`, `language?`, `license_mode?`, `format?` | Search for canonical code examples. Defaults to markdown with a trailing `solution_id: ...` line for `feedback`; pass `format: "json"` for `{result, solution_id?}`. If `language` is omitted, the backend infers it from the query. |
 | `search_language` | `query`, `format?` | Find supported programming language names before searching. Defaults to one compact line per match (`name (Display Name) aliases: ...`); pass `format: "json"` for structured matches. |
 | `feedback` | `solution_id?`, `accepted`, `feedback_text?`, `tool_name?` | Submit feedback on a `get_example` result, another GitHits tool result, or the current GitHits session. |
-| `search` | `query`, `target?`, `targets?`, `sources?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Unified indexed dependency/repository discovery search across code, docs, and symbols. Omit `file_intent` to search across all intents; set it only when you want to narrow results, and note that some sources may ignore it and report that in `sourceStatus`. Prefer `sources:["symbol"]` for symbol-shaped unified search. Complete-by-default; `limit` defaults to 10 to keep agent output compact. Set `allow_partial_results: true` to receive available partial hits while indexing continues. `format` defaults to `text-v1` for compact agent output; pass `format: "json"` for the structured envelope. |
+| `search` | `query`, `target?`, `targets?`, `source?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Unified indexed dependency/repository discovery search across code, docs, and symbols. Required inputs are `query` plus either `target` or `targets`; every other argument is optional. Omit `source` to let GitHits select the best sources; use `source:"docs"` for guides/reference pages, `source:"code"` for source and tests, and `source:"symbol"` for API/entity lookup when you want to restrict results to one evidence type. Omit `file_intent` to search across all intents; set it only when you want to narrow results, and note that some sources may ignore it and report that in `sourceStatus`. Complete-by-default; `limit` defaults to 10 to keep agent output compact. Set `allow_partial_results: true` to receive available partial hits while indexing continues. `format` defaults to `text-v1` for compact agent output; pass `format: "json"` for the structured envelope. |
 | `search_status` | `search_ref`, `format?` | Check progress, fetch partial hits when the original request used `allow_partial_results: true`, or fetch final results for a prior unified search. Defaults to compact `text-v1`; pass `format: "json"` for the structured envelope. |
 | `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List hosted/crawled and repository-backed documentation pages for a package. Defaults to compact `text-v1` with ready-to-call `docs_read` follow-ups; repo-backed entries include exact source metadata for `code_read` follow-up when available. |
 | `docs_read` | `page_id`, `start_line?`, `end_line?`, `format?` | Read a documentation page by page ID. Defaults to `text-v1` with a 150-line MCP text cap; explicit line ranges are supported. `format: "json"` preserves full-document default while still honoring explicit ranges. Repo-backed pages include exact file follow-up metadata. |
 | `pkg_info` | `registry`, `package_name`, `verbose?`, `format?` | Latest-version package triage: license, description, repository popularity (stars/forks/issues and `[ARCHIVED]` when applicable), downloads, publish age, and vulnerability status. Example: `{registry:"npm", package_name:"express"}`. Set `verbose: true` for GitHub language/topics/last-pushed, recent advisories, and recent changes. Pass `format: "json"` for structured fields. |
-| `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `verbose?`, `format?` | Known vulnerabilities for a package on npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, or Go. vcpkg and Zig are not supported for vulnerability data. Example: `{registry:"npm", package_name:"lodash", version:"4.17.20", min_severity:"high"}`. Defaults to compact text capped at 5 affected advisory rows with active filter echo; set `advisory_scope:"non_affecting"` for historical advisories, `advisory_scope:"all"` for affected + historical rows, `verbose:true` to show all selected text rows, or `format:"json"` for the complete per-advisory envelope. |
+| `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `verbose?`, `format?` | Known vulnerabilities for a package on npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, or Swift. vcpkg and Zig are not supported for vulnerability data. Example: `{registry:"npm", package_name:"lodash", version:"4.17.20", min_severity:"high"}`. Defaults to compact text capped at 5 affected advisory rows with active filter echo; set `advisory_scope:"non_affecting"` for historical advisories, `advisory_scope:"all"` for affected + historical rows, `verbose:true` to show all selected text rows, or `format:"json"` for the complete per-advisory envelope. |
 | `pkg_deps` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_transitive?`, `include_importers?`, `max_depth?`, `format?` | Direct runtime dependency list by default with resolved versions. Non-runtime groups are hidden with an MCP-native hint (`pass lifecycle="all"`). Use `lifecycle: "runtime"` for explicit runtime-only, a concrete non-runtime lifecycle for runtime plus matching groups, or `lifecycle: "all"` for all available groups. Optional transitive output includes aggregate edge counts, the preprocessed install footprint, typed conflicts and circular-dependency cycles; opt into importer provenance with `include_importers`. Pass `format: "json"` for the lean structured envelope. |
 | `pkg_changelog` | `registry?`, `package_name?`, `repo_url?`, `from_version?`, `to_version?`, `limit?`, `git_ref?`, `include_bodies?`, `verbose?`, `body_lines?`, `format?` | Release notes or changelog entries for a package or GitHub repo. Example: `{registry:"npm", package_name:"express", limit:2}`. Defaults to compact text with newest-first entries and 10-line body previews; set `body_lines` to tune text previews, `verbose:true` for full text bodies, `include_bodies:false` for a lean timeline, or `format:"json"` for the complete envelope. `from_version` switches to range mode (no count cap). Dual addressing (spec vs repo URL) is mutually exclusive. |
 | `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `include_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Evidence for dependency upgrades. Accepts a single package or repeatable batch, compares current vs target direct vulnerabilities, changelog range evidence, target deprecation metadata, peer dependency changes, dependency changes, and optional transitive evidence. Reports facts only; callers decide whether to accept the upgrade. |
@@ -39,7 +39,7 @@ The CLI mirrors the production MCP tool contract where equivalent tools exist. C
 
 Use `bun run audit:pkg-ecosystems` to run a live CLI audit across representative packages from every package registry supported by package metadata tools. The script checks `pkg_info`, `pkg_changelog`, `pkg_vulns`, and `pkg_deps` with JSON output so ecosystem regressions are visible without hand-running dozens of commands.
 
-The fixture matrix lives in `scripts/pkg-ecosystem-audit.ts` and covers npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, and Go. Each registry has three representative packages. `pkg_vulns` failures for vcpkg and Zig are expected and are reported as `expected-unsupported`; `pkg_deps` failures for NuGet, Maven, and Packagist are expected and are reported the same way. Any other failure exits non-zero, including backend data anomalies that should be fixed and rechecked later.
+The fixture matrix lives in `scripts/pkg-ecosystem-audit.ts` and covers npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift. Each registry has three representative packages. `pkg_vulns` failures for vcpkg and Zig are expected and are reported as `expected-unsupported`; `pkg_deps` failures for NuGet, Maven, and Packagist are expected and are reported the same way. Any other failure exits non-zero, including backend data anomalies that should be fixed and rechecked later.
 
 Useful invocations:
 
@@ -55,7 +55,7 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Unified `search` query syntax.** The `search.query` field is the backend discovery query syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). The backend parses the query once and compiles it per source. Structured `name` and `language` inputs are compiled into `name:` / `lang:` qualifiers and AND-ed with the query before sending. Per-source support, ignored features, and incompatibilities are reported in `sourceStatus`.
 
-**Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. Mitigates backend issue B5: `sources: ["docs"]` plus a `kind:`/`lang:` qualifier returns `results: []` with the only diagnostic buried inside `sourceStatus[].note`. The text-v1 renderer prints the warnings as a `warnings:` preamble. Implementation in `buildSourceStatusWarnings` (`src/shared/unified-search-response.ts`); remove once the backend surfaces these at the top level itself.
+**Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. Mitigates backend issue B5: docs-only search plus a `kind:`/`lang:` qualifier returns `results: []` with the only diagnostic buried inside `sourceStatus[].note`. The text-v1 renderer prints the warnings as a `warnings:` preamble. Implementation in `buildSourceStatusWarnings` (`src/shared/unified-search-response.ts`); remove once the backend surfaces these at the top level itself.
 
 ### `pkg_info` response shape
 
@@ -85,7 +85,7 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Omission rules.** Null scalars omitted; empty arrays dropped; zero-count `bySeverity` keys dropped; the `bySeverity` block itself dropped when `total === 0`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
 
-**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, and Go have vulnerability data. vcpkg and Zig are rejected client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, and go. Got: ${registry}.`) — rejection predicate lives in `src/shared/package-vulnerabilities-request.ts` rather than the shared registry module, since it is a tool-specific capability matrix.
+**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift have vulnerability data. vcpkg and Zig are rejected client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.`) — rejection predicate lives in `src/shared/package-vulnerabilities-request.ts` rather than the shared registry module, since it is a tool-specific capability matrix.
 
 `pkg_vulns` shares its envelope builder and text formatter with the CLI `githits pkg vulns` command via `src/shared/package-vulnerabilities-request.ts` and `src/shared/package-vulnerabilities-response.ts`. MCP defaults to compact text and uses `format: "json"` for structured output. The shared text formatter is surface-aware so MCP hints never mention CLI flags. The parity test (`src/tools/package-vulnerabilities-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across the service-sourced success/filter/typed-error fixtures, and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` fixtures such as unsupported registries and tag-style `v`-prefixed versions.
 
@@ -103,7 +103,7 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Typed dependency graph projection.** Backend exposes typed `dependencyGraph`, `dependencyConflicts`, `circularDependencyCycles`, and `environmentMarkers`; `pkg_deps` consumes those typed fields and projects them into a lean agent-facing envelope. Deprecated raw fields (`dag`, `conflicts`, `circularDependencies`, `environmentConstraints`) are intentionally not queried. The raw graph is deliberately not exposed by this tool.
 
-**Registry coverage.** npm, PyPI, Hex, Crates, vcpkg, Zig, RubyGems, and Go support the `packageDependencies` query. NuGet / Maven / Packagist are rejected client-side with a tool-specific message (`pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, and go. Got: ${registry}.`). Predicate lives in `src/shared/package-dependencies-request.ts`.
+**Registry coverage.** npm, PyPI, Hex, Crates, vcpkg, Zig, RubyGems, Go, and Swift support the `packageDependencies` query. NuGet / Maven / Packagist are rejected client-side with a tool-specific message (`pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, go, swift. Got: ${registry}.`). Predicate lives in `src/shared/package-dependencies-request.ts`.
 
 **Version validation.** Same rule as `pkg_vulns`: tag-style `v`-prefixed inputs are rejected client-side with `INVALID_ARGUMENT` before the backend call.
 
@@ -246,7 +246,7 @@ Standard grep -A/-B notation: `:` separator on match lines, `-` on context lines
 
 The MCP server advertises a short, cross-tool orientation via the protocol's server-level `instructions` field. This is distinct from per-tool `description` text: instructions cover rationale, workflow glue, and decisions that span multiple tools, while per-tool descriptions remain the source of truth for arguments, output shape, and tool-specific constraints.
 
-`src/commands/mcp-instructions.ts` owns two sections:
+`src/mcp/instructions.ts` owns two sections:
 
 - **Core block** — always loaded. Introduces GitHits, expands trigger criteria to include comparative cross-OSS questions and "how does X actually implement this" archaeology, and walks through the `get_example` / `search_language` / `feedback` workflow.
 - **Package-tools block** — always appended. Contains a preamble plus one bullet per package/code tool, plus three cross-tool tips:
@@ -268,19 +268,22 @@ The MCP server starts without a synchronous auth check; auth errors surface per-
 ## Architecture
 
 ```
-MCP SDK Server (src/commands/mcp.ts)
-  └─ registers tools using deps.githitsService from container
-       └─ each tool: createXxxTool(service)
-            └─ ToolDefinition { name, description, schema, handler, annotations? }
-                 └─ handler calls GitHitsService or CodeNavigationService methods
-                      └─ service implementation makes HTTP calls
+CLI stdio wrapper (src/commands/mcp.ts)
+  └─ creates local services from the CLI container and connects StdioServerTransport
+       └─ transport-neutral MCP server (src/mcp/server.ts)
+            └─ registers tools using McpToolServices
+                 └─ each tool: createXxxTool(service)
+                      └─ ToolDefinition { name, description, schema, handler, annotations? }
+                           └─ handler calls GitHitsService / CodeNavigationService / PackageIntelligenceService
+                                └─ service implementation makes HTTP calls
 ```
 
 The layering is intentional:
 
 - **Tool definitions** (`src/tools/*.ts`) own the MCP contract: names, descriptions, schemas, and response formatting
 - **GitHitsService / CodeNavigationService** own the HTTP transport: endpoints, headers, error mapping
-- **MCP server setup** (`src/commands/mcp.ts`) owns wiring: creates the service, registers tools with the MCP SDK
+- **Transport-neutral MCP server setup** (`src/mcp/server.ts`) owns MCP SDK tool registration from `McpToolServices`
+- **CLI MCP command** (`src/commands/mcp.ts`) owns local stdio startup: creates services from the CLI container, sets request-header mode, connects `StdioServerTransport`, and prints TTY setup instructions
 
 This separation means tool logic can be tested without HTTP calls, and service logic can be tested without MCP SDK dependencies.
 
@@ -303,11 +306,7 @@ When the backend adds a new tool, follow this checklist:
 1. **Create tool file** — `src/tools/new-tool.ts` with `Args` interface, `schema`, `DESCRIPTION`, and `createNewTool(service)` factory
 2. **Add service method** — Add the method to `GitHitsService` interface and `GitHitsServiceImpl` in `src/services/githits-service.ts`
 3. **Export from tools barrel** — Add `export { createNewTool } from "./new-tool.js"` to `src/tools/index.ts`
-4. **Register in MCP server** — In `src/commands/mcp.ts`:
-   - Add the tool name to the `ToolName` type union
-   - Import and add the factory to `TOOL_FACTORIES`
-   - Add the name to `ALL_TOOLS`
-   - Update the "Available tools" text in both command descriptions
+4. **Register in MCP server** — In `src/mcp/server.ts`, import the factory and add it to `getMcpToolDefinitions()`
 5. **Add tests** — Create `src/tools/new-tool.test.ts` with metadata, service call, success, and error path tests
 6. **Update mock service** — Add the new method to `createMockGitHitsService()` in `src/services/test-helpers.ts`
 7. **Add CLI command** — Create a corresponding CLI command in `src/commands/` (see `docs/implementation/cli-commands.md`)
@@ -350,7 +349,9 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 | `src/tools/types.ts` | `ToolDefinition` interface, `textResult`/`errorResult` helpers |
 | `src/tools/shared.ts` | `withErrorHandling()` wrapper |
 | `src/services/test-helpers.ts` | `createMockGitHitsService()` and `createMockCodeNavigationService()` factories |
-| `src/commands/mcp.ts` | Tool registration, MCP server setup, and TTY detection |
+| `src/mcp/server.ts` | Transport-neutral MCP server construction and tool registration |
+| `src/mcp/instructions.ts` | Server-level MCP instructions advertised to clients |
+| `src/commands/mcp.ts` | CLI stdio startup, request-header mode setup, and TTY setup instructions |
 | `src/services/githits-service.ts` | REST API client for example search, languages, and feedback |
 | `src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, `code_files`, `code_read`, and `code_grep` |
 | `src/shared/language-filter.ts` | Pure `filterLanguages()` function shared between MCP tool and CLI |

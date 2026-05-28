@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { FetchTimeoutError } from "./fetch-timeout.js";
 import {
   PkgseerTransportError,
   postPkgseerGraphql,
@@ -224,6 +225,27 @@ describe("postPkgseerGraphql", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(PkgseerTransportError);
       expect((error as PkgseerTransportError).cause).toBe(cause);
+    }
+  });
+
+  it("throws PkgseerTransportError with timeout cause when fetch stalls", async () => {
+    const fetchFn = mock(() => new Promise<Response>(() => {}));
+
+    try {
+      await postPkgseerGraphql({
+        endpointUrl: ENDPOINT,
+        token: TOKEN,
+        query: "query { x }",
+        variables: {},
+        fetchFn: asFetchFn(fetchFn),
+        timeoutMs: 1,
+      });
+      throw new Error("expected PkgseerTransportError");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PkgseerTransportError);
+      expect((error as PkgseerTransportError).cause).toBeInstanceOf(
+        FetchTimeoutError,
+      );
     }
   });
 
