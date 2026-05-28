@@ -4,15 +4,54 @@ interface SpawnCommand {
   command: string;
   args: string[];
   shell?: boolean;
+  windowsVerbatimArguments?: boolean;
 }
 
-function isWindowsAbsolutePath(command: string): boolean {
-  return /^[a-zA-Z]:[\\/]/.test(command) || command.startsWith("\\\\");
+const WINDOWS_CMD_META_CHARS = /([()[\]%!^"`<>&|;, *?])/g;
+
+function escapeWindowsCommand(value: string): string {
+  return value.replace(WINDOWS_CMD_META_CHARS, "^$1");
+}
+
+function escapeWindowsArgument(value: string): string {
+  let arg = `${value}`;
+  arg = arg.replace(/(?=(\\+?)?)\1"/g, '$1$1\\"');
+  arg = arg.replace(/(?=(\\+?)?)\1$/, "$1$1");
+  return `"${arg}"`.replace(WINDOWS_CMD_META_CHARS, "^$1");
+}
+
+function buildWindowsShellCommand(command: string, args: string[]): string {
+  return [
+    escapeWindowsCommand(command),
+    ...args.map(escapeWindowsArgument),
+  ].join(" ");
+}
+
+function isWindowsCommandNotFound(
+  exitCode: number,
+  stderr: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  return (
+    platform === "win32" &&
+    exitCode !== 0 &&
+    /^\s*'[^']+'\s+is not recognized as an internal or external command,/i.test(
+      stderr,
+    )
+  );
+}
+
+function createCommandNotFoundError(command: string): NodeJS.ErrnoException {
+  const error = new Error(`spawn ${command} ENOENT`) as NodeJS.ErrnoException;
+  error.code = "ENOENT";
+  error.syscall = "spawn";
+  error.path = command;
+  return error;
 }
 
 /**
- * Windows shell mode splits unquoted command paths on spaces. Absolute shim
- * paths are trusted internal values, so quote only the executable segment.
+ * Windows uses cmd.exe directly so .cmd/.ps1 shims resolve without passing
+ * separate args to child_process shell mode, which triggers Node DEP0190.
  */
 export function normalizeSpawnCommand(
   command: string,
@@ -22,14 +61,12 @@ export function normalizeSpawnCommand(
   if (platform !== "win32") {
     return { command, args };
   }
-  if (isWindowsAbsolutePath(command) && /\s/.test(command)) {
-    return {
-      command: `"${command.replaceAll('"', '\\"')}"`,
-      args,
-      shell: true,
-    };
-  }
-  return { command, args, shell: true };
+  const shellCommand = buildWindowsShellCommand(command, args);
+  return {
+    command: process.env.ComSpec ?? "cmd.exe",
+    args: ["/d", "/s", "/c", `"${shellCommand}"`],
+    windowsVerbatimArguments: true,
+  };
 }
 
 /** Result of executing a CLI command */
@@ -63,6 +100,9 @@ export class ExecServiceImpl implements ExecService {
         stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env },
         ...(spawnCommand.shell !== undefined && { shell: spawnCommand.shell }),
+        ...(spawnCommand.windowsVerbatimArguments !== undefined && {
+          windowsVerbatimArguments: spawnCommand.windowsVerbatimArguments,
+        }),
       });
 
       const stdoutChunks: Buffer[] = [];
@@ -76,10 +116,16 @@ export class ExecServiceImpl implements ExecService {
       });
 
       child.on("close", (code) => {
+        const exitCode = code ?? 1;
+        const stderr = Buffer.concat(stderrChunks).toString("utf-8");
+        if (isWindowsCommandNotFound(exitCode, stderr)) {
+          reject(createCommandNotFoundError(command));
+          return;
+        }
         resolve({
-          exitCode: code ?? 1,
+          exitCode,
           stdout: Buffer.concat(stdoutChunks).toString("utf-8"),
-          stderr: Buffer.concat(stderrChunks).toString("utf-8"),
+          stderr,
         });
       });
     });

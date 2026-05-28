@@ -1,4 +1,4 @@
-import { checkbox, select } from "@inquirer/prompts";
+import { checkbox, confirm, select } from "@inquirer/prompts";
 
 /** Choice for checkbox prompt */
 export interface CheckboxChoice<T> {
@@ -42,8 +42,14 @@ export interface PromptService {
   /** Multi-select with pre-checked items */
   checkbox<T>(message: string, choices: CheckboxChoice<T>[]): Promise<T[]>;
 
+  /** Simple yes/no confirmation for one-off actions. */
+  confirm(message: string, defaultValue?: boolean): Promise<boolean>;
+
   /** Three-way confirmation: yes / no / always */
-  confirm3(message: string): Promise<ConfirmChoice>;
+  confirm3(
+    message: string,
+    defaultValue?: ConfirmChoice,
+  ): Promise<ConfirmChoice>;
 }
 
 /**
@@ -65,9 +71,17 @@ export class PromptServiceImpl implements PromptService {
     return checkbox({ message, choices });
   }
 
-  async confirm3(message: string): Promise<ConfirmChoice> {
+  async confirm(message: string, defaultValue?: boolean): Promise<boolean> {
+    return confirm({ message, default: defaultValue });
+  }
+
+  async confirm3(
+    message: string,
+    defaultValue?: ConfirmChoice,
+  ): Promise<ConfirmChoice> {
     return select({
       message,
+      default: defaultValue,
       choices: [
         { value: "yes" as ConfirmChoice, name: "Yes" },
         { value: "no" as ConfirmChoice, name: "No" },

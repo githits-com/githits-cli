@@ -32,6 +32,8 @@ import {
   type AgentDefinition,
   agentDefinitions,
   type ConfigFileSetup,
+  getAgentSetupConfig,
+  type InitSetupScope,
   isGeminiExtensionInstalledFromFilesystem,
   type ScanProgress,
   type ScanResult,
@@ -63,12 +65,16 @@ export interface InitOptions {
   installAgents?: string;
   /** Emit machine-readable output for staged non-interactive modes */
   json?: boolean;
+  /** Configure project-level MCP for the current directory */
+  project?: boolean;
 }
 
 /** Options for the init uninstall command */
 export interface InitUninstallOptions {
   /** Skip all prompts, uninstall from all configured agents */
   yes?: boolean;
+  /** Remove project-level MCP from the current directory */
+  project?: boolean;
 }
 
 interface InitLoginDependencies extends LoginDependencies {
@@ -94,12 +100,17 @@ interface AgentOutcome {
   message?: string;
 }
 
-type StagedAgentStatus = "needs_setup" | "already_configured" | "not_detected";
+type StagedAgentStatus =
+  | "needs_setup"
+  | "already_configured"
+  | "unsupported_project_config"
+  | "not_detected";
 
 interface StagedAgentEntry {
   id: string;
   name: string;
   status: StagedAgentStatus;
+  reason?: string;
 }
 
 /** Tracks per-agent uninstall outcome for the summary */
@@ -129,7 +140,25 @@ interface UninstallScanResult {
   failed: AgentUninstallOutcome[];
 }
 
+interface ProjectUninstallPlan {
+  configRemovals: ConfigFileSetup[];
+}
+
+interface ProjectUninstallFailure {
+  path: string;
+  reason: string;
+}
+
+interface ProjectUninstallSummary {
+  removed: string[];
+  legacyRemoved: string[];
+  skipped: string[];
+  failed: ProjectUninstallFailure[];
+}
+
 type InitIntent = "mcp" | "skills" | "later";
+
+type InitScopeChoice = InitSetupScope;
 
 type InitAuthStartChoice = "sign_in" | "skip" | "cancel";
 
@@ -178,6 +207,17 @@ function getResolvedSetupConfig(
   );
 }
 
+function getLegacyProjectSetupStatePath(
+  fileSystemService: FileSystemService,
+): string {
+  return fileSystemService.joinPath(
+    fileSystemService.getCwd(),
+    ".githits",
+    "init",
+    "project-setup.json",
+  );
+}
+
 function getPiConfigFileUninstall(
   agent: AgentDefinition,
   fileSystemService: FileSystemService,
@@ -201,16 +241,34 @@ function formatCommand(command: string, useColors: boolean): string {
 }
 
 const AGENT_SAFE_CLI = "npx -y githits@latest";
-const AGENT_DETECT_COMMAND = `${AGENT_SAFE_CLI} init --detect-agents`;
-const AGENT_INSTALL_COMMAND = `${AGENT_SAFE_CLI} init --install-agents`;
 const AGENT_LOGIN_COMMAND = `${AGENT_SAFE_CLI} login`;
 const AGENT_LOGIN_NO_BROWSER_COMMAND = `${AGENT_SAFE_CLI} login --no-browser`;
 const AGENTIC_INIT_YES_WARNING =
   "Do not run `githits init -y` or `githits init --yes` unless the user explicitly asks to configure every detected tool.";
-const AGENTIC_INIT_VERIFY_INSTRUCTION =
-  "After a successful --install-agents run, verify with --detect-agents --json instead of running init again.";
-const AGENTIC_INIT_JSON_VERIFY_INSTRUCTION =
-  "Do not run init again after a successful --install-agents run; verify with --detect-agents --json instead.";
+
+function getAgentDetectCommand(scope: InitSetupScope): string {
+  return `${AGENT_SAFE_CLI} init ${scope === "project" ? "--project " : ""}--detect-agents`;
+}
+
+function getAgentInstallCommand(scope: InitSetupScope): string {
+  return `${AGENT_SAFE_CLI} init ${scope === "project" ? "--project " : ""}--install-agents`;
+}
+
+function getAgenticVerifyCommand(scope: InitSetupScope): string {
+  return `${getAgentDetectCommand(scope)} --json`;
+}
+
+function getAgenticVerifyInstruction(scope: InitSetupScope): string {
+  return `After a successful --install-agents run, verify with ${getAgenticVerifyCommand(scope)} instead of running init again.`;
+}
+
+function getAgenticJsonVerifyInstruction(scope: InitSetupScope): string {
+  return `Do not run init again after a successful --install-agents run; verify with ${getAgenticVerifyCommand(scope)} instead.`;
+}
+
+function formatInstallCommand(ids: string[], scope: InitSetupScope): string {
+  return `${getAgentInstallCommand(scope)} ${ids.join(",")}`;
+}
 
 function printReadyNextSteps(): void {
   console.log("  GitHits is now connected to your coding agents.");
@@ -263,6 +321,32 @@ function printAuthNotCheckedNextSteps(useColors: boolean): void {
   console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
 }
 
+function printProjectAuthRequiredNextSteps(useColors: boolean): void {
+  console.log(
+    "  GitHits MCP is configured for this project, but sign-in is still needed.",
+  );
+  console.log();
+  console.log(
+    "  Open an MCP-compatible coding agent in this project so it loads the project config.",
+  );
+  console.log();
+  console.log("  Sign in when you're ready:");
+  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
+}
+
+function printProjectAuthNotCheckedNextSteps(useColors: boolean): void {
+  console.log(
+    "  GitHits MCP is configured for this project. Sign-in was not checked.",
+  );
+  console.log();
+  console.log(
+    "  Open an MCP-compatible coding agent in this project so it loads the project config.",
+  );
+  console.log();
+  console.log("  If your agent asks you to sign in, run:");
+  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
+}
+
 function printAgenticLoginInstructions(useColors: boolean): void {
   console.log(
     "  Authentication is still required before agents can use GitHits.",
@@ -306,20 +390,39 @@ function printNonInteractiveInitGuidance(useColors: boolean): void {
     "  If you are an AI coding agent helping a user install GitHits:",
   );
   console.log();
-  console.log("  1. Run:");
-  console.log(`     ${formatCommand(AGENT_DETECT_COMMAND, useColors)}`);
+  console.log("  1. Ask the user whether GitHits should be installed for:");
+  console.log("     - this user account on this machine, or");
+  console.log("     - only this project/repo via project-local MCP files.");
   console.log();
-  console.log("  2. Show the detected tools to the user.");
-  console.log();
-  console.log("  3. Ask which tools should receive the GitHits MCP server.");
-  console.log();
-  console.log("  4. Only after approval, run:");
+  console.log("  2. For user-level install, run:");
   console.log(
-    `     ${formatCommand(`${AGENT_INSTALL_COMMAND} <ids>`, useColors)}`,
+    `     ${formatCommand(getAgentDetectCommand("user"), useColors)}`,
+  );
+  console.log();
+  console.log("     For project-level install, run:");
+  console.log(
+    `     ${formatCommand(getAgentDetectCommand("project"), useColors)}`,
+  );
+  console.log();
+  console.log("  3. Show the detected tools to the user.");
+  console.log();
+  console.log("  4. Ask which tools should receive the GitHits MCP server.");
+  console.log();
+  console.log(
+    "     For project-level install, explain that config files are written into this repo and may be committed.",
+  );
+  console.log();
+  console.log("  5. Only after approval, run the matching install command:");
+  console.log(
+    `     ${formatCommand(`${getAgentInstallCommand("user")} <ids>`, useColors)}`,
+  );
+  console.log(
+    `     ${formatCommand(`${getAgentInstallCommand("project")} <ids>`, useColors)}`,
   );
   console.log();
   console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
-  console.log(`  ${AGENTIC_INIT_VERIFY_INSTRUCTION}`);
+  console.log(`  ${getAgenticVerifyInstruction("user")}`);
+  console.log(`  ${getAgenticVerifyInstruction("project")}`);
 }
 
 function printNonInteractiveYesRejected(useColors: boolean): void {
@@ -328,9 +431,15 @@ function printNonInteractiveYesRejected(useColors: boolean): void {
   );
   console.error();
   console.error("Use the agent-safe staged flow instead:");
-  console.error(`  ${formatCommand(AGENT_DETECT_COMMAND, useColors)}`);
+  console.error(`  ${formatCommand(getAgentDetectCommand("user"), useColors)}`);
   console.error(
-    `  ${formatCommand(`${AGENT_INSTALL_COMMAND} <ids>`, useColors)}`,
+    `  ${formatCommand(`${getAgentInstallCommand("user")} <ids>`, useColors)}`,
+  );
+  console.error(
+    `  ${formatCommand(getAgentDetectCommand("project"), useColors)}`,
+  );
+  console.error(
+    `  ${formatCommand(`${getAgentInstallCommand("project")} <ids>`, useColors)}`,
   );
   process.exitCode = 1;
 }
@@ -432,6 +541,33 @@ const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
     name: "Exit",
     value: "later",
     description: "Leave setup without making changes.",
+  },
+];
+
+const INIT_SCOPE_CHOICES: SelectChoice<InitScopeChoice>[] = [
+  {
+    name: "User-level config",
+    value: "user",
+    description: "Configure GitHits for your detected tools on this machine.",
+  },
+  {
+    name: "Project-level config",
+    value: "project",
+    description:
+      "Configure project-local MCP files for tools that support workspace config.",
+  },
+];
+
+const INIT_UNINSTALL_SCOPE_CHOICES: SelectChoice<InitSetupScope>[] = [
+  {
+    name: "User-level config",
+    value: "user",
+    description: "Remove GitHits from detected tools on this machine.",
+  },
+  {
+    name: "Project-level config",
+    value: "project",
+    description: "Remove GitHits from supported project-local MCP files.",
   },
 ];
 
@@ -542,9 +678,11 @@ function printSkillsInstructions(useColors: boolean): void {
 function startSafeInitScan(
   fileSystemService: FileSystemService,
   execService: ExecService,
+  scope: InitSetupScope = "user",
   onProgress?: (progress: ScanProgress) => void,
 ): Promise<SafeScanResult> {
   return scanAgents(agentDefinitions, fileSystemService, execService, {
+    scope,
     onProgress,
   })
     .then((scan) => ({ ok: true as const, scan }))
@@ -647,13 +785,30 @@ function buildInitAgentChoices(
   ];
 }
 
-function printScanSummary(scan: ScanResult, useColors: boolean): void {
-  const detected = scan.needsSetup.length + scan.alreadyConfigured.length;
+function printScanSummary(
+  scan: ScanResult,
+  useColors: boolean,
+  scope: InitSetupScope = "user",
+): void {
+  const detected =
+    scan.needsSetup.length +
+    scan.alreadyConfigured.length +
+    scan.unsupported.length;
+  const projectSupported =
+    scan.needsSetup.length + scan.alreadyConfigured.length;
   for (const agent of scan.alreadyConfigured) {
     printTask("success", agent.name, "already configured", useColors);
   }
   for (const agent of scan.needsSetup) {
     printTask("warning", agent.name, "needs setup", useColors);
+  }
+  for (const { agent, reason } of scan.unsupported) {
+    printTask(
+      "skipped",
+      agent.name,
+      scope === "project" ? "no project-level config" : reason,
+      useColors,
+    );
   }
   if (scan.notDetected.length > 0) {
     printTask(
@@ -665,45 +820,102 @@ function printScanSummary(scan: ScanResult, useColors: boolean): void {
   }
   if (detected > 0) {
     console.log();
-    console.log(
-      `    Found ${detected} supported tool${detected !== 1 ? "s" : ""}.`,
-    );
+    if (scope === "project") {
+      console.log(
+        `    Found ${detected} tool${detected !== 1 ? "s" : ""}. ${projectSupported} support${projectSupported === 1 ? "s" : ""} project-level config.`,
+      );
+    } else {
+      console.log(
+        `    Found ${detected} supported tool${detected !== 1 ? "s" : ""}.`,
+      );
+    }
   }
+}
+
+function printProjectScopeExplanation(useColors: boolean): void {
+  console.log();
+  console.log(
+    `  ${warning("Project-level config is available for some tools.", useColors)}`,
+  );
+  console.log(
+    "  Tools without project-level config are shown below but won't be selected.",
+  );
 }
 
 function buildStagedAgentEntries(scan: ScanResult): StagedAgentEntry[] {
-  const statuses = new Map<string, StagedAgentStatus>();
-  for (const agent of scan.needsSetup) statuses.set(agent.id, "needs_setup");
-  for (const agent of scan.alreadyConfigured) {
-    statuses.set(agent.id, "already_configured");
+  const statuses = new Map<
+    string,
+    { status: StagedAgentStatus; reason?: string }
+  >();
+  for (const agent of scan.needsSetup) {
+    statuses.set(agent.id, { status: "needs_setup" });
   }
-  for (const agent of scan.notDetected) statuses.set(agent.id, "not_detected");
+  for (const agent of scan.alreadyConfigured) {
+    statuses.set(agent.id, { status: "already_configured" });
+  }
+  for (const agent of scan.notDetected) {
+    statuses.set(agent.id, { status: "not_detected" });
+  }
+  for (const { agent, reason } of scan.unsupported) {
+    statuses.set(agent.id, {
+      status: "unsupported_project_config",
+      reason,
+    });
+  }
 
-  return agentDefinitions.map((agent) => ({
-    id: agent.id,
-    name: agent.name,
-    status: statuses.get(agent.id) ?? "not_detected",
-  }));
+  return agentDefinitions.map((agent) => {
+    const entry = statuses.get(agent.id);
+    return {
+      id: agent.id,
+      name: agent.name,
+      status: entry?.status ?? "not_detected",
+      ...(entry?.reason ? { reason: entry.reason } : {}),
+    };
+  });
 }
 
-function printAgenticDetectSummary(scan: ScanResult, useColors: boolean): void {
+function printAgenticDetectSummary(
+  scan: ScanResult,
+  useColors: boolean,
+  scope: InitSetupScope,
+): void {
   const entries = buildStagedAgentEntries(scan);
   const detected = entries.filter((entry) => entry.status !== "not_detected");
   const installable = entries.filter((entry) => entry.status === "needs_setup");
+  const unsupported = entries.filter(
+    (entry) => entry.status === "unsupported_project_config",
+  );
+  const configured = entries.filter(
+    (entry) => entry.status === "already_configured",
+  );
   const notDetected = entries.filter(
     (entry) => entry.status === "not_detected",
   );
 
-  console.log("Detected supported tools:");
+  console.log(
+    `Detected tools (${scope === "project" ? "project-level" : "user-level"} install):`,
+  );
   console.log();
+  if (scope === "project") {
+    console.log(
+      "  Project-level install writes MCP config files into this repo. These files may be committed.",
+    );
+    console.log(
+      "  Tools without verified project config are shown as unsupported and cannot be installed with --project.",
+    );
+    console.log();
+  }
   if (detected.length === 0) {
     console.log("  None detected.");
   } else {
     console.log("  ID                 Tool                  Status");
     for (const entry of detected) {
       console.log(
-        `  ${entry.id.padEnd(18)} ${entry.name.padEnd(21)} ${entry.status.replace("_", " ")}`,
+        `  ${entry.id.padEnd(18)} ${entry.name.padEnd(21)} ${entry.status.replaceAll("_", " ")}`,
       );
+      if (entry.status === "unsupported_project_config" && entry.reason) {
+        console.log(`  ${"".padEnd(18)} ${"".padEnd(21)} ${entry.reason}`);
+      }
     }
   }
 
@@ -725,6 +937,29 @@ function printAgenticDetectSummary(scan: ScanResult, useColors: boolean): void {
   }
 
   if (installable.length === 0) {
+    if (scope === "project" && unsupported.length > 0) {
+      console.log(
+        "No detected tools can be installed with project-level config.",
+      );
+      console.log();
+      console.log("Next step for agents:");
+      if (configured.length > 0) {
+        console.log(
+          "  Tell the user GitHits is already configured for the detected project-configurable tools.",
+        );
+      }
+      console.log(
+        "  Tell the user the other detected tools do not have verified project-level MCP support.",
+      );
+      console.log(
+        `  Offer user-level install with ${getAgentDetectCommand("user")} if they want GitHits for those tools.`,
+      );
+      console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
+      console.log(
+        `  Do not run init again as a verification step; use ${getAgenticVerifyCommand(scope)} if verification is needed.`,
+      );
+      return;
+    }
     console.log("No detected tools need setup.");
     console.log();
     console.log("Next step for agents:");
@@ -732,7 +967,9 @@ function printAgenticDetectSummary(scan: ScanResult, useColors: boolean): void {
       "  Tell the user that GitHits is already configured for detected tools.",
     );
     console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
-    console.log("  Do not run init again as a verification step.");
+    console.log(
+      `  Do not run init again as a verification step; use ${getAgenticVerifyCommand(scope)} if verification is needed.`,
+    );
     return;
   }
 
@@ -746,40 +983,116 @@ function printAgenticDetectSummary(scan: ScanResult, useColors: boolean): void {
   console.log();
   console.log("  If the user approves all detected tools needing setup, run:");
   console.log(
-    `    ${formatCommand(`${AGENT_INSTALL_COMMAND} ${installableIds.join(",")}`, useColors)}`,
+    `    ${formatCommand(formatInstallCommand(installableIds, scope), useColors)}`,
   );
+  if (scope === "project") {
+    console.log();
+    console.log(
+      "  Before running it, tell the user this writes project-local MCP files into the current repo and only configures tools with verified project support.",
+    );
+  }
   console.log();
   console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
-  console.log(`  ${AGENTIC_INIT_VERIFY_INSTRUCTION}`);
+  console.log(`  ${getAgenticVerifyInstruction(scope)}`);
 }
 
-function printAgenticDetectJson(scan: ScanResult): void {
+function printAgenticDetectJson(scan: ScanResult, scope: InitSetupScope): void {
   const entries = buildStagedAgentEntries(scan);
   const installableIds = entries
     .filter((entry) => entry.status === "needs_setup")
     .map((entry) => entry.id);
+  const detected = entries.filter((entry) => entry.status !== "not_detected");
+  const configured = entries.filter(
+    (entry) => entry.status === "already_configured",
+  );
+  const unsupported = entries.filter(
+    (entry) => entry.status === "unsupported_project_config",
+  );
+  const instructions = buildAgenticDetectJsonInstructions({
+    scope,
+    detectedCount: detected.length,
+    installableCount: installableIds.length,
+    configuredCount: configured.length,
+    unsupportedCount: unsupported.length,
+  });
   console.log(
     JSON.stringify(
       {
         mode: "detect-agents",
+        scope,
         agents: entries,
         installableIds,
         suggestedCommand:
           installableIds.length > 0
-            ? `${AGENT_INSTALL_COMMAND} ${installableIds.join(",")}`
+            ? formatInstallCommand(installableIds, scope)
             : null,
-        instructions: [
-          "Show detected tools to the user.",
-          "Ask which tools should receive the GitHits MCP server.",
-          "Only run --install-agents with user-approved IDs.",
-          AGENTIC_INIT_YES_WARNING,
-          AGENTIC_INIT_JSON_VERIFY_INSTRUCTION,
-        ],
+        instructions,
       },
       null,
       2,
     ),
   );
+}
+
+function buildAgenticDetectJsonInstructions(input: {
+  scope: InitSetupScope;
+  detectedCount: number;
+  installableCount: number;
+  configuredCount: number;
+  unsupportedCount: number;
+}): string[] {
+  const {
+    scope,
+    detectedCount,
+    installableCount,
+    configuredCount,
+    unsupportedCount,
+  } = input;
+  if (detectedCount === 0) {
+    return [
+      "No supported AI coding tools were detected.",
+      "Tell the user to install a supported coding tool, then run detection again.",
+    ];
+  }
+  if (installableCount === 0) {
+    if (scope === "project" && unsupportedCount > 0) {
+      return [
+        "Show detected tools to the user.",
+        ...(configuredCount > 0
+          ? [
+              "Explain that GitHits is already configured for detected project-configurable tools.",
+            ]
+          : [
+              "Explain that no detected tools have verified project-level MCP support.",
+            ]),
+        "Explain that tools with unsupported_project_config status cannot be installed with --project.",
+        "Do not ask the user to choose project install IDs.",
+        `Offer user-level detection with ${getAgentDetectCommand("user")} if they want GitHits for unsupported project tools.`,
+        AGENTIC_INIT_YES_WARNING,
+        getAgenticJsonVerifyInstruction(scope),
+      ];
+    }
+    return [
+      "Show detected tools to the user.",
+      "Tell the user that GitHits is already configured for detected tools.",
+      "Do not ask the user to choose install IDs.",
+      AGENTIC_INIT_YES_WARNING,
+      getAgenticJsonVerifyInstruction(scope),
+    ];
+  }
+  return [
+    "Show detected tools to the user.",
+    ...(scope === "project"
+      ? [
+          "Explain that project-level install writes MCP config files into the current repo and those files may be committed.",
+          "Do not offer agent IDs with unsupported_project_config status for project install.",
+        ]
+      : []),
+    "Ask which tools should receive the GitHits MCP server.",
+    "Only run --install-agents with user-approved IDs.",
+    AGENTIC_INIT_YES_WARNING,
+    getAgenticJsonVerifyInstruction(scope),
+  ];
 }
 
 function getStagedModeCount(options: InitOptions): number {
@@ -845,10 +1158,12 @@ function validateInstallAgentIds(
   ids: string[],
 ): { ok: true } | { ok: false; message: string; detectedIds: string[] } {
   const supportedIds = new Set(agentDefinitions.map((agent) => agent.id));
-  const detectedIds = [...scan.needsSetup, ...scan.alreadyConfigured].map(
-    (agent) => agent.id,
-  );
+  const installableAgents = [...scan.needsSetup, ...scan.alreadyConfigured];
+  const detectedIds = installableAgents.map((agent) => agent.id);
   const detectedIdSet = new Set(detectedIds);
+  const unsupported = new Map(
+    scan.unsupported.map(({ agent, reason }) => [agent.id, reason]),
+  );
   if (ids.length === 0) {
     return {
       ok: false,
@@ -865,6 +1180,18 @@ function validateInstallAgentIds(
     return {
       ok: false,
       message: `Unsupported agent ID${unknown.length !== 1 ? "s" : ""}: ${unknown.join(", ")}.`,
+      detectedIds,
+    };
+  }
+
+  const unsupportedIds = ids.filter((id) => unsupported.has(id));
+  if (unsupportedIds.length > 0) {
+    const details = unsupportedIds
+      .map((id) => `${id}: ${unsupported.get(id)}`)
+      .join("; ");
+    return {
+      ok: false,
+      message: `Agent ID${unsupportedIds.length !== 1 ? "s" : ""} cannot use project-level install: ${details}.`,
       detectedIds,
     };
   }
@@ -897,6 +1224,32 @@ function printInstallValidationFailure(
     console.error(failure.message);
   }
   process.exitCode = 1;
+}
+
+function failUnknownInitAction(action: string): void {
+  failInitArgument(
+    `Unknown init action: ${action}. Use "githits init uninstall" to remove GitHits MCP config.`,
+    false,
+  );
+}
+
+interface ProjectSetupScope {
+  projectPath: string;
+}
+
+async function resolveProjectSetupScope(
+  options: { json?: boolean },
+  fileSystemService: FileSystemService,
+): Promise<ProjectSetupScope | null> {
+  const projectPath = fileSystemService.getCwd();
+  if (!(await fileSystemService.isDirectory(projectPath))) {
+    failInitArgument(
+      `Current directory does not exist or is not a directory: ${projectPath}`,
+      options.json,
+    );
+    return null;
+  }
+  return { projectPath };
 }
 
 function hasUsableInstallOutcome(outcomes: AgentOutcome[]): boolean {
@@ -949,32 +1302,42 @@ function buildAgenticInstallAuthPayload(
 
 function buildAgenticInstallInstructions(
   authStatus: StagedInstallAuthStatus,
+  scope: InitSetupScope,
 ): string[] {
   if (authStatus === "authenticated") {
-    return ["Open a new coding agent session so it reloads MCP config."];
+    return [
+      scope === "project"
+        ? "Open a new coding agent session in this project so it reloads project MCP config."
+        : "Open a new coding agent session so it reloads MCP config.",
+      getAgenticJsonVerifyInstruction(scope),
+    ];
   }
   if (authStatus === "required") {
     return [
       `Ask the user before running ${AGENT_LOGIN_COMMAND}.`,
       "Browser sign-in happens outside chat and terminal input.",
       "Do not ask the user to paste passwords, tokens, cookies, or OAuth codes into chat.",
+      getAgenticJsonVerifyInstruction(scope),
     ];
   }
   return [
     "Sign-in status was not checked.",
     `If the user is not already signed in, ask before running ${AGENT_LOGIN_COMMAND}.`,
+    getAgenticJsonVerifyInstruction(scope),
   ];
 }
 
 function printAgenticInstallJson(
   outcomes: AgentOutcome[],
   authStatus: StagedInstallAuthStatus,
+  scope: InitSetupScope,
 ): void {
   const canAuthenticate = hasUsableInstallOutcome(outcomes);
   console.log(
     JSON.stringify(
       {
         mode: "install-agents",
+        scope,
         outcomes,
         auth: canAuthenticate
           ? buildAgenticInstallAuthPayload(authStatus)
@@ -984,7 +1347,7 @@ function printAgenticInstallJson(
               reason: "Fix installation errors before starting sign-in.",
             },
         instructions: canAuthenticate
-          ? buildAgenticInstallInstructions(authStatus)
+          ? buildAgenticInstallInstructions(authStatus, scope)
           : ["Fix installation errors before asking the user to sign in."],
       },
       null,
@@ -999,17 +1362,19 @@ async function runDetectAgentsMode(
   execService: ExecService,
   useColors: boolean,
 ): Promise<void> {
+  const scope: InitSetupScope = options.project ? "project" : "user";
   const scan = await scanAgents(
     agentDefinitions,
     fileSystemService,
     execService,
+    { scope },
   );
   if (options.json) {
-    printAgenticDetectJson(scan);
+    printAgenticDetectJson(scan, scope);
     return;
   }
 
-  printAgenticDetectSummary(scan, useColors);
+  printAgenticDetectSummary(scan, useColors, scope);
 }
 
 async function runInstallAgentsMode(
@@ -1019,11 +1384,13 @@ async function runInstallAgentsMode(
   createLoginDeps: InitDependencies["createLoginDeps"],
   useColors: boolean,
 ): Promise<void> {
+  const scope: InitSetupScope = options.project ? "project" : "user";
   const requestedIds = parseAgentIdList(options.installAgents);
   const scan = await scanAgents(
     agentDefinitions,
     fileSystemService,
     execService,
+    { scope },
   );
   const validation = validateInstallAgentIds(scan, requestedIds);
   if (!validation.ok) {
@@ -1044,6 +1411,7 @@ async function runInstallAgentsMode(
     execService,
     useColors,
     !options.json,
+    scope,
   );
 
   const failed = outcomes.filter((outcome) => outcome.status === "failed");
@@ -1056,7 +1424,7 @@ async function runInstallAgentsMode(
   }
 
   if (options.json) {
-    printAgenticInstallJson(outcomes, authStatus);
+    printAgenticInstallJson(outcomes, authStatus, scope);
     return;
   }
 
@@ -1072,12 +1440,23 @@ async function runInstallAgentsMode(
   console.log();
   if (canAuthenticate) {
     if (authStatus === "authenticated") {
-      printAgenticAlreadyAuthenticated();
+      if (scope === "project") {
+        console.log(
+          "  GitHits MCP is installed for this project and you are already signed in.",
+        );
+        console.log();
+        console.log(
+          "  Open a new coding agent session in this project so it reloads project MCP config.",
+        );
+      } else {
+        printAgenticAlreadyAuthenticated();
+      }
     } else if (authStatus === "required") {
       printAgenticLoginInstructions(useColors);
     } else {
       printAgenticAuthNotChecked(useColors);
     }
+    console.log(`  ${getAgenticVerifyInstruction(scope)}`);
   } else {
     console.log("Fix installation errors before starting sign-in.");
   }
@@ -1237,12 +1616,574 @@ function printPostSetupNextSteps(
   }
 }
 
+function printProjectNextSteps(authStatus: InitAuthStatus, useColors: boolean) {
+  printSection(
+    5,
+    shouldPrintReady(authStatus) ? "Ready" : "Next Steps",
+    useColors,
+  );
+  if (shouldPrintReady(authStatus)) {
+    printReadyNextSteps();
+  } else if (authStatus === "failed_continue") {
+    printProjectAuthRequiredNextSteps(useColors);
+  } else {
+    printProjectAuthNotCheckedNextSteps(useColors);
+  }
+}
+
+function printScopedNextSteps(
+  scope: InitSetupScope,
+  authStatus: InitAuthStatus,
+  useColors: boolean,
+): void {
+  if (scope === "project") {
+    printProjectNextSteps(authStatus, useColors);
+    return;
+  }
+  printPostSetupNextSteps(authStatus, useColors);
+}
+
+function getConfigFileSetups(setup: SetupConfig): ConfigFileSetup[] {
+  if (setup.method === "config-file") {
+    return [setup];
+  }
+  if (setup.method === "composite") {
+    return setup.steps.filter(
+      (step): step is ConfigFileSetup => step.method === "config-file",
+    );
+  }
+  return [];
+}
+
+function getTomlSetups(setup: SetupConfig): ConfigFileSetup[] {
+  return getConfigFileSetups(setup).filter((step) => step.format === "toml");
+}
+
+async function hasExistingConfigContent(
+  config: ConfigFileSetup,
+  fileSystemService: FileSystemService,
+): Promise<boolean> {
+  try {
+    return (
+      (await fileSystemService.readFile(config.configPath)).trim().length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function printTomlRewriteWarnings(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+  useColors: boolean,
+): Promise<void> {
+  const seen = new Set<string>();
+  for (const agent of agents) {
+    const setup = getResolvedSetupConfig(agent, fileSystemService);
+    for (const config of getTomlSetups(setup)) {
+      if (seen.has(config.configPath)) continue;
+      if (!(await hasExistingConfigContent(config, fileSystemService)))
+        continue;
+      seen.add(config.configPath);
+      printTask(
+        "warning",
+        config.configPath,
+        "existing TOML comments/formatting will not be preserved",
+        useColors,
+      );
+    }
+  }
+}
+
+async function getProjectUninstallPlan(
+  fileSystemService: FileSystemService,
+): Promise<ProjectUninstallPlan> {
+  const seenConfig = new Set<string>();
+  const plan: ProjectUninstallPlan = {
+    configRemovals: [],
+  };
+  for (const agent of agentDefinitions) {
+    const setup = getAgentSetupConfig(agent, fileSystemService, "project");
+    if (!setup) continue;
+    for (const configSetup of getConfigFileSetups(setup)) {
+      const key = `${configSetup.configPath}\0${configSetup.serversKey}\0${configSetup.serverName.toLowerCase()}`;
+      if (seenConfig.has(key)) continue;
+      seenConfig.add(key);
+      plan.configRemovals.push(configSetup);
+    }
+  }
+  return plan;
+}
+
+async function cleanupLegacyProjectSetupState(
+  fileSystemService: FileSystemService,
+): Promise<{ removed: string[]; failed: ProjectUninstallFailure[] }> {
+  const statePath = getLegacyProjectSetupStatePath(fileSystemService);
+  try {
+    if (!(await fileSystemService.exists(statePath))) {
+      return { removed: [], failed: [] };
+    }
+    await fileSystemService.deleteFile(statePath);
+    return { removed: [statePath], failed: [] };
+  } catch (err) {
+    return {
+      removed: [],
+      failed: [
+        {
+          path: statePath,
+          reason: `Could not remove legacy project setup marker: ${err instanceof Error ? err.message : String(err)}`,
+        },
+      ],
+    };
+  }
+}
+
+function printProjectUninstallSummary(summary: ProjectUninstallSummary): void {
+  const totalRemoved = summary.removed.length + summary.legacyRemoved.length;
+  console.log();
+  if (summary.failed.length === 0) {
+    if (summary.removed.length > 0) {
+      console.log(
+        "  Done! GitHits MCP configuration was removed from this project.",
+      );
+    } else if (summary.legacyRemoved.length > 0) {
+      console.log(
+        "  Done! Removed legacy GitHits project setup marker. No project MCP config entries were found.",
+      );
+    } else {
+      console.log("  No project GitHits MCP configuration found.");
+    }
+  } else {
+    console.log("  Project uninstall completed with errors.");
+  }
+  console.log(
+    `  Removed ${totalRemoved} item${totalRemoved !== 1 ? "s" : ""}. Skipped ${summary.skipped.length} config path${summary.skipped.length !== 1 ? "s" : ""} without GitHits.`,
+  );
+  if (summary.failed.length > 0) {
+    console.log(
+      `  Failed to remove ${summary.failed.length} item${summary.failed.length !== 1 ? "s" : ""}:`,
+    );
+    for (const failure of summary.failed) {
+      console.log(`    - ${failure.path}: ${failure.reason}`);
+    }
+  }
+  console.log();
+}
+
+async function runProjectMcpUninstall(
+  options: InitUninstallOptions,
+  deps: InitDependencies,
+  useColors: boolean,
+): Promise<void> {
+  const { fileSystemService, promptService } = deps;
+  const isInteractive = deps.isInteractive ?? true;
+  const scope = await resolveProjectSetupScope({}, fileSystemService);
+  if (!scope) return;
+  const projectPlan = await getProjectUninstallPlan(fileSystemService);
+
+  console.log(
+    `\n  ${colorize("Remove GitHits from this project's MCP config.", "bold", useColors)}`,
+  );
+  console.log(
+    `  ${colorize("Removes GitHits entries from supported project-local MCP files.", "dim", useColors)}\n`,
+  );
+  console.log(`    Project: ${scope.projectPath}`);
+  for (const setup of projectPlan.configRemovals) {
+    console.log(`    Config: ${setup.configPath}`);
+  }
+  console.log();
+
+  const checks = await Promise.all(
+    projectPlan.configRemovals.map(async (setup) => ({
+      setup,
+      check: await getConfigUninstallCheckStatus(setup, fileSystemService),
+    })),
+  );
+  const configured = checks.filter(
+    (entry) => entry.check.status === "configured",
+  );
+  const failedChecks = checks.filter(
+    (
+      entry,
+    ): entry is typeof entry & {
+      check: { status: "failed"; message: string };
+    } => entry.check.status === "failed",
+  );
+  for (const { setup, check } of failedChecks) {
+    printTask("failed", setup.configPath, check.message, useColors);
+  }
+  const skipped = checks
+    .filter((entry) => entry.check.status === "not_configured")
+    .map((entry) => entry.setup.configPath);
+  const legacyStatePath = getLegacyProjectSetupStatePath(fileSystemService);
+  const legacyProbeFailures: ProjectUninstallFailure[] = [];
+  let hasLegacyState = false;
+  try {
+    hasLegacyState = await fileSystemService.exists(legacyStatePath);
+  } catch (err) {
+    legacyProbeFailures.push({
+      path: legacyStatePath,
+      reason: `Could not inspect legacy project setup marker: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+  const hasWork = configured.length > 0 || hasLegacyState;
+
+  if (
+    !hasWork &&
+    failedChecks.length === 0 &&
+    legacyProbeFailures.length === 0
+  ) {
+    printProjectUninstallSummary({
+      removed: [],
+      legacyRemoved: [],
+      skipped,
+      failed: [],
+    });
+    return;
+  }
+  if (!hasWork) {
+    const summary: ProjectUninstallSummary = {
+      removed: [],
+      legacyRemoved: [],
+      skipped,
+      failed: failedChecks
+        .map(({ setup, check }) => ({
+          path: setup.configPath,
+          reason: check.message,
+        }))
+        .concat(legacyProbeFailures),
+    };
+    process.exitCode = 1;
+    printProjectUninstallSummary(summary);
+    return;
+  }
+
+  if (!isInteractive && !options.yes) {
+    console.log(
+      "  Project uninstall needs confirmation. Because this session is non-interactive, no changes were made.",
+    );
+    console.log();
+    console.log("  To remove GitHits from this project's MCP files, run:");
+    console.log(
+      `    ${formatCommand("githits init uninstall --project --yes", useColors)}`,
+    );
+    console.log();
+    return;
+  }
+
+  if (!options.yes) {
+    let accepted: boolean;
+    try {
+      accepted = await promptService.confirm(
+        "Remove GitHits MCP config from this project?",
+        false,
+      );
+    } catch (err) {
+      if (err instanceof ExitPromptError) {
+        console.log("\n  Uninstall cancelled. No changes made.\n");
+        return;
+      }
+      throw err;
+    }
+    if (!accepted) {
+      printTask(
+        "skipped",
+        "Project uninstall skipped",
+        "no changes made",
+        useColors,
+      );
+      console.log();
+      return;
+    }
+  }
+
+  const summary: ProjectUninstallSummary = {
+    removed: [],
+    legacyRemoved: [],
+    skipped,
+    failed: failedChecks
+      .map(({ setup, check }) => ({
+        path: setup.configPath,
+        reason: check.message,
+      }))
+      .concat(legacyProbeFailures),
+  };
+
+  for (const { setup } of configured) {
+    const result = await executeConfigFileUninstall(setup, fileSystemService);
+    if (result.status === "removed") {
+      summary.removed.push(setup.configPath);
+      printTask(
+        "success",
+        "GitHits project config",
+        `removed from ${setup.configPath}`,
+        useColors,
+      );
+    } else if (result.status === "not_configured") {
+      summary.skipped.push(setup.configPath);
+      printTask("skipped", setup.configPath, "not configured", useColors);
+    } else {
+      summary.failed.push({
+        path: setup.configPath,
+        reason: result.message,
+      });
+      printTask("failed", setup.configPath, result.message, useColors);
+    }
+  }
+
+  if (legacyProbeFailures.length === 0) {
+    const legacyCleanup =
+      await cleanupLegacyProjectSetupState(fileSystemService);
+    for (const path of legacyCleanup.removed) {
+      summary.legacyRemoved.push(path);
+      printTask(
+        "success",
+        "Legacy project setup marker",
+        `removed ${path}`,
+        useColors,
+      );
+    }
+    for (const failure of legacyCleanup.failed) {
+      summary.failed.push(failure);
+      printTask("failed", failure.path, failure.reason, useColors);
+    }
+  }
+
+  if (summary.failed.length > 0) {
+    process.exitCode = 1;
+  }
+  printProjectUninstallSummary(summary);
+}
+
+function printNonInteractiveUninstallGuidance(useColors: boolean): void {
+  console.log(
+    "  Uninstall is interactive. Because this session is non-interactive, no changes were made.",
+  );
+  console.log();
+  console.log("  To remove user-level GitHits MCP config, run:");
+  console.log(
+    `    ${formatCommand("githits init uninstall --yes", useColors)}`,
+  );
+  console.log();
+  console.log("  To remove project-level GitHits MCP config, run:");
+  console.log(
+    `    ${formatCommand("githits init uninstall --project --yes", useColors)}`,
+  );
+  console.log();
+}
+
+async function runUserMcpUninstall(
+  options: InitUninstallOptions,
+  deps: InitDependencies,
+  useColors: boolean,
+): Promise<void> {
+  const { fileSystemService, promptService, execService } = deps;
+
+  console.log(
+    `\n  ${colorize("Disconnect GitHits from your coding agents.", "bold", useColors)}`,
+  );
+  console.log(
+    `  ${colorize("Removes the local GitHits MCP configuration.", "dim", useColors)}\n`,
+  );
+
+  console.log("  Scanning for configured agents...\n");
+  const scan = await scanAgentsForUninstall(fileSystemService, execService);
+
+  for (const agent of scan.configured) {
+    console.log(
+      `    ${colorize(`● ${agent.name} — configured`, "cyan", useColors)}`,
+    );
+  }
+  for (const agent of scan.notConfigured) {
+    console.log(`    ${warning(`${agent.name} — not configured`, useColors)}`);
+  }
+  for (const outcome of scan.failed) {
+    console.log(
+      `    ${errorFmt(`${outcome.name} — cannot inspect config`, useColors)}`,
+    );
+  }
+  for (const agent of scan.notDetected) {
+    console.log(
+      `    ${colorize(`${agent.name} — not detected`, "dim", useColors)}`,
+    );
+  }
+  console.log();
+
+  if (scan.configured.length === 0 && scan.failed.length === 0) {
+    console.log(
+      "  No GitHits MCP configurations found. Nothing to uninstall.\n",
+    );
+    return;
+  }
+
+  const outcomes: AgentUninstallOutcome[] = [...scan.failed];
+  let alwaysMode = options.yes ?? false;
+
+  for (const agent of scan.configured) {
+    console.log(
+      `  Uninstalling from ${colorize(agent.name, "bold", useColors)}...\n`,
+    );
+
+    const setupConfig = getResolvedSetupConfig(agent, fileSystemService);
+    const uninstallConfig =
+      agent.resolvedUninstallConfig ??
+      (setupConfig.method === "config-file"
+        ? setupConfig
+        : agent.getUninstallConfig?.(
+            fileSystemService,
+            agent.resolvedSetupContext,
+          ));
+
+    if (!uninstallConfig) {
+      outcomes.push({
+        id: agent.id,
+        name: agent.name,
+        status: "failed",
+        message: `${agent.name} does not have a verified uninstall command.`,
+      });
+      console.log(
+        `    ${errorFmt(`${agent.name} does not have a verified uninstall command.`, useColors)}\n`,
+      );
+      continue;
+    }
+
+    const preview = formatUninstallPreview(uninstallConfig);
+    for (const line of preview.split("\n")) {
+      console.log(`    ${line}`);
+    }
+    console.log();
+
+    if (!alwaysMode) {
+      let choice: ConfirmChoice;
+      try {
+        choice = await promptService.confirm3("Proceed?", "no");
+      } catch (err) {
+        if (err instanceof ExitPromptError) {
+          console.log("\n  Uninstall cancelled.\n");
+          return;
+        }
+        throw err;
+      }
+
+      if (choice === "no") {
+        outcomes.push({ id: agent.id, name: agent.name, status: "skipped" });
+        console.log();
+        continue;
+      }
+      if (choice === "always") {
+        alwaysMode = true;
+      }
+    }
+
+    let result =
+      uninstallConfig.method === "cli"
+        ? await executeCliUninstall(uninstallConfig, execService)
+        : uninstallConfig.method === "config-file"
+          ? await executeConfigFileUninstall(uninstallConfig, fileSystemService)
+          : await executeCompositeUninstall(
+              uninstallConfig,
+              fileSystemService,
+              execService,
+            );
+
+    if (result.status === "removed" && !agent.skipUninstallVerification) {
+      const verification = await verifyAgentUnconfigured(
+        agent,
+        fileSystemService,
+        execService,
+      );
+      if (!verification.ok) {
+        result = {
+          status: "failed",
+          message:
+            verification.message ??
+            `${agent.name} verification failed after uninstall.`,
+          warnings: result.warnings,
+        };
+      }
+    }
+
+    outcomes.push({
+      id: agent.id,
+      name: agent.name,
+      status: result.status,
+      message: result.status === "failed" ? result.message : undefined,
+      warnings: result.warnings,
+    });
+
+    if (result.status === "removed") {
+      console.log(`    ${success(`${agent.name} removed`, useColors)}\n`);
+      for (const warn of result.warnings ?? []) {
+        console.log(`    ${warning(`Warning: ${warn}`, useColors)}`);
+      }
+    } else if (result.status === "not_configured") {
+      console.log(
+        `    ${warning(`${agent.name} was not configured`, useColors)}\n`,
+      );
+    } else {
+      console.log(`    ${errorFmt(result.message, useColors)}\n`);
+      for (const warn of result.warnings ?? []) {
+        console.log(`    ${warning(`Warning: ${warn}`, useColors)}`);
+      }
+    }
+  }
+
+  const removed = outcomes.filter((o) => o.status === "removed").length;
+  const notConfigured =
+    outcomes.filter((o) => o.status === "not_configured").length +
+    scan.notConfigured.length;
+  const failed = outcomes.filter((o) => o.status === "failed").length;
+  const skipped = outcomes.filter((o) => o.status === "skipped").length;
+
+  if (failed > 0) {
+    console.log("  Uninstall completed with errors.");
+  } else if (removed > 0) {
+    console.log("  Done! GitHits MCP configuration was removed.");
+  } else if (skipped > 0) {
+    console.log("  Uninstall skipped.");
+  } else if (notConfigured > 0) {
+    console.log(
+      "  No GitHits MCP configurations were active. Nothing to remove.",
+    );
+  }
+
+  if (removed > 0) {
+    console.log(`  ${removed} agent${removed !== 1 ? "s" : ""} removed.`);
+  }
+  if (notConfigured > 0) {
+    console.log(
+      `  ${notConfigured} agent${notConfigured !== 1 ? "s" : ""} not configured.`,
+    );
+  }
+  if (skipped > 0) {
+    console.log(`  ${skipped} agent${skipped !== 1 ? "s" : ""} skipped.`);
+  }
+  if (failed > 0) {
+    console.log(
+      `  ${failed} agent${failed !== 1 ? "s" : ""} failed to uninstall.`,
+    );
+    for (const outcome of outcomes.filter((o) => o.status === "failed")) {
+      console.log(
+        `    - ${outcome.name}: ${outcome.message ?? "Unknown error"}`,
+      );
+      for (const warn of outcome.warnings ?? []) {
+        console.log(`      Warning: ${warn}`);
+      }
+    }
+  }
+
+  console.log();
+}
+
 async function verifyAgentConfigured(
   agent: (typeof agentDefinitions)[number],
   fileSystemService: FileSystemService,
   execService: ExecService,
+  scope: InitSetupScope,
 ): Promise<{ ok: boolean; message?: string }> {
-  const postCheck = await scanAgents([agent], fileSystemService, execService);
+  const postCheck = await scanAgents([agent], fileSystemService, execService, {
+    scope,
+  });
   if (postCheck.alreadyConfigured.some((a) => a.id === agent.id)) {
     return { ok: true };
   }
@@ -1262,6 +2203,7 @@ async function executeAgentSetupWithVerification(
   agent: AgentDefinition,
   fileSystemService: FileSystemService,
   execService: ExecService,
+  scope: InitSetupScope,
 ): Promise<SetupResult> {
   const config = getResolvedSetupConfig(agent, fileSystemService);
   let result =
@@ -1276,6 +2218,7 @@ async function executeAgentSetupWithVerification(
       agent,
       fileSystemService,
       execService,
+      scope,
     );
     if (!verification.ok) {
       result = {
@@ -1299,6 +2242,7 @@ async function installSelectedAgents(
   execService: ExecService,
   useColors: boolean,
   printResults: boolean,
+  scope: InitSetupScope = "user",
 ): Promise<AgentOutcome[]> {
   const alreadyConfiguredIds = new Set(
     scan.alreadyConfigured.map((agent) => agent.id),
@@ -1326,6 +2270,7 @@ async function installSelectedAgents(
         agent,
         fileSystemService,
         execService,
+        scope,
       );
     } finally {
       finishTask();
@@ -1562,6 +2507,8 @@ export async function initAction(
     return;
   }
 
+  let setupScope: InitSetupScope = options.project ? "project" : "user";
+
   if (!options.yes) {
     let intent: InitIntent;
     try {
@@ -1588,6 +2535,28 @@ export async function initAction(
       );
       return;
     }
+
+    if (!options.project) {
+      try {
+        setupScope = await promptService.select(
+          "  Where should GitHits be configured?",
+          INIT_SCOPE_CHOICES,
+          "user",
+        );
+      } catch (err) {
+        if (err instanceof ExitPromptError) {
+          console.log("\n  Setup cancelled. No changes made.\n");
+          return;
+        }
+        throw err;
+      }
+    }
+  }
+
+  if (setupScope === "project") {
+    const scope = await resolveProjectSetupScope({}, fileSystemService);
+    if (!scope) return;
+    printProjectScopeExplanation(useColors);
   }
 
   printSection(1, "Detect tools", useColors);
@@ -1596,6 +2565,7 @@ export async function initAction(
   const scanPromise = startSafeInitScan(
     fileSystemService,
     execService,
+    setupScope,
     (scanProgress) => progress.onProgress(scanProgress),
   );
   let scan: ScanResult;
@@ -1604,13 +2574,17 @@ export async function initAction(
   } finally {
     progress.finish();
   }
-  printScanSummary(scan, useColors);
+  printScanSummary(scan, useColors, setupScope);
 
   if (scan.needsSetup.length === 0 && scan.alreadyConfigured.length === 0) {
     printTask(
       "warning",
-      "No supported AI coding tools detected",
-      "install a supported tool and run `githits init` again",
+      setupScope === "project"
+        ? "No project-configurable tools detected"
+        : "No supported AI coding tools detected",
+      setupScope === "project"
+        ? "choose user-level config or install a project-configurable tool"
+        : "install a supported tool and run `githits init` again",
       useColors,
     );
     console.log();
@@ -1649,6 +2623,10 @@ export async function initAction(
     return;
   }
 
+  if (toSetup.length > 0) {
+    await printTomlRewriteWarnings(toSetup, fileSystemService, useColors);
+  }
+
   printSection(3, "Sign in", useColors);
   const authStatus = await runInitAuthentication(
     options,
@@ -1668,7 +2646,7 @@ export async function initAction(
       "all detected tools are already configured",
       useColors,
     );
-    printPostSetupNextSteps(authStatus, useColors);
+    printScopedNextSteps(setupScope, authStatus, useColors);
     console.log();
     return;
   }
@@ -1680,6 +2658,7 @@ export async function initAction(
     execService,
     useColors,
     true,
+    setupScope,
   );
 
   console.log();
@@ -1693,7 +2672,7 @@ export async function initAction(
   if (failed > 0) {
     console.log("  Setup completed with errors.");
   } else if (configured > 0 || alreadyDone > 0) {
-    printPostSetupNextSteps(authStatus, useColors);
+    printScopedNextSteps(setupScope, authStatus, useColors);
   }
 
   if (failed > 0) {
@@ -1724,202 +2703,42 @@ export async function initUninstallAction(
   deps: InitDependencies,
 ): Promise<void> {
   const useColors = shouldUseColors();
-  const { fileSystemService, promptService, execService } = deps;
+  const { promptService } = deps;
+  const isInteractive = deps.isInteractive ?? true;
 
-  console.log(
-    `\n  ${colorize("Disconnect GitHits from your coding agents.", "bold", useColors)}`,
-  );
-  console.log(
-    `  ${colorize("Removes the local GitHits MCP configuration.", "dim", useColors)}\n`,
-  );
-
-  console.log("  Scanning for configured agents...\n");
-  const scan = await scanAgentsForUninstall(fileSystemService, execService);
-
-  for (const agent of scan.configured) {
-    console.log(
-      `    ${colorize(`● ${agent.name} — configured`, "cyan", useColors)}`,
-    );
-  }
-  for (const agent of scan.notConfigured) {
-    console.log(`    ${warning(`${agent.name} — not configured`, useColors)}`);
-  }
-  for (const outcome of scan.failed) {
-    console.log(
-      `    ${errorFmt(`${outcome.name} — cannot inspect config`, useColors)}`,
-    );
-  }
-  for (const agent of scan.notDetected) {
-    console.log(
-      `    ${colorize(`${agent.name} — not detected`, "dim", useColors)}`,
-    );
-  }
-  console.log();
-
-  if (scan.configured.length === 0 && scan.failed.length === 0) {
-    console.log(
-      "  No GitHits MCP configurations found. Nothing to uninstall.\n",
-    );
+  if (options.project) {
+    await runProjectMcpUninstall(options, deps, useColors);
     return;
   }
 
-  const outcomes: AgentUninstallOutcome[] = [...scan.failed];
-  let alwaysMode = options.yes ?? false;
+  if (!isInteractive && !options.yes) {
+    printNonInteractiveUninstallGuidance(useColors);
+    return;
+  }
 
-  for (const agent of scan.configured) {
-    console.log(
-      `  Uninstalling from ${colorize(agent.name, "bold", useColors)}...\n`,
-    );
-
-    const setupConfig = getResolvedSetupConfig(agent, fileSystemService);
-    const uninstallConfig =
-      agent.resolvedUninstallConfig ??
-      (setupConfig.method === "config-file"
-        ? setupConfig
-        : agent.getUninstallConfig?.(
-            fileSystemService,
-            agent.resolvedSetupContext,
-          ));
-
-    if (!uninstallConfig) {
-      outcomes.push({
-        id: agent.id,
-        name: agent.name,
-        status: "failed",
-        message: `${agent.name} does not have a verified uninstall command.`,
-      });
-      console.log(
-        `    ${errorFmt(`${agent.name} does not have a verified uninstall command.`, useColors)}\n`,
+  if (!options.yes) {
+    let scope: InitSetupScope;
+    try {
+      scope = await promptService.select(
+        "  What should GitHits be removed from?",
+        INIT_UNINSTALL_SCOPE_CHOICES,
+        "user",
       );
-      continue;
+    } catch (err) {
+      if (err instanceof ExitPromptError) {
+        console.log("\n  Uninstall cancelled. No changes made.\n");
+        return;
+      }
+      throw err;
     }
 
-    const preview = formatUninstallPreview(uninstallConfig);
-    for (const line of preview.split("\n")) {
-      console.log(`    ${line}`);
-    }
-    console.log();
-
-    if (!alwaysMode) {
-      let choice: ConfirmChoice;
-      try {
-        choice = await promptService.confirm3("Proceed?");
-      } catch (err) {
-        if (err instanceof ExitPromptError) {
-          console.log("\n  Uninstall cancelled.\n");
-          return;
-        }
-        throw err;
-      }
-
-      if (choice === "no") {
-        outcomes.push({ id: agent.id, name: agent.name, status: "skipped" });
-        console.log();
-        continue;
-      }
-      if (choice === "always") {
-        alwaysMode = true;
-      }
-    }
-
-    let result =
-      uninstallConfig.method === "cli"
-        ? await executeCliUninstall(uninstallConfig, execService)
-        : uninstallConfig.method === "config-file"
-          ? await executeConfigFileUninstall(uninstallConfig, fileSystemService)
-          : await executeCompositeUninstall(
-              uninstallConfig,
-              fileSystemService,
-              execService,
-            );
-
-    if (result.status === "removed" && !agent.skipUninstallVerification) {
-      const verification = await verifyAgentUnconfigured(
-        agent,
-        fileSystemService,
-        execService,
-      );
-      if (!verification.ok) {
-        result = {
-          status: "failed",
-          message:
-            verification.message ??
-            `${agent.name} verification failed after uninstall.`,
-          warnings: result.warnings,
-        };
-      }
-    }
-
-    outcomes.push({
-      id: agent.id,
-      name: agent.name,
-      status: result.status,
-      message: result.status === "failed" ? result.message : undefined,
-      warnings: result.warnings,
-    });
-
-    if (result.status === "removed") {
-      console.log(`    ${success(`${agent.name} removed`, useColors)}\n`);
-      for (const warn of result.warnings ?? []) {
-        console.log(`    ${warning(`Warning: ${warn}`, useColors)}`);
-      }
-    } else if (result.status === "not_configured") {
-      console.log(
-        `    ${warning(`${agent.name} was not configured`, useColors)}\n`,
-      );
-    } else {
-      console.log(`    ${errorFmt(result.message, useColors)}\n`);
-      for (const warn of result.warnings ?? []) {
-        console.log(`    ${warning(`Warning: ${warn}`, useColors)}`);
-      }
+    if (scope === "project") {
+      await runProjectMcpUninstall(options, deps, useColors);
+      return;
     }
   }
 
-  const removed = outcomes.filter((o) => o.status === "removed").length;
-  const notConfigured =
-    outcomes.filter((o) => o.status === "not_configured").length +
-    scan.notConfigured.length;
-  const failed = outcomes.filter((o) => o.status === "failed").length;
-  const skipped = outcomes.filter((o) => o.status === "skipped").length;
-
-  if (failed > 0) {
-    console.log("  Uninstall completed with errors.");
-  } else if (removed > 0) {
-    console.log("  Done! GitHits MCP configuration was removed.");
-  } else if (skipped > 0) {
-    console.log("  Uninstall skipped.");
-  } else if (notConfigured > 0) {
-    console.log(
-      "  No GitHits MCP configurations were active. Nothing to remove.",
-    );
-  }
-
-  if (removed > 0) {
-    console.log(`  ${removed} agent${removed !== 1 ? "s" : ""} removed.`);
-  }
-  if (notConfigured > 0) {
-    console.log(
-      `  ${notConfigured} agent${notConfigured !== 1 ? "s" : ""} not configured.`,
-    );
-  }
-  if (skipped > 0) {
-    console.log(`  ${skipped} agent${skipped !== 1 ? "s" : ""} skipped.`);
-  }
-  if (failed > 0) {
-    console.log(
-      `  ${failed} agent${failed !== 1 ? "s" : ""} failed to uninstall.`,
-    );
-    for (const outcome of outcomes.filter((o) => o.status === "failed")) {
-      console.log(
-        `    - ${outcome.name}: ${outcome.message ?? "Unknown error"}`,
-      );
-      for (const warn of outcome.warnings ?? []) {
-        console.log(`      Warning: ${warn}`);
-      }
-    }
-  }
-
-  console.log();
+  await runUserMcpUninstall(options, deps, useColors);
 }
 
 function printAuthRecoveryHint(useColors: boolean): void {
@@ -1943,9 +2762,10 @@ signs you in, and configures the tools you select.`;
 
 const INIT_UNINSTALL_DESCRIPTION = `Remove GitHits MCP server configuration from your coding agents.
 
-Scans for available agents that currently have GitHits configured, then removes
-only the GitHits MCP/plugin configuration with your confirmation. Authentication
-tokens are not removed; use \`githits logout\` to remove stored credentials.`;
+In interactive mode, asks whether to remove user-level coding-agent config or
+project-level MCP config. Removes only GitHits MCP/plugin entries with your
+confirmation. Authentication tokens are not removed; use \`githits logout\` to
+remove stored credentials.`;
 
 /**
  * Register the init command on the given program.
@@ -1954,43 +2774,65 @@ tokens are not removed; use \`githits logout\` to remove stored credentials.`;
 export function registerInitCommand(program: Command) {
   const initCommand = program
     .command("init")
+    .argument("[action]", "Compatibility action; use uninstall with --project")
     .summary("Connect GitHits to your coding agents")
     .description(INIT_DESCRIPTION)
     .option("-y, --yes", "Skip prompts, configure all detected tools")
     .option("--skip-login", "Skip authentication step")
+    .option("--project", "Configure project-level MCP in the current directory")
     .option("--detect-agents", "Scan supported agents without installing")
     .option(
       "--install-agents <ids>",
       "Install MCP server for comma-separated agent IDs from --detect-agents",
     )
     .option("--json", "Emit JSON for --detect-agents or --install-agents")
-    .action(async (options: InitOptions) => {
+    .action(async (action: string | undefined, options: InitOptions) => {
       const fileSystemService = new FileSystemServiceImpl();
       const promptService = new PromptServiceImpl();
       const execService = new ExecServiceImpl();
-      await initAction(options, {
+      const deps = {
         fileSystemService,
         promptService,
         execService,
         createLoginDeps: () => createContainer(),
         isInteractive:
           process.stdin.isTTY === true && process.stdout.isTTY === true,
+      };
+      if (action !== undefined) {
+        failUnknownInitAction(action);
+        return;
+      }
+      await initAction(options, {
+        ...deps,
       });
     });
 
   initCommand
     .command("uninstall")
-    .summary("Remove MCP server from your coding agents")
+    .summary("Remove MCP server from coding agents or project config")
     .description(INIT_UNINSTALL_DESCRIPTION)
-    .option("-y, --yes", "Skip prompts, uninstall from all configured agents")
-    .action(async (options: InitUninstallOptions) => {
+    .option("-y, --yes", "Skip prompts, uninstall user-level config", false)
+    .option(
+      "--project",
+      "Remove project-level MCP from the current directory",
+      false,
+    )
+    .action(async (options: InitUninstallOptions, command: Command) => {
+      const parentOptions = command.parent?.opts<InitOptions>() ?? {};
+      const resolvedOptions: InitUninstallOptions = {
+        ...options,
+        yes: options.yes || parentOptions.yes,
+        project: options.project || parentOptions.project,
+      };
       const fileSystemService = new FileSystemServiceImpl();
       const promptService = new PromptServiceImpl();
       const execService = new ExecServiceImpl();
-      await initUninstallAction(options, {
+      await initUninstallAction(resolvedOptions, {
         fileSystemService,
         promptService,
         execService,
+        isInteractive:
+          process.stdin.isTTY === true && process.stdout.isTTY === true,
       });
     });
 }

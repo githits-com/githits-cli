@@ -870,6 +870,9 @@ export function createMockPromptService(
             .map((choice) => choice.value),
         ),
     ) as PromptService["checkbox"],
+    confirm: mock(() =>
+      Promise.reject(new Error("confirm called without explicit override")),
+    ),
     confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
     ...impl,
   };

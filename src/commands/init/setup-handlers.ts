@@ -3,6 +3,7 @@ import {
   parse as parseJsonc,
   printParseErrorCode,
 } from "jsonc-parser";
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import {
   type Document,
   isMap,
@@ -194,6 +195,25 @@ function parseYamlConfigObject(content: string): ParsedConfigObjectResult {
   } catch (err) {
     return {
       error: `Invalid YAML: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+function parseTomlConfigObject(content: string): ParsedConfigObjectResult {
+  const normalizedContent = normalizeConfigContent(content);
+  if (normalizedContent.trim() === "") {
+    return { value: {} };
+  }
+
+  try {
+    const parsed = parseToml(normalizedContent);
+    if (!isPlainObject(parsed)) {
+      return { error: "Config file root is not a TOML object" };
+    }
+    return { value: parsed as Record<string, unknown> };
+  } catch (err) {
+    return {
+      error: `Invalid TOML: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 }
@@ -437,12 +457,15 @@ function removeYamlServerConfig(
   };
 }
 
-function parseConfigObjectForFormat(
+export function parseConfigObjectForFormat(
   content: string,
   format: ConfigFileFormat = "json",
 ): ParsedConfigObjectResult {
   if (format === "yaml") {
     return parseYamlConfigObject(content);
+  }
+  if (format === "toml") {
+    return parseTomlConfigObject(content);
   }
 
   const parsed = parseConfigObject(content);
@@ -460,7 +483,17 @@ function renderConfigObjectForFormat(
     const rendered = stringifyYaml(config);
     return rendered.endsWith("\n") ? rendered : `${rendered}\n`;
   }
+  if (format === "toml") {
+    const rendered = stringifyToml(config);
+    return rendered.endsWith("\n") ? rendered : `${rendered}\n`;
+  }
   return `${JSON.stringify(config, null, 2)}\n`;
+}
+
+function getConfigObjectFormatName(format: ConfigFileFormat = "json"): string {
+  if (format === "yaml") return "YAML";
+  if (format === "toml") return "TOML";
+  return "JSON";
 }
 
 /**
@@ -593,7 +626,7 @@ function hasLegacyRemoteIndicators(
   return false;
 }
 
-function isEquivalentConfiguredValue(
+export function isEquivalentConfiguredValue(
   existing: unknown,
   expected: Record<string, unknown>,
 ): boolean {
@@ -625,7 +658,7 @@ function isEquivalentConfiguredValue(
   return nonCommandFieldsEqual(existing, expected);
 }
 
-function getMatchingServerKeys(
+export function getMatchingServerKeys(
   servers: Record<string, unknown>,
   serverName: string,
 ): string[] {
@@ -700,7 +733,7 @@ export function mergeServerConfig(
   ) {
     return {
       status: "parse_error",
-      error: `"${serversKey}" is not a JSON object`,
+      error: `"${serversKey}" is not a ${getConfigObjectFormatName(format)} object`,
     };
   }
 
@@ -763,7 +796,7 @@ export function removeServerConfig(
   ) {
     return {
       status: "parse_error",
-      error: `"${serversKey}" is not a JSON object`,
+      error: `"${serversKey}" is not a ${getConfigObjectFormatName(format)} object`,
     };
   }
 
@@ -832,10 +865,10 @@ export function formatSetupPreview(config: SetupConfig): string {
     2,
   );
   const formattedSnippet =
-    config.format === "yaml"
+    config.format === "yaml" || config.format === "toml"
       ? renderConfigObjectForFormat(
           { [config.serverName]: config.serverConfig },
-          "yaml",
+          config.format,
         ).trimEnd()
       : snippet;
   return `Will add to ${config.configPath}:\n\n${formattedSnippet}`;
@@ -938,7 +971,7 @@ export async function getConfigUninstallCheckStatus(
     ) {
       return {
         status: "failed",
-        message: `Cannot parse ${config.configPath}: "${config.serversKey}" is not a ${config.format === "yaml" ? "YAML" : "JSON"} object. File left unchanged.`,
+        message: `Cannot parse ${config.configPath}: "${config.serversKey}" is not a ${getConfigObjectFormatName(config.format)} object. File left unchanged.`,
       };
     }
 
@@ -1042,7 +1075,7 @@ const ALREADY_EXISTS_PATTERNS = [
 const ALREADY_ABSENT_PATTERNS = [
   /(?:plugin|extension|server|mcp server)\s+["']?githits["']?\s+(?:was\s+)?not\s+found/i,
   /["']?githits["']?\s+(?:plugin|extension|server)?\s*(?:does\s+not\s+exist|is\s+not\s+installed|not\s+installed)/i,
-  /(?:package\s+)?["']?pi-mcp-adapter["']?\s+(?:is\s+)?not\s+installed/i,
+  /(?:package\s+)?["']?pi-mcp-adapter["']?\s+(?:(?:is\s+)?not\s+installed|not\s+found)/i,
   /unknown\s+(?:plugin|extension|server)\s+["']?githits["']?/i,
   /marketplace\s+["']?githits-plugins["']?\s+(?:was\s+)?not\s+found/i,
 ];
@@ -1109,15 +1142,15 @@ async function executeCliUninstallCommand(
     const result = await execService.exec(cmd.command, cmd.args);
     const combined = `${result.stdout} ${result.stderr}`;
 
-    if (result.exitCode === 0) {
-      return { status: "removed", message: "Removed successfully" };
-    }
-
     if (isAlreadyAbsentOutput(combined)) {
       return {
         status: "not_configured",
         message: `GitHits not configured via ${cmd.command}`,
       };
+    }
+
+    if (result.exitCode === 0) {
+      return { status: "removed", message: "Removed successfully" };
     }
 
     const detail = result.stderr.trim() || result.stdout.trim();

@@ -105,6 +105,7 @@ function createFsWithDetection(
       }
       throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     }),
+    exists: mock(async (path: string) => path in configFiles),
     atomicWriteFile: mock(() => Promise.resolve()),
   });
 }
@@ -138,6 +139,66 @@ function expectAuthNotCheckedNextSteps(logCalls: string[]): void {
   expect(logCalls.some((msg) => msg.includes("npx githits@latest login"))).toBe(
     true,
   );
+}
+
+function expectProjectAuthNotCheckedNextSteps(logCalls: string[]): void {
+  expect(
+    logCalls.some((msg) =>
+      msg.includes(
+        "GitHits MCP is configured for this project. Sign-in was not checked.",
+      ),
+    ),
+  ).toBe(true);
+  expect(logCalls.some((msg) => msg.includes("loads the project config"))).toBe(
+    true,
+  );
+  expect(logCalls.some((msg) => msg.includes("npx githits@latest login"))).toBe(
+    true,
+  );
+  expect(
+    logCalls.some((msg) =>
+      msg.includes("GitHits MCP is configured. Sign-in was not checked."),
+    ),
+  ).toBe(false);
+}
+
+function expectProjectAuthRequiredNextSteps(logCalls: string[]): void {
+  expect(
+    logCalls.some((msg) =>
+      msg.includes(
+        "GitHits MCP is configured for this project, but sign-in is still needed.",
+      ),
+    ),
+  ).toBe(true);
+  expect(logCalls.some((msg) => msg.includes("loads the project config"))).toBe(
+    true,
+  );
+  expect(logCalls.some((msg) => msg.includes("npx githits@latest login"))).toBe(
+    true,
+  );
+  expect(
+    logCalls.some((msg) =>
+      msg.includes("GitHits MCP is configured, but sign-in is still needed."),
+    ),
+  ).toBe(false);
+}
+
+function createProjectScopeSelectMock(): PromptService["select"] {
+  return mock(
+    async <T>(_message: string, choices: Array<{ value: T }>): Promise<T> => {
+      const projectChoice = choices.find(
+        (choice) => choice.value === "project",
+      );
+      return projectChoice?.value ?? choices[0]!.value;
+    },
+  ) as PromptService["select"];
+}
+
+function createSelectAllCheckboxMock(): PromptService["checkbox"] {
+  return mock(
+    async <T>(_message: string, choices: Array<{ value: T }>): Promise<T[]> =>
+      choices.map((choice) => choice.value),
+  ) as PromptService["checkbox"];
 }
 
 function lookupCommandFor(platform: string = process.platform): string {
@@ -228,9 +289,7 @@ describe("initAction", () => {
     );
 
     const logCalls = getLogOutput();
-    expect(
-      logCalls.some((msg) => msg.includes("Detected supported tools")),
-    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Detected tools"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("cursor"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("needs setup"))).toBe(true);
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
@@ -306,13 +365,146 @@ describe("initAction", () => {
 
     const payload = JSON.parse(getLogOutput()[0] ?? "{}");
     expect(payload.mode).toBe("detect-agents");
+    expect(payload.scope).toBe("user");
     expect(payload.installableIds).toContain("cursor");
     expect(payload.suggestedCommand).toContain("--install-agents cursor");
     expect(payload.instructions).toContain(
       "Do not run `githits init -y` or `githits init --yes` unless the user explicitly asks to configure every detected tool.",
     );
     expect(payload.instructions).toContain(
-      "Do not run init again after a successful --install-agents run; verify with --detect-agents --json instead.",
+      "Do not run init again after a successful --install-agents run; verify with npx -y githits@latest init --detect-agents --json instead.",
+    );
+  });
+
+  it("emits project-scoped JSON for agent detection", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const createLoginDeps = mock(() =>
+      Promise.resolve({} as LoginDependencies),
+    );
+
+    await initAction(
+      { detectAgents: true, json: true, project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(process.exitCode).toBe(0);
+    expect(payload.scope).toBe("project");
+    expect(payload.suggestedCommand).toContain(
+      "--project --install-agents cursor",
+    );
+    expect(payload.instructions).toContain(
+      "Explain that project-level install writes MCP config files into the current repo and those files may be committed.",
+    );
+    expect(createLoginDeps).not.toHaveBeenCalled();
+  });
+
+  it("marks detected tools without project config as unsupported in staged project detection", async () => {
+    const fs = createFsWithDetection(["/home/test/.codeium/windsurf"]);
+
+    await initAction(
+      { detectAgents: true, json: true, project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    const windsurf = payload.agents.find(
+      (agent: { id: string }) => agent.id === "windsurf",
+    );
+    expect(windsurf.status).toBe("unsupported_project_config");
+    expect(windsurf.reason).toContain("not verified");
+    expect(payload.installableIds).not.toContain("windsurf");
+    expect(payload.suggestedCommand).toBeNull();
+    expect(payload.instructions).toContain(
+      "Do not ask the user to choose project install IDs.",
+    );
+    expect(payload.instructions).not.toContain(
+      "Ask which tools should receive the GitHits MCP server.",
+    );
+  });
+
+  it("does not ask for project install IDs when configured and unsupported tools are detected", async () => {
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.cursor", "/home/test/.codeium/windsurf"],
+      {
+        "/repo/.cursor/mcp.json": JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        }),
+      },
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+
+    await initAction(
+      { detectAgents: true, json: true, project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.installableIds).toEqual([]);
+    expect(payload.instructions).toContain(
+      "Explain that GitHits is already configured for detected project-configurable tools.",
+    );
+    expect(payload.instructions).toContain(
+      "Do not ask the user to choose project install IDs.",
+    );
+    expect(payload.instructions).not.toContain(
+      "Explain that no detected tools have verified project-level MCP support.",
+    );
+    expect(payload.instructions).not.toContain(
+      "Ask which tools should receive the GitHits MCP server.",
+    );
+  });
+
+  it("does not tell agents unsupported-only project detection is already configured", async () => {
+    const fs = createFsWithDetection(["/home/test/.codeium/windsurf"]);
+
+    await initAction(
+      { detectAgents: true, project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("Detected tools (project-level")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("unsupported project config")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("not verified for Windsurf")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("No detected tools can be installed with project-level"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("already configured for detected")),
+    ).toBe(false);
+    expect(logCalls.some((msg) => msg.includes("user-level install"))).toBe(
+      true,
     );
   });
 
@@ -351,6 +543,592 @@ describe("initAction", () => {
     expect(
       getLogOutput().some((msg) => msg.includes("npx -y githits@latest login")),
     ).toBe(true);
+  });
+
+  it("installs project config in staged install mode", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.cursor"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+
+    await initAction(
+      { installAgents: "cursor", json: true, project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    expect(process.exitCode).toBe(0);
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.cursor/mcp.json",
+      expect.any(String),
+    );
+    expect(fs.atomicWriteFile).not.toHaveBeenCalledWith(
+      "/home/test/.cursor/mcp.json",
+      expect.any(String),
+    );
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.scope).toBe("project");
+    expect(payload.instructions).toContain(
+      "Do not run init again after a successful --install-agents run; verify with npx -y githits@latest init --project --detect-agents --json instead.",
+    );
+  });
+
+  it("rejects unsupported project agent IDs in staged install mode", async () => {
+    const fs = createFsWithDetection(["/home/test/.codeium/windsurf"]);
+
+    await initAction(
+      { installAgents: "windsurf", json: true, project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    expect(process.exitCode).toBe(1);
+    const payload = JSON.parse(getErrorOutput()[0] ?? "{}");
+    expect(payload.code).toBe("INVALID_ARGUMENT");
+    expect(payload.error).toContain("cannot use project-level install");
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("writes project configs for project-supported tools through init scope prompt", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.cursor"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const promptService = createMockPromptService({
+      select: createProjectScopeSelectMock(),
+      checkbox: mock(
+        async <T>(message: string, choices: Array<{ value: T }>) => {
+          expect(message).toContain("Select which tools");
+          return choices.map((choice) => choice.value);
+        },
+      ) as PromptService["checkbox"],
+    });
+
+    await initAction(
+      { skipLogin: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.cursor/mcp.json",
+      expect.any(String),
+    );
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Project-level config is available for some tools."),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Tools without project-level config are shown below"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Found 1 tool. 1 supports project-level config."),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("5. Next Steps"))).toBe(true);
+    expectProjectAuthNotCheckedNextSteps(logCalls);
+    expect(
+      logCalls.filter((msg) => msg.includes("4. Install and verify")),
+    ).toHaveLength(1);
+    expect(JSON.parse(configFiles["/repo/.cursor/mcp.json"] ?? "{}")).toEqual({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+  });
+
+  it("skips detected tools without verified project config", async () => {
+    const fs = createFsWithDetection(["/repo", "/home/test/.codeium/windsurf"]);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const createLoginDeps = createUnauthLoginDeps();
+    const promptService = createMockPromptService({
+      select: createProjectScopeSelectMock(),
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(promptService.checkbox).not.toHaveBeenCalled();
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("Windsurf"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("no project-level config")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("project-level MCP config not verified"),
+      ),
+    ).toBe(false);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Found 1 tool. 0 support project-level config."),
+      ),
+    ).toBe(true);
+  });
+
+  it("preserves existing project config servers", async () => {
+    const configFiles: Record<string, string> = {
+      "/repo/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          Other: { command: "other", args: [] },
+        },
+      }),
+    };
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.cursor"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const promptService = createMockPromptService({
+      select: createProjectScopeSelectMock(),
+      checkbox: createSelectAllCheckboxMock(),
+    });
+
+    await initAction(
+      { skipLogin: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    const written = JSON.parse(configFiles["/repo/.cursor/mcp.json"] ?? "{}");
+    expect(written.mcpServers.Other).toEqual({ command: "other", args: [] });
+    expect(written.mcpServers.GitHits).toEqual({
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+    });
+  });
+
+  it("prints standard ready copy for authenticated project setup", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.cursor"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const promptService = createMockPromptService({
+      select: createProjectScopeSelectMock(),
+      checkbox: createSelectAllCheckboxMock(),
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expectReadyNextSteps(logCalls);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("GitHits MCP is configured for this project."),
+      ),
+    ).toBe(false);
+    expect(logCalls.some((msg) => msg.includes("loads .mcp.json"))).toBe(false);
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.cursor/mcp.json",
+      expect.any(String),
+    );
+  });
+
+  it("prints project-specific next steps when project auth fails and user continues", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.cursor"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const promptService = createMockPromptService({
+      select: mock(
+        async <T>(
+          _message: string,
+          choices: Array<{ value: T }>,
+        ): Promise<T> => {
+          if (choices.some((choice) => choice.value === "project")) {
+            return "project" as T;
+          }
+          if (
+            choices.some((choice) => choice.value === "continue_without_auth")
+          ) {
+            return "continue_without_auth" as T;
+          }
+          return choices[0]!.value;
+        },
+      ) as PromptService["select"],
+      checkbox: createSelectAllCheckboxMock(),
+    });
+    const createLoginDeps = mock(() =>
+      Promise.resolve({
+        authService: createMockAuthService({
+          discoverEndpoints: mock(() =>
+            Promise.reject(new Error("Network error")),
+          ),
+        }),
+        authStorage: createMockAuthStorage(),
+        browserService: createMockBrowserService(),
+        mcpUrl: "https://mcp.githits.com",
+      }),
+    );
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expectProjectAuthRequiredNextSteps(getLogOutput());
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.cursor/mcp.json",
+      expect.any(String),
+    );
+  });
+
+  it("writes Codex project config as TOML", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const execService = createMockExecService({
+      exec: mock(async (command: string, args: string[]) => {
+        if (command === lookupCommandFor() && args[0] === "codex") {
+          return { stdout: "/usr/bin/codex", stderr: "", exitCode: 0 };
+        }
+        return { stdout: "", stderr: "", exitCode: 1 };
+      }),
+    });
+    const promptService = createMockPromptService({
+      select: createProjectScopeSelectMock(),
+      checkbox: createSelectAllCheckboxMock(),
+    });
+
+    await initAction(
+      { skipLogin: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.codex/config.toml",
+      expect.stringContaining("[mcp_servers.githits]"),
+    );
+    expect(configFiles["/repo/.codex/config.toml"]).toContain(
+      'command = "npx"',
+    );
+  });
+
+  it("warns before rewriting existing Codex TOML project config", async () => {
+    const configFiles: Record<string, string> = {
+      "/repo/.codex/config.toml": "# keep me\n[other]\nvalue = true\n",
+    };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const execService = createMockExecService({
+      exec: mock(async (command: string, args: string[]) => {
+        if (command === lookupCommandFor() && args[0] === "codex") {
+          return { stdout: "/usr/bin/codex", stderr: "", exitCode: 0 };
+        }
+        return { stdout: "", stderr: "", exitCode: 1 };
+      }),
+    });
+    const promptService = createMockPromptService({
+      select: createProjectScopeSelectMock(),
+      checkbox: createSelectAllCheckboxMock(),
+    });
+
+    await initAction(
+      { skipLogin: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    const warningIndex = logCalls.findIndex((msg) =>
+      msg.includes("existing TOML comments/formatting will not be preserved"),
+    );
+    const signInIndex = logCalls.findIndex((msg) => msg.includes("3. Sign in"));
+    const installIndex = logCalls.findIndex((msg) =>
+      msg.includes("4. Install and verify"),
+    );
+    const installingIndex = logCalls.findIndex(
+      (msg) => msg.includes("Codex CLI") && msg.includes("installing"),
+    );
+    expect(warningIndex).toBeGreaterThanOrEqual(0);
+    expect(warningIndex).toBeLessThan(signInIndex);
+    expect(warningIndex).toBeLessThan(installIndex);
+    expect(installIndex).toBeLessThan(installingIndex);
+  });
+
+  it("sets up Pi project config through adapter and shared .mcp.json", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    let adapterInstalled = false;
+    const execService = createMockExecService({
+      exec: mock(async (command: string, args: string[]) => {
+        const key = `${command} ${args.join(" ")}`;
+        if (key === `${lookupCommandFor()} pi`) {
+          return { stdout: "/usr/bin/pi\n", stderr: "", exitCode: 0 };
+        }
+        if (key === "pi list") {
+          return {
+            stdout: adapterInstalled ? "pi-mcp-adapter\n" : "",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        if (key === "pi install npm:pi-mcp-adapter") {
+          adapterInstalled = true;
+          return { stdout: "installed\n", stderr: "", exitCode: 0 };
+        }
+        return { stdout: "", stderr: "", exitCode: 1 };
+      }),
+    });
+    const promptService = createMockPromptService({
+      select: createProjectScopeSelectMock(),
+      checkbox: createSelectAllCheckboxMock(),
+    });
+
+    await initAction(
+      { skipLogin: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    expect(execService.exec).toHaveBeenCalledWith("pi", [
+      "install",
+      "npm:pi-mcp-adapter",
+    ]);
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.mcp.json",
+      expect.any(String),
+    );
+    expect(fs.atomicWriteFile).not.toHaveBeenCalledWith(
+      "/repo/.githits/init/project-setup.json",
+      expect.any(String),
+    );
+    const written = JSON.parse(configFiles["/repo/.mcp.json"] ?? "{}");
+    expect(written.mcpServers.GitHits).toEqual({
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+    });
+    expect(written.mcpServers.GitHits.lifecycle).toBeUndefined();
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("Pi"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("no project-level config")),
+    ).toBe(false);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Found 1 tool. 1 supports project-level config."),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not record Pi project ownership when adapter already existed", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const execService = createMockExecService({
+      exec: mock(async (command: string, args: string[]) => {
+        const key = `${command} ${args.join(" ")}`;
+        if (key === `${lookupCommandFor()} pi`) {
+          return { stdout: "/usr/bin/pi\n", stderr: "", exitCode: 0 };
+        }
+        if (key === "pi list") {
+          return { stdout: "pi-mcp-adapter\n", stderr: "", exitCode: 0 };
+        }
+        return { stdout: "", stderr: "", exitCode: 1 };
+      }),
+    });
+    const promptService = createMockPromptService({
+      select: createProjectScopeSelectMock(),
+      checkbox: createSelectAllCheckboxMock(),
+    });
+
+    await initAction(
+      { skipLogin: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.mcp.json",
+      expect.any(String),
+    );
+    expect(fs.atomicWriteFile).not.toHaveBeenCalledWith(
+      "/repo/.githits/init/project-setup.json",
+      expect.any(String),
+    );
+  });
+
+  it("keeps shared project .mcp.json standard when Claude Code and Pi are selected", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    let adapterInstalled = false;
+    const execService = createMockExecService({
+      exec: mock(async (command: string, args: string[]) => {
+        const key = `${command} ${args.join(" ")}`;
+        if (key === `${lookupCommandFor()} claude`) {
+          return { stdout: "/usr/bin/claude\n", stderr: "", exitCode: 0 };
+        }
+        if (key === `${lookupCommandFor()} pi`) {
+          return { stdout: "/usr/bin/pi\n", stderr: "", exitCode: 0 };
+        }
+        if (key === "pi list") {
+          return {
+            stdout: adapterInstalled ? "pi-mcp-adapter\n" : "",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        if (key === "pi install npm:pi-mcp-adapter") {
+          adapterInstalled = true;
+          return { stdout: "installed\n", stderr: "", exitCode: 0 };
+        }
+        if (key === "claude plugin list") {
+          return {
+            stdout: "githits@githits-plugins\n",
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        return { stdout: "", stderr: "", exitCode: 1 };
+      }),
+    });
+    const promptService = createMockPromptService({
+      select: createProjectScopeSelectMock(),
+      checkbox: createSelectAllCheckboxMock(),
+    });
+
+    await initAction(
+      { skipLogin: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    const written = JSON.parse(configFiles["/repo/.mcp.json"] ?? "{}");
+    expect(written.mcpServers.GitHits).toEqual({
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+    });
+    expect(written.mcpServers.GitHits.lifecycle).toBeUndefined();
+  });
+
+  it("rejects direct project setup flag", async () => {
+    const fs = createFsWithDetection(["/repo"]);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const createLoginDeps = createUnauthLoginDeps();
+
+    await initAction(
+      { project: true, yes: true, skipLogin: true, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(process.exitCode).toBe(1);
+    expect(JSON.parse(getErrorOutput()[0] ?? "{}").code).toBe(
+      "INVALID_ARGUMENT",
+    );
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(createLoginDeps).not.toHaveBeenCalled();
   });
 
   it("does not print login instructions when staged install finds existing auth", async () => {
@@ -1856,6 +2634,894 @@ describe("initAction", () => {
 });
 
 describe("initUninstallAction", () => {
+  it("removes project GitHits config and preserves other servers", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+        Other: { command: "other" },
+      },
+      custom: true,
+    });
+    const fs = createFsWithDetection(["/repo"], {
+      "/repo/.mcp.json": currentConfig,
+      "/repo/.githits/init/project-setup.json": JSON.stringify({
+        version: 1,
+        projectSetup: { pi: { installedPackages: ["npm:pi-mcp-adapter"] } },
+      }),
+    });
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.mcp.json") return currentConfig;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (_path: string, content: string) => {
+        currentConfig = content;
+      },
+    );
+    const promptService = createMockPromptService({
+      confirm: mock(() => Promise.resolve(true)),
+    });
+
+    await initUninstallAction(
+      { project: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(promptService.confirm).toHaveBeenCalledTimes(1);
+    expect(promptService.confirm).toHaveBeenCalledWith(
+      "Remove GitHits MCP config from this project?",
+      false,
+    );
+    expect(promptService.confirm3).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.mcp.json",
+      expect.any(String),
+    );
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/repo/.githits/init/project-setup.json",
+    );
+    const parsed = JSON.parse(currentConfig);
+    expect(parsed.mcpServers.GitHits).toBeUndefined();
+    expect(parsed.mcpServers.Other).toEqual({ command: "other" });
+    expect(parsed.custom).toBe(true);
+  });
+
+  it("removes empty project mcpServers while preserving other top-level config", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+      custom: true,
+    });
+    const fs = createFsWithDetection(["/repo"], {
+      "/repo/.mcp.json": currentConfig,
+    });
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.mcp.json") return currentConfig;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (_path: string, content: string) => {
+        currentConfig = content;
+      },
+    );
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.mcp.json",
+      expect.any(String),
+    );
+    expect(fs.deleteFile).not.toHaveBeenCalled();
+    expect(JSON.parse(currentConfig)).toEqual({ custom: true, mcpServers: {} });
+  });
+
+  it("removes project GitHits config when only GitHits config remains", async () => {
+    const fs = createFsWithDetection(["/repo"], {
+      "/repo/.mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    });
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.mcp.json",
+      expect.any(String),
+    );
+    expect(fs.deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("does not write project uninstall when config is missing", async () => {
+    const fs = createFsWithDetection(["/repo"]);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const promptService = createMockPromptService();
+
+    await initUninstallAction(
+      { project: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(promptService.confirm).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(fs.deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("leaves malformed project .mcp.json unchanged during uninstall", async () => {
+    const fs = createFsWithDetection(["/repo"], {
+      "/repo/.mcp.json": "{bad json",
+    });
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const promptService = createMockPromptService();
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(process.exitCode).toBe(1);
+    expect(promptService.confirm).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(fs.deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("does not uninstall project config in non-interactive mode without --yes", async () => {
+    const fs = createFsWithDetection(["/repo"], {
+      "/repo/.mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    });
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+
+    await initUninstallAction(
+      { project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        isInteractive: false,
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(fs.deleteFile).not.toHaveBeenCalled();
+    expect(
+      getLogOutput().some((msg) =>
+        msg.includes("githits init uninstall --project --yes"),
+      ),
+    ).toBe(true);
+  });
+
+  it("prompts for project scope and removes project config without scanning global agents", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const configFiles: Record<string, string> = {
+      "/repo/.mcp.json": currentConfig,
+    };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.mcp.json") return currentConfig;
+        if (path in configFiles) return configFiles[path]!;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (_path: string, content: string) => {
+        currentConfig = content;
+      },
+    );
+    const promptService = createMockPromptService({
+      select: mock(() => Promise.resolve("project")) as PromptService["select"],
+      confirm: mock(() => Promise.resolve(true)),
+    });
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(promptService.select).toHaveBeenCalledTimes(1);
+    expect(promptService.confirm).toHaveBeenCalledTimes(1);
+    expect(promptService.confirm3).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.mcp.json",
+      expect.any(String),
+    );
+    expect(
+      getLogOutput().some((msg) =>
+        msg.includes("Scanning for configured agents"),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not run Pi cleanup for shared config without ownership marker", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const configFiles: Record<string, string> = {
+      "/repo/.mcp.json": currentConfig,
+    };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.mcp.json") return currentConfig;
+        if (path in configFiles) return configFiles[path]!;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (_path: string, content: string) => {
+        currentConfig = content;
+      },
+    );
+    const execService = createMockExecService();
+    const promptService = createMockPromptService();
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+      },
+    );
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.mcp.json",
+      expect.any(String),
+    );
+    expect(promptService.confirm).not.toHaveBeenCalled();
+    expect(execService.exec).not.toHaveBeenCalled();
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("pi remove npm:pi-mcp-adapter")),
+    ).toBe(false);
+    expect(logCalls.some((msg) => msg.includes("Uninstalling Pi"))).toBe(false);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Cleanup: setup installed for this project"),
+      ),
+    ).toBe(false);
+    expect(logCalls.some((msg) => msg.includes("Claude Code"))).toBe(false);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("GitHits project config") &&
+          msg.includes("removed from /repo/.mcp.json"),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not remove global Pi adapter and clears ownership marker", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const configFiles: Record<string, string> = {
+      "/repo/.mcp.json": currentConfig,
+      "/repo/.githits/init/project-setup.json": JSON.stringify({
+        version: 1,
+        projectSetup: { pi: { installedPackages: ["npm:pi-mcp-adapter"] } },
+      }),
+    };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.mcp.json") return currentConfig;
+        if (path in configFiles) return configFiles[path]!;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string, content: string) => {
+        if (path === "/repo/.mcp.json") currentConfig = content;
+        configFiles[path] = content;
+      },
+    );
+    const execService = createMockExecService();
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    expect(execService.exec).not.toHaveBeenCalled();
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/repo/.githits/init/project-setup.json",
+    );
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Cleanup: setup installed for this project"),
+      ),
+    ).toBe(false);
+    expect(logCalls.some((msg) => msg.includes("Project setup cleanup"))).toBe(
+      false,
+    );
+    expect(logCalls.some((msg) => msg.includes("Uninstalling Pi"))).toBe(false);
+  });
+
+  it("ignores null project marker entries during project uninstall", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const configFiles: Record<string, string> = {
+      "/repo/.mcp.json": currentConfig,
+      "/repo/.githits/init/project-setup.json": JSON.stringify({
+        version: 1,
+        projectSetup: { pi: null },
+      }),
+    };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.mcp.json") return currentConfig;
+        if (path in configFiles) return configFiles[path]!;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (_path: string, content: string) => {
+        currentConfig = content;
+      },
+    );
+    const execService = createMockExecService();
+
+    await expect(
+      initUninstallAction(
+        { project: true, yes: true },
+        {
+          fileSystemService: fs,
+          promptService: createMockPromptService(),
+          execService,
+        },
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(JSON.parse(currentConfig).mcpServers?.GitHits).toBeUndefined();
+    expect(execService.exec).not.toHaveBeenCalled();
+  });
+
+  it("ignores non-array installedPackages during project uninstall", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const configFiles: Record<string, string> = {
+      "/repo/.mcp.json": currentConfig,
+      "/repo/.githits/init/project-setup.json": JSON.stringify({
+        version: 1,
+        projectSetup: {
+          pi: { installedPackages: "npm:pi-mcp-adapter" },
+        },
+      }),
+    };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.mcp.json") return currentConfig;
+        if (path in configFiles) return configFiles[path]!;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (_path: string, content: string) => {
+        currentConfig = content;
+      },
+    );
+    const execService = createMockExecService();
+
+    await expect(
+      initUninstallAction(
+        { project: true, yes: true },
+        {
+          fileSystemService: fs,
+          promptService: createMockPromptService(),
+          execService,
+        },
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(JSON.parse(currentConfig).mcpServers?.GitHits).toBeUndefined();
+    expect(execService.exec).not.toHaveBeenCalled();
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/repo/.githits/init/project-setup.json",
+    );
+  });
+
+  it("clears valid project marker entries while ignoring invalid siblings", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const configFiles: Record<string, string> = {
+      "/repo/.mcp.json": currentConfig,
+      "/repo/.githits/init/project-setup.json": JSON.stringify({
+        version: 1,
+        projectSetup: {
+          bad: null,
+          pi: {
+            installedPackages: ["npm:pi-mcp-adapter", "npm:pi-mcp-adapter"],
+          },
+        },
+      }),
+    };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.mcp.json") return currentConfig;
+        if (path in configFiles) return configFiles[path]!;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string, content: string) => {
+        if (path === "/repo/.mcp.json") currentConfig = content;
+        configFiles[path] = content;
+      },
+    );
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(JSON.parse(currentConfig).mcpServers?.GitHits).toBeUndefined();
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/repo/.githits/init/project-setup.json",
+    );
+  });
+
+  it("clears ownership marker without checking whether Pi adapter is already absent", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const configFiles: Record<string, string> = {
+      "/repo/.mcp.json": currentConfig,
+      "/repo/.githits/init/project-setup.json": JSON.stringify({
+        version: 1,
+        projectSetup: { pi: { installedPackages: ["npm:pi-mcp-adapter"] } },
+      }),
+    };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.mcp.json") return currentConfig;
+        if (path in configFiles) return configFiles[path]!;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (_path: string, content: string) => {
+        currentConfig = content;
+      },
+    );
+    const execService = createMockExecService();
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    expect(process.exitCode).not.toBe(1);
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+    expect(execService.exec).not.toHaveBeenCalled();
+    expect(
+      getLogOutput().some((msg) => msg.includes("Project setup cleanup")),
+    ).toBe(false);
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/repo/.githits/init/project-setup.json",
+    );
+  });
+
+  it("preserves ownership marker when project marker cleanup fails", async () => {
+    let currentConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const marker = JSON.stringify({
+      version: 1,
+      projectSetup: { pi: { installedPackages: ["npm:pi-mcp-adapter"] } },
+    });
+    const configFiles: Record<string, string> = {
+      "/repo/.mcp.json": currentConfig,
+      "/repo/.githits/init/project-setup.json": marker,
+    };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.mcp.json") return currentConfig;
+        if (path in configFiles) return configFiles[path]!;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string, content: string) => {
+        if (path === "/repo/.mcp.json") {
+          currentConfig = content;
+          configFiles[path] = content;
+          return;
+        }
+        configFiles[path] = content;
+      },
+    );
+    (fs.deleteFile as ReturnType<typeof mock>).mockImplementation(async () => {
+      throw new Error("marker delete failed");
+    });
+    const execService = createMockExecService();
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    expect(process.exitCode).toBe(1);
+    expect(execService.exec).not.toHaveBeenCalled();
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/repo/.githits/init/project-setup.json",
+    );
+    expect(configFiles["/repo/.githits/init/project-setup.json"]).toBe(marker);
+    expect(
+      getLogOutput().some((msg) => msg.includes("marker delete failed")),
+    ).toBe(true);
+  });
+
+  it("does not run project cleanup when config removal fails", async () => {
+    const fs = createFsWithDetection(["/repo"], {
+      "/repo/.mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      "/repo/.githits/init/project-setup.json": JSON.stringify({
+        version: 1,
+        projectSetup: { pi: { installedPackages: ["npm:pi-mcp-adapter"] } },
+      }),
+    });
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async () => {
+        throw new Error("Disk full");
+      },
+    );
+    const execService = createMockExecService();
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    expect(process.exitCode).toBe(1);
+    expect(execService.exec).not.toHaveBeenCalled();
+  });
+
+  it("cleans legacy marker without claiming MCP config was removed", async () => {
+    const fs = createFsWithDetection(["/repo"], {
+      "/repo/.mcp.json": JSON.stringify({ mcpServers: {} }),
+      "/repo/.githits/init/project-setup.json": JSON.stringify({
+        version: 1,
+        projectSetup: { pi: { installedPackages: ["npm:pi-mcp-adapter"] } },
+      }),
+    });
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const execService = createMockExecService();
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(execService.exec).not.toHaveBeenCalled();
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/repo/.githits/init/project-setup.json",
+    );
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Removed legacy GitHits project setup marker"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("MCP configuration was removed from this project"),
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps project uninstall failure exit code when sibling config removes", async () => {
+    let cursorConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const fs = createFsWithDetection(["/repo"], {
+      "/repo/.mcp.json": "{invalid",
+      "/repo/.cursor/mcp.json": cursorConfig,
+    });
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.cursor/mcp.json") return cursorConfig;
+        if (path === "/repo/.mcp.json") return "{invalid";
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string, content: string) => {
+        if (path === "/repo/.cursor/mcp.json") cursorConfig = content;
+      },
+    );
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(process.exitCode).toBe(1);
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.cursor/mcp.json",
+      expect.any(String),
+    );
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("Cannot parse"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Done!"))).toBe(false);
+  });
+
+  it("still removes project config when legacy marker probe fails", async () => {
+    let cursorConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const fs = createFsWithDetection(["/repo"], {
+      "/repo/.cursor/mcp.json": cursorConfig,
+    });
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (path === "/repo/.cursor/mcp.json") return cursorConfig;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string, content: string) => {
+        if (path === "/repo/.cursor/mcp.json") cursorConfig = content;
+      },
+    );
+    (fs.exists as ReturnType<typeof mock>).mockImplementation(async (path) => {
+      if (path === "/repo/.githits/init/project-setup.json") {
+        throw new Error("marker stat failed");
+      }
+      return false;
+    });
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(process.exitCode).toBe(1);
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/.cursor/mcp.json",
+      expect.any(String),
+    );
+    expect(JSON.parse(cursorConfig).mcpServers?.GitHits).toBeUndefined();
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("marker stat failed"))).toBe(
+      true,
+    );
+    expect(logCalls.some((msg) => msg.includes("completed with errors"))).toBe(
+      true,
+    );
+  });
+
+  it("does not write when uninstall scope prompt is cancelled", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    });
+    const promptService = createMockPromptService({
+      select: mock(() => Promise.reject(new ExitPromptError())),
+    });
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(promptService.confirm3).not.toHaveBeenCalled();
+    expect(getLogOutput().some((msg) => msg.includes("No changes made"))).toBe(
+      true,
+    );
+  });
+
+  it("does not uninstall anything in non-interactive mode without yes", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    });
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        isInteractive: false,
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("githits init uninstall --yes")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("githits init uninstall --project --yes"),
+      ),
+    ).toBe(true);
+  });
+
   it("prompts and removes configured config-file agents", async () => {
     let currentConfig = JSON.stringify({
       mcpServers: {
@@ -1896,6 +3562,7 @@ describe("initUninstallAction", () => {
     );
 
     expect(promptService.confirm3).toHaveBeenCalledTimes(1);
+    expect(promptService.confirm3).toHaveBeenCalledWith("Proceed?", "no");
     expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
     const parsed = JSON.parse(currentConfig);
     expect(parsed.mcpServers.GitHits).toBeUndefined();
@@ -2094,6 +3761,7 @@ describe("initUninstallAction", () => {
     );
 
     expect(confirm3).toHaveBeenCalledTimes(1);
+    expect(confirm3).toHaveBeenCalledWith("Proceed?", "no");
     expect(fs.atomicWriteFile).toHaveBeenCalledTimes(2);
   });
 
@@ -2981,6 +4649,46 @@ describe("initUninstallAction", () => {
 });
 
 describe("registerInitCommand", () => {
+  async function parseRegisteredInit(args: string[]): Promise<void> {
+    const program = new Command();
+    program.exitOverride();
+    registerInitCommand(program);
+    const originalCwd = process.cwd();
+    process.chdir("/tmp");
+    try {
+      await program.parseAsync(["node", "githits", ...args], { from: "node" });
+    } finally {
+      process.chdir(originalCwd);
+    }
+  }
+
+  function withNonInteractiveStdio<T>(fn: () => Promise<T>): Promise<T> {
+    const stdinDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdin,
+      "isTTY",
+    );
+    const stdoutDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      "isTTY",
+    );
+    Object.defineProperty(process.stdin, "isTTY", {
+      configurable: true,
+      value: false,
+    });
+    Object.defineProperty(process.stdout, "isTTY", {
+      configurable: true,
+      value: false,
+    });
+    return fn().finally(() => {
+      if (stdinDescriptor) {
+        Object.defineProperty(process.stdin, "isTTY", stdinDescriptor);
+      }
+      if (stdoutDescriptor) {
+        Object.defineProperty(process.stdout, "isTTY", stdoutDescriptor);
+      }
+    });
+  }
+
   it("registers init and init uninstall commands", () => {
     const program = new Command();
     registerInitCommand(program);
@@ -3002,5 +4710,94 @@ describe("registerInitCommand", () => {
     expect(optionLongNames).toContain("--detect-agents");
     expect(optionLongNames).toContain("--install-agents");
     expect(optionLongNames).toContain("--json");
+    expect(optionLongNames).toContain("--project");
+  });
+
+  it("registers uninstall --project as a boolean option", () => {
+    const program = new Command();
+    registerInitCommand(program);
+
+    const initCommand = program.commands.find((cmd) => cmd.name() === "init");
+    const uninstallCommand = initCommand?.commands.find(
+      (cmd) => cmd.name() === "uninstall",
+    );
+    const projectOption = uninstallCommand?.options.find(
+      (option) => option.long === "--project",
+    );
+
+    expect(projectOption?.required).toBe(false);
+    expect(projectOption?.optional).toBe(false);
+  });
+
+  it("routes init uninstall --project to project uninstall", async () => {
+    await withNonInteractiveStdio(() =>
+      parseRegisteredInit(["init", "uninstall", "--project", "--yes"]),
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Remove GitHits from this project's MCP config"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Scanning for configured agents")),
+    ).toBe(false);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Project uninstall needs confirmation"),
+      ),
+    ).toBe(false);
+  });
+
+  it("routes parent init --project before uninstall to project uninstall", async () => {
+    await withNonInteractiveStdio(() =>
+      parseRegisteredInit(["init", "--project", "uninstall", "--yes"]),
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Remove GitHits from this project's MCP config"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Scanning for configured agents")),
+    ).toBe(false);
+  });
+
+  it("routes init uninstall --yes without non-interactive guidance", async () => {
+    await withNonInteractiveStdio(() =>
+      parseRegisteredInit(["init", "uninstall", "--yes", "--project"]),
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("Uninstall is interactive")),
+    ).toBe(false);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Project uninstall needs confirmation"),
+      ),
+    ).toBe(false);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Remove GitHits from this project's MCP config"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects unknown init action with generic guidance", async () => {
+    await parseRegisteredInit(["init", "foo"]);
+
+    expect(process.exitCode).toBe(1);
+    const errorCalls = getErrorOutput();
+    expect(
+      errorCalls.some((msg) => msg.includes("Unknown init action: foo")),
+    ).toBe(true);
+    expect(
+      errorCalls.some((msg) => msg.includes('githits init uninstall"')),
+    ).toBe(true);
+    expect(errorCalls.some((msg) => msg.includes("--project"))).toBe(false);
   });
 });
