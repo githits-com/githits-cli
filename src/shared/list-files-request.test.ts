@@ -109,6 +109,16 @@ describe("buildListFilesParams — defaults + passthrough", () => {
     expect(filterEcho.fileIntent).toBe("production");
     expect(explicit.fileIntent).toBe(true);
   });
+
+  it("treats an empty singular file intent as absent", () => {
+    const { params, filterEcho, explicit } = buildListFilesParams({
+      target: packageTarget,
+      fileIntent: "  ",
+    });
+    expect(params.fileIntent).toBeUndefined();
+    expect(filterEcho.fileIntent).toBeUndefined();
+    expect(explicit.fileIntent).toBe(false);
+  });
 });
 
 describe("buildListFilesParams — limit bounds", () => {

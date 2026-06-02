@@ -72,7 +72,7 @@ const schema = {
 };
 
 export const DESCRIPTION =
-  "Check known vulnerabilities for a package on npm, PyPI, Hex, " +
+  "Use when the user asks whether a package or pinned version has known vulnerabilities, advisories, CVEs, malware, affected ranges, or fix versions. Check known vulnerabilities for a package on npm, PyPI, Hex, " +
   "Crates, NuGet, Maven, Packagist, RubyGems, Go, or Swift (vcpkg and Zig " +
   "are not supported for vulnerability data). Returns a count summary, each advisory with OSV ID, " +
   "severity, affected ranges, and fix versions. Malicious-package " +

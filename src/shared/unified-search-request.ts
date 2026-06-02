@@ -175,7 +175,7 @@ function buildFilters(input: {
   if (input.category) filters.category = input.category;
   if (input.pathPrefix) filters.pathPrefix = input.pathPrefix;
   if (input.fileIntent) filters.fileIntent = input.fileIntent;
-  if (typeof input.publicOnly === "boolean") {
+  if (input.publicOnly === true) {
     filters.publicOnly = input.publicOnly;
   }
 

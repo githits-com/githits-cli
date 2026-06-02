@@ -75,7 +75,7 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Analyze a package's dependency graph. Lists direct runtime " +
+  "Use when the user asks what a package depends on, wants dependency groups, or needs a bounded transitive dependency footprint. Analyze a package's dependency graph. Lists direct runtime " +
   "dependencies with resolved versions; non-runtime groups are " +
   "omitted by default. Use `lifecycle` with a concrete value for " +
   "matching dependency groups, or `all` for every available group. " +

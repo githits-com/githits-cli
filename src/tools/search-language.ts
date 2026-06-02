@@ -24,7 +24,7 @@ const schema = {
     ),
 };
 
-const DESCRIPTION = `Find the correct language name for \`get_example\` when it is uncertain. Returns up to 5 matching languages by name, display name, or alias. Default output is one language per line; pass \`format: "json"\` for the structured array.`;
+const DESCRIPTION = `Use before \`get_example\` only when you need to force a language and are unsure of GitHits' exact language name. Finds supported language names and aliases; returns up to 5 matches. Default output is one language per line; pass \`format: "json"\` for the structured array.`;
 
 export function createSearchLanguageTool(
   service: GitHitsService,

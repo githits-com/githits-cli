@@ -337,6 +337,7 @@ describe("createListFilesTool — validation errors", () => {
         target: { registry: "npm", package_name: "express" },
         path: "",
         path_prefix: "",
+        file_intent: "",
         format: "json",
       },
       {},

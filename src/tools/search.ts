@@ -130,7 +130,7 @@ const schema = {
     .enum(["callable", "type", "module", "data", "documentation"])
     .optional()
     .describe(
-      'Optional code/symbol category filter. Ignored for `source:"docs"` because docs search does not support symbol categories.',
+      'Optional symbol/category filter. Best for `source:"symbol"` or precise API searches; omit for broad source-code searches because filters combine with AND and can exclude file hits. Ignored for `source:"docs"`.',
     ),
   kind: z
     .enum([
@@ -165,7 +165,7 @@ const schema = {
     ])
     .optional()
     .describe(
-      'Optional code/symbol kind filter. Ignored for `source:"docs"` because docs search does not support symbol kinds.',
+      'Optional symbol kind filter. Best for `source:"symbol"` or exact API/entity searches; omit for broad source-code searches because filters combine with AND and can exclude file hits. Ignored for `source:"docs"`.',
     ),
   path_prefix: z.string().optional(),
   file_intent: z
@@ -210,7 +210,7 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Search indexed dependency and repository code, docs, and explicit symbols. " +
+  "Use when investigating a known package or repository and you need to discover relevant docs, source files, examples, tests, or APIs before reading exact files. Search indexed dependency and repository code, docs, and explicit symbols. " +
   "Required: `query` plus either `target` or `targets`; pass `target` or `targets`, not both. " +
   "Omit `source` to let GitHits select the best sources; set it only to restrict results to docs, code, or symbols. " +
   'Structured parameters combine with the `query` using AND semantics. For `source:"docs"`, code/symbol-only filters (`category`, `kind`, `file_intent`, `public_only`) are ignored because docs search does not support them. ' +

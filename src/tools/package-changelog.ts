@@ -113,7 +113,7 @@ const schema = {
 };
 
 export const DESCRIPTION =
-  "Release notes for a package or GitHub repo, newest-first. Default " +
+  "Use when the user asks what changed in a package, wants release notes, or needs changelog evidence for a manual upgrade review. Release notes for a package or GitHub repo, newest-first. Default " +
   "latest mode returns the ten most recent entries (`limit` 1–50). " +
   "With `from_version`, returns every entry in the " +
   "`[from_version, to_version]` range (range mode, no count cap). " +

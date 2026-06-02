@@ -125,6 +125,16 @@ describe("buildUnifiedSearchParams", () => {
     });
   });
 
+  it("treats publicOnly false as absent", () => {
+    const built = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      query: "handler",
+      publicOnly: false,
+    });
+
+    expect(built.params.filters).toBeUndefined();
+  });
+
   it("passes through allowPartialResults without changing the default", () => {
     const defaulted = buildUnifiedSearchParams({
       target: { registry: "NPM", packageName: "express" },

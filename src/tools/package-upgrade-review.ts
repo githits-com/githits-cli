@@ -104,7 +104,7 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Report package-upgrade evidence by comparing current and target versions with " +
+  "Use when the user asks whether to accept, assess, review, or investigate a dependency update from one version to another. Report package-upgrade evidence by comparing current and target versions with " +
   "direct vulnerability checks, changelog range evidence, target deprecation " +
   "metadata, peer dependency changes, and optional transitive evidence diffs. " +
   "The tool reports facts only and does not assign risk or decide whether to accept an upgrade. " +
