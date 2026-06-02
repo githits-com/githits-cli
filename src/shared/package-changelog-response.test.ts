@@ -146,7 +146,7 @@ describe("buildPackageChangelogSuccessPayload — version null handling", () => 
   });
 });
 
-describe("buildPackageChangelogSuccessPayload — include_bodies lever", () => {
+describe("buildPackageChangelogSuccessPayload — body omission lever", () => {
   it("drops body fields from every entry when includeBodies is false", () => {
     const envelope = buildPackageChangelogSuccessPayload(baseReport, {
       ...baseOptions,

@@ -80,7 +80,7 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
       package_name: "express",
       current_version: "5.0.0",
       target_version: "5.2.1",
-      include_transitive_security: false,
+      skip_transitive_security: true,
       format: "json",
     },
   },

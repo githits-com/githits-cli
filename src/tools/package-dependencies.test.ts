@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import type { DependencyReport } from "../services/index.js";
 import { PackageIntelligenceTargetNotFoundError } from "../services/index.js";
 import {
   createMockPackageIntelligenceService,
@@ -9,6 +10,35 @@ import { createPackageDependenciesTool } from "./package-dependencies.js";
 function parseText(result: { content: Array<{ text: string }> }): unknown {
   return JSON.parse(result.content[0]?.text ?? "");
 }
+
+const transitiveDependencyReport: DependencyReport = {
+  package: { name: "express", registry: "NPM", version: "5.2.1" },
+  dependencies: {
+    direct: [{ name: "accepts", versionConstraint: "^2.0.0", type: "runtime" }],
+    transitive: {
+      totalEdges: 1,
+      uniquePackagesCount: 1,
+      uniqueDependencies: ["accepts@2.0.0"],
+      dependencyConflicts: [],
+      circularDependencyCycles: [],
+      dependencyGraph: {
+        formatVersion: 4,
+        nodes: [
+          { registry: "npm", name: "express", version: "5.2.1" },
+          { registry: "npm", name: "accepts", version: "2.0.0" },
+        ],
+        edges: [
+          {
+            fromIndex: 0,
+            toIndex: 1,
+            constraint: "^2.0.0",
+            dependencyType: "runtime",
+          },
+        ],
+      },
+    },
+  },
+};
 
 describe("createPackageDependenciesTool — metadata", () => {
   it("registers the correct tool name, description, and schema keys", () => {
@@ -25,7 +55,6 @@ describe("createPackageDependenciesTool — metadata", () => {
     expect(Object.keys(tool.schema).sort()).toEqual([
       "format",
       "include_importers",
-      "include_transitive",
       "lifecycle",
       "max_depth",
       "package_name",
@@ -59,7 +88,6 @@ describe("createPackageDependenciesTool — happy path", () => {
         package_name: "express",
         version: "5.2.1",
         lifecycle: "runtime,development",
-        include_transitive: true,
         max_depth: 3,
       },
       {},
@@ -164,9 +192,13 @@ describe("createPackageDependenciesTool — happy path", () => {
     expect(payload.filter?.lifecycles).toEqual(["runtime", "development"]);
   });
 
-  it("emits transitive block only when include_transitive is set", async () => {
+  it("emits transitive block only when max_depth is set", async () => {
     const tool = createPackageDependenciesTool(
-      createMockPackageIntelligenceService(),
+      createMockPackageIntelligenceService({
+        packageDependencies: mock(() =>
+          Promise.resolve(transitiveDependencyReport),
+        ),
+      }),
     );
     const withoutTransitive = parseText(
       await tool.handler(
@@ -175,9 +207,22 @@ describe("createPackageDependenciesTool — happy path", () => {
       ),
     ) as { transitive?: unknown };
     expect(withoutTransitive.transitive).toBeUndefined();
+
+    const withTransitive = parseText(
+      await tool.handler(
+        {
+          registry: "npm",
+          package_name: "express",
+          max_depth: 3,
+          format: "json",
+        },
+        {},
+      ),
+    ) as { transitive?: unknown };
+    expect(withTransitive.transitive).toBeDefined();
   });
 
-  it("always fetches the DAG on the wire (depth=1 when include_transitive is absent) so runtime.items[].version resolves", async () => {
+  it("always fetches the DAG on the wire (depth=1 when max_depth is absent) so runtime.items[].version resolves", async () => {
     const packageDependencies = mock(() =>
       Promise.resolve({
         package: { name: "express", registry: "NPM", version: "5.2.1" },
@@ -246,40 +291,26 @@ describe("createPackageDependenciesTool — happy path", () => {
 });
 
 describe("createPackageDependenciesTool — silent-noop rejection", () => {
-  it("rejects max_depth without include_transitive as INVALID_ARGUMENT", async () => {
+  it("include_importers alone requests the transitive block with provenance", async () => {
     const tool = createPackageDependenciesTool(
-      createMockPackageIntelligenceService(),
-    );
-    const result = await tool.handler(
-      { registry: "npm", package_name: "express", max_depth: 3 },
-      {},
-    );
-    expect(result.isError).toBe(true);
-    const payload = parseText(result) as { code: string; error: string };
-    expect(payload.code).toBe("INVALID_ARGUMENT");
-    expect(payload.error).toContain(
-      "max_depth requires include_transitive: true",
-    );
-  });
-
-  it("rejects include_importers without include_transitive as INVALID_ARGUMENT", async () => {
-    const tool = createPackageDependenciesTool(
-      createMockPackageIntelligenceService(),
+      createMockPackageIntelligenceService({
+        packageDependencies: mock(() =>
+          Promise.resolve(transitiveDependencyReport),
+        ),
+      }),
     );
     const result = await tool.handler(
       {
         registry: "npm",
         package_name: "express",
         include_importers: true,
+        format: "json",
       },
       {},
     );
-    expect(result.isError).toBe(true);
-    const payload = parseText(result) as { code: string; error: string };
-    expect(payload.code).toBe("INVALID_ARGUMENT");
-    expect(payload.error).toContain(
-      "include_importers requires include_transitive: true",
-    );
+    expect(result.isError).toBeUndefined();
+    const payload = parseText(result) as { transitive?: unknown };
+    expect(payload.transitive).toBeDefined();
   });
 });
 

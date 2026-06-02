@@ -128,7 +128,10 @@ const schema = {
     ),
   category: z
     .enum(["callable", "type", "module", "data", "documentation"])
-    .optional(),
+    .optional()
+    .describe(
+      'Optional code/symbol category filter. Ignored for `source:"docs"` because docs search does not support symbol categories.',
+    ),
   kind: z
     .enum([
       "function",
@@ -160,7 +163,10 @@ const schema = {
       "constant",
       "doc_section",
     ])
-    .optional(),
+    .optional()
+    .describe(
+      'Optional code/symbol kind filter. Ignored for `source:"docs"` because docs search does not support symbol kinds.',
+    ),
   path_prefix: z.string().optional(),
   file_intent: z
     .enum([
@@ -175,7 +181,7 @@ const schema = {
     ])
     .optional()
     .describe(
-      "Optional file-intent filter. Omit it to search across all intents; some sources may ignore this filter and report that in sourceStatus.",
+      'Optional code file-intent filter. Omit it to search across all intents. Ignored for `source:"docs"` because docs search does not support file intents.',
     ),
   public_only: z.boolean().optional(),
   name: z.string().optional(),
@@ -207,7 +213,7 @@ const DESCRIPTION =
   "Search indexed dependency and repository code, docs, and explicit symbols. " +
   "Required: `query` plus either `target` or `targets`; pass `target` or `targets`, not both. " +
   "Omit `source` to let GitHits select the best sources; set it only to restrict results to docs, code, or symbols. " +
-  "Structured parameters combine with the `query` using AND semantics. " +
+  'Structured parameters combine with the `query` using AND semantics. For `source:"docs"`, code/symbol-only filters (`category`, `kind`, `file_intent`, `public_only`) are ignored because docs search does not support them. ' +
   "Complete by default — if indexing is still running, the response carries a `searchRef` and no hits; pass it to `search_status` to follow up. " +
   "Set `allow_partial_results: true` to opt into hits from sources that finished while others continue indexing. " +
   "Each hit's `type` tells you the follow-up tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present)." +

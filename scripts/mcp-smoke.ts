@@ -537,13 +537,13 @@ async function runLiveSmoke(client: Client): Promise<void> {
       registry: "npm",
       package_name: "express",
       limit: 2,
-      include_bodies: false,
+      omit_bodies: true,
     }),
     "pkg_changelog timeline",
   );
   assert(
     !changelogTimeline.includes("What's Changed"),
-    "pkg_changelog include_bodies=false still emitted bodies",
+    "pkg_changelog omit_bodies=true still emitted bodies",
   );
 
   const upgradeReviewText = assertDefaultText(
@@ -552,7 +552,7 @@ async function runLiveSmoke(client: Client): Promise<void> {
       package_name: "express",
       current_version: "5.0.0",
       target_version: "5.2.1",
-      include_transitive_security: false,
+      skip_transitive_security: true,
     }),
     "pkg_upgrade_review default",
   );
@@ -574,7 +574,7 @@ async function runLiveSmoke(client: Client): Promise<void> {
       package_name: "express",
       current_version: "5.0.0",
       target_version: "5.2.1",
-      include_transitive_security: false,
+      skip_transitive_security: true,
       format: "json",
     }),
     "pkg_upgrade_review json",

@@ -80,7 +80,7 @@ interface McpArgs {
   to_version?: string;
   limit?: number;
   git_ref?: string;
-  include_bodies?: boolean;
+  omit_bodies?: boolean;
 }
 
 async function mcpJson(
@@ -184,7 +184,7 @@ describe("package_changelog parity", () => {
     expect(envelope.name).toBeUndefined();
   });
 
-  it("PARITY-JSON-KEYS: no-body (CLI --no-body === MCP include_bodies: false)", async () => {
+  it("PARITY-JSON-KEYS: no-body (CLI --no-body === MCP omit_bodies: true)", async () => {
     const fn = mock(() => Promise.resolve(defaultChangelogReport));
     const cli = await cliJson(
       "npm:express",
@@ -196,7 +196,7 @@ describe("package_changelog parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "express", include_bodies: false },
+      { registry: "npm", package_name: "express", omit_bodies: true },
       fn as never,
     );
     expect(cli).toEqual(json);

@@ -600,7 +600,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
     expect(output).not.toContain("use -v");
     expect(output).not.toContain("more");
     // Direct runtime list (accepts, body-parser, cookie) is absent —
-    // --transitive replaces it.
+    // Transitive output replaces it.
     expect(output).not.toMatch(/^\s\saccepts\s+\^2\.0\.0/m);
   });
 
@@ -626,7 +626,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
     ]);
   });
 
-  it("adds multi-line `- constraint required by importer@version` provenance under --transitive --verbose", () => {
+  it("adds multi-line `- constraint required by importer@version` provenance under transitive verbose output", () => {
     const fixture = clone(defaultDependencyReport);
     fixture.dependencies = {
       direct: fixture.dependencies?.direct,
@@ -833,7 +833,7 @@ describe("formatPackageDependenciesTerminal — transitive view", () => {
     expect(output).toContain("accepts@2.0.0  ^2.0.0");
   });
 
-  it("groups block composes beneath transitive list under --transitive --lifecycle all", () => {
+  it("groups block composes beneath transitive list under transitive lifecycle output", () => {
     const fixture = clone(defaultDependencyReport);
     fixture.dependencies = {
       direct: fixture.dependencies?.direct,

@@ -60,6 +60,7 @@ bun run agent:e2e --server local --workload eval/agentic/workloads/express-route
 bun run agent:e2e --server published --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --surface skills --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent opencode --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent claude --model haiku --workload eval/agentic/workloads/package-overview-vulnerabilities.md
 bun run agent:e2e --agent codex --model gpt-5.4-mini --workload eval/agentic/workloads/package-overview-vulnerabilities.md
 bun run agent:e2e:report .agent-eval/runs/<run>
@@ -73,20 +74,25 @@ bun run agent:session --agent claude --surface mcp --server local
 bun run agent:session --agent claude --surface skills --server local --model haiku
 bun run agent:session --agent codex --surface skills --server local --prompt "Evaluate npm:express"
 bun run agent:session --agent codex --surface mcp --server local --dry-run
+bun run agent:session --agent opencode --surface mcp --server local --prompt "Evaluate npm:express" --dry-run
 ```
 
 `agent:session` creates an isolated temp workspace by default and leaves it in
 place for inspection. Skills mode installs this checkout's skills into
-`skills/`, `.agents/skills`, `.claude/skills`, and `.codex/skills`, and adds a
-local `githits` CLI shim to `PATH`. MCP mode writes the same local/published
-GitHits MCP config used by the eval harness. Use `--workspace <dir>` when you
-want a stable workspace path, and `--dry-run` to print the command without
-launching the agent.
+`skills/`, `.opencode/skills`, `.agents/skills`, `.claude/skills`, and
+`.codex/skills`, and adds a local `githits` CLI shim to `PATH`. MCP mode writes
+the same local/published GitHits MCP config used by the eval harness. Claude gets
+an explicit `mcp.json`, Codex gets inline config overrides plus a persisted
+`codex-config.toml` artifact, and OpenCode gets a project `opencode.json` with a
+local MCP server entry. Use `--workspace <dir>` when you want a stable workspace
+path, and `--dry-run` to print the command without launching the agent. OpenCode
+session setup refuses to overwrite an existing project `opencode.json`; use an
+empty or temporary workspace for OpenCode sessions.
 
 Useful options:
 
 ```bash
---agent <claude|codex>          Agent to run, default `claude`
+--agent <claude|codex|opencode> Agent to run, default `claude`
 --model <name>                  Agent model name or alias, passed through to the agent CLI
 --surface <mcp|skills>          GitHits access surface under test, default `mcp`
 --dry-run                       Generate artifacts without invoking the agent
@@ -176,6 +182,7 @@ For broad MCP instruction edits, run at least:
 ```bash
 bun run agent:e2e --agent claude --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent opencode --server local --workload eval/agentic/workloads/express-router.md
 ```
 
 For broad skill edits, run at least:
@@ -183,6 +190,7 @@ For broad skill edits, run at least:
 ```bash
 bun run agent:e2e --agent claude --surface skills --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --surface skills --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent opencode --surface skills --server local --workload eval/agentic/workloads/express-router.md
 ```
 
 For tool-specific edits, add the workload from the table. Compare
@@ -231,8 +239,8 @@ Each run writes:
   artifact paths, and warnings for missing artifacts or self-report drift.
 - One workload directory per workload with `prompt.md`, `stdout.json`,
   `stderr.txt`, `tool-calls.json`, and `final.json` when parsing succeeds.
-- MCP runs write a GitHits `mcp.json` and `codex-config.toml`; skills runs write
-  an empty `mcp.json` for Claude isolation.
+- MCP runs write a GitHits `mcp.json`, `codex-config.toml`, and `opencode.json`;
+  skills runs write an empty `mcp.json` and empty `opencode.json` for isolation.
 - Skills runs also write `skill-installation.json` with the copied skill path
   and CLI shim path.
 

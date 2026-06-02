@@ -36,7 +36,7 @@ pkg_upgrade_review({
   package_name: "@modelcontextprotocol/sdk",
   current_version: "1.26.0",
   target_version: "1.29.0",
-  include_transitive_security: true,
+  skip_transitive_security: false,
   include_dependency_issues: true,
   min_severity: "low" | "medium" | "high" | "critical",
   format: "text-v1" | "json"
@@ -61,7 +61,7 @@ pkg_upgrade_review({
       target_version: "16.4.0"
     }
   ],
-  include_transitive_security: true,
+  skip_transitive_security: false,
   include_dependency_issues: true,
   format: "text-v1"
 })
@@ -72,7 +72,7 @@ Validation rules:
 - Require either `packages` or the single-package fields.
 - Reject `packages` combined with `registry`, `package_name`, `current_version`, or `target_version`.
 - Reject tag-style `v` versions for package-addressed registry versions, matching `pkg_vulns`, `pkg_deps`, and `pkg_changelog`.
-- Keep `include_transitive_security` default `true` because direct-only security hides important dependency-tree evidence. Allow callers to pass `false` when latency is more important than transitive vulnerability context.
+- Keep transitive security evidence enabled by default because direct-only security hides important dependency-tree evidence. Allow callers to pass `skip_transitive_security: true` when latency is more important than transitive vulnerability context.
 - Keep `include_dependency_issues` default `false` initially for the same reason. Turn it on automatically only when the caller explicitly asks for lockfile/dependency-tree evidence, or document that agents should pass it for lockfile reviews.
 - Changelog keyword detection scans the full backend range response and keyword-hit entries are surfaced separately so relevant signals are not hidden by the ordinary sample limit. The ordinary non-keyword sample cap is internal; agents should not need to tune it.
 - `min_severity` maps to the same CVSS thresholds as `pkg_vulns` (`low=0`, `medium=4`, `high=7`, `critical=9`). It filters direct current/target vulnerability queries and transitive `vulnerabilitySummary(minSeverity:)` aggregates.
@@ -336,7 +336,7 @@ The resolver should be lazy:
 - The parent transitive map can carry internal non-schema keys such as `:_registry`, `:_package_name`, `:_version`, and `:_dag_data` so nested resolvers do not recompute or reverse-parse the graph.
 - Add explicit GraphQL complexity cost to `vulnerabilitySummary` because it performs chunked package/version lookups and advisory aggregation.
 
-For MCP/CLI wrappers, keep `include_transitive_security` as an ergonomic flag. The wrapper translates that flag into selecting `vulnerabilitySummary`; it should not imply a backend root argument.
+For MCP/CLI wrappers, keep an ergonomic skip flag (`skip_transitive_security` on MCP, `--no-transitive-security` on CLI). The wrapper translates that flag into selecting or omitting `vulnerabilitySummary`; it should not imply a backend root argument.
 
 ### 2. Lazy Dependency Issues on Dependency Reports
 
@@ -499,13 +499,13 @@ Add the tool in the same style as current package tools:
 - Transitive vulnerability and dependency issue data are diffed current-vs-target; target-only evidence is labeled as context.
 - `pkg_deps` existing JSON/text/parity tests continue to pass unchanged, proving the upgrade-review dependency probe did not regress the existing dependency command.
 - Batch execution limits package-level concurrency to 3 by default.
-- `include_transitive_security` defaults on and can be disabled; `include_dependency_issues` selects lazy backend fields only when requested.
+- Transitive security defaults on and can be disabled with `skip_transitive_security` / `--no-transitive-security`; `include_dependency_issues` selects lazy backend fields only when requested.
 - Text output keeps direct and transitive vulnerability counts aligned when `min_severity` is supplied.
 
 ## Resolved Decisions
 
 - `packages[]` is part of `pkg_upgrade_review` v1 because batch upgrade review is the core agent UX problem.
-- `include_transitive_security` defaults to `true` so vulnerability output includes dependency-tree evidence by default.
+- Transitive security evidence defaults on so vulnerability output includes dependency-tree evidence by default.
 - `include_dependency_issues` is a separate flag and defaults to `false`.
 - Direct/transitive dependency-change diffs are always requested and rendered as facts.
 - `versionDiff` remains deferred until a dedicated typed service/error surface exists.

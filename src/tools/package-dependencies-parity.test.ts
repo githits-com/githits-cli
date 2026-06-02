@@ -79,7 +79,6 @@ async function mcpJson(
     package_name: string;
     version?: string;
     lifecycle?: string;
-    include_transitive?: boolean;
     include_importers?: boolean;
     max_depth?: number;
   },
@@ -251,7 +250,7 @@ describe("package_dependencies parity", () => {
     expect(net?.items.length).toBe(3); // libc, libc, mio — duplicates preserved
   });
 
-  it("PARITY-JSON-KEYS: include_transitive CLI === MCP (preprocessed packages[], no raw dag)", async () => {
+  it("PARITY-JSON-KEYS: max_depth CLI === MCP (preprocessed packages[], no raw dag)", async () => {
     const transitiveReport: DependencyReport = {
       package: { name: "express", registry: "NPM", version: "5.2.1" },
       dependencies: {
@@ -288,7 +287,7 @@ describe("package_dependencies parity", () => {
     // envelope shaper.
     const cli = await cliJson(
       "npm:express",
-      { transitive: true, verbose: true },
+      { depth: "10", verbose: true },
       cliDeps({
         packageIntelligenceService: createMockPackageIntelligenceService({
           packageDependencies: fn as never,
@@ -299,7 +298,7 @@ describe("package_dependencies parity", () => {
       {
         registry: "npm",
         package_name: "express",
-        include_transitive: true,
+        max_depth: 10,
         include_importers: true,
       },
       fn as never,
@@ -330,7 +329,7 @@ describe("package_dependencies parity", () => {
     expect(transitiveEnvelope?.dag).toBeUndefined();
   });
 
-  it("PARITY-JSON-KEYS: include_transitive defaults to lean packages (no importers) on both surfaces", async () => {
+  it("PARITY-JSON-KEYS: max_depth defaults to lean packages (no importers) on both surfaces", async () => {
     const transitiveReport: DependencyReport = {
       package: { name: "express", registry: "NPM", version: "5.2.1" },
       dependencies: {
@@ -362,7 +361,7 @@ describe("package_dependencies parity", () => {
     const fn = mock(() => Promise.resolve(transitiveReport));
     const cli = await cliJson(
       "npm:express",
-      { transitive: true },
+      { depth: "10" },
       cliDeps({
         packageIntelligenceService: createMockPackageIntelligenceService({
           packageDependencies: fn as never,
@@ -373,7 +372,7 @@ describe("package_dependencies parity", () => {
       {
         registry: "npm",
         package_name: "express",
-        include_transitive: true,
+        max_depth: 10,
       },
       fn as never,
     );

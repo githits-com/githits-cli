@@ -44,11 +44,11 @@ describe("createPackageUpgradeReviewTool", () => {
       "current_version",
       "format",
       "include_dependency_issues",
-      "include_transitive_security",
       "min_severity",
       "package_name",
       "packages",
       "registry",
+      "skip_transitive_security",
       "target_version",
       "verbose",
     ]);

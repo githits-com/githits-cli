@@ -566,13 +566,12 @@ function lowerRegistry(value: string | undefined): string {
  *
  * - **Summary row always.** Renders counts (`N direct runtime deps`
  *   plain; `+ M transitive edges | P unique packages (depth D)` when
- *   `--transitive`) and lists hidden non-runtime groups by name so the
+ *   transitive output) and lists hidden non-runtime groups by name so the
  *   caller sees what exists without digging.
- * - **`--transitive` replaces the deps list.** Default shows direct
- *   deps; `--transitive` swaps the block to the full unique transitive
- *   list (alphabetical, one per line, `name@version`). No truncation -
- *   if you asked for transitive, you get it all.
- * - **`--verbose` with `--transitive` adds provenance.** Each
+ * - **Transitive output replaces the deps list.** Default shows direct
+ *   deps; transitive mode swaps the block to the unique transitive
+ *   list (alphabetical, one per line, `name@version`) in the requested depth.
+ * - **`--verbose` with transitive output adds provenance.** Each
  *   transitive entry gets `(required by <importer>@<constraint>, ...)`
  *   derived from the typed dependency graph.
  * - **Groups replace the default deps list.** Shown when `--lifecycle`
@@ -725,7 +724,7 @@ function collectHiddenGroupNames(payload: LeanDependencyReport): string[] {
 // --------------------------------------------------------------------
 // Direct-deps list (default view)
 //
-// Plain mode and --transitive share the same per-entry presentation:
+// Plain mode and transitive output share the same per-entry presentation:
 //
 //   Compact:  `  name@version`
 //   Verbose:  `  name@version`
@@ -776,7 +775,7 @@ function formatDepLabel(item: LeanDirectDependency): string {
 }
 
 // --------------------------------------------------------------------
-// Transitive-deps list (replaces direct when --transitive)
+// Transitive-deps list (replaces direct when transitive output is requested)
 // --------------------------------------------------------------------
 
 function formatTransitiveDepsList(
@@ -851,7 +850,7 @@ function formatImporterBullets(
 }
 
 // --------------------------------------------------------------------
-// Conflicts + cycles (only when --transitive)
+// Conflicts + cycles (only when transitive output is requested)
 // --------------------------------------------------------------------
 
 function formatConflictsAndCycles(

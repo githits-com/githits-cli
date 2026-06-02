@@ -21,7 +21,6 @@ import {
 
 export interface PkgDepsCommandOptions {
   lifecycle?: string;
-  transitive?: boolean;
   depth?: string;
   verbose?: boolean;
   json?: boolean;
@@ -38,11 +37,8 @@ export interface PkgDepsCommandDependencies {
  * Core `pkg deps` action. Accepts `<spec>[@<version>]`. The
  * `--lifecycle` filter is server-side (filters `dependencyGroups`
  * only) and implies the groups view. `--lifecycle all` renders the
- * structured view without filtering. `--transitive` opts into the
- * aggregate counts + conflict / circular-dependency signals. No
- * client-side depth cap by default — matches `npm ls` / `cargo
- * tree` ergonomics where "show the transitive deps" means the full
- * graph. `--depth N` lets callers opt in to a cap.
+ * structured view without filtering. `--depth N` opts into the
+ * transitive block and caps traversal to that depth.
  */
 export async function pkgDepsAction(
   spec: string,
@@ -66,19 +62,15 @@ export async function pkgDepsAction(
     const parsed = parsePackageSpec(spec);
 
     const userDepth = resolveDepth(options);
-    if (userDepth !== undefined && !options.transitive) {
-      throw new InvalidPackageSpecError(
-        "--depth requires --transitive. Omit --depth, or add --transitive to cap the transitive traversal.",
-      );
-    }
+    const includeTransitiveOutput = userDepth !== undefined;
     // Always fetch the transitive DAG on the wire — even in plain
     // mode we need it to resolve the concrete version for each
     // direct dep (`name@version` in display), and for `--verbose`
     // to annotate per-entry importer provenance. When the user
-    // didn't request `--transitive`, cap at depth 1 so the payload
+    // didn't request transitive output, cap at depth 1 so the payload
     // stays lean.
     const wireIncludeTransitive = true;
-    const wireMaxDepth = options.transitive ? userDepth : 1;
+    const wireMaxDepth = includeTransitiveOutput ? userDepth : 1;
 
     const { params, canonicalLifecycles } = buildPackageDependenciesParams({
       registry: parsed.registry,
@@ -96,7 +88,7 @@ export async function pkgDepsAction(
       const payload = buildPackageDependenciesSuccessPayload(report, {
         requestedVersion: parsed.version,
         canonicalLifecycles,
-        includeTransitive: options.transitive,
+        includeTransitive: includeTransitiveOutput,
         maxDepth: userDepth,
         // Tie `--verbose` to JSON richness too: agents reading the
         // envelope see the same detail as the terminal's verbose
@@ -116,7 +108,7 @@ export async function pkgDepsAction(
       requestedVersion: parsed.version,
       canonicalLifecycles:
         canonicalLifecycles.length > 0 ? canonicalLifecycles : undefined,
-      includeTransitive: options.transitive,
+      includeTransitive: includeTransitiveOutput,
       maxDepth: userDepth,
       showGroups,
     });
@@ -202,8 +194,8 @@ const PKG_DEPS_DESCRIPTION = `Analyze package dependencies. By default shows the
 direct runtime dependencies. Use --lifecycle all for the structured view
 (dev / peer / build / optional, plus registry-specific feature / TFM
 groups). Runtime group rows include resolved versions when available.
---transitive opts into aggregate edge / unique-package counts,
-conflict detection, and circular-dependency flags.
+--depth opts into aggregate edge / unique-package counts, conflict detection,
+and circular-dependency flags capped to that traversal depth.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
 ${SUPPORTED_DEPS_REGISTRIES_LIST}. Omit @<version> for the latest release. v-prefixed versions are accepted for Swift only.`;
@@ -219,12 +211,8 @@ export function registerPkgDepsCommand(pkgCommand: Command): Command {
       "Dependency lifecycle breadth (runtime, development, build, peer, optional, all; comma-separated for multi-select except all).",
     )
     .option(
-      "-t, --transitive",
-      "Include aggregate transitive counts, conflicts, and circular dependencies",
-    )
-    .option(
       "--depth <n>",
-      "Cap transitive traversal depth (1-10). Omit for the full graph.",
+      "Show transitive output and cap traversal depth (1-10). Omit for direct dependencies only.",
     )
     .option(
       "-v, --verbose",
