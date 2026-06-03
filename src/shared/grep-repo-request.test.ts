@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { CodeNavigationTarget } from "../services/index.js";
+import type { CodeNavigationTarget } from "../services/code-navigation-service.js";
 import {
   buildGrepRepoParams,
   GREP_REPO_PATTERN_NOTE,

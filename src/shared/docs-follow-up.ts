@@ -1,4 +1,4 @@
-import type { PackageDocSourceKind } from "../services/index.js";
+import type { PackageDocSourceKind } from "../services/package-intelligence-service.js";
 
 export function lowerDocSourceKind(
   value: PackageDocSourceKind | undefined,

@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
-import type { PackageIntelligenceService } from "../../services/index.js";
+import type { PackageIntelligenceService } from "../../services/package-intelligence-service.js";
 import {
   buildReadPackageDocParams,
   buildReadPackageDocSuccessPayload,

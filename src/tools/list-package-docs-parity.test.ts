@@ -3,7 +3,7 @@ import {
   type DocsListCommandDependencies,
   docsListAction,
 } from "../commands/docs/list.js";
-import { PackageIntelligenceTargetNotFoundError } from "../services/index.js";
+import { PackageIntelligenceTargetNotFoundError } from "../services/package-intelligence-service.js";
 import {
   createMockPackageIntelligenceService,
   defaultPackageDocsList,

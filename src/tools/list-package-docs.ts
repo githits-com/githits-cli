@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PackageIntelligenceService } from "../services/index.js";
+import type { PackageIntelligenceService } from "../services/package-intelligence-service.js";
 import { buildListPackageDocsParams } from "../shared/list-package-docs-request.js";
 import { buildListPackageDocsSuccessPayload } from "../shared/list-package-docs-response.js";
 import { renderListPackageDocsText } from "../shared/list-package-docs-text.js";
@@ -7,7 +7,7 @@ import { mapPackageIntelligenceError } from "../shared/package-intelligence-erro
 import { PKGSEER_REGISTRY_LIST } from "../shared/pkgseer-registry.js";
 import { DOCS_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { errorResult, type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult } from "./types.js";
 
 export interface ListPackageDocsArgs {
   registry: string;

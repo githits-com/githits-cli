@@ -5,7 +5,7 @@ import type {
   PackageIntelligenceService,
   TransitiveVulnerabilitySummary,
   VulnerabilityReport,
-} from "../services/index.js";
+} from "../services/package-intelligence-service.js";
 import {
   createMockPackageIntelligenceService,
   defaultPackageSummary,

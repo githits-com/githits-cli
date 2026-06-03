@@ -2,7 +2,7 @@ import type {
   CodeNavigationTarget,
   GrepPathSelectorKind,
   GrepRepoParams,
-} from "../services/index.js";
+} from "../services/code-navigation-service.js";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_WAIT_TIMEOUT_MS,

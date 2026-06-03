@@ -2,7 +2,8 @@ import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
-} from "../../services/index.js";
+  CodeNavigationTargetNotFoundError,
+} from "../../services/code-navigation-service.js";
 import {
   createMockCodeNavigationService,
   defaultReadFileResult,
@@ -339,9 +340,6 @@ describe("pkgReadAction", () => {
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
     });
-    const { CodeNavigationTargetNotFoundError } = await import(
-      "../../services/index.js"
-    );
     const service = createMockCodeNavigationService({
       readFile: mock(() =>
         Promise.reject(

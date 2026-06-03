@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CodeNavigationService } from "../services/index.js";
+import type { CodeNavigationService } from "../services/code-navigation-service.js";
 import { knownFileIntentList } from "../shared/code-navigation.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { buildListFilesParams } from "../shared/list-files-request.js";
@@ -12,7 +12,7 @@ import {
   resolveCodeTarget,
 } from "./code-navigation-shared.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { errorResult, type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult } from "./types.js";
 
 export interface ListFilesArgs {
   target: CodeTargetArg;

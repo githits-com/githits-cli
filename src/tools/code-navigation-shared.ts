@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CodeNavigationTarget } from "../services/index.js";
+import type { CodeNavigationTarget } from "../services/code-navigation-service.js";
 import {
   type CodeNavigationRegistryArg,
   toCodeNavigationRegistry,

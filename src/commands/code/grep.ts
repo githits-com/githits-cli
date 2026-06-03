@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import type { CodeNavigationService } from "../../services/index.js";
+import type { CodeNavigationService } from "../../services/code-navigation-service.js";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_WAIT_TIMEOUT_MS,

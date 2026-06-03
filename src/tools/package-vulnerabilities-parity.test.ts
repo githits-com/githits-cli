@@ -23,12 +23,12 @@ import {
   type PkgVulnsCommandDependencies,
   pkgVulnsAction,
 } from "../commands/pkg/vulns.js";
-import type { VulnerabilityReport } from "../services/index.js";
+import type { VulnerabilityReport } from "../services/package-intelligence-service.js";
 import {
   PackageIntelligenceBackendError,
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
-} from "../services/index.js";
+} from "../services/package-intelligence-service.js";
 import {
   createMockPackageIntelligenceService,
   defaultVulnerabilityReport,

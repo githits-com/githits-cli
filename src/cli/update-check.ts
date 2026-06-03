@@ -2,13 +2,13 @@ import type {
   RequiredUpdateNotice,
   UpdateCheckNotice,
   UpdateCheckService,
-} from "../services/index.js";
+} from "../services/update-check-service.js";
 import {
   formatRequiredUpdateNotice,
   formatUpdateNotice,
   shouldRunRequiredUpdateEnforcement,
   shouldRunUpdateCheck,
-} from "../services/index.js";
+} from "../services/update-check-service.js";
 
 export interface UpdateCheckTask {
   promise: Promise<UpdateCheckNotice | undefined>;

@@ -1,10 +1,8 @@
 import type { Command } from "commander";
 import { createAuthCommandDependencies } from "../container.js";
-import type {
-  AuthService,
-  AuthStorage,
-  BrowserService,
-} from "../services/index.js";
+import type { AuthService } from "../services/auth-service.js";
+import type { AuthStorage } from "../services/auth-storage.js";
+import type { BrowserService } from "../services/browser-service.js";
 
 export interface LoginOptions {
   browser?: boolean;

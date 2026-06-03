@@ -3,7 +3,7 @@ import {
   PackageIntelligenceChangelogSourceNotFoundError,
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
-} from "../../services/index.js";
+} from "../../services/package-intelligence-service.js";
 import {
   createMockPackageIntelligenceService,
   defaultChangelogReport,

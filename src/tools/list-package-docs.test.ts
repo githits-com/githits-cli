@@ -2,7 +2,7 @@ import { describe, expect, it, mock } from "bun:test";
 import {
   type PackageDocsList,
   PackageIntelligenceTargetNotFoundError,
-} from "../services/index.js";
+} from "../services/package-intelligence-service.js";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { createListPackageDocsTool } from "./list-package-docs.js";
 

@@ -1,4 +1,4 @@
-import type { TargetResolution } from "../services/index.js";
+import type { TargetResolution } from "../services/code-navigation-service.js";
 
 export interface LeanTargetResolutionIdentity {
   kind?: string;

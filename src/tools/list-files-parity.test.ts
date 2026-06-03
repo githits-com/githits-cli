@@ -14,7 +14,7 @@ import {
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
   type ListFilesResult,
-} from "../services/index.js";
+} from "../services/code-navigation-service.js";
 import {
   createMockCodeNavigationService,
   defaultListFilesResult,

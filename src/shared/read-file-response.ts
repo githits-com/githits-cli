@@ -8,7 +8,7 @@
  * checking a null content field.
  */
 
-import type { ReadFileResult } from "../services/index.js";
+import type { ReadFileResult } from "../services/code-navigation-service.js";
 import { colorize, dim } from "./colors.js";
 import {
   buildTargetResolutionNotes,

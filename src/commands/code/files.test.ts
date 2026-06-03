@@ -1,9 +1,9 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import { AuthenticationError } from "../../services/githits-service.js";
 import {
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
-} from "../../services/index.js";
+} from "../../services/code-navigation-service.js";
+import { AuthenticationError } from "../../services/githits-service.js";
 import {
   createMockCodeNavigationService,
   defaultListFilesResult,

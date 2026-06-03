@@ -3,23 +3,31 @@ import type { Command } from "commander";
 import { parse as parseToml } from "smol-toml";
 import { version } from "../../package.json";
 import {
-  type AuthStorageMode,
-  type ClientRegistration,
-  DEFAULT_API_URL,
-  DEFAULT_CODE_NAV_URL,
-  DEFAULT_MCP_URL,
-  type FileSystemService,
-  FileSystemServiceImpl,
   getAppConfigDirForEnv,
   getAuthConfigPathForEnv,
   getAuthFileStorageDirForEnv,
   getLegacyAuthStorageDirForEnv,
   getLegacyMacAuthConfigPathForEnv,
   getLegacyMacAuthFileStorageDirForEnv,
-  normalizeBaseUrl,
+} from "../services/app-config-paths.js";
+import {
+  type AuthStorageMode,
   parseAuthStorageMode,
+} from "../services/auth-config.js";
+import {
+  type ClientRegistration,
+  normalizeBaseUrl,
   type TokenData,
-} from "../services/index.js";
+} from "../services/auth-storage.js";
+import {
+  DEFAULT_API_URL,
+  DEFAULT_CODE_NAV_URL,
+  DEFAULT_MCP_URL,
+} from "../services/config.js";
+import {
+  type FileSystemService,
+  FileSystemServiceImpl,
+} from "../services/filesystem-service.js";
 
 type ProbeStatus =
   | "present"

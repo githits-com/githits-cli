@@ -11,7 +11,7 @@ import type {
   FileIntent,
   GrepRepoPathSelector,
   ListFilesParams,
-} from "../services/index.js";
+} from "../services/code-navigation-service.js";
 import {
   isKnownFileIntent,
   knownFileIntentList,

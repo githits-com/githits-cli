@@ -1,8 +1,6 @@
-import {
-  AuthConfigError,
-  AuthStorageLockTimeoutError,
-  AuthStoragePolicyError,
-} from "../services/index.js";
+import { AuthConfigError } from "../services/auth-config.js";
+import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
+import { AuthStoragePolicyError } from "../services/mode-aware-file-auth-storage.js";
 import {
   AuthRequiredError,
   formatAuthRequiredForTerminal,

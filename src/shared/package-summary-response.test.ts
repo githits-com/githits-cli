@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { PackageSummary } from "../services/index.js";
+import type { PackageSummary } from "../services/package-intelligence-service.js";
 import { defaultPackageSummary } from "../services/test-helpers.js";
 import {
   buildPackageSummarySuccessPayload,
