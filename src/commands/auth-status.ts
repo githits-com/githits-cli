@@ -1,10 +1,10 @@
 import type { Command } from "commander";
 import { createAuthStatusDependencies } from "../container.js";
-import type { AuthService, AuthStorage } from "../services/index.js";
+import type { AuthService, LockingAuthStorage } from "../services/index.js";
 import { refreshExpiredToken } from "../services/index.js";
 
 export interface AuthStatusDependencies {
-  authStorage: AuthStorage;
+  authStorage: LockingAuthStorage;
   authService: AuthService;
   mcpUrl: string;
   envApiToken: string | undefined;

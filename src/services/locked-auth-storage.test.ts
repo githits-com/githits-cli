@@ -52,6 +52,22 @@ describe("LockedAuthStorage", () => {
     expect(["first", "second"]).toContain(finalToken?.accessToken ?? "");
   });
 
+  it("allows nested storage writes inside a scoped lock", async () => {
+    const { fs, fsWithHome, configDir } = await createStoragePaths();
+    const storage = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      fsWithHome,
+      { lockTimeoutMs: 100 },
+    );
+    const token = createValidTokenData({ accessToken: "nested" });
+
+    await storage.withAuthStorageLock(async () => {
+      await storage.saveTokens(baseUrl, token);
+    });
+
+    expect(await storage.loadTokens(baseUrl)).toEqual(token);
+  });
+
   it("reclaims stale lock directories", async () => {
     const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
     await mkdir(lockPath, { recursive: true, mode: 0o700 });

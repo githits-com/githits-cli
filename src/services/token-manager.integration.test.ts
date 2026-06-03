@@ -25,7 +25,7 @@ describe("TokenManager file-backed integration", () => {
     );
   });
 
-  it("preserves one rotated refresh token when two managers refresh the same stored token", async () => {
+  it("reuses one rotated refresh token when two managers refresh the same stored token", async () => {
     const { firstStorage, secondStorage } = await createRealStorages();
     const initial = createExpiredToken({
       accessToken: "initial-access-token",
@@ -66,7 +66,7 @@ describe("TokenManager file-backed integration", () => {
       firstManager.getToken(),
       secondManager.getToken(),
     ]);
-    await refreshGate.waitForCalls(2);
+    await refreshGate.waitForCalls(1);
     refreshGate.resolveAll();
 
     const [firstResult, secondResult] = await results;
@@ -74,22 +74,185 @@ describe("TokenManager file-backed integration", () => {
 
     expect(stored).not.toBeNull();
     if (!stored) throw new Error("Expected stored token after refresh race");
-    expect(["first-access-token", "second-access-token"]).toContain(
-      stored.accessToken,
-    );
-    expect(stored.refreshToken).toBe(
-      stored.accessToken === "first-access-token"
-        ? "first-refresh-token"
-        : "second-refresh-token",
-    );
-    // The losing refresh must reload storage and return the persisted winner.
+    expect(stored.accessToken).toBe("first-access-token");
+    expect(stored.refreshToken).toBe("first-refresh-token");
+    // The waiting manager must reload storage and return the persisted winner.
     expect(firstResult).toBe(stored.accessToken);
     expect(secondResult).toBe(stored.accessToken);
-    expect(refreshGate.refreshAccessToken).toHaveBeenCalledTimes(2);
+    expect(refreshGate.refreshAccessToken).toHaveBeenCalledTimes(1);
     expect(firstStorage.getStorageLocation()).toContain(
       join("githits", "auth"),
     );
   });
+
+  it("serializes endpoint refresh when rotation invalidates concurrent refreshes", async () => {
+    const { firstStorage, secondStorage } = await createRealStorages();
+    const initial = createExpiredToken({
+      accessToken: "initial-access-token",
+      refreshToken: "initial-refresh-token",
+    });
+    await firstStorage.saveAuthSession(
+      baseUrl,
+      defaultClientRegistration,
+      initial,
+    );
+
+    let resolveFirstRefresh!: (response: RefreshTokenResponse) => void;
+    let resolveFirstRefreshStarted!: () => void;
+    const firstRefreshStarted = new Promise<void>((resolve) => {
+      resolveFirstRefreshStarted = resolve;
+    });
+    let resolveSecondRefreshStarted!: () => void;
+    const secondRefreshStarted = new Promise<void>((resolve) => {
+      resolveSecondRefreshStarted = resolve;
+    });
+    let refreshCall = 0;
+    const refreshAccessToken = mock(() => {
+      refreshCall++;
+      if (refreshCall === 1) {
+        resolveFirstRefreshStarted();
+        return new Promise<RefreshTokenResponse>((resolve) => {
+          resolveFirstRefresh = resolve;
+        });
+      }
+      resolveSecondRefreshStarted();
+      return Promise.reject(new Error("invalid_grant"));
+    });
+    const authService = createMockAuthService({ refreshAccessToken });
+    const firstManager = new TokenManager({
+      authService,
+      authStorage: firstStorage,
+      mcpUrl: baseUrl,
+    });
+    const secondManager = new TokenManager({
+      authService,
+      authStorage: secondStorage,
+      mcpUrl: baseUrl,
+    });
+
+    const results = Promise.all([
+      firstManager.getToken(),
+      secondManager.getToken(),
+    ]);
+    await firstRefreshStarted;
+    await Promise.race([secondRefreshStarted, sleep(100)]);
+
+    resolveFirstRefresh({
+      accessToken: "refreshed-access-token",
+      refreshToken: "refreshed-refresh-token",
+      expiresIn: 3600,
+    });
+
+    await expect(results).resolves.toEqual([
+      "refreshed-access-token",
+      "refreshed-access-token",
+    ]);
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(await firstStorage.loadTokens(baseUrl)).toEqual(
+      expect.objectContaining({
+        accessToken: "refreshed-access-token",
+        refreshToken: "refreshed-refresh-token",
+      }),
+    );
+  });
+
+  it("makes one endpoint refresh for many simultaneous expired-token agents", async () => {
+    const storageCount = 12;
+    const storages = await createRealStorageSet(storageCount);
+    const initial = createExpiredToken({
+      accessToken: "initial-access-token",
+      refreshToken: "initial-refresh-token",
+    });
+    await storages[0]?.saveAuthSession(
+      baseUrl,
+      defaultClientRegistration,
+      initial,
+    );
+    const refreshGate = createRefreshGate([
+      {
+        accessToken: "refreshed-access-token",
+        refreshToken: "refreshed-refresh-token",
+        expiresIn: 3600,
+      },
+    ]);
+    const authService = createMockAuthService({
+      refreshAccessToken: refreshGate.refreshAccessToken,
+    });
+    const managers = storages.map(
+      (authStorage) =>
+        new TokenManager({ authService, authStorage, mcpUrl: baseUrl }),
+    );
+
+    const results = Promise.all(managers.map((manager) => manager.getToken()));
+    await refreshGate.waitForCalls(1);
+    await Promise.race([refreshGate.waitForCalls(2), sleep(100)]);
+    refreshGate.resolveAll();
+
+    await expect(results).resolves.toEqual(
+      Array.from({ length: storageCount }, () => "refreshed-access-token"),
+    );
+    expect(refreshGate.refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(await storages[0]?.loadTokens(baseUrl)).toEqual(
+      expect.objectContaining({
+        accessToken: "refreshed-access-token",
+        refreshToken: "refreshed-refresh-token",
+      }),
+    );
+  }, 20_000);
+
+  it("makes one endpoint refresh for many simultaneous force refresh retries", async () => {
+    const storageCount = 12;
+    const storages = await createRealStorageSet(storageCount);
+    const initial = createValidTokenData({
+      accessToken: "rejected-access-token",
+      refreshToken: "initial-refresh-token",
+      createdAt: new Date(Date.now() - 60_000).toISOString(),
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+    await storages[0]?.saveAuthSession(
+      baseUrl,
+      defaultClientRegistration,
+      initial,
+    );
+    const refreshGate = createRefreshGate([
+      {
+        accessToken: "retry-access-token",
+        refreshToken: "retry-refresh-token",
+        expiresIn: 3600,
+      },
+    ]);
+    const authService = createMockAuthService({
+      refreshAccessToken: refreshGate.refreshAccessToken,
+    });
+    const managers = storages.map(
+      (authStorage) =>
+        new TokenManager({ authService, authStorage, mcpUrl: baseUrl }),
+    );
+
+    await expect(
+      Promise.all(managers.map((manager) => manager.getToken())),
+    ).resolves.toEqual(
+      Array.from({ length: storageCount }, () => "rejected-access-token"),
+    );
+
+    const results = Promise.all(
+      managers.map((manager) => manager.forceRefresh()),
+    );
+    await refreshGate.waitForCalls(1);
+    await Promise.race([refreshGate.waitForCalls(2), sleep(100)]);
+    refreshGate.resolveAll();
+
+    await expect(results).resolves.toEqual(
+      Array.from({ length: storageCount }, () => "retry-access-token"),
+    );
+    expect(refreshGate.refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(await storages[0]?.loadTokens(baseUrl)).toEqual(
+      expect.objectContaining({
+        accessToken: "retry-access-token",
+        refreshToken: "retry-refresh-token",
+      }),
+    );
+  }, 20_000);
 
   it("does not overwrite an external login written while refresh is in flight", async () => {
     const { firstStorage, secondStorage } = await createRealStorages();
@@ -125,14 +288,15 @@ describe("TokenManager file-backed integration", () => {
 
     const result = manager.getToken();
     await refreshGate.waitForCalls(1);
-    await secondStorage.saveAuthSession(
+    const externalLoginWrite = secondStorage.saveAuthSession(
       baseUrl,
       defaultClientRegistration,
       externalLogin,
     );
     refreshGate.resolveAll();
 
-    expect(await result).toBe("external-login-access-token");
+    expect(await result).toBe("rotated-access-token");
+    await externalLoginWrite;
     expect(await firstStorage.loadTokens(baseUrl)).toEqual(externalLogin);
     expect(refreshGate.refreshAccessToken).toHaveBeenCalledTimes(1);
   });
@@ -174,14 +338,15 @@ describe("TokenManager file-backed integration", () => {
 
     const result = manager.getToken();
     await refreshStarted;
-    await secondStorage.saveAuthSession(
+    const externalLoginWrite = secondStorage.saveAuthSession(
       baseUrl,
       defaultClientRegistration,
       externalLogin,
     );
     rejectRefresh(new Error("refresh failed"));
 
-    expect(await result).toBe("external-login-access-token");
+    expect(await result).toBeUndefined();
+    await externalLoginWrite;
     expect(await firstStorage.loadTokens(baseUrl)).toEqual(externalLogin);
     expect(refreshAccessToken).toHaveBeenCalledTimes(1);
   });
@@ -190,6 +355,16 @@ describe("TokenManager file-backed integration", () => {
     firstStorage: LockedAuthStorage;
     secondStorage: LockedAuthStorage;
   }> {
+    const [firstStorage, secondStorage] = await createRealStorageSet(2);
+    if (!firstStorage || !secondStorage) {
+      throw new Error("Expected two real storages");
+    }
+    return { firstStorage, secondStorage };
+  }
+
+  async function createRealStorageSet(
+    count: number,
+  ): Promise<LockedAuthStorage[]> {
     const root = await mkdtemp(join(tmpdir(), "githits-token-manager-"));
     tempDirs.push(root);
     const fs = new FileSystemServiceImpl();
@@ -199,16 +374,13 @@ describe("TokenManager file-backed integration", () => {
     }) as FileSystemServiceImpl;
     const configRoot = join(root, "config");
     const configDir = join(configRoot, "githits", "auth");
-    return withConfigRoot(configRoot, () => ({
-      firstStorage: new LockedAuthStorage(
-        new AuthStorageImpl(fs, configDir),
-        fsWithHome,
+    return withConfigRoot(configRoot, () =>
+      Array.from(
+        { length: count },
+        () =>
+          new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome),
       ),
-      secondStorage: new LockedAuthStorage(
-        new AuthStorageImpl(fs, configDir),
-        fsWithHome,
-      ),
-    }));
+    );
   }
 
   function withConfigRoot<T>(configRoot: string, create: () => T): T {
@@ -267,5 +439,9 @@ describe("TokenManager file-backed integration", () => {
         }
       },
     };
+  }
+
+  function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 });

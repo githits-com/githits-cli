@@ -1,6 +1,10 @@
 import { withTelemetrySpan } from "../shared/telemetry.js";
 import type { AuthService, RefreshTokenResponse } from "./auth-service.js";
-import type { AuthStorage, TokenData } from "./auth-storage.js";
+import type { TokenData } from "./auth-storage.js";
+import {
+  type LockingAuthStorage,
+  withAuthStorageLock,
+} from "./locked-auth-storage.js";
 
 /**
  * Ratio of token lifetime at which proactive refresh triggers.
@@ -24,7 +28,7 @@ export interface TokenProvider {
  */
 export interface TokenManagerDeps {
   authService: AuthService;
-  authStorage: AuthStorage;
+  authStorage: LockingAuthStorage;
   mcpUrl: string;
 }
 
@@ -73,7 +77,7 @@ export function shouldRefreshToken(
  */
 export async function refreshExpiredToken(
   authService: AuthService,
-  authStorage: AuthStorage,
+  authStorage: LockingAuthStorage,
   mcpUrl: string,
 ): Promise<string | undefined> {
   const manager = new TokenManager({ authService, authStorage, mcpUrl });
@@ -86,7 +90,7 @@ export async function refreshExpiredToken(
  */
 export class TokenManager implements TokenProvider {
   private readonly authService: AuthService;
-  private readonly authStorage: AuthStorage;
+  private readonly authStorage: LockingAuthStorage;
   private readonly mcpUrl: string;
   private cachedToken: TokenData | null = null;
   private softRefreshPromise: Promise<RefreshResult> | null = null;
@@ -100,16 +104,24 @@ export class TokenManager implements TokenProvider {
 
   async getToken(): Promise<string | undefined> {
     return withTelemetrySpan("token-manager.get-token", async () => {
-      if (this.forceRefreshPromise) {
-        return (await this.forceRefreshPromise).accessToken;
+      const activeForceRefresh = this.forceRefreshPromise;
+      if (activeForceRefresh) {
+        return (await activeForceRefresh).accessToken;
       }
 
       // Load from storage on first call
       if (!this.cachedToken) {
-        this.cachedToken = await withTelemetrySpan(
+        const storedToken = await withTelemetrySpan(
           "token-manager.load-tokens",
           () => this.authStorage.loadTokens(this.mcpUrl),
         );
+        const startedForceRefresh = this.forceRefreshPromise;
+        if (startedForceRefresh) {
+          return (await startedForceRefresh).accessToken;
+        }
+        if (!this.cachedToken) {
+          this.cachedToken = storedToken;
+        }
         if (!this.cachedToken) return undefined;
       }
 
@@ -125,9 +137,7 @@ export class TokenManager implements TokenProvider {
       }
 
       // Attempt refresh (coalesced if already in-flight)
-      const refreshedToken = await this.doRefresh({
-        allowFreshExternalToken: true,
-      });
+      const refreshedToken = await this.refreshFromGetToken();
 
       if (refreshedToken) {
         return refreshedToken;
@@ -145,49 +155,20 @@ export class TokenManager implements TokenProvider {
 
   async forceRefresh(): Promise<string | undefined> {
     return withTelemetrySpan("token-manager.force-refresh", () =>
-      this.doRefresh({ allowFreshExternalToken: false }),
+      this.refreshAfterAuthFailure(),
     );
   }
 
-  /**
-   * Execute a refresh, coalescing concurrent requests.
-   */
-  private async doRefresh(options: {
-    allowFreshExternalToken: boolean;
-  }): Promise<string | undefined> {
-    const result = await this.doRefreshResult(options);
+  private async refreshFromGetToken(): Promise<string | undefined> {
+    const result = await this.softRefresh();
     return result.accessToken;
   }
 
-  private async doRefreshResult(options: {
-    allowFreshExternalToken: boolean;
-  }): Promise<RefreshResult> {
-    if (!options.allowFreshExternalToken) {
-      if (this.forceRefreshPromise) return this.forceRefreshPromise;
-
-      this.forceRefreshPromise = (async () => {
-        // A force refresh must not reuse a softer getToken refresh that may
-        // return externally written credentials without hitting the token
-        // endpoint, but later getToken calls should join this stricter work.
-        const softResult = await this.softRefreshPromise?.catch(
-          () => undefined,
-        );
-        if (softResult?.accessToken && softResult.refreshedViaEndpoint) {
-          return softResult;
-        }
-        return this.executeRefresh(options);
-      })();
-      try {
-        return await this.forceRefreshPromise;
-      } finally {
-        this.forceRefreshPromise = null;
-      }
-    }
-
+  private async softRefresh(): Promise<RefreshResult> {
     if (this.forceRefreshPromise) return this.forceRefreshPromise;
     if (this.softRefreshPromise) return this.softRefreshPromise;
 
-    this.softRefreshPromise = this.executeRefresh(options);
+    this.softRefreshPromise = this.executeRefresh();
     try {
       return await this.softRefreshPromise;
     } finally {
@@ -195,109 +176,138 @@ export class TokenManager implements TokenProvider {
     }
   }
 
-  private async executeRefresh(options: {
-    allowFreshExternalToken: boolean;
-  }): Promise<RefreshResult> {
-    return withTelemetrySpan("token-manager.refresh", async () => {
-      const candidate = await this.loadRefreshCandidate();
-      if (!candidate) return refreshResult(undefined, false);
-      if (candidate.externallyUpdated && options.allowFreshExternalToken) {
-        const { shouldRefresh } = shouldRefreshToken(
-          candidate.tokens,
-          PROACTIVE_REFRESH_RATIO,
-          new Date(),
-        );
-        if (!shouldRefresh)
-          return refreshResult(candidate.tokens.accessToken, false);
+  private async refreshAfterAuthFailure(): Promise<string | undefined> {
+    const result = await this.forceEndpointRefresh();
+    return result.accessToken;
+  }
+
+  private async forceEndpointRefresh(): Promise<RefreshResult> {
+    if (this.forceRefreshPromise) return this.forceRefreshPromise;
+
+    this.forceRefreshPromise = (async () => {
+      // A force refresh must not reuse a softer getToken refresh that may
+      // return externally written credentials without hitting the token
+      // endpoint, but later getToken calls should join this stricter work.
+      const softResult = await this.softRefreshPromise?.catch(() => undefined);
+      if (softResult?.accessToken && softResult.refreshedViaEndpoint) {
+        return softResult;
       }
-      const tokens = candidate.tokens;
+      return this.executeRefresh();
+    })();
+    try {
+      return await this.forceRefreshPromise;
+    } finally {
+      this.forceRefreshPromise = null;
+    }
+  }
 
-      const client = await withTelemetrySpan("token-manager.load-client", () =>
-        this.authStorage.loadClient(this.mcpUrl),
-      );
-      if (!client) return refreshResult(undefined, false);
-
-      let response: RefreshTokenResponse;
-      try {
-        const metadata = await withTelemetrySpan(
-          "token-manager.discover-endpoints",
-          () => this.authService.discoverEndpoints(this.mcpUrl),
-        );
-        response = await withTelemetrySpan(
-          "token-manager.refresh-access-token",
-          () =>
-            this.authService.refreshAccessToken({
-              tokenEndpoint: metadata.tokenEndpoint,
-              clientId: client.clientId,
-              clientSecret: client.clientSecret,
-              refreshToken: tokens.refreshToken,
-            }),
-        );
-      } catch {
-        const reloadedToken = await this.loadExternallyUpdatedToken(tokens);
-        if (reloadedToken)
-          return refreshResult(reloadedToken.accessToken, false);
-
-        const isExpired = tokens.expiresAt
-          ? new Date() >= new Date(tokens.expiresAt)
-          : false;
-        if (candidate.externallyUpdated && !isExpired) {
-          return refreshResult(tokens.accessToken, false);
-        }
-
-        // Only clear tokens if they are actually expired and still match the
-        // failed in-memory refresh token. A separate `githits login` may have
-        // already written fresh tokens for long-running MCP servers.
-        if (isExpired) {
-          const currentStoredTokens =
-            await this.loadExternallyUpdatedToken(tokens);
-          if (currentStoredTokens) {
-            return refreshResult(currentStoredTokens.accessToken, false);
-          }
-
-          const cleared = await withTelemetrySpan(
-            "token-manager.clear-tokens-if-unchanged",
-            () => this.authStorage.clearTokensIfUnchanged(this.mcpUrl, tokens),
+  private async executeRefresh(): Promise<RefreshResult> {
+    return withAuthStorageLock(this.authStorage, () =>
+      withTelemetrySpan("token-manager.refresh", async () => {
+        const candidate = await this.loadRefreshCandidate();
+        if (!candidate) return refreshResult(undefined, false);
+        if (candidate.externallyUpdated) {
+          const { shouldRefresh } = shouldRefreshToken(
+            candidate.tokens,
+            PROACTIVE_REFRESH_RATIO,
+            new Date(),
           );
-          if (!cleared) {
-            const currentToken = await this.authStorage.loadTokens(this.mcpUrl);
-            this.cachedToken = currentToken;
-            return refreshResult(currentToken?.accessToken, false);
-          }
-          this.cachedToken = null;
+          if (!shouldRefresh)
+            return refreshResult(candidate.tokens.accessToken, false);
         }
-        return refreshResult(undefined, false);
-      }
+        const tokens = candidate.tokens;
 
-      const newTokenData: TokenData = {
-        accessToken: response.accessToken,
-        refreshToken: response.refreshToken ?? tokens.refreshToken,
-        expiresAt: new Date(
-          Date.now() + response.expiresIn * 1000,
-        ).toISOString(),
-        // Refresh starts a new token lifetime window. Keeping the
-        // original createdAt makes a freshly refreshed token look
-        // permanently near expiry, which triggers immediate re-refresh.
-        createdAt: new Date().toISOString(),
-      };
-
-      const saved = await withTelemetrySpan("token-manager.save-tokens", () =>
-        this.authStorage.saveTokensIfUnchanged(
-          this.mcpUrl,
-          tokens,
-          newTokenData,
-        ),
-      );
-      if (!saved) {
-        return this.resolveSuccessfulRefreshConflict(
-          tokens,
-          response,
-          newTokenData,
+        const client = await withTelemetrySpan(
+          "token-manager.load-client",
+          () => this.authStorage.loadClient(this.mcpUrl),
         );
-      }
-      this.cachedToken = newTokenData;
-      return refreshResult(response.accessToken, true);
-    });
+        if (!client) return refreshResult(undefined, false);
+
+        let response: RefreshTokenResponse;
+        try {
+          const metadata = await withTelemetrySpan(
+            "token-manager.discover-endpoints",
+            () => this.authService.discoverEndpoints(this.mcpUrl),
+          );
+          response = await withTelemetrySpan(
+            "token-manager.refresh-access-token",
+            () =>
+              this.authService.refreshAccessToken({
+                tokenEndpoint: metadata.tokenEndpoint,
+                clientId: client.clientId,
+                clientSecret: client.clientSecret,
+                refreshToken: tokens.refreshToken,
+              }),
+          );
+        } catch {
+          const reloadedToken = await this.loadExternallyUpdatedToken(tokens);
+          if (reloadedToken)
+            return refreshResult(reloadedToken.accessToken, false);
+
+          const isExpired = tokens.expiresAt
+            ? new Date() >= new Date(tokens.expiresAt)
+            : false;
+          if (candidate.externallyUpdated && !isExpired) {
+            return refreshResult(tokens.accessToken, false);
+          }
+
+          // Only clear tokens if they are actually expired and still match the
+          // failed in-memory refresh token. A separate `githits login` may have
+          // already written fresh tokens for long-running MCP servers.
+          if (isExpired) {
+            const currentStoredTokens =
+              await this.loadExternallyUpdatedToken(tokens);
+            if (currentStoredTokens) {
+              return refreshResult(currentStoredTokens.accessToken, false);
+            }
+
+            const cleared = await withTelemetrySpan(
+              "token-manager.clear-tokens-if-unchanged",
+              () =>
+                this.authStorage.clearTokensIfUnchanged(this.mcpUrl, tokens),
+            );
+            if (!cleared) {
+              const currentToken = await this.authStorage.loadTokens(
+                this.mcpUrl,
+              );
+              this.cachedToken = currentToken;
+              return refreshResult(currentToken?.accessToken, false);
+            }
+            this.cachedToken = null;
+          }
+          return refreshResult(undefined, false);
+        }
+
+        const newTokenData: TokenData = {
+          accessToken: response.accessToken,
+          refreshToken: response.refreshToken ?? tokens.refreshToken,
+          expiresAt: new Date(
+            Date.now() + response.expiresIn * 1000,
+          ).toISOString(),
+          // Refresh starts a new token lifetime window. Keeping the
+          // original createdAt makes a freshly refreshed token look
+          // permanently near expiry, which triggers immediate re-refresh.
+          createdAt: new Date().toISOString(),
+        };
+
+        const saved = await withTelemetrySpan("token-manager.save-tokens", () =>
+          this.authStorage.saveTokensIfUnchanged(
+            this.mcpUrl,
+            tokens,
+            newTokenData,
+          ),
+        );
+        if (!saved) {
+          return this.resolveSuccessfulRefreshConflict(
+            tokens,
+            response,
+            newTokenData,
+          );
+        }
+        this.cachedToken = newTokenData;
+        return refreshResult(response.accessToken, true);
+      }),
+    );
   }
 
   private async resolveSuccessfulRefreshConflict(
