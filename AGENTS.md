@@ -25,6 +25,7 @@ Philosophy: "Create architecture that is performant and easy to test"
 - Follow single responsibility principle
 - Prefer public helper modules to lots of private methods
 - Use dependency injection for external services (REST client, etc.)
+- For MCP/agent-facing tools, avoid coupled optional flags and default-true booleans. Design schemas for real agent calls, including empty strings, empty arrays, and explicit `false` values.
 
 See `docs/guidelines/ARCHITECTURAL_GUIDELINES.md` for detailed planning checklist and design principles.
 

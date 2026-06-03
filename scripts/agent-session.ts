@@ -6,7 +6,9 @@ import {
   buildCodexConfigArgs,
   buildEvalEnv,
   buildMcpConfig,
+  buildOpenCodeConfig,
   type EvalSurface,
+  emptyOpenCodeConfig,
   prepareSkillsWorkspace,
   type ServerMode,
   type SkillInstallationMetadata,
@@ -54,8 +56,8 @@ export function parseSessionArgs(
       case "--agent": {
         const value = argv[++i];
         assert(
-          value === "claude" || value === "codex",
-          "--agent must be claude or codex",
+          value === "claude" || value === "codex" || value === "opencode",
+          "--agent must be claude, codex, or opencode",
         );
         options.agent = value;
         break;
@@ -125,7 +127,7 @@ function printHelp(): void {
   console.log(`Usage: bun run agent:session [options]
 
 Options:
-  --agent claude|codex            Agent to start (default: claude)
+  --agent claude|codex|opencode   Agent to start (default: claude)
   --surface mcp|skills            GitHits surface to wire in (default: mcp)
   --server local|published        Local checkout or published package (default: local)
   --model <name>                  Agent model name or alias
@@ -181,6 +183,18 @@ export function buildCodexSessionCommand(
   return command;
 }
 
+export function buildOpenCodeSessionCommand(
+  options: AgentSessionOptions,
+): string[] {
+  const command = ["opencode", "run", "--dir", options.workspaceDir];
+  if (options.bypassPermissions) {
+    command.push("--dangerously-skip-permissions");
+  }
+  if (options.model) command.push("--model", options.model);
+  if (options.prompt) command.push(options.prompt);
+  return command;
+}
+
 export function prepareAgentSession(options: AgentSessionOptions): {
   command: string[];
   mcpConfigPath: string;
@@ -190,6 +204,7 @@ export function prepareAgentSession(options: AgentSessionOptions): {
   const sessionDir = join(options.workspaceDir, ".agent-session");
   mkdirSync(sessionDir, { recursive: true });
   const mcpConfigPath = join(sessionDir, "mcp.json");
+  const openCodeConfigPath = join(options.workspaceDir, "opencode.json");
   const skillInstallation =
     options.surface === "skills"
       ? prepareSkillsWorkspace(options, options.workspaceDir)
@@ -199,11 +214,26 @@ export function prepareAgentSession(options: AgentSessionOptions): {
     mcpConfigPath,
     options.surface === "mcp" ? buildMcpConfig(options) : { mcpServers: {} },
   );
+  if (options.agent === "opencode") {
+    if (existsSync(openCodeConfigPath)) {
+      throw new Error(
+        `Refusing to overwrite existing OpenCode config: ${openCodeConfigPath}`,
+      );
+    }
+    writeJson(
+      openCodeConfigPath,
+      options.surface === "mcp"
+        ? buildOpenCodeConfig(options)
+        : emptyOpenCodeConfig(),
+    );
+  }
 
   const command =
     options.agent === "claude"
       ? buildClaudeSessionCommand(options, mcpConfigPath)
-      : buildCodexSessionCommand(options);
+      : options.agent === "codex"
+        ? buildCodexSessionCommand(options)
+        : buildOpenCodeSessionCommand(options);
 
   writeJson(join(sessionDir, "session.json"), {
     agent: options.agent,
@@ -212,6 +242,7 @@ export function prepareAgentSession(options: AgentSessionOptions): {
     model: options.model,
     workspaceDir: options.workspaceDir,
     mcpConfigPath,
+    openCodeConfigPath,
     command,
     skillInstallation,
   });

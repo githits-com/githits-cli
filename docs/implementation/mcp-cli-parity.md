@@ -293,7 +293,7 @@ When a new tool lands with both MCP and CLI surfaces:
 - **`--verbose` / `--no-body` / `--json` interaction.** Default
   terminal output truncates each entry's body at 10 lines.
   `--verbose` lifts the cap (terminal-only). `--no-body` mirrors
-  MCP's `include_bodies: false` and affects both terminal and
+  MCP's `omit_bodies: true` and affects both terminal and
   `--json`. `--no-body` + `--verbose` is rejected.
 
 ### `code_files` / `code_read` / `code_grep` (file-exploration bundle)

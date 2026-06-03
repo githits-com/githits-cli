@@ -20,7 +20,7 @@ export interface PackageUpgradeReviewArgs {
     current_version: string;
     target_version: string;
   }>;
-  include_transitive_security?: boolean;
+  skip_transitive_security?: boolean;
   include_dependency_issues?: boolean;
   min_severity?: string;
   verbose?: boolean;
@@ -71,11 +71,11 @@ const schema = {
     .array(packageSchema)
     .optional()
     .describe("Batch mode. Mutually exclusive with single-package fields."),
-  include_transitive_security: z
+  skip_transitive_security: z
     .boolean()
     .optional()
     .describe(
-      "When true, diff current vs target transitive vulnerability summaries. Defaults true; pass false to skip.",
+      "When true, skip current-vs-target transitive vulnerability summary diffs. Defaults false, so transitive security evidence is included unless explicitly skipped.",
     ),
   include_dependency_issues: z
     .boolean()
@@ -104,7 +104,7 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Report package-upgrade evidence by comparing current and target versions with " +
+  "Use when the user asks whether to accept, assess, review, or investigate a dependency update from one version to another. Report package-upgrade evidence by comparing current and target versions with " +
   "direct vulnerability checks, changelog range evidence, target deprecation " +
   "metadata, peer dependency changes, and optional transitive evidence diffs. " +
   "The tool reports facts only and does not assign risk or decide whether to accept an upgrade. " +
@@ -134,7 +134,7 @@ export function createPackageUpgradeReviewTool(
             currentVersion: pkg.current_version,
             targetVersion: pkg.target_version,
           })),
-          includeTransitiveSecurity: args.include_transitive_security,
+          includeTransitiveSecurity: args.skip_transitive_security !== true,
           includeDependencyIssues: args.include_dependency_issues,
           minSeverity: args.min_severity,
         });

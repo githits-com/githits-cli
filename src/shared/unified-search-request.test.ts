@@ -36,6 +36,21 @@ describe("buildUnifiedSearchParams", () => {
     expect(built.params.filters).toBeUndefined();
   });
 
+  it("strips code and symbol filters from explicit docs-only searches", () => {
+    const built = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      query: "routing",
+      sources: ["DOCS"],
+      kind: "FUNCTION",
+      category: "CALLABLE",
+      fileIntent: "PRODUCTION",
+      publicOnly: true,
+      pathPrefix: "docs/",
+    });
+
+    expect(built.params.filters).toEqual({ pathPrefix: "docs/" });
+  });
+
   it("does not invent fileIntent when selected sources include code search", () => {
     const built = buildUnifiedSearchParams({
       target: { registry: "NPM", packageName: "express" },
@@ -44,6 +59,25 @@ describe("buildUnifiedSearchParams", () => {
     });
 
     expect(built.params.filters).toBeUndefined();
+  });
+
+  it("keeps code and symbol filters when selected sources include code search", () => {
+    const built = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      query: "routing",
+      sources: ["DOCS", "CODE"],
+      kind: "FUNCTION",
+      category: "CALLABLE",
+      fileIntent: "PRODUCTION",
+      publicOnly: true,
+    });
+
+    expect(built.params.filters).toEqual({
+      kind: "FUNCTION",
+      category: "CALLABLE",
+      fileIntent: "PRODUCTION",
+      publicOnly: true,
+    });
   });
 
   it("compiles structured name and language into AND-ed query qualifiers", () => {
@@ -89,6 +123,16 @@ describe("buildUnifiedSearchParams", () => {
       fileIntent: "PRODUCTION",
       publicOnly: true,
     });
+  });
+
+  it("treats publicOnly false as absent", () => {
+    const built = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      query: "handler",
+      publicOnly: false,
+    });
+
+    expect(built.params.filters).toBeUndefined();
   });
 
   it("passes through allowPartialResults without changing the default", () => {

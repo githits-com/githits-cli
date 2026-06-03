@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type { PackageIntelligenceService } from "../services/index.js";
-import { InvalidPackageSpecError } from "../shared/index.js";
 import {
   buildPackageDependenciesParams,
   SUPPORTED_DEPS_REGISTRIES_LIST,
@@ -17,7 +16,6 @@ export interface PackageDependenciesArgs {
   package_name: string;
   version?: string;
   lifecycle?: string | string[];
-  include_transitive?: boolean;
   include_importers?: boolean;
   max_depth?: number;
   format?: "json" | "text" | "text-v1";
@@ -53,17 +51,11 @@ const schema = {
     .describe(
       "Lifecycle breadth. Omit for runtime-only. Use `runtime` for explicit runtime-only, a concrete non-runtime lifecycle (`development`, `build`, `peer`, `optional`) for runtime plus matching groups, or `all` for runtime plus all available groups. Accepts a single value, a comma-separated string, or an array; `all` cannot be combined with other values. Uppercase is tolerated.",
     ),
-  include_transitive: z
-    .boolean()
-    .optional()
-    .describe(
-      "When true the response gains a `transitive` block with aggregate counts (`edges`, `uniquePackages`), the preprocessed `packages[]` list (each `{name, version}` — the complete install footprint), plus typed `conflicts[]` (`{name, requiredVersions}`) and `circularDependencies[]` (`{cycle: string[]}`) when the backend reported any. Off by default.",
-    ),
   include_importers: z
     .boolean()
     .optional()
     .describe(
-      "Requires `include_transitive: true`. When true, each entry in `transitive.packages[]` also carries an `importers` array — every upstream package that pulls it in, with that importer's own resolved version and the constraint it declared. Off by default because adding provenance roughly quadruples the envelope size on heavy graphs. Turn on when you need to trace why a specific transitive dep is present.",
+      "When true, each entry in `transitive.packages[]` also carries an `importers` array — every upstream package that pulls it in, with that importer's own resolved version and the constraint it declared. Off by default because adding provenance roughly quadruples the envelope size on heavy graphs. If `max_depth` is omitted, this also requests the full transitive block.",
     ),
   max_depth: z
     .number()
@@ -72,7 +64,7 @@ const schema = {
     .max(10)
     .optional()
     .describe(
-      "Cap the transitive traversal at this depth (1–10). Omit to get the backend's full graph. Requires `include_transitive: true` — passing `max_depth` without the transitive flag is rejected with `INVALID_ARGUMENT`.",
+      "Add a `transitive` block and cap traversal at this depth (1-10). Omit for direct dependencies only.",
     ),
   format: z
     .enum(["json", "text", "text-v1"])
@@ -83,16 +75,15 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Analyze a package's dependency graph. Lists direct runtime " +
+  "Use when the user asks what a package depends on, wants dependency groups, or needs a bounded transitive dependency footprint. Analyze a package's dependency graph. Lists direct runtime " +
   "dependencies with resolved versions; non-runtime groups are " +
   "omitted by default. Use `lifecycle` with a concrete value for " +
   "matching dependency groups, or `all` for every available group. " +
   "Runtime group rows include resolved versions when available. " +
-  "Set `include_transitive: true` to add a " +
-  "`transitive` block with the full install footprint, conflict " +
-  "detection, and circular-dependency flags; layer " +
-  "`include_importers: true` on top when you also need per-package " +
-  "provenance. Supports npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, " +
+  "Pass `max_depth` to add a `transitive` block with the capped " +
+  "install footprint, conflict detection, and circular-dependency " +
+  "flags; layer `include_importers: true` on top when you also need " +
+  "per-package provenance. Supports npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, " +
   "Go, and Swift.";
 
 export function createPackageDependenciesTool(
@@ -105,21 +96,13 @@ export function createPackageDependenciesTool(
     annotations: { readOnlyHint: true },
     handler: async (args) => {
       try {
-        if (args.max_depth !== undefined && !args.include_transitive) {
-          throw new InvalidPackageSpecError(
-            "max_depth requires include_transitive: true. Either drop max_depth or set include_transitive.",
-          );
-        }
-        if (args.include_importers && !args.include_transitive) {
-          throw new InvalidPackageSpecError(
-            "include_importers requires include_transitive: true. Either drop include_importers or set include_transitive.",
-          );
-        }
+        const includeTransitiveOutput =
+          args.max_depth !== undefined || args.include_importers === true;
         // Always fetch the transitive DAG on the wire — even without
-        // `include_transitive` we need it at depth 1 to resolve each
+        // a transitive output block we need it at depth 1 to resolve each
         // direct dep's constraint to a concrete version (surfaced as
         // `runtime.items[].version`). Mirrors the CLI path.
-        const wireMaxDepth = args.include_transitive ? args.max_depth : 1;
+        const wireMaxDepth = includeTransitiveOutput ? args.max_depth : 1;
         const { params, canonicalLifecycles } = buildPackageDependenciesParams({
           registry: args.registry,
           packageName: args.package_name,
@@ -132,7 +115,7 @@ export function createPackageDependenciesTool(
         const payload = buildPackageDependenciesSuccessPayload(report, {
           requestedVersion: args.version,
           canonicalLifecycles,
-          includeTransitive: args.include_transitive,
+          includeTransitive: includeTransitiveOutput,
           maxDepth: args.max_depth,
           includeImporters: args.include_importers ?? false,
         });
@@ -146,7 +129,7 @@ export function createPackageDependenciesTool(
               useColors: false,
               requestedVersion: args.version,
               canonicalLifecycles: textLifecycles,
-              includeTransitive: args.include_transitive,
+              includeTransitive: includeTransitiveOutput,
               maxDepth: args.max_depth,
               showGroups:
                 canonicalLifecycles.length > 0 &&

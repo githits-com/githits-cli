@@ -75,6 +75,34 @@ describe("searchTool", () => {
     );
   });
 
+  it("drops docs-incompatible filters for docs-only searches", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "routing",
+        target: { registry: "npm", package_name: "express" },
+        source: "docs",
+        category: "callable",
+        kind: "function",
+        file_intent: "production",
+        public_only: true,
+        path_prefix: "guide/",
+      },
+      {},
+    );
+
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sources: ["DOCS"],
+        filters: { pathPrefix: "guide/" },
+      }),
+    );
+  });
+
   it("ignores empty targets arrays when target is provided", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),

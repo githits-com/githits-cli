@@ -55,7 +55,7 @@ describe("buildMcpInstructions", () => {
   it("returns core + package/code tools section by default", () => {
     const instructions = buildMcpInstructions();
 
-    expect(instructions).toContain("GitHits provides verified");
+    expect(instructions).toContain("GitHits provides verified open-source");
     expect(instructions).toContain("Indexed package/source tools");
     expect(instructions).toContain("`pkg_info`");
     expect(instructions).toContain("`docs_list`");
@@ -87,29 +87,23 @@ describe("buildMcpInstructions", () => {
 
     expect(instructions).not.toContain("External-content posture");
     // Still has the core block and package section.
-    expect(instructions).toContain("GitHits provides verified");
+    expect(instructions).toContain("GitHits provides verified open-source");
     expect(instructions).toContain("Indexed package/source tools");
   });
 
   it("steers file enumeration to code_files instead of directory probes", () => {
     const instructions = buildMcpInstructions();
 
-    expect(instructions).toContain(
-      "First choice for file-listing/path-enumeration tasks",
-    );
-    expect(instructions).toContain(
-      "do not use `code_read` to probe directories",
-    );
-    expect(instructions).toContain(
-      "never test directory paths with `code_read`",
-    );
-    expect(instructions).toContain('path_prefix: "lib/"');
+    expect(instructions).toContain("Enumerate paths with `code_files`");
+    expect(instructions).toContain("never use it to list/probe directories");
   });
 
   it("expands core trigger criteria to cover comparative cross-OSS questions", () => {
     const instructions = buildMcpInstructions();
-    expect(instructions).toContain("comparative across OSS projects");
-    expect(instructions).toContain("how a real codebase implements");
+    expect(instructions).toContain("comparative OSS questions");
+    expect(instructions).toContain(
+      "package-scoped evidence needs broader examples",
+    );
   });
 
   it("keeps the core block first", () => {
@@ -152,6 +146,24 @@ describe("buildMcpInstructions", () => {
     }
   });
 
+  it("keeps trigger criteria in per-tool descriptions for clients that ignore server instructions", () => {
+    const descriptions = new Map(
+      getMcpToolDefinitions(createTestServices()).map((tool) => [
+        tool.name,
+        tool.description,
+      ]),
+    );
+
+    expect(descriptions.get("get_example")).toContain("Use when");
+    expect(descriptions.get("search")).toContain("Use when");
+    expect(descriptions.get("code_files")).toContain("First choice");
+    expect(descriptions.get("pkg_info")).toContain("Use for");
+    expect(descriptions.get("pkg_vulns")).toContain("Use when");
+    expect(descriptions.get("pkg_deps")).toContain("Use when");
+    expect(descriptions.get("pkg_changelog")).toContain("Use when");
+    expect(descriptions.get("pkg_upgrade_review")).toContain("Use when");
+  });
+
   it("ships a decision tree mentioning all three workflow tools in the core block", () => {
     const instructions = buildMcpInstructions();
     const coreEnd = instructions.indexOf("Indexed package/source tools");
@@ -166,8 +178,7 @@ describe("buildMcpInstructions", () => {
   it("tells agents to report get_example source repositories", () => {
     const instructions = buildMcpInstructions();
 
-    expect(instructions).toContain("source repository provenance");
-    expect(instructions).toContain("source repositories/citations");
+    expect(instructions).toContain("source repository provenance/citations");
     expect(instructions).toContain(
       "GitHits' generated references/provenance section",
     );

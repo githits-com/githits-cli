@@ -244,11 +244,7 @@ function normalizeOptionalFileIntent(
 ): { fileIntent?: FileIntent; fileIntentEcho?: string } {
   if (raw === undefined) return {};
   const trimmed = raw.trim().toLowerCase();
-  if (trimmed.length === 0) {
-    throw new InvalidPackageSpecError(
-      `\`${field}\` cannot be empty when provided.`,
-    );
-  }
+  if (trimmed.length === 0) return {};
   if (!isKnownFileIntent(trimmed)) {
     throw new InvalidPackageSpecError(
       `\`${field}\` must be one of: ${knownFileIntentList().join(", ")}. Got ${raw}.`,

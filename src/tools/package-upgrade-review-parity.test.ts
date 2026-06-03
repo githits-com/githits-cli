@@ -65,7 +65,7 @@ interface McpUpgradeReviewArgs {
     current_version: string;
     target_version: string;
   }>;
-  include_transitive_security?: boolean;
+  skip_transitive_security?: boolean;
   include_dependency_issues?: boolean;
   min_severity?: string;
 }
@@ -114,7 +114,7 @@ describe("package_upgrade_review parity", () => {
           target_version: "4.4.3",
         },
       ],
-      include_transitive_security: false,
+      skip_transitive_security: true,
     });
 
     expect(cli).toEqual(json);
@@ -155,7 +155,7 @@ describe("package_upgrade_review parity", () => {
             target_version: "4.4.3",
           },
         ],
-        include_transitive_security: false,
+        skip_transitive_security: true,
       },
       service,
     );

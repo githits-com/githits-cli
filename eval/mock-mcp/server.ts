@@ -157,7 +157,7 @@ server.registerTool(
       from_version: z.string().optional(),
       to_version: z.string().optional(),
       limit: z.number().int().optional(),
-      include_bodies: z.boolean().optional(),
+      omit_bodies: z.boolean().optional(),
       format: z.enum(["json", "text", "text-v1"]).optional(),
     },
     annotations: { readOnlyHint: true },

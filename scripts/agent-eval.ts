@@ -18,7 +18,7 @@ import {
   writeReportJson,
 } from "./agent-eval-report.ts";
 
-export type AgentName = "claude" | "codex";
+export type AgentName = "claude" | "codex" | "opencode";
 export type ServerMode = "local" | "published";
 export type EvalSurface = "mcp" | "skills";
 type RunStatus = "dry-run" | "success" | "failed" | "timeout";
@@ -44,6 +44,18 @@ export interface McpServerConfig {
       command: string;
       args: string[];
       env?: Record<string, string>;
+    };
+  };
+}
+
+export interface OpenCodeConfig {
+  mcp?: {
+    githits?: {
+      type: "local";
+      command: string[];
+      environment?: Record<string, string>;
+      enabled: true;
+      timeout: number;
     };
   };
 }
@@ -182,8 +194,8 @@ export function parseArgs(
       case "--agent": {
         const value = argv[++i];
         assert(
-          value === "claude" || value === "codex",
-          "--agent must be claude or codex",
+          value === "claude" || value === "codex" || value === "opencode",
+          "--agent must be claude, codex, or opencode",
         );
         options.agent = value;
         break;
@@ -274,7 +286,7 @@ function printHelp(): void {
   console.log(`Usage: bun run agent:e2e [options]
 
 Options:
-  --agent claude|codex            Agent to run (default: claude)
+  --agent claude|codex|opencode   Agent to run (default: claude)
   --model <name>                  Agent model name or alias, e.g. sonnet, haiku, gpt-5.4-mini
   --surface mcp|skills            GitHits access surface under test (default: mcp)
   --server local|published        GitHits source mode: local checkout or published package (default: local)
@@ -284,7 +296,7 @@ Options:
   --published-package <spec>      Package for published mode (default: githits@latest)
   --schema <path>                 Result JSON schema path
   --reporting <path>              Reporting contract markdown path
-  --dry-run                       Generate artifacts without invoking Claude
+  --dry-run                       Generate artifacts without invoking the agent
 `);
 }
 
@@ -373,6 +385,28 @@ export function buildCodexConfigArgs(
   return args;
 }
 
+export function buildOpenCodeConfig(
+  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  baseEnv: NodeJS.ProcessEnv = process.env,
+): OpenCodeConfig {
+  const command = buildMcpCommand(options, baseEnv);
+  return {
+    mcp: {
+      githits: {
+        type: "local",
+        command: [command.command, ...command.args],
+        ...(command.env ? { environment: command.env } : {}),
+        enabled: true,
+        timeout: 90_000,
+      },
+    },
+  };
+}
+
+export function emptyOpenCodeConfig(): OpenCodeConfig {
+  return {};
+}
+
 function shQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
@@ -400,6 +434,7 @@ export function prepareSkillsWorkspace(
   assert(existsSync(sourceDir), `Skills directory not found: ${sourceDir}`);
   const installedDirs = [
     join(workspaceDir, "skills"),
+    join(workspaceDir, ".opencode", "skills"),
     join(workspaceDir, ".agents", "skills"),
     join(workspaceDir, ".claude", "skills"),
     join(workspaceDir, ".codex", "skills"),
@@ -541,6 +576,10 @@ async function codexVersion(): Promise<string | undefined> {
   return commandOutput("codex", ["--version"], process.cwd());
 }
 
+async function opencodeVersion(): Promise<string | undefined> {
+  return commandOutput("opencode", ["--version"], process.cwd());
+}
+
 async function assertClaudeAvailable(): Promise<void> {
   const version = await claudeVersion();
   assert(
@@ -554,6 +593,14 @@ async function assertCodexAvailable(): Promise<void> {
   assert(
     version,
     "codex CLI not found or not executable. Install Codex before running live agent evals.",
+  );
+}
+
+async function assertOpenCodeAvailable(): Promise<void> {
+  const version = await opencodeVersion();
+  assert(
+    version,
+    "opencode CLI not found or not executable. Install OpenCode before running live agent evals.",
   );
 }
 
@@ -579,11 +626,19 @@ function extractFinalJson(stdout: string): unknown | undefined {
         event.message,
         event.content,
         event.text,
+        event.part,
       ];
       for (const candidate of candidates) {
         if (typeof candidate === "string") {
           const parsed = parseJsonFromText(candidate);
           if (parsed !== undefined) return parsed;
+        }
+        if (candidate !== null && typeof candidate === "object") {
+          const text = (candidate as Record<string, unknown>).text;
+          if (typeof text === "string") {
+            const parsed = parseJsonFromText(text);
+            if (parsed !== undefined) return parsed;
+          }
         }
       }
       if (event.status || event.answer || event.githitsToolsUsed) {
@@ -659,6 +714,45 @@ function extractCodexToolCall(
     arguments: record.arguments,
     error: record.error,
   };
+}
+
+function extractOpenCodeToolCall(
+  event: Record<string, unknown>,
+): ExtractedToolCall | undefined {
+  if (event.type !== "tool_use") return undefined;
+  const part = event.part;
+  if (part === null || typeof part !== "object") return undefined;
+  const record = part as Record<string, unknown>;
+  if (record.type !== "tool" || typeof record.tool !== "string") {
+    return undefined;
+  }
+  const match = record.tool.match(/^githits_(.+)$/);
+  if (!match?.[1]) return undefined;
+  const state =
+    record.state !== null && typeof record.state === "object"
+      ? (record.state as Record<string, unknown>)
+      : undefined;
+  const outputError = extractJsonEnvelopeError(state?.output);
+  return {
+    agent: "opencode",
+    server: "githits",
+    tool: match[1],
+    status: typeof state?.status === "string" ? state.status : undefined,
+    arguments: state?.input,
+    error: state?.error ?? outputError,
+  };
+}
+
+function extractJsonEnvelopeError(output: unknown): unknown | undefined {
+  if (typeof output !== "string") return undefined;
+  const parsed = parseJsonFromText(output);
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return undefined;
+  }
+  const record = parsed as Record<string, unknown>;
+  return typeof record.error === "string" && typeof record.code === "string"
+    ? record
+    : undefined;
 }
 
 function commandStringFromArgv(value: unknown): string | undefined {
@@ -765,13 +859,22 @@ export function extractToolCalls(
         } else {
           calls.push(...extractClaudeToolCalls(event));
         }
-      } else {
+      } else if (agent === "codex") {
         if (surface === "skills") {
           calls.push(...extractCliToolCalls(event, agent));
           const call = extractCodexToolCall(event);
           if (call) calls.push(call);
         } else {
           const call = extractCodexToolCall(event);
+          if (call) calls.push(call);
+        }
+      } else {
+        if (surface === "skills") {
+          calls.push(...extractCliToolCalls(event, agent));
+          const call = extractOpenCodeToolCall(event);
+          if (call) calls.push(call);
+        } else {
+          const call = extractOpenCodeToolCall(event);
           if (call) calls.push(call);
         }
       }
@@ -963,6 +1066,52 @@ export function buildCodexCommand(
   return command;
 }
 
+export function buildOpenCodeCommand(
+  prompt: string,
+  workspaceDir: string,
+  options: Pick<AgentEvalOptions, "model"> & { surface?: EvalSurface },
+): string[] {
+  const command = [
+    "opencode",
+    "run",
+    "--format",
+    "json",
+    "--dangerously-skip-permissions",
+    "--dir",
+    workspaceDir,
+  ];
+  if (options.model) command.push("--model", options.model);
+  command.push(prompt);
+  return command;
+}
+
+function buildAgentCommand(
+  options: AgentEvalOptions,
+  prompt: string,
+  workspaceDir: string,
+  mcpConfigPath: string,
+  codexFinalPath: string,
+): string[] {
+  if (options.agent === "claude") {
+    return buildClaudeCommand(
+      prompt,
+      mcpConfigPath,
+      options.model,
+      options.surface,
+    );
+  }
+  if (options.agent === "codex") {
+    return buildCodexCommand(
+      prompt,
+      workspaceDir,
+      codexFinalPath,
+      options.schemaPath,
+      options,
+    );
+  }
+  return buildOpenCodeCommand(prompt, workspaceDir, options);
+}
+
 async function runWorkload(
   options: AgentEvalOptions,
   workloadPath: string,
@@ -989,6 +1138,8 @@ async function runWorkload(
   const mcpConfigPath = join(workloadDir, "mcp.json");
   const codexConfigPath = join(workloadDir, "codex-config.toml");
   const codexFinalPath = join(workloadDir, "codex-final.txt");
+  const openCodeConfigPath = join(workloadDir, "opencode.json");
+  const workspaceOpenCodeConfigPath = join(workspaceDir, "opencode.json");
   writeFileSync(join(workloadDir, "prompt.md"), prompt);
   const skillInstallation =
     options.surface === "skills"
@@ -997,28 +1148,26 @@ async function runWorkload(
   if (options.surface === "mcp") {
     writeJson(mcpConfigPath, mcpConfig);
     writeFileSync(codexConfigPath, buildCodexConfig(options));
+    const openCodeConfig = buildOpenCodeConfig(options);
+    writeJson(openCodeConfigPath, openCodeConfig);
+    writeJson(workspaceOpenCodeConfigPath, openCodeConfig);
   } else {
     writeJson(mcpConfigPath, { mcpServers: {} });
+    const openCodeConfig = emptyOpenCodeConfig();
+    writeJson(openCodeConfigPath, openCodeConfig);
+    writeJson(workspaceOpenCodeConfigPath, openCodeConfig);
   }
   if (skillInstallation) {
     writeJson(join(workloadDir, "skill-installation.json"), skillInstallation);
   }
 
-  const command =
-    options.agent === "claude"
-      ? buildClaudeCommand(
-          prompt,
-          mcpConfigPath,
-          options.model,
-          options.surface,
-        )
-      : buildCodexCommand(
-          prompt,
-          workspaceDir,
-          codexFinalPath,
-          options.schemaPath,
-          options,
-        );
+  const command = buildAgentCommand(
+    options,
+    prompt,
+    workspaceDir,
+    mcpConfigPath,
+    codexFinalPath,
+  );
   const workloadEnv = { ...env };
   if (skillInstallation) {
     workloadEnv.PATH = `${dirname(skillInstallation.cliShim)}${workloadEnv.PATH ? `:${workloadEnv.PATH}` : ""}`;
@@ -1126,15 +1275,18 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
   if (!options.dryRun) {
     if (options.agent === "claude") {
       await assertClaudeAvailable();
-    } else {
+    } else if (options.agent === "codex") {
       await assertCodexAvailable();
+    } else {
+      await assertOpenCodeAvailable();
     }
   }
 
-  const [git, claude, codex] = await Promise.all([
+  const [git, claude, codex, opencode] = await Promise.all([
     collectGitMetadata(options.repoRoot),
     claudeVersion(),
     codexVersion(),
+    opencodeVersion(),
   ]);
 
   const workloadResults: WorkloadRunMetadata[] = [];
@@ -1165,6 +1317,7 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
     git,
     claudeVersion: claude,
     codexVersion: codex,
+    opencodeVersion: opencode,
     env: sanitizedEnvSummary(env),
     workloads: workloadResults,
   };

@@ -87,7 +87,7 @@ describe("pkgDepsAction", () => {
     writeSpy.mockRestore();
   });
 
-  it("sends undefined maxDepth when --transitive is set without --depth (backend's full-graph default applies)", async () => {
+  it("sends depth=1 for default direct-deps mode", async () => {
     const packageDependencies = mock(() =>
       Promise.resolve(defaultDependencyReport),
     );
@@ -100,7 +100,7 @@ describe("pkgDepsAction", () => {
 
     await pkgDepsAction(
       "npm:express",
-      { transitive: true },
+      {},
       createDeps({ packageIntelligenceService: service }),
     );
 
@@ -108,11 +108,11 @@ describe("pkgDepsAction", () => {
       [{ includeTransitive?: boolean; maxDepth?: number }]
     >;
     expect(calls[0]?.[0]?.includeTransitive).toBe(true);
-    expect(calls[0]?.[0]?.maxDepth).toBeUndefined();
+    expect(calls[0]?.[0]?.maxDepth).toBe(1);
     writeSpy.mockRestore();
   });
 
-  it("sends maxDepth when --transitive --depth N are both set", async () => {
+  it("sends maxDepth and renders transitive output when --depth N is set", async () => {
     const packageDependencies = mock(() =>
       Promise.resolve(defaultDependencyReport),
     );
@@ -125,7 +125,7 @@ describe("pkgDepsAction", () => {
 
     await pkgDepsAction(
       "npm:express",
-      { transitive: true, depth: "5" },
+      { depth: "5" },
       createDeps({ packageIntelligenceService: service }),
     );
 
@@ -144,11 +144,7 @@ describe("pkgDepsAction", () => {
     });
 
     try {
-      await pkgDepsAction(
-        "npm:express",
-        { transitive: true, depth: "abc" },
-        createDeps(),
-      );
+      await pkgDepsAction("npm:express", { depth: "abc" }, createDeps());
     } catch {
       /* expected */
     }
@@ -171,35 +167,13 @@ describe("pkgDepsAction", () => {
     });
 
     try {
-      await pkgDepsAction(
-        "npm:express",
-        { transitive: true, depth: input },
-        createDeps(),
-      );
+      await pkgDepsAction("npm:express", { depth: input }, createDeps());
     } catch {
       /* expected */
     }
 
     const msg = errorSpy.mock.calls[0]?.[0] as string;
     expect(msg).toContain("--depth expects an integer");
-    errorSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
-
-  it("rejects --depth without --transitive (avoids silently ignored flag)", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit");
-    });
-
-    try {
-      await pkgDepsAction("npm:express", { depth: "3" }, createDeps());
-    } catch {
-      /* expected */
-    }
-
-    const msg = errorSpy.mock.calls[0]?.[0] as string;
-    expect(msg).toContain("--depth requires --transitive");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });

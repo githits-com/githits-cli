@@ -18,9 +18,9 @@ Supported registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems,
 
 `githits pkg deps <registry:name[@version]>` lists direct runtime dependencies by default.
 
-Flags: `--lifecycle runtime|development|build|peer|optional|all`, `--transitive`, `--depth 1-10`, `--verbose`, `--json`.
+Flags: `--lifecycle runtime|development|build|peer|optional|all`, `--depth 1-10`, `--verbose`, `--json`.
 
-Use `--transitive` before `--depth`; `--depth` without transitive traversal is invalid.
+Use `--depth` to request transitive output capped to that traversal depth. Omit it for direct dependencies only.
 
 ## Changelog
 

@@ -49,6 +49,17 @@ export function getApiUrl() {
 - Use shared utilities for common patterns (error handling, input validation)
 - Return `ToolResult` type for consistent responses
 
+### 5. Agent-Facing Tool Contracts
+
+Design MCP schemas for how real agents call tools, not for ideal hand-written JSON.
+
+- Avoid coupled flags where one optional parameter only works when another flag is also set. Prefer one effective knob: for example, `max_depth` should both request and configure transitive output rather than requiring `include_transitive` plus `max_depth`.
+- Avoid default-true booleans on MCP surfaces. Some agents send explicit `false` for omitted optional booleans, so use negative opt-out names such as `omit_bodies` or `skip_transitive_security` when the default behavior is "on".
+- Treat empty-ish optional values from agents as expected input: empty strings, empty arrays, and explicit `false` should not trigger surprising validation errors or silently disable useful defaults.
+- Do not expose no-op or backend-incompatible filters. If a filter only applies to certain sources, either omit it before the service call or document and test the exact compatibility behavior.
+- Put validation and normalization in shared request builders used by MCP and CLI parity paths, then test the normalized service parameters. Raw Zod errors should not be the primary agent-facing failure mode.
+- Validate changes with real agent evals when changing tool signatures, descriptions, or defaults. Inspect `tool-calls.json` and reported tool/instruction issues, not just harness success.
+
 ## Pure Function Helpers & Layering
 
 ### Conversion Modules

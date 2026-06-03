@@ -17,6 +17,8 @@ import {
   buildCodexConfigArgs,
   buildEvalEnv,
   buildMcpConfig,
+  buildOpenCodeCommand,
+  buildOpenCodeConfig,
   collectSecretValues,
   extractToolCalls,
   isValidAgentReport,
@@ -40,6 +42,7 @@ import {
 import {
   buildClaudeSessionCommand,
   buildCodexSessionCommand,
+  buildOpenCodeSessionCommand,
   parseSessionArgs,
   prepareAgentSession,
 } from "./agent-session.ts";
@@ -150,6 +153,36 @@ describe("agent eval harness", () => {
     ]);
   });
 
+  it("builds OpenCode project config from the same MCP command", () => {
+    expect(
+      buildOpenCodeConfig(
+        {
+          server: "local",
+          repoRoot: "/repo/githits-cli",
+          publishedPackage: "githits@latest",
+        },
+        {},
+      ),
+    ).toEqual({
+      mcp: {
+        githits: {
+          type: "local",
+          command: [
+            "bun",
+            "run",
+            "--cwd",
+            "/repo/githits-cli",
+            "dev",
+            "mcp",
+            "start",
+          ],
+          enabled: true,
+          timeout: 90_000,
+        },
+      },
+    });
+  });
+
   it("embeds non-secret backend override env in MCP configs", () => {
     const env = {
       GITHITS_API_URL: "https://api-dev.githits.com",
@@ -203,6 +236,11 @@ describe("agent eval harness", () => {
         },
       ),
     ).toContain("gpt-5.4-mini");
+    expect(
+      buildOpenCodeCommand("prompt", "/tmp/work", {
+        model: "anthropic/claude-sonnet-4-5",
+      }),
+    ).toContain("anthropic/claude-sonnet-4-5");
   });
 
   it("runs Codex evals without interactive approval prompts", () => {
@@ -221,6 +259,17 @@ describe("agent eval harness", () => {
 
     expect(command).toContain("--dangerously-bypass-approvals-and-sandbox");
     expect(command).not.toContain("--sandbox");
+  });
+
+  it("runs OpenCode evals in JSON mode without interactive approvals", () => {
+    const command = buildOpenCodeCommand("prompt", "/tmp/work", {});
+
+    expect(command).toContain("run");
+    expect(command).toContain("--format");
+    expect(command).toContain("json");
+    expect(command).toContain("--dangerously-skip-permissions");
+    expect(command).toContain("--dir");
+    expect(command).toContain("/tmp/work");
   });
 
   it("isolates Codex MCP evals from user config and global skills", () => {
@@ -272,7 +321,7 @@ describe("agent eval harness", () => {
     expect(codex).toContain("--ignore-user-config");
   });
 
-  it("builds interactive Claude and Codex session commands", () => {
+  it("builds interactive Claude, Codex, and OpenCode session commands", () => {
     const claudeOptions = parseSessionArgs(
       ["--agent", "claude", "--surface", "skills", "--model", "haiku"],
       "/repo/githits-cli",
@@ -305,6 +354,23 @@ describe("agent eval harness", () => {
     );
     const codexSkillsCommand = buildCodexSessionCommand(codexSkillsOptions);
     expect(codexSkillsCommand).toContain("--ignore-user-config");
+
+    const openCodeOptions = parseSessionArgs(
+      [
+        "--agent",
+        "opencode",
+        "--surface",
+        "mcp",
+        "--bypass-permissions",
+        "--prompt",
+        "hello",
+      ],
+      "/repo/githits-cli",
+    );
+    const openCodeCommand = buildOpenCodeSessionCommand(openCodeOptions);
+    expect(openCodeCommand).toContain("opencode");
+    expect(openCodeCommand).toContain("--dangerously-skip-permissions");
+    expect(openCodeCommand).toContain("hello");
   });
 
   it("prepares an interactive skills workspace", () => {
@@ -326,6 +392,46 @@ describe("agent eval harness", () => {
     expect(readFileSync(prepared.mcpConfigPath, "utf8")).toContain(
       '"mcpServers": {}',
     );
+    expect(existsSync(join(workspaceDir, "opencode.json"))).toBe(false);
+  });
+
+  it("writes OpenCode project config only for OpenCode sessions", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
+
+    prepareAgentSession({
+      agent: "opencode",
+      surface: "mcp",
+      server: "local",
+      workspaceDir,
+      repoRoot: process.cwd(),
+      publishedPackage: "githits@latest",
+      dryRun: true,
+      bypassPermissions: false,
+    });
+
+    expect(readFileSync(join(workspaceDir, "opencode.json"), "utf8")).toContain(
+      '"timeout": 90000',
+    );
+  });
+
+  it("refuses to overwrite existing OpenCode project config", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
+    const openCodeConfigPath = join(workspaceDir, "opencode.json");
+    writeFileSync(openCodeConfigPath, "existing config\n");
+
+    expect(() =>
+      prepareAgentSession({
+        agent: "opencode",
+        surface: "mcp",
+        server: "local",
+        workspaceDir,
+        repoRoot: process.cwd(),
+        publishedPackage: "githits@latest",
+        dryRun: true,
+        bypassPermissions: false,
+      }),
+    ).toThrow("Refusing to overwrite existing OpenCode config");
+    expect(readFileSync(openCodeConfigPath, "utf8")).toBe("existing config\n");
   });
 
   it("removes stale skills when preparing a reused workspace", () => {
@@ -389,7 +495,7 @@ describe("agent eval harness", () => {
     const options = parseArgs(
       [
         "--agent",
-        "codex",
+        "opencode",
         "--server",
         "published",
         "--surface",
@@ -407,7 +513,7 @@ describe("agent eval harness", () => {
       "/repo/githits-cli",
     );
 
-    expect(options.agent).toBe("codex");
+    expect(options.agent).toBe("opencode");
     expect(options.model).toBe("gpt-5.4-mini");
     expect(options.server).toBe("published");
     expect(options.surface).toBe("skills");
@@ -506,6 +612,67 @@ describe("agent eval harness", () => {
         arguments: { registry: "npm", package_name: "express" },
       },
     ]);
+  });
+
+  it("extracts OpenCode MCP tool calls from JSON events", () => {
+    const calls = extractToolCalls(
+      `${JSON.stringify({
+        type: "tool_use",
+        part: {
+          type: "tool",
+          tool: "githits_pkg_info",
+          state: {
+            status: "completed",
+            input: { registry: "npm", package_name: "express" },
+          },
+        },
+      })}\n`,
+      "opencode",
+    );
+
+    expect(calls).toEqual([
+      {
+        agent: "opencode",
+        server: "githits",
+        tool: "pkg_info",
+        status: "completed",
+        arguments: { registry: "npm", package_name: "express" },
+        error: undefined,
+      },
+    ]);
+  });
+
+  it("classifies OpenCode JSON error envelopes as failed tool calls", () => {
+    const calls = extractToolCalls(
+      `${JSON.stringify({
+        type: "tool_use",
+        part: {
+          type: "tool",
+          tool: "githits_search",
+          state: {
+            status: "completed",
+            input: { query: "safeParse", target: "npm:zod" },
+            output: JSON.stringify({
+              error: "Filters not supported by any selected source",
+              code: "INVALID_ARGUMENT",
+              retryable: false,
+            }),
+          },
+        },
+      })}\n`,
+      "opencode",
+    );
+
+    expect(calls[0]?.tool).toBe("search");
+    expect(calls[0]?.status).toBe("completed");
+    expect(calls[0]?.error).toEqual({
+      error: "Filters not supported by any selected source",
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+    expect(normalizeToolStatus(calls[0]?.status, calls[0]?.error)).toBe(
+      "failed",
+    );
   });
 
   it("extracts GitHits CLI calls from skill-surface shell commands", () => {

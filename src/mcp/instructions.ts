@@ -13,57 +13,52 @@ import { EXTERNAL_CONTENT_POSTURE } from "../tools/guardrails.js";
  * for the same always-on tool surface the server registers.
  */
 
-const CORE_BLOCK = `GitHits provides verified, canonical code examples from global open source for AI agents. Pick a path:
+const CORE_BLOCK = `GitHits provides verified open-source examples plus indexed package/repository evidence.
 
-- Need a canonical example or cross-project pattern with no specific package pinned (you're stuck, repeated attempts failed, the user wants up-to-date API usage, or the user mentioned GitHits) — call \`get_example\` for global solution synthesis.
-- Inspecting a specific known dependency or repository (stack trace points there, verifying how a particular library works, evaluating an upgrade) — call \`search\` plus the indexed code, docs, and package tools listed below.
-- Question is comparative across OSS projects (e.g. "how does X vs Y handle Z") or requires reading how a real codebase implements a feature — combine the two: \`search\` for known targets, \`get_example\` for cross-project synthesis.
-- Rate a result or share tool/UX feedback — call \`feedback\` with a \`solution_id\` from a prior \`get_example\` response (solution-tied) or omit it for generic session feedback about any tool (\`search\`, \`code_*\`, \`docs_*\`, \`pkg_*\`) or the overall experience. Pass \`tool_name\` when rating a specific tool result.
+Routing: use \`get_example\` for canonical cross-project examples; use \`search\` / \`code_*\` / \`docs_*\` / \`pkg_*\` for a known dependency, repository, stack trace, package adoption question, or upgrade review; use both for comparative OSS questions or when package-scoped evidence needs broader examples. Use \`search_language\` only to disambiguate a \`get_example\` language. Use \`feedback\` after helpful or flawed results.
 
-\`get_example\` workflow: pass \`language\` only when you know the exact name; otherwise call \`search_language\` first. Default output is markdown with source repository provenance when available and a trailing \`solution_id\`. When presenting a global example, include source repositories/citations from GitHits' generated references/provenance section whenever present. Reuse prior results before searching again. For dependency-specific grounding, prefer package-scoped \`search\` before global \`get_example\`.`;
+When presenting \`get_example\` output, include source repository provenance/citations from GitHits' generated references/provenance section whenever present.`;
 
-const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Use them when a stack trace points into a dependency, you need to verify how a library works, or you're evaluating whether to add or upgrade a package.
-
-Targets: \`registry:name[@version]\` (\`registry:name\` = latest release). Repo targets can request the backend default-branch intent by omitting the ref (\`https://github.com/org/repo\` for \`search\`, or \`repo_url\` without \`git_ref\` for \`code_*\`); pass \`#HEAD\` / \`git_ref:"HEAD"\` when you specifically need latest HEAD. Default outputs are compact \`text-v1\`; pass \`format: "json"\` only for structured parsing.`;
+const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Package targets use \`registry:name[@version]\`; repo targets use GitHub URLs. Default outputs are compact \`text-v1\`; pass \`format:"json"\` only for structured parsing.`;
 
 const MULTI_TURN_TIP =
-  '**Delegate multi-call work to a sub-agent.** Code-navigation work (`search`, `code_grep`, `code_read`, `code_files`) often takes 3-10 calls. For cross-project comparisons, codebase mapping, pattern surveys, or "how does X actually work" investigations, spawn a sub-task/sub-agent and ask for a compact synthesis. Do it inline only when the raw snippet belongs in the main conversation.';
+  '**Delegate multi-call work to a sub-agent.** Code navigation (`search`, `code_files`, `code_grep`, `code_read`) often takes 3-10 calls. For mapping, comparisons, or "how does X work" investigations, delegate and ask for a compact synthesis.';
 
 const SEARCH_BULLET =
-  '- `search` — unified search across indexed dependency code, docs, and symbols. Required: `query` plus `target` or `targets`; pass one target field, not both. Omit `source` to let GitHits select the best sources. To restrict results to one evidence type, use `source:"docs"` for guides/reference, `"code"` for implementation/examples/tests, or `"symbol"` for APIs/entities. Default `text-v1` output includes ready-to-call follow-ups; use `format:"json"` for structured locators. Complete by default; `allow_partial_results:true` returns available hits plus a `searchRef` while indexing continues.';
+  "- `search` — discover relevant docs, code, tests, examples, and symbols in known packages/repos before reading exact files.";
 
 const SEARCH_STATUS_BULLET =
-  "- `search_status` — follow up a prior `search` by `searchRef` to check progress, fetch partial hits, or fetch final results.";
+  "- `search_status` — follow up a prior `searchRef` from `search`.";
 
 const CODE_GREP_BULLET =
-  "- `code_grep` — deterministic text or regex grep over indexed source. Use it when you know the pattern; use `search` for discovery. Narrow with `path`, `path_prefix`, `globs`, or `extensions`. Each match's `filePath`/file heading plus line number chains into `code_read`.";
+  "- `code_grep` — deterministic text/regex grep when you already know the pattern; use matches as `code_read` follow-ups.";
 
 const CODE_READ_BULLET =
-  "- `code_read` — read one exact dependency file by `path`; do not use it to probe/list directories like `lib` or `lib/`. **MCP cap: 150 lines per call**. When you already have an exact path (e.g. from a stack trace), call this directly; otherwise locate it first with `search`, `code_grep`, or `code_files` and pick a focused `start_line` / `end_line` window. Binary files set `isBinary: true` and omit `content`. On `FILE_NOT_FOUND` / `NOT_FOUND`, follow `details.action` or call `code_files` for the actual path.";
+  "- `code_read` — read one exact file path; never use it to list/probe directories. MCP reads are capped at 150 lines per call.";
 
 const CODE_FILES_BULLET =
-  '- `code_files` — list or discover file paths in an indexed dependency. First choice for file-listing/path-enumeration tasks such as "files under lib/" (`path_prefix: "lib/"`, optional `extensions: ["js"]`); do not use `code_read` to probe directories and do not use `code_grep` with empty or generic patterns to list files. `path`, `path_prefix`, and `globs` are OR-ed selectors; extensions, language, file type, and file-intent filters intersect on top. Returned paths feed into `code_read` and help scope `code_grep`; pass `format: "json"` for language/type/size metadata.';
+  "- `code_files` — list/discover file paths; first choice for directory enumeration before `code_read` or scoped `code_grep`.";
 
 const DOCS_LIST_BULLET =
-  '- `docs_list` — browse hosted and repository-backed package docs when you need the available pages. It is not topic search; for "find docs about X", call `search` with `source:"docs"`, then pass the returned `pageId` to `docs_read`. Entries include stable pageIds, source URLs, and repo-file follow-up metadata when available.';
+  '- `docs_list` — browse available documentation pages; use `search` with `source:"docs"` for topic search.';
 
 const DOCS_READ_BULLET =
-  "- `docs_read` — read a documentation page by pageId. Works for both hosted docs and repo-backed docs. Prefer focused `start_line` / `end_line` windows from `search` hits or prior `docs_read` `totalLines` metadata instead of rereading large pages.";
+  "- `docs_read` — read a documentation page by pageId from `docs_list` or docs `search` results.";
 
 const PKG_INFO_BULLET =
-  '- `pkg_info` — latest-version package triage by `registry` + `package_name` (e.g. `npm` + `express`): license, repository popularity, downloads, publish age, and vulnerability status. Set `verbose: true` for GitHub language/topics/last-pushed, recent advisories, and recent changes; pass `format: "json"` for structured fields.';
+  "- `pkg_info` — latest package health/adoption overview: license, repo health, downloads, publish age, latest vulnerability status.";
 
 const PKG_VULNS_BULLET =
-  '- `pkg_vulns` — compact known CVE / OSV advisory summary for npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, or Swift packages; vcpkg and Zig are not supported. Optionally pin `version` (e.g. `npm` + `lodash` + `4.17.20`). Filter with `min_severity`; include retracted advisories with `include_withdrawn`; set `advisory_scope: "non_affecting"` for historical advisories or `"all"` for affected + historical rows. For upgrade reviews, check the target version explicitly or prefer `pkg_upgrade_review`. Default text is capped; use `verbose: true` for all selected rows or `format: "json"` for the complete per-advisory envelope.';
+  "- `pkg_vulns` — known vulnerabilities/advisories for a package or pinned version; use `pkg_upgrade_review` for current-vs-target upgrades.";
 
 const PKG_DEPS_BULLET =
-  '- `pkg_deps` — compact direct runtime deps by default. Use `lifecycle: "runtime"` for explicit runtime-only, a concrete lifecycle for runtime plus matching non-runtime deps, or `lifecycle: "all"` for all groups. Use `include_transitive` for the full graph and `include_importers` for provenance. For upgrade evidence, prefer `pkg_upgrade_review` because it diffs current vs target dependency facts. Pass `format: "json"` for the structured envelope.';
+  "- `pkg_deps` — direct dependencies, dependency groups, or bounded transitive dependency footprint.";
 
 const PKG_CHANGELOG_BULLET =
-  '- `pkg_changelog` — compact release notes for a package or GitHub repo, newest-first (e.g. `npm` + `express` + `limit: 2`). Default latest mode returns recent entries with 10-line markdown previews; `from_version` switches to range mode. Use range mode for every manual upgrade review, including patches, unless `pkg_upgrade_review` fits. Set `body_lines` to tune text previews, `verbose: true` for full text bodies, `include_bodies: false` for a compact timeline, or `format: "json"` for the complete envelope.';
+  "- `pkg_changelog` — release notes/changelog evidence for a package or GitHub repo.";
 
 const PKG_UPGRADE_REVIEW_BULLET =
-  "- `pkg_upgrade_review` — preferred tool when the user asks for evidence about dependency updates, outdated dependency bumps, or lockfile/package updates. It compares current vs target direct and transitive vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and optional dependency issues. It reports facts only; the calling agent owns the final assessment. Do not infer acceptability from semver alone; patch updates still require changelog and vulnerability evidence.";
+  "- `pkg_upgrade_review` — preferred evidence tool for dependency updates; compares current vs target facts and reports no risk score.";
 
 /**
  * Combined strategy tip. Replaces the earlier
@@ -74,7 +69,7 @@ const PKG_UPGRADE_REVIEW_BULLET =
  * habits and the test invariant continue to anchor here.
  */
 const STRATEGY_TIP =
-  'Strategy — reference-first. For file/path enumeration, call `code_files` directly; never test directory paths with `code_read`. For behavioral claims, locate symbols and lines with `search` or `code_grep` first, then read the needed window with `code_read` using explicit `start_line` / `end_line` (typical 80-150 lines around the match; the MCP `code_read` surface caps each call at 150 lines). Source, symbols, tests, and call sites beat docs prose; use `source:"symbol"` when you want symbol-shaped results, `code_grep` for deterministic text matching, and `get_example` for global canonical examples after package-scoped grounding.';
+  "Strategy — reference-first. Source, symbols, tests, and call sites beat docs prose. Enumerate paths with `code_files`; locate symbols/lines with `search` or `code_grep`; read focused windows with `code_read`.";
 
 /**
  * Build the server-level instructions string for the current session.

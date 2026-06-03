@@ -38,7 +38,7 @@ const schema = {
     ),
 };
 
-const DESCRIPTION = `Get verified, canonical code examples from global open source.
+const DESCRIPTION = `Use when the user needs a canonical open-source example, usage pattern, or API snippet that is not tied to one already-known dependency/repository. Best for "how do I use X", cross-project patterns, up-to-date examples, or when package-scoped search was not enough. For inspecting a specific known package or repository, use \`search\`, \`code_*\`, or \`docs_*\` instead.
 
 Default output is markdown, with source repository provenance when available and a trailing \`solution_id: ...\` line when available. When presenting an example to a user, report the source repositories/citations from GitHits' generated references/provenance section whenever present; they are core evidence, not optional metadata. Pass \`format: "json"\` for \`{result, solution_id?}\`. Pass \`solution_id\` to \`feedback\` after using or rejecting the example. For searching indexed dependency and repository code/docs, use the unified \`search\` tool instead.
 

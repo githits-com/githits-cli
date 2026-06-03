@@ -51,13 +51,14 @@ export function buildUnifiedSearchParams(
     language: input.language,
   });
   const compiledQuery = compileQuery(rawQuery, qualifierClauses);
+  const stripCodeAndSymbolFilters = isDocsOnlySource(input.sources);
 
   const filters = buildFilters({
-    kind: input.kind,
-    category: input.category,
+    kind: stripCodeAndSymbolFilters ? undefined : input.kind,
+    category: stripCodeAndSymbolFilters ? undefined : input.category,
     pathPrefix: input.pathPrefix,
-    fileIntent: input.fileIntent,
-    publicOnly: input.publicOnly,
+    fileIntent: stripCodeAndSymbolFilters ? undefined : input.fileIntent,
+    publicOnly: stripCodeAndSymbolFilters ? undefined : input.publicOnly,
   });
 
   return {
@@ -74,6 +75,10 @@ export function buildUnifiedSearchParams(
     rawQuery,
     compiledQuery,
   };
+}
+
+function isDocsOnlySource(sources: UnifiedSearchSource[] | undefined): boolean {
+  return sources?.length === 1 && sources[0] === "DOCS";
 }
 
 function resolveTargets(
@@ -170,7 +175,7 @@ function buildFilters(input: {
   if (input.category) filters.category = input.category;
   if (input.pathPrefix) filters.pathPrefix = input.pathPrefix;
   if (input.fileIntent) filters.fileIntent = input.fileIntent;
-  if (typeof input.publicOnly === "boolean") {
+  if (input.publicOnly === true) {
     filters.publicOnly = input.publicOnly;
   }
 

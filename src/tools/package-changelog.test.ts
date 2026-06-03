@@ -29,8 +29,8 @@ describe("createPackageChangelogTool — metadata", () => {
       "format",
       "from_version",
       "git_ref",
-      "include_bodies",
       "limit",
+      "omit_bodies",
       "package_name",
       "registry",
       "repo_url",
@@ -175,7 +175,7 @@ describe("createPackageChangelogTool — happy path", () => {
       {
         registry: "npm",
         package_name: "express",
-        include_bodies: false,
+        omit_bodies: true,
         verbose: true,
       },
       {},
@@ -285,7 +285,7 @@ describe("createPackageChangelogTool — happy path", () => {
     expect(payload.filter?.fromVersion).toBe("5.0.0");
   });
 
-  it("drops body fields when include_bodies is false", async () => {
+  it("drops body fields when omit_bodies is true", async () => {
     const tool = createPackageChangelogTool(
       createMockPackageIntelligenceService(),
     );
@@ -293,7 +293,7 @@ describe("createPackageChangelogTool — happy path", () => {
       {
         registry: "npm",
         package_name: "express",
-        include_bodies: false,
+        omit_bodies: true,
         format: "json",
       },
       {},

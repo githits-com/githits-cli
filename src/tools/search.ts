@@ -128,7 +128,10 @@ const schema = {
     ),
   category: z
     .enum(["callable", "type", "module", "data", "documentation"])
-    .optional(),
+    .optional()
+    .describe(
+      'Optional symbol/category filter. Best for `source:"symbol"` or precise API searches; omit for broad source-code searches because filters combine with AND and can exclude file hits. Ignored for `source:"docs"`.',
+    ),
   kind: z
     .enum([
       "function",
@@ -160,7 +163,10 @@ const schema = {
       "constant",
       "doc_section",
     ])
-    .optional(),
+    .optional()
+    .describe(
+      'Optional symbol kind filter. Best for `source:"symbol"` or exact API/entity searches; omit for broad source-code searches because filters combine with AND and can exclude file hits. Ignored for `source:"docs"`.',
+    ),
   path_prefix: z.string().optional(),
   file_intent: z
     .enum([
@@ -175,7 +181,7 @@ const schema = {
     ])
     .optional()
     .describe(
-      "Optional file-intent filter. Omit it to search across all intents; some sources may ignore this filter and report that in sourceStatus.",
+      'Optional code file-intent filter. Omit it to search across all intents. Ignored for `source:"docs"` because docs search does not support file intents.',
     ),
   public_only: z.boolean().optional(),
   name: z.string().optional(),
@@ -204,10 +210,10 @@ const schema = {
 };
 
 const DESCRIPTION =
-  "Search indexed dependency and repository code, docs, and explicit symbols. " +
+  "Use when investigating a known package or repository and you need to discover relevant docs, source files, examples, tests, or APIs before reading exact files. Search indexed dependency and repository code, docs, and explicit symbols. " +
   "Required: `query` plus either `target` or `targets`; pass `target` or `targets`, not both. " +
   "Omit `source` to let GitHits select the best sources; set it only to restrict results to docs, code, or symbols. " +
-  "Structured parameters combine with the `query` using AND semantics. " +
+  'Structured parameters combine with the `query` using AND semantics. For `source:"docs"`, code/symbol-only filters (`category`, `kind`, `file_intent`, `public_only`) are ignored because docs search does not support them. ' +
   "Complete by default — if indexing is still running, the response carries a `searchRef` and no hits; pass it to `search_status` to follow up. " +
   "Set `allow_partial_results: true` to opt into hits from sources that finished while others continue indexing. " +
   "Each hit's `type` tells you the follow-up tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present)." +

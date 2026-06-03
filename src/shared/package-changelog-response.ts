@@ -30,7 +30,7 @@
  *   Backend defaults (latest = 10, to = latest version) don't echo.
  *   The request builder produces an `explicitFilterFields` set that
  *   the envelope consults here.
- * - **`include_bodies` lever.** When false, each entry drops its
+ * - **Body omission lever.** When requested, each entry drops its
  *   `body` field. Other fields (`version`, `normalizedVersion`,
  *   `publishedAt`, `htmlUrl`) remain so the tool still produces the
  *   version / date / URL timeline.
@@ -55,7 +55,7 @@ export interface LeanChangelogEntry {
   publishedAt?: string;
   /** Absolute URL to release / commit / doc page. Stripped when null. */
   htmlUrl?: string;
-  /** Raw markdown. Stripped when null OR when include_bodies=false. */
+  /** Raw markdown. Stripped when null OR when bodies are omitted. */
   body?: string;
 }
 
@@ -122,7 +122,7 @@ export function buildPackageChangelogSuccessPayload(
     // stripped; present-but-empty values (empty-string body, empty
     // URL) are preserved so agents can distinguish "backend returned
     // no content" from "backend didn't return this field". The only
-    // mutation is `include_bodies: false`, which explicitly drops
+    // mutation is `omit_bodies: true`, which explicitly drops
     // `body` regardless of its value.
     if (entry.normalizedVersion != null) {
       lean.normalizedVersion = entry.normalizedVersion;

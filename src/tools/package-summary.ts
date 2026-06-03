@@ -46,7 +46,7 @@ const schema = {
 };
 
 export const DESCRIPTION =
-  "Latest-version package overview for dependency triage. Provide " +
+  "Use for a quick latest-version package adoption or health check: license, description, repository health, downloads, publish age, and latest vulnerability status. Latest-version package overview for dependency triage. Provide " +
   "`registry` and `package_name` (for example `npm` + `express`). " +
   "Default text returns license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +

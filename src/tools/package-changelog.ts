@@ -22,7 +22,7 @@ export interface PackageChangelogArgs {
   from_version?: string;
   to_version?: string;
   limit?: number;
-  include_bodies?: boolean;
+  omit_bodies?: boolean;
   verbose?: boolean;
   body_lines?: number;
   format?: "json" | "text" | "text-v1";
@@ -86,23 +86,23 @@ const schema = {
     .describe(
       "Git branch or tag for CHANGELOG.md source (no effect on GitHub Releases or HexDocs). Defaults to the repository's default branch.",
     ),
-  include_bodies: z
+  omit_bodies: z
     .boolean()
     .optional()
     .describe(
-      "When false, each entry in `entries.items[]` omits its `body` field. Default true. Set false when you only need the version / date / URL timeline — drops 10 KB+ per entry on large release notes.",
+      "When true, each entry in `entries.items[]` omits its `body` field. Default false. Use when you only need the version / date / URL timeline — drops 10 KB+ per entry on large release notes.",
     ),
   verbose: z
     .boolean()
     .optional()
     .describe(
-      "Text output only. Show full body previews. Mutually exclusive with include_bodies:false and body_lines.",
+      "Text output only. Show full body previews. Mutually exclusive with omit_bodies:true and body_lines.",
     ),
   body_lines: z
     .number()
     .optional()
     .describe(
-      "Text output only. Number of body lines to preview per entry (1-50, default 10). Ignored for format=json and include_bodies:false. Mutually exclusive with verbose:true.",
+      "Text output only. Number of body lines to preview per entry (1-50, default 10). Ignored for format=json and omit_bodies:true. Mutually exclusive with verbose:true.",
     ),
   format: z
     .enum(["json", "text", "text-v1"])
@@ -113,7 +113,7 @@ const schema = {
 };
 
 export const DESCRIPTION =
-  "Release notes for a package or GitHub repo, newest-first. Default " +
+  "Use when the user asks what changed in a package, wants release notes, or needs changelog evidence for a manual upgrade review. Release notes for a package or GitHub repo, newest-first. Default " +
   "latest mode returns the ten most recent entries (`limit` 1–50). " +
   "With `from_version`, returns every entry in the " +
   "`[from_version, to_version]` range (range mode, no count cap). " +
@@ -125,7 +125,7 @@ export const DESCRIPTION =
   '`{"registry":"npm","package_name":"express","limit":2}`. ' +
   "Text output previews 10 body lines by default; use `body_lines` " +
   "to tune the preview or `verbose:true` for full text bodies. Set " +
-  "`include_bodies: false` for a version / date / URL timeline only; " +
+  "`omit_bodies: true` for a version / date / URL timeline only; " +
   'pass `format: "json"` for the complete structured envelope. ' +
   "Package-version entries without changelog " +
   "text succeed with `source` omitted; no-source plus no entries " +
@@ -165,7 +165,7 @@ export function createPackageChangelogTool(
           repoUrl: params.repoUrl,
           mode: params.fromVersion ? "range" : "latest",
           explicitFilterFields,
-          includeBodies: args.include_bodies ?? true,
+          includeBodies: args.omit_bodies !== true,
           fromVersion: params.fromVersion,
           toVersion: params.toVersion,
           limit: params.limit,
@@ -205,9 +205,9 @@ export function createPackageChangelogTool(
 }
 
 function validateTextOptions(args: PackageChangelogArgs): number | undefined {
-  if (args.include_bodies === false && args.verbose === true) {
+  if (args.omit_bodies === true && args.verbose === true) {
     throw new InvalidPackageSpecError(
-      "verbose:true conflicts with include_bodies:false because bodies are omitted. Drop one of the two options.",
+      "verbose:true conflicts with omit_bodies:true because bodies are omitted. Drop one of the two options.",
     );
   }
   if (args.verbose === true && args.body_lines !== undefined) {
