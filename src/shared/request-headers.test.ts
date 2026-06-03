@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
 import {
   buildClientHeaders,
+  createClientHeaderBuilder,
   getSessionId,
   parseAgentString,
   resetRequestHeadersState,
@@ -10,6 +11,7 @@ import {
   sanitizeHeaderValue,
   setAgentInfo,
   setClientMode,
+  setClientVersion,
   setMcpClientVersionProvider,
 } from "./request-headers.js";
 
@@ -346,11 +348,17 @@ describe("sanitizeHeaderValue", () => {
 
 describe("buildClientHeaders", () => {
   it("includes base headers without agent when no agent env is set", () => {
+    setClientVersion("1.2.3");
     const headers = buildClientHeaders({}, 42);
     expect(headers["x-githits-client-name"]).toBe("githits-cli");
-    expect(headers["x-githits-client-version"]).toMatch(/^\d+\.\d+\.\d+/);
+    expect(headers["x-githits-client-version"]).toBe("1.2.3");
     expect(headers["x-githits-session-id"]).toMatch(/^[0-9a-f]{16}$/);
     expect(headers["x-githits-agent"]).toBeUndefined();
+  });
+
+  it("omits client version when no version is configured", () => {
+    const headers = buildClientHeaders({}, 42);
+    expect(headers["x-githits-client-version"]).toBeUndefined();
   });
 
   it("includes agent header when agent env is set", () => {
@@ -391,11 +399,13 @@ describe("buildClientHeaders", () => {
   });
 
   it("returns three headers when no agent detected", () => {
+    setClientVersion("1.2.3");
     const headers = buildClientHeaders({}, 42);
     expect(Object.keys(headers)).toHaveLength(3);
   });
 
   it("returns four headers when agent is detected", () => {
+    setClientVersion("1.2.3");
     const headers = buildClientHeaders({ OPENCODE: "1" }, 42);
     expect(Object.keys(headers)).toHaveLength(4);
   });
@@ -428,6 +438,37 @@ describe("buildClientHeaders", () => {
   it("still produces a session-id when PPID is NaN", () => {
     const headers = buildClientHeaders({}, NaN);
     expect(headers["x-githits-session-id"]).toMatch(/^[0-9a-f]{16}$/);
+  });
+});
+
+describe("createClientHeaderBuilder", () => {
+  it("builds isolated headers from explicit runtime metadata", () => {
+    const build = createClientHeaderBuilder({
+      clientName: "githits-cli/mcp",
+      clientVersion: "9.8.7",
+      agentProvider: () => ({ name: "cursor", version: "1.0.0" }),
+      env: {},
+      ppid: 42,
+    });
+
+    const headers = build();
+
+    expect(headers["x-githits-client-name"]).toBe("githits-cli/mcp");
+    expect(headers["x-githits-client-version"]).toBe("9.8.7");
+    expect(headers["x-githits-agent"]).toBe("cursor/1.0.0");
+    expect(headers["x-githits-session-id"]).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it("does not share legacy module-level client mode", () => {
+    setClientMode("mcp");
+    const build = createClientHeaderBuilder({
+      clientName: "remote-mcp",
+      clientVersion: "1.0.0",
+      env: {},
+      ppid: 42,
+    });
+
+    expect(build()["x-githits-client-name"]).toBe("remote-mcp");
   });
 });
 

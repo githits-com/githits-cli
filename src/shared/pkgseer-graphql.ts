@@ -23,10 +23,9 @@
  *   {@link PkgseerTransportError} preserving the rejection `cause`.
  */
 
-import { version } from "../../package.json";
 import { debugLog } from "./debug-log.js";
 import { DEFAULT_FETCH_TIMEOUT_MS, fetchWithTimeout } from "./fetch-timeout.js";
-import { buildClientHeaders } from "./request-headers.js";
+import type { ClientHeaderBuilder } from "./request-headers.js";
 
 export interface PkgseerGraphqlRequest {
   /** Full base URL for the package/source service. Trailing slashes tolerated. */
@@ -41,8 +40,10 @@ export interface PkgseerGraphqlRequest {
   fetchFn?: typeof fetch;
   /** Per-request timeout in milliseconds. Defaults to 120s. */
   timeoutMs?: number;
-  /** Override `User-Agent`. Defaults to `githits-cli/<version>`. */
+  /** Override `User-Agent`. Production callers inject `githits-cli/<version>`. */
   userAgent?: string;
+  /** Optional per-runtime GitHits telemetry headers. */
+  clientHeaders?: ClientHeaderBuilder;
 }
 
 export interface PkgseerGraphqlResponse {
@@ -86,7 +87,7 @@ function baseUrl(endpointUrl: string): string {
 export async function postPkgseerGraphql(
   request: PkgseerGraphqlRequest,
 ): Promise<PkgseerGraphqlResponse> {
-  const userAgent = request.userAgent ?? `githits-cli/${version}`;
+  const userAgent = request.userAgent ?? "githits-cli";
   const timeoutMs = request.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
 
   let response: Response;
@@ -96,7 +97,7 @@ export async function postPkgseerGraphql(
       {
         method: "POST",
         headers: {
-          ...buildClientHeaders(),
+          ...request.clientHeaders?.(),
           Authorization: `Bearer ${request.token}`,
           "Content-Type": "application/json",
           "User-Agent": userAgent,

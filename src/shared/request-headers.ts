@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from "node:crypto";
-import { version } from "../../package.json";
 
 /**
  * Maximum byte length for a header value.
@@ -315,6 +314,7 @@ export function sanitizeHeaderValue(
 const BASE_CLIENT_NAME = "githits-cli";
 
 let clientName = BASE_CLIENT_NAME;
+let clientVersion: string | undefined;
 
 /**
  * Set the client mode suffix (e.g. `"mcp"`).
@@ -322,6 +322,44 @@ let clientName = BASE_CLIENT_NAME;
  */
 export function setClientMode(mode: string): void {
   clientName = `${BASE_CLIENT_NAME}/${mode}`;
+}
+
+/**
+ * Set the client package version used by the legacy module-level builder.
+ * Prefer `createClientHeaderBuilder()` for new service code.
+ */
+export function setClientVersion(version: string | undefined): void {
+  clientVersion = version;
+}
+
+export type ClientHeaderBuilder = () => Record<string, string>;
+
+export interface CreateClientHeaderBuilderOptions {
+  clientName: string;
+  clientVersion?: string;
+  agentProvider?: () => AgentInfo | undefined;
+  env?: Record<string, string | undefined>;
+  ppid?: number;
+}
+
+/**
+ * Create an isolated, per-runtime client header builder.
+ *
+ * This is the package-boundary-safe API: callers provide their package
+ * metadata and any request/client identity provider explicitly instead of
+ * relying on module-level CLI state.
+ */
+export function createClientHeaderBuilder(
+  options: CreateClientHeaderBuilderOptions,
+): ClientHeaderBuilder {
+  return () =>
+    buildClientHeadersWithContext({
+      clientName: options.clientName,
+      clientVersion: options.clientVersion,
+      agentProvider: options.agentProvider,
+      env: options.env,
+      ppid: options.ppid,
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -344,20 +382,41 @@ export function buildClientHeaders(
   env?: Record<string, string | undefined>,
   ppid?: number,
 ): Record<string, string> {
+  return buildClientHeadersWithContext({
+    clientName,
+    clientVersion,
+    env,
+    ppid,
+    agentProvider: () => getAgentInfo(env),
+  });
+}
+
+interface BuildClientHeadersContext {
+  clientName: string;
+  clientVersion?: string;
+  agentProvider?: () => AgentInfo | undefined;
+  env?: Record<string, string | undefined>;
+  ppid?: number;
+}
+
+function buildClientHeadersWithContext(
+  context: BuildClientHeadersContext,
+): Record<string, string> {
   try {
     const headers: Record<string, string> = {};
 
-    const name = sanitizeHeaderValue(clientName);
+    const name = sanitizeHeaderValue(context.clientName);
     if (name) {
       headers["x-githits-client-name"] = name;
     }
 
-    const clientVersion = sanitizeHeaderValue(version);
-    if (clientVersion) {
-      headers["x-githits-client-version"] = clientVersion;
+    const safeClientVersion = sanitizeHeaderValue(context.clientVersion);
+    if (safeClientVersion) {
+      headers["x-githits-client-version"] = safeClientVersion;
     }
 
-    const agentInfo = getAgentInfo(env);
+    const agentInfo =
+      context.agentProvider?.() ?? resolveAgentInfo(context.env);
     if (agentInfo) {
       const agentValue = sanitizeHeaderValue(formatAgentInfo(agentInfo));
       if (agentValue) {
@@ -365,7 +424,9 @@ export function buildClientHeaders(
       }
     }
 
-    const sessionId = sanitizeHeaderValue(getSessionId(env, ppid));
+    const sessionId = sanitizeHeaderValue(
+      getSessionId(context.env, context.ppid),
+    );
     if (sessionId) {
       headers["x-githits-session-id"] = sessionId;
     }
@@ -391,4 +452,5 @@ export function resetRequestHeadersState(): void {
   agentInfoExplicitlySet = false;
   mcpClientVersionProvider = undefined;
   clientName = BASE_CLIENT_NAME;
+  clientVersion = undefined;
 }

@@ -1,7 +1,8 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import {
   createAuthCommandDependencies,
   createAuthStatusDependencies,
+  createContainer,
 } from "./container.js";
 import { AuthConfigError } from "./services/auth-config.js";
 
@@ -62,6 +63,47 @@ describe("container auth dependencies", () => {
           AuthConfigError,
         );
       });
+    });
+  });
+});
+
+describe("createContainer", () => {
+  it("threads explicit client telemetry into constructed services", async () => {
+    await withApiToken("ghi-test", async () => {
+      const originalFetch = globalThis.fetch;
+      let capturedHeaders: Record<string, string> | undefined;
+      const fetchFn = mock((_url: string, init?: RequestInit) => {
+        capturedHeaders = init?.headers as Record<string, string>;
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      });
+      globalThis.fetch = fetchFn as unknown as typeof fetch;
+
+      try {
+        const deps = await createContainer({
+          resolveStoredToken: false,
+          clientName: "githits-cli/mcp",
+          agentProvider: () => ({ name: "cursor", version: "1.0.0" }),
+        });
+
+        await deps.githitsService.getLanguages();
+
+        expect(capturedHeaders?.Authorization).toBe("Bearer ghi-test");
+        expect(capturedHeaders?.["User-Agent"]).toMatch(/^githits-cli\/\S+$/);
+        expect(capturedHeaders?.["x-githits-client-name"]).toBe(
+          "githits-cli/mcp",
+        );
+        expect(capturedHeaders?.["x-githits-client-version"]).toMatch(/^\S+$/);
+        expect(capturedHeaders?.["x-githits-agent"]).toBe("cursor/1.0.0");
+        expect(capturedHeaders?.["x-githits-session-id"]).toMatch(
+          /^[0-9a-f]{16}$/,
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     });
   });
 });

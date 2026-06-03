@@ -7,6 +7,7 @@ import {
   postPkgseerGraphql,
 } from "../shared/pkgseer-graphql.js";
 import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
+import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import {
   ClientUpdateRequiredError,
   isClientUpdateRequiredGraphQLError,
@@ -1596,6 +1597,11 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     private readonly codeNavigationUrl: string,
     private readonly tokenProvider: TokenProvider,
     private readonly fetchFn: typeof fetch = globalThis.fetch,
+    private readonly runtime: {
+      clientHeaders?: ClientHeaderBuilder;
+      userAgent?: string;
+      clientVersion?: string;
+    } = {},
   ) {}
 
   private async postGraphqlWithTargetResolutionFallback(input: {
@@ -1609,6 +1615,8 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       query: input.query,
       variables: input.variables,
       fetchFn: this.fetchFn,
+      clientHeaders: this.runtime.clientHeaders,
+      userAgent: this.runtime.userAgent,
     });
     if (response.status < 200 || response.status >= 300) return response;
     if (!hasSchemaMismatchErrors(response.parsedBody)) return response;
@@ -1625,6 +1633,8 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         query: fallbackQuery,
         variables: input.variables,
         fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
       });
       if (!hasSchemaMismatchErrors(fallbackResponse.parsedBody)) {
         return fallbackResponse;
@@ -1851,7 +1861,11 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     const indexingRef = getGraphQLIndexingRef(errors);
 
     if (isClientUpdateRequiredGraphQLError({ message, code })) {
-      return new ClientUpdateRequiredError();
+      return new ClientUpdateRequiredError(
+        undefined,
+        undefined,
+        this.runtime.clientVersion,
+      );
     }
 
     if (isGraphQLSchemaMismatchError({ message, code })) {

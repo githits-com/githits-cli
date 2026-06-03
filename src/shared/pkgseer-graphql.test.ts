@@ -4,6 +4,7 @@ import {
   PkgseerTransportError,
   postPkgseerGraphql,
 } from "./pkgseer-graphql.js";
+import { createClientHeaderBuilder } from "./request-headers.js";
 
 function makeResponse(
   body: string,
@@ -80,6 +81,7 @@ describe("postPkgseerGraphql", () => {
       query: "query { x }",
       variables: {},
       fetchFn: asFetchFn(fetchFn),
+      userAgent: "githits-cli/1.2.3",
     });
 
     expect(result.status).toBe(200);
@@ -99,6 +101,7 @@ describe("postPkgseerGraphql", () => {
       query: "query { x }",
       variables: {},
       fetchFn: asFetchFn(fetchFn),
+      userAgent: "githits-cli/1.2.3",
     });
 
     expect(result.status).toBe(502);
@@ -122,6 +125,7 @@ describe("postPkgseerGraphql", () => {
       query: "query { x }",
       variables: {},
       fetchFn: asFetchFn(fetchFn),
+      userAgent: "githits-cli/1.2.3",
     });
 
     expect(result.status).toBe(500);
@@ -142,11 +146,12 @@ describe("postPkgseerGraphql", () => {
       query: "query { x }",
       variables: {},
       fetchFn: asFetchFn(fetchFn),
+      userAgent: "githits-cli/1.2.3",
     });
 
     expect(capturedHeaders?.Authorization).toBe(`Bearer ${TOKEN}`);
     expect(capturedHeaders?.["Content-Type"]).toBe("application/json");
-    expect(capturedHeaders?.["User-Agent"]).toMatch(/^githits-cli\/\S+$/);
+    expect(capturedHeaders?.["User-Agent"]).toBe("githits-cli/1.2.3");
   });
 
   it("sends x-githits-* telemetry headers from buildClientHeaders", async () => {
@@ -165,10 +170,16 @@ describe("postPkgseerGraphql", () => {
       query: "query { x }",
       variables: {},
       fetchFn: asFetchFn(fetchFn),
+      clientHeaders: createClientHeaderBuilder({
+        clientName: "githits-cli",
+        clientVersion: "1.2.3",
+        env: {},
+        ppid: 42,
+      }),
     });
 
     expect(capturedHeaders?.["x-githits-client-name"]).toBe("githits-cli");
-    expect(capturedHeaders?.["x-githits-client-version"]).toMatch(/^\S+$/);
+    expect(capturedHeaders?.["x-githits-client-version"]).toBe("1.2.3");
     expect(capturedHeaders?.["x-githits-session-id"]).toMatch(/^[0-9a-f]{16}$/);
     // Authorization still wins over any hypothetical x-githits-*
     // collision — spread order (headers first, hardcoded second)

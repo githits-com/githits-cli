@@ -25,6 +25,7 @@ import {
   postPkgseerGraphql,
 } from "../shared/pkgseer-graphql.js";
 import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
+import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import { withTelemetrySpan } from "../shared/telemetry.js";
 import {
   ClientUpdateRequiredError,
@@ -1736,6 +1737,11 @@ export class PackageIntelligenceServiceImpl
     private readonly endpointUrl: string,
     private readonly tokenProvider: TokenProvider,
     private readonly fetchFn: typeof fetch = globalThis.fetch,
+    private readonly runtime: {
+      clientHeaders?: ClientHeaderBuilder;
+      userAgent?: string;
+      clientVersion?: string;
+    } = {},
   ) {}
 
   async packageSummary(params: PackageSummaryParams): Promise<PackageSummary> {
@@ -1764,6 +1770,8 @@ export class PackageIntelligenceServiceImpl
           name: params.packageName,
         },
         fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -1854,7 +1862,11 @@ export class PackageIntelligenceServiceImpl
         : undefined;
 
     if (isClientUpdateRequiredGraphQLError({ message, code })) {
-      return new ClientUpdateRequiredError();
+      return new ClientUpdateRequiredError(
+        undefined,
+        undefined,
+        this.runtime.clientVersion,
+      );
     }
 
     if (isGraphQLSchemaMismatchError({ message, code })) {
@@ -2111,6 +2123,8 @@ export class PackageIntelligenceServiceImpl
           after,
         },
         fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2260,6 +2274,8 @@ export class PackageIntelligenceServiceImpl
           minSeverity: params.minSeverity,
         },
         fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2320,6 +2336,8 @@ export class PackageIntelligenceServiceImpl
               : undefined,
         },
         fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2635,6 +2653,8 @@ export class PackageIntelligenceServiceImpl
           limit: params.limit,
         },
         fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2751,6 +2771,8 @@ export class PackageIntelligenceServiceImpl
           after: params.after,
         },
         fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2849,6 +2871,8 @@ export class PackageIntelligenceServiceImpl
           pageId: params.pageId,
         },
         fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {

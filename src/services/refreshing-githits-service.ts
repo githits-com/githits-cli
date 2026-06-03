@@ -5,6 +5,7 @@ import {
   type FeedbackResult,
   type GitHitsService,
   GitHitsServiceImpl,
+  type GitHitsServiceRuntimeOptions,
   type Language,
   type SearchParams,
 } from "./githits-service.js";
@@ -24,8 +25,8 @@ export class RefreshingGitHitsService implements GitHitsService {
   constructor(
     private readonly apiUrl: string,
     private readonly tokenProvider: TokenProvider,
-    private readonly serviceFactory: ServiceFactory = (url, token) =>
-      new GitHitsServiceImpl(url, token),
+    private readonly serviceFactory?: ServiceFactory,
+    private readonly runtime: GitHitsServiceRuntimeOptions = {},
   ) {}
 
   async search(params: SearchParams): Promise<string> {
@@ -52,7 +53,15 @@ export class RefreshingGitHitsService implements GitHitsService {
       forceRefresh: () => this.tokenProvider.forceRefresh(),
       shouldRefresh: (error) => error instanceof AuthenticationError,
       executeWithToken: async (token) => {
-        const service = this.serviceFactory(this.apiUrl, token);
+        const service = this.serviceFactory
+          ? this.serviceFactory(this.apiUrl, token)
+          : new GitHitsServiceImpl(
+              this.apiUrl,
+              token,
+              undefined,
+              undefined,
+              this.runtime,
+            );
         return operation(service);
       },
     });
