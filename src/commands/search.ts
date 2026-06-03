@@ -28,6 +28,7 @@ import {
   type UnifiedSearchStatusIncompletePayload,
   type UnifiedSearchStatusResultPayload,
 } from "../shared/index.js";
+import { formatMappedErrorForTerminal } from "./format-mapped-error.js";
 
 export interface SearchCommandOptions {
   in?: string[];
@@ -381,6 +382,13 @@ function formatSearchErrorTerminal(
   payload: { error: string; code: string },
   context: "search" | "status",
 ): string {
+  if (payload.code === "AUTH_REQUIRED") {
+    return formatMappedErrorForTerminal({
+      code: "AUTH_REQUIRED",
+      message: payload.error,
+      retryable: false,
+    });
+  }
   if (context === "status" && payload.code === "NOT_FOUND") {
     return `${payload.error}\n  Search sessions expire; run \`githits search ...\` to start a new one.`;
   }

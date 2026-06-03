@@ -6,7 +6,6 @@ import {
   buildListPackageDocsParams,
   buildListPackageDocsSuccessPayload,
   formatListPackageDocsTerminal,
-  formatMappedErrorForTerminal,
   InvalidPackageSpecError,
   mapPackageIntelligenceError,
   parsePackageSpec,
@@ -14,6 +13,10 @@ import {
   SPINNER_MESSAGES,
   startSpinner,
 } from "../../shared/index.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "../format-mapped-error.js";
 
 export interface DocsListCommandOptions {
   limit?: string;
@@ -99,14 +102,7 @@ function handleDocsListError(error: unknown, json: boolean): never {
   const mapped = mapPackageIntelligenceError(error);
 
   if (json) {
-    console.error(
-      JSON.stringify({
-        error: mapped.message,
-        code: mapped.code,
-        retryable: mapped.retryable ?? false,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      }),
-    );
+    console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
   } else {
     console.error(formatMappedErrorForTerminal(mapped));
   }

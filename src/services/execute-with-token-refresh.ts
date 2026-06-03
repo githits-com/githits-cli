@@ -16,9 +16,7 @@ export async function executeWithTokenRefresh<T>(
 ): Promise<T> {
   const token = await options.getToken();
   if (!token) {
-    throw new AuthenticationError(
-      "Authentication required. Run `githits login` to authenticate.",
-    );
+    throw new AuthenticationError();
   }
 
   try {

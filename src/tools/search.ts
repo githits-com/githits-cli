@@ -24,6 +24,7 @@ import {
   structuredCodeTargetSchema,
 } from "./code-navigation-shared.js";
 import { SEARCH_GUARDRAIL } from "./guardrails.js";
+import { addLocalMcpAuthAction, mcpMappedErrorResult } from "./shared.js";
 import {
   errorResult,
   type ToolDefinition,
@@ -289,7 +290,9 @@ export function createSearchTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
-        const payload = buildUnifiedSearchErrorPayload(error);
+        const payload = addLocalMcpAuthAction(
+          buildUnifiedSearchErrorPayload(error),
+        );
         if (isTextFormat(args.format)) {
           return errorResult(renderUnifiedSearchError(payload));
         }
@@ -333,14 +336,7 @@ function resolveSearchTarget(
       return parseUnifiedSearchTargetSpec(target);
     } catch (error) {
       const mapped = mapCodeNavigationError(error);
-      return errorResult(
-        JSON.stringify({
-          error: mapped.message,
-          code: mapped.code,
-          retryable: mapped.retryable ?? false,
-          ...(mapped.details ? { details: mapped.details } : {}),
-        }),
-      );
+      return mcpMappedErrorResult(mapped);
     }
   }
 

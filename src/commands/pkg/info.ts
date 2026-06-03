@@ -3,7 +3,6 @@ import { createContainer } from "../../container.js";
 import type { PackageIntelligenceService } from "../../services/index.js";
 import { shouldUseColors } from "../../shared/colors.js";
 import {
-  formatMappedErrorForTerminal,
   InvalidPackageSpecError,
   mapPackageIntelligenceError,
   parsePackageSpec,
@@ -15,6 +14,10 @@ import {
   formatPackageSummaryTerminal,
 } from "../../shared/package-summary-response.js";
 import { PKGSEER_REGISTRY_LIST } from "../../shared/pkgseer-registry.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "../format-mapped-error.js";
 
 export interface PkgInfoCommandOptions {
   verbose?: boolean;
@@ -86,14 +89,7 @@ function handlePkgInfoCommandError(error: unknown, json: boolean): never {
   const mapped = mapPackageIntelligenceError(error);
 
   if (json) {
-    console.error(
-      JSON.stringify({
-        error: mapped.message,
-        code: mapped.code,
-        retryable: mapped.retryable ?? false,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      }),
-    );
+    console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
     process.exit(1);
   }
 

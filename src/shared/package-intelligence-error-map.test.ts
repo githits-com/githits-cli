@@ -102,7 +102,6 @@ describe("mapPackageIntelligenceError", () => {
       code: "AUTH_REQUIRED",
       message: "login required",
       retryable: false,
-      details: { action: "Run `githits login`, then retry this tool call." },
     });
   });
 

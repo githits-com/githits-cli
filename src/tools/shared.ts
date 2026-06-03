@@ -1,5 +1,8 @@
 import { AuthenticationError } from "../services/githits-service.js";
+import type { MappedError } from "../shared/code-navigation-error-map.js";
 import { errorResult, type ToolResult } from "./types.js";
+
+const LOCAL_MCP_AUTH_ACTION = "Run `githits login`, then retry this tool call.";
 
 /**
  * Wraps a tool handler with the shared structured `{error, code,
@@ -22,7 +25,41 @@ interface ToolErrorEnvelope {
   error: string;
   code: string;
   retryable: boolean;
-  details?: { action: string };
+  details?: MappedError["details"] | { action: string };
+}
+
+interface MappableErrorPayload {
+  code: string;
+  details?: Record<string, unknown>;
+}
+
+export function mcpMappedErrorResult(mapped: MappedError): ToolResult {
+  return errorResult(JSON.stringify(buildMcpErrorPayload(mapped)));
+}
+
+export function buildMcpErrorPayload(mapped: MappedError): ToolErrorEnvelope {
+  return {
+    error: mapped.message,
+    code: mapped.code,
+    retryable: mapped.retryable ?? false,
+    ...(mapped.code === "AUTH_REQUIRED"
+      ? {
+          details: { ...(mapped.details ?? {}), action: LOCAL_MCP_AUTH_ACTION },
+        }
+      : mapped.details
+        ? { details: mapped.details }
+        : {}),
+  };
+}
+
+export function addLocalMcpAuthAction<T extends MappableErrorPayload>(
+  payload: T,
+): T {
+  if (payload.code !== "AUTH_REQUIRED") return payload;
+  return {
+    ...payload,
+    details: { ...(payload.details ?? {}), action: LOCAL_MCP_AUTH_ACTION },
+  };
 }
 
 function classify(operation: string, error: unknown): ToolErrorEnvelope {
@@ -31,7 +68,7 @@ function classify(operation: string, error: unknown): ToolErrorEnvelope {
       error: error.message,
       code: "AUTH_REQUIRED",
       retryable: false,
-      details: { action: "Run `githits login`, then retry this tool call." },
+      details: { action: LOCAL_MCP_AUTH_ACTION },
     };
   }
   const message = error instanceof Error ? error.message : "Unknown error";

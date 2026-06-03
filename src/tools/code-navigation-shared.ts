@@ -10,6 +10,7 @@ import {
   PKGSEER_REGISTRY_ARGS,
   PKGSEER_REGISTRY_LIST,
 } from "../shared/pkgseer-registry.js";
+import { mcpMappedErrorResult } from "./shared.js";
 import { errorResult, type ToolResult } from "./types.js";
 
 // Re-export the wait-timeout default so callers already importing this
@@ -146,14 +147,7 @@ function normaliseOptionalValue(value: string | undefined): string | undefined {
 
 function mappedInvalidTargetResult(error: unknown): ToolResult {
   const mapped = mapCodeNavigationError(error);
-  return errorResult(
-    JSON.stringify({
-      error: mapped.message,
-      code: mapped.code,
-      retryable: mapped.retryable ?? false,
-      ...(mapped.details ? { details: mapped.details } : {}),
-    }),
-  );
+  return mcpMappedErrorResult(mapped);
 }
 
 function invalidTargetResult(message: string): ToolResult {

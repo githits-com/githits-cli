@@ -155,6 +155,29 @@ describe("languagesAction", () => {
     exitSpy.mockRestore();
   });
 
+  it("prints CLI auth remediation when service returns 401 in text mode", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({
+        getLanguages: mock(() => Promise.reject(new AuthenticationError())),
+      }),
+    });
+
+    await expect(languagesAction(undefined, {}, deps)).rejects.toThrow(
+      "process.exit",
+    );
+
+    expect(errorSpy.mock.calls[0]?.[0]).toBe(
+      "Authentication required. Run `githits login` to authenticate.",
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
   it("calls getLanguages exactly once", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const deps = createDeps();

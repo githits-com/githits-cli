@@ -5,6 +5,7 @@ import {
   buildUnifiedSearchStatusPayload,
   renderUnifiedSearchStatusText,
 } from "../shared/index.js";
+import { addLocalMcpAuthAction } from "./shared.js";
 import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
 export interface SearchStatusArgs {
@@ -49,7 +50,9 @@ export function createSearchStatusTool(
         return textResult(JSON.stringify(payload));
       } catch (error) {
         return errorResult(
-          JSON.stringify(buildUnifiedSearchErrorPayload(error)),
+          JSON.stringify(
+            addLocalMcpAuthAction(buildUnifiedSearchErrorPayload(error)),
+          ),
         );
       }
     },
