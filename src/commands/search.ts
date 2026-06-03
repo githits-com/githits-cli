@@ -4,30 +4,34 @@ import type {
   UnifiedSearchSource,
 } from "../services/code-navigation-service.js";
 import { getCodeNavigationUrl } from "../services/config.js";
+import { parseIntCliOption } from "../shared/cli-options.js";
 import {
-  buildUnifiedSearchErrorPayload,
-  buildUnifiedSearchParams,
-  buildUnifiedSearchStatusPayload,
-  buildUnifiedSearchSuccessPayload,
+  knownSymbolCategoryList,
+  knownSymbolKindList,
+  toFileIntent,
+  toSymbolCategory,
+  toSymbolKind,
+} from "../shared/code-navigation.js";
+import {
   dim,
   highlight,
   highlightMatch,
   highlightRanges,
-  InvalidArgumentError,
-  knownSymbolCategoryList,
-  knownSymbolKindList,
-  parseIntCliOption,
-  parseUnifiedSearchTargetSpec,
-  requireAuth,
-  SPINNER_MESSAGES,
   shouldUseColors,
-  startSpinner,
-  toFileIntent,
-  toSymbolCategory,
-  toSymbolKind,
+} from "../shared/colors.js";
+import { InvalidArgumentError } from "../shared/package-spec.js";
+import { requireAuth } from "../shared/require-auth.js";
+import { startSpinner } from "../shared/spinner.js";
+import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
+import { buildUnifiedSearchParams } from "../shared/unified-search-request.js";
+import {
+  buildUnifiedSearchErrorPayload,
+  buildUnifiedSearchStatusPayload,
+  buildUnifiedSearchSuccessPayload,
   type UnifiedSearchStatusIncompletePayload,
   type UnifiedSearchStatusResultPayload,
-} from "../shared/index.js";
+} from "../shared/unified-search-response.js";
+import { parseUnifiedSearchTargetSpec } from "../shared/unified-search-target.js";
 import { formatMappedErrorForTerminal } from "./format-mapped-error.js";
 
 export interface SearchCommandOptions {

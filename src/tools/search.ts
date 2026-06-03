@@ -6,19 +6,21 @@ import type {
 import {
   type CodeNavigationRegistryArg,
   toCodeNavigationRegistry,
-} from "../shared/code-navigation.js";
-import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
-import {
-  buildUnifiedSearchErrorPayload,
-  buildUnifiedSearchParams,
-  buildUnifiedSearchSuccessPayload,
-  renderUnifiedSearchError,
-  renderUnifiedSearchSuccess,
   toFileIntent,
   toSymbolCategory,
   toSymbolKind,
-} from "../shared/index.js";
+} from "../shared/code-navigation.js";
+import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
+import { buildUnifiedSearchParams } from "../shared/unified-search-request.js";
+import {
+  buildUnifiedSearchErrorPayload,
+  buildUnifiedSearchSuccessPayload,
+} from "../shared/unified-search-response.js";
 import { parseUnifiedSearchTargetSpec } from "../shared/unified-search-target.js";
+import {
+  renderUnifiedSearchError,
+  renderUnifiedSearchSuccess,
+} from "../shared/unified-search-text.js";
 import {
   type CodeTargetArg,
   structuredCodeTargetSchema,

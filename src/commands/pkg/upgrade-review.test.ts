@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { InvalidPackageSpecError } from "../../shared/index.js";
+import { InvalidPackageSpecError } from "../../shared/package-spec.js";
 import { parseUpgradeReviewPackageOption } from "./upgrade-review.js";
 
 describe("parseUpgradeReviewPackageOption", () => {

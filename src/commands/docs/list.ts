@@ -2,17 +2,19 @@ import type { Command } from "commander";
 import { createContainer } from "../../container.js";
 import type { PackageIntelligenceService } from "../../services/package-intelligence-service.js";
 import { shouldUseColors } from "../../shared/colors.js";
+import { buildListPackageDocsParams } from "../../shared/list-package-docs-request.js";
 import {
-  buildListPackageDocsParams,
   buildListPackageDocsSuccessPayload,
   formatListPackageDocsTerminal,
+} from "../../shared/list-package-docs-response.js";
+import { mapPackageIntelligenceError } from "../../shared/package-intelligence-error-map.js";
+import {
   InvalidPackageSpecError,
-  mapPackageIntelligenceError,
   parsePackageSpec,
-  requireAuth,
-  SPINNER_MESSAGES,
-  startSpinner,
-} from "../../shared/index.js";
+} from "../../shared/package-spec.js";
+import { requireAuth } from "../../shared/require-auth.js";
+import { startSpinner } from "../../shared/spinner.js";
+import { SPINNER_MESSAGES } from "../../shared/spinner-messages.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,

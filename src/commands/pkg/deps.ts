@@ -3,13 +3,6 @@ import { createContainer } from "../../container.js";
 import type { PackageIntelligenceService } from "../../services/package-intelligence-service.js";
 import { shouldUseColors } from "../../shared/colors.js";
 import {
-  InvalidPackageSpecError,
-  type MappedError,
-  mapPackageIntelligenceError,
-  parsePackageSpec,
-  requireAuth,
-} from "../../shared/index.js";
-import {
   buildPackageDependenciesParams,
   SUPPORTED_DEPS_REGISTRIES_LIST,
 } from "../../shared/package-dependencies-request.js";
@@ -17,6 +10,15 @@ import {
   buildPackageDependenciesSuccessPayload,
   formatPackageDependenciesTerminal,
 } from "../../shared/package-dependencies-response.js";
+import {
+  type MappedError,
+  mapPackageIntelligenceError,
+} from "../../shared/package-intelligence-error-map.js";
+import {
+  InvalidPackageSpecError,
+  parsePackageSpec,
+} from "../../shared/package-spec.js";
+import { requireAuth } from "../../shared/require-auth.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,

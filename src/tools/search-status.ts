@@ -3,8 +3,8 @@ import type { CodeNavigationService } from "../services/code-navigation-service.
 import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchStatusPayload,
-  renderUnifiedSearchStatusText,
-} from "../shared/index.js";
+} from "../shared/unified-search-response.js";
+import { renderUnifiedSearchStatusText } from "../shared/unified-search-status-text.js";
 import { addLocalMcpAuthAction } from "./shared.js";
 import { errorResult, type ToolDefinition, textResult } from "./types.js";
 

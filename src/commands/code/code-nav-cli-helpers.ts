@@ -19,8 +19,8 @@ import {
 import {
   InvalidPackageSpecError,
   parsePackageSpec,
-  toPkgseerRegistry,
-} from "../../shared/index.js";
+} from "../../shared/package-spec.js";
+import { toPkgseerRegistry } from "../../shared/pkgseer-registry.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,

@@ -1,12 +1,12 @@
 import { z } from "zod";
 import type { PackageIntelligenceService } from "../services/package-intelligence-service.js";
-import { InvalidPackageSpecError } from "../shared/index.js";
 import { buildPackageChangelogParams } from "../shared/package-changelog-request.js";
 import {
   buildPackageChangelogSuccessPayload,
   formatPackageChangelogTerminal,
 } from "../shared/package-changelog-response.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
+import { InvalidPackageSpecError } from "../shared/package-spec.js";
 import {
   PKGSEER_REGISTRY_LIST,
   toPkgseerRegistryLowercase,

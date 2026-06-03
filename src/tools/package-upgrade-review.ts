@@ -1,11 +1,11 @@
 import { z } from "zod";
 import type { PackageIntelligenceService } from "../services/package-intelligence-service.js";
+import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
+import { buildPackageUpgradeReviewRequest } from "../shared/package-upgrade-review-request.js";
 import {
   buildPackageUpgradeReview,
-  buildPackageUpgradeReviewRequest,
   formatPackageUpgradeReviewTerminal,
-  mapPackageIntelligenceError,
-} from "../shared/index.js";
+} from "../shared/package-upgrade-review-response.js";
 import { PKGSEER_REGISTRY_LIST } from "../shared/pkgseer-registry.js";
 import { mcpMappedErrorResult } from "./shared.js";
 import { type ToolDefinition, textResult } from "./types.js";
