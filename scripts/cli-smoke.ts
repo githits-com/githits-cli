@@ -409,6 +409,29 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       },
       "unauthenticated languages JSON envelope",
     );
+
+    const terminalResult = await runCliWithEnv(["languages", "python"], env);
+    assert(
+      terminalResult.exitCode !== 0,
+      "unauthenticated terminal probe should fail",
+    );
+    const authGuidance = `${terminalResult.stderr}\n${terminalResult.stdout}`;
+    assertNotJson(
+      authGuidance.trim(),
+      "unauthenticated terminal auth guidance",
+    );
+    assert(
+      authGuidance.includes("Authentication required"),
+      "unauthenticated terminal probe missing auth guidance",
+    );
+    assert(
+      authGuidance.includes("githits login"),
+      "unauthenticated terminal probe missing login guidance",
+    );
+    assert(
+      !authGuidance.includes("tool call"),
+      "unauthenticated terminal probe used MCP-style auth guidance",
+    );
   } finally {
     if (env.HOME) {
       rmSync(env.HOME, { recursive: true, force: true });
@@ -428,9 +451,19 @@ async function assertLiveOrAuthRequired(): Promise<boolean> {
     result.exitCode !== 0,
     "languages auth probe: expected non-zero auth failure",
   );
-  // Auth guidance currently comes from requireAuth(), which writes friendly
-  // instructions to stdout before throwing. Accept either stream so this smoke
-  // gate validates guidance without forcing a broader CLI stream-policy change.
+  const jsonAuthPayload = assertCleanErrorEnvelope(
+    result.stderr,
+    "languages auth probe",
+  );
+  if (jsonAuthPayload.code === "AUTH_REQUIRED") {
+    console.log("AUTH_REQUIRED: live CLI smoke skipped");
+    return false;
+  }
+
+  // Non-JSON auth guidance currently comes from requireAuth(), which writes
+  // friendly instructions to stdout before throwing. Accept either stream so
+  // this smoke gate validates guidance without forcing a broader CLI
+  // stream-policy change.
   const authGuidance = `${result.stderr}\n${result.stdout}`.trim();
   assert(
     authGuidance.includes("Authentication required"),

@@ -4,7 +4,6 @@ import type { PackageIntelligenceService } from "../../services/index.js";
 import {
   buildReadPackageDocParams,
   buildReadPackageDocSuccessPayload,
-  formatMappedErrorForTerminal,
   formatReadPackageDocTerminal,
   InvalidPackageSpecError,
   mapPackageIntelligenceError,
@@ -14,6 +13,10 @@ import {
   shouldUseColors,
   startSpinner,
 } from "../../shared/index.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "../format-mapped-error.js";
 
 export interface DocsReadCommandOptions {
   verbose?: boolean;
@@ -80,14 +83,7 @@ function handleDocsReadError(error: unknown, json: boolean): never {
   const mapped = mapPackageIntelligenceError(error);
 
   if (json) {
-    console.error(
-      JSON.stringify({
-        error: mapped.message,
-        code: mapped.code,
-        retryable: mapped.retryable ?? false,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      }),
-    );
+    console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
   } else {
     console.error(formatMappedErrorForTerminal(mapped));
   }

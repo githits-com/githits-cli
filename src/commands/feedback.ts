@@ -7,6 +7,10 @@ import {
   buildAuthRequiredErrorPayload,
   requireAuth,
 } from "../shared/require-auth.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "./format-mapped-error.js";
 
 export interface FeedbackOptions {
   accept?: boolean;
@@ -68,8 +72,17 @@ export async function feedbackAction(
       console.log(result.message);
     }
   } catch (error) {
-    if (options.json && error instanceof AuthenticationError) {
-      console.error(JSON.stringify(toAuthRequiredPayload(error.message)));
+    if (error instanceof AuthenticationError) {
+      const mapped = {
+        code: "AUTH_REQUIRED" as const,
+        message: error.message,
+        retryable: false,
+      };
+      if (options.json) {
+        console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
+      } else {
+        console.error(formatMappedErrorForTerminal(mapped));
+      }
       process.exit(1);
     }
     console.error(
@@ -77,14 +90,6 @@ export async function feedbackAction(
     );
     process.exit(1);
   }
-}
-
-function toAuthRequiredPayload(message: string): {
-  error: string;
-  code: "AUTH_REQUIRED";
-  retryable: false;
-} {
-  return { error: message, code: "AUTH_REQUIRED", retryable: false };
 }
 
 const FEEDBACK_DESCRIPTION = `Submit feedback on a tool result or the GitHits experience.

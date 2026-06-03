@@ -9,6 +9,10 @@ import {
 } from "../shared/require-auth.js";
 import { startSpinner } from "../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "./format-mapped-error.js";
 
 export interface ExampleOptions {
   lang?: string;
@@ -59,11 +63,16 @@ export async function exampleAction(
       throw error;
     }
     if (error instanceof AuthenticationError) {
-      printExampleError(
-        "Authentication required. Run `githits login`, then retry this command.",
-        "AUTH_REQUIRED",
-        options.json ?? false,
-      );
+      const mapped = {
+        code: "AUTH_REQUIRED" as const,
+        message: error.message,
+        retryable: false,
+      };
+      if (options.json) {
+        console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
+      } else {
+        console.error(formatMappedErrorForTerminal(mapped));
+      }
       process.exit(1);
     }
     printExampleError(

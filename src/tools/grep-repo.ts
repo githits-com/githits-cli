@@ -17,6 +17,7 @@ import {
   resolveCodeTarget,
 } from "./code-navigation-shared.js";
 import { CODE_GREP_GUARDRAIL } from "./guardrails.js";
+import { mcpMappedErrorResult } from "./shared.js";
 import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
 export interface GrepRepoArgs {
@@ -164,14 +165,7 @@ export function createGrepRepoTool(
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapCodeNavigationError(error);
-        return errorResult(
-          JSON.stringify({
-            error: mapped.message,
-            code: mapped.code,
-            retryable: mapped.retryable ?? false,
-            ...(mapped.details ? { details: mapped.details } : {}),
-          }),
-        );
+        return mcpMappedErrorResult(mapped);
       }
     },
   };

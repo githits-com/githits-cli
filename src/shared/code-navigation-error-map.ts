@@ -191,10 +191,6 @@ function classify(error: unknown): MappedError {
       code: "AUTH_REQUIRED",
       message: error.message,
       retryable: false,
-      details:
-        error instanceof AuthenticationError
-          ? { action: "Run `githits login`, then retry this tool call." }
-          : undefined,
     };
   }
   if (error instanceof CodeNavigationNetworkError) {
@@ -254,18 +250,6 @@ export function buildUpdateRequiredError(
       ...(currentVersion ? { currentVersion } : {}),
     },
   };
-}
-
-export function formatMappedErrorForTerminal(mapped: MappedError): string {
-  if (mapped.code !== "UPDATE_REQUIRED") {
-    return mapped.message;
-  }
-  const detail = mapped.details ?? {};
-  const updateCommand =
-    typeof detail.updateCommand === "string"
-      ? detail.updateCommand
-      : "npm i -g githits@latest";
-  return [mapped.message, "", "Update with:", `  ${updateCommand}`].join("\n");
 }
 
 /**

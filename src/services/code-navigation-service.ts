@@ -1806,9 +1806,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     const detail = parseDetail(response.responseBody);
 
     if (status === 401) {
-      return new AuthenticationError(
-        "Authentication required. Run `githits login` to authenticate.",
-      );
+      return new AuthenticationError();
     }
 
     if (status === 403) {
@@ -1951,9 +1949,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         return new CodeNavigationFeatureFlagRequiredError(message);
 
       case "UNAUTHORIZED":
-        return new AuthenticationError(
-          "Authentication required. Run `githits login` to authenticate.",
-        );
+        return new AuthenticationError();
 
       case "FORBIDDEN":
         return new CodeNavigationAccessError(

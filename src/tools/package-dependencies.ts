@@ -9,6 +9,7 @@ import {
   formatPackageDependenciesTerminal,
 } from "../shared/package-dependencies-response.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
+import { mcpMappedErrorResult } from "./shared.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
 export interface PackageDependenciesArgs {
@@ -141,20 +142,7 @@ export function createPackageDependenciesTool(
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapPackageIntelligenceError(error);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify({
-                error: mapped.message,
-                code: mapped.code,
-                retryable: mapped.retryable ?? false,
-                ...(mapped.details ? { details: mapped.details } : {}),
-              }),
-            },
-          ],
-          isError: true,
-        };
+        return mcpMappedErrorResult(mapped);
       }
     },
   };

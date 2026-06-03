@@ -1810,9 +1810,7 @@ export class PackageIntelligenceServiceImpl
     const detail = parseDetail(response.responseBody);
 
     if (status === 401) {
-      return new AuthenticationError(
-        "Authentication required. Run `githits login` to authenticate.",
-      );
+      return new AuthenticationError();
     }
 
     if (status === 403) {
@@ -1912,9 +1910,7 @@ export class PackageIntelligenceServiceImpl
         return new PackageIntelligenceFeatureFlagRequiredError(message);
 
       case "UNAUTHORIZED":
-        return new AuthenticationError(
-          "Authentication required. Run `githits login` to authenticate.",
-        );
+        return new AuthenticationError();
 
       case "FORBIDDEN":
         return new PackageIntelligenceAccessError(

@@ -5,13 +5,16 @@ import { shouldUseColors } from "../../shared/colors.js";
 import {
   buildPackageUpgradeReview,
   buildPackageUpgradeReviewRequest,
-  formatMappedErrorForTerminal,
   formatPackageUpgradeReviewTerminal,
   InvalidPackageSpecError,
   mapPackageIntelligenceError,
   parsePackageSpec,
   requireAuth,
 } from "../../shared/index.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "../format-mapped-error.js";
 
 export interface PkgUpgradeReviewCommandOptions {
   to?: string;
@@ -83,14 +86,7 @@ function handlePkgUpgradeReviewCommandError(
 ): never {
   const mapped = mapPackageIntelligenceError(error);
   if (json) {
-    console.error(
-      JSON.stringify({
-        error: mapped.message,
-        code: mapped.code,
-        retryable: mapped.retryable ?? false,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      }),
-    );
+    console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
   } else {
     console.error(formatMappedErrorForTerminal(mapped));
   }

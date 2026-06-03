@@ -6,6 +6,7 @@ import type {
   UnifiedSearchProgress,
   UnifiedSearchSessionStatus,
 } from "../services/code-navigation-service.js";
+import { AuthenticationError } from "../services/githits-service.js";
 import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,
@@ -52,6 +53,31 @@ describe("searchAction", () => {
       ...overrides,
     };
   }
+
+  it("preserves CLI auth remediation when search service auth fails", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    await expect(
+      searchAction(
+        "router middleware",
+        { in: ["npm:express"] },
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            search: mock(() => Promise.reject(new AuthenticationError())),
+          }),
+        }),
+      ),
+    ).rejects.toThrow("process.exit");
+
+    expect(errorSpy.mock.calls[0]?.[0]).toBe(
+      "Authentication required. Run `githits login` to authenticate.",
+    );
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
 
   it("calls unified search service with parsed targets and filters", async () => {
     const search = mock((_: UnifiedSearchParams) =>
@@ -741,6 +767,31 @@ describe("searchStatusAction", () => {
       ...overrides,
     };
   }
+
+  it("preserves CLI auth remediation when search-status service auth fails", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    await expect(
+      searchStatusAction(
+        "search-ref-123",
+        {},
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            searchStatus: mock(() => Promise.reject(new AuthenticationError())),
+          }),
+        }),
+      ),
+    ).rejects.toThrow("process.exit");
+
+    expect(errorSpy.mock.calls[0]?.[0]).toBe(
+      "Authentication required. Run `githits login` to authenticate.",
+    );
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
 
   it("outputs progress for incomplete search refs", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
