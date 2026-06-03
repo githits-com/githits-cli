@@ -61,7 +61,11 @@ describe("searchLanguageTool", () => {
       error: "Authentication required",
       code: "AUTH_REQUIRED",
       retryable: false,
-      details: { action: "Run `githits login`, then retry this tool call." },
+      details: {
+        action:
+          "Run `githits login`, or set GITHITS_API_TOKEN, then retry this tool call.",
+        authSource: "local",
+      },
     });
   });
 });

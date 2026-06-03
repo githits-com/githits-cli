@@ -35,7 +35,9 @@ describe("requireAuth", () => {
         { hasValidToken: false, mcpUrl: "https://mcp.githits.com" },
         "to start MCP server",
       ),
-    ).toThrow("Authentication required to start MCP server.");
+    ).toThrow(
+      "No local GitHits authentication token found to start MCP server.",
+    );
   });
 
   it("formats terminal recovery text", () => {
@@ -67,6 +69,7 @@ describe("requireAuth", () => {
       error: "Authentication required.",
       code: "AUTH_REQUIRED",
       retryable: false,
+      details: { authSource: "local" },
     });
   });
 });

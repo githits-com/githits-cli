@@ -14,7 +14,10 @@ import {
   isGraphQLSchemaMismatchError,
 } from "./client-update-required-error.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
-import { AuthenticationError } from "./githits-service.js";
+import {
+  AuthenticationError,
+  SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+} from "./githits-service.js";
 import type { TokenProvider } from "./token-manager.js";
 
 /**
@@ -1806,7 +1809,10 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     const detail = parseDetail(response.responseBody);
 
     if (status === 401) {
-      return new AuthenticationError();
+      return new AuthenticationError(
+        SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+        "server",
+      );
     }
 
     if (status === 403) {
@@ -1949,7 +1955,10 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         return new CodeNavigationFeatureFlagRequiredError(message);
 
       case "UNAUTHORIZED":
-        return new AuthenticationError();
+        return new AuthenticationError(
+          SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+          "server",
+        );
 
       case "FORBIDDEN":
         return new CodeNavigationAccessError(

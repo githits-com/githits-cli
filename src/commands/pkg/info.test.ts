@@ -187,7 +187,7 @@ describe("pkgInfoAction", () => {
     }
 
     expect(errorSpy.mock.calls[0]?.[0]).toBe(
-      "Authentication required. Run `githits login` to authenticate.",
+      "Authentication required. Run `githits login` to authenticate or set GITHITS_API_TOKEN.",
     );
     errorSpy.mockRestore();
     exitSpy.mockRestore();
@@ -216,6 +216,43 @@ describe("pkgInfoAction", () => {
       error: "Authentication required.",
       code: "AUTH_REQUIRED",
       retryable: false,
+      details: { authSource: "local" },
+    });
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("preserves server auth rejection source in JSON service auth failures", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const service = createMockPackageIntelligenceService({
+      packageSummary: mock(() =>
+        Promise.reject(
+          new AuthenticationError(
+            "GitHits could not accept the authentication token.",
+            "server",
+          ),
+        ),
+      ),
+    });
+
+    try {
+      await pkgInfoAction(
+        "npm:express",
+        { json: true },
+        createDeps({ packageIntelligenceService: service }),
+      );
+    } catch {
+      // expected
+    }
+
+    expect(JSON.parse(errorSpy.mock.calls[0]?.[0] as string)).toEqual({
+      error: "GitHits could not accept the authentication token.",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+      details: { authSource: "server" },
     });
     errorSpy.mockRestore();
     exitSpy.mockRestore();

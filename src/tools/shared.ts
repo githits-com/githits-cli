@@ -2,7 +2,10 @@ import { AuthenticationError } from "../services/githits-service.js";
 import type { MappedError } from "../shared/code-navigation-error-map.js";
 import { errorResult, type ToolResult } from "./types.js";
 
-const LOCAL_MCP_AUTH_ACTION = "Run `githits login`, then retry this tool call.";
+const LOCAL_MCP_AUTH_ACTION =
+  "Run `githits login`, or set GITHITS_API_TOKEN, then retry this tool call.";
+const SERVER_MCP_AUTH_ACTION =
+  "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set. If this persists, contact support@githits.com.";
 
 /**
  * Wraps a tool handler with the shared structured `{error, code,
@@ -44,7 +47,10 @@ export function buildMcpErrorPayload(mapped: MappedError): ToolErrorEnvelope {
     retryable: mapped.retryable ?? false,
     ...(mapped.code === "AUTH_REQUIRED"
       ? {
-          details: { ...(mapped.details ?? {}), action: LOCAL_MCP_AUTH_ACTION },
+          details: {
+            ...(mapped.details ?? {}),
+            action: mcpAuthAction(mapped.details?.authSource),
+          },
         }
       : mapped.details
         ? { details: mapped.details }
@@ -58,7 +64,10 @@ export function addLocalMcpAuthAction<T extends MappableErrorPayload>(
   if (payload.code !== "AUTH_REQUIRED") return payload;
   return {
     ...payload,
-    details: { ...(payload.details ?? {}), action: LOCAL_MCP_AUTH_ACTION },
+    details: {
+      ...(payload.details ?? {}),
+      action: mcpAuthAction(payload.details?.authSource),
+    },
   };
 }
 
@@ -68,7 +77,10 @@ function classify(operation: string, error: unknown): ToolErrorEnvelope {
       error: error.message,
       code: "AUTH_REQUIRED",
       retryable: false,
-      details: { action: LOCAL_MCP_AUTH_ACTION },
+      details: {
+        action: mcpAuthAction(error.source),
+        authSource: error.source,
+      },
     };
   }
   const message = error instanceof Error ? error.message : "Unknown error";
@@ -77,4 +89,10 @@ function classify(operation: string, error: unknown): ToolErrorEnvelope {
     code: "UNKNOWN",
     retryable: false,
   };
+}
+
+function mcpAuthAction(authSource: unknown): string {
+  return authSource === "server"
+    ? SERVER_MCP_AUTH_ACTION
+    : LOCAL_MCP_AUTH_ACTION;
 }

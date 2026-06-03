@@ -15,6 +15,32 @@ describe("formatMappedErrorForTerminal", () => {
     ).toBe("Authentication required. Run `githits login` to authenticate.");
   });
 
+  it("keeps distinct AUTH_REQUIRED messages in terminal output", () => {
+    expect(
+      formatMappedErrorForTerminal({
+        code: "AUTH_REQUIRED",
+        message: "GitHits could not accept the authentication token.",
+        retryable: false,
+        details: { authSource: "server" },
+      }),
+    ).toBe(
+      "GitHits could not accept the authentication token. Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set. If this persists, contact support@githits.com.",
+    );
+  });
+
+  it("mentions API token recovery for local auth failures", () => {
+    expect(
+      formatMappedErrorForTerminal({
+        code: "AUTH_REQUIRED",
+        message: "No local GitHits authentication token found.",
+        retryable: false,
+        details: { authSource: "local" },
+      }),
+    ).toBe(
+      "No local GitHits authentication token found. Run `githits login` to authenticate or set GITHITS_API_TOKEN.",
+    );
+  });
+
   it("leaves CLI JSON auth envelopes neutral", () => {
     expect(
       buildCliMappedErrorPayload({

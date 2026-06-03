@@ -134,9 +134,10 @@ describe("authenticated command JSON auth failures", () => {
       expect(logSpy).not.toHaveBeenCalled();
       const payload = JSON.parse(String(errorSpy.mock.calls[0]?.[0]));
       expect(payload).toEqual({
-        error: "Authentication required.",
+        error: "No local GitHits authentication token found.",
         code: "AUTH_REQUIRED",
         retryable: false,
+        details: { authSource: "local" },
       });
     } finally {
       logSpy.mockRestore();

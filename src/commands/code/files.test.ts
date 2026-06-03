@@ -274,7 +274,7 @@ describe("pkgFilesAction", () => {
     }
 
     expect(errorSpy.mock.calls[0]?.[0]).toBe(
-      "Authentication required. Run `githits login` to authenticate.",
+      "Authentication required. Run `githits login` to authenticate or set GITHITS_API_TOKEN.",
     );
     errorSpy.mockRestore();
     exitSpy.mockRestore();
@@ -304,6 +304,7 @@ describe("pkgFilesAction", () => {
       error: "Authentication required.",
       code: "AUTH_REQUIRED",
       retryable: false,
+      details: { authSource: "local" },
     });
     errorSpy.mockRestore();
     exitSpy.mockRestore();
