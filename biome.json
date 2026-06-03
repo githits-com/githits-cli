@@ -18,7 +18,24 @@
   },
   "linter": {
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["**/services/index.js"],
+                "message": "Import from the defining service module instead of the services barrel."
+              },
+              {
+                "group": ["**/shared/index.js"],
+                "message": "Import from the defining shared module instead of the shared barrel."
+              }
+            ]
+          }
+        }
+      }
     }
   },
   "overrides": [

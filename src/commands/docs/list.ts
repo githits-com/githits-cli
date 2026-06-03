@@ -1,19 +1,24 @@
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
-import type { PackageIntelligenceService } from "../../services/index.js";
+import type { PackageIntelligenceService } from "../../services/package-intelligence-service.js";
 import { shouldUseColors } from "../../shared/colors.js";
+import { buildListPackageDocsParams } from "../../shared/list-package-docs-request.js";
 import {
-  buildListPackageDocsParams,
   buildListPackageDocsSuccessPayload,
   formatListPackageDocsTerminal,
-  formatMappedErrorForTerminal,
+} from "../../shared/list-package-docs-response.js";
+import { mapPackageIntelligenceError } from "../../shared/package-intelligence-error-map.js";
+import {
   InvalidPackageSpecError,
-  mapPackageIntelligenceError,
   parsePackageSpec,
-  requireAuth,
-  SPINNER_MESSAGES,
-  startSpinner,
-} from "../../shared/index.js";
+} from "../../shared/package-spec.js";
+import { requireAuth } from "../../shared/require-auth.js";
+import { startSpinner } from "../../shared/spinner.js";
+import { SPINNER_MESSAGES } from "../../shared/spinner-messages.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "../format-mapped-error.js";
 
 export interface DocsListCommandOptions {
   limit?: string;
@@ -99,14 +104,7 @@ function handleDocsListError(error: unknown, json: boolean): never {
   const mapped = mapPackageIntelligenceError(error);
 
   if (json) {
-    console.error(
-      JSON.stringify({
-        error: mapped.message,
-        code: mapped.code,
-        retryable: mapped.retryable ?? false,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      }),
-    );
+    console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
   } else {
     console.error(formatMappedErrorForTerminal(mapped));
   }

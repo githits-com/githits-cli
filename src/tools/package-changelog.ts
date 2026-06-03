@@ -1,17 +1,18 @@
 import { z } from "zod";
-import type { PackageIntelligenceService } from "../services/index.js";
-import { InvalidPackageSpecError } from "../shared/index.js";
+import type { PackageIntelligenceService } from "../services/package-intelligence-service.js";
 import { buildPackageChangelogParams } from "../shared/package-changelog-request.js";
 import {
   buildPackageChangelogSuccessPayload,
   formatPackageChangelogTerminal,
 } from "../shared/package-changelog-response.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
+import { InvalidPackageSpecError } from "../shared/package-spec.js";
 import {
   PKGSEER_REGISTRY_LIST,
   toPkgseerRegistryLowercase,
 } from "../shared/pkgseer-registry.js";
 import { PKG_CHANGELOG_GUARDRAIL } from "./guardrails.js";
+import { mcpMappedErrorResult } from "./shared.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
 export interface PackageChangelogArgs {
@@ -185,20 +186,7 @@ export function createPackageChangelogTool(
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapPackageIntelligenceError(error);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify({
-                error: mapped.message,
-                code: mapped.code,
-                retryable: mapped.retryable ?? false,
-                ...(mapped.details ? { details: mapped.details } : {}),
-              }),
-            },
-          ],
-          isError: true,
-        };
+        return mcpMappedErrorResult(mapped);
       }
     },
   };

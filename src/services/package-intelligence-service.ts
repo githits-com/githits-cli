@@ -33,7 +33,10 @@ import {
   isGraphQLSchemaMismatchError,
 } from "./client-update-required-error.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
-import { AuthenticationError } from "./githits-service.js";
+import {
+  AuthenticationError,
+  SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+} from "./githits-service.js";
 import { promoteGenericVersionNotFound } from "./promote-version-not-found.js";
 import type { TokenProvider } from "./token-manager.js";
 
@@ -1811,7 +1814,8 @@ export class PackageIntelligenceServiceImpl
 
     if (status === 401) {
       return new AuthenticationError(
-        "Authentication required. Run `githits login` to authenticate.",
+        SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+        "server",
       );
     }
 
@@ -1913,7 +1917,8 @@ export class PackageIntelligenceServiceImpl
 
       case "UNAUTHORIZED":
         return new AuthenticationError(
-          "Authentication required. Run `githits login` to authenticate.",
+          SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+          "server",
         );
 
       case "FORBIDDEN":

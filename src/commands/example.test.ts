@@ -1,4 +1,5 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
+import { AuthenticationError } from "../services/githits-service.js";
 import { createMockGitHitsService } from "../services/test-helpers.js";
 import { AuthRequiredError } from "../shared/require-auth.js";
 import { type ExampleDependencies, exampleAction } from "./example.js";
@@ -98,12 +99,62 @@ describe("exampleAction", () => {
 
     const output = errorSpy.mock.calls[0]?.[0] as string;
     expect(JSON.parse(output)).toEqual({
-      error: "Authentication required.",
+      error: "No local GitHits authentication token found.",
       code: "AUTH_REQUIRED",
       retryable: false,
+      details: { authSource: "local" },
     });
     expect(exitSpy).toHaveBeenCalledWith(1);
 
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("preserves CLI auth remediation when service auth fails", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({
+        search: mock(() => Promise.reject(new AuthenticationError())),
+      }),
+    });
+
+    await expect(exampleAction("test", {}, deps)).rejects.toThrow(
+      "process.exit",
+    );
+
+    expect(errorSpy.mock.calls[0]?.[0]).toBe(
+      "Authentication required. Run `githits login` to authenticate or set GITHITS_API_TOKEN.",
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("preserves CLI auth remediation in JSON when service auth fails", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({
+        search: mock(() => Promise.reject(new AuthenticationError())),
+      }),
+    });
+
+    await expect(exampleAction("test", { json: true }, deps)).rejects.toThrow(
+      "process.exit",
+    );
+
+    expect(JSON.parse(errorSpy.mock.calls[0]?.[0] as string)).toEqual({
+      error: "Authentication required.",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+      details: { authSource: "local" },
+    });
+    expect(exitSpy).toHaveBeenCalledWith(1);
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });

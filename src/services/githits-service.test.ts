@@ -142,7 +142,7 @@ describe("GitHitsServiceImpl", () => {
       ).rejects.toThrow(AuthenticationError);
       await expect(
         service.search({ query: "test", language: "js" }),
-      ).rejects.toThrow("Authentication required");
+      ).rejects.toThrow("GitHits could not accept the authentication token.");
     });
 
     it("throws on 500 with status code", async () => {

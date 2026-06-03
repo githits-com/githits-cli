@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CodeNavigationService } from "../services/index.js";
+import type { CodeNavigationService } from "../services/code-navigation-service.js";
 import { knownFileIntentList } from "../shared/code-navigation.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { buildListFilesParams } from "../shared/list-files-request.js";
@@ -11,7 +11,8 @@ import {
   codeTargetSchema,
   resolveCodeTarget,
 } from "./code-navigation-shared.js";
-import { errorResult, type ToolDefinition, textResult } from "./types.js";
+import { mcpMappedErrorResult } from "./shared.js";
+import { type ToolDefinition, textResult } from "./types.js";
 
 export interface ListFilesArgs {
   target: CodeTargetArg;
@@ -185,14 +186,7 @@ export function createListFilesTool(
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapCodeNavigationError(error);
-        return errorResult(
-          JSON.stringify({
-            error: mapped.message,
-            code: mapped.code,
-            retryable: mapped.retryable ?? false,
-            ...(mapped.details ? { details: mapped.details } : {}),
-          }),
-        );
+        return mcpMappedErrorResult(mapped);
       }
     },
   };

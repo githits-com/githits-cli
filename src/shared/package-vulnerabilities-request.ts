@@ -30,7 +30,7 @@
  *   ad hoc normalization rules here.
  */
 
-import type { PackageVulnerabilitiesParams } from "../services/index.js";
+import type { PackageVulnerabilitiesParams } from "../services/package-intelligence-service.js";
 import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,

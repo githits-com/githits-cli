@@ -1,17 +1,12 @@
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
-import type { CodeNavigationService } from "../../services/index.js";
+import type { CodeNavigationService } from "../../services/code-navigation-service.js";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_WAIT_TIMEOUT_MS,
 } from "../../shared/code-navigation-defaults.js";
 import { shouldUseColors } from "../../shared/colors.js";
-import {
-  InvalidPackageSpecError,
-  requireAuth,
-  SPINNER_MESSAGES,
-  startSpinner,
-} from "../../shared/index.js";
+import { InvalidPackageSpecError } from "../../shared/package-spec.js";
 import { toPkgseerRegistryLowercase } from "../../shared/pkgseer-registry.js";
 import { withReadFileRecovery } from "../../shared/read-file-error.js";
 import { buildReadFileParams } from "../../shared/read-file-request.js";
@@ -19,6 +14,9 @@ import {
   buildReadFileSuccessPayload,
   formatReadFileTerminal,
 } from "../../shared/read-file-response.js";
+import { requireAuth } from "../../shared/require-auth.js";
+import { startSpinner } from "../../shared/spinner.js";
+import { SPINNER_MESSAGES } from "../../shared/spinner-messages.js";
 import {
   formatFileErrorWithFilesHint,
   handleCodeNavCommandError,

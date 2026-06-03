@@ -3,7 +3,7 @@ import {
   type DocsReadCommandDependencies,
   docsReadAction,
 } from "../commands/docs/read.js";
-import { PackageIntelligenceTargetNotFoundError } from "../services/index.js";
+import { PackageIntelligenceTargetNotFoundError } from "../services/package-intelligence-service.js";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { isProcessExitSentinel } from "./parity-test-helpers.js";
 import { createReadPackageDocTool } from "./read-package-doc.js";

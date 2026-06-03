@@ -150,7 +150,17 @@ describe("mapCodeNavigationError", () => {
       code: "AUTH_REQUIRED",
       message: "Login required",
       retryable: false,
-      details: { action: "Run `githits login`, then retry this tool call." },
+      details: { authSource: "local" },
+    });
+  });
+
+  it("preserves server auth rejection source", () => {
+    const err = new AuthenticationError("Token rejected", "server");
+    expect(mapCodeNavigationError(err)).toEqual({
+      code: "AUTH_REQUIRED",
+      message: "Token rejected",
+      retryable: false,
+      details: { authSource: "server" },
     });
   });
 

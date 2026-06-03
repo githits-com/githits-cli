@@ -1,5 +1,5 @@
 import type { ExecService } from "../../services/exec-service.js";
-import type { FileSystemService } from "../../services/index.js";
+import type { FileSystemService } from "../../services/filesystem-service.js";
 import {
   type CliCheckCommand,
   getCliCheckStatus,

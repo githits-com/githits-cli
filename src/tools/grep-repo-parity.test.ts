@@ -7,7 +7,7 @@ import {
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
   type GrepRepoResult,
-} from "../services/index.js";
+} from "../services/code-navigation-service.js";
 import {
   createMockCodeNavigationService,
   defaultGrepRepoResult,

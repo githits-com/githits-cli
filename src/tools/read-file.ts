@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CodeNavigationService } from "../services/index.js";
+import type { CodeNavigationService } from "../services/code-navigation-service.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
 import { withReadFileRecovery } from "../shared/read-file-error.js";
@@ -15,7 +15,8 @@ import {
   resolveCodeTarget,
 } from "./code-navigation-shared.js";
 import { CODE_READ_GUARDRAIL } from "./guardrails.js";
-import { errorResult, type ToolDefinition, textResult } from "./types.js";
+import { mcpMappedErrorResult } from "./shared.js";
+import { type ToolDefinition, textResult } from "./types.js";
 
 /**
  * Maximum line span the MCP `code_read` tool will return in one call.
@@ -189,14 +190,7 @@ export function createReadFileTool(
           mapCodeNavigationError(error),
           args.path,
         );
-        return errorResult(
-          JSON.stringify({
-            error: mapped.message,
-            code: mapped.code,
-            retryable: mapped.retryable ?? false,
-            ...(mapped.details ? { details: mapped.details } : {}),
-          }),
-        );
+        return mcpMappedErrorResult(mapped);
       }
     },
   };

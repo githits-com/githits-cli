@@ -1,19 +1,22 @@
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
-import type { PackageIntelligenceService } from "../../services/index.js";
+import type { PackageIntelligenceService } from "../../services/package-intelligence-service.js";
+import { shouldUseColors } from "../../shared/colors.js";
+import { mapPackageIntelligenceError } from "../../shared/package-intelligence-error-map.js";
+import { InvalidPackageSpecError } from "../../shared/package-spec.js";
+import { parseLinesOption } from "../../shared/parse-lines-option.js";
+import { buildReadPackageDocParams } from "../../shared/read-package-doc-request.js";
 import {
-  buildReadPackageDocParams,
   buildReadPackageDocSuccessPayload,
-  formatMappedErrorForTerminal,
   formatReadPackageDocTerminal,
-  InvalidPackageSpecError,
-  mapPackageIntelligenceError,
-  parseLinesOption,
-  requireAuth,
-  SPINNER_MESSAGES,
-  shouldUseColors,
-  startSpinner,
-} from "../../shared/index.js";
+} from "../../shared/read-package-doc-response.js";
+import { requireAuth } from "../../shared/require-auth.js";
+import { startSpinner } from "../../shared/spinner.js";
+import { SPINNER_MESSAGES } from "../../shared/spinner-messages.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "../format-mapped-error.js";
 
 export interface DocsReadCommandOptions {
   verbose?: boolean;
@@ -80,14 +83,7 @@ function handleDocsReadError(error: unknown, json: boolean): never {
   const mapped = mapPackageIntelligenceError(error);
 
   if (json) {
-    console.error(
-      JSON.stringify({
-        error: mapped.message,
-        code: mapped.code,
-        retryable: mapped.retryable ?? false,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      }),
-    );
+    console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
   } else {
     console.error(formatMappedErrorForTerminal(mapped));
   }

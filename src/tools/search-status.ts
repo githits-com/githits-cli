@@ -1,10 +1,11 @@
 import { z } from "zod";
-import type { CodeNavigationService } from "../services/index.js";
+import type { CodeNavigationService } from "../services/code-navigation-service.js";
 import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchStatusPayload,
-  renderUnifiedSearchStatusText,
-} from "../shared/index.js";
+} from "../shared/unified-search-response.js";
+import { renderUnifiedSearchStatusText } from "../shared/unified-search-status-text.js";
+import { addLocalMcpAuthAction } from "./shared.js";
 import { errorResult, type ToolDefinition, textResult } from "./types.js";
 
 export interface SearchStatusArgs {
@@ -49,7 +50,9 @@ export function createSearchStatusTool(
         return textResult(JSON.stringify(payload));
       } catch (error) {
         return errorResult(
-          JSON.stringify(buildUnifiedSearchErrorPayload(error)),
+          JSON.stringify(
+            addLocalMcpAuthAction(buildUnifiedSearchErrorPayload(error)),
+          ),
         );
       }
     },

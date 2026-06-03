@@ -1,5 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
-import { PackageIntelligenceTargetNotFoundError } from "../services/index.js";
+import { AuthenticationError } from "../services/githits-service.js";
+import { PackageIntelligenceTargetNotFoundError } from "../services/package-intelligence-service.js";
 import {
   createMockPackageIntelligenceService,
   defaultPackageSummary,
@@ -181,5 +182,35 @@ describe("createPackageSummaryTool — service errors", () => {
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("UNKNOWN");
+  });
+
+  it("preserves server auth rejection source in MCP envelope", async () => {
+    const service = createMockPackageIntelligenceService({
+      packageSummary: mock(() =>
+        Promise.reject(
+          new AuthenticationError(
+            "GitHits could not accept the authentication token.",
+            "server",
+          ),
+        ),
+      ),
+    });
+    const tool = createPackageSummaryTool(service);
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express", format: "json" },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    expect(parseText(result)).toEqual({
+      error: "GitHits could not accept the authentication token.",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+      details: {
+        authSource: "server",
+        action:
+          "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set. If this persists, contact support@githits.com.",
+      },
+    });
   });
 });

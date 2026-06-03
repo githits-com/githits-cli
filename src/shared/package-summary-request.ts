@@ -15,7 +15,7 @@
  * `{ params }` — no `defaulted` array.
  */
 
-import type { PackageSummaryParams } from "../services/index.js";
+import type { PackageSummaryParams } from "../services/package-intelligence-service.js";
 import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,

@@ -19,12 +19,12 @@ import {
   type PkgDepsCommandDependencies,
   pkgDepsAction,
 } from "../commands/pkg/deps.js";
-import type { DependencyReport } from "../services/index.js";
+import type { DependencyReport } from "../services/package-intelligence-service.js";
 import {
   PackageIntelligenceBackendError,
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
-} from "../services/index.js";
+} from "../services/package-intelligence-service.js";
 import {
   cratesFeatureDependencyReport,
   createMockPackageIntelligenceService,

@@ -11,17 +11,20 @@
 import type {
   CodeNavigationService,
   CodeNavigationTarget,
-} from "../../services/index.js";
+} from "../../services/code-navigation-service.js";
 import {
-  formatMappedErrorForTerminal,
   type MappedError,
   mapCodeNavigationError,
 } from "../../shared/code-navigation-error-map.js";
 import {
   InvalidPackageSpecError,
   parsePackageSpec,
-  toPkgseerRegistry,
-} from "../../shared/index.js";
+} from "../../shared/package-spec.js";
+import { toPkgseerRegistry } from "../../shared/pkgseer-registry.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "../format-mapped-error.js";
 
 export { parseIntCliOption } from "../../shared/cli-options.js";
 
@@ -95,7 +98,7 @@ export function formatIndexingError(mapped: MappedError): string {
   if (mapped.code === "UPDATE_REQUIRED") {
     return formatMappedErrorForTerminal(mapped);
   }
-  if (mapped.code !== "INDEXING") return mapped.message;
+  if (mapped.code !== "INDEXING") return formatMappedErrorForTerminal(mapped);
   const detail = mapped.details ?? {};
   const lines = [mapped.message];
   if (detail.indexingRef) lines.push(`  indexingRef: ${detail.indexingRef}`);
@@ -201,14 +204,7 @@ export function handleCodeNavCommandError(
   const mapped = mapMappedError(mapCodeNavigationError(error));
   if (json) {
     // eslint-disable-next-line no-console
-    console.error(
-      JSON.stringify({
-        error: mapped.message,
-        code: mapped.code,
-        retryable: mapped.retryable ?? false,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      }),
-    );
+    console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
     process.exit(exitCode);
   }
   // eslint-disable-next-line no-console

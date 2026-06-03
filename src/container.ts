@@ -1,41 +1,59 @@
 import { version } from "../package.json";
-import type { GitHitsService } from "./services/index.js";
 import {
-  type AuthService,
-  AuthServiceImpl,
-  type AuthSessionMetadata,
-  AuthSessionMetadataStorage,
-  AuthStorageImpl,
-  type AuthStorageMode,
-  type BrowserService,
-  BrowserServiceImpl,
-  ChunkingKeyringService,
-  type CodeNavigationService,
-  CodeNavigationServiceImpl,
-  type FileSystemService,
-  FileSystemServiceImpl,
-  GitHitsServiceImpl,
-  getApiUrl,
   getAuthFileStorageDir,
-  getCodeNavigationUrl,
-  getEnvApiToken,
   getLegacyAuthStorageDir,
   getLegacyMacAuthFileStorageDir,
+} from "./services/app-config-paths.js";
+import {
+  type AuthStorageMode,
+  loadAuthConfig,
+} from "./services/auth-config.js";
+import { type AuthService, AuthServiceImpl } from "./services/auth-service.js";
+import {
+  type AuthSessionMetadata,
+  AuthSessionMetadataStorage,
+} from "./services/auth-session-metadata-storage.js";
+import { AuthStorageImpl } from "./services/auth-storage.js";
+import {
+  type BrowserService,
+  BrowserServiceImpl,
+} from "./services/browser-service.js";
+import {
+  ChunkingKeyringService,
+  WINDOWS_MAX_ENTRY_SIZE,
+} from "./services/chunking-keyring-service.js";
+import {
+  type CodeNavigationService,
+  CodeNavigationServiceImpl,
+} from "./services/code-navigation-service.js";
+import {
+  getApiUrl,
+  getCodeNavigationUrl,
+  getEnvApiToken,
   getMcpUrl,
-  KeychainAuthStorage,
-  KeyringServiceImpl,
+} from "./services/config.js";
+import {
+  type FileSystemService,
+  FileSystemServiceImpl,
+} from "./services/filesystem-service.js";
+import {
+  type GitHitsService,
+  GitHitsServiceImpl,
+} from "./services/githits-service.js";
+import { KeychainAuthStorage } from "./services/keychain-auth-storage.js";
+import { KeyringServiceImpl } from "./services/keyring-service.js";
+import {
   LockedAuthStorage,
   type LockingAuthStorage,
-  loadAuthConfig,
-  MigratingAuthStorage,
-  ModeAwareFileAuthStorage,
+} from "./services/locked-auth-storage.js";
+import { MigratingAuthStorage } from "./services/migrating-auth-storage.js";
+import { ModeAwareFileAuthStorage } from "./services/mode-aware-file-auth-storage.js";
+import {
   type PackageIntelligenceService,
   PackageIntelligenceServiceImpl,
-  RefreshingGitHitsService,
-  TokenManager,
-  type TokenProvider,
-  WINDOWS_MAX_ENTRY_SIZE,
-} from "./services/index.js";
+} from "./services/package-intelligence-service.js";
+import { RefreshingGitHitsService } from "./services/refreshing-githits-service.js";
+import { TokenManager, type TokenProvider } from "./services/token-manager.js";
 import {
   type AgentInfo,
   createClientHeaderBuilder,

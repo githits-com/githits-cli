@@ -1,20 +1,25 @@
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
-import type { PackageIntelligenceService } from "../../services/index.js";
+import type { PackageIntelligenceService } from "../../services/package-intelligence-service.js";
 import { shouldUseColors } from "../../shared/colors.js";
 import {
-  formatMappedErrorForTerminal,
-  InvalidPackageSpecError,
   type MappedError,
   mapPackageIntelligenceError,
+} from "../../shared/package-intelligence-error-map.js";
+import {
+  InvalidPackageSpecError,
   parsePackageSpec,
-  requireAuth,
-} from "../../shared/index.js";
+} from "../../shared/package-spec.js";
 import { buildPackageVulnerabilitiesParams } from "../../shared/package-vulnerabilities-request.js";
 import {
   buildPackageVulnerabilitiesSuccessPayload,
   formatPackageVulnerabilitiesTerminal,
 } from "../../shared/package-vulnerabilities-response.js";
+import { requireAuth } from "../../shared/require-auth.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "../format-mapped-error.js";
 
 export interface PkgVulnsCommandOptions {
   severity?: string;
@@ -95,14 +100,7 @@ function handlePkgVulnsCommandError(error: unknown, json: boolean): never {
   const mapped = mapPackageIntelligenceError(error);
 
   if (json) {
-    console.error(
-      JSON.stringify({
-        error: mapped.message,
-        code: mapped.code,
-        retryable: mapped.retryable ?? false,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      }),
-    );
+    console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
     process.exit(1);
   }
 
@@ -122,7 +120,9 @@ function formatVulnsTerminalError(mapped: MappedError): string {
   if (mapped.code === "UPDATE_REQUIRED") {
     return formatMappedErrorForTerminal(mapped);
   }
-  if (mapped.code !== "VERSION_NOT_FOUND") return mapped.message;
+  if (mapped.code !== "VERSION_NOT_FOUND") {
+    return formatMappedErrorForTerminal(mapped);
+  }
   const detail = mapped.details ?? {};
   const pkg = typeof detail.package === "string" ? detail.package : undefined;
   const requested =

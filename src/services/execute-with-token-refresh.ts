@@ -1,4 +1,7 @@
-import { AuthenticationError } from "./githits-service.js";
+import {
+  AuthenticationError,
+  LOCAL_AUTHENTICATION_MISSING_MESSAGE,
+} from "./githits-service.js";
 
 export interface ExecuteWithTokenRefreshOptions<T> {
   getToken: () => Promise<string | undefined>;
@@ -17,7 +20,8 @@ export async function executeWithTokenRefresh<T>(
   const token = await options.getToken();
   if (!token) {
     throw new AuthenticationError(
-      "Authentication required. Run `githits login` to authenticate.",
+      LOCAL_AUTHENTICATION_MISSING_MESSAGE,
+      "local",
     );
   }
 

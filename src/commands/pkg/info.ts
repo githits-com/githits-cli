@@ -1,20 +1,23 @@
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
-import type { PackageIntelligenceService } from "../../services/index.js";
+import type { PackageIntelligenceService } from "../../services/package-intelligence-service.js";
 import { shouldUseColors } from "../../shared/colors.js";
+import { mapPackageIntelligenceError } from "../../shared/package-intelligence-error-map.js";
 import {
-  formatMappedErrorForTerminal,
   InvalidPackageSpecError,
-  mapPackageIntelligenceError,
   parsePackageSpec,
-  requireAuth,
-} from "../../shared/index.js";
+} from "../../shared/package-spec.js";
 import { buildPackageSummaryParams } from "../../shared/package-summary-request.js";
 import {
   buildPackageSummarySuccessPayload,
   formatPackageSummaryTerminal,
 } from "../../shared/package-summary-response.js";
 import { PKGSEER_REGISTRY_LIST } from "../../shared/pkgseer-registry.js";
+import { requireAuth } from "../../shared/require-auth.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "../format-mapped-error.js";
 
 export interface PkgInfoCommandOptions {
   verbose?: boolean;
@@ -86,14 +89,7 @@ function handlePkgInfoCommandError(error: unknown, json: boolean): never {
   const mapped = mapPackageIntelligenceError(error);
 
   if (json) {
-    console.error(
-      JSON.stringify({
-        error: mapped.message,
-        code: mapped.code,
-        retryable: mapped.retryable ?? false,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      }),
-    );
+    console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
     process.exit(1);
   }
 

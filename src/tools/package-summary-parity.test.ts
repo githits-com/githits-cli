@@ -27,7 +27,7 @@ import {
 import {
   PackageIntelligenceBackendError,
   PackageIntelligenceTargetNotFoundError,
-} from "../services/index.js";
+} from "../services/package-intelligence-service.js";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { createPackageSummaryTool } from "./package-summary.js";
 import { isProcessExitSentinel } from "./parity-test-helpers.js";

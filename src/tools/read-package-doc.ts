@@ -1,11 +1,12 @@
 import { z } from "zod";
-import type { PackageIntelligenceService } from "../services/index.js";
+import type { PackageIntelligenceService } from "../services/package-intelligence-service.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { buildReadPackageDocParams } from "../shared/read-package-doc-request.js";
 import { buildReadPackageDocSuccessPayload } from "../shared/read-package-doc-response.js";
 import { renderReadPackageDocText } from "../shared/read-package-doc-text.js";
 import { DOCS_GUARDRAIL } from "./guardrails.js";
-import { errorResult, type ToolDefinition, textResult } from "./types.js";
+import { mcpMappedErrorResult } from "./shared.js";
+import { type ToolDefinition, textResult } from "./types.js";
 
 export interface ReadPackageDocArgs {
   page_id: string;
@@ -74,14 +75,7 @@ export function createReadPackageDocTool(
         return textResult(JSON.stringify(payload));
       } catch (error) {
         const mapped = mapPackageIntelligenceError(error);
-        return errorResult(
-          JSON.stringify({
-            error: mapped.message,
-            code: mapped.code,
-            retryable: mapped.retryable ?? false,
-            ...(mapped.details ? { details: mapped.details } : {}),
-          }),
-        );
+        return mcpMappedErrorResult(mapped);
       }
     },
   };

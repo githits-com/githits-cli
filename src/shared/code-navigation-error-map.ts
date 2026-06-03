@@ -19,7 +19,10 @@ import {
   MalformedCodeNavigationResponseError,
   type TargetResolution,
 } from "../services/code-navigation-service.js";
-import { AuthenticationError } from "../services/githits-service.js";
+import {
+  AuthenticationError,
+  type AuthenticationErrorSource,
+} from "../services/githits-service.js";
 import { debugLog } from "./debug-log.js";
 import { AuthRequiredError } from "./require-auth.js";
 
@@ -66,6 +69,8 @@ export interface MappedErrorDetails {
   updateCommand?: string;
   /** Human-readable update reason. */
   reason?: string;
+  /** Whether auth failed before making a request or after backend rejection. */
+  authSource?: AuthenticationErrorSource;
 }
 
 export interface MappedError {
@@ -191,10 +196,10 @@ function classify(error: unknown): MappedError {
       code: "AUTH_REQUIRED",
       message: error.message,
       retryable: false,
-      details:
-        error instanceof AuthenticationError
-          ? { action: "Run `githits login`, then retry this tool call." }
-          : undefined,
+      details: {
+        authSource:
+          error instanceof AuthenticationError ? error.source : "local",
+      },
     };
   }
   if (error instanceof CodeNavigationNetworkError) {
@@ -254,18 +259,6 @@ export function buildUpdateRequiredError(
       ...(currentVersion ? { currentVersion } : {}),
     },
   };
-}
-
-export function formatMappedErrorForTerminal(mapped: MappedError): string {
-  if (mapped.code !== "UPDATE_REQUIRED") {
-    return mapped.message;
-  }
-  const detail = mapped.details ?? {};
-  const updateCommand =
-    typeof detail.updateCommand === "string"
-      ? detail.updateCommand
-      : "npm i -g githits@latest";
-  return [mapped.message, "", "Update with:", `  ${updateCommand}`].join("\n");
 }
 
 /**

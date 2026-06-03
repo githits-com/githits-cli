@@ -115,10 +115,10 @@ function classify(error: unknown): MappedError {
       code: "AUTH_REQUIRED",
       message: error.message,
       retryable: false,
-      details:
-        error instanceof AuthenticationError
-          ? { action: "Run `githits login`, then retry this tool call." }
-          : undefined,
+      details: {
+        authSource:
+          error instanceof AuthenticationError ? error.source : "local",
+      },
     };
   }
   if (error instanceof PackageIntelligenceNetworkError) {

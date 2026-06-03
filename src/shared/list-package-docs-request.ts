@@ -1,4 +1,4 @@
-import type { ListPackageDocsParams } from "../services/index.js";
+import type { ListPackageDocsParams } from "../services/package-intelligence-service.js";
 import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,

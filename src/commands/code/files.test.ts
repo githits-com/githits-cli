@@ -2,7 +2,8 @@ import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
-} from "../../services/index.js";
+} from "../../services/code-navigation-service.js";
+import { AuthenticationError } from "../../services/githits-service.js";
 import {
   createMockCodeNavigationService,
   defaultListFilesResult,
@@ -250,6 +251,63 @@ describe("pkgFilesAction", () => {
     expect(payload.total).toBe(2);
     expect(payload.files[0].path).toBe("src/index.js");
     logSpy.mockRestore();
+  });
+
+  it("preserves CLI auth remediation for service auth failures", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const service = createMockCodeNavigationService({
+      listFiles: mock(() => Promise.reject(new AuthenticationError())),
+    });
+
+    try {
+      await pkgFilesAction(
+        "npm:express",
+        undefined,
+        {},
+        createDeps({ codeNavigationService: service }),
+      );
+    } catch {
+      // expected
+    }
+
+    expect(errorSpy.mock.calls[0]?.[0]).toBe(
+      "Authentication required. Run `githits login` to authenticate or set GITHITS_API_TOKEN.",
+    );
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("preserves CLI auth remediation in JSON service auth failures", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const service = createMockCodeNavigationService({
+      listFiles: mock(() => Promise.reject(new AuthenticationError())),
+    });
+
+    try {
+      await pkgFilesAction(
+        "npm:express",
+        undefined,
+        { json: true },
+        createDeps({ codeNavigationService: service }),
+      );
+    } catch {
+      // expected
+    }
+
+    expect(JSON.parse(errorSpy.mock.calls[0]?.[0] as string)).toEqual({
+      error: "Authentication required.",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+      details: { authSource: "local" },
+    });
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
   });
 
   it("echoes advanced filters in the JSON envelope", async () => {

@@ -4,6 +4,7 @@ import type {
   UnifiedSearchProgress,
   UnifiedSearchSessionStatus,
 } from "../services/code-navigation-service.js";
+import { AuthenticationError } from "../services/githits-service.js";
 import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,
@@ -63,6 +64,32 @@ describe("searchStatusTool", () => {
 
     expect(tool.description).toContain("partial hits");
     expect(tool.description).toContain("allow_partial_results");
+  });
+
+  it("adds local MCP auth remediation to auth errors", async () => {
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() => Promise.reject(new AuthenticationError())),
+      }),
+    );
+
+    const result = await tool.handler(
+      { search_ref: "search-ref-123", format: "json" },
+      {},
+    );
+    const payload = JSON.parse(result.content[0]?.text ?? "{}");
+
+    expect(result.isError).toBe(true);
+    expect(payload).toEqual({
+      error: "Authentication required.",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+      details: {
+        action:
+          "Run `githits login`, or set GITHITS_API_TOKEN, then retry this tool call.",
+        authSource: "local",
+      },
+    });
   });
 
   it("returns completed payload without fabricating initial query echo", async () => {

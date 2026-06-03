@@ -102,7 +102,20 @@ describe("mapPackageIntelligenceError", () => {
       code: "AUTH_REQUIRED",
       message: "login required",
       retryable: false,
-      details: { action: "Run `githits login`, then retry this tool call." },
+      details: { authSource: "local" },
+    });
+  });
+
+  it("preserves server auth rejection source", () => {
+    expect(
+      mapPackageIntelligenceError(
+        new AuthenticationError("token rejected", "server"),
+      ),
+    ).toEqual({
+      code: "AUTH_REQUIRED",
+      message: "token rejected",
+      retryable: false,
+      details: { authSource: "server" },
     });
   });
 
