@@ -3,13 +3,13 @@ import type { CodeNavigationService } from "../services/code-navigation-service.
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import {
   buildGrepRepoParams,
-  buildGrepRepoSuccessPayload,
   GREP_REPO_PATTERN_NOTE,
   GREP_REPO_SYMBOL_FIELDS,
   GREP_REPO_SYMBOL_FIELDS_NOTE,
   type GrepRepoSymbolField,
-  renderGrepRepoText,
-} from "../shared/index.js";
+} from "../shared/grep-repo-request.js";
+import { buildGrepRepoSuccessPayload } from "../shared/grep-repo-response.js";
+import { renderGrepRepoText } from "../shared/grep-repo-text.js";
 import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
 import {
   type CodeTargetArg,

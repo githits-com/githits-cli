@@ -2,15 +2,17 @@ import type { Command } from "commander";
 import { createContainer } from "../../container.js";
 import type { PackageIntelligenceService } from "../../services/package-intelligence-service.js";
 import { shouldUseColors } from "../../shared/colors.js";
+import { mapPackageIntelligenceError } from "../../shared/package-intelligence-error-map.js";
+import {
+  InvalidPackageSpecError,
+  parsePackageSpec,
+} from "../../shared/package-spec.js";
+import { buildPackageUpgradeReviewRequest } from "../../shared/package-upgrade-review-request.js";
 import {
   buildPackageUpgradeReview,
-  buildPackageUpgradeReviewRequest,
   formatPackageUpgradeReviewTerminal,
-  InvalidPackageSpecError,
-  mapPackageIntelligenceError,
-  parsePackageSpec,
-  requireAuth,
-} from "../../shared/index.js";
+} from "../../shared/package-upgrade-review-response.js";
+import { requireAuth } from "../../shared/require-auth.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,

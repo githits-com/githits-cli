@@ -32,14 +32,14 @@ import {
 import { FileSystemServiceImpl } from "./services/filesystem-service.js";
 import { NpmRegistryUpdateCheckService } from "./services/update-check-service.js";
 import { colorizeBrand, shouldUseColors } from "./shared/colors.js";
+import { createRootCliPreAction } from "./shared/root-cli-pre-action.js";
 import {
-  createRootCliPreAction,
   endTelemetrySpan,
   flushTelemetry,
   isTelemetryEnabled,
   startTelemetrySpan,
   withTelemetrySpan,
-} from "./shared/index.js";
+} from "./shared/telemetry.js";
 
 const program = new Command();
 const argv = process.argv.slice(2);

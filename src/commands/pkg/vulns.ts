@@ -3,17 +3,19 @@ import { createContainer } from "../../container.js";
 import type { PackageIntelligenceService } from "../../services/package-intelligence-service.js";
 import { shouldUseColors } from "../../shared/colors.js";
 import {
-  InvalidPackageSpecError,
   type MappedError,
   mapPackageIntelligenceError,
+} from "../../shared/package-intelligence-error-map.js";
+import {
+  InvalidPackageSpecError,
   parsePackageSpec,
-  requireAuth,
-} from "../../shared/index.js";
+} from "../../shared/package-spec.js";
 import { buildPackageVulnerabilitiesParams } from "../../shared/package-vulnerabilities-request.js";
 import {
   buildPackageVulnerabilitiesSuccessPayload,
   formatPackageVulnerabilitiesTerminal,
 } from "../../shared/package-vulnerabilities-response.js";
+import { requireAuth } from "../../shared/require-auth.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
