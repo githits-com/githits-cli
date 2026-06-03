@@ -1,9 +1,8 @@
-import { version } from "../../package.json";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   fetchWithTimeout,
 } from "../shared/fetch-timeout.js";
-import { buildClientHeaders } from "../shared/request-headers.js";
+import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import { withTelemetrySpan } from "../shared/telemetry.js";
 
 /**
@@ -58,7 +57,7 @@ export interface SearchParams {
  *
  * Feedback can target an example, a solution, or the current CLI/MCP
  * session. When neither `exampleId` nor `solutionId` is present, the
- * backend uses the `x-githits-session-id` header from `buildClientHeaders()`
+ * backend uses the `x-githits-session-id` header from injected client headers
  * to create generic session feedback.
  */
 export interface FeedbackParams {
@@ -75,6 +74,11 @@ export interface FeedbackParams {
 export interface FeedbackResult {
   success: boolean;
   message: string;
+}
+
+export interface GitHitsServiceRuntimeOptions {
+  clientHeaders?: ClientHeaderBuilder;
+  userAgent?: string;
 }
 
 /**
@@ -100,6 +104,7 @@ export class GitHitsServiceImpl implements GitHitsService {
     private readonly token: string,
     private readonly fetchFn?: typeof fetch,
     private readonly fetchTimeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS,
+    private readonly runtime: GitHitsServiceRuntimeOptions = {},
   ) {}
 
   async search(params: SearchParams): Promise<string> {
@@ -149,7 +154,7 @@ export class GitHitsServiceImpl implements GitHitsService {
     return withTelemetrySpan("githits.feedback.request", async () => {
       // For generic feedback, omit body targets entirely. The backend
       // then uses the valid x-githits-session-id header emitted by
-      // buildClientHeaders() as the feedback target.
+      // the injected client headers as the feedback target.
       const response = await fetchWithTimeout(
         `${this.apiUrl}/feedbacks`,
         {
@@ -182,10 +187,10 @@ export class GitHitsServiceImpl implements GitHitsService {
 
   private headers(): Record<string, string> {
     return {
-      ...buildClientHeaders(),
+      ...this.runtime.clientHeaders?.(),
       Authorization: `Bearer ${this.token}`,
       "Content-Type": "application/json",
-      "User-Agent": `githits-cli/${version}`,
+      "User-Agent": this.runtime.userAgent ?? "githits-cli",
     };
   }
 

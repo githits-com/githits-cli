@@ -1,3 +1,4 @@
+import { version } from "../package.json";
 import type { GitHitsService } from "./services/index.js";
 import {
   type AuthService,
@@ -35,7 +36,14 @@ import {
   type TokenProvider,
   WINDOWS_MAX_ENTRY_SIZE,
 } from "./services/index.js";
+import {
+  type AgentInfo,
+  createClientHeaderBuilder,
+} from "./shared/request-headers.js";
 import { withTelemetrySpan } from "./shared/telemetry.js";
+
+const BASE_CLIENT_NAME = "githits-cli";
+const USER_AGENT = `${BASE_CLIENT_NAME}/${version}`;
 
 /**
  * Create an AuthStorage instance using the configured auth storage mode.
@@ -201,6 +209,10 @@ export interface Dependencies {
 export interface CreateContainerOptions {
   /** Resolve stored OAuth immediately. Disable for MCP startup to avoid keychain prompts until first tool use. */
   resolveStoredToken?: boolean;
+  /** Client name for telemetry headers. Defaults to direct CLI mode. */
+  clientName?: string;
+  /** Optional per-request/client agent identity provider. */
+  agentProvider?: () => AgentInfo | undefined;
 }
 
 function createStaticTokenProvider(token: string): TokenProvider {
@@ -225,6 +237,16 @@ export async function createContainer(
     const fileSystemService = new FileSystemServiceImpl();
     const authService = new AuthServiceImpl();
     const browserService = new BrowserServiceImpl();
+    const clientHeaders = createClientHeaderBuilder({
+      clientName: options.clientName ?? BASE_CLIENT_NAME,
+      clientVersion: version,
+      agentProvider: options.agentProvider,
+    });
+    const serviceRuntime = {
+      clientHeaders,
+      userAgent: USER_AGENT,
+      clientVersion: version,
+    };
 
     // Check for env API token first
     const envToken = getEnvApiToken();
@@ -237,10 +259,14 @@ export async function createContainer(
       const codeNavigationService = new CodeNavigationServiceImpl(
         codeNavigationUrl,
         tokenProvider,
+        globalThis.fetch,
+        serviceRuntime,
       );
       const packageIntelligenceService = new PackageIntelligenceServiceImpl(
         codeNavigationUrl,
         tokenProvider,
+        globalThis.fetch,
+        serviceRuntime,
       );
 
       return {
@@ -256,7 +282,13 @@ export async function createContainer(
         codeNavigationUrl,
         codeNavigationService,
         packageIntelligenceService,
-        githitsService: new GitHitsServiceImpl(apiUrl, envToken),
+        githitsService: new GitHitsServiceImpl(
+          apiUrl,
+          envToken,
+          undefined,
+          undefined,
+          serviceRuntime,
+        ),
       };
     }
 
@@ -274,10 +306,14 @@ export async function createContainer(
     const codeNavigationService = new CodeNavigationServiceImpl(
       codeNavigationUrl,
       tokenManager,
+      globalThis.fetch,
+      serviceRuntime,
     );
     const packageIntelligenceService = new PackageIntelligenceServiceImpl(
       codeNavigationUrl,
       tokenManager,
+      globalThis.fetch,
+      serviceRuntime,
     );
 
     return {
@@ -293,7 +329,12 @@ export async function createContainer(
       codeNavigationUrl,
       codeNavigationService,
       packageIntelligenceService,
-      githitsService: new RefreshingGitHitsService(apiUrl, tokenManager),
+      githitsService: new RefreshingGitHitsService(
+        apiUrl,
+        tokenManager,
+        undefined,
+        serviceRuntime,
+      ),
     };
   });
 }

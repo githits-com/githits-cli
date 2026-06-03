@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { FetchTimeoutError } from "../shared/fetch-timeout.js";
+import { createClientHeaderBuilder } from "../shared/request-headers.js";
 import { AuthenticationError, GitHitsServiceImpl } from "./githits-service.js";
 
 // Helper to mock global fetch with proper typing
@@ -22,7 +23,15 @@ describe("GitHitsServiceImpl", () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
-    service = new GitHitsServiceImpl(API_URL, TOKEN);
+    service = new GitHitsServiceImpl(API_URL, TOKEN, undefined, undefined, {
+      clientHeaders: createClientHeaderBuilder({
+        clientName: "githits-cli",
+        clientVersion: "1.2.3",
+        env: {},
+        ppid: 42,
+      }),
+      userAgent: "githits-cli/1.2.3",
+    });
     originalFetch = globalThis.fetch;
   });
 
@@ -68,8 +77,9 @@ describe("GitHitsServiceImpl", () => {
       const call = fn.mock.calls[0] as unknown as [string, RequestInit];
       const headers = call[1].headers as Record<string, string>;
       expect(headers["x-githits-client-name"]).toBe("githits-cli");
-      expect(headers["x-githits-client-version"]).toMatch(/^\S+$/);
+      expect(headers["x-githits-client-version"]).toBe("1.2.3");
       expect(headers["x-githits-session-id"]).toMatch(/^[0-9a-f]{16}$/);
+      expect(headers["User-Agent"]).toBe("githits-cli/1.2.3");
     });
 
     it("passes custom license_mode", async () => {

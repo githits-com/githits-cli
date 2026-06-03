@@ -4,61 +4,79 @@ import { version } from "../../package.json";
 import { createContainer } from "../container.js";
 import { createMcpServer } from "../mcp/server.js";
 import { dim, highlight, shouldUseColors } from "../shared/colors.js";
-import {
-  setClientMode,
-  setMcpClientVersionProvider,
-} from "../shared/request-headers.js";
+import type { AgentInfo } from "../shared/request-headers.js";
 import type { McpToolServices } from "../tools/tool-services.js";
 
 const LOCAL_MCP_SERVER_METADATA = { name: "githits", version };
+
+type LocalMcpServer = ReturnType<typeof createMcpServer>;
+
+export interface StartMcpServerOptions {
+  onServerCreated?: (server: LocalMcpServer) => void;
+}
 
 /**
  * Start the MCP server. Exported for testability.
  *
  * Telemetry wiring:
- * - `setClientMode("mcp")` tags every subsequent API request with
- *   `x-githits-client-name: githits-cli/mcp` so backend telemetry
- *   can distinguish MCP-driven traffic from direct-CLI traffic.
- * - `setMcpClientVersionProvider` registers a lazy reader that
- *   pulls the connecting client's `clientInfo` (cursor,
- *   claude-code, etc.) on every request. The MCP SDK sets
- *   `_clientVersion` synchronously inside `_oninitialize` before
- *   the initialize response is sent back, so every tool call that
- *   arrives after the handshake sees a populated value —
- *   eliminating the race the older `oninitialized` callback
- *   pattern had where the first tool call could slip through
- *   before the notification dispatched.
+ * Telemetry headers are built by the services injected into this server.
+ * The CLI command passes `githits-cli/mcp` plus a lazy reader for the
+ * connecting client's `clientInfo` when it creates those services.
  */
-export async function startMcpServer(services: McpToolServices): Promise<void> {
-  setClientMode("mcp");
-
+export async function startMcpServer(
+  services: McpToolServices,
+  options: StartMcpServerOptions = {},
+): Promise<void> {
   const server = createMcpServer(services, LOCAL_MCP_SERVER_METADATA);
   const transport = new StdioServerTransport();
 
-  setMcpClientVersionProvider(() => {
-    try {
-      const clientVersion = server.server.getClientVersion();
-      if (
-        !clientVersion?.name ||
-        typeof clientVersion.name !== "string" ||
-        clientVersion.name.trim().length === 0
-      ) {
-        return undefined;
-      }
-      const name = clientVersion.name.trim();
-      const rawVersion = clientVersion.version;
-      const versionOut =
-        typeof rawVersion === "string" && rawVersion.trim().length > 0
-          ? rawVersion.trim()
-          : undefined;
-      return { name, version: versionOut };
-    } catch {
-      // Agent header is optional — never block the request.
-      return undefined;
-    }
-  });
+  options.onServerCreated?.(server);
 
   await server.connect(transport);
+}
+
+function readMcpClientVersion(
+  server: LocalMcpServer | undefined,
+): AgentInfo | undefined {
+  if (!server) return undefined;
+  try {
+    const clientVersion = server.server.getClientVersion();
+    if (
+      !clientVersion?.name ||
+      typeof clientVersion.name !== "string" ||
+      clientVersion.name.trim().length === 0
+    ) {
+      return undefined;
+    }
+    const name = clientVersion.name.trim();
+    const rawVersion = clientVersion.version;
+    const versionOut =
+      typeof rawVersion === "string" && rawVersion.trim().length > 0
+        ? rawVersion.trim()
+        : undefined;
+    return { name, version: versionOut };
+  } catch {
+    // Agent header is optional — never block the request.
+    return undefined;
+  }
+}
+
+async function createMcpCommandStartup(): Promise<{
+  services: McpToolServices;
+  onServerCreated: (server: LocalMcpServer) => void;
+}> {
+  let server: LocalMcpServer | undefined;
+  const services = await createContainer({
+    resolveStoredToken: false,
+    clientName: "githits-cli/mcp",
+    agentProvider: () => readMcpClientVersion(server),
+  });
+  return {
+    services,
+    onServerCreated: (created: LocalMcpServer) => {
+      server = created;
+    },
+  };
 }
 
 /**
@@ -111,8 +129,10 @@ Authenticated tool calls require a valid GitHits token.`,
         showMcpSetupInstructions();
         return;
       }
-      const deps = await createContainer({ resolveStoredToken: false });
-      await startMcpServer(deps);
+      const startup = await createMcpCommandStartup();
+      await startMcpServer(startup.services, {
+        onServerCreated: startup.onServerCreated,
+      });
     });
 
   mcpCommand
@@ -125,7 +145,9 @@ This command explicitly starts the server and is intended for use
 in MCP configuration files. Use 'githits mcp' for interactive setup.`,
     )
     .action(async () => {
-      const deps = await createContainer({ resolveStoredToken: false });
-      await startMcpServer(deps);
+      const startup = await createMcpCommandStartup();
+      await startMcpServer(startup.services, {
+        onServerCreated: startup.onServerCreated,
+      });
     });
 }

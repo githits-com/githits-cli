@@ -1,12 +1,10 @@
-import { version } from "../../package.json";
-
 export const CLIENT_UPDATE_REQUIRED_REASON = "Backend protocol changed";
 
 export class ClientUpdateRequiredError extends Error {
   constructor(
     message = `Update required: ${CLIENT_UPDATE_REQUIRED_REASON}`,
     public readonly reason = CLIENT_UPDATE_REQUIRED_REASON,
-    public readonly currentVersion = version,
+    public readonly currentVersion?: string,
   ) {
     super(message);
     this.name = "ClientUpdateRequiredError";
