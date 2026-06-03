@@ -20,7 +20,7 @@
  * - Enforce `maxDepth` bounds (1–10).
  */
 
-import type { PackageDependenciesParams } from "../services/index.js";
+import type { PackageDependenciesParams } from "../services/package-intelligence-service.js";
 import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,

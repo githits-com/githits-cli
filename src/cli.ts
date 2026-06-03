@@ -29,10 +29,8 @@ import {
   createContainer,
   loadAutoLoginAuthSessionMetadata,
 } from "./container.js";
-import {
-  FileSystemServiceImpl,
-  NpmRegistryUpdateCheckService,
-} from "./services/index.js";
+import { FileSystemServiceImpl } from "./services/filesystem-service.js";
+import { NpmRegistryUpdateCheckService } from "./services/update-check-service.js";
 import { colorizeBrand, shouldUseColors } from "./shared/colors.js";
 import {
   createRootCliPreAction,

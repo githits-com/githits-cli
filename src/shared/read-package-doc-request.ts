@@ -1,4 +1,4 @@
-import type { ReadPackageDocParams } from "../services/index.js";
+import type { ReadPackageDocParams } from "../services/package-intelligence-service.js";
 import { InvalidPackageSpecError } from "./package-spec.js";
 
 export interface ReadPackageDocRequestInput {

@@ -12,7 +12,7 @@ import {
   resolveCodeTarget,
 } from "./code-navigation-shared.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { errorResult, type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult } from "./types.js";
 
 export interface ListFilesArgs {
   target: CodeTargetArg;

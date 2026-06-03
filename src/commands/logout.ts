@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { createAuthCommandDependencies } from "../container.js";
-import type { AuthStorage } from "../services/index.js";
+import type { AuthStorage } from "../services/auth-storage.js";
 
 export interface LogoutDependencies {
   authStorage: AuthStorage;

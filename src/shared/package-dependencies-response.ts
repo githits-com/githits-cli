@@ -48,7 +48,7 @@ import type {
   DependencyGroup,
   DependencyReport,
   EnvironmentMarker,
-} from "../services/index.js";
+} from "../services/package-intelligence-service.js";
 import { colorize, dim } from "./colors.js";
 import type {
   DependencyLifecycle,

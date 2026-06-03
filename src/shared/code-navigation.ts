@@ -2,7 +2,7 @@ import type {
   FileIntent,
   SymbolCategory,
   SymbolKind,
-} from "../services/index.js";
+} from "../services/code-navigation-service.js";
 import {
   type PkgseerRegistryArg,
   toPkgseerRegistry,

@@ -1,5 +1,5 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import { PackageIntelligenceTargetNotFoundError } from "../../services/index.js";
+import { PackageIntelligenceTargetNotFoundError } from "../../services/package-intelligence-service.js";
 import {
   createMockPackageIntelligenceService,
   defaultPackageDocResult,

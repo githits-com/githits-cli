@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { ListFilesResult } from "../services/index.js";
+import type { ListFilesResult } from "../services/code-navigation-service.js";
 import {
   buildListFilesSuccessPayload,
   formatListFilesTerminal,

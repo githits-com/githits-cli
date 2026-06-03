@@ -5,8 +5,8 @@ import type {
   UnifiedSearchParams,
   UnifiedSearchProgress,
   UnifiedSearchSourceStatus,
-} from "../services/index.js";
-import { MalformedCodeNavigationResponseError } from "../services/index.js";
+} from "../services/code-navigation-service.js";
+import { MalformedCodeNavigationResponseError } from "../services/code-navigation-service.js";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { mapCodeNavigationError } from "./code-navigation-error-map.js";
 import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";

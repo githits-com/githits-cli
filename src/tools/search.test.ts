@@ -2,7 +2,7 @@ import { describe, expect, it, mock } from "bun:test";
 import type {
   UnifiedSearchOutcome,
   UnifiedSearchParams,
-} from "../services/index.js";
+} from "../services/code-navigation-service.js";
 import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,

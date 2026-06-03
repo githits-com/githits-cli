@@ -18,7 +18,7 @@ import {
 } from "./code-navigation-shared.js";
 import { CODE_GREP_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { errorResult, type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult } from "./types.js";
 
 export interface GrepRepoArgs {
   target: CodeTargetArg;

@@ -2,7 +2,7 @@ import { describe, expect, it, mock } from "bun:test";
 import type {
   DependencyReport,
   VulnerabilityReport,
-} from "../services/index.js";
+} from "../services/package-intelligence-service.js";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { createPackageUpgradeReviewTool } from "./package-upgrade-review.js";
 

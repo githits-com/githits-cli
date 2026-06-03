@@ -1,3 +1,5 @@
+import type { FileIntent } from "../services/code-navigation-service.js";
+
 /**
  * Default indexing wait time for any code-navigation request issued
  * by the CLI or MCP surfaces. Both surfaces import this so defaults
@@ -33,7 +35,4 @@ export const FILE_INTENT_ALL = Symbol("FILE_INTENT_ALL");
  * User-facing file_intent input: either a specific intent, the
  * `FILE_INTENT_ALL` sentinel, or `undefined` (no filter requested).
  */
-export type FileIntentInput =
-  | import("../services/index.js").FileIntent
-  | typeof FILE_INTENT_ALL
-  | undefined;
+export type FileIntentInput = FileIntent | typeof FILE_INTENT_ALL | undefined;

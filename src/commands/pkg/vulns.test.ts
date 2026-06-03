@@ -2,7 +2,7 @@ import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
-} from "../../services/index.js";
+} from "../../services/package-intelligence-service.js";
 import {
   createMockPackageIntelligenceService,
   defaultVulnerabilityReport,

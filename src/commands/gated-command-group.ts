@@ -1,4 +1,4 @@
-import { getCodeNavigationUrl } from "../services/index.js";
+import { getCodeNavigationUrl } from "../services/config.js";
 
 export interface GatedCommandGroupOptions {
   codeNavigationUrl?: string;

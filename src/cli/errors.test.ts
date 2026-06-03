@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { AuthStorageLockTimeoutError } from "../services/index.js";
+import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
 import { AuthRequiredError } from "../shared/require-auth.js";
 import { handleCliError } from "./errors.js";
 

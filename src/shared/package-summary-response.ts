@@ -20,7 +20,7 @@ import type {
   PackageSecurityOverview,
   PackageSummary,
   VulnerabilityOverview,
-} from "../services/index.js";
+} from "../services/package-intelligence-service.js";
 import { colorize, dim, highlight } from "./colors.js";
 import { toIsoDate, toRelativeDate } from "./format-date.js";
 import { formatCompactNumber } from "./format-number.js";

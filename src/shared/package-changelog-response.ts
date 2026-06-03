@@ -39,7 +39,7 @@
  *   later. TODO(backend) marker in the service types.
  */
 
-import type { ChangelogReport } from "../services/index.js";
+import type { ChangelogReport } from "../services/package-intelligence-service.js";
 import { colorize, dim, highlight } from "./colors.js";
 import type { ExplicitFilterField } from "./package-changelog-request.js";
 

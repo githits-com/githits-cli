@@ -1,4 +1,4 @@
-import type { PackageUpgradeDependencyProbeParams } from "../services/index.js";
+import type { PackageUpgradeDependencyProbeParams } from "../services/package-intelligence-service.js";
 import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,

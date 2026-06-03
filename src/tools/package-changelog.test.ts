@@ -2,7 +2,7 @@ import { describe, expect, it, mock } from "bun:test";
 import {
   PackageIntelligenceChangelogSourceNotFoundError,
   PackageIntelligenceTargetNotFoundError,
-} from "../services/index.js";
+} from "../services/package-intelligence-service.js";
 import {
   createMockPackageIntelligenceService,
   defaultChangelogReport,

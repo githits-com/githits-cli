@@ -1,6 +1,6 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import { AuthenticationError } from "../../services/githits-service.js";
-import { PackageIntelligenceTargetNotFoundError } from "../../services/index.js";
+import { PackageIntelligenceTargetNotFoundError } from "../../services/package-intelligence-service.js";
 import {
   createMockPackageIntelligenceService,
   defaultPackageSummary,

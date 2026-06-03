@@ -1,4 +1,4 @@
-import type { CodeNavigationTarget } from "../services/index.js";
+import type { CodeNavigationTarget } from "../services/code-navigation-service.js";
 import { toCodeNavigationRegistry } from "./code-navigation.js";
 import { InvalidArgumentError, parsePackageSpec } from "./package-spec.js";
 

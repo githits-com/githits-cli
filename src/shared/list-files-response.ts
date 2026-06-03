@@ -16,7 +16,10 @@
  *   limit (200) is not echoed; explicit selectors / filters are.
  */
 
-import type { ListFilesResult, RepoFileEntry } from "../services/index.js";
+import type {
+  ListFilesResult,
+  RepoFileEntry,
+} from "../services/code-navigation-service.js";
 import { colorize, dim } from "./colors.js";
 import {
   buildTargetResolutionNotes,

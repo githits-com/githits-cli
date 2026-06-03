@@ -6,7 +6,7 @@ import { buildReadPackageDocSuccessPayload } from "../shared/read-package-doc-re
 import { renderReadPackageDocText } from "../shared/read-package-doc-text.js";
 import { DOCS_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { errorResult, type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult } from "./types.js";
 
 export interface ReadPackageDocArgs {
   page_id: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { VulnerabilityReport } from "../services/index.js";
+import type { VulnerabilityReport } from "../services/package-intelligence-service.js";
 import { defaultVulnerabilityReport } from "../services/test-helpers.js";
 import {
   buildPackageVulnerabilitiesSuccessPayload,
