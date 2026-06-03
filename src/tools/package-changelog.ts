@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PackageIntelligenceService } from "../services/index.js";
+import type { PackageIntelligenceService } from "../services/package-intelligence-service.js";
 import { InvalidPackageSpecError } from "../shared/index.js";
 import { buildPackageChangelogParams } from "../shared/package-changelog-request.js";
 import {

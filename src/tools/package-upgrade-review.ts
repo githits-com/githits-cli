@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PackageIntelligenceService } from "../services/index.js";
+import type { PackageIntelligenceService } from "../services/package-intelligence-service.js";
 import {
   buildPackageUpgradeReview,
   buildPackageUpgradeReviewRequest,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CodeNavigationService } from "../services/index.js";
+import type { CodeNavigationService } from "../services/code-navigation-service.js";
 import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchStatusPayload,

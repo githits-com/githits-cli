@@ -2,7 +2,7 @@ import { z } from "zod";
 import type {
   CodeNavigationService,
   CodeNavigationTarget,
-} from "../services/index.js";
+} from "../services/code-navigation-service.js";
 import {
   type CodeNavigationRegistryArg,
   toCodeNavigationRegistry,

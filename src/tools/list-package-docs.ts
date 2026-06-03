@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PackageIntelligenceService } from "../services/index.js";
+import type { PackageIntelligenceService } from "../services/package-intelligence-service.js";
 import { buildListPackageDocsParams } from "../shared/list-package-docs-request.js";
 import { buildListPackageDocsSuccessPayload } from "../shared/list-package-docs-response.js";
 import { renderListPackageDocsText } from "../shared/list-package-docs-text.js";
