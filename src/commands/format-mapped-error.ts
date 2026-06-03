@@ -2,6 +2,10 @@ import type { MappedError } from "../shared/code-navigation-error-map.js";
 
 const CLI_AUTH_ERROR_MESSAGE =
   "Authentication required. Run `githits login` to authenticate.";
+const CLI_LOCAL_AUTH_REMEDIATION =
+  "Run `githits login` to authenticate or set GITHITS_API_TOKEN.";
+const CLI_SERVER_AUTH_REMEDIATION =
+  "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set. If this persists, contact support@githits.com.";
 
 interface CliErrorPayload {
   error: string;
@@ -12,7 +16,13 @@ interface CliErrorPayload {
 
 export function formatMappedErrorForTerminal(mapped: MappedError): string {
   if (mapped.code === "AUTH_REQUIRED") {
-    return CLI_AUTH_ERROR_MESSAGE;
+    if (
+      mapped.message === "Authentication required." &&
+      mapped.details?.authSource === undefined
+    ) {
+      return CLI_AUTH_ERROR_MESSAGE;
+    }
+    return `${mapped.message} ${authRemediation(mapped)}`;
   }
   if (mapped.code !== "UPDATE_REQUIRED") {
     return mapped.message;
@@ -23,6 +33,12 @@ export function formatMappedErrorForTerminal(mapped: MappedError): string {
       ? detail.updateCommand
       : "npm i -g githits@latest";
   return [mapped.message, "", "Update with:", `  ${updateCommand}`].join("\n");
+}
+
+function authRemediation(mapped: MappedError): string {
+  return mapped.details?.authSource === "server"
+    ? CLI_SERVER_AUTH_REMEDIATION
+    : CLI_LOCAL_AUTH_REMEDIATION;
 }
 
 export function buildCliMappedErrorPayload(

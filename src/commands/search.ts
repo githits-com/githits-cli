@@ -379,7 +379,7 @@ function handleSearchError(
 }
 
 function formatSearchErrorTerminal(
-  payload: { error: string; code: string },
+  payload: { error: string; code: string; details?: Record<string, unknown> },
   context: "search" | "status",
 ): string {
   if (payload.code === "AUTH_REQUIRED") {
@@ -387,6 +387,7 @@ function formatSearchErrorTerminal(
       code: "AUTH_REQUIRED",
       message: payload.error,
       retryable: false,
+      details: payload.details,
     });
   }
   if (context === "status" && payload.code === "NOT_FOUND") {

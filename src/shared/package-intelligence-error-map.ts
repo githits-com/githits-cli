@@ -115,6 +115,10 @@ function classify(error: unknown): MappedError {
       code: "AUTH_REQUIRED",
       message: error.message,
       retryable: false,
+      details: {
+        authSource:
+          error instanceof AuthenticationError ? error.source : "local",
+      },
     };
   }
   if (error instanceof PackageIntelligenceNetworkError) {

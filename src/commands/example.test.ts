@@ -99,9 +99,10 @@ describe("exampleAction", () => {
 
     const output = errorSpy.mock.calls[0]?.[0] as string;
     expect(JSON.parse(output)).toEqual({
-      error: "Authentication required.",
+      error: "No local GitHits authentication token found.",
       code: "AUTH_REQUIRED",
       retryable: false,
+      details: { authSource: "local" },
     });
     expect(exitSpy).toHaveBeenCalledWith(1);
 
@@ -125,7 +126,7 @@ describe("exampleAction", () => {
     );
 
     expect(errorSpy.mock.calls[0]?.[0]).toBe(
-      "Authentication required. Run `githits login` to authenticate.",
+      "Authentication required. Run `githits login` to authenticate or set GITHITS_API_TOKEN.",
     );
     expect(exitSpy).toHaveBeenCalledWith(1);
     errorSpy.mockRestore();
@@ -151,6 +152,7 @@ describe("exampleAction", () => {
       error: "Authentication required.",
       code: "AUTH_REQUIRED",
       retryable: false,
+      details: { authSource: "local" },
     });
     expect(exitSpy).toHaveBeenCalledWith(1);
     errorSpy.mockRestore();

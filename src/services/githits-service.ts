@@ -10,15 +10,27 @@ import { withTelemetrySpan } from "../shared/telemetry.js";
  * CLI- or MCP-specific recovery guidance when presenting the error.
  */
 export const AUTHENTICATION_REQUIRED_MESSAGE = "Authentication required.";
+export const LOCAL_AUTHENTICATION_MISSING_MESSAGE =
+  "No local GitHits authentication token found.";
+export const SERVER_AUTHENTICATION_REJECTED_MESSAGE =
+  "GitHits could not accept the authentication token.";
+
+export type AuthenticationErrorSource = "local" | "server";
 
 /**
  * Error thrown when the API returns 401 Unauthorized.
  * Used by RefreshingGitHitsService to detect auth failures and trigger token refresh.
  */
 export class AuthenticationError extends Error {
-  constructor(message: string = AUTHENTICATION_REQUIRED_MESSAGE) {
+  readonly source: AuthenticationErrorSource;
+
+  constructor(
+    message: string = AUTHENTICATION_REQUIRED_MESSAGE,
+    source: AuthenticationErrorSource = "local",
+  ) {
     super(message);
     this.name = "AuthenticationError";
+    this.source = source;
   }
 }
 
@@ -216,7 +228,10 @@ export class GitHitsServiceImpl implements GitHitsService {
 
     switch (status) {
       case 401:
-        return new AuthenticationError();
+        return new AuthenticationError(
+          SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+          "server",
+        );
       case 403:
         return new Error("Access denied.");
       case 404:

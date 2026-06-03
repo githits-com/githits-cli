@@ -77,6 +77,7 @@ export async function feedbackAction(
         code: "AUTH_REQUIRED" as const,
         message: error.message,
         retryable: false,
+        details: { authSource: error.source },
       };
       if (options.json) {
         console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));

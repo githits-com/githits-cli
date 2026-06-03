@@ -1,3 +1,5 @@
+import { LOCAL_AUTHENTICATION_MISSING_MESSAGE } from "../services/githits-service.js";
+
 /**
  * Error thrown when authentication is required but no valid token is available.
  * Caught at the CLI boundary to trigger process.exit(1).
@@ -16,6 +18,7 @@ export interface AuthRequiredErrorPayload {
   error: string;
   code: "AUTH_REQUIRED";
   retryable: false;
+  details: { authSource: "local" };
 }
 
 /**
@@ -36,7 +39,10 @@ export function requireAuth(
   if (deps.hasValidToken) return;
 
   const suffix = context ? ` ${context}` : "";
-  throw new AuthRequiredError(`Authentication required${suffix}.`, deps.mcpUrl);
+  throw new AuthRequiredError(
+    `${LOCAL_AUTHENTICATION_MISSING_MESSAGE.slice(0, -1)}${suffix}.`,
+    deps.mcpUrl,
+  );
 }
 
 export function buildAuthRequiredErrorPayload(
@@ -46,6 +52,7 @@ export function buildAuthRequiredErrorPayload(
     error: error.message,
     code: "AUTH_REQUIRED",
     retryable: false,
+    details: { authSource: "local" },
   };
 }
 
