@@ -42,8 +42,9 @@ Tokens are JWTs with a configurable expiration (typically 1 hour). The CLI handl
 - **Proactive refresh** — When 90% of the token lifetime has elapsed (e.g., at ~54 minutes for a 1-hour token), the `TokenManager` refreshes before expiry. This avoids a stale-token window.
 - **Reactive refresh** — If the token is already expired, refresh is attempted immediately.
 - **401 retry** — The `RefreshingGitHitsService` decorator wraps `GitHitsServiceImpl` and retries once on `AuthenticationError`, calling `forceRefresh()` to handle clock skew or server-side revocation.
+- **Refresh token rotation** — Refresh tokens are single-use; after one refresh call spends a token, concurrent refresh calls with the same stored token will fail.
 - **Shared retry helper** — GitHits REST calls and package/source service calls both use the same token-refresh/retry flow, so auth drift is handled consistently across both service families.
-- **Concurrent coalescing** — Soft refreshes from `getToken()` coalesce with each other, and strict refreshes from `forceRefresh()` coalesce with each other. A strict refresh waits for any in-flight soft refresh to finish, then refreshes the latest stored token instead of reusing a soft result that may not have hit the token endpoint. Once a strict refresh is active, later `getToken()` calls join it instead of serving cached credentials, even if the cached token still looks time-valid. Storage writes use compare-and-swap helpers so a failed refresh cannot overwrite or clear credentials another process already updated. Before refreshing a cached token, the manager reloads storage so long-running MCP servers use credentials written by a separate login/refresh. If a successful refresh returns a rotated refresh token after same-lineage storage changed mid-refresh, the rotated token is persisted with another compare-and-swap so storage does not keep an invalidated refresh token.
+- **Concurrent coalescing** — Soft refreshes from `getToken()` coalesce with each other, and strict refreshes from `forceRefresh()` coalesce with each other. A strict refresh waits for any in-flight soft refresh to finish, then refreshes the latest stored token instead of reusing a soft result that may not have hit the token endpoint. Once a strict refresh is active, later `getToken()` calls join it instead of serving cached credentials, even if the cached token still looks time-valid. Refresh attempts run inside the auth storage lock, covering storage reload, token endpoint refresh, and token save/clear as one cross-process transaction. This prevents parallel agents from spending the same rotating refresh token at the same time. Storage writes still use compare-and-swap helpers as a defensive guard. Before refreshing a cached token, the manager reloads storage so long-running MCP servers use credentials written by a separate login/refresh.
 - **At login** (`src/commands/login.ts`) — Checks if existing token is still valid before starting the OAuth flow. Respects `--force` flag to re-authenticate regardless.
 - **At init** (`src/commands/init/init.ts`) — Resolves auth through `createContainer()` at the login step so standard token refresh runs before falling back to browser login.
 - **At auth status** (`src/commands/auth-status.ts`) — Attempts refresh before reporting "Token expired".
@@ -132,7 +133,7 @@ The configured target write must succeed before the source entry is deleted. Tok
 
 ```
 Container (createAuthStorage)
-  └─ LockedAuthStorage (cross-process write lock)
+  └─ LockedAuthStorage (cross-process auth mutation/refresh lock)
        └─ MigratingAuthStorage (decorator)
             ├─ KeychainAuthStorage
             │    └─ ChunkingKeyringService (Windows only, decorator)
@@ -144,7 +145,7 @@ Container (createAuthStorage)
 
 All credential types are keyed by normalized MCP base URL (trailing slashes stripped), supporting multiple environments simultaneously.
 
-`LockedAuthStorage` serializes mutating auth operations across CLI processes and long-running MCP servers with an `auth.lock` directory under the platform config path. The lock records PID and process start time so dead-owner locks can be reclaimed without stealing live locks.
+`LockedAuthStorage` serializes mutating auth operations and token refresh transactions across CLI processes and long-running MCP servers with an `auth.lock` directory under the platform config path. The lock records PID and process start time so dead-owner locks can be reclaimed without stealing live locks. Token refresh holds this lock while it reloads stored credentials, calls the token endpoint, and saves or clears the result.
 
 ## How Auth Flows Through the System
 

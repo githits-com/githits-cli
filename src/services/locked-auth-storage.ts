@@ -1,8 +1,10 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { promisify } from "node:util";
+import { DEFAULT_FETCH_TIMEOUT_MS } from "../shared/fetch-timeout.js";
 import { getAppConfigDir } from "./app-config-paths.js";
 import type {
   AuthStorage,
@@ -12,7 +14,7 @@ import type {
 import type { FileSystemService } from "./filesystem-service.js";
 
 const LOCK_DIR = "auth.lock";
-const LOCK_TIMEOUT_MS = 10_000;
+const LOCK_TIMEOUT_MS = DEFAULT_FETCH_TIMEOUT_MS * 2 + 10_000;
 const LOCK_RETRY_MS = 25;
 const ORPHANED_LOCK_MS = 5_000;
 const OWNER_FILE = "owner.json";
@@ -32,13 +34,27 @@ export class AuthStorageLockTimeoutError extends Error {
   }
 }
 
-export class LockedAuthStorage implements AuthStorage {
+export interface AuthStorageLockProvider {
+  withAuthStorageLock<T>(fn: () => Promise<T>): Promise<T>;
+}
+
+export type LockingAuthStorage = AuthStorage & AuthStorageLockProvider;
+
+export function withAuthStorageLock<T>(
+  storage: LockingAuthStorage,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return storage.withAuthStorageLock(fn);
+}
+
+export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   private readonly lockPath: string;
   private readonly lockTimeoutMs: number;
   private readonly isOwnerAlive: (
     pid: number,
     processStartedAt: string | null,
   ) => Promise<boolean>;
+  private readonly lockContext = new AsyncLocalStorage<string>();
   private currentOwner: LockOwner | null = null;
 
   constructor(
@@ -65,7 +81,9 @@ export class LockedAuthStorage implements AuthStorage {
   }
 
   saveTokens(baseUrl: string, data: TokenData): Promise<void> {
-    return this.withLock(() => this.storage.saveTokens(baseUrl, data));
+    return this.withAuthStorageLock(() =>
+      this.storage.saveTokens(baseUrl, data),
+    );
   }
 
   saveTokensIfUnchanged(
@@ -73,20 +91,20 @@ export class LockedAuthStorage implements AuthStorage {
     expected: TokenData | null,
     data: TokenData,
   ): Promise<boolean> {
-    return this.withLock(() =>
+    return this.withAuthStorageLock(() =>
       this.storage.saveTokensIfUnchanged(baseUrl, expected, data),
     );
   }
 
   clearTokens(baseUrl: string): Promise<void> {
-    return this.withLock(() => this.storage.clearTokens(baseUrl));
+    return this.withAuthStorageLock(() => this.storage.clearTokens(baseUrl));
   }
 
   clearTokensIfUnchanged(
     baseUrl: string,
     expected: TokenData | null,
   ): Promise<boolean> {
-    return this.withLock(() =>
+    return this.withAuthStorageLock(() =>
       this.storage.clearTokensIfUnchanged(baseUrl, expected),
     );
   }
@@ -96,11 +114,13 @@ export class LockedAuthStorage implements AuthStorage {
   }
 
   saveClient(baseUrl: string, data: ClientRegistration): Promise<void> {
-    return this.withLock(() => this.storage.saveClient(baseUrl, data));
+    return this.withAuthStorageLock(() =>
+      this.storage.saveClient(baseUrl, data),
+    );
   }
 
   clearClient(baseUrl: string): Promise<void> {
-    return this.withLock(() => this.storage.clearClient(baseUrl));
+    return this.withAuthStorageLock(() => this.storage.clearClient(baseUrl));
   }
 
   saveAuthSession(
@@ -108,37 +128,51 @@ export class LockedAuthStorage implements AuthStorage {
     client: ClientRegistration,
     tokens: TokenData,
   ): Promise<void> {
-    return this.withLock(() =>
+    return this.withAuthStorageLock(() =>
       this.storage.saveAuthSession(baseUrl, client, tokens),
     );
   }
 
   clearAuthSession(baseUrl: string): Promise<void> {
-    return this.withLock(() => this.storage.clearAuthSession(baseUrl));
+    return this.withAuthStorageLock(() =>
+      this.storage.clearAuthSession(baseUrl),
+    );
   }
 
   getStorageLocation(): string {
     return this.storage.getStorageLocation();
   }
 
-  private async withLock<T>(fn: () => Promise<T>): Promise<T> {
+  async withAuthStorageLock<T>(fn: () => Promise<T>): Promise<T> {
+    const ownerId = this.lockContext.getStore();
+    if (ownerId && this.currentOwner?.id === ownerId) {
+      return fn();
+    }
+
     await this.acquireLock();
+    const acquiredOwnerId = this.currentOwner?.id;
     try {
-      return await fn();
+      return await this.lockContext.run(acquiredOwnerId ?? "", fn);
     } finally {
       await this.releaseLock();
     }
   }
 
   private async acquireLock(): Promise<void> {
+    const processStartedAt = await getProcessStartedAt(process.pid);
     const startedAt = Date.now();
     await mkdir(dirname(this.lockPath), { recursive: true, mode: 0o700 });
     while (true) {
       try {
         await mkdir(this.lockPath, { recursive: false, mode: 0o700 });
         try {
-          await this.writeOwner();
+          await this.writeOwner(processStartedAt);
         } catch (error) {
+          this.currentOwner = null;
+          if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+            await sleep(LOCK_RETRY_MS);
+            continue;
+          }
           await rm(this.lockPath, { recursive: true, force: true }).catch(
             () => undefined,
           );
@@ -158,15 +192,18 @@ export class LockedAuthStorage implements AuthStorage {
     }
   }
 
-  private async writeOwner(): Promise<void> {
+  private async writeOwner(processStartedAt: string | null): Promise<void> {
     const owner: LockOwner = {
       id: randomUUID(),
       pid: process.pid,
       createdAt: new Date().toISOString(),
-      processStartedAt: await getProcessStartedAt(process.pid),
+      processStartedAt,
     };
+    await writeFile(this.ownerPath(), JSON.stringify(owner), {
+      mode: 0o600,
+      flag: "wx",
+    });
     this.currentOwner = owner;
-    await writeFile(this.ownerPath(), JSON.stringify(owner), { mode: 0o600 });
   }
 
   private async reclaimStaleLock(): Promise<void> {

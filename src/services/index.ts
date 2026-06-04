@@ -138,6 +138,7 @@ export {
   KeychainUnavailableError,
   KeyringServiceImpl,
 } from "./keyring-service.js";
+export type { LockingAuthStorage } from "./locked-auth-storage.js";
 export {
   AuthStorageLockTimeoutError,
   LockedAuthStorage,

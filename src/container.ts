@@ -13,7 +13,7 @@ import {
   type AuthSessionMetadata,
   AuthSessionMetadataStorage,
 } from "./services/auth-session-metadata-storage.js";
-import { type AuthStorage, AuthStorageImpl } from "./services/auth-storage.js";
+import { AuthStorageImpl } from "./services/auth-storage.js";
 import {
   type BrowserService,
   BrowserServiceImpl,
@@ -42,7 +42,10 @@ import {
 } from "./services/githits-service.js";
 import { KeychainAuthStorage } from "./services/keychain-auth-storage.js";
 import { KeyringServiceImpl } from "./services/keyring-service.js";
-import { LockedAuthStorage } from "./services/locked-auth-storage.js";
+import {
+  LockedAuthStorage,
+  type LockingAuthStorage,
+} from "./services/locked-auth-storage.js";
 import { MigratingAuthStorage } from "./services/migrating-auth-storage.js";
 import { ModeAwareFileAuthStorage } from "./services/mode-aware-file-auth-storage.js";
 import {
@@ -66,7 +69,7 @@ const USER_AGENT = `${BASE_CLIENT_NAME}/${version}`;
  */
 async function createAuthStorage(
   fileSystemService: FileSystemService,
-): Promise<AuthStorage> {
+): Promise<LockingAuthStorage> {
   return withTelemetrySpan("container.create-auth-storage", async () => {
     const authConfig = await loadAuthConfig(fileSystemService);
     return createAuthStorageForMode(
@@ -81,7 +84,7 @@ function createAuthStorageForMode(
   fileSystemService: FileSystemService,
   mode: AuthStorageMode,
   configPath = "your GitHits config.toml",
-): AuthStorage {
+): LockingAuthStorage {
   const fileStorage = new ModeAwareFileAuthStorage(
     new AuthStorageImpl(
       fileSystemService,
@@ -148,7 +151,7 @@ export async function clearAutoLoginAuthSessionMetadata(): Promise<void> {
 }
 
 export interface AuthCommandDependencies {
-  authStorage: AuthStorage;
+  authStorage: LockingAuthStorage;
   authService: AuthService;
   browserService: BrowserService;
   fileSystemService: FileSystemService;
@@ -194,7 +197,7 @@ export async function createAuthStatusDependencies(): Promise<AuthCommandDepende
  * Dependencies required by the application.
  */
 export interface Dependencies {
-  authStorage: AuthStorage;
+  authStorage: LockingAuthStorage;
   authService: AuthService;
   browserService: BrowserService;
   fileSystemService: FileSystemService;

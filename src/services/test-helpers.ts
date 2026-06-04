@@ -6,11 +6,7 @@ import type {
   PkceParams,
   TokenResponse,
 } from "./auth-service.js";
-import type {
-  AuthStorage,
-  ClientRegistration,
-  TokenData,
-} from "./auth-storage.js";
+import type { ClientRegistration, TokenData } from "./auth-storage.js";
 import type { BrowserService } from "./browser-service.js";
 import type {
   CodeNavigationService,
@@ -21,6 +17,7 @@ import type { ExecResult, ExecService } from "./exec-service.js";
 import type { FileSystemService } from "./filesystem-service.js";
 import type { GitHitsService } from "./githits-service.js";
 import type { KeyringService } from "./keyring-service.js";
+import type { LockingAuthStorage } from "./locked-auth-storage.js";
 import type {
   ChangelogReport,
   DependencyReport,
@@ -182,8 +179,8 @@ export const defaultUnifiedSearchOutcome: UnifiedSearchOutcome = {
  * Creates a mock AuthStorage with default implementations.
  */
 export function createMockAuthStorage(
-  impl: Partial<AuthStorage> = {},
-): AuthStorage {
+  impl: Partial<LockingAuthStorage> = {},
+): LockingAuthStorage {
   return {
     loadTokens: mock(() => Promise.resolve(null)),
     saveTokens: mock(() => Promise.resolve()),
@@ -196,6 +193,7 @@ export function createMockAuthStorage(
     saveAuthSession: mock(() => Promise.resolve()),
     clearAuthSession: mock(() => Promise.resolve()),
     getStorageLocation: mock(() => "/mock/.githits"),
+    withAuthStorageLock: <T>(fn: () => Promise<T>) => fn(),
     ...impl,
   };
 }
