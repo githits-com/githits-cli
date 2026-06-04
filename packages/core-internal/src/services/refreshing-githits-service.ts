@@ -37,6 +37,12 @@ export class RefreshingGitHitsService implements GitHitsService {
     return this.withTokenRefresh((service) => service.getLanguages());
   }
 
+  async searchLanguages(query: string, limit?: number): Promise<Language[]> {
+    return this.withTokenRefresh((service) =>
+      service.searchLanguages(query, limit),
+    );
+  }
+
   async submitFeedback(params: FeedbackParams): Promise<FeedbackResult> {
     return this.withTokenRefresh((service) => service.submitFeedback(params));
   }

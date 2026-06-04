@@ -58,6 +58,7 @@ export interface Language {
   name: string;
   display_name: string;
   aliases: string[];
+  search_priority?: number;
 }
 
 /**
@@ -109,6 +110,9 @@ export interface GitHitsService {
   /** Get all supported languages. */
   getLanguages(): Promise<Language[]>;
 
+  /** Search supported languages using backend-ranked matching. */
+  searchLanguages(query: string, limit?: number): Promise<Language[]>;
+
   /** Submit feedback on a result or the current GitHits session. */
   submitFeedback(params: FeedbackParams): Promise<FeedbackResult>;
 }
@@ -154,6 +158,28 @@ export class GitHitsServiceImpl implements GitHitsService {
     return withTelemetrySpan("githits.languages.request", async () => {
       const response = await fetchWithTimeout(
         `${this.apiUrl}/languages`,
+        {
+          headers: this.headers(),
+        },
+        this.fetchOptions(),
+      );
+
+      if (!response.ok) {
+        throw await this.createError(response);
+      }
+
+      return response.json() as Promise<Language[]>;
+    });
+  }
+
+  async searchLanguages(query: string, limit: number = 5): Promise<Language[]> {
+    return withTelemetrySpan("githits.languages.search.request", async () => {
+      const params = new URLSearchParams({
+        query,
+        limit: String(limit),
+      });
+      const response = await fetchWithTimeout(
+        `${this.apiUrl}/languages?${params.toString()}`,
         {
           headers: this.headers(),
         },

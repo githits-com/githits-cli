@@ -46,6 +46,7 @@ const EXPECTED_TOOLS = [
 const DEFAULT_TEXT_LIMIT = 12_000;
 const AUTH_ENV_KEYS = ["GITHITS_API_TOKEN", "GITHITS_TOKEN"] as const;
 const SMOKE_PACKAGE_VERSION = "5.2.1";
+const UNAUTHENTICATED_MCP_URL = "https://mcp-smoke-unauth.githits.invalid";
 const SMOKE_PACKAGE_TARGET = {
   registry: "npm",
   package_name: "express",
@@ -178,6 +179,9 @@ function isolatedUnauthenticatedEnv(): Record<string, string> {
   env.XDG_CONFIG_HOME = join(home, ".config");
   env.APPDATA = join(home, "AppData", "Roaming");
   env.GITHITS_AUTH_STORAGE = "file";
+  // Auth storage keys credentials by MCP URL. Keep unauth probes away from
+  // real keychain entries even on platforms where HOME does not isolate them.
+  env.GITHITS_MCP_URL = UNAUTHENTICATED_MCP_URL;
   return env;
 }
 

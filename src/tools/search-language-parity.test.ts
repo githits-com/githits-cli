@@ -26,7 +26,7 @@ async function cliJson(): Promise<unknown> {
       { json: true },
       {
         githitsService: createMockGitHitsService({
-          getLanguages: mock(() => Promise.resolve(languages)),
+          searchLanguages: mock(() => Promise.resolve(languages)),
         }),
         hasValidToken: true,
         mcpUrl: "https://mcp.example.com",
@@ -41,7 +41,7 @@ async function cliJson(): Promise<unknown> {
 async function mcpJson(): Promise<unknown> {
   const tool = createSearchLanguageTool(
     createMockGitHitsService({
-      getLanguages: mock(() => Promise.resolve(languages)),
+      searchLanguages: mock(() => Promise.resolve(languages)),
     }),
   );
   const result = await tool.handler({ query: "type", format: "json" }, {});

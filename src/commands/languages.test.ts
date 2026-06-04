@@ -44,7 +44,7 @@ describe("languagesAction", () => {
     consoleSpy.mockRestore();
   });
 
-  it("filters languages when query provided", async () => {
+  it("uses backend-ranked search when query provided", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const deps = createDeps();
 
@@ -53,6 +53,8 @@ describe("languagesAction", () => {
     const output = consoleSpy.mock.calls.map((c) => c[0]).join("\n");
     expect(output).toContain("python");
     expect(output).not.toContain("javascript");
+    expect(deps.githitsService.searchLanguages).toHaveBeenCalledWith("python");
+    expect(deps.githitsService.getLanguages).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
 
@@ -183,9 +185,20 @@ describe("languagesAction", () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const deps = createDeps();
 
-    await languagesAction("python", {}, deps);
+    await languagesAction(undefined, {}, deps);
 
     expect(deps.githitsService.getLanguages).toHaveBeenCalledTimes(1);
+    consoleSpy.mockRestore();
+  });
+
+  it("calls searchLanguages exactly once for queries", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const deps = createDeps();
+
+    await languagesAction("python", {}, deps);
+
+    expect(deps.githitsService.searchLanguages).toHaveBeenCalledTimes(1);
+    expect(deps.githitsService.getLanguages).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
 });
