@@ -403,7 +403,9 @@ describe("detection configuration", () => {
         });
         const agent = agentDefinitions.find((a) => a.id === testCase.id)!;
         expect(await agent.detectBinary!(exec)).toBe(true);
-        expect(exec.exec).toHaveBeenCalledWith("which", [testCase.binary]);
+        expect(exec.exec).toHaveBeenCalledWith("which", [testCase.binary], {
+          timeoutMs: 2_000,
+        });
       }
     } finally {
       Object.defineProperty(process, "platform", {
@@ -430,7 +432,9 @@ describe("detection configuration", () => {
       });
       const agent = agentDefinitions.find((a) => a.id === "claude-code")!;
       expect(await agent.detectBinary!(exec)).toBe(true);
-      expect(exec.exec).toHaveBeenCalledWith("where", ["claude"]);
+      expect(exec.exec).toHaveBeenCalledWith("where", ["claude"], {
+        timeoutMs: 2_000,
+      });
     } finally {
       Object.defineProperty(process, "platform", {
         value: originalPlatform,
@@ -1219,7 +1223,7 @@ describe("scanAgents", () => {
       ),
     });
     const execService = createMockExecService({
-      exec: mock(async (cmd: string, args: string[]) => {
+      exec: mock(async (cmd: string, args: string[], _options?: unknown) => {
         const key = `${cmd} ${args.join(" ")}`;
         if (opts.execResults && key in opts.execResults) {
           const val = opts.execResults[key]!;
@@ -1501,6 +1505,17 @@ describe("scanAgents", () => {
     expect(result.notDetected.some((a) => a.id === "codex-cli")).toBe(false);
   });
 
+  it("passes timeout option to binary lookup probes", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({ detectedDirs: [] });
+
+    await scanAgents(agentDefinitions, fs, execService);
+
+    expect(execService.exec).toHaveBeenCalledWith(lookupCmd, ["codex"], {
+      timeoutMs: 2_000,
+    });
+  });
+
   it("detects pi via detectBinary and requires adapter plus Pi-owned config", async () => {
     const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
@@ -1546,6 +1561,30 @@ describe("scanAgents", () => {
       true,
     );
     expect(result.needsSetup.some((a) => a.id === "codex-cli")).toBe(false);
+  });
+
+  it("keeps Codex CLI installable when config check times out", async () => {
+    const lookupCmd = lookupCommandFor();
+    const timeout = new Error("timed out");
+    timeout.name = "ExecTimeoutError";
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        [`${lookupCmd} codex`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/codex\n",
+          stderr: "",
+        },
+        "codex mcp list": timeout,
+      },
+    });
+
+    const result = await scanAgents(agentDefinitions, fs, execService);
+
+    expect(result.needsSetup.some((a) => a.id === "codex-cli")).toBe(true);
+    expect(result.alreadyConfigured.some((a) => a.id === "codex-cli")).toBe(
+      false,
+    );
   });
 
   it("does not categorize Codex CLI as configured for incidental githits text", async () => {
@@ -1604,6 +1643,22 @@ describe("scanAgents", () => {
         expect(installStep.checkCommand?.command).toBe("/npm-global/bin/pi");
       }
     }
+  });
+
+  it("passes timeout option to Pi global bin probes", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        [`${lookupCmd} pi`]: { exitCode: 1, stdout: "", stderr: "" },
+      },
+    });
+
+    await scanAgents(agentDefinitions, fs, execService);
+
+    expect(execService.exec).toHaveBeenCalledWith("npm", ["prefix", "-g"], {
+      timeoutMs: 3_000,
+    });
   });
 
   it("detects pi from pnpm global bin when npm candidate is missing", async () => {

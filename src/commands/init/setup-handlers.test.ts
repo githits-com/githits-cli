@@ -494,6 +494,41 @@ describe("getCliCheckStatus", () => {
     });
     expect(await getCliCheckStatus(check, execService)).toBe("probe_failed");
   });
+
+  it("passes timeout option to read-only CLI checks", async () => {
+    const check: CliCheckCommand = {
+      command: "codex",
+      args: ["mcp", "list"],
+      configuredPattern: /^githits\b/im,
+    };
+    const exec = mock(() =>
+      Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+    );
+    const execService = createMockExecService({ exec });
+
+    await getCliCheckStatus(check, execService);
+
+    expect(exec).toHaveBeenCalledWith("codex", ["mcp", "list"], {
+      timeoutMs: 5_000,
+    });
+  });
+
+  it("returns probe_failed when read-only CLI check times out", async () => {
+    const check: CliCheckCommand = {
+      command: "codex",
+      args: ["mcp", "list"],
+      configuredPattern: /^githits\b/im,
+    };
+    const execService = createMockExecService({
+      exec: mock(() => {
+        const error = new Error("timed out");
+        error.name = "ExecTimeoutError";
+        return Promise.reject(error);
+      }),
+    });
+
+    expect(await getCliCheckStatus(check, execService)).toBe("probe_failed");
+  });
 });
 
 // -- mergeServerConfig (pure function) --
@@ -2311,7 +2346,9 @@ describe("executeCompositeSetup", () => {
     const result = await executeCompositeSetup(piSetup, fs, execService);
     expect(result.status).toBe("success");
     expect(execService.exec).toHaveBeenCalledTimes(1);
-    expect(execService.exec).toHaveBeenCalledWith("pi", ["list"]);
+    expect(execService.exec).toHaveBeenCalledWith("pi", ["list"], {
+      timeoutMs: 5_000,
+    });
     expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
   });
 

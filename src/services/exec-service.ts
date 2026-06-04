@@ -76,13 +76,37 @@ export interface ExecResult {
   stderr: string;
 }
 
+export interface ExecOptions {
+  timeoutMs?: number;
+}
+
+export class ExecTimeoutError extends Error {
+  readonly command: string;
+  readonly args: string[];
+  readonly timeoutMs: number;
+
+  constructor(command: string, args: string[], timeoutMs: number) {
+    super(
+      `Command timed out after ${timeoutMs}ms: ${command} ${args.join(" ")}`,
+    );
+    this.name = "ExecTimeoutError";
+    this.command = command;
+    this.args = args;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
 /**
  * Service interface for executing CLI commands.
  * Abstraction allows for easy testing with mock implementations.
  */
 export interface ExecService {
   /** Execute a command with arguments and return the result */
-  exec(command: string, args: string[]): Promise<ExecResult>;
+  exec(
+    command: string,
+    args: string[],
+    options?: ExecOptions,
+  ): Promise<ExecResult>;
 }
 
 /**
@@ -93,7 +117,11 @@ export interface ExecService {
  * Callers must not pass untrusted input as command or args.
  */
 export class ExecServiceImpl implements ExecService {
-  async exec(command: string, args: string[]): Promise<ExecResult> {
+  async exec(
+    command: string,
+    args: string[],
+    options: ExecOptions = {},
+  ): Promise<ExecResult> {
     return new Promise((resolve, reject) => {
       const spawnCommand = normalizeSpawnCommand(command, args);
       const child = spawn(spawnCommand.command, spawnCommand.args, {
@@ -107,25 +135,49 @@ export class ExecServiceImpl implements ExecService {
 
       const stdoutChunks: Buffer[] = [];
       const stderrChunks: Buffer[] = [];
+      let settled = false;
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+
+      const settle = (fn: () => void): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        fn();
+      };
+
+      if (options.timeoutMs !== undefined) {
+        timeout = setTimeout(() => {
+          settle(() => {
+            child.kill("SIGTERM");
+            reject(new ExecTimeoutError(command, args, options.timeoutMs!));
+          });
+        }, options.timeoutMs);
+      }
 
       child.stdout.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
       child.stderr.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
 
       child.on("error", (error) => {
-        reject(error);
+        settle(() => reject(error));
       });
 
       child.on("close", (code) => {
-        const exitCode = code ?? 1;
-        const stderr = Buffer.concat(stderrChunks).toString("utf-8");
-        if (isWindowsCommandNotFound(exitCode, stderr)) {
-          reject(createCommandNotFoundError(command));
-          return;
-        }
-        resolve({
-          exitCode,
-          stdout: Buffer.concat(stdoutChunks).toString("utf-8"),
-          stderr,
+        settle(() => {
+          const exitCode = code ?? 1;
+          const stderr = Buffer.concat(stderrChunks).toString("utf-8");
+          if (isWindowsCommandNotFound(exitCode, stderr)) {
+            reject(createCommandNotFoundError(command));
+            return;
+          }
+          resolve({
+            exitCode,
+            stdout: Buffer.concat(stdoutChunks).toString("utf-8"),
+            stderr,
+          });
         });
       });
     });

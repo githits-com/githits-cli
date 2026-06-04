@@ -881,7 +881,7 @@ export function createMockExecService(
   impl: Partial<ExecService> = {},
 ): ExecService {
   return {
-    exec: mock(() =>
+    exec: mock((_command: string, _args: string[], _options?: unknown) =>
       Promise.resolve({ exitCode: 1, stdout: "", stderr: "" } as ExecResult),
     ),
     ...impl,
