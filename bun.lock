@@ -5,7 +5,8 @@
     "": {
       "name": "githits",
       "dependencies": {
-        "@inquirer/prompts": "^8.4.3",
+        "@inquirer/core": "11.1.10",
+        "@inquirer/prompts": "8.4.3",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@napi-rs/keyring": "^1.3.0",
         "commander": "^14.0.2",
@@ -24,6 +25,23 @@
         "husky": "^9.1.7",
         "lint-staged": "^17.0.4",
         "typescript": "^6.0.3",
+      },
+    },
+    "packages/cli": {
+      "name": "@githits/cli-workspace",
+      "version": "0.4.11",
+    },
+    "packages/core-internal": {
+      "name": "@githits/core-internal",
+      "version": "0.4.11",
+    },
+    "packages/mcp": {
+      "name": "@githits/mcp",
+      "version": "0.4.11",
+      "dependencies": {
+        "@githits/core-internal": "workspace:*",
+        "@modelcontextprotocol/sdk": "^1.29.0",
+        "zod": "^4.4.3",
       },
     },
   },
@@ -63,6 +81,12 @@
     "@emnapi/runtime": ["@emnapi/runtime@1.8.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-mehfKSMWjjNol8659Z8KxEMrdSJDDot5SXMq00dM8BN4o+CLNXQ0xH2V7EchNHV4RmbZLmmPdEaXZc5H2FXmDg=="],
 
     "@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.1.0", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-WI0DdZ8xFSbgMjR1sFsKABJ/C5OnRrjT06JXbZKexJGrDuPTzZdDYfFlsgcCXCyf+suG5QU2e/y1Wo2V/OapLQ=="],
+
+    "@githits/cli-workspace": ["@githits/cli-workspace@workspace:packages/cli"],
+
+    "@githits/core-internal": ["@githits/core-internal@workspace:packages/core-internal"],
+
+    "@githits/mcp": ["@githits/mcp@workspace:packages/mcp"],
 
     "@hono/node-server": ["@hono/node-server@1.19.9", "", { "peerDependencies": { "hono": "^4" } }, "sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw=="],
 

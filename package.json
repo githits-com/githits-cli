@@ -3,6 +3,9 @@
   "description": "CLI companion for GitHits - code examples from global open source for developers and AI assistants",
   "version": "0.4.11",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "files": [
     "dist",
     "LICENSE",
@@ -75,7 +78,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.4.3",
+    "@inquirer/core": "11.1.10",
+    "@inquirer/prompts": "8.4.3",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@napi-rs/keyring": "^1.3.0",
     "commander": "^14.0.2",

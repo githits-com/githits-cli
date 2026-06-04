@@ -11,6 +11,10 @@
 
     // Bundler mode
     "moduleResolution": "bundler",
+    "paths": {
+      "@githits/core-internal": ["./packages/core-internal/src/index.ts"],
+      "@githits/mcp": ["./packages/mcp/src/index.ts"]
+    },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
