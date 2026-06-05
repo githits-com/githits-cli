@@ -1,15 +1,15 @@
+import type { CodeNavigationTarget } from "@githits/core-internal";
+import {
+  PKGSEER_REGISTRY_ARGS,
+  PKGSEER_REGISTRY_LIST,
+} from "@githits/core-internal";
 import { z } from "zod";
-import type { CodeNavigationTarget } from "../services/code-navigation-service.js";
 import {
   type CodeNavigationRegistryArg,
   toCodeNavigationRegistry,
 } from "../shared/code-navigation.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { parseCodeNavigationTargetSpec } from "../shared/code-navigation-target.js";
-import {
-  PKGSEER_REGISTRY_ARGS,
-  PKGSEER_REGISTRY_LIST,
-} from "../shared/pkgseer-registry.js";
 import { mcpMappedErrorResult } from "./shared.js";
 import { errorResult, type ToolResult } from "./types.js";
 

@@ -8,7 +8,7 @@ import type {
   TransitiveVulnerabilitySummary,
   VulnerabilityDetail,
   VulnerabilityReport,
-} from "../services/package-intelligence-service.js";
+} from "@githits/core-internal";
 import { colorize, highlight } from "./colors.js";
 import { mapPackageIntelligenceError } from "./package-intelligence-error-map.js";
 import {

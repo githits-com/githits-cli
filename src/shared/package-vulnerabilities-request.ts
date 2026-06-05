@@ -30,18 +30,18 @@
  *   ad hoc normalization rules here.
  */
 
-import type { PackageVulnerabilitiesParams } from "../services/package-intelligence-service.js";
-import {
-  InvalidPackageSpecError,
-  UnsupportedRegistryError,
-} from "./package-spec.js";
+import type { PackageVulnerabilitiesParams } from "@githits/core-internal";
 import {
   isKnownPkgseerRegistryArg,
   PKGSEER_REGISTRY_LIST,
   type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
-} from "./pkgseer-registry.js";
+} from "@githits/core-internal";
+import {
+  InvalidPackageSpecError,
+  UnsupportedRegistryError,
+} from "./package-spec.js";
 
 /**
  * Raised when the caller targets a registry that is unsupported by

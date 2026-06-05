@@ -1,6 +1,11 @@
+import type { CodeNavigationService } from "@githits/core-internal";
+import {
+  PKGSEER_REGISTRY_ARGS,
+  PKGSEER_REGISTRY_LIST,
+  toPkgseerRegistryLowercase,
+} from "@githits/core-internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
-import type { CodeNavigationService } from "../../services/code-navigation-service.js";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_WAIT_TIMEOUT_MS,
@@ -16,11 +21,6 @@ import {
   formatListFilesTerminal,
 } from "../../shared/list-files-response.js";
 import { InvalidPackageSpecError } from "../../shared/package-spec.js";
-import {
-  PKGSEER_REGISTRY_ARGS,
-  PKGSEER_REGISTRY_LIST,
-  toPkgseerRegistryLowercase,
-} from "../../shared/pkgseer-registry.js";
 import { requireAuth } from "../../shared/require-auth.js";
 import { startSpinner } from "../../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../../shared/spinner-messages.js";

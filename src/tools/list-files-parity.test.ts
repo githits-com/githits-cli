@@ -7,14 +7,14 @@
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
-  type PkgFilesCommandDependencies,
-  pkgFilesAction,
-} from "../commands/code/files.js";
-import {
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
   type ListFilesResult,
-} from "../services/code-navigation-service.js";
+} from "@githits/core-internal";
+import {
+  type PkgFilesCommandDependencies,
+  pkgFilesAction,
+} from "../commands/code/files.js";
 import {
   createMockCodeNavigationService,
   defaultListFilesResult,

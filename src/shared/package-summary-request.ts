@@ -15,17 +15,17 @@
  * `{ params }` — no `defaulted` array.
  */
 
-import type { PackageSummaryParams } from "../services/package-intelligence-service.js";
-import {
-  InvalidPackageSpecError,
-  UnsupportedRegistryError,
-} from "./package-spec.js";
+import type { PackageSummaryParams } from "@githits/core-internal";
 import {
   isKnownPkgseerRegistryArg,
   PKGSEER_REGISTRY_LIST,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
-} from "./pkgseer-registry.js";
+} from "@githits/core-internal";
+import {
+  InvalidPackageSpecError,
+  UnsupportedRegistryError,
+} from "./package-spec.js";
 
 export interface PackageSummaryRequestInput {
   /** Lowercase registry surface value (`npm`, `pypi`, …). */

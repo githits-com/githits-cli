@@ -1,10 +1,10 @@
 import {
-  CLIENT_UPDATE_REQUIRED_REASON,
-  ClientUpdateRequiredError,
-} from "../services/client-update-required-error.js";
-import {
+  AuthenticationError,
+  type AuthenticationErrorSource,
   type AvailableRef,
   type AvailableVersion,
+  CLIENT_UPDATE_REQUIRED_REASON,
+  ClientUpdateRequiredError,
   CodeNavigationAccessError,
   CodeNavigationBackendError,
   CodeNavigationFeatureFlagRequiredError,
@@ -16,14 +16,10 @@ import {
   CodeNavigationUnresolvableError,
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
+  debugLog,
   MalformedCodeNavigationResponseError,
   type TargetResolution,
-} from "../services/code-navigation-service.js";
-import {
-  AuthenticationError,
-  type AuthenticationErrorSource,
-} from "../services/githits-service.js";
-import { debugLog } from "./debug-log.js";
+} from "@githits/core-internal";
 import { AuthRequiredError } from "./require-auth.js";
 
 export type MappedErrorCode =

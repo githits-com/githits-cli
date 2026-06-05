@@ -1,13 +1,13 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
-  type PkgGrepCommandDependencies,
-  pkgGrepAction,
-} from "../commands/code/grep.js";
-import {
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
   type GrepRepoResult,
-} from "../services/code-navigation-service.js";
+} from "@githits/core-internal";
+import {
+  type PkgGrepCommandDependencies,
+  pkgGrepAction,
+} from "../commands/code/grep.js";
 import {
   createMockCodeNavigationService,
   defaultGrepRepoResult,

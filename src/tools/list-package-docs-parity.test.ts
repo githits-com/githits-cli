@@ -1,9 +1,9 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
+import { PackageIntelligenceTargetNotFoundError } from "@githits/core-internal";
 import {
   type DocsListCommandDependencies,
   docsListAction,
 } from "../commands/docs/list.js";
-import { PackageIntelligenceTargetNotFoundError } from "../services/package-intelligence-service.js";
 import {
   createMockPackageIntelligenceService,
   defaultPackageDocsList,

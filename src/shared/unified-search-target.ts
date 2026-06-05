@@ -1,4 +1,4 @@
-import type { CodeNavigationTarget } from "../services/code-navigation-service.js";
+import type { CodeNavigationTarget } from "@githits/core-internal";
 import { toCodeNavigationRegistry } from "./code-navigation.js";
 import { InvalidArgumentError, parsePackageSpec } from "./package-spec.js";
 

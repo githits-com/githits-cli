@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { GrepRepoResult } from "../services/code-navigation-service.js";
+import type { GrepRepoResult } from "@githits/core-internal";
 import {
   buildGrepRepoSuccessPayload,
   formatGrepRepoTerminal,

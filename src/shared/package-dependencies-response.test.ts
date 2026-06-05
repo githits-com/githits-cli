@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { DependencyReport } from "../services/package-intelligence-service.js";
+import type { DependencyReport } from "@githits/core-internal";
 import {
   cratesFeatureDependencyReport,
   defaultDependencyReport,

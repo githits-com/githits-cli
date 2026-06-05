@@ -21,13 +21,13 @@
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
+  PackageIntelligenceBackendError,
+  PackageIntelligenceTargetNotFoundError,
+} from "@githits/core-internal";
+import {
   type PkgInfoCommandDependencies,
   pkgInfoAction,
 } from "../commands/pkg/info.js";
-import {
-  PackageIntelligenceBackendError,
-  PackageIntelligenceTargetNotFoundError,
-} from "../services/package-intelligence-service.js";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { createPackageSummaryTool } from "./package-summary.js";
 import { isProcessExitSentinel } from "./parity-test-helpers.js";

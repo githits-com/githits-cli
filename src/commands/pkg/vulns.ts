@@ -1,6 +1,6 @@
+import type { PackageIntelligenceService } from "@githits/core-internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
-import type { PackageIntelligenceService } from "../../services/package-intelligence-service.js";
 import { shouldUseColors } from "../../shared/colors.js";
 import {
   type MappedError,

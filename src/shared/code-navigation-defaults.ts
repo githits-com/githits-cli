@@ -1,4 +1,4 @@
-import type { FileIntent } from "../services/code-navigation-service.js";
+import type { FileIntent } from "@githits/core-internal";
 
 /**
  * Default indexing wait time for any code-navigation request issued

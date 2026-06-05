@@ -403,9 +403,10 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
     assertDeepEqual(
       payload,
       {
-        error: "Authentication required.",
+        error: "No local GitHits authentication token found.",
         code: "AUTH_REQUIRED",
         retryable: false,
+        details: { authSource: "local" },
       },
       "unauthenticated languages JSON envelope",
     );
@@ -421,7 +422,7 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "unauthenticated terminal auth guidance",
     );
     assert(
-      authGuidance.includes("Authentication required"),
+      authGuidance.includes("No local GitHits authentication token found"),
       "unauthenticated terminal probe missing auth guidance",
     );
     assert(

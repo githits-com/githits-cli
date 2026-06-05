@@ -33,7 +33,7 @@
     "githits": "dist/cli.js"
   },
   "scripts": {
-    "build": "bunup --dts --target node --packages=external --exports && chmod +x dist/cli.js",
+    "build": "bunup && chmod +x dist/cli.js",
     "dev": "bun run ./src/cli.ts",
     "inspector": "npx @modelcontextprotocol/inspector bun run dev mcp",
     "smoke:cli": "bun run scripts/cli-smoke.ts",

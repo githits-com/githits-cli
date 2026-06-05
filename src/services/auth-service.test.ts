@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 import { createServer } from "node:http";
-import { FetchTimeoutError } from "../shared/fetch-timeout.js";
+import { FetchTimeoutError } from "@githits/core-internal";
 import { AuthServiceImpl, evaluateCallback } from "./auth-service.js";
 
 function asFetchFn<T extends (...args: never[]) => unknown>(

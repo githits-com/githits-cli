@@ -1,3 +1,20 @@
+import {
+  type AgentInfo,
+  type CodeNavigationService,
+  CodeNavigationServiceImpl,
+  createClientHeaderBuilder,
+  type GitHitsService,
+  GitHitsServiceImpl,
+  getApiUrl,
+  getCodeNavigationUrl,
+  getEnvApiToken,
+  getMcpUrl,
+  type PackageIntelligenceService,
+  PackageIntelligenceServiceImpl,
+  RefreshingGitHitsService,
+  type TokenProvider,
+  withTelemetrySpan,
+} from "@githits/core-internal";
 import { version } from "../package.json";
 import {
   getAuthFileStorageDir,
@@ -23,23 +40,9 @@ import {
   WINDOWS_MAX_ENTRY_SIZE,
 } from "./services/chunking-keyring-service.js";
 import {
-  type CodeNavigationService,
-  CodeNavigationServiceImpl,
-} from "./services/code-navigation-service.js";
-import {
-  getApiUrl,
-  getCodeNavigationUrl,
-  getEnvApiToken,
-  getMcpUrl,
-} from "./services/config.js";
-import {
   type FileSystemService,
   FileSystemServiceImpl,
 } from "./services/filesystem-service.js";
-import {
-  type GitHitsService,
-  GitHitsServiceImpl,
-} from "./services/githits-service.js";
 import { KeychainAuthStorage } from "./services/keychain-auth-storage.js";
 import { KeyringServiceImpl } from "./services/keyring-service.js";
 import {
@@ -48,17 +51,7 @@ import {
 } from "./services/locked-auth-storage.js";
 import { MigratingAuthStorage } from "./services/migrating-auth-storage.js";
 import { ModeAwareFileAuthStorage } from "./services/mode-aware-file-auth-storage.js";
-import {
-  type PackageIntelligenceService,
-  PackageIntelligenceServiceImpl,
-} from "./services/package-intelligence-service.js";
-import { RefreshingGitHitsService } from "./services/refreshing-githits-service.js";
-import { TokenManager, type TokenProvider } from "./services/token-manager.js";
-import {
-  type AgentInfo,
-  createClientHeaderBuilder,
-} from "./shared/request-headers.js";
-import { withTelemetrySpan } from "./shared/telemetry.js";
+import { TokenManager } from "./services/token-manager.js";
 
 const BASE_CLIENT_NAME = "githits-cli";
 const USER_AGENT = `${BASE_CLIENT_NAME}/${version}`;

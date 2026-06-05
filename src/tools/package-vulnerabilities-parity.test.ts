@@ -19,16 +19,16 @@
 // Fixture count: ten (eight `toEqual` + two `toMatchObject`).
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import {
-  type PkgVulnsCommandDependencies,
-  pkgVulnsAction,
-} from "../commands/pkg/vulns.js";
-import type { VulnerabilityReport } from "../services/package-intelligence-service.js";
+import type { VulnerabilityReport } from "@githits/core-internal";
 import {
   PackageIntelligenceBackendError,
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
-} from "../services/package-intelligence-service.js";
+} from "@githits/core-internal";
+import {
+  type PkgVulnsCommandDependencies,
+  pkgVulnsAction,
+} from "../commands/pkg/vulns.js";
 import {
   createMockPackageIntelligenceService,
   defaultVulnerabilityReport,

@@ -3,8 +3,8 @@ import type {
   UnifiedSearchIncomplete,
   UnifiedSearchProgress,
   UnifiedSearchSessionStatus,
-} from "../services/code-navigation-service.js";
-import { AuthenticationError } from "../services/githits-service.js";
+} from "@githits/core-internal";
+import { AuthenticationError } from "@githits/core-internal";
 import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,

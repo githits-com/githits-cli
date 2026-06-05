@@ -1,5 +1,5 @@
+import type { GitHitsService } from "@githits/core-internal";
 import { z } from "zod";
-import type { GitHitsService } from "../services/githits-service.js";
 import { extractSolutionId } from "../shared/extract-solution-id.js";
 import { GET_EXAMPLE_GUARDRAIL } from "./guardrails.js";
 import { withErrorHandling } from "./shared.js";

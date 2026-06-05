@@ -1,5 +1,5 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import { AuthenticationError } from "../services/githits-service.js";
+import { AuthenticationError } from "@githits/core-internal";
 import { createMockGitHitsService } from "../services/test-helpers.js";
 import { AuthRequiredError } from "../shared/require-auth.js";
 import { type ExampleDependencies, exampleAction } from "./example.js";

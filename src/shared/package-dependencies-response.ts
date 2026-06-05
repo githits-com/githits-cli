@@ -48,13 +48,13 @@ import type {
   DependencyGroup,
   DependencyReport,
   EnvironmentMarker,
-} from "../services/package-intelligence-service.js";
+} from "@githits/core-internal";
+import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
 import type {
   DependencyLifecycle,
   DependencyLifecycleInput,
 } from "./package-dependencies-request.js";
-import { toPkgseerRegistryLowercase } from "./pkgseer-registry.js";
 
 export interface LeanDirectDependency {
   name: string;

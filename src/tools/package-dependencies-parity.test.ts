@@ -15,16 +15,16 @@
 //     Same envelope shape, surface-specific error text.
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import {
-  type PkgDepsCommandDependencies,
-  pkgDepsAction,
-} from "../commands/pkg/deps.js";
-import type { DependencyReport } from "../services/package-intelligence-service.js";
+import type { DependencyReport } from "@githits/core-internal";
 import {
   PackageIntelligenceBackendError,
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
-} from "../services/package-intelligence-service.js";
+} from "@githits/core-internal";
+import {
+  type PkgDepsCommandDependencies,
+  pkgDepsAction,
+} from "../commands/pkg/deps.js";
 import {
   cratesFeatureDependencyReport,
   createMockPackageIntelligenceService,

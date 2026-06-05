@@ -5,14 +5,14 @@
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
-  type PkgReadCommandDependencies,
-  pkgReadAction,
-} from "../commands/code/read.js";
-import {
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   type ReadFileResult,
-} from "../services/code-navigation-service.js";
+} from "@githits/core-internal";
+import {
+  type PkgReadCommandDependencies,
+  pkgReadAction,
+} from "../commands/code/read.js";
 import {
   createMockCodeNavigationService,
   defaultReadFileResult,

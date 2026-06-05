@@ -20,11 +20,7 @@
  * - Enforce `maxDepth` bounds (1–10).
  */
 
-import type { PackageDependenciesParams } from "../services/package-intelligence-service.js";
-import {
-  InvalidPackageSpecError,
-  UnsupportedRegistryError,
-} from "./package-spec.js";
+import type { PackageDependenciesParams } from "@githits/core-internal";
 import {
   isKnownPkgseerRegistryArg,
   PKGSEER_REGISTRY_ARGS,
@@ -32,7 +28,11 @@ import {
   type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
-} from "./pkgseer-registry.js";
+} from "@githits/core-internal";
+import {
+  InvalidPackageSpecError,
+  UnsupportedRegistryError,
+} from "./package-spec.js";
 
 /**
  * Raised when the caller targets a registry that is unsupported by

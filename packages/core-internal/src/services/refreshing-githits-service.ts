@@ -9,7 +9,7 @@ import {
   type Language,
   type SearchParams,
 } from "./githits-service.js";
-import type { TokenProvider } from "./token-manager.js";
+import type { TokenProvider } from "./token-provider.js";
 
 /**
  * Factory function type for creating GitHitsService instances.

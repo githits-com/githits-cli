@@ -1,11 +1,6 @@
-import {
-  createWorkspaceScaffoldCorePayload,
-  type WorkspaceScaffoldCorePayload,
-} from "@githits/core-internal";
-
 export interface WorkspaceScaffoldMcpEnvelope<TValue> {
   source: "@githits/mcp";
-  core: WorkspaceScaffoldCorePayload<TValue>;
+  value: TValue;
 }
 
 export function createWorkspaceScaffoldMcpEnvelope<TValue>(
@@ -13,6 +8,6 @@ export function createWorkspaceScaffoldMcpEnvelope<TValue>(
 ): WorkspaceScaffoldMcpEnvelope<TValue> {
   return {
     source: "@githits/mcp",
-    core: createWorkspaceScaffoldCorePayload(value),
+    value,
   };
 }

@@ -11,7 +11,7 @@ import type {
   FileIntent,
   GrepRepoPathSelector,
   ListFilesParams,
-} from "../services/code-navigation-service.js";
+} from "@githits/core-internal";
 import {
   isKnownFileIntent,
   knownFileIntentList,

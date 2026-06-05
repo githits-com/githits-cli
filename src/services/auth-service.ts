@@ -1,13 +1,11 @@
 import { createServer, type Server, type ServerResponse } from "node:http";
 import {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  fetchWithTimeout,
   generateCodeChallenge,
   generateCodeVerifier,
   generateState,
-} from "../auth/pkce.js";
-import {
-  DEFAULT_FETCH_TIMEOUT_MS,
-  fetchWithTimeout,
-} from "../shared/fetch-timeout.js";
+} from "@githits/core-internal";
 
 /**
  * OAuth Authorization Server metadata from .well-known endpoint.

@@ -23,18 +23,18 @@
  *   defaults.
  */
 
-import type { PackageChangelogParams } from "../services/package-intelligence-service.js";
-import {
-  InvalidPackageSpecError,
-  UnsupportedRegistryError,
-} from "./package-spec.js";
+import type { PackageChangelogParams } from "@githits/core-internal";
 import {
   isKnownPkgseerRegistryArg,
   PKGSEER_REGISTRY_LIST,
   type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
-} from "./pkgseer-registry.js";
+} from "@githits/core-internal";
+import {
+  InvalidPackageSpecError,
+  UnsupportedRegistryError,
+} from "./package-spec.js";
 
 /**
  * Raw inputs from either CLI or MCP, pre-normalisation. Keep every

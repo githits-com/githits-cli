@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { Language } from "../services/githits-service.js";
+import type { Language } from "@githits/core-internal";
 import { filterLanguages } from "./language-filter.js";
 
 const testLanguages: Language[] = [

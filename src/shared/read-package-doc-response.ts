@@ -1,5 +1,5 @@
-import type { PackageDocResult } from "../services/package-intelligence-service.js";
-import { MalformedPackageIntelligenceResponseError } from "../services/package-intelligence-service.js";
+import type { PackageDocResult } from "@githits/core-internal";
+import { MalformedPackageIntelligenceResponseError } from "@githits/core-internal";
 import { colorize } from "./colors.js";
 import { lowerDocSourceKind } from "./docs-follow-up.js";
 import { toIsoDate } from "./format-date.js";

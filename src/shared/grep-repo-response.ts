@@ -1,7 +1,4 @@
-import type {
-  GrepRepoMatch,
-  GrepRepoResult,
-} from "../services/code-navigation-service.js";
+import type { GrepRepoMatch, GrepRepoResult } from "@githits/core-internal";
 import { colorize, dim, highlightRanges } from "./colors.js";
 import { shellQuote } from "./shell-quote.js";
 import {

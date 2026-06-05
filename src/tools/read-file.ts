@@ -1,7 +1,7 @@
+import type { CodeNavigationService } from "@githits/core-internal";
+import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { z } from "zod";
-import type { CodeNavigationService } from "../services/code-navigation-service.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
-import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
 import { withReadFileRecovery } from "../shared/read-file-error.js";
 import { buildReadFileParams } from "../shared/read-file-request.js";
 import {

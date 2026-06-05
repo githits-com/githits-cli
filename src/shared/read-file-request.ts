@@ -7,7 +7,7 @@
 import type {
   CodeNavigationTarget,
   ReadFileParams,
-} from "../services/code-navigation-service.js";
+} from "@githits/core-internal";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { InvalidPackageSpecError } from "./package-spec.js";
 

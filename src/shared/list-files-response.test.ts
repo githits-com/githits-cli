@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { ListFilesResult } from "../services/code-navigation-service.js";
+import type { ListFilesResult } from "@githits/core-internal";
 import {
   buildListFilesSuccessPayload,
   formatListFilesTerminal,

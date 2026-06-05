@@ -2,11 +2,11 @@ import type {
   FileIntent,
   SymbolCategory,
   SymbolKind,
-} from "../services/code-navigation-service.js";
+} from "@githits/core-internal";
 import {
   type PkgseerRegistryArg,
   toPkgseerRegistry,
-} from "./pkgseer-registry.js";
+} from "@githits/core-internal";
 
 /**
  * Lowercase user-facing kind values → the backend's uppercase

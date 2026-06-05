@@ -5,8 +5,8 @@ import type {
   UnifiedSearchParams,
   UnifiedSearchProgress,
   UnifiedSearchSessionStatus,
-} from "../services/code-navigation-service.js";
-import { AuthenticationError } from "../services/githits-service.js";
+} from "@githits/core-internal";
+import { AuthenticationError } from "@githits/core-internal";
 import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,
@@ -216,10 +216,8 @@ describe("searchAction", () => {
   it("does not send a file-intent filter unless the caller explicitly set one", async () => {
     const search = mock<
       (
-        params: import("../services/code-navigation-service.js").UnifiedSearchParams,
-      ) => Promise<
-        import("../services/code-navigation-service.js").UnifiedSearchOutcome
-      >
+        params: import("@githits/core-internal").UnifiedSearchParams,
+      ) => Promise<import("@githits/core-internal").UnifiedSearchOutcome>
     >(() => Promise.resolve(defaultUnifiedSearchOutcome));
     const deps = createDeps({
       codeNavigationService: createMockCodeNavigationService({ search }),

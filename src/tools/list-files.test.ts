@@ -2,7 +2,7 @@ import { describe, expect, it, mock } from "bun:test";
 import {
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
-} from "../services/code-navigation-service.js";
+} from "@githits/core-internal";
 import {
   createMockCodeNavigationService,
   defaultListFilesResult,

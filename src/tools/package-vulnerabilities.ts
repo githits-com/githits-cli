@@ -1,5 +1,5 @@
+import type { PackageIntelligenceService } from "@githits/core-internal";
 import { z } from "zod";
-import type { PackageIntelligenceService } from "../services/package-intelligence-service.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { buildPackageVulnerabilitiesParams } from "../shared/package-vulnerabilities-request.js";
 import {

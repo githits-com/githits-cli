@@ -1,7 +1,7 @@
 import {
   PKGSEER_REGISTRY_ARGS,
   PKGSEER_REGISTRY_LIST,
-} from "./pkgseer-registry.js";
+} from "@githits/core-internal";
 
 /**
  * Known package registries supported by code navigation targets.

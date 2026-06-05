@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
+import { knownPkgseerRegistryArgs } from "@githits/core-internal";
 import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
 } from "./package-spec.js";
 import { buildPackageSummaryParams } from "./package-summary-request.js";
-import { knownPkgseerRegistryArgs } from "./pkgseer-registry.js";
 
 describe("buildPackageSummaryParams", () => {
   it("maps lowercase registry to uppercase backend enum", () => {

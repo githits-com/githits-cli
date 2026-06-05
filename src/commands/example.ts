@@ -1,6 +1,6 @@
+import type { GitHitsService } from "@githits/core-internal";
+import { AuthenticationError } from "@githits/core-internal";
 import { type Command, Option } from "commander";
-import type { GitHitsService } from "../services/githits-service.js";
-import { AuthenticationError } from "../services/githits-service.js";
 import { extractSolutionId } from "../shared/extract-solution-id.js";
 import {
   AuthRequiredError,

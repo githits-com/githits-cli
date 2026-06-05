@@ -1,4 +1,4 @@
-import type { PackageDocSourceKind } from "../services/package-intelligence-service.js";
+import type { PackageDocSourceKind } from "@githits/core-internal";
 
 export function lowerDocSourceKind(
   value: PackageDocSourceKind | undefined,

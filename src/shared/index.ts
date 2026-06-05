@@ -1,3 +1,26 @@
+export {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  debugLog,
+  endTelemetrySpan,
+  FetchTimeoutError,
+  fetchWithTimeout,
+  flushTelemetry,
+  isFetchTimeoutError,
+  isKnownPkgseerRegistryArg,
+  isTelemetryEnabled,
+  knownPkgseerRegistryArgs,
+  type PkgseerRegistry,
+  type PkgseerRegistryArg,
+  resetTelemetryCollectorForTests,
+  startTelemetrySpan,
+  type TelemetryAttributes,
+  TelemetryCollector,
+  type TelemetrySpanHandle,
+  toPkgseerRegistry,
+  toPkgseerRegistryLowercase,
+  withTelemetrySpan,
+  withTelemetrySpanSync,
+} from "@githits/core-internal";
 export { parseIntCliOption } from "./cli-options.js";
 export {
   type CodeNavigationRegistryArg,
@@ -37,15 +60,8 @@ export {
   success,
   warning,
 } from "./colors.js";
-export { debugLog } from "./debug-log.js";
 export { lowerDocSourceKind } from "./docs-follow-up.js";
 export { extractSolutionId } from "./extract-solution-id.js";
-export {
-  DEFAULT_FETCH_TIMEOUT_MS,
-  FetchTimeoutError,
-  fetchWithTimeout,
-  isFetchTimeoutError,
-} from "./fetch-timeout.js";
 export {
   buildCodeReadCommand,
   buildDocsReadCommand,
@@ -184,14 +200,6 @@ export {
   vulnSeverityLabel,
 } from "./package-vulnerabilities-response.js";
 export { type LineRange, parseLinesOption } from "./parse-lines-option.js";
-export {
-  isKnownPkgseerRegistryArg,
-  knownPkgseerRegistryArgs,
-  type PkgseerRegistry,
-  type PkgseerRegistryArg,
-  toPkgseerRegistry,
-  toPkgseerRegistryLowercase,
-} from "./pkgseer-registry.js";
 export { renderReadFileText } from "./read-file-text.js";
 export {
   buildReadPackageDocParams,
@@ -224,18 +232,6 @@ export {
   type LeanTargetResolutionIdentity,
   projectTargetResolution,
 } from "./target-resolution.js";
-export {
-  endTelemetrySpan,
-  flushTelemetry,
-  isTelemetryEnabled,
-  resetTelemetryCollectorForTests,
-  startTelemetrySpan,
-  type TelemetryAttributes,
-  TelemetryCollector,
-  type TelemetrySpanHandle,
-  withTelemetrySpan,
-  withTelemetrySpanSync,
-} from "./telemetry.js";
 export {
   buildUnifiedSearchParams,
   type UnifiedSearchRequestBuildResult,

@@ -1,7 +1,7 @@
+import type { GitHitsService } from "@githits/core-internal";
+import { AuthenticationError } from "@githits/core-internal";
 import { type Command, Option } from "commander";
 import { createContainer } from "../container.js";
-import type { GitHitsService } from "../services/githits-service.js";
-import { AuthenticationError } from "../services/githits-service.js";
 import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,

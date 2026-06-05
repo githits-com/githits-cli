@@ -18,7 +18,7 @@ import {
   AuthenticationError,
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
-import type { TokenProvider } from "./token-manager.js";
+import type { TokenProvider } from "./token-provider.js";
 
 /**
  * Back-compat alias — the canonical registry union now lives in

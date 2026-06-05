@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
-import type { DependencyReport } from "../services/package-intelligence-service.js";
-import { PackageIntelligenceTargetNotFoundError } from "../services/package-intelligence-service.js";
+import type { DependencyReport } from "@githits/core-internal";
+import { PackageIntelligenceTargetNotFoundError } from "@githits/core-internal";
 import {
   createMockPackageIntelligenceService,
   defaultDependencyReport,

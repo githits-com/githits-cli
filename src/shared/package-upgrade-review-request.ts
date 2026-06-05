@@ -1,4 +1,11 @@
-import type { PackageUpgradeDependencyProbeParams } from "../services/package-intelligence-service.js";
+import type { PackageUpgradeDependencyProbeParams } from "@githits/core-internal";
+import {
+  isKnownPkgseerRegistryArg,
+  PKGSEER_REGISTRY_LIST,
+  type PkgseerRegistry,
+  type PkgseerRegistryArg,
+  toPkgseerRegistry,
+} from "@githits/core-internal";
 import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
@@ -7,13 +14,6 @@ import {
   SEVERITY_LABEL_TO_CVSS,
   type SeverityLabel,
 } from "./package-vulnerabilities-request.js";
-import {
-  isKnownPkgseerRegistryArg,
-  PKGSEER_REGISTRY_LIST,
-  type PkgseerRegistry,
-  type PkgseerRegistryArg,
-  toPkgseerRegistry,
-} from "./pkgseer-registry.js";
 
 export interface UpgradeReviewPackageInput {
   registry: string;

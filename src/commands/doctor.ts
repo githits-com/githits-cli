@@ -1,4 +1,9 @@
 import { realpath } from "node:fs/promises";
+import {
+  DEFAULT_API_URL,
+  DEFAULT_CODE_NAV_URL,
+  DEFAULT_MCP_URL,
+} from "@githits/core-internal";
 import type { Command } from "commander";
 import { parse as parseToml } from "smol-toml";
 import { version } from "../../package.json";
@@ -19,11 +24,6 @@ import {
   normalizeBaseUrl,
   type TokenData,
 } from "../services/auth-storage.js";
-import {
-  DEFAULT_API_URL,
-  DEFAULT_CODE_NAV_URL,
-  DEFAULT_MCP_URL,
-} from "../services/config.js";
 import {
   type FileSystemService,
   FileSystemServiceImpl,

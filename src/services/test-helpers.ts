@@ -1,5 +1,19 @@
 import { mock } from "bun:test";
 import type {
+  ChangelogReport,
+  CodeNavigationService,
+  DependencyReport,
+  GitHitsService,
+  GrepRepoResult,
+  PackageDocResult,
+  PackageDocsList,
+  PackageIntelligenceService,
+  PackageSummary,
+  TokenProvider,
+  UnifiedSearchOutcome,
+  VulnerabilityReport,
+} from "@githits/core-internal";
+import type {
   AuthService,
   CallbackResult,
   OAuthMetadata,
@@ -8,27 +22,11 @@ import type {
 } from "./auth-service.js";
 import type { ClientRegistration, TokenData } from "./auth-storage.js";
 import type { BrowserService } from "./browser-service.js";
-import type {
-  CodeNavigationService,
-  GrepRepoResult,
-  UnifiedSearchOutcome,
-} from "./code-navigation-service.js";
 import type { ExecResult, ExecService } from "./exec-service.js";
 import type { FileSystemService } from "./filesystem-service.js";
-import type { GitHitsService } from "./githits-service.js";
 import type { KeyringService } from "./keyring-service.js";
 import type { LockingAuthStorage } from "./locked-auth-storage.js";
-import type {
-  ChangelogReport,
-  DependencyReport,
-  PackageDocResult,
-  PackageDocsList,
-  PackageIntelligenceService,
-  PackageSummary,
-  VulnerabilityReport,
-} from "./package-intelligence-service.js";
 import type { ConfirmChoice, PromptService } from "./prompt-service.js";
-import type { TokenProvider } from "./token-manager.js";
 import type { UpdateCheckService } from "./update-check-service.js";
 
 /**

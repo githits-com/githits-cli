@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { PackageIntelligenceTargetNotFoundError } from "../services/package-intelligence-service.js";
+import { PackageIntelligenceTargetNotFoundError } from "@githits/core-internal";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { createReadPackageDocTool } from "./read-package-doc.js";
 
