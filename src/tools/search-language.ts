@@ -1,6 +1,6 @@
-import type { GitHitsService } from "@githits/core-internal";
+import type { GitHitsService, Language } from "@githits/core-internal";
 import { z } from "zod";
-import { filterLanguages } from "../shared/language-filter.js";
+import type { LanguageMatch } from "../shared/language-filter.js";
 import { withErrorHandling } from "./shared.js";
 import { type ToolDefinition, textResult } from "./types.js";
 
@@ -35,8 +35,9 @@ export function createSearchLanguageTool(
     schema,
     handler: async (args) => {
       return withErrorHandling("search languages", async () => {
-        const allLanguages = await service.getLanguages();
-        const result = filterLanguages(allLanguages, args.query);
+        const result = (await service.searchLanguages(args.query)).map(
+          toLanguageMatch,
+        );
         if (isTextFormat(args.format)) {
           return textResult(renderLanguageMatches(result));
         }
@@ -44,6 +45,14 @@ export function createSearchLanguageTool(
       });
     },
   };
+}
+
+function toLanguageMatch({
+  name,
+  display_name,
+  aliases,
+}: Language): LanguageMatch {
+  return { name, display_name, aliases };
 }
 
 function isTextFormat(format: SearchLanguageArgs["format"]): boolean {

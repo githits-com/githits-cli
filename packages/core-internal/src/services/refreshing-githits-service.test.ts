@@ -104,6 +104,26 @@ describe("RefreshingGitHitsService", () => {
     });
   });
 
+  describe("searchLanguages", () => {
+    it("delegates to inner service with query and limit", async () => {
+      const innerService = createMockGitHitsService();
+      const tokenProvider = createMockTokenProvider();
+      const factory = mock(() => innerService);
+
+      const service = new RefreshingGitHitsService(
+        API_URL,
+        tokenProvider,
+        factory,
+      );
+
+      const result = await service.searchLanguages("ts", 5);
+
+      expect(result).toHaveLength(1);
+      expect(innerService.searchLanguages).toHaveBeenCalledWith("ts", 5);
+      expect(innerService.getLanguages).not.toHaveBeenCalled();
+    });
+  });
+
   describe("submitFeedback", () => {
     it("delegates to inner service", async () => {
       const innerService = createMockGitHitsService();

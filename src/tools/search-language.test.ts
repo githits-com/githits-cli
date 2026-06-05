@@ -19,7 +19,8 @@ describe("searchLanguageTool", () => {
     expect(result.isError).toBeUndefined();
     expect(getText(result)).toContain("python (Python) aliases: py");
     expect(() => JSON.parse(getText(result))).toThrow();
-    expect(service.getLanguages).toHaveBeenCalled();
+    expect(service.searchLanguages).toHaveBeenCalledWith("python");
+    expect(service.getLanguages).not.toHaveBeenCalled();
   });
 
   it("returns filtered JSON when format=json", async () => {
@@ -35,7 +36,7 @@ describe("searchLanguageTool", () => {
 
   it("returns error result on service failure", async () => {
     const service = createMockGitHitsService({
-      getLanguages: mock(() => Promise.reject(new Error("API error"))),
+      searchLanguages: mock(() => Promise.reject(new Error("API error"))),
     });
     const tool = createSearchLanguageTool(service);
 
@@ -47,7 +48,7 @@ describe("searchLanguageTool", () => {
 
   it("returns recoverable AUTH_REQUIRED envelope on auth failure", async () => {
     const service = createMockGitHitsService({
-      getLanguages: mock(() =>
+      searchLanguages: mock(() =>
         Promise.reject(new AuthenticationError("Authentication required")),
       ),
     });

@@ -207,6 +207,41 @@ describe("GitHitsServiceImpl", () => {
     });
   });
 
+  describe("searchLanguages", () => {
+    it("calls backend-ranked language search with query and limit", async () => {
+      const languages = [
+        {
+          id: "2",
+          name: "typescript",
+          display_name: "TypeScript",
+          aliases: ["ts"],
+          search_priority: 10,
+        },
+      ];
+      const fn = mockFetch(() =>
+        Promise.resolve(
+          new Response(JSON.stringify(languages), {
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      const result = await service.searchLanguages("c#", 10);
+
+      expect(result).toEqual(languages);
+      const call = fn.mock.calls[0] as unknown as [string, RequestInit];
+      expect(call[0]).toBe(`${API_URL}/languages?query=c%23&limit=10`);
+    });
+
+    it("throws AuthenticationError on 401", async () => {
+      mockFetch(() => Promise.resolve(new Response("", { status: 401 })));
+
+      await expect(service.searchLanguages("ts")).rejects.toThrow(
+        AuthenticationError,
+      );
+    });
+  });
+
   describe("submitFeedback", () => {
     it("sends correct request with field mapping", async () => {
       const fn = mockFetch(() =>
