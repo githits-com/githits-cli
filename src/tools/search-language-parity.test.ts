@@ -1,7 +1,7 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import { languagesAction } from "../commands/languages.js";
 import { createMockGitHitsService } from "../services/test-helpers.js";
-import { createSearchLanguageTool } from "./search-language.js";
+import { createParityMcpTool } from "./parity-test-helpers.js";
 
 const languages = [
   {
@@ -39,11 +39,11 @@ async function cliJson(): Promise<unknown> {
 }
 
 async function mcpJson(): Promise<unknown> {
-  const tool = createSearchLanguageTool(
-    createMockGitHitsService({
+  const tool = createParityMcpTool("search_language", {
+    githitsService: createMockGitHitsService({
       searchLanguages: mock(() => Promise.resolve(languages)),
     }),
-  );
+  });
   const result = await tool.handler({ query: "type", format: "json" }, {});
   return JSON.parse(result.content[0]?.text ?? "");
 }

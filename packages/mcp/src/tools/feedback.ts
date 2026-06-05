@@ -1,7 +1,7 @@
 import type { GitHitsService } from "@githits/core-internal";
 import { z } from "zod";
 import { withErrorHandling } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 interface FeedbackArgs {
   solution_id?: string;
@@ -10,7 +10,7 @@ interface FeedbackArgs {
   tool_name?: string;
 }
 
-const schema = {
+const schema: ZodRawShape = {
   solution_id: z
     .string()
     .min(1)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { InvalidPackageSpecError } from "../../shared/package-spec.js";
+import { InvalidPackageSpecError } from "@githits/mcp/internal";
 import { parseUpgradeReviewPackageOption } from "./upgrade-review.js";
 
 describe("parseUpgradeReviewPackageOption", () => {

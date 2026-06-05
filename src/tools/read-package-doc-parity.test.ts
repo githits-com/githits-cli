@@ -5,8 +5,10 @@ import {
   docsReadAction,
 } from "../commands/docs/read.js";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
-import { isProcessExitSentinel } from "./parity-test-helpers.js";
-import { createReadPackageDocTool } from "./read-package-doc.js";
+import {
+  createParityMcpTool,
+  isProcessExitSentinel,
+} from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<DocsReadCommandDependencies> = {},
@@ -53,7 +55,9 @@ async function mcpJson(
   const service = createMockPackageIntelligenceService(
     readPackageDocMock ? { readPackageDoc: readPackageDocMock as never } : {},
   );
-  const tool = createReadPackageDocTool(service);
+  const tool = createParityMcpTool("docs_read", {
+    packageIntelligenceService: service,
+  });
   const result = await tool.handler({ ...args, format: "json" }, {});
   return JSON.parse(result.content[0]?.text ?? "");
 }

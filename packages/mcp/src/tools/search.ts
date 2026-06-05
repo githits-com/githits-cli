@@ -32,6 +32,7 @@ import {
   type ToolDefinition,
   type ToolResult,
   textResult,
+  type ZodRawShape,
 } from "./types.js";
 
 type ResolvedSearchTarget = Exclude<
@@ -104,7 +105,7 @@ const searchTargetSchema = z.union([
     ),
 ]);
 
-const schema = {
+const schema: ZodRawShape = {
   query: z
     .string()
     .min(1)

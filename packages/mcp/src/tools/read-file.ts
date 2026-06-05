@@ -16,7 +16,7 @@ import {
 } from "./code-navigation-shared.js";
 import { CODE_READ_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 /**
  * Maximum line span the MCP `code_read` tool will return in one call.
@@ -39,7 +39,7 @@ export interface ReadFileArgs {
   format?: "json" | "text" | "text-v1";
 }
 
-const schema = {
+const schema: ZodRawShape = {
   target: codeTargetSchema,
   path: z
     .string()
@@ -72,7 +72,7 @@ const schema = {
     ),
 };
 
-export const DESCRIPTION =
+export const DESCRIPTION: string =
   "Read one exact file from an indexed dependency; it does not list " +
   "directories. Use `code_files` with `path_prefix` for file/path " +
   "enumeration. **MCP cap: " +

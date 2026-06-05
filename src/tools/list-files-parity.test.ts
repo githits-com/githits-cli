@@ -19,8 +19,10 @@ import {
   createMockCodeNavigationService,
   defaultListFilesResult,
 } from "../services/test-helpers.js";
-import { createListFilesTool } from "./list-files.js";
-import { isProcessExitSentinel } from "./parity-test-helpers.js";
+import {
+  createParityMcpTool,
+  isProcessExitSentinel,
+} from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<PkgFilesCommandDependencies> = {},
@@ -111,7 +113,9 @@ async function mcpJson(
   const service = createMockCodeNavigationService(
     listFilesMock ? { listFiles: listFilesMock as never } : {},
   );
-  const tool = createListFilesTool(service);
+  const tool = createParityMcpTool("code_files", {
+    codeNavigationService: service,
+  });
   // Parity is asserted against the JSON envelope. The MCP default is
   // text-v1, so this helper opts into JSON to match the CLI `--json`
   // payload shape.

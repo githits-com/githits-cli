@@ -1,19 +1,17 @@
 import type { PackageIntelligenceService } from "@githits/core-internal";
 import { PKGSEER_REGISTRY_LIST } from "@githits/core-internal";
-import type { Command } from "commander";
-import { createContainer } from "../../container.js";
-import { shouldUseColors } from "../../shared/colors.js";
-import { mapPackageIntelligenceError } from "../../shared/package-intelligence-error-map.js";
 import {
-  InvalidPackageSpecError,
-  parsePackageSpec,
-} from "../../shared/package-spec.js";
-import { buildPackageSummaryParams } from "../../shared/package-summary-request.js";
-import {
+  buildPackageSummaryParams,
   buildPackageSummarySuccessPayload,
   formatPackageSummaryTerminal,
-} from "../../shared/package-summary-response.js";
-import { requireAuth } from "../../shared/require-auth.js";
+  InvalidPackageSpecError,
+  mapPackageIntelligenceError,
+  parsePackageSpec,
+  requireAuth,
+  shouldUseColors,
+} from "@githits/mcp/internal";
+import type { Command } from "commander";
+import { createContainer } from "../../container.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,

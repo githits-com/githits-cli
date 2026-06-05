@@ -1,7 +1,7 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import { feedbackAction } from "../commands/feedback.js";
 import { createMockGitHitsService } from "../services/test-helpers.js";
-import { createFeedbackTool } from "./feedback.js";
+import { createParityMcpTool } from "./parity-test-helpers.js";
 
 async function cliText(): Promise<string> {
   const logSpy = spyOn(console, "log").mockImplementation(() => {});
@@ -26,13 +26,13 @@ async function cliText(): Promise<string> {
 }
 
 async function mcpText(): Promise<string> {
-  const tool = createFeedbackTool(
-    createMockGitHitsService({
+  const tool = createParityMcpTool("feedback", {
+    githitsService: createMockGitHitsService({
       submitFeedback: mock(() =>
         Promise.resolve({ success: true, message: "Feedback submitted" }),
       ),
     }),
-  );
+  });
   const result = await tool.handler(
     { solution_id: "sol_123", accepted: true },
     {},

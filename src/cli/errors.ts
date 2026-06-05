@@ -1,10 +1,10 @@
-import { AuthConfigError } from "../services/auth-config.js";
-import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
-import { AuthStoragePolicyError } from "../services/mode-aware-file-auth-storage.js";
 import {
   AuthRequiredError,
   formatAuthRequiredForTerminal,
-} from "../shared/require-auth.js";
+} from "@githits/mcp/internal";
+import { AuthConfigError } from "../services/auth-config.js";
+import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
+import { AuthStoragePolicyError } from "../services/mode-aware-file-auth-storage.js";
 
 export interface CliErrorHandlerDeps {
   stderr: Pick<NodeJS.WriteStream, "write">;

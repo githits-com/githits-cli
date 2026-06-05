@@ -1,3 +1,13 @@
+import {
+  colorize,
+  colorizeBrand,
+  colorizeTerminal,
+  error as errorFmt,
+  shouldUseColors,
+  success,
+  type TerminalColor,
+  warning,
+} from "@githits/mcp/internal";
 import { ExitPromptError } from "@inquirer/core";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
@@ -12,16 +22,6 @@ import type {
   SelectChoice,
 } from "../../services/prompt-service.js";
 import { PromptServiceImpl } from "../../services/prompt-service.js";
-import {
-  colorize,
-  colorizeBrand,
-  colorizeTerminal,
-  error as errorFmt,
-  shouldUseColors,
-  success,
-  type TerminalColor,
-  warning,
-} from "../../shared/colors.js";
 import type {
   LoginDependencies,
   LoginFlowResult,

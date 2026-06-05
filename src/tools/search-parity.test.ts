@@ -4,7 +4,7 @@ import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,
 } from "../services/test-helpers.js";
-import { createSearchTool } from "./search.js";
+import { createParityMcpTool } from "./parity-test-helpers.js";
 
 async function cliJson(): Promise<unknown> {
   const logSpy = spyOn(console, "log").mockImplementation(() => {});
@@ -28,11 +28,11 @@ async function cliJson(): Promise<unknown> {
 }
 
 async function mcpJson(): Promise<unknown> {
-  const tool = createSearchTool(
-    createMockCodeNavigationService({
+  const tool = createParityMcpTool("search", {
+    codeNavigationService: createMockCodeNavigationService({
       search: mock(() => Promise.resolve(defaultUnifiedSearchOutcome)),
     }),
-  );
+  });
   const result = await tool.handler(
     { target: "npm:express", query: "router", format: "json" },
     {},

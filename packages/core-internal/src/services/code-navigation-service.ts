@@ -500,7 +500,7 @@ export class CodeNavigationIndexingError extends Error {
     public readonly indexingRef?: string,
     public readonly availableVersions?: AvailableVersion[],
     public readonly availableRefs?: AvailableRef[],
-    public readonly targetResolution?: TargetResolution,
+    public readonly targetResolution: TargetResolution | undefined = undefined,
   ) {
     super(message);
     this.name = "CodeNavigationIndexingError";

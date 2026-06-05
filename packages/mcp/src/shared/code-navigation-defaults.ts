@@ -29,7 +29,7 @@ export const MAX_WAIT_TIMEOUT_MS = 60_000;
  * where omission returns results from every file intent (confirmed
  * against the live backend across both package and repo scopes).
  */
-export const FILE_INTENT_ALL = Symbol("FILE_INTENT_ALL");
+export const FILE_INTENT_ALL: unique symbol = Symbol("FILE_INTENT_ALL");
 
 /**
  * User-facing file_intent input: either a specific intent, the

@@ -1,20 +1,18 @@
 import type { CodeNavigationService } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
+import {
+  buildReadFileParams,
+  buildReadFileSuccessPayload,
+  DEFAULT_WAIT_TIMEOUT_MS,
+  formatReadFileTerminal,
+  InvalidPackageSpecError,
+  MAX_WAIT_TIMEOUT_MS,
+  requireAuth,
+  shouldUseColors,
+  withReadFileRecovery,
+} from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
-import {
-  DEFAULT_WAIT_TIMEOUT_MS,
-  MAX_WAIT_TIMEOUT_MS,
-} from "../../shared/code-navigation-defaults.js";
-import { shouldUseColors } from "../../shared/colors.js";
-import { InvalidPackageSpecError } from "../../shared/package-spec.js";
-import { withReadFileRecovery } from "../../shared/read-file-error.js";
-import { buildReadFileParams } from "../../shared/read-file-request.js";
-import {
-  buildReadFileSuccessPayload,
-  formatReadFileTerminal,
-} from "../../shared/read-file-response.js";
-import { requireAuth } from "../../shared/require-auth.js";
 import { startSpinner } from "../../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../../shared/spinner-messages.js";
 import {

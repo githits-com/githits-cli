@@ -12,8 +12,10 @@ import {
   createMockCodeNavigationService,
   defaultGrepRepoResult,
 } from "../services/test-helpers.js";
-import { createGrepRepoTool } from "./grep-repo.js";
-import { isProcessExitSentinel } from "./parity-test-helpers.js";
+import {
+  createParityMcpTool,
+  isProcessExitSentinel,
+} from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<PkgGrepCommandDependencies> = {},
@@ -95,7 +97,9 @@ async function mcpJson(
   const service = createMockCodeNavigationService(
     grepRepoMock ? { grepRepo: grepRepoMock as never } : {},
   );
-  const tool = createGrepRepoTool(service);
+  const tool = createParityMcpTool("code_grep", {
+    codeNavigationService: service,
+  });
   // Parity is asserted against the JSON envelope. The MCP default is
   // text-v1, so this helper opts into JSON to match the CLI `--json`
   // payload shape.

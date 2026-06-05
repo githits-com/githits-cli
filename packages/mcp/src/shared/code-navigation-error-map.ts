@@ -243,7 +243,7 @@ function classify(error: unknown): MappedError {
 }
 
 export function buildUpdateRequiredError(
-  reason = CLIENT_UPDATE_REQUIRED_REASON,
+  reason: string = CLIENT_UPDATE_REQUIRED_REASON,
   currentVersion?: string,
 ): MappedError {
   return {

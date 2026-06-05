@@ -31,8 +31,10 @@ import {
   defaultDependencyReport,
   zeroDepDependencyReport,
 } from "../services/test-helpers.js";
-import { createPackageDependenciesTool } from "./package-dependencies.js";
-import { isProcessExitSentinel } from "./parity-test-helpers.js";
+import {
+  createParityMcpTool,
+  isProcessExitSentinel,
+} from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<PkgDepsCommandDependencies> = {},
@@ -89,7 +91,9 @@ async function mcpJson(
       ? { packageDependencies: packageDependenciesMock as never }
       : {},
   );
-  const tool = createPackageDependenciesTool(service);
+  const tool = createParityMcpTool("pkg_deps", {
+    packageIntelligenceService: service,
+  });
   const result = await tool.handler({ ...args, format: "json" }, {});
   const text = result.content[0]?.text ?? "";
   return { json: JSON.parse(text), isError: result.isError };

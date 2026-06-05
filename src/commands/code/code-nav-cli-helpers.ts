@@ -14,13 +14,11 @@ import type {
 } from "@githits/core-internal";
 import { toPkgseerRegistry } from "@githits/core-internal";
 import {
+  InvalidPackageSpecError,
   type MappedError,
   mapCodeNavigationError,
-} from "../../shared/code-navigation-error-map.js";
-import {
-  InvalidPackageSpecError,
   parsePackageSpec,
-} from "../../shared/package-spec.js";
+} from "@githits/mcp/internal";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,

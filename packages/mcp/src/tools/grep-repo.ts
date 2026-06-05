@@ -18,7 +18,7 @@ import {
 } from "./code-navigation-shared.js";
 import { CODE_GREP_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 export interface GrepRepoArgs {
   target: CodeTargetArg;
@@ -42,7 +42,7 @@ export interface GrepRepoArgs {
   format?: "json" | "text" | "text-v1";
 }
 
-const schema = {
+const schema: ZodRawShape = {
   target: codeTargetSchema,
   pattern: z.string().optional().describe(GREP_REPO_PATTERN_NOTE),
   path: z

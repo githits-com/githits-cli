@@ -3,35 +3,31 @@ import type {
   UnifiedSearchSource,
 } from "@githits/core-internal";
 import { getCodeNavigationUrl } from "@githits/core-internal";
-import { type Command, Option } from "commander";
-import { parseIntCliOption } from "../shared/cli-options.js";
 import {
-  knownSymbolCategoryList,
-  knownSymbolKindList,
-  toFileIntent,
-  toSymbolCategory,
-  toSymbolKind,
-} from "../shared/code-navigation.js";
-import {
+  buildUnifiedSearchErrorPayload,
+  buildUnifiedSearchParams,
+  buildUnifiedSearchStatusPayload,
+  buildUnifiedSearchSuccessPayload,
   dim,
   highlight,
   highlightMatch,
   highlightRanges,
+  InvalidArgumentError,
+  knownSymbolCategoryList,
+  knownSymbolKindList,
+  parseUnifiedSearchTargetSpec,
+  requireAuth,
   shouldUseColors,
-} from "../shared/colors.js";
-import { InvalidArgumentError } from "../shared/package-spec.js";
-import { requireAuth } from "../shared/require-auth.js";
-import { startSpinner } from "../shared/spinner.js";
-import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
-import { buildUnifiedSearchParams } from "../shared/unified-search-request.js";
-import {
-  buildUnifiedSearchErrorPayload,
-  buildUnifiedSearchStatusPayload,
-  buildUnifiedSearchSuccessPayload,
+  toFileIntent,
+  toSymbolCategory,
+  toSymbolKind,
   type UnifiedSearchStatusIncompletePayload,
   type UnifiedSearchStatusResultPayload,
-} from "../shared/unified-search-response.js";
-import { parseUnifiedSearchTargetSpec } from "../shared/unified-search-target.js";
+} from "@githits/mcp/internal";
+import { type Command, Option } from "commander";
+import { parseIntCliOption } from "../shared/cli-options.js";
+import { startSpinner } from "../shared/spinner.js";
+import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
 import { formatMappedErrorForTerminal } from "./format-mapped-error.js";
 
 export interface SearchCommandOptions {

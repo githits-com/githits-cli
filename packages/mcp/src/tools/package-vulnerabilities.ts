@@ -8,7 +8,7 @@ import {
 } from "../shared/package-vulnerabilities-response.js";
 import { PKG_VULNS_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 export interface PackageVulnerabilitiesArgs {
   registry: string;
@@ -27,7 +27,7 @@ export interface PackageVulnerabilitiesArgs {
  * for both CLI and MCP. Raw Zod errors never surface to agents; the
  * structured `{error, code, retryable}` envelope is returned instead.
  */
-const schema = {
+const schema: ZodRawShape = {
   registry: z
     .string()
     .describe(
@@ -72,7 +72,7 @@ const schema = {
     ),
 };
 
-export const DESCRIPTION =
+export const DESCRIPTION: string =
   "Use when the user asks whether a package or pinned version has known vulnerabilities, advisories, CVEs, malware, affected ranges, or fix versions. Check known vulnerabilities for a package on npm, PyPI, Hex, " +
   "Crates, NuGet, Maven, Packagist, RubyGems, Go, or Swift (vcpkg and Zig " +
   "are not supported for vulnerability data). Returns a count summary, each advisory with OSV ID, " +

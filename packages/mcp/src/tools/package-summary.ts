@@ -9,7 +9,7 @@ import {
 } from "../shared/package-summary-response.js";
 import { PKG_INFO_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 export interface PackageSummaryArgs {
   registry: string;
@@ -25,7 +25,7 @@ export interface PackageSummaryArgs {
  * rather than a raw Zod error that agents would have to parse
  * separately.
  */
-const schema = {
+const schema: ZodRawShape = {
   registry: z
     .string()
     .describe(`Package registry. One of: ${PKGSEER_REGISTRY_LIST}.`),
@@ -46,7 +46,7 @@ const schema = {
     ),
 };
 
-export const DESCRIPTION =
+export const DESCRIPTION: string =
   "Use for a quick latest-version package adoption or health check: license, description, repository health, downloads, publish age, and latest vulnerability status. Latest-version package overview for dependency triage. Provide " +
   "`registry` and `package_name` (for example `npm` + `express`). " +
   "Default text returns license, description, repository popularity " +

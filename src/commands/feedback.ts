@@ -1,12 +1,12 @@
 import type { GitHitsService } from "@githits/core-internal";
 import { AuthenticationError } from "@githits/core-internal";
-import { type Command, Option } from "commander";
-import { createContainer } from "../container.js";
 import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
   requireAuth,
-} from "../shared/require-auth.js";
+} from "@githits/mcp/internal";
+import { type Command, Option } from "commander";
+import { createContainer } from "../container.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,

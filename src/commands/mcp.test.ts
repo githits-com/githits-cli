@@ -1,11 +1,23 @@
 import { describe, expect, it, mock } from "bun:test";
-import { createMcpServer, getMcpToolDefinitions } from "../mcp/server.js";
+import { AuthenticationError } from "@githits/core-internal";
+import {
+  createMcpServer,
+  getMcpToolDescriptors,
+  type McpToolServices,
+  registerMcpTools,
+} from "@githits/mcp";
+import { getMcpToolDefinitions, type ToolResult } from "@githits/mcp/internal";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
+import type {
+  ServerNotification,
+  ServerRequest,
+} from "@modelcontextprotocol/sdk/types.js";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
   createMockPackageIntelligenceService,
 } from "../services/test-helpers.js";
-import type { McpToolServices } from "../tools/tool-services.js";
 import { startMcpServer } from "./mcp.js";
 
 function createTestServices(
@@ -39,6 +51,21 @@ const EXPECTED_TOOL_NAMES = [
 
 const TEST_MCP_SERVER_METADATA = { name: "githits-test", version: "0.0.0" };
 
+interface TestRegisteredTool {
+  handler: (
+    args: unknown,
+    extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
+  ) => Promise<ToolResult>;
+}
+
+function registeredTool(server: McpServer, name: string): TestRegisteredTool {
+  return (
+    server as unknown as {
+      _registeredTools: Record<string, TestRegisteredTool>;
+    }
+  )._registeredTools[name]!;
+}
+
 describe("createMcpServer", () => {
   it("constructs tools from service-only dependencies", () => {
     const services = createTestServices();
@@ -50,7 +77,10 @@ describe("createMcpServer", () => {
 
   it("creates server with default tools registered", () => {
     const services = createTestServices();
-    const server = createMcpServer(services, TEST_MCP_SERVER_METADATA);
+    const server = createMcpServer({
+      services,
+      metadata: TEST_MCP_SERVER_METADATA,
+    });
 
     // McpServer should be created without error
     expect(server).toBeDefined();
@@ -62,9 +92,108 @@ describe("createMcpServer", () => {
     // shape) surfaces here even though the SDK hides `instructions`
     // behind a private field.
     const services = createTestServices();
-    const server = createMcpServer(services, TEST_MCP_SERVER_METADATA);
+    const server = createMcpServer({
+      services,
+      metadata: TEST_MCP_SERVER_METADATA,
+    });
 
     expect(server).toBeDefined();
+  });
+
+  it("exposes descriptors without concrete services", () => {
+    expect(getMcpToolDescriptors().map((tool) => tool.name)).toEqual([
+      ...EXPECTED_TOOL_NAMES,
+    ]);
+  });
+
+  it("resolves function providers per tool call and passes extra", async () => {
+    const server = new McpServer(TEST_MCP_SERVER_METADATA);
+    const search = mock(() => Promise.resolve("provider result"));
+    const provider = mock(() =>
+      createTestServices({
+        githitsService: createMockGitHitsService({ search }),
+      }),
+    );
+    registerMcpTools(server, { services: provider });
+
+    const extra = { requestId: 1 } as unknown as RequestHandlerExtra<
+      ServerRequest,
+      ServerNotification
+    >;
+    const result = await registeredTool(server, "get_example").handler(
+      { query: "hello" },
+      extra,
+    );
+
+    expect(result.content[0]?.text).toBe("provider result");
+    expect(provider).toHaveBeenCalledWith({ extra });
+  });
+
+  it("function providers receive undefined extra deterministically", async () => {
+    const server = new McpServer(TEST_MCP_SERVER_METADATA);
+    const provider = mock(() => createTestServices());
+    registerMcpTools(server, { services: provider });
+
+    await registeredTool(server, "search_language").handler(
+      { query: "python", format: "json" },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+
+    expect(provider).toHaveBeenCalledWith({ extra: undefined });
+  });
+
+  it("returns structured errors when function providers throw", async () => {
+    const server = new McpServer(TEST_MCP_SERVER_METADATA);
+    registerMcpTools(server, {
+      services: () => {
+        throw new Error("provider failed");
+      },
+    });
+
+    const result = await registeredTool(server, "search_language").handler(
+      { query: "python", format: "json" },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
+      error: "Failed to resolve MCP services: provider failed",
+      code: "UNKNOWN",
+      retryable: false,
+    });
+  });
+
+  it("returns auth envelopes when function providers reject auth", async () => {
+    const server = new McpServer(TEST_MCP_SERVER_METADATA);
+    registerMcpTools(server, {
+      services: () => Promise.reject(new AuthenticationError()),
+    });
+
+    const result = await registeredTool(server, "search_language").handler(
+      { query: "python", format: "json" },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
+      error: "Authentication required.",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+      details: {
+        action:
+          "Run `githits login`, or set GITHITS_API_TOKEN, then retry this tool call.",
+        authSource: "local",
+      },
+    });
   });
 
   it("adds unified search tools by default", () => {

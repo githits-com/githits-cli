@@ -1,10 +1,10 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import { PackageIntelligenceTargetNotFoundError } from "@githits/core-internal";
+import { AuthRequiredError } from "@githits/mcp/internal";
 import {
   createMockPackageIntelligenceService,
   defaultPackageDocResult,
 } from "../../services/test-helpers.js";
-import { AuthRequiredError } from "../../shared/require-auth.js";
 import { type DocsReadCommandDependencies, docsReadAction } from "./read.js";
 
 describe("docsReadAction", () => {

@@ -25,7 +25,7 @@ export class RefreshingGitHitsService implements GitHitsService {
   constructor(
     private readonly apiUrl: string,
     private readonly tokenProvider: TokenProvider,
-    private readonly serviceFactory?: ServiceFactory,
+    private readonly serviceFactory: ServiceFactory | undefined = undefined,
     private readonly runtime: GitHitsServiceRuntimeOptions = {},
   ) {}
 

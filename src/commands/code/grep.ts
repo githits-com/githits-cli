@@ -1,24 +1,20 @@
 import type { CodeNavigationService } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
-import type { Command } from "commander";
-import {
-  DEFAULT_WAIT_TIMEOUT_MS,
-  MAX_WAIT_TIMEOUT_MS,
-} from "../../shared/code-navigation-defaults.js";
-import { shouldUseColors } from "../../shared/colors.js";
 import {
   buildGrepRepoParams,
+  buildGrepRepoSuccessPayload,
+  DEFAULT_WAIT_TIMEOUT_MS,
+  formatGrepRepoTerminal,
   GREP_REPO_PATTERN_NOTE,
   GREP_REPO_SYMBOL_FIELDS_NOTE,
   type GrepRepoRequestBuildResult,
   type GrepRepoRequestInput,
-} from "../../shared/grep-repo-request.js";
-import {
-  buildGrepRepoSuccessPayload,
-  formatGrepRepoTerminal,
-} from "../../shared/grep-repo-response.js";
-import { InvalidPackageSpecError } from "../../shared/package-spec.js";
-import { requireAuth } from "../../shared/require-auth.js";
+  InvalidPackageSpecError,
+  MAX_WAIT_TIMEOUT_MS,
+  requireAuth,
+  shouldUseColors,
+} from "@githits/mcp/internal";
+import type { Command } from "commander";
 import { startSpinner } from "../../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../../shared/spinner-messages.js";
 import {

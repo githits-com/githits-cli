@@ -1,11 +1,11 @@
 import type { AgentInfo } from "@githits/core-internal";
+import type { McpToolServices } from "@githits/mcp";
+import { createMcpServer } from "@githits/mcp";
+import { dim, highlight, shouldUseColors } from "@githits/mcp/internal";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Command } from "commander";
 import { version } from "../../package.json";
 import { createContainer } from "../container.js";
-import { createMcpServer } from "../mcp/server.js";
-import { dim, highlight, shouldUseColors } from "../shared/colors.js";
-import type { McpToolServices } from "../tools/tool-services.js";
 
 const LOCAL_MCP_SERVER_METADATA = { name: "githits", version };
 
@@ -27,7 +27,10 @@ export async function startMcpServer(
   services: McpToolServices,
   options: StartMcpServerOptions = {},
 ): Promise<void> {
-  const server = createMcpServer(services, LOCAL_MCP_SERVER_METADATA);
+  const server = createMcpServer({
+    services,
+    metadata: LOCAL_MCP_SERVER_METADATA,
+  });
   const transport = new StdioServerTransport();
 
   options.onServerCreated?.(server);

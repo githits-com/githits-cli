@@ -13,7 +13,8 @@
     "moduleResolution": "bundler",
     "paths": {
       "@githits/core-internal": ["./packages/core-internal/src/index.ts"],
-      "@githits/mcp": ["./packages/mcp/src/index.ts"]
+      "@githits/mcp": ["./packages/mcp/src/index.ts"],
+      "@githits/mcp/internal": ["./packages/mcp/src/internal.ts"]
     },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,

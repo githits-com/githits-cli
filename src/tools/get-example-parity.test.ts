@@ -1,7 +1,7 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import { exampleAction } from "../commands/example.js";
 import { createMockGitHitsService } from "../services/test-helpers.js";
-import { createGetExampleTool } from "./get-example.js";
+import { createParityMcpTool } from "./parity-test-helpers.js";
 
 async function cliJson(markdown: string): Promise<unknown> {
   const logSpy = spyOn(console, "log").mockImplementation(() => {});
@@ -24,11 +24,11 @@ async function cliJson(markdown: string): Promise<unknown> {
 }
 
 async function mcpJson(markdown: string): Promise<unknown> {
-  const tool = createGetExampleTool(
-    createMockGitHitsService({
+  const tool = createParityMcpTool("get_example", {
+    githitsService: createMockGitHitsService({
       search: mock(() => Promise.resolve(markdown)),
     }),
-  );
+  });
   const result = await tool.handler({ query: "router", format: "json" }, {});
   return JSON.parse(result.content[0]?.text ?? "");
 }
