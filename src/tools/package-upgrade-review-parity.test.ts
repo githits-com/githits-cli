@@ -6,11 +6,11 @@
 //                          always valid JSON.
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
+import type { PackageIntelligenceService } from "@githits/core-internal";
 import {
   type PkgUpgradeReviewCommandDependencies,
   pkgUpgradeReviewAction,
 } from "../commands/pkg/upgrade-review.js";
-import type { PackageIntelligenceService } from "../services/package-intelligence-service.js";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { createPackageUpgradeReviewTool } from "./package-upgrade-review.js";
 import { isProcessExitSentinel } from "./parity-test-helpers.js";

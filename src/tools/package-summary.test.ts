@@ -1,6 +1,8 @@
 import { describe, expect, it, mock } from "bun:test";
-import { AuthenticationError } from "../services/githits-service.js";
-import { PackageIntelligenceTargetNotFoundError } from "../services/package-intelligence-service.js";
+import {
+  AuthenticationError,
+  PackageIntelligenceTargetNotFoundError,
+} from "@githits/core-internal";
 import {
   createMockPackageIntelligenceService,
   defaultPackageSummary,

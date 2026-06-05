@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { ClientUpdateRequiredError } from "../services/client-update-required-error.js";
-import { AuthenticationError } from "../services/githits-service.js";
 import {
+  AuthenticationError,
+  ClientUpdateRequiredError,
   MalformedPackageIntelligenceResponseError,
   PackageIntelligenceAccessError,
   PackageIntelligenceBackendError,
@@ -11,7 +11,7 @@ import {
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceValidationError,
   PackageIntelligenceVersionNotFoundError,
-} from "../services/package-intelligence-service.js";
+} from "@githits/core-internal";
 import { mapPackageIntelligenceError } from "./package-intelligence-error-map.js";
 
 describe("mapPackageIntelligenceError", () => {

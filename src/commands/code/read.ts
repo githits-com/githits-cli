@@ -1,13 +1,13 @@
+import type { CodeNavigationService } from "@githits/core-internal";
+import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
-import type { CodeNavigationService } from "../../services/code-navigation-service.js";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_WAIT_TIMEOUT_MS,
 } from "../../shared/code-navigation-defaults.js";
 import { shouldUseColors } from "../../shared/colors.js";
 import { InvalidPackageSpecError } from "../../shared/package-spec.js";
-import { toPkgseerRegistryLowercase } from "../../shared/pkgseer-registry.js";
 import { withReadFileRecovery } from "../../shared/read-file-error.js";
 import { buildReadFileParams } from "../../shared/read-file-request.js";
 import {

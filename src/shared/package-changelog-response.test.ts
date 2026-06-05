@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { ChangelogReport } from "../services/package-intelligence-service.js";
+import type { ChangelogReport } from "@githits/core-internal";
 import type { ExplicitFilterField } from "./package-changelog-request.js";
 import {
   buildPackageChangelogSuccessPayload,

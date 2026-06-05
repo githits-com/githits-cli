@@ -1,4 +1,4 @@
-import { AuthenticationError } from "../services/githits-service.js";
+import { AuthenticationError } from "@githits/core-internal";
 import type { MappedError } from "../shared/code-navigation-error-map.js";
 import { errorResult, type ToolResult } from "./types.js";
 

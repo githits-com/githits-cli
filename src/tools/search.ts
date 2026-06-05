@@ -1,8 +1,8 @@
-import { z } from "zod";
 import type {
   CodeNavigationService,
   CodeNavigationTarget,
-} from "../services/code-navigation-service.js";
+} from "@githits/core-internal";
+import { z } from "zod";
 import {
   type CodeNavigationRegistryArg,
   toCodeNavigationRegistry,

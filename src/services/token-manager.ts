@@ -1,4 +1,5 @@
-import { withTelemetrySpan } from "../shared/telemetry.js";
+import type { TokenProvider } from "@githits/core-internal";
+import { withTelemetrySpan } from "@githits/core-internal";
 import type { AuthService, RefreshTokenResponse } from "./auth-service.js";
 import type { TokenData } from "./auth-storage.js";
 import {
@@ -11,17 +12,6 @@ import {
  * At 0.9 (90%), a 1-hour token refreshes at ~54 minutes.
  */
 const PROACTIVE_REFRESH_RATIO = 0.9;
-
-/**
- * Provides a valid access token, refreshing if needed.
- */
-export interface TokenProvider {
-  /** Get a valid token, refreshing proactively or reactively as needed. */
-  getToken(): Promise<string | undefined>;
-
-  /** Force a refresh (called on 401 retry). */
-  forceRefresh(): Promise<string | undefined>;
-}
 
 /**
  * Dependencies needed by TokenManager.

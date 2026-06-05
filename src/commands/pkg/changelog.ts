@@ -1,6 +1,10 @@
+import type { PackageIntelligenceService } from "@githits/core-internal";
+import {
+  PKGSEER_REGISTRY_LIST,
+  toPkgseerRegistryLowercase,
+} from "@githits/core-internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
-import type { PackageIntelligenceService } from "../../services/package-intelligence-service.js";
 import { shouldUseColors } from "../../shared/colors.js";
 import { buildPackageChangelogParams } from "../../shared/package-changelog-request.js";
 import {
@@ -15,10 +19,6 @@ import {
   InvalidPackageSpecError,
   parsePackageSpec,
 } from "../../shared/package-spec.js";
-import {
-  PKGSEER_REGISTRY_LIST,
-  toPkgseerRegistryLowercase,
-} from "../../shared/pkgseer-registry.js";
 import { requireAuth } from "../../shared/require-auth.js";
 import {
   buildCliMappedErrorPayload,

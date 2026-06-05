@@ -1,4 +1,4 @@
-import type { TargetResolution } from "../services/code-navigation-service.js";
+import type { TargetResolution } from "@githits/core-internal";
 
 export interface LeanTargetResolutionIdentity {
   kind?: string;

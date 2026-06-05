@@ -1,11 +1,11 @@
+import type { CodeNavigationService } from "@githits/core-internal";
+import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { z } from "zod";
-import type { CodeNavigationService } from "../services/code-navigation-service.js";
 import { knownFileIntentList } from "../shared/code-navigation.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { buildListFilesParams } from "../shared/list-files-request.js";
 import { buildListFilesSuccessPayload } from "../shared/list-files-response.js";
 import { renderListFilesText } from "../shared/list-files-text.js";
-import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
 import {
   type CodeTargetArg,
   codeTargetSchema,

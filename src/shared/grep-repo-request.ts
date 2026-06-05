@@ -2,7 +2,7 @@ import type {
   CodeNavigationTarget,
   GrepPathSelectorKind,
   GrepRepoParams,
-} from "../services/code-navigation-service.js";
+} from "@githits/core-internal";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_WAIT_TIMEOUT_MS,

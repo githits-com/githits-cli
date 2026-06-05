@@ -1,4 +1,4 @@
-import type { ReadPackageDocParams } from "../services/package-intelligence-service.js";
+import type { ReadPackageDocParams } from "@githits/core-internal";
 import { InvalidPackageSpecError } from "./package-spec.js";
 
 export interface ReadPackageDocRequestInput {

@@ -1,10 +1,10 @@
+import type { AgentInfo } from "@githits/core-internal";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Command } from "commander";
 import { version } from "../../package.json";
 import { createContainer } from "../container.js";
 import { createMcpServer } from "../mcp/server.js";
 import { dim, highlight, shouldUseColors } from "../shared/colors.js";
-import type { AgentInfo } from "../shared/request-headers.js";
 import type { McpToolServices } from "../tools/tool-services.js";
 
 const LOCAL_MCP_SERVER_METADATA = { name: "githits", version };

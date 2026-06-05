@@ -20,11 +20,11 @@ import type {
   PackageSecurityOverview,
   PackageSummary,
   VulnerabilityOverview,
-} from "../services/package-intelligence-service.js";
+} from "@githits/core-internal";
+import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { colorize, dim, highlight } from "./colors.js";
 import { toIsoDate, toRelativeDate } from "./format-date.js";
 import { formatCompactNumber } from "./format-number.js";
-import { toPkgseerRegistryLowercase } from "./pkgseer-registry.js";
 
 // --------------------------------------------------------------------
 // Lean JSON envelope

@@ -1,6 +1,8 @@
-import type { CodeNavigationService } from "../services/code-navigation-service.js";
-import type { GitHitsService } from "../services/githits-service.js";
-import type { PackageIntelligenceService } from "../services/package-intelligence-service.js";
+import type {
+  CodeNavigationService,
+  GitHitsService,
+  PackageIntelligenceService,
+} from "@githits/core-internal";
 
 /**
  * Services required to construct the MCP tool surface.

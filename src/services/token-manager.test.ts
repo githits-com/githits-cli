@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { FetchTimeoutError } from "../shared/fetch-timeout.js";
+import { FetchTimeoutError } from "@githits/core-internal";
 import type { TokenData } from "./auth-storage.js";
 import {
   createMockAuthService,

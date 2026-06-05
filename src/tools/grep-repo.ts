@@ -1,5 +1,6 @@
+import type { CodeNavigationService } from "@githits/core-internal";
+import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { z } from "zod";
-import type { CodeNavigationService } from "../services/code-navigation-service.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import {
   buildGrepRepoParams,
@@ -10,7 +11,6 @@ import {
 } from "../shared/grep-repo-request.js";
 import { buildGrepRepoSuccessPayload } from "../shared/grep-repo-response.js";
 import { renderGrepRepoText } from "../shared/grep-repo-text.js";
-import { toPkgseerRegistryLowercase } from "../shared/pkgseer-registry.js";
 import {
   type CodeTargetArg,
   codeTargetSchema,

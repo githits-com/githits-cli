@@ -1,12 +1,12 @@
+import type { PackageIntelligenceService } from "@githits/core-internal";
+import { PKGSEER_REGISTRY_LIST } from "@githits/core-internal";
 import { z } from "zod";
-import type { PackageIntelligenceService } from "../services/package-intelligence-service.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { buildPackageSummaryParams } from "../shared/package-summary-request.js";
 import {
   buildPackageSummarySuccessPayload,
   formatPackageSummaryTerminal,
 } from "../shared/package-summary-response.js";
-import { PKGSEER_REGISTRY_LIST } from "../shared/pkgseer-registry.js";
 import { PKG_INFO_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
 import { type ToolDefinition, textResult } from "./types.js";

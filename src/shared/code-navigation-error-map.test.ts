@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
-import { ClientUpdateRequiredError } from "../services/client-update-required-error.js";
 import {
+  AuthenticationError,
+  ClientUpdateRequiredError,
   CodeNavigationAccessError,
   CodeNavigationBackendError,
   CodeNavigationFeatureFlagRequiredError,
@@ -13,8 +14,7 @@ import {
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
   MalformedCodeNavigationResponseError,
-} from "../services/code-navigation-service.js";
-import { AuthenticationError } from "../services/githits-service.js";
+} from "@githits/core-internal";
 import { mapCodeNavigationError } from "./code-navigation-error-map.js";
 
 class InvalidPackageSpecError extends Error {

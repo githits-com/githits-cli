@@ -1,5 +1,6 @@
+import type { CodeNavigationService } from "@githits/core-internal";
+import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import type { Command } from "commander";
-import type { CodeNavigationService } from "../../services/code-navigation-service.js";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_WAIT_TIMEOUT_MS,
@@ -17,7 +18,6 @@ import {
   formatGrepRepoTerminal,
 } from "../../shared/grep-repo-response.js";
 import { InvalidPackageSpecError } from "../../shared/package-spec.js";
-import { toPkgseerRegistryLowercase } from "../../shared/pkgseer-registry.js";
 import { requireAuth } from "../../shared/require-auth.js";
 import { startSpinner } from "../../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../../shared/spinner-messages.js";

@@ -8,9 +8,10 @@
  * single debug line under the `pkg-intel` area.
  */
 
-import { ClientUpdateRequiredError } from "../services/client-update-required-error.js";
-import { AuthenticationError } from "../services/githits-service.js";
 import {
+  AuthenticationError,
+  ClientUpdateRequiredError,
+  debugLog,
   MalformedPackageIntelligenceResponseError,
   PackageIntelligenceAccessError,
   PackageIntelligenceBackendError,
@@ -21,14 +22,13 @@ import {
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceValidationError,
   PackageIntelligenceVersionNotFoundError,
-} from "../services/package-intelligence-service.js";
+} from "@githits/core-internal";
 import type {
   MappedError,
   MappedErrorCode,
   MappedErrorDetails,
 } from "./code-navigation-error-map.js";
 import { buildUpdateRequiredError } from "./code-navigation-error-map.js";
-import { debugLog } from "./debug-log.js";
 import { AuthRequiredError } from "./require-auth.js";
 
 // Re-export for caller convenience — callers of

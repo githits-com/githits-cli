@@ -6,7 +6,7 @@ import type {
   UnifiedSearchFilters,
   UnifiedSearchParams,
   UnifiedSearchSource,
-} from "../services/code-navigation-service.js";
+} from "@githits/core-internal";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { InvalidArgumentError } from "./package-spec.js";
 

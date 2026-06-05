@@ -42,11 +42,11 @@
 import type {
   VulnerabilityDetail,
   VulnerabilityReport,
-} from "../services/package-intelligence-service.js";
+} from "@githits/core-internal";
+import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
 import { toIsoDate } from "./format-date.js";
 import type { PackageVulnerabilitiesFilterEcho } from "./package-vulnerabilities-request.js";
-import { toPkgseerRegistryLowercase } from "./pkgseer-registry.js";
 
 export type VulnSeverityLabel = "critical" | "high" | "medium" | "low";
 

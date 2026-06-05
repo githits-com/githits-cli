@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { CodeNavigationTarget } from "../services/code-navigation-service.js";
+import type { CodeNavigationTarget } from "@githits/core-internal";
 import { buildListFilesParams } from "./list-files-request.js";
 
 const packageTarget: CodeNavigationTarget = {

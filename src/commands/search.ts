@@ -1,9 +1,9 @@
-import { type Command, Option } from "commander";
 import type {
   CodeNavigationService,
   UnifiedSearchSource,
-} from "../services/code-navigation-service.js";
-import { getCodeNavigationUrl } from "../services/config.js";
+} from "@githits/core-internal";
+import { getCodeNavigationUrl } from "@githits/core-internal";
+import { type Command, Option } from "commander";
 import { parseIntCliOption } from "../shared/cli-options.js";
 import {
   knownSymbolCategoryList,

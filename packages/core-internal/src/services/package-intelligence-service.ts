@@ -38,7 +38,7 @@ import {
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
 import { promoteGenericVersionNotFound } from "./promote-version-not-found.js";
-import type { TokenProvider } from "./token-manager.js";
+import type { TokenProvider } from "./token-provider.js";
 
 export interface PackageSummaryParams {
   registry: PkgseerRegistry;

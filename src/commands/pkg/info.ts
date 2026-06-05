@@ -1,6 +1,7 @@
+import type { PackageIntelligenceService } from "@githits/core-internal";
+import { PKGSEER_REGISTRY_LIST } from "@githits/core-internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
-import type { PackageIntelligenceService } from "../../services/package-intelligence-service.js";
 import { shouldUseColors } from "../../shared/colors.js";
 import { mapPackageIntelligenceError } from "../../shared/package-intelligence-error-map.js";
 import {
@@ -12,7 +13,6 @@ import {
   buildPackageSummarySuccessPayload,
   formatPackageSummaryTerminal,
 } from "../../shared/package-summary-response.js";
-import { PKGSEER_REGISTRY_LIST } from "../../shared/pkgseer-registry.js";
 import { requireAuth } from "../../shared/require-auth.js";
 import {
   buildCliMappedErrorPayload,

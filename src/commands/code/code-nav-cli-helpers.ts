@@ -11,7 +11,8 @@
 import type {
   CodeNavigationService,
   CodeNavigationTarget,
-} from "../../services/code-navigation-service.js";
+} from "@githits/core-internal";
+import { toPkgseerRegistry } from "@githits/core-internal";
 import {
   type MappedError,
   mapCodeNavigationError,
@@ -20,7 +21,6 @@ import {
   InvalidPackageSpecError,
   parsePackageSpec,
 } from "../../shared/package-spec.js";
-import { toPkgseerRegistry } from "../../shared/pkgseer-registry.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,

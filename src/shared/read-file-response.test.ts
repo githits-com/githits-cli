@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { ReadFileResult } from "../services/code-navigation-service.js";
+import type { ReadFileResult } from "@githits/core-internal";
 import {
   buildReadFileSuccessPayload,
   formatReadFileTerminal,

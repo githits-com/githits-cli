@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { promisify } from "node:util";
-import { DEFAULT_FETCH_TIMEOUT_MS } from "../shared/fetch-timeout.js";
+import { DEFAULT_FETCH_TIMEOUT_MS } from "@githits/core-internal";
 import { getAppConfigDir } from "./app-config-paths.js";
 import type {
   AuthStorage,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type {
   UnifiedSearchOutcome,
   UnifiedSearchParams,
-} from "../services/code-navigation-service.js";
+} from "@githits/core-internal";
 import { defaultUnifiedSearchOutcome } from "../services/test-helpers.js";
 import {
   buildSourceStatusWarnings,

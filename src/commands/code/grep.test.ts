@@ -3,7 +3,7 @@ import {
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
-} from "../../services/code-navigation-service.js";
+} from "@githits/core-internal";
 import {
   createMockCodeNavigationService,
   defaultGrepRepoResult,

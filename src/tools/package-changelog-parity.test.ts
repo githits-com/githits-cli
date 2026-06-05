@@ -16,16 +16,16 @@
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
-  type PkgChangelogCommandDependencies,
-  pkgChangelogAction,
-} from "../commands/pkg/changelog.js";
-import {
   type ChangelogReport,
   PackageIntelligenceBackendError,
   PackageIntelligenceChangelogSourceNotFoundError,
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
-} from "../services/package-intelligence-service.js";
+} from "@githits/core-internal";
+import {
+  type PkgChangelogCommandDependencies,
+  pkgChangelogAction,
+} from "../commands/pkg/changelog.js";
 import {
   createMockPackageIntelligenceService,
   defaultChangelogReport,

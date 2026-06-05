@@ -1,5 +1,5 @@
+import type { CodeNavigationService } from "@githits/core-internal";
 import { z } from "zod";
-import type { CodeNavigationService } from "../services/code-navigation-service.js";
 import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchStatusPayload,

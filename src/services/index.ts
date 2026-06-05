@@ -1,3 +1,5 @@
+export * from "@githits/core-internal";
+
 export {
   getAppConfigDir,
   getAppConfigDirForEnv,
@@ -49,89 +51,10 @@ export {
   ChunkingKeyringService,
   WINDOWS_MAX_ENTRY_SIZE,
 } from "./chunking-keyring-service.js";
-export {
-  CLIENT_UPDATE_REQUIRED_REASON,
-  ClientUpdateRequiredError,
-  isClientUpdateRequiredGraphQLError,
-} from "./client-update-required-error.js";
-export type {
-  AvailableRef,
-  AvailableVersion,
-  CodeNavigationRegistry,
-  CodeNavigationService,
-  CodeNavigationTarget,
-  FileIntent,
-  GrepPathSelectorKind,
-  GrepRepoMatch,
-  GrepRepoParams,
-  GrepRepoPathSelector,
-  GrepRepoPatternType,
-  GrepRepoResult,
-  GrepRouteTaken,
-  GrepTruncatedReason,
-  IndexResolution,
-  ListFilesParams,
-  ListFilesResult,
-  NavigationSymbol,
-  ReadFileParams,
-  ReadFileResult,
-  RepoFileEntry,
-  SymbolCategory,
-  SymbolKind,
-  TargetResolution,
-  TargetResolutionIdentity,
-  UnifiedSearchCompleted,
-  UnifiedSearchFilters,
-  UnifiedSearchHit,
-  UnifiedSearchIncomplete,
-  UnifiedSearchLocator,
-  UnifiedSearchOutcome,
-  UnifiedSearchPageInfo,
-  UnifiedSearchParams,
-  UnifiedSearchProgress,
-  UnifiedSearchResult,
-  UnifiedSearchResultType,
-  UnifiedSearchSessionStatus,
-  UnifiedSearchSource,
-  UnifiedSearchSourceStatus,
-} from "./code-navigation-service.js";
-export {
-  CodeNavigationAccessError,
-  CodeNavigationBackendError,
-  CodeNavigationFeatureFlagRequiredError,
-  CodeNavigationFileNotFoundError,
-  CodeNavigationGraphQLError,
-  CodeNavigationIndexingError,
-  CodeNavigationNetworkError,
-  CodeNavigationServiceImpl,
-  CodeNavigationTargetNotFoundError,
-  CodeNavigationUnresolvableError,
-  CodeNavigationValidationError,
-  CodeNavigationVersionNotFoundError,
-  MalformedCodeNavigationResponseError,
-} from "./code-navigation-service.js";
-export {
-  DEFAULT_API_URL,
-  DEFAULT_CODE_NAV_URL,
-  DEFAULT_MCP_URL,
-  getApiUrl,
-  getCodeNavigationUrl,
-  getEnvApiToken,
-  getMcpUrl,
-} from "./config.js";
 export type { ExecResult, ExecService } from "./exec-service.js";
 export { ExecServiceImpl } from "./exec-service.js";
-export { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 export type { FileSystemService } from "./filesystem-service.js";
 export { FileSystemServiceImpl } from "./filesystem-service.js";
-export type {
-  FeedbackParams,
-  FeedbackResult,
-  GitHitsService,
-  Language,
-  SearchParams,
-} from "./githits-service.js";
-export { AuthenticationError, GitHitsServiceImpl } from "./githits-service.js";
 export { KeychainAuthStorage } from "./keychain-auth-storage.js";
 export type { KeyringService } from "./keyring-service.js";
 export {
@@ -149,82 +72,11 @@ export {
   ModeAwareFileAuthStorage,
 } from "./mode-aware-file-auth-storage.js";
 export type {
-  ChangelogEntry,
-  ChangelogEntryDetail,
-  ChangelogPackageInfo,
-  ChangelogReport,
-  CircularDependencyCycle,
-  DependencyBundle,
-  DependencyConflict,
-  DependencyConflictEdge,
-  DependencyDeprecationReason,
-  DependencyGraph,
-  DependencyGraphEdge,
-  DependencyGraphNode,
-  DependencyGroup,
-  DependencyGroupsInfo,
-  DependencyIssueConflict,
-  DependencyIssuesSummary,
-  DependencyReport,
-  DeprecatedDependency,
-  DirectDependency,
-  DuplicateDependency,
-  EnvironmentMarker,
-  GithubRepository,
-  GroupDependency,
-  ListPackageDocsParams,
-  OutdatedDependency,
-  OutdatedDependencyVersion,
-  PackageChangelogParams,
-  PackageDependenciesParams,
-  PackageDocPage,
-  PackageDocPageSummary,
-  PackageDocResult,
-  PackageDocSource,
-  PackageDocSourceKind,
-  PackageDocsList,
-  PackageIdentity,
-  PackageIntelligenceService,
-  PackageSecurityOverview,
-  PackageSummary,
-  PackageSummaryParams,
-  PackageUpgradeDependencyProbeParams,
-  PackageVersionIdentity,
-  PackageVulnerabilitiesParams,
-  ReadPackageDocParams,
-  TransitiveDependencySummary,
-  TransitiveDependencyVulnerability,
-  TransitiveVulnerabilitySummary,
-  TransitiveVulnerablePackage,
-  UntypedGenericJSON,
-  VulnerabilityCountSummary,
-  VulnerabilityDetail,
-  VulnerabilityOverview,
-  VulnerabilityReport,
-  VulnerabilitySecurityDetails,
-  VulnerabilitySummaryDetail,
-} from "./package-intelligence-service.js";
-export {
-  MalformedPackageIntelligenceResponseError,
-  PackageIntelligenceAccessError,
-  PackageIntelligenceBackendError,
-  PackageIntelligenceChangelogSourceNotFoundError,
-  PackageIntelligenceFeatureFlagRequiredError,
-  PackageIntelligenceGraphQLError,
-  PackageIntelligenceNetworkError,
-  PackageIntelligenceServiceImpl,
-  PackageIntelligenceTargetNotFoundError,
-  PackageIntelligenceValidationError,
-  PackageIntelligenceVersionNotFoundError,
-} from "./package-intelligence-service.js";
-export type {
   CheckboxChoice,
   ConfirmChoice,
   PromptService,
 } from "./prompt-service.js";
 export { PromptServiceImpl } from "./prompt-service.js";
-export { RefreshingGitHitsService } from "./refreshing-githits-service.js";
-export type { TokenProvider } from "./token-manager.js";
 export { refreshExpiredToken, TokenManager } from "./token-manager.js";
 export type {
   RequiredUpdateNotice,

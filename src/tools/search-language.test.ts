@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { AuthenticationError } from "../services/githits-service.js";
+import { AuthenticationError } from "@githits/core-internal";
 import { createMockGitHitsService } from "../services/test-helpers.js";
 import { createSearchLanguageTool } from "./search-language.js";
 import type { ToolResult } from "./types.js";

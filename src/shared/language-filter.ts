@@ -1,4 +1,4 @@
-import type { Language } from "../services/githits-service.js";
+import type { Language } from "@githits/core-internal";
 
 export interface LanguageMatch {
   name: string;

@@ -1,21 +1,16 @@
-export interface WorkspaceScaffoldCoreIdentity {
-  packageName: "githits-core";
-  boundary: "core";
-}
-
-export interface WorkspaceScaffoldCorePayload<TValue> {
-  identity: WorkspaceScaffoldCoreIdentity;
-  value: TValue;
-}
-
-export function createWorkspaceScaffoldCorePayload<TValue>(
-  value: TValue,
-): WorkspaceScaffoldCorePayload<TValue> {
-  return {
-    identity: {
-      packageName: "githits-core",
-      boundary: "core",
-    },
-    value,
-  };
-}
+export * from "./auth/index.js";
+export * from "./services/client-update-required-error.js";
+export * from "./services/code-navigation-service.js";
+export * from "./services/config.js";
+export * from "./services/execute-with-token-refresh.js";
+export * from "./services/githits-service.js";
+export * from "./services/package-intelligence-service.js";
+export * from "./services/promote-version-not-found.js";
+export * from "./services/refreshing-githits-service.js";
+export * from "./services/token-provider.js";
+export * from "./shared/debug-log.js";
+export * from "./shared/fetch-timeout.js";
+export * from "./shared/pkgseer-graphql.js";
+export * from "./shared/pkgseer-registry.js";
+export * from "./shared/request-headers.js";
+export * from "./shared/telemetry.js";

@@ -5,7 +5,7 @@ import type {
   PackageIntelligenceService,
   TransitiveVulnerabilitySummary,
   VulnerabilityReport,
-} from "../services/package-intelligence-service.js";
+} from "@githits/core-internal";
 import {
   createMockPackageIntelligenceService,
   defaultPackageSummary,
