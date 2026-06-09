@@ -27,6 +27,7 @@ import type {
   UninstallConfig,
   UninstallStep,
 } from "./agent-definitions.js";
+import { traceProbeEnd, traceProbeStart } from "./init-trace.js";
 
 /** A read-only command to check if a CLI agent is already configured. */
 export interface CliCheckCommand {
@@ -1000,6 +1001,7 @@ export async function isSetupAlreadyConfigured(
   config: SetupConfig,
   fs: FileSystemService,
   execService: ExecService,
+  trace?: { agentId: string; phase: string },
 ): Promise<boolean> {
   if (config.method === "config-file") {
     return isAlreadyConfigured(config, fs);
@@ -1009,11 +1011,11 @@ export async function isSetupAlreadyConfigured(
     if (!config.checkCommand) {
       return false;
     }
-    return isCliAlreadyConfigured(config.checkCommand, execService);
+    return isCliAlreadyConfigured(config.checkCommand, execService, trace);
   }
 
   for (const step of config.steps) {
-    if (!(await isSetupAlreadyConfigured(step, fs, execService))) {
+    if (!(await isSetupAlreadyConfigured(step, fs, execService, trace))) {
       return false;
     }
   }
@@ -1028,8 +1030,9 @@ export async function isSetupAlreadyConfigured(
 export async function isCliAlreadyConfigured(
   check: CliCheckCommand,
   execService: ExecService,
+  trace?: { agentId: string; phase: string },
 ): Promise<boolean> {
-  return (await getCliCheckStatus(check, execService)) === "configured";
+  return (await getCliCheckStatus(check, execService, trace)) === "configured";
 }
 
 /**
@@ -1039,9 +1042,30 @@ export async function isCliAlreadyConfigured(
 export async function getCliCheckStatus(
   check: CliCheckCommand,
   execService: ExecService,
+  trace?: { agentId: string; phase: string },
 ): Promise<CliCheckStatus> {
+  const startedAt = Date.now();
+  if (trace) {
+    traceProbeStart({
+      agentId: trace.agentId,
+      phase: trace.phase,
+      command: check.command,
+      args: check.args,
+    });
+  }
   try {
-    const result = await execService.exec(check.command, check.args);
+    const result = await execService.exec(check.command, check.args, {
+      timeoutMs: 5_000,
+    });
+    if (trace) {
+      traceProbeEnd({
+        agentId: trace.agentId,
+        phase: trace.phase,
+        startedAt,
+        status: "end",
+        exitCode: result.exitCode,
+      });
+    }
     const combined = `${result.stdout} ${result.stderr}`;
     if (check.notConfiguredPattern?.test(combined)) {
       return "not_configured";
@@ -1058,7 +1082,18 @@ export async function getCliCheckStatus(
       return "configured";
     }
     return "not_configured";
-  } catch {
+  } catch (err) {
+    if (trace) {
+      traceProbeEnd({
+        agentId: trace.agentId,
+        phase: trace.phase,
+        startedAt,
+        status:
+          err instanceof Error && err.name === "ExecTimeoutError"
+            ? "timeout"
+            : "error",
+      });
+    }
     return "probe_failed";
   }
 }

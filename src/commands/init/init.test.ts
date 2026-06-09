@@ -376,6 +376,35 @@ describe("initAction", () => {
     );
   });
 
+  it("keeps detect JSON parseable when init trace is enabled", async () => {
+    const originalTrace = process.env.GITHITS_INIT_TRACE;
+    process.env.GITHITS_INIT_TRACE = "1";
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    try {
+      await initAction(
+        { detectAgents: true, json: true },
+        {
+          fileSystemService: fs,
+          promptService: createMockPromptService(),
+          execService: createMockExecService(),
+          createLoginDeps: createUnauthLoginDeps(),
+        },
+      );
+    } finally {
+      if (originalTrace === undefined) {
+        delete process.env.GITHITS_INIT_TRACE;
+      } else {
+        process.env.GITHITS_INIT_TRACE = originalTrace;
+      }
+    }
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.mode).toBe("detect-agents");
+    expect(getErrorOutput().some((msg) => msg.includes("[githits:init]"))).toBe(
+      true,
+    );
+  });
+
   it("emits project-scoped JSON for agent detection", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"]);
     const createLoginDeps = mock(() =>
@@ -1650,9 +1679,11 @@ describe("initAction", () => {
       "install",
       "npm:pi-mcp-adapter",
     ]);
-    expect(execService.exec).toHaveBeenCalledWith("/npm-global/bin/pi", [
-      "list",
-    ]);
+    expect(execService.exec).toHaveBeenCalledWith(
+      "/npm-global/bin/pi",
+      ["list"],
+      { timeoutMs: 5_000 },
+    );
     expect(atomicWriteFile).toHaveBeenCalled();
     const calls = atomicWriteFile.mock.calls;
     const written = String(calls[0]?.[1] ?? "");

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { ExecServiceImpl, normalizeSpawnCommand } from "./exec-service.js";
+import {
+  ExecServiceImpl,
+  ExecTimeoutError,
+  normalizeSpawnCommand,
+} from "./exec-service.js";
 
 describe("ExecServiceImpl", () => {
   it("executes a command and returns stdout", async () => {
@@ -29,6 +33,26 @@ describe("ExecServiceImpl", () => {
       "process.stderr.write('err-msg')",
     ]);
     expect(result.stderr).toContain("err-msg");
+  });
+
+  it("rejects with timeout error when command exceeds timeout", async () => {
+    const service = new ExecServiceImpl();
+    await expect(
+      service.exec("node", ["-e", "setTimeout(() => {}, 1000)"], {
+        timeoutMs: 50,
+      }),
+    ).rejects.toBeInstanceOf(ExecTimeoutError);
+  });
+
+  it("does not reject after timed-out process later closes", async () => {
+    const service = new ExecServiceImpl();
+    for (let i = 0; i < 3; i += 1) {
+      await expect(
+        service.exec("node", ["-e", "setTimeout(() => {}, 1000)"], {
+          timeoutMs: 20,
+        }),
+      ).rejects.toBeInstanceOf(ExecTimeoutError);
+    }
   });
 
   it("quotes Windows absolute command paths with spaces for shell execution", () => {

@@ -166,6 +166,7 @@ use at least one agent for quick iteration.
 
 | Affected Area | Workload |
 |---|---|
+| Agent-driven GitHits onboarding and setup UX | `githits-onboarding.md` |
 | Core global examples, `get_example`, `search_language`, `feedback` | `global-example.md` |
 | Unified `search` / `search_status` behavior | `unified-search-investigation.md`; use `search-source-ergonomics.md` when changing `search` source-selection arguments or minimal-call guidance |
 | Package overview or vulnerability UX, `pkg_info`, `pkg_vulns` | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior; use `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior |

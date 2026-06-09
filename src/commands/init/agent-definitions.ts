@@ -1,5 +1,6 @@
 import type { ExecService } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
+import { traceInit, traceProbeEnd, traceProbeStart } from "./init-trace.js";
 import {
   type CliCheckCommand,
   getCliCheckStatus,
@@ -94,6 +95,8 @@ const CLAUDE_GITHITS_PLUGIN = "githits";
 const CLAUDE_GITHITS_MARKETPLACE = "githits-plugins";
 const CLAUDE_GITHITS_PLUGIN_REF = `${CLAUDE_GITHITS_PLUGIN}@${CLAUDE_GITHITS_MARKETPLACE}`;
 const CLAUDE_GITHITS_MARKETPLACE_SOURCE = "githits-com/githits-cli";
+const BINARY_LOOKUP_TIMEOUT_MS = 2_000;
+const GLOBAL_BIN_PROBE_TIMEOUT_MS = 3_000;
 
 /** How an agent is considered present on the machine. */
 type DetectionMethod = "binary" | "path" | "hybrid";
@@ -325,7 +328,9 @@ async function isExecutableAvailable(
 ): Promise<boolean> {
   try {
     const lookupCommand = process.platform === "win32" ? "where" : "which";
-    const result = await exec.exec(lookupCommand, [executable]);
+    const result = await exec.exec(lookupCommand, [executable], {
+      timeoutMs: BINARY_LOOKUP_TIMEOUT_MS,
+    });
     return result.exitCode === 0;
   } catch {
     return false;
@@ -359,7 +364,9 @@ async function runGlobalBinProbe(
   probe: PiGlobalBinProbe,
 ): Promise<string | null> {
   try {
-    const result = await exec.exec(probe.command, [...probe.args]);
+    const result = await exec.exec(probe.command, [...probe.args], {
+      timeoutMs: GLOBAL_BIN_PROBE_TIMEOUT_MS,
+    });
     if (result.exitCode !== 0) {
       return null;
     }
@@ -961,24 +968,54 @@ async function scanSingleAgent(
   execService: ExecService,
   scope: InitSetupScope,
 ): Promise<AgentScanOutcome> {
+  const scanStartedAt = Date.now();
+  traceInit(`agent:start agent=${agent.id} scope=${scope}`);
   // Check if available using the agent's declared detection contract.
   let detected = false;
   let setupContext: AgentSetupContext | undefined;
 
   if (agent.detectCommand) {
+    const startedAt = Date.now();
     try {
+      traceProbeStart({ agentId: agent.id, phase: "detectCommand" });
       const resolvedCommand = await agent.detectCommand(execService, fs);
+      traceProbeEnd({
+        agentId: agent.id,
+        phase: "detectCommand",
+        startedAt,
+        status: "end",
+      });
       if (resolvedCommand) {
         detected = true;
         setupContext = { command: resolvedCommand.command };
       }
     } catch {
+      traceProbeEnd({
+        agentId: agent.id,
+        phase: "detectCommand",
+        startedAt,
+        status: "error",
+      });
       detected = false;
     }
   } else if (agent.detectionMethod === "binary" && agent.detectBinary) {
+    const startedAt = Date.now();
     try {
+      traceProbeStart({ agentId: agent.id, phase: "binary" });
       detected = await agent.detectBinary(execService);
+      traceProbeEnd({
+        agentId: agent.id,
+        phase: "binary",
+        startedAt,
+        status: "end",
+      });
     } catch {
+      traceProbeEnd({
+        agentId: agent.id,
+        phase: "binary",
+        startedAt,
+        status: "error",
+      });
       detected = false;
     }
   } else if (agent.detectionMethod === "path" && agent.detectPaths) {
@@ -994,9 +1031,23 @@ async function scanSingleAgent(
     let pathDetected = false;
 
     if (agent.detectBinary) {
+      const startedAt = Date.now();
       try {
+        traceProbeStart({ agentId: agent.id, phase: "binary" });
         binaryDetected = await agent.detectBinary(execService);
+        traceProbeEnd({
+          agentId: agent.id,
+          phase: "binary",
+          startedAt,
+          status: "end",
+        });
       } catch {
+        traceProbeEnd({
+          agentId: agent.id,
+          phase: "binary",
+          startedAt,
+          status: "error",
+        });
         binaryDetected = false;
       }
     }
@@ -1015,6 +1066,9 @@ async function scanSingleAgent(
   }
 
   if (!detected) {
+    traceInit(
+      `agent:end agent=${agent.id} status=not_detected elapsedMs=${Date.now() - scanStartedAt}`,
+    );
     return { status: "not_detected", agent };
   }
 
@@ -1041,6 +1095,7 @@ async function scanSingleAgent(
     const checkStatus = await getCliCheckStatus(
       config.checkCommand,
       execService,
+      { agentId: agent.id, phase: "check" },
     );
     let configured = checkStatus === "configured";
     // Only use filesystem fallback when the CLI probe itself failed.
@@ -1048,15 +1103,27 @@ async function scanSingleAgent(
     if (!configured && checkStatus === "probe_failed") {
       configured = await isGeminiExtensionInstalledFromFilesystem(fs);
     }
-    return {
-      status: configured ? "already_configured" : "needs_setup",
-      agent: scannedAgent,
-    };
+    const status = configured ? "already_configured" : "needs_setup";
+    traceInit(
+      `agent:end agent=${agent.id} status=${status} elapsedMs=${Date.now() - scanStartedAt}`,
+    );
+    return { status, agent: scannedAgent };
   }
 
-  if (await isSetupAlreadyConfigured(config, fs, execService)) {
+  if (
+    await isSetupAlreadyConfigured(config, fs, execService, {
+      agentId: agent.id,
+      phase: "check",
+    })
+  ) {
+    traceInit(
+      `agent:end agent=${agent.id} status=already_configured elapsedMs=${Date.now() - scanStartedAt}`,
+    );
     return { status: "already_configured", agent: scannedAgent };
   }
+  traceInit(
+    `agent:end agent=${agent.id} status=needs_setup elapsedMs=${Date.now() - scanStartedAt}`,
+  );
   return { status: "needs_setup", agent: scannedAgent };
 }
 
@@ -1080,6 +1147,10 @@ export async function scanAgents(
     unsupported: [],
   };
   let completed = 0;
+  const startedAt = Date.now();
+  traceInit(
+    `scan:start scope=${options.scope ?? "user"} total=${definitions.length}`,
+  );
 
   const outcomes = await Promise.all(
     definitions.map((agent) =>
@@ -1112,6 +1183,7 @@ export async function scanAgents(
     }
   }
 
+  traceInit(`scan:end elapsedMs=${Date.now() - startedAt}`);
   return result;
 }
 
