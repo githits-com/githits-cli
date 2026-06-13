@@ -34,6 +34,9 @@
     "packages/core-internal": {
       "name": "@githits/core-internal",
       "version": "0.4.11",
+      "dependencies": {
+        "zod": "^4.4.3",
+      },
     },
     "packages/mcp": {
       "name": "@githits/mcp",

@@ -224,6 +224,22 @@ describe("mapCodeNavigationError", () => {
     });
   });
 
+  it("classifies CodeNavigationBackendError with REF_NOT_FOUND as REF_NOT_FOUND", () => {
+    const err = new CodeNavigationBackendError(
+      "Git ref not found: HEAD for repository https://github.com/acme/missing.",
+      undefined,
+      "REF_NOT_FOUND",
+    );
+
+    expect(mapCodeNavigationError(err)).toEqual({
+      code: "REF_NOT_FOUND",
+      message:
+        "Git ref not found: HEAD for repository https://github.com/acme/missing.",
+      retryable: false,
+      details: { graphqlCode: "REF_NOT_FOUND" },
+    });
+  });
+
   it("classifies CodeNavigationBackendError with UPSTREAM_ERROR as BACKEND_ERROR (retryable default)", () => {
     const err = new CodeNavigationBackendError(
       "Upstream failed",

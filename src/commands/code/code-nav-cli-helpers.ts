@@ -146,6 +146,9 @@ export function formatFileErrorWithFilesHint(mapped: MappedError): string {
   ) {
     return `${mapped.message}\n  Use \`code files\` to list available paths.`;
   }
+  if (mapped.code === "REF_NOT_FOUND") {
+    return `${mapped.message}\n  Check that the repository URL and git ref exist and are publicly accessible.`;
+  }
   if (looksLikeMissingNavpackMessage(mapped.message)) {
     return [
       "Source index for this target is temporarily unavailable.",
