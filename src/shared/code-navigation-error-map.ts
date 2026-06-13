@@ -25,6 +25,7 @@ import { AuthRequiredError } from "./require-auth.js";
 export type MappedErrorCode =
   | "NOT_FOUND"
   | "FILE_NOT_FOUND"
+  | "REF_NOT_FOUND"
   | "VERSION_NOT_FOUND"
   | "INDEXING"
   | "UNRESOLVABLE"
@@ -259,9 +260,10 @@ export function buildUpdateRequiredError(
 
 /**
  * Dispatch on `CodeNavigationBackendError.graphqlCode` to produce
- * TIMEOUT / RATE_LIMITED / BACKEND_ERROR with the correct retryable
- * default. When the backend provided its own `retryable` hint on the
- * original extensions block, it takes precedence over the default.
+ * specific user-facing codes when available, otherwise BACKEND_ERROR
+ * with the correct retryable default. When the backend provided its own
+ * `retryable` hint on the original extensions block, it takes precedence
+ * over the default.
  */
 function classifyBackendError(error: CodeNavigationBackendError): MappedError {
   const details: MappedErrorDetails = {};
@@ -282,6 +284,8 @@ function classifyBackendError(error: CodeNavigationBackendError): MappedError {
       return build("TIMEOUT", true);
     case "RATE_LIMITED":
       return build("RATE_LIMITED", true);
+    case "REF_NOT_FOUND":
+      return build("REF_NOT_FOUND", false);
     case "UPSTREAM_ERROR":
       return build("BACKEND_ERROR", true);
     default:

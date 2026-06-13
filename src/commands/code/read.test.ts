@@ -1,5 +1,6 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
+  CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
@@ -392,6 +393,44 @@ describe("pkgReadAction", () => {
     const output = errorSpy.mock.calls[0]?.[0] as string;
     expect(output).toContain("File not found");
     expect(output).toContain("code files");
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("routes REF_NOT_FOUND with a repo/ref hint instead of path narrowing", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const service = createMockCodeNavigationService({
+      readFile: mock(() =>
+        Promise.reject(
+          new CodeNavigationBackendError(
+            "Git ref not found: HEAD for repository https://github.com/acme/missing.",
+            undefined,
+            "REF_NOT_FOUND",
+            false,
+          ),
+        ),
+      ),
+    });
+
+    try {
+      await pkgReadAction(
+        "README.md",
+        undefined,
+        { repoUrl: "https://github.com/acme/missing" },
+        createDeps({ codeNavigationService: service }),
+      );
+    } catch {
+      /* expected */
+    }
+
+    const output = errorSpy.mock.calls[0]?.[0] as string;
+    expect(output).toContain("Git ref not found: HEAD");
+    expect(output).toContain("repository URL and git ref");
+    expect(output).not.toContain("Narrow the target");
+    expect(output).not.toContain("code files");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
