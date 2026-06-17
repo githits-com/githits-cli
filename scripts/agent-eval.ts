@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import {
   assertUniqueWorkloadIds,
   buildRunReportFromMetadata,
@@ -416,7 +416,16 @@ function writeGitHitsShim(
   binDir: string,
 ): string {
   mkdirSync(binDir, { recursive: true });
-  const shimPath = join(binDir, "githits");
+  const isWindows = process.platform === "win32";
+  const shimPath = join(binDir, isWindows ? "githits.cmd" : "githits");
+  if (isWindows) {
+    const command =
+      options.server === "local"
+        ? `bun run --cwd "${options.repoRoot}" dev %*`
+        : `npx -y "${options.publishedPackage}" %*`;
+    writeFileSync(shimPath, `@echo off\r\n${command}\r\n`);
+    return shimPath;
+  }
   const command =
     options.server === "local"
       ? `exec bun run --cwd ${shQuote(options.repoRoot)} dev "$@"`
@@ -1170,7 +1179,7 @@ async function runWorkload(
   );
   const workloadEnv = { ...env };
   if (skillInstallation) {
-    workloadEnv.PATH = `${dirname(skillInstallation.cliShim)}${workloadEnv.PATH ? `:${workloadEnv.PATH}` : ""}`;
+    workloadEnv.PATH = `${dirname(skillInstallation.cliShim)}${workloadEnv.PATH ? `${delimiter}${workloadEnv.PATH}` : ""}`;
   }
   const metadataBase = {
     id,

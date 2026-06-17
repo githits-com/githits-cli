@@ -29,6 +29,27 @@ function shQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
+function writeGitHitsShim(binDir: string, mockCliScriptPath: string): string {
+  const isWindows = process.platform === "win32";
+  const shimPath = join(binDir, isWindows ? "githits.cmd" : "githits");
+  if (isWindows) {
+    writeFileSync(
+      shimPath,
+      `@echo off\r\nbun run "${mockCliScriptPath}" %*\r\n`,
+      "utf8",
+    );
+    return shimPath;
+  }
+
+  writeFileSync(
+    shimPath,
+    `#!/bin/sh\nexec bun run ${shQuote(mockCliScriptPath)} "$@"\n`,
+    "utf8",
+  );
+  chmodSync(shimPath, 0o755);
+  return shimPath;
+}
+
 export function prepareSkillsFixtureWorkspace(
   options: PrepareSkillsFixtureWorkspaceOptions,
 ): SkillsFixtureWorkspace {
@@ -53,13 +74,7 @@ export function prepareSkillsFixtureWorkspace(
 
   const binDir = join(options.workspaceDir, ".eval-bin");
   mkdirSync(binDir, { recursive: true });
-  const shimPath = join(binDir, "githits");
-  writeFileSync(
-    shimPath,
-    `#!/bin/sh\nexec bun run ${shQuote(options.mockCliScriptPath)} "$@"\n`,
-    "utf8",
-  );
-  chmodSync(shimPath, 0o755);
+  const shimPath = writeGitHitsShim(binDir, options.mockCliScriptPath);
 
   return {
     workspaceDir: options.workspaceDir,

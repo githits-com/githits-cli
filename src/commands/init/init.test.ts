@@ -7,6 +7,9 @@ import {
   mock,
   spyOn,
 } from "bun:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { ExitPromptError } from "@inquirer/core";
 import { Command } from "commander";
 import type {
@@ -33,10 +36,16 @@ import {
 let logSpy: ReturnType<typeof spyOn>;
 let errorSpy: ReturnType<typeof spyOn>;
 let originalExitCode: string | number | null | undefined;
+let originalPlatform: NodeJS.Platform;
 
 beforeEach(() => {
   originalExitCode = process.exitCode;
   process.exitCode = 0;
+  originalPlatform = process.platform;
+  Object.defineProperty(process, "platform", {
+    configurable: true,
+    value: "linux",
+  });
   logSpy = spyOn(console, "log").mockImplementation(() => {});
   errorSpy = spyOn(console, "error").mockImplementation(() => {});
 });
@@ -45,6 +54,10 @@ afterEach(() => {
   logSpy.mockRestore();
   errorSpy.mockRestore();
   process.exitCode = originalExitCode;
+  Object.defineProperty(process, "platform", {
+    configurable: true,
+    value: originalPlatform,
+  });
 });
 
 /** Create mock login deps that report already authenticated */
@@ -4685,7 +4698,8 @@ describe("registerInitCommand", () => {
     program.exitOverride();
     registerInitCommand(program);
     const originalCwd = process.cwd();
-    process.chdir("/tmp");
+    const tempCwd = mkdtempSync(join(tmpdir(), "githits-init-test-"));
+    process.chdir(tempCwd);
     try {
       await program.parseAsync(["node", "githits", ...args], { from: "node" });
     } finally {

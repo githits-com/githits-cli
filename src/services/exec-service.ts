@@ -149,13 +149,14 @@ export class ExecServiceImpl implements ExecService {
         fn();
       };
 
-      if (options.timeoutMs !== undefined) {
+      const timeoutMs = options.timeoutMs;
+      if (timeoutMs !== undefined) {
         timeout = setTimeout(() => {
           settle(() => {
             child.kill("SIGTERM");
-            reject(new ExecTimeoutError(command, args, options.timeoutMs!));
+            reject(new ExecTimeoutError(command, args, timeoutMs));
           });
-        }, options.timeoutMs);
+        }, timeoutMs);
       }
 
       child.stdout.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));

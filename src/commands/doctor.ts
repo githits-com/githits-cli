@@ -810,16 +810,35 @@ async function resolvePathExecutable(
   const pathDelimiter = deps.platform === "win32" ? ";" : ":";
   for (const dir of pathValue.split(pathDelimiter)) {
     if (!dir) continue;
-    const candidate = deps.fs.joinPath(dir, name);
-    try {
-      if (await deps.fs.exists(candidate)) {
-        return { status: "present", value: candidate, source: "env" };
+    for (const candidate of getPathExecutableCandidates(name, dir, deps)) {
+      try {
+        if (await deps.fs.exists(candidate)) {
+          return { status: "present", value: candidate, source: "env" };
+        }
+      } catch (error) {
+        return toErrorProbe(error, "env", "error");
       }
-    } catch (error) {
-      return toErrorProbe(error, "env", "error");
     }
   }
   return { status: "missing", source: "env" };
+}
+
+function getPathExecutableCandidates(
+  name: string,
+  dir: string,
+  deps: DoctorDependencies,
+): string[] {
+  if (deps.platform !== "win32") return [deps.fs.joinPath(dir, name)];
+
+  const names = new Set([name]);
+  for (const ext of (deps.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD")
+    .split(";")
+    .map((ext) => ext.trim())
+    .filter((ext) => ext.length > 0)) {
+    names.add(`${name}${ext}`);
+    names.add(`${name}${ext.toLowerCase()}`);
+  }
+  return Array.from(names, (candidate) => deps.fs.joinPath(dir, candidate));
 }
 
 function isStoredAuthFile(value: unknown): value is StoredAuthFile {

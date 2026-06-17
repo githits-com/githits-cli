@@ -1,4 +1,5 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
+import { win32 } from "node:path";
 import { createMockFileSystemService } from "../services/test-helpers.js";
 import {
   buildDoctorReport,
@@ -196,21 +197,27 @@ describe("doctor", () => {
   });
 
   it("uses Windows PATH delimiters when resolving githits", async () => {
+    const githitsCmd = win32.join("C:\\b", "githits.cmd");
     const fs = createMockFileSystemService({
-      exists: mock((path: string) => Promise.resolve(path === "C:\\b/githits")),
+      joinPath: mock((...segments: string[]) => win32.join(...segments)),
+      exists: mock((path: string) => Promise.resolve(path === githitsCmd)),
     });
 
     const report = await buildDoctorReport(
       createDeps({
         fs,
         platform: "win32",
-        env: { USERPROFILE: "C:\\Users\\test", PATH: "C:\\a;C:\\b" },
+        env: {
+          USERPROFILE: "C:\\Users\\test",
+          PATH: "C:\\a;C:\\b",
+          PATHEXT: ".CMD;.EXE",
+        },
       }),
     );
 
     expect(report.runtime.pathGithits).toEqual({
       status: "present",
-      value: "C:\\b/githits",
+      value: githitsCmd,
       source: "env",
     });
   });

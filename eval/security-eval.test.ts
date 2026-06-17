@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { detectFixtureTool, formatFixtureOutput } from "./mock-cli/githits.js";
 import { writeState } from "./mock-mcp/state.js";
 import { prepareSkillsFixtureWorkspace } from "./skills-workspace.js";
@@ -79,9 +79,14 @@ describe("security eval skills surface", () => {
     expect(
       existsSync(join(workspaceDir, "skills", "githits-package", "SKILL.md")),
     ).toBe(true);
-    expect(readFileSync(prepared.shimPath, "utf8")).toContain(
-      "eval/mock-cli/githits.ts",
+    const shimContent = readFileSync(prepared.shimPath, "utf8").replaceAll(
+      "\\",
+      "/",
     );
+    expect(shimContent).toContain("eval/mock-cli/githits.ts");
+    if (process.platform === "win32") {
+      expect(basename(prepared.shimPath)).toBe("githits.cmd");
+    }
   });
 
   it("mock CLI reads the shared eval state file", async () => {

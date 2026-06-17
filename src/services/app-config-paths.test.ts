@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { win32 } from "node:path";
 import {
   getAppConfigDir,
   getAuthConfigPath,
@@ -7,34 +8,17 @@ import {
   getLegacyMacAuthConfigPath,
   getLegacyMacAuthFileStorageDir,
 } from "./app-config-paths.js";
-import { createMockFileSystemService } from "./test-helpers.js";
-
-function withPlatform<T>(platform: NodeJS.Platform, fn: () => T): T {
-  const originalPlatform = process.platform;
-  Object.defineProperty(process, "platform", { value: platform });
-  try {
-    return fn();
-  } finally {
-    Object.defineProperty(process, "platform", { value: originalPlatform });
-  }
-}
-
-function withEnvVar<T>(key: string, value: string | undefined, fn: () => T): T {
-  const original = process.env[key];
-  if (value === undefined) delete process.env[key];
-  else process.env[key] = value;
-  try {
-    return fn();
-  } finally {
-    if (original === undefined) delete process.env[key];
-    else process.env[key] = original;
-  }
-}
+import {
+  createMockFileSystemService,
+  createPlatformMockFileSystemService,
+  withTestEnvVar,
+  withTestPlatform,
+} from "./test-helpers.js";
 
 describe("app config paths", () => {
-  it("uses XDG_CONFIG_HOME on linux", () => {
-    withEnvVar("XDG_CONFIG_HOME", "/xdg/config", () => {
-      withPlatform("linux", () => {
+  it("uses XDG_CONFIG_HOME on linux", async () => {
+    await withTestEnvVar("XDG_CONFIG_HOME", "/xdg/config", async () => {
+      await withTestPlatform("linux", () => {
         const fs = createMockFileSystemService();
         expect(getAppConfigDir(fs)).toBe("/xdg/config/githits");
         expect(getAuthConfigPath(fs)).toBe("/xdg/config/githits/config.toml");
@@ -43,9 +27,9 @@ describe("app config paths", () => {
     });
   });
 
-  it("falls back to ~/.config on linux", () => {
-    withEnvVar("XDG_CONFIG_HOME", undefined, () => {
-      withPlatform("linux", () => {
+  it("falls back to ~/.config on linux", async () => {
+    await withTestEnvVar("XDG_CONFIG_HOME", undefined, async () => {
+      await withTestPlatform("linux", () => {
         expect(getAppConfigDir(createMockFileSystemService())).toBe(
           "/home/test/.config/githits",
         );
@@ -53,9 +37,9 @@ describe("app config paths", () => {
     });
   });
 
-  it("uses ~/.config on macOS", () => {
-    withEnvVar("XDG_CONFIG_HOME", undefined, () => {
-      withPlatform("darwin", () => {
+  it("uses ~/.config on macOS", async () => {
+    await withTestEnvVar("XDG_CONFIG_HOME", undefined, async () => {
+      await withTestPlatform("darwin", () => {
         expect(getAppConfigDir(createMockFileSystemService())).toBe(
           "/home/test/.config/githits",
         );
@@ -63,9 +47,9 @@ describe("app config paths", () => {
     });
   });
 
-  it("uses XDG_CONFIG_HOME on macOS when set", () => {
-    withEnvVar("XDG_CONFIG_HOME", "/xdg/config", () => {
-      withPlatform("darwin", () => {
+  it("uses XDG_CONFIG_HOME on macOS when set", async () => {
+    await withTestEnvVar("XDG_CONFIG_HOME", "/xdg/config", async () => {
+      await withTestPlatform("darwin", () => {
         expect(getAppConfigDir(createMockFileSystemService())).toBe(
           "/xdg/config/githits",
         );
@@ -73,8 +57,8 @@ describe("app config paths", () => {
     });
   });
 
-  it("keeps legacy macOS Application Support paths for migration", () => {
-    withPlatform("darwin", () => {
+  it("keeps legacy macOS Application Support paths for migration", async () => {
+    await withTestPlatform("darwin", () => {
       const fs = createMockFileSystemService();
       expect(getLegacyMacAuthConfigPath(fs)).toBe(
         "/home/test/Library/Application Support/githits/config.toml",
@@ -85,19 +69,19 @@ describe("app config paths", () => {
     });
   });
 
-  it("uses APPDATA on Windows", () => {
-    const original = process.env.APPDATA;
-    process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
-    try {
-      withPlatform("win32", () => {
-        expect(getAppConfigDir(createMockFileSystemService())).toBe(
-          "C:\\Users\\test\\AppData\\Roaming/githits",
-        );
-      });
-    } finally {
-      if (original === undefined) delete process.env.APPDATA;
-      else process.env.APPDATA = original;
-    }
+  it("uses APPDATA on Windows", async () => {
+    await withTestEnvVar(
+      "APPDATA",
+      "C:\\Users\\test\\AppData\\Roaming",
+      async () => {
+        await withTestPlatform("win32", () => {
+          const fs = createPlatformMockFileSystemService("win32");
+          expect(getAppConfigDir(fs)).toBe(
+            win32.join("C:\\Users\\test\\AppData\\Roaming", "githits"),
+          );
+        });
+      },
+    );
   });
 
   it("keeps legacy auth storage under ~/.githits", () => {

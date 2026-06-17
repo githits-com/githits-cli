@@ -1,4 +1,5 @@
 import { mock } from "bun:test";
+import { posix, win32 } from "node:path";
 import type {
   ChangelogReport,
   CodeNavigationService,
@@ -231,6 +232,64 @@ export function createMockFileSystemService(
     atomicWriteFile: mock(() => Promise.resolve()),
     ...impl,
   };
+}
+
+export function createPlatformMockFileSystemService(
+  platform: NodeJS.Platform,
+  impl: Partial<FileSystemService> = {},
+): FileSystemService {
+  const pathApi = platform === "win32" ? win32 : posix;
+  const homeDir = platform === "win32" ? "C:\\Users\\test" : "/home/test";
+  const cwd = platform === "win32" ? "C:\\current\\dir" : "/current/dir";
+
+  return createMockFileSystemService({
+    getHomeDir: mock(() => homeDir),
+    joinPath: mock((...segments: string[]) => pathApi.join(...segments)),
+    getCwd: mock(() => cwd),
+    getDirname: mock((path: string) => pathApi.dirname(path)),
+    ...impl,
+  });
+}
+
+export async function withTestPlatform<T>(
+  platform: NodeJS.Platform,
+  fn: () => T | Promise<T>,
+): Promise<T> {
+  const originalPlatform = process.platform;
+  Object.defineProperty(process, "platform", {
+    configurable: true,
+    value: platform,
+  });
+  try {
+    return await fn();
+  } finally {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: originalPlatform,
+    });
+  }
+}
+
+export async function withTestEnvVar<T>(
+  key: string,
+  value: string | undefined,
+  fn: () => T | Promise<T>,
+): Promise<T> {
+  const original = process.env[key];
+  if (value === undefined) {
+    delete process.env[key];
+  } else {
+    process.env[key] = value;
+  }
+  try {
+    return await fn();
+  } finally {
+    if (original === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = original;
+    }
+  }
 }
 
 /**

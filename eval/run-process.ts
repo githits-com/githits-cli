@@ -61,7 +61,18 @@ export async function runProcess(
   }
 }
 
-export async function isCommandAvailable(cmd: string): Promise<boolean> {
-  const result = await runProcess({ cmd: ["which", cmd], timeoutMs: 2000 });
+export async function isCommandAvailable(
+  cmd: string,
+  opts: {
+    platform?: NodeJS.Platform;
+    run?: typeof runProcess;
+  } = {},
+): Promise<boolean> {
+  const lookupCommand =
+    (opts.platform ?? process.platform) === "win32" ? "where" : "which";
+  const result = await (opts.run ?? runProcess)({
+    cmd: [lookupCommand, cmd],
+    timeoutMs: 2000,
+  });
   return result.exitCode === 0;
 }
