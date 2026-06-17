@@ -189,6 +189,25 @@ expect(result.content[0]?.text).toContain("expected");
 expect(result.content[0].text).toContain("expected");
 ```
 
+### 5. Match Simulated Platform Paths
+
+When a test changes `process.platform`, environment variables, or fixtures to simulate another OS, the file-system mock must use that OS's path semantics too.
+
+```typescript
+import { win32 } from "node:path";
+
+const fs = createMockFileSystemService({
+  getHomeDir: mock(() => "C:\\Users\\test"),
+  joinPath: mock((...segments: string[]) => win32.join(...segments)),
+});
+
+expect(configPath).toBe(
+  win32.join("C:\\Users\\test", "AppData", "Roaming", "githits"),
+);
+```
+
+Do not assert mixed path strings such as `C:\\Users\\test/AppData/Roaming/githits`. Those fixtures are neither real POSIX nor real Windows paths, and they can hide Windows-only bugs. Prefer computed expectations via `node:path` (`win32` for Windows, default `join` or POSIX-style mocks for POSIX-only tests).
+
 ## Running Tests
 
 ```bash

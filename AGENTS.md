@@ -44,6 +44,7 @@ Philosophy: "If it is not tested, it is likely broken"
 - Use mock factories from `test-helpers.ts` (e.g., `createMockGitHitsService()`, `createMockAuthService()`)
 - Test behavior, not implementation - focus on inputs and outputs
 - Test only one layer at a time - mock dependencies
+- When tests simulate another platform, simulate that platform's path semantics too. Use `path.win32` for Windows paths and avoid mixed literals like `C:\\Users\\me/app`; mixed separators can make tests pass while real Windows logic is broken.
 
 **Test Structure:**
 
