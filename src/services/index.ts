@@ -28,7 +28,10 @@ export type {
   AuthClearReason,
   AuthDiagnosticsStore,
 } from "./auth-diagnostics-storage.js";
-export { AuthDiagnosticsStorage } from "./auth-diagnostics-storage.js";
+export {
+  AuthDiagnosticsStorage,
+  isAuthClearReason,
+} from "./auth-diagnostics-storage.js";
 export type {
   AuthService,
   BuildAuthUrlParams,

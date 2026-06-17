@@ -19,6 +19,7 @@ import {
   type AuthStorageMode,
   parseAuthStorageMode,
 } from "../services/auth-config.js";
+import { isAuthClearReason } from "../services/auth-diagnostics-storage.js";
 import {
   type ClientRegistration,
   normalizeBaseUrl,
@@ -524,11 +525,22 @@ function metadataProbe(
   return { status: "present", source: "file", value: metadata };
 }
 
-function lastClearProbe(
-  event: StoredDiagnosticsFile["events"][string] | undefined,
-): Probe<{ reason: string; at: string }> {
-  if (!event) return { status: "missing", source: "file" };
-  return { status: "present", source: "file", value: event };
+function lastClearProbe(event: unknown): Probe<{ reason: string; at: string }> {
+  if (event === undefined) return { status: "missing", source: "file" };
+  if (!isRecord(event)) return invalidLastClearProbe();
+  const { reason, at } = event as { reason?: unknown; at?: unknown };
+  if (!isAuthClearReason(reason) || typeof at !== "string" || at.length === 0) {
+    return invalidLastClearProbe();
+  }
+  return { status: "present", source: "file", value: { reason, at } };
+}
+
+function invalidLastClearProbe(): Probe<{ reason: string; at: string }> {
+  return {
+    status: "invalid",
+    source: "file",
+    error: { message: "diagnostics.json has an unrecognized last-clear event" },
+  };
 }
 
 function dependentProbe<T>(file: Probe<unknown>, message: string): Probe<T> {
@@ -904,22 +916,16 @@ function getPathExecutableCandidates(
 }
 
 function isStoredAuthFile(value: unknown): value is StoredAuthFile {
-  return (
-    hasVersionOne(value) && typeof (value as StoredAuthFile).tokens === "object"
-  );
+  return hasVersionOne(value) && isRecord((value as StoredAuthFile).tokens);
 }
 
 function isStoredClientFile(value: unknown): value is StoredClientFile {
-  return (
-    hasVersionOne(value) &&
-    typeof (value as StoredClientFile).clients === "object"
-  );
+  return hasVersionOne(value) && isRecord((value as StoredClientFile).clients);
 }
 
 function isStoredMetadataFile(value: unknown): value is StoredMetadataFile {
   return (
-    hasVersionOne(value) &&
-    typeof (value as StoredMetadataFile).sessions === "object"
+    hasVersionOne(value) && isRecord((value as StoredMetadataFile).sessions)
   );
 }
 
@@ -927,17 +933,17 @@ function isStoredDiagnosticsFile(
   value: unknown,
 ): value is StoredDiagnosticsFile {
   return (
-    hasVersionOne(value) &&
-    typeof (value as StoredDiagnosticsFile).events === "object"
+    hasVersionOne(value) && isRecord((value as StoredDiagnosticsFile).events)
   );
 }
 
 function hasVersionOne(value: unknown): value is { version: 1 } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (value as { version?: unknown }).version === 1
-  );
+  return isRecord(value) && (value as { version?: unknown }).version === 1;
+}
+
+/** Plain object check that rejects `null` (which `typeof` reports as object) and arrays. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 const DOCTOR_DESCRIPTION = `Print redacted diagnostics for GitHits configuration and authentication.

@@ -103,13 +103,20 @@ export class AuthDiagnosticsStorage implements AuthDiagnosticsStore {
   }
 }
 
+/**
+ * Whether a value is one of the known clear reasons. Exported so consumers that
+ * read the raw file (e.g. `githits doctor`) validate against the same set.
+ */
+export function isAuthClearReason(value: unknown): value is AuthClearReason {
+  return typeof value === "string" && CLEAR_REASONS.has(value);
+}
+
 function isAuthClearEvent(
   value: AuthClearEvent | null,
 ): value is AuthClearEvent {
   if (value === null || typeof value !== "object") return false;
   return (
-    typeof value.reason === "string" &&
-    CLEAR_REASONS.has(value.reason) &&
+    isAuthClearReason(value.reason) &&
     typeof value.at === "string" &&
     value.at.length > 0
   );

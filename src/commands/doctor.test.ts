@@ -418,6 +418,54 @@ describe("doctor", () => {
     ).toBe(true);
   });
 
+  it("does not throw on a diagnostics file with non-object events", async () => {
+    const fs = createMockFileSystemService({
+      exists: mock((path: string) =>
+        Promise.resolve(path.endsWith("diagnostics.json")),
+      ),
+      readFile: mock((path: string) =>
+        path.endsWith("diagnostics.json")
+          ? Promise.resolve(JSON.stringify({ version: 1, events: null }))
+          : Promise.reject(new Error("File not found")),
+      ),
+    });
+
+    const report = await buildDoctorReport(createDeps({ fs }));
+
+    // events:null fails the file-shape guard, so the file is reported, not crashed.
+    expect(report.auth.files[0]?.lastClear.status).not.toBe("present");
+    expect(
+      report.recommendations.some((line) => line.includes("last clear")),
+    ).toBe(false);
+  });
+
+  it("flags a malformed last-clear event as invalid instead of surfacing it", async () => {
+    const fs = createMockFileSystemService({
+      exists: mock((path: string) =>
+        Promise.resolve(path.endsWith("diagnostics.json")),
+      ),
+      readFile: mock((path: string) =>
+        path.endsWith("diagnostics.json")
+          ? Promise.resolve(
+              JSON.stringify({
+                version: 1,
+                events: {
+                  "https://mcp.githits.com": { reason: "bogus", at: 123 },
+                },
+              }),
+            )
+          : Promise.reject(new Error("File not found")),
+      ),
+    });
+
+    const report = await buildDoctorReport(createDeps({ fs }));
+
+    expect(report.auth.files[0]?.lastClear.status).toBe("invalid");
+    expect(
+      report.recommendations.some((line) => line.includes("last clear")),
+    ).toBe(false);
+  });
+
   it("reports invalid auth config instead of throwing", async () => {
     const fs = createMockFileSystemService({
       exists: mock((path: string) =>
