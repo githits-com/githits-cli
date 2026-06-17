@@ -169,7 +169,13 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
           await this.writeOwner(processStartedAt);
         } catch (error) {
           this.currentOwner = null;
-          if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code === "EEXIST" || code === "ENOENT") {
+            // Another contender may have removed the lock directory between
+            // mkdir() and owner.json creation. Treat it as a lost race.
+            if (Date.now() - startedAt >= this.lockTimeoutMs) {
+              throw this.createLockTimeoutError();
+            }
             await sleep(LOCK_RETRY_MS);
             continue;
           }
@@ -183,13 +189,17 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
         if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
         await this.reclaimStaleLock();
         if (Date.now() - startedAt >= this.lockTimeoutMs) {
-          throw new AuthStorageLockTimeoutError(
-            `Timed out waiting for GitHits auth storage lock at ${this.lockPath}. If no githits process is running, remove this directory and retry.`,
-          );
+          throw this.createLockTimeoutError();
         }
         await sleep(LOCK_RETRY_MS);
       }
     }
+  }
+
+  private createLockTimeoutError(): AuthStorageLockTimeoutError {
+    return new AuthStorageLockTimeoutError(
+      `Timed out waiting for GitHits auth storage lock at ${this.lockPath}. If no githits process is running, remove this directory and retry.`,
+    );
   }
 
   private async writeOwner(processStartedAt: string | null): Promise<void> {
