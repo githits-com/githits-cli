@@ -581,7 +581,8 @@ function buildRecommendations(report: DoctorReport): string[] {
   if (
     activeAuth?.token.status === "missing" &&
     activeAuth.lastClear.status === "present" &&
-    activeAuth.lastClear.value
+    activeAuth.lastClear.value &&
+    !clearSupersededBySession(activeAuth.lastClear.value, activeAuth.metadata)
   ) {
     recommendations.push(lastClearRecommendation(activeAuth.lastClear.value));
   }
@@ -712,6 +713,32 @@ function lastClearRecommendation(event: {
     default:
       return `Auth was last cleared ${when}. Run \`githits login\` if commands report authentication is required.`;
   }
+}
+
+/**
+ * Whether session metadata indicates a login newer than the recorded clear.
+ *
+ * Keychain-mode tokens are not visible in `auth.json`, so `token.status` is
+ * always "missing" even after a successful re-login. The retained breadcrumb
+ * would otherwise produce a stale "run login" recommendation; a session created
+ * or updated after the clear means the user has already re-authenticated.
+ */
+function clearSupersededBySession(
+  lastClear: { at: string },
+  metadata: Probe<{
+    createdAt: string;
+    expiresAt: string | null;
+    updatedAt: string;
+  }>,
+): boolean {
+  if (metadata.status !== "present" || !metadata.value) return false;
+  const clearMs = Date.parse(lastClear.at);
+  if (Number.isNaN(clearMs)) return false;
+  const sessionTimes = [metadata.value.createdAt, metadata.value.updatedAt]
+    .map((value) => Date.parse(value))
+    .filter((ms) => !Number.isNaN(ms));
+  if (sessionTimes.length === 0) return false;
+  return Math.max(...sessionTimes) > clearMs;
 }
 
 function hasLegacyAuthEvidence(entry: AuthFileProbe): boolean {
