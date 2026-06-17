@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
+import { win32 } from "node:path";
 import type { ExecResult } from "../../services/exec-service.js";
 import {
   createMockExecService,
@@ -11,6 +12,16 @@ import {
   detectAgents,
   scanAgents,
 } from "./agent-definitions.js";
+
+function createWindowsFileSystemService(
+  impl: Parameters<typeof createMockFileSystemService>[0] = {},
+) {
+  return createMockFileSystemService({
+    getHomeDir: mock(() => "C:\\Users\\test"),
+    joinPath: mock((...segments: string[]) => win32.join(...segments)),
+    ...impl,
+  });
+}
 
 describe("agentDefinitions", () => {
   it("defines 12 agents", () => {
@@ -213,17 +224,20 @@ describe("detection configuration", () => {
     });
     process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
     try {
-      const fs = createMockFileSystemService({
-        getHomeDir: mock(() => "C:\\Users\\test"),
-        joinPath: mock((...segments: string[]) => segments.join("/")),
-      });
+      const fs = createWindowsFileSystemService();
       const agent = agentDefinitions.find((a) => a.id === "opencode")!;
       const paths = agent.detectPaths?.(fs);
       expect(paths).toEqual([
-        "C:\\Users\\test\\AppData\\Roaming/ai.opencode.desktop",
-        "C:\\Users\\test\\AppData\\Roaming/ai.opencode.desktop.beta",
-        "C:\\Users\\test\\AppData\\Roaming/ai.opencode.desktop.dev",
-        "C:\\Users\\test\\AppData\\Roaming/opencode",
+        win32.join("C:\\Users\\test\\AppData\\Roaming", "ai.opencode.desktop"),
+        win32.join(
+          "C:\\Users\\test\\AppData\\Roaming",
+          "ai.opencode.desktop.beta",
+        ),
+        win32.join(
+          "C:\\Users\\test\\AppData\\Roaming",
+          "ai.opencode.desktop.dev",
+        ),
+        win32.join("C:\\Users\\test\\AppData\\Roaming", "opencode"),
       ]);
     } finally {
       Object.defineProperty(process, "platform", {
@@ -247,18 +261,15 @@ describe("detection configuration", () => {
     });
     process.env.LOCALAPPDATA = "C:\\Users\\test\\AppData\\Local";
     try {
-      const fs = createMockFileSystemService({
-        getHomeDir: mock(() => "C:\\Users\\test"),
-        joinPath: mock((...segments: string[]) => segments.join("/")),
-      });
+      const fs = createWindowsFileSystemService();
       const agent = agentDefinitions.find((a) => a.id === "claude-desktop")!;
       const paths = agent.detectPaths?.(fs);
       expect(paths).toBeDefined();
       if (!paths) throw new Error("expected claude-desktop paths");
       expect(paths).toHaveLength(3);
       expect(paths[0]).toContain("Roaming");
-      expect(paths[1]).toContain("Local/Claude");
-      expect(paths[2]).toContain("Local/Programs/Claude");
+      expect(paths[1]).toContain(win32.join("Local", "Claude"));
+      expect(paths[2]).toContain(win32.join("Local", "Programs", "Claude"));
     } finally {
       Object.defineProperty(process, "platform", {
         value: originalPlatform,
@@ -307,17 +318,18 @@ describe("detection configuration", () => {
     process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
     delete process.env.LOCALAPPDATA;
     try {
-      const fs = createMockFileSystemService({
-        getHomeDir: mock(() => "C:\\Users\\test"),
-        joinPath: mock((...segments: string[]) => segments.join("/")),
-      });
+      const fs = createWindowsFileSystemService();
       const agent = agentDefinitions.find((a) => a.id === "claude-desktop")!;
       const paths = agent.detectPaths?.(fs);
       expect(paths).toBeDefined();
       if (!paths) throw new Error("expected claude-desktop paths");
       expect(paths).toHaveLength(3);
-      expect(paths[1]).toBe("C:\\Users\\test/AppData/Local/Claude");
-      expect(paths[2]).toBe("C:\\Users\\test/AppData/Local/Programs/Claude");
+      expect(paths[1]).toBe(
+        win32.join("C:\\Users\\test", "AppData", "Local", "Claude"),
+      );
+      expect(paths[2]).toBe(
+        win32.join("C:\\Users\\test", "AppData", "Local", "Programs", "Claude"),
+      );
     } finally {
       Object.defineProperty(process, "platform", {
         value: originalPlatform,
@@ -656,15 +668,16 @@ describe("getSetupConfig", () => {
     });
     process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
     try {
-      const fs = createMockFileSystemService({
-        getHomeDir: mock(() => "C:\\Users\\test"),
-        joinPath: mock((...segments: string[]) => segments.join("/")),
-      });
+      const fs = createWindowsFileSystemService();
       const agent = agentDefinitions.find((a) => a.id === "claude-desktop")!;
       const config = agent.getSetupConfig(fs);
       if (config.method === "config-file") {
         expect(config.configPath).toBe(
-          "C:\\Users\\test\\AppData\\Roaming/Claude/claude_desktop_config.json",
+          win32.join(
+            "C:\\Users\\test\\AppData\\Roaming",
+            "Claude",
+            "claude_desktop_config.json",
+          ),
         );
       }
     } finally {
@@ -689,15 +702,18 @@ describe("getSetupConfig", () => {
     });
     delete process.env.APPDATA;
     try {
-      const fs = createMockFileSystemService({
-        getHomeDir: mock(() => "C:\\Users\\test"),
-        joinPath: mock((...segments: string[]) => segments.join("/")),
-      });
+      const fs = createWindowsFileSystemService();
       const agent = agentDefinitions.find((a) => a.id === "claude-desktop")!;
       const config = agent.getSetupConfig(fs);
       if (config.method === "config-file") {
         expect(config.configPath).toBe(
-          "C:\\Users\\test/AppData/Roaming/Claude/claude_desktop_config.json",
+          win32.join(
+            "C:\\Users\\test",
+            "AppData",
+            "Roaming",
+            "Claude",
+            "claude_desktop_config.json",
+          ),
         );
       }
     } finally {
@@ -1016,16 +1032,17 @@ describe("getSetupConfig", () => {
     });
     process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
     try {
-      const fs = createMockFileSystemService({
-        getHomeDir: mock(() => "C:\\Users\\test"),
-        joinPath: mock((...segments: string[]) => segments.join("/")),
-      });
+      const fs = createWindowsFileSystemService();
       const agent = agentDefinitions.find((a) => a.id === "opencode")!;
       const config = agent.getSetupConfig(fs);
       expect(config.method).toBe("config-file");
       if (config.method === "config-file") {
         expect(config.configPath).toBe(
-          "C:\\Users\\test\\AppData\\Roaming/opencode/opencode.json",
+          win32.join(
+            "C:\\Users\\test\\AppData\\Roaming",
+            "opencode",
+            "opencode.json",
+          ),
         );
       }
     } finally {
@@ -1205,10 +1222,16 @@ describe("scanAgents", () => {
     configFiles?: Record<string, string>;
     existingFiles?: string[];
     execResults?: Record<string, ExecResult | Error>;
+    pathPlatform?: "posix" | "win32";
   }) {
+    const isWin32 =
+      opts.pathPlatform === "win32" ||
+      (opts.pathPlatform === undefined && process.platform === "win32");
     const fs = createMockFileSystemService({
-      getHomeDir: mock(() => "/home/test"),
-      joinPath: mock((...segments: string[]) => segments.join("/")),
+      getHomeDir: mock(() => (isWin32 ? "C:\\Users\\test" : "/home/test")),
+      joinPath: mock((...segments: string[]) =>
+        isWin32 ? win32.join(...segments) : segments.join("/"),
+      ),
       isDirectory: mock(async (path: string) =>
         (opts.detectedDirs ?? []).includes(path),
       ),
@@ -1766,9 +1789,11 @@ describe("scanAgents", () => {
       configurable: true,
     });
     try {
+      const piCmd = win32.join("C:\\npm", "pi.cmd");
       const { fs, execService } = createScanMocks({
+        pathPlatform: "win32",
         detectedDirs: [],
-        existingFiles: ["C:\\npm/pi.cmd"],
+        existingFiles: [piCmd],
         execResults: {
           "where pi": { exitCode: 1, stdout: "", stderr: "" },
           "npm prefix -g": {
@@ -1789,7 +1814,7 @@ describe("scanAgents", () => {
       if (installStep.method !== "cli") {
         throw new Error("expected pi cli setup step");
       }
-      expect(installStep.commands[0]!.command).toBe("C:\\npm/pi.cmd");
+      expect(installStep.commands[0]!.command).toBe(piCmd);
     } finally {
       Object.defineProperty(process, "platform", {
         value: originalPlatform,
@@ -1805,8 +1830,13 @@ describe("scanAgents", () => {
       configurable: true,
     });
     try {
+      const piCmd = win32.join(
+        "C:\\Users\\Jane Doe\\AppData\\Roaming\\npm",
+        "pi.cmd",
+      );
       const { fs, execService } = createScanMocks({
-        existingFiles: ["C:\\Users\\Jane Doe\\AppData\\Roaming\\npm/pi.cmd"],
+        pathPlatform: "win32",
+        existingFiles: [piCmd],
         execResults: {
           "where pi": { exitCode: 1, stdout: "", stderr: "" },
           "npm prefix -g": {
@@ -1827,9 +1857,7 @@ describe("scanAgents", () => {
       if (installStep.method !== "cli") {
         throw new Error("expected pi cli setup step");
       }
-      expect(installStep.commands[0]!.command).toBe(
-        "C:\\Users\\Jane Doe\\AppData\\Roaming\\npm/pi.cmd",
-      );
+      expect(installStep.commands[0]!.command).toBe(piCmd);
     } finally {
       Object.defineProperty(process, "platform", {
         value: originalPlatform,
@@ -1843,7 +1871,7 @@ describe("scanAgents", () => {
     const { fs, execService } = createScanMocks({
       detectedDirs: [],
       configFiles: {
-        "/home/test/.pi/agent/mcp.json": JSON.stringify({
+        ["/home/test/.pi/agent/mcp.json"]: JSON.stringify({
           mcpServers: {
             GitHits: {
               command: "npx",
@@ -1852,14 +1880,15 @@ describe("scanAgents", () => {
             },
           },
         }),
-        "C:\\Users\\test\\.pi/agent/mcp.json": JSON.stringify({
-          mcpServers: {
-            GitHits: {
-              command: "npx",
-              args: ["-y", "githits@latest", "mcp", "start"],
+        [win32.join("C:\\Users\\test", ".pi", "agent", "mcp.json")]:
+          JSON.stringify({
+            mcpServers: {
+              GitHits: {
+                command: "npx",
+                args: ["-y", "githits@latest", "mcp", "start"],
+              },
             },
-          },
-        }),
+          }),
       },
       execResults: {
         [`${lookupCmd} pi`]: {
@@ -2029,8 +2058,13 @@ describe("scanAgents", () => {
     });
     process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
     try {
+      const opencodeDesktopDir = win32.join(
+        "C:\\Users\\test\\AppData\\Roaming",
+        "ai.opencode.desktop",
+      );
       const { fs, execService } = createScanMocks({
-        detectedDirs: ["C:\\Users\\test\\AppData\\Roaming/ai.opencode.desktop"],
+        pathPlatform: "win32",
+        detectedDirs: [opencodeDesktopDir],
       });
       const result = await scanAgents(agentDefinitions, fs, execService);
       expect(result.notDetected.some((a) => a.id === "opencode")).toBe(false);
@@ -2176,22 +2210,26 @@ describe("scanAgents", () => {
     envTeardown?: () => void;
   }) {
     const { platform, appDataPrefix } = opts;
+    const isWin32 = platform === "win32";
+    const homeDir = isWin32 ? "C:\\Users\\test" : "/home/test";
+    const joinPath = (...segments: string[]) =>
+      isWin32 ? win32.join(...segments) : segments.join("/");
 
     // Platform-independent detect dirs for path-detected agents
     const homeDirs = [
-      "/home/test/.cursor",
-      "/home/test/.codeium/windsurf",
-      "/home/test/.cline",
-      "/home/test/.gemini/antigravity",
-      "/home/test/.hermes",
+      joinPath(homeDir, ".cursor"),
+      joinPath(homeDir, ".codeium", "windsurf"),
+      joinPath(homeDir, ".cline"),
+      joinPath(homeDir, ".gemini", "antigravity"),
+      joinPath(homeDir, ".hermes"),
     ];
     // Platform-dependent detect dirs
-    const vscodePath = `${appDataPrefix}/Code`;
-    const claudeDesktopPath = `${appDataPrefix}/Claude`;
+    const vscodePath = joinPath(appDataPrefix, "Code");
+    const claudeDesktopPath = joinPath(appDataPrefix, "Claude");
     const opencodePath =
       platform === "win32"
-        ? `${appDataPrefix}/opencode`
-        : "/home/test/.config/opencode";
+        ? joinPath(appDataPrefix, "opencode")
+        : joinPath(homeDir, ".config", "opencode");
     const allDetectDirs = [
       ...homeDirs,
       vscodePath,
@@ -2201,7 +2239,7 @@ describe("scanAgents", () => {
 
     // Config files for all config-file agents with GitHits configured
     const allConfiguredFiles: Record<string, string> = {
-      "/home/test/.cursor/mcp.json": JSON.stringify({
+      [joinPath(homeDir, ".cursor", "mcp.json")]: JSON.stringify({
         mcpServers: {
           GitHits: {
             command: "npx",
@@ -2209,16 +2247,17 @@ describe("scanAgents", () => {
           },
         },
       }),
-      "/home/test/.codeium/windsurf/mcp_config.json": JSON.stringify({
-        mcpServers: {
-          GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
-            lifecycle: "eager",
+      [joinPath(homeDir, ".codeium", "windsurf", "mcp_config.json")]:
+        JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+              lifecycle: "eager",
+            },
           },
-        },
-      }),
-      [`${vscodePath}/User/mcp.json`]: JSON.stringify({
+        }),
+      [joinPath(vscodePath, "User", "mcp.json")]: JSON.stringify({
         servers: {
           GitHits: {
             type: "stdio",
@@ -2227,17 +2266,13 @@ describe("scanAgents", () => {
           },
         },
       }),
-      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
-        {
-          mcpServers: {
-            GitHits: {
-              command: "npx",
-              args: ["-y", "githits@latest", "mcp", "start"],
-            },
-          },
-        },
-      ),
-      [`${claudeDesktopPath}/claude_desktop_config.json`]: JSON.stringify({
+      [joinPath(
+        homeDir,
+        ".cline",
+        "data",
+        "settings",
+        "cline_mcp_settings.json",
+      )]: JSON.stringify({
         mcpServers: {
           GitHits: {
             command: "npx",
@@ -2245,7 +2280,16 @@ describe("scanAgents", () => {
           },
         },
       }),
-      "C:\\Users\\test\\.pi/agent/mcp.json": JSON.stringify({
+      [joinPath(claudeDesktopPath, "claude_desktop_config.json")]:
+        JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        }),
+      [joinPath(homeDir, ".pi", "agent", "mcp.json")]: JSON.stringify({
         mcpServers: {
           GitHits: {
             command: "npx",
@@ -2254,15 +2298,16 @@ describe("scanAgents", () => {
           },
         },
       }),
-      "/home/test/.gemini/antigravity/mcp_config.json": JSON.stringify({
-        mcpServers: {
-          GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+      [joinPath(homeDir, ".gemini", "antigravity", "mcp_config.json")]:
+        JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
           },
-        },
-      }),
-      [`${opencodePath}/opencode.json`]: JSON.stringify({
+        }),
+      [joinPath(opencodePath, "opencode.json")]: JSON.stringify({
         mcp: {
           GitHits: {
             type: "local",
@@ -2271,22 +2316,13 @@ describe("scanAgents", () => {
           },
         },
       }),
-      "/home/test/.hermes/config.yaml": [
+      [joinPath(homeDir, ".hermes", "config.yaml")]: [
         "mcp_servers:",
         "  GitHits:",
         '    command: "npx"',
         '    args: ["-y", "githits@latest", "mcp", "start"]',
         "",
       ].join("\n"),
-      "/home/test/.pi/agent/mcp.json": JSON.stringify({
-        mcpServers: {
-          GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
-            lifecycle: "eager",
-          },
-        },
-      }),
     };
 
     // Binary detection command varies by platform
@@ -2377,23 +2413,29 @@ describe("scanAgents", () => {
 
       it("all agents detected but none configured", async () => {
         const unconfiguredFiles: Record<string, string> = {
-          "/home/test/.cursor/mcp.json": JSON.stringify({ mcpServers: {} }),
-          "/home/test/.codeium/windsurf/mcp_config.json": JSON.stringify({
+          [joinPath(homeDir, ".cursor", "mcp.json")]: JSON.stringify({
             mcpServers: {},
           }),
-          [`${vscodePath}/User/mcp.json`]: JSON.stringify({ servers: {} }),
-          "/home/test/.cline/data/settings/cline_mcp_settings.json":
+          [joinPath(homeDir, ".codeium", "windsurf", "mcp_config.json")]:
             JSON.stringify({ mcpServers: {} }),
-          [`${claudeDesktopPath}/claude_desktop_config.json`]: JSON.stringify({
-            mcpServers: {},
+          [joinPath(vscodePath, "User", "mcp.json")]: JSON.stringify({
+            servers: {},
           }),
-          "/home/test/.gemini/antigravity/mcp_config.json": JSON.stringify({
-            mcpServers: {},
-          }),
-          [`${opencodePath}/opencode.json`]: JSON.stringify({
+          [joinPath(
+            homeDir,
+            ".cline",
+            "data",
+            "settings",
+            "cline_mcp_settings.json",
+          )]: JSON.stringify({ mcpServers: {} }),
+          [joinPath(claudeDesktopPath, "claude_desktop_config.json")]:
+            JSON.stringify({ mcpServers: {} }),
+          [joinPath(homeDir, ".gemini", "antigravity", "mcp_config.json")]:
+            JSON.stringify({ mcpServers: {} }),
+          [joinPath(opencodePath, "opencode.json")]: JSON.stringify({
             mcp: {},
           }),
-          "/home/test/.hermes/config.yaml": "mcp_servers: {}\n",
+          [joinPath(homeDir, ".hermes", "config.yaml")]: "mcp_servers: {}\n",
         };
         const { fs, execService } = createScanMocks({
           detectedDirs: allDetectDirs,
@@ -2449,16 +2491,16 @@ describe("scanAgents", () => {
         const { fs, execService } = createScanMocks({
           detectedDirs: [
             // Configured: cursor, claude-desktop, claude-code
-            "/home/test/.cursor",
+            joinPath(homeDir, ".cursor"),
             claudeDesktopPath,
             // Unconfigured: windsurf, vscode
-            "/home/test/.codeium/windsurf",
+            joinPath(homeDir, ".codeium", "windsurf"),
             vscodePath,
             // CLI tools are detected via binary checks below
             // Not detected: cline, pi, gemini-cli, google-antigravity, hermes-agent
           ],
           configFiles: {
-            "/home/test/.cursor/mcp.json": JSON.stringify({
+            [joinPath(homeDir, ".cursor", "mcp.json")]: JSON.stringify({
               mcpServers: {
                 GitHits: {
                   command: "npx",
@@ -2466,16 +2508,15 @@ describe("scanAgents", () => {
                 },
               },
             }),
-            [`${claudeDesktopPath}/claude_desktop_config.json`]: JSON.stringify(
-              {
+            [joinPath(claudeDesktopPath, "claude_desktop_config.json")]:
+              JSON.stringify({
                 mcpServers: {
                   GitHits: {
                     command: "npx",
                     args: ["-y", "githits@latest", "mcp", "start"],
                   },
                 },
-              },
-            ),
+              }),
           },
           execResults: {
             [`${whichCmd} claude`]: {
@@ -2564,9 +2605,15 @@ describe("scanAgents", () => {
           code: "ENOENT",
         });
         const { fs, execService } = createScanMocks({
-          detectedDirs: ["/home/test/.gemini/extensions/githits"],
+          detectedDirs: [joinPath(homeDir, ".gemini", "extensions", "githits")],
           existingFiles: [
-            "/home/test/.gemini/extensions/githits/gemini-extension.json",
+            joinPath(
+              homeDir,
+              ".gemini",
+              "extensions",
+              "githits",
+              "gemini-extension.json",
+            ),
           ],
           execResults: {
             [`${whichCmd} gemini`]: {
@@ -2646,7 +2693,7 @@ describe("scanAgents", () => {
     appDataPrefix: "/home/test/.config",
   });
 
-  // Windows: %APPDATA%/<app> (mock joinPath still uses /)
+  // Windows: %APPDATA%\<app>
   let originalAppdata: string | undefined;
   defineComprehensiveTests({
     platform: "win32",

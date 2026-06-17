@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { win32 } from "node:path";
 import {
   getAppConfigDir,
   getAuthConfigPath,
@@ -90,8 +91,11 @@ describe("app config paths", () => {
     process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
     try {
       withPlatform("win32", () => {
-        expect(getAppConfigDir(createMockFileSystemService())).toBe(
-          "C:\\Users\\test\\AppData\\Roaming/githits",
+        const fs = createMockFileSystemService({
+          joinPath: (...segments: string[]) => win32.join(...segments),
+        });
+        expect(getAppConfigDir(fs)).toBe(
+          win32.join("C:\\Users\\test\\AppData\\Roaming", "githits"),
         );
       });
     } finally {
