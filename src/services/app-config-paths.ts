@@ -1,6 +1,7 @@
 import type { FileSystemService } from "./filesystem-service.js";
 
 const APP_DIR = "githits";
+const USER_AUTH_STATE_DIR = ".githits";
 
 type AppConfigPathEnv = NodeJS.ProcessEnv;
 
@@ -72,7 +73,7 @@ function getHomeDirForEnv(
 }
 
 export function getLegacyAuthStorageDir(fs: FileSystemService): string {
-  return fs.joinPath(fs.getHomeDir(), ".githits");
+  return fs.joinPath(fs.getHomeDir(), USER_AUTH_STATE_DIR);
 }
 
 export function getLegacyAuthStorageDirForEnv(
@@ -80,7 +81,11 @@ export function getLegacyAuthStorageDirForEnv(
   env: AppConfigPathEnv,
   platform: NodeJS.Platform,
 ): string {
-  return fs.joinPath(getHomeDirForEnv(fs, env, platform), ".githits");
+  return fs.joinPath(getHomeDirForEnv(fs, env, platform), USER_AUTH_STATE_DIR);
+}
+
+export function getAuthLockDir(fs: FileSystemService): string {
+  return fs.joinPath(fs.getHomeDir(), USER_AUTH_STATE_DIR);
 }
 
 export function getLegacyMacAppConfigDir(fs: FileSystemService): string {

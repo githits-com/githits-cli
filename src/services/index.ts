@@ -7,6 +7,7 @@ export {
   getAuthConfigPathForEnv,
   getAuthFileStorageDir,
   getAuthFileStorageDirForEnv,
+  getAuthLockDir,
   getLegacyAuthStorageDir,
   getLegacyAuthStorageDirForEnv,
   getLegacyMacAppConfigDir,

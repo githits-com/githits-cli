@@ -2,11 +2,11 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getAppConfigDir } from "./app-config-paths.js";
+import { getAppConfigDir, getAuthLockDir } from "./app-config-paths.js";
 import { AuthStorageImpl } from "./auth-storage.js";
 import { FileSystemServiceImpl } from "./filesystem-service.js";
 import { LockedAuthStorage } from "./locked-auth-storage.js";
-import { createValidTokenData } from "./test-helpers.js";
+import { createValidTokenData, withTestEnvVar } from "./test-helpers.js";
 
 describe("LockedAuthStorage", () => {
   const baseUrl = "https://mcp.githits.com";
@@ -68,6 +68,36 @@ describe("LockedAuthStorage", () => {
     expect(await storage.loadTokens(baseUrl)).toEqual(token);
   });
 
+  it("uses one per-user lock across different config directories", async () => {
+    const { fs, fsWithHome, configDir, root } = await createStoragePaths();
+    const first = await withTestEnvVar(
+      "XDG_CONFIG_HOME",
+      join(root, "xdg-a"),
+      () =>
+        new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome),
+    );
+    const second = await withTestEnvVar(
+      "XDG_CONFIG_HOME",
+      join(root, "xdg-b"),
+      () =>
+        new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome),
+    );
+    let active = 0;
+    let maxActive = 0;
+    const runLocked = async (storage: LockedAuthStorage) => {
+      await storage.withAuthStorageLock(async () => {
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        active -= 1;
+      });
+    };
+
+    await Promise.all([runLocked(first), runLocked(second)]);
+
+    expect(maxActive).toBe(1);
+  });
+
   it("reclaims stale lock directories", async () => {
     const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
     await mkdir(lockPath, { recursive: true, mode: 0o700 });
@@ -123,6 +153,7 @@ describe("LockedAuthStorage", () => {
     fsWithHome: FileSystemServiceImpl;
     configDir: string;
     lockPath: string;
+    root: string;
   }> {
     const root = await mkdtemp(join(tmpdir(), "githits-lock-"));
     tempDirs.push(root);
@@ -132,11 +163,13 @@ describe("LockedAuthStorage", () => {
       getHomeDir: () => homeDir,
     }) as FileSystemServiceImpl;
     const appConfigDir = getAppConfigDir(fsWithHome);
+    const authLockDir = getAuthLockDir(fsWithHome);
     return {
       fs,
       fsWithHome,
       configDir: join(appConfigDir, "auth"),
-      lockPath: join(appConfigDir, "auth.lock"),
+      lockPath: join(authLockDir, "auth.lock"),
+      root,
     };
   }
 });
