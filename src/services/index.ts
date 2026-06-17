@@ -24,6 +24,15 @@ export {
   parseAuthStorageMode,
 } from "./auth-config.js";
 export type {
+  AuthClearEvent,
+  AuthClearReason,
+  AuthDiagnosticsStore,
+} from "./auth-diagnostics-storage.js";
+export {
+  AuthDiagnosticsStorage,
+  isAuthClearReason,
+} from "./auth-diagnostics-storage.js";
+export type {
   AuthService,
   BuildAuthUrlParams,
   CallbackResult,

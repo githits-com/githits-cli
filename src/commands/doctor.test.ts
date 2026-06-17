@@ -377,6 +377,195 @@ describe("doctor", () => {
     );
   });
 
+  it("surfaces the last-clear breadcrumb and explains a missing token", async () => {
+    const fs = createMockFileSystemService({
+      exists: mock((path: string) =>
+        Promise.resolve(path.endsWith("diagnostics.json")),
+      ),
+      readFile: mock((path: string) => {
+        if (path.endsWith("diagnostics.json")) {
+          return Promise.resolve(
+            JSON.stringify({
+              version: 1,
+              events: {
+                "https://mcp.githits.com": {
+                  reason: "terminal_invalid_refresh_token",
+                  at: "2026-05-27T08:00:00.000Z",
+                },
+              },
+            }),
+          );
+        }
+        return Promise.reject(new Error("File not found"));
+      }),
+    });
+
+    const report = await buildDoctorReport(createDeps({ fs }));
+
+    expect(report.auth.files[0]?.lastClear).toMatchObject({
+      status: "present",
+      value: {
+        reason: "terminal_invalid_refresh_token",
+        at: "2026-05-27T08:00:00.000Z",
+      },
+    });
+    expect(
+      report.recommendations.some(
+        (line) =>
+          line.includes("terminal_invalid_refresh_token") &&
+          line.includes("githits login"),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not throw on a diagnostics file with non-object events", async () => {
+    const fs = createMockFileSystemService({
+      exists: mock((path: string) =>
+        Promise.resolve(path.endsWith("diagnostics.json")),
+      ),
+      readFile: mock((path: string) =>
+        path.endsWith("diagnostics.json")
+          ? Promise.resolve(JSON.stringify({ version: 1, events: null }))
+          : Promise.reject(new Error("File not found")),
+      ),
+    });
+
+    const report = await buildDoctorReport(createDeps({ fs }));
+
+    // events:null fails the file-shape guard, so the file is reported, not crashed.
+    expect(report.auth.files[0]?.lastClear.status).not.toBe("present");
+    expect(
+      report.recommendations.some((line) => line.includes("last clear")),
+    ).toBe(false);
+  });
+
+  it("suppresses the stale clear recommendation when a newer session exists", async () => {
+    const fs = createMockFileSystemService({
+      exists: mock((path: string) =>
+        Promise.resolve(
+          path.endsWith("diagnostics.json") || path.endsWith("metadata.json"),
+        ),
+      ),
+      readFile: mock((path: string) => {
+        if (path.endsWith("diagnostics.json")) {
+          return Promise.resolve(
+            JSON.stringify({
+              version: 1,
+              events: {
+                "https://mcp.githits.com": {
+                  reason: "terminal_invalid_refresh_token",
+                  at: "2026-05-27T08:00:00.000Z",
+                },
+              },
+            }),
+          );
+        }
+        if (path.endsWith("metadata.json")) {
+          // Session created after the clear — keychain re-login already happened.
+          return Promise.resolve(
+            JSON.stringify({
+              version: 1,
+              sessions: {
+                "https://mcp.githits.com": {
+                  createdAt: "2026-05-27T09:00:00.000Z",
+                  expiresAt: "2026-05-27T13:00:00.000Z",
+                  updatedAt: "2026-05-27T09:00:00.000Z",
+                },
+              },
+            }),
+          );
+        }
+        return Promise.reject(new Error("File not found"));
+      }),
+    });
+
+    const report = await buildDoctorReport(createDeps({ fs }));
+
+    // Breadcrumb still shown, but no stale "run login" recommendation.
+    expect(report.auth.files[0]?.lastClear.status).toBe("present");
+    expect(
+      report.recommendations.some((line) => line.includes("last clear")),
+    ).toBe(false);
+  });
+
+  it("still recommends login when the clear is newer than the session", async () => {
+    const fs = createMockFileSystemService({
+      exists: mock((path: string) =>
+        Promise.resolve(
+          path.endsWith("diagnostics.json") || path.endsWith("metadata.json"),
+        ),
+      ),
+      readFile: mock((path: string) => {
+        if (path.endsWith("diagnostics.json")) {
+          return Promise.resolve(
+            JSON.stringify({
+              version: 1,
+              events: {
+                "https://mcp.githits.com": {
+                  reason: "terminal_invalid_refresh_token",
+                  at: "2026-05-27T10:00:00.000Z",
+                },
+              },
+            }),
+          );
+        }
+        if (path.endsWith("metadata.json")) {
+          // Session predates the clear — credentials were cleared after login.
+          return Promise.resolve(
+            JSON.stringify({
+              version: 1,
+              sessions: {
+                "https://mcp.githits.com": {
+                  createdAt: "2026-05-27T08:00:00.000Z",
+                  expiresAt: "2026-05-27T12:00:00.000Z",
+                  updatedAt: "2026-05-27T08:30:00.000Z",
+                },
+              },
+            }),
+          );
+        }
+        return Promise.reject(new Error("File not found"));
+      }),
+    });
+
+    const report = await buildDoctorReport(createDeps({ fs }));
+
+    expect(
+      report.recommendations.some(
+        (line) =>
+          line.includes("terminal_invalid_refresh_token") &&
+          line.includes("githits login"),
+      ),
+    ).toBe(true);
+  });
+
+  it("flags a malformed last-clear event as invalid instead of surfacing it", async () => {
+    const fs = createMockFileSystemService({
+      exists: mock((path: string) =>
+        Promise.resolve(path.endsWith("diagnostics.json")),
+      ),
+      readFile: mock((path: string) =>
+        path.endsWith("diagnostics.json")
+          ? Promise.resolve(
+              JSON.stringify({
+                version: 1,
+                events: {
+                  "https://mcp.githits.com": { reason: "bogus", at: 123 },
+                },
+              }),
+            )
+          : Promise.reject(new Error("File not found")),
+      ),
+    });
+
+    const report = await buildDoctorReport(createDeps({ fs }));
+
+    expect(report.auth.files[0]?.lastClear.status).toBe("invalid");
+    expect(
+      report.recommendations.some((line) => line.includes("last clear")),
+    ).toBe(false);
+  });
+
   it("reports invalid auth config instead of throwing", async () => {
     const fs = createMockFileSystemService({
       exists: mock((path: string) =>

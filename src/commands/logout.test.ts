@@ -17,6 +17,20 @@ describe("logoutAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("records a logout diagnostics breadcrumb", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const authStorage = createMockAuthStorage();
+    const authDiagnostics = {
+      recordClear: mock(() => Promise.resolve()),
+      load: mock(() => Promise.resolve(null)),
+    };
+
+    await logoutAction({ authStorage, mcpUrl, authDiagnostics });
+
+    expect(authDiagnostics.recordClear).toHaveBeenCalledWith(mcpUrl, "logout");
+    consoleSpy.mockRestore();
+  });
+
   it("clears both tokens and client without checking login state", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const authStorage = createMockAuthStorage();

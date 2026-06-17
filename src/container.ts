@@ -27,6 +27,10 @@ import {
   type AuthStorageMode,
   loadAuthConfig,
 } from "./services/auth-config.js";
+import {
+  AuthDiagnosticsStorage,
+  type AuthDiagnosticsStore,
+} from "./services/auth-diagnostics-storage.js";
 import { type AuthService, AuthServiceImpl } from "./services/auth-service.js";
 import {
   type AuthSessionMetadata,
@@ -174,6 +178,7 @@ export interface AuthCommandDependencies {
   authService: AuthService;
   browserService: BrowserService;
   fileSystemService: FileSystemService;
+  authDiagnostics: AuthDiagnosticsStore;
   mcpUrl: string;
   apiUrl: string;
   envApiToken: string | undefined;
@@ -187,6 +192,7 @@ export async function createAuthCommandDependencies(): Promise<AuthCommandDepend
       authService: new AuthServiceImpl(),
       browserService: new BrowserServiceImpl(),
       fileSystemService,
+      authDiagnostics: new AuthDiagnosticsStorage(fileSystemService),
       mcpUrl: getMcpUrl(),
       apiUrl: getApiUrl(),
       envApiToken: getEnvApiToken(),
@@ -205,6 +211,7 @@ export async function createAuthStatusDependencies(): Promise<AuthCommandDepende
       authService: new AuthServiceImpl(),
       browserService: new BrowserServiceImpl(),
       fileSystemService,
+      authDiagnostics: new AuthDiagnosticsStorage(fileSystemService),
       mcpUrl: getMcpUrl(),
       apiUrl: getApiUrl(),
       envApiToken,
@@ -331,7 +338,12 @@ export async function createContainer(
 
     // Create token manager for stored auth with auto-refresh
     const authStorage = await createAuthStorage(fileSystemService);
-    const tokenManager = new TokenManager({ authService, authStorage, mcpUrl });
+    const tokenManager = new TokenManager({
+      authService,
+      authStorage,
+      mcpUrl,
+      authDiagnostics: new AuthDiagnosticsStorage(fileSystemService),
+    });
     const apiToken = resolveStoredToken
       ? await withTelemetrySpan("container.token.get", () =>
           tokenManager.getToken(),

@@ -1,11 +1,13 @@
 import { withTelemetrySpan } from "@githits/core-internal";
 import type { Command } from "commander";
 import { createAuthCommandDependencies } from "../container.js";
+import type { AuthDiagnosticsStore } from "../services/auth-diagnostics-storage.js";
 import type { AuthStorage } from "../services/auth-storage.js";
 
 export interface LogoutDependencies {
   authStorage: AuthStorage;
   mcpUrl: string;
+  authDiagnostics?: AuthDiagnosticsStore;
 }
 
 /**
@@ -15,13 +17,14 @@ export interface LogoutDependencies {
  * concurrent MCP servers and login/logout commands cannot observe split state.
  */
 export async function logoutAction(deps: LogoutDependencies): Promise<void> {
-  const { authStorage, mcpUrl } = deps;
+  const { authStorage, mcpUrl, authDiagnostics } = deps;
 
   await withTelemetrySpan(
     "auth.clear",
     () => authStorage.clearAuthSession(mcpUrl),
     { reason: "logout" },
   );
+  await authDiagnostics?.recordClear(mcpUrl, "logout");
 
   console.log("Logged out.");
 }
