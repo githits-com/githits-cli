@@ -26,7 +26,7 @@
 
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { isCommandAvailable, runProcess } from "../run-process.js";
 import type { AgentDriver, DriverResponse, SendOptions } from "./types.js";
 
@@ -110,7 +110,7 @@ export function createClaudeCliDriver(
         );
         envOverrides = {
           EVAL_MCP_STATE_FILE: sendOpts.skills.stateFilePath,
-          PATH: `${sendOpts.skills.binDir}${process.env.PATH ? `:${process.env.PATH}` : ""}`,
+          PATH: `${sendOpts.skills.binDir}${process.env.PATH ? `${delimiter}${process.env.PATH}` : ""}`,
           ...(sendOpts.skills.extraEnv ?? {}),
         };
         cwd = sendOpts.skills.workspaceDir;

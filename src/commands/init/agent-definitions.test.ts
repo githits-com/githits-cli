@@ -4,6 +4,8 @@ import type { ExecResult } from "../../services/exec-service.js";
 import {
   createMockExecService,
   createMockFileSystemService,
+  createPlatformMockFileSystemService,
+  withTestPlatform,
 } from "../../services/test-helpers.js";
 import {
   type AgentDefinition,
@@ -16,11 +18,7 @@ import {
 function createWindowsFileSystemService(
   impl: Parameters<typeof createMockFileSystemService>[0] = {},
 ) {
-  return createMockFileSystemService({
-    getHomeDir: mock(() => "C:\\Users\\test"),
-    joinPath: mock((...segments: string[]) => win32.join(...segments)),
-    ...impl,
-  });
+  return createPlatformMockFileSystemService("win32", impl);
 }
 
 describe("agentDefinitions", () => {
@@ -1001,26 +999,28 @@ describe("getSetupConfig", () => {
     }
   });
 
-  it("opencode returns config-file setup with mcp serversKey and array command", () => {
-    const fs = createMockFileSystemService({
-      getHomeDir: mock(() => "/home/test"),
-      joinPath: mock((...segments: string[]) => segments.join("/")),
-    });
-    const agent = agentDefinitions.find((a) => a.id === "opencode")!;
-    const config = agent.getSetupConfig(fs);
-    expect(config.method).toBe("config-file");
-    if (config.method === "config-file") {
-      expect(config.configPath).toBe(
-        "/home/test/.config/opencode/opencode.json",
-      );
-      expect(config.serversKey).toBe("mcp");
-      expect(config.serverName).toBe("GitHits");
-      expect(config.serverConfig).toEqual({
-        type: "local",
-        command: ["npx", "-y", "githits@latest", "mcp", "start"],
-        enabled: true,
+  it("opencode returns config-file setup with mcp serversKey and array command", async () => {
+    await withTestPlatform("linux", () => {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
       });
-    }
+      const agent = agentDefinitions.find((a) => a.id === "opencode")!;
+      const config = agent.getSetupConfig(fs);
+      expect(config.method).toBe("config-file");
+      if (config.method === "config-file") {
+        expect(config.configPath).toBe(
+          "/home/test/.config/opencode/opencode.json",
+        );
+        expect(config.serversKey).toBe("mcp");
+        expect(config.serverName).toBe("GitHits");
+        expect(config.serverConfig).toEqual({
+          type: "local",
+          command: ["npx", "-y", "githits@latest", "mcp", "start"],
+          enabled: true,
+        });
+      }
+    });
   });
 
   it("opencode uses APPDATA on win32 for config path", () => {
@@ -1224,9 +1224,7 @@ describe("scanAgents", () => {
     execResults?: Record<string, ExecResult | Error>;
     pathPlatform?: "posix" | "win32";
   }) {
-    const isWin32 =
-      opts.pathPlatform === "win32" ||
-      (opts.pathPlatform === undefined && process.platform === "win32");
+    const isWin32 = opts.pathPlatform === "win32";
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => (isWin32 ? "C:\\Users\\test" : "/home/test")),
       joinPath: mock((...segments: string[]) =>
@@ -1640,32 +1638,34 @@ describe("scanAgents", () => {
   });
 
   it("detects pi from npm global bin when not on PATH", async () => {
-    const lookupCmd = lookupCommandFor();
-    const { fs, execService } = createScanMocks({
-      detectedDirs: [],
-      existingFiles: ["/npm-global/bin/pi"],
-      execResults: {
-        [`${lookupCmd} pi`]: { exitCode: 1, stdout: "", stderr: "" },
-        "npm prefix -g": {
-          exitCode: 0,
-          stdout: "/npm-global\n",
-          stderr: "",
+    await withTestPlatform("linux", async () => {
+      const lookupCmd = lookupCommandFor();
+      const { fs, execService } = createScanMocks({
+        detectedDirs: [],
+        existingFiles: ["/npm-global/bin/pi"],
+        execResults: {
+          [`${lookupCmd} pi`]: { exitCode: 1, stdout: "", stderr: "" },
+          "npm prefix -g": {
+            exitCode: 0,
+            stdout: "/npm-global\n",
+            stderr: "",
+          },
         },
-      },
-    });
-    const result = await scanAgents(agentDefinitions, fs, execService);
-    const piAgent = result.needsSetup.find((a) => a.id === "pi");
-    expect(piAgent).toBeDefined();
-    const config = piAgent?.resolvedSetupConfig;
-    expect(config?.method).toBe("composite");
-    if (config?.method === "composite") {
-      const installStep = config.steps[0]!;
-      expect(installStep.method).toBe("cli");
-      if (installStep.method === "cli") {
-        expect(installStep.commands[0]!.command).toBe("/npm-global/bin/pi");
-        expect(installStep.checkCommand?.command).toBe("/npm-global/bin/pi");
+      });
+      const result = await scanAgents(agentDefinitions, fs, execService);
+      const piAgent = result.needsSetup.find((a) => a.id === "pi");
+      expect(piAgent).toBeDefined();
+      const config = piAgent?.resolvedSetupConfig;
+      expect(config?.method).toBe("composite");
+      if (config?.method === "composite") {
+        const installStep = config.steps[0]!;
+        expect(installStep.method).toBe("cli");
+        if (installStep.method === "cli") {
+          expect(installStep.commands[0]!.command).toBe("/npm-global/bin/pi");
+          expect(installStep.checkCommand?.command).toBe("/npm-global/bin/pi");
+        }
       }
-    }
+    });
   });
 
   it("passes timeout option to Pi global bin probes", async () => {
@@ -1871,7 +1871,7 @@ describe("scanAgents", () => {
     const { fs, execService } = createScanMocks({
       detectedDirs: [],
       configFiles: {
-        ["/home/test/.pi/agent/mcp.json"]: JSON.stringify({
+        "/home/test/.pi/agent/mcp.json": JSON.stringify({
           mcpServers: {
             GitHits: {
               command: "npx",
@@ -2383,6 +2383,10 @@ describe("scanAgents", () => {
     };
 
     describe(`comprehensive all-agents scenarios (${platform})`, () => {
+      const pathPlatform = platform === "win32" ? "win32" : "posix";
+      const createScenarioScanMocks = (
+        scenarioOpts: Parameters<typeof createScanMocks>[0],
+      ) => createScanMocks({ ...scenarioOpts, pathPlatform });
       const originalPlatform = process.platform;
       beforeAll(() => {
         Object.defineProperty(process, "platform", {
@@ -2400,7 +2404,7 @@ describe("scanAgents", () => {
       });
 
       it("all agents configured", async () => {
-        const { fs, execService } = createScanMocks({
+        const { fs, execService } = createScenarioScanMocks({
           detectedDirs: allDetectDirs,
           configFiles: allConfiguredFiles,
           execResults: allCliConfigured,
@@ -2437,7 +2441,7 @@ describe("scanAgents", () => {
           }),
           [joinPath(homeDir, ".hermes", "config.yaml")]: "mcp_servers: {}\n",
         };
-        const { fs, execService } = createScanMocks({
+        const { fs, execService } = createScenarioScanMocks({
           detectedDirs: allDetectDirs,
           configFiles: unconfiguredFiles,
           execResults: {
@@ -2480,7 +2484,9 @@ describe("scanAgents", () => {
       });
 
       it("no agents detected", async () => {
-        const { fs, execService } = createScanMocks({ detectedDirs: [] });
+        const { fs, execService } = createScenarioScanMocks({
+          detectedDirs: [],
+        });
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
         expect(result.needsSetup).toHaveLength(0);
@@ -2488,7 +2494,7 @@ describe("scanAgents", () => {
       });
 
       it("mixed: 3 configured, 4 unconfigured, 5 not detected", async () => {
-        const { fs, execService } = createScanMocks({
+        const { fs, execService } = createScenarioScanMocks({
           detectedDirs: [
             // Configured: cursor, claude-desktop, claude-code
             joinPath(homeDir, ".cursor"),
@@ -2568,7 +2574,7 @@ describe("scanAgents", () => {
         const enoent = Object.assign(new Error("spawn ENOENT"), {
           code: "ENOENT",
         });
-        const { fs, execService } = createScanMocks({
+        const { fs, execService } = createScenarioScanMocks({
           detectedDirs: [],
           execResults: {
             [`${whichCmd} claude`]: {
@@ -2604,7 +2610,7 @@ describe("scanAgents", () => {
         const enoent = Object.assign(new Error("spawn ENOENT"), {
           code: "ENOENT",
         });
-        const { fs, execService } = createScanMocks({
+        const { fs, execService } = createScenarioScanMocks({
           detectedDirs: [joinPath(homeDir, ".gemini", "extensions", "githits")],
           existingFiles: [
             joinPath(
@@ -2634,7 +2640,7 @@ describe("scanAgents", () => {
       });
 
       it("gemini config probe reports not installed as needsSetup", async () => {
-        const { fs, execService } = createScanMocks({
+        const { fs, execService } = createScenarioScanMocks({
           detectedDirs: [],
           execResults: {
             [`${whichCmd} gemini`]: {
@@ -2654,10 +2660,16 @@ describe("scanAgents", () => {
       });
 
       it("gemini does not use filesystem fallback when probe explicitly reports not installed", async () => {
-        const { fs, execService } = createScanMocks({
-          detectedDirs: ["/home/test/.gemini/extensions/githits"],
+        const { fs, execService } = createScenarioScanMocks({
+          detectedDirs: [joinPath(homeDir, ".gemini", "extensions", "githits")],
           existingFiles: [
-            "/home/test/.gemini/extensions/githits/gemini-extension.json",
+            joinPath(
+              homeDir,
+              ".gemini",
+              "extensions",
+              "githits",
+              "gemini-extension.json",
+            ),
           ],
           execResults: {
             [`${whichCmd} gemini`]: {

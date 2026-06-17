@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import {
   type AgentName,
   buildCodexConfigArgs,
@@ -260,7 +260,7 @@ export async function runAgentSession(
   const prepared = prepareAgentSession(options);
   const env = buildEvalEnv(process.env);
   if (prepared.skillInstallation) {
-    env.PATH = `${dirname(prepared.skillInstallation.cliShim)}${env.PATH ? `:${env.PATH}` : ""}`;
+    env.PATH = `${dirname(prepared.skillInstallation.cliShim)}${env.PATH ? `${delimiter}${env.PATH}` : ""}`;
   }
 
   console.log(`Workspace: ${options.workspaceDir}`);

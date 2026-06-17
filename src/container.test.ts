@@ -42,7 +42,9 @@ describe("container auth dependencies", () => {
       await withAuthStorageEnv("file", async () => {
         const deps = await createAuthCommandDependencies();
         expect(deps.envApiToken).toBe("ghi-test");
-        expect(deps.authStorage.getStorageLocation()).toContain("githits/auth");
+        expect(
+          deps.authStorage.getStorageLocation().split(/[\\/]/).slice(-2),
+        ).toEqual(["githits", "auth"]);
       });
     });
   });

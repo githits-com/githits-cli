@@ -146,7 +146,7 @@ function isSafeWorkloadId(value: string): boolean {
 }
 
 function relativeArtifact(runDir: string, path: string): string {
-  return relative(runDir, path) || basename(path);
+  return (relative(runDir, path) || basename(path)).replaceAll("\\", "/");
 }
 
 export function isContainedRelativePath(relativePath: string): boolean {

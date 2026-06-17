@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import {
   buildClaudeCommand,
   buildCodexCommand,
@@ -492,6 +492,7 @@ describe("agent eval harness", () => {
   });
 
   it("parses repeatable workloads and dry-run options", () => {
+    const repoRoot = join(tmpdir(), "githits-cli");
     const options = parseArgs(
       [
         "--agent",
@@ -510,7 +511,7 @@ describe("agent eval harness", () => {
         "12",
         "--dry-run",
       ],
-      "/repo/githits-cli",
+      repoRoot,
     );
 
     expect(options.agent).toBe("opencode");
@@ -521,7 +522,7 @@ describe("agent eval harness", () => {
     expect(options.timeoutSeconds).toBe(12);
     expect(options.dryRun).toBe(true);
     expect(options.workloads).toEqual([
-      "/repo/githits-cli/eval/agentic/workloads/express-router.md",
+      resolve(repoRoot, "eval/agentic/workloads/express-router.md"),
     ]);
   });
 
