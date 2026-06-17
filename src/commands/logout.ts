@@ -18,8 +18,7 @@ export async function logoutAction(deps: LogoutDependencies): Promise<void> {
 
   await authStorage.clearAuthSession(mcpUrl);
 
-  console.log("Logged out.\n");
-  console.log(`  Environment: ${mcpUrl}`);
+  console.log("Logged out.");
 }
 
 const LOGOUT_DESCRIPTION = `Remove stored credentials.

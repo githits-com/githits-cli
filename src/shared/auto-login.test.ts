@@ -272,7 +272,7 @@ describe("maybeAutoLoginBeforeCommand", () => {
     const login = mock(() =>
       Promise.resolve({
         status: "success" as const,
-        message: "Logged in successfully. Token expires in 1 hour.",
+        message: "Logged in successfully.",
       }),
     );
 
@@ -288,7 +288,7 @@ describe("maybeAutoLoginBeforeCommand", () => {
 
     expect(result).toEqual({
       status: "authenticated",
-      message: "Logged in successfully. Token expires in 1 hour.",
+      message: "Logged in successfully.",
     });
     expect(login).toHaveBeenCalledWith({}, container);
   });

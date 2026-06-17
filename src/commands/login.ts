@@ -112,9 +112,9 @@ export async function loginFlow(
     if (!isExpired) {
       return { status: "already_authenticated", message: "Already logged in." };
     }
-    output.write("Token expired. Starting new login...\n");
+    output.write("Starting sign-in...\n");
   } else if (existing && options.force) {
-    output.write("Re-authenticating (--force flag)...\n");
+    output.write("Signing in again...\n");
   }
 
   // If tokens were cleared (expired+refreshFailed or never existed) but a stale
@@ -127,7 +127,6 @@ export async function loginFlow(
   if (persistenceError) return persistenceError;
 
   // Step 1: Discover OAuth endpoints
-  output.write("Discovering OAuth endpoints...");
   const metadata = await authService.discoverEndpoints(mcpUrl);
 
   // Step 2: Load or register client via DCR
@@ -144,7 +143,6 @@ export async function loginFlow(
       redirectUri = `http://127.0.0.1:${options.port}/callback`;
       if (redirectUri !== client.redirectUri) {
         // Port changed - need to re-register
-        output.write("Registering CLI client with new port...");
         const registration = await authService.registerClient({
           registrationEndpoint: metadata.registrationEndpoint,
           redirectUri,
@@ -167,7 +165,6 @@ export async function loginFlow(
   } else {
     port = options.port ?? randomPort();
     redirectUri = `http://127.0.0.1:${port}/callback`;
-    output.write("Registering CLI client...");
     const registration = await authService.registerClient({
       registrationEndpoint: metadata.registrationEndpoint,
       redirectUri,
@@ -209,7 +206,7 @@ export async function loginFlow(
     output.write("Open this URL in your browser:\n");
     output.write(`  ${authUrl}\n`);
   } else {
-    output.write("Opening browser...");
+    output.write("Opening browser for GitHits sign-in...");
     try {
       await browserService.open(authUrl);
     } catch (error) {
@@ -220,7 +217,7 @@ export async function loginFlow(
     }
   }
 
-  output.write("Waiting for authentication...\n");
+  output.write("Waiting for sign-in to finish...\n");
 
   // Wait for callback with timeout
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -298,11 +295,9 @@ export async function loginFlow(
     createdAt: new Date().toISOString(),
   });
 
-  // Success message
-  const hours = Math.round(tokenResponse.expiresIn / 3600);
   return {
     status: "success",
-    message: `Logged in successfully. Token expires in ${hours} hour${hours !== 1 ? "s" : ""}.`,
+    message: "Logged in successfully.",
   };
 }
 
@@ -318,8 +313,7 @@ export async function loginAction(
 
   if (result.status === "already_authenticated") {
     console.log("Already logged in.\n");
-    console.log(`  Environment: ${deps.mcpUrl}\n`);
-    console.log("To re-authenticate, use `githits login --force`.");
+    console.log("You're ready to use GitHits.");
     return;
   }
 
@@ -329,11 +323,8 @@ export async function loginAction(
     process.exit(1);
   }
 
-  // success
-  console.log("Logged in successfully.\n");
-  console.log(`  Environment: ${deps.mcpUrl}`);
-  console.log(result.message.replace("Logged in successfully. ", "  "));
-  console.log("\nYou're ready to use githits with your AI assistant.");
+  console.log(`${result.message}\n`);
+  console.log("You're ready to use GitHits.");
 }
 
 function printLoginRecoveryHint(message: string): void {

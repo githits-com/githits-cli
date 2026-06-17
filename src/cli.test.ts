@@ -397,8 +397,8 @@ describe("root CLI preAction", () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const createContainer = mock(() => Promise.resolve(createLoginDeps()));
     const loginFlow = mock(() => {
-      console.error("Opening browser...");
-      console.error("Waiting for authentication...\n");
+      console.error("Opening browser for GitHits sign-in...");
+      console.error("Waiting for sign-in to finish...\n");
       return Promise.resolve({
         status: "success" as const,
         message: "Logged in successfully.",
@@ -422,8 +422,8 @@ describe("root CLI preAction", () => {
       JSON.stringify({ ok: true }),
     ]);
     expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
-      "Opening browser...",
-      "Waiting for authentication...\n",
+      "Opening browser for GitHits sign-in...",
+      "Waiting for sign-in to finish...\n",
       "Authentication complete. Running example search...",
     ]);
     logSpy.mockRestore();
