@@ -327,6 +327,56 @@ describe("doctor", () => {
     expect(writes.atomicWriteFile).not.toHaveBeenCalled();
   });
 
+  it("recommends login when file mode has metadata but no token", async () => {
+    const fs = createMockFileSystemService({
+      exists: mock((path: string) =>
+        Promise.resolve(
+          path.endsWith("config.toml") ||
+            path.endsWith("client.json") ||
+            path.endsWith("metadata.json"),
+        ),
+      ),
+      readFile: mock((path: string) => {
+        if (path.endsWith("config.toml")) {
+          return Promise.resolve('[auth]\nstorage = "file"\n');
+        }
+        if (path.endsWith("client.json")) {
+          return Promise.resolve(
+            JSON.stringify({
+              version: 1,
+              clients: {
+                "https://mcp.githits.com": {
+                  clientId: "secret-client-id",
+                  clientSecret: "secret-client-secret",
+                  redirectUri: "http://127.0.0.1:8080/callback",
+                  registeredAt: "2026-05-20T09:00:00.000Z",
+                },
+              },
+            }),
+          );
+        }
+        return Promise.resolve(
+          JSON.stringify({
+            version: 1,
+            sessions: {
+              "https://mcp.githits.com": {
+                createdAt: "2026-05-27T10:00:00.000Z",
+                expiresAt: "2026-05-27T14:00:00.000Z",
+                updatedAt: "2026-05-27T10:05:00.000Z",
+              },
+            },
+          }),
+        );
+      }),
+    });
+
+    const report = await buildDoctorReport(createDeps({ fs }));
+
+    expect(report.recommendations).toContain(
+      "File auth token is missing but client/session metadata remains. Run `githits login` in this environment.",
+    );
+  });
+
   it("reports invalid auth config instead of throwing", async () => {
     const fs = createMockFileSystemService({
       exists: mock((path: string) =>

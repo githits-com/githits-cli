@@ -114,21 +114,21 @@ The legacy `~/.githits/auth.json` and `~/.githits/client.json` path is still rea
 
 ### Migration
 
-On first use after upgrading, `MigratingAuthStorage` transparently migrates credentials according to the configured storage mode:
+`MigratingAuthStorage` only performs same-storage-class migration. Switching `auth.storage` between `keychain` and `file` intentionally does not move credentials; run `githits login` after changing modes.
 
 Keychain mode:
 
 1. Check keychain — if found, return it
-2. Check new file path, then legacy `~/.githits` — if found, write to keychain, delete the migrated plaintext entry, return it
-3. Both empty — return null
+2. Do not inspect plaintext file storage or legacy plaintext paths
+3. Keychain empty or unavailable — return null
 
 File mode:
 
 1. Check new file path — if found, return it
 2. Check legacy `~/.githits` — if found, write to new file path, delete legacy entry, return it
-3. Check keychain only as a last-resort migration source, then warn before exporting encrypted credentials to plaintext
+3. Do not inspect or export keychain credentials
 
-The configured target write must succeed before the source entry is deleted. Tokens and client registrations migrate independently. If both plaintext paths contain entries, the newer timestamp wins; ambiguous ties prefer the new file path and leave the other entry intact with a warning.
+The file-mode legacy target write must succeed before the legacy source entry is deleted. Tokens and client registrations migrate independently. If both plaintext paths contain entries, the newer timestamp wins; ambiguous ties prefer the new file path and leave the other entry intact with a warning.
 
 ### Architecture
 
@@ -202,7 +202,7 @@ The MCP server starts without a synchronous auth gate. Tool calls resolve tokens
 | `src/services/keyring-service.ts` | `KeyringService` interface wrapping `@napi-rs/keyring` |
 | `src/services/chunking-keyring-service.ts` | `KeyringService` decorator for chunked storage (Windows 2560-char limit) |
 | `src/services/keychain-auth-storage.ts` | `AuthStorage` implementation backed by system keychain |
-| `src/services/migrating-auth-storage.ts` | Mode-aware migration across keychain, config file storage, and legacy file storage |
+| `src/services/migrating-auth-storage.ts` | Active-mode auth storage plus legacy plaintext-to-plaintext migration |
 | `src/services/filesystem-service.ts` | File system abstraction for testable storage |
 | `src/auth/pkce.ts` | PKCE cryptographic primitives |
 | `src/services/config.ts` | URL and API token configuration |
