@@ -1,6 +1,11 @@
 import type { TokenProvider } from "@githits/core-internal";
 import { withTelemetrySpan } from "@githits/core-internal";
-import type { AuthService, RefreshTokenResponse } from "./auth-service.js";
+import {
+  type AuthService,
+  classifyTerminalRefreshError,
+  type RefreshTokenResponse,
+  type TerminalRefreshFailureReason,
+} from "./auth-service.js";
 import type { TokenData } from "./auth-storage.js";
 import {
   type LockingAuthStorage,
@@ -25,6 +30,7 @@ export interface TokenManagerDeps {
 interface RefreshResult {
   accessToken: string | undefined;
   refreshedViaEndpoint: boolean;
+  invalidatedCurrentToken: boolean;
 }
 
 /**
@@ -127,10 +133,14 @@ export class TokenManager implements TokenProvider {
       }
 
       // Attempt refresh (coalesced if already in-flight)
-      const refreshedToken = await this.refreshFromGetToken();
+      const refresh = await this.refreshFromGetToken();
 
-      if (refreshedToken) {
-        return refreshedToken;
+      if (refresh.accessToken) {
+        return refresh.accessToken;
+      }
+
+      if (refresh.invalidatedCurrentToken) {
+        return undefined;
       }
 
       // Proactive refresh failed but token still valid — return current token
@@ -149,9 +159,8 @@ export class TokenManager implements TokenProvider {
     );
   }
 
-  private async refreshFromGetToken(): Promise<string | undefined> {
-    const result = await this.softRefresh();
-    return result.accessToken;
+  private refreshFromGetToken(): Promise<RefreshResult> {
+    return this.softRefresh();
   }
 
   private async softRefresh(): Promise<RefreshResult> {
@@ -229,7 +238,8 @@ export class TokenManager implements TokenProvider {
                 refreshToken: tokens.refreshToken,
               }),
           );
-        } catch {
+        } catch (error) {
+          const terminalFailure = classifyTerminalRefreshError(error);
           const reloadedToken = await this.loadExternallyUpdatedToken(tokens);
           if (reloadedToken)
             return refreshResult(reloadedToken.accessToken, false);
@@ -237,6 +247,10 @@ export class TokenManager implements TokenProvider {
           const isExpired = tokens.expiresAt
             ? new Date() >= new Date(tokens.expiresAt)
             : false;
+          if (terminalFailure) {
+            return this.clearTerminalRefreshFailure(tokens, terminalFailure);
+          }
+
           if (candidate.externallyUpdated && !isExpired) {
             return refreshResult(tokens.accessToken, false);
           }
@@ -349,6 +363,33 @@ export class TokenManager implements TokenProvider {
     return refreshResult(latestToken?.accessToken, false);
   }
 
+  private async clearTerminalRefreshFailure(
+    failedTokens: TokenData,
+    reason: TerminalRefreshFailureReason,
+  ): Promise<RefreshResult> {
+    const cleared = await withTelemetrySpan(
+      "token-manager.clear-terminal-refresh-failure",
+      () => this.authStorage.clearTokensIfUnchanged(this.mcpUrl, failedTokens),
+    );
+    if (!cleared) {
+      const latestToken = await withTelemetrySpan(
+        "token-manager.reload-tokens",
+        () => this.authStorage.loadTokens(this.mcpUrl),
+      );
+      this.cachedToken = latestToken;
+      return refreshResult(latestToken?.accessToken, false, !latestToken);
+    }
+
+    if (reason === "invalid_client") {
+      await withTelemetrySpan("token-manager.clear-invalid-client", () =>
+        this.authStorage.clearClient(this.mcpUrl),
+      ).catch(() => undefined);
+    }
+
+    this.cachedToken = null;
+    return refreshResult(undefined, false, true);
+  }
+
   private async loadRefreshCandidate(): Promise<{
     tokens: TokenData;
     externallyUpdated: boolean;
@@ -405,6 +446,7 @@ function areSameTokenData(a: TokenData, b: TokenData): boolean {
 function refreshResult(
   accessToken: string | undefined,
   refreshedViaEndpoint: boolean,
+  invalidatedCurrentToken = false,
 ): RefreshResult {
-  return { accessToken, refreshedViaEndpoint };
+  return { accessToken, refreshedViaEndpoint, invalidatedCurrentToken };
 }

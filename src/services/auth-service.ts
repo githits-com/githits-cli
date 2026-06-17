@@ -106,6 +106,33 @@ export interface RefreshTokenResponse {
   expiresIn: number;
 }
 
+export type TerminalRefreshFailureReason =
+  | "invalid_client"
+  | "invalid_refresh_token";
+
+export class TokenRefreshError extends Error {
+  readonly status: number;
+  readonly body: string;
+  readonly oauthError: string | undefined;
+  readonly oauthErrorDescription: string | undefined;
+
+  constructor(status: number, body: string) {
+    const details = parseOAuthErrorBody(body);
+    const description =
+      details.oauthErrorDescription ?? details.oauthError ?? body.trim();
+    super(
+      description
+        ? `Token refresh failed: ${description}`
+        : `Token refresh failed with HTTP ${status}`,
+    );
+    this.name = "TokenRefreshError";
+    this.status = status;
+    this.body = body;
+    this.oauthError = details.oauthError;
+    this.oauthErrorDescription = details.oauthErrorDescription;
+  }
+}
+
 /**
  * Parameters for DCR registration.
  */
@@ -376,7 +403,7 @@ export class AuthServiceImpl implements AuthService {
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Token refresh failed: ${error}`);
+      throw new TokenRefreshError(response.status, error);
     }
 
     return parseRefreshTokenResponse(await response.json());
@@ -391,6 +418,75 @@ export class AuthServiceImpl implements AuthService {
       timeoutMs: this.fetchTimeoutMs,
     };
   }
+}
+
+export function classifyTerminalRefreshError(
+  error: unknown,
+): TerminalRefreshFailureReason | undefined {
+  if (!(error instanceof TokenRefreshError)) return undefined;
+
+  const oauthError = error.oauthError?.toLowerCase();
+  const text = [
+    error.oauthError,
+    error.oauthErrorDescription,
+    error.body,
+    error.message,
+  ]
+    .filter((part): part is string => typeof part === "string")
+    .join(" ")
+    .toLowerCase();
+
+  if (
+    oauthError === "invalid_client" ||
+    text.includes("client not found") ||
+    text.includes("client id not found") ||
+    text.includes("client_id not found") ||
+    text.includes("oauth client not found") ||
+    text.includes("client does not match") ||
+    text.includes("client authentication required") ||
+    text.includes("invalid client credentials")
+  ) {
+    return "invalid_client";
+  }
+
+  if (
+    oauthError === "invalid_grant" &&
+    (text.includes("invalid refresh token") ||
+      text.includes("refresh token already used") ||
+      text.includes("already used") ||
+      text.includes("session expired") ||
+      text.includes("session not found"))
+  ) {
+    return "invalid_refresh_token";
+  }
+
+  return undefined;
+}
+
+function parseOAuthErrorBody(body: string): {
+  oauthError: string | undefined;
+  oauthErrorDescription: string | undefined;
+} {
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    return {
+      oauthError: stringField(parsed.error),
+      oauthErrorDescription:
+        stringField(parsed.error_description) ??
+        stringField(parsed.errorDescription) ??
+        stringField(parsed.message) ??
+        stringField(parsed.msg),
+    };
+  } catch {
+    return {
+      oauthError: undefined,
+      oauthErrorDescription: undefined,
+    };
+  }
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function parseTokenResponse(data: unknown): TokenResponse {

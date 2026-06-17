@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 import { createServer } from "node:http";
 import { FetchTimeoutError } from "@githits/core-internal";
-import { AuthServiceImpl, evaluateCallback } from "./auth-service.js";
+import {
+  AuthServiceImpl,
+  classifyTerminalRefreshError,
+  evaluateCallback,
+  TokenRefreshError,
+} from "./auth-service.js";
 
 function asFetchFn<T extends (...args: never[]) => unknown>(
   fn: T,
@@ -141,6 +146,44 @@ describe("AuthServiceImpl", () => {
           refreshToken: "refresh-token",
         }),
       ).rejects.toThrow(FetchTimeoutError);
+    });
+
+    it("throws typed refresh errors for OAuth error responses", async () => {
+      const fetchMock = mock(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              error: "invalid_grant",
+              error_description: "Invalid Refresh Token: Already Used",
+            }),
+            { status: 400 },
+          ),
+        ),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      await expect(
+        service.refreshAccessToken({
+          tokenEndpoint: "https://auth.example.com/oauth/token",
+          clientId: "client-id",
+          clientSecret: "client-secret",
+          refreshToken: "refresh-token",
+        }),
+      ).rejects.toThrow(TokenRefreshError);
+
+      try {
+        await service.refreshAccessToken({
+          tokenEndpoint: "https://auth.example.com/oauth/token",
+          clientId: "client-id",
+          clientSecret: "client-secret",
+          refreshToken: "refresh-token",
+        });
+      } catch (error) {
+        expect(error).toBeInstanceOf(TokenRefreshError);
+        expect(classifyTerminalRefreshError(error)).toBe(
+          "invalid_refresh_token",
+        );
+      }
     });
   });
 

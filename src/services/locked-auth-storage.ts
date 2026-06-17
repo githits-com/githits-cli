@@ -5,7 +5,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { promisify } from "node:util";
 import { DEFAULT_FETCH_TIMEOUT_MS } from "@githits/core-internal";
-import { getAppConfigDir } from "./app-config-paths.js";
+import { getAuthLockDir } from "./app-config-paths.js";
 import type {
   AuthStorage,
   ClientRegistration,
@@ -71,7 +71,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     this.lockTimeoutMs = options.lockTimeoutMs ?? LOCK_TIMEOUT_MS;
     this.isOwnerAlive = options.isOwnerAlive ?? isOriginalProcessAlive;
     this.lockPath = fileSystemService.joinPath(
-      getAppConfigDir(fileSystemService),
+      getAuthLockDir(fileSystemService),
       LOCK_DIR,
     );
   }

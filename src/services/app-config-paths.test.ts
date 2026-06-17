@@ -4,6 +4,7 @@ import {
   getAppConfigDir,
   getAuthConfigPath,
   getAuthFileStorageDir,
+  getAuthLockDir,
   getLegacyAuthStorageDir,
   getLegacyMacAuthConfigPath,
   getLegacyMacAuthFileStorageDir,
@@ -86,6 +87,12 @@ describe("app config paths", () => {
 
   it("keeps legacy auth storage under ~/.githits", () => {
     expect(getLegacyAuthStorageDir(createMockFileSystemService())).toBe(
+      "/home/test/.githits",
+    );
+  });
+
+  it("keeps the auth lock under stable per-user state", () => {
+    expect(getAuthLockDir(createMockFileSystemService())).toBe(
       "/home/test/.githits",
     );
   });

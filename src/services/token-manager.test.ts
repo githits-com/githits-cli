@@ -1,5 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
 import { FetchTimeoutError } from "@githits/core-internal";
+import { TokenRefreshError } from "./auth-service.js";
 import type { TokenData } from "./auth-storage.js";
 import {
   createMockAuthService,
@@ -276,6 +277,76 @@ describe("TokenManager", () => {
       // Subsequent call should also return the token (cache must not be cleared)
       const result2 = await manager.getToken();
       expect(result2).toBe(tokenData.accessToken);
+    });
+
+    it("clears token immediately when proactive refresh reports token reuse", async () => {
+      const tokenData = createValidTokenData({
+        createdAt: new Date(Date.now() - 58 * 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + 2 * 60_000).toISOString(),
+      });
+      const { manager, authStorage } = createTokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() =>
+            Promise.reject(
+              new TokenRefreshError(
+                400,
+                JSON.stringify({
+                  error: "invalid_grant",
+                  error_description: "Invalid Refresh Token: Already Used",
+                }),
+              ),
+            ),
+          ),
+        }),
+        authStorage: createMockAuthStorage({
+          loadTokens: mock(() => Promise.resolve(tokenData)),
+          loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+        }),
+      });
+
+      const result = await manager.getToken();
+
+      expect(result).toBeUndefined();
+      expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
+        MCP_URL,
+        tokenData,
+      );
+      expect(authStorage.clearClient).not.toHaveBeenCalled();
+    });
+
+    it("clears client registration when proactive refresh reports invalid client", async () => {
+      const tokenData = createValidTokenData({
+        createdAt: new Date(Date.now() - 58 * 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + 2 * 60_000).toISOString(),
+      });
+      const { manager, authStorage } = createTokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() =>
+            Promise.reject(
+              new TokenRefreshError(
+                400,
+                JSON.stringify({
+                  error: "invalid_client",
+                  error_description: "OAuth client not found",
+                }),
+              ),
+            ),
+          ),
+        }),
+        authStorage: createMockAuthStorage({
+          loadTokens: mock(() => Promise.resolve(tokenData)),
+          loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+        }),
+      });
+
+      const result = await manager.getToken();
+
+      expect(result).toBeUndefined();
+      expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
+        MCP_URL,
+        tokenData,
+      );
+      expect(authStorage.clearClient).toHaveBeenCalledWith(MCP_URL);
     });
 
     it("returns current token when proactive endpoint discovery times out", async () => {
