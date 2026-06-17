@@ -34,6 +34,13 @@ describe("loginAction", () => {
       expect.any(Object),
       expect.any(Object),
     );
+    const output = consoleSpy.mock.calls
+      .map((call) => String(call[0]))
+      .join("\n");
+    expect(output).toContain("Logged in successfully.");
+    expect(output).toContain("You're ready to use GitHits.");
+    expect(output).not.toContain("Token expires");
+    expect(output).not.toContain("Environment:");
 
     consoleSpy.mockRestore();
   });
@@ -65,6 +72,12 @@ describe("loginAction", () => {
       expect.any(Object),
       expect.any(Object),
     );
+    const output = consoleSpy.mock.calls
+      .map((call) => String(call[0]))
+      .join("\n");
+    expect(output).toContain("Already logged in.");
+    expect(output).toContain("You're ready to use GitHits.");
+    expect(output).not.toContain("Environment:");
     consoleSpy.mockRestore();
   });
 
@@ -445,8 +458,8 @@ describe("loginFlow", () => {
     );
 
     expect(result.status).toBe("success");
-    expect(writes).toContain("Discovering OAuth endpoints...");
-    expect(writes).toContain("Opening browser...");
+    expect(writes).toContain("Opening browser for GitHits sign-in...");
+    expect(writes).toContain("Waiting for sign-in to finish...\n");
     expect(consoleSpy).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
   });

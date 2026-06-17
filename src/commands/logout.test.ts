@@ -28,6 +28,7 @@ describe("logoutAction", () => {
     expect(authStorage.loadTokens).not.toHaveBeenCalled();
     const output = consoleSpy.mock.calls.map((c) => c[0]).join("\n");
     expect(output).toContain("Logged out");
+    expect(output).not.toContain("Environment:");
     consoleSpy.mockRestore();
   });
 
