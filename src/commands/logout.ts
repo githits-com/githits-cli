@@ -1,3 +1,4 @@
+import { withTelemetrySpan } from "@githits/core-internal";
 import type { Command } from "commander";
 import { createAuthCommandDependencies } from "../container.js";
 import type { AuthStorage } from "../services/auth-storage.js";
@@ -16,7 +17,11 @@ export interface LogoutDependencies {
 export async function logoutAction(deps: LogoutDependencies): Promise<void> {
   const { authStorage, mcpUrl } = deps;
 
-  await authStorage.clearAuthSession(mcpUrl);
+  await withTelemetrySpan(
+    "auth.clear",
+    () => authStorage.clearAuthSession(mcpUrl),
+    { reason: "logout" },
+  );
 
   console.log("Logged out.");
 }

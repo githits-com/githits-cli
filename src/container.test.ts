@@ -1,8 +1,13 @@
 import { describe, expect, it, mock } from "bun:test";
 import {
+  flushTelemetry,
+  resetTelemetryCollectorForTests,
+} from "@githits/core-internal";
+import {
   createAuthCommandDependencies,
   createAuthStatusDependencies,
   createContainer,
+  recordAuthFingerprint,
 } from "./container.js";
 import { AuthConfigError } from "./services/auth-config.js";
 
@@ -106,6 +111,33 @@ describe("createContainer", () => {
       } finally {
         globalThis.fetch = originalFetch;
       }
+    });
+  });
+
+  describe("recordAuthFingerprint", () => {
+    it("records mode and env presence as booleans, never raw values", () => {
+      const writes: string[] = [];
+      resetTelemetryCollectorForTests({
+        env: { GITHITS_TELEMETRY: "1" },
+        now: () => 0,
+        write: (text) => writes.push(text),
+      });
+
+      recordAuthFingerprint("file", {
+        HOME: "/home/secret-user",
+        XDG_CONFIG_HOME: "/home/secret-user/.config",
+      } as NodeJS.ProcessEnv);
+      flushTelemetry(0);
+
+      const report = writes.join("");
+      expect(report).toContain("auth.fingerprint");
+      expect(report).toContain("mode=file");
+      expect(report).toContain("homeSet=true");
+      expect(report).toContain("xdgConfigHomeSet=true");
+      expect(report).toContain("appDataSet=false");
+      // Privacy: env values must never reach telemetry output.
+      expect(report).not.toContain("secret-user");
+      resetTelemetryCollectorForTests({ env: {} });
     });
   });
 });

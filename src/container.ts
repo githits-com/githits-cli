@@ -3,6 +3,7 @@ import {
   type CodeNavigationService,
   CodeNavigationServiceImpl,
   createClientHeaderBuilder,
+  endTelemetrySpan,
   type GitHitsService,
   GitHitsServiceImpl,
   getApiUrl,
@@ -12,6 +13,7 @@ import {
   type PackageIntelligenceService,
   PackageIntelligenceServiceImpl,
   RefreshingGitHitsService,
+  startTelemetrySpan,
   type TokenProvider,
   withTelemetrySpan,
 } from "@githits/core-internal";
@@ -65,12 +67,36 @@ async function createAuthStorage(
 ): Promise<LockingAuthStorage> {
   return withTelemetrySpan("container.create-auth-storage", async () => {
     const authConfig = await loadAuthConfig(fileSystemService);
+    recordAuthFingerprint(authConfig.storage);
     return createAuthStorageForMode(
       fileSystemService,
       authConfig.storage,
       authConfig.configPath,
     );
   });
+}
+
+/**
+ * Emit a one-shot telemetry fingerprint of the resolved auth configuration so
+ * lockout reports can be segmented by storage mode and config-scope divergence.
+ *
+ * Records only the storage mode, platform, and which scope-determining env vars
+ * are set — never their values, paths, usernames, or credentials. Does not probe
+ * the keychain, so it cannot trigger an OS unlock prompt on startup.
+ */
+export function recordAuthFingerprint(
+  mode: AuthStorageMode,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  const handle = startTelemetrySpan("auth.fingerprint", {
+    mode,
+    platform: process.platform,
+    homeSet: Boolean(env.HOME),
+    xdgConfigHomeSet: Boolean(env.XDG_CONFIG_HOME),
+    appDataSet: Boolean(env.APPDATA),
+    userProfileSet: Boolean(env.USERPROFILE),
+  });
+  endTelemetrySpan(handle);
 }
 
 function createAuthStorageForMode(
