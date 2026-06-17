@@ -541,9 +541,17 @@ function buildRecommendations(report: DoctorReport): string[] {
   if (report.auth.storageMode.value === "file") {
     const active = report.auth.files[0];
     const activeMissing = active?.token.status === "missing";
+    const staleSessionEvidence =
+      active?.client.status === "present" ||
+      active?.metadata.status === "present";
     const legacyPresent = report.auth.files
       .slice(1)
       .some((entry) => entry.token.status === "present");
+    if (activeMissing && staleSessionEvidence) {
+      recommendations.push(
+        "File auth token is missing but client/session metadata remains. Run `githits login` in this environment.",
+      );
+    }
     if (activeMissing && legacyPresent) {
       recommendations.push(
         "The active file auth location has no token, but a legacy auth location has one.",

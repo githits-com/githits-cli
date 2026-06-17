@@ -11,8 +11,6 @@ import {
   createFileAuthStorageGuidance,
 } from "./mode-aware-file-auth-storage.js";
 
-type CredentialKind = "tokens" | "client";
-
 interface Candidate<T> {
   data: T;
   source: "file" | "legacy";
@@ -23,10 +21,10 @@ interface Candidate<T> {
 
 /**
  * AuthStorage implementation that coordinates the configured active store with
- * legacy plaintext locations so credentials migrate without silent downgrades.
+ * legacy plaintext locations. Switching between keychain and file storage is
+ * intentionally not migrated; users must run `githits login` in the new mode.
  */
 export class MigratingAuthStorage implements AuthStorage {
-  private warnedFileModeKeychainExport = false;
   private warnedAmbiguousPlaintext = false;
 
   constructor(
@@ -185,26 +183,7 @@ export class MigratingAuthStorage implements AuthStorage {
     } catch (error) {
       if (!(error instanceof KeychainUnavailableError)) throw error;
     }
-
-    const candidate = await this.selectPlaintextTokenCandidate(baseUrl);
-    if (!candidate) return null;
-
-    try {
-      await this.primary.saveTokens(baseUrl, candidate.data);
-    } catch (error) {
-      if (error instanceof KeychainUnavailableError) return candidate.data;
-      throw error;
-    }
-
-    await this.clearMigratedPlaintext(
-      baseUrl,
-      "tokens",
-      candidate.source,
-      candidate.storage,
-      candidate.ambiguous,
-    );
-    await this.saveMetadataBestEffort(baseUrl, candidate.data);
-    return candidate.data;
+    return null;
   }
 
   private async loadTokensFileMode(baseUrl: string): Promise<TokenData | null> {
@@ -220,18 +199,7 @@ export class MigratingAuthStorage implements AuthStorage {
       return candidate.data;
     }
 
-    let primaryTokens: TokenData | null = null;
-    try {
-      primaryTokens = await this.primary.loadTokens(baseUrl);
-    } catch (error) {
-      if (!(error instanceof KeychainUnavailableError)) throw error;
-    }
-    if (!primaryTokens) return null;
-
-    this.warnKeychainExport();
-    await this.file.saveTokens(baseUrl, primaryTokens);
-    await this.saveMetadataBestEffort(baseUrl, primaryTokens);
-    return primaryTokens;
+    return null;
   }
 
   private async loadClientKeychainMode(
@@ -243,25 +211,7 @@ export class MigratingAuthStorage implements AuthStorage {
     } catch (error) {
       if (!(error instanceof KeychainUnavailableError)) throw error;
     }
-
-    const candidate = await this.selectPlaintextClientCandidate(baseUrl);
-    if (!candidate) return null;
-
-    try {
-      await this.primary.saveClient(baseUrl, candidate.data);
-    } catch (error) {
-      if (error instanceof KeychainUnavailableError) return candidate.data;
-      throw error;
-    }
-
-    await this.clearMigratedPlaintext(
-      baseUrl,
-      "client",
-      candidate.source,
-      candidate.storage,
-      candidate.ambiguous,
-    );
-    return candidate.data;
+    return null;
   }
 
   private async loadClientFileMode(
@@ -278,17 +228,7 @@ export class MigratingAuthStorage implements AuthStorage {
       return candidate.data;
     }
 
-    let primaryClient: ClientRegistration | null = null;
-    try {
-      primaryClient = await this.primary.loadClient(baseUrl);
-    } catch (error) {
-      if (!(error instanceof KeychainUnavailableError)) throw error;
-    }
-    if (!primaryClient) return null;
-
-    this.warnKeychainExport();
-    await this.file.saveClient(baseUrl, primaryClient);
-    return primaryClient;
+    return null;
   }
 
   private async selectPlaintextTokenCandidate(
@@ -382,43 +322,8 @@ export class MigratingAuthStorage implements AuthStorage {
     return first.candidate;
   }
 
-  private async clearMigratedPlaintext(
-    baseUrl: string,
-    kind: CredentialKind,
-    source: "file" | "legacy",
-    storage: AuthStorage,
-    ambiguous = false,
-  ): Promise<void> {
-    if (!ambiguous) {
-      await this.clearPlaintextSource(this.file, baseUrl, kind);
-      for (const legacy of this.getLegacyStores()) {
-        await this.clearPlaintextSource(legacy, baseUrl, kind);
-      }
-      return;
-    }
-    if (source === "file") {
-      await this.clearPlaintextSource(this.file, baseUrl, kind);
-      return;
-    }
-    if (source === "legacy") {
-      await this.clearPlaintextSource(storage, baseUrl, kind);
-    }
-  }
-
   private getLegacyStores(): AuthStorage[] {
     return [...this.additionalLegacyStores, this.legacy];
-  }
-
-  private async clearPlaintextSource(
-    storage: AuthStorage,
-    baseUrl: string,
-    kind: CredentialKind,
-  ): Promise<void> {
-    await this.clearBestEffort(() =>
-      kind === "tokens"
-        ? storage.clearTokens(baseUrl)
-        : storage.clearClient(baseUrl),
-    );
   }
 
   private async clearBestEffort(fn: () => Promise<void>): Promise<unknown> {
@@ -443,14 +348,6 @@ export class MigratingAuthStorage implements AuthStorage {
     if (!(error instanceof KeychainUnavailableError)) return error;
     return new AuthStoragePolicyError(
       `System keychain is unavailable. ${createFileAuthStorageGuidance(this.configPath)}`,
-    );
-  }
-
-  private warnKeychainExport(): void {
-    if (this.warnedFileModeKeychainExport) return;
-    this.warnedFileModeKeychainExport = true;
-    this.onWarning(
-      "Warning: auth.storage=file is exporting existing keychain credentials to plaintext file storage.",
     );
   }
 
