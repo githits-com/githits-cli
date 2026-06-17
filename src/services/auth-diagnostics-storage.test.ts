@@ -128,6 +128,38 @@ describe("AuthDiagnosticsStorage", () => {
     await expect(storage.load(BASE_URL)).resolves.toBeNull();
   });
 
+  it("treats an array events field as malformed and returns null", async () => {
+    const storage = new AuthDiagnosticsStorage(
+      createMockFileSystemService({
+        exists: mock(() => Promise.resolve(true)),
+        readFile: mock(() =>
+          Promise.resolve(JSON.stringify({ version: 1, events: [] })),
+        ),
+      }),
+      "/test/auth",
+    );
+
+    await expect(storage.load(BASE_URL)).resolves.toBeNull();
+  });
+
+  it("self-heals a malformed array file into a valid object on recordClear", async () => {
+    const fs = createMockFileSystemService({
+      exists: mock(() => Promise.resolve(true)),
+      readFile: mock(() =>
+        Promise.resolve(JSON.stringify({ version: 1, events: [] })),
+      ),
+    });
+    const storage = new AuthDiagnosticsStorage(fs, "/test/auth");
+
+    await storage.recordClear(BASE_URL, "logout");
+
+    const calls = (fs.atomicWriteFile as ReturnType<typeof mock>).mock.calls;
+    const written = JSON.parse(calls[0]?.[1] as string);
+    // The breadcrumb is actually persisted, not dropped onto an array property.
+    expect(Array.isArray(written.events)).toBe(false);
+    expect(written.events[BASE_URL].reason).toBe("logout");
+  });
+
   it("swallows write failures so it never breaks the observed clear path", async () => {
     const storage = new AuthDiagnosticsStorage(
       createMockFileSystemService({

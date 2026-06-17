@@ -94,13 +94,23 @@ export class AuthDiagnosticsStorage implements AuthDiagnosticsStore {
     if (!(await this.fs.exists(this.diagnosticsPath))) return null;
     try {
       const content = await this.fs.readFile(this.diagnosticsPath);
-      const data = JSON.parse(content);
-      if (data.version !== 1 || !data.events) return null;
-      return data as StoredAuthDiagnostics;
+      const data: unknown = JSON.parse(content);
+      // `events` must be a plain object: an array (or null) is truthy but would
+      // silently drop string-keyed writes in JSON.stringify, so reject it and
+      // let the next recordClear rebuild a fresh, self-healed file.
+      if (!isRecord(data) || data.version !== 1 || !isRecord(data.events)) {
+        return null;
+      }
+      return data as unknown as StoredAuthDiagnostics;
     } catch {
       return null;
     }
   }
+}
+
+/** Plain object check that rejects `null` (which `typeof` reports as object) and arrays. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
