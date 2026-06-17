@@ -64,6 +64,7 @@ interface AuthFileProbe {
     expiresAt: string | null;
     updatedAt: string;
   }>;
+  lastClear: Probe<{ reason: string; at: string }>;
 }
 
 export interface DoctorReport {
@@ -153,6 +154,11 @@ interface StoredMetadataFile {
     string,
     { createdAt: string; expiresAt: string | null; updatedAt: string }
   >;
+}
+
+interface StoredDiagnosticsFile {
+  version: 1;
+  events: Record<string, { reason: string; at: string }>;
 }
 
 interface ResolvedAuthConfig {
@@ -422,6 +428,7 @@ async function probeAuthFileDir(
   const authPath = fs.joinPath(dir, "auth.json");
   const clientPath = fs.joinPath(dir, "client.json");
   const metadataPath = fs.joinPath(dir, "metadata.json");
+  const diagnosticsPath = fs.joinPath(dir, "diagnostics.json");
   const normalizedMcpUrl = normalizeBaseUrl(
     env.GITHITS_MCP_URL ?? DEFAULT_MCP_URL,
   );
@@ -439,6 +446,11 @@ async function probeAuthFileDir(
     fs,
     metadataPath,
     isStoredMetadataFile,
+  );
+  const diagnosticsFile = await readJsonFile<StoredDiagnosticsFile>(
+    fs,
+    diagnosticsPath,
+    isStoredDiagnosticsFile,
   );
   const token =
     authFile.status === "present" && authFile.value !== undefined
@@ -462,6 +474,13 @@ async function probeAuthFileDir(
           expiresAt: string | null;
           updatedAt: string;
         }>(metadataFile, "metadata.json could not be read");
+  const lastClear =
+    diagnosticsFile.status === "present" && diagnosticsFile.value !== undefined
+      ? lastClearProbe(diagnosticsFile.value.events[normalizedMcpUrl])
+      : dependentProbe<{ reason: string; at: string }>(
+          diagnosticsFile,
+          "diagnostics.json could not be read",
+        );
 
   return {
     dir,
@@ -472,6 +491,7 @@ async function probeAuthFileDir(
     token,
     client,
     metadata,
+    lastClear,
   };
 }
 
@@ -502,6 +522,13 @@ function metadataProbe(
 ): Probe<{ createdAt: string; expiresAt: string | null; updatedAt: string }> {
   if (!metadata) return { status: "missing", source: "file" };
   return { status: "present", source: "file", value: metadata };
+}
+
+function lastClearProbe(
+  event: StoredDiagnosticsFile["events"][string] | undefined,
+): Probe<{ reason: string; at: string }> {
+  if (!event) return { status: "missing", source: "file" };
+  return { status: "present", source: "file", value: event };
 }
 
 function dependentProbe<T>(file: Probe<unknown>, message: string): Probe<T> {
@@ -537,6 +564,14 @@ function buildRecommendations(report: DoctorReport): string[] {
     recommendations.push(
       "APPDATA is set. Compare `githits doctor --json` between the working and failing environments.",
     );
+  }
+  const activeAuth = report.auth.files[0];
+  if (
+    activeAuth?.token.status === "missing" &&
+    activeAuth.lastClear.status === "present" &&
+    activeAuth.lastClear.value
+  ) {
+    recommendations.push(lastClearRecommendation(activeAuth.lastClear.value));
   }
   if (report.auth.storageMode.value === "file") {
     const active = report.auth.files[0];
@@ -639,6 +674,7 @@ function formatDoctorReport(report: DoctorReport): string {
     lines.push(`    token: ${formatTimedProbe(entry.token)}`);
     lines.push(`    client: ${formatTimedProbe(entry.client)}`);
     lines.push(`    metadata: ${formatTimedProbe(entry.metadata)}`);
+    lines.push(`    last clear: ${formatTimedProbe(entry.lastClear)}`);
   }
   if (report.recommendations.length > 0) {
     lines.push("", "Recommendations:");
@@ -649,6 +685,23 @@ function formatDoctorReport(report: DoctorReport): string {
   return lines.join("\n");
 }
 
+function lastClearRecommendation(event: {
+  reason: string;
+  at: string;
+}): string {
+  const when = `(last clear: ${event.reason} at ${event.at})`;
+  switch (event.reason) {
+    case "terminal_invalid_refresh_token":
+      return `Auth was cleared after refresh-token reuse or expiry ${when}. Run \`githits login\`. If this recurs, another agent or a stale CLI is likely refreshing the same credentials concurrently.`;
+    case "terminal_invalid_client":
+      return `Auth was cleared after the OAuth client registration was rejected ${when}. Run \`githits login\` to re-register.`;
+    case "logout":
+      return `Credentials were removed by \`githits logout\` ${when}. Run \`githits login\` to sign back in.`;
+    default:
+      return `Auth was last cleared ${when}. Run \`githits login\` if commands report authentication is required.`;
+  }
+}
+
 function hasLegacyAuthEvidence(entry: AuthFileProbe): boolean {
   return (
     entry.authFile.status !== "missing" ||
@@ -656,7 +709,8 @@ function hasLegacyAuthEvidence(entry: AuthFileProbe): boolean {
     entry.metadataFile.status !== "missing" ||
     entry.token.status !== "missing" ||
     entry.client.status !== "missing" ||
-    entry.metadata.status !== "missing"
+    entry.metadata.status !== "missing" ||
+    entry.lastClear.status !== "missing"
   );
 }
 
@@ -866,6 +920,15 @@ function isStoredMetadataFile(value: unknown): value is StoredMetadataFile {
   return (
     hasVersionOne(value) &&
     typeof (value as StoredMetadataFile).sessions === "object"
+  );
+}
+
+function isStoredDiagnosticsFile(
+  value: unknown,
+): value is StoredDiagnosticsFile {
+  return (
+    hasVersionOne(value) &&
+    typeof (value as StoredDiagnosticsFile).events === "object"
   );
 }
 

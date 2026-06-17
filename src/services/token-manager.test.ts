@@ -182,16 +182,25 @@ describe("TokenManager", () => {
     overrides: {
       authService?: ReturnType<typeof createMockAuthService>;
       authStorage?: ReturnType<typeof createMockAuthStorage>;
+      authDiagnostics?: {
+        recordClear: ReturnType<typeof mock>;
+        load: ReturnType<typeof mock>;
+      };
     } = {},
   ) {
     const authService = overrides.authService ?? createMockAuthService();
     const authStorage = overrides.authStorage ?? createMockAuthStorage();
+    const authDiagnostics = overrides.authDiagnostics ?? {
+      recordClear: mock(() => Promise.resolve()),
+      load: mock(() => Promise.resolve(null)),
+    };
     const manager = new TokenManager({
       authService,
       authStorage,
       mcpUrl: MCP_URL,
+      authDiagnostics,
     });
-    return { manager, authService, authStorage };
+    return { manager, authService, authStorage, authDiagnostics };
   }
 
   describe("getToken", () => {
@@ -312,6 +321,72 @@ describe("TokenManager", () => {
         tokenData,
       );
       expect(authStorage.clearClient).not.toHaveBeenCalled();
+    });
+
+    it("records a diagnostics breadcrumb when refresh-token reuse clears the token", async () => {
+      const tokenData = createValidTokenData({
+        createdAt: new Date(Date.now() - 58 * 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + 2 * 60_000).toISOString(),
+      });
+      const { manager, authDiagnostics } = createTokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() =>
+            Promise.reject(
+              new TokenRefreshError(
+                400,
+                JSON.stringify({
+                  error: "invalid_grant",
+                  error_description: "Invalid Refresh Token: Already Used",
+                }),
+              ),
+            ),
+          ),
+        }),
+        authStorage: createMockAuthStorage({
+          loadTokens: mock(() => Promise.resolve(tokenData)),
+          loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+        }),
+      });
+
+      await manager.getToken();
+
+      expect(authDiagnostics.recordClear).toHaveBeenCalledWith(
+        MCP_URL,
+        "terminal_invalid_refresh_token",
+      );
+    });
+
+    it("records a diagnostics breadcrumb when an invalid client clears the token", async () => {
+      const tokenData = createValidTokenData({
+        createdAt: new Date(Date.now() - 58 * 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + 2 * 60_000).toISOString(),
+      });
+      const { manager, authDiagnostics } = createTokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() =>
+            Promise.reject(
+              new TokenRefreshError(
+                400,
+                JSON.stringify({
+                  error: "invalid_client",
+                  error_description: "OAuth client not found",
+                }),
+              ),
+            ),
+          ),
+        }),
+        authStorage: createMockAuthStorage({
+          loadTokens: mock(() => Promise.resolve(tokenData)),
+          loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+        }),
+      });
+
+      await manager.getToken();
+
+      expect(authDiagnostics.recordClear).toHaveBeenCalledWith(
+        MCP_URL,
+        "terminal_invalid_client",
+      );
     });
 
     it("clears client registration when proactive refresh reports invalid client", async () => {

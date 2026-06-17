@@ -184,7 +184,7 @@ The MCP server starts without a synchronous auth gate. Tool calls resolve tokens
 ## Diagnostics
 
 - **Telemetry (opt-in, local repro only)** — When `GITHITS_TELEMETRY` is enabled, auth spans carry diagnostic attributes: `auth.fingerprint` records the resolved storage `mode`, platform, and which scope-determining env vars are set (booleans only, never values); token/client clear spans carry a `reason` (`terminal_invalid_refresh_token`, `terminal_invalid_client`, `logout`). This flushes to stderr and is invisible to external users running the MCP server, so it only helps when we reproduce locally with the flag on.
-- **Planned: persisted auth-clear breadcrumb (fast-follow)** — The only diagnostic channel that reaches an external user is persisted state surfaced by `githits doctor`. A follow-up should persist the last auth-clear `{ reason, at, mode }` and render it in `doctor`, so reports show *why* a token was cleared (migration, terminal refresh failure, or logout). It must live in its own file (e.g. `auth/diagnostics.json`), not `metadata.json`, because credential clears wipe metadata and a breadcrumb stored there would erase itself. The file is retained across clears and holds no secrets.
+- **Persisted auth-clear breadcrumb (doctor-visible)** — Because the only diagnostic channel that reaches an external user is persisted state surfaced by `githits doctor`, the last auth-clear `{ reason, at }` is persisted to `auth/diagnostics.json` and rendered by `doctor` as `last clear: ...`. When the active token is missing, `doctor` adds a recommendation explaining the cause (refresh-token reuse/expiry, rejected client registration, or explicit logout). Writes happen at the clear sites — `logout` and `TokenManager` terminal refresh failures — and are best-effort, so a diagnostics write can never break the path it observes. The file lives separately from `metadata.json` because credential clears wipe metadata and a breadcrumb stored there would erase itself; it is only ever overwritten by the next event, never cleared, and holds no secrets (a reason enum and timestamp keyed by MCP URL).
 
 ## Key Reference Files
 
@@ -199,6 +199,7 @@ The MCP server starts without a synchronous auth gate. Tool calls resolve tokens
 | `src/services/code-navigation-service.ts` | Package/source service client using the shared refresh helper |
 | `src/services/auth-service.ts` | OAuth operations (DCR, PKCE, token exchange, callback server) |
 | `src/services/auth-storage.ts` | `AuthStorage` interface and file-based implementation |
+| `src/services/auth-diagnostics-storage.ts` | Persisted, retained-across-clears breadcrumb of why auth was last cleared |
 | `src/services/locked-auth-storage.ts` | Cross-process auth-storage lock and conditional write serialization |
 | `src/services/auth-config.ts` | `config.toml` and `GITHITS_AUTH_STORAGE` parsing |
 | `src/services/app-config-paths.ts` | Platform-specific config/auth path resolution |

@@ -377,6 +377,47 @@ describe("doctor", () => {
     );
   });
 
+  it("surfaces the last-clear breadcrumb and explains a missing token", async () => {
+    const fs = createMockFileSystemService({
+      exists: mock((path: string) =>
+        Promise.resolve(path.endsWith("diagnostics.json")),
+      ),
+      readFile: mock((path: string) => {
+        if (path.endsWith("diagnostics.json")) {
+          return Promise.resolve(
+            JSON.stringify({
+              version: 1,
+              events: {
+                "https://mcp.githits.com": {
+                  reason: "terminal_invalid_refresh_token",
+                  at: "2026-05-27T08:00:00.000Z",
+                },
+              },
+            }),
+          );
+        }
+        return Promise.reject(new Error("File not found"));
+      }),
+    });
+
+    const report = await buildDoctorReport(createDeps({ fs }));
+
+    expect(report.auth.files[0]?.lastClear).toMatchObject({
+      status: "present",
+      value: {
+        reason: "terminal_invalid_refresh_token",
+        at: "2026-05-27T08:00:00.000Z",
+      },
+    });
+    expect(
+      report.recommendations.some(
+        (line) =>
+          line.includes("terminal_invalid_refresh_token") &&
+          line.includes("githits login"),
+      ),
+    ).toBe(true);
+  });
+
   it("reports invalid auth config instead of throwing", async () => {
     const fs = createMockFileSystemService({
       exists: mock((path: string) =>

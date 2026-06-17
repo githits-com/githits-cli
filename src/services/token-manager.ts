@@ -1,5 +1,6 @@
 import type { TokenProvider } from "@githits/core-internal";
 import { withTelemetrySpan } from "@githits/core-internal";
+import type { AuthDiagnosticsStore } from "./auth-diagnostics-storage.js";
 import {
   type AuthService,
   classifyTerminalRefreshError,
@@ -25,6 +26,11 @@ export interface TokenManagerDeps {
   authService: AuthService;
   authStorage: LockingAuthStorage;
   mcpUrl: string;
+  /**
+   * Optional diagnostics breadcrumb store. When present, terminal refresh
+   * failures that clear the token record why, so `doctor` can explain it later.
+   */
+  authDiagnostics?: AuthDiagnosticsStore;
 }
 
 interface RefreshResult {
@@ -88,6 +94,7 @@ export class TokenManager implements TokenProvider {
   private readonly authService: AuthService;
   private readonly authStorage: LockingAuthStorage;
   private readonly mcpUrl: string;
+  private readonly authDiagnostics?: AuthDiagnosticsStore;
   private cachedToken: TokenData | null = null;
   private softRefreshPromise: Promise<RefreshResult> | null = null;
   private forceRefreshPromise: Promise<RefreshResult> | null = null;
@@ -96,6 +103,7 @@ export class TokenManager implements TokenProvider {
     this.authService = deps.authService;
     this.authStorage = deps.authStorage;
     this.mcpUrl = deps.mcpUrl;
+    this.authDiagnostics = deps.authDiagnostics;
   }
 
   async getToken(): Promise<string | undefined> {
@@ -388,6 +396,8 @@ export class TokenManager implements TokenProvider {
         { reason: "terminal_invalid_client" },
       ).catch(() => undefined);
     }
+
+    await this.authDiagnostics?.recordClear(this.mcpUrl, `terminal_${reason}`);
 
     this.cachedToken = null;
     return refreshResult(undefined, false, true);
