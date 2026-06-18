@@ -12,7 +12,7 @@ import {
   resolveCodeTarget,
 } from "./code-navigation-shared.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 export interface ListFilesArgs {
   target: CodeTargetArg;
@@ -33,7 +33,7 @@ export interface ListFilesArgs {
   format?: "json" | "text" | "text-v1";
 }
 
-const schema = {
+const schema: ZodRawShape = {
   target: codeTargetSchema,
   path: z
     .string()

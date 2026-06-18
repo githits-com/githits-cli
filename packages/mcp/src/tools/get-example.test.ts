@@ -11,7 +11,7 @@ describe("getExampleTool", () => {
     expect(tool.description).toContain(
       "GitHits' generated references/provenance section",
     );
-    expect(tool.schema.format.description).toContain(
+    expect(tool.schema.format?.description).toContain(
       "source repository provenance",
     );
   });

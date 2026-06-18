@@ -4,6 +4,7 @@ import type {
   SymbolKind,
 } from "@githits/core-internal";
 import {
+  type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
 } from "@githits/core-internal";
@@ -80,7 +81,9 @@ export type CodeNavigationRegistryArg = PkgseerRegistryArg;
 /**
  * Back-compat alias for {@link toPkgseerRegistry}.
  */
-export function toCodeNavigationRegistry(registry: CodeNavigationRegistryArg) {
+export function toCodeNavigationRegistry(
+  registry: CodeNavigationRegistryArg,
+): PkgseerRegistry {
   return toPkgseerRegistry(registry);
 }
 

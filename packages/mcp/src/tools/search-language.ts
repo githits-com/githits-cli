@@ -2,14 +2,14 @@ import type { GitHitsService, Language } from "@githits/core-internal";
 import { z } from "zod";
 import type { LanguageMatch } from "../shared/language-filter.js";
 import { withErrorHandling } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 interface SearchLanguageArgs {
   query: string;
   format?: "json" | "text" | "text-v1";
 }
 
-const schema = {
+const schema: ZodRawShape = {
   query: z
     .string()
     .min(1)

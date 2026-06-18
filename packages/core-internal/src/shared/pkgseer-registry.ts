@@ -56,7 +56,7 @@ const registryMap = {
   swift: "SWIFT",
 } as const satisfies Record<PkgseerRegistryArg, PkgseerRegistry>;
 
-export const PKGSEER_REGISTRY_LIST = PKGSEER_REGISTRY_ARGS.join(", ");
+export const PKGSEER_REGISTRY_LIST: string = PKGSEER_REGISTRY_ARGS.join(", ");
 
 /**
  * Lowercase surface value → uppercase backend enum. Exhaustive over

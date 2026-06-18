@@ -1,18 +1,16 @@
 import type { PackageIntelligenceService } from "@githits/core-internal";
-import type { Command } from "commander";
-import { createContainer } from "../../container.js";
-import { shouldUseColors } from "../../shared/colors.js";
-import { buildListPackageDocsParams } from "../../shared/list-package-docs-request.js";
 import {
+  buildListPackageDocsParams,
   buildListPackageDocsSuccessPayload,
   formatListPackageDocsTerminal,
-} from "../../shared/list-package-docs-response.js";
-import { mapPackageIntelligenceError } from "../../shared/package-intelligence-error-map.js";
-import {
   InvalidPackageSpecError,
+  mapPackageIntelligenceError,
   parsePackageSpec,
-} from "../../shared/package-spec.js";
-import { requireAuth } from "../../shared/require-auth.js";
+  requireAuth,
+  shouldUseColors,
+} from "@githits/mcp/internal";
+import type { Command } from "commander";
+import { createContainer } from "../../container.js";
 import { startSpinner } from "../../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../../shared/spinner-messages.js";
 import {

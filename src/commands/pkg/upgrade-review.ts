@@ -1,18 +1,16 @@
 import type { PackageIntelligenceService } from "@githits/core-internal";
-import type { Command } from "commander";
-import { createContainer } from "../../container.js";
-import { shouldUseColors } from "../../shared/colors.js";
-import { mapPackageIntelligenceError } from "../../shared/package-intelligence-error-map.js";
-import {
-  InvalidPackageSpecError,
-  parsePackageSpec,
-} from "../../shared/package-spec.js";
-import { buildPackageUpgradeReviewRequest } from "../../shared/package-upgrade-review-request.js";
 import {
   buildPackageUpgradeReview,
+  buildPackageUpgradeReviewRequest,
   formatPackageUpgradeReviewTerminal,
-} from "../../shared/package-upgrade-review-response.js";
-import { requireAuth } from "../../shared/require-auth.js";
+  InvalidPackageSpecError,
+  mapPackageIntelligenceError,
+  parsePackageSpec,
+  requireAuth,
+  shouldUseColors,
+} from "@githits/mcp/internal";
+import type { Command } from "commander";
+import { createContainer } from "../../container.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,

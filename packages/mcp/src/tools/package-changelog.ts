@@ -13,7 +13,7 @@ import { mapPackageIntelligenceError } from "../shared/package-intelligence-erro
 import { InvalidPackageSpecError } from "../shared/package-spec.js";
 import { PKG_CHANGELOG_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 export interface PackageChangelogArgs {
   registry?: string;
@@ -44,7 +44,7 @@ export interface PackageChangelogArgs {
  * schema. The other pkg-intel tools omit it because their queries
  * are registry-metadata APIs with no repo-URL alternative.
  */
-const schema = {
+const schema: ZodRawShape = {
   registry: z
     .string()
     .optional()
@@ -113,7 +113,7 @@ const schema = {
     ),
 };
 
-export const DESCRIPTION =
+export const DESCRIPTION: string =
   "Use when the user asks what changed in a package, wants release notes, or needs changelog evidence for a manual upgrade review. Release notes for a package or GitHub repo, newest-first. Default " +
   "latest mode returns the ten most recent entries (`limit` 1–50). " +
   "With `from_version`, returns every entry in the " +

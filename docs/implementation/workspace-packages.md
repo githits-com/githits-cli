@@ -9,15 +9,24 @@ manifest move is complete.
 - `packages/core-internal` is private and source-exported. It owns the
   transport-neutral API clients, shared request/header/telemetry primitives,
   neutral service errors, PKCE helpers, and `TokenProvider` contract.
-- `packages/mcp` is private for now and source-exported through `./src/index.ts`.
+- `packages/mcp` is the public `@githits/mcp` package boundary. Its public root
+  export is intentionally small: transport-neutral MCP server factory, tool
+  registration, static tool descriptors, instructions, and MCP-facing types. It
+  builds from `packages/mcp/src/index.ts` to `dist/` and bundles private
+  core-internal source into its artifacts.
 - `packages/cli` is a private placeholder package; the public `githits` manifest
   still lives at the repository root.
 - Root TypeScript path aliases exist for workspace development imports:
-  `@githits/core-internal` and `@githits/mcp`.
+  `@githits/core-internal`, `@githits/mcp`, and workspace-only
+  `@githits/mcp/internal`.
 - Root `src/services/**` still owns CLI/local integrations: filesystem-backed
   auth storage, keychain/keyring adapters, browser login, prompts, update checks,
   and the storage-backed `TokenManager`. `TokenManager` implements core's
   `TokenProvider` contract.
+- Root CLI and local stdio MCP startup still live under `src/**` until the CLI
+  package move. They import moved command helpers from workspace-only
+  `@githits/mcp/internal`; the root build bundles that source, so the published
+  `githits` artifact must not contain the internal import path.
 - Root CLI/MCP code imports moved core modules through the bare
   `@githits/core-internal` package export. Do not import moved modules through
   stale `src/services/**`, `src/shared/**`, or `src/auth/**` paths.
@@ -50,6 +59,10 @@ manifest move is complete.
 - Validate package-boundary behavior from outside the repo root or without root
   `tsconfig` path aliases. A root-local entry can pass by resolving aliases and
   bypassing package manifest wiring.
+- The MCP package build settings live in `packages/mcp/bunup.config.ts`. Its
+  runtime externals are the MCP SDK and Zod; `@githits/core-internal` is resolved
+  and bundled into JS/declaration output so the packed public package does not
+  reference private workspace internals.
 
 ## Dependency Notes
 

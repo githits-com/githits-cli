@@ -18,7 +18,7 @@ import { errorResult, type ToolResult } from "./types.js";
 // src/shared/code-navigation-defaults.ts per the CLI/MCP parity rules.
 export { DEFAULT_WAIT_TIMEOUT_MS } from "../shared/code-navigation-defaults.js";
 
-export const structuredCodeTargetSchema = z
+export const structuredCodeTargetSchema: z.ZodType<StructuredCodeTargetArg> = z
   .object({
     registry: z
       .enum(PKGSEER_REGISTRY_ARGS)
@@ -55,7 +55,7 @@ export const structuredCodeTargetSchema = z
     "Target: provide registry + package_name (package scope) or repo_url with optional git_ref (repo scope; omitted ref means default branch intent).",
   );
 
-export const codeTargetSchema = z.union([
+export const codeTargetSchema: z.ZodType<CodeTargetArg> = z.union([
   structuredCodeTargetSchema,
   z
     .string()

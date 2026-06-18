@@ -1,4 +1,4 @@
-import type { MappedError } from "../shared/code-navigation-error-map.js";
+import type { MappedError } from "@githits/mcp/internal";
 
 const CLI_AUTH_ERROR_MESSAGE =
   "Authentication required. Run `githits login` to authenticate.";

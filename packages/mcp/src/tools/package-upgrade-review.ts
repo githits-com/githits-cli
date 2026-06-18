@@ -8,7 +8,7 @@ import {
   formatPackageUpgradeReviewTerminal,
 } from "../shared/package-upgrade-review-response.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 export interface PackageUpgradeReviewArgs {
   registry?: string;
@@ -45,7 +45,7 @@ const packageSchema = z.object({
     ),
 });
 
-const schema = {
+const schema: ZodRawShape = {
   registry: z
     .string()
     .optional()

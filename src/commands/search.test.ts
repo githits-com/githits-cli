@@ -7,11 +7,11 @@ import type {
   UnifiedSearchSessionStatus,
 } from "@githits/core-internal";
 import { AuthenticationError } from "@githits/core-internal";
+import { AuthRequiredError } from "@githits/mcp/internal";
 import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,
 } from "../services/test-helpers.js";
-import { AuthRequiredError } from "../shared/require-auth.js";
 import {
   type SearchDependencies,
   searchAction,

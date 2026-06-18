@@ -90,9 +90,10 @@ export const SUPPORTED_DEPS_REGISTRIES: ReadonlySet<PkgseerRegistry> = new Set([
  * than hand-rolled so the order propagates from the single source of
  * truth and a future registry addition shows up here automatically.
  */
-export const SUPPORTED_DEPS_REGISTRIES_LIST = PKGSEER_REGISTRY_ARGS.filter(
-  (arg) => SUPPORTED_DEPS_REGISTRIES.has(toPkgseerRegistry(arg)),
-).join(", ");
+export const SUPPORTED_DEPS_REGISTRIES_LIST: string =
+  PKGSEER_REGISTRY_ARGS.filter((arg) =>
+    SUPPORTED_DEPS_REGISTRIES.has(toPkgseerRegistry(arg)),
+  ).join(", ");
 
 export function supportsDependenciesRegistry(
   registry: PkgseerRegistry,

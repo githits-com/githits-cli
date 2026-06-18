@@ -6,6 +6,7 @@ import {
   startTelemetrySpan,
   withTelemetrySpan,
 } from "@githits/core-internal";
+import { colorizeBrand, shouldUseColors } from "@githits/mcp/internal";
 import { Command } from "commander";
 import { version } from "../package.json";
 import { handleCliError } from "./cli/errors.js";
@@ -38,7 +39,6 @@ import {
 } from "./container.js";
 import { FileSystemServiceImpl } from "./services/filesystem-service.js";
 import { NpmRegistryUpdateCheckService } from "./services/update-check-service.js";
-import { colorizeBrand, shouldUseColors } from "./shared/colors.js";
 import { createRootCliPreAction } from "./shared/root-cli-pre-action.js";
 
 const program = new Command();

@@ -1,4 +1,4 @@
-import { InvalidPackageSpecError } from "./package-spec.js";
+import { InvalidPackageSpecError } from "@githits/mcp/internal";
 
 /**
  * Parse an optional CLI integer string exactly. `parseInt` is deliberately

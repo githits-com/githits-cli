@@ -12,8 +12,10 @@ import {
   pkgUpgradeReviewAction,
 } from "../commands/pkg/upgrade-review.js";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
-import { createPackageUpgradeReviewTool } from "./package-upgrade-review.js";
-import { isProcessExitSentinel } from "./parity-test-helpers.js";
+import {
+  createParityMcpTool,
+  isProcessExitSentinel,
+} from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<PkgUpgradeReviewCommandDependencies> = {},
@@ -74,7 +76,9 @@ async function mcpJson(
   args: McpUpgradeReviewArgs,
   service: PackageIntelligenceService = createMockPackageIntelligenceService(),
 ): Promise<{ json: unknown; isError: boolean | undefined }> {
-  const tool = createPackageUpgradeReviewTool(service);
+  const tool = createParityMcpTool("pkg_upgrade_review", {
+    packageIntelligenceService: service,
+  });
   const result = await tool.handler({ ...args, format: "json" }, {});
   const text = result.content[0]?.text ?? "";
   return { json: JSON.parse(text), isError: result.isError };

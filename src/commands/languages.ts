@@ -1,14 +1,16 @@
 import type { GitHitsService } from "@githits/core-internal";
 import { AuthenticationError } from "@githits/core-internal";
-import type { Command } from "commander";
-import { createContainer } from "../container.js";
-import { colorize, dim, shouldUseColors } from "../shared/colors.js";
-import type { LanguageMatch } from "../shared/language-filter.js";
 import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
+  colorize,
+  dim,
+  type LanguageMatch,
   requireAuth,
-} from "../shared/require-auth.js";
+  shouldUseColors,
+} from "@githits/mcp/internal";
+import type { Command } from "commander";
+import { createContainer } from "../container.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,

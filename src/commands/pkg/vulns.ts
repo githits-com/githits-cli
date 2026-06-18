@@ -1,21 +1,17 @@
 import type { PackageIntelligenceService } from "@githits/core-internal";
-import type { Command } from "commander";
-import { createContainer } from "../../container.js";
-import { shouldUseColors } from "../../shared/colors.js";
 import {
-  type MappedError,
-  mapPackageIntelligenceError,
-} from "../../shared/package-intelligence-error-map.js";
-import {
-  InvalidPackageSpecError,
-  parsePackageSpec,
-} from "../../shared/package-spec.js";
-import { buildPackageVulnerabilitiesParams } from "../../shared/package-vulnerabilities-request.js";
-import {
+  buildPackageVulnerabilitiesParams,
   buildPackageVulnerabilitiesSuccessPayload,
   formatPackageVulnerabilitiesTerminal,
-} from "../../shared/package-vulnerabilities-response.js";
-import { requireAuth } from "../../shared/require-auth.js";
+  InvalidPackageSpecError,
+  type MappedError,
+  mapPackageIntelligenceError,
+  parsePackageSpec,
+  requireAuth,
+  shouldUseColors,
+} from "@githits/mcp/internal";
+import type { Command } from "commander";
+import { createContainer } from "../../container.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,

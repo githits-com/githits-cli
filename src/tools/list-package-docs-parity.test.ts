@@ -8,8 +8,10 @@ import {
   createMockPackageIntelligenceService,
   defaultPackageDocsList,
 } from "../services/test-helpers.js";
-import { createListPackageDocsTool } from "./list-package-docs.js";
-import { isProcessExitSentinel } from "./parity-test-helpers.js";
+import {
+  createParityMcpTool,
+  isProcessExitSentinel,
+} from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<DocsListCommandDependencies> = {},
@@ -58,7 +60,9 @@ async function mcpJson(
       ? { listPackageDocs: listPackageDocsMock as never }
       : {},
   );
-  const tool = createListPackageDocsTool(service);
+  const tool = createParityMcpTool("docs_list", {
+    packageIntelligenceService: service,
+  });
   const result = await tool.handler({ ...args, format: "json" }, {});
   return JSON.parse(result.content[0]?.text ?? "");
 }

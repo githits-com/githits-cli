@@ -29,8 +29,10 @@ import {
   pkgInfoAction,
 } from "../commands/pkg/info.js";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
-import { createPackageSummaryTool } from "./package-summary.js";
-import { isProcessExitSentinel } from "./parity-test-helpers.js";
+import {
+  createParityMcpTool,
+  isProcessExitSentinel,
+} from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<PkgInfoCommandDependencies> = {},
@@ -77,7 +79,9 @@ async function mcpJson(
   const service = createMockPackageIntelligenceService(
     packageSummaryMock ? { packageSummary: packageSummaryMock as never } : {},
   );
-  const tool = createPackageSummaryTool(service);
+  const tool = createParityMcpTool("pkg_info", {
+    packageIntelligenceService: service,
+  });
   const result = await tool.handler({ ...args, format: "json" }, {});
   const text = result.content[0]?.text ?? "";
   return {

@@ -6,7 +6,7 @@ import { buildReadPackageDocSuccessPayload } from "../shared/read-package-doc-re
 import { renderReadPackageDocText } from "../shared/read-package-doc-text.js";
 import { DOCS_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 export interface ReadPackageDocArgs {
   page_id: string;
@@ -17,7 +17,7 @@ export interface ReadPackageDocArgs {
 
 const MCP_DOC_READ_MAX_SPAN = 150;
 
-const schema = {
+const schema: ZodRawShape = {
   page_id: z
     .string()
     .describe(
@@ -43,7 +43,7 @@ const schema = {
     ),
 };
 
-export const DESCRIPTION =
+export const DESCRIPTION: string =
   "Read a documentation page by page ID. Works for both hosted/crawled docs and repository-backed docs. " +
   "Pass `start_line` / `end_line` to fetch only a slice when a page is too long — response carries `totalLines` so you can target the next slice. " +
   "Repo-backed results additionally include exact file follow-up metadata for `code_read`." +

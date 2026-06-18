@@ -3,11 +3,11 @@ import {
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
 } from "@githits/core-internal";
+import { AuthRequiredError } from "@githits/mcp/internal";
 import {
   createMockPackageIntelligenceService,
   defaultDependencyReport,
 } from "../../services/test-helpers.js";
-import { AuthRequiredError } from "../../shared/require-auth.js";
 import { type PkgDepsCommandDependencies, pkgDepsAction } from "./deps.js";
 
 describe("pkgDepsAction", () => {

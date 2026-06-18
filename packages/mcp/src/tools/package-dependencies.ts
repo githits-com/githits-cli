@@ -10,7 +10,7 @@ import {
 } from "../shared/package-dependencies-response.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 export interface PackageDependenciesArgs {
   registry: string;
@@ -31,7 +31,7 @@ export interface PackageDependenciesArgs {
  * omit it for runtime-only, pass a concrete lifecycle for filtered
  * groups, or pass `all` for the full groups view.
  */
-const schema = {
+const schema: ZodRawShape = {
   registry: z
     .string()
     .describe(

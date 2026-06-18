@@ -6,14 +6,19 @@ import {
 } from "../shared/unified-search-response.js";
 import { renderUnifiedSearchStatusText } from "../shared/unified-search-status-text.js";
 import { addLocalMcpAuthAction } from "./shared.js";
-import { errorResult, type ToolDefinition, textResult } from "./types.js";
+import {
+  errorResult,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface SearchStatusArgs {
   search_ref: string;
   format?: "json" | "text" | "text-v1";
 }
 
-const schema = {
+const schema: ZodRawShape = {
   search_ref: z
     .string()
     .min(1)

@@ -33,8 +33,10 @@ import {
   createMockPackageIntelligenceService,
   defaultVulnerabilityReport,
 } from "../services/test-helpers.js";
-import { createPackageVulnerabilitiesTool } from "./package-vulnerabilities.js";
-import { isProcessExitSentinel } from "./parity-test-helpers.js";
+import {
+  createParityMcpTool,
+  isProcessExitSentinel,
+} from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<PkgVulnsCommandDependencies> = {},
@@ -91,7 +93,9 @@ async function mcpJson(
       ? { packageVulnerabilities: packageVulnerabilitiesMock as never }
       : {},
   );
-  const tool = createPackageVulnerabilitiesTool(service);
+  const tool = createParityMcpTool("pkg_vulns", {
+    packageIntelligenceService: service,
+  });
   const result = await tool.handler({ ...args, format: "json" }, {});
   const text = result.content[0]?.text ?? "";
   return { json: JSON.parse(text), isError: result.isError };

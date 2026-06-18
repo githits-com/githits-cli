@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import { AuthRequiredError } from "@githits/mcp/internal";
 import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
-import { AuthRequiredError } from "../shared/require-auth.js";
 import { handleCliError } from "./errors.js";
 
 describe("handleCliError", () => {

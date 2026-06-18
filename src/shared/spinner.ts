@@ -1,4 +1,4 @@
-import { colorizeBrand } from "./colors.js";
+import { colorizeBrand } from "@githits/mcp/internal";
 
 const SPINNER_FRAMES = ["|", "/", "-", "\\"] as const;
 const FRAME_INTERVAL_MS = 80;

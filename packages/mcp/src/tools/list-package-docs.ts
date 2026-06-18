@@ -7,7 +7,7 @@ import { renderListPackageDocsText } from "../shared/list-package-docs-text.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { DOCS_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 export interface ListPackageDocsArgs {
   registry: string;
@@ -18,7 +18,7 @@ export interface ListPackageDocsArgs {
   format?: "json" | "text" | "text-v1";
 }
 
-const schema = {
+const schema: ZodRawShape = {
   registry: z
     .string()
     .describe(`Package registry. One of: ${PKGSEER_REGISTRY_LIST}.`),

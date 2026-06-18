@@ -30,8 +30,10 @@ import {
   createMockPackageIntelligenceService,
   defaultChangelogReport,
 } from "../services/test-helpers.js";
-import { createPackageChangelogTool } from "./package-changelog.js";
-import { isProcessExitSentinel } from "./parity-test-helpers.js";
+import {
+  createParityMcpTool,
+  isProcessExitSentinel,
+} from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<PkgChangelogCommandDependencies> = {},
@@ -92,7 +94,9 @@ async function mcpJson(
       ? { packageChangelog: packageChangelogMock as never }
       : {},
   );
-  const tool = createPackageChangelogTool(service);
+  const tool = createParityMcpTool("pkg_changelog", {
+    packageIntelligenceService: service,
+  });
   const result = await tool.handler({ ...args, format: "json" }, {});
   const text = result.content[0]?.text ?? "";
   return { json: JSON.parse(text), isError: result.isError };

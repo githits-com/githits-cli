@@ -4,24 +4,20 @@ import {
   PKGSEER_REGISTRY_LIST,
   toPkgseerRegistryLowercase,
 } from "@githits/core-internal";
-import type { Command } from "commander";
-import { createContainer } from "../../container.js";
-import {
-  DEFAULT_WAIT_TIMEOUT_MS,
-  MAX_WAIT_TIMEOUT_MS,
-} from "../../shared/code-navigation-defaults.js";
-import { shouldUseColors } from "../../shared/colors.js";
 import {
   buildListFilesParams,
+  buildListFilesSuccessPayload,
+  DEFAULT_WAIT_TIMEOUT_MS,
+  formatListFilesTerminal,
+  InvalidPackageSpecError,
   type ListFilesRequestBuildResult,
   type ListFilesRequestInput,
-} from "../../shared/list-files-request.js";
-import {
-  buildListFilesSuccessPayload,
-  formatListFilesTerminal,
-} from "../../shared/list-files-response.js";
-import { InvalidPackageSpecError } from "../../shared/package-spec.js";
-import { requireAuth } from "../../shared/require-auth.js";
+  MAX_WAIT_TIMEOUT_MS,
+  requireAuth,
+  shouldUseColors,
+} from "@githits/mcp/internal";
+import type { Command } from "commander";
+import { createContainer } from "../../container.js";
 import { startSpinner } from "../../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../../shared/spinner-messages.js";
 import {

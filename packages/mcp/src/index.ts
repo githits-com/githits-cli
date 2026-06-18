@@ -1,13 +1,15 @@
-export interface WorkspaceScaffoldMcpEnvelope<TValue> {
-  source: "@githits/mcp";
-  value: TValue;
-}
-
-export function createWorkspaceScaffoldMcpEnvelope<TValue>(
-  value: TValue,
-): WorkspaceScaffoldMcpEnvelope<TValue> {
-  return {
-    source: "@githits/mcp",
-    value,
-  };
-}
+export type { BuildMcpInstructionsOptions } from "./mcp/instructions.js";
+export { buildMcpInstructions } from "./mcp/instructions.js";
+export type {
+  CreateMcpServerOptions,
+  McpRequestContext,
+  McpServerMetadata,
+  McpToolDescriptor,
+  McpToolServicesProvider,
+} from "./mcp/server.js";
+export {
+  createMcpServer,
+  getMcpToolDescriptors,
+  registerMcpTools,
+} from "./mcp/server.js";
+export type { McpToolServices } from "./tools/tool-services.js";

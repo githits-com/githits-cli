@@ -17,8 +17,10 @@ import {
   createMockCodeNavigationService,
   defaultReadFileResult,
 } from "../services/test-helpers.js";
-import { isProcessExitSentinel } from "./parity-test-helpers.js";
-import { createReadFileTool } from "./read-file.js";
+import {
+  createParityMcpTool,
+  isProcessExitSentinel,
+} from "./parity-test-helpers.js";
 
 function cliDeps(
   overrides: Partial<PkgReadCommandDependencies> = {},
@@ -93,7 +95,9 @@ async function mcpJson(
   const service = createMockCodeNavigationService(
     readFileMock ? { readFile: readFileMock as never } : {},
   );
-  const tool = createReadFileTool(service);
+  const tool = createParityMcpTool("code_read", {
+    codeNavigationService: service,
+  });
   const result = await tool.handler({ ...args, format: "json" }, {});
   const parsed = JSON.parse(result.content[0]?.text ?? "") as Record<
     string,

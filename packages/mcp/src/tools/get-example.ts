@@ -3,7 +3,7 @@ import { z } from "zod";
 import { extractSolutionId } from "../shared/extract-solution-id.js";
 import { GET_EXAMPLE_GUARDRAIL } from "./guardrails.js";
 import { withErrorHandling } from "./shared.js";
-import { type ToolDefinition, textResult } from "./types.js";
+import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
 
 interface GetExampleArgs {
   query: string;
@@ -12,7 +12,7 @@ interface GetExampleArgs {
   format?: "json" | "text" | "text-v1";
 }
 
-const schema = {
+const schema: ZodRawShape = {
   query: z
     .string()
     .min(1)

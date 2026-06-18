@@ -1,12 +1,12 @@
 import type { GitHitsService } from "@githits/core-internal";
 import { AuthenticationError } from "@githits/core-internal";
-import { type Command, Option } from "commander";
-import { extractSolutionId } from "../shared/extract-solution-id.js";
 import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
+  extractSolutionId,
   requireAuth,
-} from "../shared/require-auth.js";
+} from "@githits/mcp/internal";
+import { type Command, Option } from "commander";
 import { startSpinner } from "../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
 import {

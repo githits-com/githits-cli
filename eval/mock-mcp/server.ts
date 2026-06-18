@@ -24,23 +24,23 @@
  */
 
 import { readFileSync } from "node:fs";
+import {
+  buildMcpInstructions,
+  READ_FILE_DESCRIPTION as CODE_READ_DESCRIPTION,
+  CODE_READ_GUARDRAIL,
+  DOCS_GUARDRAIL,
+  READ_PACKAGE_DOC_DESCRIPTION as DOCS_READ_DESCRIPTION,
+  EXTERNAL_CONTENT_POSTURE,
+  PACKAGE_CHANGELOG_DESCRIPTION as PKG_CHANGELOG_DESCRIPTION,
+  PKG_CHANGELOG_GUARDRAIL,
+  PACKAGE_SUMMARY_DESCRIPTION as PKG_INFO_DESCRIPTION,
+  PKG_INFO_GUARDRAIL,
+  PACKAGE_VULNERABILITIES_DESCRIPTION as PKG_VULNS_DESCRIPTION,
+  PKG_VULNS_GUARDRAIL,
+} from "@githits/mcp/internal";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { buildMcpInstructions } from "../../src/mcp/instructions.js";
-import {
-  CODE_READ_GUARDRAIL,
-  DOCS_GUARDRAIL,
-  EXTERNAL_CONTENT_POSTURE,
-  PKG_CHANGELOG_GUARDRAIL,
-  PKG_INFO_GUARDRAIL,
-  PKG_VULNS_GUARDRAIL,
-} from "../../src/tools/guardrails.js";
-import { DESCRIPTION as PKG_CHANGELOG_DESCRIPTION } from "../../src/tools/package-changelog.js";
-import { DESCRIPTION as PKG_INFO_DESCRIPTION } from "../../src/tools/package-summary.js";
-import { DESCRIPTION as PKG_VULNS_DESCRIPTION } from "../../src/tools/package-vulnerabilities.js";
-import { DESCRIPTION as CODE_READ_DESCRIPTION } from "../../src/tools/read-file.js";
-import { DESCRIPTION as DOCS_READ_DESCRIPTION } from "../../src/tools/read-package-doc.js";
 
 const STATE_FILE = process.env.EVAL_MCP_STATE_FILE;
 if (!STATE_FILE) {

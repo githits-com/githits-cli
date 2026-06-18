@@ -3,23 +3,19 @@ import {
   PKGSEER_REGISTRY_LIST,
   toPkgseerRegistryLowercase,
 } from "@githits/core-internal";
-import type { Command } from "commander";
-import { createContainer } from "../../container.js";
-import { shouldUseColors } from "../../shared/colors.js";
-import { buildPackageChangelogParams } from "../../shared/package-changelog-request.js";
 import {
+  buildPackageChangelogParams,
   buildPackageChangelogSuccessPayload,
   formatPackageChangelogTerminal,
-} from "../../shared/package-changelog-response.js";
-import {
+  InvalidPackageSpecError,
   type MappedError,
   mapPackageIntelligenceError,
-} from "../../shared/package-intelligence-error-map.js";
-import {
-  InvalidPackageSpecError,
   parsePackageSpec,
-} from "../../shared/package-spec.js";
-import { requireAuth } from "../../shared/require-auth.js";
+  requireAuth,
+  shouldUseColors,
+} from "@githits/mcp/internal";
+import type { Command } from "commander";
+import { createContainer } from "../../container.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
