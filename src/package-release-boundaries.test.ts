@@ -46,4 +46,23 @@ describe("package release boundaries", () => {
     expect(dependencies).not.toContain("@githits/mcp/internal");
     expect(JSON.stringify(mcpPackage.exports)).not.toContain("./internal");
   });
+
+  it("keeps MCP release publishing recoverable", async () => {
+    const root = join(import.meta.dir, "..");
+    const workflow = await readFile(
+      join(root, ".github", "workflows", "mcp-release.yml"),
+      "utf8",
+    );
+    const createTagIndex = workflow.indexOf("- name: Create MCP git tag");
+    const publishIndex = workflow.indexOf(
+      "- name: Publish @githits/mcp to npm",
+    );
+
+    expect(workflow).toContain('TAG_REF="refs/tags/$TAG"');
+    expect(workflow).toContain('git rev-parse --verify "$TAG_REF^{commit}"');
+    expect(workflow).toContain('git push origin "refs/tags/$TAG"');
+    expect(createTagIndex).toBeGreaterThan(-1);
+    expect(publishIndex).toBeGreaterThan(-1);
+    expect(createTagIndex).toBeLessThan(publishIndex);
+  });
 });

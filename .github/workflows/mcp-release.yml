@@ -21,6 +21,10 @@ on:
         default: true
         type: boolean
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   validate:
     name: MCP package validation
@@ -118,7 +122,16 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
+          TAG_EXISTS=false
+          TAG_REF="refs/tags/$TAG"
+          if git rev-parse --verify "$TAG_REF^{commit}" >/dev/null 2>&1; then
+            TAG_EXISTS=true
+            TAG_COMMIT=$(git rev-parse "$TAG_REF^{commit}")
+            HEAD_COMMIT=$(git rev-parse HEAD)
+            if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+              echo "::error::Existing tag $TAG points to $TAG_COMMIT, not HEAD $HEAD_COMMIT"
+              exit 1
+            fi
             echo "tag_exists=true" >> $GITHUB_OUTPUT
           else
             echo "tag_exists=false" >> $GITHUB_OUTPUT
@@ -131,10 +144,21 @@ jobs:
           fi
 
           if npm view "@githits/mcp@$VERSION" version >/dev/null 2>&1; then
+            if [ "$TAG_EXISTS" != "true" ]; then
+              echo "::error::@githits/mcp@$VERSION is already published, but $TAG is missing. Refusing to mint an unverifiable release tag."
+              exit 1
+            fi
             echo "npm_published=true" >> $GITHUB_OUTPUT
           else
             echo "npm_published=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Create MCP git tag
+        if: steps.mcp_version.outputs.tag_exists == 'false'
+        run: |
+          TAG="${{ steps.mcp_version.outputs.tag }}"
+          git tag "$TAG" HEAD
+          git push origin "refs/tags/$TAG"
 
       # Authentication via npm Trusted Publishing (OIDC).
       # Configure npm trusted publishing for package @githits/mcp with:
@@ -151,12 +175,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.mcp_version.outputs.tag }}"
-          if [ "${{ steps.mcp_version.outputs.tag_exists }}" = "true" ]; then
-            gh release create "$TAG" --verify-tag \
-              --title "@githits/mcp v${{ steps.mcp_version.outputs.version }}" \
-              --generate-notes
-          else
-            gh release create "$TAG" \
-              --title "@githits/mcp v${{ steps.mcp_version.outputs.version }}" \
-              --generate-notes
-          fi
+          gh release create "$TAG" --verify-tag \
+            --title "@githits/mcp v${{ steps.mcp_version.outputs.version }}" \
+            --generate-notes
