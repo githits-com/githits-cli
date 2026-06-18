@@ -10,5 +10,6 @@ export default defineConfig({
   external: [/^@modelcontextprotocol\/sdk(?:\/.*)?$/, /^zod(?:\/.*)?$/],
   minifyWhitespace: true,
   packages: "bundle",
+  preferredTsconfig: "../../tsconfig.json",
   target: "node",
 });

@@ -47,6 +47,17 @@ describe("package release boundaries", () => {
     expect(JSON.stringify(mcpPackage.exports)).not.toContain("./internal");
   });
 
+  it("resolves private workspace declarations before publishing @githits/mcp", async () => {
+    const root = join(import.meta.dir, "..");
+    const buildConfig = await readFile(
+      join(root, "packages", "mcp", "bunup.config.ts"),
+      "utf8",
+    );
+
+    expect(buildConfig).toContain('resolve: ["@githits/core-internal"]');
+    expect(buildConfig).toContain('preferredTsconfig: "../../tsconfig.json"');
+  });
+
   it("keeps MCP release publishing recoverable", async () => {
     const root = join(import.meta.dir, "..");
     const workflow = await readFile(
