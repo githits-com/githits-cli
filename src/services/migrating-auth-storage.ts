@@ -97,6 +97,46 @@ export class MigratingAuthStorage implements AuthStorage {
     return true;
   }
 
+  /**
+   * Clear tokens from the active backend *class* only, when unchanged.
+   *
+   * The active class is everything the active-mode load reads: in keychain mode
+   * just `primary`; in file mode `file` plus all legacy plaintext stores (a
+   * file-source load does not clear legacy, so a leftover legacy copy would be
+   * re-migrated on the next load and resurrect the just-cleared credential).
+   * The genuinely inactive backend (keychain in file mode) is preserved — this
+   * is what stops an automatic refresh failure from wiping a good credential in
+   * the other storage mode.
+   */
+  async clearActiveTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+  ): Promise<boolean> {
+    // CAS against the newest active candidate so a concurrent re-login (a newer
+    // token than the one that failed refresh) is never wiped.
+    const current = await this.currentActiveTokens(baseUrl);
+    if (!this.sameTokenData(current, expected)) return false;
+
+    let firstError: unknown;
+    for (const store of this.activeStores()) {
+      const error = await this.clearBestEffort(() =>
+        store.clearTokens(baseUrl),
+      );
+      firstError ??= error;
+    }
+    // metadata.json is mode-independent; clearing it on an active-session clear
+    // prevents an orphaned-session record. Cross-mode tradeoff: this also drops
+    // the other mode's session metadata, which self-heals on the next load.
+    const metadataError = await this.clearBestEffort(
+      () => this.metadata?.clear(baseUrl) ?? Promise.resolve(),
+    );
+    firstError ??= metadataError;
+    if (firstError && !(firstError instanceof KeychainUnavailableError)) {
+      throw firstError;
+    }
+    return true;
+  }
+
   async loadClient(baseUrl: string): Promise<ClientRegistration | null> {
     if (this.mode === "file") {
       return this.loadClientFileMode(baseUrl);
@@ -127,6 +167,25 @@ export class MigratingAuthStorage implements AuthStorage {
     }
     if (primaryError && !(primaryError instanceof KeychainUnavailableError)) {
       throw primaryError;
+    }
+  }
+
+  /**
+   * Clear client registration from the active backend *class* only, mirroring
+   * {@link clearActiveTokensIfUnchanged}: file + legacy in file mode, keychain
+   * in keychain mode. Prevents a stale legacy client from re-migrating after an
+   * active-mode clear.
+   */
+  async clearActiveClient(baseUrl: string): Promise<void> {
+    let firstError: unknown;
+    for (const store of this.activeStores()) {
+      const error = await this.clearBestEffort(() =>
+        store.clearClient(baseUrl),
+      );
+      firstError ??= error;
+    }
+    if (firstError && !(firstError instanceof KeychainUnavailableError)) {
+      throw firstError;
     }
   }
 
@@ -324,6 +383,37 @@ export class MigratingAuthStorage implements AuthStorage {
 
   private getLegacyStores(): AuthStorage[] {
     return [...this.additionalLegacyStores, this.legacy];
+  }
+
+  /**
+   * The set of backends the active-mode load reads from. Clearing exactly this
+   * set leaves the inactive backend untouched while ensuring no copy survives in
+   * a legacy store to be re-migrated later.
+   */
+  private activeStores(): AuthStorage[] {
+    return this.mode === "file"
+      ? [this.file, ...this.getLegacyStores()]
+      : [this.primary];
+  }
+
+  /**
+   * Newest token from the active class WITHOUT migration side effects, used for
+   * the active-clear compare-and-swap. Mirrors what the active-mode load would
+   * select, but never writes (unlike `loadTokensFileMode`).
+   */
+  private async currentActiveTokens(
+    baseUrl: string,
+  ): Promise<TokenData | null> {
+    if (this.mode === "file") {
+      const candidate = await this.selectPlaintextTokenCandidate(baseUrl);
+      return candidate?.data ?? null;
+    }
+    try {
+      return await this.primary.loadTokens(baseUrl);
+    } catch (error) {
+      if (error instanceof KeychainUnavailableError) return null;
+      throw error;
+    }
   }
 
   private async clearBestEffort(fn: () => Promise<void>): Promise<unknown> {

@@ -68,6 +68,14 @@ export class ModeAwareFileAuthStorage implements AuthStorage {
     return this.storage.clearTokensIfUnchanged(baseUrl, expected);
   }
 
+  // Clears are allowed in any mode (only writes assert file mode).
+  clearActiveTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+  ): Promise<boolean> {
+    return this.storage.clearActiveTokensIfUnchanged(baseUrl, expected);
+  }
+
   loadClient(baseUrl: string): Promise<ClientRegistration | null> {
     return this.storage.loadClient(baseUrl);
   }
@@ -79,6 +87,10 @@ export class ModeAwareFileAuthStorage implements AuthStorage {
 
   clearClient(baseUrl: string): Promise<void> {
     return this.storage.clearClient(baseUrl);
+  }
+
+  clearActiveClient(baseUrl: string): Promise<void> {
+    return this.storage.clearActiveClient(baseUrl);
   }
 
   async saveAuthSession(

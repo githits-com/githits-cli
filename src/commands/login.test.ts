@@ -217,7 +217,9 @@ describe("loginAction", () => {
       },
     );
 
-    expect(authStorage.clearClient).toHaveBeenCalledWith(mcpUrl);
+    expect(authStorage.clearActiveClient).toHaveBeenCalledWith(mcpUrl);
+    // Re-registration must not wipe the inactive backend's client.
+    expect(authStorage.clearClient).not.toHaveBeenCalled();
     expect(authService.registerClient).toHaveBeenCalled();
     expect(authStorage.saveAuthSession).toHaveBeenCalledWith(
       mcpUrl,
@@ -255,7 +257,7 @@ describe("loginAction", () => {
       // Expected: process.exit mock throws
     }
 
-    expect(authStorage.clearClient).toHaveBeenCalledWith(mcpUrl);
+    expect(authStorage.clearActiveClient).toHaveBeenCalledWith(mcpUrl);
     expect(exitSpy).toHaveBeenCalledWith(1);
 
     consoleSpy.mockRestore();
@@ -272,7 +274,7 @@ describe("loginAction", () => {
 
     let mcpClearClientCallCount = 0;
     const authStorage = createMockAuthStorage({
-      clearClient: mock((baseUrl: string) => {
+      clearActiveClient: mock((baseUrl: string) => {
         if (baseUrl === mcpUrl) {
           mcpClearClientCallCount++;
         }
@@ -332,7 +334,7 @@ describe("loginAction", () => {
       },
     );
 
-    expect(authStorage.clearClient).not.toHaveBeenCalledWith(mcpUrl);
+    expect(authStorage.clearActiveClient).not.toHaveBeenCalledWith(mcpUrl);
     expect(authStorage.saveAuthSession).not.toHaveBeenCalledWith(
       mcpUrl,
       expect.any(Object),
@@ -363,7 +365,7 @@ describe("loginAction", () => {
       },
     );
 
-    expect(authStorage.clearClient).not.toHaveBeenCalledWith(mcpUrl);
+    expect(authStorage.clearActiveClient).not.toHaveBeenCalledWith(mcpUrl);
     expect(authStorage.saveAuthSession).toHaveBeenCalledWith(
       mcpUrl,
       expect.any(Object),
@@ -515,7 +517,7 @@ describe("loginFlow", () => {
     expect(result.status).toBe("failed");
     expect(result.message).toBe("callback failed.");
     expect(close).toHaveBeenCalledTimes(1);
-    expect(authStorage.clearClient).toHaveBeenCalledWith(mcpUrl);
+    expect(authStorage.clearActiveClient).toHaveBeenCalledWith(mcpUrl);
   });
 
   it("returns actionable timeout message and clears fresh client", async () => {
@@ -554,7 +556,7 @@ describe("loginFlow", () => {
       );
       expect(result.message).toContain("Run the same command again");
       expect(close).toHaveBeenCalledTimes(1);
-      expect(authStorage.clearClient).toHaveBeenCalledWith(mcpUrl);
+      expect(authStorage.clearActiveClient).toHaveBeenCalledWith(mcpUrl);
     } finally {
       globalThis.setTimeout = timeout;
     }
@@ -597,7 +599,7 @@ describe("loginFlow", () => {
     );
 
     expect(result.status).toBe("failed");
-    expect(authStorage.clearClient).not.toHaveBeenCalledWith(mcpUrl);
+    expect(authStorage.clearActiveClient).not.toHaveBeenCalledWith(mcpUrl);
   });
 
   it("does not clear stored client when changed-port login fails before saving", async () => {
@@ -638,7 +640,7 @@ describe("loginFlow", () => {
 
     expect(result.status).toBe("failed");
     expect(authService.registerClient).toHaveBeenCalled();
-    expect(authStorage.clearClient).not.toHaveBeenCalledWith(mcpUrl);
+    expect(authStorage.clearActiveClient).not.toHaveBeenCalledWith(mcpUrl);
   });
 
   it("does not open browser when callback server cannot start", async () => {

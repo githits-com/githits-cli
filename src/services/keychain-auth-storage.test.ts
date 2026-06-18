@@ -137,6 +137,36 @@ describe("KeychainAuthStorage", () => {
         KeychainUnavailableError,
       );
     });
+
+    it("clearActiveTokensIfUnchanged delegates to the single-backend CAS clear", async () => {
+      const token = createValidTokenData();
+      const deletePassword = mock(() => true);
+      const keyring = createMockKeyringService({
+        getPassword: mock(() => JSON.stringify(token)),
+        deletePassword,
+      });
+      const storage = new KeychainAuthStorage(keyring);
+
+      await expect(
+        storage.clearActiveTokensIfUnchanged(BASE_URL, token),
+      ).resolves.toBe(true);
+      expect(deletePassword).toHaveBeenCalledWith(
+        "githits",
+        `v1:tokens:${BASE_URL}`,
+      );
+    });
+
+    it("clearActiveClient delegates to clearClient", async () => {
+      const deletePassword = mock(() => true);
+      const keyring = createMockKeyringService({ deletePassword });
+      const storage = new KeychainAuthStorage(keyring);
+
+      await storage.clearActiveClient(BASE_URL);
+      expect(deletePassword).toHaveBeenCalledWith(
+        "githits",
+        `v1:client:${BASE_URL}`,
+      );
+    });
   });
 
   describe("clearAuthSession", () => {

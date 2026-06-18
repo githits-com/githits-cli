@@ -495,4 +495,245 @@ describe("MigratingAuthStorage", () => {
       ).getStorageLocation(),
     ).toBe("/home/test/.config/githits/auth");
   });
+
+  describe("active-scoped clears", () => {
+    const makeMetadata = () => ({
+      load: mock(() => Promise.resolve(null)),
+      saveFromTokens: mock(() => Promise.resolve()),
+      clear: mock(() => Promise.resolve()),
+    });
+
+    it("file mode clears file (and legacy) tokens but preserves keychain", async () => {
+      const token = createValidTokenData();
+      const primary = createMockAuthStorage({
+        // Stale keychain copy that must NOT be wiped.
+        loadTokens: mock(() => Promise.resolve(token)),
+      });
+      const file = createMockAuthStorage({
+        loadTokens: mock(() => Promise.resolve(token)),
+      });
+      const legacy = createMockAuthStorage();
+      const metadata = makeMetadata();
+      const storage = new MigratingAuthStorage(
+        primary,
+        file,
+        legacy,
+        "file",
+        "test-config.toml",
+        () => {},
+        metadata,
+      );
+
+      await expect(
+        storage.clearActiveTokensIfUnchanged(BASE_URL, token),
+      ).resolves.toBe(true);
+
+      expect(file.clearTokens).toHaveBeenCalledWith(BASE_URL);
+      expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
+      expect(primary.clearTokens).not.toHaveBeenCalled();
+      expect(metadata.clear).toHaveBeenCalledWith(BASE_URL);
+    });
+
+    it("continues clearing active token stores after the first clear fails", async () => {
+      const token = createValidTokenData();
+      const primary = createMockAuthStorage();
+      const file = createMockAuthStorage({
+        loadTokens: mock(() => Promise.resolve(token)),
+        clearTokens: mock(() => Promise.reject(new Error("file clear failed"))),
+      });
+      const legacy = createMockAuthStorage();
+      const metadata = makeMetadata();
+      const storage = new MigratingAuthStorage(
+        primary,
+        file,
+        legacy,
+        "file",
+        "test-config.toml",
+        () => {},
+        metadata,
+      );
+
+      await expect(
+        storage.clearActiveTokensIfUnchanged(BASE_URL, token),
+      ).rejects.toThrow(/file clear failed/);
+
+      expect(file.clearTokens).toHaveBeenCalledWith(BASE_URL);
+      expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
+      expect(primary.clearTokens).not.toHaveBeenCalled();
+      expect(metadata.clear).toHaveBeenCalledWith(BASE_URL);
+    });
+
+    it("file mode also clears a legacy-only token so it cannot resurrect", async () => {
+      const token = createValidTokenData();
+      const primary = createMockAuthStorage();
+      const file = createMockAuthStorage(); // file empty
+      const legacy = createMockAuthStorage({
+        loadTokens: mock(() => Promise.resolve(token)),
+      });
+      const storage = new MigratingAuthStorage(primary, file, legacy, "file");
+
+      await expect(
+        storage.clearActiveTokensIfUnchanged(BASE_URL, token),
+      ).resolves.toBe(true);
+
+      expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
+      expect(file.clearTokens).toHaveBeenCalledWith(BASE_URL);
+      expect(primary.clearTokens).not.toHaveBeenCalled();
+    });
+
+    it("keychain mode clears keychain tokens but preserves file", async () => {
+      const token = createValidTokenData();
+      const primary = createMockAuthStorage({
+        loadTokens: mock(() => Promise.resolve(token)),
+      });
+      const file = createMockAuthStorage({
+        // Good file token that must survive a keychain-mode refresh failure.
+        loadTokens: mock(() => Promise.resolve(token)),
+      });
+      const legacy = createMockAuthStorage();
+      const metadata = makeMetadata();
+      const storage = new MigratingAuthStorage(
+        primary,
+        file,
+        legacy,
+        "keychain",
+        "test-config.toml",
+        () => {},
+        metadata,
+      );
+
+      await expect(
+        storage.clearActiveTokensIfUnchanged(BASE_URL, token),
+      ).resolves.toBe(true);
+
+      expect(primary.clearTokens).toHaveBeenCalledWith(BASE_URL);
+      expect(file.clearTokens).not.toHaveBeenCalled();
+      expect(legacy.clearTokens).not.toHaveBeenCalled();
+      expect(metadata.clear).toHaveBeenCalledWith(BASE_URL);
+    });
+
+    it("does not clear when a newer active token replaced the expected one", async () => {
+      const expected = createValidTokenData({ accessToken: "old" });
+      const newer = createValidTokenData({ accessToken: "new" });
+      const primary = createMockAuthStorage();
+      const file = createMockAuthStorage({
+        loadTokens: mock(() => Promise.resolve(newer)),
+      });
+      const legacy = createMockAuthStorage();
+      const metadata = makeMetadata();
+      const storage = new MigratingAuthStorage(
+        primary,
+        file,
+        legacy,
+        "file",
+        "test-config.toml",
+        () => {},
+        metadata,
+      );
+
+      await expect(
+        storage.clearActiveTokensIfUnchanged(BASE_URL, expected),
+      ).resolves.toBe(false);
+
+      expect(file.clearTokens).not.toHaveBeenCalled();
+      expect(legacy.clearTokens).not.toHaveBeenCalled();
+      expect(metadata.clear).not.toHaveBeenCalled();
+    });
+
+    it("returns false without throwing when the keychain is unavailable", async () => {
+      const token = createValidTokenData();
+      const primary = createMockAuthStorage({
+        loadTokens: mock(() =>
+          Promise.reject(new KeychainUnavailableError("locked")),
+        ),
+      });
+      const storage = new MigratingAuthStorage(
+        primary,
+        createMockAuthStorage(),
+        createMockAuthStorage(),
+        "keychain",
+      );
+
+      await expect(
+        storage.clearActiveTokensIfUnchanged(BASE_URL, token),
+      ).resolves.toBe(false);
+      expect(primary.clearTokens).not.toHaveBeenCalled();
+    });
+
+    it("clearActiveClient (file mode) clears file + legacy client, not keychain", async () => {
+      const primary = createMockAuthStorage();
+      const file = createMockAuthStorage();
+      const legacy = createMockAuthStorage();
+      const storage = new MigratingAuthStorage(primary, file, legacy, "file");
+
+      await storage.clearActiveClient(BASE_URL);
+
+      expect(file.clearClient).toHaveBeenCalledWith(BASE_URL);
+      expect(legacy.clearClient).toHaveBeenCalledWith(BASE_URL);
+      expect(primary.clearClient).not.toHaveBeenCalled();
+    });
+
+    it("continues clearing active client stores after the first clear fails", async () => {
+      const primary = createMockAuthStorage();
+      const file = createMockAuthStorage({
+        clearClient: mock(() =>
+          Promise.reject(new Error("file client clear failed")),
+        ),
+      });
+      const legacy = createMockAuthStorage();
+      const storage = new MigratingAuthStorage(primary, file, legacy, "file");
+
+      await expect(storage.clearActiveClient(BASE_URL)).rejects.toThrow(
+        /file client clear failed/,
+      );
+
+      expect(file.clearClient).toHaveBeenCalledWith(BASE_URL);
+      expect(legacy.clearClient).toHaveBeenCalledWith(BASE_URL);
+      expect(primary.clearClient).not.toHaveBeenCalled();
+    });
+
+    it("clearActiveClient (keychain mode) clears keychain client only", async () => {
+      const primary = createMockAuthStorage();
+      const file = createMockAuthStorage();
+      const legacy = createMockAuthStorage();
+      const storage = new MigratingAuthStorage(
+        primary,
+        file,
+        legacy,
+        "keychain",
+      );
+
+      await storage.clearActiveClient(BASE_URL);
+
+      expect(primary.clearClient).toHaveBeenCalledWith(BASE_URL);
+      expect(file.clearClient).not.toHaveBeenCalled();
+      expect(legacy.clearClient).not.toHaveBeenCalled();
+    });
+
+    it("logout-style clears still wipe every backend (regression guard)", async () => {
+      const primary = createMockAuthStorage();
+      const file = createMockAuthStorage();
+      const legacy = createMockAuthStorage();
+      const metadata = makeMetadata();
+      const storage = new MigratingAuthStorage(
+        primary,
+        file,
+        legacy,
+        "keychain",
+        "test-config.toml",
+        () => {},
+        metadata,
+      );
+
+      await storage.clearAuthSession(BASE_URL);
+      expect(primary.clearAuthSession).toHaveBeenCalledWith(BASE_URL);
+      expect(file.clearAuthSession).toHaveBeenCalledWith(BASE_URL);
+      expect(legacy.clearAuthSession).toHaveBeenCalledWith(BASE_URL);
+
+      await storage.clearClient(BASE_URL);
+      expect(primary.clearClient).toHaveBeenCalledWith(BASE_URL);
+      expect(file.clearClient).toHaveBeenCalledWith(BASE_URL);
+      expect(legacy.clearClient).toHaveBeenCalledWith(BASE_URL);
+    });
+  });
 });

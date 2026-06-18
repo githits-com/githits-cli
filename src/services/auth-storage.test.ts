@@ -240,6 +240,29 @@ describe("AuthStorageImpl", () => {
       expect(fs.deleteFile).not.toHaveBeenCalled();
       expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     });
+
+    it("clearActiveTokensIfUnchanged behaves like the single-backend CAS clear", async () => {
+      const token = {
+        accessToken: "eyJ-test",
+        refreshToken: "refresh-test",
+        expiresAt: null,
+        createdAt: "2025-01-15T10:00:00Z",
+      };
+      const fs = createMockFileSystemService({
+        exists: mock(() => Promise.resolve(true)),
+        readFile: mock(() =>
+          Promise.resolve(
+            JSON.stringify({ version: 1, tokens: { [BASE_URL]: token } }),
+          ),
+        ),
+      });
+      const storage = new AuthStorageImpl(fs, "/test/.githits");
+
+      await expect(
+        storage.clearActiveTokensIfUnchanged(BASE_URL, token),
+      ).resolves.toBe(true);
+      expect(fs.deleteFile).toHaveBeenCalledWith("/test/.githits/auth.json");
+    });
   });
 
   describe("clearAuthSession", () => {

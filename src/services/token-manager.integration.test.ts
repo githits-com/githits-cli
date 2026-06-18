@@ -3,9 +3,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RefreshTokenResponse } from "./auth-service.js";
+import { AuthSessionMetadataStorage } from "./auth-session-metadata-storage.js";
 import { AuthStorageImpl } from "./auth-storage.js";
 import { FileSystemServiceImpl } from "./filesystem-service.js";
 import { LockedAuthStorage } from "./locked-auth-storage.js";
+import { MigratingAuthStorage } from "./migrating-auth-storage.js";
 import {
   createMockAuthService,
   createValidTokenData,
@@ -350,6 +352,116 @@ describe("TokenManager file-backed integration", () => {
     expect(await firstStorage.loadTokens(baseUrl)).toEqual(externalLogin);
     expect(refreshAccessToken).toHaveBeenCalledTimes(1);
   });
+
+  it("keychain-mode refresh failure does not wipe the good file-mode token", async () => {
+    // The reported bug: a stale keychain token (from a launch without
+    // GITHITS_AUTH_STORAGE) fails refresh and must not destroy the user's good
+    // file-mode credentials.
+    const { storage, primary, file } = await createCompositeStorage("keychain");
+    await primary.saveAuthSession(
+      baseUrl,
+      defaultClientRegistration,
+      createExpiredToken({
+        accessToken: "stale-keychain",
+        refreshToken: "stale-keychain-refresh",
+      }),
+    );
+    const goodFileToken = createValidTokenData({
+      accessToken: "good-file",
+      refreshToken: "good-file-refresh",
+    });
+    await file.saveAuthSession(
+      baseUrl,
+      defaultClientRegistration,
+      goodFileToken,
+    );
+
+    const manager = new TokenManager({
+      authService: createMockAuthService({
+        refreshAccessToken: mock(() => Promise.reject(new Error("boom"))),
+      }),
+      authStorage: storage,
+      mcpUrl: baseUrl,
+    });
+
+    expect(await manager.getToken()).toBeUndefined();
+
+    expect(await primary.loadTokens(baseUrl)).toBeNull(); // active cleared
+    expect(await file.loadTokens(baseUrl)).toEqual(goodFileToken); // survives
+    expect(await file.loadClient(baseUrl)).toEqual(defaultClientRegistration);
+  });
+
+  it("file-mode refresh failure clears legacy too so it cannot resurrect", async () => {
+    const { storage, file, legacy } = await createCompositeStorage("file");
+    await legacy.saveAuthSession(
+      baseUrl,
+      defaultClientRegistration,
+      createValidTokenData({
+        accessToken: "legacy",
+        refreshToken: "legacy-refresh",
+        createdAt: new Date(Date.now() - 9000_000).toISOString(),
+        expiresAt: new Date(Date.now() - 120_000).toISOString(),
+      }),
+    );
+    await file.saveAuthSession(
+      baseUrl,
+      defaultClientRegistration,
+      createExpiredToken({
+        accessToken: "file",
+        refreshToken: "file-refresh",
+      }),
+    );
+
+    const manager = new TokenManager({
+      authService: createMockAuthService({
+        refreshAccessToken: mock(() => Promise.reject(new Error("boom"))),
+      }),
+      authStorage: storage,
+      mcpUrl: baseUrl,
+    });
+
+    expect(await manager.getToken()).toBeUndefined();
+
+    expect(await file.loadTokens(baseUrl)).toBeNull();
+    expect(await legacy.loadTokens(baseUrl)).toBeNull();
+    // A fresh active-mode load must not resurrect the legacy token.
+    expect(await storage.loadTokens(baseUrl)).toBeNull();
+  });
+
+  async function createCompositeStorage(mode: "file" | "keychain"): Promise<{
+    storage: LockedAuthStorage;
+    primary: AuthStorageImpl;
+    file: AuthStorageImpl;
+    legacy: AuthStorageImpl;
+  }> {
+    const root = await mkdtemp(join(tmpdir(), "githits-tm-composite-"));
+    tempDirs.push(root);
+    const fs = new FileSystemServiceImpl();
+    const homeDir = join(root, "home");
+    const fsWithHome = Object.assign(Object.create(fs), fs, {
+      getHomeDir: () => homeDir,
+    }) as FileSystemServiceImpl;
+    // Separate file-backed dirs stand in for the keychain/file/legacy backends
+    // so the composite clear logic is exercised without the real OS keychain.
+    const primary = new AuthStorageImpl(fs, join(root, "keychain"));
+    const file = new AuthStorageImpl(fs, join(root, "file"));
+    const legacy = new AuthStorageImpl(fs, join(root, "legacy"));
+    const metadata = new AuthSessionMetadataStorage(fs, join(root, "meta"));
+    const migrating = new MigratingAuthStorage(
+      primary,
+      file,
+      legacy,
+      mode,
+      "config.toml",
+      () => {},
+      metadata,
+    );
+    const storage = withConfigRoot(
+      join(root, "config"),
+      () => new LockedAuthStorage(migrating, fsWithHome),
+    );
+    return { storage, primary, file, legacy };
+  }
 
   async function createRealStorages(): Promise<{
     firstStorage: LockedAuthStorage;

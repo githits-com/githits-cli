@@ -116,6 +116,14 @@ export class KeychainAuthStorage implements AuthStorage {
     return true;
   }
 
+  // Single-backend store: the active backend is the only backend.
+  clearActiveTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+  ): Promise<boolean> {
+    return this.clearTokensIfUnchanged(baseUrl, expected);
+  }
+
   async loadClient(baseUrl: string): Promise<ClientRegistration | null> {
     const key = `${CLIENT_PREFIX}${normalizeBaseUrl(baseUrl)}`;
     const json = this.keyring.getPassword(SERVICE_NAME, key);
@@ -132,6 +140,11 @@ export class KeychainAuthStorage implements AuthStorage {
   async clearClient(baseUrl: string): Promise<void> {
     const key = `${CLIENT_PREFIX}${normalizeBaseUrl(baseUrl)}`;
     this.keyring.deletePassword(SERVICE_NAME, key);
+  }
+
+  // Single-backend store: the active backend is the only backend.
+  clearActiveClient(baseUrl: string): Promise<void> {
+    return this.clearClient(baseUrl);
   }
 
   async saveAuthSession(

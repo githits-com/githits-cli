@@ -46,4 +46,19 @@ describe("ModeAwareFileAuthStorage", () => {
 
     expect(inner.saveTokens).toHaveBeenCalledWith(BASE_URL, token);
   });
+
+  it("delegates active-scoped clears in any mode without asserting file mode", async () => {
+    const inner = createMockAuthStorage();
+    const storage = new ModeAwareFileAuthStorage(inner, "keychain");
+    const token = createValidTokenData();
+
+    await storage.clearActiveTokensIfUnchanged(BASE_URL, token);
+    await storage.clearActiveClient(BASE_URL);
+
+    expect(inner.clearActiveTokensIfUnchanged).toHaveBeenCalledWith(
+      BASE_URL,
+      token,
+    );
+    expect(inner.clearActiveClient).toHaveBeenCalledWith(BASE_URL);
+  });
 });

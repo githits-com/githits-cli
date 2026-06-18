@@ -109,6 +109,15 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     );
   }
 
+  clearActiveTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+  ): Promise<boolean> {
+    return this.withAuthStorageLock(() =>
+      this.storage.clearActiveTokensIfUnchanged(baseUrl, expected),
+    );
+  }
+
   loadClient(baseUrl: string): Promise<ClientRegistration | null> {
     return this.storage.loadClient(baseUrl);
   }
@@ -121,6 +130,12 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
 
   clearClient(baseUrl: string): Promise<void> {
     return this.withAuthStorageLock(() => this.storage.clearClient(baseUrl));
+  }
+
+  clearActiveClient(baseUrl: string): Promise<void> {
+    return this.withAuthStorageLock(() =>
+      this.storage.clearActiveClient(baseUrl),
+    );
   }
 
   saveAuthSession(
