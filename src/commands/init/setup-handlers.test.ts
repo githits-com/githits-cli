@@ -21,8 +21,6 @@ import {
   executeCompositeUninstall,
   executeConfigFileSetup,
   executeConfigFileUninstall,
-  formatSetupPreview,
-  formatUninstallPreview,
   getCliCheckStatus,
   getConfigUninstallCheckStatus,
   hasServerConfigEntry,
@@ -1241,107 +1239,6 @@ args = ["-y", "githits@latest", "mcp", "start"]
   });
 });
 
-// -- formatSetupPreview --
-
-describe("formatSetupPreview", () => {
-  it("formats single-step CLI setup as a command", () => {
-    const setup: CliSetup = {
-      method: "cli",
-      commands: [{ command: "codex", args: ["mcp", "add", "githits"] }],
-    };
-    const preview = formatSetupPreview(setup);
-    expect(preview).toBe("Will run: codex mcp add githits");
-  });
-
-  it("formats multi-step CLI setup as multiple lines", () => {
-    const setup: CliSetup = {
-      method: "cli",
-      commands: [
-        {
-          command: "claude",
-          args: ["plugin", "marketplace", "add", "githits-com/githits-cli"],
-        },
-        {
-          command: "claude",
-          args: ["plugin", "install", "githits@githits-plugins"],
-        },
-      ],
-    };
-    const preview = formatSetupPreview(setup);
-    expect(preview).toContain(
-      "Will run: claude plugin marketplace add githits-com/githits-cli",
-    );
-    expect(preview).toContain(
-      "Will run: claude plugin install githits@githits-plugins",
-    );
-    expect(preview.split("\n")).toHaveLength(2);
-  });
-
-  it("formats config file setup with path and JSON snippet", () => {
-    const setup: ConfigFileSetup = {
-      method: "config-file",
-      configPath: "/home/test/.cursor/mcp.json",
-      serversKey: "mcpServers",
-      serverName: "GitHits",
-      serverConfig: {
-        command: "npx",
-        args: ["-y", "githits@latest", "mcp", "start"],
-      },
-    };
-    const preview = formatSetupPreview(setup);
-    expect(preview).toContain("Will add to /home/test/.cursor/mcp.json:");
-    expect(preview).toContain('"GitHits"');
-    expect(preview).toContain('"command"');
-  });
-
-  it("formats YAML config file setup with YAML snippet", () => {
-    const setup: ConfigFileSetup = {
-      method: "config-file",
-      format: "yaml",
-      configPath: "/home/test/.hermes/config.yaml",
-      serversKey: "mcp_servers",
-      serverName: "GitHits",
-      serverConfig: {
-        command: "npx",
-        args: ["-y", "githits@latest", "mcp", "start"],
-      },
-    };
-    const preview = formatSetupPreview(setup);
-    expect(preview).toContain("Will add to /home/test/.hermes/config.yaml:");
-    expect(preview).toContain("GitHits:");
-    expect(preview).toContain("command: npx");
-  });
-
-  it("formats composite setup with command and config previews", () => {
-    const setup: CompositeSetup = {
-      method: "composite",
-      steps: [
-        {
-          method: "cli",
-          commands: [
-            { command: "pi", args: ["install", "npm:pi-mcp-adapter"] },
-          ],
-        },
-        {
-          method: "config-file",
-          configPath: "/home/test/.pi/agent/mcp.json",
-          serversKey: "mcpServers",
-          serverName: "GitHits",
-          serverConfig: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
-          },
-        },
-      ],
-    };
-
-    const preview = formatSetupPreview(setup);
-    expect(preview).toContain("Will run: pi install npm:pi-mcp-adapter");
-    expect(preview).toContain("Will add to /home/test/.pi/agent/mcp.json:");
-    expect(preview).toContain('"GitHits"');
-  });
-});
-
 describe("hasServerConfigEntry", () => {
   it("returns true for legacy and case-variant GitHits entries", () => {
     expect(
@@ -1480,59 +1377,6 @@ describe("getConfigUninstallCheckStatus", () => {
   });
 });
 
-describe("formatUninstallPreview", () => {
-  it("formats CLI uninstall as commands", () => {
-    const preview = formatUninstallPreview({
-      method: "cli",
-      commands: [{ command: "codex", args: ["mcp", "remove", "githits"] }],
-    });
-    expect(preview).toBe("Will run: codex mcp remove githits");
-  });
-
-  it("formats config-file uninstall with path", () => {
-    const preview = formatUninstallPreview({
-      method: "config-file",
-      configPath: "/home/test/.cursor/mcp.json",
-      serversKey: "mcpServers",
-      serverName: "GitHits",
-      serverConfig: {},
-    });
-    expect(preview).toBe(
-      "Will remove GitHits from /home/test/.cursor/mcp.json",
-    );
-  });
-
-  it("formats composite uninstall as ordered step previews", () => {
-    const preview = formatUninstallPreview({
-      method: "composite",
-      steps: [
-        {
-          failureMode: "required",
-          step: {
-            method: "config-file",
-            configPath: "/home/test/.pi/agent/mcp.json",
-            serversKey: "mcpServers",
-            serverName: "GitHits",
-            serverConfig: {},
-          },
-        },
-        {
-          failureMode: "required",
-          step: {
-            method: "cli",
-            commands: [
-              { command: "pi", args: ["remove", "npm:pi-mcp-adapter"] },
-            ],
-          },
-        },
-      ],
-    });
-    expect(preview).toBe(
-      "Will remove GitHits from /home/test/.pi/agent/mcp.json\nWill run: pi remove npm:pi-mcp-adapter",
-    );
-  });
-});
-
 // -- executeCliSetup --
 
 describe("executeCliSetup", () => {
@@ -1579,6 +1423,89 @@ describe("executeCliSetup", () => {
     const result = await executeCliSetup(multiStepSetup, execService);
     expect(result.status).toBe("success");
     expect(execService.exec).toHaveBeenCalledTimes(2);
+  });
+
+  it("emits one ran change per command on success", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 0, stdout: "OK\n", stderr: "" }),
+      ),
+    });
+    const result = await executeCliSetup(multiStepSetup, execService);
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "claude plugin marketplace add githits-com/githits-cli",
+        change: "ran",
+      },
+      {
+        kind: "command",
+        command: "claude plugin install githits@githits-plugins",
+        change: "ran",
+      },
+    ]);
+  });
+
+  it("reports per-command state for a mixed multi-step run", async () => {
+    // First command is already configured, second actually runs.
+    const responses = [
+      { exitCode: 0, stdout: "MCP server GitHits already exists", stderr: "" },
+      { exitCode: 0, stdout: "Installed\n", stderr: "" },
+    ];
+    let call = 0;
+    const execService = createMockExecService({
+      exec: mock(() => Promise.resolve(responses[call++]!)),
+    });
+    const result = await executeCliSetup(multiStepSetup, execService);
+    // A command ran, so the overall result is success, not already_configured.
+    expect(result.status).toBe("success");
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "claude plugin marketplace add githits-com/githits-cli",
+        change: "unchanged",
+      },
+      {
+        kind: "command",
+        command: "claude plugin install githits@githits-plugins",
+        change: "ran",
+      },
+    ]);
+  });
+
+  it("is already_configured only when every command was a no-op", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 0,
+          stdout: "MCP server GitHits already exists",
+          stderr: "",
+        }),
+      ),
+    });
+    const result = await executeCliSetup(multiStepSetup, execService);
+    expect(result.status).toBe("already_configured");
+    expect(result.changes?.every((c) => c.change === "unchanged")).toBe(true);
+  });
+
+  it("keeps changes from commands that ran before a later failure", async () => {
+    const responses = [
+      { exitCode: 0, stdout: "Added.\n", stderr: "" },
+      { exitCode: 1, stdout: "", stderr: "Install failed\n" },
+    ];
+    let call = 0;
+    const execService = createMockExecService({
+      exec: mock(() => Promise.resolve(responses[call++]!)),
+    });
+    const result = await executeCliSetup(multiStepSetup, execService);
+    expect(result.status).toBe("failed");
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "claude plugin marketplace add githits-com/githits-cli",
+        change: "ran",
+      },
+    ]);
   });
 
   it("returns failed with stderr on non-zero exit", async () => {
@@ -1677,7 +1604,7 @@ describe("executeCliSetup", () => {
     expect(execService.exec).toHaveBeenCalledTimes(1);
   });
 
-  it("returns already_configured when any step reports it", async () => {
+  it("runs every step and reports success when a later step runs", async () => {
     let callCount = 0;
     const execService = createMockExecService({
       exec: mock(() => {
@@ -1697,7 +1624,8 @@ describe("executeCliSetup", () => {
       }),
     });
     const result = await executeCliSetup(multiStepSetup, execService);
-    expect(result.status).toBe("already_configured");
+    // A command ran, so this is success — not already_configured.
+    expect(result.status).toBe("success");
     // Both commands should still run
     expect(execService.exec).toHaveBeenCalledTimes(2);
   });
@@ -1722,6 +1650,34 @@ describe("executeCliUninstall", () => {
       "mcp",
       "remove",
       "githits",
+    ]);
+  });
+
+  it("emits a ran change per command", async () => {
+    const multi: CliUninstall = {
+      method: "cli",
+      commands: [
+        { command: "claude", args: ["plugin", "uninstall", "githits"] },
+        { command: "claude", args: ["plugin", "marketplace", "remove", "x"] },
+      ],
+    };
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 0, stdout: "Removed\n", stderr: "" }),
+      ),
+    });
+    const result = await executeCliUninstall(multi, execService);
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "claude plugin uninstall githits",
+        change: "ran",
+      },
+      {
+        kind: "command",
+        command: "claude plugin marketplace remove x",
+        change: "ran",
+      },
     ]);
   });
 
@@ -1955,6 +1911,83 @@ describe("executeConfigFileSetup", () => {
     const result = await executeConfigFileSetup(configSetup, fs);
     expect(result.status).toBe("already_configured");
     expect(atomicWrite).not.toHaveBeenCalled();
+  });
+
+  it("reports a created change when the file did not exist", async () => {
+    const enoent = Object.assign(new Error("File not found"), {
+      code: "ENOENT",
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.reject(enoent)),
+      getDirname: mock(() => "/home/test/.cursor"),
+      ensureDir: mock(() => Promise.resolve()),
+      atomicWriteFile: mock(() => Promise.resolve()),
+    });
+    const result = await executeConfigFileSetup(configSetup, fs);
+    expect(result.changes).toEqual([
+      {
+        kind: "config-file",
+        path: "/home/test/.cursor/mcp.json",
+        change: "created",
+      },
+    ]);
+  });
+
+  it("reports an updated change when the file already existed", async () => {
+    const existing = JSON.stringify({
+      mcpServers: { other: { command: "other" } },
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+      getDirname: mock(() => "/home/test/.cursor"),
+      ensureDir: mock(() => Promise.resolve()),
+      atomicWriteFile: mock(() => Promise.resolve()),
+    });
+    const result = await executeConfigFileSetup(configSetup, fs);
+    expect(result.changes).toEqual([
+      {
+        kind: "config-file",
+        path: "/home/test/.cursor/mcp.json",
+        change: "updated",
+      },
+    ]);
+  });
+
+  it("reports an updated change for a pre-existing empty file", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve("")),
+      getDirname: mock(() => "/home/test/.cursor"),
+      ensureDir: mock(() => Promise.resolve()),
+      atomicWriteFile: mock(() => Promise.resolve()),
+    });
+    const result = await executeConfigFileSetup(configSetup, fs);
+    // An existing (even empty) file is "updated", only a missing file is "created".
+    expect(result.changes?.[0]).toMatchObject({ change: "updated" });
+  });
+
+  it("reports an unchanged change when already configured", async () => {
+    const existing = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+      getDirname: mock(() => "/home/test/.cursor"),
+      ensureDir: mock(() => Promise.resolve()),
+      atomicWriteFile: mock(() => Promise.resolve()),
+    });
+    const result = await executeConfigFileSetup(configSetup, fs);
+    expect(result.changes).toEqual([
+      {
+        kind: "config-file",
+        path: "/home/test/.cursor/mcp.json",
+        change: "unchanged",
+      },
+    ]);
   });
 
   it("migrates legacy remote config to local CLI command", async () => {
@@ -2384,6 +2417,86 @@ describe("executeCompositeSetup", () => {
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
 
+  it("reports both sub-steps even when one was already configured", async () => {
+    // Adapter step runs; config-file step is already configured (skipped) and
+    // must still appear as an unchanged change.
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(
+          JSON.stringify({
+            mcpServers: { GitHits: piConfigSetup.serverConfig },
+          }),
+        ),
+      ),
+    });
+    const execService = createMockExecService({
+      exec: mock((command: string, args: string[]) => {
+        if (command === "pi" && args.join(" ") === "list") {
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
+        }
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: "installed\n",
+          stderr: "",
+        });
+      }),
+    });
+
+    const result = await executeCompositeSetup(piSetup, fs, execService);
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "pi install npm:pi-mcp-adapter",
+        change: "ran",
+      },
+      {
+        kind: "config-file",
+        path: "/home/test/.pi/agent/mcp.json",
+        change: "unchanged",
+      },
+    ]);
+  });
+
+  it("reports already_configured when a false-negative pre-check still changes nothing", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(
+          JSON.stringify({
+            mcpServers: { GitHits: piConfigSetup.serverConfig },
+          }),
+        ),
+      ),
+    });
+    const execService = createMockExecService({
+      exec: mock((command: string, args: string[]) => {
+        if (command === "pi" && args.join(" ") === "list") {
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
+        }
+        return Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "MCP server GitHits already exists\n",
+        });
+      }),
+    });
+
+    const result = await executeCompositeSetup(piSetup, fs, execService);
+    expect(result.status).toBe("already_configured");
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "pi install npm:pi-mcp-adapter",
+        change: "unchanged",
+      },
+      {
+        kind: "config-file",
+        path: "/home/test/.pi/agent/mcp.json",
+        change: "unchanged",
+      },
+    ]);
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
   it("stops on failed install before writing config", async () => {
     const enoent = Object.assign(new Error("File not found"), {
       code: "ENOENT",
@@ -2458,6 +2571,41 @@ describe("executeConfigFileUninstall", () => {
     const result = await executeConfigFileUninstall(configSetup, fs);
     expect(result.status).toBe("not_configured");
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("reports an updated change with the path (file kept, entry stripped)", async () => {
+    const existing = JSON.stringify({
+      mcpServers: { GitHits: { command: "npx" } },
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.resolve(existing)),
+      atomicWriteFile: mock(() => Promise.resolve()),
+    });
+    const result = await executeConfigFileUninstall(configSetup, fs);
+    expect(result.changes).toEqual([
+      {
+        kind: "config-file",
+        path: "/home/test/.cursor/mcp.json",
+        change: "updated",
+      },
+    ]);
+  });
+
+  it("reports an unchanged change when the file is missing", async () => {
+    const enoent = Object.assign(new Error("File not found"), {
+      code: "ENOENT",
+    });
+    const fs = createMockFileSystemService({
+      readFile: mock(() => Promise.reject(enoent)),
+    });
+    const result = await executeConfigFileUninstall(configSetup, fs);
+    expect(result.changes).toEqual([
+      {
+        kind: "config-file",
+        path: "/home/test/.cursor/mcp.json",
+        change: "unchanged",
+      },
+    ]);
   });
 
   it("returns failed on malformed JSON without writing", async () => {
@@ -2610,6 +2758,48 @@ describe("executeCompositeUninstall", () => {
     expect(execService.exec).toHaveBeenCalledWith("pi", [
       "remove",
       "npm:pi-mcp-adapter",
+    ]);
+    // The config file is updated (entry stripped); the adapter-removal command
+    // is reported as ran.
+    expect(result.changes).toEqual([
+      {
+        kind: "config-file",
+        path: "/home/test/.pi/agent/mcp.json",
+        change: "updated",
+      },
+      {
+        kind: "command",
+        command: "pi remove npm:pi-mcp-adapter",
+        change: "ran",
+      },
+    ]);
+  });
+
+  it("keeps changes from earlier steps when a required step fails", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(JSON.stringify({ mcpServers: { GitHits: {} } })),
+      ),
+    });
+    // Config removal succeeds; the required adapter removal command fails.
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 1, stdout: "", stderr: "boom\n" }),
+      ),
+    });
+
+    const result = await executeCompositeUninstall(
+      piUninstall,
+      fs,
+      execService,
+    );
+    expect(result.status).toBe("failed");
+    expect(result.changes).toEqual([
+      {
+        kind: "config-file",
+        path: "/home/test/.pi/agent/mcp.json",
+        change: "updated",
+      },
     ]);
   });
 

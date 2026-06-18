@@ -24,10 +24,15 @@ import type {
   ConfigFileFormat,
   ConfigFileSetup,
   SetupConfig,
-  UninstallConfig,
   UninstallStep,
 } from "./agent-definitions.js";
 import { traceProbeEnd, traceProbeStart } from "./init-trace.js";
+import {
+  describeConfigAsUnchanged,
+  formatCliCommand,
+  type SetupChange,
+  type UninstallChange,
+} from "./setup-format.js";
 
 /** A read-only command to check if a CLI agent is already configured. */
 export interface CliCheckCommand {
@@ -674,6 +679,12 @@ export interface SetupResult {
   status: "success" | "already_configured" | "failed";
   /** Human-readable message describing the outcome */
   message: string;
+  /**
+   * Per-target changes for display (paths written, commands run). Present on
+   * success/already_configured; carried through verification failure so the
+   * user can still see what was written.
+   */
+  changes?: SetupChange[];
 }
 
 /** Result of executing an uninstall operation */
@@ -683,6 +694,8 @@ export interface UninstallResult {
   message: string;
   /** Non-fatal cleanup or verification warnings. */
   warnings?: string[];
+  /** Per-target changes for display (paths/commands removed or already absent). */
+  changes?: UninstallChange[];
 }
 
 /**
@@ -845,49 +858,6 @@ export function hasServerConfigEntry(
     getMatchingServerKeys(servers as Record<string, unknown>, serverName)
       .length > 0
   );
-}
-
-/**
- * Format a setup config for display to the user before confirmation.
- * Returns human-readable description of what will happen.
- */
-export function formatSetupPreview(config: SetupConfig): string {
-  if (config.method === "composite") {
-    return config.steps.map((step) => formatSetupPreview(step)).join("\n");
-  }
-  if (config.method === "cli") {
-    return config.commands
-      .map((cmd) => `Will run: ${cmd.command} ${cmd.args.join(" ")}`)
-      .join("\n");
-  }
-  const snippet = JSON.stringify(
-    { [config.serverName]: config.serverConfig },
-    null,
-    2,
-  );
-  const formattedSnippet =
-    config.format === "yaml" || config.format === "toml"
-      ? renderConfigObjectForFormat(
-          { [config.serverName]: config.serverConfig },
-          config.format,
-        ).trimEnd()
-      : snippet;
-  return `Will add to ${config.configPath}:\n\n${formattedSnippet}`;
-}
-
-/** Format an uninstall config for display to the user before confirmation. */
-export function formatUninstallPreview(config: UninstallConfig): string {
-  if (config.method === "composite") {
-    return config.steps
-      .map(({ step }) => formatUninstallPreview(step))
-      .join("\n");
-  }
-  if (config.method === "cli") {
-    return config.commands
-      .map((cmd) => `Will run: ${cmd.command} ${cmd.args.join(" ")}`)
-      .join("\n");
-  }
-  return `Will remove ${config.serverName} from ${config.configPath}`;
 }
 
 /**
@@ -1213,33 +1183,45 @@ async function executeCliUninstallCommand(
  *
  * For multi-step setups (e.g., plugin marketplace add + plugin install),
  * commands run sequentially and stop on first failure.
- * If any step reports "already_configured", the overall result is "already_configured".
+ * The overall result is "success" if any command actually ran (made a change),
+ * and "already_configured" only when every command was already configured.
  */
 export async function executeCliSetup(
   setup: CliSetup,
   execService: ExecService,
 ): Promise<SetupResult> {
-  let anyAlreadyConfigured = false;
+  let anyRan = false;
+  // One change per command so multi-step setups (e.g. Claude Code's marketplace
+  // add + plugin install) report each command's individual outcome.
+  const changes: SetupChange[] = [];
 
   for (const cmd of setup.commands) {
     const result = await executeCliCommand(cmd, execService);
 
     if (result.status === "failed") {
-      return result;
+      // Keep the commands that already ran visible on failure.
+      return { ...result, changes };
     }
-    if (result.status === "already_configured") {
-      anyAlreadyConfigured = true;
+    const wasAlreadyConfigured = result.status === "already_configured";
+    if (!wasAlreadyConfigured) {
+      anyRan = true;
     }
+    changes.push({
+      kind: "command",
+      command: formatCliCommand(cmd),
+      change: wasAlreadyConfigured ? "unchanged" : "ran",
+    });
   }
 
-  if (anyAlreadyConfigured) {
+  if (!anyRan) {
     return {
       status: "already_configured",
       message: `GitHits already configured via ${setup.commands[0]?.command}`,
+      changes,
     };
   }
 
-  return { status: "success", message: "Configured successfully" };
+  return { status: "success", message: "Configured successfully", changes };
 }
 
 /** Execute a CLI-based uninstall with one or more sequential commands. */
@@ -1257,6 +1239,7 @@ export async function executeCliUninstall(
   let anyRemoved = false;
   let anyNotConfigured = false;
   const warnings: string[] = [];
+  const changes: UninstallChange[] = [];
 
   for (const cmd of uninstall.commands) {
     const result = await executeCliUninstallCommand(cmd, execService);
@@ -1266,8 +1249,13 @@ export async function executeCliUninstall(
         warnings.push(result.message);
         continue;
       }
-      return result;
+      return { ...result, changes };
     }
+    changes.push({
+      kind: "command",
+      command: formatCliCommand(cmd),
+      change: result.status === "removed" ? "ran" : "unchanged",
+    });
     if (result.status === "removed") {
       anyRemoved = true;
     }
@@ -1285,15 +1273,17 @@ export async function executeCliUninstall(
       status: "removed",
       message: "Removed successfully",
       warnings: warnings.length > 0 ? warnings : undefined,
+      changes,
     };
   }
   if (anyNotConfigured) {
     return {
       status: "not_configured",
       message: `GitHits not configured via ${uninstall.commands[0]?.command}`,
+      changes,
     };
   }
-  return { status: "removed", message: "Removed successfully" };
+  return { status: "removed", message: "Removed successfully", changes };
 }
 
 /** Execute an uninstall made from ordered CLI/config-file cleanup steps. */
@@ -1305,9 +1295,14 @@ export async function executeCompositeUninstall(
   let anyRemoved = false;
   let anyNotConfigured = false;
   const warnings: string[] = [];
+  const changes: UninstallChange[] = [];
 
   for (const { step, failureMode } of uninstall.steps) {
     const result = await executeUninstallStep(step, fs, execService);
+
+    if (result.changes) {
+      changes.push(...result.changes);
+    }
 
     if (result.status === "removed") {
       anyRemoved = true;
@@ -1328,7 +1323,7 @@ export async function executeCompositeUninstall(
       warnings.push(result.message);
       continue;
     }
-    return result;
+    return { ...result, changes };
   }
 
   if (anyRemoved) {
@@ -1336,6 +1331,7 @@ export async function executeCompositeUninstall(
       status: "removed",
       message: "Removed successfully",
       warnings: warnings.length > 0 ? warnings : undefined,
+      changes,
     };
   }
 
@@ -1343,10 +1339,15 @@ export async function executeCompositeUninstall(
     return {
       status: "not_configured",
       message: "GitHits not configured",
+      changes,
     };
   }
 
-  return { status: "not_configured", message: "GitHits not configured" };
+  return {
+    status: "not_configured",
+    message: "GitHits not configured",
+    changes,
+  };
 }
 
 async function executeUninstallStep(
@@ -1374,6 +1375,7 @@ export async function executeConfigFileSetup(
 
     // Read existing content or start fresh
     let existingContent = "";
+    let fileExisted = true;
     try {
       existingContent = await fs.readFile(setup.configPath);
     } catch (err) {
@@ -1388,6 +1390,7 @@ export async function executeConfigFileSetup(
           message: `Cannot read ${setup.configPath}: ${err instanceof Error ? err.message : String(err)}`,
         };
       }
+      fileExisted = false;
     }
 
     // Merge config
@@ -1403,6 +1406,9 @@ export async function executeConfigFileSetup(
       return {
         status: "already_configured",
         message: `GitHits already configured in ${setup.configPath}`,
+        changes: [
+          { kind: "config-file", path: setup.configPath, change: "unchanged" },
+        ],
       };
     }
 
@@ -1413,10 +1419,21 @@ export async function executeConfigFileSetup(
       };
     }
 
-    // Atomic write — result.status is "added" or "updated" here
+    // Atomic write — result.status is "added" or "updated" here. A pre-existing
+    // (even if empty) file counts as "updated"; only a missing file is "created".
     await fs.atomicWriteFile(setup.configPath, result.content);
 
-    return { status: "success", message: "Configured successfully" };
+    return {
+      status: "success",
+      message: "Configured successfully",
+      changes: [
+        {
+          kind: "config-file",
+          path: setup.configPath,
+          change: fileExisted ? "updated" : "created",
+        },
+      ],
+    };
   } catch (err) {
     if (err instanceof Error && "code" in err && err.code === "EACCES") {
       return {
@@ -1440,32 +1457,48 @@ export async function executeCompositeSetup(
   fs: FileSystemService,
   execService: ExecService,
 ): Promise<SetupResult> {
-  let executedAny = false;
+  let changedAny = false;
+  const changes: SetupChange[] = [];
 
   for (const step of setup.steps) {
     if (await isSetupAlreadyConfigured(step, fs, execService)) {
+      // Skipped steps still contribute an "unchanged" row so a partially
+      // configured composite (e.g. Pi) shows all of its sub-steps.
+      changes.push(...describeConfigAsUnchanged(step));
       continue;
     }
 
-    executedAny = true;
     const result =
       step.method === "cli"
         ? await executeCliSetup(step, execService)
         : await executeConfigFileSetup(step, fs);
 
+    if (result.changes) {
+      changes.push(...result.changes);
+    }
+    if (
+      result.status === "success" &&
+      (!result.changes ||
+        result.changes.some((change) => change.change !== "unchanged"))
+    ) {
+      changedAny = true;
+    }
     if (result.status === "failed") {
-      return result;
+      // Keep prior steps (and any partial changes from the failing step)
+      // visible on failure.
+      return { ...result, changes };
     }
   }
 
-  if (!executedAny) {
+  if (!changedAny) {
     return {
       status: "already_configured",
       message: "GitHits already configured",
+      changes,
     };
   }
 
-  return { status: "success", message: "Configured successfully" };
+  return { status: "success", message: "Configured successfully", changes };
 }
 
 /** Execute a config-file-based uninstall (read/remove/atomic-write). */
@@ -1482,6 +1515,13 @@ export async function executeConfigFileUninstall(
         return {
           status: "not_configured",
           message: `GitHits not configured in ${setup.configPath}`,
+          changes: [
+            {
+              kind: "config-file",
+              path: setup.configPath,
+              change: "unchanged",
+            },
+          ],
         };
       }
       return {
@@ -1501,6 +1541,9 @@ export async function executeConfigFileUninstall(
       return {
         status: "not_configured",
         message: `GitHits not configured in ${setup.configPath}`,
+        changes: [
+          { kind: "config-file", path: setup.configPath, change: "unchanged" },
+        ],
       };
     }
 
@@ -1511,9 +1554,17 @@ export async function executeConfigFileUninstall(
       };
     }
 
+    // The file is rewritten with the GitHits entry stripped — the file itself
+    // is updated, not deleted.
     await fs.atomicWriteFile(setup.configPath, result.content);
 
-    return { status: "removed", message: "Removed successfully" };
+    return {
+      status: "removed",
+      message: "Removed successfully",
+      changes: [
+        { kind: "config-file", path: setup.configPath, change: "updated" },
+      ],
+    };
   } catch (err) {
     if (err instanceof Error && "code" in err && err.code === "EACCES") {
       return {
