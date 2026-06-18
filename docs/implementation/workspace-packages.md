@@ -31,6 +31,32 @@ manifest move is complete.
   `@githits/core-internal` package export. Do not import moved modules through
   stale `src/services/**`, `src/shared/**`, or `src/auth/**` paths.
 
+## Public API Boundaries
+
+- External consumers, including the future remote MCP server repo, must import
+  only from `@githits/mcp` and `@githits/mcp/package.json`.
+- `@githits/mcp/internal` is not a package export. It exists only as a root
+  workspace TypeScript alias for CLI transition code and internal tests.
+- If remote MCP server setup needs a helper that currently lives behind
+  `@githits/mcp/internal`, promote the smallest stable API through
+  `packages/mcp/src/index.ts` rather than importing the internal alias.
+- Local stdio MCP may use CLI-specific auth guidance such as `githits login`;
+  remote MCP must use remote-appropriate auth guidance and must not assume local
+  keychain, filesystem token storage, or Commander commands.
+
+## Release Boundaries
+
+- Root `githits` and public `@githits/mcp` releases are independent. Coordinated
+  releases are allowed, but version equality is not required.
+- CLI-only changes should update only the root `githits` version and its
+  plugin/assistant manifests.
+- `@githits/mcp` should bump only when its public API, tool behavior, MCP
+  instructions, schemas, MCP auth/error behavior, or remote-server-facing types
+  change.
+- Release tags should use distinct namespaces so reruns and release notes stay
+  unambiguous. Keep root `githits` on `vX.Y.Z`; use an MCP-specific tag namespace
+  such as `mcp-vX.Y.Z` or `@githits/mcp@X.Y.Z` for MCP package releases.
+
 ## Build Lessons
 
 - Do not publish a package that still references `@githits/core-internal`,
@@ -59,6 +85,12 @@ manifest move is complete.
 - Validate package-boundary behavior from outside the repo root or without root
   `tsconfig` path aliases. A root-local entry can pass by resolving aliases and
   bypassing package manifest wiring.
+- Scan both public package artifacts. Root `githits` is still public and bundles
+  workspace MCP/core source during the transition, so root `dist/**`, root packed
+  tarballs, MCP `dist/**`, and MCP packed tarballs must be checked for private
+  workspace imports, `workspace:*`, and internal aliases.
+- Keep artifact scans strict for code, declaration files, and manifests. README
+  or docs may mention internal paths only as approved boundary warnings.
 - The MCP package build settings live in `packages/mcp/bunup.config.ts`. Its
   runtime externals are the MCP SDK and Zod; `@githits/core-internal` is resolved
   and bundled into JS/declaration output so the packed public package does not
