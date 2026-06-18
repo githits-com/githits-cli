@@ -2,10 +2,10 @@ import { defineConfig } from "bunup";
 
 export default defineConfig({
   dts: {
-    entry: "src/index.ts",
+    entry: ["src/index.ts", "src/client.ts"],
     resolve: ["@githits/core-internal"],
   },
-  entry: ["src/index.ts"],
+  entry: ["src/index.ts", "src/client.ts"],
   exports: true,
   external: [/^@modelcontextprotocol\/sdk(?:\/.*)?$/, /^zod(?:\/.*)?$/],
   minifyWhitespace: true,

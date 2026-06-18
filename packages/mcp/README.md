@@ -10,6 +10,7 @@ This package exposes transport-neutral helpers for servers that want the GitHits
 - `registerMcpTools(server, options)` registers GitHits tools on an existing MCP server.
 - `getMcpToolDescriptors()` returns static tool metadata without requiring concrete services.
 - `buildMcpInstructions(options?)` builds the GitHits MCP instruction block.
+- `@githits/mcp/client` exports concrete GitHits service implementations, static token providers, URL/config helpers, request-header helpers, telemetry helpers, and registry helpers for remote MCP servers.
 
 The package expects callers to provide service implementations through `McpToolServices` or a request-scoped `McpToolServicesProvider`.
 

@@ -34,7 +34,12 @@ manifest move is complete.
 ## Public API Boundaries
 
 - External consumers, including the future remote MCP server repo, must import
-  only from `@githits/mcp` and `@githits/mcp/package.json`.
+  only from `@githits/mcp`, `@githits/mcp/client`, and
+  `@githits/mcp/package.json`.
+- `@githits/mcp/client` is the public runtime/client entry for remote MCP server
+  composition. It re-exports bundled service implementations, token/header
+  helpers, URL/config helpers, telemetry helpers, and registry helpers without
+  publishing `@githits/core-internal`.
 - `@githits/mcp/internal` is not a package export. It exists only as a root
   workspace TypeScript alias for CLI transition code and internal tests.
 - If remote MCP server setup needs a helper that currently lives behind

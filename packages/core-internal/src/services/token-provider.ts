@@ -5,3 +5,10 @@ export interface TokenProvider {
   /** Force a refresh, usually after an authentication failure. */
   forceRefresh(): Promise<string | undefined>;
 }
+
+export function createStaticTokenProvider(token: string): TokenProvider {
+  return {
+    getToken: async () => token,
+    forceRefresh: async () => undefined,
+  };
+}
