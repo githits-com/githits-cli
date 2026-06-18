@@ -26,8 +26,6 @@ export {
   executeCliUninstall,
   executeConfigFileSetup,
   executeConfigFileUninstall,
-  formatSetupPreview,
-  formatUninstallPreview,
   getConfigUninstallCheckStatus,
   hasServerConfigEntry,
   isConfiguredForUninstall,

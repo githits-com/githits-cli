@@ -87,7 +87,8 @@ export type UninstallConfig = UninstallStep | CompositeUninstall;
 export const GITHITS_SERVER_NAME = "GitHits";
 const GITHITS_MCP_COMMAND = "npx";
 const GITHITS_MCP_ARGS = ["-y", "githits@latest", "mcp", "start"] as const;
-const GITHITS_MCP_INVOCATION = [
+/** The canonical GitHits MCP launch invocation, e.g. for setup summaries. */
+export const GITHITS_MCP_INVOCATION = [
   GITHITS_MCP_COMMAND,
   ...GITHITS_MCP_ARGS,
 ] as const;

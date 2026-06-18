@@ -1224,8 +1224,23 @@ describe("initAction", () => {
     );
 
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    // Already-configured targets render an "unchanged" row pointing at the
+    // existing config file rather than rewriting it.
+    const logCalls = getLogOutput();
     expect(
-      getLogOutput().some((msg) => msg.includes("already configured")),
+      logCalls.some(
+        (msg) =>
+          msg.includes("unchanged") && msg.includes("~/.cursor/mcp.json"),
+      ),
+    ).toBe(true);
+    // Nothing was installed this run, so we must not claim we configured it now.
+    expect(
+      logCalls.some((msg) => msg.includes('Configured MCP server "githits"')),
+    ).toBe(false);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes('MCP server "githits" already configured'),
+      ),
     ).toBe(true);
   });
 
@@ -1279,6 +1294,106 @@ describe("initAction", () => {
     expect(payload.outcomes[0].status).toBe("failed");
     expect(payload.auth.required).toBe(false);
     expect(JSON.stringify(payload)).not.toContain("githits@latest login");
+  });
+
+  it("shows a created row, collapsed path, and the MCP server block", async () => {
+    // A store so the post-setup verification scan sees what was written.
+    const store: Record<string, string> = {};
+    const fs = createFsWithDetection(["/home/test/.cursor"], store);
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      store[path] = content;
+    }) as typeof fs.atomicWriteFile;
+
+    await initAction(
+      { installAgents: "cursor" },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    // Per-client row: verb + home-collapsed path (not the old fixed wording).
+    expect(
+      logCalls.some(
+        (msg) => msg.includes("created") && msg.includes("~/.cursor/mcp.json"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("configured and verified")),
+    ).toBe(false);
+    // Trailing MCP server confirmation on the human text path: states that the
+    // server was configured and shows the launch command inline.
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes('Configured MCP server "githits"') &&
+          msg.includes("npx -y githits@latest mcp start"),
+      ),
+    ).toBe(true);
+  });
+
+  it("includes structured changes in --install-agents --json output", async () => {
+    const store: Record<string, string> = {};
+    const fs = createFsWithDetection(["/home/test/.cursor"], store);
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      store[path] = content;
+    }) as typeof fs.atomicWriteFile;
+
+    await initAction(
+      { installAgents: "cursor", json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.outcomes[0].status).toBe("success");
+    expect(payload.outcomes[0].changes).toEqual([
+      {
+        kind: "config-file",
+        path: "/home/test/.cursor/mcp.json",
+        change: "created",
+      },
+    ]);
+    // The friendly MCP block is text-only; it must not leak into JSON.
+    expect(JSON.stringify(payload)).not.toContain("with local command");
+  });
+
+  it("keeps the written path visible when verification fails", async () => {
+    // The write "succeeds" but persists an entry without GitHits, so the
+    // post-setup verification scan fails — the created path must still show.
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    fs.atomicWriteFile = mock(async () => {
+      // Intentionally do not persist a usable GitHits entry.
+    }) as typeof fs.atomicWriteFile;
+
+    await initAction(
+      { installAgents: "cursor" },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(process.exitCode).toBe(1);
+    // The created path is still shown, alongside a failed row.
+    expect(logCalls.some((msg) => msg.includes("~/.cursor/mcp.json"))).toBe(
+      true,
+    );
+    expect(logCalls.some((msg) => msg.includes("failed"))).toBe(true);
+    // No success confirmation block when verification failed.
+    expect(logCalls.some((msg) => msg.includes("with local command"))).toBe(
+      false,
+    );
   });
 
   it("rejects unknown staged install IDs before writing", async () => {
@@ -1965,6 +2080,15 @@ describe("initAction", () => {
 
     const logCalls = getLogOutput();
     expectReadyNextSteps(logCalls);
+    // The MCP server is still confirmed, with already-configured wording.
+    expect(
+      logCalls.some((msg) =>
+        msg.includes('MCP server "githits" already configured'),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Configured MCP server"))).toBe(
+      false,
+    );
   });
 
   it("treats equivalent local npx @latest configs as already configured", async () => {
@@ -3592,9 +3716,8 @@ describe("initUninstallAction", () => {
         currentConfig = content;
       },
     );
-    const promptService = createMockPromptService({
-      confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
-    });
+    // Default checkbox mock selects all pre-checked (configured) tools.
+    const promptService = createMockPromptService();
 
     await initUninstallAction(
       {},
@@ -3605,8 +3728,9 @@ describe("initUninstallAction", () => {
       },
     );
 
-    expect(promptService.confirm3).toHaveBeenCalledTimes(1);
-    expect(promptService.confirm3).toHaveBeenCalledWith("Proceed?", "no");
+    // The selection checkbox is the consent — no per-agent confirm prompt.
+    expect(promptService.checkbox).toHaveBeenCalledTimes(1);
+    expect(promptService.confirm3).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
     const parsed = JSON.parse(currentConfig);
     expect(parsed.mcpServers.GitHits).toBeUndefined();
@@ -3742,8 +3866,9 @@ describe("initUninstallAction", () => {
         },
       }),
     });
+    // Deselecting everything in the checkbox keeps all tools.
     const promptService = createMockPromptService({
-      confirm3: mock(() => Promise.resolve("no" as ConfirmChoice)),
+      checkbox: mock(() => Promise.resolve([])) as PromptService["checkbox"],
     });
 
     await initUninstallAction(
@@ -3762,7 +3887,7 @@ describe("initUninstallAction", () => {
     );
   });
 
-  it("stops prompting after always response", async () => {
+  it("removes all selected tools without per-agent prompts", async () => {
     let cursorConfig = JSON.stringify({
       mcpServers: {
         GitHits: {
@@ -3793,20 +3918,83 @@ describe("initUninstallAction", () => {
         }
       },
     );
-    const confirm3 = mock(() => Promise.resolve("always" as ConfirmChoice));
+    // Default checkbox selects both pre-checked configured tools.
+    const promptService = createMockPromptService();
 
     await initUninstallAction(
       {},
       {
         fileSystemService: fs,
-        promptService: createMockPromptService({ confirm3 }),
+        promptService,
         execService: createMockExecService(),
       },
     );
 
-    expect(confirm3).toHaveBeenCalledTimes(1);
-    expect(confirm3).toHaveBeenCalledWith("Proceed?", "no");
+    expect(promptService.checkbox).toHaveBeenCalledTimes(1);
+    expect(promptService.confirm3).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("removes only the tools left selected in the checkbox", async () => {
+    const githits = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const writes: string[] = [];
+    const fs = createFsWithDetection([
+      "/home/test/.cursor",
+      "/home/test/.codeium/windsurf",
+    ]);
+    (fs.readFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        if (
+          path === "/home/test/.cursor/mcp.json" ||
+          path === "/home/test/.codeium/windsurf/mcp_config.json"
+        ) {
+          return githits;
+        }
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      },
+    );
+    (fs.atomicWriteFile as ReturnType<typeof mock>).mockImplementation(
+      async (path: string) => {
+        writes.push(path);
+      },
+    );
+    // Keep Windsurf by leaving only Cursor checked.
+    const promptService = createMockPromptService({
+      checkbox: mock(<T>(_m: string, choices: { value: T }[]) =>
+        Promise.resolve(
+          choices
+            .map((c) => c.value)
+            .filter((v): v is T => (v as { id?: string }).id === "cursor"),
+        ),
+      ) as PromptService["checkbox"],
+    });
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(writes).toEqual(["/home/test/.cursor/mcp.json"]);
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("Cursor") &&
+          msg.includes("updated") &&
+          msg.includes("~/.cursor/mcp.json"),
+      ),
+    ).toBe(true);
   });
 
   it("removes configured CLI agents with verified commands", async () => {
@@ -3927,7 +4115,9 @@ describe("initUninstallAction", () => {
     expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
     expect(JSON.parse(piConfig).mcpServers.GitHits).toBeUndefined();
     const logCalls = getLogOutput();
-    expect(logCalls.some((msg) => msg.includes("Pi removed"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Pi") && msg.includes("updated")),
+    ).toBe(true);
   });
 
   it("uses resolved Pi fallback executable for uninstall", async () => {
@@ -4123,7 +4313,9 @@ describe("initUninstallAction", () => {
     expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
     expect(JSON.parse(piConfig).mcpServers.GitHits).toBeUndefined();
     const logCalls = getLogOutput();
-    expect(logCalls.some((msg) => msg.includes("Pi removed"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Pi") && msg.includes("updated")),
+    ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("Pi — not detected"))).toBe(
       false,
     );
@@ -4233,9 +4425,11 @@ describe("initUninstallAction", () => {
     );
 
     const logCalls = getLogOutput();
-    expect(logCalls.some((msg) => msg.includes("Claude Code removed"))).toBe(
-      true,
-    );
+    expect(
+      logCalls.some(
+        (msg) => msg.includes("Claude Code") && msg.includes("ran"),
+      ),
+    ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("Warning:"))).toBe(true);
     expect(
       logCalls.some((msg) => msg.includes("Uninstall completed with errors")),
@@ -4466,6 +4660,19 @@ describe("initUninstallAction", () => {
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("Warning:"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("boom"))).toBe(true);
+    // The command that did run stays visible even though verification failed.
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("ran") &&
+          msg.includes("claude plugin uninstall githits"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) => msg.includes("Claude Code") && msg.includes("failed"),
+      ),
+    ).toBe(true);
   });
 
   it("fails verification when CLI agent is not detected after uninstall", async () => {
@@ -4641,7 +4848,7 @@ describe("initUninstallAction", () => {
     expect(logCalls.some((msg) => msg.includes("- Codex CLI:"))).toBe(true);
   });
 
-  it("handles Ctrl+C on confirm prompt gracefully", async () => {
+  it("handles Ctrl+C on the selection prompt gracefully", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"], {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
@@ -4653,9 +4860,9 @@ describe("initUninstallAction", () => {
       }),
     });
     const promptService = createMockPromptService({
-      confirm3: mock(() =>
+      checkbox: mock(() =>
         Promise.reject(new ExitPromptError("User force closed")),
-      ),
+      ) as PromptService["checkbox"],
     });
 
     await initUninstallAction(

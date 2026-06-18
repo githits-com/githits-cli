@@ -17,7 +17,6 @@ import type { FileSystemService } from "../../services/filesystem-service.js";
 import { FileSystemServiceImpl } from "../../services/filesystem-service.js";
 import type {
   CheckboxChoice,
-  ConfirmChoice,
   PromptService,
   SelectChoice,
 } from "../../services/prompt-service.js";
@@ -32,6 +31,7 @@ import {
   type AgentDefinition,
   agentDefinitions,
   type ConfigFileSetup,
+  GITHITS_MCP_INVOCATION,
   getAgentSetupConfig,
   type InitSetupScope,
   isGeminiExtensionInstalledFromFilesystem,
@@ -41,13 +41,21 @@ import {
   scanAgents,
 } from "./agent-definitions.js";
 import {
+  CHANGE_VERB_WIDTH,
+  type ChangeRow,
+  describeConfigAsUnchanged,
+  formatConfigPath,
+  renderChangeRows,
+  type SetupChange,
+  type UninstallChange,
+} from "./setup-format.js";
+import {
   executeCliSetup,
   executeCliUninstall,
   executeCompositeSetup,
   executeCompositeUninstall,
   executeConfigFileSetup,
   executeConfigFileUninstall,
-  formatUninstallPreview,
   getCliCheckStatus,
   getConfigUninstallCheckStatus,
   type SetupResult,
@@ -98,6 +106,8 @@ interface AgentOutcome {
   name: string;
   status: "success" | "already_configured" | "failed" | "skipped";
   message?: string;
+  /** Paths written / commands run, for display and `--json` auditing. */
+  changes?: SetupChange[];
 }
 
 type StagedAgentStatus =
@@ -117,9 +127,11 @@ interface StagedAgentEntry {
 interface AgentUninstallOutcome {
   id: string;
   name: string;
-  status: "removed" | "not_configured" | "failed" | "skipped";
+  status: "removed" | "not_configured" | "failed";
   message?: string;
   warnings?: string[];
+  /** Paths/commands removed or found already absent, for display. */
+  changes?: UninstallChange[];
 }
 
 type UninstallInspectionResult =
@@ -1428,9 +1440,16 @@ async function runInstallAgentsMode(
     return;
   }
 
+  const installedAny = outcomes.some((outcome) => outcome.status === "success");
   console.log();
   if (failed.length === 0) {
-    console.log("GitHits MCP installation complete.");
+    console.log(
+      installedAny
+        ? "GitHits MCP installation complete."
+        : "GitHits MCP was already configured.",
+    );
+    console.log();
+    printMcpServerSummary(useColors, installedAny);
   } else {
     console.log("GitHits MCP installation completed with errors.");
     for (const outcome of failed) {
@@ -1972,6 +1991,167 @@ function printNonInteractiveUninstallGuidance(useColors: boolean): void {
   console.log();
 }
 
+/** Build the deselect-to-keep checkbox for the uninstall flow. */
+function buildUninstallAgentChoices(
+  scan: UninstallScanResult,
+): CheckboxChoice<AgentDefinition>[] {
+  return [
+    ...scan.configured.map((agent) => ({
+      name: `${agent.name} (configured)`,
+      value: agent,
+      checked: true,
+    })),
+    ...scan.notConfigured.map((agent) => ({
+      name: `${agent.name} (not configured)`,
+      value: agent,
+      disabled: "not configured" as const,
+    })),
+  ];
+}
+
+/**
+ * Map an uninstall change to a display row for the given agent. Both "removed"
+ * and "unchanged" use the ok tone (green ✓): for uninstall the desired end
+ * state is "GitHits absent", which holds in both cases. This matches install,
+ * where "unchanged" is likewise a ✓ rather than a warning.
+ */
+function uninstallChangeToRow(
+  name: string,
+  change: UninstallChange,
+  fileSystemService: FileSystemService,
+): ChangeRow {
+  const detail =
+    change.kind === "config-file"
+      ? formatConfigPath(change.path, fileSystemService)
+      : change.command;
+  return { tone: "ok", label: name, verb: change.change, detail };
+}
+
+/** Build display rows for one agent's uninstall outcome (+ a failure row). */
+function uninstallOutcomeRows(
+  outcome: AgentUninstallOutcome,
+  fileSystemService: FileSystemService,
+): ChangeRow[] {
+  const rows: ChangeRow[] = (outcome.changes ?? []).map((change) =>
+    uninstallChangeToRow(outcome.name, change, fileSystemService),
+  );
+  if (outcome.status === "failed") {
+    rows.push({
+      tone: "error",
+      label: outcome.name,
+      verb: "failed",
+      detail: outcome.message ?? "uninstall failed",
+    });
+  } else if (rows.length === 0) {
+    rows.push({
+      tone: "ok",
+      label: outcome.name,
+      verb: outcome.status === "removed" ? "removed" : "unchanged",
+      detail: "",
+    });
+  }
+  return rows;
+}
+
+/** Render an uninstall outcome's rows and any warnings. */
+function printUninstallOutcome(
+  outcome: AgentUninstallOutcome,
+  fileSystemService: FileSystemService,
+  useColors: boolean,
+  labelWidth: number,
+): void {
+  const lines = renderChangeRows(
+    uninstallOutcomeRows(outcome, fileSystemService),
+    { useColors, labelWidth, verbWidth: CHANGE_VERB_WIDTH },
+  );
+  for (const line of lines) {
+    console.log(line);
+  }
+  for (const warn of outcome.warnings ?? []) {
+    console.log(`    ${warning(`Warning: ${warn}`, useColors)}`);
+  }
+}
+
+/**
+ * Remove GitHits from the selected agents, verifying each removal. Mirrors
+ * installSelectedAgents: no per-agent prompt (the selection is the consent).
+ */
+async function uninstallSelectedAgents(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+  execService: ExecService,
+  useColors: boolean,
+  labelWidth: number,
+): Promise<AgentUninstallOutcome[]> {
+  const outcomes: AgentUninstallOutcome[] = [];
+
+  for (const agent of agents) {
+    const setupConfig = getResolvedSetupConfig(agent, fileSystemService);
+    const uninstallConfig =
+      agent.resolvedUninstallConfig ??
+      (setupConfig.method === "config-file"
+        ? setupConfig
+        : agent.getUninstallConfig?.(
+            fileSystemService,
+            agent.resolvedSetupContext,
+          ));
+
+    if (!uninstallConfig) {
+      const outcome: AgentUninstallOutcome = {
+        id: agent.id,
+        name: agent.name,
+        status: "failed",
+        message: `${agent.name} does not have a verified uninstall command.`,
+      };
+      outcomes.push(outcome);
+      printUninstallOutcome(outcome, fileSystemService, useColors, labelWidth);
+      continue;
+    }
+
+    let result =
+      uninstallConfig.method === "cli"
+        ? await executeCliUninstall(uninstallConfig, execService)
+        : uninstallConfig.method === "config-file"
+          ? await executeConfigFileUninstall(uninstallConfig, fileSystemService)
+          : await executeCompositeUninstall(
+              uninstallConfig,
+              fileSystemService,
+              execService,
+            );
+
+    if (result.status === "removed" && !agent.skipUninstallVerification) {
+      const verification = await verifyAgentUnconfigured(
+        agent,
+        fileSystemService,
+        execService,
+      );
+      if (!verification.ok) {
+        result = {
+          status: "failed",
+          message:
+            verification.message ??
+            `${agent.name} verification failed after uninstall.`,
+          warnings: result.warnings,
+          changes: result.changes,
+        };
+      }
+    }
+
+    const outcome: AgentUninstallOutcome = {
+      id: agent.id,
+      name: agent.name,
+      status: result.status,
+      message: result.status === "failed" ? result.message : undefined,
+      warnings: result.warnings,
+      changes: result.changes,
+    };
+    outcomes.push(outcome);
+    printUninstallOutcome(outcome, fileSystemService, useColors, labelWidth);
+  }
+
+  return outcomes;
+}
+
 async function runUserMcpUninstall(
   options: InitUninstallOptions,
   deps: InitDependencies,
@@ -2016,131 +2196,75 @@ async function runUserMcpUninstall(
     return;
   }
 
-  const outcomes: AgentUninstallOutcome[] = [...scan.failed];
-  let alwaysMode = options.yes ?? false;
-
-  for (const agent of scan.configured) {
-    console.log(
-      `  Uninstalling from ${colorize(agent.name, "bold", useColors)}...\n`,
-    );
-
-    const setupConfig = getResolvedSetupConfig(agent, fileSystemService);
-    const uninstallConfig =
-      agent.resolvedUninstallConfig ??
-      (setupConfig.method === "config-file"
-        ? setupConfig
-        : agent.getUninstallConfig?.(
-            fileSystemService,
-            agent.resolvedSetupContext,
-          ));
-
-    if (!uninstallConfig) {
-      outcomes.push({
-        id: agent.id,
-        name: agent.name,
-        status: "failed",
-        message: `${agent.name} does not have a verified uninstall command.`,
-      });
-      console.log(
-        `    ${errorFmt(`${agent.name} does not have a verified uninstall command.`, useColors)}\n`,
+  // Select which configured tools to remove from. The selection is the
+  // consent — no per-agent confirmation. All configured tools are pre-checked;
+  // deselect the ones to keep. --yes removes from all. (initUninstallAction
+  // already routes non-interactive-without-yes to guidance, so reaching the
+  // checkbox below always means an interactive session.)
+  let toRemove: AgentDefinition[];
+  if (options.yes || scan.configured.length === 0) {
+    toRemove = scan.configured;
+    if (scan.configured.length > 0) {
+      printTask(
+        "success",
+        "Selected all configured tools",
+        options.yes ? "--yes" : undefined,
+        useColors,
       );
-      continue;
     }
-
-    const preview = formatUninstallPreview(uninstallConfig);
-    for (const line of preview.split("\n")) {
-      console.log(`    ${line}`);
-    }
-    console.log();
-
-    if (!alwaysMode) {
-      let choice: ConfirmChoice;
-      try {
-        choice = await promptService.confirm3("Proceed?", "no");
-      } catch (err) {
-        if (err instanceof ExitPromptError) {
-          console.log("\n  Uninstall cancelled.\n");
-          return;
-        }
-        throw err;
-      }
-
-      if (choice === "no") {
-        outcomes.push({ id: agent.id, name: agent.name, status: "skipped" });
-        console.log();
-        continue;
-      }
-      if (choice === "always") {
-        alwaysMode = true;
-      }
-    }
-
-    let result =
-      uninstallConfig.method === "cli"
-        ? await executeCliUninstall(uninstallConfig, execService)
-        : uninstallConfig.method === "config-file"
-          ? await executeConfigFileUninstall(uninstallConfig, fileSystemService)
-          : await executeCompositeUninstall(
-              uninstallConfig,
-              fileSystemService,
-              execService,
-            );
-
-    if (result.status === "removed" && !agent.skipUninstallVerification) {
-      const verification = await verifyAgentUnconfigured(
-        agent,
-        fileSystemService,
-        execService,
+  } else {
+    try {
+      toRemove = await promptService.checkbox(
+        "  Select which tools to remove GitHits from:",
+        buildUninstallAgentChoices(scan),
       );
-      if (!verification.ok) {
-        result = {
-          status: "failed",
-          message:
-            verification.message ??
-            `${agent.name} verification failed after uninstall.`,
-          warnings: result.warnings,
-        };
+    } catch (err) {
+      if (err instanceof ExitPromptError) {
+        console.log("\n  Uninstall cancelled. No changes made.\n");
+        return;
       }
-    }
-
-    outcomes.push({
-      id: agent.id,
-      name: agent.name,
-      status: result.status,
-      message: result.status === "failed" ? result.message : undefined,
-      warnings: result.warnings,
-    });
-
-    if (result.status === "removed") {
-      console.log(`    ${success(`${agent.name} removed`, useColors)}\n`);
-      for (const warn of result.warnings ?? []) {
-        console.log(`    ${warning(`Warning: ${warn}`, useColors)}`);
-      }
-    } else if (result.status === "not_configured") {
-      console.log(
-        `    ${warning(`${agent.name} was not configured`, useColors)}\n`,
-      );
-    } else {
-      console.log(`    ${errorFmt(result.message, useColors)}\n`);
-      for (const warn of result.warnings ?? []) {
-        console.log(`    ${warning(`Warning: ${warn}`, useColors)}`);
-      }
+      throw err;
     }
   }
+
+  if (toRemove.length === 0 && scan.failed.length === 0) {
+    printTask("skipped", "Uninstall skipped", "no tools selected", useColors);
+    console.log();
+    return;
+  }
+
+  const labelWidth = toRemove.reduce(
+    (width, agent) => Math.max(width, agent.name.length),
+    0,
+  );
+  if (toRemove.length > 0) {
+    console.log();
+  }
+  // scan.failed (could not inspect config) are already shown in the detection
+  // list above and the failure summary below; they carry into outcomes only
+  // for the counts.
+  const outcomes: AgentUninstallOutcome[] = [
+    ...scan.failed,
+    ...(await uninstallSelectedAgents(
+      toRemove,
+      fileSystemService,
+      execService,
+      useColors,
+      labelWidth,
+    )),
+  ];
+  console.log();
 
   const removed = outcomes.filter((o) => o.status === "removed").length;
   const notConfigured =
     outcomes.filter((o) => o.status === "not_configured").length +
     scan.notConfigured.length;
   const failed = outcomes.filter((o) => o.status === "failed").length;
-  const skipped = outcomes.filter((o) => o.status === "skipped").length;
 
   if (failed > 0) {
     console.log("  Uninstall completed with errors.");
   } else if (removed > 0) {
     console.log("  Done! GitHits MCP configuration was removed.");
-  } else if (skipped > 0) {
-    console.log("  Uninstall skipped.");
   } else if (notConfigured > 0) {
     console.log(
       "  No GitHits MCP configurations were active. Nothing to remove.",
@@ -2154,9 +2278,6 @@ async function runUserMcpUninstall(
     console.log(
       `  ${notConfigured} agent${notConfigured !== 1 ? "s" : ""} not configured.`,
     );
-  }
-  if (skipped > 0) {
-    console.log(`  ${skipped} agent${skipped !== 1 ? "s" : ""} skipped.`);
   }
   if (failed > 0) {
     console.log(
@@ -2228,11 +2349,89 @@ async function executeAgentSetupWithVerification(
             ? "Gemini installation did not complete. Retry, or run: gemini extensions install --consent https://github.com/githits-com/githits-cli"
             : (verification.message ??
               `${agent.name} verification failed after setup.`),
+        // Preserve what was written so the user can still locate/fix it.
+        changes: result.changes,
       };
     }
   }
 
   return result;
+}
+
+/** Map a single setup change to a display row for the given agent. */
+function changeToRow(
+  name: string,
+  change: SetupChange,
+  fileSystemService: FileSystemService,
+): ChangeRow {
+  if (change.kind === "config-file") {
+    return {
+      tone: "ok",
+      label: name,
+      verb: change.change,
+      detail: formatConfigPath(change.path, fileSystemService),
+    };
+  }
+  return {
+    tone: "ok",
+    label: name,
+    verb: change.change,
+    detail: change.command,
+  };
+}
+
+/**
+ * Build the display rows for one agent's install outcome: one row per change
+ * (paths written / commands run), plus a trailing error row when the outcome
+ * failed — keeping the written path/command visible even on verification
+ * failure.
+ */
+function agentOutcomeRows(
+  outcome: AgentOutcome,
+  fileSystemService: FileSystemService,
+): ChangeRow[] {
+  const rows: ChangeRow[] = (outcome.changes ?? []).map((change) =>
+    changeToRow(outcome.name, change, fileSystemService),
+  );
+  if (outcome.status === "failed") {
+    rows.push({
+      tone: "error",
+      label: outcome.name,
+      verb: "failed",
+      detail: outcome.message ?? "verification failed",
+    });
+  } else if (rows.length === 0) {
+    rows.push({
+      tone: "ok",
+      label: outcome.name,
+      verb: "configured",
+      detail: "",
+    });
+  }
+  return rows;
+}
+
+/**
+ * Confirm the MCP server and its launch command. The wording reflects whether
+ * anything was actually installed this run versus already being configured, so
+ * we never claim to have installed when nothing changed. The command is shown
+ * as a muted inline value (the agent runs it, not the user), so it does not
+ * read as something to copy-paste. Callers provide the leading separator; a
+ * trailing blank line separates it from what follows.
+ */
+function printMcpServerSummary(useColors: boolean, installed: boolean): void {
+  const verb = installed
+    ? 'Configured MCP server "githits"'
+    : 'MCP server "githits" already configured';
+  const command = colorize(
+    `\`${GITHITS_MCP_INVOCATION.join(" ")}\``,
+    "dim",
+    useColors,
+  );
+  console.log(
+    `  ${success(`${verb} with local command ${command}`, useColors)}`,
+  );
+  console.log();
 }
 
 async function installSelectedAgents(
@@ -2250,16 +2449,39 @@ async function installSelectedAgents(
   const outcomes: AgentOutcome[] = [];
   const installTasks = createInstallTaskReporter(useColors);
 
+  // Column widths are fixed up front (agent names are known; verbs are a closed
+  // set) so rows align even though they print one agent at a time.
+  const labelWidth = agents.reduce(
+    (width, agent) => Math.max(width, agent.name.length),
+    0,
+  );
+  const printRows = (outcome: AgentOutcome): void => {
+    if (!printResults) return;
+    const lines = renderChangeRows(
+      agentOutcomeRows(outcome, fileSystemService),
+      {
+        useColors,
+        labelWidth,
+        verbWidth: CHANGE_VERB_WIDTH,
+      },
+    );
+    for (const line of lines) {
+      console.log(line);
+    }
+  };
+
   for (const agent of agents) {
     if (alreadyConfiguredIds.has(agent.id)) {
-      outcomes.push({
+      const outcome: AgentOutcome = {
         id: agent.id,
         name: agent.name,
         status: "already_configured",
-      });
-      if (printResults) {
-        printTask("warning", agent.name, "already configured", useColors);
-      }
+        changes: describeConfigAsUnchanged(
+          getResolvedSetupConfig(agent, fileSystemService),
+        ),
+      };
+      outcomes.push(outcome);
+      printRows(outcome);
       continue;
     }
 
@@ -2276,23 +2498,15 @@ async function installSelectedAgents(
       finishTask();
     }
 
-    outcomes.push({
+    const outcome: AgentOutcome = {
       id: agent.id,
       name: agent.name,
       status: result.status,
       message: result.status === "failed" ? result.message : undefined,
-    });
-
-    if (!printResults) {
-      continue;
-    }
-    if (result.status === "success") {
-      printTask("success", agent.name, "configured and verified", useColors);
-    } else if (result.status === "already_configured") {
-      printTask("warning", agent.name, "already configured", useColors);
-    } else {
-      printTask("failed", agent.name, result.message, useColors);
-    }
+      changes: result.changes,
+    };
+    outcomes.push(outcome);
+    printRows(outcome);
   }
 
   return outcomes;
@@ -2646,6 +2860,8 @@ export async function initAction(
       "all detected tools are already configured",
       useColors,
     );
+    console.log();
+    printMcpServerSummary(useColors, false);
     printScopedNextSteps(setupScope, authStatus, useColors);
     console.log();
     return;
@@ -2672,6 +2888,7 @@ export async function initAction(
   if (failed > 0) {
     console.log("  Setup completed with errors.");
   } else if (configured > 0 || alreadyDone > 0) {
+    printMcpServerSummary(useColors, configured > 0);
     printScopedNextSteps(setupScope, authStatus, useColors);
   }
 
