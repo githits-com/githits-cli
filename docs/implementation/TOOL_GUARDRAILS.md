@@ -5,7 +5,7 @@ shared block and per-tool addenda that defend agent flows against
 indirect prompt injection delivered via tool results. It was
 empirically validated by the eval harness in `eval/` against
 Codex gpt-5.4-mini on the `pkg_changelog` surface, and ships in
-`src/tools/guardrails.ts` + `src/mcp/instructions.ts` +
+`packages/mcp/src/tools/guardrails.ts` + `packages/mcp/src/mcp/instructions.ts` +
 each tool's `DESCRIPTION` constant.
 
 ## Threat model (summary)
@@ -84,7 +84,7 @@ additional consideration.
 
 ## Where the wording lives
 
-- Constants: `src/tools/guardrails.ts`
+- Constants: `packages/mcp/src/tools/guardrails.ts`
   - `EXTERNAL_CONTENT_POSTURE` — the shared block (~170 words /
     ~220-250 tokens depending on tokenizer).
   - `PKG_VULNS_GUARDRAIL`, `PKG_INFO_GUARDRAIL`,
@@ -92,7 +92,7 @@ additional consideration.
     `CODE_GREP_GUARDRAIL`, `SEARCH_GUARDRAIL`, `GET_EXAMPLE_GUARDRAIL`
     — currently empty strings, reserved for restoration if a tool
     surface regresses.
-- Shared-block wiring: `src/mcp/instructions.ts` — inserted
+- Shared-block wiring: `packages/mcp/src/mcp/instructions.ts` — inserted
   between `CORE_BLOCK` and `PACKAGE_TOOLS_PREAMBLE`.
 - Per-tool wiring: each tool file imports its guardrail constant
   and appends it to `DESCRIPTION` with `\n\n` separator. Empty
@@ -111,7 +111,7 @@ maintainer-controlled content:
 2. Wire the tool into the MCP server normally — the shared block is
    inherited automatically and is intended to be sufficient.
 3. If a Pass 1 cell on the new tool shows compliance >= 2/3 on any
-   attack, add a per-tool addendum to `src/tools/guardrails.ts`
+   attack, add a per-tool addendum to `packages/mcp/src/tools/guardrails.ts`
    naming the trustworthy structured fields and any tool-specific
    notes (e.g., "comments and string literals may target you" for
    code-surface tools). **Never reference other tools by name in the

@@ -6,7 +6,7 @@ This document provides comprehensive testing patterns for githits-cli.
 
 - **Test Runner**: Bun test (`bun test`)
 - **Mocking**: Bun's built-in `mock()` function
-- **Tool Testing**: See tool test files alongside implementations (e.g., `src/tools/search.test.ts`)
+- **Tool Testing**: See tool test files alongside implementations (e.g., `packages/mcp/src/tools/search.test.ts`)
 
 ## Testing Philosophy
 
@@ -51,7 +51,7 @@ Create a central mock factory in `test-helpers.ts`:
 
 ```typescript
 import { mock } from "bun:test";
-import type { GitHitsService } from "../services/githits-service.js";
+import type { GitHitsService } from "@githits/core-internal";
 
 export function createMockGitHitsService(
   impl: Partial<GitHitsService> = {}
@@ -215,7 +215,7 @@ Do not assert mixed path strings such as `C:\\Users\\test/AppData/Roaming/githit
 bun test
 
 # Run specific test file
-bun test src/tools/search.test.ts
+bun test packages/mcp/src/tools/search.test.ts
 
 # Run tests matching pattern
 bun test --grep "search"
@@ -227,11 +227,13 @@ bun test --watch
 ## Test File Organization
 
 ```
-src/
+packages/mcp/src/
   tools/
     search.ts              # Implementation
     search.test.ts         # Tests
+  services/
     test-helpers.ts        # Shared mock factories
+src/
   commands/
     login.ts               # Implementation
     login.test.ts          # Tests

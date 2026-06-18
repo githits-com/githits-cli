@@ -61,13 +61,13 @@ test suite anchors the doc.
 - **Public enum values** are lowercase strings on both surfaces
   (`production`, `test`, `summary`, `all`).
 - **Service coercion** from lowercase enum values to the internal
-  request enums lives in `src/shared/code-navigation.ts`
+  request enums lives in `packages/mcp/src/shared/code-navigation.ts`
   (`toFileIntent`, `toSymbolKind`, `toSymbolCategory`).
 
 ### `PARITY-DEFAULTS`
 
 - Both surfaces import defaults from
-  `src/shared/code-navigation-defaults.ts`. They never diverge
+  `packages/mcp/src/shared/code-navigation-defaults.ts`. They never diverge
   silently.
 - Cross-tool defaults (e.g. `DEFAULT_WAIT_TIMEOUT_MS`) live without a
   prefix. Tool-local sentinels live there too so both surfaces translate
@@ -80,11 +80,11 @@ test suite anchors the doc.
 ### `PARITY-REQUEST`
 
 - Request construction for a dual-surface tool routes through a single
-  shared helper at `src/shared/<tool>-request.ts`. The helper fills in
+  shared helper at `packages/mcp/src/shared/<tool>-request.ts`. The helper fills in
   defaults and translates user-facing sentinel values into wire-level
   equivalents.
 - Cross-tool helpers (error classification, target resolution) live in
-  `src/shared/` without a tool-name prefix.
+  `packages/mcp/src/shared/` without a tool-name prefix.
 
 ### `PARITY-JSON-KEYS`
 
@@ -112,7 +112,7 @@ test suite anchors the doc.
 - `code` is mandatory. `UNKNOWN` is a last resort — every named error
   class in the code-navigation and package-intelligence stacks maps to a
   specific code. The classifier is tested by table in
-  `src/shared/code-navigation-error-map.test.ts`; that test is the
+  `packages/mcp/src/shared/code-navigation-error-map.test.ts`; that test is the
   enforcement mechanism, not a convention.
 - MCP error text is always valid JSON. A client that parses
   `content[0].text` on error gets the same envelope as CLI `--json`.
@@ -131,14 +131,14 @@ test suite anchors the doc.
 When a new tool lands with both MCP and CLI surfaces:
 
 - [ ] Tool-specific defaults added to
-  `src/shared/code-navigation-defaults.ts` with a `TOOLNAME_` prefix.
-- [ ] Request builder at `src/shared/<tool>-request.ts`. Both surfaces
+  `packages/mcp/src/shared/code-navigation-defaults.ts` with a `TOOLNAME_` prefix.
+- [ ] Request builder at `packages/mcp/src/shared/<tool>-request.ts`. Both surfaces
   import it.
 - [ ] Error classifier reused (`mapCodeNavigationError` /
   `mapPackageIntelligenceError`). Add new `MappedErrorCode` variants
   only when a genuinely new error class exists; cover the new branch
   in the table test.
-- [ ] Response builder at `src/shared/<tool>-response.ts` emitting the
+- [ ] Response builder at `packages/mcp/src/shared/<tool>-response.ts` emitting the
   shared success and error envelopes. JSON shape matches
   `PARITY-JSON-KEYS` rules.
 - [ ] Parity test at `src/tools/<tool>-parity.test.ts` that cites the
@@ -160,42 +160,42 @@ When a new tool lands with both MCP and CLI surfaces:
 
 | File | Role |
 |---|---|
-| `src/shared/code-navigation-defaults.ts` | Canonical cross-surface defaults and sentinels. |
-| `src/shared/code-navigation-error-map.ts` | `mapCodeNavigationError` classifier and `MappedError` union. |
-| `src/shared/pkgseer-graphql.ts` | Low-level authenticated package/source POST helper shared by the service clients. |
-| `src/shared/pkgseer-registry.ts` | Registry taxonomy (registry union type + lowercase↔uppercase converters). |
-| `src/shared/unified-search-request.ts` | Shared request builder for unified `search`; compiles structured query fields and applies defaulting. |
-| `src/shared/unified-search-response.ts` | Shared JSON envelope builders for unified `search` and follow-up `search_status`. |
-| `src/shared/package-summary-request.ts` | Shared request builder for `pkg_info`. |
-| `src/shared/package-summary-response.ts` | Lean JSON envelope builder and shared text/terminal formatter for `pkg_info`. |
-| `src/shared/package-vulnerabilities-request.ts` | Shared request builder for `pkg_vulns`. |
-| `src/shared/package-vulnerabilities-response.ts` | Lean JSON envelope builder and shared text/terminal formatter for `pkg_vulns`. |
-| `src/shared/package-dependencies-request.ts` | Shared request builder for `pkg_deps`. |
-| `src/shared/package-dependencies-response.ts` | Lean JSON envelope builder and shared text/terminal formatter for `pkg_deps`. |
-| `src/shared/package-changelog-request.ts` | Shared request builder for `pkg_changelog`. |
-| `src/shared/package-changelog-response.ts` | JSON envelope builder and shared text/terminal formatter for `pkg_changelog`. |
-| `src/shared/list-files-request.ts` | Shared request builder for `code_files`. |
-| `src/shared/list-files-response.ts` | JSON envelope builder for `code_files`. |
-| `src/shared/read-file-request.ts` | Shared request builder for `code_read`. |
-| `src/shared/read-file-response.ts` | JSON envelope builder for `code_read`. Normalises envelope key to `path` (not `filePath`) so `code_files` → `code_read` chains without renames. |
-| `src/shared/grep-repo-request.ts` | Shared request builder for `code_grep`. Exports `GREP_REPO_PATTERN_NOTE` referenced by MCP description, MCP `pattern` describe, and CLI help. |
-| `src/shared/grep-repo-response.ts` | JSON envelope builder for `code_grep`. |
-| `src/shared/list-package-docs-request.ts` / `list-package-docs-response.ts` | Shared request and envelope for `docs_list`. |
-| `src/shared/read-package-doc-request.ts` / `read-package-doc-response.ts` | Shared request and envelope for `docs_read`. |
-| `src/shared/code-navigation-error-map.ts` | Owns the `INDEXING` / `FILE_NOT_FOUND` / `NOT_FOUND` codes shared across all code-nav tools. |
-| `src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier (reuses `MappedError` from the code-nav map). |
-| `src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. |
-| `src/tools/code-navigation-shared.ts` | `codeTargetSchema` + `resolveCodeTarget` — the addressing primitive used by `code_files`, `code_read`, `code_grep`, and unified `search`. |
-| `src/tools/search.ts` | MCP tool definition for unified `search`. |
-| `src/tools/search-status.ts` | MCP tool definition for `search_status`. |
-| `src/tools/package-summary.ts` | MCP tool definition for `pkg_info`. |
-| `src/tools/package-vulnerabilities.ts` | MCP tool definition for `pkg_vulns`. |
-| `src/tools/package-dependencies.ts` | MCP tool definition for `pkg_deps`. |
-| `src/tools/package-changelog.ts` | MCP tool definition for `pkg_changelog`. |
-| `src/tools/list-files.ts` | MCP tool definition for `code_files`. |
-| `src/tools/read-file.ts` | MCP tool definition for `code_read`. |
-| `src/tools/grep-repo.ts` | MCP tool definition for `code_grep`. |
-| `src/tools/list-package-docs.ts` / `read-package-doc.ts` | MCP tool definitions for the docs surface. |
+| `packages/mcp/src/shared/code-navigation-defaults.ts` | Canonical cross-surface defaults and sentinels. |
+| `packages/mcp/src/shared/code-navigation-error-map.ts` | `mapCodeNavigationError` classifier and `MappedError` union. |
+| `packages/core-internal/src/shared/pkgseer-graphql.ts` | Low-level authenticated package/source POST helper shared by the service clients. |
+| `packages/core-internal/src/shared/pkgseer-registry.ts` | Registry taxonomy (registry union type + lowercase↔uppercase converters). |
+| `packages/mcp/src/shared/unified-search-request.ts` | Shared request builder for unified `search`; compiles structured query fields and applies defaulting. |
+| `packages/mcp/src/shared/unified-search-response.ts` | Shared JSON envelope builders for unified `search` and follow-up `search_status`. |
+| `packages/mcp/src/shared/package-summary-request.ts` | Shared request builder for `pkg_info`. |
+| `packages/mcp/src/shared/package-summary-response.ts` | Lean JSON envelope builder and shared text/terminal formatter for `pkg_info`. |
+| `packages/mcp/src/shared/package-vulnerabilities-request.ts` | Shared request builder for `pkg_vulns`. |
+| `packages/mcp/src/shared/package-vulnerabilities-response.ts` | Lean JSON envelope builder and shared text/terminal formatter for `pkg_vulns`. |
+| `packages/mcp/src/shared/package-dependencies-request.ts` | Shared request builder for `pkg_deps`. |
+| `packages/mcp/src/shared/package-dependencies-response.ts` | Lean JSON envelope builder and shared text/terminal formatter for `pkg_deps`. |
+| `packages/mcp/src/shared/package-changelog-request.ts` | Shared request builder for `pkg_changelog`. |
+| `packages/mcp/src/shared/package-changelog-response.ts` | JSON envelope builder and shared text/terminal formatter for `pkg_changelog`. |
+| `packages/mcp/src/shared/list-files-request.ts` | Shared request builder for `code_files`. |
+| `packages/mcp/src/shared/list-files-response.ts` | JSON envelope builder for `code_files`. |
+| `packages/mcp/src/shared/read-file-request.ts` | Shared request builder for `code_read`. |
+| `packages/mcp/src/shared/read-file-response.ts` | JSON envelope builder for `code_read`. Normalises envelope key to `path` (not `filePath`) so `code_files` -> `code_read` chains without renames. |
+| `packages/mcp/src/shared/grep-repo-request.ts` | Shared request builder for `code_grep`. Exports `GREP_REPO_PATTERN_NOTE` referenced by MCP description, MCP `pattern` describe, and CLI help. |
+| `packages/mcp/src/shared/grep-repo-response.ts` | JSON envelope builder for `code_grep`. |
+| `packages/mcp/src/shared/list-package-docs-request.ts` / `list-package-docs-response.ts` | Shared request and envelope for `docs_list`. |
+| `packages/mcp/src/shared/read-package-doc-request.ts` / `read-package-doc-response.ts` | Shared request and envelope for `docs_read`. |
+| `packages/mcp/src/shared/code-navigation-error-map.ts` | Owns the `INDEXING` / `FILE_NOT_FOUND` / `NOT_FOUND` codes shared across all code-nav tools. |
+| `packages/mcp/src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier (reuses `MappedError` from the code-nav map). |
+| `packages/core-internal/src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. |
+| `packages/mcp/src/tools/code-navigation-shared.ts` | `codeTargetSchema` + `resolveCodeTarget` — the addressing primitive used by `code_files`, `code_read`, `code_grep`, and unified `search`. |
+| `packages/mcp/src/tools/search.ts` | MCP tool definition for unified `search`. |
+| `packages/mcp/src/tools/search-status.ts` | MCP tool definition for `search_status`. |
+| `packages/mcp/src/tools/package-summary.ts` | MCP tool definition for `pkg_info`. |
+| `packages/mcp/src/tools/package-vulnerabilities.ts` | MCP tool definition for `pkg_vulns`. |
+| `packages/mcp/src/tools/package-dependencies.ts` | MCP tool definition for `pkg_deps`. |
+| `packages/mcp/src/tools/package-changelog.ts` | MCP tool definition for `pkg_changelog`. |
+| `packages/mcp/src/tools/list-files.ts` | MCP tool definition for `code_files`. |
+| `packages/mcp/src/tools/read-file.ts` | MCP tool definition for `code_read`. |
+| `packages/mcp/src/tools/grep-repo.ts` | MCP tool definition for `code_grep`. |
+| `packages/mcp/src/tools/list-package-docs.ts` / `read-package-doc.ts` | MCP tool definitions for the docs surface. |
 | `src/commands/search.ts` | Top-level CLI commands for unified `search` and `search-status`. |
 | `src/commands/pkg/info.ts` / `vulns.ts` / `deps.ts` / `changelog.ts` | CLI commands for the `pkg` group. |
 | `src/commands/code/files.ts` / `read.ts` / `grep.ts` | CLI commands for the `code` group. |
@@ -299,7 +299,7 @@ When a new tool lands with both MCP and CLI surfaces:
 ### `code_files` / `code_read` / `code_grep` (file-exploration bundle)
 
 All three reuse `codeTargetSchema` + `resolveCodeTarget` from
-`src/tools/code-navigation-shared.ts`. The indexing lifecycle is
+`packages/mcp/src/tools/code-navigation-shared.ts`. The indexing lifecycle is
 shared (see `tools.md` "Indexing lifecycle" section). Parity tests
 cover dual addressing, default + explicit filter echoes, INDEXING
 error envelope, NOT_FOUND envelope, and INVALID_ARGUMENT with full

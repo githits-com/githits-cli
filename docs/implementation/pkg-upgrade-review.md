@@ -481,9 +481,9 @@ Add instruction-level guidance now:
 
 Add the tool in the same style as current package tools:
 
-- `src/tools/package-upgrade-review.ts`
+- `packages/mcp/src/tools/package-upgrade-review.ts`
 - `src/commands/pkg/upgrade-review.ts` if exposing a CLI command
-- shared request/response modules under `src/shared/package-upgrade-review-*`
+- shared request/response modules under `packages/mcp/src/shared/package-upgrade-review-*`
 - service composition should live in a focused helper module that reuses existing service methods plus the dedicated internal dependency probe
 - parity tests should assert CLI `--json` and MCP `format:"json"` equality
 - text snapshot tests should cover vulnerability, changelog, dependency-change, and unknown-evidence cases

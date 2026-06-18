@@ -15,7 +15,7 @@ The underlying OAuth pieces already exist:
 - `src/services/auth-service.ts` serves the callback success page and exchanges
   the auth code for tokens.
 - `src/container.ts` resolves token state at startup.
-- `src/shared/require-auth.ts` currently blocks individual command actions when
+- `packages/mcp/src/shared/require-auth.ts` currently blocks individual command actions when
   no valid token is present.
 
 Today, auth-required commands fail fast and tell the user to run `githits
@@ -147,7 +147,7 @@ Use these rules when implementing the feature:
 |---|---|
 | `src/cli.ts` | Best hook point for a single auto-login bootstrap policy. |
 | `src/commands/login.ts` | Reusable login flow and current standalone login output. |
-| `src/shared/require-auth.ts` | Final invariant for command actions after bootstrap. |
+| `packages/mcp/src/shared/require-auth.ts` | Final invariant for command actions after bootstrap. |
 | `src/container.ts` | Startup token resolution and auth-state snapshot. |
 | `src/commands/init/init.ts` | Advertised onboarding command; `--skip-login` remains the explicit opt-out. |
 | `src/commands/search.ts` | Top-level package/source registration and auth-required action. |

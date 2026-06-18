@@ -186,7 +186,7 @@ Before any empirical pass runs:
 - Neither `ANTHROPIC_API_KEY` nor `OPENAI_API_KEY` set (drivers
   refuse to run otherwise — they only use subscription auth).
 - `eval/mock-mcp/server.ts` imports the live production wording from
-  `src/tools/guardrails.ts` and each tool's exported `DESCRIPTION`.
+  `packages/mcp/src/tools/guardrails.ts` and each tool's exported `DESCRIPTION`.
   Verify by inspecting `eval/mock-mcp/server.ts` imports.
 
 ## Cost shape
