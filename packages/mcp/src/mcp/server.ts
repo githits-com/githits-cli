@@ -20,9 +20,15 @@ import {
   type ToolResult,
   type ZodRawShape,
 } from "../tools/index.js";
-import { withErrorHandling } from "../tools/shared.js";
+import {
+  type McpAuthAction,
+  withErrorHandling,
+  withMcpErrorOptions,
+} from "../tools/shared.js";
 import type { McpToolServices } from "../tools/tool-services.js";
 import { buildMcpInstructions } from "./instructions.js";
+
+export type { McpAuthAction, McpAuthActionContext } from "../tools/shared.js";
 
 export interface McpServerMetadata {
   name: string;
@@ -42,6 +48,7 @@ export type McpToolServicesProvider<TExtra = unknown> =
 export interface CreateMcpServerOptions<TExtra = unknown> {
   metadata: McpServerMetadata;
   services: McpToolServicesProvider<TExtra>;
+  authAction?: McpAuthAction;
   instructions?: string;
   instructionOptions?: Parameters<typeof buildMcpInstructions>[0];
 }
@@ -118,7 +125,10 @@ function eraseTool<TArgs, TSchema extends ZodRawShape>(
 
 export function registerMcpTools<TExtra = unknown>(
   server: McpServer,
-  options: { services: McpToolServicesProvider<TExtra> },
+  options: {
+    authAction?: McpAuthAction;
+    services: McpToolServicesProvider<TExtra>;
+  },
 ): void {
   for (const createTool of TOOL_FACTORIES) {
     const descriptor = createTool(createDescriptorServices());
@@ -129,15 +139,16 @@ export function registerMcpTools<TExtra = unknown>(
         inputSchema: descriptor.schema,
         annotations: descriptor.annotations,
       },
-      async (args, extra) => {
-        const services = await withErrorHandling("resolve MCP services", () =>
-          resolveMcpToolServices(options.services, {
-            extra: extra as TExtra | undefined,
-          }),
-        );
-        if (isToolResult(services)) return services;
-        return createTool(services).handler(args, extra);
-      },
+      async (args, extra) =>
+        withMcpErrorOptions({ authAction: options.authAction }, async () => {
+          const services = await withErrorHandling("resolve MCP services", () =>
+            resolveMcpToolServices(options.services, {
+              extra: extra as TExtra | undefined,
+            }),
+          );
+          if (isToolResult(services)) return services;
+          return createTool(services).handler(args, extra);
+        }),
     );
   }
 }
@@ -153,7 +164,10 @@ export function createMcpServer<TExtra = unknown>(
       options.instructions ?? buildMcpInstructions(options.instructionOptions),
   });
 
-  registerMcpTools(server, { services: options.services });
+  registerMcpTools(server, {
+    authAction: options.authAction,
+    services: options.services,
+  });
 
   return server;
 }

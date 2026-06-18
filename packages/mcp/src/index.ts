@@ -2,6 +2,8 @@ export type { BuildMcpInstructionsOptions } from "./mcp/instructions.js";
 export { buildMcpInstructions } from "./mcp/instructions.js";
 export type {
   CreateMcpServerOptions,
+  McpAuthAction,
+  McpAuthActionContext,
   McpRequestContext,
   McpServerMetadata,
   McpToolDescriptor,

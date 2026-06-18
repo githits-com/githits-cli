@@ -1,0 +1,103 @@
+name: MCP Package Release
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/mcp-release.yml"
+      - ".github/workflows/ci.yml"
+      - "bun.lock"
+      - "package.json"
+      - "packages/core-internal/**"
+      - "packages/mcp/**"
+      - "scripts/validate-public-packages.ts"
+      - "src/package-release-boundaries.test.ts"
+      - "tsconfig.json"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate without publishing"
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  mcp-package:
+    name: MCP package validation and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing requires npm 11.5.1+. The dry-run path also uses npm
+      # publish so PRs exercise the same command shape without publishing.
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build root package
+        run: bun run build
+
+      - name: Build MCP package
+        working-directory: packages/mcp
+        run: bun run build
+
+      - name: Validate public package artifacts and MCP publish dry-run
+        run: bun run validate:packages:mcp-publish
+
+      - name: Get MCP version and release state
+        if: github.event_name == 'workflow_dispatch'
+        id: mcp_version
+        run: |
+          VERSION=$(jq -r '.version' packages/mcp/package.json)
+          TAG="mcp-v$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+          if npm view "@githits/mcp@$VERSION" version >/dev/null 2>&1; then
+            echo "npm_published=true" >> $GITHUB_OUTPUT
+          else
+            echo "npm_published=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Authentication via npm Trusted Publishing (OIDC).
+      # Configure npm trusted publishing for package @githits/mcp with:
+      #   Repository: GitHits-com/githits-cli
+      #   Workflow: mcp-release.yml
+      - name: Publish @githits/mcp to npm
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false && steps.mcp_version.outputs.npm_published == 'false'
+        working-directory: packages/mcp
+        run: npm publish --access public
+
+      - name: Create MCP GitHub Release
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false && steps.mcp_version.outputs.tag_exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.mcp_version.outputs.tag }}" \
+            --title "@githits/mcp v${{ steps.mcp_version.outputs.version }}" \
+            --generate-notes
