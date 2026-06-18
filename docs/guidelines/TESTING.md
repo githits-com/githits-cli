@@ -22,7 +22,7 @@ This document provides comprehensive testing patterns for githits-cli.
 ```typescript
 import { describe, expect, it, mock } from "bun:test";
 import { createMyTool } from "./my-tool.js";
-import { createMockGitHitsService } from "./test-helpers.js";
+import { createMockGitHitsService } from "../services/test-helpers.js";
 
 describe("createMyTool", () => {
   it("returns tool with correct metadata", () => {
