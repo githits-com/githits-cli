@@ -66,6 +66,7 @@ const textDecoder = new TextDecoder();
 async function main(): Promise<void> {
   const tempRoot = await mkdtemp(join(tmpdir(), "githits-public-packages-"));
   try {
+    await buildPublicPackageArtifacts();
     await assertPublicManifestBoundaries();
 
     for (const packageInfo of publicPackages) {
@@ -95,6 +96,16 @@ async function main(): Promise<void> {
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
+}
+
+async function buildPublicPackageArtifacts(): Promise<void> {
+  await runCommand("bun", ["run", "build"], root, "build root package");
+  await runCommand(
+    "bun",
+    ["run", "build"],
+    join(root, "packages", "mcp"),
+    "build mcp package",
+  );
 }
 
 async function assertPublicManifestBoundaries(): Promise<void> {
