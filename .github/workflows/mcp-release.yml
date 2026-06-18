@@ -22,17 +22,14 @@ on:
         type: boolean
 
 jobs:
-  mcp-package:
-    name: MCP package validation and publish
+  validate:
+    name: MCP package validation
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      id-token: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -63,9 +60,58 @@ jobs:
       - name: Validate public package artifacts and MCP publish dry-run
         run: bun run validate:packages:mcp-publish
 
+      - name: Reject non-main publish dispatch
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Publish dispatches must run from refs/heads/main"
+          exit 1
+
+  publish:
+    name: Publish MCP package
+    if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing requires npm 11.5.1+.
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build root package
+        run: bun run build
+
+      - name: Build MCP package
+        working-directory: packages/mcp
+        run: bun run build
+
+      - name: Validate public package artifacts
+        run: bun run validate:packages
+
       - name: Get MCP version and release state
-        if: github.event_name == 'workflow_dispatch'
         id: mcp_version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(jq -r '.version' packages/mcp/package.json)
           TAG="mcp-v$VERSION"
@@ -76,6 +122,12 @@ jobs:
             echo "tag_exists=true" >> $GITHUB_OUTPUT
           else
             echo "tag_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "release_exists=false" >> $GITHUB_OUTPUT
           fi
 
           if npm view "@githits/mcp@$VERSION" version >/dev/null 2>&1; then
@@ -89,15 +141,22 @@ jobs:
       #   Repository: GitHits-com/githits-cli
       #   Workflow: mcp-release.yml
       - name: Publish @githits/mcp to npm
-        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false && steps.mcp_version.outputs.npm_published == 'false'
+        if: steps.mcp_version.outputs.npm_published == 'false'
         working-directory: packages/mcp
         run: npm publish --access public
 
       - name: Create MCP GitHub Release
-        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false && steps.mcp_version.outputs.tag_exists == 'false'
+        if: steps.mcp_version.outputs.release_exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.mcp_version.outputs.tag }}" \
-            --title "@githits/mcp v${{ steps.mcp_version.outputs.version }}" \
-            --generate-notes
+          TAG="${{ steps.mcp_version.outputs.tag }}"
+          if [ "${{ steps.mcp_version.outputs.tag_exists }}" = "true" ]; then
+            gh release create "$TAG" --verify-tag \
+              --title "@githits/mcp v${{ steps.mcp_version.outputs.version }}" \
+              --generate-notes
+          else
+            gh release create "$TAG" \
+              --title "@githits/mcp v${{ steps.mcp_version.outputs.version }}" \
+              --generate-notes
+          fi

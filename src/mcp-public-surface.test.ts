@@ -111,4 +111,43 @@ describe("public MCP package surface", () => {
       },
     });
   });
+
+  it("applies remote auth guidance to mapped code-navigation errors", async () => {
+    const server = new McpServer({ name: "remote-githits", version: "0.0.0" });
+    const search = mock(() =>
+      Promise.reject(
+        new AuthenticationError("Authentication required.", "server"),
+      ),
+    );
+
+    registerMcpTools(server, {
+      authAction: "Authenticate in the hosted GitHits MCP server, then retry.",
+      services: createServices({
+        codeNavigationService: createMockCodeNavigationService({ search }),
+      }),
+    });
+
+    const result = await registeredTool(server, "search").handler(
+      {
+        query: "router",
+        target: { registry: "npm", package_name: "express" },
+        format: "json",
+      },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
+      error: "Authentication required.",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+      details: {
+        action: "Authenticate in the hosted GitHits MCP server, then retry.",
+        authSource: "server",
+      },
+    });
+  });
 });

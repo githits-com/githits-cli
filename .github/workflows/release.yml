@@ -22,14 +22,23 @@ jobs:
 
             - name: Get root version and release state
               id: version
+              env:
+                  GH_TOKEN: ${{ github.token }}
               run: |
                   VERSION=$(jq -r '.version' package.json)
+                  TAG="v$VERSION"
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-                  if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+                  if git rev-parse "$TAG" >/dev/null 2>&1; then
                     echo "tag_exists=true" >> $GITHUB_OUTPUT
                   else
                     echo "tag_exists=false" >> $GITHUB_OUTPUT
+                  fi
+
+                  if gh release view "$TAG" >/dev/null 2>&1; then
+                    echo "release_exists=true" >> $GITHUB_OUTPUT
+                  else
+                    echo "release_exists=false" >> $GITHUB_OUTPUT
                   fi
 
                   if npm view "githits@$VERSION" version >/dev/null 2>&1; then
@@ -38,8 +47,8 @@ jobs:
                     echo "npm_published=false" >> $GITHUB_OUTPUT
                   fi
 
-                  if git rev-parse "v$VERSION" >/dev/null 2>&1 && npm view "githits@$VERSION" version >/dev/null 2>&1; then
-                    echo "v$VERSION and githits@$VERSION already exist, skipping root release"
+                  if git rev-parse "$TAG" >/dev/null 2>&1 && npm view "githits@$VERSION" version >/dev/null 2>&1 && gh release view "$TAG" >/dev/null 2>&1; then
+                    echo "$TAG, GitHub Release, and githits@$VERSION already exist, skipping root release"
                     echo "should_release=false" >> $GITHUB_OUTPUT
                   else
                     echo "Root release has missing artifacts, continuing"
@@ -84,10 +93,17 @@ jobs:
               run: npm publish --access public
 
             - name: Create GitHub Release
-              if: steps.version.outputs.should_release == 'true' && steps.version.outputs.tag_exists == 'false'
+              if: steps.version.outputs.should_release == 'true' && steps.version.outputs.release_exists == 'false'
               env:
                   GH_TOKEN: ${{ github.token }}
               run: |
-                  gh release create "v${{ steps.version.outputs.version }}" \
-                    --title "v${{ steps.version.outputs.version }}" \
-                    --generate-notes
+                  TAG="v${{ steps.version.outputs.version }}"
+                  if [ "${{ steps.version.outputs.tag_exists }}" = "true" ]; then
+                    gh release create "$TAG" --verify-tag \
+                      --title "$TAG" \
+                      --generate-notes
+                  else
+                    gh release create "$TAG" \
+                      --title "$TAG" \
+                      --generate-notes
+                  fi
