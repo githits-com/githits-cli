@@ -335,9 +335,10 @@ Use --lines for a bounded range (e.g. \`--lines 10-40\`) or append a
 range directly to the path (e.g. \`src/index.js:10-40\`). The \`path\`
 comes directly from \`githits code files\`.
 
-Addressing: <spec> (registry:name[@version]) OR --repo-url <url>
---git-ref <ref>. <path> is package-relative for spec addressing,
-repo-relative for --repo-url.
+Addressing: <target> (registry:name[@version], github:org/repo[#ref],
+github.com/org/repo[#ref], or https://github.com/org/repo[#ref]) OR
+--repo-url <url> --git-ref <ref>. <path> is package-relative for package targets
+and repo-relative for repo targets.
 
 Binary files show a one-line sentinel instead of content. When a
 path is missing, the response is a FILE_NOT_FOUND error — use
@@ -350,7 +351,7 @@ export function registerCodeReadCommand(pkgCommand: Command): Command {
     .description(PKG_READ_DESCRIPTION)
     .argument(
       "[spec-or-path]",
-      "In spec mode: package spec (e.g. npm:express). In --repo-url mode: the file path. See examples in `--help`.",
+      "Target mode: package spec or repo shorthand. With --repo-url: the file path. See examples in `--help`.",
     )
     .argument(
       "[path]",

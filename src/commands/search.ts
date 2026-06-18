@@ -162,12 +162,13 @@ export async function searchStatusAction(
 
 const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed dependencies and repositories.
 
-Repeatable --in targets accept package form (npm:express[@version]) or repo
-form (https://github.com/org/repo[#ref]). Structured flags are AND-combined
-with the query. Complete by default — if indexing is still running, returns
-a searchRef instead of partial hits unless --allow-partial is passed. Use
-\`githits example\` for canonical cross-project examples; \`--source symbol\`
-here returns symbol-shaped hits.
+Repeatable --in targets accept explicit package form (registry:name[@version],
+for example npm:express[@version]) or repo form (github:org/repo[#ref],
+github.com/org/repo[#ref], or https://github.com/org/repo[#ref]). Structured
+flags are AND-combined with the query. Complete by default — if indexing is
+still running, returns a searchRef instead of partial hits unless
+--allow-partial is passed. Use \`githits example\` for canonical cross-project
+examples; \`--source symbol\` here returns symbol-shaped hits.
 
 The query supports implicit AND, uppercase OR, parens, unary -, "phrases",
 and qualifiers (kind:, category:, path:, lang:, name:, intent:, registry:,
@@ -194,7 +195,7 @@ export function registerSearchCommand(program: Command) {
     .argument("<query>", "Search query")
     .requiredOption(
       "--in <target>",
-      "Search target: registry:name[@version] or https://github.com/org/repo[#ref]",
+      "Search target: registry:name[@version], github:org/repo[#ref], github.com/org/repo[#ref], or https://github.com/org/repo[#ref]",
       collectRepeatable,
       [] as string[],
     )
@@ -305,20 +306,7 @@ function parseTargetSpecs(specs: string[] | undefined) {
   if (!specs || specs.length === 0) {
     throw new InvalidArgumentError("Provide at least one --in target.");
   }
-  for (const spec of specs) {
-    warnIfUnprefixedTargetSpec(spec);
-  }
   return specs.map(parseUnifiedSearchTargetSpec);
-}
-
-function warnIfUnprefixedTargetSpec(spec: string): void {
-  const trimmed = spec.trim();
-  if (trimmed.length === 0) return;
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return;
-  if (trimmed.includes(":")) return;
-  console.error(
-    `Warning: --in '${trimmed}' has no registry prefix; treating as 'npm:${trimmed}'. Pass 'npm:${trimmed}' explicitly to suppress this warning.`,
-  );
 }
 
 function parseSources(

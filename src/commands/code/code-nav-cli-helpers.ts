@@ -12,12 +12,11 @@ import type {
   CodeNavigationService,
   CodeNavigationTarget,
 } from "@githits/core-internal";
-import { toPkgseerRegistry } from "@githits/core-internal";
 import {
   InvalidPackageSpecError,
   type MappedError,
   mapCodeNavigationError,
-  parsePackageSpec,
+  parseCodeNavigationTargetSpec,
 } from "@githits/mcp/internal";
 import {
   buildCliMappedErrorPayload,
@@ -70,12 +69,7 @@ export function resolveCliCodeNavTarget(
     );
   }
   if (hasSpec) {
-    const parsed = parsePackageSpec(spec as string);
-    return {
-      registry: toPkgseerRegistry(parsed.registry),
-      packageName: parsed.name,
-      version: parsed.version,
-    };
+    return parseCodeNavigationTargetSpec(spec as string);
   }
 
   return {

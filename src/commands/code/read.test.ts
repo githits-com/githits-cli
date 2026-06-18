@@ -131,6 +131,28 @@ describe("pkgReadAction", () => {
     writeSpy.mockRestore();
   });
 
+  it("accepts github shorthand positional targets", async () => {
+    const readFile = mock(() => Promise.resolve(defaultReadFileResult));
+    const service = createMockCodeNavigationService({ readFile });
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    await pkgReadAction(
+      "github:expressjs/express",
+      "src/index.js",
+      {},
+      createDeps({ codeNavigationService: service }),
+    );
+    const calls = readFile.mock.calls as unknown as Array<
+      [{ target: { repoUrl?: string }; filePath: string }]
+    >;
+    expect(calls[0]?.[0]?.target.repoUrl).toBe(
+      "https://github.com/expressjs/express",
+    );
+    expect(calls[0]?.[0]?.filePath).toBe("src/index.js");
+    writeSpy.mockRestore();
+  });
+
   it("sends start/end from --start --end", async () => {
     const readFile = mock(() => Promise.resolve(defaultReadFileResult));
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(

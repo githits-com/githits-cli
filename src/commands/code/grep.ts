@@ -260,9 +260,10 @@ const PKG_GREP_DESCRIPTION = `Deterministic text grep over indexed dependency an
 ${CLI_GREP_PATTERN_NOTE}
 Use \`githits search\` for discovery; use \`githits code grep\` when you know the text or regex to match.
 
-Addressing: <spec> (registry:name[@version]) OR --repo-url <url> [--git-ref <ref>].
-Omitted version means latest release.
-In spec mode pass <spec> <pattern> [path-prefix]; in repo-URL mode pass only <pattern> [path-prefix].
+Addressing: <target> (registry:name[@version], github:org/repo[#ref],
+github.com/org/repo[#ref], or https://github.com/org/repo[#ref]) OR --repo-url
+<url> [--git-ref <ref>]. Omitted package version means latest release.
+In target mode pass <target> <pattern> [path-prefix]; in --repo-url mode pass only <pattern> [path-prefix].
 
 [path-prefix] matches the same literal prefix semantics as \`githits code files\`.
 Use --path for one exact file, repeatable --glob for glob narrowing, and
@@ -282,7 +283,7 @@ export function registerCodeGrepCommand(pkgCommand: Command): Command {
     .description(PKG_GREP_DESCRIPTION)
     .argument(
       "[spec-or-pattern]",
-      "Spec mode: package spec (e.g. npm:express). Repo mode (with --repo-url): the pattern.",
+      "Target mode: package spec or repo shorthand. With --repo-url: the pattern.",
     )
     .argument(
       "[pattern-or-prefix]",

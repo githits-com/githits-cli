@@ -1,6 +1,16 @@
 import type { CodeNavigationTarget } from "@githits/core-internal";
 import { toCodeNavigationRegistry } from "./code-navigation.js";
-import { InvalidArgumentError, parsePackageSpec } from "./package-spec.js";
+import {
+  InvalidArgumentError,
+  InvalidPackageSpecError,
+  parsePackageSpec,
+  UnsupportedRegistryError,
+} from "./package-spec.js";
+import {
+  buildInvalidTargetSpecError,
+  isRepositoryTargetSpec,
+  parseRepositoryTargetSpec,
+} from "./repository-target.js";
 
 export function parseUnifiedSearchTargetSpec(
   spec: string,
@@ -10,31 +20,26 @@ export function parseUnifiedSearchTargetSpec(
     throw new InvalidArgumentError("Target spec cannot be empty.");
   }
 
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    return parseDiscoveryRepoTarget(trimmed);
+  if (isRepositoryTargetSpec(trimmed)) {
+    return parseRepositoryTargetSpec(trimmed);
   }
 
-  const parsed = parsePackageSpec(trimmed);
+  let parsed: ReturnType<typeof parsePackageSpec>;
+  try {
+    parsed = parsePackageSpec(trimmed);
+  } catch (error) {
+    if (
+      error instanceof InvalidPackageSpecError ||
+      error instanceof UnsupportedRegistryError
+    ) {
+      throw buildInvalidTargetSpecError(trimmed, error.message);
+    }
+    throw error;
+  }
+
   return {
     registry: toCodeNavigationRegistry(parsed.registry),
     packageName: parsed.name,
     version: parsed.version,
   };
-}
-
-function parseDiscoveryRepoTarget(spec: string): CodeNavigationTarget {
-  const hashIndex = spec.lastIndexOf("#");
-  if (hashIndex === -1) {
-    return { repoUrl: spec };
-  }
-
-  const repoUrl = spec.slice(0, hashIndex);
-  const gitRef = spec.slice(hashIndex + 1);
-  if (!repoUrl || !gitRef) {
-    throw new InvalidArgumentError(
-      "Repository target must be a full URL with optional #gitRef suffix.",
-    );
-  }
-
-  return { repoUrl, gitRef };
 }

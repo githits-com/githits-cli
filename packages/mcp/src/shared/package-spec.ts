@@ -70,11 +70,11 @@ export class InvalidArgumentError extends Error {
  * `<registry>:<name>[@<version>]`.
  *
  * Rules:
- * - The registry prefix is optional; omitting it defaults to `npm`.
- * - If a prefix is present, it must be a known registry — otherwise
- *   `UnsupportedRegistryError` is thrown. The previous behaviour of
- *   treating `foobar:baz` as an npm package literally named
- *   `foobar:baz` was a footgun.
+ * - The registry prefix is required. Guessing a default registry is a
+ *   footgun because package names can overlap across ecosystems.
+ * - The prefix must be a known registry — otherwise `UnsupportedRegistryError`
+ *   is thrown. The previous behaviour of treating `foobar:baz` as an npm
+ *   package literally named `foobar:baz` was a footgun.
  * - Scoped npm names (`@types/node`) are preserved unchanged; the
  *   leading `@` is not interpreted as a version delimiter.
  * - `@<version>` is optional and parsed from the last `@` in the
@@ -87,21 +87,21 @@ export function parsePackageSpec(spec: string): ParsedPackageSpec {
     );
   }
 
-  let registry: KnownRegistry = "npm";
-  let registryExplicit = false;
-  let rest = spec;
-
-  if (spec.includes(":")) {
-    const colonIndex = spec.indexOf(":");
-    const potentialRegistry = spec.slice(0, colonIndex).toLowerCase();
-    if (isKnownRegistry(potentialRegistry)) {
-      registry = potentialRegistry;
-      registryExplicit = true;
-      rest = spec.slice(colonIndex + 1);
-    } else {
-      throw new UnsupportedRegistryError(potentialRegistry);
-    }
+  if (!spec.includes(":")) {
+    throw new InvalidPackageSpecError(
+      `Package spec "${spec}" is missing a registry prefix. Expected <registry>:<name>[@<version>]. Supported registries: ${PKGSEER_REGISTRY_LIST}.`,
+    );
   }
+
+  const colonIndex = spec.indexOf(":");
+  const potentialRegistry = spec.slice(0, colonIndex).toLowerCase();
+  if (!isKnownRegistry(potentialRegistry)) {
+    throw new UnsupportedRegistryError(potentialRegistry);
+  }
+
+  const registry: KnownRegistry = potentialRegistry;
+  const registryExplicit = true;
+  const rest = spec.slice(colonIndex + 1);
 
   const atIndex = rest.lastIndexOf("@");
   if (atIndex > 0) {

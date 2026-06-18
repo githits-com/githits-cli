@@ -1,15 +1,27 @@
 import type { CodeNavigationTarget } from "@githits/core-internal";
 import { toCodeNavigationRegistry } from "./code-navigation.js";
-import { InvalidArgumentError, parsePackageSpec } from "./package-spec.js";
+import {
+  InvalidArgumentError,
+  InvalidPackageSpecError,
+  parsePackageSpec,
+  UnsupportedRegistryError,
+} from "./package-spec.js";
+import {
+  buildInvalidTargetSpecError,
+  isRepositoryTargetSpec,
+  parseRepositoryTargetSpec,
+} from "./repository-target.js";
 
 /**
  * Parse a compact code-navigation target string.
  *
  * Package targets use the shared package spec grammar, e.g.
  * `npm:react@18.2.0` or `npm:react` for the latest release. Repository
- * targets are full URLs with an optional `#gitRef` suffix, e.g.
- * `https://github.com/facebook/react#HEAD`. Omitted refs request the
- * backend-resolved default branch.
+ * targets are full URLs, `github.com/owner/repo` shorthands, or
+ * `github:owner/repo` shorthands with an optional `#gitRef` suffix, e.g.
+ * `https://github.com/facebook/react#HEAD`, `github.com/facebook/react#HEAD`,
+ * or `github:facebook/react#HEAD`. Omitted refs request the backend-resolved
+ * default branch.
  */
 export function parseCodeNavigationTargetSpec(
   spec: string,
@@ -19,31 +31,26 @@ export function parseCodeNavigationTargetSpec(
     throw new InvalidArgumentError("Target spec cannot be empty.");
   }
 
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    return parseRepoTarget(trimmed);
+  if (isRepositoryTargetSpec(trimmed)) {
+    return parseRepositoryTargetSpec(trimmed);
   }
 
-  const parsed = parsePackageSpec(trimmed);
+  let parsed: ReturnType<typeof parsePackageSpec>;
+  try {
+    parsed = parsePackageSpec(trimmed);
+  } catch (error) {
+    if (
+      error instanceof InvalidPackageSpecError ||
+      error instanceof UnsupportedRegistryError
+    ) {
+      throw buildInvalidTargetSpecError(trimmed, error.message);
+    }
+    throw error;
+  }
+
   return {
     registry: toCodeNavigationRegistry(parsed.registry),
     packageName: parsed.name,
     version: parsed.version,
   };
-}
-
-function parseRepoTarget(spec: string): CodeNavigationTarget {
-  const hashIndex = spec.lastIndexOf("#");
-  if (hashIndex === -1) {
-    return { repoUrl: spec };
-  }
-
-  const repoUrl = spec.slice(0, hashIndex);
-  const gitRef = spec.slice(hashIndex + 1);
-  if (!repoUrl || !gitRef) {
-    throw new InvalidArgumentError(
-      "Repository target must be a full URL with optional #gitRef suffix.",
-    );
-  }
-
-  return { repoUrl, gitRef };
 }
