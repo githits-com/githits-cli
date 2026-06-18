@@ -797,6 +797,32 @@ function buildInitAgentChoices(
   ];
 }
 
+function getInstallSummaryAgents(
+  scan: ScanResult,
+  selectedForSetup: AgentDefinition[],
+): AgentDefinition[] {
+  const selectedIds = new Set(selectedForSetup.map((agent) => agent.id));
+  const included = new Map<string, AgentDefinition>();
+
+  for (const agent of scan.alreadyConfigured) {
+    included.set(agent.id, agent);
+  }
+  for (const agent of scan.needsSetup) {
+    if (selectedIds.has(agent.id)) {
+      included.set(agent.id, agent);
+    }
+  }
+
+  const agentOrder = new Map(
+    agentDefinitions.map((agent, index) => [agent.id, index]),
+  );
+  return [...included.values()].sort(
+    (a, b) =>
+      (agentOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+      (agentOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
 function printScanSummary(
   scan: ScanResult,
   useColors: boolean,
@@ -2834,7 +2860,9 @@ export async function initAction(
   if (toSetup.length === 0 && scan.needsSetup.length > 0) {
     printTask("skipped", "Setup skipped", "no tools selected", useColors);
     console.log();
-    return;
+    if (scan.alreadyConfigured.length === 0) {
+      return;
+    }
   }
 
   if (toSetup.length > 0) {
@@ -2853,22 +2881,9 @@ export async function initAction(
   }
 
   printSection(4, "Install and verify", useColors);
-  if (toSetup.length === 0) {
-    printTask(
-      "success",
-      "Nothing to install",
-      "all detected tools are already configured",
-      useColors,
-    );
-    console.log();
-    printMcpServerSummary(useColors, false);
-    printScopedNextSteps(setupScope, authStatus, useColors);
-    console.log();
-    return;
-  }
-
+  const summaryAgents = getInstallSummaryAgents(scan, toSetup);
   const outcomes = await installSelectedAgents(
-    toSetup,
+    summaryAgents,
     scan,
     fileSystemService,
     execService,
@@ -2880,9 +2895,9 @@ export async function initAction(
   console.log();
 
   const configured = outcomes.filter((o) => o.status === "success").length;
-  const alreadyDone =
-    outcomes.filter((o) => o.status === "already_configured").length +
-    scan.alreadyConfigured.length;
+  const alreadyDone = outcomes.filter(
+    (o) => o.status === "already_configured",
+  ).length;
   const failed = outcomes.filter((o) => o.status === "failed").length;
 
   if (failed > 0) {
@@ -2902,9 +2917,9 @@ export async function initAction(
       );
     }
   }
-  if (scan.alreadyConfigured.length > 0) {
+  if (alreadyDone > 0) {
     console.log(
-      `  ${scan.alreadyConfigured.length} tool${scan.alreadyConfigured.length !== 1 ? "s" : ""} already configured.`,
+      `  ${alreadyDone} tool${alreadyDone !== 1 ? "s" : ""} already configured.`,
     );
   }
 

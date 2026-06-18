@@ -1457,7 +1457,7 @@ export async function executeCompositeSetup(
   fs: FileSystemService,
   execService: ExecService,
 ): Promise<SetupResult> {
-  let executedAny = false;
+  let changedAny = false;
   const changes: SetupChange[] = [];
 
   for (const step of setup.steps) {
@@ -1468,7 +1468,6 @@ export async function executeCompositeSetup(
       continue;
     }
 
-    executedAny = true;
     const result =
       step.method === "cli"
         ? await executeCliSetup(step, execService)
@@ -1477,6 +1476,13 @@ export async function executeCompositeSetup(
     if (result.changes) {
       changes.push(...result.changes);
     }
+    if (
+      result.status === "success" &&
+      (!result.changes ||
+        result.changes.some((change) => change.change !== "unchanged"))
+    ) {
+      changedAny = true;
+    }
     if (result.status === "failed") {
       // Keep prior steps (and any partial changes from the failing step)
       // visible on failure.
@@ -1484,7 +1490,7 @@ export async function executeCompositeSetup(
     }
   }
 
-  if (!executedAny) {
+  if (!changedAny) {
     return {
       status: "already_configured",
       message: "GitHits already configured",

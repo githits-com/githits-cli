@@ -2457,6 +2457,46 @@ describe("executeCompositeSetup", () => {
     ]);
   });
 
+  it("reports already_configured when a false-negative pre-check still changes nothing", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(
+          JSON.stringify({
+            mcpServers: { GitHits: piConfigSetup.serverConfig },
+          }),
+        ),
+      ),
+    });
+    const execService = createMockExecService({
+      exec: mock((command: string, args: string[]) => {
+        if (command === "pi" && args.join(" ") === "list") {
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
+        }
+        return Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "MCP server GitHits already exists\n",
+        });
+      }),
+    });
+
+    const result = await executeCompositeSetup(piSetup, fs, execService);
+    expect(result.status).toBe("already_configured");
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "pi install npm:pi-mcp-adapter",
+        change: "unchanged",
+      },
+      {
+        kind: "config-file",
+        path: "/home/test/.pi/agent/mcp.json",
+        change: "unchanged",
+      },
+    ]);
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
   it("stops on failed install before writing config", async () => {
     const enoent = Object.assign(new Error("File not found"), {
       code: "ENOENT",

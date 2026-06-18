@@ -1591,24 +1591,36 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("already configured"))).toBe(
       true,
     );
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("Cursor") &&
+          msg.includes("unchanged") &&
+          msg.includes("~/.cursor/mcp.json"),
+      ),
+    ).toBe(true);
     expectReadyNextSteps(logCalls);
   });
 
   it("handles mixed status: configured + unconfigured", async () => {
     // Cursor configured, windsurf not configured
+    const configFiles: Record<string, string> = {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    };
     const fs = createFsWithDetection(
       ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
-      {
-        "/home/test/.cursor/mcp.json": JSON.stringify({
-          mcpServers: {
-            GitHits: {
-              command: "npx",
-              args: ["-y", "githits@latest", "mcp", "start"],
-            },
-          },
-        }),
-      },
+      configFiles,
     );
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
     const promptService = createMockPromptService();
 
     await initAction(
@@ -1636,6 +1648,69 @@ describe("initAction", () => {
         (msg) => msg.includes("Windsurf") && msg.includes("needs setup"),
       ),
     ).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("Cursor") &&
+          msg.includes("unchanged") &&
+          msg.includes("~/.cursor/mcp.json"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("Windsurf") &&
+          msg.includes("created") &&
+          msg.includes("~/.codeium/windsurf/mcp_config.json"),
+      ),
+    ).toBe(true);
+  });
+
+  it("shows already-configured rows when no new tools are selected", async () => {
+    const fs = createFsWithDetection(
+      ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
+      {
+        "/home/test/.cursor/mcp.json": JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        }),
+      },
+    );
+    const promptService = createMockPromptService({
+      checkbox: mock(() => Promise.resolve([])) as PromptService["checkbox"],
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    const logCalls = getLogOutput();
+    expect(logCalls.some((msg) => msg.includes("Setup skipped"))).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("Cursor") &&
+          msg.includes("unchanged") &&
+          msg.includes("~/.cursor/mcp.json"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) => msg.includes("Windsurf") && msg.includes("created"),
+      ),
+    ).toBe(false);
+    expectReadyNextSteps(logCalls);
   });
 
   it("configures only the agents selected in the checkbox", async () => {
@@ -2056,7 +2131,7 @@ describe("initAction", () => {
     ).toBe(true);
   });
 
-  it("--yes with all agents already configured shows nothing to do", async () => {
+  it("--yes with all agents already configured shows unchanged paths", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"], {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
@@ -2080,6 +2155,17 @@ describe("initAction", () => {
 
     const logCalls = getLogOutput();
     expectReadyNextSteps(logCalls);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("Cursor") &&
+          msg.includes("unchanged") &&
+          msg.includes("~/.cursor/mcp.json"),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Nothing to install"))).toBe(
+      false,
+    );
     // The MCP server is still confirmed, with already-configured wording.
     expect(
       logCalls.some((msg) =>
