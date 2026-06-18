@@ -1,0 +1,30 @@
+export type {
+  AgentInfo,
+  CodeNavigationService,
+  GitHitsService,
+  PackageIntelligenceService,
+  TokenProvider,
+} from "@githits/core-internal";
+
+export {
+  CodeNavigationServiceImpl,
+  createClientHeaderBuilder,
+  createStaticTokenProvider,
+  DEFAULT_API_URL,
+  DEFAULT_CODE_NAV_URL,
+  DEFAULT_MCP_URL,
+  endTelemetrySpan,
+  flushTelemetry,
+  GitHitsServiceImpl,
+  getApiUrl,
+  getCodeNavigationUrl,
+  getEnvApiToken,
+  getMcpUrl,
+  PackageIntelligenceServiceImpl,
+  PKGSEER_REGISTRY_LIST,
+  RefreshingGitHitsService,
+  startTelemetrySpan,
+  toPkgseerRegistry,
+  toPkgseerRegistryLowercase,
+  withTelemetrySpan,
+} from "@githits/core-internal";

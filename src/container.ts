@@ -3,6 +3,7 @@ import {
   type CodeNavigationService,
   CodeNavigationServiceImpl,
   createClientHeaderBuilder,
+  createStaticTokenProvider,
   endTelemetrySpan,
   type GitHitsService,
   GitHitsServiceImpl,
@@ -14,7 +15,6 @@ import {
   PackageIntelligenceServiceImpl,
   RefreshingGitHitsService,
   startTelemetrySpan,
-  type TokenProvider,
   withTelemetrySpan,
 } from "@githits/core-internal";
 import { version } from "../package.json";
@@ -257,13 +257,6 @@ export interface CreateContainerOptions {
   clientName?: string;
   /** Optional per-request/client agent identity provider. */
   agentProvider?: () => AgentInfo | undefined;
-}
-
-function createStaticTokenProvider(token: string): TokenProvider {
-  return {
-    getToken: async () => token,
-    forceRefresh: async () => undefined,
-  };
 }
 
 /**

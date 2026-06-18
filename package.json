@@ -38,6 +38,8 @@
     "inspector": "npx @modelcontextprotocol/inspector bun run dev mcp",
     "smoke:cli": "bun run scripts/cli-smoke.ts",
     "smoke:mcp": "bun run scripts/mcp-smoke.ts",
+    "validate:packages": "bun run scripts/validate-public-packages.ts",
+    "validate:packages:mcp-publish": "bun run scripts/validate-public-packages.ts --mcp-publish-dry-run",
     "audit:pkg-ecosystems": "bun run scripts/pkg-ecosystem-audit.ts",
     "agent:e2e": "bun run scripts/agent-eval.ts",
     "agent:e2e:report": "bun run scripts/agent-eval-report.ts",

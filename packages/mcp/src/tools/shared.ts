@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { AuthenticationError } from "@githits/core-internal";
 import type { MappedError } from "../shared/code-navigation-error-map.js";
 import { errorResult, type ToolResult } from "./types.js";
@@ -6,6 +7,29 @@ const LOCAL_MCP_AUTH_ACTION =
   "Run `githits login`, or set GITHITS_API_TOKEN, then retry this tool call.";
 const SERVER_MCP_AUTH_ACTION =
   "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set. If this persists, contact support@githits.com.";
+
+export interface McpAuthActionContext {
+  authSource: unknown;
+  defaultAction: string;
+}
+
+export type McpAuthAction =
+  | string
+  | ((context: McpAuthActionContext) => string);
+
+export interface McpErrorOptions {
+  authAction?: McpAuthAction;
+}
+
+const mcpErrorOptions = new AsyncLocalStorage<McpErrorOptions>();
+
+export async function withMcpErrorOptions<T>(
+  options: McpErrorOptions | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (!options?.authAction) return fn();
+  return mcpErrorOptions.run(options, fn);
+}
 
 /**
  * Wraps a tool handler with the shared structured `{error, code,
@@ -92,7 +116,10 @@ function classify(operation: string, error: unknown): ToolErrorEnvelope {
 }
 
 function mcpAuthAction(authSource: unknown): string {
-  return authSource === "server"
-    ? SERVER_MCP_AUTH_ACTION
-    : LOCAL_MCP_AUTH_ACTION;
+  const defaultAction =
+    authSource === "server" ? SERVER_MCP_AUTH_ACTION : LOCAL_MCP_AUTH_ACTION;
+  const configuredAction = mcpErrorOptions.getStore()?.authAction;
+  if (!configuredAction) return defaultAction;
+  if (typeof configuredAction === "string") return configuredAction;
+  return configuredAction({ authSource, defaultAction });
 }

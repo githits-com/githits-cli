@@ -1,0 +1,180 @@
+name: MCP Package Release
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/mcp-release.yml"
+      - ".github/workflows/ci.yml"
+      - "bun.lock"
+      - "package.json"
+      - "packages/core-internal/**"
+      - "packages/mcp/**"
+      - "scripts/validate-public-packages.ts"
+      - "src/package-release-boundaries.test.ts"
+      - "tsconfig.json"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate without publishing"
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: MCP package validation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing requires npm 11.5.1+. The dry-run path also uses npm
+      # publish so PRs exercise the same command shape without publishing.
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build root package
+        run: bun run build
+
+      - name: Build MCP package
+        working-directory: packages/mcp
+        run: bun run build
+
+      - name: Validate public package artifacts and MCP publish dry-run
+        run: bun run validate:packages:mcp-publish
+
+      - name: Reject non-main publish dispatch
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Publish dispatches must run from refs/heads/main"
+          exit 1
+
+  publish:
+    name: Publish MCP package
+    if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing requires npm 11.5.1+.
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build root package
+        run: bun run build
+
+      - name: Build MCP package
+        working-directory: packages/mcp
+        run: bun run build
+
+      - name: Validate public package artifacts
+        run: bun run validate:packages
+
+      - name: Get MCP version and release state
+        id: mcp_version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(jq -r '.version' packages/mcp/package.json)
+          TAG="mcp-v$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          TAG_EXISTS=false
+          TAG_REF="refs/tags/$TAG"
+          if git rev-parse --verify "$TAG_REF^{commit}" >/dev/null 2>&1; then
+            TAG_EXISTS=true
+            TAG_COMMIT=$(git rev-parse "$TAG_REF^{commit}")
+            HEAD_COMMIT=$(git rev-parse HEAD)
+            if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+              echo "::error::Existing tag $TAG points to $TAG_COMMIT, not HEAD $HEAD_COMMIT"
+              exit 1
+            fi
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+          if npm view "@githits/mcp@$VERSION" version >/dev/null 2>&1; then
+            if [ "$TAG_EXISTS" != "true" ]; then
+              echo "::error::@githits/mcp@$VERSION is already published, but $TAG is missing. Refusing to mint an unverifiable release tag."
+              exit 1
+            fi
+            echo "npm_published=true" >> $GITHUB_OUTPUT
+          else
+            echo "npm_published=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create MCP git tag
+        if: steps.mcp_version.outputs.tag_exists == 'false'
+        run: |
+          TAG="${{ steps.mcp_version.outputs.tag }}"
+          git tag "$TAG" HEAD
+          git push origin "refs/tags/$TAG"
+
+      # Authentication via npm Trusted Publishing (OIDC).
+      # Configure npm trusted publishing for package @githits/mcp with:
+      #   Repository: GitHits-com/githits-cli
+      #   Workflow: mcp-release.yml
+      - name: Publish @githits/mcp to npm
+        if: steps.mcp_version.outputs.npm_published == 'false'
+        working-directory: packages/mcp
+        run: npm publish --access public
+
+      - name: Create MCP GitHub Release
+        if: steps.mcp_version.outputs.release_exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.mcp_version.outputs.tag }}"
+          gh release create "$TAG" --verify-tag \
+            --title "@githits/mcp v${{ steps.mcp_version.outputs.version }}" \
+            --generate-notes

@@ -1,6 +1,6 @@
 {
   "name": "@githits/mcp",
-  "version": "0.4.12",
+  "version": "0.4.15",
   "description": "Reusable MCP server APIs and tools for GitHits",
   "type": "module",
   "files": [
@@ -15,6 +15,12 @@
       "import": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      }
+    },
+    "./client": {
+      "import": {
+        "types": "./dist/client.d.ts",
+        "default": "./dist/client.js"
       }
     },
     "./package.json": "./package.json"

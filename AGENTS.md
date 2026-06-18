@@ -96,6 +96,21 @@ See `docs/guidelines/TESTING.md` for comprehensive patterns.
 - **Error Handling**: Use `withErrorHandling()` wrapper for consistent errors
 - **Tool Pattern**: Follow `ToolDefinition` interface for MCP tools
 
+## Workspace Boundaries
+
+- Root `src/**` is still the published `githits` CLI implementation until the CLI package move completes. It owns Commander commands, local auth storage, browser login, init/setup flows, local stdio MCP startup, and plugin/assistant packaging assets.
+- `packages/core-internal` is private source. It owns transport-neutral service clients, service interfaces, shared request/header/telemetry primitives, neutral service errors, PKCE helpers, and `TokenProvider`. Never publish or leak `@githits/core-internal` into public artifacts.
+- `packages/mcp` is the public `@githits/mcp` package. Its public tool/server API is `packages/mcp/src/index.ts`: transport-neutral MCP server creation, tool registration, descriptors, instructions, request-scoped service provider types, and MCP service types. Its public runtime/client API is `packages/mcp/src/client.ts`, exported as `@githits/mcp/client`, for remote MCP servers that need concrete service implementations and token/header/config helpers.
+- `@githits/mcp/internal` is a workspace-only alias for root CLI transition helpers. External packages and the future remote MCP server repo must never import it. If remote server work needs something internal, promote the smallest stable API through `@githits/mcp` instead.
+- Public package artifacts for both root `githits` and `@githits/mcp` must not contain `@githits/core-internal`, `workspace:*`, `@githits/mcp/internal`, or private source aliases in JS, declarations, or manifests.
+
+## Release Boundaries
+
+- `githits` and `@githits/mcp` have separate release flows. They may be bumped together when both surfaces changed, but CLI-only changes should not bump `@githits/mcp`.
+- Root `githits` release versions must stay aligned with plugin/assistant manifests: `.plugin/plugin.json`, `.claude-plugin/plugin.json`, `plugins/claude/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `gemini-extension.json`.
+- `@githits/mcp` release versions live in `packages/mcp/package.json` and should change only for MCP package API, tool behavior, MCP instructions, schemas, MCP auth/error behavior, or remote-server-facing public type changes.
+- Validate package behavior from outside root path aliases. Repo-local imports can hide package export-map or declaration problems.
+
 ### Common Pitfalls
 
 - Not mocking services in tests
@@ -156,12 +171,16 @@ fix: handle expired tokens in auth status
 
 ```
 src/
-  cli.ts              # CLI entry point
-  container.ts        # Dependency injection
+  cli.ts              # root CLI entry point for published githits package
+  container.ts        # root CLI dependency injection
   auth/               # OAuth PKCE utilities
-  commands/           # CLI commands
-  services/           # Service interfaces and implementations
-  tools/              # MCP tool implementations
+  commands/           # CLI commands and local stdio MCP command
+  services/           # CLI/local auth storage and service composition
+  tools/              # root CLI/MCP parity tests only
+packages/
+  core-internal/      # private transport-neutral service/core source
+  mcp/                # public @githits/mcp package source
+  cli/                # private placeholder until CLI package move
 docs/
   guidelines/         # Development guidelines
   implementation/     # Implementation documentation

@@ -45,6 +45,13 @@ jobs:
       - name: Build
         run: bun run build
 
+      - name: Build MCP package
+        working-directory: packages/mcp
+        run: bun run build
+
+      - name: Validate public package artifacts
+        run: bun run validate:packages:mcp-publish
+
       - name: Pack npm package
         run: |
           mkdir -p package-artifact
