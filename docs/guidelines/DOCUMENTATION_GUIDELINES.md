@@ -36,7 +36,7 @@ A reader who stops halfway should still have gained the core understanding.
 
 Point to canonical implementations rather than copy-pasting code:
 
-**Prefer**: "See `src/tools/search.ts` for the implementation pattern"
+**Prefer**: "See `packages/mcp/src/tools/search.ts` for the implementation pattern"
 
 **Avoid**: Embedding 50 lines of code that will drift out of sync
 

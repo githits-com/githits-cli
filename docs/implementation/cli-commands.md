@@ -396,8 +396,8 @@ Each command follows this pattern:
 |---|---|
 | `GitHitsService` (via container) | `example`, `languages`, `feedback`, and always-on MCP tools |
 | `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, MCP indexed-search tools (`search`, `search_status`, `code_files`, `code_read`, `code_grep`), and the `githits code` command group |
-| `filterLanguages()` from `src/shared/language-filter.ts` | `search_language` MCP tool + `languages` CLI command |
-| `requireAuth()` from `src/shared/require-auth.ts` | all CLI commands and auth-required MCP tool handlers |
+| `filterLanguages()` from `packages/mcp/src/shared/language-filter.ts` | `search_language` MCP tool + `languages` CLI command |
+| `requireAuth()` from `packages/mcp/src/shared/require-auth.ts` | all CLI commands and auth-required MCP tool handlers |
 
 ## Adding a New CLI Command
 
@@ -438,9 +438,9 @@ All commands support two output modes:
 | `src/commands/search.ts` | Unified search and search-status command implementation |
 | `src/commands/languages.ts` | Languages command with colored output |
 | `src/commands/feedback.ts` | Feedback command with accept/reject validation |
-| `src/shared/language-filter.ts` | Pure `filterLanguages()` shared with MCP tool |
-| `src/shared/require-auth.ts` | Auth guard shared with MCP server |
-| `src/shared/colors.ts` | ANSI color utilities and `shouldUseColors()` |
+| `packages/mcp/src/shared/language-filter.ts` | Pure `filterLanguages()` shared with MCP tool |
+| `packages/mcp/src/shared/require-auth.ts` | Auth guard shared with MCP server |
+| `packages/mcp/src/shared/colors.ts` | ANSI color utilities and `shouldUseColors()` |
 | `src/container.ts` | Dependency container with `githitsService` |
 | `src/commands/init/init.ts` | Init command orchestrator |
 | `src/commands/init/agent-definitions.ts` | Agent detection and setup config |

@@ -55,7 +55,7 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Unified `search` query syntax.** The `search.query` field is the backend discovery query syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). The backend parses the query once and compiles it per source. Structured `name` and `language` inputs are compiled into `name:` / `lang:` qualifiers and AND-ed with the query before sending. Per-source support, ignored features, and incompatibilities are reported in `sourceStatus`.
 
-**Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. Mitigates backend issue B5: docs-only search plus a `kind:`/`lang:` qualifier returns `results: []` with the only diagnostic buried inside `sourceStatus[].note`. The text-v1 renderer prints the warnings as a `warnings:` preamble. Implementation in `buildSourceStatusWarnings` (`src/shared/unified-search-response.ts`); remove once the backend surfaces these at the top level itself.
+**Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. Mitigates backend issue B5: docs-only search plus a `kind:`/`lang:` qualifier returns `results: []` with the only diagnostic buried inside `sourceStatus[].note`. The text-v1 renderer prints the warnings as a `warnings:` preamble. Implementation in `buildSourceStatusWarnings` (`packages/mcp/src/shared/unified-search-response.ts`); remove once the backend surfaces these at the top level itself.
 
 ### `pkg_info` response shape
 
@@ -67,7 +67,7 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Always latest.** The query exposes no `version` input because the upstream `packageSummary` resolver always returns the latest published version. The CLI `githits pkg info` rejects `<spec>@<version>` with `INVALID_ARGUMENT` rather than silently swapping — a silent-swap would break security-testing workflows that pin to an older vulnerable release.
 
-`pkg_info` shares its envelope builder, text formatter, and error classifier with the CLI `githits pkg info` command via `src/shared/package-summary-request.ts`, `src/shared/package-summary-response.ts`, and `src/shared/package-intelligence-error-map.ts`. The parity test (`src/tools/package-summary-parity.test.ts`) passes `format: "json"` and asserts `toEqual` between CLI `--json` and MCP JSON output for service-sourced fixtures, and `toMatchObject` for the `INVALID_ARGUMENT` fixture where surface-specific error text is acceptable.
+`pkg_info` shares its envelope builder, text formatter, and error classifier with the CLI `githits pkg info` command via `packages/mcp/src/shared/package-summary-request.ts`, `packages/mcp/src/shared/package-summary-response.ts`, and `packages/mcp/src/shared/package-intelligence-error-map.ts`. The parity test (`src/tools/package-summary-parity.test.ts`) passes `format: "json"` and asserts `toEqual` between CLI `--json` and MCP JSON output for service-sourced fixtures, and `toMatchObject` for the `INVALID_ARGUMENT` fixture where surface-specific error text is acceptable.
 
 ### `pkg_vulns` response shape
 
@@ -77,7 +77,7 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Partitioning buckets.** Advisories with `isMalicious: true` count **only** under `summary.bySeverity.malware`; severity bands (`critical`/`high`/`medium`/`low`) count non-malicious advisories with a positive CVSS score; non-malicious advisories with no score count under `summary.bySeverity.unrated`. Every returned advisory lands in exactly one bucket. For default affected scope, the bucket sum equals `summary.total`. For `non_affecting` / `all`, the bucket sum describes the selected advisory rows while `summary.total` still describes affected-version risk. The malware bucket sorts to the top of the advisory list regardless of score. The `unrated` bucket keeps Rust / PyPI packages with missing CVSS values explicit.
 
-**Alias-cluster dedup.** Some registries (most visibly Crates) return the GHSA-prefixed and the RUSTSEC-prefixed entry for the same underlying vulnerability as separate advisories, cross-linked via `aliases[]`. The shared envelope builder unions clusters over `id ∪ aliases[]`, picks one canonical advisory per cluster (severity-bearing entries first, then `GHSA-*` over `RUSTSEC-*`, then lexicographic `id` ascending), and merges the rest under the canonical's `aliases`. `affectedRanges`, `fixedIn`, malware/withdrawn flags, and the latest `modifiedAt` are unioned across the cluster; a withdrawal only sticks if every cluster member is withdrawn. `summary.total` and `summary.bySeverity` are recomputed from the deduped list so the partition invariant holds. This is a client-side mitigation for backend issue B3 (https://app.githits.com — eval report 2026-04-28); remove `dedupAdvisoriesByAlias` from `src/shared/package-vulnerabilities-response.ts` once the backend dedups upstream.
+**Alias-cluster dedup.** Some registries (most visibly Crates) return the GHSA-prefixed and the RUSTSEC-prefixed entry for the same underlying vulnerability as separate advisories, cross-linked via `aliases[]`. The shared envelope builder unions clusters over `id ∪ aliases[]`, picks one canonical advisory per cluster (severity-bearing entries first, then `GHSA-*` over `RUSTSEC-*`, then lexicographic `id` ascending), and merges the rest under the canonical's `aliases`. `affectedRanges`, `fixedIn`, malware/withdrawn flags, and the latest `modifiedAt` are unioned across the cluster; a withdrawal only sticks if every cluster member is withdrawn. `summary.total` and `summary.bySeverity` are recomputed from the deduped list so the partition invariant holds. This is a client-side mitigation for backend issue B3 (https://app.githits.com — eval report 2026-04-28); remove `dedupAdvisoriesByAlias` from `packages/mcp/src/shared/package-vulnerabilities-response.ts` once the backend dedups upstream.
 
 **Version validation.** `pkg_vulns` accepts canonical package versions only. Tag-style refs with a leading `v` (for example `v4.18.0`) are rejected client-side with `INVALID_ARGUMENT` before the backend call. This avoids the current production backend's unhelpful generic error for that input shape. This is intentionally narrow: proper ecosystem-aware version parsing and typed invalid-version errors belong in the backend, not in ad hoc CLI normalization rules.
 
@@ -85,9 +85,9 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Omission rules.** Null scalars omitted; empty arrays dropped; zero-count `bySeverity` keys dropped; the `bySeverity` block itself dropped when `total === 0`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
 
-**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift have vulnerability data. vcpkg and Zig are rejected client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.`) — rejection predicate lives in `src/shared/package-vulnerabilities-request.ts` rather than the shared registry module, since it is a tool-specific capability matrix.
+**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift have vulnerability data. vcpkg and Zig are rejected client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.`) — rejection predicate lives in `packages/mcp/src/shared/package-vulnerabilities-request.ts` rather than the shared registry module, since it is a tool-specific capability matrix.
 
-`pkg_vulns` shares its envelope builder and text formatter with the CLI `githits pkg vulns` command via `src/shared/package-vulnerabilities-request.ts` and `src/shared/package-vulnerabilities-response.ts`. MCP defaults to compact text and uses `format: "json"` for structured output. The shared text formatter is surface-aware so MCP hints never mention CLI flags. The parity test (`src/tools/package-vulnerabilities-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across the service-sourced success/filter/typed-error fixtures, and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` fixtures such as unsupported registries and tag-style `v`-prefixed versions.
+`pkg_vulns` shares its envelope builder and text formatter with the CLI `githits pkg vulns` command via `packages/mcp/src/shared/package-vulnerabilities-request.ts` and `packages/mcp/src/shared/package-vulnerabilities-response.ts`. MCP defaults to compact text and uses `format: "json"` for structured output. The shared text formatter is surface-aware so MCP hints never mention CLI flags. The parity test (`src/tools/package-vulnerabilities-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across the service-sourced success/filter/typed-error fixtures, and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` fixtures such as unsupported registries and tag-style `v`-prefixed versions.
 
 ### `pkg_deps` response shape
 
@@ -103,13 +103,13 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Typed dependency graph projection.** Backend exposes typed `dependencyGraph`, `dependencyConflicts`, `circularDependencyCycles`, and `environmentMarkers`; `pkg_deps` consumes those typed fields and projects them into a lean agent-facing envelope. Deprecated raw fields (`dag`, `conflicts`, `circularDependencies`, `environmentConstraints`) are intentionally not queried. The raw graph is deliberately not exposed by this tool.
 
-**Registry coverage.** npm, PyPI, Hex, Crates, vcpkg, Zig, RubyGems, Go, and Swift support the `packageDependencies` query. NuGet / Maven / Packagist are rejected client-side with a tool-specific message (`pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, go, swift. Got: ${registry}.`). Predicate lives in `src/shared/package-dependencies-request.ts`.
+**Registry coverage.** npm, PyPI, Hex, Crates, vcpkg, Zig, RubyGems, Go, and Swift support the `packageDependencies` query. NuGet / Maven / Packagist are rejected client-side with a tool-specific message (`pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, go, swift. Got: ${registry}.`). Predicate lives in `packages/mcp/src/shared/package-dependencies-request.ts`.
 
 **Version validation.** Same rule as `pkg_vulns`: tag-style `v`-prefixed inputs are rejected client-side with `INVALID_ARGUMENT` before the backend call.
 
 **MCP schema notes.** Permissive (`registry: z.string()`, `package_name: z.string()`, …) with validation in-handler via `buildPackageDependenciesParams`. Deliberately no `include_groups` input — with the data-first envelope emitting `groups` unconditionally when the backend returns `dependencyGroups`, the flag would be a silently ignored no-op. `max_depth` / CLI `--depth` is optional; when omitted the surface shows direct dependencies only while still fetching depth 1 on the wire to resolve direct dependency versions. Passing `max_depth` requests the transitive block and caps traversal. `include_importers` adds importer provenance; if used without `max_depth`, it also requests transitive output.
 
-`pkg_deps` shares its envelope builder and text formatter with the CLI `githits pkg deps` command via `src/shared/package-dependencies-request.ts` and `src/shared/package-dependencies-response.ts`. MCP defaults to compact text and uses MCP-native hints such as `pass lifecycle="all"`; CLI hints remain CLI-native. The parity test (`src/tools/package-dependencies-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across every service-sourced success / error fixture (runtime, zero-dep, full-view, optional-lifecycle, multi-lifecycle, filter-matched-nothing, Crates-target-cfg dedup round-trip, transitive, versioned match / diff, NOT_FOUND, VERSION_NOT_FOUND, BACKEND_ERROR), and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` (unsupported registry, tag-style version, unknown lifecycle).
+`pkg_deps` shares its envelope builder and text formatter with the CLI `githits pkg deps` command via `packages/mcp/src/shared/package-dependencies-request.ts` and `packages/mcp/src/shared/package-dependencies-response.ts`. MCP defaults to compact text and uses MCP-native hints such as `pass lifecycle="all"`; CLI hints remain CLI-native. The parity test (`src/tools/package-dependencies-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across every service-sourced success / error fixture (runtime, zero-dep, full-view, optional-lifecycle, multi-lifecycle, filter-matched-nothing, Crates-target-cfg dedup round-trip, transitive, versioned match / diff, NOT_FOUND, VERSION_NOT_FOUND, BACKEND_ERROR), and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` (unsupported registry, tag-style version, unknown lifecycle).
 
 ### `pkg_changelog` response shape
 
@@ -131,11 +131,11 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Overlap with `pkg_info`.** `pkg_info` already surfaces a short-form `recentChanges` block (from the backend's `latestChangelogs` field on `PackageSummaryResult`). For a quick "what shipped recently" glance embedded in a package overview, use `pkg_info`. For the full range-capable, body-rich, `omit_bodies`-toggleable changelog with `--no-body` timeline mode and repo-URL addressing, use `pkg_changelog`.
 
-`pkg_changelog` shares its envelope builder and text formatter with the CLI `githits pkg changelog` command via `src/shared/package-changelog-request.ts` and `src/shared/package-changelog-response.ts`. MCP defaults to compact text with MCP-native `verbose=true`, `body_lines=<n>`, and `format="json"` hints for full bodies. The parity test (`src/tools/package-changelog-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across every service-sourced success / error fixture (happy latest, range mode, repo-URL addressing, no-source package-version entries, `--no-body` / `omit_bodies: true`, default bodies, empty entries, NOT_FOUND, PackageIntelligenceTargetNotFoundError, VERSION_NOT_FOUND, BACKEND_ERROR), and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT`.
+`pkg_changelog` shares its envelope builder and text formatter with the CLI `githits pkg changelog` command via `packages/mcp/src/shared/package-changelog-request.ts` and `packages/mcp/src/shared/package-changelog-response.ts`. MCP defaults to compact text with MCP-native `verbose=true`, `body_lines=<n>`, and `format="json"` hints for full bodies. The parity test (`src/tools/package-changelog-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across every service-sourced success / error fixture (happy latest, range mode, repo-URL addressing, no-source package-version entries, `--no-body` / `omit_bodies: true`, default bodies, empty entries, NOT_FOUND, PackageIntelligenceTargetNotFoundError, VERSION_NOT_FOUND, BACKEND_ERROR), and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT`.
 
 ### `code_files` / `code_read` / `code_grep` response shapes
 
-These three indexed tools share an addressing and lifecycle contract (documented below) and then each projects its own data-first envelope. All three reuse the shipped `codeTargetSchema` + `resolveCodeTarget` from `src/tools/code-navigation-shared.ts` — no parallel addressing module.
+These three indexed tools share an addressing and lifecycle contract (documented below) and then each projects its own data-first envelope. All three reuse the shipped `codeTargetSchema` + `resolveCodeTarget` from `packages/mcp/src/tools/code-navigation-shared.ts` — no parallel addressing module.
 
 **`code_files` envelope**: `{registry?|repoUrl?+gitRef?, total, hasMore, indexedVersion?, resolution?, targetResolution?, files: [{path, name?, language?, fileType?, byteSize?}], hint?, filter?}`. `fileType` values preserve the service vocabulary (`CONFIG`, `SOURCE`, `DOC`, `TEST`). `total` is capped at returned count when `hasMore: true` — the terminal formatter renders `N+ files` in that case to avoid misleading users. `filter` echoes only explicit caller filters (`path`, `pathPrefix`, `globs`, `extensions`, `fileTypes`, `languages`, file-intent filters, booleans, and `limit`); default limit (200) never round-trips.
 
@@ -165,13 +165,13 @@ All three code-navigation tools share the same indexing-retry contract. The stat
 
 `details.availableVersions` and `details.availableRefs` are populated when the backend returned already-indexed artifacts alongside the sentinel. Agents can pick one to retry against immediately without waiting. When `details.targetResolution` is present, it is explanatory provenance only; follow-up commands still use served locators / legacy served fields rather than reconstructing targets from the originally requested identity.
 
-**Retry default**: `DEFAULT_WAIT_TIMEOUT_MS = 20_000` (shared, defined in `src/shared/code-navigation-defaults.ts`). Applied inside each request builder so both CLI and MCP surfaces get the same default by construction. CLI's `--wait <ms>` and MCP's `wait_timeout_ms` override.
+**Retry default**: `DEFAULT_WAIT_TIMEOUT_MS = 20_000` (shared, defined in `packages/mcp/src/shared/code-navigation-defaults.ts`). Applied inside each request builder so both CLI and MCP surfaces get the same default by construction. CLI's `--wait <ms>` and MCP's `wait_timeout_ms` override.
 
 **`FILE_NOT_FOUND` vs `NOT_FOUND`**: `code_read` / `code_grep` can hit "path doesn't resolve" errors when an exact path scope is invalid. The classifier is pre-wired to emit `FILE_NOT_FOUND` when the backend sends `extensions.code: "FILE_NOT_FOUND"`, but today the backend emits generic `NOT_FOUND` for both "package missing" and "path missing". The distinction is filed upstream. CLI terminal output for `code read` / `code grep` emits the hint "Use `code files` to list available paths." on both codes so users have an actionable next step regardless of classification.
 
-**`code_read` span cap (MCP-only)**: real session traces showed agents requesting 300-600 line windows (and occasional unbounded full-file reads) which dominated context cost. The MCP surface caps each `code_read` call at `MCP_READ_MAX_SPAN` (150 lines, defined in `src/tools/read-file.ts`). The cap is enforced *before* the backend call — `deriveBoundedRange` clamps the request, so the service does not transfer bytes that will be discarded.
+**`code_read` span cap (MCP-only)**: real session traces showed agents requesting 300-600 line windows (and occasional unbounded full-file reads) which dominated context cost. The MCP surface caps each `code_read` call at `MCP_READ_MAX_SPAN` (150 lines, defined in `packages/mcp/src/tools/read-file.ts`). The cap is enforced *before* the backend call — `deriveBoundedRange` clamps the request, so the service does not transfer bytes that will be discarded.
 
-The `hint` field is emitted only when the cap *actually truncated* the response — i.e., the returned range comes up short of available content. `shouldEmitCappedHint` (in `src/tools/read-file.ts`) suppresses the hint in three cases the agent doesn't need it: (a) the cap clamp didn't fire (caller's range was already within the cap); (b) the file fits within the cap, so the response is the whole file even though the request was clamped; (c) the returned range reaches end of file. Binary files always skip the hint. When emitted, the hint reads from `payload.startLine` / `endLine` / `totalLines` (the actual returned range, not the pre-clamp request) and includes the original request for the agent to learn from. The CLI command `githits code read` does not apply the cap; humans piping whole files to disk continue to work.
+The `hint` field is emitted only when the cap *actually truncated* the response — i.e., the returned range comes up short of available content. `shouldEmitCappedHint` (in `packages/mcp/src/tools/read-file.ts`) suppresses the hint in three cases the agent doesn't need it: (a) the cap clamp didn't fire (caller's range was already within the cap); (b) the file fits within the cap, so the response is the whole file even though the request was clamped; (c) the returned range reaches end of file. Binary files always skip the hint. When emitted, the hint reads from `payload.startLine` / `endLine` / `totalLines` (the actual returned range, not the pre-clamp request) and includes the original request for the agent to learn from. The CLI command `githits code read` does not apply the cap; humans piping whole files to disk continue to work.
 
 ## Text response format (`format: "text-v1"`)
 
@@ -179,7 +179,7 @@ The `hint` field is emitted only when the cap *actually truncated* the response 
 
 **Why text-v1 default.** A 10-hit `search` JSON envelope runs 5–7 KB after compaction; the same hits in `text-v1` land around 3–4 KB. The savings come from dropped quoting, dropped key repetition, and dropped fields that an agent does not need at the per-call decision point (highlights byte offsets, repeated locator scaffolding). The token budget belongs to the agent's reasoning, not to JSON structure.
 
-**Format stability.** The text format is a public contract, locked with snapshot-style tests (`src/shared/unified-search-text.test.ts`, `src/shared/list-files-text.test.ts`). The `text-v1` version tag exists so we can evolve the format without silently breaking downstream parsers — future incompatible changes ship as `text-v2`.
+**Format stability.** The text format is a public contract, locked with snapshot-style tests (`packages/mcp/src/shared/unified-search-text.test.ts`, `packages/mcp/src/shared/list-files-text.test.ts`). The `text-v1` version tag exists so we can evolve the format without silently breaking downstream parsers — future incompatible changes ship as `text-v2`.
 
 **ASCII-only.** Separators are ` | `; ellipsis is `...`; no box-drawing or Latin-1 punctuation. Tokenizer behavior for multi-byte UTF-8 varies across BPE variants, and the format runs into Claude, Codex CLI, OpenCode, Cline, Cursor, etc. — ASCII keeps it predictable.
 
@@ -246,13 +246,13 @@ Standard grep -A/-B notation: `:` separator on match lines, `-` on context lines
 
 The MCP server advertises a short, cross-tool orientation via the protocol's server-level `instructions` field. This is distinct from per-tool `description` text: instructions cover rationale, workflow glue, and decisions that span multiple tools, while per-tool descriptions remain the source of truth for arguments, output shape, and tool-specific constraints.
 
-`src/mcp/instructions.ts` owns two sections:
+`packages/mcp/src/mcp/instructions.ts` owns the server-level instruction sections:
 
 - **Core block** — always loaded. Introduces GitHits, expands trigger criteria to include comparative cross-OSS questions and "how does X actually implement this" archaeology, and walks through the `get_example` / `search_language` / `feedback` workflow.
-- **Package-tools block** — always appended. Contains a preamble plus one bullet per package/code tool, plus three cross-tool tips:
-  - **Reference-first, content-second**: locate symbols and lines first, then read narrowly with `code_read` using `start_line` / `end_line` windows around the match.
-  - **Multi-turn discovery**: anticipate 3+ calls? Delegate to a sub-task / sub-agent and ask for a compact synthesis rather than pulling raw `code_read` / `code_files` output into the main conversation.
-  - **Tool-selection tip**: contrasts `get_example` vs unified `search` vs `code_grep`/`code_read`.
+- **External-content block** — included by default from `packages/mcp/src/tools/guardrails.ts`; tells agents to treat third-party prose as data, not instructions.
+- **Package-tools block** — always appended. Contains a preamble plus one bullet per package/code tool, plus two cross-tool tips:
+  - **Delegate multi-call work**: anticipate 3+ code-navigation calls? Use a sub-agent and ask for a compact synthesis.
+  - **Strategy / reference-first**: source, symbols, tests, and call sites beat docs prose; enumerate paths first, locate symbols or lines, then read focused windows.
 
 When adding a new package tool, extend the composer with a one-line bullet (`\`tool_name\` — one-sentence purpose`) in the same PR that registers the tool. Keep the bullet terse; argument and response detail belong in the tool's `description`. `mcp-instructions.test.ts` enforces both directions of the mention↔registration invariant.
 
@@ -270,7 +270,7 @@ The MCP server starts without a synchronous auth check; auth errors surface per-
 ```
 CLI stdio wrapper (src/commands/mcp.ts)
   └─ creates local services from the CLI container and connects StdioServerTransport
-       └─ transport-neutral MCP server (src/mcp/server.ts)
+       └─ transport-neutral MCP server (packages/mcp/src/mcp/server.ts)
             └─ registers tools using McpToolServices
                  └─ each tool: createXxxTool(service)
                       └─ ToolDefinition { name, description, schema, handler, annotations? }
@@ -280,16 +280,16 @@ CLI stdio wrapper (src/commands/mcp.ts)
 
 The layering is intentional:
 
-- **Tool definitions** (`src/tools/*.ts`) own the MCP contract: names, descriptions, schemas, and response formatting
-- **GitHitsService / CodeNavigationService** own the HTTP transport: endpoints, headers, error mapping
-- **Transport-neutral MCP server setup** (`src/mcp/server.ts`) owns MCP SDK tool registration from `McpToolServices`
+- **Tool definitions** (`packages/mcp/src/tools/*.ts`) own the MCP contract: names, descriptions, schemas, and response formatting
+- **GitHitsService / CodeNavigationService / PackageIntelligenceService** own the HTTP transport contracts and live in `packages/core-internal`
+- **Transport-neutral MCP server setup** (`packages/mcp/src/mcp/server.ts`) owns MCP SDK tool registration from `McpToolServices`
 - **CLI MCP command** (`src/commands/mcp.ts`) owns local stdio startup: creates services from the CLI container, sets request-header mode, connects `StdioServerTransport`, and prints TTY setup instructions
 
 This separation means tool logic can be tested without HTTP calls, and service logic can be tested without MCP SDK dependencies.
 
 ## Tool Definition Pattern
 
-Each tool follows the same structure. See `src/tools/search.ts` for the canonical example:
+Each tool follows the same structure. See `packages/mcp/src/tools/search.ts` for the canonical example:
 
 1. Define an `Args` interface for the handler input
 2. Define a `schema` object with Zod validators (these become the MCP tool's input schema)
@@ -303,12 +303,12 @@ Each tool follows the same structure. See `src/tools/search.ts` for the canonica
 
 When the backend adds a new tool, follow this checklist:
 
-1. **Create tool file** — `src/tools/new-tool.ts` with `Args` interface, `schema`, `DESCRIPTION`, and `createNewTool(service)` factory
-2. **Add service method** — Add the method to `GitHitsService` interface and `GitHitsServiceImpl` in `src/services/githits-service.ts`
-3. **Export from tools barrel** — Add `export { createNewTool } from "./new-tool.js"` to `src/tools/index.ts`
-4. **Register in MCP server** — In `src/mcp/server.ts`, import the factory and add it to `getMcpToolDefinitions()`
-5. **Add tests** — Create `src/tools/new-tool.test.ts` with metadata, service call, success, and error path tests
-6. **Update mock service** — Add the new method to `createMockGitHitsService()` in `src/services/test-helpers.ts`
+1. **Create tool file** — `packages/mcp/src/tools/new-tool.ts` with `Args` interface, `schema`, `DESCRIPTION`, and `createNewTool(service)` factory
+2. **Add service method** — Add the method to the relevant service interface and implementation in `packages/core-internal/src/services/`
+3. **Export from tools barrel** — Add `export { createNewTool } from "./new-tool.js"` to `packages/mcp/src/tools/index.ts`
+4. **Register in MCP server** — In `packages/mcp/src/mcp/server.ts`, import the factory and add it to `getMcpToolDefinitions()`
+5. **Add tests** — Create `packages/mcp/src/tools/new-tool.test.ts` with metadata, service call, success, and error path tests
+6. **Update mock service** — Add the new method to the mock factories in `packages/mcp/src/services/test-helpers.ts`
 7. **Add CLI command** — Create a corresponding CLI command in `src/commands/` (see `docs/implementation/cli-commands.md`)
 
 ## Behavioral Differences from Backend
@@ -321,13 +321,13 @@ While the contract (names, params, descriptions) is identical, some implementati
 | `get_example` response | Backend builds markdown from structured `McpSearchResponse` | CLI receives pre-formatted markdown from REST `/search` endpoint |
 | unified `search` response | Backend returns structured indexed-search hits and follow-up refs | CLI and MCP share JSON envelope builders over the code-navigation service result |
 | `feedback` response | Backend returns different messages for accepted/rejected | CLI hard-codes "Feedback submitted successfully" on success; the REST API response body is not used for the message |
-| Error handling | Catches specific exception types, logs to PostHog | Uses `withErrorHandling()` wrapper for consistent `ToolResult` errors |
+| Error handling | Catches specific exception types, logs to PostHog | Uses shared mapped-error helpers for consistent `ToolResult` errors |
 
 These differences exist because the CLI hits the REST API (which does its own formatting) rather than calling internal backend services directly.
 
 ## Testing Tools
 
-Each tool has a co-located test file (for example `src/tools/get-example.test.ts`, `src/tools/search.test.ts`, `src/tools/search-status.test.ts`). Tests use `createMockGitHitsService()` or `createMockCodeNavigationService()` from `src/services/test-helpers.ts` to mock the service layer.
+Each tool has a co-located test file (for example `packages/mcp/src/tools/get-example.test.ts`, `packages/mcp/src/tools/search.test.ts`, `packages/mcp/src/tools/search-status.test.ts`). Tests use mock factories from `packages/mcp/src/services/test-helpers.ts` to mock the service layer.
 
 Test categories for each tool:
 - **Metadata** — tool name and description are correct
@@ -341,20 +341,20 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 
 | File | What it demonstrates |
 |---|---|
-| `src/tools/get-example.ts` | Example-search MCP tool definition |
-| `src/tools/search.ts` | Unified indexed-search MCP tool definition |
-| `src/tools/search-status.ts` | Follow-up MCP tool for incomplete unified searches |
-| `src/tools/search-language.ts` | Tool with client-side filtering logic |
-| `src/tools/feedback.ts` | Simplest tool (direct service delegation) |
-| `src/tools/types.ts` | `ToolDefinition` interface, `textResult`/`errorResult` helpers |
-| `src/tools/shared.ts` | `withErrorHandling()` wrapper |
-| `src/services/test-helpers.ts` | `createMockGitHitsService()` and `createMockCodeNavigationService()` factories |
-| `src/mcp/server.ts` | Transport-neutral MCP server construction and tool registration |
-| `src/mcp/instructions.ts` | Server-level MCP instructions advertised to clients |
+| `packages/mcp/src/tools/get-example.ts` | Example-search MCP tool definition |
+| `packages/mcp/src/tools/search.ts` | Unified indexed-search MCP tool definition |
+| `packages/mcp/src/tools/search-status.ts` | Follow-up MCP tool for incomplete unified searches |
+| `packages/mcp/src/tools/search-language.ts` | Tool with client-side filtering logic |
+| `packages/mcp/src/tools/feedback.ts` | Simplest tool (direct service delegation) |
+| `packages/mcp/src/tools/types.ts` | `ToolDefinition` interface, `textResult`/`errorResult` helpers |
+| `packages/mcp/src/tools/shared.ts` | Shared MCP error/action helpers |
+| `packages/mcp/src/services/test-helpers.ts` | Mock service factories |
+| `packages/mcp/src/mcp/server.ts` | Transport-neutral MCP server construction and tool registration |
+| `packages/mcp/src/mcp/instructions.ts` | Server-level MCP instructions advertised to clients |
 | `src/commands/mcp.ts` | CLI stdio startup, request-header mode setup, and TTY setup instructions |
-| `src/services/githits-service.ts` | REST API client for example search, languages, and feedback |
-| `src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, `code_files`, `code_read`, and `code_grep` |
-| `src/shared/language-filter.ts` | Pure `filterLanguages()` function shared between MCP tool and CLI |
+| `packages/core-internal/src/services/githits-service.ts` | REST API client for example search, languages, and feedback |
+| `packages/core-internal/src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, `code_files`, `code_read`, and `code_grep` |
+| `packages/mcp/src/shared/language-filter.ts` | Pure `filterLanguages()` function shared between MCP tool and CLI |
 
 ## Related Documentation
 
