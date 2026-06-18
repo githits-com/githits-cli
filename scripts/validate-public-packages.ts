@@ -84,12 +84,26 @@ async function main(): Promise<void> {
     }
 
     if (runMcpPublishDryRun) {
-      await runCommand(
-        "npm",
-        ["publish", "--dry-run", "--access", "public"],
-        join(root, "packages", "mcp"),
-        "mcp npm publish dry-run",
+      const mcpPackageJson = await readPackageJson(
+        join(root, "packages", "mcp", "package.json"),
       );
+      const mcpVersion = mcpPackageJson.version;
+      if (typeof mcpVersion !== "string") {
+        throw new Error("packages/mcp/package.json must have a string version");
+      }
+
+      if (await packageVersionExists("@githits/mcp", mcpVersion)) {
+        console.log(
+          `Skipping MCP npm publish dry-run because @githits/mcp@${mcpVersion} is already published`,
+        );
+      } else {
+        await runCommand(
+          "npm",
+          ["publish", "--dry-run", "--access", "public"],
+          join(root, "packages", "mcp"),
+          "mcp npm publish dry-run",
+        );
+      }
     }
 
     console.log("Public package validation passed");
@@ -133,6 +147,21 @@ async function assertPublicManifestBoundaries(): Promise<void> {
 
 async function readPackageJson(path: string): Promise<Record<string, unknown>> {
   return JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+}
+
+async function packageVersionExists(
+  packageName: string,
+  version: string,
+): Promise<boolean> {
+  const process = Bun.spawn(
+    ["npm", "view", `${packageName}@${version}`, "version"],
+    {
+      cwd: root,
+      stderr: "ignore",
+      stdout: "ignore",
+    },
+  );
+  return (await process.exited) === 0;
 }
 
 function assertNoDependency(
