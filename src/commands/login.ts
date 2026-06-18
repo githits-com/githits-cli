@@ -120,7 +120,7 @@ export async function loginFlow(
   // If tokens were cleared (expired+refreshFailed or never existed) but a stale
   // client registration remains, clear it so we get a fresh DCR registration.
   if (!existing) {
-    await authStorage.clearClient(mcpUrl);
+    await authStorage.clearActiveClient(mcpUrl);
   }
 
   const persistenceError = await preflightAuthPersistence(authStorage, mcpUrl);
@@ -237,7 +237,7 @@ export async function loginFlow(
     if (timeoutId) clearTimeout(timeoutId);
     await callbackServer.close().catch(() => {});
     if (shouldClearClientOnFailedAttempt) {
-      await authStorage.clearClient(mcpUrl).catch(() => {});
+      await authStorage.clearActiveClient(mcpUrl).catch(() => {});
     }
     const msg =
       error instanceof Error ? error.message : "Authentication failed";
@@ -249,7 +249,7 @@ export async function loginFlow(
     // Let the callback server finish sending the error page to the browser
     await new Promise((r) => setTimeout(r, 2000));
     if (shouldClearClientOnFailedAttempt) {
-      await authStorage.clearClient(mcpUrl).catch(() => {});
+      await authStorage.clearActiveClient(mcpUrl).catch(() => {});
     }
     return {
       status: "failed",
@@ -273,7 +273,7 @@ export async function loginFlow(
   } catch (error) {
     // Best-effort: clear potentially stale client so next login starts fresh.
     try {
-      await authStorage.clearClient(mcpUrl);
+      await authStorage.clearActiveClient(mcpUrl);
     } catch {
       // Ignore -- client cleanup is best-effort
     }

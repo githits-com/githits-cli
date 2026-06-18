@@ -6,7 +6,11 @@ import { getAppConfigDir, getAuthLockDir } from "./app-config-paths.js";
 import { AuthStorageImpl } from "./auth-storage.js";
 import { FileSystemServiceImpl } from "./filesystem-service.js";
 import { LockedAuthStorage } from "./locked-auth-storage.js";
-import { createValidTokenData, withTestEnvVar } from "./test-helpers.js";
+import {
+  createMockAuthStorage,
+  createValidTokenData,
+  withTestEnvVar,
+} from "./test-helpers.js";
 
 describe("LockedAuthStorage", () => {
   const baseUrl = "https://mcp.githits.com";
@@ -50,6 +54,35 @@ describe("LockedAuthStorage", () => {
     const finalToken = await first.loadTokens(baseUrl);
     expect(finalToken).not.toBeNull();
     expect(["first", "second"]).toContain(finalToken?.accessToken ?? "");
+  });
+
+  it("clearActiveTokensIfUnchanged delegates through the lock", async () => {
+    const { fsWithHome } = await createStoragePaths();
+    const inner = createMockAuthStorage();
+    const storage = new LockedAuthStorage(inner, fsWithHome);
+    const token = createValidTokenData();
+
+    await storage.clearActiveTokensIfUnchanged(baseUrl, token);
+
+    expect(inner.clearActiveTokensIfUnchanged).toHaveBeenCalledWith(
+      baseUrl,
+      token,
+    );
+  });
+
+  it("clearActiveClient is re-entrant inside a held lock", async () => {
+    const { fsWithHome } = await createStoragePaths();
+    const inner = createMockAuthStorage();
+    const storage = new LockedAuthStorage(inner, fsWithHome, {
+      lockTimeoutMs: 100,
+    });
+
+    // Would time out acquiring the lock again if it were not re-entrant.
+    await storage.withAuthStorageLock(async () => {
+      await storage.clearActiveClient(baseUrl);
+    });
+
+    expect(inner.clearActiveClient).toHaveBeenCalledWith(baseUrl);
   });
 
   it("allows nested storage writes inside a scoped lock", async () => {

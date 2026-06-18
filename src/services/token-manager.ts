@@ -276,7 +276,10 @@ export class TokenManager implements TokenProvider {
             const cleared = await withTelemetrySpan(
               "token-manager.clear-tokens-if-unchanged",
               () =>
-                this.authStorage.clearTokensIfUnchanged(this.mcpUrl, tokens),
+                this.authStorage.clearActiveTokensIfUnchanged(
+                  this.mcpUrl,
+                  tokens,
+                ),
             );
             if (!cleared) {
               const currentToken = await this.authStorage.loadTokens(
@@ -377,7 +380,11 @@ export class TokenManager implements TokenProvider {
   ): Promise<RefreshResult> {
     const cleared = await withTelemetrySpan(
       "token-manager.clear-terminal-refresh-failure",
-      () => this.authStorage.clearTokensIfUnchanged(this.mcpUrl, failedTokens),
+      () =>
+        this.authStorage.clearActiveTokensIfUnchanged(
+          this.mcpUrl,
+          failedTokens,
+        ),
       { reason: `terminal_${reason}` },
     );
     if (!cleared) {
@@ -392,7 +399,7 @@ export class TokenManager implements TokenProvider {
     if (reason === "invalid_client") {
       await withTelemetrySpan(
         "token-manager.clear-invalid-client",
-        () => this.authStorage.clearClient(this.mcpUrl),
+        () => this.authStorage.clearActiveClient(this.mcpUrl),
         { reason: "terminal_invalid_client" },
       ).catch(() => undefined);
     }

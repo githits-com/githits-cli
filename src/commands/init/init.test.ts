@@ -2419,7 +2419,7 @@ describe("initAction", () => {
         },
       );
 
-      expect(authStorage.clearClient).toHaveBeenCalledWith(
+      expect(authStorage.clearActiveClient).toHaveBeenCalledWith(
         "https://mcp.githits.com",
       );
       expect(authStorage.saveAuthSession).toHaveBeenCalledWith(

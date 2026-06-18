@@ -168,7 +168,7 @@ describe("refreshExpiredToken", () => {
     const result = await refreshExpiredToken(authService, authStorage, MCP_URL);
 
     expect(result).toBeUndefined();
-    expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
+    expect(authStorage.clearActiveTokensIfUnchanged).toHaveBeenCalledWith(
       MCP_URL,
       expiredToken,
     );
@@ -316,11 +316,11 @@ describe("TokenManager", () => {
       const result = await manager.getToken();
 
       expect(result).toBeUndefined();
-      expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
+      expect(authStorage.clearActiveTokensIfUnchanged).toHaveBeenCalledWith(
         MCP_URL,
         tokenData,
       );
-      expect(authStorage.clearClient).not.toHaveBeenCalled();
+      expect(authStorage.clearActiveClient).not.toHaveBeenCalled();
     });
 
     it("records a diagnostics breadcrumb when refresh-token reuse clears the token", async () => {
@@ -417,11 +417,17 @@ describe("TokenManager", () => {
       const result = await manager.getToken();
 
       expect(result).toBeUndefined();
-      expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
+      expect(authStorage.clearActiveTokensIfUnchanged).toHaveBeenCalledWith(
         MCP_URL,
         tokenData,
       );
-      expect(authStorage.clearClient).toHaveBeenCalledWith(MCP_URL);
+      expect(authStorage.clearActiveClient).toHaveBeenCalledWith(MCP_URL);
+      // Automatic cleanup must never use the clear-everything variants, which
+      // would wipe credentials in the inactive storage backend.
+      expect(authStorage.clearTokensIfUnchanged).not.toHaveBeenCalled();
+      expect(authStorage.clearTokens).not.toHaveBeenCalled();
+      expect(authStorage.clearClient).not.toHaveBeenCalled();
+      expect(authStorage.clearAuthSession).not.toHaveBeenCalled();
     });
 
     it("returns current token when proactive endpoint discovery times out", async () => {
@@ -444,7 +450,7 @@ describe("TokenManager", () => {
 
       expect(result).toBe(tokenData.accessToken);
       expect(authService.discoverEndpoints).toHaveBeenCalledWith(MCP_URL);
-      expect(authStorage.clearTokensIfUnchanged).not.toHaveBeenCalled();
+      expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
     });
 
     it("returns undefined when expired token refresh fails", async () => {
@@ -466,7 +472,7 @@ describe("TokenManager", () => {
 
       const result = await manager.getToken();
       expect(result).toBeUndefined();
-      expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
+      expect(authStorage.clearActiveTokensIfUnchanged).toHaveBeenCalledWith(
         MCP_URL,
         tokenData,
       );
@@ -492,7 +498,7 @@ describe("TokenManager", () => {
       const result = await manager.forceRefresh();
 
       expect(result).toBeUndefined();
-      expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
+      expect(authStorage.clearActiveTokensIfUnchanged).toHaveBeenCalledWith(
         MCP_URL,
         tokenData,
       );
@@ -588,7 +594,7 @@ describe("TokenManager", () => {
       const result = await manager.forceRefresh();
       expect(result).toBeUndefined();
       // Should NOT clear tokens since the token is still valid (not expired)
-      expect(authStorage.clearTokensIfUnchanged).not.toHaveBeenCalled();
+      expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
     });
 
     it("clears tokens when refresh fails with expired token", async () => {
@@ -614,7 +620,7 @@ describe("TokenManager", () => {
       // forceRefresh should also clear since token is expired
       const result = await manager.forceRefresh();
       expect(result).toBeUndefined();
-      expect(authStorage.clearTokensIfUnchanged).toHaveBeenCalledWith(
+      expect(authStorage.clearActiveTokensIfUnchanged).toHaveBeenCalledWith(
         MCP_URL,
         tokenData,
       );
@@ -654,7 +660,7 @@ describe("TokenManager", () => {
       const result = await manager.forceRefresh();
 
       expect(result).toBe("fresh-access-token");
-      expect(authStorage.clearTokensIfUnchanged).not.toHaveBeenCalled();
+      expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
     });
 
     it("uses externally refreshed tokens on later getToken calls", async () => {
@@ -1047,7 +1053,7 @@ describe("TokenManager", () => {
       const result = await manager.forceRefresh();
 
       expect(result).toBe("fresh-access-token");
-      expect(authStorage.clearTokensIfUnchanged).not.toHaveBeenCalled();
+      expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
     });
 
     it("does not clear fresh tokens written after the first failed-refresh reload", async () => {
@@ -1086,7 +1092,7 @@ describe("TokenManager", () => {
       const result = await manager.getToken();
 
       expect(result).toBe("fresh-access-token");
-      expect(authStorage.clearTokensIfUnchanged).not.toHaveBeenCalled();
+      expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
     });
 
     it("does not overwrite fresh tokens written during refresh", async () => {

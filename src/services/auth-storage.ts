@@ -66,6 +66,19 @@ export interface AuthStorage {
     expected: TokenData | null,
   ): Promise<boolean>;
 
+  /**
+   * Clear tokens from the active storage backend only, when unchanged.
+   *
+   * Used by automatic refresh-failure cleanup so a stale credential in an
+   * inactive backend cannot wipe a good credential in the active one. For
+   * single-backend stores this delegates to {@link clearTokensIfUnchanged};
+   * the active-vs-all distinction only matters in the composite storage.
+   */
+  clearActiveTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+  ): Promise<boolean>;
+
   /** Load client registration for a specific base URL */
   loadClient(baseUrl: string): Promise<ClientRegistration | null>;
 
@@ -74,6 +87,14 @@ export interface AuthStorage {
 
   /** Clear client registration for a specific base URL */
   clearClient(baseUrl: string): Promise<void>;
+
+  /**
+   * Clear client registration from the active storage backend only.
+   *
+   * Active-scoped counterpart to {@link clearClient}; single-backend stores
+   * delegate to it.
+   */
+  clearActiveClient(baseUrl: string): Promise<void>;
 
   /** Save client registration and tokens as one auth session update */
   saveAuthSession(
@@ -172,6 +193,14 @@ export class AuthStorageImpl implements AuthStorage {
     return true;
   }
 
+  // Single-backend store: the active backend is the only backend.
+  clearActiveTokensIfUnchanged(
+    baseUrl: string,
+    expected: TokenData | null,
+  ): Promise<boolean> {
+    return this.clearTokensIfUnchanged(baseUrl, expected);
+  }
+
   async loadClient(baseUrl: string): Promise<ClientRegistration | null> {
     const stored = await this.loadClientFile();
     if (!stored) return null;
@@ -206,6 +235,11 @@ export class AuthStorageImpl implements AuthStorage {
       this.clientPath,
       JSON.stringify(stored, null, 2),
     );
+  }
+
+  // Single-backend store: the active backend is the only backend.
+  clearActiveClient(baseUrl: string): Promise<void> {
+    return this.clearClient(baseUrl);
   }
 
   async saveAuthSession(
