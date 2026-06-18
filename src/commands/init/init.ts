@@ -168,6 +168,13 @@ interface ProjectUninstallSummary {
   failed: ProjectUninstallFailure[];
 }
 
+const PROJECT_CONFIG_ROW_LABEL = "GitHits project config";
+const LEGACY_PROJECT_MARKER_ROW_LABEL = "Legacy project setup marker";
+const PROJECT_UNINSTALL_LABEL_WIDTH = Math.max(
+  PROJECT_CONFIG_ROW_LABEL.length,
+  LEGACY_PROJECT_MARKER_ROW_LABEL.length,
+);
+
 type InitIntent = "mcp" | "skills" | "later";
 
 type InitScopeChoice = InitSetupScope;
@@ -1815,6 +1822,28 @@ function printProjectUninstallSummary(summary: ProjectUninstallSummary): void {
   console.log();
 }
 
+function printProjectUninstallRow(
+  label: string,
+  tone: ChangeRow["tone"],
+  verb: string,
+  path: string,
+  fileSystemService: FileSystemService,
+  useColors: boolean,
+  message?: string,
+): void {
+  const detail = message
+    ? `${formatConfigPath(path, fileSystemService)}: ${message}`
+    : formatConfigPath(path, fileSystemService);
+  const lines = renderChangeRows([{ tone, label, verb, detail }], {
+    useColors,
+    labelWidth: PROJECT_UNINSTALL_LABEL_WIDTH,
+    verbWidth: CHANGE_VERB_WIDTH,
+  });
+  for (const line of lines) {
+    console.log(line);
+  }
+}
+
 async function runProjectMcpUninstall(
   options: InitUninstallOptions,
   deps: InitDependencies,
@@ -1855,7 +1884,15 @@ async function runProjectMcpUninstall(
     } => entry.check.status === "failed",
   );
   for (const { setup, check } of failedChecks) {
-    printTask("failed", setup.configPath, check.message, useColors);
+    printProjectUninstallRow(
+      PROJECT_CONFIG_ROW_LABEL,
+      "error",
+      "failed",
+      setup.configPath,
+      fileSystemService,
+      useColors,
+      check.message,
+    );
   }
   const skipped = checks
     .filter((entry) => entry.check.status === "not_configured")
@@ -1958,21 +1995,38 @@ async function runProjectMcpUninstall(
     const result = await executeConfigFileUninstall(setup, fileSystemService);
     if (result.status === "removed") {
       summary.removed.push(setup.configPath);
-      printTask(
-        "success",
-        "GitHits project config",
-        `removed from ${setup.configPath}`,
+      printProjectUninstallRow(
+        PROJECT_CONFIG_ROW_LABEL,
+        "ok",
+        "updated",
+        setup.configPath,
+        fileSystemService,
         useColors,
       );
     } else if (result.status === "not_configured") {
       summary.skipped.push(setup.configPath);
-      printTask("skipped", setup.configPath, "not configured", useColors);
+      printProjectUninstallRow(
+        PROJECT_CONFIG_ROW_LABEL,
+        "ok",
+        "unchanged",
+        setup.configPath,
+        fileSystemService,
+        useColors,
+      );
     } else {
       summary.failed.push({
         path: setup.configPath,
         reason: result.message,
       });
-      printTask("failed", setup.configPath, result.message, useColors);
+      printProjectUninstallRow(
+        PROJECT_CONFIG_ROW_LABEL,
+        "error",
+        "failed",
+        setup.configPath,
+        fileSystemService,
+        useColors,
+        result.message,
+      );
     }
   }
 
@@ -1981,16 +2035,26 @@ async function runProjectMcpUninstall(
       await cleanupLegacyProjectSetupState(fileSystemService);
     for (const path of legacyCleanup.removed) {
       summary.legacyRemoved.push(path);
-      printTask(
-        "success",
-        "Legacy project setup marker",
-        `removed ${path}`,
+      printProjectUninstallRow(
+        LEGACY_PROJECT_MARKER_ROW_LABEL,
+        "ok",
+        "updated",
+        path,
+        fileSystemService,
         useColors,
       );
     }
     for (const failure of legacyCleanup.failed) {
       summary.failed.push(failure);
-      printTask("failed", failure.path, failure.reason, useColors);
+      printProjectUninstallRow(
+        LEGACY_PROJECT_MARKER_ROW_LABEL,
+        "error",
+        "failed",
+        failure.path,
+        fileSystemService,
+        useColors,
+        failure.reason,
+      );
     }
   }
 

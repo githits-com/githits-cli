@@ -3209,7 +3209,8 @@ describe("initUninstallAction", () => {
       logCalls.some(
         (msg) =>
           msg.includes("GitHits project config") &&
-          msg.includes("removed from /repo/.mcp.json"),
+          msg.includes("updated") &&
+          msg.includes("./.mcp.json"),
       ),
     ).toBe(true);
   });
@@ -3601,6 +3602,14 @@ describe("initUninstallAction", () => {
     expect(
       logCalls.some((msg) =>
         msg.includes("Removed legacy GitHits project setup marker"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("Legacy project setup marker") &&
+          msg.includes("updated") &&
+          msg.includes("./.githits/init/project-setup.json"),
       ),
     ).toBe(true);
     expect(
