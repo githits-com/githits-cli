@@ -6,12 +6,13 @@ import {
 } from "./package-spec.js";
 
 describe("parsePackageSpec", () => {
-  it("parses plain package name as npm registry (implicit)", () => {
-    expect(parsePackageSpec("express")).toEqual({
-      registry: "npm",
-      registryExplicit: false,
-      name: "express",
-    });
+  it("rejects package names without an explicit registry", () => {
+    expect(() => parsePackageSpec("express")).toThrow(InvalidPackageSpecError);
+    expect(() => parsePackageSpec("express")).toThrow(
+      'Package spec "express" is missing a registry prefix.',
+    );
+    expect(() => parsePackageSpec("express")).toThrow("npm");
+    expect(() => parsePackageSpec("express")).toThrow("pypi");
   });
 
   it("parses explicit registry prefix", () => {
@@ -48,12 +49,13 @@ describe("parsePackageSpec", () => {
     });
   });
 
-  it("preserves scoped npm name without explicit prefix", () => {
-    expect(parsePackageSpec("@types/node")).toEqual({
-      registry: "npm",
-      registryExplicit: false,
-      name: "@types/node",
-    });
+  it("rejects scoped npm names without an explicit registry", () => {
+    expect(() => parsePackageSpec("@types/node")).toThrow(
+      InvalidPackageSpecError,
+    );
+    expect(() => parsePackageSpec("@types/node")).toThrow(
+      'Package spec "@types/node" is missing a registry prefix.',
+    );
   });
 
   it("parses packagist coordinate with slash-separated name", () => {

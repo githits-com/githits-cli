@@ -137,6 +137,27 @@ describe("pkgFilesAction", () => {
     writeSpy.mockRestore();
   });
 
+  it("treats github.com shorthand positional specs as repository targets", async () => {
+    const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
+    const service = createMockCodeNavigationService({ listFiles });
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    await pkgFilesAction(
+      "github.com/expressjs/express",
+      undefined,
+      {},
+      createDeps({ codeNavigationService: service }),
+    );
+    const calls = listFiles.mock.calls as unknown as Array<
+      [{ target: { repoUrl?: string } }]
+    >;
+    expect(calls[0]?.[0]?.target.repoUrl).toBe(
+      "https://github.com/expressjs/express",
+    );
+    writeSpy.mockRestore();
+  });
+
   it("forwards advanced file filters to the service", async () => {
     const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
     const service = createMockCodeNavigationService({ listFiles });

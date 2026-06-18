@@ -392,6 +392,37 @@ describe("pkgGrepAction", () => {
     writeSpy.mockRestore();
   });
 
+  it("accepts github shorthand positional targets", async () => {
+    const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    await pkgGrepAction(
+      "github:expressjs/express",
+      "middleware",
+      "src/",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({ grepRepo }),
+      }),
+    );
+    const calls = grepRepo.mock.calls as unknown as Array<
+      [
+        {
+          target: { repoUrl?: string };
+          pattern: string;
+          pathSelectors?: Array<{ value: string }>;
+        },
+      ]
+    >;
+    expect(calls[0]?.[0]?.target.repoUrl).toBe(
+      "https://github.com/expressjs/express",
+    );
+    expect(calls[0]?.[0]?.pattern).toBe("middleware");
+    expect(calls[0]?.[0]?.pathSelectors?.[0]?.value).toBe("src/");
+    writeSpy.mockRestore();
+  });
+
   it("rejects extra positional in repo-url mode", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {

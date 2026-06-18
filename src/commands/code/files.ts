@@ -237,8 +237,10 @@ and \`githits code grep\`.
 --glob) are OR-ed — a file matches if any selector matches. The other
 filters intersect on top.
 
-Addressing: <spec> (registry:name[@version]) OR --repo-url <url>
---git-ref <ref>. Omitted version means latest release. Supported registries: ${PKGSEER_REGISTRY_LIST}.
+Addressing: <target> (registry:name[@version], github:org/repo[#ref],
+github.com/org/repo[#ref], or https://github.com/org/repo[#ref]) OR
+--repo-url <url> --git-ref <ref>. Omitted package version means latest release.
+Supported registries: ${PKGSEER_REGISTRY_LIST}.
 
 By default each result is a bare path for easy piping; pass
 --verbose to include language / file-type / size annotations.
@@ -254,7 +256,7 @@ export function registerCodeFilesCommand(pkgCommand: Command): Command {
     .description(PKG_FILES_DESCRIPTION)
     .argument(
       "[spec-or-prefix]",
-      "Spec mode: package spec (e.g. npm:express). Repo mode (with --repo-url): the path-prefix.",
+      "Target mode: package spec or repo shorthand. With --repo-url: the path-prefix.",
     )
     .argument(
       "[path-prefix]",

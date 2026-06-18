@@ -161,6 +161,31 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("treats github.com shorthand as a CLI discovery repo target without warning", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const deps = createDeps({
+      codeNavigationService: createMockCodeNavigationService({ search }),
+    });
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+    await searchAction(
+      "duckdb",
+      { in: ["github.com/expressjs/express"] },
+      deps,
+    );
+
+    const call = search.mock.calls[0]?.[0];
+    expect(call?.targets[0]).toEqual({
+      repoUrl: "https://github.com/expressjs/express",
+    });
+    expect(errorSpy).not.toHaveBeenCalled();
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
   it("uses the shared search default limit and preserves explicit limits", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),
