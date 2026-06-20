@@ -6,6 +6,9 @@ import {
 } from "./pkgseer-graphql.js";
 import { createClientHeaderBuilder } from "./request-headers.js";
 
+// Store original setTimeout
+const originalSetTimeout = globalThis.setTimeout;
+
 function makeResponse(
   body: string,
   init?: { status?: number; headers?: Record<string, string> },
@@ -315,5 +318,151 @@ describe("postPkgseerGraphql", () => {
     expect(combined).not.toContain("pkgseer.dev");
     expect(combined).not.toContain(TOKEN);
     expect(combined).not.toContain("query { x }");
+  });
+
+  describe("retry support", () => {
+    beforeEach(() => {
+      // Mock setTimeout to avoid actual delays in tests
+      globalThis.setTimeout = mock(
+        (_fn: () => void, _ms: number) => 0,
+      ) as never;
+    });
+
+    afterEach(() => {
+      // Restore original setTimeout
+      globalThis.setTimeout = originalSetTimeout;
+    });
+
+    it("does not retry when retryOptions not provided", async () => {
+      const fetchFn = mock(() => Promise.reject(new Error("Network error")));
+
+      await expect(
+        postPkgseerGraphql({
+          endpointUrl: ENDPOINT,
+          token: TOKEN,
+          query: "query { x }",
+          variables: {},
+          fetchFn: asFetchFn(fetchFn),
+        }),
+      ).rejects.toThrow(PkgseerTransportError);
+
+      // Only one attempt
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries on network failure when retryOptions provided", async () => {
+      let callCount = 0;
+      const fetchFn = mock(() => {
+        callCount++;
+        if (callCount <= 2) {
+          return Promise.reject(new Error("Network error"));
+        }
+        return Promise.resolve(makeResponse(VALID_JSON));
+      });
+
+      const result = await postPkgseerGraphql({
+        endpointUrl: ENDPOINT,
+        token: TOKEN,
+        query: "query { x }",
+        variables: {},
+        fetchFn: asFetchFn(fetchFn),
+        retryOptions: {
+          maxRetries: 3,
+          baseDelayMs: 100,
+        },
+      });
+
+      expect(result.status).toBe(200);
+      expect(fetchFn).toHaveBeenCalledTimes(3); // 2 failures + 1 success
+    });
+
+    it("retries on timeout when retryOptions provided", async () => {
+      let callCount = 0;
+      const fetchFn = mock(() => {
+        callCount++;
+        if (callCount <= 1) {
+          return Promise.reject(new FetchTimeoutError(120000));
+        }
+        return Promise.resolve(makeResponse(VALID_JSON));
+      });
+
+      const result = await postPkgseerGraphql({
+        endpointUrl: ENDPOINT,
+        token: TOKEN,
+        query: "query { x }",
+        variables: {},
+        fetchFn: asFetchFn(fetchFn),
+        retryOptions: {
+          maxRetries: 3,
+          baseDelayMs: 100,
+        },
+      });
+
+      expect(result.status).toBe(200);
+      expect(fetchFn).toHaveBeenCalledTimes(2); // 1 failure + 1 success
+    });
+
+    it("respects maxRetries option", async () => {
+      const fetchFn = mock(() => Promise.reject(new Error("Network error")));
+
+      await expect(
+        postPkgseerGraphql({
+          endpointUrl: ENDPOINT,
+          token: TOKEN,
+          query: "query { x }",
+          variables: {},
+          fetchFn: asFetchFn(fetchFn),
+          retryOptions: {
+            maxRetries: 2,
+            baseDelayMs: 100,
+          },
+        }),
+      ).rejects.toThrow(PkgseerTransportError);
+
+      // Initial attempt + 2 retries = 3 calls total
+      expect(fetchFn).toHaveBeenCalledTimes(3);
+    });
+
+    it("emits debug log on retry attempts", async () => {
+      process.env.GITHITS_DEBUG = "pkg-graphql";
+
+      let callCount = 0;
+      const fetchFn = mock(() => {
+        callCount++;
+        if (callCount <= 1) {
+          return Promise.reject(new Error("Network error"));
+        }
+        return Promise.resolve(makeResponse(VALID_JSON));
+      });
+
+      const stderrLines: string[] = [];
+      const originalWrite = process.stderr.write.bind(process.stderr);
+      process.stderr.write = ((chunk: string | Uint8Array) => {
+        stderrLines.push(
+          typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+        );
+        return true;
+      }) as typeof process.stderr.write;
+
+      try {
+        await postPkgseerGraphql({
+          endpointUrl: ENDPOINT,
+          token: TOKEN,
+          query: "query { x }",
+          variables: {},
+          fetchFn: asFetchFn(fetchFn),
+          retryOptions: {
+            maxRetries: 3,
+            baseDelayMs: 100,
+          },
+        });
+      } finally {
+        process.stderr.write = originalWrite;
+      }
+
+      const combined = stderrLines.join("");
+      expect(combined).toContain('"event":"retry"');
+      expect(combined).toContain('"attempt":1');
+    });
   });
 });
