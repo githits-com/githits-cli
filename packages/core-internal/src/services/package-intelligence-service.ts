@@ -1745,7 +1745,30 @@ export class PackageIntelligenceServiceImpl
       userAgent?: string;
       clientVersion?: string;
     } = {},
+    private readonly retryConfig?: {
+      maxRetries?: number;
+      baseDelayMs?: number;
+      maxDelayMs?: number;
+      jitter?: boolean;
+    },
   ) {}
+
+  private getRetryOptions():
+    | {
+        maxRetries?: number;
+        baseDelayMs?: number;
+        maxDelayMs?: number;
+        jitter?: boolean;
+      }
+    | undefined {
+    if (!this.retryConfig) return undefined;
+    return {
+      maxRetries: this.retryConfig.maxRetries,
+      baseDelayMs: this.retryConfig.baseDelayMs,
+      maxDelayMs: this.retryConfig.maxDelayMs,
+      jitter: this.retryConfig.jitter,
+    };
+  }
 
   async packageSummary(params: PackageSummaryParams): Promise<PackageSummary> {
     return withTelemetrySpan("pkg-intel.summary.request", () =>
@@ -1775,6 +1798,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        retryOptions: this.getRetryOptions(),
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2130,6 +2154,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        retryOptions: this.getRetryOptions(),
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2281,6 +2306,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        retryOptions: this.getRetryOptions(),
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2343,6 +2369,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        retryOptions: this.getRetryOptions(),
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2660,6 +2687,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        retryOptions: this.getRetryOptions(),
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2778,6 +2806,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        retryOptions: this.getRetryOptions(),
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2878,6 +2907,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        retryOptions: this.getRetryOptions(),
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
