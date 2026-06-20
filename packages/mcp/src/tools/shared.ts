@@ -52,6 +52,10 @@ interface ToolErrorEnvelope {
   error: string;
   code: string;
   retryable: boolean;
+  /** Number of retry attempts that were made before failing (0 if no retry) */
+  retryAttempts?: number;
+  /** Suggested delay in milliseconds before retrying (from Retry-After header) */
+  retryAfter?: number;
   details?: MappedError["details"] | { action: string };
 }
 
@@ -69,6 +73,12 @@ export function buildMcpErrorPayload(mapped: MappedError): ToolErrorEnvelope {
     error: mapped.message,
     code: mapped.code,
     retryable: mapped.retryable ?? false,
+    ...(mapped.retryAttempts !== undefined
+      ? { retryAttempts: mapped.retryAttempts }
+      : {}),
+    ...(mapped.retryAfter !== undefined
+      ? { retryAfter: mapped.retryAfter }
+      : {}),
     ...(mapped.code === "AUTH_REQUIRED"
       ? {
           details: {

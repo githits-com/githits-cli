@@ -81,6 +81,10 @@ export interface MappedError {
    * retryability tables.
    */
   retryable?: boolean;
+  /** Number of retry attempts that were made before failing (0 if no retry) */
+  retryAttempts?: number;
+  /** Suggested delay in milliseconds before retrying (from Retry-After header) */
+  retryAfter?: number;
   details?: MappedErrorDetails;
 }
 
