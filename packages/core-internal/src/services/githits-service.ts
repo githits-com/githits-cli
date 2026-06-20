@@ -1,11 +1,11 @@
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   fetchWithTimeout,
-  type RetryFetchOptions,
   retryFetchWithTimeout,
 } from "../shared/fetch-timeout.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import { withTelemetrySpan } from "../shared/telemetry.js";
+import type { RetryConfig } from "./config.js";
 
 /**
  * Neutral auth-required message for service/core errors. Surface layers append
@@ -104,17 +104,9 @@ export interface GitHitsServiceRuntimeOptions {
 
 /**
  * Retry configuration for HTTP requests.
+ * Re-exported from config.ts for backward compatibility.
  */
-export interface RetryConfig {
-  /** Maximum number of retry attempts (default: 3) */
-  maxRetries?: number;
-  /** Base delay in milliseconds for exponential backoff (default: 1000) */
-  baseDelayMs?: number;
-  /** Maximum delay in milliseconds (default: 30000) */
-  maxDelayMs?: number;
-  /** Whether to add jitter to delay (default: true) */
-  jitter?: boolean;
-}
+export type { RetryConfig } from "./config.js";
 
 /**
  * Service interface for GitHits REST API.

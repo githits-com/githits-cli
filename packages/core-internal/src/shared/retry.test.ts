@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import { FetchTimeoutError, isFetchTimeoutError } from "./fetch-timeout.js";
-import {
-  calculateDelay,
-  isRetryableError,
-  type RetryOptions,
-  retryWithBackoff,
-} from "./retry.js";
+import { FetchTimeoutError } from "./fetch-timeout.js";
+import { calculateDelay, isRetryableError, retryWithBackoff } from "./retry.js";
 
 // Mock PkgseerTransportError for testing
 class MockPkgseerTransportError extends Error {
@@ -139,8 +134,11 @@ describe("calculateDelay", () => {
 
 describe("retryWithBackoff", () => {
   beforeEach(() => {
-    // Mock setTimeout to avoid actual delays in tests
-    globalThis.setTimeout = mock((_fn: () => void, _ms: number) => 0) as never;
+    // Mock setTimeout to immediately invoke callback (no actual delays)
+    globalThis.setTimeout = mock((fn: () => void, _ms: number) => {
+      fn();
+      return 0;
+    }) as never;
   });
 
   afterEach(() => {

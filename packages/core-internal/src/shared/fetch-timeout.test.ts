@@ -69,8 +69,11 @@ describe("fetchWithTimeout", () => {
 
 describe("retryFetchWithTimeout", () => {
   beforeEach(() => {
-    // Mock setTimeout to avoid actual delays in tests
-    globalThis.setTimeout = mock((_fn: () => void, _ms: number) => 0) as never;
+    // Mock setTimeout to immediately invoke callback (no actual delays)
+    globalThis.setTimeout = mock((fn: () => void, _ms: number) => {
+      fn();
+      return 0;
+    }) as never;
   });
 
   afterEach(() => {
