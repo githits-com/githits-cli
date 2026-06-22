@@ -3,6 +3,7 @@ import { AuthenticationError } from "@githits/core-internal";
 import {
   createMcpServer,
   getMcpToolDescriptors,
+  type McpToolExecutionHook,
   type McpToolServices,
   registerMcpTools,
 } from "@githits/mcp";
@@ -127,6 +128,81 @@ describe("createMcpServer", () => {
 
     expect(result.content[0]?.text).toBe("provider result");
     expect(provider).toHaveBeenCalledWith({ extra });
+  });
+
+  it("runs a configured tool execution hook once around a simple public tool handler", async () => {
+    const server = new McpServer(TEST_MCP_SERVER_METADATA);
+    const events: string[] = [];
+    const search = mock(() => Promise.resolve("hooked result"));
+    const traceTool: McpToolExecutionHook = mock(
+      async (toolName, runHandler) => {
+        events.push(`start:${toolName}`);
+        const result = await runHandler();
+        events.push(`end:${toolName}`);
+        return result;
+      },
+    );
+
+    registerMcpTools(server, {
+      services: createTestServices({
+        githitsService: createMockGitHitsService({ search }),
+      }),
+      traceTool,
+    });
+
+    const result = await registeredTool(server, "get_example").handler(
+      { query: "hello" },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+
+    expect(result.content[0]?.text).toBe("hooked result");
+    expect(traceTool).toHaveBeenCalledTimes(1);
+    expect(traceTool).toHaveBeenCalledWith("get_example", expect.any(Function));
+    expect(events).toEqual(["start:get_example", "end:get_example"]);
+  });
+
+  it("runs one tool execution hook around pkg_upgrade_review despite composed downstream probes", async () => {
+    const services = createTestServices();
+    const traceTool: McpToolExecutionHook = mock(
+      async (toolName, runHandler) => {
+        expect(toolName).toBe("pkg_upgrade_review");
+        return runHandler();
+      },
+    );
+    const server = createMcpServer({
+      services,
+      metadata: TEST_MCP_SERVER_METADATA,
+      traceTool,
+    });
+
+    const result = await registeredTool(server, "pkg_upgrade_review").handler(
+      {
+        registry: "npm",
+        package_name: "express",
+        current_version: "4.18.1",
+        target_version: "4.18.2",
+        format: "json",
+      },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(traceTool).toHaveBeenCalledTimes(1);
+    expect(
+      services.packageIntelligenceService.packageSummary,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      services.packageIntelligenceService.packageVulnerabilities,
+    ).toHaveBeenCalledTimes(2);
+    expect(
+      services.packageIntelligenceService.packageUpgradeDependencyProbe,
+    ).toHaveBeenCalledTimes(2);
   });
 
   it("function providers receive undefined extra deterministically", async () => {
