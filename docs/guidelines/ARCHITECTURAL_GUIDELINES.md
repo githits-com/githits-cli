@@ -60,6 +60,17 @@ Design MCP schemas for how real agents call tools, not for ideal hand-written JS
 - Put validation and normalization in shared request builders used by MCP and CLI parity paths, then test the normalized service parameters. Raw Zod errors should not be the primary agent-facing failure mode.
 - Validate changes with real agent evals when changing tool signatures, descriptions, or defaults. Inspect `tool-calls.json` and reported tool/instruction issues, not just harness success.
 
+### 6. GraphQL/API Data Fetching
+
+Treat selected fields and REST/API payload breadth as part of the public tool contract. A correct tool is not just one that formats the right output; it also avoids fetching data that the selected mode cannot use.
+
+- Start from the output surfaces and work backward: compact text, verbose text, CLI `--json`, MCP `format: "json"`, smoke/parity helpers, and internal callers may need different data.
+- Prefer conditional GraphQL fields (`@include` / `@skip`) for small mode switches such as body omission. Prefer separate query documents when plain and detailed modes have substantially different shapes.
+- Name GraphQL directive variables by the field selection they control, not like resolver arguments. For example, `includeVerboseFields` is clearer than `includeDetails`.
+- Do not keep selected fields only for future exploration. If a field is not surfaced, validated, or used by a caller today, remove it until there is a typed consumer.
+- Preserve UX-critical text hints when trimming data. If text output uses a field only to explain hidden data, that still counts as used data and must be covered by tests.
+- Add tests that assert the wire contract for every mode-sensitive selection: variables, directives, omitted fields, and caller params. Mocked formatter tests are not enough because mocks can return fields the live query no longer fetches.
+
 ## Pure Function Helpers & Layering
 
 ### Conversion Modules
@@ -158,5 +169,11 @@ When drafting a plan or proposal, explicitly answer:
 - What docs need updating?
 - Are JSDoc comments added?
 - Is the implementation doc updated?
+
+### 5. Data Fetching
+
+- What fields does each output mode actually consume?
+- Are compact and detailed modes using conditional fields or separate queries where appropriate?
+- Which tests prove unused fields are not fetched and required hidden-hint fields still are?
 
 Checking these boxes before implementation keeps future maintainers from revisiting architectural gaps.
