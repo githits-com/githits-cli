@@ -101,6 +101,10 @@ export function renderChangeRows(
 ): string[] {
   const { useColors, labelWidth, verbWidth } = options;
   return rows.map((row) => {
+    if (row.label === "" && row.verb === "") {
+      const detailOffset = 10 + labelWidth + verbWidth;
+      return `${" ".repeat(detailOffset)}${row.detail}`.trimEnd();
+    }
     const { glyph, color } = TONE_GLYPH[row.tone];
     const coloredGlyph = colorize(glyph, color, useColors);
     const label = row.label.padEnd(labelWidth);

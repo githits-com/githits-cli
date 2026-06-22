@@ -201,6 +201,29 @@ describe("renderChangeRows", () => {
     expect(lines[2]).toContain("✗");
   });
 
+  it("aligns continuation rows to the detail column", () => {
+    const continuationRows: ChangeRow[] = [
+      rows[0]!,
+      {
+        tone: "ok",
+        label: "",
+        verb: "",
+        detail: "claude plugin install y",
+      },
+    ];
+    const widths = changeRowColumnWidths(rows);
+    const lines = renderChangeRows(continuationRows, {
+      useColors: false,
+      labelWidth: widths.labelWidth,
+      verbWidth: widths.verbWidth,
+    });
+
+    expect(lines[1]!.trim()).toBe("claude plugin install y");
+    expect(lines[1]!.indexOf("claude plugin install y")).toBe(
+      lines[0]!.indexOf("claude plugin install x"),
+    );
+  });
+
   it("produces equal visible column widths regardless of color", () => {
     const opts = { labelWidth: 11, verbWidth: CHANGE_VERB_WIDTH };
     const plain = renderChangeRows(rows, { ...opts, useColors: false });

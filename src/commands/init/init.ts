@@ -44,6 +44,7 @@ import {
   CHANGE_VERB_WIDTH,
   type ChangeRow,
   describeConfigAsUnchanged,
+  formatCliCommand,
   formatConfigPath,
   renderChangeRows,
   type SetupChange,
@@ -224,6 +225,21 @@ function getResolvedSetupConfig(
     agent.resolvedSetupConfig ??
     agent.getSetupConfig(fileSystemService, agent.resolvedSetupContext)
   );
+}
+
+function getCliCheckDetail(config: SetupConfig): string | undefined {
+  if (config.method === "cli" && config.checkCommand) {
+    return `checked via ${formatCliCommand(config.checkCommand)}`;
+  }
+  if (config.method === "composite") {
+    const checkStep = config.steps.find(
+      (step) => step.method === "cli" && step.checkCommand,
+    );
+    return checkStep?.method === "cli" && checkStep.checkCommand
+      ? `checked via ${formatCliCommand(checkStep.checkCommand)}`
+      : undefined;
+  }
+  return undefined;
 }
 
 function getLegacyProjectSetupStatePath(
@@ -2117,13 +2133,77 @@ function uninstallChangeToRow(
   return { tone: "ok", label: name, verb: change.change, detail };
 }
 
-/** Build display rows for one agent's uninstall outcome (+ a failure row). */
+function visibleChangeRows<T extends SetupChange | UninstallChange>(
+  name: string,
+  changes: T[] | undefined,
+  fileSystemService: FileSystemService,
+  unchangedCommandDetail: string | undefined,
+  toRow: (
+    name: string,
+    change: T,
+    fileSystemService: FileSystemService,
+  ) => ChangeRow,
+): ChangeRow[] {
+  const allChanges = changes ?? [];
+  const visibleChanges = allChanges.filter(
+    (change) => change.kind !== "command" || change.change === "ran",
+  );
+  const hiddenCommandChanges = allChanges.filter(
+    (change) => change.kind === "command" && change.change === "unchanged",
+  );
+  const hasVisibleCommandChange = visibleChanges.some(
+    (change) => change.kind === "command",
+  );
+  const rows: ChangeRow[] = [];
+
+  if (
+    hiddenCommandChanges.length > 0 &&
+    !hasVisibleCommandChange &&
+    unchangedCommandDetail
+  ) {
+    rows.push({
+      tone: "ok",
+      label: name,
+      verb: "unchanged",
+      detail: unchangedCommandDetail,
+    });
+  } else if (visibleChanges.length === 0 && hiddenCommandChanges.length > 0) {
+    rows.push({ tone: "ok", label: name, verb: "unchanged", detail: "" });
+  }
+
+  let commandRows = 0;
+  for (const change of visibleChanges) {
+    if (change.kind === "command") {
+      rows.push(
+        commandRows === 0
+          ? toRow(name, change, fileSystemService)
+          : { tone: "ok", label: "", verb: "", detail: change.command },
+      );
+      commandRows += 1;
+    } else {
+      rows.push(toRow(name, change, fileSystemService));
+    }
+  }
+
+  return rows;
+}
+
+/**
+ * Build display rows for one agent's uninstall outcome. Config-file changes
+ * show their paths; CLI command rows show only commands that actually ran, or
+ * the read-only check command when every CLI command was already unnecessary.
+ */
 function uninstallOutcomeRows(
   outcome: AgentUninstallOutcome,
   fileSystemService: FileSystemService,
+  unchangedCommandDetail?: string,
 ): ChangeRow[] {
-  const rows: ChangeRow[] = (outcome.changes ?? []).map((change) =>
-    uninstallChangeToRow(outcome.name, change, fileSystemService),
+  const rows = visibleChangeRows(
+    outcome.name,
+    outcome.changes,
+    fileSystemService,
+    unchangedCommandDetail,
+    uninstallChangeToRow,
   );
   if (outcome.status === "failed") {
     rows.push({
@@ -2149,9 +2229,10 @@ function printUninstallOutcome(
   fileSystemService: FileSystemService,
   useColors: boolean,
   labelWidth: number,
+  unchangedCommandDetail?: string,
 ): void {
   const lines = renderChangeRows(
-    uninstallOutcomeRows(outcome, fileSystemService),
+    uninstallOutcomeRows(outcome, fileSystemService, unchangedCommandDetail),
     { useColors, labelWidth, verbWidth: CHANGE_VERB_WIDTH },
   );
   for (const line of lines) {
@@ -2236,7 +2317,13 @@ async function uninstallSelectedAgents(
       changes: result.changes,
     };
     outcomes.push(outcome);
-    printUninstallOutcome(outcome, fileSystemService, useColors, labelWidth);
+    printUninstallOutcome(
+      outcome,
+      fileSystemService,
+      useColors,
+      labelWidth,
+      getCliCheckDetail(setupConfig),
+    );
   }
 
   return outcomes;
@@ -2471,17 +2558,22 @@ function changeToRow(
 }
 
 /**
- * Build the display rows for one agent's install outcome: one row per change
- * (paths written / commands run), plus a trailing error row when the outcome
- * failed — keeping the written path/command visible even on verification
- * failure.
+ * Build display rows for one agent's install outcome. Config-file changes show
+ * their paths; CLI command rows show only commands that actually ran, or the
+ * read-only check command when every CLI command was already unnecessary. A
+ * failed outcome keeps visible changes plus a trailing error row.
  */
 function agentOutcomeRows(
   outcome: AgentOutcome,
   fileSystemService: FileSystemService,
+  unchangedCommandDetail?: string,
 ): ChangeRow[] {
-  const rows: ChangeRow[] = (outcome.changes ?? []).map((change) =>
-    changeToRow(outcome.name, change, fileSystemService),
+  const rows = visibleChangeRows(
+    outcome.name,
+    outcome.changes,
+    fileSystemService,
+    unchangedCommandDetail,
+    changeToRow,
   );
   if (outcome.status === "failed") {
     rows.push({
@@ -2545,10 +2637,13 @@ async function installSelectedAgents(
     (width, agent) => Math.max(width, agent.name.length),
     0,
   );
-  const printRows = (outcome: AgentOutcome): void => {
+  const printRows = (
+    outcome: AgentOutcome,
+    unchangedCommandDetail?: string,
+  ): void => {
     if (!printResults) return;
     const lines = renderChangeRows(
-      agentOutcomeRows(outcome, fileSystemService),
+      agentOutcomeRows(outcome, fileSystemService, unchangedCommandDetail),
       {
         useColors,
         labelWidth,
@@ -2562,19 +2657,19 @@ async function installSelectedAgents(
 
   for (const agent of agents) {
     if (alreadyConfiguredIds.has(agent.id)) {
+      const config = getResolvedSetupConfig(agent, fileSystemService);
       const outcome: AgentOutcome = {
         id: agent.id,
         name: agent.name,
         status: "already_configured",
-        changes: describeConfigAsUnchanged(
-          getResolvedSetupConfig(agent, fileSystemService),
-        ),
+        changes: describeConfigAsUnchanged(config),
       };
       outcomes.push(outcome);
-      printRows(outcome);
+      printRows(outcome, getCliCheckDetail(config));
       continue;
     }
 
+    const config = getResolvedSetupConfig(agent, fileSystemService);
     const finishTask = printResults ? installTasks.start(agent.name) : () => {};
     let result: SetupResult;
     try {
@@ -2596,7 +2691,7 @@ async function installSelectedAgents(
       changes: result.changes,
     };
     outcomes.push(outcome);
-    printRows(outcome);
+    printRows(outcome, getCliCheckDetail(config));
   }
 
   return outcomes;
