@@ -79,9 +79,14 @@ export async function pkgDepsAction(
       includeTransitive: wireIncludeTransitive,
       maxDepth: wireMaxDepth,
     });
+    const showGroups = canonicalLifecycles.some((entry) => entry !== "runtime");
+    const needsGroupsForTextHint = options.json !== true;
 
-    const report =
-      await deps.packageIntelligenceService.packageDependencies(params);
+    const report = await deps.packageIntelligenceService.packageDependencies({
+      ...params,
+      includeTransitiveDetails: includeTransitiveOutput,
+      includeGroups: showGroups || needsGroupsForTextHint,
+    });
 
     if (options.json) {
       const payload = buildPackageDependenciesSuccessPayload(report, {
@@ -98,8 +103,6 @@ export async function pkgDepsAction(
       console.log(JSON.stringify(payload));
       return;
     }
-
-    const showGroups = canonicalLifecycles.some((entry) => entry !== "runtime");
 
     const output = formatPackageDependenciesTerminal(report, {
       verbose: options.verbose,

@@ -110,6 +110,10 @@ export interface PackageDependenciesRequestInput {
   version?: string;
   /** Optional flag to include transitive graph. */
   includeTransitive?: boolean;
+  /** Optional flag to include transitive aggregate/detail fields. */
+  includeTransitiveDetails?: boolean;
+  /** Optional flag to include dependency group metadata. */
+  includeGroups?: boolean;
   /** Optional traversal depth (1–10). */
   maxDepth?: number;
   /**
@@ -181,6 +185,8 @@ export function buildPackageDependenciesParams(
       packageName: trimmedName,
       version,
       includeTransitive: input.includeTransitive,
+      includeTransitiveDetails: input.includeTransitiveDetails,
+      includeGroups: input.includeGroups,
       maxDepth,
       lifecycle: wireLifecycles.length > 0 ? wireLifecycles : undefined,
     },

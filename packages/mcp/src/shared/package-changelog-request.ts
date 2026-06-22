@@ -58,6 +58,8 @@ export interface PackageChangelogRequestInput {
   toVersion?: string;
   /** Latest-mode entry count cap. */
   limit?: number;
+  /** Include raw markdown bodies in entries. Defaults to true. */
+  includeBodies?: boolean;
 }
 
 /** Fields whose *explicit* presence the envelope echoes under `filter.*`. */
@@ -120,6 +122,7 @@ export function buildPackageChangelogParams(
       fromVersion,
       toVersion,
       limit,
+      includeBodies: input.includeBodies,
     },
     explicitFilterFields: explicit,
   };

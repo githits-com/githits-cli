@@ -205,7 +205,7 @@ describe("PackageIntelligenceServiceImpl", () => {
     ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
 
-  it("sends packageSummary query with registry + name vars and latestChangelogs(limit: 3)", async () => {
+  it("sends packageSummary query with registry + name vars and conditional details", async () => {
     let capturedBody: string | undefined;
     const fetchFn = mock((_url: string, init?: RequestInit) => {
       capturedBody = init?.body as string;
@@ -222,11 +222,39 @@ describe("PackageIntelligenceServiceImpl", () => {
     expect(capturedBody).toBeDefined();
     const parsed = JSON.parse(capturedBody ?? "{}");
     expect(parsed.query).toContain("packageSummary(registry: $registry");
-    expect(parsed.query).toContain("latestChangelogs(limit: 3)");
+    expect(parsed.query).toContain(
+      "latestChangelogs(limit: 3) @include(if: $includeVerboseFields)",
+    );
     expect(parsed.query).not.toContain("quickstart");
     expect(parsed.query).not.toContain("installCommand");
     expect(parsed.query).not.toContain("usageExample");
-    expect(parsed.variables).toEqual({ registry: "NPM", name: "express" });
+    expect(parsed.variables).toEqual({
+      registry: "NPM",
+      name: "express",
+      includeVerboseFields: true,
+    });
+  });
+
+  it("can skip verbose packageSummary fields", async () => {
+    let capturedBody: string | undefined;
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(jsonResponse(HAPPY_BODY));
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await service.packageSummary({
+      registry: "NPM",
+      packageName: "express",
+      includeVerboseFields: false,
+    });
+
+    const parsed = JSON.parse(capturedBody ?? "{}");
+    expect(parsed.variables.includeVerboseFields).toBe(false);
   });
 
   it("sends Bearer token and hits the correct URL", async () => {
@@ -1427,6 +1455,47 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
     ).rejects.toBeInstanceOf(PackageIntelligenceChangelogSourceNotFoundError);
   });
 
+  it("sends includeBodies and omits unused metadata from changelog query", async () => {
+    let capturedBody: string | undefined;
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(
+        jsonResponse({
+          data: {
+            packageChangelog: {
+              package: { name: "express", registry: "NPM" },
+              source: "releases",
+              entries: [
+                {
+                  version: "5.0.0",
+                  normalizedVersion: "5.0.0",
+                  htmlUrl: "https://example.com/release",
+                  publishedAt: "2026-01-01T00:00:00Z",
+                },
+              ],
+            },
+          },
+        }),
+      );
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await service.packageChangelog({
+      registry: "NPM",
+      packageName: "express",
+      includeBodies: false,
+    });
+
+    const parsed = JSON.parse(capturedBody ?? "{}");
+    expect(parsed.query).toContain("body @include(if: $includeBodies)");
+    expect(parsed.query).not.toContain("metadata");
+    expect(parsed.variables.includeBodies).toBe(false);
+  });
+
   it("accepts package version entries without a changelog source", async () => {
     const fetchFn = mock(() =>
       Promise.resolve(
@@ -1442,7 +1511,6 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
                   body: "React Server Components",
                   htmlUrl: null,
                   publishedAt: "2026-04-08T00:00:00Z",
-                  metadata: null,
                 },
               ],
             },
@@ -1480,7 +1548,6 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
                   body: null,
                   htmlUrl: null,
                   publishedAt: "2026-04-08T00:00:00Z",
-                  metadata: null,
                 },
               ],
             },
@@ -1581,7 +1648,36 @@ describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
     const parsed = JSON.parse(capturedBody ?? "{}");
     expect(parsed.variables.lifecycle).toEqual(["runtime", "development"]);
     expect(parsed.variables.includeTransitive).toBe(true);
+    expect(parsed.variables.includeTransitiveDetails).toBe(true);
+    expect(parsed.variables.includeDependencyGraph).toBe(true);
+    expect(parsed.variables.includeGroups).toBe(true);
     expect(parsed.variables.maxDepth).toBe(3);
+  });
+
+  it("can skip dependency groups and transitive details while keeping the graph", async () => {
+    let capturedBody: string | undefined;
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(jsonResponse(EXPRESS_BODY));
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    await service.packageDependencies({
+      registry: "NPM",
+      packageName: "express",
+      includeTransitive: true,
+      includeTransitiveDetails: false,
+      includeGroups: false,
+      maxDepth: 1,
+    });
+    const parsed = JSON.parse(capturedBody ?? "{}");
+    expect(parsed.variables.includeTransitive).toBe(true);
+    expect(parsed.variables.includeDependencyGraph).toBe(true);
+    expect(parsed.variables.includeTransitiveDetails).toBe(false);
+    expect(parsed.variables.includeGroups).toBe(false);
   });
 
   it("omits lifecycle when empty array (treated as 'no filter')", async () => {

@@ -64,8 +64,10 @@ export async function pkgInfoAction(
       registry: parsed.registry,
       packageName: parsed.name,
     });
-    const summary =
-      await deps.packageIntelligenceService.packageSummary(params);
+    const summary = await deps.packageIntelligenceService.packageSummary({
+      ...params,
+      includeVerboseFields: options.json === true || options.verbose === true,
+    });
 
     if (options.json) {
       const payload = buildPackageSummarySuccessPayload(summary);

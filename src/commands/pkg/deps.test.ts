@@ -105,11 +105,42 @@ describe("pkgDepsAction", () => {
     );
 
     const calls = packageDependencies.mock.calls as unknown as Array<
-      [{ includeTransitive?: boolean; maxDepth?: number }]
+      [
+        {
+          includeTransitive?: boolean;
+          includeTransitiveDetails?: boolean;
+          includeGroups?: boolean;
+          maxDepth?: number;
+        },
+      ]
     >;
     expect(calls[0]?.[0]?.includeTransitive).toBe(true);
+    expect(calls[0]?.[0]?.includeTransitiveDetails).toBe(false);
+    expect(calls[0]?.[0]?.includeGroups).toBe(true);
     expect(calls[0]?.[0]?.maxDepth).toBe(1);
     writeSpy.mockRestore();
+  });
+
+  it("skips groups for default JSON deps mode", async () => {
+    const packageDependencies = mock(() =>
+      Promise.resolve(defaultDependencyReport),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageDependencies,
+    });
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await pkgDepsAction(
+      "npm:express",
+      { json: true },
+      createDeps({ packageIntelligenceService: service }),
+    );
+
+    const calls = packageDependencies.mock.calls as unknown as Array<
+      [{ includeGroups?: boolean }]
+    >;
+    expect(calls[0]?.[0]?.includeGroups).toBe(false);
+    logSpy.mockRestore();
   });
 
   it("sends maxDepth and renders transitive output when --depth N is set", async () => {
@@ -130,9 +161,18 @@ describe("pkgDepsAction", () => {
     );
 
     const calls = packageDependencies.mock.calls as unknown as Array<
-      [{ includeTransitive?: boolean; maxDepth?: number }]
+      [
+        {
+          includeTransitive?: boolean;
+          includeTransitiveDetails?: boolean;
+          includeGroups?: boolean;
+          maxDepth?: number;
+        },
+      ]
     >;
     expect(calls[0]?.[0]?.includeTransitive).toBe(true);
+    expect(calls[0]?.[0]?.includeTransitiveDetails).toBe(true);
+    expect(calls[0]?.[0]?.includeGroups).toBe(true);
     expect(calls[0]?.[0]?.maxDepth).toBe(5);
     writeSpy.mockRestore();
   });

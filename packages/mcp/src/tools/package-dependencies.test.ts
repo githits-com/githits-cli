@@ -101,6 +101,8 @@ describe("createPackageDependenciesTool — happy path", () => {
           version?: string;
           lifecycle?: string[];
           includeTransitive?: boolean;
+          includeTransitiveDetails?: boolean;
+          includeGroups?: boolean;
           maxDepth?: number;
         },
       ]
@@ -110,7 +112,52 @@ describe("createPackageDependenciesTool — happy path", () => {
     expect(calls[0]?.[0]?.version).toBe("5.2.1");
     expect(calls[0]?.[0]?.lifecycle).toEqual(["development"]);
     expect(calls[0]?.[0]?.includeTransitive).toBe(true);
+    expect(calls[0]?.[0]?.includeTransitiveDetails).toBe(true);
+    expect(calls[0]?.[0]?.includeGroups).toBe(true);
     expect(calls[0]?.[0]?.maxDepth).toBe(3);
+  });
+
+  it("fetches groups for default text so hidden group hints can render", async () => {
+    const packageDependencies = mock(() =>
+      Promise.resolve(defaultDependencyReport),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageDependencies,
+    });
+    const tool = createPackageDependenciesTool(service);
+
+    await tool.handler({ registry: "npm", package_name: "express" }, {});
+
+    const calls = packageDependencies.mock.calls as unknown as Array<
+      [
+        {
+          includeTransitiveDetails?: boolean;
+          includeGroups?: boolean;
+        },
+      ]
+    >;
+    expect(calls[0]?.[0]?.includeTransitiveDetails).toBe(false);
+    expect(calls[0]?.[0]?.includeGroups).toBe(true);
+  });
+
+  it("skips groups for default JSON deps mode", async () => {
+    const packageDependencies = mock(() =>
+      Promise.resolve(defaultDependencyReport),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageDependencies,
+    });
+    const tool = createPackageDependenciesTool(service);
+
+    await tool.handler(
+      { registry: "npm", package_name: "express", format: "json" },
+      {},
+    );
+
+    const calls = packageDependencies.mock.calls as unknown as Array<
+      [{ includeGroups?: boolean }]
+    >;
+    expect(calls[0]?.[0]?.includeGroups).toBe(false);
   });
 
   it("emits compact text with runtime block by default", async () => {

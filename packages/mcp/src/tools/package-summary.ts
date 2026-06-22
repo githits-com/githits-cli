@@ -71,9 +71,13 @@ export function createPackageSummaryTool(
           registry: args.registry,
           packageName: args.package_name,
         });
-        const summary = await service.packageSummary(params);
+        const textFormat = isTextFormat(args.format);
+        const summary = await service.packageSummary({
+          ...params,
+          includeVerboseFields: !textFormat || args.verbose === true,
+        });
         const payload = buildPackageSummarySuccessPayload(summary);
-        if (isTextFormat(args.format)) {
+        if (textFormat) {
           return textResult(
             formatPackageSummaryTerminal(summary, {
               verbose: args.verbose,

@@ -43,6 +43,8 @@ import type { TokenProvider } from "./token-provider.js";
 export interface PackageSummaryParams {
   registry: PkgseerRegistry;
   packageName: string;
+  /** Include verbose/json-only fields such as recent advisories and changes. */
+  includeVerboseFields?: boolean;
 }
 
 export interface PackageIdentity {
@@ -158,6 +160,10 @@ export interface PackageDependenciesParams {
   version?: string;
   /** Optional. Backend returns a full transitive graph when true. */
   includeTransitive?: boolean;
+  /** Include transitive aggregate/detail fields beyond the dependency graph. */
+  includeTransitiveDetails?: boolean;
+  /** Include dependency group metadata. */
+  includeGroups?: boolean;
   /**
    * Optional transitive-traversal depth (1–10). Omit for the backend
    * default (full graph) — note the CLI applies a 3-deep guardrail but
@@ -189,14 +195,6 @@ export interface DirectDependency {
   versionConstraint?: string;
   type?: string;
 }
-
-/**
- * Opaque GenericJSON passthrough. The `package_dependencies` tool
- * migrated to typed fields (`dependencyGraph`, `dependencyConflicts`,
- * `circularDependencyCycles`, `environmentMarkers`); this type is
- * retained for the one remaining passthrough — `ChangelogEntryDetail.metadata`.
- */
-export type UntypedGenericJSON = unknown;
 
 /**
  * Node in a typed dependency graph. Mirrors `DependencyGraphNode`.
@@ -454,6 +452,8 @@ export interface PackageChangelogParams {
   toVersion?: string;
   /** Latest-mode cap (1–50). Rejected client-side when `fromVersion` is set. */
   limit?: number;
+  /** Include raw markdown bodies in entries. Defaults to true. */
+  includeBodies?: boolean;
 }
 
 /**
@@ -470,20 +470,13 @@ export interface ChangelogPackageInfo {
   limit?: number;
 }
 
-/**
- * Full changelog entry as observed on the wire. The envelope builder
- * projects this into the lean response shape; `metadata` is dropped
- * from the envelope because its source-specific opaque structure
- * isn't worth the token cost today. Revisit via agent feedback.
- */
+/** Full changelog entry as observed on the wire. */
 export interface ChangelogEntryDetail {
   version?: string;
   normalizedVersion?: string;
   body?: string;
   htmlUrl?: string;
   publishedAt?: string;
-  /** TODO(backend): surface when shape is documented. */
-  metadata?: UntypedGenericJSON;
 }
 
 export interface ChangelogReport {
@@ -775,7 +768,11 @@ const graphQLResponseSchema = z.object({
 });
 
 const PACKAGE_SUMMARY_QUERY = `
-query PackageSummary($registry: Registry!, $name: String!) {
+query PackageSummary(
+  $registry: Registry!
+  $name: String!
+  $includeVerboseFields: Boolean! = true
+) {
   packageSummary(registry: $registry, name: $name) {
     package {
       name
@@ -793,22 +790,22 @@ query PackageSummary($registry: Registry!, $name: String!) {
         forksCount
         openIssuesCount
         archived
-        language
-        topics
-        pushedAt
+        language @include(if: $includeVerboseFields)
+        topics @include(if: $includeVerboseFields)
+        pushedAt @include(if: $includeVerboseFields)
       }
     }
     security {
       vulnerabilityCount
       hasCurrentVulnerabilities
-      recentVulnerabilities {
+      recentVulnerabilities @include(if: $includeVerboseFields) {
         osvId
         summary
         severityScore
         publishedAt
       }
     }
-    latestChangelogs(limit: 3) {
+    latestChangelogs(limit: 3) @include(if: $includeVerboseFields) {
       version
       publishedAt
       body
@@ -1195,6 +1192,9 @@ query PackageDependencies(
   $name: String!
   $version: String
   $includeTransitive: Boolean
+  $includeTransitiveDetails: Boolean! = true
+  $includeDependencyGraph: Boolean! = true
+  $includeGroups: Boolean! = true
   $maxDepth: Int
   $lifecycle: [String!]
 ) {
@@ -1222,10 +1222,10 @@ query PackageDependencies(
         type
       }
       transitive {
-        totalEdges
-        uniquePackagesCount
-        uniqueDependencies
-        dependencyConflicts {
+        totalEdges @include(if: $includeTransitiveDetails)
+        uniquePackagesCount @include(if: $includeTransitiveDetails)
+        uniqueDependencies @include(if: $includeTransitiveDetails)
+        dependencyConflicts @include(if: $includeTransitiveDetails) {
           packageName
           requiredVersions
           conflictingEdges {
@@ -1235,12 +1235,12 @@ query PackageDependencies(
             dependencyType
           }
         }
-        circularDependencyCycles {
+        circularDependencyCycles @include(if: $includeTransitiveDetails) {
           cycleStart
           circularPath
           displayChain
         }
-        dependencyGraph {
+        dependencyGraph @include(if: $includeDependencyGraph) {
           formatVersion
           nodes {
             registry
@@ -1256,7 +1256,7 @@ query PackageDependencies(
         }
       }
     }
-    dependencyGroups {
+    dependencyGroups @include(if: $includeGroups) {
       primaryGroup
       environmentMarkers {
         type
@@ -1502,11 +1502,6 @@ const changelogEntryDetailSchema = z.object({
   body: z.string().nullable().optional(),
   htmlUrl: z.string().nullable().optional(),
   publishedAt: z.string().nullable().optional(),
-  // `metadata` is schema-level GenericJSON and we drop it from the
-  // service-returned shape today (envelope doesn't surface it). We
-  // still request-select it on the wire so live smoke can observe
-  // real shapes for a future typed surface.
-  metadata: z.unknown().nullable().optional(),
 });
 
 const changelogReportResponseSchema = z.object({
@@ -1534,6 +1529,7 @@ query PackageChangelog(
   $fromVersion: String
   $toVersion: String
   $limit: Int
+  $includeBodies: Boolean! = true
 ) {
   packageChangelog(
     registry: $registry
@@ -1556,10 +1552,9 @@ query PackageChangelog(
     entries {
       version
       normalizedVersion
-      body
+      body @include(if: $includeBodies)
       htmlUrl
       publishedAt
-      metadata
     }
   }
 }`;
@@ -1771,6 +1766,7 @@ export class PackageIntelligenceServiceImpl
         variables: {
           registry: params.registry,
           name: params.packageName,
+          includeVerboseFields: params.includeVerboseFields !== false,
         },
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
@@ -2334,6 +2330,9 @@ export class PackageIntelligenceServiceImpl
           name: params.packageName,
           version: params.version,
           includeTransitive: params.includeTransitive,
+          includeTransitiveDetails: params.includeTransitiveDetails !== false,
+          includeDependencyGraph: params.includeTransitive === true,
+          includeGroups: params.includeGroups !== false,
           maxDepth: params.maxDepth,
           lifecycle:
             params.lifecycle && params.lifecycle.length > 0
@@ -2656,6 +2655,7 @@ export class PackageIntelligenceServiceImpl
           fromVersion: params.fromVersion,
           toVersion: params.toVersion,
           limit: params.limit,
+          includeBodies: params.includeBodies !== false,
         },
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
@@ -2724,7 +2724,6 @@ export class PackageIntelligenceServiceImpl
       body: entry.body ?? undefined,
       htmlUrl: entry.htmlUrl ?? undefined,
       publishedAt: entry.publishedAt ?? undefined,
-      metadata: entry.metadata ?? undefined,
     }));
 
     const packageInfo: ChangelogPackageInfo | undefined = data.package
