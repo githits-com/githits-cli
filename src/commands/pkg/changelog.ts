@@ -85,6 +85,7 @@ export async function pkgChangelogAction(
       fromVersion: options.from,
       toVersion: options.to,
       limit,
+      includeBodies,
     });
 
     const report =

@@ -8,6 +8,7 @@ Checklist for reviewing code changes in githits-cli.
 - [ ] Implementation is easy to understand
 - [ ] Code is in correct modules, no unnecessary duplication
 - [ ] Services are properly abstracted for testing
+- [ ] GraphQL/API-backed changes fetch only fields used by each output mode, with conditional fields or separate queries where needed
 
 ## Code Quality
 
@@ -22,6 +23,7 @@ Checklist for reviewing code changes in githits-cli.
 - [ ] All tests pass (`bun test`)
 - [ ] Tests mock services at interface level
 - [ ] Error paths are tested
+- [ ] GraphQL/API selection changes have tests for compact vs verbose/JSON wire variables, selected fields, and omitted fields
 
 ## Documentation
 

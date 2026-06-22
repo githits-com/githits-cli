@@ -156,6 +156,7 @@ export function createPackageChangelogTool(
           fromVersion: args.from_version,
           toVersion: args.to_version,
           limit: args.limit,
+          includeBodies: args.omit_bodies !== true,
         });
         const report = await service.packageChangelog(params);
         const payload = buildPackageChangelogSuccessPayload(report, {

@@ -112,7 +112,15 @@ export function createPackageDependenciesTool(
           maxDepth: wireMaxDepth,
           lifecycle: args.lifecycle,
         });
-        const report = await service.packageDependencies(params);
+        const showGroups =
+          canonicalLifecycles.length > 0 &&
+          !canonicalLifecycles.every((item) => item === "runtime");
+        const textFormat = isTextFormat(args.format);
+        const report = await service.packageDependencies({
+          ...params,
+          includeTransitiveDetails: includeTransitiveOutput,
+          includeGroups: showGroups || textFormat,
+        });
         const payload = buildPackageDependenciesSuccessPayload(report, {
           requestedVersion: args.version,
           canonicalLifecycles,
@@ -120,7 +128,7 @@ export function createPackageDependenciesTool(
           maxDepth: args.max_depth,
           includeImporters: args.include_importers ?? false,
         });
-        if (isTextFormat(args.format)) {
+        if (textFormat) {
           const textLifecycles =
             canonicalLifecycles.length > 0
               ? canonicalLifecycles
@@ -132,9 +140,7 @@ export function createPackageDependenciesTool(
               canonicalLifecycles: textLifecycles,
               includeTransitive: includeTransitiveOutput,
               maxDepth: args.max_depth,
-              showGroups:
-                canonicalLifecycles.length > 0 &&
-                !canonicalLifecycles.every((item) => item === "runtime"),
+              showGroups,
               hiddenGroupsHint: 'pass lifecycle="all".',
             }).trimEnd(),
           );
