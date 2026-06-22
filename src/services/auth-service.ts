@@ -6,6 +6,7 @@ import {
   generateCodeVerifier,
   generateState,
 } from "@githits/core-internal";
+import { z } from "zod";
 
 /**
  * OAuth Authorization Server metadata from .well-known endpoint.
@@ -449,13 +450,20 @@ export function classifyTerminalRefreshError(
     return "invalid_client";
   }
 
+  // RFC 6749 §5.2: for the refresh_token grant, `invalid_grant` means the
+  // refresh token is expired, revoked, or otherwise no longer valid. Trust the
+  // structured code on its own; the substring checks below are a fallback for
+  // servers that report the same condition without a clean error code.
+  if (oauthError === "invalid_grant") {
+    return "invalid_refresh_token";
+  }
+
   if (
-    oauthError === "invalid_grant" &&
-    (text.includes("invalid refresh token") ||
-      text.includes("refresh token already used") ||
-      text.includes("already used") ||
-      text.includes("session expired") ||
-      text.includes("session not found"))
+    text.includes("invalid refresh token") ||
+    text.includes("refresh token already used") ||
+    text.includes("already used") ||
+    text.includes("session expired") ||
+    text.includes("session not found")
   ) {
     return "invalid_refresh_token";
   }
@@ -489,28 +497,66 @@ function stringField(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+/**
+ * Default token lifetime (seconds) applied when the OAuth server omits
+ * `expires_in` or returns a value that is not a finite positive number.
+ */
+const DEFAULT_TOKEN_EXPIRES_IN_SECONDS = 3600;
+
+const nonEmptyString = z.string().min(1);
+
+/**
+ * Coerces `expires_in` to a usable lifetime. OAuth servers should send a JSON
+ * number per RFC 6749, but some emit numeric strings, and a missing, zero,
+ * negative, or non-numeric value would otherwise corrupt the computed expiry
+ * (e.g. `new Date(Date.now() + NaN)` throws). Any non-positive or non-finite
+ * value falls back to the default lifetime.
+ */
+const expiresInSchema = z
+  .union([z.number(), z.string()])
+  .nullish()
+  .transform((value) => {
+    const numeric = typeof value === "string" ? Number(value) : value;
+    return typeof numeric === "number" &&
+      Number.isFinite(numeric) &&
+      numeric > 0
+      ? numeric
+      : DEFAULT_TOKEN_EXPIRES_IN_SECONDS;
+  });
+
+const TokenResponseSchema = z.object({
+  access_token: nonEmptyString,
+  refresh_token: nonEmptyString,
+  expires_in: expiresInSchema,
+});
+
+const RefreshTokenResponseSchema = z.object({
+  access_token: nonEmptyString,
+  refresh_token: nonEmptyString.optional(),
+  expires_in: expiresInSchema,
+});
+
 function parseTokenResponse(data: unknown): TokenResponse {
-  const d = data as Record<string, unknown>;
-  if (!d.access_token || !d.refresh_token) {
+  const parsed = TokenResponseSchema.safeParse(data);
+  if (!parsed.success) {
     throw new Error("Token response missing required fields");
   }
   return {
-    accessToken: d.access_token as string,
-    refreshToken: d.refresh_token as string,
-    expiresIn: (d.expires_in as number) || 3600,
+    accessToken: parsed.data.access_token,
+    refreshToken: parsed.data.refresh_token,
+    expiresIn: parsed.data.expires_in,
   };
 }
 
 function parseRefreshTokenResponse(data: unknown): RefreshTokenResponse {
-  const d = data as Record<string, unknown>;
-  if (!d.access_token) {
+  const parsed = RefreshTokenResponseSchema.safeParse(data);
+  if (!parsed.success) {
     throw new Error("Token response missing required fields");
   }
   return {
-    accessToken: d.access_token as string,
-    refreshToken:
-      typeof d.refresh_token === "string" ? d.refresh_token : undefined,
-    expiresIn: (d.expires_in as number) || 3600,
+    accessToken: parsed.data.access_token,
+    refreshToken: parsed.data.refresh_token,
+    expiresIn: parsed.data.expires_in,
   };
 }
 
