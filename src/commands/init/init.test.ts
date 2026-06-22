@@ -1814,6 +1814,70 @@ describe("initAction", () => {
     });
   });
 
+  it("shows checked CLI detail when a composite setup also writes config", async () => {
+    const enoent = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection([], {});
+    fs.readFile = mock((path: string) => {
+      if (path in configFiles) {
+        return Promise.resolve(configFiles[path]!);
+      }
+      return Promise.reject(enoent);
+    });
+    fs.atomicWriteFile = mock((path: string, content: string) => {
+      configFiles[path] = content;
+      return Promise.resolve();
+    });
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCommandFor()} pi`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/pi\n",
+            stderr: "",
+          });
+        }
+        if (key === "pi list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "pi-mcp-adapter\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      { installAgents: "pi" },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("Pi") &&
+          msg.includes("unchanged") &&
+          msg.includes("checked via pi list"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("Pi") &&
+          msg.includes("created") &&
+          msg.includes("~/.pi/agent/mcp.json"),
+      ),
+    ).toBe(true);
+  });
+
   it("sets up Pi using npm global bin fallback when pi is not on PATH", async () => {
     const enoent = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     const configFiles: Record<string, string> = {};
@@ -2043,6 +2107,229 @@ describe("initAction", () => {
     // Includes Pi fallback global-bin probes when pi is not on PATH.
     expect(execService.exec).toHaveBeenCalledTimes(14);
     expect(execService.exec).toHaveBeenCalledWith("claude", expect.any(Array));
+  });
+
+  it("renders already configured CLI agents with check command details", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} claude` || key === `${lookupCmd} codex`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: `/usr/bin/${args[0]}\n`,
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "githits@githits-plugins\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "githits\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      { installAgents: "claude-code,codex-cli" },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const claudeRow = getLogOutput().find((msg) => msg.includes("Claude Code"));
+    const codexRow = getLogOutput().find((msg) => msg.includes("Codex CLI"));
+    expect(claudeRow).toBeDefined();
+    expect(codexRow).toBeDefined();
+    expect(claudeRow ?? "").toContain("unchanged");
+    expect(claudeRow ?? "").toContain("checked via claude plugin list");
+    expect(codexRow ?? "").toContain("unchanged");
+    expect(codexRow ?? "").toContain("checked via codex mcp list");
+    expect(claudeRow ?? "").not.toContain("plugin install");
+    expect(codexRow ?? "").not.toContain("mcp add");
+    expect(execService.exec).not.toHaveBeenCalledWith("claude", [
+      "plugin",
+      "marketplace",
+      "add",
+      "githits-com/githits-cli",
+    ]);
+    expect(execService.exec).not.toHaveBeenCalledWith("claude", [
+      "plugin",
+      "install",
+      "githits@githits-plugins",
+    ]);
+    expect(execService.exec).not.toHaveBeenCalledWith("codex", [
+      "mcp",
+      "add",
+      "githits",
+      "--",
+      "npx",
+      "-y",
+      "githits@latest",
+      "mcp",
+      "start",
+    ]);
+  });
+
+  it("renders only Claude Code commands that actually ran", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    let pluginListCalls = 0;
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} claude`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/claude\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin list") {
+          pluginListCalls += 1;
+          return Promise.resolve({
+            exitCode: 0,
+            stdout:
+              pluginListCalls === 1
+                ? "other-plugin\n"
+                : "githits@githits-plugins\n",
+            stderr: "",
+          });
+        }
+        if (
+          key === "claude plugin marketplace add githits-com/githits-cli" ||
+          key === "claude plugin install githits@githits-plugins"
+        ) {
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      { installAgents: "claude-code" },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(execService.exec).toHaveBeenCalledWith("claude", [
+      "plugin",
+      "marketplace",
+      "add",
+      "githits-com/githits-cli",
+    ]);
+    expect(execService.exec).toHaveBeenCalledWith("claude", [
+      "plugin",
+      "install",
+      "githits@githits-plugins",
+    ]);
+    const claudeRows = getLogOutput().filter(
+      (msg) => msg.includes("Claude Code") && msg.includes("claude plugin"),
+    );
+    expect(claudeRows).toHaveLength(1);
+    const claudeRow = claudeRows[0]!;
+    expect(claudeRow).toContain(
+      "claude plugin marketplace add githits-com/githits-cli",
+    );
+    const installRow = getLogOutput().find((msg) =>
+      msg.includes("claude plugin install githits@githits-plugins"),
+    );
+    expect(installRow).toBeDefined();
+    expect(installRow?.trim()).toBe(
+      "claude plugin install githits@githits-plugins",
+    );
+    expect(installRow?.indexOf("claude plugin install")).toBe(
+      claudeRow.indexOf("claude plugin marketplace"),
+    );
+  });
+
+  it("does not render checked-via detail when a later CLI command runs", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    let pluginListCalls = 0;
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} claude`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/claude\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin list") {
+          pluginListCalls += 1;
+          return Promise.resolve({
+            exitCode: 0,
+            stdout:
+              pluginListCalls === 1
+                ? "other-plugin\n"
+                : "githits@githits-plugins\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin marketplace add githits-com/githits-cli") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Marketplace already added\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin install githits@githits-plugins") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Installed\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      { installAgents: "claude-code" },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("checked via claude plugin list")),
+    ).toBe(false);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("claude plugin marketplace add githits-com/githits-cli"),
+      ),
+    ).toBe(false);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("Claude Code") &&
+          msg.includes("ran") &&
+          msg.includes("claude plugin install githits@githits-plugins"),
+      ),
+    ).toBe(true);
   });
 
   it("uses one checkbox prompt for multiple unconfigured agents", async () => {
@@ -4531,6 +4818,81 @@ describe("initUninstallAction", () => {
     ).toBe(false);
   });
 
+  it("renders multi-step Claude uninstall commands as continuation rows", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    let pluginInstalled = true;
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCmd} claude`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/claude\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: pluginInstalled ? "githits@githits-plugins\n" : "",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin uninstall githits") {
+          pluginInstalled = false;
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Removed\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude plugin marketplace remove githits-plugins") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Removed\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    expect(execService.exec).toHaveBeenCalledWith("claude", [
+      "plugin",
+      "uninstall",
+      "githits",
+    ]);
+    expect(execService.exec).toHaveBeenCalledWith("claude", [
+      "plugin",
+      "marketplace",
+      "remove",
+      "githits-plugins",
+    ]);
+    const uninstallRow = getLogOutput().find(
+      (msg) =>
+        msg.includes("Claude Code") && msg.includes("claude plugin uninstall"),
+    );
+    const marketplaceRow = getLogOutput().find((msg) =>
+      msg.includes("claude plugin marketplace remove githits-plugins"),
+    );
+    expect(uninstallRow).toBeDefined();
+    expect(marketplaceRow).toBeDefined();
+    expect(marketplaceRow).not.toContain("Claude Code");
+    expect(marketplaceRow?.indexOf("claude plugin marketplace")).toBe(
+      uninstallRow?.indexOf("claude plugin uninstall"),
+    );
+  });
+
   it("reports CLI probe failures as inspection failures without prompting", async () => {
     const lookupCmd = lookupCommandFor();
     const fs = createFsWithDetection([]);
@@ -4867,6 +5229,14 @@ describe("initUninstallAction", () => {
     );
 
     const logCalls = getLogOutput();
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("Codex CLI") &&
+          msg.includes("unchanged") &&
+          msg.includes("checked via codex mcp list"),
+      ),
+    ).toBe(true);
     expect(
       logCalls.some((msg) =>
         msg.includes(
