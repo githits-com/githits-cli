@@ -45,12 +45,19 @@ export type McpToolServicesProvider<TExtra = unknown> =
       context: McpRequestContext<TExtra>,
     ) => McpToolServices | Promise<McpToolServices>);
 
+/** Wraps one public MCP tool call without receiving arguments or auth data. */
+export type McpToolExecutionHook = (
+  toolName: string,
+  runHandler: () => Promise<ToolResult>,
+) => ToolResult | Promise<ToolResult>;
+
 export interface CreateMcpServerOptions<TExtra = unknown> {
   metadata: McpServerMetadata;
   services: McpToolServicesProvider<TExtra>;
   authAction?: McpAuthAction;
   instructions?: string;
   instructionOptions?: Parameters<typeof buildMcpInstructions>[0];
+  traceTool?: McpToolExecutionHook;
 }
 
 export interface McpToolDescriptor<TSchema extends ZodRawShape = ZodRawShape> {
@@ -128,6 +135,7 @@ export function registerMcpTools<TExtra = unknown>(
   options: {
     authAction?: McpAuthAction;
     services: McpToolServicesProvider<TExtra>;
+    traceTool?: McpToolExecutionHook;
   },
 ): void {
   for (const createTool of TOOL_FACTORIES) {
@@ -139,8 +147,8 @@ export function registerMcpTools<TExtra = unknown>(
         inputSchema: descriptor.schema,
         annotations: descriptor.annotations,
       },
-      async (args, extra) =>
-        withMcpErrorOptions({ authAction: options.authAction }, async () => {
+      async (args, extra) => {
+        const runHandler = async () => {
           const services = await withErrorHandling("resolve MCP services", () =>
             resolveMcpToolServices(options.services, {
               extra: extra as TExtra | undefined,
@@ -148,7 +156,15 @@ export function registerMcpTools<TExtra = unknown>(
           );
           if (isToolResult(services)) return services;
           return createTool(services).handler(args, extra);
-        }),
+        };
+        return withMcpErrorOptions(
+          { authAction: options.authAction },
+          async () =>
+            options.traceTool
+              ? await options.traceTool(descriptor.name, runHandler)
+              : runHandler(),
+        );
+      },
     );
   }
 }
@@ -167,6 +183,7 @@ export function createMcpServer<TExtra = unknown>(
   registerMcpTools(server, {
     authAction: options.authAction,
     services: options.services,
+    traceTool: options.traceTool,
   });
 
   return server;

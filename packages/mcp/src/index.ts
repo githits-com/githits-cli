@@ -7,6 +7,7 @@ export type {
   McpRequestContext,
   McpServerMetadata,
   McpToolDescriptor,
+  McpToolExecutionHook,
   McpToolServicesProvider,
 } from "./mcp/server.js";
 export {
