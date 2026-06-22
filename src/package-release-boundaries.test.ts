@@ -45,6 +45,7 @@ describe("package release boundaries", () => {
     expect(dependencies).not.toContain("@githits/core-internal");
     expect(dependencies).not.toContain("@githits/mcp/internal");
     expect(JSON.stringify(mcpPackage.exports)).not.toContain("./internal");
+    expect(JSON.stringify(mcpPackage.exports)).toContain("./smoke-test");
   });
 
   it("resolves private workspace declarations before publishing @githits/mcp", async () => {
@@ -56,6 +57,7 @@ describe("package release boundaries", () => {
 
     expect(buildConfig).toContain('resolve: ["@githits/core-internal"]');
     expect(buildConfig).toContain('preferredTsconfig: "../../tsconfig.json"');
+    expect(buildConfig).toContain('"src/smoke-test.ts"');
   });
 
   it("keeps MCP release publishing recoverable", async () => {

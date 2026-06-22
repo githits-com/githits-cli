@@ -23,6 +23,12 @@
         "default": "./dist/client.js"
       }
     },
+    "./smoke-test": {
+      "import": {
+        "types": "./dist/smoke-test.d.ts",
+        "default": "./dist/smoke-test.js"
+      }
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
