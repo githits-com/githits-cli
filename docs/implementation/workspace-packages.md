@@ -68,6 +68,11 @@ manifest move is complete.
 - Release tags should use distinct namespaces so reruns and release notes stay
   unambiguous. Keep root `githits` on `vX.Y.Z`; use an MCP-specific tag namespace
   such as `mcp-vX.Y.Z` or `@githits/mcp@X.Y.Z` for MCP package releases.
+- Successful `Main` workflow runs on `main` trigger both root and MCP release
+  workflows. The MCP release workflow validates package artifacts, skips publish
+  when the current `@githits/mcp` version is already on npm, and otherwise mints
+  `mcp-vX.Y.Z`, publishes the package, and creates the GitHub Release. Manual
+  dispatch remains for dry runs and recovery.
 
 ## Build Lessons
 

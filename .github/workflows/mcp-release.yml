@@ -1,6 +1,10 @@
 name: MCP Package Release
 
 on:
+  workflow_run:
+    workflows: ["Main"]
+    types: [completed]
+    branches: [main]
   pull_request:
     branches: [main]
     paths:
@@ -28,6 +32,7 @@ concurrency:
 jobs:
   validate:
     name: MCP package validation
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -72,7 +77,9 @@ jobs:
 
   publish:
     name: Publish MCP package
-    if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false && github.ref == 'refs/heads/main'
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.dry_run == false && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     needs: validate
     runs-on: ubuntu-latest
     permissions:
@@ -119,8 +126,8 @@ jobs:
         run: |
           VERSION=$(jq -r '.version' packages/mcp/package.json)
           TAG="mcp-v$VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
           TAG_EXISTS=false
           TAG_REF="refs/tags/$TAG"
@@ -132,15 +139,15 @@ jobs:
               echo "::error::Existing tag $TAG points to $TAG_COMMIT, not HEAD $HEAD_COMMIT"
               exit 1
             fi
-            echo "tag_exists=true" >> $GITHUB_OUTPUT
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "tag_exists=false" >> $GITHUB_OUTPUT
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
           fi
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "release_exists=true" >> $GITHUB_OUTPUT
+            echo "release_exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "release_exists=false" >> $GITHUB_OUTPUT
+            echo "release_exists=false" >> "$GITHUB_OUTPUT"
           fi
 
           if npm view "@githits/mcp@$VERSION" version >/dev/null 2>&1; then
@@ -148,9 +155,9 @@ jobs:
               echo "::error::@githits/mcp@$VERSION is already published, but $TAG is missing. Refusing to mint an unverifiable release tag."
               exit 1
             fi
-            echo "npm_published=true" >> $GITHUB_OUTPUT
+            echo "npm_published=true" >> "$GITHUB_OUTPUT"
           else
-            echo "npm_published=false" >> $GITHUB_OUTPUT
+            echo "npm_published=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create MCP git tag

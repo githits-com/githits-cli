@@ -113,6 +113,7 @@ See `docs/guidelines/TESTING.md` for comprehensive patterns.
 - Root `githits` release versions must stay aligned with plugin/assistant manifests: `.plugin/plugin.json`, `.claude-plugin/plugin.json`, `plugins/claude/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `gemini-extension.json`.
 - `@githits/mcp` release versions live in `packages/mcp/package.json` and should change only for MCP package API, tool behavior, MCP instructions, schemas, MCP auth/error behavior, or remote-server-facing public type changes.
 - For coordinated CLI and MCP releases, keep the MCP minor aligned with the CLI minor for discoverability. The first MCP release for a CLI minor starts at `X.Y.0`; later MCP-package-visible changes in that CLI minor bump the MCP patch.
+- Successful `Main` runs on `main` trigger both root and MCP release workflows. The MCP workflow publishes only when the package version is not already published; manual dispatch is for recovery or dry runs.
 - Validate package behavior from outside root path aliases. Repo-local imports can hide package export-map or declaration problems.
 
 ### Common Pitfalls
