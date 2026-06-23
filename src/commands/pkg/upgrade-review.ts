@@ -66,7 +66,7 @@ export async function pkgUpgradeReviewAction(
     );
 
     if (options.json) {
-      console.log(JSON.stringify(response));
+      process.stdout.write(`${JSON.stringify(response)}\n`);
       return;
     }
     process.stdout.write(

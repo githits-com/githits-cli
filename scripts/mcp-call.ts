@@ -33,6 +33,11 @@ const args = JSON.parse(rawArgs) as Record<string, unknown>;
 const transport = new StdioClientTransport({
   command: "bun",
   args: ["run", "dev", "mcp", "start"],
+  env: Object.fromEntries(
+    Object.entries(process.env).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  ),
 });
 const client = new Client({
   name: "githits-mcp-parity-smoke",

@@ -6,25 +6,31 @@ Dependency-upgrade reviews are a distinct agent workflow. Agents should not infe
 
 `pkg_upgrade_review` is the MCP/CLI-facing tool for this workflow. It answers: "What changed between the currently used version and the target version, and what evidence is available or missing?"
 
-This report reflects the backend schema inspected at `/Users/jpl/.superset/worktrees/pkgseer-backend/best-maxilla/priv/graphql/schema.graphql`.
+This report reflects the backend schema inspected at `/Users/jpl/.superset/worktrees/af856079-3997-4271-af85-b1901f8a2119/forest-reference/priv/graphql/schema.graphql`.
 
 ## Current Schema Fit
 
-The existing GraphQL schema already has most primitives needed for a first version:
+The backend now exposes the aggregate query the CLI/MCP tool should call directly:
 
-| Need | Current GraphQL support | Notes |
-|---|---|---|
-| Latest version and package identity | `packageSummary(registry, name)` | Gives `latestVersion`, repository metadata, license, downloads, latest changelogs, and latest-version security overview. It is latest-only. |
-| Version-specific vulnerabilities | `packageVulnerabilities(registry, name, version, minSeverity, includeWithdrawn, deduplicate)` | Good fit for current and target direct-package advisory comparison. `security.advisories(scope: AFFECTED/NON_AFFECTING/ALL)` is the correct field. |
-| Changelog range | `packageChangelog(registry, name, fromVersion, toVersion, limit)` | Good fit. Range mode returns all entries between versions. Package-addressed queries use registry versions as the spine and attach changelog details when available. |
-| Direct and transitive dependencies | `packageDependencies(registry, name, version, includeTransitive, maxDepth, lifecycle)` | Good fit for target dependency graph and can also be run for current version to diff dependency graph client-side. |
-| API/symbol change signals | `versionDiff(registry, packageName, fromVersion, toVersion, includePrivate, kind, category, fileIntent, limit)` | Future enhancement only. It requires code indexing and a new typed CLI service/error surface, so it is out of v1. |
-| Version publish/deprecation metadata | `PackageVersionIdentity.publishedAt`, `deprecated`, `deprecationReason` | Available through version-specific package responses such as `packageVulnerabilities` and `packageDependencies`. `deprecated: null` means metadata unavailable; do not treat it as false. |
-| Engines / runtime requirements | Not exposed | Intentionally out of v1. The backend removed the unstable `runtimeRequirements` API. Report engine-related changelog text signals until a stable schema exists. |
-| Peer dependency compatibility | Partially represented in `dependencyGroups.lifecycle == "peer"` | Good enough to expose peer dependency changes, but not enough to validate against the local project without project dependency context. |
-| Transitive vulnerability summary | `TransitiveDependencySummary.vulnerabilitySummary` | Available as a lazy nested field. Use non-deprecated fields: `affected`, `nonAffecting`, `combined`, `packages[].affectedCount`, `packages[].advisoryOccurrences(scope: AFFECTED)`. |
-| Dependency issues summary | `TransitiveDependencySummary.dependencyIssues` | Available as a lazy nested field. Covers deprecated, outdated, duplicate, and conflict summaries. Rank outdated below vulnerabilities, deprecations, and conflicts in review text. |
-| Yanked/withdrawn package versions | Not exposed | Out of v1. Do not mention yanked status except as unavailable. Advisory `withdrawnAt` is separate vulnerability metadata, not package-version yanking. |
+```graphql
+packageUpgradeReview(
+  packages: [PackageUpgradeReviewPackageInput!]!
+  includeTransitiveSecurity: Boolean
+  minSeverity: Float
+  changelogLimit: Int
+): PackageUpgradeReviewResponse!
+```
+
+The CLI/MCP implementation must not fall back to composing `packageSummary`, `packageVulnerabilities`, `packageChangelog`, or `packageDependencies` calls. If the aggregate query is unavailable, surface the backend protocol error. Release should wait until the backend aggregate support is deployed.
+
+Optional evidence is controlled by GraphQL field selection and local query variables:
+
+- `includeTransitiveSecurity` is sent to the backend root field and also controls the selected `security.transitive` subtree.
+- `include_dependency_issues` / `--dependency-issues` controls the selected `dependencyIssues @include(...)` subtree. It is not a backend root argument.
+- `changelogLimit` caps ordinary changelog entries per package.
+- `min_severity` maps to CVSS thresholds and is omitted for `low`, matching the existing upgrade-review request builder behavior.
+
+Out-of-scope evidence remains unchanged: `versionDiff` and runtime/engine compatibility are future enhancements, and the tool must not infer accept/reject recommendations.
 
 ## Proposed MCP Tool
 
@@ -137,9 +143,27 @@ interface UpgradeSecurity {
 }
 ```
 
-Advisory diffs (`added`, `removed`, `notAddressed`) must reuse the existing vulnerability alias-cluster canonicalization from `package-vulnerabilities-response.ts`. Diff logical advisories over `osvId ∪ aliases[]`, not raw IDs, or GHSA/RUSTSEC duplicates will be misclassified. The legacy aliases (`introduced`, `fixed`, `unchanged`) remain in JSON for compatibility while the text output uses vulnerability-focused labels: `added`, `fixed`, and `still-present`.
+Advisory diffs (`added`, `removed`, `notAddressed`) are now backend-provided. The backend must diff logical advisories over `id ∪ aliases[]`, not raw IDs, or GHSA/RUSTSEC duplicates will be misclassified. The legacy aliases (`introduced`, `fixed`, `unchanged`) remain in JSON for compatibility while the text output uses vulnerability-focused labels: `added`, `fixed`, and `still-present`.
 
-Transitive vulnerability diffs are package/advisory-aware. Use `advisoryOccurrences[].advisory.osvId ∪ aliases[]` for alias-cluster identity when occurrence metadata is available, with `advisoryIds[]` as the fallback. A dependency version change with the same affected advisory remains `stillAffectedPackageDetails`, not a fixed plus introduced pair. A package can appear in both added and still-affected groups if the target keeps one advisory and adds another.
+Transitive vulnerability diffs are backend-provided and package/advisory-aware. A dependency version change with the same affected advisory remains `stillAffectedPackageDetails`, not a fixed plus introduced pair. A package can appear in both added and still-affected groups if the target keeps one advisory and adds another. Detail pages preserve backend `totalCount` / `truncated` metadata so JSON and text output do not present capped samples as complete evidence.
+
+```ts
+interface TransitiveSecuritySummary {
+  currentAffected: number;
+  targetAffected: number;
+  introducedPackages: string[];
+  fixedPackages: string[];
+  introducedPackageDetails: TransitiveVulnerablePackage[];
+  introducedPackageDetailsTotalCount: number;
+  introducedPackageDetailsTruncated: boolean;
+  fixedPackageDetails: TransitiveVulnerablePackage[];
+  fixedPackageDetailsTotalCount: number;
+  fixedPackageDetailsTruncated: boolean;
+  stillAffectedPackageDetails: TransitiveVulnerablePackage[];
+  stillAffectedPackageDetailsTotalCount: number;
+  stillAffectedPackageDetailsTruncated: boolean;
+}
+```
 
 Version vulnerability summaries should include package-version metadata from `PackageVersionIdentity`:
 
@@ -210,7 +234,7 @@ interface UpgradeDependencyChangeGroup {
 }
 ```
 
-Dependency changes are always requested by the upgrade-review dependency probe. Direct dependency set or constraint changes are reported as facts because they alter install behavior even when direct vulnerabilities and changelog checks are clean. Transitive dependency graph changes are rendered for context. The target/current root package node and synthetic nodes are excluded from transitive change rows.
+Dependency changes are backend-provided by the aggregate upgrade-review response. Direct dependency set or constraint changes are reported as facts because they alter install behavior even when direct vulnerabilities and changelog checks are clean. Transitive dependency graph changes are rendered for context. The backend excludes the target/current root package node and synthetic nodes from transitive change rows.
 
 ## Text Shape
 
@@ -264,254 +288,42 @@ The factual evidence includes:
 
 Keyword matching should be lexical and transparent, not hidden model inference. Treat matches only as sampling hints. Start with conservative terms in changelog bodies: `breaking`, `breaks`, `removed`, `drop support`, `migration`, `migrate`, `deprecated`, `renamed`. Avoid broad ecosystem terms such as `node`, `python`, `peer`, `requires`, `config`, or `engine`; real runs showed those produce false positives from CI/config mentions that are not compatibility changes. Handle obvious negations such as `no breaking changes`.
 
-## Client-Side First Implementation
+## Current Implementation
 
-A first implementation does not require a new backend query.
+The CLI/MCP implementation has one active backend path:
 
-For each package review:
+1. `buildPackageUpgradeReviewRequest` validates single-package vs batch mode, normalises registry values to backend enum casing, maps `min_severity` to CVSS thresholds, and keeps `low` unfiltered.
+2. `buildPackageUpgradeReview` calls `PackageIntelligenceService.packageUpgradeReview` exactly once with the full package batch.
+3. `PackageIntelligenceServiceImpl.packageUpgradeReview` posts the aggregate GraphQL query, validates the typed response with Zod, strips `null` fields to the existing JSON omission convention, and reuses standard package-intelligence transport/auth/error handling.
+4. The shared response module normalises backend enum strings to the existing CLI/MCP JSON/text casing (`NPM` -> `npm`, `MAJOR` -> `major`, `HIGH` -> `high`) and preserves the existing terminal formatter shape.
 
-1. Call `packageSummary(registry, name)` for `latestVersion`, repository metadata, and latest-version context. If this fails, continue the review without `latestVersion` and add an `unknowns[]` entry; do not fail the package unless all core calls fail.
-2. Call `packageVulnerabilities(registry, name, version: currentVersion, advisory scope AFFECTED)` and select `package { publishedAt deprecated deprecationReason }`.
-3. Call `packageVulnerabilities(registry, name, version: targetVersion, advisory scope AFFECTED)` and select `package { publishedAt deprecated deprecationReason }`.
-4. Call `packageChangelog(registry, name, fromVersion: currentVersion, toVersion: targetVersion)`.
-5. Call a dedicated upgrade-review dependency probe for current and target. It always selects direct dependencies, peer dependency groups, package-version metadata, the transitive dependency graph needed for dependency-change diffs, and transitive vulnerability summaries unless explicitly disabled. It selects lazy `dependencyIssues` only when `include_dependency_issues` is requested.
-6. Diff current-vs-target dependency changes, peer groups, transitive vulnerability summaries, and dependency-issue summaries. Target-only unresolved issues can be shown as context but must not be reported as upgrade regressions.
+There is deliberately no compatibility fallback to the old client-side fanout. Backend schema mismatch, missing resolver, or deployment skew should surface as the normal package-intelligence backend/protocol error. This prevents the CLI from silently making many backend calls after the aggregate tool exists.
 
-Batching can initially be client-side concurrency with per-package isolation. Cap package-level concurrency at 3 by default because each package review can make several GraphQL calls. One package failure should produce a review item with `unknowns[]` instead of failing the entire batch unless request validation fails.
+## Implementation Notes For CLI/MCP
 
-Version resolution failures should map to an `unknown` review with the structured `VERSION_NOT_FOUND` / `NOT_FOUND` details preserved where available. A missing current or target version is not retryable by the tool unless the backend supplies available versions for an actionable hint.
-
-This is still a better MCP UX because the agent makes one tool call and receives one evidence-shaped result, even if the CLI internally composes multiple backend queries.
-
-## Current Backend Surface
-
-The current schema can support v1. The backend work should be treated as available surface, not future work, with one explicit omission: runtime/engine requirements are not stable and are intentionally not exposed.
-
-### 1. Lazy Transitive Security on Dependency Reports
-
-Use lazy nested fields under `TransitiveDependencySummary`. Do not add `includeTransitiveSecurity` as a GraphQL root argument. Absinthe resolves nested fields only when selected, so field selection is the right cost-control mechanism.
-
-Current schema shape, using non-deprecated fields:
-
-```graphql
-type TransitiveDependencySummary {
-  dependencyGraph: DependencyGraph
-  dependencyConflicts: [DependencyConflict!]!
-  circularDependencyCycles: [CircularDependencyCycle!]
-  vulnerabilitySummary: TransitiveVulnerabilitySummary
-  dependencyIssues: DependencyIssuesSummary
-}
-
-type TransitiveVulnerabilitySummary {
-  affected: VulnerabilityCount!
-  nonAffecting: VulnerabilityCount!
-  combined: VulnerabilityCount!
-  totalPackagesAnalyzed: Int!
-  affectedPackageCount: Int!
-  packages: [TransitiveVulnerablePackage!]!
-  calculatedAt: String
-}
-
-type TransitiveVulnerablePackage {
-  registry: DependencyGraphRegistry!
-  name: String!
-  versions: [String!]!
-  affectedCount: Int!
-  nonAffectingCount: Int!
-  totalCount: Int!
-  maxSeverityScore: Float
-  maxSeverityLabel: String
-  advisoryIds(scope: VulnerabilityScope): [String!]!
-  mostCritical: VulnerabilitySummaryDetail
-  advisoryOccurrences(scope: VulnerabilityScope, minSeverity: Float, limit: Int): [TransitiveDependencyVulnerability!]!
-}
-```
-
-Do not put vulnerability data on every `DependencyGraphNode` in v1. That bloats graph responses and makes common dependency-tree queries more expensive. A summary with package rows fits the upgrade-review and CLI workflows better.
-
-The resolver should be lazy:
-
-- `packageDependencies` continues resolving direct deps and, when `includeTransitive: true`, the DAG.
-- `dependencies.transitive.vulnerabilitySummary` has its own resolver and only executes when selected.
-- The parent transitive map can carry internal non-schema keys such as `:_registry`, `:_package_name`, `:_version`, and `:_dag_data` so nested resolvers do not recompute or reverse-parse the graph.
-- Add explicit GraphQL complexity cost to `vulnerabilitySummary` because it performs chunked package/version lookups and advisory aggregation.
-
-For MCP/CLI wrappers, keep an ergonomic skip flag (`skip_transitive_security` on MCP, `--no-transitive-security` on CLI). The wrapper translates that flag into selecting or omitting `vulnerabilitySummary`; it should not imply a backend root argument.
-
-### 2. Lazy Dependency Issues on Dependency Reports
-
-Use the second lazy nested field for non-vulnerability dependency issue signals:
-
-```graphql
-type DependencyIssuesSummary {
-  totalCount: Int!
-  deprecatedCount: Int!
-  outdatedCount: Int!
-  duplicateCount: Int!
-  conflictCount: Int!
-  deprecatedPackages: [DeprecatedDependency!]!
-  outdatedPackages: [OutdatedDependency!]!
-  duplicatePackages: [DuplicateDependency!]!
-  conflicts: [DependencyIssueConflict!]!
-}
-
-type DeprecatedDependency {
-  registry: DependencyGraphRegistry!
-  name: String!
-  versions: [String!]!
-  reasons: [DependencyDeprecationReason!]!
-}
-
-type DependencyDeprecationReason {
-  version: String!
-  reason: String
-}
-
-type OutdatedDependency {
-  registry: DependencyGraphRegistry!
-  name: String!
-  latestVersion: String
-  severity: DependencyOutdatedSeverity!
-  versions: [OutdatedDependencyVersion!]!
-  repositoryUrl: String
-}
-
-type OutdatedDependencyVersion {
-  version: String!
-  severity: DependencyOutdatedSeverity!
-}
-
-type DuplicateDependency {
-  registry: DependencyGraphRegistry
-  name: String!
-  versions: [String!]!
-}
-
-enum DependencyOutdatedSeverity {
-  PATCH
-  MINOR
-  MAJOR
-  UNKNOWN
-}
-```
-
-The resolver is lazy. Outdated is included in the backend surface, but CLI/MCP text should rank it below vulnerabilities, deprecations, duplicates, and conflicts.
-
-### 3. Future Batch Vulnerability Query
-
-Client-side batching is fine for v1. A backend batch security primitive may still be useful later for non-upgrade workflows, but it is not needed to implement `pkg_upgrade_review` because transitive security is now available under `packageDependencies` and direct current/target checks are two bounded calls per package.
-
-```graphql
-packageVulnerabilityBatch(packages: [PackageVersionInput!]!, minSeverity: Float, includeWithdrawn: Boolean): [VulnerabilityReport!]!
-
-input PackageVersionInput {
-  registry: Registry!
-  name: String!
-  version: String!
-}
-```
-
-This is more generally useful than an upgrade-specific query.
-
-### 4. Version Metadata
-
-Version-level publish/deprecation metadata is available on `PackageVersionIdentity`:
-
-```graphql
-type PackageVersionIdentity {
-  name: String
-  registry: String
-  version: String
-  publishedAt: String
-  deprecated: Boolean
-  deprecationReason: String
-}
-```
-
-Important caveat: `PackageVersionIdentity` is reused by vulnerability reports and dependency reports. Populate these fields only where the resolver already has verified package-version metadata, or resolve lazily. Do not fake defaults. `deprecated: false` should mean verified not deprecated, not unknown.
-
-Engines/runtime requirements are intentionally absent. A separate metadata query remains an option if a stable runtime compatibility API is added later:
-
-```graphql
-packageVersionMetadata(registry: Registry!, name: String!, version: String!): PackageVersionMetadata
-```
-
-### 5. Future Version Diff / Aggregate Query
-
-`versionDiff` is out of v1. It needs a typed service method, request/response schemas, indexing lifecycle handling, and package-intelligence error mapping before it can be safely exposed as an upgrade-review option.
-
-A backend aggregate query is also not required for v1. Consider it only after the client-side composition proves the shape.
-
-```graphql
-packageUpgradeReview(
-  registry: Registry!
-  name: String!
-  currentVersion: String!
-  targetVersion: String!
-  includeTransitiveSecurity: Boolean
-  minSeverity: Float
-): PackageUpgradeReviewResult!
-```
-
-This should remain a backend optimization, not the first design step. The tool contract should be designed at the MCP layer first because that is where the agent UX is clearest. If this query is added later, prefer field selection for optional expensive subtrees inside `PackageUpgradeReviewResult` rather than accumulating root booleans for every optional section.
-
-## Client Implementation Steps
-
-Suggested CLI sequence:
-
-1. Extend service-level `PackageVersionIdentity` types and Zod schemas with optional `publishedAt`, `deprecated`, and `deprecationReason`.
-2. Add a dedicated internal dependency probe for upgrade review instead of overloading the existing `packageDependencies(params)` method used by `pkg_deps`. The existing method intentionally fetches the full DAG for direct-version/importer enrichment; upgrade review needs separate sparse peer-group and transitive-evidence probes to avoid overfetching and regressions.
-3. Add optional dependency query selection for `vulnerabilitySummary` and `dependencyIssues`, controlled by variables and GraphQL `@include` directives.
-4. Add service-level types/Zod schemas for `VulnerabilityCount`, `TransitiveVulnerabilitySummary`, `TransitiveVulnerablePackage`, `TransitiveDependencyVulnerability`, `VulnerabilitySummaryDetail`, `DependencyIssuesSummary`, and issue row types.
-5. Keep these dependency fields optional in normalised results because they are omitted unless selected and unavailable when `includeTransitive` is false.
-6. Implement `packageUpgradeReview` composition in a small package-upgrade-review helper module that depends on existing service methods and the new internal dependency probe. Do not make `PackageIntelligenceService` the workflow orchestrator.
-7. Add the MCP tool and CLI command using shared request/response modules and parity tests.
-8. Update MCP instructions and package tool descriptions after the tool exists.
-
-## Existing Tool Updates
-
-Add instruction-level guidance now:
-
-- Server MCP instructions: "Use `pkg_upgrade_review` when the user asks for evidence about dependency updates, outdated dependency bumps, or lockfile/package updates. Do not infer acceptability from semver alone; patch updates still require changelog and vulnerability checks. The tool reports facts only; the calling agent owns the final assessment."
-- `pkg_changelog`: mention that range mode should be used for every upgrade review, including patches, unless `pkg_upgrade_review` is available.
-- `pkg_vulns`: mention that upgrade reviews must check the target version explicitly, not just latest.
-- `pkg_deps`: mention that `pkg_upgrade_review` is preferred for upgrade evidence; raw transitive vulnerability/issue fields are available through upgrade review rather than ordinary dependency listing unless we also add explicit `pkg_deps` flags.
-
-## Implementation Notes for CLI
-
-Add the tool in the same style as current package tools:
-
-- `packages/mcp/src/tools/package-upgrade-review.ts`
-- `src/commands/pkg/upgrade-review.ts` if exposing a CLI command
-- shared request/response modules under `packages/mcp/src/shared/package-upgrade-review-*`
-- service composition should live in a focused helper module that reuses existing service methods plus the dedicated internal dependency probe
-- parity tests should assert CLI `--json` and MCP `format:"json"` equality
-- text snapshot tests should cover vulnerability, changelog, dependency-change, and unknown-evidence cases
-- unit fixtures should cover deprecated target, missing deprecation metadata (`deprecated: null`), malicious advisory, alias-linked advisory diffing, transitive vulnerability summary, dependency issues, body-less changelog package-version fallback, version-not-found errors, per-package failure isolation in batch mode, and unsupported-security registry path
-- live smoke should cover a package with changelog entries, a package with package-version fallback, and a package with dependency issues when practical
+- `packages/mcp/src/tools/package-upgrade-review.ts` is the MCP entrypoint.
+- `src/commands/pkg/upgrade-review.ts` is the CLI entrypoint.
+- `packages/mcp/src/shared/package-upgrade-review-request.ts` owns validation and backend param construction.
+- `packages/mcp/src/shared/package-upgrade-review-response.ts` owns backend response normalisation and text/JSON formatting.
+- `packages/core-internal/src/services/package-intelligence-service.ts` owns the aggregate GraphQL query and typed service method.
+- Parity tests assert CLI `--json` and MCP `format:"json"` equality for single, batch, backend unknown-evidence, and validation-error paths.
 
 ## Acceptance Criteria
 
 - MCP `pkg_upgrade_review` and CLI `githits pkg upgrade-review` expose equivalent JSON envelopes for single-package and repeatable-package batch input.
-- JSON parity tests cover successful single-package, successful batch, per-package unknown failure, and validation errors.
-- The tool never returns risk levels. It reports direct vulnerability check failures, missing changelog bodies, target deprecation metadata gaps, and introduced advisories as facts or `unknowns[]`.
-- Advisory diffing uses alias-cluster canonicalization and does not double-count alias-linked advisories.
-- Transitive vulnerability and dependency issue data are diffed current-vs-target; target-only evidence is labeled as context.
-- `pkg_deps` existing JSON/text/parity tests continue to pass unchanged, proving the upgrade-review dependency probe did not regress the existing dependency command.
-- Batch execution limits package-level concurrency to 3 by default.
-- Transitive security defaults on and can be disabled with `skip_transitive_security` / `--no-transitive-security`; `include_dependency_issues` selects lazy backend fields only when requested.
-- Text output keeps direct and transitive vulnerability counts aligned when `min_severity` is supplied.
+- The tool calls the aggregate backend `packageUpgradeReview` operation once per request.
+- The tool has no fallback to `packageSummary`, `packageVulnerabilities`, `packageChangelog`, `packageDependencies`, or the old upgrade dependency probe.
+- The tool never returns risk levels. It reports vulnerability, changelog, compatibility, dependency-change, dependency-issue, and unknown evidence as facts.
+- Backend enum casing is normalised to the existing public JSON/text contract.
+- Transitive security defaults on and can be disabled with `skip_transitive_security` / `--no-transitive-security`; `include_dependency_issues` selects the backend `dependencyIssues` subtree only when requested.
+- Release waits until the backend aggregate resolver is deployed to production; smoke suites fail with a backend protocol mismatch before that deployment.
 
 ## Resolved Decisions
 
 - `packages[]` is part of `pkg_upgrade_review` v1 because batch upgrade review is the core agent UX problem.
 - Transitive security evidence defaults on so vulnerability output includes dependency-tree evidence by default.
 - `include_dependency_issues` is a separate flag and defaults to `false`.
-- Direct/transitive dependency-change diffs are always requested and rendered as facts.
+- Direct/transitive dependency-change diffs are backend-provided and rendered as facts.
 - `versionDiff` remains deferred until a dedicated typed service/error surface exists.
 - Text mode shows compact summaries by default. `--verbose` / `verbose: true` adds dependency-change examples, including transitive version changes.
 - Runtime/engine compatibility is not asserted because no stable backend field exists. Lexical changelog signals are reported only as sampled evidence hints unless later verified by schema data.
-
-## Implementation Direction
-
-Build `pkg_upgrade_review` client-side first using current schema primitives. The backend now provides the required direct deprecation metadata and lazy transitive vulnerability/issue summaries. Defer a dedicated `packageUpgradeReview` GraphQL query until real agent traces show the composed shape is stable and worth optimizing.
