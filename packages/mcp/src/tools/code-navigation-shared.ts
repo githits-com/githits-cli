@@ -61,7 +61,7 @@ export const codeTargetSchema: z.ZodType<CodeTargetArg> = z.union([
     .string()
     .min(1)
     .describe(
-      "Compact target string. Package with explicit registry: `npm:react@18.2.0` or `npm:react` for latest release. Repository: `github:facebook/react`, `github.com/facebook/react`, `https://github.com/facebook/react`, or any repo form with `#HEAD` for a git ref.",
+      "Compact target string. Package with explicit registry: `npm:react@18.2.0` or `npm:react` for latest release. Repository: `github:facebook/react`, `github.com/facebook/react`, `https://github.com/facebook/react`, or any repo form with `#HEAD` / `@HEAD` for a git ref. Output uses canonical `github:owner/repo#ref` form.",
     ),
 ]);
 

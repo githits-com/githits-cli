@@ -163,8 +163,9 @@ export async function searchStatusAction(
 const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed dependencies and repositories.
 
 Repeatable --in targets accept explicit package form (registry:name[@version],
-for example npm:express[@version]) or repo form (github:org/repo[#ref],
-github.com/org/repo[#ref], or https://github.com/org/repo[#ref]). Structured
+for example npm:express[@version]) or repo form (github:org/repo[#ref|@ref],
+github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]).
+Output uses canonical github:org/repo#ref formatting. Structured
 flags are AND-combined with the query. Complete by default — if indexing is
 still running, returns a searchRef instead of partial hits unless
 --allow-partial is passed. Use \`githits example\` for canonical cross-project
@@ -195,7 +196,7 @@ export function registerSearchCommand(program: Command) {
     .argument("<query>", "Search query")
     .requiredOption(
       "--in <target>",
-      "Search target: registry:name[@version], github:org/repo[#ref], github.com/org/repo[#ref], or https://github.com/org/repo[#ref]",
+      "Search target: registry:name[@version], github:org/repo[#ref|@ref], github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]",
       collectRepeatable,
       [] as string[],
     )

@@ -237,9 +237,9 @@ and \`githits code grep\`.
 --glob) are OR-ed — a file matches if any selector matches. The other
 filters intersect on top.
 
-Addressing: <target> (registry:name[@version], github:org/repo[#ref],
-github.com/org/repo[#ref], or https://github.com/org/repo[#ref]) OR
---repo-url <url> --git-ref <ref>. Omitted package version means latest release.
+Addressing: <target> (registry:name[@version], github:org/repo[#ref|@ref],
+github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]) OR
+--repo-url <url> [--git-ref <ref>]. Omitted package version means latest release.
 Supported registries: ${PKGSEER_REGISTRY_LIST}.
 
 By default each result is a bare path for easy piping; pass

@@ -11,6 +11,7 @@
  */
 
 import type { LeanListFilesEnvelope } from "./list-files-response.js";
+import { formatRepositoryTarget } from "./repository-target.js";
 import { buildTargetResolutionNotes } from "./target-resolution.js";
 
 const SEP = " | ";
@@ -77,9 +78,7 @@ function buildIdentity(envelope: LeanListFilesEnvelope): string {
       : `${envelope.registry}:${envelope.name}`;
   }
   if (envelope.repoUrl) {
-    return envelope.gitRef
-      ? `${envelope.repoUrl}@${envelope.gitRef}`
-      : envelope.repoUrl;
+    return formatRepositoryTarget(envelope.repoUrl, envelope.gitRef);
   }
   return "";
 }

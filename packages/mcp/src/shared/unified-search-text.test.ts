@@ -233,7 +233,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      'code_read target="https://github.com/expressjs/express#main" path="lib/router/index.js"',
+      'code_read target="github:expressjs/express#main" path="lib/router/index.js"',
     );
     expect(text).not.toContain("#HEAD");
   });

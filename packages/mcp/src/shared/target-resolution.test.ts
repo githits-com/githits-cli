@@ -30,9 +30,7 @@ describe("target-resolution helpers", () => {
     });
 
     expect(notes[0]).toContain("using recent index");
-    expect(notes[0]).toContain(
-      "served=https://github.com/foo/bar#main@abc1237",
-    );
+    expect(notes[0]).toContain("served=github:foo/bar#main@abc1237");
     expect(notes[0]).not.toContain("fresh=");
     expect(notes[1]).toBe("queryable now: refs=main");
   });
@@ -57,10 +55,24 @@ describe("target-resolution helpers", () => {
     });
 
     expect(notes[0]).toContain("using recent index");
-    expect(notes[0]).toContain(
-      "served=https://github.com/foo/bar#v1.0.0@abc1237",
+    expect(notes[0]).toContain("served=github:foo/bar#v1.0.0@abc1237");
+    expect(notes[0]).toContain("fresh=github:foo/bar#main@def4567");
+  });
+
+  it("renders repository refs containing @ with canonical # syntax", () => {
+    const notes = buildTargetResolutionNotes({
+      requested: {
+        repoUrl: "https://github.com/n8n-io/n8n",
+        gitRef: "n8n@2.26.5",
+      },
+      freshness: "unavailable",
+      availableVersions: [],
+      availableRefs: [],
+    });
+
+    expect(notes[0]).toBe(
+      "target unavailable | requested=github:n8n-io/n8n#n8n@2.26.5",
     );
-    expect(notes[0]).toContain("fresh=https://github.com/foo/bar#main@def4567");
   });
 
   it("renders indexing retry candidates for versions and refs", () => {

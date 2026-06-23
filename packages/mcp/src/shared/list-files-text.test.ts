@@ -40,9 +40,7 @@ describe("renderListFilesText", () => {
         gitRef: "v3.4.2",
       }),
     );
-    expect(text).toContain(
-      "code_files | 2 paths | https://github.com/cline/cline@v3.4.2",
-    );
+    expect(text).toContain("code_files | 2 paths | github:cline/cline#v3.4.2");
   });
 
   it("emits a truncation hint with N+ count when hasMore", () => {

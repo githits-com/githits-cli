@@ -1,3 +1,4 @@
+import { formatRepositoryTarget } from "./repository-target.js";
 import type { UnifiedSearchHitPayload } from "./unified-search-response.js";
 
 interface CodeReadCommandInput {
@@ -69,7 +70,7 @@ function buildTargetSpec(input: CodeReadCommandInput): string | undefined {
   }
   if (input.repoUrl) {
     const ref = input.gitRef ?? input.requestedRef;
-    return ref ? `${input.repoUrl}#${ref}` : input.repoUrl;
+    return formatRepositoryTarget(input.repoUrl, ref);
   }
   if (input.registry && input.packageName) {
     return `${input.registry}:${input.packageName}${input.version ? `@${input.version}` : ""}`;

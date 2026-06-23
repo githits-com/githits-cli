@@ -18,6 +18,7 @@
 
 import type { ListFilesResult, RepoFileEntry } from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
+import { formatRepositoryTarget } from "./repository-target.js";
 import {
   buildTargetResolutionNotes,
   type LeanTargetResolution,
@@ -398,9 +399,7 @@ function buildIdentityLabel(envelope: LeanListFilesEnvelope): string {
     return `${envelope.name} · ${envelope.registry}`;
   }
   if (envelope.repoUrl) {
-    return envelope.gitRef
-      ? `${envelope.repoUrl} @ ${envelope.gitRef}`
-      : envelope.repoUrl;
+    return formatRepositoryTarget(envelope.repoUrl, envelope.gitRef);
   }
   return "(unknown)";
 }

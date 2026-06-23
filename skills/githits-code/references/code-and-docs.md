@@ -1,6 +1,6 @@
 # GitHits Code And Docs CLI Reference
 
-Package target syntax requires an explicit registry: `registry:name[@version]`, for example `npm:express@5.2.1`; omit `@version` for the latest release. Repository target syntax uses `--repo-url <url> [--git-ref <ref>]` for `code` commands; omit `--git-ref` for the backend default-branch intent. For `search`, use `--in github:org/repo`, `--in github.com/org/repo`, or `--in https://github.com/org/repo` for the backend default-branch snapshot, or append `#ref` such as `#HEAD` for a specific/latest ref.
+Package target syntax requires an explicit registry: `registry:name[@version]`, for example `npm:express@5.2.1`; omit `@version` for the latest release. Repository compact targets use `github:org/repo[#ref|@ref]`, `github.com/org/repo[#ref|@ref]`, or `https://github.com/org/repo[#ref|@ref]`; omitted refs request the backend default-branch intent. Output uses canonical `github:org/repo#ref` formatting so refs can contain `@` safely. `code` commands also support `--repo-url <url> [--git-ref <ref>]`.
 
 ## Search
 
