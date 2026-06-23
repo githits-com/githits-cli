@@ -1,4 +1,5 @@
 import type { TargetResolution } from "@githits/core-internal";
+import { formatRepositoryTarget } from "./repository-target.js";
 
 export interface LeanTargetResolutionIdentity {
   kind?: string;
@@ -63,9 +64,9 @@ export function buildTargetResolutionNotes(
   if (!resolution) return [];
 
   const lines: string[] = [];
-  const requested = formatIdentity(resolution.requested);
-  const fresh = formatIdentity(resolution.resolvedRequested);
-  const served = formatIdentity(resolution.served);
+  const requested = formatTargetResolutionIdentity(resolution.requested);
+  const fresh = formatTargetResolutionIdentity(resolution.resolvedRequested);
+  const served = formatTargetResolutionIdentity(resolution.served);
   const reason = resolution.freshnessReason
     ? ` (${resolution.freshnessReason})`
     : "";
@@ -175,7 +176,7 @@ function projectArtifact(
     : { ref: artifact.ref };
 }
 
-function formatIdentity(
+export function formatTargetResolutionIdentity(
   identity: LeanTargetResolutionIdentity | undefined,
 ): string | undefined {
   if (!identity) return undefined;
@@ -185,9 +186,9 @@ function formatIdentity(
     return `${identity.registry.toLowerCase()}:${identity.packageName}${version}${commit}`;
   }
   if (identity.repoUrl) {
-    const ref = identity.gitRef ? `#${identity.gitRef}` : "";
+    const target = formatRepositoryTarget(identity.repoUrl, identity.gitRef);
     const commit = identity.commitSha ? `@${shortSha(identity.commitSha)}` : "";
-    return `${identity.repoUrl}${ref}${commit}`;
+    return `${target}${commit}`;
   }
   return (
     identity.gitRef ?? identity.version ?? identity.commitSha ?? identity.kind

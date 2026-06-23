@@ -161,6 +161,29 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("passes GitHub repo refs containing @ through to the backend", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const deps = createDeps({
+      codeNavigationService: createMockCodeNavigationService({ search }),
+    });
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchAction(
+      "human review approval node output",
+      { in: ["https://github.com/n8n-io/n8n#n8n@2.26.5"] },
+      deps,
+    );
+
+    const call = search.mock.calls[0]?.[0];
+    expect(call?.targets[0]).toEqual({
+      repoUrl: "https://github.com/n8n-io/n8n",
+      gitRef: "n8n@2.26.5",
+    });
+    consoleSpy.mockRestore();
+  });
+
   it("treats github.com shorthand as a CLI discovery repo target without warning", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),

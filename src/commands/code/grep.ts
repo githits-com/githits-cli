@@ -260,8 +260,8 @@ const PKG_GREP_DESCRIPTION = `Deterministic text grep over indexed dependency an
 ${CLI_GREP_PATTERN_NOTE}
 Use \`githits search\` for discovery; use \`githits code grep\` when you know the text or regex to match.
 
-Addressing: <target> (registry:name[@version], github:org/repo[#ref],
-github.com/org/repo[#ref], or https://github.com/org/repo[#ref]) OR --repo-url
+Addressing: <target> (registry:name[@version], github:org/repo[#ref|@ref],
+github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]) OR --repo-url
 <url> [--git-ref <ref>]. Omitted package version means latest release.
 In target mode pass <target> <pattern> [path-prefix]; in --repo-url mode pass only <pattern> [path-prefix].
 

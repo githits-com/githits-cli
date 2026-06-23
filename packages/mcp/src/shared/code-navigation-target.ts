@@ -18,10 +18,11 @@ import {
  * Package targets use the shared package spec grammar, e.g.
  * `npm:react@18.2.0` or `npm:react` for the latest release. Repository
  * targets are full URLs, `github.com/owner/repo` shorthands, or
- * `github:owner/repo` shorthands with an optional `#gitRef` suffix, e.g.
+ * `github:owner/repo` shorthands with an optional `#gitRef` or `@gitRef`
+ * suffix, e.g.
  * `https://github.com/facebook/react#HEAD`, `github.com/facebook/react#HEAD`,
- * or `github:facebook/react#HEAD`. Omitted refs request the backend-resolved
- * default branch.
+ * `github:facebook/react#HEAD`, or `github.com/facebook/react@HEAD`.
+ * Omitted refs request the backend-resolved default branch.
  */
 export function parseCodeNavigationTargetSpec(
   spec: string,

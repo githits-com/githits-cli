@@ -82,9 +82,36 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
 
     expect(payload.results[0]?.type).toBe("repository_doc");
+    expect(payload.results[0]?.target).toBe("github:expressjs/express");
     expect(payload.results[0]?.followUp).toContain(
       'docs_read page_id="github:expressjs/express/README.md"',
     );
+  });
+
+  it("canonicalizes repository hit target labels containing @ in refs", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const hit = defaultUnifiedSearchOutcome.result.results[0]!;
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        ...defaultUnifiedSearchOutcome,
+        result: {
+          ...defaultUnifiedSearchOutcome.result,
+          results: [
+            {
+              ...hit,
+              targetLabel: "n8n-io/n8n@n8n@2.26.5",
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.results[0]?.target).toBe("github:n8n-io/n8n#n8n@2.26.5");
   });
 
   it("omits default-valued query echo fields", () => {
@@ -215,6 +242,46 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
   });
 
+  it("canonicalizes stale repository hit freshness labels", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [
+          {
+            ...defaultUnifiedSearchOutcome.result.results[0]!,
+            targetLabel: "n8n-io/n8n@n8n@2.26.5",
+            requestedTargetLabel: "n8n-io/n8n@n8n@2.26.5",
+            freshTargetLabel: "n8n-io/n8n@n8n@2.26.9",
+            servedTargetLabel: "n8n-io/n8n@n8n@2.26.5",
+            freshness: "STALE",
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      outcome,
+    );
+
+    expect(payload.results[0]).toMatchObject({
+      target: "github:n8n-io/n8n#n8n@2.26.5",
+      requestedTarget: "github:n8n-io/n8n#n8n@2.26.5",
+      freshTarget: "github:n8n-io/n8n#n8n@2.26.9",
+      servedTarget: "github:n8n-io/n8n#n8n@2.26.5",
+      freshness: "STALE",
+    });
+    expect(payload.warnings).toContain(
+      "requested github:n8n-io/n8n#n8n@2.26.5; served stale github:n8n-io/n8n#n8n@2.26.5 while github:n8n-io/n8n#n8n@2.26.9 indexes.",
+    );
+  });
+
   it("suppresses version-prefix-only package stale hit warnings", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
@@ -335,6 +402,40 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.warnings?.join("\n")).toContain("queryable now");
   });
 
+  it("canonicalizes source-status repository labels", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        ...defaultUnifiedSearchOutcome,
+        result: {
+          ...defaultUnifiedSearchOutcome.result,
+          sourceStatus: [
+            {
+              ...defaultUnifiedSearchOutcome.result.sourceStatus[0]!,
+              targetLabel: "n8n-io/n8n@n8n@2.26.5",
+              requestedTargetLabel: "n8n-io/n8n@n8n@2.26.5",
+              freshTargetLabel: "n8n-io/n8n@n8n@2.26.9",
+              servedTargetLabel: "n8n-io/n8n@n8n@2.26.5",
+              codeIndexState: "STALE",
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.sourceStatus?.[0]).toMatchObject({
+      targetLabel: "github:n8n-io/n8n#n8n@2.26.5",
+      requestedTarget: "github:n8n-io/n8n#n8n@2.26.5",
+      freshTarget: "github:n8n-io/n8n#n8n@2.26.9",
+      servedTarget: "github:n8n-io/n8n#n8n@2.26.5",
+    });
+  });
+
   it("dedupes identical freshness warnings across hits sharing a state", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
@@ -436,6 +537,49 @@ describe("buildUnifiedSearchSuccessPayload", () => {
 
     expect(payload.warnings).toContain(
       "requested https://github.com/foo/bar default branch; served stale main@abc123 while main@def456 indexes.",
+    );
+  });
+
+  it("canonicalizes repository progress target labels", () => {
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        state: "incomplete",
+        completed: false,
+        searchRef: "search-ref-123",
+        progress: {
+          searchRef: "search-ref-123",
+          status: "INDEXING",
+          targetsTotal: 1,
+          targetsReady: 0,
+          elapsedMs: 200,
+          query: "router middleware",
+          queryWarnings: [],
+          sources: ["CODE"],
+          targets: [
+            {
+              requested: "n8n-io/n8n@n8n@2.26.5",
+              resolvedRequested: "n8n-io/n8n@n8n@2.26.9",
+              served: "n8n-io/n8n@n8n@2.26.5",
+              freshness: "STALE",
+            },
+          ],
+        },
+      },
+    );
+
+    if (payload.completed) {
+      throw new Error("expected incomplete payload");
+    }
+    expect(payload.progress?.targets?.[0]).toMatchObject({
+      requested: "github:n8n-io/n8n#n8n@2.26.5",
+      resolvedRequested: "github:n8n-io/n8n#n8n@2.26.9",
+      served: "github:n8n-io/n8n#n8n@2.26.5",
+    });
+    expect(payload.warnings).toContain(
+      "requested github:n8n-io/n8n#n8n@2.26.5; served stale github:n8n-io/n8n#n8n@2.26.5 while github:n8n-io/n8n#n8n@2.26.9 indexes.",
     );
   });
 
@@ -566,7 +710,48 @@ describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", ()
     ]);
 
     expect(warnings).toEqual([
-      "Source 'code' for githits-com/no-such-repo: Repository ref cannot be resolved (UNRESOLVABLE)",
+      "Source 'code' for github:githits-com/no-such-repo: Repository ref cannot be resolved (UNRESOLVABLE)",
+    ]);
+  });
+
+  it("uses canonical repo target formatting for source-status warnings", () => {
+    const warnings = buildSourceStatusWarnings([
+      {
+        source: "code",
+        targetLabel: "n8n-io/n8n@n8n@2.26.5",
+        targetResolution: {
+          requested: {
+            repoUrl: "https://github.com/n8n-io/n8n",
+            gitRef: "n8n@2.26.5",
+          },
+          freshness: "unavailable",
+          availableVersions: [],
+          availableRefs: [],
+        },
+        indexingStatus: "UNRESOLVABLE",
+        codeIndexState: "UNRESOLVABLE",
+        note: "Repository ref cannot be resolved",
+      },
+    ]);
+
+    expect(warnings).toEqual([
+      "Source 'code' for github:n8n-io/n8n#n8n@2.26.5: Repository ref cannot be resolved (UNRESOLVABLE)",
+    ]);
+  });
+
+  it("canonicalizes backend repo labels when structured target resolution is absent", () => {
+    const warnings = buildSourceStatusWarnings([
+      {
+        source: "code",
+        targetLabel: "n8n-io/n8n@n8n@2.26.5",
+        indexingStatus: "UNRESOLVABLE",
+        codeIndexState: "UNRESOLVABLE",
+        note: "Repository ref cannot be resolved",
+      },
+    ]);
+
+    expect(warnings).toEqual([
+      "Source 'code' for github:n8n-io/n8n#n8n@2.26.5: Repository ref cannot be resolved (UNRESOLVABLE)",
     ]);
   });
 

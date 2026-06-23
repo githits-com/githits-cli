@@ -10,9 +10,11 @@ import { MalformedCodeNavigationResponseError } from "@githits/core-internal";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { mapCodeNavigationError } from "./code-navigation-error-map.js";
 import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
+import { formatRepositoryTargetLabel } from "./repository-target.js";
 import {
   buildResolutionFromRetryCandidates,
   buildTargetResolutionNotes,
+  formatTargetResolutionIdentity,
   type LeanAvailableArtifact,
   type LeanTargetResolution,
   projectTargetResolution,
@@ -423,7 +425,7 @@ function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
   assertSearchFollowUpInvariant(hit);
   const payload: UnifiedSearchHitPayload = {
     type: hit.resultType.toLowerCase(),
-    target: hit.targetLabel,
+    target: formatTargetLabel(hit.targetLabel),
     locator: buildLocatorPayload(hit),
   };
   appendFreshness(payload, {
@@ -439,6 +441,10 @@ function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
   const followUp = buildSearchHitFollowUpCommand(payload);
   if (followUp) payload.followUp = followUp;
   return payload;
+}
+
+function formatTargetLabel(label: string): string {
+  return formatRepositoryTargetLabel(label) ?? label;
 }
 
 function buildLocatorPayload(
@@ -543,9 +549,11 @@ function appendFreshness(
     return;
   }
   if (source.requestedTargetLabel)
-    payload.requestedTarget = source.requestedTargetLabel;
-  if (source.freshTargetLabel) payload.freshTarget = source.freshTargetLabel;
-  if (source.servedTargetLabel) payload.servedTarget = source.servedTargetLabel;
+    payload.requestedTarget = formatTargetLabel(source.requestedTargetLabel);
+  if (source.freshTargetLabel)
+    payload.freshTarget = formatTargetLabel(source.freshTargetLabel);
+  if (source.servedTargetLabel)
+    payload.servedTarget = formatTargetLabel(source.servedTargetLabel);
   if (source.freshness) payload.freshness = source.freshness;
 }
 
@@ -554,10 +562,10 @@ function compactProgressTarget(
 ): NonNullable<UnifiedSearchProgressPayload["targets"]>[number] | undefined {
   const payload: NonNullable<UnifiedSearchProgressPayload["targets"]>[number] =
     {};
-  if (target.requested) payload.requested = target.requested;
+  if (target.requested) payload.requested = formatTargetLabel(target.requested);
   if (target.resolvedRequested)
-    payload.resolvedRequested = target.resolvedRequested;
-  if (target.served) payload.served = target.served;
+    payload.resolvedRequested = formatTargetLabel(target.resolvedRequested);
+  if (target.served) payload.served = formatTargetLabel(target.served);
   if (target.freshness) payload.freshness = target.freshness;
   if (target.indexingRef) payload.indexingRef = target.indexingRef;
   if (target.requestedRefKind)
@@ -690,7 +698,7 @@ function labelsDiverge(input: {
 
 function canonicalTargetLabel(label: string): string {
   const parsed = parsePackageVersionLabel(label);
-  if (!parsed) return label;
+  if (!parsed) return formatTargetLabel(label);
   const version = parsed.version.replace(/^v(?=\d)/i, "");
   return `${parsed.registry.toLowerCase()}:${parsed.packageName}@${version}`;
 }
@@ -769,7 +777,7 @@ function warningForEntry(
   }
   // Source/target prefix anchors the message so an agent reading
   // multi-source warnings can tell which target each refers to.
-  const prefix = `Source '${entry.source}' for ${entry.targetLabel}`;
+  const prefix = `Source '${entry.source}' for ${formatSourceStatusTarget(entry)}`;
   if (reasons.length > 0) {
     return `${prefix}: ${reasons.join("; ")}`;
   }
@@ -777,6 +785,16 @@ function warningForEntry(
     return `${prefix}: ${entry.note}`;
   }
   return undefined;
+}
+
+function formatSourceStatusTarget(
+  entry: UnifiedSearchSourceStatusPayload,
+): string {
+  return (
+    formatTargetResolutionIdentity(entry.targetResolution?.requested) ??
+    formatRepositoryTargetLabel(entry.targetLabel) ??
+    entry.targetLabel
+  );
 }
 
 function terminalLifecycleWarningReason(
@@ -817,7 +835,7 @@ function compactSourceStatusEntry(
 ): UnifiedSearchSourceStatusPayload | undefined {
   const payload: UnifiedSearchSourceStatusPayload = {
     source: entry.source.toLowerCase(),
-    targetLabel: entry.targetLabel,
+    targetLabel: formatTargetLabel(entry.targetLabel),
   };
   let interesting = false;
 
@@ -829,9 +847,12 @@ function compactSourceStatusEntry(
       servedTarget: entry.servedTargetLabel,
     });
   if (staleDiverges) {
-    payload.requestedTarget = entry.requestedTargetLabel;
-    payload.freshTarget = entry.freshTargetLabel;
-    payload.servedTarget = entry.servedTargetLabel;
+    if (entry.requestedTargetLabel)
+      payload.requestedTarget = formatTargetLabel(entry.requestedTargetLabel);
+    if (entry.freshTargetLabel)
+      payload.freshTarget = formatTargetLabel(entry.freshTargetLabel);
+    if (entry.servedTargetLabel)
+      payload.servedTarget = formatTargetLabel(entry.servedTargetLabel);
     payload.codeIndexState = entry.codeIndexState;
     interesting = true;
   }

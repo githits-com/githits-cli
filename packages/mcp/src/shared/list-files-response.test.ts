@@ -215,7 +215,7 @@ describe("formatListFilesTerminal", () => {
     expect(stdout).toContain("8.3 KB");
   });
 
-  it("verbose mode: uses the repo URL as identity for repo addressing", () => {
+  it("verbose mode: uses the canonical repo target as identity for repo addressing", () => {
     const envelope = buildListFilesSuccessPayload(baseResult, {
       ...baseOptions,
       registry: undefined,
@@ -227,7 +227,7 @@ describe("formatListFilesTerminal", () => {
       verbose: true,
       useColors: false,
     });
-    expect(stdout).toContain("https://github.com/expressjs/express @ main");
+    expect(stdout).toContain("github:expressjs/express#main");
   });
 
   it("plain mode hasMore: stdout stays clean; warning goes to stderr", () => {

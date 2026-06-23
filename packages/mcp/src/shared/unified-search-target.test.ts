@@ -10,6 +10,32 @@ describe("parseUnifiedSearchTargetSpec", () => {
     });
   });
 
+  it("preserves repository refs containing @ with # syntax", () => {
+    expect(
+      parseUnifiedSearchTargetSpec("https://github.com/n8n-io/n8n#n8n@2.26.5"),
+    ).toEqual({
+      repoUrl: "https://github.com/n8n-io/n8n",
+      gitRef: "n8n@2.26.5",
+    });
+  });
+
+  it("splits @ repository refs without truncating @ inside the ref", () => {
+    expect(
+      parseUnifiedSearchTargetSpec("https://github.com/n8n-io/n8n@n8n@2.26.5"),
+    ).toEqual({
+      repoUrl: "https://github.com/n8n-io/n8n",
+      gitRef: "n8n@2.26.5",
+    });
+  });
+
+  it("rejects malformed GitHub URLs instead of guessing", () => {
+    expect(() =>
+      parseUnifiedSearchTargetSpec("https://github.com/n8n-io/n8n/tree/main"),
+    ).toThrow(
+      "Repository URL targets must point to github.com/owner/repo; pass refs with #gitRef or @gitRef.",
+    );
+  });
+
   it("treats github:owner/repo shorthand as a repository target", () => {
     expect(parseUnifiedSearchTargetSpec("github:expressjs/express")).toEqual({
       repoUrl: "https://github.com/expressjs/express",
@@ -27,7 +53,7 @@ describe("parseUnifiedSearchTargetSpec", () => {
       "Expected package target <registry>:<name>[@<version>]",
     );
     expect(() => parseUnifiedSearchTargetSpec("express")).toThrow(
-      "repository target github:owner/repo[#ref]",
+      "repository target github:owner/repo[#ref|@ref]",
     );
   });
 
@@ -36,7 +62,7 @@ describe("parseUnifiedSearchTargetSpec", () => {
       "Expected package target <registry>:<name>[@<version>]",
     );
     expect(() => parseUnifiedSearchTargetSpec("gitlab.com/org/repo")).toThrow(
-      "repository target github:owner/repo[#ref]",
+      "repository target github:owner/repo[#ref|@ref]",
     );
   });
 });

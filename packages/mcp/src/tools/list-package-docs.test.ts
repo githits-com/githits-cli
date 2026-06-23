@@ -106,9 +106,7 @@ describe("createListPackageDocsTool", () => {
       {},
     );
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain(
-      'code_read target="https://github.com/vercel/ms#served-sha"',
-    );
+    expect(text).toContain('code_read target="github:vercel/ms#served-sha"');
     expect(text).not.toContain("#main");
   });
 
