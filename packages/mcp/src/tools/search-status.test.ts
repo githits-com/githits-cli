@@ -270,7 +270,7 @@ describe("searchStatusTool", () => {
     );
     const text = result.content[0]?.text ?? "";
     expect(text).toContain(
-      "code (githits-com/no-such-repo) | Repository ref cannot be resolved (UNRESOLVABLE)",
+      "code (github:githits-com/no-such-repo) | Repository ref cannot be resolved (UNRESOLVABLE)",
     );
     expect(text).not.toContain("indexing fresh target");
   });
