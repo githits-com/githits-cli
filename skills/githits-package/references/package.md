@@ -36,7 +36,7 @@ Do not use `registry:name@version` for changelog. Use `--to <version>`.
 
 Batch form: `githits pkg upgrade-review --package <registry:name@current>..<target> --package <registry:name@current>..<target>`.
 
-Evidence includes current and target direct vulnerabilities, changelog range evidence, target deprecation metadata, peer dependency changes, dependency changes, and optional transitive security or dependency-issue diffs.
+Evidence includes current and target direct vulnerabilities, changelog range evidence, target deprecation metadata, peer dependency changes, dependency changes, and transitive security by default. Dependency-issue diffs are opt-in with `--dependency-issues`.
 
 Flags: `--package <spec>`, `--to <version>`, `--no-transitive-security`, `--dependency-issues`, `--min-severity low|medium|high|critical`, `--verbose`, `--json`.
 

@@ -34,12 +34,15 @@ manifest move is complete.
 ## Public API Boundaries
 
 - External consumers, including the future remote MCP server repo, must import
-  only from `@githits/mcp`, `@githits/mcp/client`, and
-  `@githits/mcp/package.json`.
+  only from `@githits/mcp`, `@githits/mcp/client`,
+  `@githits/mcp/smoke-test`, and `@githits/mcp/package.json`.
 - `@githits/mcp/client` is the public runtime/client entry for remote MCP server
   composition. It re-exports bundled service implementations, token/header
   helpers, URL/config helpers, telemetry helpers, and registry helpers without
   publishing `@githits/core-internal`.
+- `@githits/mcp/smoke-test` is the public validation-helper entry for remote MCP
+  servers. It re-exports the shared smoke runner and assertions used by the
+  local CLI smoke script without requiring local stdio startup.
 - `@githits/mcp/internal` is not a package export. It exists only as a root
   workspace TypeScript alias for CLI transition code and internal tests.
 - If remote MCP server setup needs a helper that currently lives behind
@@ -53,6 +56,10 @@ manifest move is complete.
 
 - Root `githits` and public `@githits/mcp` releases are independent. Coordinated
   releases are allowed, but version equality is not required.
+- When both are released together, keep the MCP minor aligned with the CLI minor
+  for discoverability. The first MCP release for a CLI minor starts at
+  `X.Y.0`; further MCP-package-visible changes in that CLI minor bump the MCP
+  patch. Do not bump MCP just for CLI-only changes.
 - CLI-only changes should update only the root `githits` version and its
   plugin/assistant manifests.
 - `@githits/mcp` should bump only when its public API, tool behavior, MCP

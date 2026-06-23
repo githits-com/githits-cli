@@ -10,15 +10,16 @@ default to compact `text-v1` where available, while CLI has human
 terminal output and `--json`. Structured parity is enforced through CLI
 `--json` and MCP `format: "json"`.
 
-Live smoke coverage lives in `scripts/mcp-smoke.ts` and
-`scripts/cli-smoke.ts`, run with `bun run smoke:mcp` and
-`bun run smoke:cli`. These suites intentionally avoid exact-output
-snapshots because backend ranking and release metadata can change. They
-assert durable UX invariants instead: server/command startup, registered
-tools, auth handling, compact default text, parseable JSON opt-in,
-MCP-native hints, CLI terminal affordances, and JSON envelope shape. When
-adding or changing a dual-surface tool, update both smoke scripts if the
-covered live UX contract changes.
+Live smoke coverage runs through `scripts/mcp-smoke.ts` and
+`scripts/cli-smoke.ts` via `bun run smoke:mcp` and `bun run smoke:cli`. The MCP
+smoke invariants live in `packages/mcp/src/smoke-test.ts` and are exported as
+`@githits/mcp/smoke-test` so remote MCP servers can reuse the same validation.
+These suites intentionally avoid exact-output snapshots because backend ranking
+and release metadata can change. They assert durable UX invariants instead:
+server/command startup, registered tools, auth handling, compact default text,
+parseable JSON opt-in, MCP-native hints, CLI terminal affordances, and JSON
+envelope shape. When adding or changing a dual-surface tool, update the shared
+MCP smoke runner and CLI smoke script if the covered live UX contract changes.
 
 The dual-surface tools today are:
 

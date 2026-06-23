@@ -30,7 +30,7 @@ Checklist for reviewing code changes in githits-cli.
 - [ ] JSDoc comments for public functions
 - [ ] Comments explain "why" not just "what"
 - [ ] Implementation docs updated if needed
-- [ ] CLAUDE.md updated if patterns change
+- [ ] `AGENTS.md` updated if agent-facing patterns change
 
 ## Build & Lint
 
