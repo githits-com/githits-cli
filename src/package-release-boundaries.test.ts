@@ -70,10 +70,22 @@ describe("package release boundaries", () => {
     const publishIndex = workflow.indexOf(
       "- name: Publish @githits/mcp to npm",
     );
+    const npmPublishedCheckIndex = workflow.indexOf(
+      'if npm view "@githits/mcp@$VERSION" version',
+    );
+    const tagHeadCheckIndex = workflow.indexOf(
+      "Existing tag $TAG points to $TAG_COMMIT, not HEAD $HEAD_COMMIT",
+    );
 
     expect(workflow).toContain('TAG_REF="refs/tags/$TAG"');
     expect(workflow).toContain('git rev-parse --verify "$TAG_REF^{commit}"');
+    expect(workflow).toContain(
+      'if [ "$NPM_PUBLISHED" != "true" ] && [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then',
+    );
     expect(workflow).toContain('git push origin "refs/tags/$TAG"');
+    expect(npmPublishedCheckIndex).toBeGreaterThan(-1);
+    expect(tagHeadCheckIndex).toBeGreaterThan(-1);
+    expect(npmPublishedCheckIndex).toBeLessThan(tagHeadCheckIndex);
     expect(createTagIndex).toBeGreaterThan(-1);
     expect(publishIndex).toBeGreaterThan(-1);
     expect(createTagIndex).toBeLessThan(publishIndex);
