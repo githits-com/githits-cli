@@ -164,7 +164,7 @@ describe("createMcpServer", () => {
     expect(events).toEqual(["start:get_example", "end:get_example"]);
   });
 
-  it("runs one tool execution hook around pkg_upgrade_review despite composed downstream probes", async () => {
+  it("runs one tool execution hook around pkg_upgrade_review aggregate call", async () => {
     const services = createTestServices();
     const traceTool: McpToolExecutionHook = mock(
       async (toolName, runHandler) => {
@@ -195,14 +195,17 @@ describe("createMcpServer", () => {
     expect(result.isError).toBeUndefined();
     expect(traceTool).toHaveBeenCalledTimes(1);
     expect(
-      services.packageIntelligenceService.packageSummary,
+      services.packageIntelligenceService.packageUpgradeReview,
     ).toHaveBeenCalledTimes(1);
     expect(
+      services.packageIntelligenceService.packageSummary,
+    ).not.toHaveBeenCalled();
+    expect(
       services.packageIntelligenceService.packageVulnerabilities,
-    ).toHaveBeenCalledTimes(2);
+    ).not.toHaveBeenCalled();
     expect(
       services.packageIntelligenceService.packageUpgradeDependencyProbe,
-    ).toHaveBeenCalledTimes(2);
+    ).not.toHaveBeenCalled();
   });
 
   it("function providers receive undefined extra deterministically", async () => {

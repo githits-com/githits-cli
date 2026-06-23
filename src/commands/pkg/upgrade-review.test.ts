@@ -1,6 +1,16 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, mock } from "bun:test";
 import { InvalidPackageSpecError } from "@githits/mcp/internal";
-import { parseUpgradeReviewPackageOption } from "./upgrade-review.js";
+import { createMockPackageIntelligenceService } from "../../services/test-helpers.js";
+import {
+  parseUpgradeReviewPackageOption,
+  pkgUpgradeReviewAction,
+} from "./upgrade-review.js";
+
+const originalStdoutWrite = process.stdout.write;
+
+afterEach(() => {
+  process.stdout.write = originalStdoutWrite;
+});
 
 describe("parseUpgradeReviewPackageOption", () => {
   it("accepts shell-safe double-dot package ranges", () => {
@@ -30,5 +40,34 @@ describe("parseUpgradeReviewPackageOption", () => {
     expect(() => parseUpgradeReviewPackageOption("npm:zod@4.3.6-")).toThrow(
       "The shell likely treated '>' as output redirection",
     );
+  });
+
+  it("writes JSON through stdout.write instead of console.log", async () => {
+    let output = "";
+    process.stdout.write = ((chunk: string | Uint8Array) => {
+      output += chunk.toString();
+      return true;
+    }) as typeof process.stdout.write;
+    const consoleLog = mock(() => undefined);
+    const originalConsoleLog = console.log;
+    console.log = consoleLog as typeof console.log;
+    try {
+      await pkgUpgradeReviewAction(
+        "npm:express@5.0.0",
+        { to: "5.2.1", json: true, transitiveSecurity: false },
+        {
+          packageIntelligenceService: createMockPackageIntelligenceService(),
+          codeNavigationUrl: "https://pkgseer.dev",
+          hasValidToken: true,
+          mcpUrl: "https://mcp.githits.com",
+        },
+      );
+    } finally {
+      console.log = originalConsoleLog;
+    }
+
+    expect(consoleLog).not.toHaveBeenCalled();
+    expect(JSON.parse(output).summary.total).toBe(1);
+    expect(output.endsWith("\n")).toBe(true);
   });
 });

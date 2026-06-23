@@ -121,9 +121,17 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
 
 async function main(): Promise<void> {
   await assertUnauthenticatedBehavior();
-  await withMcpClient(undefined, async (client) => {
+  await withMcpClient(inheritedEnv(), async (client) => {
     await runMcpSmoke(createSmokeCaller(client), { logger: console });
   });
+}
+
+function inheritedEnv(): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  );
 }
 
 try {

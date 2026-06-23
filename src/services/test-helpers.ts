@@ -10,6 +10,7 @@ import type {
   PackageDocsList,
   PackageIntelligenceService,
   PackageSummary,
+  PackageUpgradeReviewResponse,
   TokenProvider,
   UnifiedSearchOutcome,
   VulnerabilityReport,
@@ -858,6 +859,76 @@ export const defaultPackageDocResult: PackageDocResult = {
   },
 };
 
+export const defaultPackageUpgradeReviewResponse: PackageUpgradeReviewResponse =
+  {
+    summary: {
+      total: 1,
+      withUnknowns: 0,
+      withAddedAdvisories: 0,
+      withBreakingSignals: 0,
+      withDirectDependencyChanges: 0,
+      withTransitiveVulnerabilityAdditions: 0,
+    },
+    reviews: [
+      {
+        registry: "NPM",
+        name: "express",
+        currentVersion: "4.18.0",
+        targetVersion: "5.0.0",
+        latestVersion: "5.0.0",
+        versionDelta: "MAJOR",
+        security: {
+          current: {
+            version: "4.18.0",
+            affectedCount: 0,
+            nonAffectingCount: 0,
+            allCount: 0,
+            advisories: [],
+          },
+          target: {
+            version: "5.0.0",
+            affectedCount: 0,
+            nonAffectingCount: 0,
+            allCount: 0,
+            advisories: [],
+          },
+          added: [],
+          removed: [],
+          notAddressed: [],
+          fixed: [],
+          introduced: [],
+          unchanged: [],
+        },
+        changelog: {
+          source: "RELEASES",
+          entries: [
+            {
+              version: "5.0.0",
+              bodyPreview: "Major release notes.",
+              headline: "Major release notes.",
+              signals: [],
+            },
+          ],
+          sampledEntries: [],
+          keywordEntries: [],
+          totalKeywordEntries: 0,
+          totalEntries: 1,
+          totalEntriesWithBodies: 1,
+          truncated: false,
+          hasReleaseNoteBodies: true,
+          breakingSignals: [],
+          migrationSignals: [],
+        },
+        compatibility: { peerDependencyChanges: [], notes: [] },
+        dependencyChanges: {
+          direct: { added: [], removed: [], changed: [] },
+          transitive: { added: [], removed: [], changed: [] },
+        },
+        unknowns: [],
+      },
+    ],
+  };
+
 /**
  * Creates a mock PackageIntelligenceService. Defaults resolve to the
  * fully-populated fixtures; override per-test as needed.
@@ -873,6 +944,9 @@ export function createMockPackageIntelligenceService(
     packageDependencies: mock(() => Promise.resolve(defaultDependencyReport)),
     packageUpgradeDependencyProbe: mock(() =>
       Promise.resolve(defaultDependencyReport),
+    ),
+    packageUpgradeReview: mock(() =>
+      Promise.resolve(defaultPackageUpgradeReviewResponse),
     ),
     packageChangelog: mock(() => Promise.resolve(defaultChangelogReport)),
     listPackageDocs: mock(() => Promise.resolve(defaultPackageDocsList)),

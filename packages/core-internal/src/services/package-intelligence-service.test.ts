@@ -1571,6 +1571,128 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
   });
 });
 
+describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
+  const ENDPOINT = "https://pkgseer.dev";
+
+  it("sends aggregate upgrade-review variables and maps the typed response", async () => {
+    let capturedBody: string | undefined;
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(
+        jsonResponse({
+          data: {
+            packageUpgradeReview: {
+              summary: {
+                total: 1,
+                withUnknowns: 0,
+                withAddedAdvisories: 1,
+                withBreakingSignals: 0,
+                withDirectDependencyChanges: 0,
+                withTransitiveVulnerabilityAdditions: 0,
+              },
+              reviews: [
+                {
+                  registry: "NPM",
+                  name: "express",
+                  currentVersion: "4.18.0",
+                  targetVersion: "5.0.0",
+                  latestVersion: "5.0.0",
+                  versionDelta: "MAJOR",
+                  security: {
+                    current: null,
+                    target: null,
+                    added: [
+                      {
+                        id: "GHSA-test",
+                        aliases: [],
+                        summary: "Example advisory",
+                        severity: 7.5,
+                        severityLabel: "HIGH",
+                        fixedIn: ["5.0.1"],
+                        isMalicious: false,
+                      },
+                    ],
+                    removed: [],
+                    notAddressed: [],
+                    fixed: [],
+                    introduced: [],
+                    unchanged: [],
+                  },
+                  changelog: {
+                    source: null,
+                    fallback: "PACKAGE_VERSIONS",
+                    entries: [],
+                    sampledEntries: [],
+                    keywordEntries: [],
+                    totalKeywordEntries: 0,
+                    totalEntries: 0,
+                    totalEntriesWithBodies: 0,
+                    truncated: false,
+                    hasReleaseNoteBodies: false,
+                    breakingSignals: [],
+                    migrationSignals: [],
+                  },
+                  compatibility: null,
+                  dependencyChanges: null,
+                  dependencyIssues: null,
+                  unknowns: [],
+                },
+              ],
+            },
+          },
+        }),
+      );
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageUpgradeReview({
+      packages: [
+        {
+          registry: "NPM",
+          name: "express",
+          currentVersion: "4.18.0",
+          targetVersion: "5.0.0",
+        },
+      ],
+      includeTransitiveSecurity: false,
+      includeDependencyIssues: true,
+      changelogLimit: 20,
+      minSeverity: 7,
+    });
+
+    const parsed = JSON.parse(capturedBody ?? "{}");
+    expect(parsed.query).toContain("packageUpgradeReview(");
+    expect(parsed.query).toContain("dependencyIssues @include");
+    expect(parsed.query).not.toContain("duplicateIds");
+    expect(parsed.query).not.toContain("matchedAffectedVersionRanges");
+    expect(parsed.query).not.toContain("affectedVersionRangesCount");
+    expect(parsed.query).not.toContain("affectedVersionRangesTruncated");
+    expect(parsed.query).not.toContain("affectsInspectedVersion");
+    expect(parsed.variables).toMatchObject({
+      packages: [
+        {
+          registry: "NPM",
+          name: "express",
+          currentVersion: "4.18.0",
+          targetVersion: "5.0.0",
+        },
+      ],
+      includeTransitiveSecurity: false,
+      includeDependencyIssues: true,
+      changelogLimit: 20,
+      minSeverity: 7,
+    });
+    expect(result.summary.withAddedAdvisories).toBe(1);
+    expect(result.reviews[0]?.security.added[0]?.severityLabel).toBe("HIGH");
+    expect(result.reviews[0]?.changelog.source).toBeUndefined();
+    expect(result.reviews[0]?.compatibility).toBeUndefined();
+  });
+});
+
 describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
   const ENDPOINT = "https://pkgseer.dev";
 

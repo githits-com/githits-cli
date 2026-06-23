@@ -222,6 +222,7 @@ function createDescriptorServices(): McpToolServices {
       packageVulnerabilities: fail,
       packageDependencies: fail,
       packageUpgradeDependencyProbe: fail,
+      packageUpgradeReview: fail,
       packageChangelog: fail,
       listPackageDocs: fail,
       readPackageDoc: fail,

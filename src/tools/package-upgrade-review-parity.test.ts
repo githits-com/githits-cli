@@ -11,7 +11,10 @@ import {
   type PkgUpgradeReviewCommandDependencies,
   pkgUpgradeReviewAction,
 } from "../commands/pkg/upgrade-review.js";
-import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
+import {
+  createMockPackageIntelligenceService,
+  defaultPackageUpgradeReviewResponse,
+} from "../services/test-helpers.js";
 import {
   createParityMcpTool,
   isProcessExitSentinel,
@@ -34,23 +37,27 @@ async function cliJson(
   options: Parameters<typeof pkgUpgradeReviewAction>[1] = {},
   deps: PkgUpgradeReviewCommandDependencies = cliDeps(),
 ): Promise<unknown> {
-  const logSpy = spyOn(console, "log").mockImplementation(() => {});
   const errSpy = spyOn(console, "error").mockImplementation(() => {});
   const exitSpy = spyOn(process, "exit").mockImplementation(() => {
     throw new Error("process.exit");
   });
+  const originalStdoutWrite = process.stdout.write;
+  let stdout = "";
+  process.stdout.write = ((chunk: string | Uint8Array) => {
+    stdout += chunk.toString();
+    return true;
+  }) as typeof process.stdout.write;
   try {
     try {
       await pkgUpgradeReviewAction(spec, { ...options, json: true }, deps);
     } catch (error) {
       if (!isProcessExitSentinel(error)) throw error;
     }
-    const fromLog = logSpy.mock.calls[0]?.[0] as string | undefined;
     const fromErr = errSpy.mock.calls[0]?.[0] as string | undefined;
-    const raw = fromLog ?? fromErr;
+    const raw = stdout.trim() || fromErr;
     return raw ? JSON.parse(raw) : undefined;
   } finally {
-    logSpy.mockRestore();
+    process.stdout.write = originalStdoutWrite;
     errSpy.mockRestore();
     exitSpy.mockRestore();
   }
@@ -124,16 +131,30 @@ describe("package_upgrade_review parity", () => {
     expect(cli).toEqual(json);
   });
 
-  it("PARITY-JSON-KEYS: batch per-package unknown CLI === MCP", async () => {
+  it("PARITY-JSON-KEYS: backend unknown evidence CLI === MCP", async () => {
     const service = createMockPackageIntelligenceService({
-      packageVulnerabilities: mock((params) => {
-        if (params.packageName === "zod") {
-          return Promise.reject(new Error("vulnerability lookup failed"));
-        }
-        return createMockPackageIntelligenceService().packageVulnerabilities(
-          params,
-        );
-      }) as never,
+      packageUpgradeReview: mock(() =>
+        Promise.resolve({
+          summary: {
+            total: 2,
+            withUnknowns: 1,
+            withAddedAdvisories: 0,
+            withBreakingSignals: 0,
+            withDirectDependencyChanges: 0,
+            withTransitiveVulnerabilityAdditions: 0,
+          },
+          reviews: [
+            defaultPackageUpgradeReviewResponse.reviews[0]!,
+            {
+              ...defaultPackageUpgradeReviewResponse.reviews[0]!,
+              name: "zod",
+              currentVersion: "4.3.6",
+              targetVersion: "4.4.3",
+              unknowns: ["vulnerability check failed: backend timeout"],
+            },
+          ],
+        }),
+      ) as never,
     });
     const cli = await cliJson(
       undefined,

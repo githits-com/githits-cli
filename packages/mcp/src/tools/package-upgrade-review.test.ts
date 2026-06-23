@@ -1,34 +1,9 @@
 import { describe, expect, it, mock } from "bun:test";
-import type {
-  DependencyReport,
-  VulnerabilityReport,
-} from "@githits/core-internal";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { createPackageUpgradeReviewTool } from "./package-upgrade-review.js";
 
 function parseText(result: { content: Array<{ text: string }> }): unknown {
   return JSON.parse(result.content[0]?.text ?? "");
-}
-
-function cleanVuln(version: string): VulnerabilityReport {
-  return {
-    package: { name: "express", registry: "NPM", version, deprecated: false },
-    security: {
-      affectedVulnerabilityCount: 0,
-      nonAffectingVulnerabilityCount: 0,
-      allVulnerabilityCount: 0,
-      currentVersionAffected: false,
-      vulnerabilities: [],
-    },
-  };
-}
-
-function deps(version: string): DependencyReport {
-  return {
-    package: { name: "express", registry: "NPM", version, deprecated: false },
-    dependencies: { direct: [] },
-    dependencyGroups: { groups: [] },
-  };
 }
 
 describe("createPackageUpgradeReviewTool", () => {
@@ -54,16 +29,22 @@ describe("createPackageUpgradeReviewTool", () => {
     ]);
   });
 
-  it("calls service methods with normalized single-package params", async () => {
-    const packageVulnerabilities = mock((params) =>
-      Promise.resolve(cleanVuln(params.version ?? "5.0.0")),
-    );
-    const packageUpgradeDependencyProbe = mock((params) =>
-      Promise.resolve(deps(params.version)),
+  it("calls the aggregate service method with normalized single-package params", async () => {
+    const packageUpgradeReview = mock((params) =>
+      Promise.resolve({
+        summary: {
+          total: params.packages.length,
+          withUnknowns: 0,
+          withAddedAdvisories: 0,
+          withBreakingSignals: 0,
+          withDirectDependencyChanges: 0,
+          withTransitiveVulnerabilityAdditions: 0,
+        },
+        reviews: [],
+      }),
     );
     const service = createMockPackageIntelligenceService({
-      packageVulnerabilities: packageVulnerabilities as never,
-      packageUpgradeDependencyProbe: packageUpgradeDependencyProbe as never,
+      packageUpgradeReview: packageUpgradeReview as never,
     });
     const tool = createPackageUpgradeReviewTool(service);
 
@@ -80,38 +61,27 @@ describe("createPackageUpgradeReviewTool", () => {
       {},
     );
 
-    expect(packageVulnerabilities).toHaveBeenCalledTimes(2);
-    expect(packageVulnerabilities.mock.calls[0]?.[0]).toMatchObject({
-      registry: "NPM",
-      packageName: "express",
-      version: "4.18.0",
-      minSeverity: 7,
-      advisoryScope: "AFFECTED",
-    });
-    expect(packageUpgradeDependencyProbe).toHaveBeenCalledTimes(2);
-    expect(packageUpgradeDependencyProbe.mock.calls[0]?.[0]).toMatchObject({
-      registry: "NPM",
-      packageName: "express",
-      version: "4.18.0",
+    expect(packageUpgradeReview).toHaveBeenCalledTimes(1);
+    expect(packageUpgradeReview.mock.calls[0]?.[0]).toMatchObject({
+      packages: [
+        {
+          registry: "NPM",
+          name: "express",
+          currentVersion: "4.18.0",
+          targetVersion: "5.0.0",
+        },
+      ],
       minSeverity: 7,
       includeTransitiveSecurity: true,
       includeDependencyIssues: true,
-      includeDependencyChanges: true,
+      changelogLimit: 20,
     });
   });
 
   it("ignores empty optional mode fields emitted by tool-call harnesses", async () => {
-    const packageVulnerabilities = mock((params) =>
-      Promise.resolve(cleanVuln(params.version ?? "5.0.0")),
+    const tool = createPackageUpgradeReviewTool(
+      createMockPackageIntelligenceService(),
     );
-    const packageUpgradeDependencyProbe = mock((params) =>
-      Promise.resolve(deps(params.version)),
-    );
-    const service = createMockPackageIntelligenceService({
-      packageVulnerabilities: packageVulnerabilities as never,
-      packageUpgradeDependencyProbe: packageUpgradeDependencyProbe as never,
-    });
-    const tool = createPackageUpgradeReviewTool(service);
 
     const single = await tool.handler(
       {
@@ -168,15 +138,9 @@ describe("createPackageUpgradeReviewTool", () => {
   });
 
   it("returns text by default and JSON when requested", async () => {
-    const service = createMockPackageIntelligenceService({
-      packageVulnerabilities: mock((params) =>
-        Promise.resolve(cleanVuln(params.version ?? "5.0.0")),
-      ) as never,
-      packageUpgradeDependencyProbe: mock((params) =>
-        Promise.resolve(deps(params.version)),
-      ) as never,
-    });
-    const tool = createPackageUpgradeReviewTool(service);
+    const tool = createPackageUpgradeReviewTool(
+      createMockPackageIntelligenceService(),
+    );
 
     const text = await tool.handler(
       {

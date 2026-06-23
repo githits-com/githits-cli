@@ -190,6 +190,169 @@ export interface PackageUpgradeDependencyProbeParams {
   includeGroups?: boolean;
 }
 
+export interface PackageUpgradeReviewPackageParams {
+  registry: PkgseerRegistry;
+  name: string;
+  currentVersion: string;
+  targetVersion: string;
+}
+
+export interface PackageUpgradeReviewParams {
+  packages: PackageUpgradeReviewPackageParams[];
+  includeTransitiveSecurity: boolean;
+  includeDependencyIssues: boolean;
+  changelogLimit: number;
+  minSeverity?: number;
+}
+
+export interface PackageUpgradeAdvisorySummary {
+  id?: string;
+  aliases: string[];
+  summary?: string;
+  severity?: number;
+  severityLabel?: string;
+  fixedIn: string[];
+  isMalicious?: boolean;
+}
+
+export interface PackageUpgradeVersionVulnerabilitySummary {
+  version: string;
+  publishedAt?: string;
+  deprecated?: boolean;
+  deprecationReason?: string;
+  affectedCount: number;
+  nonAffectingCount: number;
+  allCount: number;
+  lastModifiedAt?: string;
+  advisories: PackageUpgradeAdvisorySummary[];
+}
+
+export interface PackageUpgradeTransitiveVulnerablePackage {
+  id: string;
+  registry: string;
+  name: string;
+  versions: string[];
+  affectedCount: number;
+  maxSeverityScore?: number;
+  maxSeverityLabel?: string;
+  advisoryIds: string[];
+}
+
+export interface PackageUpgradeTransitivePackagePage {
+  entries: PackageUpgradeTransitiveVulnerablePackage[];
+  totalCount: number;
+  truncated: boolean;
+}
+
+export interface PackageUpgradeTransitiveSecurity {
+  currentAffected: number;
+  targetAffected: number;
+  introducedPackages: string[];
+  fixedPackages: string[];
+  introducedPackageDetails: PackageUpgradeTransitivePackagePage;
+  fixedPackageDetails: PackageUpgradeTransitivePackagePage;
+  stillAffectedPackageDetails: PackageUpgradeTransitivePackagePage;
+}
+
+export interface PackageUpgradeSecurity {
+  current?: PackageUpgradeVersionVulnerabilitySummary;
+  target?: PackageUpgradeVersionVulnerabilitySummary;
+  added: PackageUpgradeAdvisorySummary[];
+  removed: PackageUpgradeAdvisorySummary[];
+  notAddressed: PackageUpgradeAdvisorySummary[];
+  fixed: PackageUpgradeAdvisorySummary[];
+  introduced: PackageUpgradeAdvisorySummary[];
+  unchanged: PackageUpgradeAdvisorySummary[];
+  transitive?: PackageUpgradeTransitiveSecurity;
+}
+
+export interface PackageUpgradeChangelogEntry {
+  version?: string;
+  publishedAt?: string;
+  htmlUrl?: string;
+  body?: string;
+  bodyPreview?: string;
+  headline?: string;
+  signals: string[];
+}
+
+export interface PackageUpgradeChangelog {
+  source?: string;
+  fallback?: string;
+  entries: PackageUpgradeChangelogEntry[];
+  sampledEntries: PackageUpgradeChangelogEntry[];
+  keywordEntries: PackageUpgradeChangelogEntry[];
+  totalKeywordEntries: number;
+  totalEntries: number;
+  totalEntriesWithBodies: number;
+  truncated: boolean;
+  hasReleaseNoteBodies: boolean;
+  breakingSignals: string[];
+  migrationSignals: string[];
+}
+
+export interface PackageUpgradeCompatibility {
+  peerDependencyChanges: string[];
+  notes: string[];
+}
+
+export interface PackageUpgradeDependencyChangeItem {
+  name: string;
+  registry?: string;
+  version?: string;
+  fromVersions: string[];
+  toVersions: string[];
+  constraint?: string;
+  type?: string;
+}
+
+export interface PackageUpgradeDependencyChangeGroup {
+  added: PackageUpgradeDependencyChangeItem[];
+  removed: PackageUpgradeDependencyChangeItem[];
+  changed: PackageUpgradeDependencyChangeItem[];
+}
+
+export interface PackageUpgradeDependencyChanges {
+  direct: PackageUpgradeDependencyChangeGroup;
+  transitive: PackageUpgradeDependencyChangeGroup;
+}
+
+export interface PackageUpgradeDependencyIssues {
+  currentTotal: number;
+  targetTotal: number;
+  introducedDeprecated: string[];
+  introducedDuplicates: string[];
+  introducedConflicts: string[];
+  introducedOutdated: string[];
+}
+
+export interface PackageUpgradeReview {
+  registry: string;
+  name: string;
+  currentVersion: string;
+  targetVersion: string;
+  latestVersion?: string;
+  versionDelta: string;
+  security: PackageUpgradeSecurity;
+  changelog: PackageUpgradeChangelog;
+  compatibility?: PackageUpgradeCompatibility;
+  dependencyChanges?: PackageUpgradeDependencyChanges;
+  dependencyIssues?: PackageUpgradeDependencyIssues;
+  unknowns: string[];
+}
+
+export interface PackageUpgradeReviewResponse {
+  summary: {
+    total: number;
+    withUnknowns: number;
+    withAddedAdvisories: number;
+    withBreakingSignals: number;
+    withDirectDependencyChanges: number;
+    withTransitiveVulnerabilityAdditions: number;
+  };
+  reviews: PackageUpgradeReview[];
+}
+
 export interface DirectDependency {
   name: string;
   versionConstraint?: string;
@@ -573,6 +736,9 @@ export interface PackageIntelligenceService {
   packageUpgradeDependencyProbe(
     params: PackageUpgradeDependencyProbeParams,
   ): Promise<DependencyReport>;
+  packageUpgradeReview(
+    params: PackageUpgradeReviewParams,
+  ): Promise<PackageUpgradeReviewResponse>;
   packageChangelog(params: PackageChangelogParams): Promise<ChangelogReport>;
   listPackageDocs(params: ListPackageDocsParams): Promise<PackageDocsList>;
   readPackageDoc(params: ReadPackageDocParams): Promise<PackageDocResult>;
@@ -1481,6 +1647,385 @@ query PackageUpgradeDependencyProbe(
 }`;
 
 // --------------------------------------------------------------------
+// Zod schema + query for packageUpgradeReview
+// --------------------------------------------------------------------
+
+const packageUpgradeAdvisorySchema = z.object({
+  id: z.string().nullable().optional(),
+  aliases: z.array(z.string()),
+  summary: z.string().nullable().optional(),
+  severity: z.number().nullable().optional(),
+  severityLabel: z.string().nullable().optional(),
+  fixedIn: z.array(z.string()),
+  isMalicious: z.boolean().nullable().optional(),
+});
+
+const packageUpgradeVersionVulnerabilitySummarySchema = z
+  .object({
+    version: z.string(),
+    publishedAt: z.string().nullable().optional(),
+    deprecated: z.boolean().nullable().optional(),
+    deprecationReason: z.string().nullable().optional(),
+    affectedCount: z.number().int(),
+    nonAffectingCount: z.number().int(),
+    allCount: z.number().int(),
+    lastModifiedAt: z.string().nullable().optional(),
+    advisories: z.array(packageUpgradeAdvisorySchema),
+  })
+  .nullable()
+  .optional();
+
+const packageUpgradeTransitivePackagePageSchema = z.object({
+  entries: z.array(
+    z.object({
+      id: z.string(),
+      registry: z.string(),
+      name: z.string(),
+      versions: z.array(z.string()),
+      affectedCount: z.number().int(),
+      maxSeverityScore: z.number().nullable().optional(),
+      maxSeverityLabel: z.string().nullable().optional(),
+      advisoryIds: z.array(z.string()),
+    }),
+  ),
+  totalCount: z.number().int(),
+  truncated: z.boolean(),
+});
+
+const packageUpgradeTransitiveSecuritySchema = z
+  .object({
+    currentAffected: z.number().int(),
+    targetAffected: z.number().int(),
+    introducedPackages: z.array(z.string()),
+    fixedPackages: z.array(z.string()),
+    introducedPackageDetails: packageUpgradeTransitivePackagePageSchema,
+    fixedPackageDetails: packageUpgradeTransitivePackagePageSchema,
+    stillAffectedPackageDetails: packageUpgradeTransitivePackagePageSchema,
+  })
+  .nullable()
+  .optional();
+
+const packageUpgradeSecuritySchema = z.object({
+  current: packageUpgradeVersionVulnerabilitySummarySchema,
+  target: packageUpgradeVersionVulnerabilitySummarySchema,
+  added: z.array(packageUpgradeAdvisorySchema),
+  removed: z.array(packageUpgradeAdvisorySchema),
+  notAddressed: z.array(packageUpgradeAdvisorySchema),
+  fixed: z.array(packageUpgradeAdvisorySchema),
+  introduced: z.array(packageUpgradeAdvisorySchema),
+  unchanged: z.array(packageUpgradeAdvisorySchema),
+  transitive: packageUpgradeTransitiveSecuritySchema,
+});
+
+const packageUpgradeChangelogEntrySchema = z.object({
+  version: z.string().nullable().optional(),
+  publishedAt: z.string().nullable().optional(),
+  htmlUrl: z.string().nullable().optional(),
+  body: z.string().nullable().optional(),
+  bodyPreview: z.string().nullable().optional(),
+  headline: z.string().nullable().optional(),
+  signals: z.array(z.string()),
+});
+
+const packageUpgradeChangelogSchema = z.object({
+  source: z.string().nullable().optional(),
+  fallback: z.string().nullable().optional(),
+  entries: z.array(packageUpgradeChangelogEntrySchema),
+  sampledEntries: z.array(packageUpgradeChangelogEntrySchema),
+  keywordEntries: z.array(packageUpgradeChangelogEntrySchema),
+  totalKeywordEntries: z.number().int(),
+  totalEntries: z.number().int(),
+  totalEntriesWithBodies: z.number().int(),
+  truncated: z.boolean(),
+  hasReleaseNoteBodies: z.boolean(),
+  breakingSignals: z.array(z.string()),
+  migrationSignals: z.array(z.string()),
+});
+
+const packageUpgradeCompatibilitySchema = z
+  .object({
+    peerDependencyChanges: z.array(z.string()),
+    notes: z.array(z.string()),
+  })
+  .nullable()
+  .optional();
+
+const packageUpgradeDependencyChangeItemSchema = z.object({
+  name: z.string(),
+  registry: z.string().nullable().optional(),
+  version: z.string().nullable().optional(),
+  fromVersions: z.array(z.string()),
+  toVersions: z.array(z.string()),
+  constraint: z.string().nullable().optional(),
+  type: z.string().nullable().optional(),
+});
+
+const packageUpgradeDependencyChangeGroupSchema = z.object({
+  added: z.array(packageUpgradeDependencyChangeItemSchema),
+  removed: z.array(packageUpgradeDependencyChangeItemSchema),
+  changed: z.array(packageUpgradeDependencyChangeItemSchema),
+});
+
+const packageUpgradeDependencyChangesSchema = z
+  .object({
+    direct: packageUpgradeDependencyChangeGroupSchema,
+    transitive: packageUpgradeDependencyChangeGroupSchema,
+  })
+  .nullable()
+  .optional();
+
+const packageUpgradeDependencyIssuesSchema = z
+  .object({
+    currentTotal: z.number().int(),
+    targetTotal: z.number().int(),
+    introducedDeprecated: z.array(z.string()),
+    introducedDuplicates: z.array(z.string()),
+    introducedConflicts: z.array(z.string()),
+    introducedOutdated: z.array(z.string()),
+  })
+  .nullable()
+  .optional();
+
+const packageUpgradeReviewSchema = z.object({
+  registry: z.string(),
+  name: z.string(),
+  currentVersion: z.string(),
+  targetVersion: z.string(),
+  latestVersion: z.string().nullable().optional(),
+  versionDelta: z.string(),
+  security: packageUpgradeSecuritySchema,
+  changelog: packageUpgradeChangelogSchema,
+  compatibility: packageUpgradeCompatibilitySchema,
+  dependencyChanges: packageUpgradeDependencyChangesSchema,
+  dependencyIssues: packageUpgradeDependencyIssuesSchema,
+  unknowns: z.array(z.string()),
+});
+
+const packageUpgradeReviewResponseSchema = z.object({
+  summary: z.object({
+    total: z.number().int(),
+    withUnknowns: z.number().int(),
+    withAddedAdvisories: z.number().int(),
+    withBreakingSignals: z.number().int(),
+    withDirectDependencyChanges: z.number().int(),
+    withTransitiveVulnerabilityAdditions: z.number().int(),
+  }),
+  reviews: z.array(packageUpgradeReviewSchema),
+});
+
+const packageUpgradeReviewGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      packageUpgradeReview: packageUpgradeReviewResponseSchema
+        .nullable()
+        .optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
+const PACKAGE_UPGRADE_REVIEW_QUERY = `
+query PackageUpgradeReview(
+  $packages: [PackageUpgradeReviewPackageInput!]!
+  $includeTransitiveSecurity: Boolean!
+  $includeDependencyIssues: Boolean!
+  $minSeverity: Float
+  $changelogLimit: Int!
+) {
+  packageUpgradeReview(
+    packages: $packages
+    includeTransitiveSecurity: $includeTransitiveSecurity
+    minSeverity: $minSeverity
+    changelogLimit: $changelogLimit
+  ) {
+    summary {
+      total
+      withUnknowns
+      withAddedAdvisories
+      withBreakingSignals
+      withDirectDependencyChanges
+      withTransitiveVulnerabilityAdditions
+    }
+    reviews {
+      registry
+      name
+      currentVersion
+      targetVersion
+      latestVersion
+      versionDelta
+      security {
+        current {
+          version
+          publishedAt
+          deprecated
+          deprecationReason
+          affectedCount
+          nonAffectingCount
+          allCount
+          lastModifiedAt
+          advisories {
+            ...PackageUpgradeAdvisoryFields
+          }
+        }
+        target {
+          version
+          publishedAt
+          deprecated
+          deprecationReason
+          affectedCount
+          nonAffectingCount
+          allCount
+          lastModifiedAt
+          advisories {
+            ...PackageUpgradeAdvisoryFields
+          }
+        }
+        added {
+          ...PackageUpgradeAdvisoryFields
+        }
+        removed {
+          ...PackageUpgradeAdvisoryFields
+        }
+        notAddressed {
+          ...PackageUpgradeAdvisoryFields
+        }
+        fixed {
+          ...PackageUpgradeAdvisoryFields
+        }
+        introduced {
+          ...PackageUpgradeAdvisoryFields
+        }
+        unchanged {
+          ...PackageUpgradeAdvisoryFields
+        }
+        transitive @include(if: $includeTransitiveSecurity) {
+          currentAffected
+          targetAffected
+          introducedPackages
+          fixedPackages
+          introducedPackageDetails(first: 50) {
+            ...PackageUpgradeTransitivePackagePageFields
+          }
+          fixedPackageDetails(first: 50) {
+            ...PackageUpgradeTransitivePackagePageFields
+          }
+          stillAffectedPackageDetails(first: 50) {
+            ...PackageUpgradeTransitivePackagePageFields
+          }
+        }
+      }
+      changelog {
+        source
+        fallback
+        entries {
+          ...PackageUpgradeChangelogEntryFields
+        }
+        sampledEntries {
+          ...PackageUpgradeChangelogEntryFields
+        }
+        keywordEntries {
+          ...PackageUpgradeChangelogEntryFields
+        }
+        totalKeywordEntries
+        totalEntries
+        totalEntriesWithBodies
+        truncated
+        hasReleaseNoteBodies
+        breakingSignals
+        migrationSignals
+      }
+      compatibility {
+        peerDependencyChanges
+        notes
+      }
+      dependencyChanges {
+        direct {
+          ...PackageUpgradeDependencyChangeGroupFields
+        }
+        transitive {
+          ...PackageUpgradeDependencyChangeGroupFields
+        }
+      }
+      dependencyIssues @include(if: $includeDependencyIssues) {
+        currentTotal
+        targetTotal
+        introducedDeprecated
+        introducedDuplicates
+        introducedConflicts
+        introducedOutdated
+      }
+      unknowns
+    }
+  }
+}
+
+fragment PackageUpgradeAdvisoryFields on PackageUpgradeAdvisorySummary {
+  id
+  aliases
+  summary
+  severity
+  severityLabel
+  fixedIn
+  isMalicious
+}
+
+fragment PackageUpgradeTransitivePackagePageFields on PackageUpgradeTransitivePackagePage {
+  entries {
+    id
+    registry
+    name
+    versions
+    affectedCount
+    maxSeverityScore
+    maxSeverityLabel
+    advisoryIds
+  }
+  totalCount
+  truncated
+}
+
+fragment PackageUpgradeChangelogEntryFields on PackageUpgradeChangelogEntry {
+  version
+  publishedAt
+  htmlUrl
+  body
+  bodyPreview
+  headline
+  signals
+}
+
+fragment PackageUpgradeDependencyChangeGroupFields on PackageUpgradeDependencyChangeGroup {
+  added {
+    name
+    registry
+    version
+    fromVersions
+    toVersions
+    constraint
+    type
+  }
+  removed {
+    name
+    registry
+    version
+    fromVersions
+    toVersions
+    constraint
+    type
+  }
+  changed {
+    name
+    registry
+    version
+    fromVersions
+    toVersions
+    constraint
+    type
+  }
+}`;
+
+// --------------------------------------------------------------------
 // Zod schema + query for packageChangelog
 // --------------------------------------------------------------------
 
@@ -2248,6 +2793,75 @@ export class PackageIntelligenceServiceImpl
     );
   }
 
+  async packageUpgradeReview(
+    params: PackageUpgradeReviewParams,
+  ): Promise<PackageUpgradeReviewResponse> {
+    return withTelemetrySpan("pkg-intel.upgrade-review.request", () =>
+      executeWithTokenRefresh({
+        getToken: () => this.tokenProvider.getToken(),
+        forceRefresh: () => this.tokenProvider.forceRefresh(),
+        shouldRefresh: (error) => error instanceof AuthenticationError,
+        executeWithToken: (token) =>
+          this.executePackageUpgradeReview(token, params),
+      }),
+    );
+  }
+
+  private async executePackageUpgradeReview(
+    token: string,
+    params: PackageUpgradeReviewParams,
+  ): Promise<PackageUpgradeReviewResponse> {
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.endpointUrl,
+        token,
+        query: PACKAGE_UPGRADE_REVIEW_QUERY,
+        variables: {
+          packages: params.packages,
+          includeTransitiveSecurity: params.includeTransitiveSecurity,
+          includeDependencyIssues: params.includeDependencyIssues,
+          minSeverity: params.minSeverity,
+          changelogLimit: params.changelogLimit,
+        },
+        fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw this.createTransportError(cause);
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = packageUpgradeReviewGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Malformed response from the package-intelligence service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw this.createGraphQLError(parsed.data.errors);
+    }
+
+    const data = parsed.data.data?.packageUpgradeReview;
+    if (!data) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Empty response from the package-intelligence service.",
+      );
+    }
+
+    return stripNullProperties(data) as PackageUpgradeReviewResponse;
+  }
+
   private async executePackageUpgradeDependencyProbe(
     token: string,
     params: PackageUpgradeDependencyProbeParams,
@@ -2945,6 +3559,16 @@ export class PackageIntelligenceServiceImpl
         : undefined,
     };
   }
+}
+
+function stripNullProperties(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripNullProperties);
+  if (!value || typeof value !== "object") return value;
+  const result: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (child !== null) result[key] = stripNullProperties(child);
+  }
+  return result;
 }
 
 function parseDetail(body: string): string | undefined {
