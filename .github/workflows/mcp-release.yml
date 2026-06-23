@@ -129,13 +129,21 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+          if npm view "@githits/mcp@$VERSION" version >/dev/null 2>&1; then
+            NPM_PUBLISHED=true
+            echo "npm_published=true" >> "$GITHUB_OUTPUT"
+          else
+            NPM_PUBLISHED=false
+            echo "npm_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
           TAG_EXISTS=false
           TAG_REF="refs/tags/$TAG"
           if git rev-parse --verify "$TAG_REF^{commit}" >/dev/null 2>&1; then
             TAG_EXISTS=true
             TAG_COMMIT=$(git rev-parse "$TAG_REF^{commit}")
             HEAD_COMMIT=$(git rev-parse HEAD)
-            if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+            if [ "$NPM_PUBLISHED" != "true" ] && [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
               echo "::error::Existing tag $TAG points to $TAG_COMMIT, not HEAD $HEAD_COMMIT"
               exit 1
             fi
@@ -150,14 +158,11 @@ jobs:
             echo "release_exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if npm view "@githits/mcp@$VERSION" version >/dev/null 2>&1; then
+          if [ "$NPM_PUBLISHED" = "true" ]; then
             if [ "$TAG_EXISTS" != "true" ]; then
               echo "::error::@githits/mcp@$VERSION is already published, but $TAG is missing. Refusing to mint an unverifiable release tag."
               exit 1
             fi
-            echo "npm_published=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "npm_published=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create MCP git tag
