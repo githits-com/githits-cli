@@ -11,9 +11,10 @@ This package exposes transport-neutral helpers for servers that want the GitHits
 - `getMcpToolDescriptors()` returns static tool metadata without requiring concrete services.
 - `buildMcpInstructions(options?)` builds the GitHits MCP instruction block.
 - `@githits/mcp/client` exports concrete GitHits service implementations, static token providers, URL/config helpers, request-header helpers, telemetry helpers, and registry helpers for remote MCP servers.
+- `@githits/mcp/smoke-test` exports reusable smoke assertions and `runMcpSmoke()` for remote MCP server validation.
 
-The package expects callers to provide service implementations through `McpToolServices` or a request-scoped `McpToolServicesProvider`.
+The package expects callers to provide service implementations through `McpToolServices` or a request-scoped `McpToolServicesProvider`. Servers can pass `traceTool` to `createMcpServer()` or `registerMcpTools()` to wrap public tool execution for instrumentation without receiving arguments or auth data.
 
-Only imports from `@githits/mcp`, `@githits/mcp/client`, and `@githits/mcp/package.json` are public. The workspace alias `@githits/mcp/internal` is not exported, is not supported for external consumers, and must not be used by remote MCP server implementations.
+Only imports from `@githits/mcp`, `@githits/mcp/client`, `@githits/mcp/smoke-test`, and `@githits/mcp/package.json` are public. The workspace alias `@githits/mcp/internal` is not exported, is not supported for external consumers, and must not be used by remote MCP server implementations.
 
 Remote MCP servers should provide request-scoped services through `createMcpServer()` and keep transport, auth/session handling, deployment config, and observability outside this package.

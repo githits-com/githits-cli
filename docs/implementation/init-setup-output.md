@@ -35,8 +35,10 @@ Install and uninstall share one renderer and read consistently.
 - `src/commands/init/setup-handlers.ts` — executors emit the change data:
   - `executeConfigFileSetup`: `created` when the file was absent, `updated` when
     it pre-existed (even if empty), `unchanged` when already configured.
-  - `executeCliSetup`: one change per command (`ran` / `unchanged`), so
-    multi-command setups (e.g. Claude Code) report each step.
+  - `executeCliSetup`: one change per command (`ran` / `unchanged`), preserving
+    the full structured result for JSON output. Text output hides unchanged
+    command rows unless every command was unnecessary; then it renders the
+    read-only check command as `checked via <command>` when one exists.
   - `executeCompositeSetup`: concatenates executed-step changes with
     synthesized `unchanged` changes for pre-skipped steps (so Pi shows all
     sub-steps).
@@ -75,8 +77,10 @@ on its own rendering path.
 
 ## Conventions
 
-- Config-file tools show a path; CLI-configured tools (Claude Code, Codex,
-  Gemini at user scope) show the command — never a fabricated path. In project
-  scope Claude Code and Codex are config-file and do show paths.
+- Config-file tools show a path. CLI-configured tools (Claude Code, Codex,
+  Gemini at user scope) show commands that actually ran, or `checked via
+  <command>` for already-configured rows when a read-only check command proved
+  no setup command was needed — never a fabricated path. In project scope Claude
+  Code and Codex are config-file and do show paths.
 - `format: json` / `--json` carry the structured `changes`; the friendly
   trailing block is text-only.
