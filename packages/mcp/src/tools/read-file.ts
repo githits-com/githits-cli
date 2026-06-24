@@ -62,7 +62,7 @@ const schema: ZodRawShape = {
     .number()
     .optional()
     .describe(
-      "Max milliseconds to wait for indexing (0–60000, default 20000). On an `INDEXING` error envelope, retry with a longer timeout or pass a version/ref from `details.availableVersions` / `details.availableRefs`.",
+      "Max milliseconds to wait for indexing (0–60000, default 20000). On an `INDEXING` error envelope, retry with a longer timeout or pass an already-indexed version/ref from `details.availableVersions` / `details.availableRefs`; `suggestedRefs` are fuzzy hints and may need indexing first.",
     ),
   format: z
     .enum(["json", "text", "text-v1"])
@@ -87,8 +87,11 @@ export const DESCRIPTION: string =
   "scope) or `target.repo_url` + optional `target.git_ref` (repo scope), " +
   "mutually exclusive. When fresh data is not ready within the wait " +
   "window, responses may include `targetResolution` provenance and " +
-  "immediately-queryable alternatives. On `INDEXING` retry with a " +
-  "longer `wait_timeout_ms` or use a version/ref from error details. " +
+  "immediately-queryable alternatives. `availableVersions` and " +
+  "`availableRefs` are already indexed/queryable; `suggestedRefs` " +
+  "are fuzzy ref hints and may need indexing first. On `INDEXING` " +
+  "retry with a longer `wait_timeout_ms` or use a version/ref from " +
+  "error details. " +
   "On `NOT_FOUND` / `FILE_NOT_FOUND` call " +
   "`code_files` to discover the actual path." +
   `\n\n${CODE_READ_GUARDRAIL}`;

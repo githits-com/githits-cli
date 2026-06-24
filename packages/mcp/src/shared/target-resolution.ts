@@ -25,6 +25,7 @@ export interface LeanTargetResolution {
   indexingRef?: string;
   availableVersions: LeanAvailableArtifact[];
   availableRefs: LeanAvailableArtifact[];
+  suggestedRefs?: LeanAvailableArtifact[];
 }
 
 export interface TargetResolutionRetryCandidates {
@@ -32,6 +33,7 @@ export interface TargetResolutionRetryCandidates {
   indexingRef?: string;
   availableVersions?: LeanAvailableArtifact[];
   availableRefs?: LeanAvailableArtifact[];
+  suggestedRefs?: LeanAvailableArtifact[];
 }
 
 export function projectTargetResolution(
@@ -55,6 +57,7 @@ export function projectTargetResolution(
     ...(resolution.indexingRef ? { indexingRef: resolution.indexingRef } : {}),
     availableVersions: resolution.availableVersions.map(projectArtifact),
     availableRefs: resolution.availableRefs.map(projectArtifact),
+    suggestedRefs: (resolution.suggestedRefs ?? []).map(projectArtifact),
   };
 }
 
@@ -119,6 +122,8 @@ export function buildTargetResolutionNotes(
 
   const candidates = buildRetryCandidateLine(resolution);
   if (candidates) lines.push(candidates);
+  const suggestions = buildSuggestedRefsLine(resolution);
+  if (suggestions) lines.push(suggestions);
   return lines;
 }
 
@@ -140,10 +145,24 @@ export function buildRetryCandidateLine(
   return parts.length > 0 ? `queryable now: ${parts.join(" | ")}` : undefined;
 }
 
+export function buildSuggestedRefsLine(
+  resolution: LeanTargetResolution | undefined,
+): string | undefined {
+  const refs = resolution?.suggestedRefs ?? [];
+  if (refs.length === 0) return undefined;
+  return `suggested refs (may need indexing): ${refs
+    .map(formatArtifact)
+    .join(",")}`;
+}
+
 export function buildResolutionFromRetryCandidates(
   target: TargetResolutionRetryCandidates,
 ): LeanTargetResolution | undefined {
-  if (!target.availableVersions?.length && !target.availableRefs?.length) {
+  if (
+    !target.availableVersions?.length &&
+    !target.availableRefs?.length &&
+    !target.suggestedRefs?.length
+  ) {
     return undefined;
   }
   return {
@@ -151,6 +170,7 @@ export function buildResolutionFromRetryCandidates(
     indexingRef: target.indexingRef,
     availableVersions: target.availableVersions ?? [],
     availableRefs: target.availableRefs ?? [],
+    suggestedRefs: target.suggestedRefs ?? [],
   };
 }
 

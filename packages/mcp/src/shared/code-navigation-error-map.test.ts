@@ -101,27 +101,47 @@ describe("mapCodeNavigationError", () => {
 
   it("classifies CodeNavigationRefNotFoundError as REF_NOT_FOUND with suggestions", () => {
     const err = new CodeNavigationRefNotFoundError(
-      "Repository ref cannot be resolved for openai/codex@1.2.3.",
+      "Repository ref cannot be resolved for github:openai/codex#1.2.3.",
       "https://github.com/openai/codex",
       "1.2.3",
+      [{ ref: "main" }],
       [{ ref: "codex@1.2.3" }, { ref: "v1.2.3" }],
     );
     expect(mapCodeNavigationError(err)).toEqual({
       code: "REF_NOT_FOUND",
       message:
-        "Repository ref cannot be resolved for openai/codex@1.2.3. Did you mean codex@1.2.3, v1.2.3?",
+        "Repository ref cannot be resolved for github:openai/codex#1.2.3. Did you mean codex@1.2.3, v1.2.3?",
       retryable: false,
       details: {
         repoUrl: "https://github.com/openai/codex",
         requestedRef: "1.2.3",
-        availableRefs: [{ ref: "codex@1.2.3" }, { ref: "v1.2.3" }],
+        availableRefs: [{ ref: "main" }],
+        suggestedRefs: [{ ref: "codex@1.2.3" }, { ref: "v1.2.3" }],
       },
+    });
+  });
+
+  it("does not treat indexed refs as REF_NOT_FOUND suggestions", () => {
+    const err = new CodeNavigationRefNotFoundError(
+      "Repository ref cannot be resolved.",
+      undefined,
+      undefined,
+      [{ ref: "main" }],
+      undefined,
+    );
+
+    expect(mapCodeNavigationError(err)).toEqual({
+      code: "REF_NOT_FOUND",
+      message: "Repository ref cannot be resolved.",
+      retryable: false,
+      details: { availableRefs: [{ ref: "main" }] },
     });
   });
 
   it("does not duplicate backend REF_NOT_FOUND suggestions", () => {
     const err = new CodeNavigationRefNotFoundError(
       "Repository ref cannot be resolved. Did you mean v1.2.3?",
+      undefined,
       undefined,
       undefined,
       [{ ref: "v1.2.3" }],
@@ -409,7 +429,13 @@ describe("mapCodeNavigationError debug instrumentation", () => {
       new CodeNavigationTargetNotFoundError("x"),
       new CodeNavigationFileNotFoundError("x", "some/path"),
       new CodeNavigationIndexingError("x"),
-      new CodeNavigationRefNotFoundError("x", undefined, undefined, undefined),
+      new CodeNavigationRefNotFoundError(
+        "x",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      ),
       new CodeNavigationUnresolvableError("x"),
       new CodeNavigationAccessError("x"),
       new AuthenticationError("x"),

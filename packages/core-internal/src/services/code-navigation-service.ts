@@ -117,6 +117,7 @@ export interface TargetResolutionIdentity {
 }
 
 export type AvailableRef = AvailableVersion;
+export type SuggestedRef = AvailableVersion;
 
 export interface TargetResolution {
   requested?: TargetResolutionIdentity;
@@ -127,6 +128,7 @@ export interface TargetResolution {
   indexingRef?: string;
   availableVersions: AvailableVersion[];
   availableRefs: AvailableRef[];
+  suggestedRefs?: SuggestedRef[];
 }
 
 export type UnifiedSearchSource = "AUTO" | "DOCS" | "CODE" | "SYMBOL";
@@ -259,6 +261,7 @@ export interface UnifiedSearchProgressTarget {
   targetResolution?: TargetResolution;
   availableVersions?: AvailableVersion[];
   availableRefs?: AvailableRef[];
+  suggestedRefs?: SuggestedRef[];
 }
 
 export interface UnifiedSearchRequestedTarget {
@@ -580,6 +583,7 @@ export class CodeNavigationRefNotFoundError extends Error {
     public readonly repoUrl: string | undefined,
     public readonly requestedRef: string | undefined,
     public readonly availableRefs: AvailableRef[] | undefined,
+    public readonly suggestedRefs: SuggestedRef[] | undefined,
   ) {
     super(message);
     this.name = "CodeNavigationRefNotFoundError";
@@ -640,6 +644,18 @@ availableRefs {
   ref
 }`;
 
+const TARGET_RESOLUTION_SUGGESTED_REFS_SELECTION = `
+suggestedRefs {
+  version
+  ref
+}`;
+
+const DISCOVERY_TARGET_PROGRESS_SUGGESTED_REFS_SELECTION = `
+suggestedRefs {
+  version
+  ref
+}`;
+
 const TARGET_RESOLUTION_SELECTION = `
 targetResolution {
   requested {
@@ -677,6 +693,7 @@ targetResolution {
     ref
   }
   ${TARGET_RESOLUTION_AVAILABLE_REFS_SELECTION}
+  ${TARGET_RESOLUTION_SUGGESTED_REFS_SELECTION}
 }`;
 
 const CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION = `
@@ -693,7 +710,8 @@ availableVersions {
 availableRefs {
   version
   ref
-}`;
+}
+${DISCOVERY_TARGET_PROGRESS_SUGGESTED_REFS_SELECTION}`;
 
 const UNIFIED_SEARCH_QUERY = `
 query UnifiedSearch(
@@ -1035,6 +1053,7 @@ const targetResolutionSchema = z
     indexingRef: z.string().nullable().optional(),
     availableVersions: z.array(availableVersionSchema).nullable().optional(),
     availableRefs: z.array(availableVersionSchema).nullable().optional(),
+    suggestedRefs: z.array(availableVersionSchema).nullable().optional(),
   })
   .nullable()
   .optional();
@@ -1162,6 +1181,7 @@ const unifiedSearchProgressTargetSchema = z.object({
   targetResolution: targetResolutionSchema,
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
   availableRefs: z.array(availableVersionSchema).nullable().optional(),
+  suggestedRefs: z.array(availableVersionSchema).nullable().optional(),
 });
 
 const unifiedSearchRequestedTargetSchema = z.object({
@@ -1963,6 +1983,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
               ? extensions.gitRef
               : undefined,
           parseAvailableRefs(extensions),
+          parseSuggestedRefs(extensions),
         );
 
       case "NOT_FOUND":
@@ -2206,6 +2227,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         targetResolution: normaliseTargetResolution(target.targetResolution),
         availableVersions: normaliseAvailableVersions(target.availableVersions),
         availableRefs: normaliseAvailableVersions(target.availableRefs),
+        suggestedRefs: normaliseAvailableVersions(target.suggestedRefs),
       })),
       expiresAt: progress.expiresAt ?? undefined,
     };
@@ -2571,11 +2593,24 @@ function parseDetail(body: string): string | undefined {
 }
 
 function buildTargetResolutionFallbackQueries(query: string): string[] {
+  const withoutSuggestedRefs = query
+    .replaceAll(TARGET_RESOLUTION_SUGGESTED_REFS_SELECTION, "")
+    .replaceAll(DISCOVERY_TARGET_PROGRESS_SUGGESTED_REFS_SELECTION, "");
   const candidates = [
-    query.replaceAll(TARGET_RESOLUTION_AVAILABLE_REFS_SELECTION, ""),
-    query.replaceAll(DISCOVERY_TARGET_PROGRESS_RETRY_SELECTION, ""),
-    query.replaceAll(CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION, ""),
-    query
+    withoutSuggestedRefs,
+    withoutSuggestedRefs.replaceAll(
+      TARGET_RESOLUTION_AVAILABLE_REFS_SELECTION,
+      "",
+    ),
+    withoutSuggestedRefs.replaceAll(
+      DISCOVERY_TARGET_PROGRESS_RETRY_SELECTION,
+      "",
+    ),
+    withoutSuggestedRefs.replaceAll(
+      CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION,
+      "",
+    ),
+    withoutSuggestedRefs
       .replaceAll(TARGET_RESOLUTION_SELECTION, "")
       .replaceAll(DISCOVERY_TARGET_PROGRESS_RETRY_SELECTION, "")
       .replaceAll(CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION, ""),
@@ -2655,6 +2690,13 @@ function parseAvailableRefs(
   return parseAvailableArtifacts(raw);
 }
 
+function parseSuggestedRefs(
+  extensions: Record<string, unknown> | undefined,
+): SuggestedRef[] | undefined {
+  const raw = extensions?.suggested_refs ?? extensions?.suggestedRefs;
+  return parseAvailableArtifacts(raw);
+}
+
 function parseTargetResolution(
   extensions: Record<string, unknown> | undefined,
 ): TargetResolution | undefined {
@@ -2708,6 +2750,7 @@ function normaliseTargetResolution(
     availableVersions:
       normaliseAvailableVersions(resolution.availableVersions) ?? [],
     availableRefs: normaliseAvailableVersions(resolution.availableRefs) ?? [],
+    suggestedRefs: normaliseAvailableVersions(resolution.suggestedRefs) ?? [],
   };
 }
 

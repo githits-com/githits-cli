@@ -383,6 +383,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
               indexingRef: "idx_123",
               availableVersions: [],
               availableRefs: [{ ref: "main" }, { ref: "v4.18.2" }],
+              suggestedRefs: [{ ref: "express-v4.18.2" }],
             },
           },
         ],
@@ -401,6 +402,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
     expect(payload.warnings?.join("\n")).toContain("using recent index");
     expect(payload.warnings?.join("\n")).toContain("queryable now");
+    expect(payload.warnings?.join("\n")).toContain("suggested refs");
   });
 
   it("canonicalizes source-status repository labels", () => {
@@ -620,6 +622,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
                 indexingRef: "idx_123",
                 availableVersions: [],
                 availableRefs: [{ ref: "main" }, { ref: "v1.2.3" }],
+                suggestedRefs: [{ ref: "foo-v1.2.3" }],
               },
             },
           ],
@@ -637,7 +640,11 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(
       payload.progress?.targets?.[0]?.targetResolution?.availableRefs,
     ).toEqual([{ ref: "main" }, { ref: "v1.2.3" }]);
+    expect(
+      payload.progress?.targets?.[0]?.targetResolution?.suggestedRefs,
+    ).toEqual([{ ref: "foo-v1.2.3" }]);
     expect(payload.warnings?.join("\n")).toContain("queryable now");
+    expect(payload.warnings?.join("\n")).toContain("suggested refs");
   });
 });
 
@@ -1010,22 +1017,24 @@ describe("buildUnifiedSearchErrorPayload", () => {
   it("includes REF_NOT_FOUND ref suggestions in message and details", () => {
     const payload = buildUnifiedSearchErrorPayload(
       new CodeNavigationRefNotFoundError(
-        "Repository ref cannot be resolved for openai/codex@1.2.3.",
+        "Repository ref cannot be resolved for github:openai/codex#1.2.3.",
         "https://github.com/openai/codex",
         "1.2.3",
+        [{ ref: "main" }],
         [{ ref: "codex@1.2.3" }, { ref: "v1.2.3" }],
       ),
     );
 
     expect(payload).toEqual({
       error:
-        "Repository ref cannot be resolved for openai/codex@1.2.3. Did you mean codex@1.2.3, v1.2.3?",
+        "Repository ref cannot be resolved for github:openai/codex#1.2.3. Did you mean codex@1.2.3, v1.2.3?",
       code: "REF_NOT_FOUND",
       retryable: false,
       details: {
         repoUrl: "https://github.com/openai/codex",
         requestedRef: "1.2.3",
-        availableRefs: [{ ref: "codex@1.2.3" }, { ref: "v1.2.3" }],
+        availableRefs: [{ ref: "main" }],
+        suggestedRefs: [{ ref: "codex@1.2.3" }, { ref: "v1.2.3" }],
       },
     });
   });

@@ -277,6 +277,7 @@ export function formatProgressTarget(target: {
   targetResolution?: LeanTargetResolution;
   availableVersions?: Array<{ version?: string; ref: string }>;
   availableRefs?: Array<{ version?: string; ref: string }>;
+  suggestedRefs?: Array<{ version?: string; ref: string }>;
 }): string {
   const parts: string[] = [];
   if (target.requested) parts.push(`requested=${target.requested}`);

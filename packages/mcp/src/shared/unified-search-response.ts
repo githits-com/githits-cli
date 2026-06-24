@@ -112,6 +112,7 @@ export interface UnifiedSearchProgressPayload {
     targetResolution?: LeanTargetResolution;
     availableVersions?: LeanAvailableArtifact[];
     availableRefs?: LeanAvailableArtifact[];
+    suggestedRefs?: LeanAvailableArtifact[];
   }>;
   expiresAt?: string;
   next?: string;
@@ -577,6 +578,9 @@ function compactProgressTarget(
   }
   if (target.availableRefs?.length) {
     payload.availableRefs = target.availableRefs;
+  }
+  if (target.suggestedRefs?.length) {
+    payload.suggestedRefs = target.suggestedRefs;
   }
   return Object.keys(payload).length > 0 ? payload : undefined;
 }
