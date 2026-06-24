@@ -570,6 +570,23 @@ export class CodeNavigationVersionNotFoundError extends Error {
 }
 
 /**
+ * Raised when a repository target exists but the requested git ref does
+ * not resolve. Carries backend-provided ref suggestions for callers to
+ * surface as "did you mean" recovery hints.
+ */
+export class CodeNavigationRefNotFoundError extends Error {
+  constructor(
+    message: string,
+    public readonly repoUrl: string | undefined,
+    public readonly requestedRef: string | undefined,
+    public readonly availableRefs: AvailableRef[] | undefined,
+  ) {
+    super(message);
+    this.name = "CodeNavigationRefNotFoundError";
+  }
+}
+
+/**
  * Raised when the caller submitted invalid input that the backend
  * rejected with `VALIDATION_ERROR` (e.g. query too long). Treated as
  * a client error (non-retryable, INVALID_ARGUMENT on the mapped
@@ -1930,6 +1947,22 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
             ? extensions.latest_indexed
             : undefined,
           parseAvailableVersions(extensions),
+        );
+
+      case "REF_NOT_FOUND":
+        return new CodeNavigationRefNotFoundError(
+          message,
+          typeof extensions?.repo_url === "string"
+            ? extensions.repo_url
+            : typeof extensions?.repoUrl === "string"
+              ? extensions.repoUrl
+              : undefined,
+          typeof extensions?.git_ref === "string"
+            ? extensions.git_ref
+            : typeof extensions?.gitRef === "string"
+              ? extensions.gitRef
+              : undefined,
+          parseAvailableRefs(extensions),
         );
 
       case "NOT_FOUND":

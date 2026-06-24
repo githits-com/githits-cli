@@ -12,6 +12,7 @@ import {
   CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
+  CodeNavigationRefNotFoundError,
   CodeNavigationServiceImpl,
 } from "./code-navigation-service.js";
 import { createMockTokenProvider } from "./test-helpers.js";
@@ -861,6 +862,57 @@ describe("CodeNavigationServiceImpl", () => {
       expect((error as CodeNavigationBackendError).graphqlCode).toBe(
         "GREP_FILE_TOO_LARGE",
       );
+    }
+  });
+
+  it("classifies GraphQL REF_NOT_FOUND with available ref suggestions", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message:
+                  "Repository ref cannot be resolved for openai/codex@1.2.3. Did you mean codex@1.2.3, v1.2.3?",
+                extensions: {
+                  code: "REF_NOT_FOUND",
+                  retryable: false,
+                  repo_url: "https://github.com/openai/codex",
+                  git_ref: "1.2.3",
+                  available_refs: [
+                    { ref: "codex@1.2.3", version: null },
+                    { ref: "v1.2.3", version: null },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    try {
+      await service.search({
+        targets: [
+          { repoUrl: "https://github.com/openai/codex", gitRef: "1.2.3" },
+        ],
+        query: "ThreadCompactStartParams",
+      });
+      throw new Error("expected REF_NOT_FOUND");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationRefNotFoundError);
+      const typed = error as CodeNavigationRefNotFoundError;
+      expect(typed.repoUrl).toBe("https://github.com/openai/codex");
+      expect(typed.requestedRef).toBe("1.2.3");
+      expect(typed.availableRefs).toEqual([
+        { ref: "codex@1.2.3", version: undefined },
+        { ref: "v1.2.3", version: undefined },
+      ]);
     }
   });
 

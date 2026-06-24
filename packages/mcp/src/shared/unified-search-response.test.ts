@@ -1,7 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import type {
-  UnifiedSearchOutcome,
-  UnifiedSearchParams,
+import {
+  CodeNavigationRefNotFoundError,
+  type UnifiedSearchOutcome,
+  type UnifiedSearchParams,
 } from "@githits/core-internal";
 import { defaultUnifiedSearchOutcome } from "../services/test-helpers.js";
 import {
@@ -1003,6 +1004,29 @@ describe("buildUnifiedSearchErrorPayload", () => {
       error: "boom",
       code: "UNKNOWN",
       retryable: false,
+    });
+  });
+
+  it("includes REF_NOT_FOUND ref suggestions in message and details", () => {
+    const payload = buildUnifiedSearchErrorPayload(
+      new CodeNavigationRefNotFoundError(
+        "Repository ref cannot be resolved for openai/codex@1.2.3.",
+        "https://github.com/openai/codex",
+        "1.2.3",
+        [{ ref: "codex@1.2.3" }, { ref: "v1.2.3" }],
+      ),
+    );
+
+    expect(payload).toEqual({
+      error:
+        "Repository ref cannot be resolved for openai/codex@1.2.3. Did you mean codex@1.2.3, v1.2.3?",
+      code: "REF_NOT_FOUND",
+      retryable: false,
+      details: {
+        repoUrl: "https://github.com/openai/codex",
+        requestedRef: "1.2.3",
+        availableRefs: [{ ref: "codex@1.2.3" }, { ref: "v1.2.3" }],
+      },
     });
   });
 });
