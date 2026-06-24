@@ -86,6 +86,20 @@ describe("target-resolution helpers", () => {
     ).toBe("queryable now: versions=1.2.3@v1.2.3 | refs=main");
   });
 
+  it("renders suggested refs separately from immediate retry candidates", () => {
+    const notes = buildTargetResolutionNotes({
+      freshness: "unavailable",
+      availableVersions: [],
+      availableRefs: [{ ref: "main" }],
+      suggestedRefs: [{ ref: "pkg@1.2.3" }, { ref: "v1.2.3" }],
+    });
+
+    expect(notes).toContain("queryable now: refs=main");
+    expect(notes).toContain(
+      "suggested refs (may need indexing): pkg@1.2.3,v1.2.3",
+    );
+  });
+
   it("suppresses identical current provenance", () => {
     expect(
       buildTargetResolutionNotes({

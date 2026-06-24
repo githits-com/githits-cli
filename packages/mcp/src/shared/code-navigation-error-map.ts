@@ -19,6 +19,7 @@ import {
   CodeNavigationVersionNotFoundError,
   debugLog,
   MalformedCodeNavigationResponseError,
+  type SuggestedRef,
   type TargetResolution,
 } from "@githits/core-internal";
 import { AuthRequiredError } from "./require-auth.js";
@@ -45,6 +46,7 @@ export interface MappedErrorDetails {
   action?: string;
   availableVersions?: AvailableVersion[];
   availableRefs?: AvailableRef[];
+  suggestedRefs?: SuggestedRef[];
   targetResolution?: TargetResolution;
   indexingRef?: string;
   status?: number;
@@ -153,9 +155,12 @@ function classify(error: unknown): MappedError {
     if (error.availableRefs && error.availableRefs.length > 0) {
       details.availableRefs = error.availableRefs;
     }
+    if (error.suggestedRefs && error.suggestedRefs.length > 0) {
+      details.suggestedRefs = error.suggestedRefs;
+    }
     return {
       code: "REF_NOT_FOUND",
-      message: addRefSuggestions(error.message, error.availableRefs),
+      message: addRefSuggestions(error.message, error.suggestedRefs),
       retryable: false,
       details: Object.keys(details).length > 0 ? details : undefined,
     };

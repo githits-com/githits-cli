@@ -222,6 +222,7 @@ describe("CodeNavigationServiceImpl", () => {
                   indexingRef: "ref_xyz",
                   availableVersions: [],
                   availableRefs: [{ ref: "main" }, { ref: "v4.18.2" }],
+                  suggestedRefs: [{ ref: "express-v4.18.2" }],
                 },
               },
             },
@@ -252,6 +253,9 @@ describe("CodeNavigationServiceImpl", () => {
         { ref: "v4.18.2" },
       ]);
       expect(typed.targetResolution?.freshness).toBe("indexing");
+      expect(typed.targetResolution?.suggestedRefs).toEqual([
+        { ref: "express-v4.18.2" },
+      ]);
     }
   });
 
@@ -306,8 +310,71 @@ describe("CodeNavigationServiceImpl", () => {
 
     expect(result.indexedVersion).toBe("v5.2.1");
     expect(bodies).toHaveLength(2);
+    expect(bodies[0]).toContain("suggestedRefs");
     expect(bodies[0]).toContain("availableRefs");
-    expect(bodies[1]).not.toContain("availableRefs");
+    expect(bodies[1]).not.toContain("suggestedRefs");
+    expect(bodies[1]).toContain("availableRefs");
+  });
+
+  it("falls back again when targetResolution availableRefs is also unsupported", async () => {
+    const bodies: string[] = [];
+    globalThis.fetch = mock((_, init?: RequestInit) => {
+      bodies.push(String(init?.body ?? ""));
+      const message =
+        bodies.length === 1
+          ? 'Cannot query field "suggestedRefs" on type "TargetResolution".'
+          : 'Cannot query field "availableRefs" on type "TargetResolution".';
+      if (bodies.length < 3) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              errors: [
+                {
+                  message,
+                  extensions: { code: "GRAPHQL_VALIDATION_FAILED" },
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              listRepoFiles: {
+                files: [],
+                total: 0,
+                hasMore: false,
+                indexedVersion: "v5.2.1",
+                resolution: null,
+                diagnostics: null,
+                codeIndexState: "CURRENT",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+    }) as unknown as typeof fetch;
+
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    const result = await service.listFiles({
+      target: { registry: "NPM", packageName: "express" },
+    });
+
+    expect(result.indexedVersion).toBe("v5.2.1");
+    expect(bodies).toHaveLength(3);
+    expect(bodies[0]).toContain("suggestedRefs");
+    expect(bodies[1]).not.toContain("suggestedRefs");
+    expect(bodies[1]).toContain("availableRefs");
+    expect(bodies[2]).not.toContain("suggestedRefs");
+    expect(bodies[2]).not.toContain("availableRefs");
   });
 
   it("surfaces diagnostics.hint on listFiles empty responses", async () => {
@@ -865,7 +932,7 @@ describe("CodeNavigationServiceImpl", () => {
     }
   });
 
-  it("classifies GraphQL REF_NOT_FOUND with available ref suggestions", async () => {
+  it("classifies GraphQL REF_NOT_FOUND with indexed refs and suggested refs", async () => {
     mockFetch(() =>
       Promise.resolve(
         new Response(
@@ -873,13 +940,14 @@ describe("CodeNavigationServiceImpl", () => {
             errors: [
               {
                 message:
-                  "Repository ref cannot be resolved for openai/codex@1.2.3. Did you mean codex@1.2.3, v1.2.3?",
+                  "Repository ref cannot be resolved for github:openai/codex#1.2.3. Did you mean codex@1.2.3, v1.2.3?",
                 extensions: {
                   code: "REF_NOT_FOUND",
                   retryable: false,
                   repo_url: "https://github.com/openai/codex",
                   git_ref: "1.2.3",
-                  available_refs: [
+                  available_refs: [{ ref: "main", version: null }],
+                  suggested_refs: [
                     { ref: "codex@1.2.3", version: null },
                     { ref: "v1.2.3", version: null },
                   ],
@@ -910,6 +978,9 @@ describe("CodeNavigationServiceImpl", () => {
       expect(typed.repoUrl).toBe("https://github.com/openai/codex");
       expect(typed.requestedRef).toBe("1.2.3");
       expect(typed.availableRefs).toEqual([
+        { ref: "main", version: undefined },
+      ]);
+      expect(typed.suggestedRefs).toEqual([
         { ref: "codex@1.2.3", version: undefined },
         { ref: "v1.2.3", version: undefined },
       ]);

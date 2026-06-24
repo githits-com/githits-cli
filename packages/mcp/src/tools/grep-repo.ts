@@ -81,7 +81,12 @@ const schema: ZodRawShape = {
     .array(z.enum(GREP_REPO_SYMBOL_FIELDS))
     .optional()
     .describe(GREP_REPO_SYMBOL_FIELDS_NOTE),
-  wait_timeout_ms: z.number().optional(),
+  wait_timeout_ms: z
+    .number()
+    .optional()
+    .describe(
+      "Max milliseconds to wait for indexing (0–60000, default 20000). On an `INDEXING` error envelope, retry with a longer timeout or pass an already-indexed version/ref from `details.availableVersions` / `details.availableRefs`; `suggestedRefs` are fuzzy hints and may need indexing first.",
+    ),
   format: z
     .enum(["json", "text", "text-v1"])
     .optional()
@@ -96,7 +101,8 @@ const DESCRIPTION =
   "Use `search` for discovery instead. " +
   "Whole-target grep is the default — narrow with `path`, `path_prefix`, `globs`, or `extensions` to keep responses small. " +
   "Each match's `filePath` (or text file heading) chains into `code_read.path`; pick a window around `match.line` for `code_read.start_line` / `end_line`. " +
-  "When fresh data is not ready within the wait window, responses may include `targetResolution` provenance and immediately-queryable alternatives in error details." +
+  "When fresh data is not ready within the wait window, responses may include `targetResolution` provenance and immediately-queryable alternatives in error details. " +
+  "`availableVersions` and `availableRefs` are already indexed/queryable; `suggestedRefs` are fuzzy ref hints and may need indexing first." +
   `\n\n${CODE_GREP_GUARDRAIL}`;
 
 export function createGrepRepoTool(
