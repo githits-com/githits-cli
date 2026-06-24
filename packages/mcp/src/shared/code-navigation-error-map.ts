@@ -12,6 +12,7 @@ import {
   CodeNavigationGraphQLError,
   CodeNavigationIndexingError,
   CodeNavigationNetworkError,
+  CodeNavigationRefNotFoundError,
   CodeNavigationTargetNotFoundError,
   CodeNavigationUnresolvableError,
   CodeNavigationValidationError,
@@ -58,6 +59,10 @@ export interface MappedErrorDetails {
   requestedVersion?: string;
   /** Fully-qualified package identifier (for `VERSION_NOT_FOUND`). */
   package?: string;
+  /** Repository URL for `REF_NOT_FOUND`. */
+  repoUrl?: string;
+  /** Git ref the caller asked for (for `REF_NOT_FOUND`). */
+  requestedRef?: string;
   /** The file path the caller asked for (for `FILE_NOT_FOUND`). */
   filePath?: string;
   /** Installed CLI version when an update is required. */
@@ -139,6 +144,20 @@ function classify(error: unknown): MappedError {
       details: error.availableVersions
         ? { availableVersions: error.availableVersions }
         : undefined,
+    };
+  }
+  if (error instanceof CodeNavigationRefNotFoundError) {
+    const details: MappedErrorDetails = {};
+    if (error.repoUrl) details.repoUrl = error.repoUrl;
+    if (error.requestedRef) details.requestedRef = error.requestedRef;
+    if (error.availableRefs && error.availableRefs.length > 0) {
+      details.availableRefs = error.availableRefs;
+    }
+    return {
+      code: "REF_NOT_FOUND",
+      message: addRefSuggestions(error.message, error.availableRefs),
+      retryable: false,
+      details: Object.keys(details).length > 0 ? details : undefined,
     };
   }
   if (error instanceof CodeNavigationFileNotFoundError) {
@@ -291,6 +310,20 @@ function classifyBackendError(error: CodeNavigationBackendError): MappedError {
     default:
       return build("BACKEND_ERROR", false);
   }
+}
+
+function addRefSuggestions(
+  message: string,
+  refs: AvailableRef[] | undefined,
+): string {
+  if (!refs || refs.length === 0 || /did you mean/i.test(message)) {
+    return message;
+  }
+  const suggestions = refs
+    .slice(0, 5)
+    .map((entry) => entry.ref)
+    .join(", ");
+  return `${message} Did you mean ${suggestions}?`;
 }
 
 /**

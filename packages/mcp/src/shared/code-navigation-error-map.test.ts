@@ -9,6 +9,7 @@ import {
   CodeNavigationGraphQLError,
   CodeNavigationIndexingError,
   CodeNavigationNetworkError,
+  CodeNavigationRefNotFoundError,
   CodeNavigationTargetNotFoundError,
   CodeNavigationUnresolvableError,
   CodeNavigationValidationError,
@@ -96,6 +97,38 @@ describe("mapCodeNavigationError", () => {
         ],
       },
     });
+  });
+
+  it("classifies CodeNavigationRefNotFoundError as REF_NOT_FOUND with suggestions", () => {
+    const err = new CodeNavigationRefNotFoundError(
+      "Repository ref cannot be resolved for openai/codex@1.2.3.",
+      "https://github.com/openai/codex",
+      "1.2.3",
+      [{ ref: "codex@1.2.3" }, { ref: "v1.2.3" }],
+    );
+    expect(mapCodeNavigationError(err)).toEqual({
+      code: "REF_NOT_FOUND",
+      message:
+        "Repository ref cannot be resolved for openai/codex@1.2.3. Did you mean codex@1.2.3, v1.2.3?",
+      retryable: false,
+      details: {
+        repoUrl: "https://github.com/openai/codex",
+        requestedRef: "1.2.3",
+        availableRefs: [{ ref: "codex@1.2.3" }, { ref: "v1.2.3" }],
+      },
+    });
+  });
+
+  it("does not duplicate backend REF_NOT_FOUND suggestions", () => {
+    const err = new CodeNavigationRefNotFoundError(
+      "Repository ref cannot be resolved. Did you mean v1.2.3?",
+      undefined,
+      undefined,
+      [{ ref: "v1.2.3" }],
+    );
+    expect(mapCodeNavigationError(err).message).toBe(
+      "Repository ref cannot be resolved. Did you mean v1.2.3?",
+    );
   });
 
   it("classifies CodeNavigationIndexingError as INDEXING with details", () => {
@@ -376,6 +409,7 @@ describe("mapCodeNavigationError debug instrumentation", () => {
       new CodeNavigationTargetNotFoundError("x"),
       new CodeNavigationFileNotFoundError("x", "some/path"),
       new CodeNavigationIndexingError("x"),
+      new CodeNavigationRefNotFoundError("x", undefined, undefined, undefined),
       new CodeNavigationUnresolvableError("x"),
       new CodeNavigationAccessError("x"),
       new AuthenticationError("x"),
