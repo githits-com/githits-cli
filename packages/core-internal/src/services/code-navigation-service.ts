@@ -326,6 +326,14 @@ export interface AvailableVersion {
   ref: string;
 }
 
+export interface IndexingDurationEstimate {
+  lowerSeconds?: number;
+  upperSeconds?: number;
+  elapsedSeconds?: number;
+  sampleCount?: number;
+  source?: string;
+}
+
 /**
  * Input for {@link CodeNavigationService.listFiles}.
  */
@@ -504,6 +512,9 @@ export class CodeNavigationIndexingError extends Error {
     public readonly availableVersions?: AvailableVersion[],
     public readonly availableRefs?: AvailableRef[],
     public readonly targetResolution: TargetResolution | undefined = undefined,
+    public readonly indexingEstimate:
+      | IndexingDurationEstimate
+      | undefined = undefined,
   ) {
     super(message);
     this.name = "CodeNavigationIndexingError";
@@ -712,6 +723,15 @@ availableRefs {
   ref
 }
 ${DISCOVERY_TARGET_PROGRESS_SUGGESTED_REFS_SELECTION}`;
+
+const INDEXING_DURATION_ESTIMATE_SELECTION = `
+indexingEstimate {
+  lowerSeconds
+  upperSeconds
+  elapsedSeconds
+  sampleCount
+  source
+}`;
 
 const UNIFIED_SEARCH_QUERY = `
 query UnifiedSearch(
@@ -1030,6 +1050,17 @@ const availableVersionSchema = z.object({
   ref: z.string(),
 });
 
+const indexingDurationEstimateSchema = z
+  .object({
+    lowerSeconds: z.number().int().nullable().optional(),
+    upperSeconds: z.number().int().nullable().optional(),
+    elapsedSeconds: z.number().int().nullable().optional(),
+    sampleCount: z.number().int().nullable().optional(),
+    source: z.string().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
 const targetResolutionIdentitySchema = z
   .object({
     kind: z.string().nullable().optional(),
@@ -1273,6 +1304,7 @@ const listRepoFilesResponseSchema = z.object({
   codeIndexState: z.string(),
   indexingRef: z.string().nullable().optional(),
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
+  indexingEstimate: indexingDurationEstimateSchema,
 });
 
 const listRepoFilesGraphQLResponseSchema = z.object({
@@ -1352,6 +1384,7 @@ query ListRepoFiles(
       version
       ref
     }
+    ${INDEXING_DURATION_ESTIMATE_SELECTION}
   }
 }`;
 
@@ -1372,6 +1405,7 @@ const codeContextResponseSchema = z.object({
   codeIndexState: z.string(),
   indexingRef: z.string().nullable().optional(),
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
+  indexingEstimate: indexingDurationEstimateSchema,
   targetResolution: targetResolutionSchema,
 });
 
@@ -1420,6 +1454,7 @@ query FetchCodeContext(
     codeIndexState
     indexingRef
     ${CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION}
+    ${INDEXING_DURATION_ESTIMATE_SELECTION}
     ${TARGET_RESOLUTION_SELECTION}
   }
 }`;
@@ -1482,6 +1517,7 @@ const grepRepoResponseSchema = z.object({
   codeIndexState: z.string(),
   indexingRef: z.string().nullable().optional(),
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
+  indexingEstimate: indexingDurationEstimateSchema,
 });
 
 const grepRepoGraphQLResponseSchema = z.object({
@@ -1606,6 +1642,7 @@ query GrepRepo(
       version
       ref
     }
+    ${INDEXING_DURATION_ESTIMATE_SELECTION}
   }
 }`;
 }
@@ -1900,6 +1937,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         ? extensions.retryable
         : undefined;
     const indexingRef = getGraphQLIndexingRef(errors);
+    const indexingEstimate = parseIndexingDurationEstimate(extensions);
 
     if (isClientUpdateRequiredGraphQLError({ message, code })) {
       return new ClientUpdateRequiredError(
@@ -1932,11 +1970,16 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     switch (code) {
       case "PACKAGE_INDEXING":
         return new CodeNavigationIndexingError(
-          this.createIndexingMessage(indexingRef),
+          this.createIndexingMessage(
+            indexingRef,
+            indexingEstimate,
+            typeof extensions?.hint === "string" ? extensions.hint : undefined,
+          ),
           indexingRef,
           parseAvailableVersions(extensions),
           parseAvailableRefs(extensions),
           parseTargetResolution(extensions),
+          indexingEstimate,
         );
 
       case "GREP_PATTERN_TOO_SHORT":
@@ -2063,14 +2106,21 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     return new CodeNavigationBackendError(message, undefined, code, retryable);
   }
 
-  private createIndexingMessage(indexingRef?: string): string {
-    // Backend p50 indexing time ~11 s, mean ~17 s, backend ceiling 60
-    // s. Give callers both a concrete "retry shortly" expectation and
-    // the option to block until ready via a longer wait timeout.
-    const base =
-      "Target is still indexing. Indexing usually completes within 30 seconds. Retry this request, or pass a longer wait timeout (CLI: `--wait 60000`, MCP: `wait_timeout_ms: 60000`) to block until ready.";
+  private createIndexingMessage(
+    indexingRef?: string,
+    estimate?: IndexingDurationEstimate,
+    backendHint?: string,
+  ): string {
+    const retryGuidance =
+      "Retry, or wait until ready with CLI `--wait 60000` / MCP `wait_timeout_ms: 60000`.";
+    const estimateMessage = formatIndexingDurationEstimate(estimate);
+    const base = estimateMessage
+      ? `Target is indexing. ${estimateMessage} ${retryGuidance}`
+      : backendHint
+        ? appendRetryGuidance(backendHint, retryGuidance)
+        : `Target is indexing. Usually completes within 30 seconds. ${retryGuidance}`;
     if (indexingRef) {
-      return `${base} Indexing reference: ${indexingRef}.`;
+      return `${base} Indexing ref: ${indexingRef}.`;
     }
     return base;
   }
@@ -2244,18 +2294,24 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     indexingRef?: string | null;
     availableVersions?: Array<{ version?: string | null; ref: string }> | null;
     targetResolution?: z.infer<typeof targetResolutionSchema>;
+    indexingEstimate?: z.infer<typeof indexingDurationEstimateSchema>;
   }): void {
     if (data.codeIndexState === "INDEXING") {
       const targetResolution = normaliseTargetResolution(data.targetResolution);
+      const indexingEstimate = normaliseIndexingDurationEstimate(
+        data.indexingEstimate,
+      );
       throw new CodeNavigationIndexingError(
         this.createIndexingMessage(
           data.indexingRef ?? targetResolution?.indexingRef,
+          indexingEstimate,
         ),
         data.indexingRef ?? targetResolution?.indexingRef,
         normaliseAvailableVersions(data.availableVersions) ??
           targetResolution?.availableVersions,
         targetResolution?.availableRefs,
         targetResolution,
+        indexingEstimate,
       );
     }
   }
@@ -2704,6 +2760,84 @@ function parseTargetResolution(
   const parsed = targetResolutionSchema.safeParse(raw);
   if (!parsed.success) return undefined;
   return normaliseTargetResolution(parsed.data);
+}
+
+function parseIndexingDurationEstimate(
+  extensions: Record<string, unknown> | undefined,
+): IndexingDurationEstimate | undefined {
+  const raw =
+    extensions?.estimated_indexing_duration ??
+    extensions?.estimatedIndexingDuration ??
+    extensions?.indexing_estimate ??
+    extensions?.indexingEstimate;
+  const parsed = indexingDurationEstimateSchema.safeParse(
+    normaliseRawIndexingDurationEstimate(raw),
+  );
+  if (!parsed.success) return undefined;
+  return normaliseIndexingDurationEstimate(parsed.data);
+}
+
+function normaliseRawIndexingDurationEstimate(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const record = raw as Record<string, unknown>;
+  return {
+    lowerSeconds: record.lowerSeconds ?? record.lower_seconds,
+    upperSeconds: record.upperSeconds ?? record.upper_seconds,
+    elapsedSeconds: record.elapsedSeconds ?? record.elapsed_seconds,
+    sampleCount: record.sampleCount ?? record.sample_count,
+    source: record.source,
+  };
+}
+
+function normaliseIndexingDurationEstimate(
+  estimate: z.infer<typeof indexingDurationEstimateSchema>,
+): IndexingDurationEstimate | undefined {
+  if (!estimate) return undefined;
+  const out: IndexingDurationEstimate = {};
+  if (typeof estimate.lowerSeconds === "number") {
+    out.lowerSeconds = estimate.lowerSeconds;
+  }
+  if (typeof estimate.upperSeconds === "number") {
+    out.upperSeconds = estimate.upperSeconds;
+  }
+  if (typeof estimate.elapsedSeconds === "number") {
+    out.elapsedSeconds = estimate.elapsedSeconds;
+  }
+  if (typeof estimate.sampleCount === "number") {
+    out.sampleCount = estimate.sampleCount;
+  }
+  if (typeof estimate.source === "string") out.source = estimate.source;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function formatIndexingDurationEstimate(
+  estimate: IndexingDurationEstimate | undefined,
+): string | undefined {
+  if (!estimate) return undefined;
+  const parts: string[] = [];
+  if (typeof estimate.elapsedSeconds === "number") {
+    parts.push(`Running for ${formatSeconds(estimate.elapsedSeconds)}.`);
+  }
+  if (
+    typeof estimate.lowerSeconds === "number" &&
+    typeof estimate.upperSeconds === "number"
+  ) {
+    const duration =
+      estimate.lowerSeconds === estimate.upperSeconds
+        ? formatSeconds(estimate.lowerSeconds)
+        : `${estimate.lowerSeconds} to ${formatSeconds(estimate.upperSeconds)}`;
+    parts.push(`Similar refs usually index in ${duration}.`);
+  }
+  return parts.length > 0 ? parts.join(" ") : undefined;
+}
+
+function formatSeconds(seconds: number): string {
+  return `${seconds} ${seconds === 1 ? "second" : "seconds"}`;
+}
+
+function appendRetryGuidance(hint: string, retryGuidance: string): string {
+  if (hint.includes("--wait") || hint.includes("wait_timeout_ms")) return hint;
+  return `${hint} ${retryGuidance}`;
 }
 
 function parseAvailableArtifacts(raw: unknown): AvailableVersion[] | undefined {

@@ -246,8 +246,8 @@ By default each result is a bare path for easy piping; pass
 --verbose to include language / file-type / size annotations.
 
 On an INDEXING response, the dependency is being indexed on-demand
-— retry with a longer --wait (up to 60000 ms) or pick one of the
-already-indexed versions surfaced in the error detail.`;
+— retry with a longer --wait (up to 60000 ms) or use an indexed
+ref/version from the error detail.`;
 
 export function registerCodeFilesCommand(pkgCommand: Command): Command {
   return pkgCommand

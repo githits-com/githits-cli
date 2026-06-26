@@ -210,6 +210,13 @@ describe("CodeNavigationServiceImpl", () => {
                 codeIndexState: "INDEXING",
                 indexingRef: "ref_xyz",
                 availableVersions: [{ version: "4.21.0", ref: "v4.21.0" }],
+                indexingEstimate: {
+                  lowerSeconds: 7,
+                  upperSeconds: 19,
+                  elapsedSeconds: 12,
+                  sampleCount: 9,
+                  source: "same_repository_refs",
+                },
                 targetResolution: {
                   requested: {
                     repoUrl: "https://github.com/expressjs/express",
@@ -245,6 +252,20 @@ describe("CodeNavigationServiceImpl", () => {
       expect(error).toBeInstanceOf(CodeNavigationIndexingError);
       const typed = error as CodeNavigationIndexingError;
       expect(typed.indexingRef).toBe("ref_xyz");
+      expect(typed.message).toContain("Running for 12 seconds.");
+      expect(typed.message).toContain(
+        "Similar refs usually index in 7 to 19 seconds.",
+      );
+      expect(typed.message).not.toContain(
+        "Indexing usually completes within 30 seconds",
+      );
+      expect(typed.indexingEstimate).toEqual({
+        lowerSeconds: 7,
+        upperSeconds: 19,
+        elapsedSeconds: 12,
+        sampleCount: 9,
+        source: "same_repository_refs",
+      });
       expect(typed.availableVersions).toEqual([
         { version: "4.21.0", ref: "v4.21.0" },
       ]);
@@ -417,7 +438,7 @@ describe("CodeNavigationServiceImpl", () => {
   // ------------------------------------------------------------------
 
   it("normalises a successful fetchCodeContext response", async () => {
-    mockFetch(() =>
+    const fn = mockFetch(() =>
       Promise.resolve(
         new Response(
           JSON.stringify({
@@ -449,6 +470,9 @@ describe("CodeNavigationServiceImpl", () => {
     expect(result.filePath).toBe("src/hello.js");
     expect(result.content).toContain("console.log");
     expect(result.isBinary).toBe(false);
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.query).toContain("indexingEstimate");
   });
 
   it("preserves isBinary + null content from fetchCodeContext", async () => {
@@ -894,6 +918,62 @@ describe("CodeNavigationServiceImpl", () => {
     }
   });
 
+  it("formats PACKAGE_INDEXING estimates from structured extensions", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: "Target is indexing",
+                extensions: {
+                  code: "PACKAGE_INDEXING",
+                  indexing_ref: "idx-error",
+                  hint: "Backend says this ref is queued for indexing.",
+                  indexingEstimate: {
+                    lower_seconds: 1,
+                    upper_seconds: 1,
+                    elapsed_seconds: 3,
+                    sample_count: 4,
+                    source: "same_repository_refs",
+                  },
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    try {
+      await service.listFiles({
+        target: { registry: "NPM", packageName: "express" },
+      });
+      throw new Error("expected listFiles to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationIndexingError);
+      const typed = error as CodeNavigationIndexingError;
+      expect(typed.message).toContain("Running for 3 seconds.");
+      expect(typed.message).toContain(
+        "Similar refs usually index in 1 second.",
+      );
+      expect(typed.message).not.toContain("Backend says");
+      expect(typed.message).toContain("--wait 60000");
+      expect(typed.indexingEstimate).toEqual({
+        lowerSeconds: 1,
+        upperSeconds: 1,
+        elapsedSeconds: 3,
+        sampleCount: 4,
+        source: "same_repository_refs",
+      });
+    }
+  });
+
   it("throws CodeNavigationBackendError when backend emits GREP_FILE_TOO_LARGE", async () => {
     mockFetch(() =>
       Promise.resolve(
@@ -1158,6 +1238,7 @@ describe("CodeNavigationServiceImpl", () => {
       symbolFields: ["name", "qualified_path", "kind"],
       waitTimeoutMs: 5000,
     });
+    expect(body.query).toContain("indexingEstimate");
     expect(body.query).toContain("symbol {");
     expect(body.query).toContain("name");
     expect(body.query).toContain("qualifiedPath");
@@ -1205,5 +1286,6 @@ describe("CodeNavigationServiceImpl", () => {
       limit: 100,
       waitTimeoutMs: 5000,
     });
+    expect(body.query).toContain("indexingEstimate");
   });
 });

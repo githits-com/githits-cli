@@ -18,6 +18,7 @@ import {
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
   debugLog,
+  type IndexingDurationEstimate,
   MalformedCodeNavigationResponseError,
   type SuggestedRef,
   type TargetResolution,
@@ -49,6 +50,7 @@ export interface MappedErrorDetails {
   suggestedRefs?: SuggestedRef[];
   targetResolution?: TargetResolution;
   indexingRef?: string;
+  indexingEstimate?: IndexingDurationEstimate;
   status?: number;
   graphqlCode?: string;
   /**
@@ -184,6 +186,9 @@ function classify(error: unknown): MappedError {
     }
     if (error.targetResolution) {
       details.targetResolution = error.targetResolution;
+    }
+    if (error.indexingEstimate) {
+      details.indexingEstimate = error.indexingEstimate;
     }
     return {
       code: "INDEXING",

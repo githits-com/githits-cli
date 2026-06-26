@@ -295,14 +295,14 @@ describe("renderUnifiedSearchSuccess", () => {
 describe("renderUnifiedSearchError", () => {
   it("renders a basic error", () => {
     const error: UnifiedSearchErrorPayload = {
-      error: "Target is still indexing.",
+      error: "Target is indexing.",
       code: "INDEXING",
       retryable: true,
       details: { indexingRef: "ref_xyz" },
     };
     const text = renderUnifiedSearchError(error);
     expect(text).toContain("search | ERROR | code=INDEXING | retryable");
-    expect(text).toContain("Target is still indexing.");
+    expect(text).toContain("Target is indexing.");
     expect(text).toContain("details:");
     expect(text).toContain("  indexingRef: ref_xyz");
   });

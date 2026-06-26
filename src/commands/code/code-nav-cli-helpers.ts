@@ -93,7 +93,7 @@ export function formatIndexingError(mapped: MappedError): string {
   if (mapped.code !== "INDEXING") return formatMappedErrorForTerminal(mapped);
   const detail = mapped.details ?? {};
   const lines = [mapped.message];
-  if (detail.indexingRef) lines.push(`  indexingRef: ${detail.indexingRef}`);
+  if (detail.indexingRef) lines.push(`  indexing ref: ${detail.indexingRef}`);
   const versions = detail.availableVersions;
   if (versions && versions.length > 0) {
     const shown = versions
@@ -102,7 +102,7 @@ export function formatIndexingError(mapped: MappedError): string {
       .join(", ");
     const more = versions.length - 5;
     const suffix = more > 0 ? ` (+${more} more)` : "";
-    lines.push(`  already-indexed versions: ${shown}${suffix}`);
+    lines.push(`  indexed refs/versions: ${shown}${suffix}`);
   }
   const refs = detail.availableRefs;
   if (refs && refs.length > 0) {
@@ -112,7 +112,7 @@ export function formatIndexingError(mapped: MappedError): string {
       .join(", ");
     const more = refs.length - 5;
     const suffix = more > 0 ? ` (+${more} more)` : "";
-    lines.push(`  already-indexed refs: ${shown}${suffix}`);
+    lines.push(`  indexed refs: ${shown}${suffix}`);
   }
   return lines.join("\n");
 }
