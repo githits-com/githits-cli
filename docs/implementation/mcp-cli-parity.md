@@ -312,9 +312,10 @@ envelope shape.
   terminal formatter renders `N+`.
 - **`code_read`**: envelope uses `path` (not `filePath`) to match
   `code_files.files[].path`. Binary files: `isBinary: true` +
-  `content` omitted (not `null`). `fetchCodeContext` on the
-  backend doesn't return `availableVersions` on INDEXING responses,
-  so its `details` block carries only `indexingRef`.
+  `content` omitted (not `null`). INDEXING details may carry
+  `indexingRef`, `indexingEstimate`, and any backend-provided
+  indexed refs/versions; callers must branch on whichever retry
+  candidates are present instead of assuming every tool has all fields.
 - **`code_grep`**: `GREP_REPO_PATTERN_NOTE` (exported from
   `grep-repo-request.ts`) keeps the literal-vs-regex disclosure
   identical across MCP description, MCP `pattern` describe, and

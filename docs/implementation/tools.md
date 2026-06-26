@@ -152,18 +152,25 @@ All three code-navigation tools share the same indexing-retry contract. The stat
 **`INDEXING` error envelope**:
 ```json
 {
-  "error": "Target is still indexing. …",
+  "error": "Target is indexing. Running for 12 seconds. Similar refs usually index in 7 to 19 seconds. Retry, or wait until ready with CLI `--wait 60000` / MCP `wait_timeout_ms: 60000`. Indexing ref: ref_...",
   "code": "INDEXING",
   "retryable": true,
   "details": {
     "indexingRef": "ref_…",
     "availableVersions": [{"version": "4.21.0", "ref": "v4.21.0"}],
-    "availableRefs": [{"ref": "main"}]
+    "availableRefs": [{"ref": "main"}],
+    "indexingEstimate": {
+      "lowerSeconds": 7,
+      "upperSeconds": 19,
+      "elapsedSeconds": 12,
+      "sampleCount": 9,
+      "source": "same_repository_refs"
+    }
   }
 }
 ```
 
-`details.availableVersions` and `details.availableRefs` are populated when the backend returned already-indexed artifacts alongside the sentinel. Agents can pick one to retry against immediately without waiting. `details.suggestedRefs` appears on `REF_NOT_FOUND` and inside `details.targetResolution` when the backend has fuzzy repository-ref candidates; these are suggestions only, not immediate retry guarantees. When `details.targetResolution` is present, it is explanatory provenance only; follow-up commands still use served locators / legacy served fields rather than reconstructing targets from the originally requested identity.
+`details.indexingEstimate` is populated when the backend returns duration telemetry. The user-facing message includes elapsed time and the observed lower/upper duration range when present; otherwise it falls back to the backend hint or the generic "usually completes within 30 seconds" guidance. `details.availableVersions` and `details.availableRefs` are populated when the backend returned already-indexed artifacts alongside the sentinel. Agents can pick one to retry against immediately without waiting. `details.suggestedRefs` appears on `REF_NOT_FOUND` and inside `details.targetResolution` when the backend has fuzzy repository-ref candidates; these are suggestions only, not immediate retry guarantees. When `details.targetResolution` is present, it is explanatory provenance only; follow-up commands still use served locators / legacy served fields rather than reconstructing targets from the originally requested identity.
 
 **Retry default**: `DEFAULT_WAIT_TIMEOUT_MS = 20_000` (shared, defined in `packages/mcp/src/shared/code-navigation-defaults.ts`). Applied inside each request builder so both CLI and MCP surfaces get the same default by construction. CLI's `--wait <ms>` and MCP's `wait_timeout_ms` override.
 

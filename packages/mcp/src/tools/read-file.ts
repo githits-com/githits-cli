@@ -62,7 +62,7 @@ const schema: ZodRawShape = {
     .number()
     .optional()
     .describe(
-      "Max milliseconds to wait for indexing (0–60000, default 20000). On an `INDEXING` error envelope, retry with a longer timeout or pass an already-indexed version/ref from `details.availableVersions` / `details.availableRefs`; `suggestedRefs` are fuzzy hints and may need indexing first.",
+      "Max milliseconds to wait for indexing (0-60000, default 20000). On an `INDEXING` error envelope, use `details.indexingEstimate` when present to decide whether to wait longer, or pass an already-indexed version/ref from `details.availableVersions` / `details.availableRefs`; `suggestedRefs` are fuzzy hints and may need indexing first.",
     ),
   format: z
     .enum(["json", "text", "text-v1"])
@@ -86,7 +86,8 @@ export const DESCRIPTION: string =
   "Address via `target.registry` + `target.package_name` (package " +
   "scope) or `target.repo_url` + optional `target.git_ref` (repo scope), " +
   "mutually exclusive. When fresh data is not ready within the wait " +
-  "window, responses may include `targetResolution` provenance and " +
+  "window, responses may include `targetResolution` provenance, " +
+  "`indexingEstimate`, and " +
   "immediately-queryable alternatives. `availableVersions` and " +
   "`availableRefs` are already indexed/queryable; `suggestedRefs` " +
   "are fuzzy ref hints and may need indexing first. On `INDEXING` " +
