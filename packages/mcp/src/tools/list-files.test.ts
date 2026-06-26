@@ -354,7 +354,7 @@ describe("createListFilesTool — service errors", () => {
       listFiles: mock(() =>
         Promise.reject(
           new CodeNavigationIndexingError(
-            "Target is still indexing.",
+            "Target is indexing.",
             "ref_abc",
             [{ version: "4.21.0", ref: "v4.21.0" }],
             [{ ref: "main" }],

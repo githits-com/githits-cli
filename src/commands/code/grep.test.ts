@@ -591,7 +591,7 @@ describe("pkgGrepAction", () => {
     } catch {
       /* expected */
     }
-    expect(errorSpy.mock.calls[0]?.[0]).toContain("indexingRef: ref_abc");
+    expect(errorSpy.mock.calls[0]?.[0]).toContain("indexing ref: ref_abc");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });

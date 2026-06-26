@@ -156,6 +156,9 @@ describe("mapCodeNavigationError", () => {
       "Indexing in progress",
       "idx-42",
       [{ version: "5.2.1", ref: "v5.2.1" }],
+      undefined,
+      undefined,
+      { lowerSeconds: 7, upperSeconds: 19, sampleCount: 9 },
     );
     expect(mapCodeNavigationError(err)).toEqual({
       code: "INDEXING",
@@ -164,6 +167,7 @@ describe("mapCodeNavigationError", () => {
       details: {
         indexingRef: "idx-42",
         availableVersions: [{ version: "5.2.1", ref: "v5.2.1" }],
+        indexingEstimate: { lowerSeconds: 7, upperSeconds: 19, sampleCount: 9 },
       },
     });
   });

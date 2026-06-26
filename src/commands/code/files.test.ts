@@ -507,7 +507,7 @@ describe("pkgFilesAction", () => {
     exitSpy.mockRestore();
   });
 
-  it("enriches INDEXING error with indexingRef + already-indexed versions", async () => {
+  it("enriches INDEXING error with indexing ref + indexed refs/versions", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
@@ -515,14 +515,10 @@ describe("pkgFilesAction", () => {
     const service = createMockCodeNavigationService({
       listFiles: mock(() =>
         Promise.reject(
-          new CodeNavigationIndexingError(
-            "Target is still indexing.",
-            "ref_xyz",
-            [
-              { version: "4.21.0", ref: "v4.21.0" },
-              { version: "4.20.1", ref: "v4.20.1" },
-            ],
-          ),
+          new CodeNavigationIndexingError("Target is indexing.", "ref_xyz", [
+            { version: "4.21.0", ref: "v4.21.0" },
+            { version: "4.20.1", ref: "v4.20.1" },
+          ]),
         ),
       ),
     });
@@ -538,8 +534,8 @@ describe("pkgFilesAction", () => {
     }
     const output = errorSpy.mock.calls[0]?.[0] as string;
     expect(output).toContain("indexing");
-    expect(output).toContain("indexingRef: ref_xyz");
-    expect(output).toContain("already-indexed versions: 4.21.0, 4.20.1");
+    expect(output).toContain("indexing ref: ref_xyz");
+    expect(output).toContain("indexed refs/versions: 4.21.0, 4.20.1");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });

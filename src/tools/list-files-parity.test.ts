@@ -269,11 +269,9 @@ describe("list_files parity", () => {
   it("PARITY-ERROR-ENVELOPE: INDEXING identical on both surfaces", async () => {
     const fn = mock(() =>
       Promise.reject(
-        new CodeNavigationIndexingError(
-          "Target is still indexing.",
-          "ref_abc",
-          [{ version: "4.21.0", ref: "v4.21.0" }],
-        ),
+        new CodeNavigationIndexingError("Target is indexing.", "ref_abc", [
+          { version: "4.21.0", ref: "v4.21.0" },
+        ]),
       ),
     );
     const cli = await cliJson(
