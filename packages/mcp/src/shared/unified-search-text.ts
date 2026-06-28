@@ -298,10 +298,11 @@ export function formatProgressTarget(target: {
 export function describeFreshness(value: string): string {
   switch (value) {
     case "PENDING":
+      return "pending";
     case "INDEXING":
-      return "indexing fresh target";
+      return "indexing";
     case "STALE":
-      return "served stale evidence";
+      return "previous-snapshot";
     case "CURRENT":
     case "INDEXED":
       return "current";
@@ -328,7 +329,7 @@ export function formatSourceStatus(entry: {
   }
 
   const parts: string[] = [`${entry.source} (${entry.targetLabel})`];
-  if (entry.indexingStatus) parts.push(`indexing=${entry.indexingStatus}`);
+  if (entry.indexingStatus) parts.push(`indexState=${entry.indexingStatus}`);
   if (entry.codeIndexState) parts.push(`codeIndex=${entry.codeIndexState}`);
   if (entry.ignoredFilters?.length) {
     parts.push(`ignored=${entry.ignoredFilters.join(",")}`);

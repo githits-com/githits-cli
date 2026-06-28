@@ -360,7 +360,7 @@ describe("searchAction", () => {
     );
 
     expect(String(consoleSpy.mock.calls[0]?.[0])).toContain(
-      "Search still in progress",
+      "Indexing/search still in progress",
     );
     expect(String(consoleSpy.mock.calls[0]?.[0])).toContain("search-ref-123");
     consoleSpy.mockRestore();
@@ -496,8 +496,127 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain(
-      "Warning: requested npm:express latest; served stale npm:express@5.1.0 while npm:express@5.2.1 indexes.",
+      "Warning: requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.",
     );
+    consoleSpy.mockRestore();
+  });
+
+  it("does not treat stale sourceStatus target metadata as incomplete when results completed", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const outcomeWithStaleSourceStatus: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        sourceStatus: [
+          {
+            ...defaultUnifiedSearchOutcome.result.sourceStatus[0]!,
+            indexingStatus: "INDEXING",
+            codeIndexState: "INDEXING",
+            targetResolution: {
+              requested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "master",
+              },
+              resolvedRequested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "master",
+                commitSha: "def456789abc",
+              },
+              served: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "master",
+                commitSha: "abc123789def",
+              },
+              freshness: "indexing",
+              freshnessReason: "requested_ref_indexing",
+              indexingRef: "idx_123",
+              availableVersions: [],
+              availableRefs: [{ ref: "master" }],
+            },
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router middleware",
+      { in: ["github:expressjs/express#master"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcomeWithStaleSourceStatus)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("1 result");
+    expect(output).not.toContain("Search still in progress");
+    expect(output).not.toContain("Indexing/search still in progress");
+    expect(output).not.toContain("Warning: Search completed");
+    consoleSpy.mockRestore();
+  });
+
+  it("explains completed fallback_recent sourceStatus as a recent snapshot", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const outcomeWithFallbackSourceStatus: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        sourceStatus: [
+          {
+            ...defaultUnifiedSearchOutcome.result.sourceStatus[0]!,
+            targetLabel: "github:expressjs/express#refs/heads/master",
+            targetResolution: {
+              requested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "refs/heads/master",
+              },
+              resolvedRequested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "refs/heads/master",
+                commitSha: "def456789abc",
+              },
+              served: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "master",
+                commitSha: "abc123789def",
+              },
+              freshness: "fallback_recent",
+              freshnessReason: "ref_resolution_deferred",
+              availableVersions: [],
+              availableRefs: [{ ref: "master" }],
+            },
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router middleware",
+      { in: ["github:expressjs/express#refs/heads/master"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcomeWithFallbackSourceStatus)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Using recent indexed snapshot while branch resolution is deferred",
+    );
+    expect(output).toContain("served=github:expressjs/express#master@abc1237");
+    expect(output).not.toContain("Search still in progress");
     consoleSpy.mockRestore();
   });
 
@@ -861,6 +980,62 @@ describe("searchStatusAction", () => {
 
     expect(String(consoleSpy.mock.calls[0]?.[0])).toContain("search-ref-123");
     expect(String(consoleSpy.mock.calls[0]?.[0])).toContain("searching");
+    consoleSpy.mockRestore();
+  });
+
+  it("includes target details for incomplete search refs", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchStatusAction(
+      "search-ref-123",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() =>
+            Promise.resolve(
+              createIncompleteOutcome("INDEXING", "search-ref-123", {
+                targets: [
+                  {
+                    requested: "github:expressjs/express#refs/heads/master",
+                    resolvedRequested: "github:expressjs/express#master",
+                    served: "github:expressjs/express#master",
+                    freshness: "indexing",
+                    requestedRefKind: "BRANCH",
+                    indexingRef: "idx_123",
+                    targetResolution: {
+                      requested: {
+                        repoUrl: "https://github.com/expressjs/express",
+                        gitRef: "refs/heads/master",
+                      },
+                      resolvedRequested: {
+                        repoUrl: "https://github.com/expressjs/express",
+                        gitRef: "master",
+                        commitSha: "def456789abc",
+                      },
+                      freshness: "indexing",
+                      freshnessReason: "requested_ref_indexing",
+                      indexingRef: "idx_123",
+                      availableVersions: [],
+                      availableRefs: [{ ref: "master" }],
+                    },
+                    availableRefs: [{ ref: "master" }],
+                  },
+                ],
+              }),
+            ),
+          ),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("targets:");
+    expect(output).toContain(
+      "requested=github:expressjs/express#refs/heads/master",
+    );
+    expect(output).toContain("fresh=github:expressjs/express#master");
+    expect(output).toContain("Requested ref is being indexed");
+    expect(output).toContain("queryable now: refs=master");
     consoleSpy.mockRestore();
   });
 

@@ -9,12 +9,14 @@ import {
   buildUnifiedSearchStatusPayload,
   buildUnifiedSearchSuccessPayload,
   dim,
+  formatProgressTarget,
   highlight,
   highlightMatch,
   highlightRanges,
   InvalidArgumentError,
   knownSymbolCategoryList,
   knownSymbolKindList,
+  type LeanTargetResolution,
   parseUnifiedSearchTargetSpec,
   requireAuth,
   shouldUseColors,
@@ -414,7 +416,7 @@ function formatUnifiedSearchTerminal(payload: {
     };
   }>;
   searchRef?: string;
-  progress?: { targetsReady?: number; targetsTotal?: number };
+  progress?: SearchProgressForTerminal;
   query: { raw?: string; warnings?: string[] };
   warnings?: string[];
   sourceStatus?: SourceStatusEntry[];
@@ -513,7 +515,7 @@ function formatUnifiedSearchTerminal(payload: {
 function formatSearchStatusTerminal(payload: {
   completed: false;
   searchRef: string;
-  progress?: { targetsReady?: number; targetsTotal?: number; status?: string };
+  progress?: SearchProgressForTerminal;
 }): string {
   const status = payload.progress?.status;
   const lines = [
@@ -531,6 +533,12 @@ function formatSearchStatusTerminal(payload: {
       lines.push(
         `targets ready: ${payload.progress.targetsReady}/${payload.progress.targetsTotal}`,
       );
+    }
+    if (payload.progress.targets && payload.progress.targets.length > 0) {
+      lines.push("targets:");
+      for (const target of payload.progress.targets) {
+        lines.push(`  - ${formatProgressTarget(target)}`);
+      }
     }
   }
   if (status === "TIMEOUT") {
@@ -551,6 +559,10 @@ function formatSearchStatusTerminal(payload: {
 
 function formatSearchStatusHeadline(status: string | undefined): string {
   switch (status) {
+    case "PENDING":
+    case "INDEXING":
+    case "SEARCHING":
+      return "Indexing/search still in progress.";
     case "TIMEOUT":
       return "Search timed out.";
     case "FAILED":
@@ -611,6 +623,25 @@ interface SourceStatusEntry {
   ignoredQueryFeatures?: string[];
   incompatibleQueryFeatures?: string[];
   note?: string;
+  targetResolution?: LeanTargetResolution;
+}
+
+interface SearchProgressForTerminal {
+  targetsReady?: number;
+  targetsTotal?: number;
+  status?: string;
+  targets?: Array<{
+    requested?: string;
+    resolvedRequested?: string;
+    served?: string;
+    freshness?: string;
+    indexingRef?: string;
+    requestedRefKind?: string;
+    targetResolution?: LeanTargetResolution;
+    availableVersions?: Array<{ version?: string; ref: string }>;
+    availableRefs?: Array<{ version?: string; ref: string }>;
+    suggestedRefs?: Array<{ version?: string; ref: string }>;
+  }>;
 }
 
 function formatSourceStatusNotes(

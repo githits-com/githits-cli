@@ -226,7 +226,7 @@ describe("createGrepRepoTool — happy path", () => {
                 commitSha: "abc123789def",
               },
               freshness: "fallback_recent",
-              freshnessReason: "head_refresh_deferred",
+              freshnessReason: "ref_resolution_deferred",
               availableVersions: [],
               availableRefs: [{ ref: "main" }],
             },
@@ -243,7 +243,7 @@ describe("createGrepRepoTool — happy path", () => {
     );
 
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("using recent index");
+    expect(text).toContain("Using recent indexed snapshot");
     expect(text).toContain("queryable now: refs=main");
   });
 });
