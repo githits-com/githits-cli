@@ -272,7 +272,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain(
       "code (githits-com/no-such-repo) | Repository ref cannot be resolved (UNRESOLVABLE)",
     );
-    expect(text).not.toContain("indexing fresh target");
+    expect(text).not.toContain("state=indexing");
   });
 
   it("omits the warnings preamble when no warnings are present", () => {

@@ -239,7 +239,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       freshness: "STALE",
     });
     expect(payload.warnings).toContain(
-      "requested npm:express latest; served stale npm:express@5.1.0 while npm:express@5.2.1 indexes.",
+      "requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.",
     );
   });
 
@@ -279,7 +279,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       freshness: "STALE",
     });
     expect(payload.warnings).toContain(
-      "requested github:n8n-io/n8n#n8n@2.26.5; served stale github:n8n-io/n8n#n8n@2.26.5 while github:n8n-io/n8n#n8n@2.26.9 indexes.",
+      "requested github:n8n-io/n8n#n8n@2.26.5; served older snapshot github:n8n-io/n8n#n8n@2.26.5 while github:n8n-io/n8n#n8n@2.26.9 indexes.",
     );
   });
 
@@ -379,7 +379,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
                 commitSha: "abc123789def",
               },
               freshness: "fallback_recent",
-              freshnessReason: "head_refresh_deferred",
+              freshnessReason: "ref_resolution_deferred",
               indexingRef: "idx_123",
               availableVersions: [],
               availableRefs: [{ ref: "main" }, { ref: "v4.18.2" }],
@@ -400,7 +400,9 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.sourceStatus?.[0]?.targetResolution?.freshness).toBe(
       "fallback_recent",
     );
-    expect(payload.warnings?.join("\n")).toContain("using recent index");
+    expect(payload.warnings?.join("\n")).toContain(
+      "Using recent indexed snapshot while branch resolution is deferred",
+    );
     expect(payload.warnings?.join("\n")).toContain("queryable now");
     expect(payload.warnings?.join("\n")).toContain("suggested refs");
   });
@@ -469,7 +471,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
 
     const matches = (payload.warnings ?? []).filter((entry) =>
-      entry.includes("served stale npm:zod@4.4.3"),
+      entry.includes("served older snapshot npm:zod@4.4.3"),
     );
     expect(matches).toHaveLength(1);
   });
@@ -539,7 +541,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
 
     expect(payload.warnings).toContain(
-      "requested https://github.com/foo/bar default branch; served stale main@abc123 while main@def456 indexes.",
+      "requested https://github.com/foo/bar default branch; served older snapshot main@abc123 while main@def456 indexes.",
     );
   });
 
@@ -582,7 +584,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       served: "github:n8n-io/n8n#n8n@2.26.5",
     });
     expect(payload.warnings).toContain(
-      "requested github:n8n-io/n8n#n8n@2.26.5; served stale github:n8n-io/n8n#n8n@2.26.5 while github:n8n-io/n8n#n8n@2.26.9 indexes.",
+      "requested github:n8n-io/n8n#n8n@2.26.5; served older snapshot github:n8n-io/n8n#n8n@2.26.5 while github:n8n-io/n8n#n8n@2.26.9 indexes.",
     );
   });
 
@@ -836,7 +838,7 @@ describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", ()
         },
       ]),
     ).toEqual([
-      "requested npm:express latest; served stale npm:express@5.1.0 while npm:express@5.2.1 indexes.",
+      "requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.",
     ]);
   });
 });
@@ -903,6 +905,66 @@ describe("buildUnifiedSearchSuccessPayload — sourceStatus warnings on complete
       defaultUnifiedSearchOutcome,
     );
     expect(payload.warnings).toBeUndefined();
+  });
+
+  it("omits indexing-only targetResolution on completed empty results", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        page: {
+          ...defaultUnifiedSearchOutcome.result.page,
+          returned: 0,
+          hasMore: false,
+        },
+        sourceStatus: [
+          {
+            source: "CODE",
+            targetLabel: "github:expressjs/express#master",
+            indexingStatus: "INDEXING",
+            codeIndexState: "INDEXING",
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            targetResolution: {
+              requested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "master",
+              },
+              resolvedRequested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "master",
+                commitSha: "def456789abc",
+              },
+              freshness: "indexing",
+              freshnessReason: "requested_ref_indexing",
+              indexingRef: "idx_123",
+              availableVersions: [],
+              availableRefs: [{ ref: "master" }],
+            },
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      outcome,
+    );
+
+    expect(payload.completed).toBe(true);
+    expect(payload.results).toEqual([]);
+    expect(payload.warnings).toBeUndefined();
+    expect(payload.sourceStatus).toBeUndefined();
   });
 
   it("omits warnings[] for current targetResolution on floating repo targets", () => {

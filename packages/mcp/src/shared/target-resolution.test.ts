@@ -10,7 +10,7 @@ describe("target-resolution helpers", () => {
     expect(projectTargetResolution(undefined)).toBeUndefined();
   });
 
-  it("renders fallback_recent as a compact recent-index note", () => {
+  it("renders fallback_recent as a recent snapshot note", () => {
     const notes = buildTargetResolutionNotes({
       requested: { repoUrl: "https://github.com/foo/bar" },
       resolvedRequested: {
@@ -24,12 +24,14 @@ describe("target-resolution helpers", () => {
         commitSha: "abc123789def",
       },
       freshness: "fallback_recent",
-      freshnessReason: "head_refresh_deferred",
+      freshnessReason: "ref_resolution_deferred",
       availableVersions: [],
       availableRefs: [{ ref: "main" }],
     });
 
-    expect(notes[0]).toContain("using recent index");
+    expect(notes[0]).toContain(
+      "Using recent indexed snapshot while branch resolution is deferred",
+    );
     expect(notes[0]).toContain("served=github:foo/bar#main@abc1237");
     expect(notes[0]).not.toContain("fresh=");
     expect(notes[1]).toBe("queryable now: refs=main");
@@ -49,12 +51,14 @@ describe("target-resolution helpers", () => {
         commitSha: "abc123789def",
       },
       freshness: "fallback_recent",
-      freshnessReason: "head_refresh_deferred",
+      freshnessReason: "no_current_fallback",
       availableVersions: [],
       availableRefs: [],
     });
 
-    expect(notes[0]).toContain("using recent index");
+    expect(notes[0]).toContain(
+      "Serving an older indexed snapshot; current target is still being indexed",
+    );
     expect(notes[0]).toContain("served=github:foo/bar#v1.0.0@abc1237");
     expect(notes[0]).toContain("fresh=github:foo/bar#main@def4567");
   });
@@ -71,8 +75,32 @@ describe("target-resolution helpers", () => {
     });
 
     expect(notes[0]).toBe(
-      "target unavailable | requested=github:n8n-io/n8n#n8n@2.26.5",
+      "Target unavailable | requested=github:n8n-io/n8n#n8n@2.26.5",
     );
+  });
+
+  it("renders requested_ref_indexing reason with requested and indexing refs", () => {
+    const notes = buildTargetResolutionNotes({
+      requested: {
+        repoUrl: "https://github.com/foo/bar",
+        gitRef: "feature",
+      },
+      resolvedRequested: {
+        repoUrl: "https://github.com/foo/bar",
+        gitRef: "feature",
+        commitSha: "def456789abc",
+      },
+      freshness: "indexing",
+      freshnessReason: "requested_ref_indexing",
+      indexingRef: "idx_123",
+      availableVersions: [],
+      availableRefs: [{ ref: "main" }],
+    });
+
+    expect(notes[0]).toContain("Requested ref is being indexed");
+    expect(notes[0]).toContain("requested=github:foo/bar#feature");
+    expect(notes[0]).toContain("fresh=github:foo/bar#feature@def4567");
+    expect(notes[0]).toContain("indexingRef=idx_123");
   });
 
   it("renders indexing retry candidates for versions and refs", () => {

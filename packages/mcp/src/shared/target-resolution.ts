@@ -70,33 +70,34 @@ export function buildTargetResolutionNotes(
   const requested = formatTargetResolutionIdentity(resolution.requested);
   const fresh = formatTargetResolutionIdentity(resolution.resolvedRequested);
   const served = formatTargetResolutionIdentity(resolution.served);
-  const reason = resolution.freshnessReason
-    ? ` (${resolution.freshnessReason})`
-    : "";
+  const reason = formatFreshnessReason(
+    resolution.freshnessReason,
+    resolution.freshness,
+  );
 
   switch (resolution.freshness) {
     case "fallback_recent": {
-      const parts = ["using recent index"];
+      const parts = [reason ?? "Using recent indexed snapshot"];
       if (served) parts.push(`served=${served}`);
       if (fresh && identitiesMateriallyDiffer(fresh, served)) {
         parts.push(`fresh=${fresh}`);
       }
-      lines.push(`${parts.join(" | ")}${reason}`);
+      lines.push(parts.join(" | "));
       break;
     }
     case "indexing": {
-      const parts = ["indexing fresh target"];
+      const parts = [reason ?? "Fresh target is being indexed"];
       if (requested) parts.push(`requested=${requested}`);
       if (fresh) parts.push(`fresh=${fresh}`);
       if (resolution.indexingRef)
         parts.push(`indexingRef=${resolution.indexingRef}`);
-      lines.push(`${parts.join(" | ")}${reason}`);
+      lines.push(parts.join(" | "));
       break;
     }
     case "unavailable": {
-      const parts = ["target unavailable"];
+      const parts = [reason ?? "Target unavailable"];
       if (requested) parts.push(`requested=${requested}`);
-      lines.push(`${parts.join(" | ")}${reason}`);
+      lines.push(parts.join(" | "));
       break;
     }
     case "current": {
@@ -114,7 +115,8 @@ export function buildTargetResolutionNotes(
         if (served) parts.push(`served=${served}`);
         if (requested) parts.push(`requested=${requested}`);
         if (fresh && fresh !== served) parts.push(`fresh=${fresh}`);
-        lines.push(`${parts.join(" | ")}${reason}`);
+        if (reason) parts.push(reason);
+        lines.push(parts.join(" | "));
       }
       break;
     }
@@ -125,6 +127,28 @@ export function buildTargetResolutionNotes(
   const suggestions = buildSuggestedRefsLine(resolution);
   if (suggestions) lines.push(suggestions);
   return lines;
+}
+
+function formatFreshnessReason(
+  reason: string | undefined,
+  freshness: string | undefined,
+): string | undefined {
+  switch (reason) {
+    case undefined:
+    case "exact_current":
+      return undefined;
+    case "no_current_fallback":
+      if (freshness === "fallback_recent") {
+        return "Serving an older indexed snapshot; current target is still being indexed";
+      }
+      return "Fresh target is being indexed; no current snapshot is available yet";
+    case "ref_resolution_deferred":
+      return "Using recent indexed snapshot while branch resolution is deferred";
+    case "requested_ref_indexing":
+      return "Requested ref is being indexed";
+    default:
+      return `freshnessReason=${reason}`;
+  }
 }
 
 export function buildRetryCandidateLine(

@@ -171,7 +171,7 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("warnings:");
     expect(text).toContain(
-      "requested npm:express latest; served stale npm:express@5.1.0 while npm:express@5.2.1 indexes.",
+      "requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.",
     );
   });
 
@@ -203,7 +203,7 @@ describe("searchStatusTool", () => {
                       version: "4.18.2",
                     },
                     freshness: "fallback_recent",
-                    freshnessReason: "refresh_deferred",
+                    freshnessReason: "ref_resolution_deferred",
                     availableVersions: [{ version: "4.18.2", ref: "v4.18.2" }],
                     availableRefs: [],
                   },
@@ -218,7 +218,9 @@ describe("searchStatusTool", () => {
     const result = await tool.handler({ search_ref: "search-ref-123" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("source notes:");
-    expect(text).toContain("using recent index");
+    expect(text).toContain(
+      "Using recent indexed snapshot while branch resolution is deferred",
+    );
     expect(text).toContain("queryable now: versions=4.18.2@v4.18.2");
   });
 
@@ -272,7 +274,7 @@ describe("searchStatusTool", () => {
     expect(text).toContain(
       "code (github:githits-com/no-such-repo) | Repository ref cannot be resolved (UNRESOLVABLE)",
     );
-    expect(text).not.toContain("indexing fresh target");
+    expect(text).not.toContain("state=indexing");
   });
 
   it("defaults to compact text output", async () => {
