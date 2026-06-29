@@ -40,7 +40,7 @@
     },
     "packages/mcp": {
       "name": "@githits/mcp",
-      "version": "0.5.2",
+      "version": "0.5.3",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",
         "zod": "^4.4.3",
