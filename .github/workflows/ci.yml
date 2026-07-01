@@ -24,7 +24,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Cache bun dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
@@ -87,7 +87,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Cache bun dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
