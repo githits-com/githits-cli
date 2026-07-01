@@ -1,4 +1,6 @@
-import { checkbox, confirm, select } from "@inquirer/prompts";
+import checkbox from "@inquirer/checkbox";
+import confirm from "@inquirer/confirm";
+import select from "@inquirer/select";
 
 /** Choice for checkbox prompt */
 export interface CheckboxChoice<T> {
@@ -29,7 +31,7 @@ export type ConfirmChoice = "yes" | "no" | "always";
 
 /**
  * Service interface for interactive terminal prompts.
- * Wraps @inquirer/prompts for dependency injection and testability.
+ * Wraps Inquirer prompt packages for dependency injection and testability.
  */
 export interface PromptService {
   /** Single-select prompt */
@@ -53,7 +55,7 @@ export interface PromptService {
 }
 
 /**
- * Production implementation using @inquirer/prompts.
+ * Production implementation using Inquirer prompt packages.
  */
 export class PromptServiceImpl implements PromptService {
   async select<T>(
