@@ -282,28 +282,29 @@ Full CLI reference: https://docs.githits.com/cli/commands
 
 ## Environment Variables
 
+Most users do not need environment variables. These are the common overrides for
+CI, auth storage, and local diagnostics:
+
 | Variable | Purpose | Default |
 |---|---|---|
 | `GITHITS_API_TOKEN` | API token for authentication | unset |
 | `GITHITS_AUTH_STORAGE` | Override OAuth storage mode: `keychain` or `file` | `keychain` |
-| `GITHITS_MCP_URL` | Override MCP server URL | `https://mcp.githits.com` |
-| `GITHITS_API_URL` | Override REST API URL | `https://api.githits.com` |
-| `GITHITS_CODE_NAV_URL` | Override package/source service URL | `https://pkgseer.dev` |
-| `GITHITS_TELEMETRY` | Emit timing spans to stderr for local profiling | unset |
 | `GITHITS_DISABLE_UPDATE_CHECK` | Disable npm latest-version update notices | unset |
+| `GITHITS_TELEMETRY` | Emit local timing diagnostics to stderr | unset |
 
-## Repository Layout
+Full reference: https://docs.githits.com/cli/environment-variables
 
-This repository publishes two public packages:
+## Source Layout
 
-- `githits`: the CLI, local auth storage, setup flows, local MCP stdio startup,
-  and command-line tools
-- `@githits/mcp`: reusable transport-neutral MCP server APIs, tool
-  registration, descriptors, instructions, client helpers, and smoke-test
-  helpers for remote MCP server implementations
+This repository contains the GitHits CLI and reusable MCP package:
 
-Private shared implementation lives in `packages/core-internal` and must not be
-leaked into public package artifacts.
+- `src/` - CLI commands, local auth, setup flows, and local MCP stdio startup
+- `packages/mcp/` - public `@githits/mcp` package for transport-neutral MCP
+  server APIs, tool registration, instructions, and smoke-test helpers
+- `packages/core-internal/` - shared workspace implementation used by the CLI
+  and MCP package
+- `docs/` - implementation notes and contributor guidelines
+- `scripts/` - package validation, smoke tests, and development utilities
 
 ## Development
 
