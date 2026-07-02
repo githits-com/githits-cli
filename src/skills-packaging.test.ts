@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  CLAUDE_GITHITS_MCP_SKILL_TARGET,
+  GITHITS_MCP_SKILL_SOURCE,
+  syncClaudeSkillAssets,
+} from "../scripts/sync-claude-skill-assets.ts";
 
 const root = join(import.meta.dir, "..");
 const onboardingSkillPath = join(
@@ -24,7 +30,7 @@ const claudeOnboardingSkillPath = join(
   "onboarding",
   "SKILL.md",
 );
-
+const githitsMcpSkillPath = join(root, "skills", "githits-mcp", "SKILL.md");
 async function read(path: string): Promise<string> {
   return readFile(path, "utf8");
 }
@@ -195,5 +201,56 @@ describe("agent skills packaging", () => {
     ]);
     expect(content).not.toContain("command -v githits");
     expect(content).not.toContain("{GITHITS}");
+  });
+
+  it("packages public and Claude GitHits MCP skills with OSS context triggers", async () => {
+    const publicContent = await read(githitsMcpSkillPath);
+
+    expectContainsAll(publicContent, [
+      "name: githits-mcp",
+      "default OSS context layer",
+      "package docs",
+      "repository source",
+      "vulnerabilities",
+      "changelogs",
+      "upgrade-review evidence",
+      "before relying on model memory or generic web search",
+    ]);
+
+    const tempRoot = await mkdtemp(join(tmpdir(), "githits-skill-sync-"));
+    try {
+      await mkdir(join(tempRoot, "skills", "githits-mcp"), {
+        recursive: true,
+      });
+      await writeFile(join(tempRoot, GITHITS_MCP_SKILL_SOURCE), publicContent);
+
+      await syncClaudeSkillAssets({ root: tempRoot });
+      expect(await read(join(tempRoot, CLAUDE_GITHITS_MCP_SKILL_TARGET))).toBe(
+        publicContent,
+      );
+
+      await syncClaudeSkillAssets({ root: tempRoot, clean: true });
+      await expect(
+        readFile(join(tempRoot, CLAUDE_GITHITS_MCP_SKILL_TARGET), "utf8"),
+      ).rejects.toThrow();
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("wires Claude skill asset sync into package creation", async () => {
+    const packageJson = JSON.parse(await read(join(root, "package.json"))) as {
+      scripts?: Record<string, string>;
+    };
+
+    expect(packageJson.scripts?.["sync:claude-skills"]).toContain(
+      "scripts/sync-claude-skill-assets.ts",
+    );
+    expect(packageJson.scripts?.prepack).toBe(
+      "bun run scripts/sync-claude-skill-assets.ts",
+    );
+    expect(packageJson.scripts?.postpack).toBe(
+      "bun run scripts/sync-claude-skill-assets.ts --clean",
+    );
   });
 });

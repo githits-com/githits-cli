@@ -11,6 +11,8 @@ import type {
   CompositeSetup,
   CompositeUninstall,
   ConfigFileSetup,
+  ManagedBlockSetup,
+  SkillSetup,
 } from "./agent-definitions.js";
 import type { CliCheckCommand, MergeResult } from "./setup-handlers.js";
 import {
@@ -21,6 +23,10 @@ import {
   executeCompositeUninstall,
   executeConfigFileSetup,
   executeConfigFileUninstall,
+  executeManagedBlockSetup,
+  executeManagedBlockUninstall,
+  executeSkillSetup,
+  executeSkillUninstall,
   getCliCheckStatus,
   getConfigUninstallCheckStatus,
   hasServerConfigEntry,
@@ -28,7 +34,9 @@ import {
   isCliAlreadyConfigured,
   isConfiguredForUninstall,
   isSetupAlreadyConfigured,
+  mergeManagedBlock,
   mergeServerConfig,
+  removeManagedBlock,
   removeServerConfig,
 } from "./setup-handlers.js";
 
@@ -1236,6 +1244,122 @@ args = ["-y", "githits@latest", "mcp", "start"]
       "yaml",
     );
     expect(result.status).toBe("not_configured");
+  });
+});
+
+describe("managed guidance blocks", () => {
+  const marker = "<!-- githits -->";
+  const body = "Use GitHits MCP for OSS stack context.";
+
+  it("adds and replaces only the managed block", () => {
+    const added = mergeManagedBlock("Existing docs\n", marker, body);
+    expect(added.status).toBe("added");
+    if (added.status !== "added") throw new Error("unreachable");
+    expect(added.content).toContain(`${marker}\n${body}\n${marker}`);
+    expect(added.content).toContain("Existing docs");
+
+    const updated = mergeManagedBlock(
+      `Before\n\n${marker}\nold text\n${marker}\n\nAfter\n`,
+      marker,
+      body,
+    );
+    expect(updated.status).toBe("updated");
+    if (updated.status !== "updated") throw new Error("unreachable");
+    expect(updated.content).toContain("Before");
+    expect(updated.content).toContain("After");
+    expect(updated.content).toContain(body);
+    expect(updated.content).not.toContain("old text");
+  });
+
+  it("removes only the managed block", () => {
+    const removed = removeManagedBlock(
+      `Before\n\n${marker}\n${body}\n${marker}\n\nAfter\n`,
+      marker,
+    );
+    expect(removed.status).toBe("removed");
+    if (removed.status !== "removed") throw new Error("unreachable");
+    expect(removed.content).toBe("Before\n\nAfter\n");
+  });
+
+  it("adds and removes an owned file header around managed blocks", () => {
+    const header = '---\napplyTo: "**"\n---';
+    const added = mergeManagedBlock("", marker, body, header);
+    expect(added.status).toBe("added");
+    if (added.status !== "added") throw new Error("unreachable");
+    expect(added.content).toBe(`${header}\n\n${marker}\n${body}\n${marker}\n`);
+
+    const removed = removeManagedBlock(added.content, marker, header);
+    expect(removed.status).toBe("removed");
+    if (removed.status !== "removed") throw new Error("unreachable");
+    expect(removed.content).toBe("");
+  });
+
+  it("installs and removes managed instruction files", async () => {
+    let content = "";
+    const setup: ManagedBlockSetup = {
+      method: "managed-block",
+      targetPath: "/home/test/.codex/AGENTS.md",
+      marker,
+      blockContent: body,
+    };
+    const fs = createMockFileSystemService({
+      readFile: mock(async () => content),
+      atomicWriteFile: mock(async (_path: string, next: string) => {
+        content = next;
+      }),
+    });
+
+    const installed = await executeManagedBlockSetup(setup, fs);
+    expect(installed.status).toBe("success");
+    expect(content).toContain(body);
+
+    const removed = await executeManagedBlockUninstall(setup, fs);
+    expect(removed.status).toBe("removed");
+    expect(content).toBe("");
+  });
+});
+
+describe("skill setup", () => {
+  const setup: SkillSetup = {
+    method: "skill",
+    skillName: "githits-mcp",
+    sourcePath: "/pkg/skills/githits-mcp/SKILL.md",
+    targetPath: "/home/test/.agents/skills/githits-mcp/SKILL.md",
+  };
+
+  it("copies packaged skill content and removes only the owned skill file", async () => {
+    let content: string | null = null;
+    const fs = createMockFileSystemService({
+      exists: mock(
+        async (path: string) => path === setup.targetPath && content !== null,
+      ),
+      readFile: mock(async (path: string) => {
+        if (path === setup.sourcePath) return "---\nname: githits-mcp\n---\n";
+        if (path === setup.targetPath && content !== null) return content;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      }),
+      atomicWriteFile: mock(async (_path: string, next: string) => {
+        content = next;
+      }),
+      deleteFile: mock(async () => {
+        content = null;
+      }),
+      deleteDirIfEmpty: mock(async () => {}),
+    });
+
+    const installed = await executeSkillSetup(setup, fs);
+    expect(installed.status).toBe("success");
+    expect(String(content)).toBe("---\nname: githits-mcp\n---\n");
+
+    const alreadyInstalled = await executeSkillSetup(setup, fs);
+    expect(alreadyInstalled.status).toBe("already_configured");
+
+    const removed = await executeSkillUninstall(setup, fs);
+    expect(removed.status).toBe("removed");
+    expect(fs.deleteFile).toHaveBeenCalledWith(setup.targetPath);
+    expect(fs.deleteDirIfEmpty).toHaveBeenCalledWith(
+      "/home/test/.agents/skills/githits-mcp",
+    );
   });
 });
 

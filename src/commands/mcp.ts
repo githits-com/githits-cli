@@ -92,6 +92,9 @@ function showMcpSetupInstructions(): void {
   console.log("────────────────\n");
 
   console.log("Add GitHits to your AI assistant's MCP configuration.\n");
+  console.log(
+    "For agents that support skills, prefer `githits init --guidance` so the githits-mcp skill and a short instruction pointer are installed too.\n",
+  );
 
   console.log(
     `${highlight("Claude Code", useColors)} ${dim("(recommended)", useColors)}`,

@@ -48,6 +48,11 @@ Marketplace plugin source is `./plugins/claude`, which contains:
 
 This keeps Claude runtime payload explicit and marketplace-scoped.
 
+`plugins/claude/skills/githits-mcp/SKILL.md` is generated from the canonical
+`skills/githits-mcp/SKILL.md` during package creation. The root `prepack`
+script materializes the Claude payload copy and `postpack` removes it so the
+skill content is authored in one place.
+
 ## Runtime Behavior in Local Development
 
 When running Claude from this repository directory:
@@ -66,11 +71,15 @@ Automated checks:
 - `src/plugin-config.test.ts` asserts root and Claude payload MCP server config
 - `src/plugin-manifest.test.ts` asserts Claude marketplace source points to
   `./plugins/claude`
+- `src/skills-packaging.test.ts` asserts the GitHits MCP skill is packaged from
+  the canonical root skill into the Claude payload
 
 Manual checks:
 
 - Open Plugin host install reads root package MCP config
 - Claude marketplace install loads `plugin:githits:githits`
+- `npm pack --dry-run --json` includes
+  `plugins/claude/skills/githits-mcp/SKILL.md`
 
 ## Key Reference Files
 
