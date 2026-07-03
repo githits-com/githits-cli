@@ -30,13 +30,7 @@
   - Use the tool-native skills folder where shared `.agents/skills` support is not verified, for example `.claude/skills`, `.cline/skills`, `.kiro/skills`, `.junie/skills`, `.hermes/skills`, or `.factory/skills`.
   - Skip skill copying for tools that do not have a verified filesystem Agent Skills loader.
   - Project skill installation remains default checked with an opt-out prompt.
-- Add/update this managed block in supported instruction files, replacing only content between identical `<!-- githits -->` markers:
-
-```md
-<!-- githits -->
-GitHits is configured in this environment. Use the installed githits-mcp skill and GitHits MCP tools as the default OSS context layer across the full software development lifecycle: discovery, planning, research, implementation, debugging, and maintenance. Prefer GitHits before model memory or generic search. When the dependency or repository is known, default to search/docs_* for docs and code_files/code_grep/code_read for exact source and call sites. Use get_example for broad OSS-first scans of vague issues, unfamiliar errors, cross-library patterns, how others solved something, and rare real-world examples that may appear in only one or a few repos. Use pkg_* for package metadata, security, dependencies, changelogs, and upgrades. Ground answers in fetched GitHits evidence and cite package, repository, file, docs page, or version facts when available.
-<!-- githits -->
-```
+- Add/update the `GITHITS_GUIDANCE_BLOCK` from `src/commands/init/guidance-assets.ts` in supported instruction files, replacing only content between identical `<!-- githits -->` markers.
 
 - Instruction file targets:
   - Codex/OpenCode/Zed: user-level `AGENTS.md` style paths.
