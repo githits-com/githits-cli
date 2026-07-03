@@ -5,7 +5,7 @@
 <h1 align="center">GitHits CLI</h1>
 
 <p align="center">
-  Version-aware open-source context for AI coding agents across the software development lifecycle.
+  Version-aware open-source context for agentic software development.
 </p>
 
 <p align="center">
