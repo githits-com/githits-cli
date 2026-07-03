@@ -46,7 +46,8 @@ GitHits MCP server for the tools you select.
 
 Automatic setup currently supports Claude Code, Cursor, Windsurf,
 VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI,
-Google Antigravity, OpenCode, and Hermes Agent.
+Google Antigravity, OpenCode, Hermes Agent, Zed, Junie, Qwen Code,
+Kiro, Kilo Code, Factory Droid, and Amazon Q CLI.
 
 After setup, open your coding agent and work normally. Many agents call GitHits
 when they need source-backed context. If your agent starts guessing, prompt it
