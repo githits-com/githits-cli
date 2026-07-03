@@ -1092,25 +1092,6 @@ const kiloCode: AgentDefinition = {
   },
 };
 
-/** Roo Code: project-level config only until current user-level config path is verified */
-const rooCode: AgentDefinition = {
-  name: "Roo Code",
-  id: "roo-code",
-  detectionMethod: "path",
-  setupMethod: "config-file",
-  detectPaths: (fs) => [fs.joinPath(getProjectPath(fs), ".roo")],
-  getSetupConfig: (fs) =>
-    getProjectJsonConfig(fs, [".roo", "mcp.json"], "mcpServers"),
-  userSetup: getUnsupportedProjectSetup(
-    "Roo Code user-level MCP config path not verified",
-  ),
-  projectSetup: {
-    supported: true,
-    getSetupConfig: (fs) =>
-      getProjectJsonConfig(fs, [".roo", "mcp.json"], "mcpServers"),
-  },
-};
-
 /** Factory Droid: detected by droid executable or config directory */
 const factoryDroid: AgentDefinition = {
   name: "Factory Droid",
@@ -1198,7 +1179,6 @@ export const agentDefinitions: AgentDefinition[] = [
   qwenCode,
   kiro,
   kiloCode,
-  rooCode,
   factoryDroid,
   amazonQCli,
 ];

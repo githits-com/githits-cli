@@ -86,7 +86,9 @@ Ask before writing configuration. A good prompt is: `I recommend configuring all
 
 Only install user-approved IDs. Do not run `init -y` or `init --yes` unless the user explicitly asks to configure every detected tool.
 
-4. Install GitHits MCP for approved tools using the selected scope.
+4. Install GitHits MCP and supporting guidance for approved tools using the selected scope.
+
+Guidance is installed by default. It adds the `githits-mcp` skill and a short instruction pointer for tools with verified guidance paths. Add `--no-guidance` only when the user explicitly asks for plain MCP without supporting instructions.
 
 Project-level install:
 

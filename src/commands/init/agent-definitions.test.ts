@@ -22,8 +22,8 @@ function createWindowsFileSystemService(
 }
 
 describe("agentDefinitions", () => {
-  it("defines 20 agents", () => {
-    expect(agentDefinitions).toHaveLength(20);
+  it("defines 19 agents", () => {
+    expect(agentDefinitions).toHaveLength(19);
   });
 
   it("has unique ids", () => {
@@ -492,11 +492,7 @@ describe("detection configuration", () => {
           continue;
         }
         for (const path of paths) {
-          if (agent.id === "roo-code") {
-            expect(path).toContain("/current/dir");
-          } else {
-            expect(path).toContain("/custom/home");
-          }
+          expect(path).toContain("/custom/home");
         }
       }
     } finally {
@@ -1226,7 +1222,7 @@ describe("detectAgents", () => {
     });
     const detected = await detectAgents(agentDefinitions, fs);
     // detectAgents (deprecated) checks path and hybrid agents
-    expect(detected).toHaveLength(15);
+    expect(detected).toHaveLength(14);
     expect(detected).not.toContain("claude-code");
     expect(detected).not.toContain("codex-cli");
     expect(detected).not.toContain("pi");
@@ -2522,7 +2518,7 @@ describe("scanAgents", () => {
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(19);
         expect(result.needsSetup).toHaveLength(0);
-        expect(result.notDetected.map((a) => a.id)).toEqual(["roo-code"]);
+        expect(result.notDetected).toHaveLength(0);
       });
 
       it("all agents detected but none configured", async () => {
@@ -2613,7 +2609,7 @@ describe("scanAgents", () => {
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
         expect(result.needsSetup).toHaveLength(19);
-        expect(result.notDetected.map((a) => a.id)).toEqual(["roo-code"]);
+        expect(result.notDetected).toHaveLength(0);
       });
 
       it("no agents detected", async () => {
@@ -2623,7 +2619,7 @@ describe("scanAgents", () => {
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
         expect(result.needsSetup).toHaveLength(0);
-        expect(result.notDetected).toHaveLength(20);
+        expect(result.notDetected).toHaveLength(19);
       });
 
       it("mixed: 3 configured, 4 unconfigured, 5 not detected", async () => {
@@ -2684,7 +2680,7 @@ describe("scanAgents", () => {
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(3);
         expect(result.needsSetup).toHaveLength(4);
-        expect(result.notDetected).toHaveLength(13);
+        expect(result.notDetected).toHaveLength(12);
 
         expect(result.alreadyConfigured.map((a) => a.id).sort()).toEqual(
           ["claude-code", "claude-desktop", "cursor"].sort(),
@@ -2705,7 +2701,6 @@ describe("scanAgents", () => {
             "kiro",
             "pi",
             "qwen-code",
-            "roo-code",
             "zed",
           ].sort(),
         );

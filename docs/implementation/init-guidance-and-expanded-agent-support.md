@@ -20,7 +20,7 @@
 - Defaults:
   - Interactive setup defaults to guided MCP.
   - `--yes` accepts guided MCP unless `--no-guidance` is passed.
-  - Staged `--install-agents` keeps current plain-MCP behavior unless `--guidance` is passed.
+  - Staged `--install-agents` accepts guided MCP unless `--no-guidance` is passed.
 
 ## Guidance Install
 
@@ -34,7 +34,7 @@
 
 ```md
 <!-- githits -->
-GitHits is configured in this environment. Use the installed githits-mcp skill and GitHits MCP tools as the default OSS context layer for this app stack: open-source examples, indexed repository and package source, package docs, framework/library behavior, metadata, vulnerabilities, dependency graphs, changelogs, and upgrade-review evidence. Prefer GitHits for OSS/package context before relying on model memory or generic search.
+GitHits is configured in this environment. Use the installed githits-mcp skill and GitHits MCP tools as the default OSS context layer across the full software development lifecycle: discovery, planning, research, implementation, debugging, and maintenance. Prefer GitHits before model memory or generic search. When the dependency or repository is known, default to search/docs_* for docs and code_files/code_grep/code_read for exact source and call sites. Use get_example for broad OSS-first scans of vague issues, unfamiliar errors, cross-library patterns, how others solved something, and rare real-world examples that may appear in only one or a few repos. Use pkg_* for package metadata, security, dependencies, changelogs, and upgrades. Ground answers in fetched GitHits evidence and cite package, repository, file, docs page, or version facts when available.
 <!-- githits -->
 ```
 
@@ -58,10 +58,9 @@ GitHits is configured in this environment. Use the installed githits-mcp skill a
   - Qwen Code: user `~/.qwen/settings.json`, project `.qwen/settings.json`, key `mcpServers`.
   - Kiro: user `~/.kiro/settings/mcp.json`, project `.kiro/settings/mcp.json`, key `mcpServers`.
   - Kilo Code: user `~/.config/kilo/kilo.jsonc`, project `.kilo/kilo.jsonc`, key `mcp`, local command shape.
-  - Roo Code: project `.roo/mcp.json`, key `mcpServers`; no global support until exact global path is verified.
   - Factory Droid: user `~/.factory/mcp.json`, project `.factory/mcp.json`, key `mcpServers`.
   - Amazon Q CLI: command-driven user install only, using detected `q mcp`/`qchat mcp`; no direct file editing.
-- Do not add Firebase Studio, Aider, legacy Amazon Q `mcp.json`, or any sunset/legacy-only client.
+- Do not add Firebase Studio, Aider, Roo Code, legacy Amazon Q `mcp.json`, or any sunset/legacy-only client.
 
 ## Implementation Details
 
@@ -82,5 +81,5 @@ GitHits is configured in this environment. Use the installed githits-mcp skill a
 ## Assumptions
 
 - Guidance is intentionally one paragraph; the skill carries the detailed behavior.
-- GitHits should be the default OSS context layer for app stack questions, including package docs and source evidence.
+- GitHits should be the default OSS context layer across the full software development lifecycle: discovery, planning, research, implementation, debugging, and maintenance, including package docs and source evidence.
 - Existing MCP setup behavior remains backward-compatible unless the user explicitly chooses guided setup.

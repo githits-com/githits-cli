@@ -502,6 +502,10 @@ function printNonInteractiveInitGuidance(useColors: boolean): void {
     `     ${formatCommand(`${getAgentInstallCommand("project")} <ids>`, useColors)}`,
   );
   console.log();
+  console.log(
+    "     Supporting GitHits skill and instruction guidance is installed by default; add --no-guidance only if the user asks for plain MCP.",
+  );
+  console.log();
   console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
   console.log(`  ${getAgenticVerifyInstruction("user")}`);
   console.log(`  ${getAgenticVerifyInstruction("project")}`);
@@ -846,10 +850,6 @@ const GUIDANCE_SKILL_TARGETS: Record<
     user: [SHARED_AGENTS_SKILL_PATH],
     project: [SHARED_AGENTS_SKILL_PATH],
   },
-  "roo-code": {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
-  },
   "factory-droid": {
     user: [[".factory", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
     project: [[".factory", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
@@ -1049,7 +1049,7 @@ function getGuidanceUninstallSteps(
 }
 
 function shouldInstallGuidanceForStaged(options: InitOptions): boolean {
-  return options.guidance === true;
+  return options.guidance !== false;
 }
 
 function shouldInstallGuidanceForYes(options: InitOptions): boolean {
@@ -1718,7 +1718,7 @@ function buildAgenticInstallInstructions(
 ): string[] {
   const guidanceInstruction = guidanceInstalled
     ? "GitHits supporting instructions were installed; open a new agent session so skill and instruction changes are loaded."
-    : "Supporting instructions were not installed; run staged install with --guidance if the user asks for them.";
+    : "Supporting instructions were not installed; rerun staged install without --no-guidance if the user asks for them.";
   if (authStatus === "authenticated") {
     return [
       scope === "project"

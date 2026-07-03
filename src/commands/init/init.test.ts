@@ -575,7 +575,7 @@ describe("initAction", () => {
     }) as typeof fs.atomicWriteFile;
 
     await initAction(
-      { installAgents: "cursor" },
+      { installAgents: "cursor", guidance: false },
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
@@ -1230,7 +1230,7 @@ describe("initAction", () => {
     });
 
     await initAction(
-      { installAgents: "cursor" },
+      { installAgents: "cursor", guidance: false },
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
@@ -1381,7 +1381,7 @@ describe("initAction", () => {
     expect(JSON.stringify(payload)).not.toContain("with local command");
   });
 
-  it("staged install adds supporting guidance only with --guidance", async () => {
+  it("staged install adds supporting guidance by default", async () => {
     let codexConfigured = false;
     const fs = createFsWithDetection([]);
     const writes: Record<string, string> = {};
@@ -1416,7 +1416,7 @@ describe("initAction", () => {
     });
 
     await initAction(
-      { installAgents: "codex-cli", guidance: true },
+      { installAgents: "codex-cli" },
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
@@ -1463,6 +1463,57 @@ describe("initAction", () => {
           msg.includes("~/.codex/AGENTS.md"),
       ),
     ).toBe(true);
+  });
+
+  it("staged install skips supporting guidance with --no-guidance", async () => {
+    let codexConfigured = false;
+    const fs = createFsWithDetection([]);
+    const writes: Record<string, string> = {};
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      writes[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCommandFor()} codex`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/codex\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp list") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: codexConfigured
+              ? "githits  npx -y githits@latest mcp start\n"
+              : "",
+            stderr: "",
+          });
+        }
+        if (key.startsWith("codex mcp add githits")) {
+          codexConfigured = true;
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      { installAgents: "codex-cli", guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(codexConfigured).toBe(true);
+    expect(
+      writes["/home/test/.agents/skills/githits-mcp/SKILL.md"],
+    ).toBeUndefined();
+    expect(writes["/home/test/.codex/AGENTS.md"]).toBeUndefined();
   });
 
   it("staged guided install uses a native skill path when .agents is not supported", async () => {
