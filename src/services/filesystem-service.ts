@@ -4,6 +4,7 @@ import {
   readdir,
   readFile,
   rename,
+  rmdir,
   stat,
   unlink,
   writeFile,
@@ -24,6 +25,9 @@ export interface FileSystemService {
 
   /** Delete file if it exists */
   deleteFile(path: string): Promise<void>;
+
+  /** Delete directory if it exists and is empty */
+  deleteDirIfEmpty(path: string): Promise<void>;
 
   /** Check if file exists */
   exists(path: string): Promise<boolean>;
@@ -80,6 +84,17 @@ export class FileSystemServiceImpl implements FileSystemService {
     } catch (error) {
       // Ignore if file doesn't exist
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+
+  async deleteDirIfEmpty(path: string): Promise<void> {
+    try {
+      await rmdir(path);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ENOTEMPTY" && code !== "EEXIST") {
         throw error;
       }
     }

@@ -66,6 +66,8 @@ Do not run `init -y` or `init --yes` unless the user explicitly asks to configur
 
 4. Install only approved IDs using the selected scope.
 
+Guidance is installed by default. It adds the `githits-mcp` skill and a short instruction pointer for tools with verified guidance paths. Add `--no-guidance` only when the user explicitly asks for plain MCP without supporting instructions.
+
 Project-level install:
 
 ```bash

@@ -22,8 +22,8 @@ function createWindowsFileSystemService(
 }
 
 describe("agentDefinitions", () => {
-  it("defines 12 agents", () => {
-    expect(agentDefinitions).toHaveLength(12);
+  it("defines 19 agents", () => {
+    expect(agentDefinitions).toHaveLength(19);
   });
 
   it("has unique ids", () => {
@@ -743,6 +743,36 @@ describe("getSetupConfig", () => {
     }
   });
 
+  it("amazon-q-cli returns documented q mcp add command shape", () => {
+    const fs = createMockFileSystemService();
+    const agent = agentDefinitions.find((a) => a.id === "amazon-q-cli")!;
+    const config = agent.getSetupConfig(fs, { command: "qchat" });
+
+    expect(config.method).toBe("cli");
+    if (config.method === "cli") {
+      expect(config.commands).toEqual([
+        {
+          command: "qchat",
+          args: [
+            "mcp",
+            "add",
+            "--name",
+            "githits",
+            "--command",
+            "npx",
+            "--args",
+            JSON.stringify(["-y", "githits@latest", "mcp", "start"]),
+          ],
+        },
+      ]);
+      expect(config.checkCommand).toEqual({
+        command: "qchat",
+        args: ["mcp", "list"],
+        configuredPattern: /githits/i,
+      });
+    }
+  });
+
   it("vscode returns config-file setup with servers key and stdio MCP command", () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", {
@@ -1120,11 +1150,19 @@ describe("getSetupConfig", () => {
     for (const agent of configFileAgents) {
       const config = agent.getSetupConfig(fs);
       if (config.method === "config-file") {
-        if (agent.id === "opencode") {
+        if (agent.id === "opencode" || agent.id === "kilo-code") {
           expect(config.serverConfig).toEqual({
             type: "local",
             command: ["npx", "-y", "githits@latest", "mcp", "start"],
             enabled: true,
+          });
+        } else if (agent.id === "zed") {
+          expect(config.serverConfig).toEqual({
+            source: "custom",
+            command: {
+              path: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
           });
         } else if (agent.id === "vscode") {
           expect(config.serverConfig).toEqual({
@@ -1184,7 +1222,7 @@ describe("detectAgents", () => {
     });
     const detected = await detectAgents(agentDefinitions, fs);
     // detectAgents (deprecated) checks path and hybrid agents
-    expect(detected).toHaveLength(8);
+    expect(detected).toHaveLength(14);
     expect(detected).not.toContain("claude-code");
     expect(detected).not.toContain("codex-cli");
     expect(detected).not.toContain("pi");
@@ -2222,6 +2260,12 @@ describe("scanAgents", () => {
       joinPath(homeDir, ".cline"),
       joinPath(homeDir, ".gemini", "antigravity"),
       joinPath(homeDir, ".hermes"),
+      joinPath(homeDir, ".config", "zed"),
+      joinPath(homeDir, ".junie"),
+      joinPath(homeDir, ".qwen"),
+      joinPath(homeDir, ".kiro"),
+      joinPath(homeDir, ".config", "kilo"),
+      joinPath(homeDir, ".factory"),
     ];
     // Platform-dependent detect dirs
     const vscodePath = joinPath(appDataPrefix, "Code");
@@ -2323,6 +2367,58 @@ describe("scanAgents", () => {
         '    args: ["-y", "githits@latest", "mcp", "start"]',
         "",
       ].join("\n"),
+      [joinPath(homeDir, ".config", "zed", "settings.json")]: JSON.stringify({
+        context_servers: {
+          GitHits: {
+            source: "custom",
+            command: {
+              path: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      }),
+      [joinPath(homeDir, ".junie", "mcp", "mcp.json")]: JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      [joinPath(homeDir, ".qwen", "settings.json")]: JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      [joinPath(homeDir, ".kiro", "settings", "mcp.json")]: JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      [joinPath(homeDir, ".config", "kilo", "kilo.jsonc")]: JSON.stringify({
+        mcp: {
+          GitHits: {
+            type: "local",
+            command: ["npx", "-y", "githits@latest", "mcp", "start"],
+            enabled: true,
+          },
+        },
+      }),
+      [joinPath(homeDir, ".factory", "mcp.json")]: JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
     };
 
     // Binary detection command varies by platform
@@ -2380,6 +2476,16 @@ describe("scanAgents", () => {
         stdout: "/usr/bin/hermes-agent\n",
         stderr: "",
       },
+      [`${whichCmd} q`]: {
+        exitCode: 0,
+        stdout: "/usr/bin/q\n",
+        stderr: "",
+      },
+      "q mcp list": {
+        exitCode: 0,
+        stdout: "githits\n",
+        stderr: "",
+      },
     };
 
     describe(`comprehensive all-agents scenarios (${platform})`, () => {
@@ -2410,7 +2516,7 @@ describe("scanAgents", () => {
           execResults: allCliConfigured,
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
-        expect(result.alreadyConfigured).toHaveLength(12);
+        expect(result.alreadyConfigured).toHaveLength(19);
         expect(result.needsSetup).toHaveLength(0);
         expect(result.notDetected).toHaveLength(0);
       });
@@ -2440,6 +2546,23 @@ describe("scanAgents", () => {
             mcp: {},
           }),
           [joinPath(homeDir, ".hermes", "config.yaml")]: "mcp_servers: {}\n",
+          [joinPath(homeDir, ".config", "zed", "settings.json")]:
+            JSON.stringify({ context_servers: {} }),
+          [joinPath(homeDir, ".junie", "mcp", "mcp.json")]: JSON.stringify({
+            mcpServers: {},
+          }),
+          [joinPath(homeDir, ".qwen", "settings.json")]: JSON.stringify({
+            mcpServers: {},
+          }),
+          [joinPath(homeDir, ".kiro", "settings", "mcp.json")]: JSON.stringify({
+            mcpServers: {},
+          }),
+          [joinPath(homeDir, ".config", "kilo", "kilo.jsonc")]: JSON.stringify({
+            mcp: {},
+          }),
+          [joinPath(homeDir, ".factory", "mcp.json")]: JSON.stringify({
+            mcpServers: {},
+          }),
         };
         const { fs, execService } = createScenarioScanMocks({
           detectedDirs: allDetectDirs,
@@ -2475,11 +2598,17 @@ describe("scanAgents", () => {
               stdout: "/usr/bin/hermes-agent\n",
               stderr: "",
             },
+            [`${whichCmd} q`]: {
+              exitCode: 0,
+              stdout: "/usr/bin/q\n",
+              stderr: "",
+            },
+            "q mcp list": { exitCode: 0, stdout: "", stderr: "" },
           },
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
-        expect(result.needsSetup).toHaveLength(12);
+        expect(result.needsSetup).toHaveLength(19);
         expect(result.notDetected).toHaveLength(0);
       });
 
@@ -2490,7 +2619,7 @@ describe("scanAgents", () => {
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(0);
         expect(result.needsSetup).toHaveLength(0);
-        expect(result.notDetected).toHaveLength(12);
+        expect(result.notDetected).toHaveLength(19);
       });
 
       it("mixed: 3 configured, 4 unconfigured, 5 not detected", async () => {
@@ -2551,7 +2680,7 @@ describe("scanAgents", () => {
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(result.alreadyConfigured).toHaveLength(3);
         expect(result.needsSetup).toHaveLength(4);
-        expect(result.notDetected).toHaveLength(5);
+        expect(result.notDetected).toHaveLength(12);
 
         expect(result.alreadyConfigured.map((a) => a.id).sort()).toEqual(
           ["claude-code", "claude-desktop", "cursor"].sort(),
@@ -2565,7 +2694,14 @@ describe("scanAgents", () => {
             "gemini-cli",
             "google-antigravity",
             "hermes-agent",
+            "amazon-q-cli",
+            "factory-droid",
+            "junie",
+            "kilo-code",
+            "kiro",
             "pi",
+            "qwen-code",
+            "zed",
           ].sort(),
         );
       });

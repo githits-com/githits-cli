@@ -40,6 +40,7 @@
     "smoke:mcp": "bun run scripts/mcp-smoke.ts",
     "validate:packages": "bun run scripts/validate-public-packages.ts",
     "validate:packages:mcp-publish": "bun run scripts/validate-public-packages.ts --mcp-publish-dry-run",
+    "sync:claude-skills": "bun run scripts/sync-claude-skill-assets.ts",
     "audit:pkg-ecosystems": "bun run scripts/pkg-ecosystem-audit.ts",
     "agent:e2e": "bun run scripts/agent-eval.ts",
     "agent:e2e:report": "bun run scripts/agent-eval-report.ts",
@@ -51,6 +52,8 @@
     "format:check": "biome format .",
     "lint": "biome lint .",
     "prepare": "husky",
+    "prepack": "bun run scripts/sync-claude-skill-assets.ts",
+    "postpack": "bun run scripts/sync-claude-skill-assets.ts --clean",
     "prepublishOnly": "bun run build"
   },
   "keywords": [

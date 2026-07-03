@@ -27,7 +27,12 @@ export type SetupChange =
       path: string;
       change: "created" | "updated" | "unchanged";
     }
-  | { kind: "command"; command: string; change: "ran" | "unchanged" };
+  | { kind: "command"; command: string; change: "ran" | "unchanged" }
+  | {
+      kind: "skill" | "managed-block";
+      path: string;
+      change: "created" | "updated" | "unchanged";
+    };
 
 /**
  * The uninstall counterpart of {@link SetupChange}. The verb describes the
@@ -39,7 +44,12 @@ export type SetupChange =
  */
 export type UninstallChange =
   | { kind: "config-file"; path: string; change: "updated" | "unchanged" }
-  | { kind: "command"; command: string; change: "ran" | "unchanged" };
+  | { kind: "command"; command: string; change: "ran" | "unchanged" }
+  | {
+      kind: "skill" | "managed-block";
+      path: string;
+      change: "removed" | "unchanged";
+    };
 
 /** A single rendered output row: glyph tone + three aligned columns. */
 export interface ChangeRow {
@@ -205,6 +215,16 @@ export function describeConfigAsUnchanged(config: SetupConfig): SetupChange[] {
         command: formatCliCommand(cmd),
         change: "unchanged" as const,
       }));
+    case "skill":
+      return [{ kind: "skill", path: config.targetPath, change: "unchanged" }];
+    case "managed-block":
+      return [
+        {
+          kind: "managed-block",
+          path: config.targetPath,
+          change: "unchanged",
+        },
+      ];
     case "composite":
       return config.steps.flatMap((step) => describeConfigAsUnchanged(step));
   }

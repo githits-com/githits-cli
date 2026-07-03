@@ -71,6 +71,32 @@ export interface ConfigFileSetup {
   serverConfig: Record<string, unknown>;
 }
 
+/** Setup for copying a packaged Agent Skill into a user/project skill folder. */
+export interface SkillSetup {
+  method: "skill";
+  /** Skill display/name identifier, e.g. githits-mcp. */
+  skillName: string;
+  /** Absolute path to the packaged SKILL.md source. */
+  sourcePath: string;
+  /** Alternate absolute paths for source and bundled runtimes. */
+  sourcePathCandidates?: string[];
+  /** Absolute target path for the installed SKILL.md file. */
+  targetPath: string;
+}
+
+/** Setup for a small managed text block inside an agent instruction file. */
+export interface ManagedBlockSetup {
+  method: "managed-block";
+  /** Absolute path to the instruction file. */
+  targetPath: string;
+  /** Optional file header kept before the GitHits-managed block. */
+  fileHeader?: string;
+  /** Marker used for both opening and closing lines. */
+  marker: string;
+  /** Body text written between marker lines. */
+  blockContent: string;
+}
+
 /** A setup made from multiple existing setup primitives. */
 export interface CompositeSetup {
   method: "composite";
@@ -78,10 +104,18 @@ export interface CompositeSetup {
   steps: SetupStep[];
 }
 
-export type SetupStep = CliSetup | ConfigFileSetup;
+export type SetupStep =
+  | CliSetup
+  | ConfigFileSetup
+  | SkillSetup
+  | ManagedBlockSetup;
 export type SetupConfig = SetupStep | CompositeSetup;
 
-export type UninstallStep = CliUninstall | ConfigFileSetup;
+export type UninstallStep =
+  | CliUninstall
+  | ConfigFileSetup
+  | SkillSetup
+  | ManagedBlockSetup;
 export type UninstallConfig = UninstallStep | CompositeUninstall;
 
 export const GITHITS_SERVER_NAME = "GitHits";
@@ -151,6 +185,8 @@ export interface AgentDefinition {
     fs: FileSystemService,
     context?: AgentSetupContext,
   ) => SetupConfig;
+  /** User-level setup support override for project-only agents. */
+  userSetup?: ProjectSetupSupport;
   /** Project-local MCP setup support, when the agent auto-loads repository config. */
   projectSetup?: ProjectSetupSupport;
   /** Setup config resolved during scan, including any detected command path. */
@@ -262,6 +298,24 @@ function getVsCodeMcpServerConfig(): Record<string, unknown> {
   };
 }
 
+function getLocalCommandArrayMcpServerConfig(): Record<string, unknown> {
+  return {
+    type: "local",
+    command: [...GITHITS_MCP_INVOCATION],
+    enabled: true,
+  };
+}
+
+function getZedMcpServerConfig(): Record<string, unknown> {
+  return {
+    source: "custom",
+    command: {
+      path: GITHITS_MCP_COMMAND,
+      args: [...GITHITS_MCP_ARGS],
+    },
+  };
+}
+
 function getProjectPath(fs: FileSystemService): string {
   return fs.getCwd();
 }
@@ -291,6 +345,12 @@ export function getAgentSetupConfig(
   scope: InitSetupScope = "user",
   context?: AgentSetupContext,
 ): SetupConfig | null {
+  if (scope === "user" && agent.userSetup) {
+    if (agent.userSetup.supported) {
+      return agent.userSetup.getSetupConfig(fs, context);
+    }
+    return null;
+  }
   if (scope === "project") {
     if (agent.projectSetup?.supported) {
       return agent.projectSetup.getSetupConfig(fs, context);
@@ -307,6 +367,31 @@ export function getProjectSetupUnsupportedReason(
     return null;
   }
   return agent.projectSetup?.reason ?? "project-level MCP config not verified";
+}
+
+function getUserJsonConfig(
+  fs: FileSystemService,
+  relativePath: string[],
+  serversKey: string,
+  serverConfig: Record<string, unknown> = getStandardMcpServerConfig(),
+): ConfigFileSetup {
+  return {
+    method: "config-file",
+    configPath: fs.joinPath(fs.getHomeDir(), ...relativePath),
+    serversKey,
+    serverName: GITHITS_SERVER_NAME,
+    serverConfig,
+  };
+}
+
+export function getSetupUnsupportedReason(
+  agent: AgentDefinition,
+  scope: InitSetupScope,
+): string | null {
+  if (scope === "user" && agent.userSetup) {
+    return agent.userSetup.supported ? null : agent.userSetup.reason;
+  }
+  return getProjectSetupUnsupportedReason(agent);
 }
 
 function getOpenCodeDesktopDetectPaths(fs: FileSystemService): string[] {
@@ -412,6 +497,18 @@ async function detectPiExecutable(
     }
   }
 
+  return null;
+}
+
+async function detectAmazonQCommand(
+  exec: ExecService,
+): Promise<ResolvedAgentCommand | null> {
+  if (await resolveExecutableFromPath(exec, "q")) {
+    return { command: "q" };
+  }
+  if (await resolveExecutableFromPath(exec, "qchat")) {
+    return { command: "qchat" };
+  }
   return null;
 }
 
@@ -884,6 +981,181 @@ const hermesAgent: AgentDefinition = {
   ),
 };
 
+/** Zed: detected by zed executable or config directory, configured via context_servers */
+const zed: AgentDefinition = {
+  name: "Zed",
+  id: "zed",
+  detectionMethod: "hybrid",
+  setupMethod: "config-file",
+  detectBinary: async (exec) => isExecutableAvailable(exec, "zed"),
+  detectPaths: (fs) => [
+    fs.joinPath(fs.getHomeDir(), ".config", "zed"),
+    fs.joinPath(fs.getHomeDir(), ".zed"),
+  ],
+  getSetupConfig: (fs) => ({
+    method: "config-file",
+    configPath: fs.joinPath(fs.getHomeDir(), ".config", "zed", "settings.json"),
+    serversKey: "context_servers",
+    serverName: GITHITS_SERVER_NAME,
+    serverConfig: getZedMcpServerConfig(),
+  }),
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) =>
+      getProjectJsonConfig(
+        fs,
+        [".zed", "settings.json"],
+        "context_servers",
+        getZedMcpServerConfig(),
+      ),
+  },
+};
+
+/** Junie: detected by CLI/config directory, configured via MCP JSON */
+const junie: AgentDefinition = {
+  name: "Junie",
+  id: "junie",
+  detectionMethod: "hybrid",
+  setupMethod: "config-file",
+  detectBinary: async (exec) => isExecutableAvailable(exec, "junie"),
+  detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".junie")],
+  getSetupConfig: (fs) =>
+    getUserJsonConfig(fs, [".junie", "mcp", "mcp.json"], "mcpServers"),
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) =>
+      getProjectJsonConfig(fs, [".junie", "mcp", "mcp.json"], "mcpServers"),
+  },
+};
+
+/** Qwen Code: detected by qwen executable or config directory */
+const qwenCode: AgentDefinition = {
+  name: "Qwen Code",
+  id: "qwen-code",
+  detectionMethod: "hybrid",
+  setupMethod: "config-file",
+  detectBinary: async (exec) => isExecutableAvailable(exec, "qwen"),
+  detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".qwen")],
+  getSetupConfig: (fs) =>
+    getUserJsonConfig(fs, [".qwen", "settings.json"], "mcpServers"),
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) =>
+      getProjectJsonConfig(fs, [".qwen", "settings.json"], "mcpServers"),
+  },
+};
+
+/** Kiro: detected by kiro executable or config directory */
+const kiro: AgentDefinition = {
+  name: "Kiro",
+  id: "kiro",
+  detectionMethod: "hybrid",
+  setupMethod: "config-file",
+  detectBinary: async (exec) => isExecutableAvailable(exec, "kiro"),
+  detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".kiro")],
+  getSetupConfig: (fs) =>
+    getUserJsonConfig(fs, [".kiro", "settings", "mcp.json"], "mcpServers"),
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) =>
+      getProjectJsonConfig(fs, [".kiro", "settings", "mcp.json"], "mcpServers"),
+  },
+};
+
+/** Kilo Code: detected by kilo executable or config directory */
+const kiloCode: AgentDefinition = {
+  name: "Kilo Code",
+  id: "kilo-code",
+  detectionMethod: "hybrid",
+  setupMethod: "config-file",
+  detectBinary: async (exec) => isExecutableAvailable(exec, "kilo"),
+  detectPaths: (fs) => [
+    fs.joinPath(fs.getHomeDir(), ".config", "kilo"),
+    fs.joinPath(getUserDataRoot(fs), "kilo"),
+  ],
+  getSetupConfig: (fs) =>
+    getUserJsonConfig(
+      fs,
+      [".config", "kilo", "kilo.jsonc"],
+      "mcp",
+      getLocalCommandArrayMcpServerConfig(),
+    ),
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) =>
+      getProjectJsonConfig(
+        fs,
+        [".kilo", "kilo.jsonc"],
+        "mcp",
+        getLocalCommandArrayMcpServerConfig(),
+      ),
+  },
+};
+
+/** Factory Droid: detected by droid executable or config directory */
+const factoryDroid: AgentDefinition = {
+  name: "Factory Droid",
+  id: "factory-droid",
+  detectionMethod: "hybrid",
+  setupMethod: "config-file",
+  detectBinary: async (exec) => isExecutableAvailable(exec, "droid"),
+  detectPaths: (fs) => [fs.joinPath(fs.getHomeDir(), ".factory")],
+  getSetupConfig: (fs) =>
+    getUserJsonConfig(fs, [".factory", "mcp.json"], "mcpServers"),
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) =>
+      getProjectJsonConfig(fs, [".factory", "mcp.json"], "mcpServers"),
+  },
+};
+
+/** Amazon Q CLI: detected by q/qchat executable, configured through the CLI */
+const amazonQCli: AgentDefinition = {
+  name: "Amazon Q CLI",
+  id: "amazon-q-cli",
+  detectionMethod: "binary",
+  setupMethod: "cli",
+  detectCommand: async (exec) => detectAmazonQCommand(exec),
+  getSetupConfig: (_fs, context) => {
+    const command = context?.command ?? "q";
+    return {
+      method: "cli",
+      commands: [
+        {
+          command,
+          args: [
+            "mcp",
+            "add",
+            "--name",
+            "githits",
+            "--command",
+            GITHITS_MCP_INVOCATION[0]!,
+            "--args",
+            JSON.stringify(GITHITS_MCP_INVOCATION.slice(1)),
+          ],
+        },
+      ],
+      checkCommand: {
+        command,
+        args: ["mcp", "list"],
+        configuredPattern: /githits/i,
+      },
+    };
+  },
+  getUninstallConfig: (_fs, context) => ({
+    method: "cli",
+    commands: [
+      {
+        command: context?.command ?? "q",
+        args: ["mcp", "remove", "githits"],
+      },
+    ],
+  }),
+  projectSetup: getUnsupportedProjectSetup(
+    "Amazon Q CLI project-level MCP config not verified",
+  ),
+};
+
 /**
  * All supported agent definitions, ordered by popularity/likelihood.
  * New agents should be added here.
@@ -902,6 +1174,13 @@ export const agentDefinitions: AgentDefinition[] = [
   googleAntigravity,
   openCode,
   hermesAgent,
+  zed,
+  junie,
+  qwenCode,
+  kiro,
+  kiloCode,
+  factoryDroid,
+  amazonQCli,
 ];
 
 /**
@@ -1079,8 +1358,8 @@ async function scanSingleAgent(
       status: "unsupported",
       agent,
       reason:
-        getProjectSetupUnsupportedReason(agent) ??
-        "project-level MCP config not verified",
+        getSetupUnsupportedReason(agent, scope) ??
+        `${scope}-level MCP config not verified`,
     };
   }
   const scannedAgent: AgentDefinition = {

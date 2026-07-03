@@ -5,7 +5,7 @@
 <h1 align="center">GitHits CLI</h1>
 
 <p align="center">
-  Version-aware open-source context for AI coding agents.
+  Version-aware open-source context for agentic software development.
 </p>
 
 <p align="center">
@@ -15,6 +15,7 @@
   <a href="https://github.com/githits-com/githits-cli/blob/main/LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue.svg"></a>
   <a href="https://www.npmjs.com/package/githits"><img alt="Node" src="https://img.shields.io/node/v/githits.svg"></a>
   <a href="https://modelcontextprotocol.io/"><img alt="MCP" src="https://img.shields.io/badge/MCP-enabled-5C4EE5"></a>
+  <a href="https://skills.sh/githits-com/githits-cli"><img alt="skills.sh" src="https://skills.sh/b/githits-com/githits-cli"></a>
 </p>
 
 <p align="center">
@@ -23,16 +24,16 @@
   <a href="https://github.com/githits-com/githits-cli/issues">Issues</a>
 </p>
 
-GitHits connects AI coding agents to the public open-source code, package docs,
-metadata, vulnerabilities, changelogs, dependency graphs, upgrade evidence, and
-real implementation examples they need when local repository context is not
-enough.
+GitHits connects AI coding agents to public open-source evidence across the
+full software development lifecycle: discovery, planning, research,
+implementation, debugging, and maintenance.
 
 The CLI runs a local [MCP](https://modelcontextprotocol.io/) server that your
 coding tool starts on demand. Agents can then search indexed package and
 repository source, read exact files and documentation pages, inspect package
 health, compare dependency upgrades, and find source-cited examples from real
-open-source projects.
+open-source projects when model knowledge and local repository context are not
+enough.
 
 ## Quick Start
 
@@ -45,7 +46,8 @@ GitHits MCP server for the tools you select.
 
 Automatic setup currently supports Claude Code, Cursor, Windsurf,
 VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI,
-Google Antigravity, OpenCode, and Hermes Agent.
+Google Antigravity, OpenCode, Hermes Agent, Zed, Junie, Qwen Code,
+Kiro, Kilo Code, Factory Droid, and Amazon Q CLI.
 
 After setup, open your coding agent and work normally. Many agents call GitHits
 when they need source-backed context. If your agent starts guessing, prompt it
@@ -59,8 +61,8 @@ editing code.
 
 ## What GitHits Adds
 
-GitHits is designed for the point where an agent's model knowledge and local
-repo access stop being enough:
+GitHits is designed for the point where an agent needs evidence from the
+broader open-source ecosystem, not just model memory or local repo context:
 
 | Capability | MCP tools | CLI commands |
 |---|---|---|
@@ -72,12 +74,13 @@ repo access stop being enough:
 
 Use GitHits when your agent needs to:
 
+- discover, plan, or research how OSS projects solve a vague issue or unfamiliar error
+- find broad prior art or rare needle-in-the-haystack examples across repositories
+- inspect source, tests, symbols, or docs for a known package or repository
 - verify how a dependency actually behaves before changing code
-- inspect source, tests, symbols, or docs for a specific package version
 - debug stack traces that point into third-party code
 - review package health, licenses, vulnerabilities, dependencies, and changelogs
 - compare dependency upgrades using factual evidence
-- borrow implementation patterns from real repositories, issues, discussions, and pull requests
 
 ## Examples
 

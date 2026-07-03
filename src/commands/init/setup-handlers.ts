@@ -23,7 +23,9 @@ import type {
   CompositeUninstall,
   ConfigFileFormat,
   ConfigFileSetup,
+  ManagedBlockSetup,
   SetupConfig,
+  SkillSetup,
   UninstallStep,
 } from "./agent-definitions.js";
 import { traceProbeEnd, traceProbeStart } from "./init-trace.js";
@@ -67,6 +69,16 @@ export type RemoveResult =
   | { status: "removed"; content: string }
   | { status: "not_configured" }
   | { status: "parse_error"; error: string };
+
+/** Result of inserting or replacing a managed text block. */
+export type ManagedBlockMergeResult =
+  | { status: "added" | "updated"; content: string }
+  | { status: "already_configured" };
+
+/** Result of removing a managed text block. */
+export type ManagedBlockRemoveResult =
+  | { status: "removed"; content: string }
+  | { status: "not_configured" };
 
 /** Result of checking whether a config file has a removable server entry. */
 export type ConfigUninstallCheckResult =
@@ -123,6 +135,12 @@ function normalizeConfigContent(content: string): string {
     return content.slice(1);
   }
   return content;
+}
+
+function ensureTrailingNewline(content: string): string {
+  return content.length === 0 || content.endsWith("\n")
+    ? content
+    : `${content}\n`;
 }
 
 function parseConfigObject(content: string): ParsedConfigResult {
@@ -830,6 +848,85 @@ export function removeServerConfig(
   };
 }
 
+function buildManagedBlock(marker: string, blockContent: string): string {
+  return `${marker}\n${blockContent.trim()}\n${marker}`;
+}
+
+function normalizeManagedFileHeader(fileHeader: string | undefined): string {
+  return fileHeader?.trim().length ? fileHeader.trim() : "";
+}
+
+function getManagedBlockRegex(marker: string): RegExp {
+  const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `(?:^|\\r?\\n)${escaped}\\r?\\n[\\s\\S]*?\\r?\\n${escaped}(?=\\r?\\n|$)`,
+  );
+}
+
+/**
+ * Insert or replace a small managed block in an instruction file.
+ * Only content between identical marker lines is owned by GitHits.
+ */
+export function mergeManagedBlock(
+  existingContent: string,
+  marker: string,
+  blockContent: string,
+  fileHeader?: string,
+): ManagedBlockMergeResult {
+  const block = buildManagedBlock(marker, blockContent);
+  const normalizedExisting = normalizeConfigContent(existingContent);
+  const header = normalizeManagedFileHeader(fileHeader);
+  const regex = getManagedBlockRegex(marker);
+  const match = normalizedExisting.match(regex);
+
+  if (match) {
+    const matchedBlock = match[0].replace(/^\r?\n/, "");
+    if (matchedBlock === block) {
+      return { status: "already_configured" };
+    }
+    const prefix =
+      match[0].startsWith("\n") || match[0].startsWith("\r\n") ? "\n" : "";
+    return {
+      status: "updated",
+      content: normalizedExisting.replace(regex, `${prefix}${block}`),
+    };
+  }
+
+  const base =
+    normalizedExisting.trim().length === 0 && header
+      ? ensureTrailingNewline(header)
+      : ensureTrailingNewline(normalizedExisting);
+  return {
+    status: "added",
+    content: `${base}${base.trim().length > 0 ? "\n" : ""}${block}\n`,
+  };
+}
+
+/** Remove a GitHits-managed instruction block if present. */
+export function removeManagedBlock(
+  existingContent: string,
+  marker: string,
+  fileHeader?: string,
+): ManagedBlockRemoveResult {
+  const normalizedExisting = normalizeConfigContent(existingContent);
+  const header = normalizeManagedFileHeader(fileHeader);
+  const regex = getManagedBlockRegex(marker);
+  if (!regex.test(normalizedExisting)) {
+    return { status: "not_configured" };
+  }
+  const content = normalizedExisting
+    .replace(regex, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd();
+  if (header && content.trim() === header) {
+    return { status: "removed", content: "" };
+  }
+  return {
+    status: "removed",
+    content: content.length > 0 ? `${content}\n` : "",
+  };
+}
+
 /**
  * Check whether config content contains any case-insensitive GitHits server key.
  * Used by uninstall so legacy or non-current GitHits entries can be removed.
@@ -977,6 +1074,14 @@ export async function isSetupAlreadyConfigured(
     return isAlreadyConfigured(config, fs);
   }
 
+  if (config.method === "skill") {
+    return isSkillAlreadyConfigured(config, fs);
+  }
+
+  if (config.method === "managed-block") {
+    return isManagedBlockAlreadyConfigured(config, fs);
+  }
+
   if (config.method === "cli") {
     if (!config.checkCommand) {
       return false;
@@ -990,6 +1095,38 @@ export async function isSetupAlreadyConfigured(
     }
   }
   return true;
+}
+
+async function isSkillAlreadyConfigured(
+  setup: SkillSetup,
+  fs: FileSystemService,
+): Promise<boolean> {
+  try {
+    const source = await readSkillSourceContent(setup, fs);
+    const target = await fs.readFile(setup.targetPath);
+    return source === target;
+  } catch {
+    return false;
+  }
+}
+
+async function isManagedBlockAlreadyConfigured(
+  setup: ManagedBlockSetup,
+  fs: FileSystemService,
+): Promise<boolean> {
+  try {
+    const content = await fs.readFile(setup.targetPath);
+    return (
+      mergeManagedBlock(
+        content,
+        setup.marker,
+        setup.blockContent,
+        setup.fileHeader,
+      ).status === "already_configured"
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -1355,9 +1492,16 @@ async function executeUninstallStep(
   fs: FileSystemService,
   execService: ExecService,
 ): Promise<UninstallResult> {
-  return step.method === "cli"
-    ? executeCliUninstall(step, execService)
-    : executeConfigFileUninstall(step, fs);
+  if (step.method === "cli") {
+    return executeCliUninstall(step, execService);
+  }
+  if (step.method === "config-file") {
+    return executeConfigFileUninstall(step, fs);
+  }
+  if (step.method === "skill") {
+    return executeSkillUninstall(step, fs);
+  }
+  return executeManagedBlockUninstall(step, fs);
 }
 
 /**
@@ -1448,6 +1592,151 @@ export async function executeConfigFileSetup(
   }
 }
 
+/** Execute an Agent Skill install by copying a packaged SKILL.md. */
+export async function executeSkillSetup(
+  setup: SkillSetup,
+  fs: FileSystemService,
+): Promise<SetupResult> {
+  try {
+    const sourceContent = await readSkillSourceContent(setup, fs);
+    await fs.ensureDir(fs.getDirname(setup.targetPath));
+
+    let fileExisted = true;
+    try {
+      const existingContent = await fs.readFile(setup.targetPath);
+      if (existingContent === sourceContent) {
+        return {
+          status: "already_configured",
+          message: `${setup.skillName} skill already installed`,
+          changes: [
+            { kind: "skill", path: setup.targetPath, change: "unchanged" },
+          ],
+        };
+      }
+    } catch (err) {
+      if (
+        !(err instanceof Error) ||
+        !("code" in err) ||
+        err.code !== "ENOENT"
+      ) {
+        return {
+          status: "failed",
+          message: `Cannot read ${setup.targetPath}: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+      fileExisted = false;
+    }
+
+    await fs.atomicWriteFile(setup.targetPath, sourceContent);
+    return {
+      status: "success",
+      message: "Skill installed successfully",
+      changes: [
+        {
+          kind: "skill",
+          path: setup.targetPath,
+          change: fileExisted ? "updated" : "created",
+        },
+      ],
+    };
+  } catch (err) {
+    return {
+      status: "failed",
+      message: `Failed to install ${setup.skillName} skill: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+async function readSkillSourceContent(
+  setup: SkillSetup,
+  fs: FileSystemService,
+): Promise<string> {
+  const paths = Array.from(
+    new Set([setup.sourcePath, ...(setup.sourcePathCandidates ?? [])]),
+  );
+  let lastError: unknown;
+  for (const path of paths) {
+    try {
+      return await fs.readFile(path);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  const suffix = paths.length > 1 ? ` from ${paths.join(", ")}` : "";
+  const detail =
+    lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(
+    `Cannot read ${setup.skillName} skill source${suffix}: ${detail}`,
+  );
+}
+
+/** Execute a managed instruction-block install. */
+export async function executeManagedBlockSetup(
+  setup: ManagedBlockSetup,
+  fs: FileSystemService,
+): Promise<SetupResult> {
+  try {
+    await fs.ensureDir(fs.getDirname(setup.targetPath));
+
+    let existingContent = "";
+    let fileExisted = true;
+    try {
+      existingContent = await fs.readFile(setup.targetPath);
+    } catch (err) {
+      if (
+        !(err instanceof Error) ||
+        !("code" in err) ||
+        err.code !== "ENOENT"
+      ) {
+        return {
+          status: "failed",
+          message: `Cannot read ${setup.targetPath}: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+      fileExisted = false;
+    }
+
+    const result = mergeManagedBlock(
+      existingContent,
+      setup.marker,
+      setup.blockContent,
+      setup.fileHeader,
+    );
+    if (result.status === "already_configured") {
+      return {
+        status: "already_configured",
+        message: `GitHits guidance already configured in ${setup.targetPath}`,
+        changes: [
+          {
+            kind: "managed-block",
+            path: setup.targetPath,
+            change: "unchanged",
+          },
+        ],
+      };
+    }
+
+    await fs.atomicWriteFile(setup.targetPath, result.content);
+    return {
+      status: "success",
+      message: "Guidance configured successfully",
+      changes: [
+        {
+          kind: "managed-block",
+          path: setup.targetPath,
+          change: fileExisted ? "updated" : "created",
+        },
+      ],
+    };
+  } catch (err) {
+    return {
+      status: "failed",
+      message: `Failed to configure guidance: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
 /**
  * Execute a composite setup by skipping already configured child steps and
  * applying missing steps in order. Stops on the first failure.
@@ -1471,7 +1760,11 @@ export async function executeCompositeSetup(
     const result =
       step.method === "cli"
         ? await executeCliSetup(step, execService)
-        : await executeConfigFileSetup(step, fs);
+        : step.method === "config-file"
+          ? await executeConfigFileSetup(step, fs)
+          : step.method === "skill"
+            ? await executeSkillSetup(step, fs)
+            : await executeManagedBlockSetup(step, fs);
 
     if (result.changes) {
       changes.push(...result.changes);
@@ -1575,6 +1868,104 @@ export async function executeConfigFileUninstall(
     return {
       status: "failed",
       message: `Failed to uninstall: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+/** Remove a GitHits-owned Agent Skill file. */
+export async function executeSkillUninstall(
+  setup: SkillSetup,
+  fs: FileSystemService,
+): Promise<UninstallResult> {
+  try {
+    if (!(await fs.exists(setup.targetPath))) {
+      return {
+        status: "not_configured",
+        message: `${setup.skillName} skill not installed`,
+        changes: [
+          { kind: "skill", path: setup.targetPath, change: "unchanged" },
+        ],
+      };
+    }
+    await fs.deleteFile(setup.targetPath);
+    await fs.deleteDirIfEmpty(fs.getDirname(setup.targetPath));
+    return {
+      status: "removed",
+      message: "Skill removed successfully",
+      changes: [{ kind: "skill", path: setup.targetPath, change: "removed" }],
+    };
+  } catch (err) {
+    return {
+      status: "failed",
+      message: `Failed to remove ${setup.skillName} skill: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+/** Remove a GitHits-managed instruction block. */
+export async function executeManagedBlockUninstall(
+  setup: ManagedBlockSetup,
+  fs: FileSystemService,
+): Promise<UninstallResult> {
+  try {
+    let existingContent = "";
+    try {
+      existingContent = await fs.readFile(setup.targetPath);
+    } catch (err) {
+      if (err instanceof Error && "code" in err && err.code === "ENOENT") {
+        return {
+          status: "not_configured",
+          message: `GitHits guidance not configured in ${setup.targetPath}`,
+          changes: [
+            {
+              kind: "managed-block",
+              path: setup.targetPath,
+              change: "unchanged",
+            },
+          ],
+        };
+      }
+      return {
+        status: "failed",
+        message: `Cannot read ${setup.targetPath}: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+
+    const result = removeManagedBlock(
+      existingContent,
+      setup.marker,
+      setup.fileHeader,
+    );
+    if (result.status === "not_configured") {
+      return {
+        status: "not_configured",
+        message: `GitHits guidance not configured in ${setup.targetPath}`,
+        changes: [
+          {
+            kind: "managed-block",
+            path: setup.targetPath,
+            change: "unchanged",
+          },
+        ],
+      };
+    }
+
+    await fs.atomicWriteFile(setup.targetPath, result.content);
+    return {
+      status: "removed",
+      message: "Guidance removed successfully",
+      changes: [
+        {
+          kind: "managed-block",
+          path: setup.targetPath,
+          change: "removed",
+        },
+      ],
+    };
+  } catch (err) {
+    return {
+      status: "failed",
+      message: `Failed to remove guidance: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 }

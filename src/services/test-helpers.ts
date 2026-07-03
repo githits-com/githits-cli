@@ -222,6 +222,7 @@ export function createMockFileSystemService(
     readFile: mock(() => Promise.reject(new Error("File not found"))),
     writeFile: mock(() => Promise.resolve()),
     deleteFile: mock(() => Promise.resolve()),
+    deleteDirIfEmpty: mock(() => Promise.resolve()),
     exists: mock(() => Promise.resolve(false)),
     ensureDir: mock(() => Promise.resolve()),
     getHomeDir: mock(() => "/home/test"),
@@ -1035,8 +1036,8 @@ export function createMockPromptService(
             .map((choice) => choice.value),
         ),
     ) as PromptService["checkbox"],
-    confirm: mock(() =>
-      Promise.reject(new Error("confirm called without explicit override")),
+    confirm: mock((_message: string, defaultValue?: boolean) =>
+      Promise.resolve(defaultValue ?? false),
     ),
     confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
     ...impl,
