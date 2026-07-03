@@ -84,6 +84,8 @@ export interface InitOptions {
   yes?: boolean;
   /** Skip the login step */
   skipLogin?: boolean;
+  /** Print the login URL instead of opening a browser */
+  browser?: boolean;
   /** Scan supported agents without installing anything */
   detectAgents?: boolean;
   /** Comma-separated agent IDs to install non-interactively */
@@ -677,7 +679,7 @@ const AUTH_START_CHOICES: SelectChoice<InitAuthStartChoice>[] = [
   {
     name: "Sign in now",
     value: "sign_in",
-    description: "Open your browser and connect this CLI to GitHits.",
+    description: "Connect this CLI to GitHits.",
   },
   {
     name: "Skip for now",
@@ -1918,12 +1920,16 @@ async function runInstallAgentsMode(
   console.log();
 }
 
-function printAuthExplanation(): void {
+function printAuthExplanation(options: InitOptions): void {
   console.log(
     "    GitHits authentication is required before your agent can use GitHits tools.",
   );
   console.log();
-  console.log("    We'll open your browser to connect your account.");
+  if (options.browser === false) {
+    console.log("    We'll print a sign-in URL to open in your browser.");
+  } else {
+    console.log("    We'll open your browser to connect your account.");
+  }
   console.log("    Credentials are stored securely in your OS keychain.");
   console.log();
   console.log("    No API keys or secrets are written into your MCP config.");
@@ -1959,12 +1965,14 @@ async function runInitAuthentication(
         return "authenticated";
       }
 
-      printAuthExplanation();
+      printAuthExplanation(options);
       if (!options.yes) {
         let authChoice: InitAuthStartChoice;
         try {
           authChoice = await promptService.select(
-            "  Continue with browser sign-in?",
+            options.browser === false
+              ? "  Continue with sign-in and print the URL?"
+              : "  Continue with browser sign-in?",
             AUTH_START_CHOICES,
             "sign_in",
           );
@@ -1993,7 +2001,12 @@ async function runInitAuthentication(
         }
       }
 
-      loginResult = await loginFlow({}, loginDeps, createInitLoginOutput());
+      const loginOptions = options.browser === false ? { browser: false } : {};
+      loginResult = await loginFlow(
+        loginOptions,
+        loginDeps,
+        createInitLoginOutput(),
+      );
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       loginResult = { status: "failed", message: msg };
@@ -3999,6 +4012,7 @@ export function registerInitCommand(program: Command) {
     .description(INIT_DESCRIPTION)
     .option("-y, --yes", "Skip prompts, configure all detected tools")
     .option("--skip-login", "Skip authentication step")
+    .option("--no-browser", "Print sign-in URL instead of opening browser")
     .option("--project", "Configure project-level MCP in the current directory")
     .option("--guidance", "Install supporting GitHits skill and instructions")
     .option("--no-guidance", "Install plain MCP without supporting guidance")

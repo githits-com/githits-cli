@@ -163,9 +163,9 @@ npx githits@latest login
 Browser OAuth is recommended for local development. Credentials are stored in
 the system keychain by default and refreshed automatically. Useful flags:
 
-- `--no-browser` prints a login URL for SSH, containers, or headless sessions
-- `--force` re-authenticates even if you are already logged in
-- `--port <port>` uses a specific local callback port
+- `init --no-browser` or `login --no-browser` prints a login URL for SSH, containers, or headless sessions
+- `login --force` re-authenticates even if you are already logged in
+- `login --port <port>` uses a specific local callback port
 
 For CI or non-interactive environments, use an API token:
 

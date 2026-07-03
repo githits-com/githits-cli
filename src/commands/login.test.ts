@@ -488,7 +488,11 @@ describe("loginFlow", () => {
       "Could not open browser automatically: no display\n",
     );
     expect(writes).toContain("Open this URL in your browser:\n");
-    expect(writes).toContain("  http://example.com/auth\n");
+    expect(
+      writes.some((message) =>
+        message.startsWith("  https://accounts.githits.com/oauth/authorize?"),
+      ),
+    ).toBe(true);
   });
 
   it("closes callback server and clears fresh client when authentication wait fails", async () => {
