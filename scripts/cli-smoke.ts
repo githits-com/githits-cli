@@ -445,38 +445,74 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
 }
 
 async function assertLiveOrAuthRequired(): Promise<boolean> {
-  const result = await runCli(["languages", "python", "--json"]);
-  if (result.exitCode === 0) {
-    const payload = parseJson(result.stdout, "languages auth probe");
-    assert(Array.isArray(payload), "languages auth probe: expected array");
+  const languagesResult = await runCli(["languages", "python", "--json"]);
+  if (languagesResult.exitCode !== 0) {
+    const jsonAuthPayload = assertCleanErrorEnvelope(
+      languagesResult.stderr,
+      "languages auth probe",
+    );
+    if (jsonAuthPayload.code === "AUTH_REQUIRED") {
+      console.log("AUTH_REQUIRED: live CLI smoke skipped");
+      return false;
+    }
+
+    // Non-JSON auth guidance currently comes from requireAuth(), which writes
+    // friendly instructions to stdout before throwing. Accept either stream so
+    // this smoke gate validates guidance without forcing a broader CLI
+    // stream-policy change.
+    const authGuidance =
+      `${languagesResult.stderr}\n${languagesResult.stdout}`.trim();
+    assert(
+      authGuidance.includes("Authentication required"),
+      "auth probe missing authentication guidance",
+    );
+    assert(
+      authGuidance.includes("githits login"),
+      "auth probe missing login guidance",
+    );
+    console.log("AUTH_REQUIRED: live CLI smoke skipped");
+    return false;
+  }
+
+  const languagesPayload = parseJson(
+    languagesResult.stdout,
+    "languages auth probe",
+  );
+  assert(
+    Array.isArray(languagesPayload),
+    "languages auth probe: expected array",
+  );
+
+  const packageResult = await runCli(["pkg", "info", "npm:express", "--json"]);
+  if (packageResult.exitCode === 0) {
+    const payload = parseJson(packageResult.stdout, "package auth probe");
+    assertRecord(payload, "package auth probe");
+    assert(payload.name === "express", "package auth probe: expected express");
     return true;
   }
 
   assert(
-    result.exitCode !== 0,
-    "languages auth probe: expected non-zero auth failure",
+    packageResult.exitCode !== 0,
+    "package auth probe: expected non-zero auth failure",
   );
   const jsonAuthPayload = assertCleanErrorEnvelope(
-    result.stderr,
-    "languages auth probe",
+    packageResult.stderr,
+    "package auth probe",
   );
   if (jsonAuthPayload.code === "AUTH_REQUIRED") {
     console.log("AUTH_REQUIRED: live CLI smoke skipped");
     return false;
   }
 
-  // Non-JSON auth guidance currently comes from requireAuth(), which writes
-  // friendly instructions to stdout before throwing. Accept either stream so
-  // this smoke gate validates guidance without forcing a broader CLI
-  // stream-policy change.
-  const authGuidance = `${result.stderr}\n${result.stdout}`.trim();
+  const authGuidance =
+    `${packageResult.stderr}\n${packageResult.stdout}`.trim();
   assert(
     authGuidance.includes("Authentication required"),
-    "auth probe missing authentication guidance",
+    "package auth probe missing authentication guidance",
   );
   assert(
     authGuidance.includes("githits login"),
-    "auth probe missing login guidance",
+    "package auth probe missing login guidance",
   );
   console.log("AUTH_REQUIRED: live CLI smoke skipped");
   return false;
