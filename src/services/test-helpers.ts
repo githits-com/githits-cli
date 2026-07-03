@@ -35,9 +35,9 @@ import type { UpdateCheckService } from "./update-check-service.js";
  * Default OAuth metadata for testing.
  */
 export const defaultOAuthMetadata: OAuthMetadata = {
-  authorizationEndpoint: "https://auth.example.com/oauth/authorize",
-  tokenEndpoint: "https://auth.example.com/oauth/token",
-  registrationEndpoint: "https://auth.example.com/oauth/register",
+  authorizationEndpoint: "https://accounts.githits.com/oauth/authorize",
+  tokenEndpoint: "https://accounts.githits.com/oauth/token",
+  registrationEndpoint: "https://accounts.githits.com/oauth/register",
 };
 
 /**
@@ -92,7 +92,16 @@ export function createMockAuthService(
       }),
     ),
     generatePkceParams: mock(() => defaultPkceParams),
-    buildAuthUrl: mock(() => "http://example.com/auth"),
+    buildAuthUrl: mock((params: Parameters<AuthService["buildAuthUrl"]>[0]) => {
+      const url = new URL(params.authorizationEndpoint);
+      url.searchParams.set("response_type", "code");
+      url.searchParams.set("client_id", params.clientId);
+      url.searchParams.set("redirect_uri", params.redirectUri);
+      url.searchParams.set("state", params.state);
+      url.searchParams.set("code_challenge", params.codeChallenge);
+      url.searchParams.set("code_challenge_method", "S256");
+      return url.toString();
+    }),
     startCallbackServer: mock(() =>
       Promise.resolve({
         result: Promise.resolve(defaultCallbackResult),

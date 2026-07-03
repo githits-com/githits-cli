@@ -23,7 +23,7 @@ The two methods exist because OAuth provides full access but requires a browser,
 
 The login command (`src/commands/login.ts`) orchestrates a 9-step OAuth flow (matching the `// Step N:` comments in the code):
 
-1. **Discover endpoints** — Fetch `.well-known/oauth-authorization-server` from the MCP URL
+1. **Discover endpoints** — Fetch `.well-known/oauth-authorization-server` from the MCP URL. Production OAuth endpoints are served by the GitHits Supabase account host at `https://accounts.githits.com`.
 2. **Load or register client via DCR** — Reuse stored client from `client.json`, or register a new one. Re-registers if `--port` changes the redirect URI.
 3. **Generate PKCE params** — Create `code_verifier`, `code_challenge` (S256), and `state`
 4. **Build auth URL** — Construct the authorization URL with PKCE challenge

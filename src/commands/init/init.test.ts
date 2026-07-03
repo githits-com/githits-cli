@@ -3310,6 +3310,47 @@ describe("initAction", () => {
       expect(fs.atomicWriteFile).toHaveBeenCalled();
     });
 
+    it("prints login URL instead of opening browser with --no-browser", async () => {
+      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const browserService = createMockBrowserService();
+      const promptService = createMockPromptService({
+        confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+      });
+      const createLoginDeps = mock(() =>
+        Promise.resolve({
+          authService: createMockAuthService(),
+          authStorage: createMockAuthStorage(),
+          browserService,
+          mcpUrl: "https://mcp.githits.com",
+        }),
+      );
+
+      await initAction(
+        { browser: false },
+        {
+          fileSystemService: fs,
+          promptService,
+          execService: createMockExecService(),
+          createLoginDeps,
+        },
+      );
+
+      const logCalls = getLogOutput();
+      expect(browserService.open).not.toHaveBeenCalled();
+      expect(
+        logCalls.some((msg) => msg.includes("We'll print a sign-in URL")),
+      ).toBe(true);
+      expect(
+        logCalls.some((msg) => msg.includes("Open this URL in your browser:")),
+      ).toBe(true);
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("https://accounts.githits.com/oauth/authorize"),
+        ),
+      ).toBe(true);
+      expect(fs.atomicWriteFile).toHaveBeenCalled();
+    });
+
     it("prompts to continue when login fails", async () => {
       const fs = createFsWithDetection(["/home/test/.cursor"]);
       const promptService = createMockPromptService({
@@ -5824,6 +5865,7 @@ describe("registerInitCommand", () => {
     expect(optionLongNames).toContain("--project");
     expect(optionLongNames).toContain("--guidance");
     expect(optionLongNames).toContain("--no-guidance");
+    expect(optionLongNames).toContain("--no-browser");
   });
 
   it("registers uninstall options as boolean options", () => {
