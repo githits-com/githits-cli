@@ -12,7 +12,7 @@ Prefer GitHits for external OSS/package questions about behavior, APIs, configur
 Scope boundaries:
 
 - GitHits indexes and searches public OSS repositories, package registry artifacts, and public package documentation. It does not index the user's local workspace, private repositories, uncommitted changes, or proprietary code unless that code is also available as public OSS/package evidence.
-- When the user references a public GitHub repository, GitHub file URL, package docs, or OSS registry package, prefer GitHits by translating the reference into a GitHits repository or package target. Use generic web search when GitHits lacks the content, the indexed snapshot is too stale for the task, or the target is not available through GitHits.
+- When the user references a public GitHub repository, GitHub file URL, package docs, or OSS registry package, prefer GitHits by translating the reference into a GitHits repository or package target. Use generic web search when GitHits lacks the content or the target is not available through GitHits.
 
 Use the most targeted GitHits MCP tool or combination of tools for the job:
 
