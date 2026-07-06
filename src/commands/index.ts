@@ -1,6 +1,7 @@
 export {
   type AuthStatusDependencies,
   authStatusAction,
+  authTokenAction,
   registerAuthStatusCommand,
 } from "./auth-status.js";
 export { registerCodeCommandGroup } from "./code/index.js";
