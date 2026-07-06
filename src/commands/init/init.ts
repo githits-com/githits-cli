@@ -1928,7 +1928,9 @@ function printAuthExplanation(options: InitOptions): void {
   if (options.browser === false) {
     console.log("    We'll print a sign-in URL to open in your browser.");
   } else {
-    console.log("    We'll open your browser to connect your account.");
+    console.log(
+      "    We'll open your browser to connect your account and print the sign-in URL in case the browser does not open.",
+    );
   }
   console.log("    Credentials are stored securely in your OS keychain.");
   console.log();

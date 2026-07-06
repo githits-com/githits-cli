@@ -22,7 +22,7 @@ Retry login with:
 npx -y githits@latest login --no-browser
 ```
 
-Ask the user to open the printed URL. Do not ask them to paste passwords, tokens, cookies, or OAuth codes into chat.
+Surface the printed sign-in URL clearly so the user can open it in a browser. If command output is hidden from the user, relay the URL verbatim. Do not ask them to paste passwords, tokens, cookies, or OAuth codes into chat.
 
 ## Authentication Timeout
 

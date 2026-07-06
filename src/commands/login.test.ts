@@ -460,7 +460,13 @@ describe("loginFlow", () => {
     );
 
     expect(result.status).toBe("success");
-    expect(writes).toContain("Opening browser for GitHits sign-in...");
+    expect(writes).toContain("Opening browser for GitHits sign-in...\n");
+    expect(writes).toContain("If the browser did not open, open this URL:\n");
+    expect(
+      writes.some((message) =>
+        message.startsWith("  https://accounts.githits.com/oauth/authorize?"),
+      ),
+    ).toBe(true);
     expect(writes).toContain("Waiting for sign-in to finish...\n");
     expect(consoleSpy).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
@@ -487,7 +493,7 @@ describe("loginFlow", () => {
     expect(writes).toContain(
       "Could not open browser automatically: no display\n",
     );
-    expect(writes).toContain("Open this URL in your browser:\n");
+    expect(writes).toContain("If the browser did not open, open this URL:\n");
     expect(
       writes.some((message) =>
         message.startsWith("  https://accounts.githits.com/oauth/authorize?"),
