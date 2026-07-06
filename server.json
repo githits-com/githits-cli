@@ -75,11 +75,10 @@
         "maintenance"
       ],
       "useCases": [
-        "Plan and research unfamiliar APIs, SDKs, and implementation approaches before changing code",
-        "Inspect version-specific dependency behavior, undocumented APIs, and stack traces from third-party code",
-        "Compare package documentation with indexed source for configuration, migration notes, and docs-source disagreements",
-        "Debug failing tests or integration issues by searching package source, documentation, symbols, and error messages",
-        "Review dependency selection, upgrades, vulnerabilities, dependency graphs, changelogs, and upgrade evidence"
+        "Find prior art and implementation patterns from public open-source repositories, issues, discussions, and pull requests",
+        "Search indexed packages and repositories, grep source, list files, and read exact lines without cloning",
+        "Search hosted and repo-backed package documentation, then read targeted pages and line ranges",
+        "Inspect package metadata, vulnerabilities, dependency graphs, changelogs, upgrade evidence, and package documentation"
       ]
     }
   }
