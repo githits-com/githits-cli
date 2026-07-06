@@ -143,6 +143,7 @@ describe("isAutoLoginEligibleCommand", () => {
       ["login"],
       ["logout"],
       ["auth", "status"],
+      ["auth", "token"],
       ["mcp"],
       ["mcp", "start"],
     ]) {
