@@ -63,7 +63,7 @@
         "code-examples",
         "code-navigation",
         "code-search",
-        "documentation-access",
+        "documentation-search",
         "package-inspection"
       ],
       "workflows": [
