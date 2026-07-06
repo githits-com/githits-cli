@@ -1,0 +1,41 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.githits/githits",
+  "title": "GitHits",
+  "description": "Version-aware open-source context for agentic software development.",
+  "websiteUrl": "https://githits.com",
+  "repository": {
+    "url": "https://github.com/githits-com/githits-cli",
+    "source": "github",
+    "id": "1165453165"
+  },
+  "version": "0.6.2",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.githits.com"
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "githits",
+      "version": "0.6.2",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        },
+        {
+          "type": "positional",
+          "value": "start"
+        }
+      ]
+    }
+  ]
+}

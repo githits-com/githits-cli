@@ -1,7 +1,8 @@
 {
   "name": "githits",
   "description": "Version-aware open-source context for agentic software development",
-  "version": "0.6.1",
+  "version": "0.6.2",
+  "mcpName": "com.githits/githits",
   "type": "module",
   "workspaces": [
     "packages/*"
@@ -12,6 +13,7 @@
     ".plugin",
     ".claude-plugin",
     ".mcp.json",
+    "server.json",
     "gemini-extension.json",
     "GEMINI.md",
     "plugins",

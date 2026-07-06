@@ -11,9 +11,13 @@ jobs:
         # Only run if Main workflow succeeded
         if: github.event.workflow_run.conclusion == 'success'
         runs-on: ubuntu-latest
+        environment: production
         permissions:
             contents: write
             id-token: write # Required for OIDC trusted publishing
+        env:
+            MCP_PUBLISHER_VERSION: v1.7.9
+            MCP_PUBLISHER_LINUX_AMD64_SHA256: ab128162b0616090b47cf245afe0a23f3ef08936fdce19074f5ba0a4469281ac
         steps:
             - name: Checkout
               uses: actions/checkout@v7
@@ -91,6 +95,109 @@ jobs:
             - name: Publish to npm
               if: steps.version.outputs.should_release == 'true' && steps.version.outputs.npm_published == 'false'
               run: npm publish --access public
+
+            - name: Install MCP publisher
+              if: steps.version.outputs.should_release == 'true'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+                  DOWNLOAD_DIR="$RUNNER_TEMP/mcp-publisher-download"
+                  INSTALL_DIR="$RUNNER_TEMP/mcp-publisher-bin"
+                  mkdir -p "$DOWNLOAD_DIR" "$INSTALL_DIR"
+                  gh release download "$MCP_PUBLISHER_VERSION" \
+                    --repo modelcontextprotocol/registry \
+                    --pattern "mcp-publisher_linux_amd64.tar.gz" \
+                    --dir "$DOWNLOAD_DIR"
+                  echo "${MCP_PUBLISHER_LINUX_AMD64_SHA256}  ${DOWNLOAD_DIR}/mcp-publisher_linux_amd64.tar.gz" | sha256sum --check
+                  tar -xzf "${DOWNLOAD_DIR}/mcp-publisher_linux_amd64.tar.gz" -C "$INSTALL_DIR"
+                  chmod +x "$INSTALL_DIR/mcp-publisher"
+                  echo "$INSTALL_DIR" >> "$GITHUB_PATH"
+
+            - name: Prepare MCP registry manifest
+              if: steps.version.outputs.should_release == 'true'
+              id: mcp_manifest
+              run: |
+                  set -euo pipefail
+                  VERSION="${{ steps.version.outputs.version }}"
+                  MANIFEST="$RUNNER_TEMP/server.json"
+                  jq --arg version "$VERSION" '
+                    .version = $version
+                    | (.packages[]? | select(.registryType == "npm" and .identifier == "githits") | .version) = $version
+                  ' server.json > "$MANIFEST"
+                  echo "path=$MANIFEST" >> "$GITHUB_OUTPUT"
+
+            - name: Azure login
+              if: steps.version.outputs.should_release == 'true'
+              uses: azure/login@v2
+              with:
+                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+            - name: Authenticate MCP registry
+              if: steps.version.outputs.should_release == 'true'
+              env:
+                  MCP_REGISTRY_KEY_VAULT_NAME: ${{ secrets.MCP_REGISTRY_KEY_VAULT_NAME }}
+                  MCP_REGISTRY_SIGNING_KEY_NAME: ${{ secrets.MCP_REGISTRY_SIGNING_KEY_NAME }}
+              run: |
+                  set -euo pipefail
+                  mcp-publisher login http azure-key-vault \
+                    --domain githits.com \
+                    --vault "$MCP_REGISTRY_KEY_VAULT_NAME" \
+                    --key "$MCP_REGISTRY_SIGNING_KEY_NAME"
+
+            - name: Validate MCP registry manifest
+              if: steps.version.outputs.should_release == 'true'
+              env:
+                  MCP_SERVER_JSON: ${{ steps.mcp_manifest.outputs.path }}
+              run: |
+                  set -euo pipefail
+                  jq -e '
+                    .name == "com.githits/githits"
+                    and .version == "${{ steps.version.outputs.version }}"
+                    and any(.remotes[]?; .url == "https://mcp.githits.com")
+                    and any(.packages[]?; .registryType == "npm" and .identifier == "githits" and .version == "${{ steps.version.outputs.version }}")
+                  ' "$MCP_SERVER_JSON" >/dev/null
+
+                  set +e
+                  VALIDATE_OUTPUT="$(mcp-publisher validate "$MCP_SERVER_JSON" 2>&1)"
+                  VALIDATE_STATUS=$?
+                  set -e
+                  if [ "$VALIDATE_STATUS" -eq 0 ]; then
+                    echo "$VALIDATE_OUTPUT"
+                  elif grep -qi "Unknown command: validate" <<<"$VALIDATE_OUTPUT"; then
+                    echo "::warning::mcp-publisher $MCP_PUBLISHER_VERSION does not implement validate; publish will perform registry validation"
+                  else
+                    echo "$VALIDATE_OUTPUT"
+                    exit "$VALIDATE_STATUS"
+                  fi
+
+            - name: Publish to MCP registry
+              if: steps.version.outputs.should_release == 'true'
+              env:
+                  MCP_SERVER_JSON: ${{ steps.mcp_manifest.outputs.path }}
+              run: |
+                  set -euo pipefail
+                  PUBLISH_LOG="$RUNNER_TEMP/mcp-publisher-publish.log"
+
+                  set +e
+                  mcp-publisher publish "$MCP_SERVER_JSON" >"$PUBLISH_LOG" 2>&1
+                  PUBLISH_STATUS=$?
+                  set -e
+
+                  if [ "$PUBLISH_STATUS" -eq 0 ]; then
+                    cat "$PUBLISH_LOG"
+                    exit 0
+                  fi
+
+                  if grep -Eiq "already exists|409|conflict|duplicate" "$PUBLISH_LOG"; then
+                    echo "MCP registry version already exists; treating publish as complete."
+                    exit 0
+                  fi
+
+                  cat "$PUBLISH_LOG"
+                  exit "$PUBLISH_STATUS"
 
             - name: Create GitHub Release
               if: steps.version.outputs.should_release == 'true' && steps.version.outputs.release_exists == 'false'
