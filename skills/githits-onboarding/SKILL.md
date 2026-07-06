@@ -124,13 +124,15 @@ Then run:
 npx -y githits@latest login
 ```
 
+Normal login opens the browser when possible and also prints a fallback sign-in URL. If command output is hidden from the user, relay the URL verbatim.
+
 If the browser cannot open automatically, or the session appears to be SSH/container/headless, use:
 
 ```bash
 npx -y githits@latest login --no-browser
 ```
 
-With `--no-browser`, ask the user to open the printed URL. Do not ask them to paste passwords, tokens, cookies, or OAuth codes back into chat.
+With `--no-browser`, surface the printed sign-in URL clearly so the user can open it in a browser. If command output is hidden from the user, relay the URL verbatim. Do not ask them to paste passwords, tokens, cookies, or OAuth codes back into chat.
 
 6. Verify setup after login and installation.
 

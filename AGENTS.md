@@ -1,6 +1,6 @@
 # githits Agent Instructions
 
-CLI companion for GitHits backend - provides MCP server and command-line tools for code example search.
+GitHits companion for the backend - provides MCP server and command-line tools for code example search.
 
 We strive to produce high quality code that can easily be maintained. Focus is on long term development speed, not on quick wins.
 

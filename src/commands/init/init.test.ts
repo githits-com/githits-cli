@@ -1430,7 +1430,7 @@ describe("initAction", () => {
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain("<!-- githits -->");
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
-      "default OSS context layer",
+      "GitHits has been installed to the system",
     );
 
     const logCalls = getLogOutput();

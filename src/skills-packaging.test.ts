@@ -72,6 +72,7 @@ describe("agent skills packaging", () => {
       "npx -y githits@latest init --project --install-agents",
       "npx -y githits@latest login",
       "npx -y githits@latest login --no-browser",
+      "also prints a fallback sign-in URL",
     ]);
     expect(content).not.toContain("command -v githits");
     expect(content).not.toContain("{GITHITS}");
@@ -92,6 +93,8 @@ describe("agent skills packaging", () => {
       "API keys",
       "Ask before writing configuration",
       "Ask before launching browser OAuth",
+      "surface the printed sign-in URL clearly",
+      "relay the URL verbatim",
       "Do not run `init -y` or `init --yes` unless the user explicitly asks",
     ]);
   });
@@ -208,9 +211,9 @@ describe("agent skills packaging", () => {
 
     expectContainsAll(publicContent, [
       "name: githits-mcp",
-      "default OSS context layer",
-      "full software development lifecycle",
-      "discovery, planning, research, implementation, debugging, and maintenance",
+      "OSS context layer",
+      "public OSS/package evidence",
+      "discovery, planning, research, implementation, debugging, or maintenance",
       "package docs",
       "tool or combination of tools",
       "repository source",

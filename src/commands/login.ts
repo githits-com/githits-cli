@@ -206,15 +206,15 @@ export async function loginFlow(
     output.write("Open this URL in your browser:\n");
     output.write(`  ${authUrl}\n`);
   } else {
-    output.write("Opening browser for GitHits sign-in...");
+    output.write("Opening browser for GitHits sign-in...\n");
     try {
       await browserService.open(authUrl);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       output.write(`Could not open browser automatically: ${msg}\n`);
-      output.write("Open this URL in your browser:\n");
-      output.write(`  ${authUrl}\n`);
     }
+    output.write("If the browser did not open, open this URL:\n");
+    output.write(`  ${authUrl}\n`);
   }
 
   output.write("Waiting for sign-in to finish...\n");

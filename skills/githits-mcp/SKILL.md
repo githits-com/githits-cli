@@ -1,13 +1,19 @@
 ---
 name: githits-mcp
-description: Use GitHits MCP as the default OSS context layer when a task involves open-source packages, frameworks, SDKs, libraries, CLI tools, package docs, repository source, examples, planning, research, vulnerabilities, changelogs, dependency graphs, or upgrade-review evidence. Trigger before relying on model memory or generic web search for OSS context.
+description: Use GitHits MCP as an OSS context layer when a task involves open-source packages, frameworks, SDKs, libraries, developer tools, package docs, repository source, examples, planning, research, vulnerabilities, changelogs, dependency graphs, or upgrade-review evidence. Prefer it before relying on model memory or generic web search for public OSS context.
 ---
 
 # GitHits MCP
 
-Use GitHits MCP for OSS context across the full software development lifecycle: discovery, planning, research, implementation, debugging, and maintenance. GitHits covers package docs, indexed package and repository source, cross-project examples, dependency metadata, vulnerabilities, changelogs, and upgrade-review evidence.
+Use GitHits MCP when public OSS/package evidence would materially improve discovery, planning, research, implementation, debugging, or maintenance. GitHits covers package docs, indexed package and repository source, cross-project examples, dependency metadata, vulnerabilities, changelogs, and upgrade-review evidence.
 
-Prefer GitHits when the user asks about behavior, APIs, configuration, migration, planning, research, debugging, or implementation patterns for open-source libraries, frameworks, SDKs, CLIs, packages, or repositories.
+Prefer GitHits for external OSS/package questions about behavior, APIs, configuration, migration, planning, research, debugging, or implementation patterns for open-source libraries, frameworks, SDKs, developer tools, packages, or repositories.
+
+Scope boundaries:
+
+- GitHits indexes and searches public OSS repositories, package registry artifacts, and public package documentation. It does not index the user's local workspace, private repositories, uncommitted changes, or proprietary code unless that code is also available as public OSS/package evidence.
+- For the current workspace, local files, private repositories, or uncommitted changes, GitHits is not the evidence source. Use GitHits only for external OSS dependencies, public upstream repositories, package docs, and cross-project examples.
+- When the user references a public GitHub repository, GitHub file URL, package docs, or OSS registry package, prefer GitHits by translating the reference into a GitHits repository or package target. Use generic web search when GitHits lacks the content, the indexed snapshot is too stale for the task, or the target is not available through GitHits.
 
 Use the most targeted GitHits MCP tool or combination of tools for the job:
 
