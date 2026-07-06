@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "com.githits/githits",
   "title": "GitHits",
-  "description": "Indexed public open-source code, package docs, metadata, vulnerabilities, changelogs, and examples.",
+  "description": "Public open-source code, package documentation, metadata, vulnerabilities, changelogs, and examples.",
   "websiteUrl": "https://githits.com",
   "icons": [
     {
@@ -51,7 +51,7 @@
         "githits",
         "public open-source",
         "open-source code",
-        "package docs",
+        "package documentation",
         "package metadata",
         "vulnerabilities",
         "changelogs",
@@ -62,14 +62,15 @@
       "categories": [
         "code-examples",
         "code-navigation",
+        "code-search",
         "documentation-access",
         "package-inspection"
       ],
       "useCases": [
         "Find prior art and implementation patterns from public open-source repositories, issues, discussions, and pull requests",
         "Search indexed packages and repositories, grep source, list files, and read exact lines without cloning",
-        "Search hosted and repo-backed package docs, then read targeted pages and line ranges",
-        "Inspect package metadata, vulnerabilities, dependency graphs, changelogs, upgrade evidence, and package docs"
+        "Search hosted and repo-backed package documentation, then read targeted pages and line ranges",
+        "Inspect package metadata, vulnerabilities, dependency graphs, changelogs, upgrade evidence, and package documentation"
       ]
     }
   }
