@@ -1,0 +1,85 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.githits/githits",
+  "title": "GitHits",
+  "description": "Search public open-source code, documentation, metadata, vulnerabilities, changelogs, and examples.",
+  "websiteUrl": "https://githits.com",
+  "icons": [
+    {
+      "src": "https://githits.com/assets/brand/logos/GH-Favicon-Gradient_512x512.png",
+      "mimeType": "image/png",
+      "sizes": ["512x512"]
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/githits-com/githits-cli",
+    "source": "github",
+    "id": "1165453165"
+  },
+  "version": "0.6.2",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.githits.com"
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "githits",
+      "version": "0.6.2",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        },
+        {
+          "type": "positional",
+          "value": "start"
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "keywords": [
+        "githits",
+        "public open-source",
+        "open-source code",
+        "package documentation",
+        "package metadata",
+        "vulnerabilities",
+        "changelogs",
+        "dependency graphs",
+        "upgrade evidence",
+        "implementation examples"
+      ],
+      "categories": [
+        "code-examples",
+        "code-navigation",
+        "code-search",
+        "documentation-search",
+        "package-inspection"
+      ],
+      "workflows": [
+        "planning",
+        "research",
+        "implementation",
+        "debugging",
+        "dependency review",
+        "maintenance"
+      ],
+      "useCases": [
+        "Find prior art and implementation patterns from public open-source repositories, issues, discussions, and pull requests",
+        "Search indexed packages and repositories, grep source, list files, and read exact lines without cloning",
+        "Search hosted and repo-backed package documentation, then read targeted pages and line ranges",
+        "Inspect package metadata, vulnerabilities, dependency graphs, changelogs, upgrade evidence, and package documentation"
+      ]
+    }
+  }
+}
