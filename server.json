@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "com.githits/githits",
   "title": "GitHits",
-  "description": "Version-aware open-source code, documentation, and package context for AI agents.",
+  "description": "Indexed public open-source code, package docs, metadata, vulnerabilities, changelogs, and examples.",
   "websiteUrl": "https://githits.com",
   "icons": [
     {
@@ -49,23 +49,26 @@
     "io.modelcontextprotocol.registry/publisher-provided": {
       "keywords": [
         "githits",
-        "open source",
-        "open-source",
-        "code search",
+        "public open-source",
+        "open-source code",
         "package docs",
         "package metadata",
         "vulnerabilities",
-        "security advisories",
         "changelogs",
-        "dependency intelligence",
-        "examples",
-        "coding agents"
+        "dependency graphs",
+        "upgrade evidence",
+        "implementation examples"
       ],
-      "categories": ["developer-tools", "code-search", "package-intelligence"],
+      "categories": [
+        "code-examples",
+        "code-navigation",
+        "documentation-access",
+        "package-inspection"
+      ],
       "useCases": [
-        "Find version-aware OSS code examples",
-        "Inspect package docs and metadata",
-        "Review vulnerabilities, dependencies, and changelogs"
+        "Find prior art and implementation patterns",
+        "Search indexed packages and repositories without cloning",
+        "Inspect dependency metadata, vulnerabilities, changelogs, and upgrade context"
       ]
     }
   }
