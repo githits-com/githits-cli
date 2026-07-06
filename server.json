@@ -1,8 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "com.githits/githits",
-  "title": "GitHits OSS Context",
-  "description": "Search OSS code, package docs, vulnerabilities, changelogs, and examples for AI coding agents.",
+  "title": "GitHits",
+  "description": "Version-aware open-source code, documentation, and package context for AI agents.",
   "websiteUrl": "https://githits.com",
   "icons": [
     {
@@ -49,8 +49,6 @@
     "io.modelcontextprotocol.registry/publisher-provided": {
       "keywords": [
         "githits",
-        "mcp",
-        "model context protocol",
         "open source",
         "oss",
         "code search",
@@ -61,8 +59,7 @@
         "changelogs",
         "dependency intelligence",
         "examples",
-        "coding agents",
-        "ai agents"
+        "coding agents"
       ],
       "categories": ["developer-tools", "code-search", "package-intelligence"],
       "useCases": [
