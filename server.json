@@ -1,9 +1,16 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "com.githits/githits",
-  "title": "GitHits",
-  "description": "Version-aware open-source context for agentic software development.",
+  "title": "GitHits OSS Context",
+  "description": "Search OSS code, package docs, vulnerabilities, changelogs, and examples for AI coding agents.",
   "websiteUrl": "https://githits.com",
+  "icons": [
+    {
+      "src": "https://githits.com/assets/brand/logos/GH-Favicon-Gradient_512x512.png",
+      "mimeType": "image/png",
+      "sizes": ["512x512"]
+    }
+  ],
   "repository": {
     "url": "https://github.com/githits-com/githits-cli",
     "source": "github",
@@ -37,5 +44,32 @@
         }
       ]
     }
-  ]
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "keywords": [
+        "githits",
+        "mcp",
+        "model context protocol",
+        "open source",
+        "oss",
+        "code search",
+        "package docs",
+        "package metadata",
+        "vulnerabilities",
+        "security advisories",
+        "changelogs",
+        "dependency intelligence",
+        "examples",
+        "coding agents",
+        "ai agents"
+      ],
+      "categories": ["developer-tools", "code-search", "package-intelligence"],
+      "useCases": [
+        "Find version-aware OSS code examples",
+        "Inspect package docs and metadata",
+        "Review vulnerabilities, dependencies, and changelogs"
+      ]
+    }
+  }
 }
