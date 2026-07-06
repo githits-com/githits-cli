@@ -66,9 +66,10 @@
         "package-inspection"
       ],
       "useCases": [
-        "Find prior art and implementation patterns",
-        "Search indexed packages and repositories without cloning",
-        "Inspect dependency metadata, vulnerabilities, changelogs, and upgrade context"
+        "Find prior art and implementation patterns from public open-source repositories, issues, discussions, and pull requests",
+        "Search indexed packages and repositories, grep source, list files, and read exact lines without cloning",
+        "Search hosted and repo-backed package docs, then read targeted pages and line ranges",
+        "Inspect package metadata, vulnerabilities, dependency graphs, changelogs, upgrade evidence, and package docs"
       ]
     }
   }
