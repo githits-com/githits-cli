@@ -1679,6 +1679,12 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       userAgent?: string;
       clientVersion?: string;
     } = {},
+    private readonly retryConfig?: {
+      maxRetries?: number;
+      baseDelayMs?: number;
+      maxDelayMs?: number;
+      jitter?: boolean;
+    },
   ) {}
 
   private async postGraphqlWithTargetResolutionFallback(input: {
@@ -1686,6 +1692,15 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     query: string;
     variables: Record<string, unknown>;
   }): Promise<PkgseerGraphqlResponse> {
+    const retryOptions = this.retryConfig
+      ? {
+          maxRetries: this.retryConfig.maxRetries,
+          baseDelayMs: this.retryConfig.baseDelayMs,
+          maxDelayMs: this.retryConfig.maxDelayMs,
+          jitter: this.retryConfig.jitter,
+        }
+      : undefined;
+
     const response = await postPkgseerGraphql({
       endpointUrl: this.codeNavigationUrl,
       token: input.token,
@@ -1694,6 +1709,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       fetchFn: this.fetchFn,
       clientHeaders: this.runtime.clientHeaders,
       userAgent: this.runtime.userAgent,
+      retryOptions,
     });
     if (response.status < 200 || response.status >= 300) return response;
     if (!hasSchemaMismatchErrors(response.parsedBody)) return response;
@@ -1712,6 +1728,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        retryOptions,
       });
       if (!hasSchemaMismatchErrors(fallbackResponse.parsedBody)) {
         return fallbackResponse;

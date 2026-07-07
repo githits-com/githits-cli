@@ -1,9 +1,11 @@
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   fetchWithTimeout,
+  retryFetchWithTimeout,
 } from "../shared/fetch-timeout.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import { withTelemetrySpan } from "../shared/telemetry.js";
+import type { RetryConfig } from "./config.js";
 
 /**
  * Neutral auth-required message for service/core errors. Surface layers append
@@ -101,6 +103,12 @@ export interface GitHitsServiceRuntimeOptions {
 }
 
 /**
+ * Retry configuration for HTTP requests.
+ * Re-exported from config.ts for backward compatibility.
+ */
+export type { RetryConfig } from "./config.js";
+
+/**
  * Service interface for GitHits REST API.
  */
 export interface GitHitsService {
@@ -127,24 +135,52 @@ export class GitHitsServiceImpl implements GitHitsService {
     private readonly fetchFn?: typeof fetch,
     private readonly fetchTimeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS,
     private readonly runtime: GitHitsServiceRuntimeOptions = {},
+    private readonly retryConfig?: RetryConfig,
   ) {}
 
   async search(params: SearchParams): Promise<string> {
     return withTelemetrySpan("githits.search.request", async () => {
-      const response = await fetchWithTimeout(
-        `${this.apiUrl}/search`,
-        {
-          method: "POST",
-          headers: this.headers(),
-          body: JSON.stringify({
-            query: params.query,
-            language: params.language,
-            license_mode: params.licenseMode ?? "strict",
-            include_explanation: params.includeExplanation ?? false,
-          }),
-        },
-        this.fetchOptions(),
-      );
+      const fetchFn = async (): Promise<Response> => {
+        return fetchWithTimeout(
+          `${this.apiUrl}/search`,
+          {
+            method: "POST",
+            headers: this.headers(),
+            body: JSON.stringify({
+              query: params.query,
+              language: params.language,
+              license_mode: params.licenseMode ?? "strict",
+              include_explanation: params.includeExplanation ?? false,
+            }),
+          },
+          this.fetchOptions(),
+        );
+      };
+
+      let response: Response;
+      if (this.retryConfig) {
+        // Search POST is idempotent (same query = same result)
+        response = await retryFetchWithTimeout(
+          `${this.apiUrl}/search`,
+          {
+            method: "POST",
+            headers: this.headers(),
+            body: JSON.stringify({
+              query: params.query,
+              language: params.language,
+              license_mode: params.licenseMode ?? "strict",
+              include_explanation: params.includeExplanation ?? false,
+            }),
+          },
+          {
+            ...this.fetchOptions(),
+            ...this.retryConfig,
+            idempotent: true,
+          },
+        );
+      } else {
+        response = await fetchFn();
+      }
 
       if (!response.ok) {
         throw await this.createError(response);
@@ -156,13 +192,29 @@ export class GitHitsServiceImpl implements GitHitsService {
 
   async getLanguages(): Promise<Language[]> {
     return withTelemetrySpan("githits.languages.request", async () => {
-      const response = await fetchWithTimeout(
-        `${this.apiUrl}/languages`,
-        {
-          headers: this.headers(),
-        },
-        this.fetchOptions(),
-      );
+      let response: Response;
+      if (this.retryConfig) {
+        // Languages GET is idempotent
+        response = await retryFetchWithTimeout(
+          `${this.apiUrl}/languages`,
+          {
+            headers: this.headers(),
+          },
+          {
+            ...this.fetchOptions(),
+            ...this.retryConfig,
+            idempotent: true,
+          },
+        );
+      } else {
+        response = await fetchWithTimeout(
+          `${this.apiUrl}/languages`,
+          {
+            headers: this.headers(),
+          },
+          this.fetchOptions(),
+        );
+      }
 
       if (!response.ok) {
         throw await this.createError(response);
@@ -178,13 +230,29 @@ export class GitHitsServiceImpl implements GitHitsService {
         query,
         limit: String(limit),
       });
-      const response = await fetchWithTimeout(
-        `${this.apiUrl}/languages?${params.toString()}`,
-        {
-          headers: this.headers(),
-        },
-        this.fetchOptions(),
-      );
+      let response: Response;
+      if (this.retryConfig) {
+        // Languages search GET is idempotent
+        response = await retryFetchWithTimeout(
+          `${this.apiUrl}/languages?${params.toString()}`,
+          {
+            headers: this.headers(),
+          },
+          {
+            ...this.fetchOptions(),
+            ...this.retryConfig,
+            idempotent: true,
+          },
+        );
+      } else {
+        response = await fetchWithTimeout(
+          `${this.apiUrl}/languages?${params.toString()}`,
+          {
+            headers: this.headers(),
+          },
+          this.fetchOptions(),
+        );
+      }
 
       if (!response.ok) {
         throw await this.createError(response);

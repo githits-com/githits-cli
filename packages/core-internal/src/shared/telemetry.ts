@@ -157,6 +157,36 @@ export function flushTelemetry(exitCode: number = 0): void {
   telemetryCollector.flush(exitCode);
 }
 
+// ---------------------------------------------------------------------------
+// Retry telemetry helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Record retry attempt information on a telemetry span.
+ *
+ * @param handle - The span handle to annotate
+ * @param attempt - Current attempt number (0-based, 0 = first attempt)
+ * @param maxAttempts - Maximum number of attempts allowed
+ * @param delayMs - Delay before next retry (undefined on final attempt)
+ * @param error - The error that triggered the retry
+ */
+export function recordRetryAttempt(
+  handle: TelemetrySpanHandle | undefined,
+  attempt: number,
+  maxAttempts: number,
+  delayMs: number | undefined,
+  error?: Error,
+): void {
+  if (!handle) return;
+  telemetryCollector.endSpan(handle, {
+    "retry.attempt": attempt,
+    "retry.maxAttempts": maxAttempts,
+    "retry.delayMs": delayMs ?? 0,
+    "retry.error": error?.name ?? "unknown",
+    "retry.hasMore": delayMs !== undefined,
+  });
+}
+
 export function resetTelemetryCollectorForTests(
   options: TelemetryCollectorOptions = {},
 ): void {

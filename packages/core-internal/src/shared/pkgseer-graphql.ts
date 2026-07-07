@@ -24,7 +24,12 @@
  */
 
 import { debugLog } from "./debug-log.js";
-import { DEFAULT_FETCH_TIMEOUT_MS, fetchWithTimeout } from "./fetch-timeout.js";
+import {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  fetchWithTimeout,
+  type RetryFetchOptions,
+  retryFetchWithTimeout,
+} from "./fetch-timeout.js";
 import type { ClientHeaderBuilder } from "./request-headers.js";
 
 export interface PkgseerGraphqlRequest {
@@ -44,6 +49,17 @@ export interface PkgseerGraphqlRequest {
   userAgent?: string;
   /** Optional per-runtime GitHits telemetry headers. */
   clientHeaders?: ClientHeaderBuilder;
+  /** Retry configuration for transient failures */
+  retryOptions?: {
+    /** Maximum number of retry attempts (default: 3) */
+    maxRetries?: number;
+    /** Base delay in milliseconds for exponential backoff (default: 1000) */
+    baseDelayMs?: number;
+    /** Maximum delay in milliseconds (default: 30000) */
+    maxDelayMs?: number;
+    /** Whether to add jitter to delay (default: true) */
+    jitter?: boolean;
+  };
 }
 
 export interface PkgseerGraphqlResponse {
@@ -83,42 +99,94 @@ function baseUrl(endpointUrl: string): string {
 /**
  * One authenticated POST to the pkgseer GraphQL endpoint. See module
  * comment for the scope boundary.
+ *
+ * When retryOptions are provided, retries on transient network failures
+ * with exponential backoff. GraphQL POST is idempotent (same query = same result).
  */
 export async function postPkgseerGraphql(
   request: PkgseerGraphqlRequest,
 ): Promise<PkgseerGraphqlResponse> {
   const userAgent = request.userAgent ?? "githits-cli";
   const timeoutMs = request.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
+  const { retryOptions, ...requestWithoutRetry } = request;
+
+  const fetchFn = async (): Promise<Response> => {
+    let response: Response;
+    try {
+      response = await fetchWithTimeout(
+        `${baseUrl(request.endpointUrl)}/api/graphql`,
+        {
+          method: "POST",
+          headers: {
+            ...request.clientHeaders?.(),
+            Authorization: `Bearer ${request.token}`,
+            "Content-Type": "application/json",
+            "User-Agent": userAgent,
+          },
+          body: JSON.stringify({
+            query: request.query,
+            variables: request.variables,
+          }),
+        },
+        { fetchFn: request.fetchFn, timeoutMs },
+      );
+    } catch (cause) {
+      debugLog("pkg-graphql", {
+        event: "transport-error",
+        errorName: cause instanceof Error ? cause.name : typeof cause,
+        hasCause: true,
+      });
+      throw new PkgseerTransportError(
+        "Network request failed before a response was received. Caller should re-wrap with a domain-specific message.",
+        { cause },
+      );
+    }
+
+    return response;
+  };
 
   let response: Response;
-  try {
-    response = await fetchWithTimeout(
-      `${baseUrl(request.endpointUrl)}/api/graphql`,
-      {
-        method: "POST",
-        headers: {
-          ...request.clientHeaders?.(),
-          Authorization: `Bearer ${request.token}`,
-          "Content-Type": "application/json",
-          "User-Agent": userAgent,
+  if (retryOptions) {
+    // Use retry logic for transient failures
+    const retryFetchFn = async (): Promise<Response> => {
+      return retryFetchWithTimeout(
+        `${baseUrl(request.endpointUrl)}/api/graphql`,
+        {
+          method: "POST",
+          headers: {
+            ...request.clientHeaders?.(),
+            Authorization: `Bearer ${request.token}`,
+            "Content-Type": "application/json",
+            "User-Agent": userAgent,
+          },
+          body: JSON.stringify({
+            query: request.query,
+            variables: request.variables,
+          }),
         },
-        body: JSON.stringify({
-          query: request.query,
-          variables: request.variables,
-        }),
-      },
-      { fetchFn: request.fetchFn, timeoutMs },
-    );
-  } catch (cause) {
-    debugLog("pkg-graphql", {
-      event: "transport-error",
-      errorName: cause instanceof Error ? cause.name : typeof cause,
-      hasCause: true,
-    });
-    throw new PkgseerTransportError(
-      "Network request failed before a response was received. Caller should re-wrap with a domain-specific message.",
-      { cause },
-    );
+        {
+          fetchFn: request.fetchFn,
+          timeoutMs,
+          maxRetries: retryOptions.maxRetries,
+          baseDelayMs: retryOptions.baseDelayMs,
+          maxDelayMs: retryOptions.maxDelayMs,
+          jitter: retryOptions.jitter,
+          idempotent: true, // GraphQL POST is idempotent
+          onRetry: (attempt, error, delayMs) => {
+            debugLog("pkg-graphql", {
+              event: "retry",
+              attempt,
+              delayMs,
+              errorName: error instanceof Error ? error.name : typeof error,
+            });
+          },
+        },
+      );
+    };
+    response = await retryFetchFn();
+  } else {
+    // Use single attempt (backward compatible)
+    response = await fetchFn();
   }
 
   const responseBody = await response.text().catch(() => "");
