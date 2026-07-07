@@ -100,7 +100,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.1",
+    "@biomejs/biome": "2.5.2",
     "@types/bun": "latest",
     "@types/semver": "^7.7.1",
     "bunup": "^0.16.31",
