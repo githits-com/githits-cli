@@ -2,6 +2,7 @@ import {
   type AgentInfo,
   type CodeNavigationService,
   CodeNavigationServiceImpl,
+  configureProxyAwareFetch,
   createClientHeaderBuilder,
   createStaticTokenProvider,
   endTelemetrySpan,
@@ -266,6 +267,10 @@ export interface CreateContainerOptions {
 export async function createContainer(
   options: CreateContainerOptions = {},
 ): Promise<Dependencies> {
+  // Ensure proxy env vars are honored for all service fetch calls. Idempotent;
+  // has no effect when HTTP_PROXY/HTTPS_PROXY are not set.
+  configureProxyAwareFetch();
+
   return withTelemetrySpan("container.create", async () => {
     const resolveStoredToken = options.resolveStoredToken ?? true;
     const mcpUrl = getMcpUrl();
