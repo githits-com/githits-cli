@@ -41,6 +41,42 @@ async function withApiToken<T>(
   }
 }
 
+async function withEnvVars<T>(
+  values: Record<string, string | undefined>,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const originals = new Map<string, string | undefined>();
+  for (const [key, value] of Object.entries(values)) {
+    originals.set(key, process.env[key]);
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  try {
+    return await fn();
+  } finally {
+    for (const [key, value] of originals) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+async function withoutProxyEnv<T>(fn: () => Promise<T>): Promise<T> {
+  return withEnvVars(
+    {
+      HTTP_PROXY: undefined,
+      HTTPS_PROXY: undefined,
+      NO_PROXY: undefined,
+      http_proxy: undefined,
+      https_proxy: undefined,
+      no_proxy: undefined,
+      NODE_USE_ENV_PROXY: undefined,
+      NODE_OPTIONS: undefined,
+    },
+    fn,
+  );
+}
+
 describe("container auth dependencies", () => {
   it("login/logout auth dependencies still honor auth storage config with env token set", async () => {
     await withApiToken("ghi-test", async () => {
@@ -76,42 +112,46 @@ describe("container auth dependencies", () => {
 
 describe("createContainer", () => {
   it("threads explicit client telemetry into constructed services", async () => {
-    await withApiToken("ghi-test", async () => {
-      const originalFetch = globalThis.fetch;
-      let capturedHeaders: Record<string, string> | undefined;
-      const fetchFn = mock((_url: string, init?: RequestInit) => {
-        capturedHeaders = init?.headers as Record<string, string>;
-        return Promise.resolve(
-          new Response(JSON.stringify([]), {
-            headers: { "Content-Type": "application/json" },
-          }),
-        );
-      });
-      globalThis.fetch = fetchFn as unknown as typeof fetch;
-
-      try {
-        const deps = await createContainer({
-          resolveStoredToken: false,
-          clientName: "githits-cli/mcp",
-          agentProvider: () => ({ name: "cursor", version: "1.0.0" }),
+    await withoutProxyEnv(async () =>
+      withApiToken("ghi-test", async () => {
+        const originalFetch = globalThis.fetch;
+        let capturedHeaders: Record<string, string> | undefined;
+        const fetchFn = mock((_url: string, init?: RequestInit) => {
+          capturedHeaders = init?.headers as Record<string, string>;
+          return Promise.resolve(
+            new Response(JSON.stringify([]), {
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
         });
+        globalThis.fetch = fetchFn as unknown as typeof fetch;
 
-        await deps.githitsService.getLanguages();
+        try {
+          const deps = await createContainer({
+            resolveStoredToken: false,
+            clientName: "githits-cli/mcp",
+            agentProvider: () => ({ name: "cursor", version: "1.0.0" }),
+          });
 
-        expect(capturedHeaders?.Authorization).toBe("Bearer ghi-test");
-        expect(capturedHeaders?.["User-Agent"]).toMatch(/^githits-cli\/\S+$/);
-        expect(capturedHeaders?.["x-githits-client-name"]).toBe(
-          "githits-cli/mcp",
-        );
-        expect(capturedHeaders?.["x-githits-client-version"]).toMatch(/^\S+$/);
-        expect(capturedHeaders?.["x-githits-agent"]).toBe("cursor/1.0.0");
-        expect(capturedHeaders?.["x-githits-session-id"]).toMatch(
-          /^[0-9a-f]{16}$/,
-        );
-      } finally {
-        globalThis.fetch = originalFetch;
-      }
-    });
+          await deps.githitsService.getLanguages();
+
+          expect(capturedHeaders?.Authorization).toBe("Bearer ghi-test");
+          expect(capturedHeaders?.["User-Agent"]).toMatch(/^githits-cli\/\S+$/);
+          expect(capturedHeaders?.["x-githits-client-name"]).toBe(
+            "githits-cli/mcp",
+          );
+          expect(capturedHeaders?.["x-githits-client-version"]).toMatch(
+            /^\S+$/,
+          );
+          expect(capturedHeaders?.["x-githits-agent"]).toBe("cursor/1.0.0");
+          expect(capturedHeaders?.["x-githits-session-id"]).toMatch(
+            /^[0-9a-f]{16}$/,
+          );
+        } finally {
+          globalThis.fetch = originalFetch;
+        }
+      }),
+    );
   });
 
   describe("recordAuthFingerprint", () => {

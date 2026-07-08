@@ -144,6 +144,16 @@ githits doctor --json
 
 Prints redacted diagnostics for comparing GitHits behavior across terminals or agents. The report includes CLI/runtime identity, selected environment variables, service URL sources, config file status, active and legacy auth storage locations, token/client/metadata presence and timestamps, and recommendations. Secret-bearing values such as tokens, client secrets, API tokens, and proxy credentials are never printed; presence is reported as `set` / `present` only. JSON output uses `schemaVersion: 1` for support tooling.
 
+### Proxy Support
+
+CLI-originated HTTP traffic uses `src/services/proxy-fetch.ts`. This includes OAuth discovery, client registration, token exchange/refresh, REST API calls, code/package service calls, local MCP tool calls started through `githits mcp start`, and npm update checks. The fetch factory supports `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` plus lowercase aliases; lowercase values win when both cases are set, matching undici's env proxy precedence.
+
+Native Node env proxy support is used only when the user explicitly opted in and the running Node version is known to support that opt-in. `NODE_USE_ENV_PROXY=1` is treated as native on Node `22.21.0+` and `24.0.0+`; `--use-env-proxy` / `NODE_OPTIONS=--use-env-proxy` is treated as native on Node `22.21.0+` and `24.5.0+`. Older or unknown versions use the fallback so the Node `20.18.1` floor remains supported.
+
+Fallback proxy support uses the installed `undici` runtime dependency and per-request `ProxyAgent` dispatchers rather than mutating global fetch or the global dispatcher. Proxy URL validation and runtime proxy failures are sanitized before surfacing to CLI/MCP callers: credentials, path, query, and fragments are never printed. `doctor` remains presence/status-only for proxy environment variables.
+
+`bun run smoke:proxy-node` builds the proxy fetch module and runs a Node process against local target/proxy servers. It verifies that fallback mode really sends HTTP traffic through a local proxy, that `NO_PROXY` bypasses it, and that proxy URL redaction stays intact.
+
 ### `githits pkg info`
 
 ```
