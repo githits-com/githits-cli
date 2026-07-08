@@ -99,6 +99,28 @@ describe("container auth dependencies", () => {
     });
   });
 
+  it("auth command dependencies defer proxy validation until network use", async () => {
+    await withApiToken(undefined, async () => {
+      await withAuthStorageEnv("file", async () => {
+        await withEnvVars({ HTTP_PROXY: "not a proxy secret" }, async () => {
+          const deps = await createAuthCommandDependencies();
+          expect(deps.envApiToken).toBeUndefined();
+        });
+      });
+    });
+  });
+
+  it("auth status env-token path defers proxy validation for local status", async () => {
+    await withApiToken("ghi-test", async () => {
+      await withAuthStorageEnv("invalid", async () => {
+        await withEnvVars({ HTTP_PROXY: "not a proxy secret" }, async () => {
+          const deps = await createAuthStatusDependencies();
+          expect(deps.envApiToken).toBe("ghi-test");
+        });
+      });
+    });
+  });
+
   it("auth command dependencies reject invalid auth storage config without env token", async () => {
     await withApiToken(undefined, async () => {
       await withAuthStorageEnv("invalid", async () => {

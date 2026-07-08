@@ -57,7 +57,7 @@ import {
 } from "./services/locked-auth-storage.js";
 import { MigratingAuthStorage } from "./services/migrating-auth-storage.js";
 import { ModeAwareFileAuthStorage } from "./services/mode-aware-file-auth-storage.js";
-import { createCliFetch } from "./services/proxy-fetch.js";
+import { createCliFetch, createLazyCliFetch } from "./services/proxy-fetch.js";
 import { TokenManager } from "./services/token-manager.js";
 
 const BASE_CLIENT_NAME = "githits-cli";
@@ -190,7 +190,7 @@ export async function createAuthCommandDependencies(): Promise<AuthCommandDepend
     const fileSystemService = new FileSystemServiceImpl();
     return {
       authStorage: await createAuthStorage(fileSystemService),
-      authService: new AuthServiceImpl(createCliFetch()),
+      authService: new AuthServiceImpl(createLazyCliFetch()),
       browserService: new BrowserServiceImpl(),
       fileSystemService,
       authDiagnostics: new AuthDiagnosticsStorage(fileSystemService),
@@ -209,7 +209,7 @@ export async function createAuthStatusDependencies(): Promise<AuthCommandDepende
       authStorage: envApiToken
         ? createAuthStorageForMode(fileSystemService, "keychain")
         : await createAuthStorage(fileSystemService),
-      authService: new AuthServiceImpl(createCliFetch()),
+      authService: new AuthServiceImpl(createLazyCliFetch()),
       browserService: new BrowserServiceImpl(),
       fileSystemService,
       authDiagnostics: new AuthDiagnosticsStorage(fileSystemService),

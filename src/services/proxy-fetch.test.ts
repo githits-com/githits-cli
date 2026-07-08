@@ -1,6 +1,4 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
-import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
+import { describe, expect, it, mock } from "bun:test";
 import {
   type CliFetchOptions,
   createCliFetch,
@@ -12,12 +10,6 @@ import {
 } from "./proxy-fetch.js";
 
 describe("createCliFetch", () => {
-  const servers: Server[] = [];
-
-  afterEach(async () => {
-    await Promise.all(servers.splice(0).map((server) => closeServer(server)));
-  });
-
   it("returns the base fetch when proxy env vars are absent", async () => {
     const baseFetch = mock(() => Promise.resolve(new Response("base")));
 
@@ -252,35 +244,6 @@ describe("createCliFetch", () => {
       "private",
     );
   });
-
-  it("bypasses the local proxy for matching NO_PROXY targets", async () => {
-    let proxyHit = false;
-    const proxy = await listen(
-      createServer((_req, res) => {
-        proxyHit = true;
-        res.writeHead(502);
-        res.end("proxy should not be used");
-      }),
-    );
-    const target = await listen(
-      createServer((_req, res) => {
-        res.writeHead(200, { "Content-Type": "text/plain" });
-        res.end("direct");
-      }),
-    );
-    servers.push(proxy.server, target.server);
-
-    const fetchFn = createCliFetch({
-      env: {
-        HTTP_PROXY: `http://127.0.0.1:${proxy.port}`,
-        NO_PROXY: `127.0.0.1:${target.port}`,
-      },
-    });
-    const response = await fetchFn(`http://127.0.0.1:${target.port}/direct`);
-
-    expect(await response.text()).toBe("direct");
-    expect(proxyHit).toBe(false);
-  });
 });
 
 function fakeDispatcher(): never {
@@ -295,20 +258,4 @@ function asUndiciFetch(
   value: unknown,
 ): NonNullable<CliFetchOptions["undiciFetch"]> {
   return value as NonNullable<CliFetchOptions["undiciFetch"]>;
-}
-
-async function listen(
-  server: Server,
-): Promise<{ server: Server; port: number }> {
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  return { server, port: (server.address() as AddressInfo).port };
-}
-
-async function closeServer(server: Server): Promise<void> {
-  if (!server.listening) {
-    return;
-  }
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-  });
 }

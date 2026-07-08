@@ -25,6 +25,7 @@ Philosophy: "Create architecture that is performant and easy to test"
 - Follow single responsibility principle
 - Prefer public helper modules to lots of private methods
 - Use dependency injection for external services (REST client, etc.)
+- Do not eagerly validate network/proxy/environment configuration while constructing command dependencies when the command has local-only or no-network paths. Defer validation until the first network operation and add regression tests for malformed env values on local paths.
 - For MCP/agent-facing tools, avoid coupled optional flags and default-true booleans. Design schemas for real agent calls, including empty strings, empty arrays, and explicit `false` values.
 - For GraphQL/API-backed tools, treat minimal data fetching as part of the tool contract. Before adding or changing selected fields, compare the query against every consumer (text, verbose, JSON, MCP, CLI, and internal callers), use conditional fields or separate queries for mode-specific data, and add tests that assert the wire variables/selections for compact and detailed modes.
 
