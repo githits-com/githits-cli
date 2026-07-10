@@ -71,6 +71,24 @@ describe("mapCodeNavigationError", () => {
     });
   });
 
+  it("classifies repository CodeNavigationTargetNotFoundError with repository details", () => {
+    const err = new CodeNavigationTargetNotFoundError(
+      "Repository not found or inaccessible",
+      undefined,
+      "https://github.com/acme/missing",
+      "main",
+    );
+    expect(mapCodeNavigationError(err)).toEqual({
+      code: "NOT_FOUND",
+      message: "Repository not found or inaccessible",
+      retryable: false,
+      details: {
+        repoUrl: "https://github.com/acme/missing",
+        requestedRef: "main",
+      },
+    });
+  });
+
   it("classifies CodeNavigationVersionNotFoundError as VERSION_NOT_FOUND with structured details", () => {
     const err = new CodeNavigationVersionNotFoundError(
       'No version of npm/express matches "4". Available versions: 5.2.1, 5.1.0. Try: express@5.2.1.',
@@ -294,6 +312,22 @@ describe("mapCodeNavigationError", () => {
         "Git ref not found: HEAD for repository https://github.com/acme/missing.",
       retryable: false,
       details: { graphqlCode: "REF_NOT_FOUND" },
+    });
+  });
+
+  it("classifies CodeNavigationBackendError with REPOSITORY_NOT_FOUND as NOT_FOUND", () => {
+    const err = new CodeNavigationBackendError(
+      "Repository not found or inaccessible",
+      undefined,
+      "REPOSITORY_NOT_FOUND",
+      false,
+    );
+
+    expect(mapCodeNavigationError(err)).toEqual({
+      code: "NOT_FOUND",
+      message: "Repository not found or inaccessible",
+      retryable: false,
+      details: { graphqlCode: "REPOSITORY_NOT_FOUND" },
     });
   });
 

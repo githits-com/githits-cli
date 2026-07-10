@@ -14,6 +14,7 @@ import {
   CodeNavigationIndexingError,
   CodeNavigationRefNotFoundError,
   CodeNavigationServiceImpl,
+  CodeNavigationTargetNotFoundError,
 } from "./code-navigation-service.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
@@ -1064,6 +1065,50 @@ describe("CodeNavigationServiceImpl", () => {
         { ref: "codex@1.2.3", version: undefined },
         { ref: "v1.2.3", version: undefined },
       ]);
+    }
+  });
+
+  it("classifies GraphQL REPOSITORY_NOT_FOUND as target not found with repository details", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message:
+                  "Repository not found or inaccessible: https://github.com/acme/missing.",
+                extensions: {
+                  code: "REPOSITORY_NOT_FOUND",
+                  retryable: false,
+                  repo_url: "https://github.com/acme/missing",
+                  git_ref: "main",
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    try {
+      await service.search({
+        targets: [
+          { repoUrl: "https://github.com/acme/missing", gitRef: "main" },
+        ],
+        query: "router middleware",
+      });
+      throw new Error("expected REPOSITORY_NOT_FOUND");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationTargetNotFoundError);
+      expect(error).not.toBeInstanceOf(CodeNavigationBackendError);
+      const typed = error as CodeNavigationTargetNotFoundError;
+      expect(typed.repoUrl).toBe("https://github.com/acme/missing");
+      expect(typed.requestedRef).toBe("main");
     }
   });
 

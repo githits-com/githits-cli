@@ -539,6 +539,8 @@ export class CodeNavigationTargetNotFoundError extends Error {
   constructor(
     message: string,
     public readonly availableVersions?: AvailableVersion[],
+    public readonly repoUrl?: string,
+    public readonly requestedRef?: string,
   ) {
     super(message);
     this.name = "CodeNavigationTargetNotFoundError";
@@ -2015,16 +2017,8 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       case "REF_NOT_FOUND":
         return new CodeNavigationRefNotFoundError(
           message,
-          typeof extensions?.repo_url === "string"
-            ? extensions.repo_url
-            : typeof extensions?.repoUrl === "string"
-              ? extensions.repoUrl
-              : undefined,
-          typeof extensions?.git_ref === "string"
-            ? extensions.git_ref
-            : typeof extensions?.gitRef === "string"
-              ? extensions.gitRef
-              : undefined,
+          parseGraphQLRepoUrl(extensions),
+          parseGraphQLGitRef(extensions),
           parseAvailableRefs(extensions),
           parseSuggestedRefs(extensions),
         );
@@ -2033,6 +2027,14 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       case "PACKAGE_NOT_FOUND":
       case "NO_REPOSITORY_URL":
         return new CodeNavigationTargetNotFoundError(message);
+
+      case "REPOSITORY_NOT_FOUND":
+        return new CodeNavigationTargetNotFoundError(
+          message,
+          undefined,
+          parseGraphQLRepoUrl(extensions),
+          parseGraphQLGitRef(extensions),
+        );
 
       case "FILE_NOT_FOUND":
         return new CodeNavigationFileNotFoundError(
@@ -2751,6 +2753,26 @@ function parseSuggestedRefs(
 ): SuggestedRef[] | undefined {
   const raw = extensions?.suggested_refs ?? extensions?.suggestedRefs;
   return parseAvailableArtifacts(raw);
+}
+
+function parseGraphQLRepoUrl(
+  extensions: Record<string, unknown> | undefined,
+): string | undefined {
+  return typeof extensions?.repo_url === "string"
+    ? extensions.repo_url
+    : typeof extensions?.repoUrl === "string"
+      ? extensions.repoUrl
+      : undefined;
+}
+
+function parseGraphQLGitRef(
+  extensions: Record<string, unknown> | undefined,
+): string | undefined {
+  return typeof extensions?.git_ref === "string"
+    ? extensions.git_ref
+    : typeof extensions?.gitRef === "string"
+      ? extensions.gitRef
+      : undefined;
 }
 
 function parseTargetResolution(

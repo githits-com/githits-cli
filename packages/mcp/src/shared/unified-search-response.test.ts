@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   CodeNavigationRefNotFoundError,
+  CodeNavigationTargetNotFoundError,
   type UnifiedSearchOutcome,
   type UnifiedSearchParams,
 } from "@githits/core-internal";
@@ -1097,6 +1098,27 @@ describe("buildUnifiedSearchErrorPayload", () => {
         requestedRef: "1.2.3",
         availableRefs: [{ ref: "main" }],
         suggestedRefs: [{ ref: "codex@1.2.3" }, { ref: "v1.2.3" }],
+      },
+    });
+  });
+
+  it("includes repository NOT_FOUND details for missing repositories", () => {
+    const payload = buildUnifiedSearchErrorPayload(
+      new CodeNavigationTargetNotFoundError(
+        "Repository not found or inaccessible",
+        undefined,
+        "https://github.com/acme/missing",
+        "main",
+      ),
+    );
+
+    expect(payload).toEqual({
+      error: "Repository not found or inaccessible",
+      code: "NOT_FOUND",
+      retryable: false,
+      details: {
+        repoUrl: "https://github.com/acme/missing",
+        requestedRef: "main",
       },
     });
   });
