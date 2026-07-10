@@ -1,11 +1,17 @@
 #!/usr/bin/env node
 import {
+  configureProxyAwareFetch,
   endTelemetrySpan,
   flushTelemetry,
   isTelemetryEnabled,
   startTelemetrySpan,
   withTelemetrySpan,
 } from "@githits/core-internal";
+
+// Honor HTTP_PROXY/HTTPS_PROXY for all native fetch calls. Must run before
+// any network request so that corporate proxy environments work out of the box.
+configureProxyAwareFetch();
+
 import { colorizeBrand, shouldUseColors } from "@githits/mcp/internal";
 import { Command } from "commander";
 import { version } from "../package.json";

@@ -12,5 +12,9 @@ export * from "./shared/debug-log.js";
 export * from "./shared/fetch-timeout.js";
 export * from "./shared/pkgseer-graphql.js";
 export * from "./shared/pkgseer-registry.js";
+export {
+  configureProxyAwareFetch,
+  hasProxyEnv,
+} from "./shared/proxy-fetch.js";
 export * from "./shared/request-headers.js";
 export * from "./shared/telemetry.js";
