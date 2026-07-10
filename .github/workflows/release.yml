@@ -72,10 +72,9 @@ jobs:
                   node-version-file: ".node-version"
                   registry-url: "https://registry.npmjs.org"
 
-            # Trusted publishing requires npm 11.5.1+
-            - name: Update npm
-              if: steps.version.outputs.should_release == 'true'
-              run: npm install -g npm@latest
+            # Trusted publishing requires npm 11.5.1+; the npm bundled with the
+            # pinned .node-version satisfies this. Do not upgrade to npm@latest
+            # (npm/cli#9722).
 
             - name: Install dependencies
               if: steps.version.outputs.should_release == 'true'
