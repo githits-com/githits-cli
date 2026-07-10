@@ -141,13 +141,17 @@ function classify(error: unknown): MappedError {
     };
   }
   if (error instanceof CodeNavigationTargetNotFoundError) {
+    const details: MappedErrorDetails = {};
+    if (error.availableVersions && error.availableVersions.length > 0) {
+      details.availableVersions = error.availableVersions;
+    }
+    if (error.repoUrl) details.repoUrl = error.repoUrl;
+    if (error.requestedRef) details.requestedRef = error.requestedRef;
     return {
       code: "NOT_FOUND",
       message: error.message,
       retryable: false,
-      details: error.availableVersions
-        ? { availableVersions: error.availableVersions }
-        : undefined,
+      details: Object.keys(details).length > 0 ? details : undefined,
     };
   }
   if (error instanceof CodeNavigationRefNotFoundError) {
@@ -313,6 +317,8 @@ function classifyBackendError(error: CodeNavigationBackendError): MappedError {
       return build("TIMEOUT", true);
     case "RATE_LIMITED":
       return build("RATE_LIMITED", true);
+    case "REPOSITORY_NOT_FOUND":
+      return build("NOT_FOUND", false);
     case "REF_NOT_FOUND":
       return build("REF_NOT_FOUND", false);
     case "UPSTREAM_ERROR":

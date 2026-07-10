@@ -16,7 +16,7 @@ interface PackFile {
 }
 
 interface PackResult {
-  filename: string;
+  filename?: string;
   files?: PackFile[];
 }
 
@@ -196,10 +196,23 @@ async function packPackage(
   );
   const packResults = JSON.parse(output) as PackResult[];
   const filename = packResults[0]?.filename;
-  if (!filename) {
-    throw new Error(`npm pack did not return a filename for ${packageInfo.id}`);
+  if (filename) {
+    return join(packDirectory, basename(filename));
   }
-  return join(packDirectory, basename(filename));
+
+  const tarballs = (await readdir(packDirectory)).filter((entry) =>
+    entry.endsWith(".tgz"),
+  );
+  if (tarballs.length !== 1) {
+    throw new Error(
+      `npm pack did not return a filename for ${packageInfo.id} and created ${tarballs.length} tarballs`,
+    );
+  }
+  const tarball = tarballs[0];
+  if (!tarball) {
+    throw new Error(`npm pack did not create a tarball for ${packageInfo.id}`);
+  }
+  return join(packDirectory, tarball);
 }
 
 async function extractPackage(
