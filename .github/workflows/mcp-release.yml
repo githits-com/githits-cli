@@ -51,11 +51,11 @@ jobs:
           node-version-file: ".node-version"
           registry-url: "https://registry.npmjs.org"
 
-      # Trusted publishing requires npm 11.5.1+. The dry-run path also uses npm
-      # publish so PRs exercise the same command shape without publishing.
-      - name: Update npm
-        run: npm install -g npm@latest
-
+      # Trusted publishing requires npm 11.5.1+; the npm bundled with the
+      # pinned .node-version satisfies this. Do not upgrade to npm@latest:
+      # npm 12.0.0 self-installs without sigstore and breaks npm publish
+      # (npm/cli#9722). The dry-run path also uses npm publish so PRs
+      # exercise the same command shape without publishing.
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -102,10 +102,9 @@ jobs:
           node-version-file: ".node-version"
           registry-url: "https://registry.npmjs.org"
 
-      # Trusted publishing requires npm 11.5.1+.
-      - name: Update npm
-        run: npm install -g npm@latest
-
+      # Trusted publishing requires npm 11.5.1+; the npm bundled with the
+      # pinned .node-version satisfies this. Do not upgrade to npm@latest
+      # (npm/cli#9722).
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
