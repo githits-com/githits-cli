@@ -38,6 +38,7 @@ import {
   loadAutoLoginAuthSessionMetadata,
 } from "./container.js";
 import { FileSystemServiceImpl } from "./services/filesystem-service.js";
+import { createLazyCliFetch } from "./services/proxy-fetch.js";
 import { NpmRegistryUpdateCheckService } from "./services/update-check-service.js";
 import { createRootCliPreAction } from "./shared/root-cli-pre-action.js";
 
@@ -57,6 +58,7 @@ const createUpdateCheckService = () =>
   new NpmRegistryUpdateCheckService({
     currentVersion: version,
     fileSystemService: new FileSystemServiceImpl(),
+    fetcher: createLazyCliFetch(),
   });
 
 await enforceCachedRequiredUpdateForInvocation({

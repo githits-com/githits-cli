@@ -57,6 +57,7 @@ import {
 } from "./services/locked-auth-storage.js";
 import { MigratingAuthStorage } from "./services/migrating-auth-storage.js";
 import { ModeAwareFileAuthStorage } from "./services/mode-aware-file-auth-storage.js";
+import { createCliFetch, createLazyCliFetch } from "./services/proxy-fetch.js";
 import { TokenManager } from "./services/token-manager.js";
 
 const BASE_CLIENT_NAME = "githits-cli";
@@ -189,7 +190,7 @@ export async function createAuthCommandDependencies(): Promise<AuthCommandDepend
     const fileSystemService = new FileSystemServiceImpl();
     return {
       authStorage: await createAuthStorage(fileSystemService),
-      authService: new AuthServiceImpl(),
+      authService: new AuthServiceImpl(createLazyCliFetch()),
       browserService: new BrowserServiceImpl(),
       fileSystemService,
       authDiagnostics: new AuthDiagnosticsStorage(fileSystemService),
@@ -208,7 +209,7 @@ export async function createAuthStatusDependencies(): Promise<AuthCommandDepende
       authStorage: envApiToken
         ? createAuthStorageForMode(fileSystemService, "keychain")
         : await createAuthStorage(fileSystemService),
-      authService: new AuthServiceImpl(),
+      authService: new AuthServiceImpl(createLazyCliFetch()),
       browserService: new BrowserServiceImpl(),
       fileSystemService,
       authDiagnostics: new AuthDiagnosticsStorage(fileSystemService),
@@ -272,7 +273,8 @@ export async function createContainer(
     const apiUrl = getApiUrl();
     const codeNavigationUrl = getCodeNavigationUrl();
     const fileSystemService = new FileSystemServiceImpl();
-    const authService = new AuthServiceImpl();
+    const fetchFn = createCliFetch();
+    const authService = new AuthServiceImpl(fetchFn);
     const browserService = new BrowserServiceImpl();
     const clientHeaders = createClientHeaderBuilder({
       clientName: options.clientName ?? BASE_CLIENT_NAME,
@@ -296,13 +298,13 @@ export async function createContainer(
       const codeNavigationService = new CodeNavigationServiceImpl(
         codeNavigationUrl,
         tokenProvider,
-        globalThis.fetch,
+        fetchFn,
         serviceRuntime,
       );
       const packageIntelligenceService = new PackageIntelligenceServiceImpl(
         codeNavigationUrl,
         tokenProvider,
-        globalThis.fetch,
+        fetchFn,
         serviceRuntime,
       );
 
@@ -322,7 +324,7 @@ export async function createContainer(
         githitsService: new GitHitsServiceImpl(
           apiUrl,
           envToken,
-          undefined,
+          fetchFn,
           undefined,
           serviceRuntime,
         ),
@@ -348,13 +350,13 @@ export async function createContainer(
     const codeNavigationService = new CodeNavigationServiceImpl(
       codeNavigationUrl,
       tokenManager,
-      globalThis.fetch,
+      fetchFn,
       serviceRuntime,
     );
     const packageIntelligenceService = new PackageIntelligenceServiceImpl(
       codeNavigationUrl,
       tokenManager,
-      globalThis.fetch,
+      fetchFn,
       serviceRuntime,
     );
 
@@ -374,7 +376,14 @@ export async function createContainer(
       githitsService: new RefreshingGitHitsService(
         apiUrl,
         tokenManager,
-        undefined,
+        (innerApiUrl, token) =>
+          new GitHitsServiceImpl(
+            innerApiUrl,
+            token,
+            fetchFn,
+            undefined,
+            serviceRuntime,
+          ),
         serviceRuntime,
       ),
     };

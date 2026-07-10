@@ -313,7 +313,7 @@ This repository contains the GitHits CLI and reusable MCP package:
 
 Requirements:
 
-- Node.js `^20.12.0 || >=22.13.0`
+- Node.js `^20.18.1 || >=22.13.0`
 - Bun
 
 Common commands:

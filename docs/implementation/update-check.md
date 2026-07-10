@@ -178,6 +178,10 @@ The service accepts injected dependencies for the current version, fetcher,
 clock, and file-system service. Tests should mock those dependencies rather than
 patch global state.
 
+The CLI injects the proxy-aware fetcher from `src/services/proxy-fetch.ts`, so
+the direct npm registry calls honor `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY`
+without requiring package-manager configuration.
+
 ## Backend Compatibility Signals
 
 All backend requests already include `x-githits-client-version` and a

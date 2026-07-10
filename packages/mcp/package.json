@@ -1,6 +1,6 @@
 {
   "name": "@githits/mcp",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Reusable MCP server APIs and tools for GitHits",
   "type": "module",
   "files": [
@@ -52,7 +52,7 @@
   },
   "homepage": "https://githits.com",
   "engines": {
-    "node": "^20.12.0 || >=22.13.0"
+    "node": "^20.18.1 || >=22.13.0"
   },
   "publishConfig": {
     "access": "public"
