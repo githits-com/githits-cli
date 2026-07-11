@@ -185,6 +185,114 @@ describe("AuthServiceImpl", () => {
         );
       }
     });
+
+    it("coerces a numeric-string expires_in to a number", async () => {
+      const fetchMock = mock(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              access_token: "new-access-token",
+              expires_in: "120",
+            }),
+            { status: 200 },
+          ),
+        ),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      const result = await service.refreshAccessToken({
+        tokenEndpoint: "https://auth.example.com/oauth/token",
+        clientId: "client-id",
+        clientSecret: "client-secret",
+        refreshToken: "refresh-token",
+      });
+
+      expect(result.expiresIn).toBe(120);
+    });
+
+    it("falls back to the default lifetime for non-positive or non-numeric expires_in", async () => {
+      for (const bad of [0, -5, "soon", null]) {
+        const fetchMock = mock(() =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify({
+                access_token: "new-access-token",
+                expires_in: bad,
+              }),
+              { status: 200 },
+            ),
+          ),
+        );
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        const result = await service.refreshAccessToken({
+          tokenEndpoint: "https://auth.example.com/oauth/token",
+          clientId: "client-id",
+          clientSecret: "client-secret",
+          refreshToken: "refresh-token",
+        });
+
+        expect(result.expiresIn).toBe(3600);
+      }
+    });
+
+    it("rejects responses whose access_token is not a non-empty string", async () => {
+      for (const bad of [123, "", null, { token: "x" }]) {
+        const fetchMock = mock(() =>
+          Promise.resolve(
+            new Response(JSON.stringify({ access_token: bad }), {
+              status: 200,
+            }),
+          ),
+        );
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        await expect(
+          service.refreshAccessToken({
+            tokenEndpoint: "https://auth.example.com/oauth/token",
+            clientId: "client-id",
+            clientSecret: "client-secret",
+            refreshToken: "refresh-token",
+          }),
+        ).rejects.toThrow("Token response missing required fields");
+      }
+    });
+  });
+
+  describe("classifyTerminalRefreshError", () => {
+    it("classifies invalid_grant regardless of description wording", () => {
+      const error = new TokenRefreshError(
+        400,
+        JSON.stringify({
+          error: "invalid_grant",
+          error_description: "the token is no longer recognized by the server",
+        }),
+      );
+      expect(classifyTerminalRefreshError(error)).toBe("invalid_refresh_token");
+    });
+
+    it("classifies invalid_client from the structured code", () => {
+      const error = new TokenRefreshError(
+        401,
+        JSON.stringify({ error: "invalid_client" }),
+      );
+      expect(classifyTerminalRefreshError(error)).toBe("invalid_client");
+    });
+
+    it("returns undefined for non-terminal OAuth errors", () => {
+      const error = new TokenRefreshError(
+        400,
+        JSON.stringify({
+          error: "invalid_request",
+          error_description: "missing parameter",
+        }),
+      );
+      expect(classifyTerminalRefreshError(error)).toBeUndefined();
+    });
+
+    it("returns undefined for non-TokenRefreshError values", () => {
+      expect(classifyTerminalRefreshError(new Error("boom"))).toBeUndefined();
+    });
   });
 
   describe("evaluateCallback", () => {
