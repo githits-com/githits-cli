@@ -67,7 +67,7 @@ jobs:
 
             - name: Setup Node.js
               if: steps.version.outputs.should_release == 'true'
-              uses: actions/setup-node@v6
+              uses: actions/setup-node@v6.4.0
               with:
                   node-version-file: ".node-version"
                   registry-url: "https://registry.npmjs.org"
