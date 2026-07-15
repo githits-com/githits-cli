@@ -55,6 +55,75 @@ describe("formatMappedErrorForTerminal", () => {
     });
   });
 
+  it("formats rate limits with provider-neutral retry timing", () => {
+    expect(
+      formatMappedErrorForTerminal({
+        code: "RATE_LIMITED",
+        message: "Request limit reached.",
+        retryable: true,
+        details: { status: 429, retryAfterSeconds: 17 },
+      }),
+    ).toBe("Request limit reached. Try again in 17 seconds.");
+  });
+
+  it("formats rate limits without retry timing", () => {
+    expect(
+      formatMappedErrorForTerminal({
+        code: "RATE_LIMITED",
+        message: "Request limit reached.",
+        retryable: true,
+      }),
+    ).toBe("Request limit reached. Try again shortly.");
+  });
+
+  it("does not add retry guidance to non-retryable errors", () => {
+    expect(
+      formatMappedErrorForTerminal({
+        code: "RATE_LIMITED",
+        message: "Request rejected.",
+        retryable: false,
+        details: { status: 429, retryAfterSeconds: 17 },
+      }),
+    ).toBe("Request rejected.");
+  });
+
+  it("does not duplicate API retry guidance", () => {
+    expect(
+      formatMappedErrorForTerminal({
+        code: "RATE_LIMITED",
+        message: "Please retry later.",
+        retryable: true,
+        details: { status: 429, retryAfterSeconds: 17 },
+      }),
+    ).toBe("Please retry later.");
+  });
+
+  it("formats timeouts with provider-neutral retry guidance", () => {
+    expect(
+      formatMappedErrorForTerminal({
+        code: "TIMEOUT",
+        message: "The request timed out.",
+        retryable: true,
+      }),
+    ).toBe("The request timed out. Try again.");
+  });
+
+  it("preserves rate-limit metadata in CLI JSON envelopes", () => {
+    expect(
+      buildCliMappedErrorPayload({
+        code: "RATE_LIMITED",
+        message: "Request limit reached.",
+        retryable: true,
+        details: { status: 429, retryAfterSeconds: 17 },
+      }),
+    ).toEqual({
+      error: "Request limit reached.",
+      code: "RATE_LIMITED",
+      retryable: true,
+      details: { status: 429, retryAfterSeconds: 17 },
+    });
+  });
+
   it("leaves non-auth non-update terminal errors unchanged", () => {
     expect(
       formatMappedErrorForTerminal({

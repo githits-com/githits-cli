@@ -1,7 +1,7 @@
 {
   "name": "githits",
   "description": "Version-aware open-source context for agentic software development",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "mcpName": "com.githits/githits",
   "type": "module",
   "workspaces": [

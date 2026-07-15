@@ -1,9 +1,9 @@
 import type { GitHitsService } from "@githits/core-internal";
-import { AuthenticationError } from "@githits/core-internal";
 import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
   extractSolutionId,
+  mapGitHitsServiceError,
   requireAuth,
 } from "@githits/mcp/internal";
 import { type Command, Option } from "commander";
@@ -62,35 +62,14 @@ export async function exampleAction(
       }
       throw error;
     }
-    if (error instanceof AuthenticationError) {
-      const mapped = {
-        code: "AUTH_REQUIRED" as const,
-        message: error.message,
-        retryable: false,
-        details: { authSource: error.source },
-      };
-      if (options.json) {
-        console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
-      } else {
-        console.error(formatMappedErrorForTerminal(mapped));
-      }
-      process.exit(1);
+    const mapped = mapGitHitsServiceError("get example", error);
+    if (options.json) {
+      console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
+    } else {
+      console.error(formatMappedErrorForTerminal(mapped));
     }
-    printExampleError(
-      `Failed to get example: ${error instanceof Error ? error.message : error}`,
-      "UNKNOWN",
-      options.json ?? false,
-    );
     process.exit(1);
   }
-}
-
-function printExampleError(error: string, code: string, json: boolean): void {
-  if (json) {
-    console.error(JSON.stringify({ error, code, retryable: false }));
-    return;
-  }
-  console.error(error);
 }
 
 const EXAMPLE_DESCRIPTION = `Get verified, canonical code examples from global open source.

@@ -35,6 +35,26 @@ export class AuthenticationError extends Error {
 }
 
 /**
+ * Error returned when the REST API asks the client to retry later.
+ *
+ * `retryAfterSeconds` is derived from the standard Retry-After response
+ * header when it contains either delay-seconds or a future HTTP date.
+ */
+export class ApiRateLimitError extends Error {
+  readonly status = 429;
+  readonly retryAfterSeconds: number | undefined;
+
+  constructor(
+    message: string = "Request rate limited.",
+    retryAfterSeconds?: number,
+  ) {
+    super(message);
+    this.name = "ApiRateLimitError";
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/**
  * Extract human-readable detail from a JSON error response body.
  * FastAPI returns `{"detail": "..."}` for HTTPException responses.
  */
@@ -48,6 +68,50 @@ function parseDetail(body: string): string | undefined {
     return body;
   }
   return undefined;
+}
+
+/**
+ * Parse an HTTP Retry-After value into a non-negative delay in seconds.
+ * HTTP-date delays round up so callers never retry before the stated time.
+ */
+function parseRetryAfterSeconds(
+  value: string | null,
+  nowMs: number,
+): number | undefined {
+  const normalized = value?.trim();
+  if (!normalized) return undefined;
+
+  if (/^\d+$/.test(normalized)) {
+    const delaySeconds = Number(normalized);
+    return Number.isSafeInteger(delaySeconds) ? delaySeconds : undefined;
+  }
+
+  // Numeric-looking values that are not delay-seconds must not be
+  // reinterpreted by Date.parse as implementation-specific dates.
+  if (/^[+-]?\d+(?:\.\d+)?$/.test(normalized)) return undefined;
+
+  // Date.parse accepts formats outside HTTP-date, including ISO dates.
+  // Restrict parsing to the three wire formats HTTP clients must accept.
+  const isHttpDate =
+    /^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(
+      normalized,
+    ) ||
+    /^[A-Z][a-z]+, \d{2}-[A-Z][a-z]{2}-\d{2} \d{2}:\d{2}:\d{2} GMT$/.test(
+      normalized,
+    ) ||
+    /^[A-Z][a-z]{2} [A-Z][a-z]{2} [ \d]\d \d{2}:\d{2}:\d{2} \d{4}$/.test(
+      normalized,
+    );
+  if (!isHttpDate) return undefined;
+
+  const retryAtMs = Date.parse(normalized);
+  if (!Number.isFinite(retryAtMs)) return undefined;
+
+  const delayMs = retryAtMs - nowMs;
+  if (delayMs < 0) return undefined;
+
+  const delaySeconds = Math.ceil(delayMs / 1_000);
+  return Number.isSafeInteger(delaySeconds) ? delaySeconds : undefined;
 }
 
 /**
@@ -262,6 +326,14 @@ export class GitHitsServiceImpl implements GitHitsService {
         return new Error("Access denied.");
       case 404:
         return new Error(parseDetail(body) || "Resource not found.");
+      case 429:
+        return new ApiRateLimitError(
+          undefined,
+          parseRetryAfterSeconds(
+            response.headers.get("Retry-After"),
+            Date.now(),
+          ),
+        );
       default: {
         if (status >= 500) {
           const detail = body ? `: ${body}` : "";

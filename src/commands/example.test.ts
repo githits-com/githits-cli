@@ -1,5 +1,9 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import { AuthenticationError } from "@githits/core-internal";
+import {
+  ApiRateLimitError,
+  AuthenticationError,
+  FetchTimeoutError,
+} from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import { createMockGitHitsService } from "../services/test-helpers.js";
 import { type ExampleDependencies, exampleAction } from "./example.js";
@@ -154,6 +158,108 @@ describe("exampleAction", () => {
       retryable: false,
       details: { authSource: "local" },
     });
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("prints retryable timeout metadata in JSON", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({
+        search: mock(() => Promise.reject(new FetchTimeoutError(1_234))),
+      }),
+    });
+
+    await expect(exampleAction("test", { json: true }, deps)).rejects.toThrow(
+      "process.exit",
+    );
+
+    expect(JSON.parse(errorSpy.mock.calls[0]?.[0] as string)).toEqual({
+      error: "Failed to get example: Request timed out after 1234ms.",
+      code: "TIMEOUT",
+      retryable: true,
+      details: { timeoutMs: 1_234 },
+    });
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("prints provider-neutral timeout guidance in terminal output", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({
+        search: mock(() => Promise.reject(new FetchTimeoutError(1_234))),
+      }),
+    });
+
+    await expect(exampleAction("test", {}, deps)).rejects.toThrow(
+      "process.exit",
+    );
+
+    expect(errorSpy.mock.calls[0]?.[0]).toBe(
+      "Failed to get example: Request timed out after 1234ms. Try again.",
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("prints retryable rate-limit metadata in JSON without retrying", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const search = mock(() =>
+      Promise.reject(new ApiRateLimitError("Request limit reached.", 17)),
+    );
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({ search }),
+    });
+
+    await expect(exampleAction("test", { json: true }, deps)).rejects.toThrow(
+      "process.exit",
+    );
+
+    expect(JSON.parse(errorSpy.mock.calls[0]?.[0] as string)).toEqual({
+      error: "Request limit reached.",
+      code: "RATE_LIMITED",
+      retryable: true,
+      details: { status: 429, retryAfterSeconds: 17 },
+    });
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("prints provider-neutral rate-limit guidance in terminal output", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({
+        search: mock(() =>
+          Promise.reject(new ApiRateLimitError("Request limit reached.", 17)),
+        ),
+      }),
+    });
+
+    await expect(exampleAction("test", {}, deps)).rejects.toThrow(
+      "process.exit",
+    );
+
+    expect(errorSpy.mock.calls[0]?.[0]).toBe(
+      "Request limit reached. Try again in 17 seconds.",
+    );
     expect(exitSpy).toHaveBeenCalledWith(1);
     errorSpy.mockRestore();
     exitSpy.mockRestore();
