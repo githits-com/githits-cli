@@ -11,6 +11,20 @@ import {
 describe("MigratingAuthStorage", () => {
   const BASE_URL = "https://mcp.githits.com";
 
+  it("requires load locking only when file-mode migration can mutate", () => {
+    const primary = createMockAuthStorage();
+    const file = createMockAuthStorage();
+    const legacy = createMockAuthStorage();
+
+    expect(
+      new MigratingAuthStorage(primary, file, legacy, "keychain")
+        .requiresLoadLock,
+    ).toBe(false);
+    expect(
+      new MigratingAuthStorage(primary, file, legacy, "file").requiresLoadLock,
+    ).toBe(true);
+  });
+
   it("keychain mode returns from keychain first", async () => {
     const token = createValidTokenData();
     const primary = createMockAuthStorage({
@@ -257,6 +271,125 @@ describe("MigratingAuthStorage", () => {
     expect(legacy.clearTokens).not.toHaveBeenCalled();
   });
 
+  it("re-persists tied canonical tokens before clearing all legacy copies", async () => {
+    const events: string[] = [];
+    const canonical = createValidTokenData({
+      accessToken: "canonical-token",
+      createdAt: "2025-01-01T00:00:00Z",
+    });
+    const file = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(canonical)),
+      saveTokens: mock(() => {
+        events.push("canonical-save");
+        return Promise.resolve();
+      }),
+    });
+    const additionalLegacy = createMockAuthStorage({
+      loadTokens: mock(() =>
+        Promise.resolve(
+          createValidTokenData({
+            accessToken: "additional-legacy-token",
+            createdAt: canonical.createdAt,
+          }),
+        ),
+      ),
+      clearTokens: mock(() => {
+        events.push("additional-legacy-clear");
+        return Promise.reject(new Error("cleanup failed"));
+      }),
+    });
+    const legacy = createMockAuthStorage({
+      loadTokens: mock(() =>
+        Promise.resolve(
+          createValidTokenData({
+            accessToken: "legacy-token",
+            createdAt: canonical.createdAt,
+          }),
+        ),
+      ),
+      clearTokens: mock(() => {
+        events.push("legacy-clear");
+        return Promise.resolve();
+      }),
+    });
+    const warning = mock(() => {});
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      file,
+      legacy,
+      "file",
+      "test-config.toml",
+      warning,
+      undefined,
+      [additionalLegacy],
+    );
+
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(canonical);
+    expect(events).toEqual([
+      "canonical-save",
+      "additional-legacy-clear",
+      "legacy-clear",
+    ]);
+    expect(file.saveTokens).toHaveBeenCalledWith(BASE_URL, canonical);
+    expect(warning).not.toHaveBeenCalled();
+  });
+
+  it("reconciles invalid token timestamps through the canonical file", async () => {
+    const canonical = createValidTokenData({
+      accessToken: "canonical-token",
+      createdAt: "not-a-date",
+    });
+    const file = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(canonical)),
+    });
+    const legacy = createMockAuthStorage({
+      loadTokens: mock(() =>
+        Promise.resolve(
+          createValidTokenData({
+            accessToken: "legacy-token",
+            createdAt: "also-not-a-date",
+          }),
+        ),
+      ),
+    });
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      file,
+      legacy,
+      "file",
+    );
+
+    await expect(storage.loadTokens(BASE_URL)).resolves.toEqual(canonical);
+    expect(file.saveTokens).toHaveBeenCalledWith(BASE_URL, canonical);
+    expect(legacy.clearTokens).toHaveBeenCalledWith(BASE_URL);
+  });
+
+  it("leaves legacy tokens untouched when canonical reconciliation fails", async () => {
+    const canonical = createValidTokenData({
+      createdAt: "2025-01-01T00:00:00Z",
+    });
+    const file = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(canonical)),
+      saveTokens: mock(() => Promise.reject(new Error("save failed"))),
+    });
+    const legacy = createMockAuthStorage({
+      loadTokens: mock(() =>
+        Promise.resolve(
+          createValidTokenData({ createdAt: canonical.createdAt }),
+        ),
+      ),
+    });
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      file,
+      legacy,
+      "file",
+    );
+
+    await expect(storage.loadTokens(BASE_URL)).rejects.toThrow("save failed");
+    expect(legacy.clearTokens).not.toHaveBeenCalled();
+  });
+
   it("file mode ignores keychain tokens instead of exporting across storage modes", async () => {
     const token = createValidTokenData();
     const primary = createMockAuthStorage({
@@ -345,11 +478,12 @@ describe("MigratingAuthStorage", () => {
       ),
     });
     const warning = mock(() => {});
+    const file = createMockAuthStorage();
     const storage = new MigratingAuthStorage(
       createMockAuthStorage(),
-      createMockAuthStorage(),
+      file,
       legacy,
-      "keychain",
+      "file",
       "test-config.toml",
       warning,
       undefined,
@@ -357,9 +491,10 @@ describe("MigratingAuthStorage", () => {
     );
 
     await expect(storage.loadTokens(BASE_URL)).resolves.toBeNull();
+    expect(file.saveTokens).not.toHaveBeenCalled();
     expect(additionalLegacy.clearTokens).not.toHaveBeenCalled();
     expect(legacy.clearTokens).not.toHaveBeenCalled();
-    expect(warning).not.toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledTimes(1);
   });
 
   it("clears all legacy stores during logout", async () => {
@@ -453,6 +588,126 @@ describe("MigratingAuthStorage", () => {
     await expect(storage.loadClient(BASE_URL)).resolves.toEqual(newer);
     expect(file.saveClient).toHaveBeenCalledWith(BASE_URL, newer);
     expect(legacy.clearClient).toHaveBeenCalledWith(BASE_URL);
+  });
+
+  it("re-persists tied canonical clients before clearing all legacy copies", async () => {
+    const events: string[] = [];
+    const canonical = {
+      ...defaultClientRegistration,
+      clientId: "canonical-client",
+      registeredAt: "2025-01-01T00:00:00Z",
+    };
+    const file = createMockAuthStorage({
+      loadClient: mock(() => Promise.resolve(canonical)),
+      saveClient: mock(() => {
+        events.push("canonical-save");
+        return Promise.resolve();
+      }),
+    });
+    const additionalLegacy = createMockAuthStorage({
+      loadClient: mock(() =>
+        Promise.resolve({
+          ...defaultClientRegistration,
+          clientId: "additional-legacy-client",
+          registeredAt: canonical.registeredAt,
+        }),
+      ),
+      clearClient: mock(() => {
+        events.push("additional-legacy-clear");
+        return Promise.reject(new Error("cleanup failed"));
+      }),
+    });
+    const legacy = createMockAuthStorage({
+      loadClient: mock(() =>
+        Promise.resolve({
+          ...defaultClientRegistration,
+          clientId: "legacy-client",
+          registeredAt: canonical.registeredAt,
+        }),
+      ),
+      clearClient: mock(() => {
+        events.push("legacy-clear");
+        return Promise.resolve();
+      }),
+    });
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      file,
+      legacy,
+      "file",
+      "test-config.toml",
+      () => {},
+      undefined,
+      [additionalLegacy],
+    );
+
+    await expect(storage.loadClient(BASE_URL)).resolves.toEqual(canonical);
+    expect(events).toEqual([
+      "canonical-save",
+      "additional-legacy-clear",
+      "legacy-clear",
+    ]);
+    expect(file.saveClient).toHaveBeenCalledWith(BASE_URL, canonical);
+  });
+
+  it("reconciles invalid client timestamps through the canonical file", async () => {
+    const canonical = {
+      ...defaultClientRegistration,
+      clientId: "canonical-client",
+      registeredAt: "not-a-date",
+    };
+    const file = createMockAuthStorage({
+      loadClient: mock(() => Promise.resolve(canonical)),
+    });
+    const legacy = createMockAuthStorage({
+      loadClient: mock(() =>
+        Promise.resolve({
+          ...defaultClientRegistration,
+          clientId: "legacy-client",
+          registeredAt: "also-not-a-date",
+        }),
+      ),
+    });
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      file,
+      legacy,
+      "file",
+    );
+
+    await expect(storage.loadClient(BASE_URL)).resolves.toEqual(canonical);
+    expect(file.saveClient).toHaveBeenCalledWith(BASE_URL, canonical);
+    expect(legacy.clearClient).toHaveBeenCalledWith(BASE_URL);
+  });
+
+  it("leaves legacy clients untouched when canonical reconciliation fails", async () => {
+    const canonical = {
+      ...defaultClientRegistration,
+      clientId: "canonical-client",
+      registeredAt: "2025-01-01T00:00:00Z",
+    };
+    const file = createMockAuthStorage({
+      loadClient: mock(() => Promise.resolve(canonical)),
+      saveClient: mock(() => Promise.reject(new Error("save failed"))),
+    });
+    const legacy = createMockAuthStorage({
+      loadClient: mock(() =>
+        Promise.resolve({
+          ...defaultClientRegistration,
+          clientId: "legacy-client",
+          registeredAt: canonical.registeredAt,
+        }),
+      ),
+    });
+    const storage = new MigratingAuthStorage(
+      createMockAuthStorage(),
+      file,
+      legacy,
+      "file",
+    );
+
+    await expect(storage.loadClient(BASE_URL)).rejects.toThrow("save failed");
+    expect(legacy.clearClient).not.toHaveBeenCalled();
   });
 
   it("clears keychain, file, and legacy stores best-effort", async () => {

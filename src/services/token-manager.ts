@@ -263,32 +263,15 @@ export class TokenManager implements TokenProvider {
             return refreshResult(tokens.accessToken, false);
           }
 
-          // Only clear tokens if they are actually expired and still match the
-          // failed in-memory refresh token. A separate `githits login` may have
-          // already written fresh tokens for long-running MCP servers.
+          // Reload once more in case another writer landed after the first
+          // post-failure check. Otherwise retain the expired candidate so the
+          // next call retries without serving its access token.
           if (isExpired) {
             const currentStoredTokens =
               await this.loadExternallyUpdatedToken(tokens);
             if (currentStoredTokens) {
               return refreshResult(currentStoredTokens.accessToken, false);
             }
-
-            const cleared = await withTelemetrySpan(
-              "token-manager.clear-tokens-if-unchanged",
-              () =>
-                this.authStorage.clearActiveTokensIfUnchanged(
-                  this.mcpUrl,
-                  tokens,
-                ),
-            );
-            if (!cleared) {
-              const currentToken = await this.authStorage.loadTokens(
-                this.mcpUrl,
-              );
-              this.cachedToken = currentToken;
-              return refreshResult(currentToken?.accessToken, false);
-            }
-            this.cachedToken = null;
           }
           return refreshResult(undefined, false);
         }

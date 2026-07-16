@@ -150,7 +150,7 @@ describe("refreshExpiredToken", () => {
     );
   });
 
-  it("clears tokens and returns undefined on refresh failure", async () => {
+  it("retains expired credentials on transient refresh failure", async () => {
     const expiredToken = createValidTokenData({
       createdAt: new Date(Date.now() - 7200_000).toISOString(),
       expiresAt: new Date(Date.now() - 60_000).toISOString(),
@@ -168,10 +168,7 @@ describe("refreshExpiredToken", () => {
     const result = await refreshExpiredToken(authService, authStorage, MCP_URL);
 
     expect(result).toBeUndefined();
-    expect(authStorage.clearActiveTokensIfUnchanged).toHaveBeenCalledWith(
-      MCP_URL,
-      expiredToken,
-    );
+    expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
   });
 });
 
@@ -453,32 +450,56 @@ describe("TokenManager", () => {
       expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
     });
 
-    it("returns undefined when expired token refresh fails", async () => {
+    it("retries and rotates retained credentials after a transient refresh failure", async () => {
       const tokenData = createValidTokenData({
         createdAt: new Date(Date.now() - 7200_000).toISOString(),
         expiresAt: new Date(Date.now() - 60_000).toISOString(),
+        refreshToken: "initial-refresh-token",
       });
-      const { manager, authStorage } = createTokenManager({
-        authService: createMockAuthService({
-          refreshAccessToken: mock(() =>
-            Promise.reject(new Error("refresh failed")),
-          ),
-        }),
-        authStorage: createMockAuthStorage({
-          loadTokens: mock(() => Promise.resolve(tokenData)),
-          loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
-        }),
+      let storedToken: TokenData | null = tokenData;
+      let refreshCalls = 0;
+      const refreshAccessToken = mock(async () => {
+        refreshCalls++;
+        if (refreshCalls === 1) throw new Error("network unavailable");
+        return {
+          accessToken: "rotated-access-token",
+          refreshToken: "rotated-refresh-token",
+          expiresIn: 3600,
+        };
+      });
+      const authStorage = createMockAuthStorage({
+        loadTokens: mock(() => Promise.resolve(storedToken)),
+        loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+        saveTokensIfUnchanged: mock(
+          (_baseUrl: string, _expected: TokenData | null, data: TokenData) => {
+            storedToken = data;
+            return Promise.resolve(true);
+          },
+        ),
+      });
+      const { manager } = createTokenManager({
+        authService: createMockAuthService({ refreshAccessToken }),
+        authStorage,
       });
 
-      const result = await manager.getToken();
-      expect(result).toBeUndefined();
-      expect(authStorage.clearActiveTokensIfUnchanged).toHaveBeenCalledWith(
+      expect(await manager.getToken()).toBeUndefined();
+      expect(storedToken).toEqual(tokenData);
+      expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
+
+      expect(await manager.getToken()).toBe("rotated-access-token");
+      expect(refreshAccessToken).toHaveBeenCalledTimes(2);
+      expect(authStorage.saveTokensIfUnchanged).toHaveBeenCalledWith(
         MCP_URL,
         tokenData,
+        expect.objectContaining({
+          accessToken: "rotated-access-token",
+          refreshToken: "rotated-refresh-token",
+        }),
       );
+      expect(storedToken?.refreshToken).toBe("rotated-refresh-token");
     });
 
-    it("clears expired tokens when forced refresh times out", async () => {
+    it("retains expired credentials when forced refresh times out", async () => {
       const tokenData = createValidTokenData({
         createdAt: new Date(Date.now() - 7200_000).toISOString(),
         expiresAt: new Date(Date.now() - 60_000).toISOString(),
@@ -498,10 +519,37 @@ describe("TokenManager", () => {
       const result = await manager.forceRefresh();
 
       expect(result).toBeUndefined();
-      expect(authStorage.clearActiveTokensIfUnchanged).toHaveBeenCalledWith(
-        MCP_URL,
-        tokenData,
-      );
+      expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
+    });
+
+    it("retains expired credentials on terminal-shaped 5xx failures", async () => {
+      const tokenData = createValidTokenData({
+        createdAt: new Date(Date.now() - 7200_000).toISOString(),
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      const { manager, authStorage } = createTokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() =>
+            Promise.reject(
+              new TokenRefreshError(
+                503,
+                JSON.stringify({
+                  error: "invalid_client",
+                  error_description: "OAuth client not found",
+                }),
+              ),
+            ),
+          ),
+        }),
+        authStorage: createMockAuthStorage({
+          loadTokens: mock(() => Promise.resolve(tokenData)),
+          loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+        }),
+      });
+
+      expect(await manager.getToken()).toBeUndefined();
+      expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
+      expect(authStorage.clearActiveClient).not.toHaveBeenCalled();
     });
 
     it("coalesces concurrent refresh requests", async () => {
@@ -597,7 +645,7 @@ describe("TokenManager", () => {
       expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
     });
 
-    it("clears tokens when refresh fails with expired token", async () => {
+    it("clears expired tokens on terminal refresh-token failure", async () => {
       const tokenData = createValidTokenData({
         createdAt: new Date(Date.now() - 7200_000).toISOString(),
         expiresAt: new Date(Date.now() - 60_000).toISOString(),
@@ -605,7 +653,15 @@ describe("TokenManager", () => {
       const { manager, authStorage } = createTokenManager({
         authService: createMockAuthService({
           refreshAccessToken: mock(() =>
-            Promise.reject(new Error("refresh failed")),
+            Promise.reject(
+              new TokenRefreshError(
+                400,
+                JSON.stringify({
+                  error: "invalid_grant",
+                  error_description: "Invalid Refresh Token: Already Used",
+                }),
+              ),
+            ),
           ),
         }),
         authStorage: createMockAuthStorage({
@@ -614,11 +670,7 @@ describe("TokenManager", () => {
         }),
       });
 
-      // getToken will attempt refresh since token is expired
-      await manager.getToken();
-
-      // forceRefresh should also clear since token is expired
-      const result = await manager.forceRefresh();
+      const result = await manager.getToken();
       expect(result).toBeUndefined();
       expect(authStorage.clearActiveTokensIfUnchanged).toHaveBeenCalledWith(
         MCP_URL,

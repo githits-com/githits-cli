@@ -22,6 +22,7 @@ interface StoredAuthSessionMetadata {
 
 const METADATA_FILE = "metadata.json";
 const DIR_MODE = 0o700;
+const FILE_MODE = 0o600;
 
 /**
  * Stores non-secret auth metadata used for startup decisions without touching
@@ -61,6 +62,7 @@ export class AuthSessionMetadataStorage implements AuthSessionMetadataStore {
     await this.fs.atomicWriteFile(
       this.metadataPath,
       JSON.stringify(stored, null, 2),
+      FILE_MODE,
     );
   }
 
@@ -78,6 +80,7 @@ export class AuthSessionMetadataStorage implements AuthSessionMetadataStore {
     await this.fs.atomicWriteFile(
       this.metadataPath,
       JSON.stringify(stored, null, 2),
+      FILE_MODE,
     );
   }
 

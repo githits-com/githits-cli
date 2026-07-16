@@ -1,5 +1,9 @@
 import { describe, expect, it, mock } from "bun:test";
+import { chmod, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { AuthStorageImpl, normalizeBaseUrl } from "./auth-storage.js";
+import { FileSystemServiceImpl } from "./filesystem-service.js";
 import { createMockFileSystemService } from "./test-helpers.js";
 
 describe("AuthStorageImpl", () => {
@@ -130,6 +134,7 @@ describe("AuthStorageImpl", () => {
       expect(fs.atomicWriteFile).toHaveBeenCalledWith(
         "/test/.githits/auth.json",
         expect.any(String),
+        0o600,
       );
 
       // Verify the written content
@@ -171,6 +176,35 @@ describe("AuthStorageImpl", () => {
       expect(
         writtenContent.tokens["https://other.example.com"].accessToken,
       ).toBe("eyJ-other");
+    });
+
+    it("tightens an existing permissive auth file after save", async () => {
+      const dir = await mkdtemp(join(tmpdir(), "githits-auth-storage-"));
+      const authPath = join(dir, "auth.json");
+      try {
+        await writeFile(authPath, JSON.stringify({ version: 1, tokens: {} }), {
+          mode: 0o644,
+        });
+        if (process.platform !== "win32") await chmod(authPath, 0o644);
+        const storage = new AuthStorageImpl(new FileSystemServiceImpl(), dir);
+
+        await storage.saveTokens(BASE_URL, {
+          accessToken: "eyJ-new",
+          refreshToken: "refresh-new",
+          expiresAt: null,
+          createdAt: "2025-01-15T10:00:00Z",
+        });
+
+        expect(await storage.loadTokens(BASE_URL)).toMatchObject({
+          accessToken: "eyJ-new",
+          refreshToken: "refresh-new",
+        });
+        if (process.platform !== "win32") {
+          expect((await stat(authPath)).mode & 0o777).toBe(0o600);
+        }
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
     });
   });
 
@@ -228,6 +262,11 @@ describe("AuthStorageImpl", () => {
       const writtenContent = JSON.parse(calls[0]?.[1] as string);
       expect(Object.keys(writtenContent.tokens)).toHaveLength(1);
       expect(writtenContent.tokens[BASE_URL]).toBeUndefined();
+      expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+        "/test/.githits/auth.json",
+        expect.any(String),
+        0o600,
+      );
     });
 
     it("does nothing when no auth file exists", async () => {
@@ -370,6 +409,7 @@ describe("AuthStorageImpl", () => {
       expect(fs.atomicWriteFile).toHaveBeenCalledWith(
         "/test/.githits/client.json",
         expect.any(String),
+        0o600,
       );
     });
   });
@@ -428,6 +468,11 @@ describe("AuthStorageImpl", () => {
       const writtenContent = JSON.parse(calls[0]?.[1] as string);
       expect(Object.keys(writtenContent.clients)).toHaveLength(1);
       expect(writtenContent.clients[BASE_URL]).toBeUndefined();
+      expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+        "/test/.githits/client.json",
+        expect.any(String),
+        0o600,
+      );
     });
 
     it("does nothing when no client file exists", async () => {

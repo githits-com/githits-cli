@@ -50,6 +50,7 @@ Tokens are JWTs with a configurable expiration (typically 1 hour). The CLI handl
 - **Shared retry helper** — GitHits REST calls and package/source service calls both use the same token-refresh/retry flow, so auth drift is handled consistently across both service families.
 - **Concurrent coalescing** — Soft refreshes from `getToken()` coalesce with each other, and strict refreshes from `forceRefresh()` coalesce with each other. A strict refresh waits for any in-flight soft refresh to finish, then refreshes the latest stored token instead of reusing a soft result that may not have hit the token endpoint. Once a strict refresh is active, later `getToken()` calls join it instead of serving cached credentials, even if the cached token still looks time-valid. Refresh attempts run inside the auth storage lock, covering storage reload, token endpoint refresh, and token save/clear as one cross-process transaction. The lock is per OS user, not per active config directory, because keychain credentials are shared even when `APPDATA` or `XDG_CONFIG_HOME` differs between agents. This prevents parallel agents from spending the same rotating refresh token at the same time. Storage writes still use compare-and-swap helpers as a defensive guard. Before refreshing a cached token, the manager reloads storage so long-running MCP servers use credentials written by a separate login/refresh.
 - **Terminal refresh failures** — Supabase OAuth refresh failures such as `invalid_client`, deleted client registrations, revoked sessions, or refresh-token reuse (`Invalid Refresh Token: Already Used`) are not retried as transient errors. The CLI clears stale token state immediately, and clears the stored client registration for invalid-client failures so the next login performs fresh dynamic client registration.
+- **Transient refresh failures** — Transport, timeout, and 5xx failures never clear refresh credentials. If the access token is expired, the current call returns no token, leaves the expired candidate cached and persisted, and the next `getToken()` call attempts refresh again. A later successful refresh persists token rotation normally; the expired access token is never served.
 - **Active-backend-scoped automatic clears** — Automatic refresh-failure cleanup (`TokenManager`) and login's client re-registration cleanup clear only the **active storage backend class**, never the inactive one. The active class is everything the active-mode load reads: keychain in keychain mode; the file store plus all legacy plaintext stores in file mode (a leftover legacy copy would otherwise be re-migrated on the next load and resurrect the just-cleared credential). This prevents a stale credential in an inactive backend — e.g. a keychain token left over from a launch without `GITHITS_AUTH_STORAGE=file` — from wiping the good credential in the mode the user actually runs. Only explicit `logout` (`clearAuthSession`) clears every backend. The composite methods are `clearActiveTokensIfUnchanged` / `clearActiveClient` on `AuthStorage`; single-backend stores delegate them to the unscoped clear.
 - **At login** (`src/commands/login.ts`) — Checks if existing token is still valid before starting the OAuth flow. Respects `--force` flag to re-authenticate regardless.
 - **At init** (`src/commands/init/init.ts`) — Resolves auth through `createContainer()` at the login step so standard token refresh runs before falling back to browser login.
@@ -103,7 +104,7 @@ When `auth.storage = "file"`, auth data is stored under the platform config auth
 | `auth.json` | OAuth tokens | `{ version: 1, tokens: { [mcpUrl]: { accessToken, refreshToken, expiresAt (string\|null), createdAt } } }` |
 | `client.json` | DCR client registration | `{ version: 1, clients: { [mcpUrl]: { clientId, clientSecret, redirectUri, registeredAt } } }` |
 
-Both files use 0600 permissions. The directory uses 0700. Rewrites use `FileSystemService.atomicWriteFile()` so a crash does not leave half-written JSON. This protects against other local users but does not encrypt credentials at rest.
+On POSIX, new files and successful rewrites are capped at 0600 permissions; an existing more-restrictive mode such as 0400 is preserved. The directory is requested with 0700 when created. Rewrites use `FileSystemService.atomicWriteFile()` so readers do not observe half-written JSON, but no power-loss durability is claimed. POSIX mode bits are not a Windows ACL guarantee. File storage protects against other local users where those modes apply, but does not encrypt credentials at rest.
 
 Typical Linux layout:
 
@@ -129,11 +130,12 @@ Keychain mode:
 
 File mode:
 
-1. Check new file path — if found, return it
-2. Check legacy `~/.githits` — if found, write to new file path, delete legacy entry, return it
-3. Do not inspect or export keychain credentials
+1. Read canonical and legacy plaintext candidates without inspecting keychain credentials.
+2. Select the unique newest valid timestamp when one exists.
+3. For tied or invalid timestamps, prefer the canonical candidate when present, re-persist it, then clear all legacy copies best-effort.
+4. If ambiguity exists only between legacy stores, return no candidate, leave every legacy entry intact, and warn instead of guessing.
 
-The file-mode legacy target write must succeed before the legacy source entry is deleted. Tokens and client registrations migrate independently. If both plaintext paths contain entries, the newer timestamp wins; ambiguous ties prefer the new file path and leave the other entry intact with a warning.
+The canonical target write must succeed before any legacy source entry is deleted. Tokens and client registrations migrate independently, and cleanup across independent stores is not transactionally atomic.
 
 ### Architecture
 
@@ -151,7 +153,7 @@ Container (createAuthStorage)
 
 All credential types are keyed by normalized MCP base URL (trailing slashes stripped), supporting multiple environments simultaneously.
 
-`LockedAuthStorage` serializes mutating auth operations and token refresh transactions across CLI processes and long-running MCP servers with an `auth.lock` directory under the platform config path. The lock records PID and process start time so dead-owner locks can be reclaimed without stealing live locks. Token refresh holds this lock while it reloads stored credentials, calls the token endpoint, and saves or clears the result.
+`LockedAuthStorage` serializes mutations and file-mode migration loads across CLI processes and long-running MCP servers with an `auth.lock` directory under the platform config path. File-mode loads participate because migration can reconcile ambiguous plaintext candidates by writing the canonical record and clearing legacy copies; ordinary keychain loads remain read-only and avoid this lock. The lock records PID and process start time so dead-owner locks can be reclaimed without stealing live locks. Token refresh holds this lock while it reloads stored credentials, calls the token endpoint, and saves or clears the result.
 
 ## How Auth Flows Through the System
 
@@ -164,8 +166,9 @@ CLI startup / MCP server start
                  ├─ stored token valid? → use it
                  ├─ stored token near-expiry (≥90% lifetime)? → proactive refresh
                  ├─ stored token expired? → reactive refresh
-                 │    ├─ refresh success → save new tokens, use them
-                  │    └─ refresh fail → reload storage; use externally updated tokens or clear the active backend only if unchanged and expired
+                  │    ├─ refresh success → save new tokens, use them
+                  │    ├─ transient failure → reload storage; retain unchanged refresh credentials and return no expired access token
+                  │    └─ terminal failure → reload storage; clear the active backend only if unchanged
                   └─ no stored token → hasValidToken=false
 
 Per API call (via RefreshingGitHitsService):
@@ -181,7 +184,7 @@ The MCP server starts without a synchronous auth gate. Tool calls resolve tokens
 - **Different auth behavior across terminals or agents** — Run `githits doctor` or `githits doctor --json` to compare redacted runtime, environment, config, and auth-storage diagnostics without exposing token values.
 - **"Already logged in."** — Token is still valid. Use `githits login --force` to re-authenticate.
 - **Port conflicts on login** — The callback server uses the port from the stored client registration. On first login, a random port (8000–9999) is chosen and saved. Use `--port <port>` to change it (triggers re-registration).
-- **Token refresh fails silently** — By design. The token manager first reloads storage in case another process refreshed credentials. If the expired token is still unchanged, it clears that stale token (active backend only — see "Active-backend-scoped automatic clears") and later calls prompt re-login.
+- **Token refresh fails silently** — The token manager first reloads storage in case another process refreshed credentials. Transient failures retain unchanged refresh credentials and later calls retry. Only classified terminal failures clear the stale token from the active backend and require login again.
 - **Logged out after running in a different storage mode** — Credentials saved under one `auth.storage` mode are invisible to the other (keychain and file modes do not cross-inspect). An inconsistent `GITHITS_AUTH_STORAGE` across contexts (e.g. set for the MCP server but not the interactive shell) looks like a logout. Automatic clears no longer compound this by wiping the other mode's credentials, but the fix for the phantom logout is to make the mode consistent everywhere (prefer `auth.storage` in `config.toml` over the env var) and `githits login --force` once.
 - **Clearing auth** — Run `githits logout` to remove stored tokens and client registration for the current environment.
 - **System keychain unavailable** — In default keychain mode, OAuth login/refresh fails rather than writing plaintext credentials. Use `GITHITS_API_TOKEN`, fix/unlock the keychain, or explicitly configure `auth.storage = "file"` if plaintext local storage is acceptable.
@@ -190,7 +193,7 @@ The MCP server starts without a synchronous auth gate. Tool calls resolve tokens
 ## Diagnostics
 
 - **Telemetry (opt-in, local repro only)** — When `GITHITS_TELEMETRY` is enabled, auth spans carry diagnostic attributes: `auth.fingerprint` records the resolved storage `mode`, platform, and which scope-determining env vars are set (booleans only, never values); token/client clear spans carry a `reason` (`terminal_invalid_refresh_token`, `terminal_invalid_client`, `logout`). This flushes to stderr and is invisible to external users running the MCP server, so it only helps when we reproduce locally with the flag on.
-- **Persisted auth-clear breadcrumb (doctor-visible)** — Because the only diagnostic channel that reaches an external user is persisted state surfaced by `githits doctor`, the last auth-clear `{ reason, at }` is persisted to `auth/diagnostics.json` and rendered by `doctor` as `last clear: ...`. When the active token is missing, `doctor` adds a recommendation explaining the cause (refresh-token reuse/expiry, rejected client registration, or explicit logout). Writes happen at the clear sites — `logout` and `TokenManager` terminal refresh failures — and are best-effort, so a diagnostics write can never break the path it observes. The file lives separately from `metadata.json` because credential clears wipe metadata and a breadcrumb stored there would erase itself; it is only ever overwritten by the next event, never cleared, and holds no secrets (a reason enum and timestamp keyed by MCP URL).
+- **Persisted auth-clear breadcrumb (doctor-visible)** — Because the only diagnostic channel that reaches an external user is persisted state surfaced by `githits doctor`, the last auth-clear `{ reason, at }` is persisted to `auth/diagnostics.json` and rendered by `doctor` as `last clear: ...`. When the active token is missing, `doctor` adds a recommendation explaining the cause (refresh-token reuse/expiry, rejected client registration, or explicit logout). Writes happen at the clear sites — `logout` and `TokenManager` terminal refresh failures — and are best-effort, so a diagnostics write can never break the path it observes. The file lives separately from `metadata.json` because credential clears wipe metadata and a breadcrumb stored there would erase itself; it is only ever overwritten by the next event, never cleared, and holds no secrets (a reason enum and timestamp keyed by MCP URL). Like other auth-associated files, successful POSIX rewrites are capped at 0600.
 
 ## Key Reference Files
 

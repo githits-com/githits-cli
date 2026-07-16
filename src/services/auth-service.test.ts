@@ -509,6 +509,30 @@ describe("AuthServiceImpl", () => {
       }
     });
 
+    it("does not classify terminal-shaped 5xx refresh errors as terminal", () => {
+      const error = new TokenRefreshError(
+        503,
+        JSON.stringify({
+          error: "invalid_client",
+          error_description: "OAuth client not found",
+        }),
+      );
+
+      expect(classifyTerminalRefreshError(error)).toBeUndefined();
+    });
+
+    it("does not classify terminal-shaped 3xx refresh errors as terminal", () => {
+      const error = new TokenRefreshError(
+        302,
+        JSON.stringify({
+          error: "invalid_client",
+          error_description: "OAuth client not found",
+        }),
+      );
+
+      expect(classifyTerminalRefreshError(error)).toBeUndefined();
+    });
+
     it("normalizes and bounds JSON refresh error details", async () => {
       const description = `Invalid Refresh Token: Already Used\nsecond line ${"x".repeat(600)}`;
       const body = JSON.stringify({

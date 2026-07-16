@@ -58,8 +58,13 @@ export interface FileSystemService {
    * Ensures the target file is never left in a half-written state.
    * The temp file is created in the same directory as the target
    * so rename() is atomic on the same filesystem.
+   * An optional maximum mode intersects with an existing file's permissions.
    */
-  atomicWriteFile(path: string, contents: string): Promise<void>;
+  atomicWriteFile(
+    path: string,
+    contents: string,
+    maximumMode?: number,
+  ): Promise<void>;
 }
 
 /**
@@ -142,14 +147,25 @@ export class FileSystemServiceImpl implements FileSystemService {
     }
   }
 
-  async atomicWriteFile(path: string, contents: string): Promise<void> {
+  async atomicWriteFile(
+    path: string,
+    contents: string,
+    maximumMode?: number,
+  ): Promise<void> {
     const tmpPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
-    // Preserve existing file permissions; default to 0o600 for new files
-    // (config files may contain sensitive data from other MCP servers)
-    let mode = 0o600;
+    const normalizedMaximum =
+      maximumMode === undefined ? undefined : maximumMode & 0o777;
+    // Existing modes are preserved unless a caller supplies a cap. New files
+    // use that cap or default to 0600. Rename is atomic at filesystem rename
+    // granularity; this does not claim power-loss durability.
+    let mode = normalizedMaximum ?? 0o600;
     try {
       const existing = await stat(path);
-      mode = existing.mode & 0o777;
+      const existingMode = existing.mode & 0o777;
+      mode =
+        normalizedMaximum === undefined
+          ? existingMode
+          : existingMode & normalizedMaximum;
     } catch {
       // File doesn't exist yet — use default
     }
