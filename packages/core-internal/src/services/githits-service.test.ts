@@ -165,6 +165,26 @@ describe("GitHitsServiceImpl", () => {
       }
     });
 
+    it("supports a runtime-specific example request timeout", async () => {
+      const timeoutSpy = spyOn(AbortSignal, "timeout");
+      mockFetch(() => Promise.resolve(new Response("result")));
+      const hostedService = new GitHitsServiceImpl(
+        API_URL,
+        TOKEN,
+        undefined,
+        undefined,
+        { exampleRequestTimeoutMs: 225_000 },
+      );
+
+      try {
+        await hostedService.search({ query: "probe" });
+
+        expect(timeoutSpy).toHaveBeenCalledWith(225_000);
+      } finally {
+        timeoutSpy.mockRestore();
+      }
+    });
+
     it("classifies injected AbortError failures as timeouts", async () => {
       const cause = new DOMException("aborted", "AbortError");
       const abortService = new GitHitsServiceImpl(

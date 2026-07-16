@@ -153,6 +153,7 @@ export interface FeedbackResult {
 export interface GitHitsServiceRuntimeOptions {
   clientHeaders?: ClientHeaderBuilder;
   userAgent?: string;
+  exampleRequestTimeoutMs?: number;
 }
 
 const LANGUAGE_SCHEMA = z.object({
@@ -207,7 +208,8 @@ export class GitHitsServiceImpl implements GitHitsService {
             include_explanation: params.includeExplanation ?? false,
           }),
         },
-        DEFAULT_EXAMPLE_REQUEST_TIMEOUT_MS,
+        this.runtime.exampleRequestTimeoutMs ??
+          DEFAULT_EXAMPLE_REQUEST_TIMEOUT_MS,
       );
 
       if (!response.ok) {
