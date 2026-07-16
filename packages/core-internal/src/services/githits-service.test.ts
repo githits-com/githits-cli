@@ -7,7 +7,10 @@ import {
   mock,
   spyOn,
 } from "bun:test";
-import { FetchTimeoutError } from "../shared/fetch-timeout.js";
+import {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  FetchTimeoutError,
+} from "../shared/fetch-timeout.js";
 import { createClientHeaderBuilder } from "../shared/request-headers.js";
 import {
   ApiRateLimitError,
@@ -38,6 +41,18 @@ async function captureRateLimitError(
     throw error;
   }
   throw new Error("Expected ApiRateLimitError");
+}
+
+async function captureFetchTimeoutError(
+  operation: () => Promise<unknown>,
+): Promise<FetchTimeoutError> {
+  try {
+    await operation();
+  } catch (error) {
+    if (error instanceof FetchTimeoutError) return error;
+    throw error;
+  }
+  throw new Error("Expected FetchTimeoutError");
 }
 
 describe("GitHitsServiceImpl", () => {
@@ -129,9 +144,24 @@ describe("GitHitsServiceImpl", () => {
         1,
       );
 
-      await expect(timeoutService.search({ query: "probe" })).rejects.toThrow(
-        FetchTimeoutError,
+      const error = await captureFetchTimeoutError(() =>
+        timeoutService.search({ query: "probe" }),
       );
+
+      expect(error.timeoutMs).toBe(1);
+    });
+
+    it("uses the extended default request timeout", async () => {
+      const timeoutSpy = spyOn(AbortSignal, "timeout");
+      mockFetch(() => Promise.resolve(new Response("result")));
+
+      try {
+        await service.search({ query: "probe" });
+
+        expect(timeoutSpy).toHaveBeenCalledWith(240_000);
+      } finally {
+        timeoutSpy.mockRestore();
+      }
     });
 
     it("omits language from JSON when not provided", async () => {
@@ -289,6 +319,25 @@ describe("GitHitsServiceImpl", () => {
   });
 
   describe("getLanguages", () => {
+    it("keeps the standard request timeout", async () => {
+      const timeoutSpy = spyOn(AbortSignal, "timeout");
+      mockFetch(() =>
+        Promise.resolve(
+          new Response("[]", {
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      try {
+        await service.getLanguages();
+
+        expect(timeoutSpy).toHaveBeenCalledWith(DEFAULT_FETCH_TIMEOUT_MS);
+      } finally {
+        timeoutSpy.mockRestore();
+      }
+    });
+
     it("returns array of languages", async () => {
       const languages = [
         {

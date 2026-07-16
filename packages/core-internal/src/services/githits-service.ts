@@ -5,6 +5,8 @@ import {
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import { withTelemetrySpan } from "../shared/telemetry.js";
 
+const DEFAULT_EXAMPLE_REQUEST_TIMEOUT_MS = 240_000;
+
 /**
  * Neutral auth-required message for service/core errors. Surface layers append
  * CLI- or MCP-specific recovery guidance when presenting the error.
@@ -189,7 +191,7 @@ export class GitHitsServiceImpl implements GitHitsService {
     private readonly apiUrl: string,
     private readonly token: string,
     private readonly fetchFn?: typeof fetch,
-    private readonly fetchTimeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS,
+    private readonly fetchTimeoutMs: number | undefined = undefined,
     private readonly runtime: GitHitsServiceRuntimeOptions = {},
   ) {}
 
@@ -207,7 +209,7 @@ export class GitHitsServiceImpl implements GitHitsService {
             include_explanation: params.includeExplanation ?? false,
           }),
         },
-        this.fetchOptions(),
+        this.fetchOptions(DEFAULT_EXAMPLE_REQUEST_TIMEOUT_MS),
       );
 
       if (!response.ok) {
@@ -302,13 +304,13 @@ export class GitHitsServiceImpl implements GitHitsService {
     };
   }
 
-  private fetchOptions(): {
+  private fetchOptions(defaultTimeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS): {
     fetchFn?: typeof fetch;
     timeoutMs: number;
   } {
     return {
       fetchFn: this.fetchFn,
-      timeoutMs: this.fetchTimeoutMs,
+      timeoutMs: this.fetchTimeoutMs ?? defaultTimeoutMs,
     };
   }
 
