@@ -1,6 +1,22 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+  spyOn,
+} from "bun:test";
+import {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  FetchTimeoutError,
+} from "../shared/fetch-timeout.js";
 import { createClientHeaderBuilder } from "../shared/request-headers.js";
-import { AuthenticationError, GitHitsServiceImpl } from "./githits-service.js";
+import {
+  ApiRateLimitError,
+  AuthenticationError,
+  GitHitsServiceImpl,
+} from "./githits-service.js";
 
 // Helper to mock global fetch with proper typing
 function mockFetch(impl: () => Promise<Response>) {
@@ -13,6 +29,30 @@ function asFetchFn<T extends (...args: never[]) => unknown>(
   fn: T,
 ): typeof fetch {
   return fn as unknown as typeof fetch;
+}
+
+async function captureRateLimitError(
+  operation: () => Promise<unknown>,
+): Promise<ApiRateLimitError> {
+  try {
+    await operation();
+  } catch (error) {
+    if (error instanceof ApiRateLimitError) return error;
+    throw error;
+  }
+  throw new Error("Expected ApiRateLimitError");
+}
+
+async function captureFetchTimeoutError(
+  operation: () => Promise<unknown>,
+): Promise<FetchTimeoutError> {
+  try {
+    await operation();
+  } catch (error) {
+    if (error instanceof FetchTimeoutError) return error;
+    throw error;
+  }
+  throw new Error("Expected FetchTimeoutError");
 }
 
 describe("GitHitsServiceImpl", () => {
@@ -104,9 +144,45 @@ describe("GitHitsServiceImpl", () => {
         1,
       );
 
-      await expect(timeoutService.search({ query: "probe" })).rejects.toThrow(
-        "Request to GitHits timed out. Try again.",
+      const error = await captureFetchTimeoutError(() =>
+        timeoutService.search({ query: "probe" }),
       );
+
+      expect(error.timeoutMs).toBe(1);
+      expect(error.message).toBe("Request to GitHits timed out. Try again.");
+    });
+
+    it("uses the extended default request timeout", async () => {
+      const timeoutSpy = spyOn(AbortSignal, "timeout");
+      mockFetch(() => Promise.resolve(new Response("result")));
+
+      try {
+        await service.search({ query: "probe" });
+
+        expect(timeoutSpy).toHaveBeenCalledWith(240_000);
+      } finally {
+        timeoutSpy.mockRestore();
+      }
+    });
+
+    it("supports a runtime-specific example request timeout", async () => {
+      const timeoutSpy = spyOn(AbortSignal, "timeout");
+      mockFetch(() => Promise.resolve(new Response("result")));
+      const hostedService = new GitHitsServiceImpl(
+        API_URL,
+        TOKEN,
+        undefined,
+        undefined,
+        { exampleRequestTimeoutMs: 225_000 },
+      );
+
+      try {
+        await hostedService.search({ query: "probe" });
+
+        expect(timeoutSpy).toHaveBeenCalledWith(225_000);
+      } finally {
+        timeoutSpy.mockRestore();
+      }
     });
 
     it("classifies injected AbortError failures as timeouts", async () => {
@@ -185,6 +261,102 @@ describe("GitHitsServiceImpl", () => {
       ).rejects.toThrow("GitHits could not accept the authentication token.");
     });
 
+    it("uses a stable public message and preserves delay-seconds on 429", async () => {
+      mockFetch(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({ detail: "Internal response detail." }),
+            {
+              status: 429,
+              headers: { "Retry-After": "30" },
+            },
+          ),
+        ),
+      );
+
+      const error = await captureRateLimitError(() =>
+        service.search({ query: "test" }),
+      );
+
+      expect(error.name).toBe("ApiRateLimitError");
+      expect(error.message).toBe("Request rate limited.");
+      expect(error.message).not.toContain("Internal response detail");
+      expect(error.status).toBe(429);
+      expect(error.retryAfterSeconds).toBe(30);
+    });
+
+    it("parses a future HTTP-date Retry-After and rounds up", async () => {
+      const nowMs = Date.UTC(2030, 0, 1, 0, 0, 0, 250);
+      const dateNow = spyOn(Date, "now").mockReturnValue(nowMs);
+      mockFetch(() =>
+        Promise.resolve(
+          new Response("Internal response detail.", {
+            status: 429,
+            headers: {
+              "Retry-After": new Date(
+                Date.UTC(2030, 0, 1, 0, 0, 5),
+              ).toUTCString(),
+            },
+          }),
+        ),
+      );
+
+      try {
+        const error = await captureRateLimitError(() =>
+          service.search({ query: "test" }),
+        );
+
+        expect(error.message).toBe("Request rate limited.");
+        expect(error.retryAfterSeconds).toBe(5);
+      } finally {
+        dateNow.mockRestore();
+      }
+    });
+
+    it("uses a generic message when a 429 has no API detail", async () => {
+      mockFetch(() => Promise.resolve(new Response("", { status: 429 })));
+
+      const error = await captureRateLimitError(() =>
+        service.search({ query: "test" }),
+      );
+
+      expect(error.message).toBe("Request rate limited.");
+      expect(error.retryAfterSeconds).toBeUndefined();
+    });
+
+    it.each([
+      ["empty", ""],
+      ["negative", "-1"],
+      ["fractional", "1.5"],
+      ["invalid", "not-a-date"],
+      ["non-HTTP date", "2030-01-02"],
+      ["past HTTP-date", "Tue, 01 Jan 2019 00:00:00 GMT"],
+      ["unsafe integer", "999999999999999999999999"],
+    ])("ignores Retry-After value: %s", async (_description, retryAfter) => {
+      const dateNow = spyOn(Date, "now").mockReturnValue(Date.UTC(2030, 0, 1));
+      mockFetch(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({ detail: "Internal response detail." }),
+            {
+              status: 429,
+              headers: { "Retry-After": retryAfter },
+            },
+          ),
+        ),
+      );
+
+      try {
+        const error = await captureRateLimitError(() =>
+          service.search({ query: "test" }),
+        );
+
+        expect(error.retryAfterSeconds).toBeUndefined();
+      } finally {
+        dateNow.mockRestore();
+      }
+    });
+
     it("throws on 500 with status code", async () => {
       mockFetch(() => Promise.resolve(new Response("", { status: 500 })));
 
@@ -228,18 +400,40 @@ describe("GitHitsServiceImpl", () => {
       );
     });
 
-    it("returns a dedicated rate-limit error", async () => {
+    it("does not expose raw rate-limit response bodies", async () => {
       mockFetch(() =>
         Promise.resolve(new Response("slow down", { status: 429 })),
       );
 
-      await expect(service.search({ query: "test" })).rejects.toThrow(
-        "Rate limit exceeded. Try again shortly.",
+      const error = await captureRateLimitError(() =>
+        service.search({ query: "test" }),
       );
+
+      expect(error.message).toBe("Request rate limited.");
+      expect(error.message).not.toContain("slow down");
     });
   });
 
   describe("getLanguages", () => {
+    it("keeps the standard request timeout", async () => {
+      const timeoutSpy = spyOn(AbortSignal, "timeout");
+      mockFetch(() =>
+        Promise.resolve(
+          new Response("[]", {
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      try {
+        await service.getLanguages();
+
+        expect(timeoutSpy).toHaveBeenCalledWith(DEFAULT_FETCH_TIMEOUT_MS);
+      } finally {
+        timeoutSpy.mockRestore();
+      }
+    });
+
     it("returns array of languages", async () => {
       const languages = [
         {

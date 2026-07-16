@@ -1,7 +1,7 @@
 {
   "name": "githits",
-  "version": "0.6.2",
-  "description": "Code examples from global open source for developers and AI assistants",
+  "version": "0.6.3",
+  "description": "The code context layer for AI coding agents",
   "author": {
     "name": "GitHits"
   },

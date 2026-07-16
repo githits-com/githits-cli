@@ -24,6 +24,28 @@ export function formatMappedErrorForTerminal(mapped: MappedError): string {
     }
     return `${mapped.message} ${authRemediation(mapped)}`;
   }
+  if (mapped.code === "RATE_LIMITED") {
+    if (mapped.retryable !== true || hasRetryGuidance(mapped.message)) {
+      return mapped.message;
+    }
+    const retryAfterSeconds = mapped.details?.retryAfterSeconds;
+    if (
+      typeof retryAfterSeconds === "number" &&
+      Number.isFinite(retryAfterSeconds) &&
+      retryAfterSeconds > 0
+    ) {
+      const seconds = Math.ceil(retryAfterSeconds);
+      const unit = seconds === 1 ? "second" : "seconds";
+      return `${mapped.message} Try again in ${seconds} ${unit}.`;
+    }
+    return `${mapped.message} Try again shortly.`;
+  }
+  if (mapped.code === "TIMEOUT") {
+    if (mapped.retryable !== true || hasRetryGuidance(mapped.message)) {
+      return mapped.message;
+    }
+    return `${mapped.message} Try again.`;
+  }
   if (mapped.code !== "UPDATE_REQUIRED") {
     return mapped.message;
   }
@@ -33,6 +55,10 @@ export function formatMappedErrorForTerminal(mapped: MappedError): string {
       ? detail.updateCommand
       : "npm i -g githits@latest";
   return [mapped.message, "", "Update with:", `  ${updateCommand}`].join("\n");
+}
+
+function hasRetryGuidance(message: string): boolean {
+  return /\b(?:retry|try again)\b/i.test(message);
 }
 
 function authRemediation(mapped: MappedError): string {

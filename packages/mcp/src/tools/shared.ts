@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { AuthenticationError } from "@githits/core-internal";
 import type { MappedError } from "../shared/code-navigation-error-map.js";
+import { mapGitHitsServiceError } from "../shared/githits-service-error-map.js";
 import { errorResult, type ToolResult } from "./types.js";
 
 const LOCAL_MCP_AUTH_ACTION =
@@ -44,7 +44,7 @@ export async function withErrorHandling<T>(
   try {
     return await fn();
   } catch (error) {
-    return errorResult(JSON.stringify(classify(operation, error)));
+    return mcpMappedErrorResult(mapGitHitsServiceError(operation, error));
   }
 }
 
@@ -92,26 +92,6 @@ export function addLocalMcpAuthAction<T extends MappableErrorPayload>(
       ...(payload.details ?? {}),
       action: mcpAuthAction(payload.details?.authSource),
     },
-  };
-}
-
-function classify(operation: string, error: unknown): ToolErrorEnvelope {
-  if (error instanceof AuthenticationError) {
-    return {
-      error: error.message,
-      code: "AUTH_REQUIRED",
-      retryable: false,
-      details: {
-        action: mcpAuthAction(error.source),
-        authSource: error.source,
-      },
-    };
-  }
-  const message = error instanceof Error ? error.message : "Unknown error";
-  return {
-    error: `Failed to ${operation}: ${message}`,
-    code: "UNKNOWN",
-    retryable: false,
   };
 }
 

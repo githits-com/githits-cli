@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
+  FetchTimeoutError,
   fetchWithTimeout,
   isFetchTimeoutError,
 } from "../shared/fetch-timeout.js";
@@ -8,6 +9,8 @@ import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import { withTelemetrySpan } from "../shared/telemetry.js";
 import { validateServiceUrl } from "./config.js";
+
+const DEFAULT_EXAMPLE_REQUEST_TIMEOUT_MS = 240_000;
 
 /**
  * Neutral auth-required message for service/core errors. Surface layers append
@@ -36,6 +39,70 @@ export class AuthenticationError extends Error {
     this.name = "AuthenticationError";
     this.source = source;
   }
+}
+
+/**
+ * Error returned when the REST API asks the client to retry later.
+ *
+ * `retryAfterSeconds` is derived from the standard Retry-After response
+ * header when it contains either delay-seconds or a future HTTP date.
+ */
+export class ApiRateLimitError extends Error {
+  readonly status = 429;
+  readonly retryAfterSeconds: number | undefined;
+
+  constructor(
+    message: string = "Request rate limited.",
+    retryAfterSeconds?: number,
+  ) {
+    super(message);
+    this.name = "ApiRateLimitError";
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/**
+ * Parse an HTTP Retry-After value into a non-negative delay in seconds.
+ * HTTP-date delays round up so callers never retry before the stated time.
+ */
+function parseRetryAfterSeconds(
+  value: string | null,
+  nowMs: number,
+): number | undefined {
+  const normalized = value?.trim();
+  if (!normalized) return undefined;
+
+  if (/^\d+$/.test(normalized)) {
+    const delaySeconds = Number(normalized);
+    return Number.isSafeInteger(delaySeconds) ? delaySeconds : undefined;
+  }
+
+  // Numeric-looking values that are not delay-seconds must not be
+  // reinterpreted by Date.parse as implementation-specific dates.
+  if (/^[+-]?\d+(?:\.\d+)?$/.test(normalized)) return undefined;
+
+  // Date.parse accepts formats outside HTTP-date, including ISO dates.
+  // Restrict parsing to the three wire formats HTTP clients must accept.
+  const isHttpDate =
+    /^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(
+      normalized,
+    ) ||
+    /^[A-Z][a-z]+, \d{2}-[A-Z][a-z]{2}-\d{2} \d{2}:\d{2}:\d{2} GMT$/.test(
+      normalized,
+    ) ||
+    /^[A-Z][a-z]{2} [A-Z][a-z]{2} [ \d]\d \d{2}:\d{2}:\d{2} \d{4}$/.test(
+      normalized,
+    );
+  if (!isHttpDate) return undefined;
+
+  const retryAtMs = Date.parse(normalized);
+  if (!Number.isFinite(retryAtMs)) return undefined;
+
+  const delayMs = retryAtMs - nowMs;
+  if (delayMs < 0) return undefined;
+
+  const delaySeconds = Math.ceil(delayMs / 1_000);
+  return Number.isSafeInteger(delaySeconds) ? delaySeconds : undefined;
 }
 
 /**
@@ -86,6 +153,7 @@ export interface FeedbackResult {
 export interface GitHitsServiceRuntimeOptions {
   clientHeaders?: ClientHeaderBuilder;
   userAgent?: string;
+  exampleRequestTimeoutMs?: number;
 }
 
 const LANGUAGE_SCHEMA = z.object({
@@ -122,22 +190,27 @@ export class GitHitsServiceImpl implements GitHitsService {
     private readonly apiUrl: string,
     private readonly token: string,
     private readonly fetchFn?: typeof fetch,
-    private readonly fetchTimeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS,
+    private readonly fetchTimeoutMs: number | undefined = undefined,
     private readonly runtime: GitHitsServiceRuntimeOptions = {},
   ) {}
 
   async search(params: SearchParams): Promise<string> {
     return withTelemetrySpan("githits.search.request", async () => {
-      const response = await this.request("/search", {
-        method: "POST",
-        headers: this.headers(),
-        body: JSON.stringify({
-          query: params.query,
-          language: params.language,
-          license_mode: params.licenseMode ?? "strict",
-          include_explanation: params.includeExplanation ?? false,
-        }),
-      });
+      const response = await this.request(
+        "/search",
+        {
+          method: "POST",
+          headers: this.headers(),
+          body: JSON.stringify({
+            query: params.query,
+            language: params.language,
+            license_mode: params.licenseMode ?? "strict",
+            include_explanation: params.includeExplanation ?? false,
+          }),
+        },
+        this.runtime.exampleRequestTimeoutMs ??
+          DEFAULT_EXAMPLE_REQUEST_TIMEOUT_MS,
+      );
 
       if (!response.ok) {
         throw await this.createError(response);
@@ -219,27 +292,32 @@ export class GitHitsServiceImpl implements GitHitsService {
     };
   }
 
-  private fetchOptions(): {
+  private fetchOptions(defaultTimeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS): {
     fetchFn?: typeof fetch;
     timeoutMs: number;
   } {
     return {
       fetchFn: this.fetchFn,
-      timeoutMs: this.fetchTimeoutMs,
+      timeoutMs: this.fetchTimeoutMs ?? defaultTimeoutMs,
     };
   }
 
-  private async request(path: string, init: RequestInit): Promise<Response> {
+  private async request(
+    path: string,
+    init: RequestInit,
+    defaultTimeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS,
+  ): Promise<Response> {
     const apiUrl = validateServiceUrl(this.apiUrl, "GITHITS_API_URL");
+    const fetchOptions = this.fetchOptions(defaultTimeoutMs);
     try {
       return await fetchWithTimeout(
         `${apiUrl.replace(/\/+$/, "")}${path}`,
         init,
-        this.fetchOptions(),
+        fetchOptions,
       );
     } catch (cause) {
       if (isFetchTimeoutError(cause) || isAbortError(cause)) {
-        throw new Error("Request to GitHits timed out. Try again.", { cause });
+        throw new GitHitsRequestTimeoutError(fetchOptions.timeoutMs, cause);
       }
       if (cause instanceof TypeError) {
         throw new Error(
@@ -286,7 +364,13 @@ export class GitHitsServiceImpl implements GitHitsService {
       case 404:
         return new Error(detail || "Resource not found.");
       case 429:
-        return new Error("Rate limit exceeded. Try again shortly.");
+        return new ApiRateLimitError(
+          undefined,
+          parseRetryAfterSeconds(
+            response.headers.get("Retry-After"),
+            Date.now(),
+          ),
+        );
       default: {
         if (status >= 500) {
           return new Error(
@@ -298,6 +382,14 @@ export class GitHitsServiceImpl implements GitHitsService {
         );
       }
     }
+  }
+}
+
+class GitHitsRequestTimeoutError extends FetchTimeoutError {
+  constructor(timeoutMs: number, cause: unknown) {
+    super(timeoutMs, { cause });
+    this.name = "GitHitsRequestTimeoutError";
+    this.message = "Request to GitHits timed out. Try again.";
   }
 }
 

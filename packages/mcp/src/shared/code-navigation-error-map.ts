@@ -52,6 +52,8 @@ export interface MappedErrorDetails {
   indexingRef?: string;
   indexingEstimate?: IndexingDurationEstimate;
   status?: number;
+  retryAfterSeconds?: number;
+  timeoutMs?: number;
   graphqlCode?: string;
   /**
    * Populated on `VERSION_NOT_FOUND` from the backend's

@@ -1,6 +1,6 @@
 # GitHits
 
-Code examples from global open source for developers and AI assistants.
+The code context layer for AI coding agents.
 
 ## Available Tools
 

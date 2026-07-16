@@ -110,11 +110,12 @@ test suite anchors the doc.
 
 - Every error result, on both surfaces, carries
   `{ error: string, code: MappedErrorCode, retryable?: boolean, details?: object }`.
-- `code` is mandatory. `UNKNOWN` is a last resort — every named error
-  class in the code-navigation and package-intelligence stacks maps to a
-  specific code. The classifier is tested by table in
-  `packages/mcp/src/shared/code-navigation-error-map.test.ts`; that test is the
-  enforcement mechanism, not a convention.
+- `code` is mandatory. `UNKNOWN` is a last resort — named errors from the
+  GitHits API, code-navigation, and package-intelligence clients map to a
+  specific code. API rate-limit metadata is preserved in `details` when
+  available. The classifiers are covered in
+  `packages/mcp/src/shared/*-error-map.test.ts`; those tests are the enforcement
+  mechanism, not a convention.
 - MCP error text is always valid JSON. A client that parses
   `content[0].text` on error gets the same envelope as CLI `--json`.
 - The REST-backed `example`, `languages`, and `feedback` CLI commands preserve

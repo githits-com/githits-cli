@@ -73,6 +73,13 @@ githits example "react hooks patterns" -l typescript --json
 
 Default output is markdown (the API response). `--lang` is optional; when omitted, the backend infers the language from the query. With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL — pass it back to `feedback`). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
 
+API rate-limit and timeout responses use the shared structured error envelope.
+Example requests use a longer client deadline than shorter metadata operations.
+When the API supplies `Retry-After`, JSON output preserves it as
+`details.retryAfterSeconds`; terminal output provides the same retry timing in
+plain language. The client returns the error immediately and does not retry it
+automatically.
+
 ### `githits search`
 
 ```

@@ -5,14 +5,14 @@
     "email": "support@githits.com"
   },
   "metadata": {
-    "description": "GitHits plugins for Claude Code - code examples from global open source",
-    "version": "0.6.2"
+    "description": "The code context layer for AI coding agents",
+    "version": "0.6.3"
   },
   "plugins": [
     {
       "name": "githits",
       "source": "./plugins/claude",
-      "description": "Code examples from global open source for developers and AI assistants",
+      "description": "The code context layer for AI coding agents",
       "author": {
         "name": "GitHits"
       },

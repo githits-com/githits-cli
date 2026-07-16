@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import { ApiRateLimitError, FetchTimeoutError } from "@githits/core-internal";
 import { createMockGitHitsService } from "../services/test-helpers.js";
 import { createGetExampleTool } from "./get-example.js";
 
@@ -89,6 +90,49 @@ describe("getExampleTool", () => {
     );
 
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain("Network error");
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
+      error: "Failed to get example: Network error",
+      code: "UNKNOWN",
+      retryable: false,
+    });
+  });
+
+  it("returns a retryable rate-limit envelope with retry timing", async () => {
+    const service = createMockGitHitsService({
+      search: mock(() =>
+        Promise.reject(new ApiRateLimitError("Request rate limited.", 17)),
+      ),
+    });
+    const tool = createGetExampleTool(service);
+
+    const result = await tool.handler({ query: "test" }, {});
+
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
+      error: "Request rate limited.",
+      code: "RATE_LIMITED",
+      retryable: true,
+      details: {
+        status: 429,
+        retryAfterSeconds: 17,
+      },
+    });
+  });
+
+  it("returns a retryable timeout envelope with timeout metadata", async () => {
+    const service = createMockGitHitsService({
+      search: mock(() => Promise.reject(new FetchTimeoutError(2_500))),
+    });
+    const tool = createGetExampleTool(service);
+
+    const result = await tool.handler({ query: "test" }, {});
+
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
+      error: "Failed to get example: Request timed out after 2500ms.",
+      code: "TIMEOUT",
+      retryable: true,
+      details: { timeoutMs: 2_500 },
+    });
   });
 });

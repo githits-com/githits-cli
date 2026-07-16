@@ -7,7 +7,7 @@ async function readJson<T>(path: string): Promise<T> {
   return JSON.parse(contents) as T;
 }
 
-describe("plugin version consistency", () => {
+describe("plugin metadata consistency", () => {
   it("keeps package and plugin manifest versions aligned", async () => {
     const root = join(import.meta.dir, "..");
 
@@ -42,5 +42,56 @@ describe("plugin version consistency", () => {
     expect(claudePayloadPlugin.version).toBe(expected);
     expect(claudeMarketplace.metadata?.version).toBe(expected);
     expect(geminiExtension.version).toBe(expected);
+  });
+
+  it("keeps package and plugin descriptions aligned", async () => {
+    const root = join(import.meta.dir, "..");
+    const packageJson = await readJson<{ description: string }>(
+      join(root, "package.json"),
+    );
+    const openPlugin = await readJson<{ description: string }>(
+      join(root, ".plugin", "plugin.json"),
+    );
+    const claudePlugin = await readJson<{ description: string }>(
+      join(root, ".claude-plugin", "plugin.json"),
+    );
+    const claudePayloadPlugin = await readJson<{ description: string }>(
+      join(root, "plugins", "claude", ".claude-plugin", "plugin.json"),
+    );
+    const claudeMarketplace = await readJson<{
+      metadata?: { description?: string };
+      plugins?: Array<{ name?: string; description?: string }>;
+    }>(join(root, ".claude-plugin", "marketplace.json"));
+    const geminiExtension = await readJson<{ description: string }>(
+      join(root, "gemini-extension.json"),
+    );
+    const geminiContext = await readFile(join(root, "GEMINI.md"), "utf8");
+    const readme = await readFile(join(root, "README.md"), "utf8");
+    const expected = packageJson.description;
+
+    expect(openPlugin.description).toBe(expected);
+    expect(claudePlugin.description).toBe(expected);
+    expect(claudePayloadPlugin.description).toBe(expected);
+    expect(claudeMarketplace.metadata?.description).toBe(expected);
+    expect(
+      claudeMarketplace.plugins?.find((plugin) => plugin.name === "githits")
+        ?.description,
+    ).toBe(expected);
+    expect(geminiExtension.description).toBe(expected);
+    expect(geminiContext.split(/\r?\n/)[2]).toBe(`${expected}.`);
+    expect(readme.split(/\r?\n/).map((line) => line.trim())).toContain(
+      `${expected}.`,
+    );
+  });
+
+  it("keeps the MCP registry description capability-oriented", async () => {
+    const root = join(import.meta.dir, "..");
+    const serverManifest = await readJson<{ description: string }>(
+      join(root, "server.json"),
+    );
+
+    expect(serverManifest.description).toBe(
+      "Search public open-source code, documentation, metadata, vulnerabilities, changelogs, and examples.",
+    );
   });
 });
