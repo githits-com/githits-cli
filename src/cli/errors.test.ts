@@ -1,9 +1,16 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
-import { handleCliError } from "./errors.js";
+import { handleCliError, runCliMain } from "./errors.js";
 
 describe("handleCliError", () => {
+  const originalDebug = process.env.GITHITS_DEBUG;
+
+  afterEach(() => {
+    if (originalDebug === undefined) delete process.env.GITHITS_DEBUG;
+    else process.env.GITHITS_DEBUG = originalDebug;
+  });
+
   it("exits without writing a stack trace for AuthRequiredError", () => {
     const stderrWrites: string[] = [];
     const exit = ((code: number) => {
@@ -58,4 +65,136 @@ describe("handleCliError", () => {
     expect(output).not.toContain("AuthStorageLockTimeoutError");
     expect(output).not.toContain("at ");
   });
+
+  for (const error of [
+    new Error("plain failure"),
+    new TypeError("fetch failed"),
+  ]) {
+    it(`prints ${error.name} without rethrowing or exposing its stack`, () => {
+      const { output, exitCodes } = captureCliError(error);
+
+      expect(output).toContain(error.message);
+      expect(output).toContain("githits doctor");
+      expect(output).toContain("githits-cli/issues");
+      expect(output).not.toContain(`${error.name}:`);
+      expect(output).not.toContain("\n    at ");
+      expect(exitCodes).toEqual([1]);
+    });
+  }
+
+  it("normalizes multiline messages and handles non-Error throws", () => {
+    const multiline = captureCliError(new Error("first line\nsecond line"));
+    const nonError = captureCliError({ secret: "do not serialize" });
+
+    expect(multiline.output).toContain("first line second line\n");
+    expect(multiline.output).not.toContain("first line\nsecond line");
+    expect(nonError.output).toContain("Unexpected error.");
+    expect(nonError.output).not.toContain("secret");
+    expect(nonError.exitCodes).toEqual([1]);
+  });
+
+  for (const debugScope of ["cli", "*"]) {
+    it(`includes the original stack for GITHITS_DEBUG=${debugScope}`, () => {
+      process.env.GITHITS_DEBUG = debugScope;
+      const error = new Error("debug failure");
+      const { output } = captureCliError(error);
+
+      expect(output).toContain(error.stack ?? "Error: debug failure");
+    });
+  }
+
+  it("does not include stacks for unrelated debug scopes", () => {
+    process.env.GITHITS_DEBUG = "auth";
+    const error = new Error("hidden stack");
+
+    expect(captureCliError(error).output).not.toContain(error.stack ?? "at ");
+  });
+
+  it("routes asynchronous startup failures through the handler exactly once", async () => {
+    const stderrWrites: string[] = [];
+    const exitCodes: number[] = [];
+
+    await expect(
+      runCliMain(
+        async () => {
+          throw new Error("registration failed");
+        },
+        {
+          stderr: {
+            write: (chunk: string | Uint8Array) => {
+              stderrWrites.push(String(chunk));
+              return true;
+            },
+          },
+          exit: ((code: number) => {
+            exitCodes.push(code);
+            throw new Error(`process.exit:${code}`);
+          }) as (code: number) => never,
+        },
+      ),
+    ).rejects.toThrow("process.exit:1");
+
+    const output = stderrWrites.join("");
+    expect(output.match(/registration failed/g)).toHaveLength(1);
+    expect(output).not.toContain("\n    at ");
+    expect(exitCodes).toEqual([1]);
+  });
+
+  it("renders unexpected action failures once in a real CLI process", async () => {
+    const proc = Bun.spawn(
+      ["bun", "run", "src/cli.ts", "languages", "--json"],
+      {
+        cwd: process.cwd(),
+        stdout: "pipe",
+        stderr: "pipe",
+        env: {
+          ...process.env,
+          GITHITS_API_TOKEN: "test-token",
+          GITHITS_API_URL: "http://attacker.test",
+          GITHITS_MCP_URL: "https://mcp.githits.com",
+          GITHITS_CODE_NAV_URL: "https://pkgseer.dev",
+          GITHITS_DISABLE_UPDATE_CHECK: "1",
+          GITHITS_DEBUG: "",
+          NO_COLOR: "1",
+        },
+      },
+    );
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+
+    expect(exitCode).toBe(1);
+    expect(stdout).toBe("");
+    expect(stderr.match(/Invalid GITHITS_API_URL/g)).toHaveLength(1);
+    expect(stderr).toContain("githits doctor");
+    expect(stderr).not.toContain("\n    at ");
+  });
 });
+
+function captureCliError(error: unknown): {
+  output: string;
+  exitCodes: number[];
+} {
+  const stderrWrites: string[] = [];
+  const exitCodes: number[] = [];
+  const exit = ((code: number) => {
+    exitCodes.push(code);
+    throw new Error(`process.exit:${code}`);
+  }) as (code: number) => never;
+
+  expect(() =>
+    handleCliError(error, {
+      stderr: {
+        write: (chunk: string | Uint8Array) => {
+          stderrWrites.push(String(chunk));
+          return true;
+        },
+      },
+      exit,
+    }),
+  ).toThrow("process.exit:1");
+
+  return { output: stderrWrites.join(""), exitCodes };
+}

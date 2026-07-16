@@ -10,6 +10,7 @@ import {
   getApiUrl,
   getCodeNavigationUrl,
   getEnvApiToken,
+  getMcpStorageKeyUrl,
   getMcpUrl,
   type PackageIntelligenceService,
   PackageIntelligenceServiceImpl,
@@ -165,13 +166,13 @@ export async function loadAutoLoginAuthSessionMetadata(): Promise<AuthSessionMet
 
   const fileSystemService = new FileSystemServiceImpl();
   const metadataStorage = new AuthSessionMetadataStorage(fileSystemService);
-  return metadataStorage.load(getMcpUrl());
+  return metadataStorage.load(getMcpStorageKeyUrl());
 }
 
 export async function clearAutoLoginAuthSessionMetadata(): Promise<void> {
   const fileSystemService = new FileSystemServiceImpl();
   const metadataStorage = new AuthSessionMetadataStorage(fileSystemService);
-  await metadataStorage.clear(getMcpUrl());
+  await metadataStorage.clear(getMcpStorageKeyUrl());
 }
 
 export interface AuthCommandDependencies {
@@ -181,7 +182,6 @@ export interface AuthCommandDependencies {
   fileSystemService: FileSystemService;
   authDiagnostics: AuthDiagnosticsStore;
   mcpUrl: string;
-  apiUrl: string;
   envApiToken: string | undefined;
 }
 
@@ -194,8 +194,7 @@ export async function createAuthCommandDependencies(): Promise<AuthCommandDepend
       browserService: new BrowserServiceImpl(),
       fileSystemService,
       authDiagnostics: new AuthDiagnosticsStorage(fileSystemService),
-      mcpUrl: getMcpUrl(),
-      apiUrl: getApiUrl(),
+      mcpUrl: getMcpStorageKeyUrl(),
       envApiToken: getEnvApiToken(),
     };
   });
@@ -213,8 +212,7 @@ export async function createAuthStatusDependencies(): Promise<AuthCommandDepende
       browserService: new BrowserServiceImpl(),
       fileSystemService,
       authDiagnostics: new AuthDiagnosticsStorage(fileSystemService),
-      mcpUrl: getMcpUrl(),
-      apiUrl: getApiUrl(),
+      mcpUrl: getMcpStorageKeyUrl(),
       envApiToken,
     };
   });

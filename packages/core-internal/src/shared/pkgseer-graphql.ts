@@ -23,6 +23,7 @@
  *   {@link PkgseerTransportError} preserving the rejection `cause`.
  */
 
+import { validateServiceUrl } from "../services/config.js";
 import { debugLog } from "./debug-log.js";
 import { DEFAULT_FETCH_TIMEOUT_MS, fetchWithTimeout } from "./fetch-timeout.js";
 import type { ClientHeaderBuilder } from "./request-headers.js";
@@ -89,11 +90,15 @@ export async function postPkgseerGraphql(
 ): Promise<PkgseerGraphqlResponse> {
   const userAgent = request.userAgent ?? "githits-cli";
   const timeoutMs = request.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
+  const endpointUrl = validateServiceUrl(
+    request.endpointUrl,
+    "package/source service URL",
+  );
 
   let response: Response;
   try {
     response = await fetchWithTimeout(
-      `${baseUrl(request.endpointUrl)}/api/graphql`,
+      `${baseUrl(endpointUrl)}/api/graphql`,
       {
         method: "POST",
         headers: {

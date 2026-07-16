@@ -9,7 +9,7 @@ import {
 import { colorizeBrand, shouldUseColors } from "@githits/mcp/internal";
 import { Command } from "commander";
 import { version } from "../package.json";
-import { handleCliError } from "./cli/errors.js";
+import { runCliMain } from "./cli/errors.js";
 import {
   enforceCachedRequiredUpdateForInvocation,
   runWithUpdateCheckFlush,
@@ -61,65 +61,52 @@ const createUpdateCheckService = () =>
     fetcher: createLazyCliFetch(),
   });
 
-await enforceCachedRequiredUpdateForInvocation({
-  args: argv,
-  env: process.env,
-  createService: createUpdateCheckService,
-  stderr: process.stderr,
-  exit: process.exit as (code: number) => never,
-});
-
-const updateCheckTask = startUpdateCheckTaskForInvocation({
-  args: argv,
-  env: process.env,
-  stderrIsTTY: process.stderr.isTTY === true,
-  stdinIsTTY: process.stdin.isTTY === true,
-  stdoutIsTTY: process.stdout.isTTY === true,
-  createService: createUpdateCheckService,
-});
-const requiredUpdateRefreshTask = startRequiredUpdateRefreshTaskForInvocation({
-  args: argv,
-  env: process.env,
-  createService: createUpdateCheckService,
-});
-
 if (isTelemetryEnabled()) {
   process.once("exit", (exitCode) => {
     flushTelemetry(exitCode);
   });
 }
 
-const rootCliPreAction = createRootCliPreAction({
-  createContainer,
-  loadAuthSessionMetadata: loadAutoLoginAuthSessionMetadata,
-  clearAuthSessionMetadata: clearAutoLoginAuthSessionMetadata,
-  loginFlow: (options, deps) => loginFlow(options, deps, stderrLoginOutput),
-});
+async function main(): Promise<void> {
+  await enforceCachedRequiredUpdateForInvocation({
+    args: argv,
+    env: process.env,
+    createService: createUpdateCheckService,
+    stderr: process.stderr,
+    exit: process.exit as (code: number) => never,
+  });
 
-program
-  .name("githits")
-  .description("Grounded open-source context for AI coding agents")
-  .version(version)
-  .option("--no-color", "Disable colored output")
-  .configureHelp({
-    styleTitle: (title: string) =>
-      colorizeBrand(title, "primary", useColors, { bold: true }),
-  })
-  .hook("preAction", async (thisCommand, actionCommand) => {
-    const command = actionCommand ?? thisCommand;
-    commandSpans.set(
-      command,
-      startTelemetrySpan(getTelemetryCommandName(command)),
-    );
+  const rootCliPreAction = createRootCliPreAction({
+    createContainer,
+    loadAuthSessionMetadata: loadAutoLoginAuthSessionMetadata,
+    clearAuthSessionMetadata: clearAutoLoginAuthSessionMetadata,
+    loginFlow: (options, deps) => loginFlow(options, deps, stderrLoginOutput),
+  });
 
-    await rootCliPreAction(thisCommand, actionCommand);
-  })
-  .hook("postAction", (_thisCommand, actionCommand) => {
-    endTelemetrySpan(commandSpans.get(actionCommand));
-  })
-  .addHelpText(
-    "after",
-    `
+  program
+    .name("githits")
+    .description("Grounded open-source context for AI coding agents")
+    .version(version)
+    .option("--no-color", "Disable colored output")
+    .configureHelp({
+      styleTitle: (title: string) =>
+        colorizeBrand(title, "primary", useColors, { bold: true }),
+    })
+    .hook("preAction", async (thisCommand, actionCommand) => {
+      const command = actionCommand ?? thisCommand;
+      commandSpans.set(
+        command,
+        startTelemetrySpan(getTelemetryCommandName(command)),
+      );
+
+      await rootCliPreAction(thisCommand, actionCommand);
+    })
+    .hook("postAction", (_thisCommand, actionCommand) => {
+      endTelemetrySpan(commandSpans.get(actionCommand));
+    })
+    .addHelpText(
+      "after",
+      `
 ${colorizeBrand("Getting started:", "primary", useColors, { bold: true })}
   githits init                         Connect GitHits to your coding agents
   githits login                        Sign in to your GitHits account
@@ -129,65 +116,81 @@ ${colorizeBrand("Getting started:", "primary", useColors, { bold: true })}
 Learn more at https://githits.com
 Docs: https://docs.githits.com
 Support: support@githits.com`,
+    );
+
+  // Setup command
+  registerInitCommand(program);
+
+  // Auth commands
+  registerLoginCommand(program);
+  registerLogoutCommand(program);
+
+  // MCP server command
+  registerMcpCommand(program);
+
+  // CLI commands
+  registerExampleCommand(program);
+  registerLanguagesCommand(program);
+  registerFeedbackCommand(program);
+  registerDoctorCommand(program);
+  const registrationArgv = stripRootRegistrationOptions(argv);
+  const updateCheckTask = startUpdateCheckTaskForInvocation({
+    args: argv,
+    env: process.env,
+    stderrIsTTY: process.stderr.isTTY === true,
+    stdinIsTTY: process.stdin.isTTY === true,
+    stdoutIsTTY: process.stdout.isTTY === true,
+    createService: createUpdateCheckService,
+  });
+  const requiredUpdateRefreshTask = startRequiredUpdateRefreshTaskForInvocation(
+    {
+      args: argv,
+      env: process.env,
+      createService: createUpdateCheckService,
+    },
   );
 
-// Setup command
-registerInitCommand(program);
-
-// Auth commands
-registerLoginCommand(program);
-registerLogoutCommand(program);
-
-// MCP server command
-registerMcpCommand(program);
-
-// CLI commands
-registerExampleCommand(program);
-registerLanguagesCommand(program);
-registerFeedbackCommand(program);
-registerDoctorCommand(program);
-const registrationArgv = stripRootRegistrationOptions(argv);
-
-if (shouldEagerLoadSearchCommands(registrationArgv)) {
-  await withTelemetrySpan("cli.register.search", () =>
-    registerUnifiedSearchCommands(program),
-  );
-}
-if (shouldEagerLoadGatedCommandGroup(registrationArgv, "code")) {
-  await withTelemetrySpan("cli.register.code-group", () =>
-    registerCodeCommandGroup(program),
-  );
-}
-if (shouldEagerLoadGatedCommandGroup(registrationArgv, "pkg")) {
-  await withTelemetrySpan("cli.register.pkg-group", () =>
-    registerPkgCommandGroup(program),
-  );
-}
-if (shouldEagerLoadGatedCommandGroup(registrationArgv, "docs")) {
-  await withTelemetrySpan("cli.register.docs-group", () =>
-    registerDocsCommandGroup(program),
-  );
-}
-
-// Auth status as subcommand of `auth`
-const authCommand = program
-  .command("auth")
-  .summary("Manage authentication")
-  .description("Manage authentication with GitHits.");
-registerAuthStatusCommand(authCommand);
-
-try {
   await runWithUpdateCheckFlush(
-    () => withTelemetrySpan("cli.parse", () => program.parseAsync()),
+    async () => {
+      if (shouldEagerLoadSearchCommands(registrationArgv)) {
+        await withTelemetrySpan("cli.register.search", () =>
+          registerUnifiedSearchCommands(program),
+        );
+      }
+      if (shouldEagerLoadCommandGroup(registrationArgv, "code")) {
+        await withTelemetrySpan("cli.register.code-group", () =>
+          registerCodeCommandGroup(program),
+        );
+      }
+      if (shouldEagerLoadCommandGroup(registrationArgv, "pkg")) {
+        await withTelemetrySpan("cli.register.pkg-group", () =>
+          registerPkgCommandGroup(program),
+        );
+      }
+      if (shouldEagerLoadCommandGroup(registrationArgv, "docs")) {
+        await withTelemetrySpan("cli.register.docs-group", () =>
+          registerDocsCommandGroup(program),
+        );
+      }
+
+      // Auth status as subcommand of `auth`
+      const authCommand = program
+        .command("auth")
+        .summary("Manage authentication")
+        .description("Manage authentication with GitHits.");
+      registerAuthStatusCommand(authCommand);
+
+      await withTelemetrySpan("cli.parse", () => program.parseAsync());
+    },
     updateCheckTask,
     { stderr: process.stderr, requiredUpdateRefreshTask },
   );
-} catch (error) {
-  handleCliError(error, {
-    stderr: process.stderr,
-    exit: process.exit as (code: number) => never,
-  });
 }
+
+await runCliMain(main, {
+  stderr: process.stderr,
+  exit: process.exit as (code: number) => never,
+});
 
 /**
  * Commander supports root options before subcommands, e.g.
@@ -205,7 +208,7 @@ function stripRootRegistrationOptions(args: string[]): string[] {
  * they typed the group name or asked for help. Here we only decide
  * whether to build the command group eagerly so registration can run.
  */
-function shouldEagerLoadGatedCommandGroup(
+function shouldEagerLoadCommandGroup(
   args: string[],
   groupName: string,
 ): boolean {

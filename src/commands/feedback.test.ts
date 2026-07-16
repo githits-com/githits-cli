@@ -194,6 +194,25 @@ describe("feedbackAction", () => {
     exitSpy.mockRestore();
   });
 
+  it("emits JSON validation errors in JSON mode", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    await expect(
+      feedbackAction("abc-123", { json: true }, createDeps()),
+    ).rejects.toThrow("process.exit");
+
+    expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toEqual({
+      error: "Specify either --accept or --reject.",
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
   it("throws AuthRequiredError on auth failure", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const deps = createDeps({ hasValidToken: false });
@@ -225,6 +244,62 @@ describe("feedbackAction", () => {
     const output = errorSpy.mock.calls.map((c) => c[0]).join("\n");
     expect(output).toContain("Failed to submit feedback");
     expect(output).toContain("Auth required");
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  for (const [name, serviceMessage] of [
+    ["sanitized 500", "Server error (500). Try again shortly."],
+    [
+      "offline",
+      "Could not connect to GitHits. Check your connection and GITHITS_API_URL, then try again.",
+    ],
+  ] as const) {
+    it(`renders ${name} service errors on stderr`, async () => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit");
+      });
+      const deps = createDeps({
+        githitsService: createMockGitHitsService({
+          submitFeedback: mock(() => Promise.reject(new Error(serviceMessage))),
+        }),
+      });
+
+      await expect(
+        feedbackAction("abc-123", { accept: true }, deps),
+      ).rejects.toThrow("process.exit");
+
+      expect(errorSpy.mock.calls[0]?.[0]).toBe(
+        `Failed to submit feedback: ${serviceMessage}`,
+      );
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    });
+  }
+
+  it("emits a JSON envelope for generic service errors", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({
+        submitFeedback: mock(() => Promise.reject(new Error("offline"))),
+      }),
+    });
+
+    await expect(
+      feedbackAction("abc-123", { accept: true, json: true }, deps),
+    ).rejects.toThrow("process.exit");
+
+    expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toEqual({
+      error: "Failed to submit feedback: offline",
+      code: "UNKNOWN",
+      retryable: false,
+    });
     expect(exitSpy).toHaveBeenCalledWith(1);
     errorSpy.mockRestore();
     exitSpy.mockRestore();

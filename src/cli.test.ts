@@ -104,19 +104,17 @@ function createProgramWithRootPreAction(
   return program;
 }
 
-async function createProgramForHelpSurface(options: {
-  codeNavigationUrl?: string;
-}): Promise<Command> {
+async function createProgramForHelpSurface(): Promise<Command> {
   const program = new Command();
   program.name("githits");
 
   registerExampleCommand(program);
   registerLanguagesCommand(program);
   registerFeedbackCommand(program);
-  await registerUnifiedSearchCommands(program, options);
-  await registerCodeCommandGroup(program, options);
-  await registerDocsCommandGroup(program, options);
-  await registerPkgCommandGroup(program, options);
+  await registerUnifiedSearchCommands(program);
+  await registerCodeCommandGroup(program);
+  await registerDocsCommandGroup(program);
+  await registerPkgCommandGroup(program);
 
   return program;
 }
@@ -472,29 +470,14 @@ describe("root CLI preAction", () => {
 });
 
 describe("CLI help surface", () => {
-  it("keeps package/source commands out of root help when URL is disabled", async () => {
-    const program = await createProgramForHelpSurface({
-      codeNavigationUrl: "",
-    });
+  it("always shows package/source commands without resolving URLs", async () => {
+    const program = await createProgramForHelpSurface();
 
     const help = program.helpInformation();
 
     expect(help).toMatch(/^\s{2}example\b/m);
     expect(help).toMatch(/^\s{2}languages\b/m);
     expect(help).toMatch(/^\s{2}feedback\b/m);
-    expect(help).not.toMatch(/^\s{2}search\b/m);
-    expect(help).not.toMatch(/^\s{2}code\b/m);
-    expect(help).not.toMatch(/^\s{2}docs\b/m);
-    expect(help).not.toMatch(/^\s{2}pkg\b/m);
-  });
-
-  it("shows package/source commands in root help when URL is configured", async () => {
-    const program = await createProgramForHelpSurface({
-      codeNavigationUrl: "https://pkgseer.dev",
-    });
-
-    const help = program.helpInformation();
-
     expect(help).toMatch(/^\s{2}search\b/m);
     expect(help).toMatch(/^\s{2}code\b/m);
     expect(help).toMatch(/^\s{2}docs\b/m);
