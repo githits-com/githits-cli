@@ -77,6 +77,6 @@ describe("plugin metadata consistency", () => {
         ?.description,
     ).toBe(expected);
     expect(geminiExtension.description).toBe(expected);
-    expect(geminiContext).toContain(`\n${expected}.\n`);
+    expect(geminiContext.split(/\r?\n/)[2]).toBe(`${expected}.`);
   });
 });
