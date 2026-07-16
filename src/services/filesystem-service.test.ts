@@ -32,7 +32,11 @@ describe("FileSystemServiceImpl.atomicWriteFile", () => {
   });
 
   it("does not broaden an existing restrictive mode", async () => {
-    const path = await createExistingFile(0o400);
+    // Windows maps 0400 to a read-only attribute that prevents rename-based
+    // replacement; POSIX permission-bit narrowing is not meaningful there.
+    const path = await createExistingFile(
+      process.platform === "win32" ? 0o600 : 0o400,
+    );
 
     await new FileSystemServiceImpl().atomicWriteFile(path, "updated", 0o600);
 
