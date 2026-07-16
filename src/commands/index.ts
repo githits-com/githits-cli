@@ -58,7 +58,6 @@ export {
   registerUnifiedSearchCommands,
   type SearchCommandDependencies,
   type SearchCommandOptions,
-  type SearchCommandRegistrationOptions,
   type SearchStatusCommandOptions,
   searchAction,
   searchStatusAction,

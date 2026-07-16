@@ -1,9 +1,13 @@
+import { z } from "zod";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   fetchWithTimeout,
+  isFetchTimeoutError,
 } from "../shared/fetch-timeout.js";
+import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import { withTelemetrySpan } from "../shared/telemetry.js";
+import { validateServiceUrl } from "./config.js";
 
 /**
  * Neutral auth-required message for service/core errors. Surface layers append
@@ -32,22 +36,6 @@ export class AuthenticationError extends Error {
     this.name = "AuthenticationError";
     this.source = source;
   }
-}
-
-/**
- * Extract human-readable detail from a JSON error response body.
- * FastAPI returns `{"detail": "..."}` for HTTPException responses.
- */
-function parseDetail(body: string): string | undefined {
-  if (!body) return undefined;
-  try {
-    const parsed = JSON.parse(body);
-    if (typeof parsed.detail === "string") return parsed.detail;
-  } catch {
-    // Not JSON — return raw body
-    return body;
-  }
-  return undefined;
 }
 
 /**
@@ -100,6 +88,15 @@ export interface GitHitsServiceRuntimeOptions {
   userAgent?: string;
 }
 
+const LANGUAGE_SCHEMA = z.object({
+  id: z.string(),
+  name: z.string(),
+  display_name: z.string(),
+  aliases: z.array(z.string()),
+  search_priority: z.number().optional(),
+});
+const LANGUAGES_SCHEMA = z.array(LANGUAGE_SCHEMA);
+
 /**
  * Service interface for GitHits REST API.
  */
@@ -131,20 +128,16 @@ export class GitHitsServiceImpl implements GitHitsService {
 
   async search(params: SearchParams): Promise<string> {
     return withTelemetrySpan("githits.search.request", async () => {
-      const response = await fetchWithTimeout(
-        `${this.apiUrl}/search`,
-        {
-          method: "POST",
-          headers: this.headers(),
-          body: JSON.stringify({
-            query: params.query,
-            language: params.language,
-            license_mode: params.licenseMode ?? "strict",
-            include_explanation: params.includeExplanation ?? false,
-          }),
-        },
-        this.fetchOptions(),
-      );
+      const response = await this.request("/search", {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({
+          query: params.query,
+          language: params.language,
+          license_mode: params.licenseMode ?? "strict",
+          include_explanation: params.includeExplanation ?? false,
+        }),
+      });
 
       if (!response.ok) {
         throw await this.createError(response);
@@ -156,19 +149,15 @@ export class GitHitsServiceImpl implements GitHitsService {
 
   async getLanguages(): Promise<Language[]> {
     return withTelemetrySpan("githits.languages.request", async () => {
-      const response = await fetchWithTimeout(
-        `${this.apiUrl}/languages`,
-        {
-          headers: this.headers(),
-        },
-        this.fetchOptions(),
-      );
+      const response = await this.request("/languages", {
+        headers: this.headers(),
+      });
 
       if (!response.ok) {
         throw await this.createError(response);
       }
 
-      return response.json() as Promise<Language[]>;
+      return this.parseLanguages(response);
     });
   }
 
@@ -178,19 +167,15 @@ export class GitHitsServiceImpl implements GitHitsService {
         query,
         limit: String(limit),
       });
-      const response = await fetchWithTimeout(
-        `${this.apiUrl}/languages?${params.toString()}`,
-        {
-          headers: this.headers(),
-        },
-        this.fetchOptions(),
-      );
+      const response = await this.request(`/languages?${params.toString()}`, {
+        headers: this.headers(),
+      });
 
       if (!response.ok) {
         throw await this.createError(response);
       }
 
-      return response.json() as Promise<Language[]>;
+      return this.parseLanguages(response);
     });
   }
 
@@ -199,27 +184,23 @@ export class GitHitsServiceImpl implements GitHitsService {
       // For generic feedback, omit body targets entirely. The backend
       // then uses the valid x-githits-session-id header emitted by
       // the injected client headers as the feedback target.
-      const response = await fetchWithTimeout(
-        `${this.apiUrl}/feedbacks`,
-        {
-          method: "POST",
-          headers: this.headers(),
-          body: JSON.stringify({
-            ...(params.exampleId !== undefined && {
-              example_id: params.exampleId,
-            }),
-            ...(params.solutionId !== undefined && {
-              solution_id: params.solutionId,
-            }),
-            accepted: params.accepted,
-            feedback_text: params.feedbackText ?? null,
-            ...(params.toolName !== undefined && {
-              tool_name: params.toolName,
-            }),
+      const response = await this.request("/feedbacks", {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({
+          ...(params.exampleId !== undefined && {
+            example_id: params.exampleId,
           }),
-        },
-        this.fetchOptions(),
-      );
+          ...(params.solutionId !== undefined && {
+            solution_id: params.solutionId,
+          }),
+          accepted: params.accepted,
+          feedback_text: params.feedbackText ?? null,
+          ...(params.toolName !== undefined && {
+            tool_name: params.toolName,
+          }),
+        }),
+      });
 
       if (!response.ok) {
         throw await this.createError(response);
@@ -248,9 +229,51 @@ export class GitHitsServiceImpl implements GitHitsService {
     };
   }
 
+  private async request(path: string, init: RequestInit): Promise<Response> {
+    const apiUrl = validateServiceUrl(this.apiUrl, "GITHITS_API_URL");
+    try {
+      return await fetchWithTimeout(
+        `${apiUrl.replace(/\/+$/, "")}${path}`,
+        init,
+        this.fetchOptions(),
+      );
+    } catch (cause) {
+      if (isFetchTimeoutError(cause) || isAbortError(cause)) {
+        throw new Error("Request to GitHits timed out. Try again.", { cause });
+      }
+      if (cause instanceof TypeError) {
+        throw new Error(
+          "Could not connect to GitHits. Check your connection and GITHITS_API_URL, then try again.",
+          { cause },
+        );
+      }
+      throw cause;
+    }
+  }
+
+  private async parseLanguages(response: Response): Promise<Language[]> {
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch (cause) {
+      throw new Error("GitHits returned an invalid languages response.", {
+        cause,
+      });
+    }
+
+    const parsed = LANGUAGES_SCHEMA.safeParse(data);
+    if (!parsed.success) {
+      throw new Error("GitHits returned an invalid languages response.", {
+        cause: parsed.error,
+      });
+    }
+    return parsed.data;
+  }
+
   private async createError(response: Response): Promise<Error> {
     const status = response.status;
     const body = await response.text().catch(() => "");
+    const detail = parseHttpErrorDetail(body, ["detail"]);
 
     switch (status) {
       case 401:
@@ -261,14 +284,23 @@ export class GitHitsServiceImpl implements GitHitsService {
       case 403:
         return new Error("Access denied.");
       case 404:
-        return new Error(parseDetail(body) || "Resource not found.");
+        return new Error(detail || "Resource not found.");
+      case 429:
+        return new Error("Rate limit exceeded. Try again shortly.");
       default: {
         if (status >= 500) {
-          const detail = body ? `: ${body}` : "";
-          return new Error(`Server error (${status})${detail}`);
+          return new Error(
+            `Server error (${status}). Try again shortly.${detail ? ` ${detail}` : ""}`,
+          );
         }
-        return new Error(body || `Request failed with status ${status}`);
+        return new Error(
+          `Request failed with status ${status}.${detail ? ` ${detail}` : ""}`,
+        );
       }
     }
   }
+}
+
+function isAbortError(error: unknown): error is DOMException {
+  return error instanceof Error && error.name === "AbortError";
 }

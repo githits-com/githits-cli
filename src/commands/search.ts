@@ -2,7 +2,6 @@ import type {
   CodeNavigationService,
   UnifiedSearchSource,
 } from "@githits/core-internal";
-import { getCodeNavigationUrl } from "@githits/core-internal";
 import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchParams,
@@ -51,10 +50,6 @@ export interface SearchCommandOptions {
 
 export interface SearchStatusCommandOptions {
   json?: boolean;
-}
-
-export interface SearchCommandRegistrationOptions {
-  codeNavigationUrl?: string;
 }
 
 export interface SearchCommandDependencies {
@@ -278,13 +273,7 @@ export function registerSearchCommand(program: Command) {
 
 export async function registerUnifiedSearchCommands(
   program: Command,
-  options: SearchCommandRegistrationOptions = {},
 ): Promise<void> {
-  const codeNavigationUrl = options.codeNavigationUrl ?? getCodeNavigationUrl();
-  if (!codeNavigationUrl) {
-    return;
-  }
-
   registerSearchCommand(program);
 }
 

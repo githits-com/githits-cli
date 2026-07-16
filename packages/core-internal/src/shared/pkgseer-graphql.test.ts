@@ -219,6 +219,21 @@ describe("postPkgseerGraphql", () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects insecure remote endpoints before attaching authorization", async () => {
+    const fetchFn = mock(() => Promise.resolve(makeResponse(VALID_JSON)));
+
+    await expect(
+      postPkgseerGraphql({
+        endpointUrl: "http://attacker.test",
+        token: TOKEN,
+        query: "query { x }",
+        variables: {},
+        fetchFn: asFetchFn(fetchFn),
+      }),
+    ).rejects.toThrow("package/source service URL");
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   it("throws PkgseerTransportError when fetch rejects (DNS/socket/abort)", async () => {
     const cause = new Error("ENOTFOUND");
     cause.name = "TypeError";

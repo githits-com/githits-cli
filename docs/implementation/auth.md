@@ -35,6 +35,10 @@ The login command (`src/commands/login.ts`) orchestrates a 9-step OAuth flow (ma
 
 The flow has a 5-minute timeout. The callback server must start before the browser opens so it's ready to receive the redirect.
 
+OAuth discovery, registration, exchange, and refresh validate endpoint schemes immediately before network use. Remote endpoints must use HTTPS; exact loopback HTTP endpoints remain available for local development. Registration and token responses are runtime-validated, positive numeric-string `expires_in` values are normalized to numbers for OAuth-provider compatibility, and HTTP failures surface only bounded JSON error details rather than raw HTML/plain-text response bodies.
+
+`loginFlow()` converts discovery, registration, and credential-persistence failures into its existing failed-result shape. Network, timeout, protocol, and local storage failures have distinct user-facing messages, so standalone login, init login, and interactive auto-login share the same recovery behavior.
+
 ## Token Lifecycle
 
 Tokens are JWTs with a configurable expiration (typically 1 hour). The CLI handles expiration through a `TokenManager` (see `src/services/token-manager.ts`):

@@ -3,22 +3,9 @@ import { Command } from "commander";
 import { registerPkgCommandGroup } from "./index.js";
 
 describe("registerPkgCommandGroup", () => {
-  it("does not register the pkg group with an explicitly empty code navigation URL", async () => {
+  it("always registers the pkg command group", async () => {
     const program = new Command();
-    await registerPkgCommandGroup(program, {
-      codeNavigationUrl: "",
-    });
-
-    expect(program.commands.some((command) => command.name() === "pkg")).toBe(
-      false,
-    );
-  });
-
-  it("registers the pkg command group when code navigation URL is configured", async () => {
-    const program = new Command();
-    await registerPkgCommandGroup(program, {
-      codeNavigationUrl: "https://pkgseer.dev",
-    });
+    await registerPkgCommandGroup(program);
 
     const pkgCommand = program.commands.find(
       (command) => command.name() === "pkg",

@@ -1,3 +1,7 @@
+import {
+  isFetchTimeoutError,
+  normalizeSingleLineText,
+} from "@githits/core-internal";
 import type { Command } from "commander";
 import { createAuthCommandDependencies } from "../container.js";
 import type { AuthService } from "../services/auth-service.js";
@@ -74,10 +78,9 @@ async function preflightAuthPersistence(
     return null;
   } catch (error) {
     await authStorage.clearAuthSession(probeUrl).catch(() => {});
-    const message = error instanceof Error ? error.message : String(error);
     return {
       status: "failed",
-      message: `Cannot persist OAuth credentials: ${message}`,
+      message: `Cannot persist OAuth credentials: ${errorMessage(error)}`,
     };
   }
 }
@@ -92,7 +95,12 @@ export async function loginFlow(
   output: LoginOutput = stdoutLoginOutput,
 ): Promise<LoginFlowResult> {
   const { authService, authStorage, browserService, mcpUrl } = deps;
-  const existing = await authStorage.loadTokens(mcpUrl);
+  let existing: Awaited<ReturnType<typeof authStorage.loadTokens>>;
+  try {
+    existing = await authStorage.loadTokens(mcpUrl);
+  } catch (error) {
+    return storageFailure(error);
+  }
 
   // Validate port if provided
   if (
@@ -120,17 +128,31 @@ export async function loginFlow(
   // If tokens were cleared (expired+refreshFailed or never existed) but a stale
   // client registration remains, clear it so we get a fresh DCR registration.
   if (!existing) {
-    await authStorage.clearActiveClient(mcpUrl);
+    try {
+      await authStorage.clearActiveClient(mcpUrl);
+    } catch (error) {
+      return storageFailure(error);
+    }
   }
 
   const persistenceError = await preflightAuthPersistence(authStorage, mcpUrl);
   if (persistenceError) return persistenceError;
 
   // Step 1: Discover OAuth endpoints
-  const metadata = await authService.discoverEndpoints(mcpUrl);
+  let metadata: Awaited<ReturnType<typeof authService.discoverEndpoints>>;
+  try {
+    metadata = await authService.discoverEndpoints(mcpUrl);
+  } catch (error) {
+    return signInStartFailure(error);
+  }
 
   // Step 2: Load or register client via DCR
-  let client = await authStorage.loadClient(mcpUrl);
+  let client: Awaited<ReturnType<typeof authStorage.loadClient>>;
+  try {
+    client = await authStorage.loadClient(mcpUrl);
+  } catch (error) {
+    return storageFailure(error);
+  }
   const hadStoredClient = client !== null;
   let shouldClearClientOnFailedAttempt = false;
   let port: number;
@@ -143,10 +165,17 @@ export async function loginFlow(
       redirectUri = `http://127.0.0.1:${options.port}/callback`;
       if (redirectUri !== client.redirectUri) {
         // Port changed - need to re-register
-        const registration = await authService.registerClient({
-          registrationEndpoint: metadata.registrationEndpoint,
-          redirectUri,
-        });
+        let registration: Awaited<
+          ReturnType<typeof authService.registerClient>
+        >;
+        try {
+          registration = await authService.registerClient({
+            registrationEndpoint: metadata.registrationEndpoint,
+            redirectUri,
+          });
+        } catch (error) {
+          return signInStartFailure(error);
+        }
         client = {
           clientId: registration.clientId,
           clientSecret: registration.clientSecret,
@@ -165,10 +194,15 @@ export async function loginFlow(
   } else {
     port = options.port ?? randomPort();
     redirectUri = `http://127.0.0.1:${port}/callback`;
-    const registration = await authService.registerClient({
-      registrationEndpoint: metadata.registrationEndpoint,
-      redirectUri,
-    });
+    let registration: Awaited<ReturnType<typeof authService.registerClient>>;
+    try {
+      registration = await authService.registerClient({
+        registrationEndpoint: metadata.registrationEndpoint,
+        redirectUri,
+      });
+    } catch (error) {
+      return signInStartFailure(error);
+    }
     client = {
       clientId: registration.clientId,
       clientSecret: registration.clientSecret,
@@ -288,17 +322,62 @@ export async function loginFlow(
   const expiresAt = new Date(
     Date.now() + tokenResponse.expiresIn * 1000,
   ).toISOString();
-  await authStorage.saveAuthSession(mcpUrl, client, {
-    accessToken: tokenResponse.accessToken,
-    refreshToken: tokenResponse.refreshToken,
-    expiresAt,
-    createdAt: new Date().toISOString(),
-  });
+  try {
+    await authStorage.saveAuthSession(mcpUrl, client, {
+      accessToken: tokenResponse.accessToken,
+      refreshToken: tokenResponse.refreshToken,
+      expiresAt,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    return storageFailure(error);
+  }
 
   return {
     status: "success",
     message: "Logged in successfully.",
   };
+}
+
+function signInStartFailure(error: unknown): LoginFlowResult {
+  if (isFetchTimeoutError(error) || isAbortError(error)) {
+    return {
+      status: "failed",
+      message:
+        "GitHits timed out while starting sign-in. Check your connection and proxy settings, then try again.",
+    };
+  }
+  if (error instanceof TypeError) {
+    return {
+      status: "failed",
+      message:
+        "Could not reach GitHits to start sign-in. Check your connection and proxy settings, then try again.",
+    };
+  }
+  return {
+    status: "failed",
+    message: `Could not start sign-in: ${errorMessage(error)}`,
+  };
+}
+
+function storageFailure(error: unknown): LoginFlowResult {
+  return {
+    status: "failed",
+    message: `Cannot persist OAuth credentials: ${errorMessage(error)}`,
+  };
+}
+
+function errorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return "Unexpected error.";
+  const normalized = normalizeSingleLineText(error.message);
+  if (!normalized) return "Unexpected error.";
+  return normalized.length <= 500
+    ? normalized
+    : `${normalized.slice(0, 497)}...`;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 /**

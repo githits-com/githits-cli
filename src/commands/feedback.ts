@@ -9,6 +9,7 @@ import { type Command, Option } from "commander";
 import { createContainer } from "../container.js";
 import {
   buildCliMappedErrorPayload,
+  formatCliMappedError,
   formatMappedErrorForTerminal,
 } from "./format-mapped-error.js";
 
@@ -50,7 +51,16 @@ export async function feedbackAction(
   }
 
   if (!options.accept && !options.reject) {
-    console.error("Error: Specify either --accept or --reject.");
+    console.error(
+      formatCliMappedError(
+        {
+          code: "INVALID_ARGUMENT",
+          message: "Specify either --accept or --reject.",
+          retryable: false,
+        },
+        options.json ?? false,
+      ),
+    );
     process.exit(1);
   }
 
@@ -87,7 +97,14 @@ export async function feedbackAction(
       process.exit(1);
     }
     console.error(
-      `Failed to submit feedback: ${error instanceof Error ? error.message : error}`,
+      formatCliMappedError(
+        {
+          code: "UNKNOWN",
+          message: `Failed to submit feedback: ${error instanceof Error ? error.message : "Unexpected error."}`,
+          retryable: false,
+        },
+        options.json ?? false,
+      ),
     );
     process.exit(1);
   }

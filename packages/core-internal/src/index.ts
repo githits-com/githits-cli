@@ -10,6 +10,7 @@ export * from "./services/refreshing-githits-service.js";
 export * from "./services/token-provider.js";
 export * from "./shared/debug-log.js";
 export * from "./shared/fetch-timeout.js";
+export * from "./shared/http-error-detail.js";
 export * from "./shared/pkgseer-graphql.js";
 export * from "./shared/pkgseer-registry.js";
 export * from "./shared/request-headers.js";
