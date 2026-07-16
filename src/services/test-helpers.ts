@@ -242,7 +242,10 @@ export function createMockFileSystemService(
     ),
     readdir: mock(() => Promise.resolve([])),
     isDirectory: mock(() => Promise.resolve(false)),
-    atomicWriteFile: mock(() => Promise.resolve()),
+    atomicWriteFile: mock(
+      (_path: string, _contents: string, _maximumMode?: number) =>
+        Promise.resolve(),
+    ),
     ...impl,
   };
 }

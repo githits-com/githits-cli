@@ -30,7 +30,7 @@ The container (`src/container.ts`) resolves authentication in priority order:
 
 1. **`GITHITS_API_TOKEN`** — If set, uses this token directly. No OAuth flow needed. Quick to set up for CI and automation environments.
 
-2. **Stored OAuth JWT** — Loaded from the configured auth store. If expired, the container automatically attempts a refresh using the stored refresh token. If refresh fails, auth is cleared silently.
+2. **Stored OAuth JWT** — Loaded from the configured auth store. If expired, the container automatically attempts a refresh using the stored refresh token. Transient failures retain credentials for a later retry; classified terminal failures clear the active credential state.
 
 3. **Unauthenticated** — No token available. Auth-required CLI commands fail on use, and the MCP server can start but every authenticated tool call will fail. Commands like `auth status` and `doctor` still work to help the user diagnose the issue.
 
@@ -75,7 +75,7 @@ Invalid `GITHITS_AUTH_STORAGE` or `auth.storage` values fail fast with a message
 
 Auto-login startup checks use non-secret metadata before touching the credential store. This avoids keychain reads during ordinary command startup when the local metadata was updated recently and says an unexpired session exists. Missing, stale, expired, or malformed metadata falls back to the credential store so existing users recover after the next successful keychain/file read.
 
-When file mode is enabled, storage uses secure file permissions but is not encrypted:
+When file mode is enabled, storage uses restrictive POSIX file modes but is not encrypted:
 
 ```text
 ~/.config/githits/          (0700 on Unix-like platforms)
@@ -84,7 +84,10 @@ When file mode is enabled, storage uses secure file permissions but is not encry
     auth.json              (0600) — OAuth tokens keyed by MCP URL
     client.json            (0600) — DCR client registrations keyed by MCP URL
     metadata.json          (0600) — non-secret session expiry metadata keyed by MCP URL
+    diagnostics.json       (0600) — non-secret last-clear breadcrumb keyed by MCP URL
 ```
+
+The four files under `auth/` are capped at the listed mode for new files and successful rewrites on POSIX; existing more-restrictive files are not broadened. A new `config.toml` uses 0600, while later config rewrites preserve its existing mode. Directory modes apply when GitHits creates the directory and do not repair a pre-existing permissive directory. Windows mode bits are not an ACL guarantee.
 
 Platform roots:
 
@@ -96,7 +99,7 @@ Platform roots:
 
 Legacy `~/.githits/auth.json`, `~/.githits/client.json`, and the old macOS `~/Library/Application Support/githits` auth/config paths are still read for migration and cleared by logout where applicable, but new plaintext writes use the canonical config auth path.
 
-When writing config or auth files, use `FileSystemService` rather than `node:fs` directly — this enables testing via mock implementations from `src/services/test-helpers.ts`. Auth credential rewrites should use `atomicWriteFile()` to avoid truncated JSON on crashes.
+When writing config or auth files, use `FileSystemService` rather than `node:fs` directly — this enables testing via mock implementations from `src/services/test-helpers.ts`. Auth-associated rewrites must pass a 0600 maximum to `atomicWriteFile()` to avoid preserving permissive modes and to prevent readers from observing truncated JSON.
 
 Non-secret update-check state uses the XDG config location:
 

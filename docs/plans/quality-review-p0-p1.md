@@ -12,8 +12,9 @@ migration, config, and command suites.
 
 ## Status
 
-- PR 1 implemented and fully verified in the worktree; pending review/landing.
-- PR 2 and PR 3 remain pending.
+- PR 1 landed in PR #224.
+- PR 2 is implemented and fully verified in the worktree; pending review/landing.
+- PR 3 remains pending.
 
 ## PR Decision
 
@@ -67,11 +68,12 @@ collapse everything into one PR.
   `127.0.0.1`, and `[::1]`/`::1` after URL parsing.
 - `PKGSEER_URL` remains a supported legacy fallback and receives the same URL
   validation as `GITHITS_CODE_NAV_URL`.
-- Existing OAuth terminal classification remains authoritative:
-  `invalid_grant` and `invalid_client` may clear credentials; transport,
-  timeout, and 5xx failures may not.
+- Existing OAuth terminal classification remains authoritative: classified 4xx
+  `invalid_grant` and `invalid_client` responses may clear credentials;
+  transport, timeout, and 5xx failures may not.
 - Existing token refresh locking, compare-and-swap behavior, and storage
-  decorator structure are not redesigned.
+  decorator structure remain. Auth loads acquire the same re-entrant lock
+  because file-mode migration loads can persist and clear ambiguous candidates.
 - Smoke CI remains unauthenticated and must not require secrets or a live
   backend.
 - Release version changes are handled by the normal release process. PRs that

@@ -39,6 +39,7 @@ describe("AuthSessionMetadataStorage", () => {
     expect(fs.atomicWriteFile).toHaveBeenCalledWith(
       "/test/auth/metadata.json",
       expect.any(String),
+      0o600,
     );
     const calls = (fs.atomicWriteFile as ReturnType<typeof mock>).mock.calls;
     const written = JSON.parse(calls[0]?.[1] as string);
@@ -115,5 +116,43 @@ describe("AuthSessionMetadataStorage", () => {
     await storage.clear(BASE_URL);
 
     expect(fs.deleteFile).toHaveBeenCalledWith("/test/auth/metadata.json");
+  });
+
+  it("securely rewrites metadata when another session remains", async () => {
+    const otherUrl = "https://other.githits.com";
+    const metadata = {
+      version: 1,
+      sessions: {
+        [BASE_URL]: {
+          createdAt: "2026-01-01T00:00:00Z",
+          expiresAt: null,
+          updatedAt: "2026-01-01T00:00:00Z",
+        },
+        [otherUrl]: {
+          createdAt: "2026-01-02T00:00:00Z",
+          expiresAt: null,
+          updatedAt: "2026-01-02T00:00:00Z",
+        },
+      },
+    };
+    const fs = createMockFileSystemService({
+      exists: mock(() => Promise.resolve(true)),
+      readFile: mock(() => Promise.resolve(JSON.stringify(metadata))),
+    });
+    const storage = new AuthSessionMetadataStorage(fs, "/test/auth");
+
+    await storage.clear(BASE_URL);
+
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/test/auth/metadata.json",
+      expect.any(String),
+      0o600,
+    );
+    const written = JSON.parse(
+      (fs.atomicWriteFile as ReturnType<typeof mock>).mock
+        .calls[0]?.[1] as string,
+    );
+    expect(written.sessions[BASE_URL]).toBeUndefined();
+    expect(written.sessions[otherUrl]).toBeDefined();
   });
 });

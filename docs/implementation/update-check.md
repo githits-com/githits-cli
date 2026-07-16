@@ -113,8 +113,9 @@ When `XDG_CONFIG_HOME` is set, the path is:
 $XDG_CONFIG_HOME/githits/update-check.json
 ```
 
-The directory is created with mode `0o700`; the cache file is written with mode
-`0o600`. The cache contains no credentials.
+The directory is requested with mode `0o700` when created. A new cache file uses
+mode `0o600`; atomic rewrites preserve an existing cache file's mode because the
+cache contains no credentials.
 
 Cache shape:
 

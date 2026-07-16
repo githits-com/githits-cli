@@ -28,6 +28,7 @@ describe("AuthDiagnosticsStorage", () => {
     expect(fs.atomicWriteFile).toHaveBeenCalledWith(
       "/test/auth/diagnostics.json",
       expect.any(String),
+      0o600,
     );
     const calls = (fs.atomicWriteFile as ReturnType<typeof mock>).mock.calls;
     const written = JSON.parse(calls[0]?.[1] as string);

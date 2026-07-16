@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, mock } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { RefreshTokenResponse } from "./auth-service.js";
+import {
+  type RefreshTokenResponse,
+  TokenRefreshError,
+} from "./auth-service.js";
 import { AuthSessionMetadataStorage } from "./auth-session-metadata-storage.js";
 import { AuthStorageImpl } from "./auth-storage.js";
 import { FileSystemServiceImpl } from "./filesystem-service.js";
@@ -85,6 +88,53 @@ describe("TokenManager file-backed integration", () => {
     expect(firstStorage.getStorageLocation()).toContain(
       join("githits", "auth"),
     );
+  });
+
+  it("retains a refresh token after a transient failure for the next invocation", async () => {
+    const { firstStorage, secondStorage } = await createRealStorages();
+    const initial = createExpiredToken({
+      accessToken: "initial-access-token",
+      refreshToken: "initial-refresh-token",
+    });
+    await firstStorage.saveAuthSession(
+      baseUrl,
+      defaultClientRegistration,
+      initial,
+    );
+    const firstManager = new TokenManager({
+      authService: createMockAuthService({
+        refreshAccessToken: mock(() =>
+          Promise.reject(new Error("network unavailable")),
+        ),
+      }),
+      authStorage: firstStorage,
+      mcpUrl: baseUrl,
+    });
+
+    expect(await firstManager.getToken()).toBeUndefined();
+    expect(await secondStorage.loadTokens(baseUrl)).toEqual(initial);
+
+    const refreshAccessToken = mock((_request: { refreshToken: string }) =>
+      Promise.resolve({
+        accessToken: "rotated-access-token",
+        refreshToken: "rotated-refresh-token",
+        expiresIn: 3600,
+      }),
+    );
+    const secondManager = new TokenManager({
+      authService: createMockAuthService({ refreshAccessToken }),
+      authStorage: secondStorage,
+      mcpUrl: baseUrl,
+    });
+
+    expect(await secondManager.getToken()).toBe("rotated-access-token");
+    expect(refreshAccessToken).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshToken: "initial-refresh-token" }),
+    );
+    expect(await firstStorage.loadTokens(baseUrl)).toMatchObject({
+      accessToken: "rotated-access-token",
+      refreshToken: "rotated-refresh-token",
+    });
   });
 
   it("serializes endpoint refresh when rotation invalidates concurrent refreshes", async () => {
@@ -353,7 +403,7 @@ describe("TokenManager file-backed integration", () => {
     expect(refreshAccessToken).toHaveBeenCalledTimes(1);
   });
 
-  it("keychain-mode refresh failure does not wipe the good file-mode token", async () => {
+  it("keychain-mode terminal refresh failure does not wipe the good file-mode token", async () => {
     // The reported bug: a stale keychain token (from a launch without
     // GITHITS_AUTH_STORAGE) fails refresh and must not destroy the user's good
     // file-mode credentials.
@@ -378,7 +428,17 @@ describe("TokenManager file-backed integration", () => {
 
     const manager = new TokenManager({
       authService: createMockAuthService({
-        refreshAccessToken: mock(() => Promise.reject(new Error("boom"))),
+        refreshAccessToken: mock(() =>
+          Promise.reject(
+            new TokenRefreshError(
+              400,
+              JSON.stringify({
+                error: "invalid_grant",
+                error_description: "Invalid Refresh Token: Already Used",
+              }),
+            ),
+          ),
+        ),
       }),
       authStorage: storage,
       mcpUrl: baseUrl,
@@ -391,7 +451,7 @@ describe("TokenManager file-backed integration", () => {
     expect(await file.loadClient(baseUrl)).toEqual(defaultClientRegistration);
   });
 
-  it("file-mode refresh failure clears legacy too so it cannot resurrect", async () => {
+  it("file-mode terminal refresh failure clears legacy so it cannot resurrect", async () => {
     const { storage, file, legacy } = await createCompositeStorage("file");
     await legacy.saveAuthSession(
       baseUrl,
@@ -414,7 +474,17 @@ describe("TokenManager file-backed integration", () => {
 
     const manager = new TokenManager({
       authService: createMockAuthService({
-        refreshAccessToken: mock(() => Promise.reject(new Error("boom"))),
+        refreshAccessToken: mock(() =>
+          Promise.reject(
+            new TokenRefreshError(
+              400,
+              JSON.stringify({
+                error: "invalid_grant",
+                error_description: "Invalid Refresh Token: Already Used",
+              }),
+            ),
+          ),
+        ),
       }),
       authStorage: storage,
       mcpUrl: baseUrl,

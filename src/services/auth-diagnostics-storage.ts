@@ -29,6 +29,7 @@ interface StoredAuthDiagnostics {
 
 const DIAGNOSTICS_FILE = "diagnostics.json";
 const DIR_MODE = 0o700;
+const FILE_MODE = 0o600;
 const CLEAR_REASONS: ReadonlySet<string> = new Set<AuthClearReason>([
   "logout",
   "terminal_invalid_refresh_token",
@@ -77,6 +78,7 @@ export class AuthDiagnosticsStorage implements AuthDiagnosticsStore {
       await this.fs.atomicWriteFile(
         this.diagnosticsPath,
         JSON.stringify(stored, null, 2),
+        FILE_MODE,
       );
     } catch {
       // Diagnostic side-channel; never propagate into the observed clear path.

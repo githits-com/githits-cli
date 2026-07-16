@@ -44,6 +44,9 @@ export interface StoredClients {
  * Abstraction allows for easy testing with mock implementations.
  */
 export interface AuthStorage {
+  /** Whether loads may reconcile storage and therefore require mutation locking. */
+  readonly requiresLoadLock?: boolean;
+
   /** Load tokens for a specific base URL, returns null if not found */
   loadTokens(baseUrl: string): Promise<TokenData | null>;
 
@@ -113,6 +116,7 @@ export interface AuthStorage {
 const AUTH_FILE = "auth.json";
 const CLIENT_FILE = "client.json";
 const DIR_MODE = 0o700;
+const FILE_MODE = 0o600;
 
 /**
  * File-based auth storage implementation.
@@ -153,6 +157,7 @@ export class AuthStorageImpl implements AuthStorage {
     await this.fs.atomicWriteFile(
       this.authPath,
       JSON.stringify(stored, null, 2),
+      FILE_MODE,
     );
   }
 
@@ -179,6 +184,7 @@ export class AuthStorageImpl implements AuthStorage {
       await this.fs.atomicWriteFile(
         this.authPath,
         JSON.stringify(stored, null, 2),
+        FILE_MODE,
       );
     }
   }
@@ -219,6 +225,7 @@ export class AuthStorageImpl implements AuthStorage {
       await this.fs.atomicWriteFile(
         this.clientPath,
         JSON.stringify(stored, null, 2),
+        FILE_MODE,
       );
     }
   }
@@ -234,6 +241,7 @@ export class AuthStorageImpl implements AuthStorage {
     await this.fs.atomicWriteFile(
       this.clientPath,
       JSON.stringify(stored, null, 2),
+      FILE_MODE,
     );
   }
 

@@ -1,9 +1,13 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, mock } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getAppConfigDir, getAuthLockDir } from "./app-config-paths.js";
-import { AuthStorageImpl } from "./auth-storage.js";
+import {
+  AuthStorageImpl,
+  type ClientRegistration,
+  type TokenData,
+} from "./auth-storage.js";
 import { FileSystemServiceImpl } from "./filesystem-service.js";
 import { LockedAuthStorage } from "./locked-auth-storage.js";
 import {
@@ -54,6 +58,134 @@ describe("LockedAuthStorage", () => {
     const finalToken = await first.loadTokens(baseUrl);
     expect(finalToken).not.toBeNull();
     expect(["first", "second"]).toContain(finalToken?.accessToken ?? "");
+  });
+
+  it("serializes token loads with external writes", async () => {
+    const { fsWithHome } = await createStoragePaths();
+    let releaseLoad!: () => void;
+    let loadStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      loadStarted = resolve;
+    });
+    let contentionStarted!: () => void;
+    const contention = new Promise<"contention">((resolve) => {
+      contentionStarted = () => resolve("contention");
+    });
+    let saveStarted!: () => void;
+    const innerSave = new Promise<"save">((resolve) => {
+      saveStarted = () => resolve("save");
+    });
+    const firstInner = createMockAuthStorage({
+      requiresLoadLock: true,
+      loadTokens: mock<(_baseUrl: string) => Promise<TokenData | null>>(
+        () =>
+          new Promise<TokenData | null>((resolve) => {
+            loadStarted();
+            releaseLoad = () => resolve(createValidTokenData());
+          }),
+      ),
+    });
+    const secondInner = createMockAuthStorage({
+      saveTokens: mock(() => {
+        saveStarted();
+        return Promise.resolve();
+      }),
+    });
+    const first = new LockedAuthStorage(firstInner, fsWithHome);
+    const second = new LockedAuthStorage(secondInner, fsWithHome, {
+      isOwnerAlive: async () => {
+        contentionStarted();
+        return true;
+      },
+    });
+
+    const load = first.loadTokens(baseUrl);
+    await started;
+    const save = second.saveTokens(baseUrl, createValidTokenData());
+    expect(await Promise.race([contention, innerSave])).toBe("contention");
+    expect(secondInner.saveTokens).not.toHaveBeenCalled();
+
+    releaseLoad();
+    await Promise.all([load, save]);
+    expect(secondInner.saveTokens).toHaveBeenCalledTimes(1);
+  });
+
+  it("serializes client loads with external writes", async () => {
+    const { fsWithHome } = await createStoragePaths();
+    let releaseLoad!: () => void;
+    let loadStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      loadStarted = resolve;
+    });
+    let contentionStarted!: () => void;
+    const contention = new Promise<"contention">((resolve) => {
+      contentionStarted = () => resolve("contention");
+    });
+    let saveStarted!: () => void;
+    const innerSave = new Promise<"save">((resolve) => {
+      saveStarted = () => resolve("save");
+    });
+    const firstInner = createMockAuthStorage({
+      requiresLoadLock: true,
+      loadClient: mock<
+        (_baseUrl: string) => Promise<ClientRegistration | null>
+      >(
+        () =>
+          new Promise<ClientRegistration | null>((resolve) => {
+            loadStarted();
+            releaseLoad = () => resolve(null);
+          }),
+      ),
+    });
+    const secondInner = createMockAuthStorage({
+      saveClient: mock(() => {
+        saveStarted();
+        return Promise.resolve();
+      }),
+    });
+    const first = new LockedAuthStorage(firstInner, fsWithHome);
+    const second = new LockedAuthStorage(secondInner, fsWithHome, {
+      isOwnerAlive: async () => {
+        contentionStarted();
+        return true;
+      },
+    });
+
+    const load = first.loadClient(baseUrl);
+    await started;
+    const save = second.saveClient(baseUrl, {
+      clientId: "client-id",
+      clientSecret: "client-secret",
+      redirectUri: "http://127.0.0.1/callback",
+      registeredAt: "2026-01-01T00:00:00Z",
+    });
+    expect(await Promise.race([contention, innerSave])).toBe("contention");
+    expect(secondInner.saveClient).not.toHaveBeenCalled();
+
+    releaseLoad();
+    await Promise.all([load, save]);
+    expect(secondInner.saveClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps read-only storage loads outside the mutation lock", async () => {
+    const { fsWithHome, lockPath } = await createStoragePaths();
+    await mkdir(lockPath, { recursive: true, mode: 0o700 });
+    await writeFile(
+      join(lockPath, "owner.json"),
+      JSON.stringify({
+        id: "live-owner",
+        pid: process.pid,
+        createdAt: new Date().toISOString(),
+        processStartedAt: "test-start-time",
+      }),
+    );
+    const storage = new LockedAuthStorage(createMockAuthStorage(), fsWithHome, {
+      isOwnerAlive: async () => true,
+      lockTimeoutMs: 10,
+    });
+
+    await expect(storage.loadTokens(baseUrl)).resolves.toBeNull();
+    await expect(storage.loadClient(baseUrl)).resolves.toBeNull();
   });
 
   it("clearActiveTokensIfUnchanged delegates through the lock", async () => {

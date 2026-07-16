@@ -467,7 +467,13 @@ export class AuthServiceImpl implements AuthService {
 export function classifyTerminalRefreshError(
   error: unknown,
 ): TerminalRefreshFailureReason | undefined {
-  if (!(error instanceof TokenRefreshError)) return undefined;
+  if (
+    !(error instanceof TokenRefreshError) ||
+    error.status < 400 ||
+    error.status >= 500
+  ) {
+    return undefined;
+  }
 
   const oauthError = error.oauthError?.toLowerCase();
   const text = [

@@ -26,6 +26,7 @@ interface Candidate<T> {
  */
 export class MigratingAuthStorage implements AuthStorage {
   private warnedAmbiguousPlaintext = false;
+  readonly requiresLoadLock: boolean;
 
   constructor(
     private readonly primary: AuthStorage,
@@ -36,7 +37,9 @@ export class MigratingAuthStorage implements AuthStorage {
     private readonly onWarning: (message: string) => void = () => {},
     private readonly metadata?: AuthSessionMetadataStore,
     private readonly additionalLegacyStores: AuthStorage[] = [],
-  ) {}
+  ) {
+    this.requiresLoadLock = mode === "file";
+  }
 
   async loadTokens(baseUrl: string): Promise<TokenData | null> {
     if (this.mode === "file") {
@@ -248,7 +251,12 @@ export class MigratingAuthStorage implements AuthStorage {
   private async loadTokensFileMode(baseUrl: string): Promise<TokenData | null> {
     const candidate = await this.selectPlaintextTokenCandidate(baseUrl);
     if (candidate) {
-      if (candidate.source === "legacy") {
+      if (candidate.ambiguous) {
+        await this.file.saveTokens(baseUrl, candidate.data);
+        for (const legacy of this.getLegacyStores()) {
+          await this.clearBestEffort(() => legacy.clearTokens(baseUrl));
+        }
+      } else if (candidate.source === "legacy") {
         await this.file.saveTokens(baseUrl, candidate.data);
         await this.clearBestEffort(() =>
           candidate.storage.clearTokens(baseUrl),
@@ -278,7 +286,12 @@ export class MigratingAuthStorage implements AuthStorage {
   ): Promise<ClientRegistration | null> {
     const candidate = await this.selectPlaintextClientCandidate(baseUrl);
     if (candidate) {
-      if (candidate.source === "legacy") {
+      if (candidate.ambiguous) {
+        await this.file.saveClient(baseUrl, candidate.data);
+        for (const legacy of this.getLegacyStores()) {
+          await this.clearBestEffort(() => legacy.clearClient(baseUrl));
+        }
+      } else if (candidate.source === "legacy") {
         await this.file.saveClient(baseUrl, candidate.data);
         await this.clearBestEffort(() =>
           candidate.storage.clearClient(baseUrl),
@@ -359,11 +372,7 @@ export class MigratingAuthStorage implements AuthStorage {
       timestampMs: Date.parse(candidate.timestamp),
     }));
     if (parsed.some((entry) => Number.isNaN(entry.timestampMs))) {
-      this.warnAmbiguousPlaintext();
-      const selected =
-        candidates.find((candidate) => candidate.source === "file") ?? null;
-      if (selected) selected.ambiguous = true;
-      return selected;
+      return this.selectCanonicalAmbiguousCandidate(candidates);
     }
 
     const sorted = [...parsed].sort((a, b) => b.timestampMs - a.timestampMs);
@@ -371,14 +380,22 @@ export class MigratingAuthStorage implements AuthStorage {
     const second = sorted[1];
     if (!first) return candidates[0] ?? null;
     if (second && first.timestampMs === second.timestampMs) {
-      this.warnAmbiguousPlaintext();
-      const selected =
-        candidates.find((candidate) => candidate.source === "file") ?? null;
-      if (!selected) return null;
-      selected.ambiguous = true;
-      return selected;
+      return this.selectCanonicalAmbiguousCandidate(candidates);
     }
     return first.candidate;
+  }
+
+  private selectCanonicalAmbiguousCandidate<T>(
+    candidates: Array<Candidate<T>>,
+  ): Candidate<T> | null {
+    const selected =
+      candidates.find((candidate) => candidate.source === "file") ?? null;
+    if (!selected) {
+      this.warnAmbiguousPlaintext();
+      return null;
+    }
+    selected.ambiguous = true;
+    return selected;
   }
 
   private getLegacyStores(): AuthStorage[] {
@@ -445,7 +462,7 @@ export class MigratingAuthStorage implements AuthStorage {
     if (this.warnedAmbiguousPlaintext) return;
     this.warnedAmbiguousPlaintext = true;
     this.onWarning(
-      "Warning: multiple plaintext auth entries exist with ambiguous timestamps; using the new config auth path and leaving the other entry intact.",
+      "Warning: multiple legacy plaintext auth entries exist with ambiguous timestamps; no canonical config-path entry was found, so the legacy entries were left intact.",
     );
   }
 

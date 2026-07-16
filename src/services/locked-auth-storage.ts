@@ -56,6 +56,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   ) => Promise<boolean>;
   private readonly lockContext = new AsyncLocalStorage<string>();
   private currentOwner: LockOwner | null = null;
+  private readonly lockLoads: boolean;
 
   constructor(
     private readonly storage: AuthStorage,
@@ -70,6 +71,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   ) {
     this.lockTimeoutMs = options.lockTimeoutMs ?? LOCK_TIMEOUT_MS;
     this.isOwnerAlive = options.isOwnerAlive ?? isOriginalProcessAlive;
+    this.lockLoads = storage.requiresLoadLock === true;
     this.lockPath = fileSystemService.joinPath(
       getAuthLockDir(fileSystemService),
       LOCK_DIR,
@@ -77,7 +79,9 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   }
 
   loadTokens(baseUrl: string): Promise<TokenData | null> {
-    return this.storage.loadTokens(baseUrl);
+    return this.lockLoads
+      ? this.withAuthStorageLock(() => this.storage.loadTokens(baseUrl))
+      : this.storage.loadTokens(baseUrl);
   }
 
   saveTokens(baseUrl: string, data: TokenData): Promise<void> {
@@ -119,7 +123,9 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   }
 
   loadClient(baseUrl: string): Promise<ClientRegistration | null> {
-    return this.storage.loadClient(baseUrl);
+    return this.lockLoads
+      ? this.withAuthStorageLock(() => this.storage.loadClient(baseUrl))
+      : this.storage.loadClient(baseUrl);
   }
 
   saveClient(baseUrl: string, data: ClientRegistration): Promise<void> {
