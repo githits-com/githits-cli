@@ -5,7 +5,10 @@ import {
   generateCodeChallenge,
   generateCodeVerifier,
   generateState,
+  parseHttpErrorDetail,
+  validateServiceUrl,
 } from "@githits/core-internal";
+import { z } from "zod";
 
 /**
  * OAuth Authorization Server metadata from .well-known endpoint.
@@ -118,11 +121,10 @@ export class TokenRefreshError extends Error {
 
   constructor(status: number, body: string) {
     const details = parseOAuthErrorBody(body);
-    const description =
-      details.oauthErrorDescription ?? details.oauthError ?? body.trim();
+    const description = parseHttpErrorDetail(body, OAUTH_ERROR_DETAIL_FIELDS);
     super(
       description
-        ? `Token refresh failed: ${description}`
+        ? `Token refresh failed with HTTP ${status}: ${description}`
         : `Token refresh failed with HTTP ${status}`,
     );
     this.name = "TokenRefreshError";
@@ -187,7 +189,8 @@ export class AuthServiceImpl implements AuthService {
   ) {}
 
   async discoverEndpoints(mcpBaseUrl: string): Promise<OAuthMetadata> {
-    const url = `${mcpBaseUrl}/.well-known/oauth-authorization-server`;
+    const validatedBaseUrl = validateServiceUrl(mcpBaseUrl, "GITHITS_MCP_URL");
+    const url = `${validatedBaseUrl.replace(/\/+$/, "")}/.well-known/oauth-authorization-server`;
     const response = await fetchWithTimeout(url, {}, this.fetchOptions());
 
     if (!response.ok) {
@@ -196,27 +199,40 @@ export class AuthServiceImpl implements AuthService {
       );
     }
 
-    const data = (await response.json()) as Record<string, unknown>;
-    const authorizationEndpoint = data.authorization_endpoint;
-    const tokenEndpoint = data.token_endpoint;
-    const registrationEndpoint = data.registration_endpoint;
-
-    if (!authorizationEndpoint || !tokenEndpoint || !registrationEndpoint) {
+    const data = await readJsonResponse(
+      response,
+      "OAuth metadata response was not valid JSON.",
+    );
+    const parsed = OAUTH_METADATA_SCHEMA.safeParse(data);
+    if (!parsed.success) {
       throw new Error("OAuth metadata missing required endpoints");
     }
 
     return {
-      authorizationEndpoint: authorizationEndpoint as string,
-      tokenEndpoint: tokenEndpoint as string,
-      registrationEndpoint: registrationEndpoint as string,
+      authorizationEndpoint: validateServiceUrl(
+        parsed.data.authorization_endpoint,
+        "OAuth authorization endpoint",
+      ),
+      tokenEndpoint: validateServiceUrl(
+        parsed.data.token_endpoint,
+        "OAuth token endpoint",
+      ),
+      registrationEndpoint: validateServiceUrl(
+        parsed.data.registration_endpoint,
+        "OAuth registration endpoint",
+      ),
     };
   }
 
   async registerClient(
     params: RegisterClientParams,
   ): Promise<{ clientId: string; clientSecret: string }> {
-    const response = await fetchWithTimeout(
+    const registrationEndpoint = validateServiceUrl(
       params.registrationEndpoint,
+      "OAuth registration endpoint",
+    );
+    const response = await fetchWithTimeout(
+      registrationEndpoint,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -232,18 +248,25 @@ export class AuthServiceImpl implements AuthService {
     );
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Client registration failed: ${error}`);
+      const body = await response.text().catch(() => "");
+      const detail = parseHttpErrorDetail(body, OAUTH_ERROR_DETAIL_FIELDS);
+      throw new Error(
+        `Client registration failed with HTTP ${response.status}.${detail ? ` ${detail}` : ""}`,
+      );
     }
 
-    const data = (await response.json()) as Record<string, unknown>;
-    if (!data.client_id || !data.client_secret) {
+    const data = await readJsonResponse(
+      response,
+      "Client registration response was not valid JSON.",
+    );
+    const parsed = CLIENT_REGISTRATION_SCHEMA.safeParse(data);
+    if (!parsed.success) {
       throw new Error("Client registration response missing required fields");
     }
 
     return {
-      clientId: data.client_id as string,
-      clientSecret: data.client_secret as string,
+      clientId: parsed.data.client_id,
+      clientSecret: parsed.data.client_secret,
     };
   }
 
@@ -363,8 +386,12 @@ export class AuthServiceImpl implements AuthService {
       redirect_uri: params.redirectUri,
     });
 
-    const response = await fetchWithTimeout(
+    const tokenEndpoint = validateServiceUrl(
       params.tokenEndpoint,
+      "OAuth token endpoint",
+    );
+    const response = await fetchWithTimeout(
+      tokenEndpoint,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -374,11 +401,19 @@ export class AuthServiceImpl implements AuthService {
     );
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Token exchange failed: ${error}`);
+      const body = await response.text().catch(() => "");
+      const detail = parseHttpErrorDetail(body, OAUTH_ERROR_DETAIL_FIELDS);
+      throw new Error(
+        `Token exchange failed with HTTP ${response.status}.${detail ? ` ${detail}` : ""}`,
+      );
     }
 
-    return parseTokenResponse(await response.json());
+    return parseTokenResponse(
+      await readJsonResponse(
+        response,
+        "Token exchange response was not valid JSON.",
+      ),
+    );
   }
 
   async refreshAccessToken(
@@ -391,8 +426,12 @@ export class AuthServiceImpl implements AuthService {
       refresh_token: params.refreshToken,
     });
 
-    const response = await fetchWithTimeout(
+    const tokenEndpoint = validateServiceUrl(
       params.tokenEndpoint,
+      "OAuth token endpoint",
+    );
+    const response = await fetchWithTimeout(
+      tokenEndpoint,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -406,7 +445,12 @@ export class AuthServiceImpl implements AuthService {
       throw new TokenRefreshError(response.status, error);
     }
 
-    return parseRefreshTokenResponse(await response.json());
+    return parseRefreshTokenResponse(
+      await readJsonResponse(
+        response,
+        "Token refresh response was not valid JSON.",
+      ),
+    );
   }
 
   private fetchOptions(): {
@@ -489,28 +533,79 @@ function stringField(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+const OAUTH_ERROR_DETAIL_FIELDS = [
+  "detail",
+  "error_description",
+  "message",
+  "error",
+] as const;
+
+const OAUTH_METADATA_SCHEMA = z.object({
+  authorization_endpoint: z.string().min(1),
+  token_endpoint: z.string().min(1),
+  registration_endpoint: z.string().min(1),
+});
+
+const CLIENT_REGISTRATION_SCHEMA = z.object({
+  client_id: z.string().min(1),
+  client_secret: z.string().min(1),
+});
+
+const EXPIRES_IN_SCHEMA = z
+  .union([
+    z.number(),
+    z
+      .string()
+      .trim()
+      .regex(/^\d+(?:\.\d+)?$/)
+      .transform(Number),
+  ])
+  .pipe(z.number().positive());
+
+const TOKEN_RESPONSE_SCHEMA = z.object({
+  access_token: z.string().min(1),
+  refresh_token: z.string().min(1),
+  expires_in: EXPIRES_IN_SCHEMA.optional(),
+});
+
+const REFRESH_TOKEN_RESPONSE_SCHEMA = z.object({
+  access_token: z.string().min(1),
+  refresh_token: z.string().min(1).optional(),
+  expires_in: EXPIRES_IN_SCHEMA.optional(),
+});
+
+async function readJsonResponse(
+  response: Response,
+  message: string,
+): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch (cause) {
+    throw new Error(message, { cause });
+  }
+}
+
 function parseTokenResponse(data: unknown): TokenResponse {
-  const d = data as Record<string, unknown>;
-  if (!d.access_token || !d.refresh_token) {
+  const parsed = TOKEN_RESPONSE_SCHEMA.safeParse(data);
+  if (!parsed.success) {
     throw new Error("Token response missing required fields");
   }
   return {
-    accessToken: d.access_token as string,
-    refreshToken: d.refresh_token as string,
-    expiresIn: (d.expires_in as number) || 3600,
+    accessToken: parsed.data.access_token,
+    refreshToken: parsed.data.refresh_token,
+    expiresIn: parsed.data.expires_in ?? 3600,
   };
 }
 
 function parseRefreshTokenResponse(data: unknown): RefreshTokenResponse {
-  const d = data as Record<string, unknown>;
-  if (!d.access_token) {
+  const parsed = REFRESH_TOKEN_RESPONSE_SCHEMA.safeParse(data);
+  if (!parsed.success) {
     throw new Error("Token response missing required fields");
   }
   return {
-    accessToken: d.access_token as string,
-    refreshToken:
-      typeof d.refresh_token === "string" ? d.refresh_token : undefined,
-    expiresIn: (d.expires_in as number) || 3600,
+    accessToken: parsed.data.access_token,
+    refreshToken: parsed.data.refresh_token,
+    expiresIn: parsed.data.expires_in ?? 3600,
   };
 }
 

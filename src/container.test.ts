@@ -110,6 +110,21 @@ describe("container auth dependencies", () => {
     });
   });
 
+  it("auth-only dependencies defer service URL validation until network use", async () => {
+    await withAuthStorageEnv("file", async () => {
+      await withEnvVars(
+        {
+          GITHITS_MCP_URL: "http://attacker.test",
+          GITHITS_API_URL: "http://attacker.test",
+        },
+        async () => {
+          const deps = await createAuthCommandDependencies();
+          expect(deps.mcpUrl).toBe("http://attacker.test");
+        },
+      );
+    });
+  });
+
   it("auth status env-token path defers proxy validation for local status", async () => {
     await withApiToken("ghi-test", async () => {
       await withAuthStorageEnv("invalid", async () => {
@@ -133,6 +148,20 @@ describe("container auth dependencies", () => {
 });
 
 describe("createContainer", () => {
+  it("rejects insecure service URLs before constructing authenticated clients", async () => {
+    await withEnvVars(
+      {
+        GITHITS_API_TOKEN: "ghi-test",
+        GITHITS_API_URL: "http://attacker.test",
+      },
+      async () => {
+        await expect(
+          createContainer({ resolveStoredToken: false }),
+        ).rejects.toThrow("GITHITS_API_URL");
+      },
+    );
+  });
+
   it("threads explicit client telemetry into constructed services", async () => {
     await withoutProxyEnv(async () =>
       withApiToken("ghi-test", async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
+import { FetchTimeoutError } from "@githits/core-internal";
 import {
   createMockAuthService,
   createMockAuthStorage,
@@ -438,6 +439,186 @@ describe("loginFlow", () => {
     expect(result.message).toContain("Logged in successfully");
     expect(close).toHaveBeenCalledTimes(1);
     consoleSpy.mockRestore();
+  });
+
+  for (const [name, error, expected] of [
+    [
+      "network failure",
+      new TypeError("fetch failed"),
+      "Could not reach GitHits to start sign-in",
+    ],
+    [
+      "fetch timeout",
+      new FetchTimeoutError(100),
+      "GitHits timed out while starting sign-in",
+    ],
+    [
+      "abort",
+      new DOMException("aborted", "AbortError"),
+      "GitHits timed out while starting sign-in",
+    ],
+  ] as const) {
+    it(`returns a friendly result for discovery ${name}`, async () => {
+      const authService = createMockAuthService({
+        discoverEndpoints: mock(() => Promise.reject(error)),
+      });
+      const browserService = createMockBrowserService();
+
+      const result = await loginFlow(
+        { port: 8080 },
+        {
+          authService,
+          authStorage: createMockAuthStorage(),
+          browserService,
+          mcpUrl,
+        },
+        silentLoginOutput,
+      );
+
+      expect(result).toEqual({
+        status: "failed",
+        message: expect.stringContaining(expected),
+      });
+      expect(authService.registerClient).not.toHaveBeenCalled();
+      expect(browserService.open).not.toHaveBeenCalled();
+    });
+  }
+
+  it("returns a failed result when new-client registration rejects", async () => {
+    const authService = createMockAuthService({
+      registerClient: mock(() =>
+        Promise.reject(new Error("registration unavailable")),
+      ),
+    });
+    const browserService = createMockBrowserService();
+
+    const result = await loginFlow(
+      { port: 8080 },
+      {
+        authService,
+        authStorage: createMockAuthStorage(),
+        browserService,
+        mcpUrl,
+      },
+      silentLoginOutput,
+    );
+
+    expect(result).toEqual({
+      status: "failed",
+      message: "Could not start sign-in: registration unavailable",
+    });
+    expect(browserService.open).not.toHaveBeenCalled();
+  });
+
+  it("normalizes and bounds protocol failure messages", async () => {
+    const authService = createMockAuthService({
+      registerClient: mock(() =>
+        Promise.reject(new Error(`first line\nsecond line ${"x".repeat(600)}`)),
+      ),
+    });
+
+    const result = await loginFlow(
+      { port: 8080 },
+      {
+        authService,
+        authStorage: createMockAuthStorage(),
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+      silentLoginOutput,
+    );
+
+    expect(result.message).not.toContain("\n");
+    expect(result.message).toContain("first line second line");
+    expect(result.message.length).toBeLessThan(550);
+  });
+
+  it("does not serialize non-Error storage failures", async () => {
+    const authStorage = createMockAuthStorage({
+      saveAuthSession: mock(() => Promise.reject({ secret: "hidden" })),
+    });
+
+    const result = await loginFlow(
+      { port: 8080 },
+      {
+        authService: createMockAuthService(),
+        authStorage,
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+      silentLoginOutput,
+    );
+
+    expect(result.message).toBe(
+      "Cannot persist OAuth credentials: Unexpected error.",
+    );
+    expect(result.message).not.toContain("hidden");
+  });
+
+  it("returns a failed result when changed-port registration rejects", async () => {
+    const authStorage = createMockAuthStorage({
+      loadTokens: mock(() =>
+        Promise.resolve(
+          createValidTokenData({
+            expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+          }),
+        ),
+      ),
+      loadClient: mock(() =>
+        Promise.resolve({
+          clientId: "existing-client",
+          clientSecret: "existing-secret",
+          redirectUri: "http://127.0.0.1:8080/callback",
+          registeredAt: "2025-01-01T00:00:00Z",
+        }),
+      ),
+    });
+    const authService = createMockAuthService({
+      registerClient: mock(() =>
+        Promise.reject(new Error("registration unavailable")),
+      ),
+    });
+
+    const result = await loginFlow(
+      { force: true, port: 9090 },
+      {
+        authService,
+        authStorage,
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+      silentLoginOutput,
+    );
+
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("registration unavailable");
+    expect(authStorage.clearActiveClient).not.toHaveBeenCalledWith(mcpUrl);
+  });
+
+  it("returns a storage failure when final auth-session persistence fails", async () => {
+    const saveAuthSession = mock((baseUrl: string) =>
+      baseUrl.includes("__githits_storage_probe__")
+        ? Promise.resolve()
+        : Promise.reject(new Error("keychain write failed")),
+    );
+    const authStorage = createMockAuthStorage({ saveAuthSession });
+
+    const result = await loginFlow(
+      { port: 8080 },
+      {
+        authService: createMockAuthService(),
+        authStorage,
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+      silentLoginOutput,
+    );
+
+    expect(result).toEqual({
+      status: "failed",
+      message: "Cannot persist OAuth credentials: keychain write failed",
+    });
+    expect(saveAuthSession).toHaveBeenCalledTimes(2);
   });
 
   it("routes progress through the provided reporter instead of stdout", async () => {

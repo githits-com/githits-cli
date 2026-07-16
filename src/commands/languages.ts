@@ -13,6 +13,7 @@ import type { Command } from "commander";
 import { createContainer } from "../container.js";
 import {
   buildCliMappedErrorPayload,
+  formatCliMappedError,
   formatMappedErrorForTerminal,
 } from "./format-mapped-error.js";
 
@@ -89,7 +90,14 @@ export async function languagesAction(
       process.exit(1);
     }
     console.error(
-      `Failed to list languages: ${error instanceof Error ? error.message : error}`,
+      formatCliMappedError(
+        {
+          code: "UNKNOWN",
+          message: `Failed to list languages: ${error instanceof Error ? error.message : "Unexpected error."}`,
+          retryable: false,
+        },
+        options.json ?? false,
+      ),
     );
     process.exit(1);
   }

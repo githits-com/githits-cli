@@ -135,7 +135,7 @@ describe("GitHitsServiceImpl", () => {
       expect(body.license_mode).toBe("yolo");
     });
 
-    it("times out stalled requests", async () => {
+    it("classifies stalled requests as timeouts", async () => {
       const fetchFn = mock(() => new Promise<Response>(() => {}));
       const timeoutService = new GitHitsServiceImpl(
         API_URL,
@@ -149,6 +149,7 @@ describe("GitHitsServiceImpl", () => {
       );
 
       expect(error.timeoutMs).toBe(1);
+      expect(error.message).toBe("Request to GitHits timed out. Try again.");
     });
 
     it("uses the extended default request timeout", async () => {
@@ -161,6 +162,47 @@ describe("GitHitsServiceImpl", () => {
         expect(timeoutSpy).toHaveBeenCalledWith(240_000);
       } finally {
         timeoutSpy.mockRestore();
+      }
+    });
+
+    it("classifies injected AbortError failures as timeouts", async () => {
+      const cause = new DOMException("aborted", "AbortError");
+      const abortService = new GitHitsServiceImpl(
+        API_URL,
+        TOKEN,
+        asFetchFn(mock(() => Promise.reject(cause))),
+      );
+
+      try {
+        await abortService.search({ query: "probe" });
+        throw new Error("Expected request to fail");
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe(
+          "Request to GitHits timed out. Try again.",
+        );
+        expect((error as Error & { cause?: unknown }).cause).toBe(cause);
+      }
+    });
+
+    it("classifies fetch TypeError failures as connection errors", async () => {
+      const cause = new TypeError("fetch failed");
+      const offlineService = new GitHitsServiceImpl(
+        API_URL,
+        TOKEN,
+        asFetchFn(mock(() => Promise.reject(cause))),
+      );
+
+      try {
+        await offlineService.search({ query: "probe" });
+        throw new Error("Expected request to fail");
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toContain(
+          "Could not connect to GitHits",
+        );
+        expect((error as Error).message).toContain("GITHITS_API_URL");
+        expect((error as Error & { cause?: unknown }).cause).toBe(cause);
       }
     });
 
@@ -303,18 +345,52 @@ describe("GitHitsServiceImpl", () => {
       ).rejects.toThrow("Server error (500)");
     });
 
-    it("includes response body in 500 error", async () => {
+    it("does not include an HTML or plain-text body in 500 errors", async () => {
       mockFetch(() =>
         Promise.resolve(
-          new Response("Internal: database connection failed", { status: 502 }),
+          new Response("<!doctype html>database connection failed", {
+            status: 502,
+          }),
         ),
       );
 
-      await expect(
-        service.search({ query: "test", language: "js" }),
-      ).rejects.toThrow(
-        "Server error (502): Internal: database connection failed",
+      try {
+        await service.search({ query: "test", language: "js" });
+        throw new Error("Expected request to fail");
+      } catch (error) {
+        expect((error as Error).message).toBe(
+          "Server error (502). Try again shortly.",
+        );
+        expect((error as Error).message).not.toContain("doctype");
+        expect((error as Error).message).not.toContain("database");
+      }
+    });
+
+    it("includes safe JSON detail in 500 errors", async () => {
+      mockFetch(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ detail: "Backend unavailable" }), {
+            status: 503,
+          }),
+        ),
       );
+
+      await expect(service.search({ query: "test" })).rejects.toThrow(
+        "Server error (503). Try again shortly. Backend unavailable",
+      );
+    });
+
+    it("does not expose raw rate-limit response bodies", async () => {
+      mockFetch(() =>
+        Promise.resolve(new Response("slow down", { status: 429 })),
+      );
+
+      const error = await captureRateLimitError(() =>
+        service.search({ query: "test" }),
+      );
+
+      expect(error.message).toBe("Request rate limited.");
+      expect(error.message).not.toContain("slow down");
     });
   });
 
@@ -371,7 +447,21 @@ describe("GitHitsServiceImpl", () => {
       );
 
       await expect(service.getLanguages()).rejects.toThrow(
-        "Server error (503): service unavailable",
+        "Server error (503). Try again shortly.",
+      );
+    });
+
+    it("rejects malformed language payloads", async () => {
+      mockFetch(() =>
+        Promise.resolve(
+          new Response(JSON.stringify([{ id: 1, name: "javascript" }]), {
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      await expect(service.getLanguages()).rejects.toThrow(
+        "GitHits returned an invalid languages response.",
       );
     });
   });
@@ -407,6 +497,20 @@ describe("GitHitsServiceImpl", () => {
 
       await expect(service.searchLanguages("ts")).rejects.toThrow(
         AuthenticationError,
+      );
+    });
+
+    it("rejects malformed language search payloads", async () => {
+      mockFetch(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ languages: [] }), {
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      await expect(service.searchLanguages("ts")).rejects.toThrow(
+        "GitHits returned an invalid languages response.",
       );
     });
   });
@@ -497,7 +601,7 @@ describe("GitHitsServiceImpl", () => {
 
       await expect(
         service.submitFeedback({ solutionId: "id", accepted: true }),
-      ).rejects.toThrow("Server error (500): internal error");
+      ).rejects.toThrow("Server error (500). Try again shortly.");
     });
 
     it("omits solution_id when not provided (generic feedback)", async () => {

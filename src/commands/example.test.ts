@@ -264,4 +264,35 @@ describe("exampleAction", () => {
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
+  for (const [name, serviceMessage] of [
+    ["sanitized 500", "Server error (500). Try again shortly."],
+    [
+      "offline",
+      "Could not connect to GitHits. Check your connection and GITHITS_API_URL, then try again.",
+    ],
+  ] as const) {
+    it(`renders ${name} service errors on stderr`, async () => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit");
+      });
+      const deps = createDeps({
+        githitsService: createMockGitHitsService({
+          search: mock(() => Promise.reject(new Error(serviceMessage))),
+        }),
+      });
+
+      await expect(exampleAction("test", {}, deps)).rejects.toThrow(
+        "process.exit",
+      );
+
+      expect(errorSpy.mock.calls[0]?.[0]).toBe(
+        `Failed to get example: ${serviceMessage}`,
+      );
+      expect(String(errorSpy.mock.calls[0]?.[0])).not.toContain("doctype");
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    });
+  }
 });

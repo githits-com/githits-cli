@@ -118,6 +118,9 @@ test suite anchors the doc.
   mechanism, not a convention.
 - MCP error text is always valid JSON. A client that parses
   `content[0].text` on error gets the same envelope as CLI `--json`.
+- The REST-backed `example`, `languages`, and `feedback` CLI commands preserve
+  this envelope for generic transport/backend failures as well as typed auth
+  failures. Human mode renders the same message as terminal text.
 
 ### `PARITY-SHARED-TEXT-FORMATTER`
 

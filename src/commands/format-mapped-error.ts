@@ -77,3 +77,12 @@ export function buildCliMappedErrorPayload(
     ...(mapped.details ? { details: mapped.details } : {}),
   };
 }
+
+export function formatCliMappedError(
+  mapped: MappedError,
+  json: boolean,
+): string {
+  return json
+    ? JSON.stringify(buildCliMappedErrorPayload(mapped))
+    : formatMappedErrorForTerminal(mapped);
+}

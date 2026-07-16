@@ -430,8 +430,11 @@ For complex commands with multiple submodules, a subdirectory (`src/commands/xxx
 ## Error Handling
 
 - **Auth errors** — `requireAuth()` prints instructions and calls `process.exit(1)`
-- **Service errors** — Caught in action, printed to stderr via `console.error("Failed to <operation>: <message>")`, then `process.exit(1)`
+- **Service errors** — Caught in action, printed to stderr via `console.error("Failed to <operation>: <message>")`, then `process.exit(1)`. REST transport errors distinguish connection failures from timeouts, and HTTP errors never print raw HTML/plain-text response bodies.
 - **Validation errors** — Checked before service call (e.g., feedback's neither-flag check), printed to stderr, `process.exit(1)`
+- **Unexpected errors** — All asynchronous startup, registration, pre-action, and action failures terminate through the root CLI boundary. The default output is a normalized single-line message plus doctor/issue guidance, never a Node stack trace.
+- **Debug stacks** — Set `GITHITS_DEBUG=cli` or `GITHITS_DEBUG=*` to include the original stack for diagnostics.
+- **JSON errors** — Under `--json`, REST-backed commands emit `{error, code, retryable, details?}` on stderr for auth, transport/backend, and validation failures.
 
 ## Output Modes
 

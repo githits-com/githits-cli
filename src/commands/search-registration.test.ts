@@ -6,25 +6,9 @@ import {
 } from "./search.js";
 
 describe("registerUnifiedSearchCommands", () => {
-  it("does not register search commands with an explicitly empty code navigation URL", async () => {
+  it("always registers search commands", async () => {
     const program = new Command();
-    await registerUnifiedSearchCommands(program, {
-      codeNavigationUrl: "",
-    });
-
-    expect(
-      program.commands.some((command) => command.name() === "search"),
-    ).toBe(false);
-    expect(
-      program.commands.some((command) => command.name() === "search-status"),
-    ).toBe(false);
-  });
-
-  it("registers search commands when code navigation URL is configured", async () => {
-    const program = new Command();
-    await registerUnifiedSearchCommands(program, {
-      codeNavigationUrl: "https://nav.example.com",
-    });
+    await registerUnifiedSearchCommands(program);
 
     expect(
       program.commands.some((command) => command.name() === "search"),

@@ -1,22 +1,10 @@
 import type { Command } from "commander";
-import {
-  type GatedCommandGroupOptions,
-  resolveGatedCommandGroupRegistrationState,
-} from "../gated-command-group.js";
 import { registerDocsListCommand } from "./list.js";
 import { registerDocsReadCommand } from "./read.js";
 
-export interface DocsCommandGroupOptions extends GatedCommandGroupOptions {}
-
 export async function registerDocsCommandGroup(
   program: Command,
-  options: DocsCommandGroupOptions = {},
 ): Promise<void> {
-  const registration = await resolveGatedCommandGroupRegistrationState(options);
-  if (!registration.shouldRegister) {
-    return;
-  }
-
   const docsCommand = program
     .command("docs")
     .summary("Browse and read package documentation")

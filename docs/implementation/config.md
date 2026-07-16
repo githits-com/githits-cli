@@ -2,11 +2,11 @@
 
 ## Purpose
 
-The CLI uses two separate URLs and supports three authentication modes. Getting these wrong causes subtle failures — wrong URL means auth works but API calls fail, wrong auth mode means some tools work but others silently return errors. This document explains the configuration model so changes are made with full context.
+The CLI uses three separate service URLs and supports three authentication modes. Getting these wrong causes subtle failures — wrong URL means auth works but API calls fail, wrong auth mode means some tools work but others silently return errors. This document explains the configuration model so changes are made with full context.
 
 ## Background
 
-GitHits separates its MCP server (which handles OAuth discovery and the MCP protocol) from its REST API (which handles search, languages, and feedback). In production, they're at different domains.
+GitHits separates its MCP server (which handles OAuth discovery and the MCP protocol), REST API (which handles search, languages, and feedback), and package/source service. In production, they use independent endpoints.
 
 ## URL Configuration
 
@@ -17,6 +17,10 @@ GitHits separates its MCP server (which handles OAuth discovery and the MCP prot
 | **Package/source URL** | GitHits-managed package/source service | `GITHITS_CODE_NAV_URL` | Package/source service endpoint used by indexed `search` / `pkg` / `docs` / `code` tooling |
 
 > **These are different services.** Override every URL that differs from production when pointing to a non-production backend.
+
+Environment overrides must use HTTPS. Plain HTTP is accepted only for exact loopback hosts (`localhost`, `127.0.0.1`, and `[::1]`) so local backend development continues to work without permitting bearer tokens or OAuth credentials over remote cleartext connections. The same rule applies to the legacy `PKGSEER_URL` fallback and to OAuth registration/token endpoints returned by discovery.
+
+Network URL validation is deferred until a network-capable path resolves or uses the endpoint. Local-only recovery paths such as help, version output, `doctor`, auth metadata cleanup, and `logout` remain available when an endpoint override is malformed. This is deliberate: a bad network setting must not prevent diagnostics or credential removal.
 
 The MCP URL is also used as the storage key for tokens and client registrations (trailing slashes are stripped for consistent key matching). This means tokens from one environment don't leak into another.
 
@@ -109,7 +113,7 @@ eligibility rules.
 
 ```
 Environment variables + config.toml
-  └─ src/services/config.ts / auth-config.ts
+  └─ packages/core-internal/src/services/config.ts / src/services/auth-config.ts
        └─ src/container.ts (createContainer)
             ├─ mcpUrl → passed to auth commands, used as storage key
             ├─ apiUrl → passed to GitHitsServiceImpl constructor
@@ -124,7 +128,8 @@ Commands receive the full `Dependencies` object. Services receive only what they
 ## Troubleshooting
 
 - **"Authentication required" despite having a token** — Token may be expired and refresh failed. Run `githits login` to re-authenticate.
-- **Custom environment not working** — Make sure both `GITHITS_MCP_URL` and `GITHITS_API_URL` are set. They point to different services.
+- **Custom environment not working** — Set `GITHITS_MCP_URL`, `GITHITS_API_URL`, and `GITHITS_CODE_NAV_URL` for every service that differs from production. They are independent endpoints.
+- **Endpoint override rejected** — Use HTTPS for remote services. HTTP is supported only for exact loopback development hosts.
 - **Tokens from wrong environment** — Tokens are stored per MCP URL. If you switched `GITHITS_MCP_URL`, you need to re-authenticate for the new URL.
 - **System keychain unavailable** — Default keychain mode fails rather than writing plaintext OAuth credentials. Use `GITHITS_API_TOKEN`, fix/unlock the keychain, or set `auth.storage = "file"` / `GITHITS_AUTH_STORAGE=file` if unencrypted file storage is acceptable.
 - **Environment-specific failures** — Run `githits doctor --json` in each terminal or agent and compare `runtime`, `environment`, `services`, `config`, and `auth` fields. The report redacts token and secret values.
@@ -142,7 +147,7 @@ Commands receive the full `Dependencies` object. Services receive only what they
 
 | File | What it demonstrates |
 |---|---|
-| `src/services/config.ts` | URL and token resolution from environment |
+| `packages/core-internal/src/services/config.ts` | URL and token resolution plus HTTPS/loopback enforcement |
 | `src/services/auth-config.ts` | `config.toml` and `GITHITS_AUTH_STORAGE` auth storage mode parsing |
 | `src/services/app-config-paths.ts` | Platform config path resolution |
 | `src/container.ts` | Auth priority logic and dependency wiring |
