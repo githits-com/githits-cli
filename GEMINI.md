@@ -1,6 +1,6 @@
 # GitHits
 
-Version-aware open-source context for agentic software development.
+The code context layer for AI coding agents.
 
 ## Available Tools
 

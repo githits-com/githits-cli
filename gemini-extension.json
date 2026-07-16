@@ -1,7 +1,7 @@
 {
   "name": "githits",
   "version": "0.6.3",
-  "description": "Version-aware open-source context for agentic software development",
+  "description": "The code context layer for AI coding agents",
   "mcpServers": {
     "githits": {
       "command": "npx",

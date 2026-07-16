@@ -65,7 +65,11 @@ describe("plugin metadata consistency", () => {
     const geminiExtension = await readJson<{ description: string }>(
       join(root, "gemini-extension.json"),
     );
+    const serverManifest = await readJson<{ description: string }>(
+      join(root, "server.json"),
+    );
     const geminiContext = await readFile(join(root, "GEMINI.md"), "utf8");
+    const readme = await readFile(join(root, "README.md"), "utf8");
     const expected = packageJson.description;
 
     expect(openPlugin.description).toBe(expected);
@@ -77,6 +81,10 @@ describe("plugin metadata consistency", () => {
         ?.description,
     ).toBe(expected);
     expect(geminiExtension.description).toBe(expected);
+    expect(serverManifest.description).toBe(expected);
     expect(geminiContext.split(/\r?\n/)[2]).toBe(`${expected}.`);
+    expect(readme.split(/\r?\n/).map((line) => line.trim())).toContain(
+      `${expected}.`,
+    );
   });
 });

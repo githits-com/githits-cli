@@ -8,7 +8,7 @@ import {
 } from "@githits/core-internal";
 import { colorizeBrand, shouldUseColors } from "@githits/mcp/internal";
 import { Command } from "commander";
-import { version } from "../package.json";
+import { description as productDescription, version } from "../package.json";
 import { runCliMain } from "./cli/errors.js";
 import {
   enforceCachedRequiredUpdateForInvocation,
@@ -85,7 +85,7 @@ async function main(): Promise<void> {
 
   program
     .name("githits")
-    .description("Grounded open-source context for AI coding agents")
+    .description(productDescription)
     .version(version)
     .option("--no-color", "Disable colored output")
     .configureHelp({
