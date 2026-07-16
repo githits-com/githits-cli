@@ -1,6 +1,6 @@
 # GitHits
 
-Code examples from global open source for developers and AI assistants.
+Version-aware open-source context for agentic software development.
 
 ## Available Tools
 

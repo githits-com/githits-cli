@@ -72,7 +72,7 @@ export async function exampleAction(
   }
 }
 
-const EXAMPLE_DESCRIPTION = `Get verified, canonical code examples from global open source.
+const EXAMPLE_DESCRIPTION = `Find source-cited examples from real open-source projects.
 
 For dependency, package, or repository source search, use \`githits search\` instead.
 
