@@ -16,7 +16,11 @@ describe("createListPackageDocsTool", () => {
       createMockPackageIntelligenceService(),
     );
     expect(tool.name).toBe("docs_list");
-    expect(tool.annotations?.readOnlyHint).toBe(true);
+    expect(tool.annotations).toEqual({
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    });
     expect(Object.keys(tool.schema)).toEqual([
       "registry",
       "package_name",

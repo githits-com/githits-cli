@@ -10,7 +10,12 @@ import {
 } from "../shared/package-dependencies-response.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  READ_ONLY_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface PackageDependenciesArgs {
   registry: string;
@@ -68,8 +73,8 @@ const schema: ZodRawShape = {
       "Add a `transitive` block and cap traversal at this depth (1-10). Omit for direct dependencies only.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact dependency listing. Pass `format: "json"` for the structured envelope.',
     ),
@@ -94,7 +99,7 @@ export function createPackageDependenciesTool(
     name: "pkg_deps",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const includeTransitiveOutput =

@@ -28,6 +28,7 @@ import {
 import { SEARCH_GUARDRAIL } from "./guardrails.js";
 import { addLocalMcpAuthAction, mcpMappedErrorResult } from "./shared.js";
 import {
+  BOUNDED_WRITE_TOOL_ANNOTATIONS,
   errorResult,
   type ToolDefinition,
   type ToolResult,
@@ -206,8 +207,8 @@ const schema: ZodRawShape = {
   offset: z.coerce.number().int().min(0).optional(),
   wait_timeout_ms: z.coerce.number().int().min(0).max(60000).optional(),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact line-oriented output. Pass `format: "json"` for the structured envelope. `text` is an alias for `text-v1`. The text format is a public, snapshot-tested contract.',
     ),
@@ -230,7 +231,7 @@ export function createSearchTool(
     name: "search",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const effectiveTarget = isBlankSearchTarget(args.target)

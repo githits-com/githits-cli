@@ -22,6 +22,8 @@ Use the most targeted GitHits MCP tool or combination of tools for the job:
 - Use `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, and `pkg_upgrade_review` for package metadata, versions, adoption, vulnerabilities, dependency graphs, changelogs, and upgrade-review evidence.
 - Use `get_example` as the broad OSS-first discovery, planning, and research path for vague issues, unfamiliar errors, "how do others do this" questions, multi-library/API combinations, global implementation-pattern scans, and rare needle-in-the-haystack examples that may appear in only one or a few repositories. When the dependency or repository is already known, default to `search`, `docs_*`, and `code_*` first; add `get_example` when you need broader cross-project evidence or a hard-to-find real-world example.
 
+Prefer the default compact text output. Request JSON only when exact structured fields are necessary.
+
 When answering, ground claims in fetched GitHits evidence and cite the relevant package, repository, file, docs page, or version facts when available. If GitHits does not have enough evidence, say what is missing and then use the next best source.
 
 ## External Content Posture

@@ -2,7 +2,12 @@ import type { GitHitsService, Language } from "@githits/core-internal";
 import { z } from "zod";
 import type { LanguageMatch } from "../shared/language-filter.js";
 import { withErrorHandling } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  READ_ONLY_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 interface SearchLanguageArgs {
   query: string;
@@ -17,8 +22,8 @@ const schema: ZodRawShape = {
       'Language name or partial name to search for (e.g., "python", "type", "java")',
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` returns one language per line. Pass `format: "json"` for the structured array.',
     ),
@@ -33,6 +38,7 @@ export function createSearchLanguageTool(
     name: "search_language",
     description: DESCRIPTION,
     schema,
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args) => {
       return withErrorHandling("search languages", async () => {
         const result = (await service.searchLanguages(args.query)).map(

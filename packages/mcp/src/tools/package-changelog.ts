@@ -13,7 +13,12 @@ import { mapPackageIntelligenceError } from "../shared/package-intelligence-erro
 import { InvalidPackageSpecError } from "../shared/package-spec.js";
 import { PKG_CHANGELOG_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  READ_ONLY_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface PackageChangelogArgs {
   registry?: string;
@@ -106,8 +111,8 @@ const schema: ZodRawShape = {
       "Text output only. Number of body lines to preview per entry (1-50, default 10). Ignored for format=json and omit_bodies:true. Mutually exclusive with verbose:true.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact entry timeline with body previews. Pass `format: "json"` for the structured envelope with full markdown bodies.',
     ),
@@ -141,7 +146,7 @@ export function createPackageChangelogTool(
     name: "pkg_changelog",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const textFormat = isTextFormat(args.format);

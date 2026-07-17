@@ -3,7 +3,12 @@ import { z } from "zod";
 import { extractSolutionId } from "../shared/extract-solution-id.js";
 import { GET_EXAMPLE_GUARDRAIL } from "./guardrails.js";
 import { withErrorHandling } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 interface GetExampleArgs {
   query: string;
@@ -31,8 +36,8 @@ const schema: ZodRawShape = {
     .optional()
     .describe("License filtering mode: strict (default), yolo, or custom."),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` returns markdown directly with source repository provenance when available and a trailing `solution_id` line when available. Pass `format: "json"` for `{result, solution_id?}`.',
     ),
@@ -51,6 +56,7 @@ export function createGetExampleTool(
     name: "get_example",
     description: DESCRIPTION,
     schema,
+    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
     handler: async (args) => {
       return withErrorHandling("get example", async () => {
         const markdown = await service.search({

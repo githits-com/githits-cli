@@ -1,6 +1,27 @@
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { z } from "zod";
 
+/** Annotation fields required by OpenAI's MCP marketplace validation. */
+export interface CompleteToolAnnotations extends ToolAnnotations {
+  readOnlyHint: boolean;
+  openWorldHint: boolean;
+  destructiveHint: boolean;
+}
+
+/** A tool that only retrieves or computes information. */
+export const READ_ONLY_TOOL_ANNOTATIONS = {
+  readOnlyHint: true,
+  openWorldHint: false,
+  destructiveHint: false,
+} as const satisfies CompleteToolAnnotations;
+
+/** A tool with additive service-side effects that cannot modify external systems. */
+export const BOUNDED_WRITE_TOOL_ANNOTATIONS = {
+  readOnlyHint: false,
+  openWorldHint: false,
+  destructiveHint: false,
+} as const satisfies CompleteToolAnnotations;
+
 /**
  * Standard result type for all MCP tools
  */
@@ -32,7 +53,7 @@ export interface ToolDefinition<
   name: string;
   description: string;
   schema: TSchema;
-  annotations?: ToolAnnotations;
+  annotations: CompleteToolAnnotations;
   handler: ToolHandler<TArgs>;
 }
 

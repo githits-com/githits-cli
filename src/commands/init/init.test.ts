@@ -1432,6 +1432,9 @@ describe("initAction", () => {
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
       "GitHits has been installed to the system",
     );
+    expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
+      "Prefer default compact text tool output",
+    );
 
     const logCalls = getLogOutput();
     const mcpSectionIndex = logCalls.findIndex((msg) => msg.trim() === "MCP");

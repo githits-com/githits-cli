@@ -16,7 +16,12 @@ import {
 } from "./code-navigation-shared.js";
 import { CODE_READ_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 /**
  * Maximum line span the MCP `code_read` tool will return in one call.
@@ -65,8 +70,8 @@ const schema: ZodRawShape = {
       "Max milliseconds to wait for indexing (0-60000, default 20000). On an `INDEXING` error envelope, use `details.indexingEstimate` when present to decide whether to wait longer, or pass an already-indexed version/ref from `details.availableVersions` / `details.availableRefs`; `suggestedRefs` are fuzzy hints and may need indexing first.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — line-numbered source content. Pass `format: "json"` for the structured envelope.',
     ),
@@ -149,7 +154,7 @@ export function createReadFileTool(
     name: "code_read",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
     handler: async (args) => {
       const target = resolveCodeTarget(args.target);
       if ("content" in target) return target;

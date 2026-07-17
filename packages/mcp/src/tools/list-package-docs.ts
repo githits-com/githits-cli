@@ -7,7 +7,12 @@ import { renderListPackageDocsText } from "../shared/list-package-docs-text.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { DOCS_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface ListPackageDocsArgs {
   registry: string;
@@ -35,8 +40,8 @@ const schema: ZodRawShape = {
     .optional()
     .describe("Pagination cursor from a prior response."),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact page list with ready-to-call `docs_read` follow-ups. Pass `format: "json"` for the structured envelope.',
     ),
@@ -56,7 +61,7 @@ export function createListPackageDocsTool(
     name: "docs_list",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const build = buildListPackageDocsParams({

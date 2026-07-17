@@ -1,7 +1,12 @@
 import type { GitHitsService } from "@githits/core-internal";
 import { z } from "zod";
 import { withErrorHandling } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 interface FeedbackArgs {
   solution_id?: string;
@@ -53,6 +58,7 @@ export function createFeedbackTool(
     name: "feedback",
     description: DESCRIPTION,
     schema,
+    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
     handler: async (args) => {
       return withErrorHandling("submit feedback", async () => {
         const result = await service.submitFeedback({

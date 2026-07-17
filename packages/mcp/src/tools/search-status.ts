@@ -8,6 +8,7 @@ import { renderUnifiedSearchStatusText } from "../shared/unified-search-status-t
 import { addLocalMcpAuthAction } from "./shared.js";
 import {
   errorResult,
+  READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -26,8 +27,8 @@ const schema: ZodRawShape = {
       "The `searchRef` field from a prior `search` response (camelCase in the response, snake_case as this parameter). Pass it through unchanged.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact line-oriented output matching `search`. Pass `format: "json"` for the structured envelope.',
     ),
@@ -44,7 +45,7 @@ export function createSearchStatusTool(
     name: "search_status",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const outcome = await service.searchStatus(args.search_ref);

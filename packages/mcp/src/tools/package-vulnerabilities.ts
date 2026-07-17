@@ -8,7 +8,12 @@ import {
 } from "../shared/package-vulnerabilities-response.js";
 import { PKG_VULNS_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  READ_ONLY_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface PackageVulnerabilitiesArgs {
   registry: string;
@@ -65,8 +70,8 @@ const schema: ZodRawShape = {
       "Text output only. Show every advisory and full detail rows; format=json always returns the complete structured envelope.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact advisory summary. Pass `format: "json"` for the structured envelope.',
     ),
@@ -97,7 +102,7 @@ export function createPackageVulnerabilitiesTool(
     name: "pkg_vulns",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const { params, filter } = buildPackageVulnerabilitiesParams({

@@ -40,7 +40,11 @@ describe("createListFilesTool — metadata", () => {
       "target",
       "wait_timeout_ms",
     ]);
-    expect(tool.annotations?.readOnlyHint).toBe(true);
+    expect(tool.annotations).toEqual({
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    });
   });
 });
 

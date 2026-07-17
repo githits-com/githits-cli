@@ -9,7 +9,12 @@ import {
 } from "../shared/package-summary-response.js";
 import { PKG_INFO_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  READ_ONLY_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface PackageSummaryArgs {
   registry: string;
@@ -39,8 +44,8 @@ const schema: ZodRawShape = {
       "Text only. Adds GitHub language/topics/last-pushed, recent advisories, and recent changes. Ignored for format=json.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact package overview. Pass `format: "json"` for the structured envelope.',
     ),
@@ -64,7 +69,7 @@ export function createPackageSummaryTool(
     name: "pkg_info",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const { params } = buildPackageSummaryParams({
