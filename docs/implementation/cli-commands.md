@@ -451,6 +451,26 @@ All commands support two output modes:
 
 - **`GITHITS_TELEMETRY=1`** — Emits an end-of-run timing summary to stderr without polluting normal stdout. Current spans cover command registration, container creation, token loading/refresh, and the outbound API/package-intelligence request.
 
+## Product Smoke
+
+`bun run smoke:cli` is the local live-capable suite. It launches source through
+`bun run dev`, verifies isolated unauthenticated behavior, and runs the live
+corpus plus CLI/MCP JSON parity when local credentials are available.
+
+`bun run smoke:cli:built` is the secret-free CI product check. After
+`bun run build`, its Bun harness launches `node <absolute dist/cli.js>` and:
+
+- parses the root `Commands:` table and requires the complete top-level product
+  command set;
+- verifies JSON and terminal authentication failures under isolated file auth;
+- strips inherited credentials and redirects all config roots and GitHits URLs;
+- exits before live probes or parity calls.
+
+The shared launch target remains an argument vector at every subprocess layer,
+including paths containing spaces. `--cli-entry <path>` selects a built target;
+omitting it preserves source-mode behavior. CI runs the built CLI and MCP smoke
+commands in one step with a two-minute combined timeout.
+
 ## Key Reference Files
 
 | File | Purpose |
@@ -468,6 +488,8 @@ All commands support two output modes:
 | `src/commands/init/setup-handlers.ts` | CLI exec and config file merge logic |
 | `src/services/prompt-service.ts` | Interactive prompt abstraction |
 | `src/services/exec-service.ts` | CLI command execution abstraction |
+| `scripts/smoke-launch-target.ts` | Source/built CLI argument-vector selection shared by smoke harnesses |
+| `scripts/cli-smoke.ts` | Local live and secret-free built CLI product smoke |
 
 ## Related Documentation
 

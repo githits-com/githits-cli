@@ -104,6 +104,21 @@ describe("runMcpSmoke", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("fails registration smoke when an expected tool is missing", async () => {
+    const caller = createCaller(async () => {
+      throw new Error("live tool call should not run");
+    });
+    caller.listTools = async () => ({
+      tools: EXPECTED_MCP_TOOLS.filter((name) => name !== "search_status").map(
+        (name) => ({ name }),
+      ),
+    });
+
+    await expect(
+      runMcpSmoke(caller, { includeLiveTools: false }),
+    ).rejects.toThrow("listTools missing search_status");
+  });
+
   it("skips the live corpus when the auth probe returns AUTH_REQUIRED", async () => {
     const logs: string[] = [];
     const caller = createCaller(async (name) => {

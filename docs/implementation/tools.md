@@ -317,6 +317,8 @@ When the backend adds a new tool, follow this checklist:
 5. **Add tests** — Create `packages/mcp/src/tools/new-tool.test.ts` with metadata, service call, success, and error path tests
 6. **Update mock service** — Add the new method to the mock factories in `packages/mcp/src/services/test-helpers.ts`
 7. **Add CLI command** — Create a corresponding CLI command in `src/commands/` (see `docs/implementation/cli-commands.md`)
+8. **Update registration smoke** — Add the tool name to `EXPECTED_MCP_TOOLS` in `packages/mcp/src/smoke-test.ts`
+9. **Update CLI structure smoke** — If this adds a top-level CLI command, add it to `EXPECTED_TOP_LEVEL_COMMANDS` in `scripts/cli-smoke.ts`
 
 ## Behavioral Differences from Backend
 

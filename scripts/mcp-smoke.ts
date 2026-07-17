@@ -1,6 +1,3 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import {
   assertCleanErrorEnvelope,
   type McpSmokeCaller,
@@ -10,14 +7,23 @@ import {
 } from "@githits/mcp/smoke-test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { createIsolatedSmokeEnvironment } from "./smoke-environment.ts";
+import {
+  type CliLaunchTarget,
+  formatCliLaunchTarget,
+  parseCliLaunchTarget,
+  toStdioLaunch,
+} from "./smoke-launch-target.ts";
 import {
   printSmokeTimingSummary,
   summarizeMcpArgs,
   trackSmokeStep,
 } from "./smoke-telemetry.ts";
 
-const AUTH_ENV_KEYS = ["GITHITS_API_TOKEN", "GITHITS_TOKEN"] as const;
-const UNAUTHENTICATED_MCP_URL = "https://mcp-smoke-unauth.githits.invalid";
+export interface McpSmokeScriptOptions {
+  mode: "live" | "registration";
+  target: CliLaunchTarget;
+}
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -25,26 +31,30 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
-function isolatedUnauthenticatedEnv(): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (
-      value !== undefined &&
-      !AUTH_ENV_KEYS.includes(key as (typeof AUTH_ENV_KEYS)[number])
-    ) {
-      env[key] = value;
+export function parseMcpSmokeArgs(
+  argv: readonly string[],
+  cwd = process.cwd(),
+): McpSmokeScriptOptions {
+  const parsed = parseCliLaunchTarget(argv, cwd);
+  let mode: McpSmokeScriptOptions["mode"] = "live";
+  let modeSpecified = false;
+
+  for (let index = 0; index < parsed.remainingArgs.length; index += 1) {
+    const value = parsed.remainingArgs[index];
+    if (value !== "--mode") {
+      throw new Error(`Unknown MCP smoke option: ${value}`);
     }
+    if (modeSpecified) throw new Error("--mode may only be specified once");
+    const requestedMode = parsed.remainingArgs[index + 1];
+    if (requestedMode !== "live" && requestedMode !== "registration") {
+      throw new Error("--mode must be live or registration");
+    }
+    mode = requestedMode;
+    modeSpecified = true;
+    index += 1;
   }
-  const home = mkdtempSync(join(tmpdir(), "githits-mcp-smoke-home-"));
-  env.HOME = home;
-  env.USERPROFILE = home;
-  env.XDG_CONFIG_HOME = join(home, ".config");
-  env.APPDATA = join(home, "AppData", "Roaming");
-  env.GITHITS_AUTH_STORAGE = "file";
-  // Auth storage keys credentials by MCP URL. Keep unauth probes away from
-  // real keychain entries even on platforms where HOME does not isolate them.
-  env.GITHITS_MCP_URL = UNAUTHENTICATED_MCP_URL;
-  return env;
+
+  return { mode, target: parsed.target };
 }
 
 function createSmokeCaller(client: Client): McpSmokeCaller {
@@ -63,12 +73,14 @@ function createSmokeCaller(client: Client): McpSmokeCaller {
 }
 
 async function withMcpClient<T>(
+  target: CliLaunchTarget,
   env: Record<string, string> | undefined,
   fn: (client: Client) => Promise<T>,
 ): Promise<T> {
+  const launch = toStdioLaunch(target, ["mcp", "start"]);
   const transport = new StdioClientTransport({
-    command: "bun",
-    args: ["run", "dev", "mcp", "start"],
+    command: launch.command,
+    args: launch.args,
     env,
   });
   const client = new Client({ name: "githits-mcp-smoke", version: "0.1.0" });
@@ -80,11 +92,12 @@ async function withMcpClient<T>(
   }
 }
 
-async function assertUnauthenticatedBehavior(): Promise<void> {
-  const env = isolatedUnauthenticatedEnv();
-  const home = env.HOME;
+async function assertUnauthenticatedBehavior(
+  target: CliLaunchTarget,
+): Promise<void> {
+  const isolated = createIsolatedSmokeEnvironment("githits-mcp-smoke-home-");
   try {
-    await withMcpClient(env, async (client) => {
+    await withMcpClient(target, isolated.env, async (client) => {
       const toolsResponse = await trackSmokeStep(
         "mcp listTools unauthenticated",
         () => client.listTools(),
@@ -115,13 +128,39 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       );
     });
   } finally {
-    if (home) rmSync(home, { recursive: true, force: true });
+    isolated.cleanup();
   }
 }
 
-async function main(): Promise<void> {
-  await assertUnauthenticatedBehavior();
-  await withMcpClient(inheritedEnv(), async (client) => {
+async function runRegistrationSmoke(target: CliLaunchTarget): Promise<void> {
+  const isolated = createIsolatedSmokeEnvironment(
+    "githits-mcp-registration-smoke-home-",
+  );
+  try {
+    await withMcpClient(target, isolated.env, async (client) => {
+      await runMcpSmoke(createSmokeCaller(client), {
+        includeLiveTools: false,
+        logger: console,
+      });
+    });
+    console.log("MCP registration smoke passed");
+  } finally {
+    isolated.cleanup();
+  }
+}
+
+export async function main(argv = process.argv.slice(2)): Promise<void> {
+  const options = parseMcpSmokeArgs(argv);
+  process.stderr.write(
+    `[smoke] CLI launch target: ${formatCliLaunchTarget(options.target)}\n`,
+  );
+  if (options.mode === "registration") {
+    await runRegistrationSmoke(options.target);
+    return;
+  }
+
+  await assertUnauthenticatedBehavior(options.target);
+  await withMcpClient(options.target, inheritedEnv(), async (client) => {
     await runMcpSmoke(createSmokeCaller(client), { logger: console });
   });
 }
@@ -134,8 +173,10 @@ function inheritedEnv(): Record<string, string> {
   );
 }
 
-try {
-  await main();
-} finally {
-  printSmokeTimingSummary();
+if (import.meta.main) {
+  try {
+    await main();
+  } finally {
+    printSmokeTimingSummary();
+  }
 }

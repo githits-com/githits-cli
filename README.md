@@ -334,6 +334,17 @@ bun run smoke:mcp
 bun run smoke:cli
 ```
 
+CI also checks the built product without credentials or live backend calls. Run
+the same checks locally after `bun run build`:
+
+```sh
+bun run smoke:cli:built
+bun run smoke:mcp:built
+```
+
+The harness remains on Bun, while product subprocesses execute `dist/cli.js`
+with `node` from `PATH`. CI provisions that runtime from `.node-version`.
+
 When changing MCP instructions, tool descriptions, or agent-facing behavior,
 use the targeted agent evals described in `eval/agentic/README.md`:
 

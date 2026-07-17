@@ -1,5 +1,10 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import {
+  type CliLaunchTarget,
+  parseCliLaunchTarget,
+  toStdioLaunch,
+} from "./smoke-launch-target.ts";
 
 interface TextContent {
   type: "text";
@@ -25,36 +30,70 @@ function resultText(result: ToolCallResult, context: string): string {
   return first.text;
 }
 
-const [, , toolName, rawArgs] = process.argv;
-assert(toolName, "usage: bun run scripts/mcp-call.ts <tool> <json-args>");
-assert(rawArgs, "usage: bun run scripts/mcp-call.ts <tool> <json-args>");
+export interface McpCallOptions {
+  target: CliLaunchTarget;
+  toolName: string;
+  args: Record<string, unknown>;
+}
 
-const args = JSON.parse(rawArgs) as Record<string, unknown>;
-const transport = new StdioClientTransport({
-  command: "bun",
-  args: ["run", "dev", "mcp", "start"],
-  env: Object.fromEntries(
-    Object.entries(process.env).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined,
+export function parseMcpCallArgs(
+  argv: readonly string[],
+  cwd = process.cwd(),
+): McpCallOptions {
+  const parsed = parseCliLaunchTarget(argv, cwd);
+  assert(
+    parsed.remainingArgs.length === 2,
+    "usage: bun run scripts/mcp-call.ts [--cli-entry <path>] <tool> <json-args>",
+  );
+  const [toolName, rawArgs] = parsed.remainingArgs;
+  assert(toolName, "MCP parity tool name is required");
+  assert(rawArgs, "MCP parity JSON arguments are required");
+  const args: unknown = JSON.parse(rawArgs);
+  assert(
+    args !== null && typeof args === "object" && !Array.isArray(args),
+    "MCP parity arguments must be a JSON object",
+  );
+  return {
+    target: parsed.target,
+    toolName,
+    args: args as Record<string, unknown>,
+  };
+}
+
+export async function main(argv = process.argv.slice(2)): Promise<void> {
+  const options = parseMcpCallArgs(argv);
+  const launch = toStdioLaunch(options.target, ["mcp", "start"]);
+  const transport = new StdioClientTransport({
+    command: launch.command,
+    args: launch.args,
+    env: Object.fromEntries(
+      Object.entries(process.env).filter(
+        (entry): entry is [string, string] => entry[1] !== undefined,
+      ),
     ),
-  ),
-});
-const client = new Client({
-  name: "githits-mcp-parity-smoke",
-  version: "0.1.0",
-});
+  });
+  const client = new Client({
+    name: "githits-mcp-parity-smoke",
+    version: "0.1.0",
+  });
 
-try {
-  await client.connect(transport);
-  const result = (await client.callTool({
-    name: toolName,
-    arguments: args,
-  })) as ToolCallResult;
-  if (result.isError === true) {
-    process.stderr.write(`${resultText(result, toolName)}\n`);
-    process.exit(1);
+  try {
+    await client.connect(transport);
+    const result = (await client.callTool({
+      name: options.toolName,
+      arguments: options.args,
+    })) as ToolCallResult;
+    if (result.isError === true) {
+      process.stderr.write(`${resultText(result, options.toolName)}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    process.stdout.write(resultText(result, options.toolName));
+  } finally {
+    await client.close();
   }
-  process.stdout.write(resultText(result, toolName));
-} finally {
-  await client.close();
+}
+
+if (import.meta.main) {
+  await main();
 }

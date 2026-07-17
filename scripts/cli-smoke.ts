@@ -1,6 +1,12 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { createIsolatedSmokeEnvironment } from "./smoke-environment.ts";
+import {
+  appendCliArgs,
+  type CliLaunchTarget,
+  formatCliLaunchTarget,
+  forwardedCliEntryArgs,
+  parseCliLaunchTarget,
+  SOURCE_CLI_LAUNCH_TARGET,
+} from "./smoke-launch-target.ts";
 import {
   formatCliCommand,
   mapWithConcurrency,
@@ -19,6 +25,12 @@ interface ErrorEnvelope {
   error: string;
   code: string;
   retryable: boolean;
+  details?: Record<string, unknown>;
+}
+
+export interface CliSmokeOptions {
+  mode: "live" | "unauthenticated";
+  target: CliLaunchTarget;
 }
 
 interface JsonParityFixture {
@@ -29,10 +41,26 @@ interface JsonParityFixture {
 }
 
 const DEFAULT_TEXT_LIMIT = 20_000;
-const AUTH_ENV_KEYS = ["GITHITS_API_TOKEN", "GITHITS_TOKEN"] as const;
 const JSON_PARITY_CONCURRENCY = 2;
 const SMOKE_PACKAGE_SPEC = "npm:express@5.2.1";
-const UNAUTHENTICATED_MCP_URL = "https://mcp-smoke-unauth.githits.invalid";
+let cliLaunchTarget = SOURCE_CLI_LAUNCH_TARGET;
+
+export const EXPECTED_TOP_LEVEL_COMMANDS = [
+  "init",
+  "login",
+  "logout",
+  "mcp",
+  "example",
+  "languages",
+  "feedback",
+  "doctor",
+  "search",
+  "search-status",
+  "code",
+  "pkg",
+  "docs",
+  "auth",
+] as const;
 
 const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
   {
@@ -165,6 +193,74 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
+export function parseCliSmokeArgs(
+  argv: readonly string[],
+  cwd = process.cwd(),
+): CliSmokeOptions {
+  const parsed = parseCliLaunchTarget(argv, cwd);
+  let mode: CliSmokeOptions["mode"] = "live";
+  let modeSpecified = false;
+
+  for (let index = 0; index < parsed.remainingArgs.length; index += 1) {
+    const value = parsed.remainingArgs[index];
+    if (value !== "--mode") {
+      throw new Error(`Unknown CLI smoke option: ${value}`);
+    }
+    if (modeSpecified) throw new Error("--mode may only be specified once");
+    const requestedMode = parsed.remainingArgs[index + 1];
+    if (requestedMode !== "live" && requestedMode !== "unauthenticated") {
+      throw new Error("--mode must be live or unauthenticated");
+    }
+    mode = requestedMode;
+    modeSpecified = true;
+    index += 1;
+  }
+
+  return { mode, target: parsed.target };
+}
+
+export function buildMcpParityCommand(
+  target: CliLaunchTarget,
+  toolName: string,
+  args: Record<string, unknown>,
+): string[] {
+  return [
+    "bun",
+    "run",
+    "scripts/mcp-call.ts",
+    ...forwardedCliEntryArgs(target),
+    toolName,
+    JSON.stringify(args),
+  ];
+}
+
+export function parseRootHelpCommands(helpText: string): string[] {
+  const commands: string[] = [];
+  let inCommands = false;
+  for (const line of helpText.split(/\r?\n/)) {
+    if (!inCommands) {
+      inCommands = line.trim() === "Commands:";
+      continue;
+    }
+    if (line.trim() === "") break;
+    const match = /^ {2}(\S+)/.exec(line);
+    const command = match?.[1];
+    if (command && command !== "help") commands.push(command);
+  }
+  return commands;
+}
+
+export function assertRootHelpStructure(helpText: string): void {
+  const actual = new Set(parseRootHelpCommands(helpText));
+  const expected = new Set<string>(EXPECTED_TOP_LEVEL_COMMANDS);
+  const missing = [...expected].filter((command) => !actual.has(command));
+  const unexpected = [...actual].filter((command) => !expected.has(command));
+  assert(
+    missing.length === 0 && unexpected.length === 0,
+    `root help command mismatch; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
+  );
+}
+
 function parseJson(text: string, context: string): unknown {
   try {
     return JSON.parse(text);
@@ -265,7 +361,7 @@ async function runCliWithEnv(
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined>,
 ): Promise<CommandResult> {
   return trackSmokeStep(`cli ${formatCliCommand(args)}`, async () => {
-    const proc = Bun.spawn(["bun", "run", "dev", ...args], {
+    const proc = Bun.spawn(appendCliArgs(cliLaunchTarget, args), {
       stdout: "pipe",
       stderr: "pipe",
       env: {
@@ -288,7 +384,7 @@ async function runMcpJson(
 ): Promise<unknown> {
   return trackSmokeStep(`mcp parity ${toolName}`, async () => {
     const proc = Bun.spawn(
-      ["bun", "run", "scripts/mcp-call.ts", toolName, JSON.stringify(args)],
+      buildMcpParityCommand(cliLaunchTarget, toolName, args),
       {
         stdout: "pipe",
         stderr: "pipe",
@@ -369,31 +465,18 @@ async function assertJsonParity(): Promise<void> {
   );
 }
 
-function isolatedUnauthenticatedEnv(): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (
-      value !== undefined &&
-      !AUTH_ENV_KEYS.includes(key as (typeof AUTH_ENV_KEYS)[number])
-    ) {
-      env[key] = value;
-    }
-  }
-  const dir = mkdtempSync(join(tmpdir(), "githits-cli-smoke-home-"));
-  env.HOME = dir;
-  env.USERPROFILE = dir;
-  env.XDG_CONFIG_HOME = `${dir}/.config`;
-  env.APPDATA = `${dir}/AppData/Roaming`;
-  env.GITHITS_AUTH_STORAGE = "file";
-  // Auth storage keys credentials by MCP URL. Keep unauth probes away from
-  // real keychain entries even on platforms where HOME does not isolate them.
-  env.GITHITS_MCP_URL = UNAUTHENTICATED_MCP_URL;
-  return env;
-}
-
 async function assertUnauthenticatedBehavior(): Promise<void> {
-  const env = isolatedUnauthenticatedEnv();
+  const isolated = createIsolatedSmokeEnvironment("githits-cli-smoke-home-");
+  const { env } = isolated;
   try {
+    const helpResult = await runCliWithEnv(["--help"], env);
+    assert(helpResult.exitCode === 0, "root help should succeed");
+    assert(
+      helpResult.stdout.trim().length > 0,
+      "root help should produce stdout",
+    );
+    assertRootHelpStructure(helpResult.stdout);
+
     const result = await runCliWithEnv(["languages", "python", "--json"], env);
     assert(result.exitCode !== 0, "unauthenticated languages should fail");
     assert(
@@ -438,9 +521,7 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "unauthenticated terminal probe used MCP-style auth guidance",
     );
   } finally {
-    if (env.HOME) {
-      rmSync(env.HOME, { recursive: true, force: true });
-    }
+    isolated.cleanup();
   }
 }
 
@@ -1011,8 +1092,17 @@ async function runLiveSmoke(): Promise<void> {
   );
 }
 
-async function main(): Promise<void> {
+export async function main(argv = process.argv.slice(2)): Promise<void> {
+  const options = parseCliSmokeArgs(argv);
+  cliLaunchTarget = options.target;
+  process.stderr.write(
+    `[smoke] CLI launch target: ${formatCliLaunchTarget(options.target)}\n`,
+  );
   await assertUnauthenticatedBehavior();
+  if (options.mode === "unauthenticated") {
+    console.log("CLI unauthenticated smoke passed");
+    return;
+  }
   if (await assertLiveOrAuthRequired()) {
     await runLiveSmoke();
     await assertJsonParity();
@@ -1020,8 +1110,10 @@ async function main(): Promise<void> {
   }
 }
 
-try {
-  await main();
-} finally {
-  printSmokeTimingSummary();
+if (import.meta.main) {
+  try {
+    await main();
+  } finally {
+    printSmokeTimingSummary();
+  }
 }
