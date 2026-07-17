@@ -36,6 +36,8 @@ Guidelines:
 - When the task is about indexed dependency or repository internals, prefer
   unified `search` instead of
   `get_example`.
+- Prefer the default compact text output. Request JSON only when exact
+  structured fields are necessary.
 - After using results, send `feedback` with helpful/unhelpful outcome.
 
 Tool argument details and rich query guidance are provided directly in the MCP

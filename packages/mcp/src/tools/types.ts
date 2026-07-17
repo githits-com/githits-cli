@@ -15,7 +15,7 @@ export const READ_ONLY_TOOL_ANNOTATIONS = {
   destructiveHint: false,
 } as const satisfies CompleteToolAnnotations;
 
-/** A tool whose writes are limited to private GitHits state and are additive. */
+/** A tool with additive service-side effects that cannot modify external systems. */
 export const BOUNDED_WRITE_TOOL_ANNOTATIONS = {
   readOnlyHint: false,
   openWorldHint: false,

@@ -67,6 +67,10 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("`search_status`");
     expect(instructions).toContain("reference-first");
     expect(instructions).toContain("Delegate multi-call work to a sub-agent");
+    expect(instructions).toContain("Prefer the default compact `text-v1`");
+    expect(instructions).toContain(
+      "request JSON only when exact structured fields are necessary",
+    );
   });
 
   it("includes the external-content posture by default", () => {

@@ -8,27 +8,28 @@ server and the remote MCP server.
 
 The standard MCP annotation object has boolean hints but no field for reviewer
 justifications. Keep the submission rationale below aligned with the descriptor
-values and the tools' backend behavior.
+values and observable tool behavior.
 
 OpenAI's current guidance says `readOnlyHint` must be false when a tool can
-create state or enqueue work. `openWorldHint` and `destructiveHint` describe the
-impact of writes and are not relevant when `readOnlyHint` is true. All GitHits
-writes are bounded to private first-party state, and none of these tools can
-publish, message external recipients, delete user data, overwrite user data, or
-perform an irreversible public action.
+create service-side state or start background work. `openWorldHint` and
+`destructiveHint` describe the impact of writes and are not relevant when
+`readOnlyHint` is true. GitHits state-changing tools have bounded, additive
+service-side effects; none can publish, message external recipients, modify
+external systems, delete user data, overwrite user data, or perform an
+irreversible public action.
 
 | Tool | `readOnlyHint` | `openWorldHint` | `destructiveHint` | Justification |
 | --- | --- | --- | --- | --- |
-| `get_example` | `false` | `false` | `false` | Generating an example creates a private GitHits solution/message record and emits first-party analytics, so it is not strictly read-only. The write is bounded to GitHits' private application state and is additive; it cannot publish externally or delete/overwrite user data. |
+| `get_example` | `false` | `false` | `false` | Generates a new result and may create service-side state associated with that result, so it is not strictly read-only. The effect is additive and cannot publish, modify external systems, or delete/overwrite user data. |
 | `search_language` | `true` | `false` | `false` | Looks up supported language names and aliases and returns matches without creating or modifying application state. The other two hints are explicitly false because the tool performs no write. |
-| `feedback` | `false` | `false` | `false` | Creates an additive feedback record tied to a solution or private GitHits session. It writes only to bounded first-party state and cannot publish externally, delete/overwrite user data, or perform a destructive action. |
-| `search` | `false` | `false` | `false` | Searches package/repository code and docs, but may enqueue private indexing or stale-index repair work when requested content is not ready. Those jobs only update GitHits/PkgSeer private indexes and cannot change public repositories or user data. |
-| `search_status` | `true` | `false` | `false` | Polls an existing search reference and retrieves progress/results; it does not start or modify the search or indexing job. The other two hints are explicitly false because the tool performs no write. |
-| `code_files` | `false` | `false` | `false` | Lists indexed files, but target resolution may enqueue private indexing or repair work for a missing/stale target. It cannot modify the upstream package/repository or destructively change user data. |
-| `code_read` | `false` | `false` | `false` | Reads file content, but resolving a missing/stale index may enqueue private indexing or repair work. It cannot modify the source repository, publish content, or delete/overwrite user data. |
-| `code_grep` | `false` | `false` | `false` | Greps indexed source, but resolving a missing/stale index may enqueue private indexing or repair work. The only possible write is bounded, non-destructive first-party index maintenance. |
-| `docs_list` | `false` | `false` | `false` | Lists package documentation and may enqueue a private documentation crawl or repository-indexing job when docs are missing. Crawling only reads public sources and stores a private index; it does not change those sources or destructively alter user data. |
-| `docs_read` | `true` | `false` | `false` | Retrieves a documentation page already identified by `page_id` and optionally slices its line range. It does not trigger a crawl or modify state; the other two hints are explicitly false because there is no write. |
+| `feedback` | `false` | `false` | `false` | Submits feedback and therefore creates an additive service-side entry. It cannot publish, modify external systems, delete/overwrite user data, or perform a destructive action. |
+| `search` | `false` | `false` | `false` | Searches public package/repository code and docs, and may start background preparation when requested content is not immediately available. That work cannot change source repositories or user data and is non-destructive. |
+| `search_status` | `true` | `false` | `false` | Polls an existing search reference and retrieves progress/results; it does not start or modify the underlying work. The other two hints are explicitly false because the tool performs no write. |
+| `code_files` | `false` | `false` | `false` | Lists files for a public target and may start background preparation when the requested content is not immediately available. It cannot modify the upstream package/repository or destructively change user data. |
+| `code_read` | `false` | `false` | `false` | Reads file content for a public target and may start background preparation when the requested content is not immediately available. It cannot modify the source repository, publish content, or delete/overwrite user data. |
+| `code_grep` | `false` | `false` | `false` | Searches source for a public target and may start background preparation when the requested content is not immediately available. Any service-side effect is bounded and non-destructive. |
+| `docs_list` | `false` | `false` | `false` | Lists public package documentation and may start background preparation when the requested documentation is not immediately available. It cannot change public sources or destructively alter user data. |
+| `docs_read` | `true` | `false` | `false` | Retrieves an available documentation page identified by `page_id` and optionally slices its line range. It does not initiate content preparation or modify state; the other two hints are explicitly false because there is no write. |
 | `pkg_info` | `true` | `false` | `false` | Retrieves and computes package identity, release, repository, security-summary, and changelog-summary facts. It exposes no state-changing action; the other two hints are explicitly false because there is no write. |
 | `pkg_vulns` | `true` | `false` | `false` | Retrieves and filters vulnerability/advisory facts for a package version without changing packages, advisories, or user state. The other two hints are explicitly false because there is no write. |
 | `pkg_deps` | `true` | `false` | `false` | Retrieves and computes direct/transitive dependency information and optional issue analysis. It does not install, upgrade, or modify dependencies; the other two hints are explicitly false because there is no write. |
