@@ -30,6 +30,7 @@ export { createSearchTool } from "./search.js";
 export { createSearchLanguageTool } from "./search-language.js";
 export { createSearchStatusTool } from "./search-status.js";
 export type {
+  CompleteToolAnnotations,
   ToolDefinition,
   ToolHandler,
   ToolResult,

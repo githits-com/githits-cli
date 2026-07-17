@@ -28,6 +28,7 @@ import {
 import { SEARCH_GUARDRAIL } from "./guardrails.js";
 import { addLocalMcpAuthAction, mcpMappedErrorResult } from "./shared.js";
 import {
+  BOUNDED_WRITE_TOOL_ANNOTATIONS,
   errorResult,
   type ToolDefinition,
   type ToolResult,
@@ -230,7 +231,7 @@ export function createSearchTool(
     name: "search",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const effectiveTarget = isBlankSearchTarget(args.target)

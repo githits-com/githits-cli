@@ -12,7 +12,12 @@ import {
   resolveCodeTarget,
 } from "./code-navigation-shared.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface ListFilesArgs {
   target: CodeTargetArg;
@@ -136,7 +141,7 @@ export function createListFilesTool(
     name: "code_files",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
     handler: async (args) => {
       const target = resolveCodeTarget(args.target);
       if ("content" in target) return target;

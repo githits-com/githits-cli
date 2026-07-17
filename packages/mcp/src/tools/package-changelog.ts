@@ -13,7 +13,12 @@ import { mapPackageIntelligenceError } from "../shared/package-intelligence-erro
 import { InvalidPackageSpecError } from "../shared/package-spec.js";
 import { PKG_CHANGELOG_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  READ_ONLY_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface PackageChangelogArgs {
   registry?: string;
@@ -141,7 +146,7 @@ export function createPackageChangelogTool(
     name: "pkg_changelog",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const textFormat = isTextFormat(args.format);

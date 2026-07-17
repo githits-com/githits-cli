@@ -8,7 +8,12 @@ import {
   formatPackageUpgradeReviewTerminal,
 } from "../shared/package-upgrade-review-response.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  READ_ONLY_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface PackageUpgradeReviewArgs {
   registry?: string;
@@ -121,7 +126,7 @@ export function createPackageUpgradeReviewTool(
     name: "pkg_upgrade_review",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const request = buildPackageUpgradeReviewRequest({

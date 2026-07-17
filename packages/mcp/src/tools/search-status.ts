@@ -8,6 +8,7 @@ import { renderUnifiedSearchStatusText } from "../shared/unified-search-status-t
 import { addLocalMcpAuthAction } from "./shared.js";
 import {
   errorResult,
+  READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -44,7 +45,7 @@ export function createSearchStatusTool(
     name: "search_status",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const outcome = await service.searchStatus(args.search_ref);

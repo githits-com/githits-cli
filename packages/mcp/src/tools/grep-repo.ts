@@ -18,7 +18,12 @@ import {
 } from "./code-navigation-shared.js";
 import { CODE_GREP_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface GrepRepoArgs {
   target: CodeTargetArg;
@@ -112,7 +117,7 @@ export function createGrepRepoTool(
     name: "code_grep",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
     handler: async (args) => {
       const target = resolveCodeTarget(args.target);
       if ("content" in target) return target;

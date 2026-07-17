@@ -3,7 +3,12 @@ import { z } from "zod";
 import { extractSolutionId } from "../shared/extract-solution-id.js";
 import { GET_EXAMPLE_GUARDRAIL } from "./guardrails.js";
 import { withErrorHandling } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 interface GetExampleArgs {
   query: string;
@@ -51,6 +56,7 @@ export function createGetExampleTool(
     name: "get_example",
     description: DESCRIPTION,
     schema,
+    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
     handler: async (args) => {
       return withErrorHandling("get example", async () => {
         const markdown = await service.search({

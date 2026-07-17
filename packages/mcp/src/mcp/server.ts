@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import {
+  type CompleteToolAnnotations,
   createFeedbackTool,
   createGetExampleTool,
   createGrepRepoTool,
@@ -64,7 +64,7 @@ export interface McpToolDescriptor<TSchema extends ZodRawShape = ZodRawShape> {
   name: string;
   description: string;
   schema: TSchema;
-  annotations?: ToolAnnotations;
+  annotations: CompleteToolAnnotations;
 }
 
 type ToolFactory = (services: McpToolServices) => ToolDefinition<unknown>;

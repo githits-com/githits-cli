@@ -9,7 +9,12 @@ import {
 } from "../shared/package-summary-response.js";
 import { PKG_INFO_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  READ_ONLY_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface PackageSummaryArgs {
   registry: string;
@@ -64,7 +69,7 @@ export function createPackageSummaryTool(
     name: "pkg_info",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const { params } = buildPackageSummaryParams({

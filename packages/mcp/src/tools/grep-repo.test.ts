@@ -40,7 +40,11 @@ describe("createGrepRepoTool — metadata", () => {
       "wait_timeout_ms",
     ]);
     expect(tool.schema.symbol_fields?.description).toContain("parent_path");
-    expect(tool.annotations?.readOnlyHint).toBe(true);
+    expect(tool.annotations).toEqual({
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    });
   });
 });
 

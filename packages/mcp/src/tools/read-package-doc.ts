@@ -6,7 +6,12 @@ import { buildReadPackageDocSuccessPayload } from "../shared/read-package-doc-re
 import { renderReadPackageDocText } from "../shared/read-package-doc-text.js";
 import { DOCS_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import { type ToolDefinition, textResult, type ZodRawShape } from "./types.js";
+import {
+  READ_ONLY_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface ReadPackageDocArgs {
   page_id: string;
@@ -56,7 +61,7 @@ export function createReadPackageDocTool(
     name: "docs_read",
     description: DESCRIPTION,
     schema,
-    annotations: { readOnlyHint: true },
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args) => {
       try {
         const build = buildReadPackageDocParams({ pageId: args.page_id });
