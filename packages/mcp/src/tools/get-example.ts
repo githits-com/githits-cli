@@ -36,8 +36,8 @@ const schema: ZodRawShape = {
     .optional()
     .describe("License filtering mode: strict (default), yolo, or custom."),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` returns markdown directly with source repository provenance when available and a trailing `solution_id` line when available. Pass `format: "json"` for `{result, solution_id?}`.',
     ),

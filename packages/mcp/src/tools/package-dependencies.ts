@@ -73,8 +73,8 @@ const schema: ZodRawShape = {
       "Add a `transitive` block and cap traversal at this depth (1-10). Omit for direct dependencies only.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact dependency listing. Pass `format: "json"` for the structured envelope.',
     ),

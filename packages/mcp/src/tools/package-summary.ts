@@ -44,8 +44,8 @@ const schema: ZodRawShape = {
       "Text only. Adds GitHub language/topics/last-pushed, recent advisories, and recent changes. Ignored for format=json.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact package overview. Pass `format: "json"` for the structured envelope.',
     ),

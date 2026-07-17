@@ -102,8 +102,8 @@ const schema: ZodRawShape = {
       "Text output only. Include dependency change examples, including transitive version changes.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       "Response format. Default `text-v1`; pass `json` for structured output.",
     ),

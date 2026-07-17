@@ -40,8 +40,8 @@ const schema: ZodRawShape = {
     .optional()
     .describe("Pagination cursor from a prior response."),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact page list with ready-to-call `docs_read` follow-ups. Pass `format: "json"` for the structured envelope.',
     ),

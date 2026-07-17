@@ -111,8 +111,8 @@ const schema: ZodRawShape = {
       "Text output only. Number of body lines to preview per entry (1-50, default 10). Ignored for format=json and omit_bodies:true. Mutually exclusive with verbose:true.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact entry timeline with body previews. Pass `format: "json"` for the structured envelope with full markdown bodies.',
     ),

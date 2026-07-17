@@ -70,8 +70,8 @@ const schema: ZodRawShape = {
       "Text output only. Show every advisory and full detail rows; format=json always returns the complete structured envelope.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact advisory summary. Pass `format: "json"` for the structured envelope.',
     ),

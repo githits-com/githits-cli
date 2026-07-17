@@ -38,3 +38,26 @@ perform an irreversible public action.
 The descriptor type requires all three booleans, and the server-level regression
 test enumerates the full public tool surface so a future tool cannot silently
 omit marketplace-required annotations.
+
+## Output schemas and token efficiency
+
+The MCP tools intentionally do not declare `outputSchema` yet. The current
+handlers return unstructured `TextContent` and do not return
+`structuredContent`. MCP defines `outputSchema` as optional, and requires a
+successful `structuredContent` value to conform whenever one is declared.
+OpenAI likewise recommends an output schema for tools that return structured
+content.
+
+Mirroring the existing JSON envelopes into `structuredContent` would make the
+default compact response carry both `text-v1` and the full structured payload.
+That would increase model context use, especially for code reads, grep matches,
+documentation, changelog bodies, and dependency graphs. A published user trace
+already showed the practical cost of large structured responses: the agent
+explicitly selected JSON in 86 of 91 GitHits calls.
+
+For that reason, every format-selectable MCP tool now advertises `text-v1` as
+both the first enum value and the explicit schema default. JSON remains an
+opt-in compatibility mode. If structured output is added later, it should use a
+small per-tool control-plane contract (status, IDs, cursors, counts,
+truncation, and next actions) rather than duplicate code, docs, examples, or
+other large result bodies.

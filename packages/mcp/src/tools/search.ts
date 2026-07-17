@@ -207,8 +207,8 @@ const schema: ZodRawShape = {
   offset: z.coerce.number().int().min(0).optional(),
   wait_timeout_ms: z.coerce.number().int().min(0).max(60000).optional(),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact line-oriented output. Pass `format: "json"` for the structured envelope. `text` is an alias for `text-v1`. The text format is a public, snapshot-tested contract.',
     ),

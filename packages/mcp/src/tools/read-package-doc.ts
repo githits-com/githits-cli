@@ -41,8 +41,8 @@ const schema: ZodRawShape = {
       "Ending line (inclusive). Omit for end of page. Must be ≥ `start_line` when both are set.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — raw markdown content capped to 150 lines by default. Pass `format: "json"` for the structured envelope; explicit ranges still slice JSON content.',
     ),

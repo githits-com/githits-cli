@@ -27,8 +27,8 @@ const schema: ZodRawShape = {
       "The `searchRef` field from a prior `search` response (camelCase in the response, snake_case as this parameter). Pass it through unchanged.",
     ),
   format: z
-    .enum(["json", "text", "text-v1"])
-    .optional()
+    .enum(["text-v1", "text", "json"])
+    .default("text-v1")
     .describe(
       'Response format. Default `text-v1` — compact line-oriented output matching `search`. Pass `format: "json"` for the structured envelope.',
     ),
