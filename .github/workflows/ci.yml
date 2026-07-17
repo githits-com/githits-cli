@@ -52,6 +52,22 @@ jobs:
       - name: Validate public package artifacts
         run: bun run validate:packages:mcp-publish
 
+      - name: Smoke built CLI and MCP
+        timeout-minutes: 2
+        env:
+          GITHITS_DISABLE_UPDATE_CHECK: "1"
+          GITHITS_AUTH_STORAGE: file
+          GITHITS_API_TOKEN: ""
+          GITHITS_TOKEN: ""
+          XDG_CONFIG_HOME: ${{ runner.temp }}/githits-built-smoke
+        run: |
+          started=$SECONDS
+          bun run smoke:cli:built
+          bun run smoke:mcp:built
+          elapsed=$((SECONDS - started))
+          echo "Combined built smoke: ${elapsed}s"
+          test "$elapsed" -le 120
+
       - name: Pack npm package
         run: |
           mkdir -p package-artifact

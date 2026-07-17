@@ -10,16 +10,30 @@ default to compact `text-v1` where available, while CLI has human
 terminal output and `--json`. Structured parity is enforced through CLI
 `--json` and MCP `format: "json"`.
 
-Live smoke coverage runs through `scripts/mcp-smoke.ts` and
-`scripts/cli-smoke.ts` via `bun run smoke:mcp` and `bun run smoke:cli`. The MCP
-smoke invariants live in `packages/mcp/src/smoke-test.ts` and are exported as
+Smoke coverage runs through `scripts/mcp-smoke.ts` and `scripts/cli-smoke.ts`.
+The default `bun run smoke:mcp` and `bun run smoke:cli` commands launch source
+through `bun run dev`, verify unauthenticated behavior, and use inherited local
+credentials for the live corpus when available. The MCP invariants live in
+`packages/mcp/src/smoke-test.ts` and are exported as
 `@githits/mcp/smoke-test` so remote MCP servers can reuse the same validation.
-These suites intentionally avoid exact-output snapshots because backend ranking
+
+PR CI also runs `bun run smoke:cli:built` and `bun run smoke:mcp:built` after
+both public package builds. Their Bun harnesses launch the product as
+`node <absolute dist/cli.js>` using argument vectors, never shell command
+strings. These modes remove token variables, select isolated file auth and
+config roots, disable advisory update checks, and point GitHits service URLs at
+reserved `.invalid` hosts. CLI built smoke verifies the exact top-level command
+set from root help plus JSON/terminal auth behavior. MCP built smoke calls only
+`listTools` and requires every name in `EXPECTED_MCP_TOOLS`; it makes no live
+tool calls. One CI step applies a combined two-minute timeout and logs each
+harness timing summary and selected launch vector.
+
+The suites intentionally avoid exact-output snapshots because backend ranking
 and release metadata can change. They assert durable UX invariants instead:
-server/command startup, registered tools, auth handling, compact default text,
-parseable JSON opt-in, MCP-native hints, CLI terminal affordances, and JSON
-envelope shape. When adding or changing a dual-surface tool, update the shared
-MCP smoke runner and CLI smoke script if the covered live UX contract changes.
+server/command startup, registered commands and tools, auth handling, compact
+default text, parseable JSON opt-in, MCP-native hints, CLI terminal affordances,
+and JSON envelope shape. When adding or changing a dual-surface tool, update the
+shared MCP smoke runner and CLI smoke script if the covered UX contract changes.
 
 The dual-surface tools today are:
 
@@ -151,6 +165,10 @@ When a new tool lands with both MCP and CLI surfaces:
   successful query, zero-result, two error codes.
 - [ ] MCP tool description mirrored across every shipped MCP surface
   before public release.
+- [ ] Tool name added to `EXPECTED_MCP_TOOLS` in
+  `packages/mcp/src/smoke-test.ts` so registration-only built smoke requires it.
+- [ ] Corresponding top-level CLI command added to
+  `EXPECTED_TOP_LEVEL_COMMANDS` in `scripts/cli-smoke.ts`, when applicable.
 
 ## Non-goals
 
