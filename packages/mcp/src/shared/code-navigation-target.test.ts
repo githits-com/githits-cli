@@ -92,6 +92,12 @@ describe("parseCodeNavigationTargetSpec", () => {
     );
   });
 
+  it("rejects standalone site targets because code navigation tools require package or repo targets", () => {
+    expect(() => parseCodeNavigationTargetSpec("site:expressjs.com")).toThrow(
+      'Unsupported registry "site"',
+    );
+  });
+
   it("rejects unknown repository-looking targets with target syntax guidance", () => {
     expect(() => parseCodeNavigationTargetSpec("gitlab.com/org/repo")).toThrow(
       "Expected package target <registry>:<name>[@<version>]",

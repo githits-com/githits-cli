@@ -253,6 +253,88 @@ describe("searchTool", () => {
     );
   });
 
+  it("accepts compact standalone site string targets", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "router middleware",
+        target: "site:expressjs.com",
+      },
+      {},
+    );
+
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: [{ site: "site:expressjs.com" }],
+      }),
+    );
+  });
+
+  it("accepts structured standalone site targets", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "router middleware",
+        target: { site: "https://expressjs.com/" },
+      },
+      {},
+    );
+
+    const call = search.mock.calls[0]?.[0];
+    expect(call?.targets).toEqual([{ site: "site:expressjs.com" }]);
+  });
+
+  it("dedupes equivalent standalone site targets after canonicalization", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    await tool.handler(
+      {
+        query: "router middleware",
+        targets: ["site:ExpressJS.com", "site:https://expressjs.com/"],
+      },
+      {},
+    );
+
+    const call = search.mock.calls[0]?.[0];
+    expect(call?.targets).toEqual([{ site: "site:expressjs.com" }]);
+  });
+
+  it("rejects site targets mixed with package fields", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    const result = await tool.handler(
+      {
+        query: "router middleware",
+        target: {
+          registry: "npm",
+          package_name: "express",
+          site: "expressjs.com",
+        },
+      },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    expect(search).not.toHaveBeenCalled();
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toMatchObject({
+      code: "INVALID_ARGUMENT",
+    });
+  });
+
   it("returns invalid-argument error when target is missing", async () => {
     const tool = createSearchTool(createMockCodeNavigationService());
 

@@ -99,6 +99,11 @@ export interface CodeNavigationTarget {
   gitRef?: string;
 }
 
+export interface UnifiedSearchTarget extends CodeNavigationTarget {
+  /** Standalone documentation site target, canonicalized as `site:<host[/path]>`. */
+  site?: string;
+}
+
 export interface IndexResolution {
   requestedVersion?: string;
   requestedRef?: string;
@@ -114,6 +119,7 @@ export interface TargetResolutionIdentity {
   repoUrl?: string;
   gitRef?: string;
   commitSha?: string;
+  site?: string;
 }
 
 export type AvailableRef = AvailableVersion;
@@ -165,7 +171,12 @@ export type DiscoveryRequestedRefKind =
   | "BRANCH"
   | "SHA";
 
-export type DiscoveryTargetMode = "PACKAGES" | "REPO" | "MIXED";
+export type DiscoveryTargetMode =
+  | "PACKAGES"
+  | "REPO"
+  | "MIXED"
+  | "SITES"
+  | "SITE";
 
 export interface UnifiedSearchFilters {
   fileIntent?: FileIntent;
@@ -176,7 +187,7 @@ export interface UnifiedSearchFilters {
 }
 
 export interface UnifiedSearchParams {
-  targets: CodeNavigationTarget[];
+  targets: UnifiedSearchTarget[];
   query: string;
   sources?: UnifiedSearchSource[];
   filters?: UnifiedSearchFilters;
@@ -270,6 +281,7 @@ export interface UnifiedSearchRequestedTarget {
   version?: string;
   repoUrl?: string;
   gitRef?: string;
+  site?: string;
 }
 
 export interface UnifiedSearchResult {
@@ -1072,6 +1084,7 @@ const targetResolutionIdentitySchema = z
     repoUrl: z.string().nullable().optional(),
     gitRef: z.string().nullable().optional(),
     commitSha: z.string().nullable().optional(),
+    site: z.string().nullable().optional(),
   })
   .nullable()
   .optional();
@@ -1223,6 +1236,7 @@ const unifiedSearchRequestedTargetSchema = z.object({
   version: z.string().nullable().optional(),
   repoUrl: z.string().nullable().optional(),
   gitRef: z.string().nullable().optional(),
+  site: z.string().nullable().optional(),
 });
 
 const unifiedSearchProgressSchema = z.object({
@@ -1760,6 +1774,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         version: target.version,
         repoUrl: target.repoUrl,
         gitRef: target.gitRef,
+        site: target.site,
       })),
       query: params.query,
       sources: params.sources,
@@ -2265,6 +2280,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         version: target.version ?? undefined,
         repoUrl: target.repoUrl ?? undefined,
         gitRef: target.gitRef ?? undefined,
+        site: target.site ?? undefined,
       })),
       filters: normaliseProgressFilters(progress.filters),
       limit: progress.limit ?? undefined,
@@ -2922,6 +2938,7 @@ function normaliseTargetResolutionIdentity(
   if (identity.repoUrl) out.repoUrl = identity.repoUrl;
   if (identity.gitRef) out.gitRef = identity.gitRef;
   if (identity.commitSha) out.commitSha = identity.commitSha;
+  if (identity.site) out.site = identity.site;
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
@@ -2938,7 +2955,13 @@ function isAuthMessage(message: string): boolean {
 function normaliseTargetMode(
   value: string | null | undefined,
 ): DiscoveryTargetMode | undefined {
-  if (value === "PACKAGES" || value === "REPO" || value === "MIXED") {
+  if (
+    value === "PACKAGES" ||
+    value === "REPO" ||
+    value === "MIXED" ||
+    value === "SITES" ||
+    value === "SITE"
+  ) {
     return value;
   }
   return undefined;

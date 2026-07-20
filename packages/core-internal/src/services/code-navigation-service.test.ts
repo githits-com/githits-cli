@@ -873,6 +873,54 @@ describe("CodeNavigationServiceImpl", () => {
     stderrSpy.mockRestore();
   });
 
+  it("serializes standalone site targets for unified search", async () => {
+    const fn = mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              search: {
+                completed: true,
+                searchRef: null,
+                result: {
+                  query: "router middleware",
+                  queryWarnings: [],
+                  sources: ["DOCS"],
+                  results: [],
+                  page: {
+                    offset: 0,
+                    limit: 20,
+                    returned: 0,
+                    hasMore: false,
+                  },
+                  partialResults: false,
+                  sourceStatus: [],
+                },
+                progress: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+      globalThis.fetch,
+    );
+
+    await service.search({
+      targets: [{ site: "site:expressjs.com" }],
+      query: "router middleware",
+      sources: ["DOCS"],
+    });
+
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.variables.targets).toEqual([{ site: "site:expressjs.com" }]);
+  });
+
   it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on grepRepo", async () => {
     mockFetch(() =>
       Promise.resolve(

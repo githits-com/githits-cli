@@ -649,6 +649,53 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.warnings?.join("\n")).toContain("queryable now");
     expect(payload.warnings?.join("\n")).toContain("suggested refs");
   });
+
+  it("preserves site requestedTargets and targetResolution in progress payloads", () => {
+    const payload = buildUnifiedSearchSuccessPayload(
+      { targets: [{ site: "site:expressjs.com" }], query: "router" },
+      "router",
+      "router",
+      {
+        state: "incomplete",
+        completed: false,
+        searchRef: "search-ref-site",
+        progress: {
+          searchRef: "search-ref-site",
+          status: "INDEXING",
+          targetsTotal: 1,
+          targetsReady: 0,
+          elapsedMs: 200,
+          query: "router",
+          queryWarnings: [],
+          sources: ["DOCS"],
+          requestedTargets: [{ site: "site:expressjs.com" }],
+          targets: [
+            {
+              requested: "site:expressjs.com",
+              freshness: "INDEXING",
+              targetResolution: {
+                requested: { kind: "site", site: "site:expressjs.com" },
+                freshness: "indexing",
+                availableVersions: [],
+                availableRefs: [],
+              },
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.completed).toBe(false);
+    if (payload.completed) {
+      throw new Error("expected incomplete payload");
+    }
+    expect(payload.progress?.requestedTargets).toEqual([
+      { site: "site:expressjs.com" },
+    ]);
+    expect(
+      payload.progress?.targets?.[0]?.targetResolution?.requested?.site,
+    ).toBe("site:expressjs.com");
+  });
 });
 
 describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", () => {

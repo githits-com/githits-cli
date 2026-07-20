@@ -139,6 +139,33 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("passes standalone site targets through unified search", async () => {
+    const search = mock((_: UnifiedSearchParams) =>
+      Promise.resolve(defaultUnifiedSearchOutcome),
+    );
+    const deps = createDeps({
+      codeNavigationService: createMockCodeNavigationService({ search }),
+    });
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchAction(
+      "router middleware",
+      {
+        in: ["site:expressjs.com"],
+        source: "docs",
+      },
+      deps,
+    );
+
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: [{ site: "site:expressjs.com" }],
+        sources: ["DOCS"],
+      }),
+    );
+    consoleSpy.mockRestore();
+  });
+
   it("preserves omitted repo refs for CLI discovery search targets", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),

@@ -42,9 +42,29 @@ describe("parseUnifiedSearchTargetSpec", () => {
     });
   });
 
+  it("accepts standalone indexed documentation site targets", () => {
+    expect(parseUnifiedSearchTargetSpec("site:ExpressJS.com")).toEqual({
+      site: "site:expressjs.com",
+    });
+  });
+
+  it("normalises URL-shaped site targets to canonical site labels", () => {
+    expect(
+      parseUnifiedSearchTargetSpec("site:https://expressjs.com/en/guide/"),
+    ).toEqual({
+      site: "site:expressjs.com/en/guide",
+    });
+  });
+
   it("rejects empty targets", () => {
     expect(() => parseUnifiedSearchTargetSpec("   ")).toThrow(
       "Target spec cannot be empty.",
+    );
+  });
+
+  it("rejects empty site targets", () => {
+    expect(() => parseUnifiedSearchTargetSpec("site:   ")).toThrow(
+      "Site target cannot be empty.",
     );
   });
 

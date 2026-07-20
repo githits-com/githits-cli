@@ -98,6 +98,7 @@ export interface UnifiedSearchProgressPayload {
     version?: string;
     repoUrl?: string;
     gitRef?: string;
+    site?: string;
   }>;
   filters?: UnifiedSearchQueryEcho["filters"];
   limit?: number;

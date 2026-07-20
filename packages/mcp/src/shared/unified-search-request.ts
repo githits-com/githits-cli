@@ -1,11 +1,11 @@
 import type {
-  CodeNavigationTarget,
   FileIntent,
   SymbolCategory,
   SymbolKind,
   UnifiedSearchFilters,
   UnifiedSearchParams,
   UnifiedSearchSource,
+  UnifiedSearchTarget,
 } from "@githits/core-internal";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { InvalidArgumentError } from "./package-spec.js";
@@ -13,8 +13,8 @@ import { InvalidArgumentError } from "./package-spec.js";
 export const DEFAULT_UNIFIED_SEARCH_LIMIT = 10;
 
 export interface UnifiedSearchRequestInput {
-  target?: CodeNavigationTarget;
-  targets?: CodeNavigationTarget[];
+  target?: UnifiedSearchTarget;
+  targets?: UnifiedSearchTarget[];
   query: string;
   sources?: UnifiedSearchSource[];
   kind?: SymbolKind;
@@ -82,9 +82,9 @@ function isDocsOnlySource(sources: UnifiedSearchSource[] | undefined): boolean {
 }
 
 function resolveTargets(
-  target: CodeNavigationTarget | undefined,
-  targets: CodeNavigationTarget[] | undefined,
-): CodeNavigationTarget[] {
+  target: UnifiedSearchTarget | undefined,
+  targets: UnifiedSearchTarget[] | undefined,
+): UnifiedSearchTarget[] {
   const nonEmptyTargets = targets?.length ? targets : undefined;
   if (target && nonEmptyTargets) {
     throw new InvalidArgumentError(
@@ -99,7 +99,7 @@ function resolveTargets(
     );
   }
 
-  const deduped: CodeNavigationTarget[] = [];
+  const deduped: UnifiedSearchTarget[] = [];
   const seen = new Set<string>();
   for (const entry of resolved) {
     const key = JSON.stringify(entry);

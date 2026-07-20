@@ -169,6 +169,7 @@ use at least one agent for quick iteration.
 | Agent-driven GitHits onboarding and setup UX | `githits-onboarding.md` |
 | Core global examples, `get_example`, `search_language`, `feedback` | `global-example.md` |
 | Unified `search` / `search_status` behavior | `unified-search-investigation.md`; use `search-source-ergonomics.md` when changing `search` source-selection arguments or minimal-call guidance |
+| Explicit standalone site targets in unified `search` | `site-search-explicit.md` |
 | Package overview or vulnerability UX, `pkg_info`, `pkg_vulns` | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior; use `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior |
 | Dependency graph UX, `pkg_deps` | `package-dependencies.md` |
 | Release notes UX, `pkg_changelog` | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior |

@@ -1,6 +1,6 @@
 import type {
   CodeNavigationService,
-  CodeNavigationTarget,
+  UnifiedSearchTarget,
 } from "@githits/core-internal";
 import { z } from "zod";
 import {
@@ -22,8 +22,8 @@ import {
   renderUnifiedSearchSuccess,
 } from "../shared/unified-search-text.js";
 import {
-  type CodeTargetArg,
-  structuredCodeTargetSchema,
+  type StructuredCodeTargetArg,
+  structuredCodeTargetObject,
 } from "./code-navigation-shared.js";
 import { SEARCH_GUARDRAIL } from "./guardrails.js";
 import { addLocalMcpAuthAction, mcpMappedErrorResult } from "./shared.js";
@@ -43,8 +43,8 @@ type ResolvedSearchTarget = Exclude<
 
 export interface SearchArgs {
   query: string;
-  target?: CodeTargetArg;
-  targets?: CodeTargetArg[];
+  target?: SearchTargetArg;
+  targets?: SearchTargetArg[];
   source?: "docs" | "code" | "symbol";
   category?: "callable" | "type" | "module" | "data" | "documentation";
   kind?:
@@ -96,8 +96,23 @@ export interface SearchArgs {
   format?: "json" | "text" | "text-v1";
 }
 
+interface StructuredSearchTargetArg extends StructuredCodeTargetArg {
+  site?: string;
+}
+
+type SearchTargetArg = StructuredSearchTargetArg | string;
+
+const structuredSearchTargetSchema: z.ZodType<StructuredSearchTargetArg> =
+  structuredCodeTargetObject
+    .extend({
+      site: z.string().optional(),
+    })
+    .describe(
+      "Target: provide registry + package_name (package scope) or repo_url with optional git_ref (repo scope; omitted ref means default branch intent).",
+    );
+
 const searchTargetSchema = z.union([
-  structuredCodeTargetSchema,
+  structuredSearchTargetSchema,
   z
     .string()
     .min(1)
@@ -316,7 +331,8 @@ function isBlankSearchTarget(
     normaliseOptionalValue(target.package_name) ||
     normaliseOptionalValue(target.version) ||
     normaliseOptionalValue(target.repo_url) ||
-    normaliseOptionalValue(target.git_ref)
+    normaliseOptionalValue(target.git_ref) ||
+    normaliseOptionalValue(target.site)
   );
 }
 
@@ -333,8 +349,8 @@ function isResolvedSearchTarget(
 }
 
 function resolveSearchTarget(
-  target: CodeTargetArg,
-): CodeNavigationTarget | ToolResult {
+  target: SearchTargetArg,
+): UnifiedSearchTarget | ToolResult {
   if (typeof target === "string") {
     try {
       return parseUnifiedSearchTargetSpec(target);
@@ -349,17 +365,27 @@ function resolveSearchTarget(
   const version = normaliseOptionalValue(target.version);
   const repoUrl = normaliseOptionalValue(target.repo_url);
   const gitRef = normaliseOptionalValue(target.git_ref);
+  const site = normaliseOptionalValue(target.site);
   const hasPackageTarget = registry !== undefined || packageName !== undefined;
   const hasRepoTarget = repoUrl !== undefined || gitRef !== undefined;
-  if (hasPackageTarget && hasRepoTarget) {
+  const hasSiteTarget = site !== undefined;
+  const targetModeCount = [
+    hasPackageTarget,
+    hasRepoTarget,
+    hasSiteTarget,
+  ].filter(Boolean).length;
+  if (targetModeCount > 1) {
     return invalidSearchTargetResult(
-      "Invalid target: provide either registry + package_name or repo_url with optional git_ref, not both.",
+      "Invalid target: provide exactly one of registry + package_name, repo_url with optional git_ref, or site.",
     );
   }
-  if (!hasPackageTarget && !hasRepoTarget) {
+  if (targetModeCount === 0) {
     return invalidSearchTargetResult(
-      "Missing target: provide registry + package_name or repo_url.",
+      "Missing target: provide registry + package_name, repo_url, or site.",
     );
+  }
+  if (hasSiteTarget) {
+    return { site: normaliseStructuredSiteTarget(site) };
   }
   if (hasPackageTarget) {
     if (!registry || !packageName) {
@@ -379,6 +405,12 @@ function resolveSearchTarget(
     );
   }
   return { repoUrl, gitRef };
+}
+
+function normaliseStructuredSiteTarget(site: string): string {
+  return parseUnifiedSearchTargetSpec(
+    site.toLowerCase().startsWith("site:") ? site : `site:${site}`,
+  ).site!;
 }
 
 function invalidSearchTargetResult(message: string): ToolResult {

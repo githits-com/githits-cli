@@ -9,6 +9,7 @@ export interface LeanTargetResolutionIdentity {
   repoUrl?: string;
   gitRef?: string;
   commitSha?: string;
+  site?: string;
 }
 
 export interface LeanAvailableArtifact {
@@ -209,6 +210,7 @@ function projectIdentity(
   if (identity.repoUrl) out.repoUrl = identity.repoUrl;
   if (identity.gitRef) out.gitRef = identity.gitRef;
   if (identity.commitSha) out.commitSha = identity.commitSha;
+  if (identity.site) out.site = identity.site;
   return out;
 }
 
@@ -234,6 +236,7 @@ export function formatTargetResolutionIdentity(
     const commit = identity.commitSha ? `@${shortSha(identity.commitSha)}` : "";
     return `${target}${commit}`;
   }
+  if (identity.site) return identity.site;
   return (
     identity.gitRef ?? identity.version ?? identity.commitSha ?? identity.kind
   );
