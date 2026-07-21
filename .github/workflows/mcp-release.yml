@@ -46,7 +46,7 @@ jobs:
           bun-version: latest
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
           registry-url: "https://registry.npmjs.org"
@@ -97,7 +97,7 @@ jobs:
           bun-version: latest
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
           registry-url: "https://registry.npmjs.org"
