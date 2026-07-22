@@ -163,15 +163,37 @@ npx githits@latest login
 Browser OAuth is recommended for local development. Credentials are stored in
 the system keychain by default and refreshed automatically. Useful flags:
 
-- `init --no-browser` or `login --no-browser` prints a login URL for SSH, containers, or headless sessions
+- `init --no-browser` or `login --no-browser` prints the login URL instead of launching a browser
+- `init --port <port>` or `login --port <port>` selects the local callback port
 - `login --force` re-authenticates even if you are already logged in
-- `login --port <port>` uses a specific local callback port
 
-For CI or non-interactive environments, use an API token:
+`--no-browser` controls browser launching only. The OAuth callback listener
+still binds to `127.0.0.1` on the machine running GitHits. If the browser is on
+another computer, its `127.0.0.1` is a different machine and the callback must
+be forwarded.
+
+For example, choose a port and start a local-forwarding tunnel from the
+computer with the browser:
 
 ```sh
-export GITHITS_API_TOKEN=ghi-your-token-here
+ssh -N -L 8765:127.0.0.1:8765 user@remote-host
 ```
+
+In a shell on the remote machine, keep the tunnel running and start GitHits
+with the same port:
+
+```sh
+npx githits@latest init --no-browser --port 8765
+```
+
+Then open the printed login URL on the computer where the tunnel started.
+Replace `user@remote-host` with the destination used for the SSH connection.
+The same workflow works with `githits login` when setup is already complete.
+
+For CI, containers without an interactive SSH session, and other genuinely
+non-interactive environments, provide an API token through the
+`GITHITS_API_TOKEN` environment variable using the environment's secret
+manager. These environments should not wait for browser OAuth callbacks.
 
 Inspect auth and runtime state with:
 

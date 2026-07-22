@@ -3316,12 +3316,13 @@ describe("initAction", () => {
     it("prints login URL instead of opening browser with --no-browser", async () => {
       const fs = createFsWithDetection(["/home/test/.cursor"]);
       const browserService = createMockBrowserService();
+      const authService = createMockAuthService();
       const promptService = createMockPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
       const createLoginDeps = mock(() =>
         Promise.resolve({
-          authService: createMockAuthService(),
+          authService,
           authStorage: createMockAuthStorage(),
           browserService,
           mcpUrl: "https://mcp.githits.com",
@@ -3329,7 +3330,7 @@ describe("initAction", () => {
       );
 
       await initAction(
-        { browser: false },
+        { browser: false, port: 8765 },
         {
           fileSystemService: fs,
           promptService,
@@ -3340,6 +3341,10 @@ describe("initAction", () => {
 
       const logCalls = getLogOutput();
       expect(browserService.open).not.toHaveBeenCalled();
+      expect(authService.startCallbackServer).toHaveBeenCalledWith(
+        8765,
+        "test-state",
+      );
       expect(
         logCalls.some((msg) => msg.includes("We'll print a sign-in URL")),
       ).toBe(true);
@@ -3349,6 +3354,11 @@ describe("initAction", () => {
       expect(
         logCalls.some((msg) =>
           msg.includes("https://accounts.githits.com/oauth/authorize"),
+        ),
+      ).toBe(true);
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("ssh -N -L 8765:127.0.0.1:8765 user@remote-host"),
         ),
       ).toBe(true);
       expect(fs.atomicWriteFile).toHaveBeenCalled();
@@ -5869,6 +5879,7 @@ describe("registerInitCommand", () => {
     expect(optionLongNames).toContain("--guidance");
     expect(optionLongNames).toContain("--no-guidance");
     expect(optionLongNames).toContain("--no-browser");
+    expect(optionLongNames).toContain("--port");
   });
 
   it("registers uninstall options as boolean options", () => {
