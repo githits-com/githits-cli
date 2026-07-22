@@ -127,6 +127,13 @@ describe("loginAction", () => {
     );
 
     expect(browserService.open).not.toHaveBeenCalled();
+    const output = consoleSpy.mock.calls
+      .map((call) => String(call[0]))
+      .join("\n");
+    expect(output).toContain(
+      "The callback listener is on 127.0.0.1:8080 on the machine running GitHits.",
+    );
+    expect(output).toContain("ssh -N -L 8080:127.0.0.1:8080 user@remote-host");
     consoleSpy.mockRestore();
   });
 
@@ -409,6 +416,39 @@ describe("loginAction", () => {
 describe("loginFlow", () => {
   const mcpUrl = "https://mcp.githits.com";
 
+  it("uses a random callback port when no port or stored client is available", async () => {
+    const randomSpy = spyOn(Math, "random").mockReturnValue(0.5);
+    const authService = createMockAuthService();
+    const browserService = createMockBrowserService();
+
+    try {
+      const result = await loginFlow(
+        {},
+        {
+          authService,
+          authStorage: createMockAuthStorage(),
+          browserService,
+          mcpUrl,
+        },
+        silentLoginOutput,
+      );
+
+      expect(result.status).toBe("success");
+      expect(authService.registerClient).toHaveBeenCalledWith(
+        expect.objectContaining({
+          redirectUri: "http://127.0.0.1:9000/callback",
+        }),
+      );
+      expect(authService.startCallbackServer).toHaveBeenCalledWith(
+        9000,
+        "test-state",
+      );
+      expect(browserService.open).toHaveBeenCalled();
+    } finally {
+      randomSpy.mockRestore();
+    }
+  });
+
   it("returns success after completing OAuth flow", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const close = mock(() => Promise.resolve());
@@ -680,6 +720,9 @@ describe("loginFlow", () => {
         message.startsWith("  https://accounts.githits.com/oauth/authorize?"),
       ),
     ).toBe(true);
+    expect(writes).toContain(
+      "If the browser is on another computer, stop this command and rerun with --no-browser --port 8080 for SSH forwarding instructions.\n",
+    );
   });
 
   it("closes callback server and clears fresh client when authentication wait fails", async () => {
@@ -905,20 +948,32 @@ describe("loginFlow", () => {
     consoleSpy.mockRestore();
   });
 
-  it("returns failed on invalid port", async () => {
-    const result = await loginFlow(
-      { port: -1 },
-      {
-        authService: createMockAuthService(),
-        authStorage: createMockAuthStorage(),
-        browserService: createMockBrowserService(),
-        mcpUrl,
-      },
-    );
+  for (const port of [
+    -1,
+    0,
+    1.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    65536,
+  ]) {
+    it(`returns failed on invalid programmatic port ${port}`, async () => {
+      const authService = createMockAuthService();
+      const result = await loginFlow(
+        { port },
+        {
+          authService,
+          authStorage: createMockAuthStorage(),
+          browserService: createMockBrowserService(),
+          mcpUrl,
+        },
+        silentLoginOutput,
+      );
 
-    expect(result.status).toBe("failed");
-    expect(result.message).toContain("Invalid port");
-  });
+      expect(result.status).toBe("failed");
+      expect(result.message).toContain("Invalid port");
+      expect(authService.discoverEndpoints).not.toHaveBeenCalled();
+    });
+  }
 
   it("returns failed when token exchange throws", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});

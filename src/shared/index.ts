@@ -196,7 +196,7 @@ export {
   vulnSeverityLabel,
   warning,
 } from "@githits/mcp/internal";
-export { parseIntCliOption } from "./cli-options.js";
+export { parseIntCliOption, parsePortCliOption } from "./cli-options.js";
 export {
   InvalidKeywordsError,
   normaliseKeywords,

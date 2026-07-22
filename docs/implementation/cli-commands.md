@@ -8,8 +8,9 @@ The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback
 
 | Command | Required Args | Options | Description |
 |---|---|---|---|
-| `init` | — | `-y, --yes`, `--skip-login`, `--no-browser`, `--project`, `--detect-agents`, `--install-agents <ids>`, `--json` | Authenticate and set up MCP server for coding agents; interactive setup asks whether to configure user-level or project-level MCP where supported; staged flags support agent-safe non-interactive onboarding |
+| `init` | — | `-y, --yes`, `--skip-login`, `--no-browser`, `--port <port>`, `--project`, `--detect-agents`, `--install-agents <ids>`, `--json` | Authenticate and set up MCP server for coding agents; interactive setup asks whether to configure user-level or project-level MCP where supported; staged flags support agent-safe non-interactive onboarding |
 | `init uninstall` | — | `-y, --yes`, `--project` | Remove GitHits MCP server configuration from coding agents or supported project-local MCP files |
+| `login` | — | `--no-browser`, `--port <port>`, `--force` | Authenticate with browser OAuth; `--no-browser` suppresses browser launching but does not move the loopback callback listener |
 | `example <query>` | `<query>` | `-l, --lang <language>`, `--license <mode>`, `--explain`, `--json` | Search for code examples |
 | `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols. Defaults to 10 results. |
 | `search-status <search-ref>` | `<search-ref>` | `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search |
@@ -34,6 +35,7 @@ githits init                                      # Interactive: authenticate, s
 githits init --yes                                # Interactive shortcut: configure all detected unconfigured agents
 githits init --skip-login                         # Skip authentication, configure tools only
 githits init --no-browser                         # Print sign-in URL instead of opening a browser
+githits init --no-browser --port 8765             # Use a deterministic callback port for SSH forwarding
 npx -y githits@latest init --detect-agents        # Agent-safe discovery: scan and print detected agent IDs/statuses
 npx -y githits@latest init --detect-agents --json # Machine-readable discovery output for agents
 npx -y githits@latest init --install-agents cursor # Agent-safe install: configure only explicit detected IDs
@@ -45,7 +47,50 @@ githits init uninstall --project                  # Explicit project-level unins
 githits init uninstall --project --yes            # Non-interactive project-level uninstall
 ```
 
-Authenticates with GitHits (via OAuth in the browser), then scans for available coding agents, checks which are already configured, and sets up unconfigured ones with your confirmation. Use `--no-browser` in SSH or display-less sessions to print the sign-in URL instead of opening a browser on the current machine. All agents are pre-checked before any setup begins, so the status display is fully resolved. CLI agents are considered available only when their executable is on `PATH`; related dot-directories alone do not count. Config-file agents remain filesystem-detected using their known app/config directories. If already authenticated, the login step is skipped automatically. If login fails, the user is prompted to continue with tool setup anyway. If all detected agents are already configured, exits early with a summary.
+Authenticates with GitHits (via OAuth in the browser), then scans for available coding agents, checks which are already configured, and sets up unconfigured ones with your confirmation. `--no-browser` prints the sign-in URL instead of opening a browser; it does not change the callback protocol or listener location. `--port` selects the loopback callback port and is useful when an SSH tunnel must be prepared before `init` starts. All agents are pre-checked before any setup begins, so the status display is fully resolved. CLI agents are considered available only when their executable is on `PATH`; related dot-directories alone do not count. Config-file agents remain filesystem-detected using their known app/config directories. If already authenticated, the login step is skipped automatically. If login fails, the user is prompted to continue with tool setup anyway. If all detected agents are already configured, exits early with a summary.
+
+### Browser OAuth in SSH and headless environments
+
+The callback server listens on `127.0.0.1` on the machine running GitHits. A
+browser on that same machine can use the callback directly. A browser on a
+different computer cannot: its loopback address refers to the browser's
+computer.
+
+For an SSH session, select a deterministic port. On the computer with the
+browser, start local forwarding and keep it running:
+
+```sh
+ssh -N -L 8765:127.0.0.1:8765 user@remote-host
+```
+
+Then run one of these commands on the remote machine:
+
+```sh
+githits init --no-browser --port 8765
+githits login --no-browser --port 8765
+```
+
+Open the printed login URL on the computer that owns the forwarding tunnel.
+The selected port must be available on both computers. `--no-browser` is also
+useful when browser launching is unavailable but the browser and callback
+listener share a network namespace; no tunnel is required in that case.
+
+For CI and other non-interactive environments, use `GITHITS_API_TOKEN` from a
+secret manager instead of waiting for an interactive OAuth callback.
+
+### `githits login`
+
+```sh
+githits login                         # Open a local browser and use a loopback callback
+githits login --no-browser            # Print the URL and callback-access instructions
+githits login --no-browser --port 8765 # Use a fixed callback port for SSH forwarding
+githits login --force                 # Re-authenticate an existing session
+```
+
+When no port is supplied, a fresh client registration chooses a random port in
+the 8000–9999 range. A stored client registration reuses its registered
+redirect URI. Explicit `--port` values must be integers from 1 through 65535;
+changing the port causes the CLI to register a matching redirect URI.
 
 Interactive MCP setup asks where GitHits should be configured. User-level setup preserves the existing global/user config behavior for all supported tools. Project-level setup is partial because MCP project config conventions differ by tool; GitHits only offers project setup for tools with verified project-local MCP support: Claude Code (`.mcp.json`), Cursor (`.cursor/mcp.json`), VS Code / Copilot (`.vscode/mcp.json` with `type = "stdio"` server entries), Codex CLI (`.codex/config.toml`), Pi (`.mcp.json` with `pi-mcp-adapter` installed when needed), Gemini CLI (`.gemini/settings.json`), and OpenCode (`opencode.json`). Detected tools without verified project-local MCP support are shown as skipped with a reason. Project config contains no secrets, but it may be committed to source control like other project tooling configuration. Gemini may ignore project settings in untrusted workspaces.
 

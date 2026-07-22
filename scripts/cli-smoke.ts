@@ -477,6 +477,34 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
     );
     assertRootHelpStructure(helpResult.stdout);
 
+    for (const command of ["init", "login"] as const) {
+      const commandHelp = await runCliWithEnv([command, "--help"], env);
+      assert(commandHelp.exitCode === 0, `${command} help should succeed`);
+      assert(
+        commandHelp.stdout.includes("--port <port>"),
+        `${command} help should expose --port`,
+      );
+      assert(
+        commandHelp.stdout.includes("--no-browser"),
+        `${command} help should expose --no-browser`,
+      );
+
+      const invalidPort = await runCliWithEnv(
+        [command, "--port", "8080junk"],
+        env,
+      );
+      assert(
+        invalidPort.exitCode !== 0,
+        `${command} should reject a partially numeric port`,
+      );
+      assert(
+        `${invalidPort.stderr}\n${invalidPort.stdout}`.includes(
+          "Port must be an integer between 1 and 65535.",
+        ),
+        `${command} invalid-port error should explain the accepted range`,
+      );
+    }
+
     const result = await runCliWithEnv(["languages", "python", "--json"], env);
     assert(result.exitCode !== 0, "unauthenticated languages should fail");
     assert(

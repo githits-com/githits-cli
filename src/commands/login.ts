@@ -7,6 +7,7 @@ import { createAuthCommandDependencies } from "../container.js";
 import type { AuthService } from "../services/auth-service.js";
 import type { AuthStorage } from "../services/auth-storage.js";
 import type { BrowserService } from "../services/browser-service.js";
+import { parsePortCliOption } from "../shared/cli-options.js";
 
 export interface LoginOptions {
   browser?: boolean;
@@ -105,7 +106,9 @@ export async function loginFlow(
   // Validate port if provided
   if (
     options.port !== undefined &&
-    (Number.isNaN(options.port) || options.port < 1 || options.port > 65535)
+    (!Number.isInteger(options.port) ||
+      options.port < 1 ||
+      options.port > 65535)
   ) {
     return {
       status: "failed",
@@ -239,16 +242,33 @@ export async function loginFlow(
   if (options.browser === false) {
     output.write("Open this URL in your browser:\n");
     output.write(`  ${authUrl}\n`);
+    output.write(
+      `The callback listener is on 127.0.0.1:${port} on the machine running GitHits.\n`,
+    );
+    output.write(
+      "If the browser is on another computer and you connected with SSH, run this on that computer first:\n",
+    );
+    output.write(`  ssh -N -L ${port}:127.0.0.1:${port} user@remote-host\n`);
+    output.write(
+      "Keep the tunnel and GitHits running while you open the URL. Replace user@remote-host with your SSH destination.\n",
+    );
   } else {
     output.write("Opening browser for GitHits sign-in...\n");
+    let browserOpenFailed = false;
     try {
       await browserService.open(authUrl);
     } catch (error) {
+      browserOpenFailed = true;
       const msg = error instanceof Error ? error.message : String(error);
       output.write(`Could not open browser automatically: ${msg}\n`);
     }
     output.write("If the browser did not open, open this URL:\n");
     output.write(`  ${authUrl}\n`);
+    if (browserOpenFailed) {
+      output.write(
+        `If the browser is on another computer, stop this command and rerun with --no-browser --port ${port} for SSH forwarding instructions.\n`,
+      );
+    }
   }
 
   output.write("Waiting for sign-in to finish...\n");
@@ -466,8 +486,10 @@ OAuth credentials are stored in the system keychain by default. If your
 machine has no usable keychain, use GITHITS_API_TOKEN or explicitly configure
 auth.storage = "file". File storage is plaintext on disk.
 
-Use --no-browser in environments without a display (CI, SSH sessions)
-to get a URL you can open on another device.`;
+Use --no-browser to print the sign-in URL instead of launching a browser.
+The callback listener still runs on this machine. When the browser is on a
+different computer, choose a fixed --port and forward that port over SSH.
+For non-interactive automation, use GITHITS_API_TOKEN instead.`;
 
 /**
  * Register the login command on the given program.
@@ -478,8 +500,15 @@ export function registerLoginCommand(program: Command) {
     .command("login")
     .summary("Sign in to your GitHits account")
     .description(LOGIN_DESCRIPTION)
-    .option("--no-browser", "Print URL instead of opening browser")
-    .option("--port <port>", "Port for local callback server", parseInt)
+    .option(
+      "--no-browser",
+      "Print URL and remote callback instructions instead of opening browser",
+    )
+    .option(
+      "--port <port>",
+      "Port for local callback server",
+      parsePortCliOption,
+    )
     .option("--force", "Re-authenticate even if already logged in")
     .action(async (options: LoginOptions) => {
       const deps = await createAuthCommandDependencies();

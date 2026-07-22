@@ -22,6 +22,7 @@ import type {
   SelectChoice,
 } from "../../services/prompt-service.js";
 import { PromptServiceImpl } from "../../services/prompt-service.js";
+import { parsePortCliOption } from "../../shared/cli-options.js";
 import type {
   LoginDependencies,
   LoginFlowResult,
@@ -86,6 +87,8 @@ export interface InitOptions {
   skipLogin?: boolean;
   /** Print the login URL instead of opening a browser */
   browser?: boolean;
+  /** Port for the local OAuth callback server */
+  port?: number;
   /** Scan supported agents without installing anything */
   detectAgents?: boolean;
   /** Comma-separated agent IDs to install non-interactively */
@@ -2003,7 +2006,10 @@ async function runInitAuthentication(
         }
       }
 
-      const loginOptions = options.browser === false ? { browser: false } : {};
+      const loginOptions = {
+        browser: options.browser,
+        port: options.port,
+      };
       loginResult = await loginFlow(
         loginOptions,
         loginDeps,
@@ -4014,7 +4020,15 @@ export function registerInitCommand(program: Command) {
     .description(INIT_DESCRIPTION)
     .option("-y, --yes", "Skip prompts, configure all detected tools")
     .option("--skip-login", "Skip authentication step")
-    .option("--no-browser", "Print sign-in URL instead of opening browser")
+    .option(
+      "--no-browser",
+      "Print sign-in URL and remote callback instructions",
+    )
+    .option(
+      "--port <port>",
+      "Port for local sign-in callback server",
+      parsePortCliOption,
+    )
     .option("--project", "Configure project-level MCP in the current directory")
     .option("--guidance", "Install supporting GitHits skill and instructions")
     .option("--no-guidance", "Install plain MCP without supporting guidance")
