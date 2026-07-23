@@ -117,6 +117,7 @@ manifest move is complete.
 
 - `src/commands/init/**` imports `@inquirer/core` directly for
   `ExitPromptError`, so it is a direct root dependency.
-- Keep `@inquirer/prompts` and `@inquirer/core` pinned to the validated pair
-  (`8.4.3` and `11.1.10` currently) unless prompt abort handling is changed to
+- Keep `@inquirer/checkbox`, `@inquirer/confirm`, `@inquirer/select`, and
+  `@inquirer/core` pinned to the validated release set (`5.2.1`, `6.1.1`,
+  `5.2.1`, and `11.2.1` currently) unless prompt abort handling is changed to
   avoid `instanceof` checks across package copies.
