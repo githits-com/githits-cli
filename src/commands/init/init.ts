@@ -29,6 +29,10 @@ import type {
 } from "../login.js";
 import { loginFlow } from "../login.js";
 import {
+  addOAuthCallbackOptions,
+  type OAuthCallbackOptions,
+} from "../oauth-callback-options.js";
+import {
   type AgentDefinition,
   agentDefinitions,
   type CompositeSetup,
@@ -79,13 +83,11 @@ import {
 } from "./setup-handlers.js";
 
 /** Options for the init command */
-export interface InitOptions {
+export interface InitOptions extends OAuthCallbackOptions {
   /** Skip all prompts, configure all detected agents */
   yes?: boolean;
   /** Skip the login step */
   skipLogin?: boolean;
-  /** Print the login URL instead of opening a browser */
-  browser?: boolean;
   /** Scan supported agents without installing anything */
   detectAgents?: boolean;
   /** Comma-separated agent IDs to install non-interactively */
@@ -2003,7 +2005,10 @@ async function runInitAuthentication(
         }
       }
 
-      const loginOptions = options.browser === false ? { browser: false } : {};
+      const loginOptions: OAuthCallbackOptions = {
+        ...(options.browser !== undefined ? { browser: options.browser } : {}),
+        ...(options.port !== undefined ? { port: options.port } : {}),
+      };
       loginResult = await loginFlow(
         loginOptions,
         loginDeps,
@@ -4013,8 +4018,9 @@ export function registerInitCommand(program: Command) {
     .summary("Connect GitHits to your coding agents")
     .description(INIT_DESCRIPTION)
     .option("-y, --yes", "Skip prompts, configure all detected tools")
-    .option("--skip-login", "Skip authentication step")
-    .option("--no-browser", "Print sign-in URL instead of opening browser")
+    .option("--skip-login", "Skip authentication step");
+
+  addOAuthCallbackOptions(initCommand)
     .option("--project", "Configure project-level MCP in the current directory")
     .option("--guidance", "Install supporting GitHits skill and instructions")
     .option("--no-guidance", "Install plain MCP without supporting guidance")
