@@ -127,6 +127,13 @@ describe("loginAction", () => {
     );
 
     expect(browserService.open).not.toHaveBeenCalled();
+    const output = consoleSpy.mock.calls
+      .map((call) => String(call[0]))
+      .join("\n");
+    expect(output).toContain(
+      "The sign-in callback is listening on 127.0.0.1:8080 on this machine.",
+    );
+    expect(output).toContain("ssh -N -L 8080:127.0.0.1:8080 user@remote-host");
     consoleSpy.mockRestore();
   });
 
@@ -905,20 +912,34 @@ describe("loginFlow", () => {
     consoleSpy.mockRestore();
   });
 
-  it("returns failed on invalid port", async () => {
-    const result = await loginFlow(
-      { port: -1 },
-      {
-        authService: createMockAuthService(),
-        authStorage: createMockAuthStorage(),
-        browserService: createMockBrowserService(),
-        mcpUrl,
-      },
-    );
+  for (const port of [
+    -1,
+    0,
+    1.5,
+    65_536,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+  ]) {
+    it(`returns failed before authentication for programmatic port ${port}`, async () => {
+      const authStorage = createMockAuthStorage();
+      const authService = createMockAuthService();
+      const result = await loginFlow(
+        { port },
+        {
+          authService,
+          authStorage,
+          browserService: createMockBrowserService(),
+          mcpUrl,
+        },
+        silentLoginOutput,
+      );
 
-    expect(result.status).toBe("failed");
-    expect(result.message).toContain("Invalid port");
-  });
+      expect(result.status).toBe("failed");
+      expect(result.message).toContain("Invalid port");
+      expect(authStorage.loadTokens).not.toHaveBeenCalled();
+      expect(authService.discoverEndpoints).not.toHaveBeenCalled();
+    });
+  }
 
   it("returns failed when token exchange throws", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});

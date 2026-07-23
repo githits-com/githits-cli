@@ -7,10 +7,15 @@ import { createAuthCommandDependencies } from "../container.js";
 import type { AuthService } from "../services/auth-service.js";
 import type { AuthStorage } from "../services/auth-storage.js";
 import type { BrowserService } from "../services/browser-service.js";
+import {
+  addOAuthCallbackOptions,
+  CALLBACK_PORT_REQUIREMENT,
+  formatRemoteCallbackInstructions,
+  isValidOAuthCallbackPort,
+  type OAuthCallbackOptions,
+} from "./oauth-callback-options.js";
 
-export interface LoginOptions {
-  browser?: boolean;
-  port?: number;
+export interface LoginOptions extends OAuthCallbackOptions {
   force?: boolean;
 }
 
@@ -95,22 +100,19 @@ export async function loginFlow(
   output: LoginOutput = stdoutLoginOutput,
 ): Promise<LoginFlowResult> {
   const { authService, authStorage, browserService, mcpUrl } = deps;
+
+  if (options.port !== undefined && !isValidOAuthCallbackPort(options.port)) {
+    return {
+      status: "failed",
+      message: `Invalid port number. ${CALLBACK_PORT_REQUIREMENT}`,
+    };
+  }
+
   let existing: Awaited<ReturnType<typeof authStorage.loadTokens>>;
   try {
     existing = await authStorage.loadTokens(mcpUrl);
   } catch (error) {
     return storageFailure(error);
-  }
-
-  // Validate port if provided
-  if (
-    options.port !== undefined &&
-    (Number.isNaN(options.port) || options.port < 1 || options.port > 65535)
-  ) {
-    return {
-      status: "failed",
-      message: "Invalid port number. Must be between 1 and 65535.",
-    };
   }
 
   // Check if already logged in
@@ -239,6 +241,7 @@ export async function loginFlow(
   if (options.browser === false) {
     output.write("Open this URL in your browser:\n");
     output.write(`  ${authUrl}\n`);
+    output.write(formatRemoteCallbackInstructions(port));
   } else {
     output.write("Opening browser for GitHits sign-in...\n");
     try {
@@ -466,20 +469,22 @@ OAuth credentials are stored in the system keychain by default. If your
 machine has no usable keychain, use GITHITS_API_TOKEN or explicitly configure
 auth.storage = "file". File storage is plaintext on disk.
 
-Use --no-browser in environments without a display (CI, SSH sessions)
-to get a URL you can open on another device.`;
+Use --no-browser to print the sign-in URL instead of launching a browser.
+The callback still listens on this machine. If the browser is on another
+computer, choose a fixed --port and forward that port over SSH.
+For non-interactive automation, use GITHITS_API_TOKEN instead.`;
 
 /**
  * Register the login command on the given program.
  * Uses lazy container creation so `--help` doesn't trigger auth.
  */
 export function registerLoginCommand(program: Command) {
-  program
+  const command = program
     .command("login")
     .summary("Sign in to your GitHits account")
-    .description(LOGIN_DESCRIPTION)
-    .option("--no-browser", "Print URL instead of opening browser")
-    .option("--port <port>", "Port for local callback server", parseInt)
+    .description(LOGIN_DESCRIPTION);
+
+  addOAuthCallbackOptions(command)
     .option("--force", "Re-authenticate even if already logged in")
     .action(async (options: LoginOptions) => {
       const deps = await createAuthCommandDependencies();
