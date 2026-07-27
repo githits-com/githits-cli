@@ -16,7 +16,7 @@
     "source": "github",
     "id": "1165453165"
   },
-  "version": "0.6.4",
+  "version": "0.6.5",
   "remotes": [
     {
       "type": "streamable-http",
@@ -28,7 +28,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "githits",
-      "version": "0.6.4",
+      "version": "0.6.5",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
