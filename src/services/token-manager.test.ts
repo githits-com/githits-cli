@@ -482,7 +482,7 @@ describe("TokenManager", () => {
         authStorage,
       });
 
-      expect(await manager.getToken()).toBeUndefined();
+      await expect(manager.getToken()).rejects.toThrow("network unavailable");
       expect(storedToken).toEqual(tokenData);
       expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
 
@@ -516,9 +516,7 @@ describe("TokenManager", () => {
         }),
       });
 
-      const result = await manager.forceRefresh();
-
-      expect(result).toBeUndefined();
+      await expect(manager.forceRefresh()).rejects.toThrow(FetchTimeoutError);
       expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
     });
 
@@ -547,7 +545,7 @@ describe("TokenManager", () => {
         }),
       });
 
-      expect(await manager.getToken()).toBeUndefined();
+      await expect(manager.getToken()).rejects.toThrow(TokenRefreshError);
       expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
       expect(authStorage.clearActiveClient).not.toHaveBeenCalled();
     });
@@ -580,7 +578,7 @@ describe("TokenManager", () => {
       expect(refreshMock).toHaveBeenCalledTimes(1);
     });
 
-    it("returns undefined when client registration is missing", async () => {
+    it("reports when stored tokens cannot be refreshed because the client registration is missing", async () => {
       const tokenData = createValidTokenData({
         createdAt: new Date(Date.now() - 7200_000).toISOString(),
         expiresAt: new Date(Date.now() - 60_000).toISOString(),
@@ -592,8 +590,9 @@ describe("TokenManager", () => {
         }),
       });
 
-      const result = await manager.getToken();
-      expect(result).toBeUndefined();
+      await expect(manager.getToken()).rejects.toThrow(
+        "OAuth client registration is missing or unreadable",
+      );
     });
   });
 
@@ -619,7 +618,7 @@ describe("TokenManager", () => {
       expect(authService.refreshAccessToken).toHaveBeenCalledTimes(1);
     });
 
-    it("returns undefined when refresh fails with valid token", async () => {
+    it("propagates a forced refresh failure while retaining a valid token", async () => {
       const tokenData = createValidTokenData({
         createdAt: new Date(Date.now() - 60_000).toISOString(),
         expiresAt: new Date(Date.now() + 3600_000).toISOString(),
@@ -639,8 +638,7 @@ describe("TokenManager", () => {
       // Populate cache
       await manager.getToken();
 
-      const result = await manager.forceRefresh();
-      expect(result).toBeUndefined();
+      await expect(manager.forceRefresh()).rejects.toThrow("refresh failed");
       // Should NOT clear tokens since the token is still valid (not expired)
       expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
     });
@@ -1063,11 +1061,19 @@ describe("TokenManager", () => {
       const forceResult = manager.forceRefresh();
       await refreshStarted;
       const getTokenDuringForce = manager.getToken();
+      const results = Promise.allSettled([forceResult, getTokenDuringForce]);
 
       rejectRefresh(new Error("refresh failed"));
 
-      await expect(forceResult).resolves.toBeUndefined();
-      await expect(getTokenDuringForce).resolves.toBeUndefined();
+      const [forceOutcome, getTokenOutcome] = await results;
+      expect(forceOutcome).toMatchObject({
+        status: "rejected",
+        reason: expect.objectContaining({ message: "refresh failed" }),
+      });
+      expect(getTokenOutcome).toMatchObject({
+        status: "rejected",
+        reason: expect.objectContaining({ message: "refresh failed" }),
+      });
       expect(refreshAccessToken).toHaveBeenCalledTimes(1);
     });
 

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, mock } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { CodeNavigationServiceImpl } from "@githits/core-internal";
 import {
   type RefreshTokenResponse,
   TokenRefreshError,
@@ -111,7 +112,9 @@ describe("TokenManager file-backed integration", () => {
       mcpUrl: baseUrl,
     });
 
-    expect(await firstManager.getToken()).toBeUndefined();
+    await expect(firstManager.getToken()).rejects.toThrow(
+      "network unavailable",
+    );
     expect(await secondStorage.loadTokens(baseUrl)).toEqual(initial);
 
     const refreshAccessToken = mock((_request: { refreshToken: string }) =>
@@ -135,6 +138,123 @@ describe("TokenManager file-backed integration", () => {
       accessToken: "rotated-access-token",
       refreshToken: "rotated-refresh-token",
     });
+  });
+
+  it("silently refreshes an expired stored login before a search call", async () => {
+    const { firstStorage } = await createRealStorages();
+    await firstStorage.saveAuthSession(
+      baseUrl,
+      defaultClientRegistration,
+      createExpiredToken({
+        accessToken: "expired-access-token",
+        refreshToken: "stored-refresh-token",
+      }),
+    );
+    const refreshAccessToken = mock(() =>
+      Promise.resolve({
+        accessToken: "refreshed-access-token",
+        refreshToken: "rotated-refresh-token",
+        expiresIn: 3600,
+      }),
+    );
+    const manager = new TokenManager({
+      authService: createMockAuthService({ refreshAccessToken }),
+      authStorage: firstStorage,
+      mcpUrl: baseUrl,
+    });
+    const fetchFn = mock((_url: string | URL | Request, _init?: RequestInit) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              search: {
+                completed: true,
+                searchRef: "search-ref-123",
+                result: {
+                  query: "test",
+                  queryWarnings: [],
+                  sources: ["CODE"],
+                  results: [],
+                  page: {
+                    offset: 0,
+                    limit: 20,
+                    returned: 0,
+                    hasMore: false,
+                  },
+                  partialResults: false,
+                  sourceStatus: [],
+                },
+                progress: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    ) as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      "https://pkgseer.dev",
+      manager,
+      fetchFn,
+    );
+
+    const result = await service.search({
+      targets: [{ registry: "NPM", packageName: "express" }],
+      query: "test",
+    });
+    expect(result.state).toBe("completed");
+    expect(refreshAccessToken).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshToken: "stored-refresh-token" }),
+    );
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const request = (fetchFn as unknown as ReturnType<typeof mock>).mock
+      .calls[0]?.[1] as RequestInit | undefined;
+    expect(request?.headers).toMatchObject({
+      Authorization: "Bearer refreshed-access-token",
+    });
+    expect(await firstStorage.loadTokens(baseUrl)).toMatchObject({
+      accessToken: "refreshed-access-token",
+      refreshToken: "rotated-refresh-token",
+    });
+  });
+
+  it("preserves the real refresh failure instead of reporting a missing local token", async () => {
+    const { firstStorage } = await createRealStorages();
+    const expired = createExpiredToken({
+      accessToken: "expired-access-token",
+      refreshToken: "stored-refresh-token",
+    });
+    await firstStorage.saveAuthSession(
+      baseUrl,
+      defaultClientRegistration,
+      expired,
+    );
+    const manager = new TokenManager({
+      authService: createMockAuthService({
+        refreshAccessToken: mock(() =>
+          Promise.reject(new Error("refresh transport unavailable")),
+        ),
+      }),
+      authStorage: firstStorage,
+      mcpUrl: baseUrl,
+    });
+    const fetchFn = mock(() =>
+      Promise.reject(new Error("backend should not be called")),
+    ) as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      "https://pkgseer.dev",
+      manager,
+      fetchFn,
+    );
+
+    await expect(
+      service.search({
+        targets: [{ registry: "NPM", packageName: "express" }],
+        query: "test",
+      }),
+    ).rejects.toThrow("refresh transport unavailable");
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(await firstStorage.loadTokens(baseUrl)).toEqual(expired);
   });
 
   it("serializes endpoint refresh when rotation invalidates concurrent refreshes", async () => {
@@ -397,7 +517,7 @@ describe("TokenManager file-backed integration", () => {
     );
     rejectRefresh(new Error("refresh failed"));
 
-    expect(await result).toBeUndefined();
+    await expect(result).rejects.toThrow("refresh failed");
     await externalLoginWrite;
     expect(await firstStorage.loadTokens(baseUrl)).toEqual(externalLogin);
     expect(refreshAccessToken).toHaveBeenCalledTimes(1);

@@ -1,5 +1,8 @@
-import type { TokenProvider } from "@githits/core-internal";
-import { withTelemetrySpan } from "@githits/core-internal";
+import {
+  AuthenticationError,
+  type TokenProvider,
+  withTelemetrySpan,
+} from "@githits/core-internal";
 import type { AuthDiagnosticsStore } from "./auth-diagnostics-storage.js";
 import {
   type AuthService,
@@ -26,6 +29,8 @@ export interface TokenManagerDeps {
   authService: AuthService;
   authStorage: LockingAuthStorage;
   mcpUrl: string;
+  /** Return undefined for refresh failures in local status/token probes. */
+  refreshFailureMode?: "throw" | "return-undefined";
   /**
    * Optional diagnostics breadcrumb store. When present, terminal refresh
    * failures that clear the token record why, so `doctor` can explain it later.
@@ -82,7 +87,12 @@ export async function refreshExpiredToken(
   authStorage: LockingAuthStorage,
   mcpUrl: string,
 ): Promise<string | undefined> {
-  const manager = new TokenManager({ authService, authStorage, mcpUrl });
+  const manager = new TokenManager({
+    authService,
+    authStorage,
+    mcpUrl,
+    refreshFailureMode: "return-undefined",
+  });
   return manager.forceRefresh();
 }
 
@@ -94,6 +104,7 @@ export class TokenManager implements TokenProvider {
   private readonly authService: AuthService;
   private readonly authStorage: LockingAuthStorage;
   private readonly mcpUrl: string;
+  private readonly refreshFailureMode: "throw" | "return-undefined";
   private readonly authDiagnostics?: AuthDiagnosticsStore;
   private cachedToken: TokenData | null = null;
   private softRefreshPromise: Promise<RefreshResult> | null = null;
@@ -103,6 +114,7 @@ export class TokenManager implements TokenProvider {
     this.authService = deps.authService;
     this.authStorage = deps.authStorage;
     this.mcpUrl = deps.mcpUrl;
+    this.refreshFailureMode = deps.refreshFailureMode ?? "throw";
     this.authDiagnostics = deps.authDiagnostics;
   }
 
@@ -140,8 +152,17 @@ export class TokenManager implements TokenProvider {
         return currentToken;
       }
 
-      // Attempt refresh (coalesced if already in-flight)
-      const refresh = await this.refreshFromGetToken();
+      // Attempt refresh (coalesced if already in-flight). A proactive refresh
+      // failure must not block a still-valid access token, but once the access
+      // token is expired the caller needs the real failure instead of a false
+      // "no local token" result.
+      let refresh: RefreshResult;
+      try {
+        refresh = await this.refreshFromGetToken();
+      } catch (error) {
+        if (!expired) return currentToken;
+        throw error;
+      }
 
       if (refresh.accessToken) {
         return refresh.accessToken;
@@ -228,7 +249,15 @@ export class TokenManager implements TokenProvider {
           "token-manager.load-client",
           () => this.authStorage.loadClient(this.mcpUrl),
         );
-        if (!client) return refreshResult(undefined, false);
+        if (!client) {
+          if (this.refreshFailureMode === "return-undefined") {
+            return refreshResult(undefined, false);
+          }
+          throw new AuthenticationError(
+            "Stored GitHits credentials cannot be refreshed because the OAuth client registration is missing or unreadable.",
+            "local",
+          );
+        }
 
         let response: RefreshTokenResponse;
         try {
@@ -273,7 +302,10 @@ export class TokenManager implements TokenProvider {
               return refreshResult(currentStoredTokens.accessToken, false);
             }
           }
-          return refreshResult(undefined, false);
+          if (this.refreshFailureMode === "return-undefined") {
+            return refreshResult(undefined, false);
+          }
+          throw error;
         }
 
         const newTokenData: TokenData = {
