@@ -140,7 +140,7 @@ export class TokenRefreshError extends Error {
  */
 export interface RegisterClientParams {
   registrationEndpoint: string;
-  redirectUri: string;
+  redirectUris: readonly string[];
 }
 
 /**
@@ -238,7 +238,7 @@ export class AuthServiceImpl implements AuthService {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           client_name: "GitHits CLI",
-          redirect_uris: [params.redirectUri],
+          redirect_uris: params.redirectUris,
           grant_types: ["authorization_code", "refresh_token"],
           response_types: ["code"],
           token_endpoint_auth_method: "client_secret_post",
