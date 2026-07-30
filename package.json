@@ -110,6 +110,6 @@
     "bunup": "^0.16.32",
     "husky": "^9.1.7",
     "lint-staged": "17.2.0",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   }
 }
