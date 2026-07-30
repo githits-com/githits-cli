@@ -195,28 +195,26 @@ describe("pkgDepsAction", () => {
     exitSpy.mockRestore();
   });
 
-  it.each([
-    "3.5",
-    "5abc",
-    "abc5",
-    "3.0",
-  ])("rejects partially-numeric --depth input %s (no silent truncation)", async (input) => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit");
-    });
+  it.each(["3.5", "5abc", "abc5", "3.0"])(
+    "rejects partially-numeric --depth input %s (no silent truncation)",
+    async (input) => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit");
+      });
 
-    try {
-      await pkgDepsAction("npm:express", { depth: input }, createDeps());
-    } catch {
-      /* expected */
-    }
+      try {
+        await pkgDepsAction("npm:express", { depth: input }, createDeps());
+      } catch {
+        /* expected */
+      }
 
-    const msg = errorSpy.mock.calls[0]?.[0] as string;
-    expect(msg).toContain("--depth expects an integer");
-    errorSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
+      const msg = errorSpy.mock.calls[0]?.[0] as string;
+      expect(msg).toContain("--depth expects an integer");
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    },
+  );
 
   it("rejects unsupported registry (nuget) with tool-specific message", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});

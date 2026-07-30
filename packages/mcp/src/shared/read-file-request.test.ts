@@ -72,13 +72,18 @@ describe("buildReadFileParams — defaults and validation", () => {
 });
 
 describe("buildReadFileParams — rejection cases", () => {
-  it.each([
-    0, -1, 3.5,
-  ])("rejects non-positive/fractional startLine %s", (raw) => {
-    expect(() =>
-      buildReadFileParams({ target, filePath: "src/index.js", startLine: raw }),
-    ).toThrow(/start_line.*positive integer/);
-  });
+  it.each([0, -1, 3.5])(
+    "rejects non-positive/fractional startLine %s",
+    (raw) => {
+      expect(() =>
+        buildReadFileParams({
+          target,
+          filePath: "src/index.js",
+          startLine: raw,
+        }),
+      ).toThrow(/start_line.*positive integer/);
+    },
+  );
 
   it("rejects a reversed range", () => {
     expect(() =>

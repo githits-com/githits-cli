@@ -139,13 +139,14 @@ describe("buildListFilesParams — limit bounds", () => {
 });
 
 describe("buildListFilesParams — waitTimeoutMs bounds", () => {
-  it.each([
-    -1, 60001, 3.5,
-  ])("rejects out-of-range waitTimeoutMs %s", (waitTimeoutMs) => {
-    expect(() =>
-      buildListFilesParams({ target: packageTarget, waitTimeoutMs }),
-    ).toThrow(/between 0 and 60000/);
-  });
+  it.each([-1, 60001, 3.5])(
+    "rejects out-of-range waitTimeoutMs %s",
+    (waitTimeoutMs) => {
+      expect(() =>
+        buildListFilesParams({ target: packageTarget, waitTimeoutMs }),
+      ).toThrow(/between 0 and 60000/);
+    },
+  );
 
   it("accepts 0 (fail-fast mode) at the lower boundary", () => {
     expect(
