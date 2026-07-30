@@ -162,6 +162,18 @@ describe("loginAction", () => {
     );
 
     expect(authService.registerClient).not.toHaveBeenCalled();
+    expect(authService.buildAuthUrl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        redirectUri:
+          "http://127.0.0.1:8080/callback?utm_source=githits-cli&utm_medium=cli&utm_campaign=cli-auth",
+      }),
+    );
+    expect(authService.exchangeCodeForTokens).toHaveBeenCalledWith(
+      expect.objectContaining({
+        redirectUri:
+          "http://127.0.0.1:8080/callback?utm_source=githits-cli&utm_medium=cli&utm_campaign=cli-auth",
+      }),
+    );
     consoleSpy.mockRestore();
   });
 
@@ -181,6 +193,13 @@ describe("loginAction", () => {
     );
 
     expect(authService.registerClient).toHaveBeenCalled();
+    expect(authService.registerClient).toHaveBeenCalledWith({
+      registrationEndpoint: "https://accounts.githits.com/oauth/register",
+      redirectUris: [
+        "http://127.0.0.1:8080/callback",
+        "http://127.0.0.1:8080/callback?utm_source=githits-cli&utm_medium=cli&utm_campaign=cli-auth",
+      ],
+    });
     expect(authStorage.saveAuthSession).toHaveBeenCalledWith(
       mcpUrl,
       expect.any(Object),
