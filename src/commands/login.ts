@@ -7,6 +7,7 @@ import { createAuthCommandDependencies } from "../container.js";
 import type { AuthService } from "../services/auth-service.js";
 import type { AuthStorage } from "../services/auth-storage.js";
 import type { BrowserService } from "../services/browser-service.js";
+import { withCliAuthAttribution } from "../shared/oauth-attribution.js";
 import {
   addOAuthCallbackOptions,
   CALLBACK_PORT_REQUIREMENT,
@@ -173,7 +174,7 @@ export async function loginFlow(
         try {
           registration = await authService.registerClient({
             registrationEndpoint: metadata.registrationEndpoint,
-            redirectUri,
+            redirectUris: [redirectUri, withCliAuthAttribution(redirectUri)],
           });
         } catch (error) {
           return signInStartFailure(error);
@@ -200,7 +201,7 @@ export async function loginFlow(
     try {
       registration = await authService.registerClient({
         registrationEndpoint: metadata.registrationEndpoint,
-        redirectUri,
+        redirectUris: [redirectUri, withCliAuthAttribution(redirectUri)],
       });
     } catch (error) {
       return signInStartFailure(error);
@@ -214,6 +215,8 @@ export async function loginFlow(
     shouldClearClientOnFailedAttempt = !hadStoredClient;
   }
 
+  const authRedirectUri = withCliAuthAttribution(redirectUri);
+
   // Step 3: Generate PKCE parameters
   const { verifier, challenge, state } = authService.generatePkceParams();
 
@@ -221,7 +224,7 @@ export async function loginFlow(
   const authUrl = authService.buildAuthUrl({
     authorizationEndpoint: metadata.authorizationEndpoint,
     clientId: client.clientId,
-    redirectUri,
+    redirectUri: authRedirectUri,
     state,
     codeChallenge: challenge,
   });
@@ -305,7 +308,7 @@ export async function loginFlow(
       clientSecret: client.clientSecret,
       code: callback.code,
       codeVerifier: verifier,
-      redirectUri,
+      redirectUri: authRedirectUri,
     });
   } catch (error) {
     // Best-effort: clear potentially stale client so next login starts fresh.

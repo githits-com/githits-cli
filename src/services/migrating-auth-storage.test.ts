@@ -146,7 +146,7 @@ describe("MigratingAuthStorage", () => {
     expect(legacy.clearTokens).not.toHaveBeenCalled();
   });
 
-  it("keychain mode returns null when keychain is unavailable instead of falling back to plaintext", async () => {
+  it("keychain mode exposes unavailable token storage without falling back to plaintext", async () => {
     const token = createValidTokenData();
     const primary = createMockAuthStorage({
       loadTokens: mock(() =>
@@ -156,12 +156,27 @@ describe("MigratingAuthStorage", () => {
     const file = createMockAuthStorage({
       loadTokens: mock(() => Promise.resolve(token)),
     });
-    const legacy = createMockAuthStorage();
-    const storage = new MigratingAuthStorage(primary, file, legacy, "keychain");
+    const legacy = createMockAuthStorage({
+      loadTokens: mock(() => Promise.resolve(token)),
+    });
+    const storage = new MigratingAuthStorage(
+      primary,
+      file,
+      legacy,
+      "keychain",
+      "/home/test/.config/githits/config.toml",
+    );
 
-    await expect(storage.loadTokens(BASE_URL)).resolves.toBeNull();
+    await expect(storage.loadTokens(BASE_URL)).rejects.toBeInstanceOf(
+      AuthStoragePolicyError,
+    );
+    await expect(storage.loadTokens(BASE_URL)).rejects.toThrow(
+      /System keychain is unavailable/,
+    );
     expect(file.loadTokens).not.toHaveBeenCalled();
+    expect(legacy.loadTokens).not.toHaveBeenCalled();
     expect(file.clearTokens).not.toHaveBeenCalled();
+    expect(legacy.clearTokens).not.toHaveBeenCalled();
   });
 
   it("keychain mode save fails instead of writing plaintext when keychain is unavailable", async () => {
@@ -544,6 +559,33 @@ describe("MigratingAuthStorage", () => {
     expect(legacy.clearClient).not.toHaveBeenCalled();
   });
 
+  it("keychain mode exposes unavailable client storage without falling back to plaintext", async () => {
+    const primary = createMockAuthStorage({
+      loadClient: mock(() =>
+        Promise.reject(new KeychainUnavailableError("keychain locked")),
+      ),
+    });
+    const file = createMockAuthStorage({
+      loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+    });
+    const legacy = createMockAuthStorage({
+      loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+    });
+    const storage = new MigratingAuthStorage(
+      primary,
+      file,
+      legacy,
+      "keychain",
+      "/home/test/.config/githits/config.toml",
+    );
+
+    await expect(storage.loadClient(BASE_URL)).rejects.toBeInstanceOf(
+      AuthStoragePolicyError,
+    );
+    expect(file.loadClient).not.toHaveBeenCalled();
+    expect(legacy.loadClient).not.toHaveBeenCalled();
+  });
+
   it("migrates clients according to configured mode", async () => {
     const primary = createMockAuthStorage();
     const file = createMockAuthStorage();
@@ -895,7 +937,7 @@ describe("MigratingAuthStorage", () => {
       expect(metadata.clear).not.toHaveBeenCalled();
     });
 
-    it("returns false without throwing when the keychain is unavailable", async () => {
+    it("exposes unavailable keychain storage before clearing tokens", async () => {
       const token = createValidTokenData();
       const primary = createMockAuthStorage({
         loadTokens: mock(() =>
@@ -911,7 +953,7 @@ describe("MigratingAuthStorage", () => {
 
       await expect(
         storage.clearActiveTokensIfUnchanged(BASE_URL, token),
-      ).resolves.toBe(false);
+      ).rejects.toBeInstanceOf(AuthStoragePolicyError);
       expect(primary.clearTokens).not.toHaveBeenCalled();
     });
 
