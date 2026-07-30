@@ -27,15 +27,14 @@ describe("buildPackageDependenciesParams — registry matrix", () => {
     expect(result.params.registry).toBe(expected);
   });
 
-  it.each([
-    ["nuget"],
-    ["maven"],
-    ["packagist"],
-  ] as const)("rejects registry %s with tool-specific message", (arg) => {
-    expect(() =>
-      buildPackageDependenciesParams({ registry: arg, packageName: "x" }),
-    ).toThrow(UnsupportedDependenciesRegistryError);
-  });
+  it.each([["nuget"], ["maven"], ["packagist"]] as const)(
+    "rejects registry %s with tool-specific message",
+    (arg) => {
+      expect(() =>
+        buildPackageDependenciesParams({ registry: arg, packageName: "x" }),
+      ).toThrow(UnsupportedDependenciesRegistryError);
+    },
+  );
 
   it("rejects truly unknown registries via the shared UnsupportedRegistryError", () => {
     expect(() =>

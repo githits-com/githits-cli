@@ -178,26 +178,29 @@ describe("pkgReadAction", () => {
     ["10-40", 10, 40],
     ["10-", 10, undefined],
     ["-40", 1, 40],
-  ])("parses --lines '%s' into start=%s end=%s", async (lines, expectedStart, expectedEnd) => {
-    const readFile = mock(() => Promise.resolve(defaultReadFileResult));
-    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
-      (() => true) as typeof process.stdout.write,
-    );
-    await pkgReadAction(
-      "npm:express",
-      "src/index.js",
-      { lines },
-      createDeps({
-        codeNavigationService: createMockCodeNavigationService({ readFile }),
-      }),
-    );
-    const calls = readFile.mock.calls as unknown as Array<
-      [{ startLine?: number; endLine?: number }]
-    >;
-    expect(calls[0]?.[0]?.startLine).toBe(expectedStart);
-    expect(calls[0]?.[0]?.endLine).toBe(expectedEnd);
-    writeSpy.mockRestore();
-  });
+  ])(
+    "parses --lines '%s' into start=%s end=%s",
+    async (lines, expectedStart, expectedEnd) => {
+      const readFile = mock(() => Promise.resolve(defaultReadFileResult));
+      const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+        (() => true) as typeof process.stdout.write,
+      );
+      await pkgReadAction(
+        "npm:express",
+        "src/index.js",
+        { lines },
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({ readFile }),
+        }),
+      );
+      const calls = readFile.mock.calls as unknown as Array<
+        [{ startLine?: number; endLine?: number }]
+      >;
+      expect(calls[0]?.[0]?.startLine).toBe(expectedStart);
+      expect(calls[0]?.[0]?.endLine).toBe(expectedEnd);
+      writeSpy.mockRestore();
+    },
+  );
 
   it("parses trailing :start-end range from the path", async () => {
     const readFile = mock(() => Promise.resolve(defaultReadFileResult));
