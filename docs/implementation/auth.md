@@ -63,7 +63,9 @@ To clear tokens manually, use `githits logout`. This removes stored tokens for t
 
 ## Storage
 
-Credentials are stored in the **system keychain** by default (macOS Keychain, Windows Credential Manager, Linux Secret Service) via `@napi-rs/keyring`. The CLI does not silently downgrade OAuth credentials to plaintext files when the keychain is unavailable.
+Credentials are stored in the **system keychain** by default (macOS Keychain, Windows Credential Manager, Linux Secret Service) via `@napi-rs/keyring`. A missing entry is reported as unauthenticated, while a keychain access failure is surfaced as a storage error. The CLI does not silently downgrade OAuth credentials to plaintext files when the keychain is unavailable.
+
+The currently locked `@napi-rs/keyring@1.3.0` cannot yet preserve that distinction for reads because it converts both missing entries and platform failures to `null`. The upstream fix is tracked in [keyring-node#136](https://github.com/Brooooooklyn/keyring-node/pull/136); the dependency must be updated after a fixed release is published.
 
 Machines without a usable keychain can explicitly opt into plaintext OAuth storage with `auth.storage = "file"` in `config.toml` or `GITHITS_AUTH_STORAGE=file`. `GITHITS_API_TOKEN` remains the preferred automation/CI path because it avoids storing OAuth refresh credentials.
 
@@ -127,7 +129,8 @@ Keychain mode:
 
 1. Check keychain — if found, return it
 2. Do not inspect plaintext file storage or legacy plaintext paths
-3. Keychain empty or unavailable — return null
+3. If the keychain has no matching entry, return null
+4. If the keychain cannot be accessed, fail with storage guidance instead of treating the credential as missing
 
 File mode:
 
@@ -188,7 +191,7 @@ The MCP server starts without a synchronous auth gate. Tool calls resolve tokens
 - **Token refresh fails silently** — The token manager first reloads storage in case another process refreshed credentials. Transient failures retain unchanged refresh credentials and later calls retry. Only classified terminal failures clear the stale token from the active backend and require login again.
 - **Logged out after running in a different storage mode** — Credentials saved under one `auth.storage` mode are invisible to the other (keychain and file modes do not cross-inspect). An inconsistent `GITHITS_AUTH_STORAGE` across contexts (e.g. set for the MCP server but not the interactive shell) looks like a logout. Automatic clears no longer compound this by wiping the other mode's credentials, but the fix for the phantom logout is to make the mode consistent everywhere (prefer `auth.storage` in `config.toml` over the env var) and `githits login --force` once.
 - **Clearing auth** — Run `githits logout` to remove stored tokens and client registration for the current environment.
-- **System keychain unavailable** — In default keychain mode, OAuth login/refresh fails rather than writing plaintext credentials. Use `GITHITS_API_TOKEN`, fix/unlock the keychain, or explicitly configure `auth.storage = "file"` if plaintext local storage is acceptable.
+- **System keychain unavailable** — In default keychain mode, reads and writes are designed to fail with storage guidance rather than treating credentials as missing or writing plaintext credentials. Read failures require the pending upstream `@napi-rs/keyring` fix described above. Use `GITHITS_API_TOKEN`, fix/unlock the keychain, or explicitly configure `auth.storage = "file"` if plaintext local storage is acceptable.
 - **Windows "password encoded as UTF-16 is longer than platform limit"** — The Windows Credential Manager limits credential blobs to 2560 bytes (`CRED_MAX_CREDENTIAL_BLOB_SIZE`). Since passwords are stored as UTF-16 (2 bytes per char), the effective limit is 1280 characters. The `ChunkingKeyringService` decorator handles this automatically by splitting large values across multiple entries. If this error occurs on an older CLI version, upgrade to get chunked storage support.
 
 ## Diagnostics
