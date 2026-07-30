@@ -243,7 +243,7 @@ export class MigratingAuthStorage implements AuthStorage {
         return primaryTokens;
       }
     } catch (error) {
-      if (!(error instanceof KeychainUnavailableError)) throw error;
+      throw this.toPolicyError(error);
     }
     return null;
   }
@@ -276,7 +276,7 @@ export class MigratingAuthStorage implements AuthStorage {
       const primaryClient = await this.primary.loadClient(baseUrl);
       if (primaryClient) return primaryClient;
     } catch (error) {
-      if (!(error instanceof KeychainUnavailableError)) throw error;
+      throw this.toPolicyError(error);
     }
     return null;
   }
@@ -428,8 +428,7 @@ export class MigratingAuthStorage implements AuthStorage {
     try {
       return await this.primary.loadTokens(baseUrl);
     } catch (error) {
-      if (error instanceof KeychainUnavailableError) return null;
-      throw error;
+      throw this.toPolicyError(error);
     }
   }
 

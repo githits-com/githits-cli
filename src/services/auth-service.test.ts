@@ -134,7 +134,10 @@ describe("AuthServiceImpl", () => {
       await expect(
         injectedService.registerClient({
           registrationEndpoint: "https://auth.example.com/register",
-          redirectUri: "http://127.0.0.1:8080/callback",
+          redirectUris: [
+            "http://127.0.0.1:8080/callback",
+            "http://127.0.0.1:8080/callback?utm_source=githits-cli",
+          ],
         }),
       ).resolves.toEqual({ clientId: "client-id", clientSecret: "secret" });
 
@@ -147,7 +150,10 @@ describe("AuthServiceImpl", () => {
       expect(init.headers).toEqual({ "Content-Type": "application/json" });
       expect(JSON.parse(String(init.body))).toEqual({
         client_name: "GitHits CLI",
-        redirect_uris: ["http://127.0.0.1:8080/callback"],
+        redirect_uris: [
+          "http://127.0.0.1:8080/callback",
+          "http://127.0.0.1:8080/callback?utm_source=githits-cli",
+        ],
         grant_types: ["authorization_code", "refresh_token"],
         response_types: ["code"],
         token_endpoint_auth_method: "client_secret_post",
@@ -169,7 +175,7 @@ describe("AuthServiceImpl", () => {
       await expect(
         new AuthServiceImpl(asFetchFn(jsonFetch)).registerClient({
           registrationEndpoint: "https://auth.example.com/register",
-          redirectUri: "http://127.0.0.1:8080/callback",
+          redirectUris: ["http://127.0.0.1:8080/callback"],
         }),
       ).rejects.toThrow(
         "Client registration failed with HTTP 503. Registration unavailable",
@@ -177,7 +183,7 @@ describe("AuthServiceImpl", () => {
       try {
         await new AuthServiceImpl(asFetchFn(htmlFetch)).registerClient({
           registrationEndpoint: "https://auth.example.com/register",
-          redirectUri: "http://127.0.0.1:8080/callback",
+          redirectUris: ["http://127.0.0.1:8080/callback"],
         });
         throw new Error("Expected registration to fail");
       } catch (error) {
@@ -197,7 +203,7 @@ describe("AuthServiceImpl", () => {
       await expect(
         new AuthServiceImpl(asFetchFn(malformedFetch)).registerClient({
           registrationEndpoint: "https://auth.example.com/register",
-          redirectUri: "http://127.0.0.1:8080/callback",
+          redirectUris: ["http://127.0.0.1:8080/callback"],
         }),
       ).rejects.toThrow("missing required fields");
 
@@ -205,7 +211,7 @@ describe("AuthServiceImpl", () => {
       await expect(
         new AuthServiceImpl(asFetchFn(unusedFetch)).registerClient({
           registrationEndpoint: "http://attacker.test/register",
-          redirectUri: "http://127.0.0.1:8080/callback",
+          redirectUris: ["http://127.0.0.1:8080/callback"],
         }),
       ).rejects.toThrow("OAuth registration endpoint");
       expect(unusedFetch).not.toHaveBeenCalled();
