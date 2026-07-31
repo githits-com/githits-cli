@@ -249,7 +249,7 @@ Standard grep -A/-B notation: `:` separator on match lines, `-` on context lines
 
 `context_lines`, `context_lines_before`, and `context_lines_after` accept integers from 0 through 10. The MCP JSON Schema advertises the range so agent clients reject invalid calls before dispatch; direct CLI/internal callers retain the same request-builder validation. The asymmetric fields override the corresponding side of `context_lines`.
 
-`docs_read` text output is capped at 150 lines per call, including explicit larger ranges. Its response reports the actual returned range and total line count for the next bounded read; JSON mode preserves explicitly requested ranges.
+**Docs read cap.** `docs_read` text output is capped at 150 lines per call, including explicit larger ranges. Its response reports the actual returned range and total line count for the next bounded read; JSON mode preserves explicitly requested ranges.
 
 **Errors in text mode.** `search` errors render as text in `text-v1` mode: `search | ERROR | code=<CODE> [| retryable]\n<message>` followed by an indented `details:` block when present. `code_files` and `code_grep` keep errors JSON-formatted in either mode for now — revisit if agent feedback warrants.
 
