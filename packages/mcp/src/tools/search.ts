@@ -408,9 +408,13 @@ function resolveSearchTarget(
 }
 
 function normaliseStructuredSiteTarget(site: string): string {
-  return parseUnifiedSearchTargetSpec(
+  const parsed = parseUnifiedSearchTargetSpec(
     site.toLowerCase().startsWith("site:") ? site : `site:${site}`,
-  ).site!;
+  );
+  if (parsed.site) return parsed.site;
+  throw new Error(
+    "Expected structured site target to normalize to site target.",
+  );
 }
 
 function invalidSearchTargetResult(message: string): ToolResult {

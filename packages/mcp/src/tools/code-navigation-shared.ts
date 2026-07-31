@@ -18,7 +18,7 @@ import { errorResult, type ToolResult } from "./types.js";
 // src/shared/code-navigation-defaults.ts per the CLI/MCP parity rules.
 export { DEFAULT_WAIT_TIMEOUT_MS } from "../shared/code-navigation-defaults.js";
 
-export const structuredCodeTargetObject = z.object({
+const structuredCodeTargetShape: z.ZodRawShape = {
   registry: z
     .enum(PKGSEER_REGISTRY_ARGS)
     .optional()
@@ -49,12 +49,16 @@ export const structuredCodeTargetObject = z.object({
     .describe(
       "Git ref - tag, branch, commit, or HEAD. Omit with repo_url to request the backend-resolved default branch.",
     ),
-});
+};
+
+export const structuredCodeTargetObject: z.ZodObject<z.ZodRawShape> = z.object(
+  structuredCodeTargetShape,
+);
 
 export const structuredCodeTargetSchema: z.ZodType<StructuredCodeTargetArg> =
   structuredCodeTargetObject.describe(
     "Target: provide registry + package_name (package scope) or repo_url with optional git_ref (repo scope; omitted ref means default branch intent).",
-  );
+  ) as z.ZodType<StructuredCodeTargetArg>;
 
 export const codeTargetSchema: z.ZodType<CodeTargetArg> = z.union([
   structuredCodeTargetSchema,
