@@ -32,13 +32,13 @@ const schema: ZodRawShape = {
     .number()
     .optional()
     .describe(
-      "Starting line (1-indexed). Omit for the full page. Use with `end_line` to bound how much content the tool returns when a page is large.",
+      "Starting line (1-indexed). Omit to start at line 1. Text output returns at most 150 lines per call even when a larger explicit range is requested.",
     ),
   end_line: z
     .number()
     .optional()
     .describe(
-      "Ending line (inclusive). Omit for end of page. Must be ≥ `start_line` when both are set.",
+      "Ending line (inclusive). In text mode, omitting it returns at most 150 lines from `start_line`; in JSON mode, omitting it reads to the end of the page. Must be ≥ `start_line` when both are set. Text output clamps larger ranges and reports the returned range.",
     ),
   format: z
     .enum(["text-v1", "text", "json"])
@@ -50,7 +50,7 @@ const schema: ZodRawShape = {
 
 export const DESCRIPTION: string =
   "Read a documentation page by page ID. Works for both hosted/crawled docs and repository-backed docs. " +
-  "Pass `start_line` / `end_line` to fetch only a slice when a page is too long — response carries `totalLines` so you can target the next slice. " +
+  "Pass `start_line` / `end_line` to fetch a slice when a page is too long. Text output is capped at 150 lines per call, including explicit larger ranges; the response carries the returned range and `totalLines` so you can target the next slice. " +
   "Repo-backed results additionally include exact file follow-up metadata for `code_read`." +
   `\n\n${DOCS_GUARDRAIL}`;
 

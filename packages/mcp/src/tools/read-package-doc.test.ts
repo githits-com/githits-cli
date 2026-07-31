@@ -20,6 +20,16 @@ describe("createReadPackageDocTool", () => {
       "end_line",
       "format",
     ]);
+    expect(tool.description).toContain("capped at 150 lines per call");
+    expect(tool.schema.start_line?.description).toContain(
+      "at most 150 lines per call",
+    );
+    expect(tool.schema.end_line?.description).toContain(
+      "In text mode, omitting it returns at most 150 lines",
+    );
+    expect(tool.schema.end_line?.description).toContain(
+      "in JSON mode, omitting it reads to the end",
+    );
   });
 
   it("calls service.readPackageDoc with the page ID", async () => {

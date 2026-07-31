@@ -109,6 +109,24 @@ describe("buildMcpInstructions", () => {
     );
   });
 
+  it("excludes local and private repository targets", () => {
+    const instructions = buildMcpInstructions();
+    expect(instructions).toContain(
+      "not local workspaces, private repositories",
+    );
+    expect(instructions).toContain("Do not attempt private repository targets");
+    expect(instructions).toContain("`REPOSITORY_NOT_FOUND`");
+  });
+
+  it("makes indexed documentation discovery explicit", () => {
+    const instructions = buildMcpInstructions();
+    expect(instructions).toContain(
+      "documentation pages available for a package",
+    );
+    expect(instructions).toContain('`search` with `source:"docs"`');
+    expect(instructions).toContain("pass its `pageId` to `docs_read`");
+  });
+
   it("keeps the core block first", () => {
     const instructions = buildMcpInstructions();
 

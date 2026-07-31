@@ -24,7 +24,7 @@ Use GitHits for evidence from real open-source code instead of guessing from mod
 - Exact language name uncertain for `example --lang`: run `githits languages <query>` first.
 - Inspecting a known dependency or GitHub repo: start with `githits search` scoped by `--in`.
 - Need file/path enumeration: use `githits code files`; do not probe directories with `code read`.
-- Know the exact text or regex to match: use `githits code grep`; use `githits search` for discovery.
+- Know the exact text to match: use `githits code grep` (literal by default). Pass `--regex` for RE2 syntax; lookaround and backreferences are unsupported. Use `githits search` for discovery.
 - Need documentation pages: use `githits search "<topic>" --source docs --in <target>` for topic search, or `githits docs list <spec>` to browse available pages.
 
 ## Core Commands
@@ -34,15 +34,15 @@ githits example "how to use express middleware"
 githits example "react hooks patterns" --lang typescript
 githits languages type
 
-githits search "router middleware" --in npm:express
-githits search "debounce" --in npm:lodash --source symbol
+githits search "router middleware" --in npm:express@5.2.1
+githits search "debounce" --in npm:lodash@4.18.1 --source symbol
 githits search '"body parser" OR multer' --in npm:express --source docs --json
 githits search-status <searchRef>
 
-githits code files npm:express lib/ --ext js --limit 100
-githits code read npm:express lib/express.js --lines 1-90
-githits code grep npm:express "process_params" lib/ -C 3
-githits code grep --repo-url https://github.com/expressjs/express --git-ref HEAD "Router" lib/
+githits code files npm:express@5.2.1 lib/ --ext js --limit 100
+githits code read npm:express@5.2.1 lib/express.js --lines 1-90
+githits code grep npm:express@5.2.1 "require('router')" lib/ -C 3
+githits code grep --repo-url https://github.com/expressjs/express --git-ref v5.2.1 "require('router')" lib/
 
 githits docs list npm:express --limit 20
 githits docs read <pageId> --lines 20-120
@@ -52,6 +52,7 @@ githits docs read <pageId> --lines 20-120
 
 - For behavioral claims, prefer source, symbols, tests, and call sites over docs prose.
 - For `githits example` results, report the source repositories/citations shown in GitHits' generated references/provenance section; they are core evidence for the synthesized pattern.
+- Package targets inspect published artifacts and omitted versions resolve to the latest release; repository targets inspect repository trees. For source-layout questions, always pin and report the package version or Git ref.
 - For source work, locate symbols or matches first, then read a focused window with explicit `--lines`.
 - For multi-step code/docs investigations, keep raw CLI output out of the final answer unless it is the evidence the user needs.
 - If output says it used recent/stale indexed evidence, treat the displayed served target as provenance; if freshness matters, retry with a longer `--wait` or use one of the displayed `queryable now` versions/refs, or inspect JSON `targetResolution` for structured candidates.

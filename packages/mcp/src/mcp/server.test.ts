@@ -62,3 +62,26 @@ describe("MCP output format", () => {
     }
   });
 });
+
+describe("MCP code_grep schema", () => {
+  it("advertises context as integers from zero through ten", () => {
+    const descriptor = getMcpToolDescriptors().find(
+      (candidate) => candidate.name === "code_grep",
+    );
+    expect(descriptor).toBeDefined();
+
+    const inputSchema = z.toJSONSchema(z.object(descriptor?.schema ?? {}));
+    for (const field of [
+      "context_lines",
+      "context_lines_before",
+      "context_lines_after",
+    ]) {
+      expect(inputSchema.properties?.[field], field).toMatchObject({
+        type: "integer",
+        minimum: 0,
+        maximum: 10,
+        description: expect.stringContaining("integer 0-10"),
+      });
+    }
+  });
+});

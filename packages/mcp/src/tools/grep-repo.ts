@@ -4,6 +4,8 @@ import { z } from "zod";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import {
   buildGrepRepoParams,
+  GREP_REPO_CONTEXT_MAX,
+  GREP_REPO_CONTEXT_MIN,
   GREP_REPO_PATTERN_NOTE,
   GREP_REPO_SYMBOL_FIELDS,
   GREP_REPO_SYMBOL_FIELDS_NOTE,
@@ -76,9 +78,33 @@ const schema: ZodRawShape = {
   case_sensitive: z.boolean().optional(),
   exclude_doc_files: z.boolean().optional(),
   exclude_test_files: z.boolean().optional(),
-  context_lines: z.number().optional(),
-  context_lines_before: z.number().optional(),
-  context_lines_after: z.number().optional(),
+  context_lines: z
+    .number()
+    .int()
+    .min(GREP_REPO_CONTEXT_MIN)
+    .max(GREP_REPO_CONTEXT_MAX)
+    .optional()
+    .describe(
+      `Context lines on both sides of each match (integer ${GREP_REPO_CONTEXT_MIN}-${GREP_REPO_CONTEXT_MAX}). \`context_lines_before\` or \`context_lines_after\` overrides the corresponding side.`,
+    ),
+  context_lines_before: z
+    .number()
+    .int()
+    .min(GREP_REPO_CONTEXT_MIN)
+    .max(GREP_REPO_CONTEXT_MAX)
+    .optional()
+    .describe(
+      `Context lines before each match (integer ${GREP_REPO_CONTEXT_MIN}-${GREP_REPO_CONTEXT_MAX}). Overrides \`context_lines\` for the before side.`,
+    ),
+  context_lines_after: z
+    .number()
+    .int()
+    .min(GREP_REPO_CONTEXT_MIN)
+    .max(GREP_REPO_CONTEXT_MAX)
+    .optional()
+    .describe(
+      `Context lines after each match (integer ${GREP_REPO_CONTEXT_MIN}-${GREP_REPO_CONTEXT_MAX}). Overrides \`context_lines\` for the after side.`,
+    ),
   max_matches: z.number().optional(),
   max_matches_per_file: z.number().optional(),
   cursor: z.string().optional(),

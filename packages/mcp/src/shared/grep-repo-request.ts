@@ -10,8 +10,8 @@ import {
 import { InvalidPackageSpecError } from "./package-spec.js";
 
 const PATTERN_MAX = 200;
-const CONTEXT_MIN = 0;
-const CONTEXT_MAX = 10;
+export const GREP_REPO_CONTEXT_MIN = 0;
+export const GREP_REPO_CONTEXT_MAX = 10;
 const LIMIT_MIN = 1;
 const LIMIT_MAX = 1000;
 const LIMIT_DEFAULT = 50;
@@ -254,9 +254,13 @@ function normalizeOptionalContext(
   field: string,
 ): number | undefined {
   if (value === undefined) return undefined;
-  if (!Number.isInteger(value) || value < CONTEXT_MIN || value > CONTEXT_MAX) {
+  if (
+    !Number.isInteger(value) ||
+    value < GREP_REPO_CONTEXT_MIN ||
+    value > GREP_REPO_CONTEXT_MAX
+  ) {
     throw new InvalidPackageSpecError(
-      `\`${field}\` must be an integer between ${CONTEXT_MIN} and ${CONTEXT_MAX}. Got ${value}.`,
+      `\`${field}\` must be an integer between ${GREP_REPO_CONTEXT_MIN} and ${GREP_REPO_CONTEXT_MAX}. Got ${value}.`,
     );
   }
   return value;
