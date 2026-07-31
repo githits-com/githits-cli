@@ -162,6 +162,35 @@ export type CodeIndexState =
   | "MISSING"
   | string;
 
+/**
+ * Coverage lifecycle for crawled documentation site data.
+ *
+ * `PARTIAL` is transient (a crawl is still running, so retrying later can
+ * return more); `CAPPED` is terminal (a crawl limit stopped indexing, so
+ * retrying will not help). Both mean served evidence may be incomplete.
+ */
+export type DocCoverageState =
+  | "NONE"
+  | "PARTIAL"
+  | "CAPPED"
+  | "COMPLETE"
+  | string;
+
+/**
+ * Coverage metadata for crawled documentation site data. Present on docs
+ * source status and progress targets when the backend has crawl metadata.
+ */
+export interface DocCoverage {
+  coverageState: DocCoverageState;
+  coverageReason?: string;
+  pagesCrawled?: number;
+  frontierRemaining?: number;
+  artifactOverflowPageCount?: number;
+  estimatedTotalPages?: number;
+  /** Backend-owned note suitable for CLI/MCP rendering. Preferred over client wording. */
+  note?: string;
+}
+
 export type DiscoveryRequestedRefKind =
   | "OMITTED_VERSION"
   | "LATEST_VERSION"
@@ -260,6 +289,7 @@ export interface UnifiedSearchSourceStatus {
   ignoredQueryFeatures: string[];
   incompatibleQueryFeatures: string[];
   note?: string;
+  coverage?: DocCoverage;
 }
 
 export interface UnifiedSearchProgressTarget {
@@ -273,6 +303,7 @@ export interface UnifiedSearchProgressTarget {
   availableVersions?: AvailableVersion[];
   availableRefs?: AvailableRef[];
   suggestedRefs?: SuggestedRef[];
+  coverage?: DocCoverage;
 }
 
 export interface UnifiedSearchRequestedTarget {
@@ -681,6 +712,22 @@ suggestedRefs {
   ref
 }`;
 
+/**
+ * Crawl coverage for documentation site data. Selected on both docs source
+ * status and progress targets so callers can distinguish "no matches" from
+ * "evidence withheld or incomplete because the crawl is partial or capped".
+ */
+const DOC_COVERAGE_SELECTION = `
+coverage {
+  coverageState
+  coverageReason
+  pagesCrawled
+  frontierRemaining
+  artifactOverflowPageCount
+  estimatedTotalPages
+  note
+}`;
+
 const TARGET_RESOLUTION_SELECTION = `
 targetResolution {
   requested {
@@ -834,6 +881,7 @@ query UnifiedSearch(
         ignoredQueryFeatures
         incompatibleQueryFeatures
         note
+        ${DOC_COVERAGE_SELECTION}
       }
     }
     progress {
@@ -853,6 +901,7 @@ query UnifiedSearch(
         version
         repoUrl
         gitRef
+        site
       }
       filters {
         fileIntent
@@ -872,6 +921,7 @@ query UnifiedSearch(
         requestedRefKind
         ${TARGET_RESOLUTION_SELECTION}
         ${DISCOVERY_TARGET_PROGRESS_RETRY_SELECTION}
+        ${DOC_COVERAGE_SELECTION}
       }
       expiresAt
     }
@@ -897,6 +947,7 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
       version
       repoUrl
       gitRef
+      site
     }
     filters {
       fileIntent
@@ -916,6 +967,7 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
       requestedRefKind
       ${TARGET_RESOLUTION_SELECTION}
       ${DISCOVERY_TARGET_PROGRESS_RETRY_SELECTION}
+      ${DOC_COVERAGE_SELECTION}
     }
     expiresAt
     results {
@@ -982,6 +1034,7 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
         ignoredQueryFeatures
         incompatibleQueryFeatures
         note
+        ${DOC_COVERAGE_SELECTION}
       }
     }
   }
@@ -1168,6 +1221,19 @@ const unifiedSearchPageInfoSchema = z.object({
   hasMore: z.boolean(),
 });
 
+const docCoverageSchema = z
+  .object({
+    coverageState: z.string(),
+    coverageReason: z.string().nullable().optional(),
+    pagesCrawled: z.number().int().nullable().optional(),
+    frontierRemaining: z.number().int().nullable().optional(),
+    artifactOverflowPageCount: z.number().int().nullable().optional(),
+    estimatedTotalPages: z.number().int().nullable().optional(),
+    note: z.string().nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
 const unifiedSearchSourceStatusSchema = z.object({
   source: unifiedSearchSourceSchema,
   targetLabel: z.string(),
@@ -1185,6 +1251,7 @@ const unifiedSearchSourceStatusSchema = z.object({
   ignoredQueryFeatures: z.array(z.string()),
   incompatibleQueryFeatures: z.array(z.string()),
   note: z.string().nullable().optional(),
+  coverage: docCoverageSchema,
 });
 
 const unifiedSearchResultSchema = z.object({
@@ -1228,6 +1295,7 @@ const unifiedSearchProgressTargetSchema = z.object({
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
   availableRefs: z.array(availableVersionSchema).nullable().optional(),
   suggestedRefs: z.array(availableVersionSchema).nullable().optional(),
+  coverage: docCoverageSchema,
 });
 
 const unifiedSearchRequestedTargetSchema = z.object({
@@ -2254,6 +2322,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         ignoredQueryFeatures: entry.ignoredQueryFeatures,
         incompatibleQueryFeatures: entry.incompatibleQueryFeatures,
         note: entry.note ?? undefined,
+        coverage: normaliseDocCoverage(entry.coverage),
       })),
     };
   }
@@ -2296,6 +2365,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         availableVersions: normaliseAvailableVersions(target.availableVersions),
         availableRefs: normaliseAvailableVersions(target.availableRefs),
         suggestedRefs: normaliseAvailableVersions(target.suggestedRefs),
+        coverage: normaliseDocCoverage(target.coverage),
       })),
       expiresAt: progress.expiresAt ?? undefined,
     };
@@ -2924,6 +2994,34 @@ function normaliseTargetResolution(
     availableRefs: normaliseAvailableVersions(resolution.availableRefs) ?? [],
     suggestedRefs: normaliseAvailableVersions(resolution.suggestedRefs) ?? [],
   };
+}
+
+/**
+ * Normalise crawl coverage, dropping the entry entirely when the backend
+ * reports no computed coverage. `NONE` carries no actionable signal, so
+ * collapsing it here keeps downstream rendering free of empty states.
+ */
+function normaliseDocCoverage(
+  coverage: z.infer<typeof docCoverageSchema>,
+): DocCoverage | undefined {
+  if (!coverage) return undefined;
+  if (coverage.coverageState === "NONE") return undefined;
+  const out: DocCoverage = { coverageState: coverage.coverageState };
+  if (coverage.coverageReason) out.coverageReason = coverage.coverageReason;
+  if (typeof coverage.pagesCrawled === "number") {
+    out.pagesCrawled = coverage.pagesCrawled;
+  }
+  if (typeof coverage.frontierRemaining === "number") {
+    out.frontierRemaining = coverage.frontierRemaining;
+  }
+  if (typeof coverage.artifactOverflowPageCount === "number") {
+    out.artifactOverflowPageCount = coverage.artifactOverflowPageCount;
+  }
+  if (typeof coverage.estimatedTotalPages === "number") {
+    out.estimatedTotalPages = coverage.estimatedTotalPages;
+  }
+  if (coverage.note) out.note = coverage.note;
+  return out;
 }
 
 function normaliseTargetResolutionIdentity(
