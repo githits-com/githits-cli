@@ -17,6 +17,8 @@ const CORE_BLOCK = `GitHits provides verified open-source examples plus indexed 
 
 Routing: use \`get_example\` for canonical cross-project examples; use \`search\` / \`code_*\` / \`docs_*\` / \`pkg_*\` for a known dependency, repository, stack trace, package adoption question, or upgrade review; use both for comparative OSS questions or when package-scoped evidence needs broader examples. Use \`search_language\` only to disambiguate a \`get_example\` language. Use \`feedback\` after helpful or flawed results.
 
+GitHits indexes public OSS/package evidence, not local workspaces, private repositories, uncommitted changes, or proprietary code. Do not attempt private repository targets; they return \`REPOSITORY_NOT_FOUND\`.
+
 When presenting \`get_example\` output, include source repository provenance/citations from GitHits' generated references/provenance section whenever present.`;
 
 const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Package targets use \`registry:name[@version]\`; repo targets use GitHub URLs. Prefer the default compact \`text-v1\` output; request JSON only when exact structured fields are necessary.`;
@@ -43,10 +45,10 @@ const CODE_FILES_BULLET =
   "- `code_files` — list/discover file paths; first choice for directory enumeration before `code_read` or scoped `code_grep`.";
 
 const DOCS_LIST_BULLET =
-  '- `docs_list` — browse available documentation pages; use `search` with `source:"docs"` for topic search.';
+  '- `docs_list` — browse documentation pages available for a package; for a docs topic, use `search` with `source:"docs"`, then pass its `pageId` to `docs_read`.';
 
 const DOCS_READ_BULLET =
-  "- `docs_read` — read a documentation page by pageId from `docs_list` or docs `search` results.";
+  "- `docs_read` — read a documentation page by pageId from `docs_list` or docs `search` results; text reads are capped at 150 lines per call.";
 
 const PKG_INFO_BULLET =
   "- `pkg_info` — latest package health/adoption overview: license, repo health, downloads, publish age, latest vulnerability status.";

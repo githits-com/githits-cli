@@ -61,6 +61,27 @@ describe("buildGrepRepoParams", () => {
     expect(asymmetric.params.contextLinesAfter).toBe(5);
   });
 
+  it("accepts context boundaries and rejects values outside them", () => {
+    const boundary = buildGrepRepoParams({
+      target,
+      pattern: "middleware",
+      contextLinesBefore: 0,
+      contextLinesAfter: 10,
+    });
+    expect(boundary.params.contextLinesBefore).toBe(0);
+    expect(boundary.params.contextLinesAfter).toBe(10);
+
+    for (const contextLines of [-1, 11, 1.5]) {
+      expect(() =>
+        buildGrepRepoParams({
+          target,
+          pattern: "middleware",
+          contextLines,
+        }),
+      ).toThrow(/context_lines.*integer between 0 and 10/);
+    }
+  });
+
   it("passes symbol fields through when requested", () => {
     const { params, explicit } = buildGrepRepoParams({
       target,
