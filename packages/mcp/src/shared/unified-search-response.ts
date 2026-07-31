@@ -1,4 +1,5 @@
 import type {
+  DocCoverage,
   UnifiedSearchCompleted,
   UnifiedSearchHit,
   UnifiedSearchOutcome,
@@ -98,6 +99,7 @@ export interface UnifiedSearchProgressPayload {
     version?: string;
     repoUrl?: string;
     gitRef?: string;
+    site?: string;
   }>;
   filters?: UnifiedSearchQueryEcho["filters"];
   limit?: number;
@@ -113,6 +115,7 @@ export interface UnifiedSearchProgressPayload {
     availableVersions?: LeanAvailableArtifact[];
     availableRefs?: LeanAvailableArtifact[];
     suggestedRefs?: LeanAvailableArtifact[];
+    coverage?: LeanDocCoverage;
   }>;
   expiresAt?: string;
   next?: string;
@@ -132,6 +135,21 @@ export interface UnifiedSearchSourceStatusPayload {
   incompatibleFilters?: string[];
   ignoredQueryFeatures?: string[];
   incompatibleQueryFeatures?: string[];
+  note?: string;
+  coverage?: LeanDocCoverage;
+}
+
+/**
+ * Lean projection of documentation crawl coverage. Only the fields that
+ * change a caller's decision are carried: the state, why it stopped, and
+ * enough page counts to judge magnitude.
+ */
+export interface LeanDocCoverage {
+  coverageState: string;
+  coverageReason?: string;
+  pagesCrawled?: number;
+  frontierRemaining?: number;
+  estimatedTotalPages?: number;
   note?: string;
 }
 
@@ -600,6 +618,8 @@ function compactProgressTarget(
   if (target.suggestedRefs?.length) {
     payload.suggestedRefs = target.suggestedRefs;
   }
+  const coverage = projectDocCoverage(target.coverage);
+  if (coverage) payload.coverage = coverage;
   return Object.keys(payload).length > 0 ? payload : undefined;
 }
 
@@ -683,6 +703,8 @@ function progressTargetResolutionWarning(
   const notes = buildTargetResolutionNotes(
     target.targetResolution ?? buildResolutionFromRetryCandidates(target),
   );
+  const coverage = docCoverageWarningReason(target.coverage);
+  if (coverage) notes.push(coverage);
   return notes.length > 0 ? notes.join(" ") : undefined;
 }
 
@@ -742,6 +764,48 @@ function parsePackageVersionLabel(
   };
 }
 
+/**
+ * Build the human-readable reason for incomplete documentation coverage.
+ *
+ * The backend note is preferred verbatim when present — the schema
+ * documents it as "suitable for CLI/MCP rendering", so phrasing stays
+ * backend-owned and can improve without a client release. Client wording
+ * is only a fallback, and distinguishes transient `PARTIAL` (retrying can
+ * return more) from terminal `CAPPED` (a crawl limit stopped indexing, so
+ * retrying will not).
+ */
+function docCoverageWarningReason(
+  coverage: LeanDocCoverage | undefined,
+): string | undefined {
+  if (!coverage) return undefined;
+  const scale = docCoverageScale(coverage);
+  if (coverage.note) return `${coverage.note}${scale}`;
+  if (coverage.coverageState === "PARTIAL") {
+    return `docs coverage partial — site crawl in progress, evidence may be incomplete${scale}; retry shortly`;
+  }
+  if (coverage.coverageState === "CAPPED") {
+    const reason = coverage.coverageReason
+      ? ` (${coverage.coverageReason})`
+      : "";
+    return `docs coverage capped by a crawl limit${reason} — evidence may be incomplete${scale}`;
+  }
+  return undefined;
+}
+
+/** Render page counts when known, so callers can judge how much is missing. */
+function docCoverageScale(coverage: LeanDocCoverage): string {
+  const parts: string[] = [];
+  if (typeof coverage.pagesCrawled === "number") {
+    parts.push(`${coverage.pagesCrawled} pages indexed`);
+  }
+  if (typeof coverage.frontierRemaining === "number") {
+    parts.push(`${coverage.frontierRemaining} known URLs unindexed`);
+  } else if (typeof coverage.estimatedTotalPages === "number") {
+    parts.push(`~${coverage.estimatedTotalPages} pages estimated`);
+  }
+  return parts.length > 0 ? ` [${parts.join(", ")}]` : "";
+}
+
 function warningForEntry(
   entry: UnifiedSearchSourceStatusPayload,
   options: { completed?: boolean },
@@ -764,6 +828,8 @@ function warningForEntry(
     );
     if (targetResolutionWarning) reasons.push(targetResolutionWarning);
   }
+  const coverageReason = docCoverageWarningReason(entry.coverage);
+  if (coverageReason) reasons.push(coverageReason);
   if (entry.incompatibleQueryFeatures?.length) {
     reasons.push(
       `incompatible query features [${entry.incompatibleQueryFeatures.join(", ")}]`,
@@ -860,6 +926,36 @@ function targetResolutionWarningForEntry(
   return notes.length > 0 ? notes.join(" ") : undefined;
 }
 
+/**
+ * Project crawl coverage into the lean payload shape, keeping only states
+ * that mean served evidence may be incomplete. `COMPLETE` is dropped so
+ * healthy site searches stay free of noise.
+ */
+function projectDocCoverage(
+  coverage: DocCoverage | undefined,
+): LeanDocCoverage | undefined {
+  if (!coverage) return undefined;
+  if (
+    coverage.coverageState !== "PARTIAL" &&
+    coverage.coverageState !== "CAPPED"
+  ) {
+    return undefined;
+  }
+  const out: LeanDocCoverage = { coverageState: coverage.coverageState };
+  if (coverage.coverageReason) out.coverageReason = coverage.coverageReason;
+  if (typeof coverage.pagesCrawled === "number") {
+    out.pagesCrawled = coverage.pagesCrawled;
+  }
+  if (typeof coverage.frontierRemaining === "number") {
+    out.frontierRemaining = coverage.frontierRemaining;
+  }
+  if (typeof coverage.estimatedTotalPages === "number") {
+    out.estimatedTotalPages = coverage.estimatedTotalPages;
+  }
+  if (coverage.note) out.note = coverage.note;
+  return out;
+}
+
 function compactSourceStatus(
   sourceStatus: UnifiedSearchSourceStatus[] | undefined,
   options: { completed?: boolean } = {},
@@ -930,6 +1026,17 @@ function compactSourceStatusEntry(
     !(entry.codeIndexState === "INDEXING" && options.completed)
   ) {
     payload.codeIndexState = entry.codeIndexState;
+    interesting = true;
+  }
+  // Documentation crawl coverage. Deliberately NOT suppressed when
+  // `options.completed` is true: a completed search over a partially
+  // crawled site is exactly the case where evidence may be missing while
+  // the response looks authoritative, so the caller must still be told.
+  // `COMPLETE` carries no actionable signal and stays silent; `NONE` is
+  // already dropped upstream.
+  const coverage = projectDocCoverage(entry.coverage);
+  if (coverage) {
+    payload.coverage = coverage;
     interesting = true;
   }
   if (typeof entry.resultCount === "number" && entry.resultCount > 0) {

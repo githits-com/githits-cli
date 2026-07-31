@@ -873,6 +873,216 @@ describe("CodeNavigationServiceImpl", () => {
     stderrSpy.mockRestore();
   });
 
+  it("requests documentation coverage and site fields in the search query", async () => {
+    const fn = mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              search: {
+                completed: true,
+                searchRef: null,
+                result: {
+                  query: "router",
+                  queryWarnings: [],
+                  sources: ["DOCS"],
+                  results: [],
+                  page: { offset: 0, limit: 20, returned: 0, hasMore: false },
+                  partialResults: false,
+                  sourceStatus: [],
+                },
+                progress: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+      globalThis.fetch,
+    );
+
+    await service.search({
+      targets: [{ site: "site:expressjs.com" }],
+      query: "router",
+    });
+
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+    const query = JSON.parse(init.body as string).query as string;
+    expect(query).toContain("coverageState");
+    expect(query).toContain("frontierRemaining");
+    // requestedTargets must select `site`, otherwise standalone site
+    // targets echo back as empty objects during progress polling.
+    expect(query).toMatch(/requestedTargets\s*{[^}]*site/);
+  });
+
+  it("normalises documentation coverage on source status", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              search: {
+                completed: true,
+                searchRef: null,
+                result: {
+                  query: "router",
+                  queryWarnings: [],
+                  sources: ["DOCS"],
+                  results: [],
+                  page: { offset: 0, limit: 20, returned: 0, hasMore: false },
+                  partialResults: false,
+                  sourceStatus: [
+                    {
+                      source: "DOCS",
+                      targetLabel: "site:expressjs.com",
+                      appliedFilters: [],
+                      ignoredFilters: [],
+                      incompatibleFilters: [],
+                      appliedQueryFeatures: [],
+                      ignoredQueryFeatures: [],
+                      incompatibleQueryFeatures: [],
+                      coverage: {
+                        coverageState: "PARTIAL",
+                        pagesCrawled: 42,
+                        frontierRemaining: 158,
+                        note: "Site crawl is in progress",
+                      },
+                    },
+                  ],
+                },
+                progress: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+      globalThis.fetch,
+    );
+
+    const outcome = await service.search({
+      targets: [{ site: "site:expressjs.com" }],
+      query: "router",
+    });
+
+    if (outcome.state !== "completed") throw new Error("expected completed");
+    expect(outcome.result.sourceStatus[0]?.coverage).toEqual({
+      coverageState: "PARTIAL",
+      pagesCrawled: 42,
+      frontierRemaining: 158,
+      note: "Site crawl is in progress",
+    });
+  });
+
+  it("drops NONE documentation coverage as carrying no signal", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              search: {
+                completed: true,
+                searchRef: null,
+                result: {
+                  query: "router",
+                  queryWarnings: [],
+                  sources: ["DOCS"],
+                  results: [],
+                  page: { offset: 0, limit: 20, returned: 0, hasMore: false },
+                  partialResults: false,
+                  sourceStatus: [
+                    {
+                      source: "DOCS",
+                      targetLabel: "site:expressjs.com",
+                      appliedFilters: [],
+                      ignoredFilters: [],
+                      incompatibleFilters: [],
+                      appliedQueryFeatures: [],
+                      ignoredQueryFeatures: [],
+                      incompatibleQueryFeatures: [],
+                      coverage: { coverageState: "NONE", pagesCrawled: 0 },
+                    },
+                  ],
+                },
+                progress: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+      globalThis.fetch,
+    );
+
+    const outcome = await service.search({
+      targets: [{ site: "site:expressjs.com" }],
+      query: "router",
+    });
+
+    if (outcome.state !== "completed") throw new Error("expected completed");
+    expect(outcome.result.sourceStatus[0]?.coverage).toBeUndefined();
+  });
+
+  it("serializes standalone site targets for unified search", async () => {
+    const fn = mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              search: {
+                completed: true,
+                searchRef: null,
+                result: {
+                  query: "router middleware",
+                  queryWarnings: [],
+                  sources: ["DOCS"],
+                  results: [],
+                  page: {
+                    offset: 0,
+                    limit: 20,
+                    returned: 0,
+                    hasMore: false,
+                  },
+                  partialResults: false,
+                  sourceStatus: [],
+                },
+                progress: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+      globalThis.fetch,
+    );
+
+    await service.search({
+      targets: [{ site: "site:expressjs.com" }],
+      query: "router middleware",
+      sources: ["DOCS"],
+    });
+
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.variables.targets).toEqual([{ site: "site:expressjs.com" }]);
+  });
+
   it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on grepRepo", async () => {
     mockFetch(() =>
       Promise.resolve(

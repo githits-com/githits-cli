@@ -649,6 +649,256 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.warnings?.join("\n")).toContain("queryable now");
     expect(payload.warnings?.join("\n")).toContain("suggested refs");
   });
+
+  it("surfaces docs coverage on progress targets while polling", () => {
+    const payload = buildUnifiedSearchSuccessPayload(
+      { targets: [{ site: "site:expressjs.com" }], query: "router" },
+      "router",
+      "router",
+      {
+        state: "incomplete",
+        completed: false,
+        searchRef: "search-ref-coverage",
+        progress: {
+          searchRef: "search-ref-coverage",
+          status: "INDEXING",
+          targetsTotal: 1,
+          targetsReady: 0,
+          elapsedMs: 200,
+          query: "router",
+          queryWarnings: [],
+          sources: ["DOCS"],
+          targets: [
+            {
+              requested: "site:expressjs.com",
+              coverage: { coverageState: "PARTIAL", pagesCrawled: 12 },
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.completed).toBe(false);
+    if (payload.completed) throw new Error("expected incomplete payload");
+    expect(payload.progress?.targets?.[0]?.coverage?.coverageState).toBe(
+      "PARTIAL",
+    );
+    expect(payload.warnings?.join("\n")).toContain("docs coverage partial");
+  });
+
+  it("warns about partial docs coverage even when the search reports completed", () => {
+    // Regression for the crawl-in-progress case: the backend can report
+    // `completed: true` with zero results while a site re-crawl withholds
+    // already-indexed content. Without a coverage warning the caller reads
+    // an authoritative "no documentation exists".
+    const payload = buildUnifiedSearchSuccessPayload(
+      { targets: [{ site: "site:expressjs.com" }], query: "router" },
+      "router",
+      "router",
+      {
+        state: "completed",
+        completed: true,
+        result: {
+          query: "router",
+          queryWarnings: [],
+          sources: ["DOCS"],
+          results: [],
+          page: { offset: 0, limit: 10, returned: 0, hasMore: false },
+          partialResults: false,
+          sourceStatus: [
+            {
+              source: "DOCS",
+              targetLabel: "site:expressjs.com",
+              appliedFilters: [],
+              ignoredFilters: [],
+              incompatibleFilters: [],
+              appliedQueryFeatures: [],
+              ignoredQueryFeatures: [],
+              incompatibleQueryFeatures: [],
+              coverage: {
+                coverageState: "PARTIAL",
+                pagesCrawled: 42,
+                frontierRemaining: 158,
+              },
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.completed).toBe(true);
+    expect(payload.sourceStatus?.[0]?.coverage?.coverageState).toBe("PARTIAL");
+    const warnings = payload.warnings?.join("\n") ?? "";
+    expect(warnings).toContain("docs coverage partial");
+    expect(warnings).toContain("42 pages indexed");
+    expect(warnings).toContain("158 known URLs unindexed");
+    expect(warnings).toContain("retry shortly");
+  });
+
+  it("prefers the backend coverage note over client wording", () => {
+    const payload = buildUnifiedSearchSuccessPayload(
+      { targets: [{ site: "site:expressjs.com" }], query: "router" },
+      "router",
+      "router",
+      {
+        state: "completed",
+        completed: true,
+        result: {
+          query: "router",
+          queryWarnings: [],
+          sources: ["DOCS"],
+          results: [],
+          page: { offset: 0, limit: 10, returned: 0, hasMore: false },
+          partialResults: false,
+          sourceStatus: [
+            {
+              source: "DOCS",
+              targetLabel: "site:expressjs.com",
+              appliedFilters: [],
+              ignoredFilters: [],
+              incompatibleFilters: [],
+              appliedQueryFeatures: [],
+              ignoredQueryFeatures: [],
+              incompatibleQueryFeatures: [],
+              coverage: {
+                coverageState: "PARTIAL",
+                note: "Site crawl is in progress",
+              },
+            },
+          ],
+        },
+      },
+    );
+
+    const warnings = payload.warnings?.join("\n") ?? "";
+    expect(warnings).toContain("Site crawl is in progress");
+    expect(warnings).not.toContain("docs coverage partial");
+  });
+
+  it("describes capped coverage as terminal without retry advice", () => {
+    const payload = buildUnifiedSearchSuccessPayload(
+      { targets: [{ site: "site:expressjs.com" }], query: "router" },
+      "router",
+      "router",
+      {
+        state: "completed",
+        completed: true,
+        result: {
+          query: "router",
+          queryWarnings: [],
+          sources: ["DOCS"],
+          results: [],
+          page: { offset: 0, limit: 10, returned: 0, hasMore: false },
+          partialResults: false,
+          sourceStatus: [
+            {
+              source: "DOCS",
+              targetLabel: "site:expressjs.com",
+              appliedFilters: [],
+              ignoredFilters: [],
+              incompatibleFilters: [],
+              appliedQueryFeatures: [],
+              ignoredQueryFeatures: [],
+              incompatibleQueryFeatures: [],
+              coverage: {
+                coverageState: "CAPPED",
+                coverageReason: "page_limit_reached",
+                pagesCrawled: 500,
+              },
+            },
+          ],
+        },
+      },
+    );
+
+    const warnings = payload.warnings?.join("\n") ?? "";
+    expect(warnings).toContain("capped by a crawl limit");
+    expect(warnings).toContain("page_limit_reached");
+    expect(warnings).not.toContain("retry shortly");
+  });
+
+  it("stays silent for complete docs coverage", () => {
+    const payload = buildUnifiedSearchSuccessPayload(
+      { targets: [{ site: "site:expressjs.com" }], query: "router" },
+      "router",
+      "router",
+      {
+        state: "completed",
+        completed: true,
+        result: {
+          query: "router",
+          queryWarnings: [],
+          sources: ["DOCS"],
+          results: [],
+          page: { offset: 0, limit: 10, returned: 0, hasMore: false },
+          partialResults: false,
+          sourceStatus: [
+            {
+              source: "DOCS",
+              targetLabel: "site:expressjs.com",
+              appliedFilters: [],
+              ignoredFilters: [],
+              incompatibleFilters: [],
+              appliedQueryFeatures: [],
+              ignoredQueryFeatures: [],
+              incompatibleQueryFeatures: [],
+              coverage: { coverageState: "COMPLETE", pagesCrawled: 200 },
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.sourceStatus).toBeUndefined();
+    expect(payload.warnings).toBeUndefined();
+  });
+
+  it("preserves site requestedTargets and targetResolution in progress payloads", () => {
+    const payload = buildUnifiedSearchSuccessPayload(
+      { targets: [{ site: "site:expressjs.com" }], query: "router" },
+      "router",
+      "router",
+      {
+        state: "incomplete",
+        completed: false,
+        searchRef: "search-ref-site",
+        progress: {
+          searchRef: "search-ref-site",
+          status: "INDEXING",
+          targetsTotal: 1,
+          targetsReady: 0,
+          elapsedMs: 200,
+          query: "router",
+          queryWarnings: [],
+          sources: ["DOCS"],
+          requestedTargets: [{ site: "site:expressjs.com" }],
+          targets: [
+            {
+              requested: "site:expressjs.com",
+              freshness: "INDEXING",
+              targetResolution: {
+                requested: { kind: "site", site: "site:expressjs.com" },
+                freshness: "indexing",
+                availableVersions: [],
+                availableRefs: [],
+              },
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.completed).toBe(false);
+    if (payload.completed) {
+      throw new Error("expected incomplete payload");
+    }
+    expect(payload.progress?.requestedTargets).toEqual([
+      { site: "site:expressjs.com" },
+    ]);
+    expect(
+      payload.progress?.targets?.[0]?.targetResolution?.requested?.site,
+    ).toBe("site:expressjs.com");
+  });
 });
 
 describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", () => {

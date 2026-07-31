@@ -18,42 +18,47 @@ import { errorResult, type ToolResult } from "./types.js";
 // src/shared/code-navigation-defaults.ts per the CLI/MCP parity rules.
 export { DEFAULT_WAIT_TIMEOUT_MS } from "../shared/code-navigation-defaults.js";
 
-export const structuredCodeTargetSchema: z.ZodType<StructuredCodeTargetArg> = z
-  .object({
-    registry: z
-      .enum(PKGSEER_REGISTRY_ARGS)
-      .optional()
-      .describe(
-        `Package registry (${PKGSEER_REGISTRY_LIST}). Required for package scope.`,
-      ),
-    package_name: z
-      .string()
-      .max(255)
-      .optional()
-      .describe("Package name. Required for package scope."),
-    version: z
-      .string()
-      .max(100)
-      .optional()
-      .describe(
-        "Package version, e.g. '4.18.2' (defaults to latest). For package scope only.",
-      ),
-    repo_url: z
-      .string()
-      .optional()
-      .describe(
-        "Repository URL (GitHub). Required for repo scope. Example: https://github.com/expressjs/express",
-      ),
-    git_ref: z
-      .string()
-      .optional()
-      .describe(
-        "Git ref - tag, branch, commit, or HEAD. Omit with repo_url to request the backend-resolved default branch.",
-      ),
-  })
-  .describe(
+const structuredCodeTargetShape: z.ZodRawShape = {
+  registry: z
+    .enum(PKGSEER_REGISTRY_ARGS)
+    .optional()
+    .describe(
+      `Package registry (${PKGSEER_REGISTRY_LIST}). Required for package scope.`,
+    ),
+  package_name: z
+    .string()
+    .max(255)
+    .optional()
+    .describe("Package name. Required for package scope."),
+  version: z
+    .string()
+    .max(100)
+    .optional()
+    .describe(
+      "Package version, e.g. '4.18.2' (defaults to latest). For package scope only.",
+    ),
+  repo_url: z
+    .string()
+    .optional()
+    .describe(
+      "Repository URL (GitHub). Required for repo scope. Example: https://github.com/expressjs/express",
+    ),
+  git_ref: z
+    .string()
+    .optional()
+    .describe(
+      "Git ref - tag, branch, commit, or HEAD. Omit with repo_url to request the backend-resolved default branch.",
+    ),
+};
+
+export const structuredCodeTargetObject: z.ZodObject<z.ZodRawShape> = z.object(
+  structuredCodeTargetShape,
+);
+
+export const structuredCodeTargetSchema: z.ZodType<StructuredCodeTargetArg> =
+  structuredCodeTargetObject.describe(
     "Target: provide registry + package_name (package scope) or repo_url with optional git_ref (repo scope; omitted ref means default branch intent).",
-  );
+  ) as z.ZodType<StructuredCodeTargetArg>;
 
 export const codeTargetSchema: z.ZodType<CodeTargetArg> = z.union([
   structuredCodeTargetSchema,

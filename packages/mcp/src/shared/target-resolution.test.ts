@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   buildRetryCandidateLine,
   buildTargetResolutionNotes,
+  formatTargetResolutionIdentity,
   projectTargetResolution,
 } from "./target-resolution.js";
 
@@ -76,6 +77,22 @@ describe("target-resolution helpers", () => {
 
     expect(notes[0]).toBe(
       "Target unavailable | requested=github:n8n-io/n8n#n8n@2.26.5",
+    );
+  });
+
+  it("projects and renders standalone site identities", () => {
+    const projected = projectTargetResolution({
+      requested: { kind: "site", site: "site:expressjs.com" },
+      resolvedRequested: { site: "site:expressjs.com" },
+      served: { site: "site:expressjs.com" },
+      freshness: "current",
+      availableVersions: [],
+      availableRefs: [],
+    });
+
+    expect(projected?.requested?.site).toBe("site:expressjs.com");
+    expect(formatTargetResolutionIdentity(projected?.requested)).toBe(
+      "site:expressjs.com",
     );
   });
 
