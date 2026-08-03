@@ -23,7 +23,6 @@ function candidate(
     matchedAliases: ["express"],
     docsAvailable: true,
     codeAvailable: true,
-    protected: true,
     matchTier: 0,
     score: 100,
     confidence: "EXACT",
@@ -142,7 +141,6 @@ describe("formatResolveTargetTerminal", () => {
       kind: "REPOSITORY",
       canonicalKey: "github:expressjs/express",
       displayName: "expressjs/express",
-      protected: false,
       confidence: "HIGH",
     });
     const output = formatResolveTargetTerminal(

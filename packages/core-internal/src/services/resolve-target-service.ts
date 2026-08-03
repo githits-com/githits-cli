@@ -32,7 +32,7 @@ export interface ResolveTargetParams {
 export interface ResolveTargetCandidate {
   kind: string;
   canonicalKey: string;
-  displayName: string;
+  displayName?: string;
   description?: string;
   registry?: string;
   packageName?: string;
@@ -45,9 +45,8 @@ export interface ResolveTargetCandidate {
   downloadsTotal?: number;
   documentationUrl?: string;
   matchedAliases?: string[];
-  docsAvailable: boolean;
-  codeAvailable: boolean;
-  protected: boolean;
+  docsAvailable?: boolean;
+  codeAvailable?: boolean;
   matchTier?: number;
   score?: number;
   confidence: string;
@@ -66,21 +65,23 @@ export interface ResolveTargetService {
   resolveTarget(params: ResolveTargetParams): Promise<ResolveTargetResult>;
 }
 
-const compactCandidateSchema = z.object({
+const listCandidateSchema = z.object({
   kind: z.string(),
   canonicalKey: z.string(),
-  displayName: z.string(),
+  confidence: z.string(),
+});
+
+const bestCandidateSchema = listCandidateSchema.extend({
   description: z.string().nullable().optional(),
-  registry: z.string().nullable().optional(),
   stars: z.number().int().nullable().optional(),
   downloadsLastMonth: z.number().int().nullable().optional(),
   docsAvailable: z.boolean(),
   codeAvailable: z.boolean(),
-  protected: z.boolean(),
-  confidence: z.string(),
 });
 
-const detailedCandidateSchema = compactCandidateSchema.extend({
+const detailedCandidateSchema = bestCandidateSchema.extend({
+  displayName: z.string(),
+  registry: z.string().nullable().optional(),
   packageName: z.string().nullable().optional(),
   latestVersion: z.string().nullable().optional(),
   repositoryUrl: z.string().nullable().optional(),
@@ -99,11 +100,12 @@ const graphQLErrorSchema = z.object({
   extensions: z.record(z.string(), z.unknown()).optional(),
 });
 
-function responseSchema<Candidate extends z.ZodType>(
+function responseSchema<Best extends z.ZodType, Candidate extends z.ZodType>(
+  bestSchema: Best,
   candidateSchema: Candidate,
 ) {
   const resultSchema = z.object({
-    best: candidateSchema.nullable(),
+    best: bestSchema.nullable(),
     protectedMatches: z.array(candidateSchema),
     candidates: z.array(candidateSchema),
     ambiguous: z.boolean(),
@@ -137,37 +139,62 @@ query ResolveTarget(
     intentHints: $intentHints
     limit: $limit
   ) {
-    best { ...ResolveTargetCandidateFields }
-    protectedMatches { ...ResolveTargetCandidateFields }
-    candidates { ...ResolveTargetCandidateFields }
+    best {
+      ...ResolveTargetListFields
+      ...ResolveTargetBestFields
+      ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
+    }
+    protectedMatches {
+      ...ResolveTargetListFields
+      description @include(if: $includeDetailedFields)
+      stars @include(if: $includeDetailedFields)
+      downloadsLastMonth @include(if: $includeDetailedFields)
+      docsAvailable @include(if: $includeDetailedFields)
+      codeAvailable @include(if: $includeDetailedFields)
+      ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
+    }
+    candidates {
+      ...ResolveTargetListFields
+      description @include(if: $includeDetailedFields)
+      stars @include(if: $includeDetailedFields)
+      downloadsLastMonth @include(if: $includeDetailedFields)
+      docsAvailable @include(if: $includeDetailedFields)
+      codeAvailable @include(if: $includeDetailedFields)
+      ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
+    }
     ambiguous
     ambiguousReason
   }
 }
 
-fragment ResolveTargetCandidateFields on TargetResolutionCandidate {
+fragment ResolveTargetListFields on TargetResolutionCandidate {
   kind
   canonicalKey
-  displayName
+  confidence
+}
+
+fragment ResolveTargetBestFields on TargetResolutionCandidate {
   description
-  registry
   stars
   downloadsLastMonth
   docsAvailable
   codeAvailable
-  protected
-  confidence
-  packageName @include(if: $includeDetailedFields)
-  latestVersion @include(if: $includeDetailedFields)
-  repositoryUrl @include(if: $includeDetailedFields)
-  repositoryOwner @include(if: $includeDetailedFields)
-  repositoryName @include(if: $includeDetailedFields)
-  downloadsTotal @include(if: $includeDetailedFields)
-  documentationUrl @include(if: $includeDetailedFields)
-  matchedAliases @include(if: $includeDetailedFields)
-  matchTier @include(if: $includeDetailedFields)
-  score @include(if: $includeDetailedFields)
-  reason @include(if: $includeDetailedFields)
+}
+
+fragment ResolveTargetJsonFields on TargetResolutionCandidate {
+  displayName
+  registry
+  packageName
+  latestVersion
+  repositoryUrl
+  repositoryOwner
+  repositoryName
+  downloadsTotal
+  documentationUrl
+  matchedAliases
+  matchTier
+  score
+  reason
 }`;
 
 export class ResolveTargetServiceImpl implements ResolveTargetService {
@@ -221,12 +248,11 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
       throw createPackageIntelligenceHttpError(response);
     }
 
-    const candidateSchema = params.includeDetailedFields
-      ? detailedCandidateSchema
-      : compactCandidateSchema;
-    const parsed = responseSchema(candidateSchema).safeParse(
-      response.parsedBody,
-    );
+    const parsed = (
+      params.includeDetailedFields
+        ? responseSchema(detailedCandidateSchema, detailedCandidateSchema)
+        : responseSchema(bestCandidateSchema, listCandidateSchema)
+    ).safeParse(response.parsedBody);
     if (!parsed.success) {
       throw new MalformedPackageIntelligenceResponseError(
         "Malformed response from the target-resolution service.",
@@ -275,24 +301,26 @@ function buildVariables(params: ResolveTargetParams): Record<string, unknown> {
 
 function normaliseCandidate(
   candidate:
-    | z.infer<typeof compactCandidateSchema>
+    | z.infer<typeof listCandidateSchema>
+    | z.infer<typeof bestCandidateSchema>
     | z.infer<typeof detailedCandidateSchema>,
 ): ResolveTargetCandidate {
   const result: ResolveTargetCandidate = {
     kind: candidate.kind,
     canonicalKey: candidate.canonicalKey,
-    displayName: candidate.displayName,
-    docsAvailable: candidate.docsAvailable,
-    codeAvailable: candidate.codeAvailable,
-    protected: candidate.protected,
     confidence: candidate.confidence,
   };
 
-  assignDefined(result, "description", candidate.description);
-  assignDefined(result, "registry", candidate.registry);
-  assignDefined(result, "stars", candidate.stars);
-  assignDefined(result, "downloadsLastMonth", candidate.downloadsLastMonth);
+  if ("docsAvailable" in candidate) {
+    assignDefined(result, "description", candidate.description);
+    assignDefined(result, "stars", candidate.stars);
+    assignDefined(result, "downloadsLastMonth", candidate.downloadsLastMonth);
+    assignDefined(result, "docsAvailable", candidate.docsAvailable);
+    assignDefined(result, "codeAvailable", candidate.codeAvailable);
+  }
   if ("matchedAliases" in candidate) {
+    assignDefined(result, "displayName", candidate.displayName);
+    assignDefined(result, "registry", candidate.registry);
     assignDefined(result, "packageName", candidate.packageName);
     assignDefined(result, "latestVersion", candidate.latestVersion);
     assignDefined(result, "repositoryUrl", candidate.repositoryUrl);

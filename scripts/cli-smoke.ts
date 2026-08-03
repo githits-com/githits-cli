@@ -54,6 +54,7 @@ export const EXPECTED_TOP_LEVEL_COMMANDS = [
   "languages",
   "feedback",
   "doctor",
+  "resolve",
   "settings",
   "search",
   "search-status",
@@ -477,6 +478,19 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "root help should produce stdout",
     );
     assertRootHelpStructure(helpResult.stdout);
+    assert(
+      helpResult.stdout.includes("githits resolve express"),
+      "root help should include resolve in Getting started",
+    );
+
+    const resolveHelp = await runCliWithEnv(["resolve", "--help"], env);
+    assert(resolveHelp.exitCode === 0, "resolve help should succeed");
+    assert(
+      resolveHelp.stdout.includes("--query and --intent-hint") &&
+        resolveHelp.stdout.includes("Do not") &&
+        resolveHelp.stdout.includes("include credentials"),
+      "resolve help should disclose query privacy guidance",
+    );
 
     for (const command of ["init", "login"] as const) {
       const commandHelp = await runCliWithEnv([command, "--help"], env);
@@ -527,6 +541,21 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "unauthenticated languages JSON envelope",
     );
 
+    const resolveJson = await runCliWithEnv(
+      ["resolve", "express", "--json"],
+      env,
+    );
+    assert(resolveJson.exitCode !== 0, "unauthenticated resolve should fail");
+    assert(
+      resolveJson.stdout.trim() === "",
+      "unauthenticated resolve JSON should keep stdout clean",
+    );
+    assert(
+      assertCleanErrorEnvelope(resolveJson.stderr, "unauthenticated resolve")
+        .code === "AUTH_REQUIRED",
+      "unauthenticated resolve should return AUTH_REQUIRED",
+    );
+
     const terminalResult = await runCliWithEnv(["languages", "python"], env);
     assert(
       terminalResult.exitCode !== 0,
@@ -548,6 +577,17 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
     assert(
       !authGuidance.includes("tool call"),
       "unauthenticated terminal probe used MCP-style auth guidance",
+    );
+
+    const resolveTerminal = await runCliWithEnv(["resolve", "express"], env);
+    const resolveGuidance = `${resolveTerminal.stderr}\n${resolveTerminal.stdout}`;
+    assert(
+      resolveTerminal.exitCode !== 0,
+      "unauthenticated resolve should fail",
+    );
+    assert(
+      resolveGuidance.includes("githits login"),
+      "unauthenticated resolve should include login guidance",
     );
   } finally {
     isolated.cleanup();
@@ -629,6 +669,48 @@ async function assertLiveOrAuthRequired(): Promise<boolean> {
 }
 
 async function runLiveSmoke(): Promise<void> {
+  const resolveText = assertTerminalOutput(
+    await runCli(["resolve", "express"]),
+    "resolve terminal",
+  );
+  assert(
+    resolveText.includes("npm:express") &&
+      (resolveText.includes("Best:") || resolveText.includes("Top:")),
+    "resolve terminal missing ranked express target",
+  );
+
+  const resolveJson = assertJsonOutput(
+    await runCli([
+      "resolve",
+      "express",
+      "--registry",
+      "npm",
+      "--prefer-kind",
+      "package",
+      "--intent-hint",
+      "web server",
+      "--query",
+      "web framework",
+      "--limit",
+      "3",
+      "--json",
+    ]),
+    "resolve json",
+  );
+  assertRecord(resolveJson, "resolve json");
+  assert(
+    typeof resolveJson.best === "string" && resolveJson.best === "npm:express",
+    "resolve json missing best npm target",
+  );
+  assert(
+    Array.isArray(resolveJson.candidates),
+    "resolve json missing candidates",
+  );
+  assert(
+    Array.isArray(resolveJson.protectedMatches),
+    "resolve json missing protected matches",
+  );
+
   const languagesText = assertTerminalOutput(
     await runCli(["languages", "python"]),
     "languages terminal",
@@ -1129,6 +1211,12 @@ async function runLiveSmoke(): Promise<void> {
   assertJsonErrorCode(
     invalidJson,
     "pkg info invalid json error",
+    "INVALID_ARGUMENT",
+  );
+
+  assertJsonErrorCode(
+    await runCli(["resolve", " ", "--json"]),
+    "resolve empty name json error",
     "INVALID_ARGUMENT",
   );
 }

@@ -81,8 +81,9 @@ function collectIntentHint(value: string, previous: string[] = []): string[] {
 
 const DESCRIPTION = `Resolve a human-provided name to ranked package or GitHub repository targets.
 
-The optional --query value is sent to the service as ranking context. Do not
-include credentials, personal data, private code, or proprietary content.`;
+The optional --query and --intent-hint values are sent to the service as ranking
+context. Do not include credentials, personal data, private code, or proprietary
+content in either option.`;
 
 export function registerResolveCommand(program: Command): Command {
   return program

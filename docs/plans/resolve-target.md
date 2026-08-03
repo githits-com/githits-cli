@@ -121,8 +121,9 @@ Options:
   --json                       emit structured diagnostic JSON
 ```
 
-Command help must state that `--query` is sent to the service and must not
-contain credentials, personal data, private code, or proprietary content.
+Command help must state that `--query` and `--intent-hint` are sent to the
+service and must not contain credentials, personal data, private code, or
+proprietary content.
 
 Normalization and validation, in `buildResolveTargetParams`:
 
@@ -147,24 +148,32 @@ validation must preserve the standard terminal/JSON error envelopes.
 
 ## Wire contract
 
-`RESOLVE_TARGET_QUERY` uses one candidate fragment across `best`,
-`protectedMatches`, and `candidates`.
+`RESOLVE_TARGET_QUERY` selects only identity/confidence for list rows, adds
+presentation fields to `best`, and conditionally selects diagnostic fields for
+JSON.
 
-Always select:
-
-```text
-kind canonicalKey displayName description registry stars downloadsLastMonth
-docsAvailable codeAvailable protected confidence
-```
-
-Select only when `includeDetailedFields` is true:
+Always select for every candidate position:
 
 ```text
-packageName latestVersion repositoryUrl repositoryOwner repositoryName
-downloadsTotal documentationUrl matchedAliases matchTier score reason
+kind canonicalKey confidence
 ```
 
-Never select `inspection`. Use mode-specific candidate schemas: always-selected
+Also select for `best` in terminal mode:
+
+```text
+description stars downloadsLastMonth docsAvailable codeAvailable
+```
+
+For JSON, select the best presentation fields on every candidate plus:
+
+```text
+displayName registry packageName latestVersion repositoryUrl repositoryOwner
+repositoryName downloadsTotal documentationUrl matchedAliases matchTier score
+reason
+```
+
+Never select `protected` or `inspection`; protected membership already comes
+from the containing `protectedMatches` list. Use mode-specific candidate schemas: always-selected
 non-null fields are required in both modes; conditionally selected non-null
 fields are required only in detailed mode. Model enum-like response fields as
 `z.string()` so a new backend enum value remains parseable. The formatter

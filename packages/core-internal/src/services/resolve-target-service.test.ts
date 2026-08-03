@@ -14,9 +14,14 @@ import { createMockTokenProvider } from "./test-helpers.js";
 
 const ENDPOINT = "https://pkgseer.dev";
 
-const COMPACT_CANDIDATE = {
+const LIST_CANDIDATE = {
   kind: "PACKAGE",
   canonicalKey: "npm:express",
+  confidence: "EXACT",
+};
+
+const COMPACT_CANDIDATE = {
+  ...LIST_CANDIDATE,
   displayName: "express",
   description: "Fast web framework",
   registry: "NPM",
@@ -24,8 +29,6 @@ const COMPACT_CANDIDATE = {
   downloadsLastMonth: 89_000_000,
   docsAvailable: true,
   codeAvailable: true,
-  protected: true,
-  confidence: "EXACT",
 };
 
 const DETAILED_CANDIDATE = {
@@ -96,23 +99,34 @@ describe("ResolveTargetServiceImpl", () => {
       includeDetailedFields: false,
     });
     expect(request.query).toBe(RESOLVE_TARGET_QUERY);
+    expect(request.query).toContain(`best {
+      ...ResolveTargetListFields
+      ...ResolveTargetBestFields
+      ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
+    }`);
+    expect(request.query).toContain(`protectedMatches {
+      ...ResolveTargetListFields
+      description @include(if: $includeDetailedFields)`);
+    expect(request.query).toContain(`candidates {
+      ...ResolveTargetListFields
+      description @include(if: $includeDetailedFields)`);
+    for (const field of ["kind", "canonicalKey", "confidence"]) {
+      expect(request.query).toContain(`  ${field}\n`);
+    }
     for (const field of [
-      "kind",
-      "canonicalKey",
-      "displayName",
       "description",
-      "registry",
       "stars",
       "downloadsLastMonth",
       "docsAvailable",
       "codeAvailable",
-      "protected",
-      "confidence",
     ]) {
-      expect(request.query).toContain(`  ${field}\n`);
-      expect(request.query).not.toContain(`${field} @include`);
+      expect(request.query).toContain(
+        `${field} @include(if: $includeDetailedFields)`,
+      );
     }
     for (const field of [
+      "displayName",
+      "registry",
       "packageName",
       "latestVersion",
       "repositoryUrl",
@@ -125,12 +139,19 @@ describe("ResolveTargetServiceImpl", () => {
       "score",
       "reason",
     ]) {
-      expect(request.query).toContain(
-        `${field} @include(if: $includeDetailedFields)`,
-      );
+      expect(request.query).toContain(`  ${field}\n`);
     }
+    expect(request.query).not.toContain("\n  protected\n");
     expect(request.query).not.toContain("inspection");
-    expect(result.best).toEqual(COMPACT_CANDIDATE);
+    expect(result.best).toEqual({
+      ...LIST_CANDIDATE,
+      description: "Fast web framework",
+      stars: 66_000,
+      downloadsLastMonth: 89_000_000,
+      docsAvailable: true,
+      codeAvailable: true,
+    });
+    expect(result.candidates).toEqual([LIST_CANDIDATE]);
   });
 
   it("fetches and parses detailed fields for JSON output", async () => {

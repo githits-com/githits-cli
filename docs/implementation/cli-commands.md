@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
+The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback`, target `resolve`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
 
 ## Commands
 
@@ -17,6 +17,7 @@ The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback [solution_id]` | `--accept` or `--reject` | `-m, --message <text>`, `--tool <name>`, `--json` | Submit solution-tied or generic session feedback |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
+| `resolve <name>` | package or GitHub repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
 | `settings` | — | `--json` | Show canonical preferences, privacy and terms, and account limits |
 | `settings show` | — | `--json` | Explicit form of `settings` for showing all account settings |
 | `settings get <key>` | setting key | `--json` | Read one writable setting using its public CLI name |
@@ -234,6 +235,37 @@ githits doctor --json
 ```
 
 Prints redacted diagnostics for comparing GitHits behavior across terminals or agents. The report includes CLI/runtime identity, selected environment variables, service URL sources, config file status, active and legacy auth storage locations, token/client/metadata presence and timestamps, and recommendations. Secret-bearing values such as tokens, client secrets, API tokens, and proxy credentials are never printed; presence is reported as `set` / `present` only. JSON output uses `schemaVersion: 1` for support tooling.
+
+### `githits resolve`
+
+```text
+githits resolve express
+githits resolve codex --prefer-kind repository
+githits resolve guava --registry maven --limit 3
+githits resolve "pi agent" --query "coding agent CLI" --json
+```
+
+Resolves a human-provided package or GitHub repository name to ranked canonical
+targets such as `npm:express` or `github:openai/codex`. The default output is a
+compact best/top candidate block, ambiguity guidance when needed, protected
+exact-name matches, alternatives, and a copyable `githits search --in`
+follow-up. No candidates is a valid JSON/text result but exits 1 because the
+command did not resolve a target.
+
+`--registry` accepts a comma-separated package-registry list; repository
+candidates remain eligible. `--prefer-kind package|repository` is a soft
+preference, not a filter. `--intent-hint` is repeatable. `--limit` controls the
+ranked list from 1-20 (default 8); protected exact-name matches can be additional.
+`--query` and `--intent-hint` are sent to the service as ranking context and
+must not contain credentials, personal data, private code, or proprietary
+content.
+
+`--json` emits the stable compact diagnostic envelope
+`{best?, ambiguous, ambiguousReason?, candidates, protectedMatches}`. Candidate
+objects occur once; `best` and `protectedMatches` use canonical-key references.
+Detailed ranking fields are fetched only for JSON. Null fields are omitted and
+enum values are lowercase. Errors use the standard JSON envelope on stderr with
+clean stdout.
 
 ### Proxy Support
 

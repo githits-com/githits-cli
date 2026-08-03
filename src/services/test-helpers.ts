@@ -981,7 +981,6 @@ export const defaultResolveTargetResult: ResolveTargetResult = {
     downloadsLastMonth: 89_000_000,
     docsAvailable: true,
     codeAvailable: true,
-    protected: true,
     confidence: "EXACT",
   },
   protectedMatches: [],

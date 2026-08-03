@@ -300,6 +300,7 @@ describe("registerResolveCommand", () => {
       "--intent-hint",
       "--limit",
       "--json",
+      "--query and --intent-hint values are sent",
       "include credentials, personal data, private code",
     ]) {
       expect(help).toContain(value);

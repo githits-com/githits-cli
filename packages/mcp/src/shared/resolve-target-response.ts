@@ -8,7 +8,7 @@ import { shellQuote } from "./shell-quote.js";
 
 export interface ResolveTargetCandidatePayload {
   target: string;
-  name: string;
+  name?: string;
   kind: string;
   confidence: string;
   description?: string;
@@ -23,8 +23,8 @@ export interface ResolveTargetCandidatePayload {
   downloadsTotal?: number;
   documentationUrl?: string;
   matchedAliases?: string[];
-  docsAvailable: boolean;
-  codeAvailable: boolean;
+  docsAvailable?: boolean;
+  codeAvailable?: boolean;
   matchTier?: number;
   score?: number;
   reason?: string;
@@ -66,12 +66,10 @@ function projectCandidate(
 ): ResolveTargetCandidatePayload {
   const payload: ResolveTargetCandidatePayload = {
     target: candidate.canonicalKey,
-    name: candidate.displayName,
     kind: candidate.kind.toLowerCase(),
     confidence: candidate.confidence.toLowerCase(),
-    docsAvailable: candidate.docsAvailable,
-    codeAvailable: candidate.codeAvailable,
   };
+  assign(payload, "name", candidate.displayName);
   assign(payload, "description", candidate.description);
   assign(payload, "registry", candidate.registry?.toLowerCase());
   assign(payload, "packageName", candidate.packageName);
@@ -84,6 +82,8 @@ function projectCandidate(
   assign(payload, "downloadsTotal", candidate.downloadsTotal);
   assign(payload, "documentationUrl", candidate.documentationUrl);
   assign(payload, "matchedAliases", candidate.matchedAliases);
+  assign(payload, "docsAvailable", candidate.docsAvailable);
+  assign(payload, "codeAvailable", candidate.codeAvailable);
   assign(payload, "matchTier", candidate.matchTier);
   assign(payload, "score", candidate.score);
   assign(payload, "reason", candidate.reason);
