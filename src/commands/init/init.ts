@@ -230,6 +230,12 @@ type InitAuthStatus =
 
 type StagedInstallAuthStatus = "authenticated" | "required" | "not_checked";
 
+const INSTALL_REVIEW_ITEMS = [
+  "Queries and targets leave this machine and are sent to GitHits services for processing.",
+  "Feedback submission is an outbound write that sends feedback data to GitHits services.",
+  "Installing GitHits MCP does not itself upload the local workspace.",
+] as const;
+
 type SafeScanResult =
   | { ok: true; scan: ScanResult }
   | { ok: false; error: Error };
@@ -492,13 +498,18 @@ function printNonInteractiveInitGuidance(useColors: boolean): void {
   console.log();
   console.log("  3. Show the detected tools to the user.");
   console.log();
-  console.log("  4. Ask which tools should receive the GitHits MCP server.");
+  console.log("  4. Show this install review to the user:");
+  for (const item of INSTALL_REVIEW_ITEMS) {
+    console.log(`     - ${item}`);
+  }
+  console.log();
+  console.log("  5. Ask which tools should receive the GitHits MCP server.");
   console.log();
   console.log(
     "     For project-level install, explain that config files are written into this repo and may be committed.",
   );
   console.log();
-  console.log("  5. Only after approval, run the matching install command:");
+  console.log("  6. Only after approval, run the matching install command:");
   console.log(
     `     ${formatCommand(`${getAgentInstallCommand("user")} <ids>`, useColors)}`,
   );
@@ -748,6 +759,14 @@ function printInitIntro(useColors: boolean): void {
   );
   console.log();
   console.log("  More info: https://docs.githits.com");
+  console.log();
+}
+
+function printInstallReview(useColors: boolean): void {
+  console.log(`  ${colorizeBrand("Install review", "primary", useColors)}`);
+  for (const item of INSTALL_REVIEW_ITEMS) {
+    console.log(`  • ${item}`);
+  }
   console.log();
 }
 
@@ -1307,6 +1326,7 @@ function printAgenticDetectSummary(
     (entry) => entry.status === "not_detected",
   );
 
+  printInstallReview(useColors);
   console.log(
     `Detected tools (${scope === "project" ? "project-level" : "user-level"} install):`,
   );
@@ -1503,6 +1523,8 @@ function buildAgenticDetectJsonInstructions(input: {
           "Do not offer agent IDs with unsupported_project_config status for project install.",
         ]
       : []),
+    "Before asking for install approval, show the user this install review:",
+    ...INSTALL_REVIEW_ITEMS,
     "Ask which tools should receive the GitHits MCP server.",
     "Only run --install-agents with user-approved IDs.",
     AGENTIC_INIT_YES_WARNING,
@@ -3761,6 +3783,8 @@ export async function initAction(
       }
     }
   }
+
+  printInstallReview(useColors);
 
   if (setupScope === "project") {
     const scope = await resolveProjectSetupScope({}, fileSystemService);

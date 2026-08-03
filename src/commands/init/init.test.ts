@@ -260,6 +260,22 @@ describe("initAction", () => {
       ),
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("githits init -y"))).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Queries and targets leave this machine"),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
+      true,
+    );
+    const reviewIndex = logCalls.findIndex((msg) =>
+      msg.includes("Show this install review"),
+    );
+    const approvalIndex = logCalls.findIndex((msg) =>
+      msg.includes("Ask which tools should receive"),
+    );
+    expect(reviewIndex).toBeGreaterThanOrEqual(0);
+    expect(approvalIndex).toBeGreaterThan(reviewIndex);
     expect(logCalls.some((msg) => msg.includes("--detect-agents --json"))).toBe(
       true,
     );
@@ -319,6 +335,14 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("Detected tools"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("cursor"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("needs setup"))).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Queries and targets leave this machine"),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
+      true,
+    );
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     expect(createLoginDeps).not.toHaveBeenCalled();
   });
@@ -401,6 +425,24 @@ describe("initAction", () => {
     expect(payload.instructions).toContain(
       "Do not run init again after a successful --install-agents run; verify with npx -y githits@latest init --detect-agents --json instead.",
     );
+    const reviewIndex = payload.instructions.findIndex((instruction: string) =>
+      instruction.includes("Before asking for install approval"),
+    );
+    const queryDisclosureIndex = payload.instructions.findIndex(
+      (instruction: string) =>
+        instruction.includes("Queries and targets leave this machine"),
+    );
+    const feedbackDisclosureIndex = payload.instructions.findIndex(
+      (instruction: string) => instruction.includes("is an outbound write"),
+    );
+    const approvalIndex = payload.instructions.findIndex(
+      (instruction: string) =>
+        instruction.includes("Ask which tools should receive"),
+    );
+    expect(reviewIndex).toBeGreaterThanOrEqual(0);
+    expect(queryDisclosureIndex).toBeGreaterThan(reviewIndex);
+    expect(feedbackDisclosureIndex).toBeGreaterThan(queryDisclosureIndex);
+    expect(approvalIndex).toBeGreaterThan(feedbackDisclosureIndex);
   });
 
   it("keeps detect JSON parseable when init trace is enabled", async () => {
@@ -1915,6 +1957,39 @@ describe("initAction", () => {
     expect(cursorRowIndex).toBeGreaterThan(mcpSectionIndex);
   });
 
+  it("shows the install review before interactive tool approval", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const checkbox = mock((_message, choices) => {
+      const logCalls = getLogOutput();
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("Queries and targets leave this machine"),
+        ),
+      ).toBe(true);
+      expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
+        true,
+      );
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("does not itself upload the local workspace"),
+        ),
+      ).toBe(true);
+      return Promise.resolve([choices[0]!.value]);
+    }) as PromptService["checkbox"];
+
+    await initAction(
+      { guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService({ checkbox }),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(checkbox).toHaveBeenCalledTimes(1);
+  });
+
   it("skips already-configured agents without prompting", async () => {
     // Cursor detected AND already configured
     const fs = createFsWithDetection(["/home/test/.cursor"], {
@@ -2746,6 +2821,15 @@ describe("initAction", () => {
     expect(promptService.checkbox).not.toHaveBeenCalled();
     expect(promptService.confirm3).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).toHaveBeenCalled();
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Queries and targets leave this machine"),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
+      true,
+    );
   });
 
   it("--yes with no agents detected prints message and returns", async () => {

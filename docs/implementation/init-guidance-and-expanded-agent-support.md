@@ -21,6 +21,8 @@
   - Interactive setup defaults to guided MCP.
   - `--yes` accepts guided MCP unless `--no-guidance` is passed.
   - Staged `--install-agents` accepts guided MCP unless `--no-guidance` is passed.
+- Before install approval, show an install review stating that queries and targets leave the machine for GitHits processing, feedback submission is an outbound write, and installation itself does not upload the local workspace.
+- The review applies to interactive selection, interactive `--yes`, and agent-assisted staged setup. Agent guidance must present it before asking which detected tools to configure.
 
 ## Guidance Install
 
@@ -67,6 +69,7 @@
 ## Tests
 
 - Unit test new prompt choices, `--guidance`, `--no-guidance`, and `--keep-guidance`.
+- Test that the install review appears before interactive and agent-assisted approval, including the interactive `--yes` path.
 - Add fake-FS tests for marker insert/replace/remove and idempotent reruns.
 - Add setup/uninstall tests for each new MCP target shape.
 - Add packaging tests for `skills/githits-mcp/SKILL.md` and Claude plugin skill inclusion.
