@@ -351,7 +351,10 @@ evals. Plan that PR from Phase 1 usage rather than expanding this plan now.
       actual:   <best, ambiguity, and relevant candidates>
 ```
 
-(No entries yet.)
+- [ ] 2026-08-03 `guava` (query/registries/preferred kind/intent hints: none)
+      expected: `maven:com.google.guava:guava`, not ambiguous
+      actual:   `maven:com.github.ben-manes.caffeine:guava`,
+                `CLOSE_CANDIDATES`; Maven/package hints produced the same best
 
 ## Acceptance criteria
 
