@@ -15,6 +15,8 @@ import {
   type PackageIntelligenceService,
   PackageIntelligenceServiceImpl,
   RefreshingGitHitsService,
+  type ResolveTargetService,
+  ResolveTargetServiceImpl,
   startTelemetrySpan,
   type TokenProvider,
   withTelemetrySpan,
@@ -246,6 +248,8 @@ export interface Dependencies {
    * service.
    */
   packageIntelligenceService: PackageIntelligenceService;
+  /** Resolves fuzzy package/repository names for the CLI dogfood surface. */
+  resolveTargetService: ResolveTargetService;
   /** GitHits REST API service */
   githitsService: GitHitsService;
   /** Active credential provider shared by CLI-only account services. */
@@ -308,6 +312,12 @@ export async function createContainer(
         fetchFn,
         serviceRuntime,
       );
+      const resolveTargetService = new ResolveTargetServiceImpl(
+        codeNavigationUrl,
+        tokenProvider,
+        fetchFn,
+        serviceRuntime,
+      );
 
       return {
         authStorage,
@@ -322,6 +332,7 @@ export async function createContainer(
         codeNavigationUrl,
         codeNavigationService,
         packageIntelligenceService,
+        resolveTargetService,
         githitsService: new GitHitsServiceImpl(
           apiUrl,
           envToken,
@@ -361,6 +372,12 @@ export async function createContainer(
       fetchFn,
       serviceRuntime,
     );
+    const resolveTargetService = new ResolveTargetServiceImpl(
+      codeNavigationUrl,
+      tokenManager,
+      fetchFn,
+      serviceRuntime,
+    );
 
     return {
       authStorage,
@@ -375,6 +392,7 @@ export async function createContainer(
       codeNavigationUrl,
       codeNavigationService,
       packageIntelligenceService,
+      resolveTargetService,
       githitsService: new RefreshingGitHitsService(
         apiUrl,
         tokenManager,

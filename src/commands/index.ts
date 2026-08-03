@@ -54,6 +54,12 @@ export {
 export { registerMcpCommand } from "./mcp.js";
 export { registerPkgCommandGroup } from "./pkg/index.js";
 export {
+  type ResolveCommandDependencies,
+  type ResolveCommandOptions,
+  registerResolveCommand,
+  resolveAction,
+} from "./resolve.js";
+export {
   registerSearchCommand,
   registerUnifiedSearchCommands,
   type SearchCommandDependencies,
