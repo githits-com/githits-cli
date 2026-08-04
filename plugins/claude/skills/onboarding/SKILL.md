@@ -58,7 +58,16 @@ Do not offer tools with `unsupported_project_config` for project-level setup.
 
 Use `actionableIds` when present. If it is absent because the installed CLI predates guidance-aware detection, use `installableIds` for MCP setup and do not infer guidance-only repair from missing fields.
 
-3. Show the install review before asking for tool approval or starting browser authentication, even when `actionableIds` is empty.
+Before showing the review, classify the detection result:
+
+- If every agent is `not_detected`, explain that no supported coding tool was found and stop before review, installation, or authentication. Tell the user to install or open a supported tool, then rerun detection.
+- In project scope, if no agent is `needs_setup` or `already_configured` and at least one is `unsupported_project_config`, explain that project-level setup is unavailable, offer user-level detection, and stop the project flow before review or authentication.
+- If supported agents are mixed with `unsupported_project_config`, explain the unsupported tools but continue only with supported agents.
+- If no effective actionable IDs remain but at least one supported agent is `already_configured`, continue to the review, skip installation after acknowledgment, and then check authentication.
+
+Follow the CLI JSON `instructions` remediation for these states rather than replacing it with generic authentication guidance.
+
+3. When setup can proceed, show the install review before asking for tool approval or starting browser authentication, including the already-configured supported-tool case.
 
 Tell the user:
 
@@ -72,13 +81,15 @@ If the user does not acknowledge it, stop onboarding without installing or start
 
 4. Use `actionableIds` for tools needing MCP setup or requested guidance repair. If `actionableIds` is non-empty, use structured choices for tool selection. Do not ask the user to type comma-separated tool IDs unless no structured choice UI is available.
 
-Present `Configure all actionable tools (Recommended)` as the first option, then list individual actionable tools for selective setup. Do not present "configure none" as a normal onboarding choice.
+Present `Configure all actionable tools (Recommended)` as the first option, then list individual actionable tools for selective setup. After configure-all approval, execute `suggestedCommand` exactly so scope and guidance intent are preserved. Do not present "configure none" as a normal onboarding choice.
 
 Ask before writing configuration: `I recommend configuring all detected tools so GitHits works wherever you use an agent. Proceed with all, or choose specific tools?`
 
 Do not run `init -y` or `init --yes` unless the user explicitly asks to configure every detected tool.
 
-If `actionableIds` is empty, skip installation and continue to authentication only after the user acknowledges the install review.
+For selective setup, build the matching scoped `--install-agents` command and preserve `--no-guidance` when `guidanceRequested` is `false`. Follow the CLI-emitted verification instruction instead of constructing a separate detect command.
+
+If no effective actionable IDs remain and at least one supported tool is already configured, skip installation and continue to authentication only after the user acknowledges the install review.
 
 5. Install only approved IDs using the selected scope.
 

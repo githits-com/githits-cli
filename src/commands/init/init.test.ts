@@ -347,6 +347,16 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
       true,
     );
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("--install-agents cursor --no-guidance"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("--detect-agents --no-guidance --json"),
+      ),
+    ).toBe(true);
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     expect(createLoginDeps).not.toHaveBeenCalled();
   });
@@ -425,6 +435,7 @@ describe("initAction", () => {
     expect(payload.scope).toBe("user");
     expect(payload.installableIds).toContain("cursor");
     expect(payload.suggestedCommand).toContain("--install-agents cursor");
+    expect(payload.suggestedCommand).not.toContain("--no-guidance");
     expect(payload.instructions).toContain(
       "Do not run `githits init -y` or `githits init --yes` unless the user explicitly asks to configure every detected tool.",
     );
@@ -459,6 +470,28 @@ describe("initAction", () => {
     expect(localWorkspaceIndex).toBeGreaterThan(feedbackDisclosureIndex);
     expect(newSessionIndex).toBeGreaterThan(localWorkspaceIndex);
     expect(approvalIndex).toBeGreaterThan(newSessionIndex);
+    expect(JSON.stringify(payload.instructions)).not.toContain("--no-guidance");
+  });
+
+  it("preserves --no-guidance in staged detect follow-up commands", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+
+    await initAction(
+      { detectAgents: true, json: true, guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.suggestedCommand).toBe(
+      "npx -y githits@latest init --install-agents cursor --no-guidance",
+    );
+    expect(payload.instructions).toContain(
+      "Do not run init again after a successful --install-agents run; verify with npx -y githits@latest init --detect-agents --no-guidance --json instead.",
+    );
   });
 
   it("reports guidance-only repair as actionable without changing installableIds", async () => {
@@ -687,8 +720,8 @@ describe("initAction", () => {
     const payload = JSON.parse(getLogOutput()[0] ?? "{}");
     expect(process.exitCode).toBe(0);
     expect(payload.scope).toBe("project");
-    expect(payload.suggestedCommand).toContain(
-      "--project --install-agents cursor",
+    expect(payload.suggestedCommand).toBe(
+      "npx -y githits@latest init --project --install-agents cursor --no-guidance",
     );
     expect(payload.instructions).toContain(
       "Explain that project-level install writes MCP config files into the current repo and those files may be committed.",
@@ -1580,6 +1613,9 @@ describe("initAction", () => {
         instruction.includes("Open a new coding agent session"),
       ),
     ).toBe(false);
+    expect(payload.instructions).toContain(
+      "Do not run init again after a successful --install-agents run; verify with npx -y githits@latest init --detect-agents --no-guidance --json instead.",
+    );
   });
 
   it("does not print login instructions when all staged installs fail", async () => {
@@ -1839,6 +1875,11 @@ describe("initAction", () => {
       writes["/home/test/.agents/skills/githits-mcp/SKILL.md"],
     ).toBeUndefined();
     expect(writes["/home/test/.codex/AGENTS.md"]).toBeUndefined();
+    expect(
+      getLogOutput().some((msg) =>
+        msg.includes("--detect-agents --no-guidance --json"),
+      ),
+    ).toBe(true);
   });
 
   it("staged guided install uses a native skill path when .agents is not supported", async () => {
@@ -2309,6 +2350,61 @@ describe("initAction", () => {
 
     expect(checkbox).toHaveBeenCalledTimes(1);
     expect(confirm).toHaveBeenCalledWith("Continue with GitHits setup?", true);
+  });
+
+  it("shows no guidance target for a tool without a verified guidance surface", async () => {
+    const fs = createFsWithDetection(["/home/test/.config/Claude"]);
+    const confirm = mock((message: string) => {
+      if (message.includes("Continue with GitHits setup")) {
+        const output = getLogOutput().join("\n");
+        expect(output).toContain("MCP tools to configure: Claude Desktop");
+        expect(output).toContain("Guidance targets: None");
+        return Promise.resolve(false);
+      }
+      return Promise.resolve(true);
+    }) as PromptService["confirm"];
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService({ confirm }),
+        execService: createMockExecService(),
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("lists only verified guidance targets in a mixed review", async () => {
+    const fs = createFsWithDetection([
+      "/home/test/.cursor",
+      "/home/test/.config/Claude",
+    ]);
+    const confirm = mock((message: string) => {
+      if (message.includes("Continue with GitHits setup")) {
+        const guidanceLine = getLogOutput().find((line) =>
+          line.includes("Guidance targets:"),
+        );
+        expect(guidanceLine).toContain("Cursor");
+        expect(guidanceLine).not.toContain("Claude Desktop");
+        return Promise.resolve(false);
+      }
+      return Promise.resolve(true);
+    }) as PromptService["confirm"];
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService({ confirm }),
+        execService: createMockExecService(),
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
 
   it("cancels before authentication and writes when setup review is declined", async () => {

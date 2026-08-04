@@ -223,14 +223,25 @@ describe("agent skills packaging", () => {
         "does not itself upload the local workspace",
         "new coding-agent session",
         "terminal and machine do not need to be restarted",
-        "even when `actionableIds` is empty",
+        "every agent is `not_detected`",
+        "stop before review, installation, or authentication",
+        "offer user-level detection",
+        "continue only with supported agents",
+        "at least one supported agent is `already_configured`",
+        "execute `suggestedCommand` exactly",
+        "preserve `--no-guidance`",
+        "Follow the CLI-emitted verification instruction",
         "acknowledges the install review",
         "stop onboarding without installing or starting authentication",
       ]);
-      const reviewIndex = content.indexOf("Show the install review");
+      const reviewIndex = content.indexOf("show the install review before");
+      const classificationIndex = content.indexOf(
+        "Before showing the review, classify",
+      );
       const approvalIndex = content.indexOf("Ask before writing configuration");
       const authIndex = content.indexOf("Start GitHits sign-in/signup");
-      expect(reviewIndex).toBeGreaterThanOrEqual(0);
+      expect(classificationIndex).toBeGreaterThanOrEqual(0);
+      expect(reviewIndex).toBeGreaterThan(classificationIndex);
       expect(approvalIndex).toBeGreaterThan(reviewIndex);
       expect(authIndex).toBeGreaterThan(approvalIndex);
     }

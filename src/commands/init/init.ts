@@ -355,28 +355,56 @@ const AGENT_LOGIN_NO_BROWSER_COMMAND = `${AGENT_SAFE_CLI} login --no-browser`;
 const AGENTIC_INIT_YES_WARNING =
   "Do not run `githits init -y` or `githits init --yes` unless the user explicitly asks to configure every detected tool.";
 
-function getAgentDetectCommand(scope: InitSetupScope): string {
-  return `${AGENT_SAFE_CLI} init ${scope === "project" ? "--project " : ""}--detect-agents`;
+interface StagedCommandOptions {
+  guidanceRequested: boolean;
+}
+
+const GUIDED_STAGED_COMMAND_OPTIONS: StagedCommandOptions = {
+  guidanceRequested: true,
+};
+
+function guidanceCommandSuffix(options: StagedCommandOptions): string {
+  return options.guidanceRequested ? "" : " --no-guidance";
+}
+
+function getAgentDetectCommand(
+  scope: InitSetupScope,
+  options: StagedCommandOptions,
+): string {
+  return `${AGENT_SAFE_CLI} init ${scope === "project" ? "--project " : ""}--detect-agents${guidanceCommandSuffix(options)}`;
 }
 
 function getAgentInstallCommand(scope: InitSetupScope): string {
   return `${AGENT_SAFE_CLI} init ${scope === "project" ? "--project " : ""}--install-agents`;
 }
 
-function getAgenticVerifyCommand(scope: InitSetupScope): string {
-  return `${getAgentDetectCommand(scope)} --json`;
+function getAgenticVerifyCommand(
+  scope: InitSetupScope,
+  options: StagedCommandOptions,
+): string {
+  return `${getAgentDetectCommand(scope, options)} --json`;
 }
 
-function getAgenticVerifyInstruction(scope: InitSetupScope): string {
-  return `After a successful --install-agents run, verify with ${getAgenticVerifyCommand(scope)} instead of running init again.`;
+function getAgenticVerifyInstruction(
+  scope: InitSetupScope,
+  options: StagedCommandOptions,
+): string {
+  return `After a successful --install-agents run, verify with ${getAgenticVerifyCommand(scope, options)} instead of running init again.`;
 }
 
-function getAgenticJsonVerifyInstruction(scope: InitSetupScope): string {
-  return `Do not run init again after a successful --install-agents run; verify with ${getAgenticVerifyCommand(scope)} instead.`;
+function getAgenticJsonVerifyInstruction(
+  scope: InitSetupScope,
+  options: StagedCommandOptions,
+): string {
+  return `Do not run init again after a successful --install-agents run; verify with ${getAgenticVerifyCommand(scope, options)} instead.`;
 }
 
-function formatInstallCommand(ids: string[], scope: InitSetupScope): string {
-  return `${getAgentInstallCommand(scope)} ${ids.join(",")}`;
+function formatInstallCommand(
+  ids: string[],
+  scope: InitSetupScope,
+  options: StagedCommandOptions,
+): string {
+  return `${getAgentInstallCommand(scope)} ${ids.join(",")}${guidanceCommandSuffix(options)}`;
 }
 
 function printReadyNextSteps(): void {
@@ -487,12 +515,12 @@ function printNonInteractiveInitGuidance(useColors: boolean): void {
   console.log();
   console.log("  2. For user-level install, run:");
   console.log(
-    `     ${formatCommand(getAgentDetectCommand("user"), useColors)}`,
+    `     ${formatCommand(getAgentDetectCommand("user", GUIDED_STAGED_COMMAND_OPTIONS), useColors)}`,
   );
   console.log();
   console.log("     For project-level install, run:");
   console.log(
-    `     ${formatCommand(getAgentDetectCommand("project"), useColors)}`,
+    `     ${formatCommand(getAgentDetectCommand("project", GUIDED_STAGED_COMMAND_OPTIONS), useColors)}`,
   );
   console.log();
   console.log("  3. Show the detected tools to the user.");
@@ -521,8 +549,12 @@ function printNonInteractiveInitGuidance(useColors: boolean): void {
   );
   console.log();
   console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
-  console.log(`  ${getAgenticVerifyInstruction("user")}`);
-  console.log(`  ${getAgenticVerifyInstruction("project")}`);
+  console.log(
+    `  ${getAgenticVerifyInstruction("user", GUIDED_STAGED_COMMAND_OPTIONS)}`,
+  );
+  console.log(
+    `  ${getAgenticVerifyInstruction("project", GUIDED_STAGED_COMMAND_OPTIONS)}`,
+  );
 }
 
 function printNonInteractiveYesRejected(useColors: boolean): void {
@@ -531,12 +563,14 @@ function printNonInteractiveYesRejected(useColors: boolean): void {
   );
   console.error();
   console.error("Use the agent-safe staged flow instead:");
-  console.error(`  ${formatCommand(getAgentDetectCommand("user"), useColors)}`);
+  console.error(
+    `  ${formatCommand(getAgentDetectCommand("user", GUIDED_STAGED_COMMAND_OPTIONS), useColors)}`,
+  );
   console.error(
     `  ${formatCommand(`${getAgentInstallCommand("user")} <ids>`, useColors)}`,
   );
   console.error(
-    `  ${formatCommand(getAgentDetectCommand("project"), useColors)}`,
+    `  ${formatCommand(getAgentDetectCommand("project", GUIDED_STAGED_COMMAND_OPTIONS), useColors)}`,
   );
   console.error(
     `  ${formatCommand(`${getAgentInstallCommand("project")} <ids>`, useColors)}`,
@@ -1090,6 +1124,17 @@ function buildGuidanceSetupConfig(
   return { method: "composite", steps };
 }
 
+function getGuidanceTargetAgents(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): AgentDefinition[] {
+  return agents.filter(
+    (agent) =>
+      buildGuidanceSetupConfig([agent], fileSystemService, scope) !== null,
+  );
+}
+
 function getGuidanceUninstallSteps(
   agents: AgentDefinition[],
   fileSystemService: FileSystemService,
@@ -1423,7 +1468,8 @@ function printAgenticDetectSummary(
   useColors: boolean,
   scope: InitSetupScope,
 ): void {
-  const { entries, actionableIds } = detection;
+  const { entries, actionableIds, guidanceRequested } = detection;
+  const commandOptions = { guidanceRequested };
   const detected = entries.filter((entry) => entry.status !== "not_detected");
   const actionable = entries.filter((entry) =>
     actionableIds.includes(entry.id),
@@ -1501,11 +1547,11 @@ function printAgenticDetectSummary(
         "  Tell the user the other detected tools do not have verified project-level MCP support.",
       );
       console.log(
-        `  Offer user-level install with ${getAgentDetectCommand("user")} if they want GitHits for those tools.`,
+        `  Offer user-level install with ${getAgentDetectCommand("user", commandOptions)} if they want GitHits for those tools.`,
       );
       console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
       console.log(
-        `  Do not run init again as a verification step; use ${getAgenticVerifyCommand(scope)} if verification is needed.`,
+        `  Do not run init again as a verification step; use ${getAgenticVerifyCommand(scope, commandOptions)} if verification is needed.`,
       );
       return;
     }
@@ -1517,7 +1563,7 @@ function printAgenticDetectSummary(
     );
     console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
     console.log(
-      `  Do not run init again as a verification step; use ${getAgenticVerifyCommand(scope)} if verification is needed.`,
+      `  Do not run init again as a verification step; use ${getAgenticVerifyCommand(scope, commandOptions)} if verification is needed.`,
     );
     return;
   }
@@ -1531,7 +1577,7 @@ function printAgenticDetectSummary(
   console.log();
   console.log("  If the user approves all detected tools needing setup, run:");
   console.log(
-    `    ${formatCommand(formatInstallCommand(actionableIds, scope), useColors)}`,
+    `    ${formatCommand(formatInstallCommand(actionableIds, scope, commandOptions), useColors)}`,
   );
   if (scope === "project") {
     console.log();
@@ -1541,7 +1587,7 @@ function printAgenticDetectSummary(
   }
   console.log();
   console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
-  console.log(`  ${getAgenticVerifyInstruction(scope)}`);
+  console.log(`  ${getAgenticVerifyInstruction(scope, commandOptions)}`);
 }
 
 function printAgenticDetectJson(
@@ -1563,6 +1609,7 @@ function printAgenticDetectJson(
     actionableCount: actionableIds.length,
     configuredCount: configured.length,
     unsupportedCount: unsupported.length,
+    guidanceRequested,
   });
   console.log(
     JSON.stringify(
@@ -1575,7 +1622,9 @@ function printAgenticDetectJson(
         guidanceRequested,
         suggestedCommand:
           actionableIds.length > 0
-            ? formatInstallCommand(actionableIds, scope)
+            ? formatInstallCommand(actionableIds, scope, {
+                guidanceRequested,
+              })
             : null,
         instructions,
       },
@@ -1591,6 +1640,7 @@ function buildAgenticDetectJsonInstructions(input: {
   actionableCount: number;
   configuredCount: number;
   unsupportedCount: number;
+  guidanceRequested: boolean;
 }): string[] {
   const {
     scope,
@@ -1598,7 +1648,9 @@ function buildAgenticDetectJsonInstructions(input: {
     actionableCount,
     configuredCount,
     unsupportedCount,
+    guidanceRequested,
   } = input;
+  const commandOptions = { guidanceRequested };
   if (detectedCount === 0) {
     return [
       "No supported AI coding tools were detected.",
@@ -1618,9 +1670,9 @@ function buildAgenticDetectJsonInstructions(input: {
             ]),
         "Explain that tools with unsupported_project_config status cannot be installed with --project.",
         "Do not ask the user to choose project install IDs.",
-        `Offer user-level detection with ${getAgentDetectCommand("user")} if they want GitHits for unsupported project tools.`,
+        `Offer user-level detection with ${getAgentDetectCommand("user", commandOptions)} if they want GitHits for unsupported project tools.`,
         AGENTIC_INIT_YES_WARNING,
-        getAgenticJsonVerifyInstruction(scope),
+        getAgenticJsonVerifyInstruction(scope, commandOptions),
       ];
     }
     return [
@@ -1628,7 +1680,7 @@ function buildAgenticDetectJsonInstructions(input: {
       "Tell the user that GitHits MCP and requested guidance are already configured for detected tools.",
       "Do not ask the user to choose actionable IDs.",
       AGENTIC_INIT_YES_WARNING,
-      getAgenticJsonVerifyInstruction(scope),
+      getAgenticJsonVerifyInstruction(scope, commandOptions),
     ];
   }
   return [
@@ -1644,7 +1696,7 @@ function buildAgenticDetectJsonInstructions(input: {
     "Ask which actionable tools should receive GitHits MCP setup or guidance repair.",
     "Only run --install-agents with user-approved IDs.",
     AGENTIC_INIT_YES_WARNING,
-    getAgenticJsonVerifyInstruction(scope),
+    getAgenticJsonVerifyInstruction(scope, commandOptions),
   ];
 }
 
@@ -1858,7 +1910,9 @@ function buildAgenticInstallInstructions(
   scope: InitSetupScope,
   guidanceInstalled: boolean,
   changesMade: boolean,
+  guidanceRequested: boolean,
 ): string[] {
+  const commandOptions = { guidanceRequested };
   const guidanceInstruction = guidanceInstalled
     ? "GitHits supporting instructions are installed."
     : "Supporting instructions were not installed; rerun staged install without --no-guidance if the user asks for them.";
@@ -1873,7 +1927,7 @@ function buildAgenticInstallInstructions(
     return [
       ...reloadInstructions,
       guidanceInstruction,
-      getAgenticJsonVerifyInstruction(scope),
+      getAgenticJsonVerifyInstruction(scope, commandOptions),
     ];
   }
   if (authStatus === "required") {
@@ -1883,7 +1937,7 @@ function buildAgenticInstallInstructions(
       "Browser sign-in happens outside chat and terminal input.",
       "Do not ask the user to paste passwords, tokens, cookies, or OAuth codes into chat.",
       guidanceInstruction,
-      getAgenticJsonVerifyInstruction(scope),
+      getAgenticJsonVerifyInstruction(scope, commandOptions),
     ];
   }
   return [
@@ -1891,7 +1945,7 @@ function buildAgenticInstallInstructions(
     "Sign-in status was not checked.",
     `If the user is not already signed in, ask before running ${AGENT_LOGIN_COMMAND}.`,
     guidanceInstruction,
-    getAgenticJsonVerifyInstruction(scope),
+    getAgenticJsonVerifyInstruction(scope, commandOptions),
   ];
 }
 
@@ -1900,6 +1954,7 @@ function printAgenticInstallJson(
   guidance: GuidanceOutcome | null,
   authStatus: StagedInstallAuthStatus,
   scope: InitSetupScope,
+  guidanceRequested: boolean,
 ): void {
   const canAuthenticate = hasUsableInstallOutcome(outcomes);
   const guidanceInstalled =
@@ -1927,6 +1982,7 @@ function printAgenticInstallJson(
               scope,
               guidanceInstalled,
               changesMade,
+              guidanceRequested,
             )
           : ["Fix installation errors before asking the user to sign in."],
       },
@@ -1972,6 +2028,8 @@ async function runInstallAgentsMode(
   useColors: boolean,
 ): Promise<void> {
   const scope: InitSetupScope = options.project ? "project" : "user";
+  const guidanceRequested = shouldInstallGuidanceForStaged(options);
+  const commandOptions = { guidanceRequested };
   const requestedIds = parseAgentIdList(options.installAgents);
   const scan = await scanAgents(
     agentDefinitions,
@@ -2000,7 +2058,7 @@ async function runInstallAgentsMode(
     false,
     scope,
   );
-  const guidance = shouldInstallGuidanceForStaged(options)
+  const guidance = guidanceRequested
     ? await installGuidance(agents, fileSystemService, execService, scope)
     : null;
   if (!options.json) {
@@ -2033,7 +2091,13 @@ async function runInstallAgentsMode(
   }
 
   if (options.json) {
-    printAgenticInstallJson(outcomes, guidance, authStatus, scope);
+    printAgenticInstallJson(
+      outcomes,
+      guidance,
+      authStatus,
+      scope,
+      guidanceRequested,
+    );
     return;
   }
 
@@ -2079,7 +2143,7 @@ async function runInstallAgentsMode(
     } else {
       printAgenticAuthNotChecked(useColors);
     }
-    console.log(`  ${getAgenticVerifyInstruction(scope)}`);
+    console.log(`  ${getAgenticVerifyInstruction(scope, commandOptions)}`);
   } else {
     console.log("Fix installation errors before starting sign-in.");
   }
@@ -4036,12 +4100,15 @@ export async function initAction(
   }
 
   const summaryAgents = getInstallSummaryAgents(scan, toSetup);
+  const guidanceTargetAgents = installSupportingGuidance
+    ? getGuidanceTargetAgents(summaryAgents, fileSystemService, setupScope)
+    : [];
   printSection(3, "Review and confirm", useColors);
   printInstallReview(
     useColors,
     setupScope,
     toSetup,
-    installSupportingGuidance ? summaryAgents : [],
+    guidanceTargetAgents,
     installSupportingGuidance,
     false,
   );
