@@ -22,6 +22,7 @@ The agent can safely handle:
 - Checking auth state.
 - Detecting supported coding tools.
 - Asking which detected tools to configure.
+- Showing and obtaining acknowledgment of the outbound-data install review before setup or authentication.
 - Installing MCP configuration for approved tools.
 - Starting login/signup.
 - Verifying auth and MCP configuration.
@@ -37,13 +38,14 @@ The preferred setup path is:
 
 1. Ask whether setup should be project-level or user-level.
 2. Detect supported tools with the matching staged command.
-3. Recommend configuring all detected installable tools first.
-4. Offer individual tool selection only as a secondary path for users who want a smaller setup.
-5. Install the approved IDs with the matching staged install command.
-6. Start sign-in/signup as part of onboarding, skipping login only when `auth status` already reports an active session.
-7. Verify auth and tool configuration.
+3. Show the install review before installation approval or browser authentication, including when no setup IDs are actionable.
+4. Recommend configuring all actionable tools first. `actionableIds` includes MCP setup and requested guidance-only repair, while `installableIds` remains MCP-only.
+5. Offer individual tool selection only as a secondary path for users who want a smaller setup.
+6. Install the approved IDs with the matching staged install command.
+7. Start sign-in/signup as part of onboarding, skipping login only when `auth status` already reports an active session.
+8. Verify auth, MCP configuration, and supporting guidance.
 
-The skill still requires approval before writing MCP config or launching browser OAuth. It should not present "configure none" or "skip login" as normal onboarding choices, because those paths leave a new user without a working GitHits setup.
+The skill still requires review acknowledgment before writing MCP config or launching browser OAuth. The review explains outbound queries/targets and feedback, local-workspace behavior, and that only a new coding-agent session is needed after changes; the terminal and machine do not need restarting. It should not present "configure none" or "skip login" as normal onboarding choices, because those paths leave a new user without a working GitHits setup.
 
 ## Project And User Setup Scope
 

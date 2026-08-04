@@ -65,20 +65,34 @@ npx -y githits@latest init --detect-agents --json
 
 Run detection inline, not in a background terminal. Wait for JSON before continuing.
 
-Use the JSON fields to summarize detected tools. `agents[].status` can be `needs_setup`, `already_configured`, `unsupported_project_config`, or `not_detected`. `installableIds` lists detected tools that need setup for the selected scope.
+Use the JSON fields to summarize detected tools. `agents[].status` describes MCP state and can be `needs_setup`, `already_configured`, `unsupported_project_config`, or `not_detected`. `agents[].guidanceStatus` describes supporting guidance. `installableIds` remains MCP-only; use `actionableIds` for tools needing either MCP setup or requested guidance repair.
+
+If `actionableIds` is absent because the installed CLI predates guidance-aware detection, use `installableIds` for MCP setup and do not infer guidance-only repair from missing fields.
 
 For project-level setup, do not offer tools with `unsupported_project_config`. Explain only if needed: those detected tools do not have verified project-level MCP support.
 
-3. Recommend the simplest tool setup choice with structured options.
+3. Show the install review before asking for tool approval or starting browser authentication, even when `actionableIds` is empty.
 
-If `installableIds` is non-empty, use structured choices when available. Do not ask the user to type comma-separated tool IDs unless the current agent interface has no structured choice mechanism.
+Tell the user:
+
+- Queries and targets leave this machine and are sent to GitHits services for processing.
+- Feedback submission is an outbound write that sends feedback data to GitHits services.
+- Installing GitHits does not itself upload the local workspace.
+- After installation, open a new coding-agent session so it loads MCP configuration and any supporting instructions. The terminal and machine do not need to be restarted.
+
+Ask the user to acknowledge this review before continuing.
+If the user does not acknowledge it, stop onboarding without installing or starting authentication.
+
+4. Recommend the simplest actionable setup choice with structured options.
+
+If `actionableIds` is non-empty, use structured choices when available. Do not ask the user to type comma-separated tool IDs unless the current agent interface has no structured choice mechanism. Explain whether each ID needs MCP setup, guidance repair, or both.
 
 Ask: `Which tools should I configure?`
 
 Options:
 
-- `Configure all detected tools (Recommended)` — the recommended default option; use all `installableIds`.
-- One selective setup option per installable detected tool, using the tool display name and ID.
+- `Configure all actionable tools (Recommended)` — the recommended default option; use all `actionableIds`.
+- One selective setup option per actionable tool, using the tool display name and ID.
 
 Do not present "configure none" as a normal onboarding choice; if the user does not want any tool configured, pause and clarify whether they want to stop onboarding.
 
@@ -86,7 +100,9 @@ Ask before writing configuration. A good prompt is: `I recommend configuring all
 
 Only install user-approved IDs. Do not run `init -y` or `init --yes` unless the user explicitly asks to configure every detected tool.
 
-4. Install GitHits MCP and supporting guidance for approved tools using the selected scope.
+If `actionableIds` is empty, skip installation and continue to authentication only after the user acknowledges the install review.
+
+5. Install GitHits MCP and supporting guidance for approved tools using the selected scope.
 
 Guidance is installed by default. It adds the `githits-mcp` skill and a short instruction pointer for tools with verified guidance paths. Add `--no-guidance` only when the user explicitly asks for plain MCP without supporting instructions.
 
@@ -104,7 +120,7 @@ npx -y githits@latest init --install-agents <comma-separated-approved-ids> --jso
 
 Treat `success` and `already_configured` outcomes as usable. Report any `failed` outcome with the tool name and message. For project-level setup, remind the user that project-local MCP files may be committed.
 
-5. Start GitHits sign-in/signup during onboarding.
+6. Start GitHits sign-in/signup during onboarding.
 
 Do not ask whether the user wants to log in. Login creates or connects the GitHits account, so it is part of onboarding. Ask before launching browser OAuth, then run login unless `auth status` already shows an active session.
 
@@ -134,7 +150,7 @@ npx -y githits@latest login --no-browser
 
 With `--no-browser`, surface the printed sign-in URL clearly so the user can open it in a browser. If command output is hidden from the user, relay the URL verbatim. Do not ask them to paste passwords, tokens, cookies, or OAuth codes back into chat.
 
-6. Verify setup after login and installation.
+7. Verify setup after login and installation.
 
 Project-level verification:
 
@@ -150,7 +166,7 @@ npx -y githits@latest auth status
 npx -y githits@latest init --detect-agents --json
 ```
 
-Confirm auth is active and selected tools are `already_configured` for the selected scope. If MCP configuration changed, tell the user to open a new agent session in the project or user environment so the tool reloads its MCP config.
+Confirm auth is active and selected tools are `already_configured` for the selected scope. If MCP configuration or supporting guidance changed, tell the user to open a new coding-agent session in the project or user environment so the tool reloads its MCP configuration and any supporting instructions. The terminal and machine do not need to be restarted.
 
 ## Completion Response
 

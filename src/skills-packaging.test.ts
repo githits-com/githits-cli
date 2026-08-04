@@ -104,7 +104,7 @@ describe("agent skills packaging", () => {
 
     expectContainsAll(content, [
       "new-user onboarding skill",
-      "Configure all detected tools (Recommended)",
+      "Configure all actionable tools (Recommended)",
       "recommended default option",
       "selective setup option",
       'Do not present "configure none" as a normal onboarding choice',
@@ -182,7 +182,7 @@ describe("agent skills packaging", () => {
       "npx -y githits@latest auth status",
       "npx -y githits@latest login",
       "npx -y githits@latest login --no-browser",
-      "Configure all detected tools",
+      "Configure all actionable tools",
       "structured choice",
       "My user account (Recommended)",
       "This project only",
@@ -204,6 +204,36 @@ describe("agent skills packaging", () => {
     ]);
     expect(content).not.toContain("command -v githits");
     expect(content).not.toContain("{GITHITS}");
+  });
+
+  it("keeps install review and guidance repair behavior aligned across onboarding skills", async () => {
+    const skills = [
+      await read(onboardingSkillPath),
+      await read(claudeOnboardingSkillPath),
+    ];
+
+    for (const content of skills) {
+      expectContainsAll(content, [
+        "actionableIds",
+        "use `installableIds` for MCP setup",
+        "do not infer guidance-only repair",
+        "guidance repair",
+        "Queries and targets leave this machine",
+        "Feedback submission is an outbound write",
+        "does not itself upload the local workspace",
+        "new coding-agent session",
+        "terminal and machine do not need to be restarted",
+        "even when `actionableIds` is empty",
+        "acknowledges the install review",
+        "stop onboarding without installing or starting authentication",
+      ]);
+      const reviewIndex = content.indexOf("Show the install review");
+      const approvalIndex = content.indexOf("Ask before writing configuration");
+      const authIndex = content.indexOf("Start GitHits sign-in/signup");
+      expect(reviewIndex).toBeGreaterThanOrEqual(0);
+      expect(approvalIndex).toBeGreaterThan(reviewIndex);
+      expect(authIndex).toBeGreaterThan(approvalIndex);
+    }
   });
 
   it("packages public and Claude GitHits MCP skills with OSS context triggers", async () => {

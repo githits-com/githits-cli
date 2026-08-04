@@ -21,9 +21,10 @@
   - Interactive setup defaults to guided MCP.
   - `--yes` accepts guided MCP unless `--no-guidance` is passed.
   - Staged `--install-agents` accepts guided MCP unless `--no-guidance` is passed.
-- Before authentication or installation, show a numbered review step stating that queries and targets leave the machine for GitHits processing, feedback submission is an outbound write, installation itself does not upload the local workspace, and a new coding-agent session is needed to load changed MCP configuration or supporting instructions.
+- Before authentication or installation, show a numbered review step stating that queries and targets leave the machine for GitHits processing, feedback submission is an outbound write, installation itself does not upload the local workspace, and a new coding-agent session is needed to load changed MCP configuration or supporting instructions. The terminal and machine do not need to be restarted.
 - Interactive setup shows the selected scope, tools, and guidance choice, then requires `Continue with GitHits setup?` confirmation. Declining or interrupting confirmation exits before authentication, config writes, guidance writes, or setup commands. Interactive `--yes` prints the same review and acts as acknowledgment without another prompt.
 - Agent-assisted staged setup must present the review before asking which detected tools to configure. A new session means opening or restarting the coding-agent session, not restarting the terminal or machine.
+- Staged detection keeps `installableIds` MCP-only for compatibility and adds per-agent `guidanceStatus`, top-level `guidanceRequested`, and `actionableIds` for the ordered union of MCP setup and requested guidance repair. This keeps guidance-only reruns reachable when MCP is already configured.
 
 ## Guidance Install
 
