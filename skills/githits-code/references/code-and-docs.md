@@ -32,9 +32,11 @@ Use `search` for discovery and `code grep` only when you know the pattern.
 
 `githits docs list <spec>` browses available documentation pages. It is not topic search.
 
-`githits docs read <pageId>` reads a page. Use `--lines` for bounded windows and `--json` when extracting `totalLines` or source metadata.
+`githits docs read <pageId>` reads a page. Text output returns at most 150 lines per call, including larger explicit ranges; continue from the reported returned range when more context is needed. Use `--lines` for bounded windows and `--json` when extracting `totalLines` or source metadata.
 
 For topic search, use `githits search "<topic>" --source docs --in <target>`, then pass the returned page ID to `docs read`.
+
+When search reports partial documentation coverage, treat the evidence as incomplete and retry later when advised. Capped coverage means the current crawl stopped at a limit; report that limitation instead of retrying.
 
 ## Command Name Mapping
 
