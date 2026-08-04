@@ -71,7 +71,7 @@ Follow the CLI JSON `instructions` remediation for these states rather than repl
 
 Tell the user:
 
-- Queries and targets leave this machine and are sent to GitHits services for processing.
+- GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.
 - Feedback submission is an outbound write that sends feedback data to GitHits services.
 - Installing GitHits does not itself upload the local workspace.
 - After installation, open a new coding-agent session so it loads MCP configuration and any supporting instructions. The terminal and machine do not need to be restarted.
@@ -107,7 +107,11 @@ User-level install:
 npx -y githits@latest init --install-agents <comma-separated-approved-ids> --json
 ```
 
+Cursor is configured with the remote MCP at `https://mcp.githits.com`. A legacy local `npx ... githits ... mcp start` Cursor entry should be migrated by the install command.
+
 6. Start GitHits sign-in/signup as part of onboarding. Do not ask whether the user wants to log in; login creates or connects the GitHits account.
+
+Local `githits auth status` and `githits login` apply to CLI/stdio integrations, not Cursor's remote MCP OAuth. If Cursor is the only approved tool, skip local CLI login. For mixed installs, use local login for non-Cursor tools but keep Cursor authentication state separate.
 
 Check whether login can be skipped because auth is already active:
 
@@ -148,3 +152,5 @@ npx -y githits@latest init --detect-agents --json
 ```
 
 Report configured tools, auth state, failures, and whether the user should open a new Claude Code session so MCP configuration and any supporting instructions load. The terminal and machine do not need to be restarted.
+
+For Cursor, init detection verifies only the remote URL. It cannot verify Cursor-managed OAuth or tool discovery. If `cursor-agent` is available, run `cursor-agent mcp list` and `cursor-agent mcp list-tools GitHits`; if authentication is required, run `cursor-agent mcp login GitHits`, let the user complete browser OAuth, and rerun the checks. Always require a new Cursor Agent chat after installation and confirm in Cursor's MCP tools UI that GitHits is enabled and its tools are listed. Do not report Cursor ready from local CLI auth or init detection alone.

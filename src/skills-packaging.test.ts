@@ -218,7 +218,7 @@ describe("agent skills packaging", () => {
         "use `installableIds` for MCP setup",
         "do not infer guidance-only repair",
         "guidance repair",
-        "Queries and targets leave this machine",
+        "GitHits queries and public package, repository, and documentation targets are sent to GitHits services",
         "Feedback submission is an outbound write",
         "does not itself upload the local workspace",
         "new coding-agent session",
@@ -233,6 +233,10 @@ describe("agent skills packaging", () => {
         "Follow the CLI-emitted verification instruction",
         "acknowledges the install review",
         "stop onboarding without installing or starting authentication",
+        "https://mcp.githits.com",
+        "Cursor-managed OAuth",
+        "cursor-agent mcp list-tools GitHits",
+        "new Cursor Agent chat",
       ]);
       const reviewIndex = content.indexOf("show the install review before");
       const classificationIndex = content.indexOf(

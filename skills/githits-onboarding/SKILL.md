@@ -84,7 +84,7 @@ Follow the CLI JSON `instructions` remediation for these states rather than repl
 
 Tell the user:
 
-- Queries and targets leave this machine and are sent to GitHits services for processing.
+- GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.
 - Feedback submission is an outbound write that sends feedback data to GitHits services.
 - Installing GitHits does not itself upload the local workspace.
 - After installation, open a new coding-agent session so it loads MCP configuration and any supporting instructions. The terminal and machine do not need to be restarted.
@@ -131,9 +131,13 @@ npx -y githits@latest init --install-agents <comma-separated-approved-ids> --jso
 
 Treat `success` and `already_configured` outcomes as usable. Report any `failed` outcome with the tool name and message. For project-level setup, remind the user that project-local MCP files may be committed.
 
+Cursor is configured with the remote MCP at `https://mcp.githits.com`, not a local stdio command. An existing Cursor entry that runs `npx ... githits ... mcp start` is legacy and should become `needs_setup`; installing it migrates the entry to the remote URL.
+
 6. Start GitHits sign-in/signup during onboarding.
 
 Do not ask whether the user wants to log in. Login creates or connects the GitHits account, so it is part of onboarding. Ask before launching browser OAuth, then run login unless `auth status` already shows an active session.
+
+This CLI authentication step applies to local GitHits CLI/stdio integrations. Cursor remote MCP authentication is managed separately by Cursor. If Cursor is the only approved tool, skip local CLI login and continue to the Cursor verification below. For a mixed install, use this CLI login step for the non-Cursor tools, but do not treat it as evidence that Cursor is authenticated.
 
 Check auth state:
 
@@ -179,12 +183,25 @@ npx -y githits@latest init --detect-agents --json
 
 Confirm auth is active and selected tools are `already_configured` for the selected scope. If MCP configuration or supporting guidance changed, tell the user to open a new coding-agent session in the project or user environment so the tool reloads its MCP configuration and any supporting instructions. The terminal and machine do not need to be restarted.
 
+For Cursor, `already_configured` verifies only that the remote URL is present. It does not verify Cursor-managed OAuth or tool discovery. Do not report Cursor as ready based on `githits auth status` or init detection alone.
+
+If `cursor-agent` is available, verify Cursor directly:
+
+```bash
+cursor-agent mcp list
+cursor-agent mcp list-tools GitHits
+```
+
+If Cursor reports that authentication is required, run `cursor-agent mcp login GitHits`, let the user complete browser OAuth, then rerun both verification commands. Do not ask the user to paste OAuth data into chat.
+
+Whether or not `cursor-agent` is available, tell the user to open a new Cursor Agent chat after installation. In the Cursor MCP tools UI, confirm that GitHits is enabled, complete its OAuth prompt if shown, and confirm that GitHits tools are listed. If the CLI checks cannot run, require the user's confirmation from that new chat before reporting Cursor ready.
+
 ## Completion Response
 
 Report:
 
 - Which tools were configured or already configured.
-- Whether GitHits auth is active, requires browser approval, or could not be verified.
+- Whether local GitHits CLI auth and Cursor-managed OAuth are active, require browser approval, or could not be verified, keeping those states separate.
 - Whether the user needs to restart/open a new agent session.
 - Any failed tool setup with the exact tool name and error message.
 

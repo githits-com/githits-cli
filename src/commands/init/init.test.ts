@@ -150,17 +150,19 @@ function getErrorOutput(): string[] {
   return (errorSpy.mock.calls as unknown[][]).map((c) => String(c[0] ?? ""));
 }
 
-function expectReadyNextSteps(logCalls: string[]): void {
+function expectCursorRemoteNextSteps(logCalls: string[]): void {
+  expect(logCalls.some((msg) => msg.includes("6. Next Steps"))).toBe(true);
   expect(logCalls.some((msg) => msg.includes("GitHits is now connected"))).toBe(
-    true,
+    false,
   );
-  expect(logCalls.some((msg) => msg.includes("new abilities"))).toBe(true);
   expect(
     logCalls.some((msg) =>
-      msg.includes("How does Next.js implement route prefetching"),
+      msg.includes("Cursor is ready only after its separate OAuth"),
     ),
   ).toBe(true);
-  expect(logCalls.some((msg) => msg.includes("trigger guides"))).toBe(true);
+  expect(
+    logCalls.some((msg) => msg.includes("cursor-agent mcp list-tools GitHits")),
+  ).toBe(true);
 }
 
 function expectAuthNotCheckedNextSteps(logCalls: string[]): void {
@@ -266,7 +268,7 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("githits init -y"))).toBe(true);
     expect(
       logCalls.some((msg) =>
-        msg.includes("Queries and targets leave this machine"),
+        msg.includes("GitHits queries and public package"),
       ),
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
@@ -377,7 +379,7 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("needs setup"))).toBe(true);
     expect(
       logCalls.some((msg) =>
-        msg.includes("Queries and targets leave this machine"),
+        msg.includes("GitHits queries and public package"),
       ),
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
@@ -424,7 +426,7 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("Install review"))).toBe(false);
     expect(
       logCalls.some((msg) =>
-        msg.includes("Queries and targets leave this machine"),
+        msg.includes("GitHits queries and public package"),
       ),
     ).toBe(false);
   });
@@ -434,8 +436,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -463,9 +464,19 @@ describe("initAction", () => {
     );
     expect(
       logCalls.some((msg) =>
-        msg.includes("Queries and targets leave this machine"),
+        msg.includes("GitHits queries and public package"),
       ),
     ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("supporting guidance was not requested"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("requested supporting guidance is already configured"),
+      ),
+    ).toBe(false);
   });
 
   it("emits JSON for agent detection", async () => {
@@ -499,7 +510,7 @@ describe("initAction", () => {
     );
     const queryDisclosureIndex = payload.instructions.findIndex(
       (instruction: string) =>
-        instruction.includes("Queries and targets leave this machine"),
+        instruction.includes("GitHits queries and public package"),
     );
     const feedbackDisclosureIndex = payload.instructions.findIndex(
       (instruction: string) => instruction.includes("is an outbound write"),
@@ -551,8 +562,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -586,8 +596,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -616,13 +625,13 @@ describe("initAction", () => {
       "Before authentication, show the user this install review:",
     );
     const configuredInstruction = payload.instructions.indexOf(
-      "Tell the user that GitHits MCP and requested guidance are already configured for detected tools.",
+      "Tell the user that requested supporting guidance is already configured for tools with verified guidance targets.",
     );
     expect(reviewLeadIn).toBeGreaterThanOrEqual(0);
     expect(configuredInstruction).toBeGreaterThan(reviewLeadIn);
     expect(payload.instructions).toEqual(
       expect.arrayContaining([
-        "Queries and targets leave this machine and are sent to GitHits services for processing.",
+        "GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.",
         "Feedback submission is an outbound write that sends feedback data to GitHits services.",
         "Installing GitHits MCP does not itself upload the local workspace.",
         "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
@@ -631,10 +640,25 @@ describe("initAction", () => {
     expect(payload.instructions).toContain(
       "Do not ask the user to choose actionable IDs.",
     );
+    expect(payload.instructions).toContain(
+      "Cursor uses the remote GitHits MCP at https://mcp.githits.com and manages its OAuth separately from local GitHits CLI authentication.",
+    );
+    expect(
+      payload.instructions.some((instruction: string) =>
+        instruction.includes("cursor-agent mcp list-tools GitHits"),
+      ),
+    ).toBe(true);
   });
 
   it("deduplicates shared guidance checks across detected tools", async () => {
-    const mcpConfig = JSON.stringify({
+    const cursorMcpConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          url: "https://mcp.githits.com",
+        },
+      },
+    });
+    const qwenMcpConfig = JSON.stringify({
       mcpServers: {
         GitHits: {
           command: "npx",
@@ -646,8 +670,8 @@ describe("initAction", () => {
     const fs = createFsWithDetection(
       ["/home/test/.cursor", "/home/test/.qwen"],
       {
-        "/home/test/.cursor/mcp.json": mcpConfig,
-        "/home/test/.qwen/settings.json": mcpConfig,
+        "/home/test/.cursor/mcp.json": cursorMcpConfig,
+        "/home/test/.qwen/settings.json": qwenMcpConfig,
         [sharedSkillPath]: readGithitsMcpSkillContent(),
       },
     );
@@ -672,8 +696,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -695,6 +718,15 @@ describe("initAction", () => {
     expect(cursor.guidanceStatus).toBe("not_requested");
     expect(payload.guidanceRequested).toBe(false);
     expect(payload.actionableIds).toEqual([]);
+    expect(payload.instructions).toContain(
+      "Tell the user that GitHits MCP is already configured for detected tools.",
+    );
+    expect(payload.instructions).toContain(
+      "Tell the user that supporting guidance was not requested.",
+    );
+    expect(JSON.stringify(payload.instructions)).not.toContain(
+      "requested supporting guidance is already configured",
+    );
   });
 
   it("reports detected tools without guidance targets as not supported", async () => {
@@ -718,13 +750,43 @@ describe("initAction", () => {
     expect(payload.actionableIds).toContain("claude-desktop");
   });
 
+  it("does not claim unsupported guidance is configured in no-action detection", async () => {
+    const fs = createFsWithDetection(["/home/test/.config/Claude"], {
+      "/home/test/.config/Claude/claude_desktop_config.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    });
+
+    await initAction(
+      { detectAgents: true, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.actionableIds).toEqual([]);
+    expect(payload.instructions).toContain(
+      "Tell the user that some detected tools do not have a verified supporting-guidance target.",
+    );
+    expect(JSON.stringify(payload.instructions)).not.toContain(
+      "requested supporting guidance is already configured",
+    );
+  });
+
   it("shows guidance-only repair in human-readable staged detection", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"], {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -850,7 +912,7 @@ describe("initAction", () => {
       "Before authentication, show the user this install review:",
     );
     expect(JSON.stringify(payload.instructions)).not.toContain(
-      "Queries and targets leave this machine",
+      "GitHits queries and public package",
     );
   });
 
@@ -861,8 +923,7 @@ describe("initAction", () => {
         "/repo/.cursor/mcp.json": JSON.stringify({
           mcpServers: {
             GitHits: {
-              command: "npx",
-              args: ["-y", "githits@latest", "mcp", "start"],
+              url: "https://mcp.githits.com",
             },
           },
         }),
@@ -898,7 +959,7 @@ describe("initAction", () => {
     expect(fallbackIndex).toBeGreaterThan(configuredIndex);
     expect(payload.instructions).toEqual(
       expect.arrayContaining([
-        "Queries and targets leave this machine and are sent to GitHits services for processing.",
+        "GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.",
         "Feedback submission is an outbound write that sends feedback data to GitHits services.",
         "Installing GitHits MCP does not itself upload the local workspace.",
         "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
@@ -925,8 +986,7 @@ describe("initAction", () => {
         "/repo/.cursor/mcp.json": JSON.stringify({
           mcpServers: {
             GitHits: {
-              command: "npx",
-              args: ["-y", "githits@latest", "mcp", "start"],
+              url: "https://mcp.githits.com",
             },
           },
         }),
@@ -954,7 +1014,7 @@ describe("initAction", () => {
     expect(nextStepIndex).toBeGreaterThan(reviewIndex);
     expect(logCalls).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("Queries and targets leave this machine"),
+        expect.stringContaining("GitHits queries and public package"),
         expect.stringContaining("Feedback submission is an outbound write"),
         expect.stringContaining(
           "Installing GitHits MCP does not itself upload the local workspace",
@@ -1007,7 +1067,7 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("Install review"))).toBe(false);
     expect(
       logCalls.some((msg) =>
-        msg.includes("Queries and targets leave this machine"),
+        msg.includes("GitHits queries and public package"),
       ),
     ).toBe(false);
   });
@@ -1046,6 +1106,11 @@ describe("initAction", () => {
     ).toBe(false);
     expect(
       getLogOutput().some((msg) => msg.includes("npx -y githits@latest login")),
+    ).toBe(false);
+    expect(
+      getLogOutput().some((msg) =>
+        msg.includes("Cursor uses the remote GitHits MCP"),
+      ),
     ).toBe(true);
     expect(
       getLogOutput().some((msg) =>
@@ -1185,8 +1250,7 @@ describe("initAction", () => {
     expect(JSON.parse(configFiles["/repo/.cursor/mcp.json"] ?? "{}")).toEqual({
       mcpServers: {
         GitHits: {
-          command: "npx",
-          args: ["-y", "githits@latest", "mcp", "start"],
+          url: "https://mcp.githits.com",
         },
       },
     });
@@ -1264,8 +1328,7 @@ describe("initAction", () => {
     const written = JSON.parse(configFiles["/repo/.cursor/mcp.json"] ?? "{}");
     expect(written.mcpServers.Other).toEqual({ command: "other", args: [] });
     expect(written.mcpServers.GitHits).toEqual({
-      command: "npx",
-      args: ["-y", "githits@latest", "mcp", "start"],
+      url: "https://mcp.githits.com",
     });
   });
 
@@ -1295,7 +1358,7 @@ describe("initAction", () => {
     );
 
     const logCalls = getLogOutput();
-    expectReadyNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
     expect(
       logCalls.some((msg) =>
         msg.includes("GitHits MCP is configured for this project."),
@@ -1658,31 +1721,36 @@ describe("initAction", () => {
     expect(createLoginDeps).not.toHaveBeenCalled();
   });
 
-  it("does not print login instructions when staged install finds existing auth", async () => {
+  it("reports Cursor-managed auth without checking local CLI auth", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"], {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
     });
 
+    const createLoginDeps = createAlreadyAuthLoginDeps();
     await initAction(
       { installAgents: "cursor", json: true },
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
         execService: createMockExecService(),
-        createLoginDeps: createAlreadyAuthLoginDeps(),
+        createLoginDeps,
       },
     );
 
     const payload = JSON.parse(getLogOutput()[0] ?? "{}");
-    expect(payload.auth.required).toBe(false);
-    expect(payload.auth.status).toBe("authenticated");
+    expect(payload.auth.required).toBeNull();
+    expect(payload.auth.status).toBe("managed_by_cursor");
+    expect(payload.auth.loginCommand).toBe("cursor-agent mcp login GitHits");
+    expect(payload.auth.verificationCommands).toContain(
+      "cursor-agent mcp list-tools GitHits",
+    );
+    expect(createLoginDeps).not.toHaveBeenCalled();
     expect(JSON.stringify(payload)).not.toContain("githits@latest login");
   });
 
@@ -1691,8 +1759,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -1737,8 +1804,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -1772,8 +1838,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -1808,8 +1873,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -2639,7 +2703,7 @@ describe("initAction", () => {
       const logCalls = getLogOutput();
       expect(
         logCalls.some((msg) =>
-          msg.includes("Queries and targets leave this machine"),
+          msg.includes("GitHits queries and public package"),
         ),
       ).toBe(true);
       expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
@@ -2796,8 +2860,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -2829,7 +2892,7 @@ describe("initAction", () => {
           msg.includes("~/.cursor/mcp.json"),
       ),
     ).toBe(true);
-    expectReadyNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
     expect(
       logCalls.some((msg) => msg.includes("Open a new coding agent session")),
     ).toBe(false);
@@ -2841,8 +2904,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -2910,8 +2972,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -2932,7 +2993,7 @@ describe("initAction", () => {
     );
 
     const output = getLogOutput().join("\n");
-    expect(output).toContain("Queries and targets leave this machine");
+    expect(output).toContain("GitHits queries and public package");
     expect(output).toContain("MCP tools to configure: None");
     expect(output).toContain("Guidance targets: None");
     expect(createLoginDeps).not.toHaveBeenCalled();
@@ -2946,8 +3007,7 @@ describe("initAction", () => {
         "/home/test/.cursor/mcp.json": JSON.stringify({
           mcpServers: {
             GitHits: {
-              command: "npx",
-              args: ["-y", "githits@latest", "mcp", "start"],
+              url: "https://mcp.githits.com",
             },
           },
         }),
@@ -2983,7 +3043,7 @@ describe("initAction", () => {
         (msg) => msg.includes("Windsurf") && msg.includes("created"),
       ),
     ).toBe(false);
-    expectReadyNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
   });
 
   it("configures only the agents selected in the checkbox", async () => {
@@ -3290,8 +3350,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -3331,7 +3390,7 @@ describe("initAction", () => {
 
     expect(promptService.confirm3).not.toHaveBeenCalled();
     const logCalls = getLogOutput();
-    expectReadyNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
   });
 
   it("sets up CLI agents that are not yet configured", async () => {
@@ -3668,7 +3727,7 @@ describe("initAction", () => {
     const logCalls = getLogOutput();
     expect(
       logCalls.some((msg) =>
-        msg.includes("Queries and targets leave this machine"),
+        msg.includes("GitHits queries and public package"),
       ),
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
@@ -3706,8 +3765,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -3724,7 +3782,7 @@ describe("initAction", () => {
     );
 
     const logCalls = getLogOutput();
-    expectReadyNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
     expect(
       logCalls.some(
         (msg) =>
@@ -3747,8 +3805,8 @@ describe("initAction", () => {
     );
   });
 
-  it("treats equivalent local npx @latest configs as already configured", async () => {
-    const fs = createFsWithDetection(["/home/test/.cursor"], {
+  it("migrates legacy local Cursor stdio config to the remote MCP", async () => {
+    const configFiles: Record<string, string> = {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
@@ -3757,7 +3815,11 @@ describe("initAction", () => {
           },
         },
       }),
-    });
+    };
+    const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
 
     await initAction(
       { yes: true, guidance: false },
@@ -3769,12 +3831,17 @@ describe("initAction", () => {
       },
     );
 
-    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+    const written = (fs.atomicWriteFile as ReturnType<typeof mock>).mock
+      .calls[0]![1] as string;
+    expect(JSON.parse(written).mcpServers.GitHits).toEqual({
+      url: "https://mcp.githits.com",
+    });
     const logCalls = getLogOutput();
-    expectReadyNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
   });
 
-  it("migrates non-@latest local config to @latest", async () => {
+  it("migrates non-@latest local Cursor config to the remote MCP", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"], {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
@@ -3801,8 +3868,7 @@ describe("initAction", () => {
       .calls[0]![1] as string;
     const parsed = JSON.parse(written);
     expect(parsed.mcpServers.GitHits).toEqual({
-      command: "npx",
-      args: ["-y", "githits@latest", "mcp", "start"],
+      url: "https://mcp.githits.com",
     });
   });
 
@@ -5346,8 +5412,7 @@ describe("initUninstallAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -5377,8 +5442,7 @@ describe("initUninstallAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -5576,8 +5640,7 @@ describe("initUninstallAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -6652,8 +6715,7 @@ describe("initUninstallAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),

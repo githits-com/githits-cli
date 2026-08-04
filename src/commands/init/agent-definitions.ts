@@ -1,3 +1,4 @@
+import { DEFAULT_MCP_URL } from "@githits/core-internal";
 import type { ExecService } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
 import { traceInit, traceProbeEnd, traceProbeStart } from "./init-trace.js";
@@ -291,6 +292,10 @@ export function getStandardMcpServerConfig(): Record<string, unknown> {
   };
 }
 
+function getRemoteMcpServerConfig(): Record<string, unknown> {
+  return { url: DEFAULT_MCP_URL };
+}
+
 function getVsCodeMcpServerConfig(): Record<string, unknown> {
   return {
     type: "stdio",
@@ -562,7 +567,7 @@ const claudeCode: AgentDefinition = {
   },
 };
 
-/** Cursor: detected by ~/.cursor/ directory, configured via npm MCP command */
+/** Cursor: detected by ~/.cursor/ directory, configured via remote MCP */
 const cursor: AgentDefinition = {
   name: "Cursor",
   id: "cursor",
@@ -574,12 +579,17 @@ const cursor: AgentDefinition = {
     configPath: fs.joinPath(fs.getHomeDir(), ".cursor", "mcp.json"),
     serversKey: "mcpServers",
     serverName: GITHITS_SERVER_NAME,
-    serverConfig: getStandardMcpServerConfig(),
+    serverConfig: getRemoteMcpServerConfig(),
   }),
   projectSetup: {
     supported: true,
     getSetupConfig: (fs) =>
-      getProjectJsonConfig(fs, [".cursor", "mcp.json"], "mcpServers"),
+      getProjectJsonConfig(
+        fs,
+        [".cursor", "mcp.json"],
+        "mcpServers",
+        getRemoteMcpServerConfig(),
+      ),
   },
 };
 

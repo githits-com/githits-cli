@@ -247,10 +247,17 @@ type InitAuthStatus =
 type StagedInstallAuthStatus = "authenticated" | "required" | "not_checked";
 
 const INSTALL_REVIEW_ITEMS = [
-  "Queries and targets leave this machine and are sent to GitHits services for processing.",
+  "GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.",
   "Feedback submission is an outbound write that sends feedback data to GitHits services.",
   "Installing GitHits MCP does not itself upload the local workspace.",
   "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
+] as const;
+
+const CURSOR_REMOTE_MCP_URL = "https://mcp.githits.com";
+const CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS = [
+  `Cursor uses the remote GitHits MCP at ${CURSOR_REMOTE_MCP_URL} and manages its OAuth separately from local GitHits CLI authentication.`,
+  "After Cursor setup, open a new Cursor Agent chat, complete GitHits OAuth if prompted, and verify that GitHits tools are available.",
+  "If cursor-agent is available, verify with `cursor-agent mcp list` and `cursor-agent mcp list-tools GitHits`; run `cursor-agent mcp login GitHits` if authentication is required.",
 ] as const;
 
 type SafeScanResult =
@@ -1463,6 +1470,44 @@ function guidanceStepKey(step: SetupStep): string {
   return JSON.stringify(step);
 }
 
+function buildConfiguredDetectionInstructions(
+  entries: StagedAgentEntry[],
+): string[] {
+  const detectedEntries = entries.filter(
+    (entry) => entry.status !== "not_detected",
+  );
+  const guidanceStatuses = new Set(
+    detectedEntries.map((entry) => entry.guidanceStatus),
+  );
+  const instructions = [
+    "Tell the user that GitHits MCP is already configured for detected tools.",
+  ];
+
+  if (guidanceStatuses.has("not_requested")) {
+    instructions.push(
+      "Tell the user that supporting guidance was not requested.",
+    );
+  }
+  if (guidanceStatuses.has("already_configured")) {
+    instructions.push(
+      "Tell the user that requested supporting guidance is already configured for tools with verified guidance targets.",
+    );
+  }
+  if (guidanceStatuses.has("not_supported")) {
+    instructions.push(
+      "Tell the user that some detected tools do not have a verified supporting-guidance target.",
+    );
+  }
+
+  return instructions;
+}
+
+function hasDetectedCursor(entries: StagedAgentEntry[]): boolean {
+  return entries.some(
+    (entry) => entry.id === "cursor" && entry.status !== "not_detected",
+  );
+}
+
 function printAgenticDetectSummary(
   detection: StagedDetection,
   useColors: boolean,
@@ -1561,9 +1606,14 @@ function printAgenticDetectSummary(
     console.log("No detected tools need MCP or guidance setup.");
     console.log();
     console.log("Next step for agents:");
-    console.log(
-      "  Tell the user that GitHits MCP and requested guidance are already configured for detected tools.",
-    );
+    for (const instruction of buildConfiguredDetectionInstructions(entries)) {
+      console.log(`  ${instruction}`);
+    }
+    if (hasDetectedCursor(entries)) {
+      for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
+        console.log(`  ${instruction}`);
+      }
+    }
     console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
     console.log(
       `  Do not run init again as a verification step; use ${getAgenticVerifyCommand(scope, commandOptions)} if verification is needed.`,
@@ -1592,6 +1642,11 @@ function printAgenticDetectSummary(
   console.log();
   console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
   console.log(`  ${getAgenticVerifyInstruction(scope, commandOptions)}`);
+  if (hasDetectedCursor(actionable)) {
+    for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
+      console.log(`  ${instruction}`);
+    }
+  }
 }
 
 function printAgenticDetectJson(
@@ -1600,7 +1655,6 @@ function printAgenticDetectJson(
 ): void {
   const { entries, installableIds, actionableIds, guidanceRequested } =
     detection;
-  const detected = entries.filter((entry) => entry.status !== "not_detected");
   const configured = entries.filter(
     (entry) => entry.status === "already_configured",
   );
@@ -1609,7 +1663,7 @@ function printAgenticDetectJson(
   );
   const instructions = buildAgenticDetectJsonInstructions({
     scope,
-    detectedCount: detected.length,
+    entries,
     actionableCount: actionableIds.length,
     configuredCount: configured.length,
     unsupportedCount: unsupported.length,
@@ -1640,7 +1694,7 @@ function printAgenticDetectJson(
 
 function buildAgenticDetectJsonInstructions(input: {
   scope: InitSetupScope;
-  detectedCount: number;
+  entries: StagedAgentEntry[];
   actionableCount: number;
   configuredCount: number;
   unsupportedCount: number;
@@ -1648,12 +1702,18 @@ function buildAgenticDetectJsonInstructions(input: {
 }): string[] {
   const {
     scope,
-    detectedCount,
+    entries,
     actionableCount,
     configuredCount,
     unsupportedCount,
     guidanceRequested,
   } = input;
+  const detectedCount = entries.filter(
+    (entry) => entry.status !== "not_detected",
+  ).length;
+  const cursorInstructions = hasDetectedCursor(entries)
+    ? [...CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS]
+    : [];
   const commandOptions = { guidanceRequested };
   if (detectedCount === 0) {
     return [
@@ -1685,7 +1745,8 @@ function buildAgenticDetectJsonInstructions(input: {
       "Show detected tools to the user.",
       "Before authentication, show the user this install review:",
       ...INSTALL_REVIEW_ITEMS,
-      "Tell the user that GitHits MCP and requested guidance are already configured for detected tools.",
+      ...buildConfiguredDetectionInstructions(entries),
+      ...cursorInstructions,
       "Do not ask the user to choose actionable IDs.",
       AGENTIC_INIT_YES_WARNING,
       getAgenticJsonVerifyInstruction(scope, commandOptions),
@@ -1703,6 +1764,7 @@ function buildAgenticDetectJsonInstructions(input: {
     ...INSTALL_REVIEW_ITEMS,
     "Ask which actionable tools should receive GitHits MCP setup or guidance repair.",
     "Only run --install-agents with user-approved IDs.",
+    ...cursorInstructions,
     AGENTIC_INIT_YES_WARNING,
     getAgenticJsonVerifyInstruction(scope, commandOptions),
   ];
@@ -1893,7 +1955,19 @@ async function getStagedInstallAuthStatus(
 
 function buildAgenticInstallAuthPayload(
   authStatus: StagedInstallAuthStatus,
+  cursorOnly: boolean,
 ): Record<string, unknown> {
+  if (cursorOnly) {
+    return {
+      required: null,
+      status: "managed_by_cursor",
+      loginCommand: "cursor-agent mcp login GitHits",
+      verificationCommands: [
+        "cursor-agent mcp list",
+        "cursor-agent mcp list-tools GitHits",
+      ],
+    };
+  }
   if (authStatus === "authenticated") {
     return { required: false, status: "authenticated" };
   }
@@ -1919,6 +1993,8 @@ function buildAgenticInstallInstructions(
   guidance: GuidanceOutcome | null,
   changesMade: boolean,
   guidanceRequested: boolean,
+  cursorConfigured: boolean,
+  cursorOnly: boolean,
 ): string[] {
   const commandOptions = { guidanceRequested };
   const guidanceInstruction = buildAgenticGuidanceInstruction(
@@ -1928,9 +2004,21 @@ function buildAgenticInstallInstructions(
   const reloadInstructions = changesMade
     ? [getAgenticReloadInstruction(scope)]
     : [];
+  const cursorInstructions = cursorConfigured
+    ? [...CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS]
+    : [];
+  if (cursorOnly) {
+    return [
+      ...reloadInstructions,
+      ...cursorInstructions,
+      guidanceInstruction,
+      getAgenticJsonVerifyInstruction(scope, commandOptions),
+    ];
+  }
   if (authStatus === "authenticated") {
     return [
       ...reloadInstructions,
+      ...cursorInstructions,
       guidanceInstruction,
       getAgenticJsonVerifyInstruction(scope, commandOptions),
     ];
@@ -1938,6 +2026,7 @@ function buildAgenticInstallInstructions(
   if (authStatus === "required") {
     return [
       ...reloadInstructions,
+      ...cursorInstructions,
       `Ask the user before running ${AGENT_LOGIN_COMMAND}.`,
       "Browser sign-in happens outside chat and terminal input.",
       "Do not ask the user to paste passwords, tokens, cookies, or OAuth codes into chat.",
@@ -1947,6 +2036,7 @@ function buildAgenticInstallInstructions(
   }
   return [
     ...reloadInstructions,
+    ...cursorInstructions,
     "Sign-in status was not checked.",
     `If the user is not already signed in, ask before running ${AGENT_LOGIN_COMMAND}.`,
     guidanceInstruction,
@@ -1988,11 +2078,17 @@ function printAgenticInstallJson(
   authStatus: StagedInstallAuthStatus,
   scope: InitSetupScope,
   guidanceRequested: boolean,
+  cursorOnly: boolean,
 ): void {
   const canAuthenticate = hasUsableInstallOutcome(outcomes);
   const changesMade =
     outcomes.some((outcome) => outcome.status === "success") ||
     guidance?.status === "success";
+  const cursorConfigured = outcomes.some(
+    (outcome) =>
+      outcome.id === "cursor" &&
+      (outcome.status === "success" || outcome.status === "already_configured"),
+  );
   console.log(
     JSON.stringify(
       {
@@ -2001,7 +2097,7 @@ function printAgenticInstallJson(
         outcomes,
         guidance,
         auth: canAuthenticate
-          ? buildAgenticInstallAuthPayload(authStatus)
+          ? buildAgenticInstallAuthPayload(authStatus, cursorOnly)
           : {
               required: false,
               status: "not_applicable",
@@ -2014,9 +2110,14 @@ function printAgenticInstallJson(
               guidance,
               changesMade,
               guidanceRequested,
+              cursorConfigured,
+              cursorOnly,
             )
           : [
               ...(changesMade ? [getAgenticReloadInstruction(scope)] : []),
+              ...(cursorConfigured
+                ? [...CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS]
+                : []),
               "Fix installation errors before asking the user to sign in.",
               buildAgenticGuidanceInstruction(guidanceRequested, guidance),
             ],
@@ -2118,9 +2219,12 @@ async function runInstallAgentsMode(
     });
   }
   const canAuthenticate = hasUsableInstallOutcome(outcomes);
-  const authStatus = canAuthenticate
-    ? await getStagedInstallAuthStatus(createLoginDeps)
-    : "not_checked";
+  const cursorOnly =
+    agents.length > 0 && agents.every((agent) => agent.id === "cursor");
+  const authStatus =
+    canAuthenticate && !cursorOnly
+      ? await getStagedInstallAuthStatus(createLoginDeps)
+      : "not_checked";
   if (failed.length > 0) {
     process.exitCode = 1;
   }
@@ -2132,6 +2236,7 @@ async function runInstallAgentsMode(
       authStatus,
       scope,
       guidanceRequested,
+      cursorOnly,
     );
     return;
   }
@@ -2159,7 +2264,11 @@ async function runInstallAgentsMode(
     console.log();
   }
   if (canAuthenticate) {
-    if (authStatus === "authenticated") {
+    if (cursorOnly) {
+      for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
+        console.log(`  ${instruction}`);
+      }
+    } else if (authStatus === "authenticated") {
       if (scope === "project") {
         console.log(
           "  GitHits MCP is installed for this project and you are already signed in.",
@@ -2336,19 +2445,27 @@ function printPostSetupNextSteps(
   authStatus: InitAuthStatus,
   useColors: boolean,
   changesMade: boolean,
+  cursorConfigured: boolean,
 ): void {
-  printSection(
-    6,
-    shouldPrintReady(authStatus) ? "Ready" : "Next Steps",
-    useColors,
-  );
+  const ready = shouldPrintReady(authStatus) && !cursorConfigured;
+  printSection(6, ready ? "Ready" : "Next Steps", useColors);
   if (changesMade) {
     console.log(
       "  Open a new coding agent session so it reloads MCP configuration and any supporting instructions.",
     );
     console.log();
   }
-  if (shouldPrintReady(authStatus)) {
+  if (cursorConfigured) {
+    for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
+      console.log(`  ${instruction}`);
+    }
+    console.log();
+  }
+  if (cursorConfigured && shouldPrintReady(authStatus)) {
+    console.log(
+      "  Local GitHits CLI authentication is active. Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
+    );
+  } else if (ready) {
     printReadyNextSteps();
   } else if (authStatus === "failed_continue") {
     printAuthRequiredNextSteps(useColors);
@@ -2361,19 +2478,27 @@ function printProjectNextSteps(
   authStatus: InitAuthStatus,
   useColors: boolean,
   changesMade: boolean,
+  cursorConfigured: boolean,
 ) {
-  printSection(
-    6,
-    shouldPrintReady(authStatus) ? "Ready" : "Next Steps",
-    useColors,
-  );
+  const ready = shouldPrintReady(authStatus) && !cursorConfigured;
+  printSection(6, ready ? "Ready" : "Next Steps", useColors);
   if (changesMade) {
     console.log(
       "  Open a new coding agent session in this project so it loads the project config and any supporting instructions.",
     );
     console.log();
   }
-  if (shouldPrintReady(authStatus)) {
+  if (cursorConfigured) {
+    for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
+      console.log(`  ${instruction}`);
+    }
+    console.log();
+  }
+  if (cursorConfigured && shouldPrintReady(authStatus)) {
+    console.log(
+      "  Local GitHits CLI authentication is active. Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
+    );
+  } else if (ready) {
     printReadyNextSteps();
   } else if (authStatus === "failed_continue") {
     printProjectAuthRequiredNextSteps(useColors);
@@ -2387,12 +2512,13 @@ function printScopedNextSteps(
   authStatus: InitAuthStatus,
   useColors: boolean,
   changesMade: boolean,
+  cursorConfigured: boolean,
 ): void {
   if (scope === "project") {
-    printProjectNextSteps(authStatus, useColors, changesMade);
+    printProjectNextSteps(authStatus, useColors, changesMade, cursorConfigured);
     return;
   }
-  printPostSetupNextSteps(authStatus, useColors, changesMade);
+  printPostSetupNextSteps(authStatus, useColors, changesMade, cursorConfigured);
 }
 
 function getConfigFileSetups(setup: SetupConfig): ConfigFileSetup[] {
@@ -4223,6 +4349,12 @@ export async function initAction(
       authStatus,
       useColors,
       configured > 0 || guidanceOutcome?.status === "success",
+      outcomes.some(
+        (outcome) =>
+          outcome.id === "cursor" &&
+          (outcome.status === "success" ||
+            outcome.status === "already_configured"),
+      ),
     );
   }
 
@@ -4312,11 +4444,11 @@ function printAuthRecoveryHint(useColors: boolean): void {
 
 const INIT_DESCRIPTION = `Connect GitHits to your coding agents.
 
-Installs the local GitHits MCP server — the recommended way to connect — or
-sets up Agent Skills instead. Guided MCP setup also installs a small GitHits
-skill and managed instruction block so agents use GitHits for OSS stack context.
-Detects supported coding tools on this machine, signs you in, and configures
-the tools you select.`;
+Configures GitHits MCP for supported coding tools, using the remote MCP for
+Cursor and the verified integration for each other tool, or sets up Agent Skills
+instead. Guided MCP setup also installs a small GitHits skill and managed
+instruction block so agents use GitHits for OSS stack context. Detects supported
+coding tools on this machine, signs you in, and configures the tools you select.`;
 
 const INIT_UNINSTALL_DESCRIPTION = `Remove GitHits MCP server configuration from your coding agents.
 
