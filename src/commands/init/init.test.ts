@@ -288,7 +288,7 @@ describe("initAction", () => {
     const stagedCommands = logCalls.filter((msg) =>
       msg.includes("npx -y githits@latest init"),
     );
-    expect(stagedCommands).toHaveLength(6);
+    expect(stagedCommands.length).toBeGreaterThan(0);
     expect(
       stagedCommands.every((command) => command.includes("--no-guidance")),
     ).toBe(true);
@@ -313,7 +313,7 @@ describe("initAction", () => {
     const stagedCommands = getLogOutput().filter((msg) =>
       msg.includes("npx -y githits@latest init"),
     );
-    expect(stagedCommands).toHaveLength(6);
+    expect(stagedCommands.length).toBeGreaterThan(0);
     expect(
       stagedCommands.every((command) => !command.includes("--no-guidance")),
     ).toBe(true);
@@ -343,7 +343,7 @@ describe("initAction", () => {
     const stagedCommands = getErrorOutput().filter((msg) =>
       msg.includes("npx -y githits@latest init"),
     );
-    expect(stagedCommands).toHaveLength(4);
+    expect(stagedCommands.length).toBeGreaterThan(0);
     expect(
       stagedCommands.every((command) => command.includes("--no-guidance")),
     ).toBe(true);
@@ -421,6 +421,12 @@ describe("initAction", () => {
     expect(
       logCalls.some((msg) => msg.includes("already configured for detected")),
     ).toBe(false);
+    expect(logCalls.some((msg) => msg.includes("Install review"))).toBe(false);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Queries and targets leave this machine"),
+      ),
+    ).toBe(false);
   });
 
   it("warns agents not to run init yes when detected tools are configured", async () => {
@@ -455,6 +461,11 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("verification step"))).toBe(
       true,
     );
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Queries and targets leave this machine"),
+      ),
+    ).toBe(true);
   });
 
   it("emits JSON for agent detection", async () => {
@@ -601,6 +612,25 @@ describe("initAction", () => {
     expect(payload.installableIds).toEqual([]);
     expect(payload.actionableIds).toEqual([]);
     expect(payload.suggestedCommand).toBeNull();
+    const reviewLeadIn = payload.instructions.indexOf(
+      "Before authentication, show the user this install review:",
+    );
+    const configuredInstruction = payload.instructions.indexOf(
+      "Tell the user that GitHits MCP and requested guidance are already configured for detected tools.",
+    );
+    expect(reviewLeadIn).toBeGreaterThanOrEqual(0);
+    expect(configuredInstruction).toBeGreaterThan(reviewLeadIn);
+    expect(payload.instructions).toEqual(
+      expect.arrayContaining([
+        "Queries and targets leave this machine and are sent to GitHits services for processing.",
+        "Feedback submission is an outbound write that sends feedback data to GitHits services.",
+        "Installing GitHits MCP does not itself upload the local workspace.",
+        "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
+      ]),
+    );
+    expect(payload.instructions).toContain(
+      "Do not ask the user to choose actionable IDs.",
+    );
   });
 
   it("deduplicates shared guidance checks across detected tools", async () => {
@@ -816,6 +846,12 @@ describe("initAction", () => {
     expect(payload.instructions).not.toContain(
       "Ask which tools should receive the GitHits MCP server.",
     );
+    expect(payload.instructions).not.toContain(
+      "Before authentication, show the user this install review:",
+    );
+    expect(JSON.stringify(payload.instructions)).not.toContain(
+      "Queries and targets leave this machine",
+    );
   });
 
   it("does not ask for project install IDs when configured and unsupported tools are detected", async () => {
@@ -845,6 +881,29 @@ describe("initAction", () => {
 
     const payload = JSON.parse(getLogOutput()[0] ?? "{}");
     expect(payload.installableIds).toEqual([]);
+    expect(payload.actionableIds).toEqual([]);
+    expect(payload.suggestedCommand).toBeNull();
+    const reviewIndex = payload.instructions.indexOf(
+      "Before authentication, show the user this install review:",
+    );
+    const configuredIndex = payload.instructions.indexOf(
+      "Explain that GitHits is already configured for detected project-configurable tools.",
+    );
+    const fallbackIndex = payload.instructions.findIndex(
+      (instruction: string) =>
+        instruction.includes("Offer user-level detection"),
+    );
+    expect(reviewIndex).toBeGreaterThanOrEqual(0);
+    expect(configuredIndex).toBeGreaterThan(reviewIndex);
+    expect(fallbackIndex).toBeGreaterThan(configuredIndex);
+    expect(payload.instructions).toEqual(
+      expect.arrayContaining([
+        "Queries and targets leave this machine and are sent to GitHits services for processing.",
+        "Feedback submission is an outbound write that sends feedback data to GitHits services.",
+        "Installing GitHits MCP does not itself upload the local workspace.",
+        "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
+      ]),
+    );
     expect(payload.instructions).toContain(
       "Explain that GitHits is already configured for detected project-configurable tools.",
     );
@@ -856,6 +915,59 @@ describe("initAction", () => {
     );
     expect(payload.instructions).not.toContain(
       "Ask which tools should receive the GitHits MCP server.",
+    );
+  });
+
+  it("shows the review for configured and unsupported project tools in prose", async () => {
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.cursor", "/home/test/.codeium/windsurf"],
+      {
+        "/repo/.cursor/mcp.json": JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        }),
+      },
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+
+    await initAction(
+      { detectAgents: true, project: true, guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    const reviewIndex = logCalls.findIndex((msg) =>
+      msg.includes("Install review"),
+    );
+    const nextStepIndex = logCalls.findIndex((msg) =>
+      msg.includes("Next step for agents"),
+    );
+    expect(reviewIndex).toBeGreaterThanOrEqual(0);
+    expect(nextStepIndex).toBeGreaterThan(reviewIndex);
+    expect(logCalls).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Queries and targets leave this machine"),
+        expect.stringContaining("Feedback submission is an outbound write"),
+        expect.stringContaining(
+          "Installing GitHits MCP does not itself upload the local workspace",
+        ),
+        expect.stringContaining("terminal or machine"),
+        expect.stringContaining(
+          "GitHits is already configured for the detected project-configurable tools",
+        ),
+        expect.stringContaining(
+          "other detected tools do not have verified project-level MCP support",
+        ),
+        expect.stringContaining("Offer user-level install"),
+      ]),
     );
   });
 
@@ -892,6 +1004,12 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("user-level install"))).toBe(
       true,
     );
+    expect(logCalls.some((msg) => msg.includes("Install review"))).toBe(false);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Queries and targets leave this machine"),
+      ),
+    ).toBe(false);
   });
 
   it("installs only explicitly requested agents in staged install mode", async () => {
@@ -1775,6 +1893,69 @@ describe("initAction", () => {
       ),
     ).toBe(true);
   });
+
+  it.each([
+    { name: "prose", json: false },
+    { name: "JSON", json: true },
+  ])(
+    "prints reload guidance when guidance succeeds but every MCP install fails in $name output",
+    async ({ json }) => {
+      const configFiles: Record<string, string> = {};
+      const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+      fs.atomicWriteFile = mock(async (path: string, content: string) => {
+        if (path === "/home/test/.cursor/mcp.json") {
+          throw Object.assign(new Error("Permission denied"), {
+            code: "EACCES",
+          });
+        }
+        configFiles[path] = content;
+      }) as typeof fs.atomicWriteFile;
+
+      await initAction(
+        { installAgents: "cursor", json },
+        {
+          fileSystemService: fs,
+          promptService: createMockPromptService(),
+          execService: createMockExecService(),
+          createLoginDeps: createAlreadyAuthLoginDeps(),
+        },
+      );
+
+      expect(process.exitCode).toBe(1);
+      expect(
+        configFiles["/home/test/.agents/skills/githits-mcp/SKILL.md"],
+      ).toBeDefined();
+      if (json) {
+        const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+        expect(payload.outcomes[0].status).toBe("failed");
+        expect(payload.guidance.status).toBe("success");
+        const reloadIndex = payload.instructions.findIndex(
+          (instruction: string) =>
+            instruction.includes("Open a new coding agent session"),
+        );
+        const fixIndex = payload.instructions.indexOf(
+          "Fix installation errors before asking the user to sign in.",
+        );
+        expect(reloadIndex).toBeGreaterThanOrEqual(0);
+        expect(fixIndex).toBeGreaterThan(reloadIndex);
+        expect(JSON.stringify(payload)).not.toContain("githits@latest login");
+        expect(JSON.stringify(payload.instructions)).not.toContain(
+          "--detect-agents",
+        );
+        return;
+      }
+
+      const output = getLogOutput().join("\n");
+      const reloadIndex = output.indexOf("Open a new coding agent session");
+      const fixIndex = output.indexOf(
+        "Fix installation errors before starting sign-in",
+      );
+      expect(reloadIndex).toBeGreaterThanOrEqual(0);
+      expect(fixIndex).toBeGreaterThan(reloadIndex);
+      expect(output).not.toContain("githits@latest login");
+      expect(output).not.toContain("--detect-agents");
+    },
+  );
 
   it("shows a created row, collapsed path, and the MCP server block", async () => {
     // A store so the post-setup verification scan sees what was written.

@@ -1484,7 +1484,6 @@ function printAgenticDetectSummary(
     (entry) => entry.status === "not_detected",
   );
 
-  printInstallReview(useColors);
   console.log(
     `Detected tools (${scope === "project" ? "project-level" : "user-level"} install):`,
   );
@@ -1537,6 +1536,9 @@ function printAgenticDetectSummary(
         "No detected tools can be installed with project-level config.",
       );
       console.log();
+      if (configured.length > 0) {
+        printInstallReview(useColors);
+      }
       console.log("Next step for agents:");
       if (configured.length > 0) {
         console.log(
@@ -1555,6 +1557,7 @@ function printAgenticDetectSummary(
       );
       return;
     }
+    printInstallReview(useColors);
     console.log("No detected tools need MCP or guidance setup.");
     console.log();
     console.log("Next step for agents:");
@@ -1568,6 +1571,7 @@ function printAgenticDetectSummary(
     return;
   }
 
+  printInstallReview(useColors);
   console.log("Next step for agents:");
   console.log();
   console.log("  Ask the user:");
@@ -1663,6 +1667,8 @@ function buildAgenticDetectJsonInstructions(input: {
         "Show detected tools to the user.",
         ...(configuredCount > 0
           ? [
+              "Before authentication, show the user this install review:",
+              ...INSTALL_REVIEW_ITEMS,
               "Explain that GitHits is already configured for detected project-configurable tools.",
             ]
           : [
@@ -1677,6 +1683,8 @@ function buildAgenticDetectJsonInstructions(input: {
     }
     return [
       "Show detected tools to the user.",
+      "Before authentication, show the user this install review:",
+      ...INSTALL_REVIEW_ITEMS,
       "Tell the user that GitHits MCP and requested guidance are already configured for detected tools.",
       "Do not ask the user to choose actionable IDs.",
       AGENTIC_INIT_YES_WARNING,
@@ -1918,11 +1926,7 @@ function buildAgenticInstallInstructions(
     guidance,
   );
   const reloadInstructions = changesMade
-    ? [
-        scope === "project"
-          ? "Open a new coding agent session in this project so it reloads project MCP configuration and any supporting instructions."
-          : "Open a new coding agent session so it reloads MCP configuration and any supporting instructions.",
-      ]
+    ? [getAgenticReloadInstruction(scope)]
     : [];
   if (authStatus === "authenticated") {
     return [
@@ -1948,6 +1952,12 @@ function buildAgenticInstallInstructions(
     guidanceInstruction,
     getAgenticJsonVerifyInstruction(scope, commandOptions),
   ];
+}
+
+function getAgenticReloadInstruction(scope: InitSetupScope): string {
+  return scope === "project"
+    ? "Open a new coding agent session in this project so it reloads project MCP configuration and any supporting instructions."
+    : "Open a new coding agent session so it reloads MCP configuration and any supporting instructions.";
 }
 
 function buildAgenticGuidanceInstruction(
@@ -2006,6 +2016,7 @@ function printAgenticInstallJson(
               guidanceRequested,
             )
           : [
+              ...(changesMade ? [getAgenticReloadInstruction(scope)] : []),
               "Fix installation errors before asking the user to sign in.",
               buildAgenticGuidanceInstruction(guidanceRequested, guidance),
             ],
@@ -2143,15 +2154,11 @@ async function runInstallAgentsMode(
     }
   }
   console.log();
+  if (changesMade) {
+    console.log(`  ${getAgenticReloadInstruction(scope)}`);
+    console.log();
+  }
   if (canAuthenticate) {
-    if (changesMade) {
-      console.log(
-        scope === "project"
-          ? "  Open a new coding agent session in this project so it reloads project MCP configuration and any supporting instructions."
-          : "  Open a new coding agent session so it reloads MCP configuration and any supporting instructions.",
-      );
-      console.log();
-    }
     if (authStatus === "authenticated") {
       if (scope === "project") {
         console.log(
