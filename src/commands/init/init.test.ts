@@ -435,6 +435,14 @@ describe("initAction", () => {
     const feedbackDisclosureIndex = payload.instructions.findIndex(
       (instruction: string) => instruction.includes("is an outbound write"),
     );
+    const localWorkspaceIndex = payload.instructions.findIndex(
+      (instruction: string) =>
+        instruction.includes("does not itself upload the local workspace"),
+    );
+    const newSessionIndex = payload.instructions.findIndex(
+      (instruction: string) =>
+        instruction.includes("open a new coding agent session"),
+    );
     const approvalIndex = payload.instructions.findIndex(
       (instruction: string) =>
         instruction.includes("Ask which tools should receive"),
@@ -442,7 +450,9 @@ describe("initAction", () => {
     expect(reviewIndex).toBeGreaterThanOrEqual(0);
     expect(queryDisclosureIndex).toBeGreaterThan(reviewIndex);
     expect(feedbackDisclosureIndex).toBeGreaterThan(queryDisclosureIndex);
-    expect(approvalIndex).toBeGreaterThan(feedbackDisclosureIndex);
+    expect(localWorkspaceIndex).toBeGreaterThan(feedbackDisclosureIndex);
+    expect(newSessionIndex).toBeGreaterThan(localWorkspaceIndex);
+    expect(approvalIndex).toBeGreaterThan(newSessionIndex);
   });
 
   it("keeps detect JSON parseable when init trace is enabled", async () => {
@@ -750,10 +760,10 @@ describe("initAction", () => {
         msg.includes("Found 1 tool. 1 supports project-level config."),
       ),
     ).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("5. Next Steps"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("6. Next Steps"))).toBe(true);
     expectProjectAuthNotCheckedNextSteps(logCalls);
     expect(
-      logCalls.filter((msg) => msg.includes("4. Install and verify")),
+      logCalls.filter((msg) => msg.includes("5. Install and verify")),
     ).toHaveLength(1);
     expect(JSON.parse(configFiles["/repo/.cursor/mcp.json"] ?? "{}")).toEqual({
       mcpServers: {
@@ -1015,9 +1025,9 @@ describe("initAction", () => {
     const warningIndex = logCalls.findIndex((msg) =>
       msg.includes("existing TOML comments/formatting will not be preserved"),
     );
-    const signInIndex = logCalls.findIndex((msg) => msg.includes("3. Sign in"));
+    const signInIndex = logCalls.findIndex((msg) => msg.includes("4. Sign in"));
     const installIndex = logCalls.findIndex((msg) =>
-      msg.includes("4. Install and verify"),
+      msg.includes("5. Install and verify"),
     );
     const mcpSectionIndex = logCalls.findIndex((msg) => msg.trim() === "MCP");
     const codexRowIndex = logCalls.findIndex(
@@ -1941,8 +1951,11 @@ describe("initAction", () => {
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("1. Detect tools"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("2. Choose tools"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("3. Sign in"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("4. Install and verify"))).toBe(
+    expect(logCalls.some((msg) => msg.includes("3. Review and confirm"))).toBe(
+      true,
+    );
+    expect(logCalls.some((msg) => msg.includes("4. Sign in"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("5. Install and verify"))).toBe(
       true,
     );
     const mcpSectionIndex = logCalls.findIndex((msg) => msg.trim() === "MCP");
@@ -1957,9 +1970,15 @@ describe("initAction", () => {
     expect(cursorRowIndex).toBeGreaterThan(mcpSectionIndex);
   });
 
-  it("shows the install review before interactive tool approval", async () => {
+  it("shows the install review before interactive setup confirmation", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"]);
-    const checkbox = mock((_message, choices) => {
+    const checkbox = mock((_message, choices) =>
+      Promise.resolve([choices[0]!.value]),
+    ) as PromptService["checkbox"];
+    const confirm = mock((message: string) => {
+      if (!message.includes("Continue with GitHits setup")) {
+        return Promise.resolve(true);
+      }
       const logCalls = getLogOutput();
       expect(
         logCalls.some((msg) =>
@@ -1974,20 +1993,79 @@ describe("initAction", () => {
           msg.includes("does not itself upload the local workspace"),
         ),
       ).toBe(true);
-      return Promise.resolve([choices[0]!.value]);
-    }) as PromptService["checkbox"];
+      expect(
+        logCalls.some((msg) => msg.includes("open a new coding agent session")),
+      ).toBe(true);
+      expect(logCalls.some((msg) => msg.includes("Scope: User"))).toBe(true);
+      expect(logCalls.some((msg) => msg.includes("Tools: Cursor"))).toBe(true);
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("Supporting instructions: Do not install"),
+        ),
+      ).toBe(true);
+      return Promise.resolve(true);
+    }) as PromptService["confirm"];
 
     await initAction(
       { guidance: false },
       {
         fileSystemService: fs,
-        promptService: createMockPromptService({ checkbox }),
+        promptService: createMockPromptService({ checkbox, confirm }),
         execService: createMockExecService(),
         createLoginDeps: createAlreadyAuthLoginDeps(),
       },
     );
 
     expect(checkbox).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledWith("Continue with GitHits setup?", true);
+  });
+
+  it("cancels before authentication and writes when setup review is declined", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+    const promptService = createMockPromptService({
+      confirm: mock(() => Promise.resolve(false)),
+    });
+
+    await initAction(
+      { guidance: false },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(getLogOutput().some((msg) => msg.includes("No changes made"))).toBe(
+      true,
+    );
+  });
+
+  it("cancels safely when setup review is interrupted", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+    const promptService = createMockPromptService({
+      confirm: mock(() => Promise.reject(new ExitPromptError())),
+    });
+
+    await initAction(
+      { guidance: false },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(getLogOutput().some((msg) => msg.includes("No changes made"))).toBe(
+      true,
+    );
   });
 
   it("skips already-configured agents without prompting", async () => {
@@ -2030,6 +2108,9 @@ describe("initAction", () => {
       ),
     ).toBe(true);
     expectReadyNextSteps(logCalls);
+    expect(
+      logCalls.some((msg) => msg.includes("Open a new coding agent session")),
+    ).toBe(false);
   });
 
   it("handles mixed status: configured + unconfigured", async () => {
@@ -2820,6 +2901,7 @@ describe("initAction", () => {
 
     expect(promptService.checkbox).not.toHaveBeenCalled();
     expect(promptService.confirm3).not.toHaveBeenCalled();
+    expect(promptService.confirm).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).toHaveBeenCalled();
     const logCalls = getLogOutput();
     expect(

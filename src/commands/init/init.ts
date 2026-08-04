@@ -234,6 +234,7 @@ const INSTALL_REVIEW_ITEMS = [
   "Queries and targets leave this machine and are sent to GitHits services for processing.",
   "Feedback submission is an outbound write that sends feedback data to GitHits services.",
   "Installing GitHits MCP does not itself upload the local workspace.",
+  "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions.",
 ] as const;
 
 type SafeScanResult =
@@ -387,10 +388,6 @@ function printReadyNextSteps(): void {
   console.log("      -> “What changed between pydantic-ai 1.95 and 1.99?”");
   console.log();
   console.log(
-    "  Open a new coding agent session and try out one of the above.",
-  );
-  console.log();
-  console.log(
     '  In your normal workflow, your agent will call GitHits automatically depending on the task, but you can prompt it to use GitHits explicitly by adding "use GitHits".',
   );
   console.log();
@@ -418,10 +415,6 @@ function printProjectAuthRequiredNextSteps(useColors: boolean): void {
     "  GitHits MCP is configured for this project, but sign-in is still needed.",
   );
   console.log();
-  console.log(
-    "  Open an MCP-compatible coding agent in this project so it loads the project config.",
-  );
-  console.log();
   console.log("  Sign in when you're ready:");
   console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
 }
@@ -429,10 +422,6 @@ function printProjectAuthRequiredNextSteps(useColors: boolean): void {
 function printProjectAuthNotCheckedNextSteps(useColors: boolean): void {
   console.log(
     "  GitHits MCP is configured for this project. Sign-in was not checked.",
-  );
-  console.log();
-  console.log(
-    "  Open an MCP-compatible coding agent in this project so it loads the project config.",
   );
   console.log();
   console.log("  If your agent asks you to sign in, run:");
@@ -458,12 +447,6 @@ function printAgenticLoginInstructions(useColors: boolean): void {
   console.log(
     `    ${formatCommand(AGENT_LOGIN_NO_BROWSER_COMMAND, useColors)}`,
   );
-}
-
-function printAgenticAlreadyAuthenticated(): void {
-  console.log("  GitHits MCP is installed and you are already signed in.");
-  console.log();
-  console.log("  Open a new coding agent session so it reloads MCP config.");
 }
 
 function printAgenticAuthNotChecked(useColors: boolean): void {
@@ -762,10 +745,34 @@ function printInitIntro(useColors: boolean): void {
   console.log();
 }
 
-function printInstallReview(useColors: boolean): void {
-  console.log(`  ${colorizeBrand("Install review", "primary", useColors)}`);
+function printInstallReview(
+  useColors: boolean,
+  scope?: InitSetupScope,
+  agents?: AgentDefinition[],
+  installSupportingGuidance?: boolean,
+  printTitle: boolean = true,
+): void {
+  if (printTitle) {
+    console.log(`  ${colorizeBrand("Install review", "primary", useColors)}`);
+  }
+  if (scope) {
+    console.log(`    Scope: ${scope === "project" ? "Project" : "User"}`);
+  }
+  if (agents) {
+    console.log(
+      `    Tools: ${agents.length > 0 ? agents.map((agent) => agent.name).join(", ") : "None"}`,
+    );
+  }
+  if (installSupportingGuidance !== undefined) {
+    console.log(
+      `    Supporting instructions: ${installSupportingGuidance ? "Install" : "Do not install"}`,
+    );
+  }
+  if (scope || agents || installSupportingGuidance !== undefined) {
+    console.log();
+  }
   for (const item of INSTALL_REVIEW_ITEMS) {
-    console.log(`  • ${item}`);
+    console.log(`    • ${item}`);
   }
   console.log();
 }
@@ -1741,21 +1748,28 @@ function buildAgenticInstallInstructions(
   authStatus: StagedInstallAuthStatus,
   scope: InitSetupScope,
   guidanceInstalled: boolean,
+  changesMade: boolean,
 ): string[] {
   const guidanceInstruction = guidanceInstalled
-    ? "GitHits supporting instructions were installed; open a new agent session so skill and instruction changes are loaded."
+    ? "GitHits supporting instructions are installed."
     : "Supporting instructions were not installed; rerun staged install without --no-guidance if the user asks for them.";
+  const reloadInstructions = changesMade
+    ? [
+        scope === "project"
+          ? "Open a new coding agent session in this project so it reloads project MCP configuration and any supporting instructions."
+          : "Open a new coding agent session so it reloads MCP configuration and any supporting instructions.",
+      ]
+    : [];
   if (authStatus === "authenticated") {
     return [
-      scope === "project"
-        ? "Open a new coding agent session in this project so it reloads project MCP config."
-        : "Open a new coding agent session so it reloads MCP config.",
+      ...reloadInstructions,
       guidanceInstruction,
       getAgenticJsonVerifyInstruction(scope),
     ];
   }
   if (authStatus === "required") {
     return [
+      ...reloadInstructions,
       `Ask the user before running ${AGENT_LOGIN_COMMAND}.`,
       "Browser sign-in happens outside chat and terminal input.",
       "Do not ask the user to paste passwords, tokens, cookies, or OAuth codes into chat.",
@@ -1764,6 +1778,7 @@ function buildAgenticInstallInstructions(
     ];
   }
   return [
+    ...reloadInstructions,
     "Sign-in status was not checked.",
     `If the user is not already signed in, ask before running ${AGENT_LOGIN_COMMAND}.`,
     guidanceInstruction,
@@ -1780,6 +1795,9 @@ function printAgenticInstallJson(
   const canAuthenticate = hasUsableInstallOutcome(outcomes);
   const guidanceInstalled =
     guidance?.status === "success" || guidance?.status === "already_configured";
+  const changesMade =
+    outcomes.some((outcome) => outcome.status === "success") ||
+    guidance?.status === "success";
   console.log(
     JSON.stringify(
       {
@@ -1799,6 +1817,7 @@ function printAgenticInstallJson(
               authStatus,
               scope,
               guidanceInstalled,
+              changesMade,
             )
           : ["Fix installation errors before asking the user to sign in."],
       },
@@ -1903,6 +1922,7 @@ async function runInstallAgentsMode(
   }
 
   const installedAny = outcomes.some((outcome) => outcome.status === "success");
+  const changesMade = installedAny || guidance?.status === "success";
   console.log();
   if (failed.length === 0) {
     console.log(
@@ -1920,17 +1940,23 @@ async function runInstallAgentsMode(
   }
   console.log();
   if (canAuthenticate) {
+    if (changesMade) {
+      console.log(
+        scope === "project"
+          ? "  Open a new coding agent session in this project so it reloads project MCP configuration and any supporting instructions."
+          : "  Open a new coding agent session so it reloads MCP configuration and any supporting instructions.",
+      );
+      console.log();
+    }
     if (authStatus === "authenticated") {
       if (scope === "project") {
         console.log(
           "  GitHits MCP is installed for this project and you are already signed in.",
         );
-        console.log();
-        console.log(
-          "  Open a new coding agent session in this project so it reloads project MCP config.",
-        );
       } else {
-        printAgenticAlreadyAuthenticated();
+        console.log(
+          "  GitHits MCP is installed and you are already signed in.",
+        );
       }
     } else if (authStatus === "required") {
       printAgenticLoginInstructions(useColors);
@@ -2098,12 +2124,19 @@ function shouldPrintReady(authStatus: InitAuthStatus): boolean {
 function printPostSetupNextSteps(
   authStatus: InitAuthStatus,
   useColors: boolean,
+  changesMade: boolean,
 ): void {
   printSection(
-    5,
+    6,
     shouldPrintReady(authStatus) ? "Ready" : "Next Steps",
     useColors,
   );
+  if (changesMade) {
+    console.log(
+      "  Open a new coding agent session so it reloads MCP configuration and any supporting instructions.",
+    );
+    console.log();
+  }
   if (shouldPrintReady(authStatus)) {
     printReadyNextSteps();
   } else if (authStatus === "failed_continue") {
@@ -2113,12 +2146,22 @@ function printPostSetupNextSteps(
   }
 }
 
-function printProjectNextSteps(authStatus: InitAuthStatus, useColors: boolean) {
+function printProjectNextSteps(
+  authStatus: InitAuthStatus,
+  useColors: boolean,
+  changesMade: boolean,
+) {
   printSection(
-    5,
+    6,
     shouldPrintReady(authStatus) ? "Ready" : "Next Steps",
     useColors,
   );
+  if (changesMade) {
+    console.log(
+      "  Open a new coding agent session in this project so it loads the project config and any supporting instructions.",
+    );
+    console.log();
+  }
   if (shouldPrintReady(authStatus)) {
     printReadyNextSteps();
   } else if (authStatus === "failed_continue") {
@@ -2132,12 +2175,13 @@ function printScopedNextSteps(
   scope: InitSetupScope,
   authStatus: InitAuthStatus,
   useColors: boolean,
+  changesMade: boolean,
 ): void {
   if (scope === "project") {
-    printProjectNextSteps(authStatus, useColors);
+    printProjectNextSteps(authStatus, useColors, changesMade);
     return;
   }
-  printPostSetupNextSteps(authStatus, useColors);
+  printPostSetupNextSteps(authStatus, useColors, changesMade);
 }
 
 function getConfigFileSetups(setup: SetupConfig): ConfigFileSetup[] {
@@ -3784,8 +3828,6 @@ export async function initAction(
     }
   }
 
-  printInstallReview(useColors);
-
   if (setupScope === "project") {
     const scope = await resolveProjectSetupScope({}, fileSystemService);
     if (!scope) return;
@@ -3877,7 +3919,48 @@ export async function initAction(
     await printTomlRewriteWarnings(toSetup, fileSystemService, useColors);
   }
 
-  printSection(3, "Sign in", useColors);
+  const summaryAgents = getInstallSummaryAgents(scan, toSetup);
+  const needsInstallReview = toSetup.length > 0 || installSupportingGuidance;
+  printSection(3, "Review and confirm", useColors);
+  if (needsInstallReview) {
+    printInstallReview(
+      useColors,
+      setupScope,
+      summaryAgents,
+      installSupportingGuidance,
+      false,
+    );
+    if (options.yes) {
+      printTask("success", "Setup acknowledged", "--yes", useColors);
+    } else {
+      let accepted: boolean;
+      try {
+        accepted = await promptService.confirm(
+          "Continue with GitHits setup?",
+          true,
+        );
+      } catch (err) {
+        if (err instanceof ExitPromptError) {
+          console.log("\n  Setup cancelled. No changes made.\n");
+          return;
+        }
+        throw err;
+      }
+      if (!accepted) {
+        console.log("\n  Setup cancelled. No changes made.\n");
+        return;
+      }
+    }
+  } else {
+    printTask(
+      "success",
+      "No install changes to review",
+      "plain MCP is already configured",
+      useColors,
+    );
+  }
+
+  printSection(4, "Sign in", useColors);
   const authStatus = await runInitAuthentication(
     options,
     promptService,
@@ -3888,8 +3971,7 @@ export async function initAction(
     return;
   }
 
-  printSection(4, "Install and verify", useColors);
-  const summaryAgents = getInstallSummaryAgents(scan, toSetup);
+  printSection(5, "Install and verify", useColors);
   const outcomes = await installSelectedAgents(
     summaryAgents,
     scan,
@@ -3928,7 +4010,12 @@ export async function initAction(
     console.log("  Setup completed with errors.");
   } else if (configured > 0 || alreadyDone > 0) {
     printMcpServerSummary(useColors, configured > 0);
-    printScopedNextSteps(setupScope, authStatus, useColors);
+    printScopedNextSteps(
+      setupScope,
+      authStatus,
+      useColors,
+      configured > 0 || guidanceOutcome?.status === "success",
+    );
   }
 
   if (failed > 0) {

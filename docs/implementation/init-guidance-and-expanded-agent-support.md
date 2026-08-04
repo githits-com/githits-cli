@@ -21,8 +21,9 @@
   - Interactive setup defaults to guided MCP.
   - `--yes` accepts guided MCP unless `--no-guidance` is passed.
   - Staged `--install-agents` accepts guided MCP unless `--no-guidance` is passed.
-- Before install approval, show an install review stating that queries and targets leave the machine for GitHits processing, feedback submission is an outbound write, and installation itself does not upload the local workspace.
-- The review applies to interactive selection, interactive `--yes`, and agent-assisted staged setup. Agent guidance must present it before asking which detected tools to configure.
+- Before authentication or installation, show a numbered review step stating that queries and targets leave the machine for GitHits processing, feedback submission is an outbound write, installation itself does not upload the local workspace, and a new coding-agent session is needed to load changed MCP configuration or supporting instructions.
+- Interactive setup shows the selected scope, tools, and guidance choice, then requires `Continue with GitHits setup?` confirmation. Declining or interrupting confirmation exits before authentication, config writes, guidance writes, or setup commands. Interactive `--yes` prints the same review and acts as acknowledgment without another prompt.
+- Agent-assisted staged setup must present the review before asking which detected tools to configure. A new session means opening or restarting the coding-agent session, not restarting the terminal or machine.
 
 ## Guidance Install
 
@@ -69,7 +70,7 @@
 ## Tests
 
 - Unit test new prompt choices, `--guidance`, `--no-guidance`, and `--keep-guidance`.
-- Test that the install review appears before interactive and agent-assisted approval, including the interactive `--yes` path.
+- Test that the install review and new-session instruction appear before interactive and agent-assisted approval, including confirmation cancellation and the interactive `--yes` path.
 - Add fake-FS tests for marker insert/replace/remove and idempotent reruns.
 - Add setup/uninstall tests for each new MCP target shape.
 - Add packaging tests for `skills/githits-mcp/SKILL.md` and Claude plugin skill inclusion.
