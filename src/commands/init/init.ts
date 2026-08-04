@@ -359,10 +359,6 @@ interface StagedCommandOptions {
   guidanceRequested: boolean;
 }
 
-const GUIDED_STAGED_COMMAND_OPTIONS: StagedCommandOptions = {
-  guidanceRequested: true,
-};
-
 function guidanceCommandSuffix(options: StagedCommandOptions): string {
   return options.guidanceRequested ? "" : " --no-guidance";
 }
@@ -500,7 +496,10 @@ function printAgenticAuthNotChecked(useColors: boolean): void {
   console.log(`    ${formatCommand(AGENT_LOGIN_COMMAND, useColors)}`);
 }
 
-function printNonInteractiveInitGuidance(useColors: boolean): void {
+function printNonInteractiveInitGuidance(
+  useColors: boolean,
+  commandOptions: StagedCommandOptions,
+): void {
   console.log(
     "  This setup is interactive. Because this session is non-interactive, no changes were made.",
   );
@@ -515,12 +514,12 @@ function printNonInteractiveInitGuidance(useColors: boolean): void {
   console.log();
   console.log("  2. For user-level install, run:");
   console.log(
-    `     ${formatCommand(getAgentDetectCommand("user", GUIDED_STAGED_COMMAND_OPTIONS), useColors)}`,
+    `     ${formatCommand(getAgentDetectCommand("user", commandOptions), useColors)}`,
   );
   console.log();
   console.log("     For project-level install, run:");
   console.log(
-    `     ${formatCommand(getAgentDetectCommand("project", GUIDED_STAGED_COMMAND_OPTIONS), useColors)}`,
+    `     ${formatCommand(getAgentDetectCommand("project", commandOptions), useColors)}`,
   );
   console.log();
   console.log("  3. Show the detected tools to the user.");
@@ -538,42 +537,43 @@ function printNonInteractiveInitGuidance(useColors: boolean): void {
   console.log();
   console.log("  6. Only after approval, run the matching install command:");
   console.log(
-    `     ${formatCommand(`${getAgentInstallCommand("user")} <ids>`, useColors)}`,
+    `     ${formatCommand(`${getAgentInstallCommand("user")} <ids>${guidanceCommandSuffix(commandOptions)}`, useColors)}`,
   );
   console.log(
-    `     ${formatCommand(`${getAgentInstallCommand("project")} <ids>`, useColors)}`,
+    `     ${formatCommand(`${getAgentInstallCommand("project")} <ids>${guidanceCommandSuffix(commandOptions)}`, useColors)}`,
   );
   console.log();
   console.log(
-    "     Supporting GitHits skill and instruction guidance is installed by default; add --no-guidance only if the user asks for plain MCP.",
+    commandOptions.guidanceRequested
+      ? "     Supporting GitHits skill and instruction guidance is installed by default; add --no-guidance only if the user asks for plain MCP."
+      : "     Plain MCP was requested, so every staged command preserves --no-guidance.",
   );
   console.log();
   console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
-  console.log(
-    `  ${getAgenticVerifyInstruction("user", GUIDED_STAGED_COMMAND_OPTIONS)}`,
-  );
-  console.log(
-    `  ${getAgenticVerifyInstruction("project", GUIDED_STAGED_COMMAND_OPTIONS)}`,
-  );
+  console.log(`  ${getAgenticVerifyInstruction("user", commandOptions)}`);
+  console.log(`  ${getAgenticVerifyInstruction("project", commandOptions)}`);
 }
 
-function printNonInteractiveYesRejected(useColors: boolean): void {
+function printNonInteractiveYesRejected(
+  useColors: boolean,
+  commandOptions: StagedCommandOptions,
+): void {
   console.error(
     "Non-interactive `githits init --yes` is not supported because it can configure tools without explicit per-tool approval.",
   );
   console.error();
   console.error("Use the agent-safe staged flow instead:");
   console.error(
-    `  ${formatCommand(getAgentDetectCommand("user", GUIDED_STAGED_COMMAND_OPTIONS), useColors)}`,
+    `  ${formatCommand(getAgentDetectCommand("user", commandOptions), useColors)}`,
   );
   console.error(
-    `  ${formatCommand(`${getAgentInstallCommand("user")} <ids>`, useColors)}`,
+    `  ${formatCommand(`${getAgentInstallCommand("user")} <ids>${guidanceCommandSuffix(commandOptions)}`, useColors)}`,
   );
   console.error(
-    `  ${formatCommand(getAgentDetectCommand("project", GUIDED_STAGED_COMMAND_OPTIONS), useColors)}`,
+    `  ${formatCommand(getAgentDetectCommand("project", commandOptions), useColors)}`,
   );
   console.error(
-    `  ${formatCommand(`${getAgentInstallCommand("project")} <ids>`, useColors)}`,
+    `  ${formatCommand(`${getAgentInstallCommand("project")} <ids>${guidanceCommandSuffix(commandOptions)}`, useColors)}`,
   );
   process.exitCode = 1;
 }
@@ -1622,9 +1622,9 @@ function printAgenticDetectJson(
         guidanceRequested,
         suggestedCommand:
           actionableIds.length > 0
-            ? formatInstallCommand(actionableIds, scope, {
+            ? `${formatInstallCommand(actionableIds, scope, {
                 guidanceRequested,
-              })
+              })} --json`
             : null,
         instructions,
       },
@@ -1908,14 +1908,15 @@ function buildAgenticInstallAuthPayload(
 function buildAgenticInstallInstructions(
   authStatus: StagedInstallAuthStatus,
   scope: InitSetupScope,
-  guidanceInstalled: boolean,
+  guidance: GuidanceOutcome | null,
   changesMade: boolean,
   guidanceRequested: boolean,
 ): string[] {
   const commandOptions = { guidanceRequested };
-  const guidanceInstruction = guidanceInstalled
-    ? "GitHits supporting instructions are installed."
-    : "Supporting instructions were not installed; rerun staged install without --no-guidance if the user asks for them.";
+  const guidanceInstruction = buildAgenticGuidanceInstruction(
+    guidanceRequested,
+    guidance,
+  );
   const reloadInstructions = changesMade
     ? [
         scope === "project"
@@ -1949,6 +1950,28 @@ function buildAgenticInstallInstructions(
   ];
 }
 
+function buildAgenticGuidanceInstruction(
+  guidanceRequested: boolean,
+  guidance: GuidanceOutcome | null,
+): string {
+  if (!guidanceRequested) {
+    return "Supporting instructions were intentionally not installed. If the user later asks for them, rerun staged install without --no-guidance.";
+  }
+  if (!guidance) {
+    return "Supporting instruction status is unavailable. Review the installation result before retrying guidance setup.";
+  }
+  switch (guidance.status) {
+    case "success":
+      return "GitHits supporting instructions were installed or updated.";
+    case "already_configured":
+      return "GitHits supporting instructions were already configured.";
+    case "skipped":
+      return `No verified guidance target exists for the selected tools${guidance.message ? `: ${guidance.message}` : ""}. Rerunning the same command will not install supporting instructions.`;
+    case "failed":
+      return `Supporting instruction installation failed${guidance.message ? `: ${guidance.message}` : ""}. Resolve the reported guidance failure before retrying.`;
+  }
+}
+
 function printAgenticInstallJson(
   outcomes: AgentOutcome[],
   guidance: GuidanceOutcome | null,
@@ -1957,8 +1980,6 @@ function printAgenticInstallJson(
   guidanceRequested: boolean,
 ): void {
   const canAuthenticate = hasUsableInstallOutcome(outcomes);
-  const guidanceInstalled =
-    guidance?.status === "success" || guidance?.status === "already_configured";
   const changesMade =
     outcomes.some((outcome) => outcome.status === "success") ||
     guidance?.status === "success";
@@ -1980,11 +2001,14 @@ function printAgenticInstallJson(
           ? buildAgenticInstallInstructions(
               authStatus,
               scope,
-              guidanceInstalled,
+              guidance,
               changesMade,
               guidanceRequested,
             )
-          : ["Fix installation errors before asking the user to sign in."],
+          : [
+              "Fix installation errors before asking the user to sign in.",
+              buildAgenticGuidanceInstruction(guidanceRequested, guidance),
+            ],
       },
       null,
       2,
@@ -3951,11 +3975,14 @@ export async function initAction(
   printInitIntro(useColors);
 
   if (!isInteractive) {
+    const commandOptions = {
+      guidanceRequested: shouldInstallGuidanceForStaged(options),
+    };
     if (options.yes) {
-      printNonInteractiveYesRejected(useColors);
+      printNonInteractiveYesRejected(useColors, commandOptions);
       return;
     }
-    printNonInteractiveInitGuidance(useColors);
+    printNonInteractiveInitGuidance(useColors, commandOptions);
     console.log();
     return;
   }
