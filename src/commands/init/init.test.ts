@@ -96,6 +96,13 @@ function createUnauthLoginDeps(): () => Promise<
   );
 }
 
+function readGithitsMcpSkillContent(): string {
+  return readFileSync(
+    join(process.cwd(), "skills", "githits-mcp", "SKILL.md"),
+    "utf8",
+  );
+}
+
 /**
  * Create a FileSystemService mock that detects specific agents
  * and optionally has config files with content.
@@ -104,10 +111,7 @@ function createFsWithDetection(
   detectedDirs: string[],
   configFiles: Record<string, string> = {},
 ) {
-  const githitsMcpSkillContent = readFileSync(
-    join(process.cwd(), "skills", "githits-mcp", "SKILL.md"),
-    "utf8",
-  );
+  const githitsMcpSkillContent = readGithitsMcpSkillContent();
   const githitsMcpSkillSourcePath = join(
     process.cwd(),
     "skills",
@@ -146,17 +150,19 @@ function getErrorOutput(): string[] {
   return (errorSpy.mock.calls as unknown[][]).map((c) => String(c[0] ?? ""));
 }
 
-function expectReadyNextSteps(logCalls: string[]): void {
+function expectCursorRemoteNextSteps(logCalls: string[]): void {
+  expect(logCalls.some((msg) => msg.includes("6. Next Steps"))).toBe(true);
   expect(logCalls.some((msg) => msg.includes("GitHits is now connected"))).toBe(
-    true,
+    false,
   );
-  expect(logCalls.some((msg) => msg.includes("new abilities"))).toBe(true);
   expect(
     logCalls.some((msg) =>
-      msg.includes("How does Next.js implement route prefetching"),
+      msg.includes("Cursor is ready only after its separate OAuth"),
     ),
   ).toBe(true);
-  expect(logCalls.some((msg) => msg.includes("trigger guides"))).toBe(true);
+  expect(
+    logCalls.some((msg) => msg.includes("cursor-agent mcp list-tools GitHits")),
+  ).toBe(true);
 }
 
 function expectAuthNotCheckedNextSteps(logCalls: string[]): void {
@@ -260,14 +266,59 @@ describe("initAction", () => {
       ),
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("githits init -y"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("--detect-agents --json"))).toBe(
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("GitHits queries and public package"),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
       true,
     );
+    const reviewIndex = logCalls.findIndex((msg) =>
+      msg.includes("Show this install review"),
+    );
+    const approvalIndex = logCalls.findIndex((msg) =>
+      msg.includes("Ask which tools should receive"),
+    );
+    expect(reviewIndex).toBeGreaterThanOrEqual(0);
+    expect(approvalIndex).toBeGreaterThan(reviewIndex);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("--detect-agents --no-guidance --json"),
+      ),
+    ).toBe(true);
+    const stagedCommands = logCalls.filter((msg) =>
+      msg.includes("npx -y githits@latest init"),
+    );
+    expect(stagedCommands.length).toBeGreaterThan(0);
+    expect(
+      stagedCommands.every((command) => command.includes("--no-guidance")),
+    ).toBe(true);
     expect(promptService.select).not.toHaveBeenCalled();
     expect(promptService.checkbox).not.toHaveBeenCalled();
     expect(execService.exec).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     expect(createLoginDeps).not.toHaveBeenCalled();
+  });
+
+  it("keeps non-interactive staged commands guided by default", async () => {
+    await initAction(
+      {},
+      {
+        fileSystemService: createFsWithDetection([]),
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        isInteractive: false,
+      },
+    );
+
+    const stagedCommands = getLogOutput().filter((msg) =>
+      msg.includes("npx -y githits@latest init"),
+    );
+    expect(stagedCommands.length).toBeGreaterThan(0);
+    expect(
+      stagedCommands.every((command) => !command.includes("--no-guidance")),
+    ).toBe(true);
   });
 
   it("rejects non-interactive --yes before scan, writes, or auth", async () => {
@@ -291,6 +342,13 @@ describe("initAction", () => {
 
     expect(process.exitCode).toBe(1);
     expect(getErrorOutput().some((msg) => msg.includes("--yes"))).toBe(true);
+    const stagedCommands = getErrorOutput().filter((msg) =>
+      msg.includes("npx -y githits@latest init"),
+    );
+    expect(stagedCommands.length).toBeGreaterThan(0);
+    expect(
+      stagedCommands.every((command) => command.includes("--no-guidance")),
+    ).toBe(true);
     expect(promptService.select).not.toHaveBeenCalled();
     expect(promptService.checkbox).not.toHaveBeenCalled();
     expect(execService.exec).not.toHaveBeenCalled();
@@ -306,7 +364,7 @@ describe("initAction", () => {
     );
 
     await initAction(
-      { detectAgents: true },
+      { detectAgents: true, guidance: false },
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
@@ -319,6 +377,28 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("Detected tools"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("cursor"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("needs setup"))).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("GitHits queries and public package"),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
+      true,
+    );
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("--install-agents cursor --no-guidance"),
+      ),
+    ).toBe(true);
+    const installCommand = logCalls.find((msg) =>
+      msg.includes("--install-agents cursor --no-guidance"),
+    );
+    expect(installCommand).not.toContain("--json");
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("--detect-agents --no-guidance --json"),
+      ),
+    ).toBe(true);
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     expect(createLoginDeps).not.toHaveBeenCalled();
   });
@@ -327,7 +407,7 @@ describe("initAction", () => {
     const fs = createFsWithDetection([]);
 
     await initAction(
-      { detectAgents: true },
+      { detectAgents: true, guidance: false },
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
@@ -343,6 +423,12 @@ describe("initAction", () => {
     expect(
       logCalls.some((msg) => msg.includes("already configured for detected")),
     ).toBe(false);
+    expect(logCalls.some((msg) => msg.includes("Install review"))).toBe(false);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("GitHits queries and public package"),
+      ),
+    ).toBe(false);
   });
 
   it("warns agents not to run init yes when detected tools are configured", async () => {
@@ -350,15 +436,14 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
     });
 
     await initAction(
-      { detectAgents: true },
+      { detectAgents: true, guidance: false },
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
@@ -369,12 +454,29 @@ describe("initAction", () => {
 
     const logCalls = getLogOutput();
     expect(
-      logCalls.some((msg) => msg.includes("No detected tools need setup")),
+      logCalls.some((msg) =>
+        msg.includes("No detected tools need MCP or guidance setup"),
+      ),
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("githits init -y"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("verification step"))).toBe(
       true,
     );
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("GitHits queries and public package"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("supporting guidance was not requested"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("requested supporting guidance is already configured"),
+      ),
+    ).toBe(false);
   });
 
   it("emits JSON for agent detection", async () => {
@@ -394,13 +496,315 @@ describe("initAction", () => {
     expect(payload.mode).toBe("detect-agents");
     expect(payload.scope).toBe("user");
     expect(payload.installableIds).toContain("cursor");
-    expect(payload.suggestedCommand).toContain("--install-agents cursor");
+    expect(payload.suggestedCommand).toBe(
+      "npx -y githits@latest init --install-agents cursor --json",
+    );
     expect(payload.instructions).toContain(
       "Do not run `githits init -y` or `githits init --yes` unless the user explicitly asks to configure every detected tool.",
     );
     expect(payload.instructions).toContain(
       "Do not run init again after a successful --install-agents run; verify with npx -y githits@latest init --detect-agents --json instead.",
     );
+    const reviewIndex = payload.instructions.findIndex((instruction: string) =>
+      instruction.includes("Before asking for install approval"),
+    );
+    const queryDisclosureIndex = payload.instructions.findIndex(
+      (instruction: string) =>
+        instruction.includes("GitHits queries and public package"),
+    );
+    const feedbackDisclosureIndex = payload.instructions.findIndex(
+      (instruction: string) => instruction.includes("is an outbound write"),
+    );
+    const localWorkspaceIndex = payload.instructions.findIndex(
+      (instruction: string) =>
+        instruction.includes("does not itself upload the local workspace"),
+    );
+    const newSessionIndex = payload.instructions.findIndex(
+      (instruction: string) =>
+        instruction.includes("open a new coding agent session"),
+    );
+    const approvalIndex = payload.instructions.findIndex(
+      (instruction: string) =>
+        instruction.includes("Ask which actionable tools should receive"),
+    );
+    expect(reviewIndex).toBeGreaterThanOrEqual(0);
+    expect(queryDisclosureIndex).toBeGreaterThan(reviewIndex);
+    expect(feedbackDisclosureIndex).toBeGreaterThan(queryDisclosureIndex);
+    expect(localWorkspaceIndex).toBeGreaterThan(feedbackDisclosureIndex);
+    expect(newSessionIndex).toBeGreaterThan(localWorkspaceIndex);
+    expect(approvalIndex).toBeGreaterThan(newSessionIndex);
+    expect(JSON.stringify(payload.instructions)).not.toContain("--no-guidance");
+  });
+
+  it("preserves --no-guidance in staged detect follow-up commands", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+
+    await initAction(
+      { detectAgents: true, json: true, guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.suggestedCommand).toBe(
+      "npx -y githits@latest init --install-agents cursor --no-guidance --json",
+    );
+    expect(payload.instructions).toContain(
+      "Do not run init again after a successful --install-agents run; verify with npx -y githits@latest init --detect-agents --no-guidance --json instead.",
+    );
+  });
+
+  it("reports guidance-only repair as actionable without changing installableIds", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+    });
+
+    await initAction(
+      { detectAgents: true, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    const cursor = payload.agents.find(
+      (agent: { id: string }) => agent.id === "cursor",
+    );
+    expect(cursor.status).toBe("already_configured");
+    expect(cursor.guidanceStatus).toBe("needs_setup");
+    expect(payload.installableIds).toEqual([]);
+    expect(payload.actionableIds).toEqual(["cursor"]);
+    expect(payload.guidanceRequested).toBe(true);
+    expect(payload.suggestedCommand).toBe(
+      "npx -y githits@latest init --install-agents cursor --json",
+    );
+  });
+
+  it("reports fully configured MCP and guidance as not actionable", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+      "/home/test/.agents/skills/githits-mcp/SKILL.md":
+        readGithitsMcpSkillContent(),
+    });
+
+    await initAction(
+      { detectAgents: true, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    const cursor = payload.agents.find(
+      (agent: { id: string }) => agent.id === "cursor",
+    );
+    expect(cursor.guidanceStatus).toBe("already_configured");
+    expect(payload.installableIds).toEqual([]);
+    expect(payload.actionableIds).toEqual([]);
+    expect(payload.suggestedCommand).toBeNull();
+    const reviewLeadIn = payload.instructions.indexOf(
+      "Before authentication, show the user this install review:",
+    );
+    const configuredInstruction = payload.instructions.indexOf(
+      "Tell the user that requested supporting guidance is already configured for tools with verified guidance targets.",
+    );
+    expect(reviewLeadIn).toBeGreaterThanOrEqual(0);
+    expect(configuredInstruction).toBeGreaterThan(reviewLeadIn);
+    expect(payload.instructions).toEqual(
+      expect.arrayContaining([
+        "GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.",
+        "Feedback submission is an outbound write that sends feedback data to GitHits services.",
+        "Installing GitHits MCP does not itself upload the local workspace.",
+        "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
+      ]),
+    );
+    expect(payload.instructions).toContain(
+      "Do not ask the user to choose actionable IDs.",
+    );
+    expect(payload.instructions).toContain(
+      "Cursor uses the remote GitHits MCP at https://mcp.githits.com and manages its OAuth separately from local GitHits CLI authentication.",
+    );
+    expect(
+      payload.instructions.some((instruction: string) =>
+        instruction.includes("cursor-agent mcp list-tools GitHits"),
+      ),
+    ).toBe(true);
+  });
+
+  it("deduplicates shared guidance checks across detected tools", async () => {
+    const cursorMcpConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          url: "https://mcp.githits.com",
+        },
+      },
+    });
+    const qwenMcpConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const sharedSkillPath = "/home/test/.agents/skills/githits-mcp/SKILL.md";
+    const fs = createFsWithDetection(
+      ["/home/test/.cursor", "/home/test/.qwen"],
+      {
+        "/home/test/.cursor/mcp.json": cursorMcpConfig,
+        "/home/test/.qwen/settings.json": qwenMcpConfig,
+        [sharedSkillPath]: readGithitsMcpSkillContent(),
+      },
+    );
+
+    await initAction(
+      { detectAgents: true, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const targetReads = (
+      fs.readFile as ReturnType<typeof mock>
+    ).mock.calls.filter(([path]) => path === sharedSkillPath);
+    expect(targetReads).toHaveLength(1);
+  });
+
+  it("does not make missing guidance actionable with --no-guidance", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+    });
+
+    await initAction(
+      { detectAgents: true, json: true, guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    const cursor = payload.agents.find(
+      (agent: { id: string }) => agent.id === "cursor",
+    );
+    expect(cursor.guidanceStatus).toBe("not_requested");
+    expect(payload.guidanceRequested).toBe(false);
+    expect(payload.actionableIds).toEqual([]);
+    expect(payload.instructions).toContain(
+      "Tell the user that GitHits MCP is already configured for detected tools.",
+    );
+    expect(payload.instructions).toContain(
+      "Tell the user that supporting guidance was not requested.",
+    );
+    expect(JSON.stringify(payload.instructions)).not.toContain(
+      "requested supporting guidance is already configured",
+    );
+  });
+
+  it("reports detected tools without guidance targets as not supported", async () => {
+    const fs = createFsWithDetection(["/home/test/.config/Claude"]);
+
+    await initAction(
+      { detectAgents: true, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    const claudeDesktop = payload.agents.find(
+      (agent: { id: string }) => agent.id === "claude-desktop",
+    );
+    expect(claudeDesktop.status).toBe("needs_setup");
+    expect(claudeDesktop.guidanceStatus).toBe("not_supported");
+    expect(payload.actionableIds).toContain("claude-desktop");
+  });
+
+  it("does not claim unsupported guidance is configured in no-action detection", async () => {
+    const fs = createFsWithDetection(["/home/test/.config/Claude"], {
+      "/home/test/.config/Claude/claude_desktop_config.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+    });
+
+    await initAction(
+      { detectAgents: true, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.actionableIds).toEqual([]);
+    expect(payload.instructions).toContain(
+      "Tell the user that some detected tools do not have a verified supporting-guidance target.",
+    );
+    expect(JSON.stringify(payload.instructions)).not.toContain(
+      "requested supporting guidance is already configured",
+    );
+  });
+
+  it("shows guidance-only repair in human-readable staged detection", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+    });
+
+    await initAction(
+      { detectAgents: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const output = getLogOutput().join("\n");
+    expect(output).toContain("already configured");
+    expect(output).toContain("needs setup");
+    expect(output).toContain("--install-agents cursor");
   });
 
   it("keeps detect JSON parseable when init trace is enabled", async () => {
@@ -439,7 +843,7 @@ describe("initAction", () => {
     );
 
     await initAction(
-      { detectAgents: true, json: true, project: true },
+      { detectAgents: true, json: true, project: true, guidance: false },
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
@@ -451,13 +855,31 @@ describe("initAction", () => {
     const payload = JSON.parse(getLogOutput()[0] ?? "{}");
     expect(process.exitCode).toBe(0);
     expect(payload.scope).toBe("project");
-    expect(payload.suggestedCommand).toContain(
-      "--project --install-agents cursor",
+    expect(payload.suggestedCommand).toBe(
+      "npx -y githits@latest init --project --install-agents cursor --no-guidance --json",
     );
     expect(payload.instructions).toContain(
       "Explain that project-level install writes MCP config files into the current repo and those files may be committed.",
     );
     expect(createLoginDeps).not.toHaveBeenCalled();
+  });
+
+  it("emits a JSON-producing guided project install command", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+
+    await initAction(
+      { detectAgents: true, json: true, project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.suggestedCommand).toBe(
+      "npx -y githits@latest init --project --install-agents cursor --json",
+    );
   });
 
   it("marks detected tools without project config as unsupported in staged project detection", async () => {
@@ -486,6 +908,12 @@ describe("initAction", () => {
     expect(payload.instructions).not.toContain(
       "Ask which tools should receive the GitHits MCP server.",
     );
+    expect(payload.instructions).not.toContain(
+      "Before authentication, show the user this install review:",
+    );
+    expect(JSON.stringify(payload.instructions)).not.toContain(
+      "GitHits queries and public package",
+    );
   });
 
   it("does not ask for project install IDs when configured and unsupported tools are detected", async () => {
@@ -495,8 +923,7 @@ describe("initAction", () => {
         "/repo/.cursor/mcp.json": JSON.stringify({
           mcpServers: {
             GitHits: {
-              command: "npx",
-              args: ["-y", "githits@latest", "mcp", "start"],
+              url: "https://mcp.githits.com",
             },
           },
         }),
@@ -505,7 +932,7 @@ describe("initAction", () => {
     fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
 
     await initAction(
-      { detectAgents: true, json: true, project: true },
+      { detectAgents: true, json: true, project: true, guidance: false },
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
@@ -515,6 +942,29 @@ describe("initAction", () => {
 
     const payload = JSON.parse(getLogOutput()[0] ?? "{}");
     expect(payload.installableIds).toEqual([]);
+    expect(payload.actionableIds).toEqual([]);
+    expect(payload.suggestedCommand).toBeNull();
+    const reviewIndex = payload.instructions.indexOf(
+      "Before authentication, show the user this install review:",
+    );
+    const configuredIndex = payload.instructions.indexOf(
+      "Explain that GitHits is already configured for detected project-configurable tools.",
+    );
+    const fallbackIndex = payload.instructions.findIndex(
+      (instruction: string) =>
+        instruction.includes("Offer user-level detection"),
+    );
+    expect(reviewIndex).toBeGreaterThanOrEqual(0);
+    expect(configuredIndex).toBeGreaterThan(reviewIndex);
+    expect(fallbackIndex).toBeGreaterThan(configuredIndex);
+    expect(payload.instructions).toEqual(
+      expect.arrayContaining([
+        "GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.",
+        "Feedback submission is an outbound write that sends feedback data to GitHits services.",
+        "Installing GitHits MCP does not itself upload the local workspace.",
+        "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
+      ]),
+    );
     expect(payload.instructions).toContain(
       "Explain that GitHits is already configured for detected project-configurable tools.",
     );
@@ -526,6 +976,58 @@ describe("initAction", () => {
     );
     expect(payload.instructions).not.toContain(
       "Ask which tools should receive the GitHits MCP server.",
+    );
+  });
+
+  it("shows the review for configured and unsupported project tools in prose", async () => {
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.cursor", "/home/test/.codeium/windsurf"],
+      {
+        "/repo/.cursor/mcp.json": JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              url: "https://mcp.githits.com",
+            },
+          },
+        }),
+      },
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+
+    await initAction(
+      { detectAgents: true, project: true, guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const logCalls = getLogOutput();
+    const reviewIndex = logCalls.findIndex((msg) =>
+      msg.includes("Install review"),
+    );
+    const nextStepIndex = logCalls.findIndex((msg) =>
+      msg.includes("Next step for agents"),
+    );
+    expect(reviewIndex).toBeGreaterThanOrEqual(0);
+    expect(nextStepIndex).toBeGreaterThan(reviewIndex);
+    expect(logCalls).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("GitHits queries and public package"),
+        expect.stringContaining("Feedback submission is an outbound write"),
+        expect.stringContaining(
+          "Installing GitHits MCP does not itself upload the local workspace",
+        ),
+        expect.stringContaining("terminal or machine"),
+        expect.stringContaining(
+          "GitHits is already configured for the detected project-configurable tools",
+        ),
+        expect.stringContaining(
+          "other detected tools do not have verified project-level MCP support",
+        ),
+        expect.stringContaining("Offer user-level install"),
+      ]),
     );
   });
 
@@ -562,6 +1064,12 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("user-level install"))).toBe(
       true,
     );
+    expect(logCalls.some((msg) => msg.includes("Install review"))).toBe(false);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("GitHits queries and public package"),
+      ),
+    ).toBe(false);
   });
 
   it("installs only explicitly requested agents in staged install mode", async () => {
@@ -598,6 +1106,18 @@ describe("initAction", () => {
     ).toBe(false);
     expect(
       getLogOutput().some((msg) => msg.includes("npx -y githits@latest login")),
+    ).toBe(false);
+    expect(
+      getLogOutput().some((msg) =>
+        msg.includes("Cursor uses the remote GitHits MCP"),
+      ),
+    ).toBe(true);
+    expect(
+      getLogOutput().some((msg) =>
+        msg.includes(
+          "reloads MCP configuration and any supporting instructions",
+        ),
+      ),
     ).toBe(true);
   });
 
@@ -636,6 +1156,13 @@ describe("initAction", () => {
     expect(payload.instructions).toContain(
       "Do not run init again after a successful --install-agents run; verify with npx -y githits@latest init --project --detect-agents --json instead.",
     );
+    expect(
+      payload.instructions.some((instruction: string) =>
+        instruction.includes(
+          "reloads project MCP configuration and any supporting instructions",
+        ),
+      ),
+    ).toBe(true);
   });
 
   it("rejects unsupported project agent IDs in staged install mode", async () => {
@@ -708,16 +1235,22 @@ describe("initAction", () => {
         msg.includes("Found 1 tool. 1 supports project-level config."),
       ),
     ).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("5. Next Steps"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("6. Next Steps"))).toBe(true);
     expectProjectAuthNotCheckedNextSteps(logCalls);
     expect(
-      logCalls.filter((msg) => msg.includes("4. Install and verify")),
+      logCalls.filter((msg) => msg.includes("5. Install and verify")),
     ).toHaveLength(1);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes(
+          "loads the project config and any supporting instructions",
+        ),
+      ),
+    ).toBe(true);
     expect(JSON.parse(configFiles["/repo/.cursor/mcp.json"] ?? "{}")).toEqual({
       mcpServers: {
         GitHits: {
-          command: "npx",
-          args: ["-y", "githits@latest", "mcp", "start"],
+          url: "https://mcp.githits.com",
         },
       },
     });
@@ -795,8 +1328,7 @@ describe("initAction", () => {
     const written = JSON.parse(configFiles["/repo/.cursor/mcp.json"] ?? "{}");
     expect(written.mcpServers.Other).toEqual({ command: "other", args: [] });
     expect(written.mcpServers.GitHits).toEqual({
-      command: "npx",
-      args: ["-y", "githits@latest", "mcp", "start"],
+      url: "https://mcp.githits.com",
     });
   });
 
@@ -826,7 +1358,7 @@ describe("initAction", () => {
     );
 
     const logCalls = getLogOutput();
-    expectReadyNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
     expect(
       logCalls.some((msg) =>
         msg.includes("GitHits MCP is configured for this project."),
@@ -973,9 +1505,9 @@ describe("initAction", () => {
     const warningIndex = logCalls.findIndex((msg) =>
       msg.includes("existing TOML comments/formatting will not be preserved"),
     );
-    const signInIndex = logCalls.findIndex((msg) => msg.includes("3. Sign in"));
+    const signInIndex = logCalls.findIndex((msg) => msg.includes("4. Sign in"));
     const installIndex = logCalls.findIndex((msg) =>
-      msg.includes("4. Install and verify"),
+      msg.includes("5. Install and verify"),
     );
     const mcpSectionIndex = logCalls.findIndex((msg) => msg.trim() === "MCP");
     const codexRowIndex = logCalls.findIndex(
@@ -1189,31 +1721,36 @@ describe("initAction", () => {
     expect(createLoginDeps).not.toHaveBeenCalled();
   });
 
-  it("does not print login instructions when staged install finds existing auth", async () => {
+  it("reports Cursor-managed auth without checking local CLI auth", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"], {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
     });
 
+    const createLoginDeps = createAlreadyAuthLoginDeps();
     await initAction(
       { installAgents: "cursor", json: true },
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
         execService: createMockExecService(),
-        createLoginDeps: createAlreadyAuthLoginDeps(),
+        createLoginDeps,
       },
     );
 
     const payload = JSON.parse(getLogOutput()[0] ?? "{}");
-    expect(payload.auth.required).toBe(false);
-    expect(payload.auth.status).toBe("authenticated");
+    expect(payload.auth.required).toBeNull();
+    expect(payload.auth.status).toBe("managed_by_cursor");
+    expect(payload.auth.loginCommand).toBe("cursor-agent mcp login GitHits");
+    expect(payload.auth.verificationCommands).toContain(
+      "cursor-agent mcp list-tools GitHits",
+    );
+    expect(createLoginDeps).not.toHaveBeenCalled();
     expect(JSON.stringify(payload)).not.toContain("githits@latest login");
   });
 
@@ -1222,8 +1759,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -1258,6 +1794,108 @@ describe("initAction", () => {
         msg.includes('MCP server "githits" already configured'),
       ),
     ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Open a new coding agent session")),
+    ).toBe(false);
+  });
+
+  it("reports a new session after staged guidance-only repair", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+    });
+
+    await initAction(
+      { installAgents: "cursor", json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.outcomes[0]?.status).toBe("already_configured");
+    expect(payload.guidance.status).toBe("success");
+    expect(payload.instructions).toContain(
+      "GitHits supporting instructions were installed or updated.",
+    );
+    expect(
+      payload.instructions.some((instruction: string) =>
+        instruction.includes("Open a new coding agent session"),
+      ),
+    ).toBe(true);
+  });
+
+  it("omits new-session guidance from staged JSON when nothing changed", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+    });
+
+    await initAction(
+      { installAgents: "cursor", guidance: false, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(
+      payload.instructions.some((instruction: string) =>
+        instruction.includes("Open a new coding agent session"),
+      ),
+    ).toBe(false);
+    expect(payload.instructions).toContain(
+      "Do not run init again after a successful --install-agents run; verify with npx -y githits@latest init --detect-agents --no-guidance --json instead.",
+    );
+    expect(payload.instructions).toContain(
+      "Supporting instructions were intentionally not installed. If the user later asks for them, rerun staged install without --no-guidance.",
+    );
+  });
+
+  it("reports already-configured supporting guidance accurately", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+      "/home/test/.agents/skills/githits-mcp/SKILL.md":
+        readGithitsMcpSkillContent(),
+    });
+
+    await initAction(
+      { installAgents: "cursor", json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.guidance.status).toBe("already_configured");
+    expect(payload.instructions).toContain(
+      "GitHits supporting instructions were already configured.",
+    );
   });
 
   it("does not print login instructions when all staged installs fail", async () => {
@@ -1310,7 +1948,78 @@ describe("initAction", () => {
     expect(payload.outcomes[0].status).toBe("failed");
     expect(payload.auth.required).toBe(false);
     expect(JSON.stringify(payload)).not.toContain("githits@latest login");
+    expect(payload.instructions).toContain(
+      "Fix installation errors before asking the user to sign in.",
+    );
+    expect(
+      payload.instructions.some((instruction: string) =>
+        instruction.includes("Supporting instruction installation failed"),
+      ),
+    ).toBe(true);
   });
+
+  it.each([
+    { name: "prose", json: false },
+    { name: "JSON", json: true },
+  ])(
+    "prints reload guidance when guidance succeeds but every MCP install fails in $name output",
+    async ({ json }) => {
+      const configFiles: Record<string, string> = {};
+      const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+      fs.atomicWriteFile = mock(async (path: string, content: string) => {
+        if (path === "/home/test/.cursor/mcp.json") {
+          throw Object.assign(new Error("Permission denied"), {
+            code: "EACCES",
+          });
+        }
+        configFiles[path] = content;
+      }) as typeof fs.atomicWriteFile;
+
+      await initAction(
+        { installAgents: "cursor", json },
+        {
+          fileSystemService: fs,
+          promptService: createMockPromptService(),
+          execService: createMockExecService(),
+          createLoginDeps: createAlreadyAuthLoginDeps(),
+        },
+      );
+
+      expect(process.exitCode).toBe(1);
+      expect(
+        configFiles["/home/test/.agents/skills/githits-mcp/SKILL.md"],
+      ).toBeDefined();
+      if (json) {
+        const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+        expect(payload.outcomes[0].status).toBe("failed");
+        expect(payload.guidance.status).toBe("success");
+        const reloadIndex = payload.instructions.findIndex(
+          (instruction: string) =>
+            instruction.includes("Open a new coding agent session"),
+        );
+        const fixIndex = payload.instructions.indexOf(
+          "Fix installation errors before asking the user to sign in.",
+        );
+        expect(reloadIndex).toBeGreaterThanOrEqual(0);
+        expect(fixIndex).toBeGreaterThan(reloadIndex);
+        expect(JSON.stringify(payload)).not.toContain("githits@latest login");
+        expect(JSON.stringify(payload.instructions)).not.toContain(
+          "--detect-agents",
+        );
+        return;
+      }
+
+      const output = getLogOutput().join("\n");
+      const reloadIndex = output.indexOf("Open a new coding agent session");
+      const fixIndex = output.indexOf(
+        "Fix installation errors before starting sign-in",
+      );
+      expect(reloadIndex).toBeGreaterThanOrEqual(0);
+      expect(fixIndex).toBeGreaterThan(reloadIndex);
+      expect(output).not.toContain("githits@latest login");
+      expect(output).not.toContain("--detect-agents");
+    },
+  );
 
   it("shows a created row, collapsed path, and the MCP server block", async () => {
     // A store so the post-setup verification scan sees what was written.
@@ -1517,6 +2226,11 @@ describe("initAction", () => {
       writes["/home/test/.agents/skills/githits-mcp/SKILL.md"],
     ).toBeUndefined();
     expect(writes["/home/test/.codex/AGENTS.md"]).toBeUndefined();
+    expect(
+      getLogOutput().some((msg) =>
+        msg.includes("--detect-agents --no-guidance --json"),
+      ),
+    ).toBe(true);
   });
 
   it("staged guided install uses a native skill path when .agents is not supported", async () => {
@@ -1698,7 +2412,7 @@ describe("initAction", () => {
     }) as typeof fs.atomicWriteFile;
 
     await initAction(
-      { installAgents: "claude-desktop", guidance: true },
+      { installAgents: "claude-desktop", guidance: true, json: true },
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
@@ -1713,6 +2427,54 @@ describe("initAction", () => {
     expect(
       Object.keys(writes).some((path) => path.endsWith("/CLAUDE.md")),
     ).toBe(false);
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.guidance).toEqual({
+      status: "skipped",
+      message: "no selected tools need guidance",
+    });
+    expect(
+      payload.instructions.some((instruction: string) =>
+        instruction.includes("No verified guidance target exists"),
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(payload.instructions)).not.toContain(
+      "rerun staged install without --no-guidance",
+    );
+  });
+
+  it("reports a failed guidance write with actionable remediation", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      if (path.endsWith("/SKILL.md")) {
+        throw Object.assign(new Error("Permission denied"), { code: "EACCES" });
+      }
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+
+    await initAction(
+      { installAgents: "cursor", json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(process.exitCode).toBe(1);
+    expect(payload.outcomes[0].status).toBe("success");
+    expect(payload.guidance.status).toBe("failed");
+    expect(payload.guidance.message).toContain("Permission denied");
+    expect(
+      payload.instructions.some(
+        (instruction: string) =>
+          instruction.includes("Supporting instruction installation failed") &&
+          instruction.includes("Permission denied") &&
+          instruction.includes("before retrying"),
+      ),
+    ).toBe(true);
   });
 
   it("keeps the written path visible when verification fails", async () => {
@@ -1865,7 +2627,11 @@ describe("initAction", () => {
 
   it("scans agents and sets up unconfigured ones", async () => {
     // Cursor detected but not configured
-    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
     const promptService = createMockPromptService();
 
     await initAction(
@@ -1899,8 +2665,11 @@ describe("initAction", () => {
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("1. Detect tools"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("2. Choose tools"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("3. Sign in"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("4. Install and verify"))).toBe(
+    expect(logCalls.some((msg) => msg.includes("3. Review and confirm"))).toBe(
+      true,
+    );
+    expect(logCalls.some((msg) => msg.includes("4. Sign in"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("5. Install and verify"))).toBe(
       true,
     );
     const mcpSectionIndex = logCalls.findIndex((msg) => msg.trim() === "MCP");
@@ -1913,6 +2682,176 @@ describe("initAction", () => {
     expect(mcpSectionIndex).toBeGreaterThanOrEqual(0);
     expect(logCalls.some((msg) => msg.trim() === "Skills")).toBe(false);
     expect(cursorRowIndex).toBeGreaterThan(mcpSectionIndex);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes(
+          "reloads MCP configuration and any supporting instructions",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("shows the install review before interactive setup confirmation", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const checkbox = mock((_message, choices) =>
+      Promise.resolve([choices[0]!.value]),
+    ) as PromptService["checkbox"];
+    const confirm = mock((message: string) => {
+      if (!message.includes("Continue with GitHits setup")) {
+        return Promise.resolve(true);
+      }
+      const logCalls = getLogOutput();
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("GitHits queries and public package"),
+        ),
+      ).toBe(true);
+      expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
+        true,
+      );
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("does not itself upload the local workspace"),
+        ),
+      ).toBe(true);
+      expect(
+        logCalls.some((msg) => msg.includes("open a new coding agent session")),
+      ).toBe(true);
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("do not need to restart the terminal or machine"),
+        ),
+      ).toBe(true);
+      expect(logCalls.some((msg) => msg.includes("Scope: User"))).toBe(true);
+      expect(
+        logCalls.some((msg) => msg.includes("MCP tools to configure: Cursor")),
+      ).toBe(true);
+      expect(
+        logCalls.some((msg) => msg.includes("Guidance targets: None")),
+      ).toBe(true);
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("Supporting instructions: Do not install"),
+        ),
+      ).toBe(true);
+      return Promise.resolve(true);
+    }) as PromptService["confirm"];
+
+    await initAction(
+      { guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService({ checkbox, confirm }),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(checkbox).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledWith("Continue with GitHits setup?", true);
+  });
+
+  it("shows no guidance target for a tool without a verified guidance surface", async () => {
+    const fs = createFsWithDetection(["/home/test/.config/Claude"]);
+    const confirm = mock((message: string) => {
+      if (message.includes("Continue with GitHits setup")) {
+        const output = getLogOutput().join("\n");
+        expect(output).toContain("MCP tools to configure: Claude Desktop");
+        expect(output).toContain("Guidance targets: None");
+        return Promise.resolve(false);
+      }
+      return Promise.resolve(true);
+    }) as PromptService["confirm"];
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService({ confirm }),
+        execService: createMockExecService(),
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("lists only verified guidance targets in a mixed review", async () => {
+    const fs = createFsWithDetection([
+      "/home/test/.cursor",
+      "/home/test/.config/Claude",
+    ]);
+    const confirm = mock((message: string) => {
+      if (message.includes("Continue with GitHits setup")) {
+        const guidanceLine = getLogOutput().find((line) =>
+          line.includes("Guidance targets:"),
+        );
+        expect(guidanceLine).toContain("Cursor");
+        expect(guidanceLine).not.toContain("Claude Desktop");
+        return Promise.resolve(false);
+      }
+      return Promise.resolve(true);
+    }) as PromptService["confirm"];
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService({ confirm }),
+        execService: createMockExecService(),
+        createLoginDeps: createUnauthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("cancels before authentication and writes when setup review is declined", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+    const promptService = createMockPromptService({
+      confirm: mock(() => Promise.resolve(false)),
+    });
+
+    await initAction(
+      { guidance: false },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(getLogOutput().some((msg) => msg.includes("No changes made"))).toBe(
+      true,
+    );
+  });
+
+  it("cancels safely when setup review is interrupted", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"]);
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+    const promptService = createMockPromptService({
+      confirm: mock(() => Promise.reject(new ExitPromptError())),
+    });
+
+    await initAction(
+      { guidance: false },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(getLogOutput().some((msg) => msg.includes("No changes made"))).toBe(
+      true,
+    );
   });
 
   it("skips already-configured agents without prompting", async () => {
@@ -1921,8 +2860,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -1954,7 +2892,10 @@ describe("initAction", () => {
           msg.includes("~/.cursor/mcp.json"),
       ),
     ).toBe(true);
-    expectReadyNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
+    expect(
+      logCalls.some((msg) => msg.includes("Open a new coding agent session")),
+    ).toBe(false);
   });
 
   it("handles mixed status: configured + unconfigured", async () => {
@@ -1963,8 +2904,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -2019,6 +2959,45 @@ describe("initAction", () => {
           msg.includes("~/.codeium/windsurf/mcp_config.json"),
       ),
     ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("MCP tools to configure: Windsurf")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("MCP tools to configure: Cursor")),
+    ).toBe(false);
+  });
+
+  it("requires review before auth when plain MCP is already configured", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+    });
+    const createLoginDeps = createUnauthLoginDeps();
+    const promptService = createMockPromptService({
+      confirm: mock(() => Promise.resolve(false)),
+    });
+
+    await initAction(
+      { guidance: false },
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    const output = getLogOutput().join("\n");
+    expect(output).toContain("GitHits queries and public package");
+    expect(output).toContain("MCP tools to configure: None");
+    expect(output).toContain("Guidance targets: None");
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
 
   it("shows already-configured rows when no new tools are selected", async () => {
@@ -2028,8 +3007,7 @@ describe("initAction", () => {
         "/home/test/.cursor/mcp.json": JSON.stringify({
           mcpServers: {
             GitHits: {
-              command: "npx",
-              args: ["-y", "githits@latest", "mcp", "start"],
+              url: "https://mcp.githits.com",
             },
           },
         }),
@@ -2065,7 +3043,7 @@ describe("initAction", () => {
         (msg) => msg.includes("Windsurf") && msg.includes("created"),
       ),
     ).toBe(false);
-    expectReadyNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
   });
 
   it("configures only the agents selected in the checkbox", async () => {
@@ -2372,8 +3350,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -2413,7 +3390,7 @@ describe("initAction", () => {
 
     expect(promptService.confirm3).not.toHaveBeenCalled();
     const logCalls = getLogOutput();
-    expectReadyNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
   });
 
   it("sets up CLI agents that are not yet configured", async () => {
@@ -2745,7 +3722,17 @@ describe("initAction", () => {
 
     expect(promptService.checkbox).not.toHaveBeenCalled();
     expect(promptService.confirm3).not.toHaveBeenCalled();
+    expect(promptService.confirm).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).toHaveBeenCalled();
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("GitHits queries and public package"),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
+      true,
+    );
   });
 
   it("--yes with no agents detected prints message and returns", async () => {
@@ -2778,8 +3765,7 @@ describe("initAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -2796,7 +3782,7 @@ describe("initAction", () => {
     );
 
     const logCalls = getLogOutput();
-    expectReadyNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
     expect(
       logCalls.some(
         (msg) =>
@@ -2819,8 +3805,8 @@ describe("initAction", () => {
     );
   });
 
-  it("treats equivalent local npx @latest configs as already configured", async () => {
-    const fs = createFsWithDetection(["/home/test/.cursor"], {
+  it("migrates legacy local Cursor stdio config to the remote MCP", async () => {
+    const configFiles: Record<string, string> = {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
@@ -2829,7 +3815,11 @@ describe("initAction", () => {
           },
         },
       }),
-    });
+    };
+    const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
 
     await initAction(
       { yes: true, guidance: false },
@@ -2841,12 +3831,17 @@ describe("initAction", () => {
       },
     );
 
-    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+    const written = (fs.atomicWriteFile as ReturnType<typeof mock>).mock
+      .calls[0]![1] as string;
+    expect(JSON.parse(written).mcpServers.GitHits).toEqual({
+      url: "https://mcp.githits.com",
+    });
     const logCalls = getLogOutput();
-    expectReadyNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
   });
 
-  it("migrates non-@latest local config to @latest", async () => {
+  it("migrates non-@latest local Cursor config to the remote MCP", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"], {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
@@ -2873,8 +3868,7 @@ describe("initAction", () => {
       .calls[0]![1] as string;
     const parsed = JSON.parse(written);
     expect(parsed.mcpServers.GitHits).toEqual({
-      command: "npx",
-      args: ["-y", "githits@latest", "mcp", "start"],
+      url: "https://mcp.githits.com",
     });
   });
 
@@ -4418,8 +5412,7 @@ describe("initUninstallAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -4449,8 +5442,7 @@ describe("initUninstallAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -4648,8 +5640,7 @@ describe("initUninstallAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -5724,8 +6715,7 @@ describe("initUninstallAction", () => {
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),

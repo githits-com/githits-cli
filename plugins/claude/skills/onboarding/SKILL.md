@@ -56,15 +56,42 @@ Run detection inline, not in a background terminal. Wait for JSON before continu
 
 Do not offer tools with `unsupported_project_config` for project-level setup.
 
-3. If `installableIds` is non-empty, use structured choices for tool selection. Do not ask the user to type comma-separated tool IDs unless no structured choice UI is available.
+Use `actionableIds` when present. If it is absent because the installed CLI predates guidance-aware detection, use `installableIds` for MCP setup and do not infer guidance-only repair from missing fields.
 
-Present `Configure all detected tools (Recommended)` as the first option, then list individual tools for selective setup. Do not present "configure none" as a normal onboarding choice.
+Before showing the review, classify the detection result:
+
+- If every agent is `not_detected`, explain that no supported coding tool was found and stop before review, installation, or authentication. Tell the user to install or open a supported tool, then rerun detection.
+- In project scope, if no agent is `needs_setup` or `already_configured` and at least one is `unsupported_project_config`, explain that project-level setup is unavailable, offer user-level detection, and stop the project flow before review or authentication.
+- If supported agents are mixed with `unsupported_project_config`, explain the unsupported tools but continue only with supported agents.
+- If no effective actionable IDs remain but at least one supported agent is `already_configured`, continue to the review, skip installation after acknowledgment, and then check authentication.
+
+Follow the CLI JSON `instructions` remediation for these states rather than replacing it with generic authentication guidance.
+
+3. When setup can proceed, show the install review before asking for tool approval or starting browser authentication, including the already-configured supported-tool case.
+
+Tell the user:
+
+- GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.
+- Feedback submission is an outbound write that sends feedback data to GitHits services.
+- Installing GitHits does not itself upload the local workspace.
+- After installation, open a new coding-agent session so it loads MCP configuration and any supporting instructions. The terminal and machine do not need to be restarted.
+
+Ask the user to acknowledge this review before continuing.
+If the user does not acknowledge it, stop onboarding without installing or starting authentication.
+
+4. Use `actionableIds` for tools needing MCP setup or requested guidance repair. If `actionableIds` is non-empty, use structured choices for tool selection. Do not ask the user to type comma-separated tool IDs unless no structured choice UI is available.
+
+Present `Configure all actionable tools (Recommended)` as the first option, then list individual actionable tools for selective setup. After configure-all approval, execute `suggestedCommand` exactly so scope and guidance intent are preserved. Do not present "configure none" as a normal onboarding choice.
 
 Ask before writing configuration: `I recommend configuring all detected tools so GitHits works wherever you use an agent. Proceed with all, or choose specific tools?`
 
 Do not run `init -y` or `init --yes` unless the user explicitly asks to configure every detected tool.
 
-4. Install only approved IDs using the selected scope.
+For selective setup, build the matching scoped `--install-agents` command and preserve `--no-guidance` when `guidanceRequested` is `false`. Follow the CLI-emitted verification instruction instead of constructing a separate detect command.
+
+If no effective actionable IDs remain and at least one supported tool is already configured, skip installation and continue to authentication only after the user acknowledges the install review.
+
+5. Install only approved IDs using the selected scope.
 
 Guidance is installed by default. It adds the `githits-mcp` skill and a short instruction pointer for tools with verified guidance paths. Add `--no-guidance` only when the user explicitly asks for plain MCP without supporting instructions.
 
@@ -80,7 +107,11 @@ User-level install:
 npx -y githits@latest init --install-agents <comma-separated-approved-ids> --json
 ```
 
-5. Start GitHits sign-in/signup as part of onboarding. Do not ask whether the user wants to log in; login creates or connects the GitHits account.
+Cursor is configured with the remote MCP at `https://mcp.githits.com`. A legacy local `npx ... githits ... mcp start` Cursor entry should be migrated by the install command.
+
+6. Start GitHits sign-in/signup as part of onboarding. Do not ask whether the user wants to log in; login creates or connects the GitHits account.
+
+Local `githits auth status` and `githits login` apply to CLI/stdio integrations, not Cursor's remote MCP OAuth. If Cursor is the only approved tool, skip local CLI login. For mixed installs, use local login for non-Cursor tools but keep Cursor authentication state separate.
 
 Check whether login can be skipped because auth is already active:
 
@@ -104,7 +135,7 @@ npx -y githits@latest login --no-browser
 
 With `--no-browser`, surface the printed sign-in URL clearly so the user can open it in a browser. If command output is hidden from the user, relay the URL verbatim. Do not ask them to paste secrets or OAuth codes back into chat.
 
-6. Verify with the selected scope.
+7. Verify with the selected scope.
 
 Project-level verification:
 
@@ -120,4 +151,6 @@ npx -y githits@latest auth status
 npx -y githits@latest init --detect-agents --json
 ```
 
-Report configured tools, auth state, failures, and whether the user should open a new Claude Code session so MCP config changes load.
+Report configured tools, auth state, failures, and whether the user should open a new Claude Code session so MCP configuration and any supporting instructions load. The terminal and machine do not need to be restarted.
+
+For Cursor, init detection verifies only the remote URL. It cannot verify Cursor-managed OAuth or tool discovery. If `cursor-agent` is available, run `cursor-agent mcp list` and `cursor-agent mcp list-tools GitHits`; if authentication is required, run `cursor-agent mcp login GitHits`, let the user complete browser OAuth, and rerun the checks. Always require a new Cursor Agent chat after installation and confirm in Cursor's MCP tools UI that GitHits is enabled and its tools are listed. Do not report Cursor ready from local CLI auth or init detection alone.

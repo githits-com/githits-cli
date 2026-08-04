@@ -104,7 +104,7 @@ describe("agent skills packaging", () => {
 
     expectContainsAll(content, [
       "new-user onboarding skill",
-      "Configure all detected tools (Recommended)",
+      "Configure all actionable tools (Recommended)",
       "recommended default option",
       "selective setup option",
       'Do not present "configure none" as a normal onboarding choice',
@@ -182,7 +182,7 @@ describe("agent skills packaging", () => {
       "npx -y githits@latest auth status",
       "npx -y githits@latest login",
       "npx -y githits@latest login --no-browser",
-      "Configure all detected tools",
+      "Configure all actionable tools",
       "structured choice",
       "My user account (Recommended)",
       "This project only",
@@ -204,6 +204,51 @@ describe("agent skills packaging", () => {
     ]);
     expect(content).not.toContain("command -v githits");
     expect(content).not.toContain("{GITHITS}");
+  });
+
+  it("keeps install review and guidance repair behavior aligned across onboarding skills", async () => {
+    const skills = [
+      await read(onboardingSkillPath),
+      await read(claudeOnboardingSkillPath),
+    ];
+
+    for (const content of skills) {
+      expectContainsAll(content, [
+        "actionableIds",
+        "use `installableIds` for MCP setup",
+        "do not infer guidance-only repair",
+        "guidance repair",
+        "GitHits queries and public package, repository, and documentation targets are sent to GitHits services",
+        "Feedback submission is an outbound write",
+        "does not itself upload the local workspace",
+        "new coding-agent session",
+        "terminal and machine do not need to be restarted",
+        "every agent is `not_detected`",
+        "stop before review, installation, or authentication",
+        "offer user-level detection",
+        "continue only with supported agents",
+        "at least one supported agent is `already_configured`",
+        "execute `suggestedCommand` exactly",
+        "preserve `--no-guidance`",
+        "Follow the CLI-emitted verification instruction",
+        "acknowledges the install review",
+        "stop onboarding without installing or starting authentication",
+        "https://mcp.githits.com",
+        "Cursor-managed OAuth",
+        "cursor-agent mcp list-tools GitHits",
+        "new Cursor Agent chat",
+      ]);
+      const reviewIndex = content.indexOf("show the install review before");
+      const classificationIndex = content.indexOf(
+        "Before showing the review, classify",
+      );
+      const approvalIndex = content.indexOf("Ask before writing configuration");
+      const authIndex = content.indexOf("Start GitHits sign-in/signup");
+      expect(classificationIndex).toBeGreaterThanOrEqual(0);
+      expect(reviewIndex).toBeGreaterThan(classificationIndex);
+      expect(approvalIndex).toBeGreaterThan(reviewIndex);
+      expect(authIndex).toBeGreaterThan(approvalIndex);
+    }
   });
 
   it("packages public and Claude GitHits MCP skills with OSS context triggers", async () => {

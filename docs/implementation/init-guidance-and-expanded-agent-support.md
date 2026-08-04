@@ -21,6 +21,14 @@
   - Interactive setup defaults to guided MCP.
   - `--yes` accepts guided MCP unless `--no-guidance` is passed.
   - Staged `--install-agents` accepts guided MCP unless `--no-guidance` is passed.
+- Before authentication or installation, show a numbered review step stating that GitHits queries and public package, repository, and documentation targets are sent to GitHits services, feedback submission is an outbound write, installation itself does not upload the local workspace, and a new coding-agent session is needed to load changed MCP configuration or supporting instructions. The terminal and machine do not need to be restarted.
+- Cursor uses the remote MCP URL `https://mcp.githits.com` for user and project setup. Legacy local stdio Cursor entries are actionable migrations. Cursor-managed OAuth and tool discovery must be verified separately from local CLI auth, using Cursor MCP status/tool checks and a new Agent chat.
+- Interactive setup shows the selected scope, tools, and guidance choice, then requires `Continue with GitHits setup?` confirmation. Declining or interrupting confirmation exits before authentication, config writes, guidance writes, or setup commands. Interactive `--yes` prints the same review and acts as acknowledgment without another prompt.
+- Agent-assisted staged setup must present the review before asking which detected tools to configure. A new session means opening or restarting the coding-agent session, not restarting the terminal or machine.
+- Staged detection keeps `installableIds` MCP-only for compatibility and adds per-agent `guidanceStatus`, top-level `guidanceRequested`, and `actionableIds` for the ordered union of MCP setup and requested guidance repair. This keeps guidance-only reruns reachable when MCP is already configured.
+- Every non-null generated `suggestedCommand` includes `--json` for stable agent-readable install results. Suggested install and verification commands preserve the detection/install guidance intent. Plain-MCP staged and non-interactive fallback flows include `--no-guidance` throughout so setup does not re-offer or install guidance.
+- Staged install instructions distinguish intentional opt-out, installed, already configured, unsupported/skipped, and failed guidance outcomes. They retain guidance remediation when MCP setup fails, while continuing to suppress authentication and verification steps until MCP errors are fixed.
+- Interactive review guidance targets include only agents with a verified skill or managed-instruction destination; unsupported guidance surfaces are shown as `None` rather than implying a write.
 
 ## Guidance Install
 
@@ -61,12 +69,14 @@
 - Extend setup types with `skill` and `managed-block` changes alongside existing `config-file` and `command`.
 - Add reusable helpers for managed marker blocks, skill copy/removal, and nonstandard MCP server shapes.
 - Rerun behavior: if MCP exists but guidance is missing, guided init installs only missing guidance; if guidance exists but MCP is missing, guided init installs only missing MCP.
+- Unsupported guidance targets explain that rerunning the same install cannot add guidance. Failed guidance reports the underlying failure and requires it to be resolved before retrying; only intentional `--no-guidance` opt-out recommends a future guided rerun.
 - Cleanup removes GitHits MCP config, managed instruction blocks, and GitHits-owned `githits-mcp/SKILL.md` from every verified target path; delete the skill directory only if empty.
 - Remote MCP docs/help should recommend installing `githits-mcp` because server-level instructions are not reliable enough alone.
 
 ## Tests
 
 - Unit test new prompt choices, `--guidance`, `--no-guidance`, and `--keep-guidance`.
+- Test that the install review and new-session instruction appear before interactive and agent-assisted approval, including confirmation cancellation and the interactive `--yes` path.
 - Add fake-FS tests for marker insert/replace/remove and idempotent reruns.
 - Add setup/uninstall tests for each new MCP target shape.
 - Add packaging tests for `skills/githits-mcp/SKILL.md` and Claude plugin skill inclusion.

@@ -13,6 +13,8 @@ GitHits setup is currently split across existing CLI commands:
 - `npx -y githits@latest login` starts OAuth PKCE sign-in/signup, opens a browser when possible, waits for the local callback, exchanges the authorization code, and stores credentials through the existing auth storage layer.
 - `npx -y githits@latest auth status` reports whether local auth is active, expired, missing, or provided by `GITHITS_API_TOKEN`.
 
+Cursor is the remote-MCP exception. Its user and project config entries point to `https://mcp.githits.com`, and existing local stdio entries are migrated. Cursor manages OAuth separately, so local CLI auth does not establish Cursor readiness. Onboarding verifies Cursor with `cursor-agent mcp list` and `cursor-agent mcp list-tools GitHits` when available, uses `cursor-agent mcp login GitHits` when needed, and always requires a new Cursor Agent chat plus confirmation that GitHits tools were discovered.
+
 The onboarding skill uses `npx -y githits@latest` for normal onboarding so new users get the latest published CLI behavior. Installed global `githits` binaries may be stale and are only used when the user explicitly asks to test a local, dev, or pinned CLI build. This may be slower or require network access, but the latest published onboarding behavior is the product requirement.
 
 ## User Experience Contract
@@ -22,6 +24,7 @@ The agent can safely handle:
 - Checking auth state.
 - Detecting supported coding tools.
 - Asking which detected tools to configure.
+- Showing and obtaining acknowledgment of the outbound-data install review before setup or authentication.
 - Installing MCP configuration for approved tools.
 - Starting login/signup.
 - Verifying auth and MCP configuration.
@@ -37,13 +40,14 @@ The preferred setup path is:
 
 1. Ask whether setup should be project-level or user-level.
 2. Detect supported tools with the matching staged command.
-3. Recommend configuring all detected installable tools first.
-4. Offer individual tool selection only as a secondary path for users who want a smaller setup.
-5. Install the approved IDs with the matching staged install command.
-6. Start sign-in/signup as part of onboarding, skipping login only when `auth status` already reports an active session.
-7. Verify auth and tool configuration.
+3. Show the install review before installation approval or browser authentication, including when no setup IDs are actionable.
+4. Recommend configuring all actionable tools first. `actionableIds` includes MCP setup and requested guidance-only repair, while `installableIds` remains MCP-only.
+5. Offer individual tool selection only as a secondary path for users who want a smaller setup.
+6. Install the approved IDs with the matching staged install command.
+7. Start local CLI sign-in/signup for selected non-Cursor integrations, skipping login when `auth status` already reports an active session. Cursor-only setup defers authentication to Cursor-managed OAuth.
+8. Verify local auth, MCP configuration, supporting guidance, and Cursor-managed OAuth/tool discovery when Cursor is selected.
 
-The skill still requires approval before writing MCP config or launching browser OAuth. It should not present "configure none" or "skip login" as normal onboarding choices, because those paths leave a new user without a working GitHits setup.
+The skill classifies staged detection before review or authentication: no detected tools stop with installation guidance, unsupported-only project results offer user-level detection, and already-configured supported tools may continue to review and auth. For configure-all, the emitted `suggestedCommand` is authoritative and always includes `--json`, allowing the skill to read structured `outcomes`, `guidance`, `auth`, and `instructions`; selective setup and verification preserve `guidanceRequested`, including `--no-guidance` for plain MCP. Structured install instructions distinguish intentional guidance opt-out, installed, already configured, unsupported/skipped, and failed outcomes. The skill still requires review acknowledgment before writing MCP config or launching browser OAuth. The review states that GitHits queries and public package, repository, and documentation targets are sent to GitHits services, explains outbound feedback and local-workspace behavior, and says that only a new coding-agent session is needed after changes; the terminal and machine do not need restarting. It should not present "configure none" as a normal onboarding choice. Local login is not offered as a Cursor readiness check because Cursor owns the remote MCP OAuth session.
 
 ## Project And User Setup Scope
 

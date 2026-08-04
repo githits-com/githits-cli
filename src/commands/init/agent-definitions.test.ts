@@ -12,6 +12,7 @@ import {
   agentDefinitions,
   buildCheckboxChoices,
   detectAgents,
+  getAgentSetupConfig,
   scanAgents,
 } from "./agent-definitions.js";
 
@@ -546,7 +547,7 @@ describe("getSetupConfig", () => {
     });
   });
 
-  it("cursor returns config-file setup with npm MCP command", () => {
+  it("cursor returns config-file setup with the remote MCP URL", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
       joinPath: mock((...segments: string[]) => segments.join("/")),
@@ -559,8 +560,23 @@ describe("getSetupConfig", () => {
       expect(config.serversKey).toBe("mcpServers");
       expect(config.serverName).toBe("GitHits");
       expect(config.serverConfig).toEqual({
-        command: "npx",
-        args: ["-y", "githits@latest", "mcp", "start"],
+        url: "https://mcp.githits.com",
+      });
+    }
+  });
+
+  it("cursor uses the remote MCP URL for project config", () => {
+    const fs = createMockFileSystemService({
+      getCwd: mock(() => "/workspace/repo"),
+      joinPath: mock((...segments: string[]) => segments.join("/")),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "cursor")!;
+    const config = getAgentSetupConfig(agent, fs, "project");
+    expect(config?.method).toBe("config-file");
+    if (config?.method === "config-file") {
+      expect(config.configPath).toBe("/workspace/repo/.cursor/mcp.json");
+      expect(config.serverConfig).toEqual({
+        url: "https://mcp.githits.com",
       });
     }
   });
@@ -1139,7 +1155,7 @@ describe("getSetupConfig", () => {
     }
   });
 
-  it("all config-file agents use npm githits@latest mcp start command", () => {
+  it("config-file agents use their verified local or remote MCP shape", () => {
     const fs = createMockFileSystemService({
       getHomeDir: mock(() => "/home/test"),
       joinPath: mock((...segments: string[]) => segments.join("/")),
@@ -1150,7 +1166,11 @@ describe("getSetupConfig", () => {
     for (const agent of configFileAgents) {
       const config = agent.getSetupConfig(fs);
       if (config.method === "config-file") {
-        if (agent.id === "opencode" || agent.id === "kilo-code") {
+        if (agent.id === "cursor") {
+          expect(config.serverConfig).toEqual({
+            url: "https://mcp.githits.com",
+          });
+        } else if (agent.id === "opencode" || agent.id === "kilo-code") {
           expect(config.serverConfig).toEqual({
             type: "local",
             command: ["npx", "-y", "githits@latest", "mcp", "start"],
@@ -1331,8 +1351,7 @@ describe("scanAgents", () => {
         "/home/test/.cursor/mcp.json": JSON.stringify({
           mcpServers: {
             GitHits: {
-              command: "npx",
-              args: ["-y", "githits@latest", "mcp", "start"],
+              url: "https://mcp.githits.com",
             },
           },
         }),
@@ -1341,6 +1360,25 @@ describe("scanAgents", () => {
     const result = await scanAgents(agentDefinitions, fs, execService);
     expect(result.alreadyConfigured.some((a) => a.id === "cursor")).toBe(true);
     expect(result.needsSetup.some((a) => a.id === "cursor")).toBe(false);
+  });
+
+  it("categorizes legacy local Cursor stdio config as needsSetup", async () => {
+    const { fs, execService } = createScanMocks({
+      detectedDirs: ["/home/test/.cursor"],
+      configFiles: {
+        "/home/test/.cursor/mcp.json": JSON.stringify({
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        }),
+      },
+    });
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.needsSetup.some((a) => a.id === "cursor")).toBe(true);
+    expect(result.alreadyConfigured.some((a) => a.id === "cursor")).toBe(false);
   });
 
   it("categorizes config-file agent as needsSetup when config file is missing", async () => {
@@ -2185,8 +2223,7 @@ describe("scanAgents", () => {
         "/home/test/.cursor/mcp.json": JSON.stringify({
           mcpServers: {
             GitHits: {
-              command: "npx",
-              args: ["-y", "githits@latest", "mcp", "start"],
+              url: "https://mcp.githits.com",
             },
           },
         }),
@@ -2286,8 +2323,7 @@ describe("scanAgents", () => {
       [joinPath(homeDir, ".cursor", "mcp.json")]: JSON.stringify({
         mcpServers: {
           GitHits: {
-            command: "npx",
-            args: ["-y", "githits@latest", "mcp", "start"],
+            url: "https://mcp.githits.com",
           },
         },
       }),
@@ -2638,8 +2674,7 @@ describe("scanAgents", () => {
             [joinPath(homeDir, ".cursor", "mcp.json")]: JSON.stringify({
               mcpServers: {
                 GitHits: {
-                  command: "npx",
-                  args: ["-y", "githits@latest", "mcp", "start"],
+                  url: "https://mcp.githits.com",
                 },
               },
             }),
