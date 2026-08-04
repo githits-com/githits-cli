@@ -101,7 +101,9 @@ export function formatResolveTargetTerminal(
   result: ResolveTargetResult,
   options: FormatResolveTargetTerminalOptions,
 ): string {
-  if (!result.best) return `No targets found for '${options.name}'.\n`;
+  if (!result.best) {
+    return `No targets found for '${sanitizeTerminalText(options.name)}'.\n`;
+  }
   const useColors = options.useColors ?? false;
   const lines: string[] = [];
   if (result.ambiguous) lines.push(ambiguityMessage(result.ambiguousReason));
@@ -111,7 +113,7 @@ export function formatResolveTargetTerminal(
       ? "Best"
       : "Top";
   lines.push(
-    `${colorize(`${bestLabel}:`, "green", useColors)} ${formatCandidate(result.best, useColors, true)}`,
+    `${colorize(`${bestLabel}:`, "green", useColors)} ${formatCandidate(result.best, useColors)}`,
   );
   const description = compactDescription(result.best.description);
   if (description) lines.push(`  ${dim(description, useColors)}`);
@@ -123,8 +125,8 @@ export function formatResolveTargetTerminal(
   if (protectedMatches.length > 0) {
     lines.push("", "Protected exact-name matches:");
     lines.push(
-      ...protectedMatches.map(
-        (candidate) => `  ${formatCandidate(candidate, useColors, false)}`,
+      ...protectedMatches.flatMap((candidate) =>
+        formatCandidateLines(candidate, useColors),
       ),
     );
   }
@@ -141,40 +143,71 @@ export function formatResolveTargetTerminal(
   if (alternatives.length > 0) {
     lines.push("", "Also consider:");
     lines.push(
-      ...alternatives.map(
-        (candidate) => `  ${formatCandidate(candidate, useColors, false)}`,
+      ...alternatives.flatMap((candidate) =>
+        formatCandidateLines(candidate, useColors),
       ),
     );
   }
 
-  const query = options.query?.trim() || "<query>";
+  const query = sanitizeTerminalText(options.query?.trim() || "<query>");
   lines.push(
     "",
-    `Next: githits search ${shellQuote(query)} --in ${shellQuote(result.best.canonicalKey)}`,
+    `Next: githits search ${shellQuote(query)} --in ${shellQuote(sanitizeTerminalText(result.best.canonicalKey))}`,
   );
   return `${lines.join("\n")}\n`;
 }
 
+const KNOWN_CONFIDENCE_VALUES = new Set(["exact", "high", "medium", "low"]);
+const KNOWN_KIND_VALUES = new Set(["package", "repository"]);
+
 function formatCandidate(
   candidate: ResolveTargetCandidate,
   useColors: boolean,
-  detailed: boolean,
 ): string {
+  const confidence = candidate.confidence.toLowerCase();
+  const kind = candidate.kind.toLowerCase();
   const fields = [
-    `${highlight(candidate.canonicalKey, useColors)} [${candidate.confidence.toLowerCase()}]`,
-    candidate.kind.toLowerCase(),
+    `${highlight(sanitizeTerminalText(candidate.canonicalKey), useColors)} [${
+      KNOWN_CONFIDENCE_VALUES.has(confidence) ? confidence : "unknown"
+    }]`,
+    KNOWN_KIND_VALUES.has(kind) ? kind : "target",
   ];
-  if (detailed && candidate.stars !== undefined) {
+  if (candidate.stars !== undefined) {
     fields.push(`${formatCompactNumber(candidate.stars)} stars`);
   }
-  if (detailed && candidate.downloadsLastMonth !== undefined) {
+  if (candidate.downloadsLastMonth !== undefined) {
     fields.push(
       `${formatCompactNumber(candidate.downloadsLastMonth)} downloads/mo`,
     );
+  } else if (candidate.downloadsTotal !== undefined) {
+    fields.push(`${formatCompactNumber(candidate.downloadsTotal)} downloads`);
   }
-  if (detailed && candidate.docsAvailable) fields.push("docs");
-  if (detailed && candidate.codeAvailable) fields.push("code");
+  if (
+    kind === "package" &&
+    candidate.repositoryUrl &&
+    candidate.stars === undefined
+  ) {
+    fields.push(`repo ${compactRepositoryUrl(candidate.repositoryUrl)}`);
+  }
+  if (candidate.docsAvailable) fields.push("docs");
+  if (candidate.codeAvailable) fields.push("code");
   return fields.join(" · ");
+}
+
+function formatCandidateLines(
+  candidate: ResolveTargetCandidate,
+  useColors: boolean,
+): string[] {
+  const lines = [`  ${formatCandidate(candidate, useColors)}`];
+  const description = compactDescription(candidate.description);
+  if (description) lines.push(`    ${dim(description, useColors)}`);
+  return lines;
+}
+
+function compactRepositoryUrl(value: string): string {
+  return sanitizeTerminalText(value)
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/$/, "");
 }
 
 function ambiguityMessage(reason: string): string {
@@ -186,16 +219,30 @@ function ambiguityMessage(reason: string): string {
     case "LOW_CONFIDENCE":
       return "Ambiguous: only low-confidence matches were found; review before use.";
     default:
-      return `Ambiguous: resolver reported ${reason.toLowerCase()}; review before use.`;
+      return "Ambiguous: review the candidates below before use.";
   }
 }
 
 function compactDescription(value: string | undefined): string | undefined {
-  const normalized = value?.replace(/\s+/g, " ").trim();
+  const normalized = sanitizeTerminalText(
+    (value ?? "").replace(/\s+/g, " "),
+  ).trim();
   if (!normalized) return undefined;
   return normalized.length > 120
     ? `${normalized.slice(0, 117).trimEnd()}...`
     : normalized;
+}
+
+const ESC = String.fromCharCode(0x1b);
+// Whole ANSI CSI/OSC/two-byte escape sequences, then any remaining C0/C1/DEL
+// control characters that could re-style or spoof the caller's terminal.
+const TERMINAL_CONTROL_PATTERN = new RegExp(
+  `${ESC}(?:\\[[0-?]*[ -/]*[@-~]|\\][^\\u0007${ESC}]*(?:\\u0007|${ESC}\\\\)?|[@-_])|[\\u0000-\\u001f\\u007f-\\u009f]`,
+  "g",
+);
+
+function sanitizeTerminalText(value: string): string {
+  return value.replace(TERMINAL_CONTROL_PATTERN, "");
 }
 
 function dedupeCandidates(

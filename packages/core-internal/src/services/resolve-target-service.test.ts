@@ -25,8 +25,11 @@ const COMPACT_CANDIDATE = {
   displayName: "express",
   description: "Fast web framework",
   registry: "NPM",
+  latestVersion: "5.1.0",
+  repositoryUrl: "https://github.com/expressjs/express",
   stars: 66_000,
   downloadsLastMonth: 89_000_000,
+  downloadsTotal: null,
   docsAvailable: true,
   codeAvailable: true,
 };
@@ -34,11 +37,8 @@ const COMPACT_CANDIDATE = {
 const DETAILED_CANDIDATE = {
   ...COMPACT_CANDIDATE,
   packageName: "express",
-  latestVersion: "5.1.0",
-  repositoryUrl: "https://github.com/expressjs/express",
   repositoryOwner: "expressjs",
   repositoryName: "express",
-  downloadsTotal: null,
   documentationUrl: "https://expressjs.com",
   matchedAliases: ["express"],
   matchTier: 0,
@@ -101,33 +101,34 @@ describe("ResolveTargetServiceImpl", () => {
     expect(request.query).toBe(RESOLVE_TARGET_QUERY);
     expect(request.query).toContain(`best {
       ...ResolveTargetListFields
-      ...ResolveTargetBestFields
       ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
     }`);
     expect(request.query).toContain(`protectedMatches {
       ...ResolveTargetListFields
-      description @include(if: $includeDetailedFields)`);
+      ...ResolveTargetJsonFields @include(if: $includeDetailedFields)`);
     expect(request.query).toContain(`candidates {
       ...ResolveTargetListFields
-      description @include(if: $includeDetailedFields)`);
-    for (const field of ["kind", "canonicalKey", "confidence"]) {
-      expect(request.query).toContain(`  ${field}\n`);
-    }
+      ...ResolveTargetJsonFields @include(if: $includeDetailedFields)`);
     for (const field of [
+      "kind",
+      "canonicalKey",
+      "confidence",
       "description",
+      "repositoryUrl",
       "stars",
       "downloadsLastMonth",
+      "downloadsTotal",
       "docsAvailable",
       "codeAvailable",
     ]) {
-      expect(request.query).toContain(
-        `${field} @include(if: $includeDetailedFields)`,
-      );
+      expect(request.query).toContain(`  ${field}\n`);
+      expect(request.query).not.toContain(`${field} @include`);
     }
     for (const field of [
       "displayName",
       "registry",
       "packageName",
+      "latestVersion",
       "latestVersion",
       "repositoryUrl",
       "repositoryOwner",
@@ -143,15 +144,17 @@ describe("ResolveTargetServiceImpl", () => {
     }
     expect(request.query).not.toContain("\n  protected\n");
     expect(request.query).not.toContain("inspection");
-    expect(result.best).toEqual({
+    const compactResult = {
       ...LIST_CANDIDATE,
       description: "Fast web framework",
+      repositoryUrl: "https://github.com/expressjs/express",
       stars: 66_000,
       downloadsLastMonth: 89_000_000,
       docsAvailable: true,
       codeAvailable: true,
-    });
-    expect(result.candidates).toEqual([LIST_CANDIDATE]);
+    };
+    expect(result.best).toEqual(compactResult);
+    expect(result.candidates).toEqual([compactResult]);
   });
 
   it("fetches and parses detailed fields for JSON output", async () => {

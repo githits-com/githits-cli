@@ -249,8 +249,12 @@ Resolves a human-provided package or GitHub repository name to ranked canonical
 targets such as `npm:express` or `github:openai/codex`. The default output is a
 compact best/top candidate block, ambiguity guidance when needed, protected
 exact-name matches, alternatives, and a copyable `githits search --in`
-follow-up. No candidates is a valid JSON/text result but exits 1 because the
-command did not resolve a target.
+follow-up. Every candidate includes its available description and cheap trust
+evidence: repository stars, monthly or total package downloads, and docs/code
+availability. When package repository popularity is unavailable, its linked
+repository URL is shown as fallback evidence. Missing evidence is omitted
+rather than shown as zero. No candidates is a valid JSON/text result but exits
+1 because the command did not resolve a target.
 
 `--registry` accepts a comma-separated package-registry list; repository
 candidates remain eligible. `--prefer-kind package|repository` is a soft
@@ -266,6 +270,12 @@ objects occur once; `best` and `protectedMatches` use canonical-key references.
 Detailed ranking fields are fetched only for JSON. Null fields are omitted and
 enum values are lowercase. Errors use the standard JSON envelope on stderr with
 clean stdout.
+
+The current resolver candidate contract does not propagate linked GitHub
+stars/forks/issues onto package candidates, so Maven packages can show their
+repository URL but not its popularity. The backend request is documented in
+`docs/sharing/PKGSEER_RESOLVE_CANDIDATE_TRUST_METRICS.md`; the CLI deliberately
+does not select expensive per-candidate `inspection` metadata.
 
 ### Proxy Support
 

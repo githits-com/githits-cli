@@ -141,6 +141,7 @@ describe("formatResolveTargetTerminal", () => {
       kind: "REPOSITORY",
       canonicalKey: "github:expressjs/express",
       displayName: "expressjs/express",
+      downloadsLastMonth: undefined,
       confidence: "HIGH",
     });
     const output = formatResolveTargetTerminal(
@@ -152,12 +153,40 @@ describe("formatResolveTargetTerminal", () => {
     );
 
     expect(output).toContain(
-      "Protected exact-name matches:\n  pypi:express [exact] · package",
+      "Protected exact-name matches:\n  pypi:express [exact] · package · 66k stars · 89M downloads/mo · docs · code\n    Fast web framework",
     );
     expect(output).toContain(
-      "Also consider:\n  github:expressjs/express [high] · repository",
+      "Also consider:\n  github:expressjs/express [high] · repository · 66k stars · docs · code\n    Fast web framework",
     );
     expect(output).toContain("githits search '<query>'");
+  });
+
+  it("shows total downloads or a linked repository when monthly downloads are unavailable", () => {
+    const crates = candidate({
+      canonicalKey: "crates:serde",
+      stars: undefined,
+      downloadsLastMonth: undefined,
+      downloadsTotal: 500_000_000,
+      repositoryUrl: "https://github.com/serde-rs/serde/",
+    });
+    const maven = candidate({
+      canonicalKey: "maven:com.google.guava:guava",
+      stars: undefined,
+      downloadsLastMonth: undefined,
+      downloadsTotal: undefined,
+      repositoryUrl: "https://github.com/google/guava",
+      description: "Google core libraries for Java",
+    });
+    const output = formatResolveTargetTerminal(
+      result({ candidates: [candidate(), crates, maven] }),
+      { name: "libraries", useColors: false },
+    );
+
+    expect(output).toContain("crates:serde [exact] · package · 500M downloads");
+    expect(output).toContain(
+      "maven:com.google.guava:guava [exact] · package · repo github.com/google/guava",
+    );
+    expect(output).toContain("    Google core libraries for Java");
   });
 
   it("renders specific ambiguity guidance and Top wording", () => {
@@ -166,7 +195,7 @@ describe("formatResolveTargetTerminal", () => {
         "multiple exact package names match; narrow with --registry",
       CLOSE_CANDIDATES: "top candidates are equally plausible",
       LOW_CONFIDENCE: "only low-confidence matches were found",
-      NEW_REASON: "resolver reported new_reason",
+      NEW_REASON: "review the candidates below before use",
     };
     for (const [ambiguousReason, message] of Object.entries(messages)) {
       const output = formatResolveTargetTerminal(
@@ -197,6 +226,43 @@ describe("formatResolveTargetTerminal", () => {
     const description = output.split("\n")[1]?.trim() ?? "";
     expect(description.length).toBe(120);
     expect(description).toEndWith("...");
+  });
+
+  it("uses generic terminal wording for unknown confidence and kind values", () => {
+    const drifted = candidate({ confidence: "VERY_HIGH", kind: "WORKSPACE" });
+    const output = formatResolveTargetTerminal(
+      result({ best: drifted, candidates: [drifted], protectedMatches: [] }),
+      { name: "express", useColors: false },
+    );
+    expect(output).toContain("Top: npm:express [unknown] · target");
+    expect(output).not.toContain("very_high");
+    expect(output).not.toContain("workspace");
+  });
+
+  it("strips terminal control sequences from backend-provided text", () => {
+    const hostile = candidate({
+      canonicalKey: "npm:x\u001b[31m",
+      description:
+        "safe\u001b]8;;https://evil.test\u0007click\u001b]8;;\u0007 \u009bred \u0007bell \rreturn",
+    });
+    const output = formatResolveTargetTerminal(
+      result({ best: hostile, candidates: [hostile], protectedMatches: [] }),
+      { name: "express", useColors: false },
+    );
+    expect(output).not.toContain("\u001b");
+    expect(output).not.toContain("\u0007");
+    expect(output).not.toContain("\u009b");
+    expect(output).not.toContain("\r");
+    expect(output).toContain("Best: npm:x [");
+    expect(output).toContain("--in 'npm:x'");
+    expect(output).toContain("safeclick red bell return");
+
+    expect(
+      formatResolveTargetTerminal(
+        result({ best: undefined, candidates: [], protectedMatches: [] }),
+        { name: "\u001b]0;owned\u0007missing", useColors: false },
+      ),
+    ).toBe("No targets found for 'missing'.\n");
   });
 
   it("renders no-result text and optional ANSI colors", () => {

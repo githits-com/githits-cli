@@ -71,6 +71,9 @@ containing `resolve` until all of these are true:
    optimizes it, or explicitly launches with fuzzy retrieval disabled.
 4. Backend rate limiting and GraphQL complexity are confirmed adequate for the
    expected call volume.
+5. PkgSeer exposes linked-repository trust metrics cheaply for package
+   candidates, or we explicitly accept shipping without them. See
+   `docs/sharing/PKGSEER_RESOLVE_CANDIDATE_TRUST_METRICS.md`.
 
 Resolver defects found during dogfooding go in the findings log at the end of
 this file with exact input, hints, expected result, actual result, and date.
@@ -148,28 +151,21 @@ validation must preserve the standard terminal/JSON error envelopes.
 
 ## Wire contract
 
-`RESOLVE_TARGET_QUERY` selects only identity/confidence for list rows, adds
-presentation fields to `best`, and conditionally selects diagnostic fields for
-JSON.
+`RESOLVE_TARGET_QUERY` selects identity plus decision evidence for every row and
+conditionally selects diagnostic fields for JSON.
 
 Always select for every candidate position:
 
 ```text
-kind canonicalKey confidence
-```
-
-Also select for `best` in terminal mode:
-
-```text
-description stars downloadsLastMonth docsAvailable codeAvailable
+kind canonicalKey confidence description repositoryUrl stars
+downloadsLastMonth downloadsTotal docsAvailable codeAvailable
 ```
 
 For JSON, select the best presentation fields on every candidate plus:
 
 ```text
-displayName registry packageName latestVersion repositoryUrl repositoryOwner
-repositoryName downloadsTotal documentationUrl matchedAliases matchTier score
-reason
+displayName registry packageName latestVersion repositoryOwner repositoryName
+documentationUrl matchedAliases matchTier score reason
 ```
 
 Never select `protected` or `inspection`; protected membership already comes
@@ -197,12 +193,12 @@ resolveTarget(params)
 Default terminal output is compact and scannable:
 
 ```text
-Best: npm:express [exact] · package · 66k stars · 89M downloads/mo · docs · code
+Best: npm:express [exact] · package · 497M downloads/mo · docs
   Fast, unopinionated, minimalist web framework
 
 Also consider:
-  github:expressjs/express [high] · repository
-  npm:express-validator [medium] · package
+  github:expressjs/express [exact] · repository · 69k stars · code
+    Fast, unopinionated, minimalist web framework
 
 Next: githits search '<query>' --in npm:express
 ```
@@ -216,8 +212,11 @@ Rules:
 - Render protected matches excluding `best` in `Protected exact-name matches`.
   Render other ranked candidates excluding `best` and all protected keys in
   `Also consider`. Preserve backend order and first occurrence.
-- Show one normalized, single-line best description capped at 120 characters.
-  Alternative rows do not repeat descriptions.
+- Show each candidate's normalized description capped at 120 characters.
+- Show available stars, monthly downloads (or total downloads when monthly is
+  absent), and docs/code availability. When a package has no repository
+  popularity, show its linked repository URL as fallback evidence. Never render
+  missing popularity as zero.
 - Reuse `formatCompactNumber`, colors, `shellQuote`, and canonical keys. If
   `--query` was supplied, the `Next` command uses it; otherwise it contains the
   literal `<query>` placeholder. Repository and package targets use the same

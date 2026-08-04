@@ -69,25 +69,22 @@ const listCandidateSchema = z.object({
   kind: z.string(),
   canonicalKey: z.string(),
   confidence: z.string(),
-});
-
-const bestCandidateSchema = listCandidateSchema.extend({
   description: z.string().nullable().optional(),
+  repositoryUrl: z.string().nullable().optional(),
   stars: z.number().int().nullable().optional(),
   downloadsLastMonth: z.number().int().nullable().optional(),
+  downloadsTotal: z.number().int().nullable().optional(),
   docsAvailable: z.boolean(),
   codeAvailable: z.boolean(),
 });
 
-const detailedCandidateSchema = bestCandidateSchema.extend({
+const detailedCandidateSchema = listCandidateSchema.extend({
   displayName: z.string(),
   registry: z.string().nullable().optional(),
   packageName: z.string().nullable().optional(),
   latestVersion: z.string().nullable().optional(),
-  repositoryUrl: z.string().nullable().optional(),
   repositoryOwner: z.string().nullable().optional(),
   repositoryName: z.string().nullable().optional(),
-  downloadsTotal: z.number().int().nullable().optional(),
   documentationUrl: z.string().nullable().optional(),
   matchedAliases: z.array(z.string()),
   matchTier: z.number().int(),
@@ -141,25 +138,14 @@ query ResolveTarget(
   ) {
     best {
       ...ResolveTargetListFields
-      ...ResolveTargetBestFields
       ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
     }
     protectedMatches {
       ...ResolveTargetListFields
-      description @include(if: $includeDetailedFields)
-      stars @include(if: $includeDetailedFields)
-      downloadsLastMonth @include(if: $includeDetailedFields)
-      docsAvailable @include(if: $includeDetailedFields)
-      codeAvailable @include(if: $includeDetailedFields)
       ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
     }
     candidates {
       ...ResolveTargetListFields
-      description @include(if: $includeDetailedFields)
-      stars @include(if: $includeDetailedFields)
-      downloadsLastMonth @include(if: $includeDetailedFields)
-      docsAvailable @include(if: $includeDetailedFields)
-      codeAvailable @include(if: $includeDetailedFields)
       ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
     }
     ambiguous
@@ -171,12 +157,11 @@ fragment ResolveTargetListFields on TargetResolutionCandidate {
   kind
   canonicalKey
   confidence
-}
-
-fragment ResolveTargetBestFields on TargetResolutionCandidate {
   description
+  repositoryUrl
   stars
   downloadsLastMonth
+  downloadsTotal
   docsAvailable
   codeAvailable
 }
@@ -186,10 +171,8 @@ fragment ResolveTargetJsonFields on TargetResolutionCandidate {
   registry
   packageName
   latestVersion
-  repositoryUrl
   repositoryOwner
   repositoryName
-  downloadsTotal
   documentationUrl
   matchedAliases
   matchTier
@@ -251,7 +234,7 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
     const parsed = (
       params.includeDetailedFields
         ? responseSchema(detailedCandidateSchema, detailedCandidateSchema)
-        : responseSchema(bestCandidateSchema, listCandidateSchema)
+        : responseSchema(listCandidateSchema, listCandidateSchema)
     ).safeParse(response.parsedBody);
     if (!parsed.success) {
       throw new MalformedPackageIntelligenceResponseError(
@@ -302,7 +285,6 @@ function buildVariables(params: ResolveTargetParams): Record<string, unknown> {
 function normaliseCandidate(
   candidate:
     | z.infer<typeof listCandidateSchema>
-    | z.infer<typeof bestCandidateSchema>
     | z.infer<typeof detailedCandidateSchema>,
 ): ResolveTargetCandidate {
   const result: ResolveTargetCandidate = {
@@ -311,22 +293,20 @@ function normaliseCandidate(
     confidence: candidate.confidence,
   };
 
-  if ("docsAvailable" in candidate) {
-    assignDefined(result, "description", candidate.description);
-    assignDefined(result, "stars", candidate.stars);
-    assignDefined(result, "downloadsLastMonth", candidate.downloadsLastMonth);
-    assignDefined(result, "docsAvailable", candidate.docsAvailable);
-    assignDefined(result, "codeAvailable", candidate.codeAvailable);
-  }
+  assignDefined(result, "description", candidate.description);
+  assignDefined(result, "repositoryUrl", candidate.repositoryUrl);
+  assignDefined(result, "stars", candidate.stars);
+  assignDefined(result, "downloadsLastMonth", candidate.downloadsLastMonth);
+  assignDefined(result, "downloadsTotal", candidate.downloadsTotal);
+  assignDefined(result, "docsAvailable", candidate.docsAvailable);
+  assignDefined(result, "codeAvailable", candidate.codeAvailable);
   if ("matchedAliases" in candidate) {
     assignDefined(result, "displayName", candidate.displayName);
     assignDefined(result, "registry", candidate.registry);
     assignDefined(result, "packageName", candidate.packageName);
     assignDefined(result, "latestVersion", candidate.latestVersion);
-    assignDefined(result, "repositoryUrl", candidate.repositoryUrl);
     assignDefined(result, "repositoryOwner", candidate.repositoryOwner);
     assignDefined(result, "repositoryName", candidate.repositoryName);
-    assignDefined(result, "downloadsTotal", candidate.downloadsTotal);
     assignDefined(result, "documentationUrl", candidate.documentationUrl);
     assignDefined(result, "matchedAliases", candidate.matchedAliases);
     assignDefined(result, "matchTier", candidate.matchTier);

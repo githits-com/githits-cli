@@ -1,4 +1,12 @@
-import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+  spyOn,
+} from "bun:test";
 import { PackageIntelligenceFeatureFlagRequiredError } from "@githits/core-internal";
 import { Command } from "commander";
 import {
@@ -22,8 +30,14 @@ function deps(
   };
 }
 
+let originalExitCode: typeof process.exitCode;
+
+beforeEach(() => {
+  originalExitCode = process.exitCode;
+});
+
 afterEach(() => {
-  process.exitCode = 0;
+  process.exitCode = originalExitCode;
   mock.restore();
 });
 
