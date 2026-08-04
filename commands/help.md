@@ -5,22 +5,15 @@ disable-model-invocation: true
 
 # GitHits Help
 
-Run the GitHits CLI help command in the terminal:
-
-```
-npx -y githits help
-```
-
-Then display the command output clearly to the user, followed by this plugin
-context summary:
+Display this plugin help directly to the user:
 
 ## Slash Commands
 
 - `/githits:example <query>` — Search for canonical code examples from open source.
 - `/githits:search <query>` — Legacy alias for `/githits:example`.
-- `/githits:login` — Authenticate with your GitHits account.
-- `/githits:status` — Show your current authentication status.
-- `/githits:logout` — Remove stored credentials.
+- `/githits:login` — Authenticate the GitHits remote server through Cursor.
+- `/githits:status` — Verify Cursor's GitHits connection and tools.
+- `/githits:logout` — Disconnect the remote session through Cursor's MCP settings.
 - `/githits:help` — Show this help message.
 
 ## MCP Tools
@@ -40,13 +33,27 @@ Additional indexed dependency/package tools are available by default:
 
 ## Authentication
 
-Run `npx -y githits login` to authenticate via browser, or set the
-`GITHITS_API_TOKEN` environment variable for headless environments.
+This plugin uses the hosted GitHits MCP server, and Cursor owns its OAuth
+session. When `cursor-agent` is available, use:
+
+```text
+cursor-agent mcp login githits
+cursor-agent mcp list
+cursor-agent mcp list-tools githits
+```
+
+If connection status remains uncertain, call the `search_language` MCP tool
+with the query `python`. Cursor has no supported `cursor-agent mcp logout githits`
+command, so logout uses Cursor's MCP settings.
+
+If `cursor-agent` is unavailable, use a new Cursor Agent chat and Cursor's MCP
+tools UI to authenticate and confirm that GitHits tools are listed.
+
+The `githits login`, `githits logout`, and `githits auth status` CLI commands,
+as well as `GITHITS_API_TOKEN`, apply to local CLI and stdio integrations. They
+do not control Cursor's remote session.
 
 If users want to verify MCP tools loaded, suggest `/mcp`.
 
-If the command fails, report the error and suggest running:
-
-```
-npx -y githits login
-```
+If an MCP tool fails because authentication is required, report the error and
+suggest `/githits:login`.

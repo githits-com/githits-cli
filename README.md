@@ -263,6 +263,12 @@ compatible hosts:
 - `skills/`
 - `commands/`
 
+The root `.mcp.json` registers the hosted GitHits MCP server for Open Plugin
+hosts, which manage OAuth for that remote connection. The Claude marketplace
+payload under `plugins/claude/` intentionally continues to launch the local
+GitHits MCP server over stdio and uses CLI-managed authentication. The Gemini
+extension also continues to use stdio.
+
 For Claude Code marketplace installs:
 
 ```sh

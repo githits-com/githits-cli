@@ -31,10 +31,9 @@ Required components at repo root:
 - `skills/`
 - `commands/`
 
-Root `.mcp.json` is intentional and required for Open Plugin hosts.
-Both root and Claude payload MCP configs launch with
-`npx -y githits@latest mcp start` so plugin installs track the latest published
-GitHits CLI by default.
+Root `.mcp.json` is intentional and required for Open Plugin hosts. It registers
+the hosted remote MCP server at `https://mcp.githits.com`. The host owns OAuth
+for this connection; local GitHits CLI credentials do not control it.
 
 ### Claude marketplace package
 
@@ -48,6 +47,10 @@ Marketplace plugin source is `./plugins/claude`, which contains:
 
 This keeps Claude runtime payload explicit and marketplace-scoped.
 
+The Claude payload intentionally launches
+`npx -y githits@latest mcp start` over stdio. It therefore uses the local CLI
+authentication flow rather than the Open Plugin host's remote OAuth session.
+
 `plugins/claude/skills/githits-mcp/SKILL.md` is generated from the canonical
 `skills/githits-mcp/SKILL.md` during package creation. The root `prepack`
 script materializes the Claude payload copy and `postpack` removes it so the
@@ -57,8 +60,9 @@ skill content is authored in one place.
 
 When running Claude from this repository directory:
 
-- plugin server appears as `plugin:githits:githits`
-- root project `.mcp.json` can also register `githits`
+- Claude's stdio plugin server appears as `plugin:githits:githits`
+- root project `.mcp.json` can also register the hosted remote server as
+  `githits`
 
 This dual visibility is a local testing artifact, not an `init` behavior bug.
 For plugin-only attribution tests, run Claude from a different working
@@ -68,7 +72,8 @@ directory.
 
 Automated checks:
 
-- `src/plugin-config.test.ts` asserts root and Claude payload MCP server config
+- `src/plugin-config.test.ts` asserts that root uses remote MCP while the Claude
+  payload uses stdio
 - `src/plugin-manifest.test.ts` asserts Claude marketplace source points to
   `./plugins/claude`
 - `src/skills-packaging.test.ts` asserts the GitHits MCP skill is packaged from
@@ -76,8 +81,8 @@ Automated checks:
 
 Manual checks:
 
-- Open Plugin host install reads root package MCP config
-- Claude marketplace install loads `plugin:githits:githits`
+- Open Plugin host install reads the root remote MCP config and manages its OAuth
+- Claude marketplace install loads the stdio server as `plugin:githits:githits`
 - `npm pack --dry-run --json` includes
   `plugins/claude/skills/githits-mcp/SKILL.md`
 
@@ -85,9 +90,9 @@ Manual checks:
 
 | File | Purpose |
 |---|---|
-| `.mcp.json` | Root Open Plugin MCP server registration |
+| `.mcp.json` | Root hosted remote MCP server registration |
 | `.plugin/plugin.json` | Open Plugin manifest |
 | `.claude-plugin/marketplace.json` | Claude marketplace catalog and source path |
-| `plugins/claude/.mcp.json` | Claude payload MCP server registration |
+| `plugins/claude/.mcp.json` | Claude payload stdio MCP server registration |
 | `src/plugin-config.test.ts` | MCP packaging regression checks |
 | `src/plugin-manifest.test.ts` | Marketplace source path regression check |

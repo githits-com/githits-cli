@@ -1,36 +1,31 @@
 ---
-description: Log in to your GitHits account
+description: Connect GitHits using your host's remote MCP authentication
 ---
 
 # Login
 
-Authenticate the user with GitHits by running the CLI login command in the
-terminal:
+GitHits uses a hosted remote MCP server for this plugin. If `cursor-agent` is
+available, authenticate through Cursor by running:
 
-```
-npx -y githits login
-```
-
-This opens the user's browser for secure OAuth authentication. Tokens are stored
-locally and refreshed automatically.
-
-If the environment has no display (SSH, CI, containers), use the `--no-browser`
-flag instead:
-
-```
-npx -y githits login --no-browser
+```text
+cursor-agent mcp login githits
 ```
 
-This prints a URL the user can open on another device.
+Let the user complete browser OAuth. Do not ask them to paste OAuth data into
+chat. Then verify the connection by running:
 
-Other useful flags:
+```text
+cursor-agent mcp list
+cursor-agent mcp list-tools githits
+```
 
-- `--force` — re-authenticate even if already logged in.
-- `--port <port>` — use a specific port for the local callback server.
+If those checks do not prove the authenticated connection is usable, call the
+`search_language` MCP tool with the query `python`.
 
-After running the command, inform the user of the result. If login succeeds,
-confirm they are authenticated. If it fails, provide the error and suggest they
-try again.
+If `cursor-agent` is unavailable, tell the user to open a new Cursor Agent chat.
+In Cursor's MCP tools UI, confirm that GitHits is enabled, complete OAuth if
+prompted, and confirm its tools are listed. Require the user's confirmation or
+a successful `search_language` call before reporting success.
 
-Alternative: the user can set the `GITHITS_API_TOKEN` environment variable
-instead of using browser login.
+The `githits login` CLI command and `GITHITS_API_TOKEN` authenticate local CLI
+and stdio integrations. They do not authenticate Cursor's remote MCP session.

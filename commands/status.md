@@ -1,22 +1,27 @@
 ---
-description: Show your GitHits authentication status
+description: Show the host-managed GitHits connection status
 ---
 
 # Status
 
-Check the user's current GitHits authentication status by running the CLI
-command in the terminal:
+If `cursor-agent` is available, inspect the GitHits connection by running:
 
-```
-npx -y githits auth status
+```text
+cursor-agent mcp list
+cursor-agent mcp list-tools githits
 ```
 
-This shows whether the user is authenticated, where credentials are sourced
-from, and token expiry details when available.
+Report whether GitHits is missing or disabled, requires authentication, is
+connected without tools, or has discovered tools. If authentication is
+required, suggest `/githits:login`.
 
-After running the command, report the status clearly. If the user is not
-authenticated, suggest running:
+If the CLI output does not prove that the authenticated connection is usable,
+call the `search_language` MCP tool with the query `python`. Do not report
+GitHits as ready until Cursor shows its tools or that call succeeds.
 
-```
-npx -y githits login
-```
+If `cursor-agent` is unavailable, tell the user to open a new Cursor Agent chat
+and inspect Cursor's MCP tools UI. Confirm that GitHits is enabled and its tools
+are listed, and complete OAuth if prompted.
+
+The `githits auth status` CLI command reports credentials for local CLI and
+stdio integrations. It cannot inspect Cursor's remote OAuth session.
