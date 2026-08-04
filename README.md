@@ -16,6 +16,7 @@
   <a href="https://www.npmjs.com/package/githits"><img alt="Node" src="https://img.shields.io/node/v/githits.svg"></a>
   <a href="https://modelcontextprotocol.io/"><img alt="MCP" src="https://img.shields.io/badge/MCP-enabled-5C4EE5"></a>
   <a href="https://skills.sh/githits-com/githits-cli"><img alt="skills.sh" src="https://skills.sh/b/githits-com/githits-cli"></a>
+  <a href="https://smithery.ai/servers/githits/GitHits"><img alt="smithery badge" src="https://smithery.ai/badge/githits/GitHits"></a>
 </p>
 
 <p align="center">
