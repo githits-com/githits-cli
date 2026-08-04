@@ -354,7 +354,8 @@ evals. Plan that PR from Phase 1 usage rather than expanding this plan now.
 - [ ] 2026-08-03 `guava` (query/registries/preferred kind/intent hints: none)
       expected: `maven:com.google.guava:guava`, not ambiguous
       actual:   `maven:com.github.ben-manes.caffeine:guava`,
-                `CLOSE_CANDIDATES`; Maven/package hints produced the same best
+                `CLOSE_CANDIDATES`; Maven/package hints produced the same best;
+                Google-specific query/intent hints selected the expected target
 
 ## Acceptance criteria
 
