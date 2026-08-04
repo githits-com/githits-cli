@@ -17,6 +17,7 @@
   <a href="https://modelcontextprotocol.io/"><img alt="MCP" src="https://img.shields.io/badge/MCP-enabled-5C4EE5"></a>
   <a href="https://skills.sh/githits-com/githits-cli"><img alt="skills.sh" src="https://skills.sh/b/githits-com/githits-cli"></a>
   <a href="https://smithery.ai/servers/githits/GitHits"><img alt="smithery badge" src="https://smithery.ai/badge/githits/GitHits"></a>
+  <a href="https://glama.ai/mcp/servers/githits-com/githits-cli"><img alt="githits-cli MCP server" src="https://glama.ai/mcp/servers/githits-com/githits-cli/badges/score.svg"></a>
 </p>
 
 <p align="center">
