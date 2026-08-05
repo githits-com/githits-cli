@@ -4,14 +4,14 @@ description: Disconnect GitHits from your host-managed remote session
 
 # Logout
 
-Cursor does not have a supported `cursor-agent mcp logout githits` command. Open
-Cursor's MCP settings, select GitHits, and use the available disconnect,
-sign-out, or account-removal action.
+The current host owns the remote OAuth session, and MCP provides no portable
+logout operation. Open the current host's MCP, connection, or account settings,
+select GitHits, and use the available disconnect, sign-out, or account-removal
+action.
 
-Ask the user to confirm that Cursor no longer shows an authenticated GitHits
-connection. If `cursor-agent` is available, `cursor-agent mcp list` may be used
-to inspect the server afterward, but the server can remain registered after its
-OAuth session is cleared.
+Ask the user to confirm that the host no longer reports an authenticated GitHits
+connection. Do not call a GitHits MCP tool afterward because that could trigger
+authentication again.
 
 The `githits logout` CLI command removes credentials for local CLI and stdio
-integrations. It does not clear Cursor's remote OAuth session.
+integrations. It does not clear the current host's remote OAuth session.

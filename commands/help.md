@@ -11,9 +11,9 @@ Display this plugin help directly to the user:
 
 - `/githits:example <query>` — Search for canonical code examples from open source.
 - `/githits:search <query>` — Legacy alias for `/githits:example`.
-- `/githits:login` — Authenticate the GitHits remote server through Cursor.
-- `/githits:status` — Verify Cursor's GitHits connection and tools.
-- `/githits:logout` — Disconnect the remote session through Cursor's MCP settings.
+- `/githits:login` — Authenticate the current host's GitHits remote server.
+- `/githits:status` — Verify the current host's GitHits connection.
+- `/githits:logout` — Disconnect GitHits through the current host's settings.
 - `/githits:help` — Show this help message.
 
 ## MCP Tools
@@ -33,27 +33,17 @@ Additional indexed dependency/package tools are available by default:
 
 ## Authentication
 
-This plugin uses the hosted GitHits MCP server, and Cursor owns its OAuth
-session. When `cursor-agent` is available, use:
+This plugin uses the hosted GitHits MCP server, and the current host owns its
+OAuth session. Login and status use the `search_language` MCP tool with the
+query `python` to start or verify authentication. Complete the host's OAuth flow
+if prompted, then retry the tool call.
 
-```text
-cursor-agent mcp login githits
-cursor-agent mcp list
-cursor-agent mcp list-tools githits
-```
-
-If connection status remains uncertain, call the `search_language` MCP tool
-with the query `python`. Cursor has no supported `cursor-agent mcp logout githits`
-command, so logout uses Cursor's MCP settings.
-
-If `cursor-agent` is unavailable, use a new Cursor Agent chat and Cursor's MCP
-tools UI to authenticate and confirm that GitHits tools are listed.
+MCP provides no portable logout operation. Disconnect or revoke GitHits through
+the current host's MCP, connection, or account settings.
 
 The `githits login`, `githits logout`, and `githits auth status` CLI commands,
 as well as `GITHITS_API_TOKEN`, apply to local CLI and stdio integrations. They
-do not control Cursor's remote session.
-
-If users want to verify MCP tools loaded, suggest `/mcp`.
+do not control the current host's remote session.
 
 If an MCP tool fails because authentication is required, report the error and
 suggest `/githits:login`.

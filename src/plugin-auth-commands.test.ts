@@ -4,17 +4,6 @@ import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
 
-async function readMarketplaceServerName(): Promise<string> {
-  const contents = await readFile(join(root, ".mcp.json"), "utf8");
-  const parsed = JSON.parse(contents) as {
-    mcpServers?: Record<string, unknown>;
-  };
-  const serverNames = Object.keys(parsed.mcpServers ?? {});
-
-  expect(serverNames).toEqual(["githits"]);
-  return serverNames[0] as string;
-}
-
 async function readCommand(basePath: string, name: string): Promise<string> {
   return readFile(join(root, basePath, "commands", `${name}.md`), "utf8");
 }
@@ -26,43 +15,31 @@ function codeBlocks(markdown: string): string {
 }
 
 describe("plugin authentication commands", () => {
-  it("uses executable Cursor authentication and verification in root commands", async () => {
-    const [serverName, help, login, logout, status] = await Promise.all([
-      readMarketplaceServerName(),
+  it("uses host-neutral authentication and verification in root commands", async () => {
+    const [help, login, logout, status] = await Promise.all([
       readCommand(".", "help"),
       readCommand(".", "login"),
       readCommand(".", "logout"),
       readCommand(".", "status"),
     ]);
-    const loginCommand = `cursor-agent mcp login ${serverName}`;
-    const listToolsCommand = `cursor-agent mcp list-tools ${serverName}`;
 
-    expect(login).toContain(loginCommand);
-    expect(help).toContain(loginCommand);
     for (const command of [help, login, status]) {
-      expect(command).toContain("cursor-agent mcp list");
-      expect(command).toContain(listToolsCommand);
       expect(command).toContain("search_language");
-      expect(command).toContain("new Cursor Agent chat");
+      expect(command).toContain("current host");
     }
     for (const command of [help, login, logout, status]) {
-      expect(command).not.toMatch(
-        /cursor-agent mcp (?:login|list-tools|logout) GitHits/,
-      );
+      expect(command).not.toContain("Cursor");
+      expect(command).not.toContain("cursor-agent");
+      expect(command).not.toContain("/mcp");
     }
   });
 
-  it("keeps root logout manual without inventing a Cursor command", async () => {
-    const [serverName, logout] = await Promise.all([
-      readMarketplaceServerName(),
-      readCommand(".", "logout"),
-    ]);
-    const logoutCommand = `cursor-agent mcp logout ${serverName}`;
+  it("keeps root logout host-managed without triggering authentication", async () => {
+    const logout = await readCommand(".", "logout");
 
-    expect(logout).toMatch(/Cursor's\s+MCP settings/);
-    expect(logout).toContain("does not have a supported");
-    expect(logout).toContain(logoutCommand);
-    expect(codeBlocks(logout)).not.toContain(logoutCommand);
+    expect(logout).toContain("no portable");
+    expect(logout).toContain("current host");
+    expect(logout).not.toContain("search_language");
   });
 
   it("does not prescribe local CLI authentication for root remote sessions", async () => {
