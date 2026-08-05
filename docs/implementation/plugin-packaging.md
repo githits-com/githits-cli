@@ -1,93 +1,135 @@
-# Plugin Packaging
+# Cross-Host Plugin Packaging
 
 ## Purpose
 
-This document defines how GitHits is packaged for Open Plugin hosts and Claude
-Code marketplace installs, and explains why both root and Claude-specific MCP
-config files exist.
+GitHits publishes one canonical skill and guidance surface from this repository
+for Claude Code, Codex, Cursor, Gemini CLI, Google Antigravity, and
+VS Code/GitHub Copilot OpenPlugin hosts.
 
-## Background
+Root `skills/` and `AGENTS.md` are authored inputs. Host manifests and MCP
+configuration are deterministic generated artifacts.
 
-GitHits now ships two plugin entry paths:
+## Canonical Inputs
 
-- **Root Open Plugin package** for hosts that read `.plugin/` + root
-  `.mcp.json`.
-- **Claude marketplace payload** for Claude Code installs via
-  `.claude-plugin/marketplace.json`.
+| Input | Ownership |
+|---|---|
+| `skills/**` | Public Agent Skill names, descriptions, workflows, and references |
+| `AGENTS.md` | Shared repository and agent guidance |
+| `package.json` | Root version, identity, and shared package metadata |
+| `server.json` | MCP registry metadata, canonical plugin keywords, hosted endpoint, and supported transports |
+| `scripts/generate-plugin-assets.ts` | Host capability matrix, rendering, and validation |
 
-Earlier cutover work made root `.mcp.json` empty to avoid duplicate MCP server
-visibility while testing Claude in this repo. That broke Open Plugin MCP
-packaging expectations. The corrected contract keeps Open Plugin config at root
-and keeps Claude payload self-contained under `plugins/claude/`.
+`CLAUDE.md` and `GEMINI.md` are symlinks to `AGENTS.md`. Do not maintain
+host-specific copies.
 
-## Packaging Contract
+## Generated Outputs
 
-### Root Open Plugin package (canonical for Open Plugin hosts)
+Run:
 
-Required components at repo root:
+```bash
+bun run plugins:generate
+bun run plugins:check
+```
+
+The generator owns:
 
 - `.plugin/plugin.json`
-- `.mcp.json` with `mcpServers.githits`
-- `skills/`
-- `commands/`
+- `.claude-plugin/plugin.json`
+- `.claude-plugin/marketplace.json`
+- `.codex-plugin/plugin.json`
+- `.cursor-plugin/plugin.json`
+- `.mcp.json`
+- `gemini-extension.json`
+- `plugin.json`
+- `mcp_config.json`
 
-Root `.mcp.json` is intentional and required for Open Plugin hosts.
-Both root and Claude payload MCP configs launch with
-`npx -y githits@latest mcp start` so plugin installs track the latest published
-GitHits CLI by default.
+Generated files are committed because Git-hosted marketplaces inspect repository
+contents without running npm lifecycle scripts. `prepack` validates committed
+outputs instead of creating or deleting them.
 
-### Claude marketplace package
+## Skill Contract
 
-Claude marketplace metadata lives at `.claude-plugin/marketplace.json`.
-Marketplace plugin source is `./plugins/claude`, which contains:
+All hosts discover the same root skill directories:
 
-- `plugins/claude/.claude-plugin/plugin.json`
-- `plugins/claude/.mcp.json` with `mcpServers.githits`
-- `plugins/claude/skills/`
-- `plugins/claude/commands/`
+- `githits-onboarding`
+- `githits-mcp`
+- `githits-code`
+- `githits-package`
 
-This keeps Claude runtime payload explicit and marketplace-scoped.
+There are no authored host-specific skill copies. If a host later requires a
+self-contained copy, the generator may create it, but tests must enforce exact
+content and reference parity with the root source.
 
-`plugins/claude/skills/githits-mcp/SKILL.md` is generated from the canonical
-`skills/githits-mcp/SKILL.md` during package creation. The root `prepack`
-script materializes the Claude payload copy and `postpack` removes it so the
-skill content is authored in one place.
+Plugin Markdown commands are intentionally absent. User-facing CLI commands are
+implemented under `src/commands/**` and are not plugin slash commands.
 
-## Runtime Behavior in Local Development
+## Transport Contract
 
-When running Claude from this repository directory:
+| Host | Generated configuration | Transport |
+|---|---|---|
+| Cursor | `.cursor-plugin/plugin.json` + `.mcp.json` | Hosted Streamable HTTP at `https://mcp.githits.com` |
+| Claude Code | `.mcp.json` | Hosted Streamable HTTP at `https://mcp.githits.com` |
+| Codex | `.codex-plugin/plugin.json` + `.mcp.json` | Hosted Streamable HTTP at `https://mcp.githits.com` |
+| Gemini CLI | `gemini-extension.json` | Hosted Streamable HTTP through `httpUrl` at `https://mcp.githits.com` |
+| Google Antigravity | `plugin.json` + `mcp_config.json` | Hosted Streamable HTTP through `serverUrl` at `https://mcp.githits.com` |
+| VS Code/GitHub Copilot OpenPlugin | `.plugin/plugin.json` + `.mcp.json` | Hosted Streamable HTTP at `https://mcp.githits.com` |
+| MCP registry | `server.json` | Hosted remote and version-pinned npm stdio |
 
-- plugin server appears as `plugin:githits:githits`
-- root project `.mcp.json` can also register `githits`
+All plugin and extension packages use the hosted remote MCP through each host's
+native remote field. Direct `githits init` configuration remains a separate
+path: it installs stdio for Claude Code, Codex CLI, Gemini CLI, and the other
+local hosts, while Cursor remains remote-only. Claude and Gemini CLI setup
+remove obsolete plugin or extension state before installing the user-scoped
+stdio server so the remote package and local server are not registered together.
 
-This dual visibility is a local testing artifact, not an `init` behavior bug.
-For plugin-only attribution tests, run Claude from a different working
-directory.
+The repository root is also a native Antigravity plugin directory:
+`plugin.json` is its marker, `mcp_config.json` supplies the hosted remote MCP
+using Antigravity's `serverUrl` field, and the root `skills/` tree supplies the
+same four canonical skills. Direct CLI setup remains local stdio and writes the
+current global `~/.gemini/config/mcp_config.json` or workspace
+`.agents/mcp_config.json` path.
 
-## Verification
+Generated plugin manifests use the publisher-provided `keywords` from
+`server.json`. `package.json` retains the same ordered list so npm and every
+plugin marketplace describe the product consistently.
 
-Automated checks:
+## Marketplace Layout
 
-- `src/plugin-config.test.ts` asserts root and Claude payload MCP server config
-- `src/plugin-manifest.test.ts` asserts Claude marketplace source points to
-  `./plugins/claude`
-- `src/skills-packaging.test.ts` asserts the GitHits MCP skill is packaged from
-  the canonical root skill into the Claude payload
+The repository root is the plugin root for the Anthropic community marketplace,
+the first-party Claude marketplace, direct Codex installs, Cursor, the Gemini
+extension gallery, VS Code/GitHub Copilot OpenPlugin installs, and a manually
+installed Antigravity plugin.
 
-Manual checks:
+The first-party Claude marketplace entry uses the public HTTPS Git URL for
+`githits-com/githits-cli`. Claude clones that repository as the plugin root and
+installs the root `.claude-plugin/plugin.json`, root skills, and remote root
+`.mcp.json` as one payload. A relative `source: "."` is not accepted by Claude's marketplace
+validator, while the `github` shorthand can require users to have working SSH
+credentials.
 
-- Open Plugin host install reads root package MCP config
-- Claude marketplace install loads `plugin:githits:githits`
-- `npm pack --dry-run --json` includes
-  `plugins/claude/skills/githits-mcp/SKILL.md`
+The obsolete standalone Claude and Gemini repositories are migration-only. They
+must be archived after legacy installation migration is verified.
 
-## Key Reference Files
+## Validation
 
-| File | Purpose |
-|---|---|
-| `.mcp.json` | Root Open Plugin MCP server registration |
-| `.plugin/plugin.json` | Open Plugin manifest |
-| `.claude-plugin/marketplace.json` | Claude marketplace catalog and source path |
-| `plugins/claude/.mcp.json` | Claude payload MCP server registration |
-| `src/plugin-config.test.ts` | MCP packaging regression checks |
-| `src/plugin-manifest.test.ts` | Marketplace source path regression check |
+Unit tests cover pure rendering, version parity, canonical skill discovery,
+transport selection, stale outputs, symlink targets, and removal of legacy
+payloads.
+
+Before signoff:
+
+```bash
+bun run plugins:generate
+bun run plugins:check
+bun test
+bun run build
+```
+
+Run CLI/MCP smoke suites when packaging or startup behavior changes. Run targeted
+agent evaluations when skills, instructions, or agent-facing setup behavior
+changes. Validate real Claude, Cursor, and Gemini installs before a release that
+changes their manifests.
+
+Use the repository-internal `githits-plugin-maintenance` skill for every change
+in this area. It lives under `.agents/skills/` and is never part of the public
+package or canonical root `skills/` tree.

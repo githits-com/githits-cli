@@ -33,6 +33,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Validate generated plugin assets
+        run: bun run plugins:check
+
       - name: Type check
         run: bun run typecheck
 

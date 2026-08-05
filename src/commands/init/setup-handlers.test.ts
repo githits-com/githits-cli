@@ -1549,6 +1549,34 @@ describe("executeCliSetup", () => {
     expect(execService.exec).toHaveBeenCalledTimes(2);
   });
 
+  it("allows approved replacement cleanup when legacy state is already absent", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "Plugin githits was not found",
+        }),
+      ),
+    });
+    const result = await executeCliSetup(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["plugin", "uninstall", "githits"],
+            allowAlreadyAbsent: true,
+          },
+        ],
+      },
+      execService,
+    );
+
+    expect(result.status).toBe("already_configured");
+    expect(result.message).toBe("GitHits already configured via claude");
+  });
+
   it("emits one ran change per command on success", async () => {
     const execService = createMockExecService({
       exec: mock(() =>

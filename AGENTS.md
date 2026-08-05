@@ -76,6 +76,14 @@ See `docs/guidelines/TESTING.md` for comprehensive patterns.
 - Use test driven development whenever possible
 - Document what and why with JSDoc comments
 
+## Plugin Asset Workflow
+
+- Root `skills/` and `AGENTS.md` are the only authored shared agent guidance. `CLAUDE.md` and `GEMINI.md` must remain symlinks to `AGENTS.md`.
+- Use the repository-internal `githits-plugin-maintenance` skill when changing skills, agent guidance, plugin/marketplace/extension manifests, MCP transport metadata, root release metadata, generator behavior, or agent-facing setup/auth behavior. It must remain under `.agents/skills/` and must not be published with the public root `skills/` tree.
+- Do not edit generated plugin assets directly. Change their canonical inputs, run `bun run plugins:generate`, inspect the diff, and run `bun run plugins:check`.
+- `server.json` owns the canonical plugin keyword list used by generated manifests; keep `package.json` aligned with it.
+- All plugin and extension packages use hosted remote MCP. Direct `githits init` configuration retains local stdio except for Cursor, which is remote-only. Claude and Gemini direct setup remove legacy plugin or extension state before installing the user-scoped stdio server.
+
 ## TypeScript Essentials
 
 ### Quick Start
@@ -111,7 +119,7 @@ See `docs/guidelines/TESTING.md` for comprehensive patterns.
 ## Release Boundaries
 
 - `githits` and `@githits/mcp` have separate release flows. They may be bumped together when both surfaces changed, but CLI-only changes should not bump `@githits/mcp`.
-- Root `githits` release versions must stay aligned with plugin/assistant manifests: `.plugin/plugin.json`, `.claude-plugin/plugin.json`, `plugins/claude/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `gemini-extension.json`.
+- Root `githits` release versions must stay aligned with generated plugin/assistant manifests: `.plugin/plugin.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `gemini-extension.json`. The versionless Antigravity `plugin.json` and `mcp_config.json` must also be regenerated and checked.
 - `@githits/mcp` release versions live in `packages/mcp/package.json` and should change only for MCP package API, tool behavior, MCP instructions, schemas, MCP auth/error behavior, or remote-server-facing public type changes.
 - For coordinated CLI and MCP releases, keep the MCP minor aligned with the CLI minor for discoverability. The first MCP release for a CLI minor starts at `X.Y.0`; later MCP-package-visible changes in that CLI minor bump the MCP patch.
 - Successful `Main` runs on `main` trigger both root and MCP release workflows. The MCP workflow publishes only when the package version is not already published; manual dispatch is for recovery or dry runs.

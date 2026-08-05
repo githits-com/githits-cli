@@ -49,9 +49,12 @@
     "io.modelcontextprotocol.registry/publisher-provided": {
       "keywords": [
         "githits",
+        "context layer",
         "public open-source",
         "open-source code",
+        "code search",
         "package documentation",
+        "documentation search",
         "package metadata",
         "vulnerabilities",
         "changelogs",

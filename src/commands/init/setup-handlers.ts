@@ -1244,6 +1244,13 @@ async function executeCliCommand(
     const result = await execService.exec(cmd.command, cmd.args);
     const combined = `${result.stdout} ${result.stderr}`;
 
+    if (cmd.allowAlreadyAbsent && isAlreadyAbsentOutput(combined)) {
+      return {
+        status: "already_configured",
+        message: `Previous GitHits configuration already absent via ${cmd.command}`,
+      };
+    }
+
     // Check for "already exists" in output regardless of exit code
     if (isAlreadyConfiguredOutput(combined)) {
       return {
@@ -1318,7 +1325,7 @@ async function executeCliUninstallCommand(
  * Execute a CLI-based setup with one or more sequential commands.
  * Returns a result object — does not throw on failure.
  *
- * For multi-step setups (e.g., plugin marketplace add + plugin install),
+ * For multi-step setups (e.g., legacy cleanup followed by MCP add),
  * commands run sequentially and stop on first failure.
  * The overall result is "success" if any command actually ran (made a change),
  * and "already_configured" only when every command was already configured.
@@ -1328,8 +1335,8 @@ export async function executeCliSetup(
   execService: ExecService,
 ): Promise<SetupResult> {
   let anyRan = false;
-  // One change per command so multi-step setups (e.g. Claude Code's marketplace
-  // add + plugin install) report each command's individual outcome.
+  // One change per command so multi-step replacement setups report each
+  // command's individual outcome.
   const changes: SetupChange[] = [];
 
   for (const cmd of setup.commands) {
