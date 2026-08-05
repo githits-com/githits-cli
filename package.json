@@ -1,7 +1,7 @@
 {
   "name": "githits",
   "description": "The code context layer for AI coding agents",
-  "version": "0.6.7",
+  "version": "0.7.0",
   "mcpName": "com.githits/githits",
   "type": "module",
   "workspaces": [
