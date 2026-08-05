@@ -22,5 +22,8 @@
     "dependency graphs",
     "upgrade evidence",
     "implementation examples"
-  ]
+  ],
+  "skills": "skills",
+  "mcpServers": ".mcp.json",
+  "logo": "github-githits.png"
 }

@@ -1665,9 +1665,9 @@ describe("initAction", () => {
           adapterInstalled = true;
           return { stdout: "installed\n", stderr: "", exitCode: 0 };
         }
-        if (key === "claude plugin list") {
+        if (key === "claude mcp list") {
           return {
-            stdout: "githits@githits-plugins\n",
+            stdout: "githits: npx -y githits@latest mcp start\n",
             stderr: "",
             exitCode: 0,
           };
@@ -3365,10 +3365,10 @@ describe("initAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude plugin list") {
+        if (key === "claude mcp list") {
           return Promise.resolve({
             exitCode: 0,
-            stdout: "githits@githits-plugins\n",
+            stdout: "githits: npx -y githits@latest mcp start\n",
             stderr: "",
           });
         }
@@ -3409,7 +3409,7 @@ describe("initAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude plugin list") {
+        if (key === "claude mcp list") {
           // Check command: no match = needs setup
           return Promise.resolve({
             exitCode: 0,
@@ -3437,7 +3437,7 @@ describe("initAction", () => {
     );
 
     // Includes PATH lookups for all binary-detected agents plus Pi fallback probes.
-    expect(execService.exec).toHaveBeenCalledTimes(22);
+    expect(execService.exec).toHaveBeenCalledTimes(24);
     expect(execService.exec).toHaveBeenCalledWith("claude", expect.any(Array));
   });
 
@@ -3454,10 +3454,10 @@ describe("initAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude plugin list") {
+        if (key === "claude mcp list") {
           return Promise.resolve({
             exitCode: 0,
-            stdout: "githits@githits-plugins\n",
+            stdout: "githits: npx -y githits@latest mcp start\n",
             stderr: "",
           });
         }
@@ -3487,21 +3487,25 @@ describe("initAction", () => {
     expect(claudeRow).toBeDefined();
     expect(codexRow).toBeDefined();
     expect(claudeRow ?? "").toContain("unchanged");
-    expect(claudeRow ?? "").toContain("checked via claude plugin list");
+    expect(claudeRow ?? "").toContain("checked via claude mcp list");
     expect(codexRow ?? "").toContain("unchanged");
     expect(codexRow ?? "").toContain("checked via codex mcp list");
-    expect(claudeRow ?? "").not.toContain("plugin install");
+    expect(claudeRow ?? "").not.toContain("mcp add");
     expect(codexRow ?? "").not.toContain("mcp add");
     expect(execService.exec).not.toHaveBeenCalledWith("claude", [
-      "plugin",
-      "marketplace",
+      "mcp",
       "add",
-      "githits-com/githits-cli",
-    ]);
-    expect(execService.exec).not.toHaveBeenCalledWith("claude", [
-      "plugin",
-      "install",
-      "githits@githits-plugins",
+      "--transport",
+      "stdio",
+      "--scope",
+      "user",
+      "githits",
+      "--",
+      "npx",
+      "-y",
+      "githits@latest",
+      "mcp",
+      "start",
     ]);
     expect(execService.exec).not.toHaveBeenCalledWith("codex", [
       "mcp",
@@ -3519,7 +3523,7 @@ describe("initAction", () => {
   it("renders only Claude Code commands that actually ran", async () => {
     const lookupCmd = lookupCommandFor();
     const fs = createFsWithDetection([]);
-    let pluginListCalls = 0;
+    let mcpListCalls = 0;
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -3530,20 +3534,35 @@ describe("initAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude plugin list") {
-          pluginListCalls += 1;
+        if (key === "claude mcp list") {
+          mcpListCalls += 1;
           return Promise.resolve({
             exitCode: 0,
             stdout:
-              pluginListCalls === 1
-                ? "other-plugin\n"
-                : "githits@githits-plugins\n",
+              mcpListCalls === 1
+                ? "other-server\n"
+                : "githits: npx -y githits@latest mcp start\n",
             stderr: "",
           });
         }
         if (
-          key === "claude plugin marketplace add githits-com/githits-cli" ||
-          key === "claude plugin install githits@githits-plugins"
+          key === "claude plugin uninstall githits" ||
+          key === "claude plugin marketplace remove githits-plugins" ||
+          key === "claude mcp remove githits --scope user"
+        ) {
+          return Promise.resolve({
+            exitCode: 1,
+            stdout: "",
+            stderr: key.includes("marketplace")
+              ? "Marketplace githits-plugins was not found"
+              : key.includes("uninstall")
+                ? "Plugin githits was not found"
+                : "MCP server githits was not found",
+          });
+        }
+        if (
+          key ===
+          "claude mcp add --transport stdio --scope user githits -- npx -y githits@latest mcp start"
         ) {
           return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
         }
@@ -3562,40 +3581,34 @@ describe("initAction", () => {
     );
 
     expect(execService.exec).toHaveBeenCalledWith("claude", [
-      "plugin",
-      "marketplace",
+      "mcp",
       "add",
-      "githits-com/githits-cli",
-    ]);
-    expect(execService.exec).toHaveBeenCalledWith("claude", [
-      "plugin",
-      "install",
-      "githits@githits-plugins",
+      "--transport",
+      "stdio",
+      "--scope",
+      "user",
+      "githits",
+      "--",
+      "npx",
+      "-y",
+      "githits@latest",
+      "mcp",
+      "start",
     ]);
     const claudeRows = getLogOutput().filter(
-      (msg) => msg.includes("Claude Code") && msg.includes("claude plugin"),
+      (msg) => msg.includes("Claude Code") && msg.includes("claude mcp"),
     );
     expect(claudeRows).toHaveLength(1);
     const claudeRow = claudeRows[0]!;
     expect(claudeRow).toContain(
-      "claude plugin marketplace add githits-com/githits-cli",
-    );
-    const installRow = getLogOutput().find((msg) =>
-      msg.includes("claude plugin install githits@githits-plugins"),
-    );
-    expect(installRow).toBeDefined();
-    expect(installRow?.trim()).toBe(
-      "claude plugin install githits@githits-plugins",
-    );
-    expect(installRow?.indexOf("claude plugin install")).toBe(
-      claudeRow.indexOf("claude plugin marketplace"),
+      "claude mcp add --transport stdio --scope user githits",
     );
   });
 
   it("does not render checked-via detail when a later CLI command runs", async () => {
     const lookupCmd = lookupCommandFor();
     const fs = createFsWithDetection([]);
-    let pluginListCalls = 0;
+    let mcpListCalls = 0;
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -3606,25 +3619,36 @@ describe("initAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude plugin list") {
-          pluginListCalls += 1;
+        if (key === "claude mcp list") {
+          mcpListCalls += 1;
           return Promise.resolve({
             exitCode: 0,
             stdout:
-              pluginListCalls === 1
-                ? "other-plugin\n"
-                : "githits@githits-plugins\n",
+              mcpListCalls === 1
+                ? "other-server\n"
+                : "githits: npx -y githits@latest mcp start\n",
             stderr: "",
           });
         }
-        if (key === "claude plugin marketplace add githits-com/githits-cli") {
+        if (
+          key === "claude plugin uninstall githits" ||
+          key === "claude plugin marketplace remove githits-plugins" ||
+          key === "claude mcp remove githits --scope user"
+        ) {
           return Promise.resolve({
-            exitCode: 0,
-            stdout: "Marketplace already added\n",
-            stderr: "",
+            exitCode: 1,
+            stdout: "",
+            stderr: key.includes("marketplace")
+              ? "Marketplace githits-plugins was not found"
+              : key.includes("uninstall")
+                ? "Plugin githits was not found"
+                : "MCP server githits was not found",
           });
         }
-        if (key === "claude plugin install githits@githits-plugins") {
+        if (
+          key ===
+          "claude mcp add --transport stdio --scope user githits -- npx -y githits@latest mcp start"
+        ) {
           return Promise.resolve({
             exitCode: 0,
             stdout: "Installed\n",
@@ -3647,19 +3671,14 @@ describe("initAction", () => {
 
     const logCalls = getLogOutput();
     expect(
-      logCalls.some((msg) => msg.includes("checked via claude plugin list")),
-    ).toBe(false);
-    expect(
-      logCalls.some((msg) =>
-        msg.includes("claude plugin marketplace add githits-com/githits-cli"),
-      ),
+      logCalls.some((msg) => msg.includes("checked via claude mcp list")),
     ).toBe(false);
     expect(
       logCalls.some(
         (msg) =>
           msg.includes("Claude Code") &&
           msg.includes("ran") &&
-          msg.includes("claude plugin install githits@githits-plugins"),
+          msg.includes("claude mcp add --transport stdio"),
       ),
     ).toBe(true);
   });
@@ -3925,7 +3944,7 @@ describe("initAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude plugin list") {
+        if (key === "claude mcp list") {
           return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
         }
         // Setup commands: fail
@@ -3960,10 +3979,11 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("- Claude Code:"))).toBe(true);
   });
 
-  it("treats Gemini already-installed setup output as already configured", async () => {
+  it("accepts Gemini already-exists output when the stdio MCP verifies", async () => {
     const lookupCmd = lookupCommandFor();
     const fs = createFsWithDetection([]);
     const promptService = createMockPromptService();
+    let listCalls = 0;
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -3974,22 +3994,39 @@ describe("initAction", () => {
             stderr: "",
           });
         }
-        if (key === "gemini extensions config githits") {
+        if (key === "gemini mcp list") {
+          listCalls += 1;
           return Promise.resolve({
             exitCode: 0,
-            stdout: "",
+            stdout:
+              listCalls > 1
+                ? "githits: npx -y githits@latest mcp start (stdio)\n"
+                : "",
             stderr: "",
+          });
+        }
+        if (key === "gemini extensions uninstall githits") {
+          return Promise.resolve({
+            exitCode: 1,
+            stdout: "",
+            stderr: 'Extension "githits" is not installed.\n',
+          });
+        }
+        if (key === "gemini mcp remove --scope user githits") {
+          return Promise.resolve({
+            exitCode: 1,
+            stdout: "",
+            stderr: 'MCP server "githits" was not found.\n',
           });
         }
         if (
           key ===
-          "gemini extensions install --consent https://github.com/githits-com/githits-cli"
+          "gemini mcp add --transport stdio --scope user githits npx -- -y githits@latest mcp start"
         ) {
           return Promise.resolve({
             exitCode: 1,
             stdout: "",
-            stderr:
-              'Extension "githits" is already installed. Please uninstall it first.\n',
+            stderr: 'MCP server "githits" already exists.\n',
           });
         }
         return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
@@ -4006,19 +4043,29 @@ describe("initAction", () => {
       },
     );
 
-    const logCalls = getLogOutput();
-    expect(
-      logCalls.some(
-        (msg) =>
-          msg.includes("Gemini CLI") && msg.includes("already configured"),
-      ),
-    ).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("failed to configure"))).toBe(
+    expect(execService.exec).toHaveBeenCalledWith("gemini", [
+      "mcp",
+      "add",
+      "--transport",
+      "stdio",
+      "--scope",
+      "user",
+      "githits",
+      "npx",
+      "--",
+      "-y",
+      "githits@latest",
+      "mcp",
+      "start",
+    ]);
+    expect(listCalls).toBe(2);
+    const output = [...getLogOutput(), ...getErrorOutput()];
+    expect(output.some((msg) => msg.includes("failed to configure"))).toBe(
       false,
     );
   });
 
-  it("marks Gemini setup as failed when install does not actually configure extension", async () => {
+  it("marks Gemini setup as failed when the stdio MCP is not present after setup", async () => {
     const lookupCmd = lookupCommandFor();
     const fs = createFsWithDetection([]);
     const promptService = createMockPromptService({
@@ -4034,20 +4081,34 @@ describe("initAction", () => {
             stderr: "",
           });
         }
-        if (key === "gemini extensions config githits") {
+        if (key === "gemini mcp list") {
           return Promise.resolve({
             exitCode: 0,
+            stdout: "",
+            stderr: "",
+          });
+        }
+        if (key === "gemini extensions uninstall githits") {
+          return Promise.resolve({
+            exitCode: 1,
             stdout: "",
             stderr: 'Extension "githits" is not installed.\n',
           });
         }
+        if (key === "gemini mcp remove --scope user githits") {
+          return Promise.resolve({
+            exitCode: 1,
+            stdout: "",
+            stderr: 'MCP server "githits" was not found.\n',
+          });
+        }
         if (
           key ===
-          "gemini extensions install --consent https://github.com/githits-com/githits-cli"
+          "gemini mcp add --transport stdio --scope user githits npx -- -y githits@latest mcp start"
         ) {
           return Promise.resolve({
             exitCode: 0,
-            stdout: "Do you want to continue? [Y/n]: ",
+            stdout: "Added MCP server.\n",
             stderr: "",
           });
         }
@@ -4065,10 +4126,10 @@ describe("initAction", () => {
       },
     );
 
-    const logCalls = getLogOutput();
+    const logCalls = [...getLogOutput(), ...getErrorOutput()];
     expect(
       logCalls.some((msg) =>
-        msg.includes("Gemini installation did not complete"),
+        msg.includes("verification failed: not configured after setup"),
       ),
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("failed to configure"))).toBe(
@@ -6161,7 +6222,7 @@ describe("initUninstallAction", () => {
   it("reports Claude marketplace cleanup failure as warning after plugin removal", async () => {
     const lookupCmd = lookupCommandFor();
     const fs = createFsWithDetection([]);
-    let pluginInstalled = true;
+    let mcpInstalled = true;
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -6172,19 +6233,28 @@ describe("initUninstallAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude plugin list") {
+        if (key === "claude mcp list") {
           return Promise.resolve({
             exitCode: 0,
-            stdout: pluginInstalled ? "githits@githits-plugins\n" : "",
+            stdout: mcpInstalled
+              ? "githits: npx -y githits@latest mcp start\n"
+              : "",
             stderr: "",
           });
         }
-        if (key === "claude plugin uninstall githits") {
-          pluginInstalled = false;
+        if (key === "claude mcp remove githits --scope user") {
+          mcpInstalled = false;
           return Promise.resolve({
             exitCode: 0,
             stdout: "Removed\n",
             stderr: "",
+          });
+        }
+        if (key === "claude plugin uninstall githits") {
+          return Promise.resolve({
+            exitCode: 1,
+            stdout: "",
+            stderr: "Plugin githits was not found\n",
           });
         }
         if (key === "claude plugin marketplace remove githits-plugins") {
@@ -6218,7 +6288,7 @@ describe("initUninstallAction", () => {
   it("renders multi-step Claude uninstall commands as continuation rows", async () => {
     const lookupCmd = lookupCommandFor();
     const fs = createFsWithDetection([]);
-    let pluginInstalled = true;
+    let mcpInstalled = true;
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -6229,15 +6299,24 @@ describe("initUninstallAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude plugin list") {
+        if (key === "claude mcp list") {
           return Promise.resolve({
             exitCode: 0,
-            stdout: pluginInstalled ? "githits@githits-plugins\n" : "",
+            stdout: mcpInstalled
+              ? "githits: npx -y githits@latest mcp start\n"
+              : "",
+            stderr: "",
+          });
+        }
+        if (key === "claude mcp remove githits --scope user") {
+          mcpInstalled = false;
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "Removed\n",
             stderr: "",
           });
         }
         if (key === "claude plugin uninstall githits") {
-          pluginInstalled = false;
           return Promise.resolve({
             exitCode: 0,
             stdout: "Removed\n",
@@ -6265,6 +6344,13 @@ describe("initUninstallAction", () => {
     );
 
     expect(execService.exec).toHaveBeenCalledWith("claude", [
+      "mcp",
+      "remove",
+      "githits",
+      "--scope",
+      "user",
+    ]);
+    expect(execService.exec).toHaveBeenCalledWith("claude", [
       "plugin",
       "uninstall",
       "githits",
@@ -6276,17 +6362,24 @@ describe("initUninstallAction", () => {
       "githits-plugins",
     ]);
     const uninstallRow = getLogOutput().find(
-      (msg) =>
-        msg.includes("Claude Code") && msg.includes("claude plugin uninstall"),
+      (msg) => msg.includes("Claude Code") && msg.includes("claude mcp remove"),
+    );
+    const pluginRow = getLogOutput().find((msg) =>
+      msg.includes("claude plugin uninstall githits"),
     );
     const marketplaceRow = getLogOutput().find((msg) =>
       msg.includes("claude plugin marketplace remove githits-plugins"),
     );
     expect(uninstallRow).toBeDefined();
+    expect(pluginRow).toBeDefined();
     expect(marketplaceRow).toBeDefined();
+    expect(pluginRow).not.toContain("Claude Code");
     expect(marketplaceRow).not.toContain("Claude Code");
+    expect(pluginRow?.indexOf("claude plugin uninstall")).toBe(
+      uninstallRow?.indexOf("claude mcp remove"),
+    );
     expect(marketplaceRow?.indexOf("claude plugin marketplace")).toBe(
-      uninstallRow?.indexOf("claude plugin uninstall"),
+      uninstallRow?.indexOf("claude mcp remove"),
     );
   });
 
@@ -6331,7 +6424,7 @@ describe("initUninstallAction", () => {
     ).toBe(true);
   });
 
-  it("uses Gemini filesystem fallback when config probe fails", async () => {
+  it("does not use the legacy Gemini extension as an uninstall fallback", async () => {
     const lookupCmd = lookupCommandFor();
     const fs = createFsWithDetection([]);
     (fs.exists as ReturnType<typeof mock>).mockImplementation(
@@ -6348,15 +6441,8 @@ describe("initUninstallAction", () => {
             stderr: "",
           });
         }
-        if (key === "gemini extensions config githits") {
+        if (key === "gemini mcp list") {
           return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
-        }
-        if (key === "gemini extensions uninstall githits") {
-          return Promise.resolve({
-            exitCode: 0,
-            stdout: "Removed\n",
-            stderr: "",
-          });
         }
         return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
       }),
@@ -6371,11 +6457,22 @@ describe("initUninstallAction", () => {
       },
     );
 
-    expect(execService.exec).toHaveBeenCalledWith("gemini", [
+    expect(execService.exec).not.toHaveBeenCalledWith("gemini", [
+      "mcp",
+      "remove",
+      "--scope",
+      "user",
+      "githits",
+    ]);
+    expect(execService.exec).not.toHaveBeenCalledWith("gemini", [
       "extensions",
       "uninstall",
       "githits",
     ]);
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("Cannot inspect Gemini CLI")),
+    ).toBe(true);
   });
 
   it("reports Gemini probe failure as inspection failure without fallback", async () => {
@@ -6391,8 +6488,8 @@ describe("initUninstallAction", () => {
             stderr: "",
           });
         }
-        if (key === "gemini extensions config githits") {
-          return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+        if (key === "gemini mcp list") {
+          return Promise.reject(new Error("probe exploded"));
         }
         return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
       }),
@@ -6414,7 +6511,7 @@ describe("initUninstallAction", () => {
     ).toBe(true);
   });
 
-  it("reports Gemini explicit not installed output as not configured", async () => {
+  it("reports an empty Gemini MCP list as not configured", async () => {
     const lookupCmd = lookupCommandFor();
     const fs = createFsWithDetection([]);
     const promptService = createMockPromptService();
@@ -6428,11 +6525,11 @@ describe("initUninstallAction", () => {
             stderr: "",
           });
         }
-        if (key === "gemini extensions config githits") {
+        if (key === "gemini mcp list") {
           return Promise.resolve({
-            exitCode: 1,
+            exitCode: 0,
             stdout: "",
-            stderr: 'Extension "githits" is not installed.\n',
+            stderr: "",
           });
         }
         return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
@@ -6478,14 +6575,14 @@ describe("initUninstallAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude plugin list") {
+        if (key === "claude mcp list") {
           return Promise.resolve({
             exitCode: 0,
-            stdout: "githits@githits-plugins\n",
+            stdout: "githits: npx -y githits@latest mcp start\n",
             stderr: "",
           });
         }
-        if (key === "claude plugin uninstall githits") {
+        if (key === "claude mcp remove githits --scope user") {
           return Promise.resolve({
             exitCode: 0,
             stdout: "Removed\n",
@@ -6519,7 +6616,7 @@ describe("initUninstallAction", () => {
       logCalls.some(
         (msg) =>
           msg.includes("ran") &&
-          msg.includes("claude plugin uninstall githits"),
+          msg.includes("claude mcp remove githits --scope user"),
       ),
     ).toBe(true);
     expect(

@@ -516,34 +516,67 @@ describe("detection configuration", () => {
 });
 
 describe("getSetupConfig", () => {
-  it("claude-code returns CLI setup with plugin install commands", () => {
+  it("claude-code returns CLI setup with stdio MCP migration commands", () => {
     const fs = createMockFileSystemService();
     const agent = agentDefinitions.find((a) => a.id === "claude-code")!;
     const config = agent.getSetupConfig(fs);
     expect(config.method).toBe("cli");
     if (config.method === "cli") {
-      expect(config.commands).toHaveLength(2);
+      expect(config.commands).toHaveLength(4);
       expect(config.commands[0]!.command).toBe("claude");
-      expect(config.commands[0]!.args).toContain("plugin");
-      expect(config.commands[0]!.args).toContain("marketplace");
-      expect(config.commands[0]!.args).toContain("add");
-      expect(config.commands[0]!.args).toContain("githits-com/githits-cli");
-      expect(config.commands[1]!.command).toBe("claude");
-      expect(config.commands[1]!.args).toContain("plugin");
-      expect(config.commands[1]!.args).toContain("install");
-      expect(config.commands[1]!.args).toContain("githits@githits-plugins");
+      expect(config.commands[0]!.args).toEqual([
+        "plugin",
+        "uninstall",
+        "githits",
+      ]);
+      expect(config.commands[0]!.allowAlreadyAbsent).toBe(true);
+      expect(config.commands[1]!.args).toEqual([
+        "plugin",
+        "marketplace",
+        "remove",
+        "githits-plugins",
+      ]);
+      expect(config.commands[1]!.allowAlreadyAbsent).toBe(true);
+      expect(config.commands[2]!.args).toEqual([
+        "mcp",
+        "remove",
+        "githits",
+        "--scope",
+        "user",
+      ]);
+      expect(config.commands[2]!.allowAlreadyAbsent).toBe(true);
+      expect(config.commands[3]!.args).toEqual([
+        "mcp",
+        "add",
+        "--transport",
+        "stdio",
+        "--scope",
+        "user",
+        "githits",
+        "--",
+        "npx",
+        "-y",
+        "githits@latest",
+        "mcp",
+        "start",
+      ]);
     }
   });
 
-  it("claude-code returns uninstall command for declared marketplace name", () => {
+  it("claude-code removes stdio MCP and legacy plugin state", () => {
     const fs = createMockFileSystemService();
     const agent = agentDefinitions.find((a) => a.id === "claude-code")!;
     const config = agent.getUninstallConfig?.(fs);
     expect(config?.method).toBe("cli");
     if (config?.method !== "cli") throw new Error("expected cli uninstall");
-    expect(config.commands[1]).toEqual({
+    expect(config.commands[0]).toEqual({
+      command: "claude",
+      args: ["mcp", "remove", "githits", "--scope", "user"],
+    });
+    expect(config.commands[2]).toEqual({
       command: "claude",
       args: ["plugin", "marketplace", "remove", "githits-plugins"],
+      allowAlreadyAbsent: true,
     });
   });
 
@@ -866,20 +899,40 @@ describe("getSetupConfig", () => {
     }
   });
 
-  it("gemini-cli returns CLI setup with extensions install", () => {
+  it("gemini-cli returns CLI setup with stdio MCP migration commands", () => {
     const fs = createMockFileSystemService();
     const agent = agentDefinitions.find((a) => a.id === "gemini-cli")!;
     const config = agent.getSetupConfig(fs);
     expect(config.method).toBe("cli");
     if (config.method === "cli") {
-      expect(config.commands).toHaveLength(1);
+      expect(config.commands).toHaveLength(3);
       expect(config.commands[0]!.command).toBe("gemini");
       expect(config.commands[0]!.args).toContain("extensions");
-      expect(config.commands[0]!.args).toContain("install");
-      expect(config.commands[0]!.args).toContain("--consent");
-      expect(config.commands[0]!.args).toContain(
-        "https://github.com/githits-com/githits-cli",
-      );
+      expect(config.commands[0]!.args).toContain("uninstall");
+      expect(config.commands[0]!.allowAlreadyAbsent).toBe(true);
+      expect(config.commands[1]).toEqual({
+        command: "gemini",
+        args: ["mcp", "remove", "--scope", "user", "githits"],
+        allowAlreadyAbsent: true,
+      });
+      expect(config.commands[2]).toEqual({
+        command: "gemini",
+        args: [
+          "mcp",
+          "add",
+          "--transport",
+          "stdio",
+          "--scope",
+          "user",
+          "githits",
+          "npx",
+          "--",
+          "-y",
+          "githits@latest",
+          "mcp",
+          "start",
+        ],
+      });
     }
   });
 
@@ -1034,10 +1087,29 @@ describe("getSetupConfig", () => {
     expect(config.method).toBe("config-file");
     if (config.method === "config-file") {
       expect(config.configPath).toBe(
-        "/home/test/.gemini/antigravity/mcp_config.json",
+        "/home/test/.gemini/config/mcp_config.json",
       );
       expect(config.serversKey).toBe("mcpServers");
       expect(config.serverName).toBe("GitHits");
+      expect(config.serverConfig).toEqual({
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
+      });
+    }
+  });
+
+  it("google-antigravity uses the current workspace MCP config path", () => {
+    const fs = createMockFileSystemService({
+      getCwd: mock(() => "/workspace/repo"),
+      joinPath: mock((...segments: string[]) => segments.join("/")),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "google-antigravity")!;
+    const config = getAgentSetupConfig(agent, fs, "project");
+
+    expect(config?.method).toBe("config-file");
+    if (config?.method === "config-file") {
+      expect(config.configPath).toBe("/workspace/repo/.agents/mcp_config.json");
+      expect(config.serversKey).toBe("mcpServers");
       expect(config.serverConfig).toEqual({
         command: "npx",
         args: ["-y", "githits@latest", "mcp", "start"],
@@ -1390,7 +1462,7 @@ describe("scanAgents", () => {
     expect(result.alreadyConfigured.some((a) => a.id === "cursor")).toBe(false);
   });
 
-  it("categorizes Claude Code as alreadyConfigured when installed plugin row matches", async () => {
+  it("categorizes Claude Code as alreadyConfigured for the stdio CLI entry", async () => {
     const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
       detectedDirs: [],
@@ -1400,9 +1472,9 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude plugin list": {
+        "claude mcp list": {
           exitCode: 0,
-          stdout: "githits@githits-plugins\nother\n",
+          stdout: "githits: npx -y githits@latest mcp start\nother\n",
           stderr: "",
         },
       },
@@ -1414,7 +1486,7 @@ describe("scanAgents", () => {
     expect(result.needsSetup.some((a) => a.id === "claude-code")).toBe(false);
   });
 
-  it("does not categorize Claude Code as configured for marketplace-only output", async () => {
+  it("categorizes the remote Claude plugin as needing stdio CLI setup", async () => {
     const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
       detectedDirs: [],
@@ -1424,9 +1496,34 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude plugin list": {
+        "claude mcp list": {
           exitCode: 0,
-          stdout: "marketplace githits-plugins available\n",
+          stdout: "plugin:githits:githits: https://mcp.githits.com\n",
+          stderr: "",
+        },
+      },
+    });
+
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.needsSetup.some((a) => a.id === "claude-code")).toBe(true);
+    expect(result.alreadyConfigured.some((a) => a.id === "claude-code")).toBe(
+      false,
+    );
+  });
+
+  it("does not categorize Claude Code as configured for a non-stdio MCP row", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        [`${lookupCmd} claude`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/claude\n",
+          stderr: "",
+        },
+        "claude mcp list": {
+          exitCode: 0,
+          stdout: "githits: https://mcp.githits.com\n",
           stderr: "",
         },
       },
@@ -1448,9 +1545,9 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude plugin list": {
+        "claude mcp list": {
           exitCode: 0,
-          stdout: "No githits plugins installed\n",
+          stdout: "No githits MCP server installed\n",
           stderr: "",
         },
       },
@@ -1462,33 +1559,30 @@ describe("scanAgents", () => {
     );
   });
 
-  it("categorizes gemini CLI as alreadyConfigured for config check outputs", async () => {
+  it("categorizes Gemini CLI as configured only for the stdio CLI entry", async () => {
     const lookupCmd = lookupCommandFor();
-    const outputs = ["", "configured\n", "extension settings\n"];
-
-    for (const output of outputs) {
-      const { fs, execService } = createScanMocks({
-        detectedDirs: [],
-        execResults: {
-          [`${lookupCmd} gemini`]: {
-            exitCode: 0,
-            stdout: "/usr/bin/gemini\n",
-            stderr: "",
-          },
-          "gemini extensions config githits": {
-            exitCode: 0,
-            stdout: output,
-            stderr: "",
-          },
+    const { fs, execService } = createScanMocks({
+      detectedDirs: [],
+      execResults: {
+        [`${lookupCmd} gemini`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/gemini\n",
+          stderr: "",
         },
-      });
+        "gemini mcp list": {
+          exitCode: 0,
+          stdout:
+            "✓ githits: npx -y githits@latest mcp start (stdio) - Connected\n",
+          stderr: "",
+        },
+      },
+    });
 
-      const result = await scanAgents(agentDefinitions, fs, execService);
-      expect(result.alreadyConfigured.some((a) => a.id === "gemini-cli")).toBe(
-        true,
-      );
-      expect(result.needsSetup.some((a) => a.id === "gemini-cli")).toBe(false);
-    }
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.alreadyConfigured.some((a) => a.id === "gemini-cli")).toBe(
+      true,
+    );
+    expect(result.needsSetup.some((a) => a.id === "gemini-cli")).toBe(false);
   });
 
   it("categorizes CLI agent as needsSetup when check command does not match", async () => {
@@ -1501,7 +1595,7 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude plugin list": {
+        "claude mcp list": {
           exitCode: 0,
           stdout: "other-plugin\n",
           stderr: "",
@@ -1525,7 +1619,7 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude plugin list": Object.assign(new Error("spawn ENOENT"), {
+        "claude mcp list": Object.assign(new Error("spawn ENOENT"), {
           code: "ENOENT",
         }),
       },
@@ -2234,9 +2328,9 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude plugin list": {
+        "claude mcp list": {
           exitCode: 0,
-          stdout: "githits@githits-plugins\n",
+          stdout: "githits: npx -y githits@latest mcp start\n",
           stderr: "",
         },
       },
@@ -2378,7 +2472,7 @@ describe("scanAgents", () => {
           },
         },
       }),
-      [joinPath(homeDir, ".gemini", "antigravity", "mcp_config.json")]:
+      [joinPath(homeDir, ".gemini", "config", "mcp_config.json")]:
         JSON.stringify({
           mcpServers: {
             GitHits: {
@@ -2467,9 +2561,9 @@ describe("scanAgents", () => {
         stdout: "/usr/bin/claude\n",
         stderr: "",
       },
-      "claude plugin list": {
+      "claude mcp list": {
         exitCode: 0,
-        stdout: "githits@githits-plugins\n",
+        stdout: "githits: npx -y githits@latest mcp start\n",
         stderr: "",
       },
       [`${whichCmd} codex`]: {
@@ -2497,9 +2591,10 @@ describe("scanAgents", () => {
         stdout: "/usr/bin/gemini\n",
         stderr: "",
       },
-      "gemini extensions config githits": {
+      "gemini mcp list": {
         exitCode: 0,
-        stdout: "githits-cli\n",
+        stdout:
+          "✓ githits: npx -y githits@latest mcp start (stdio) - Connected\n",
         stderr: "",
       },
       [`${whichCmd} opencode`]: {
@@ -2576,7 +2671,7 @@ describe("scanAgents", () => {
           )]: JSON.stringify({ mcpServers: {} }),
           [joinPath(claudeDesktopPath, "claude_desktop_config.json")]:
             JSON.stringify({ mcpServers: {} }),
-          [joinPath(homeDir, ".gemini", "antigravity", "mcp_config.json")]:
+          [joinPath(homeDir, ".gemini", "config", "mcp_config.json")]:
             JSON.stringify({ mcpServers: {} }),
           [joinPath(opencodePath, "opencode.json")]: JSON.stringify({
             mcp: {},
@@ -2694,9 +2789,9 @@ describe("scanAgents", () => {
               stdout: "/usr/bin/claude\n",
               stderr: "",
             },
-            "claude plugin list": {
+            "claude mcp list": {
               exitCode: 0,
-              stdout: "githits@githits-plugins\n",
+              stdout: "githits: npx -y githits@latest mcp start\n",
               stderr: "",
             },
             [`${whichCmd} codex`]: {
@@ -2763,9 +2858,9 @@ describe("scanAgents", () => {
               stdout: "/usr/bin/gemini\n",
               stderr: "",
             },
-            "claude plugin list": enoent,
+            "claude mcp list": enoent,
             "codex mcp list": enoent,
-            "gemini extensions config githits": enoent,
+            "gemini mcp list": enoent,
           },
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
@@ -2777,7 +2872,7 @@ describe("scanAgents", () => {
         expect(result.alreadyConfigured).toHaveLength(0);
       });
 
-      it("gemini falls back to filesystem when config probe is unavailable", async () => {
+      it("does not treat an extension install as direct stdio configuration", async () => {
         const enoent = Object.assign(new Error("spawn ENOENT"), {
           code: "ENOENT",
         });
@@ -2798,19 +2893,17 @@ describe("scanAgents", () => {
               stdout: "/usr/bin/gemini\n",
               stderr: "",
             },
-            "gemini extensions config githits": enoent,
+            "gemini mcp list": enoent,
           },
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
         expect(
           result.alreadyConfigured.some((a) => a.id === "gemini-cli"),
-        ).toBe(true);
-        expect(result.needsSetup.some((a) => a.id === "gemini-cli")).toBe(
-          false,
-        );
+        ).toBe(false);
+        expect(result.needsSetup.some((a) => a.id === "gemini-cli")).toBe(true);
       });
 
-      it("gemini config probe reports not installed as needsSetup", async () => {
+      it("gemini remote MCP output is not direct stdio configuration", async () => {
         const { fs, execService } = createScenarioScanMocks({
           detectedDirs: [],
           execResults: {
@@ -2819,10 +2912,10 @@ describe("scanAgents", () => {
               stdout: "/usr/bin/gemini\n",
               stderr: "",
             },
-            "gemini extensions config githits": {
+            "gemini mcp list": {
               exitCode: 0,
-              stdout: "",
-              stderr: 'Extension "githits" is not installed.\n',
+              stdout: "✓ githits: https://mcp.githits.com (http) - Connected\n",
+              stderr: "",
             },
           },
         });
@@ -2830,7 +2923,7 @@ describe("scanAgents", () => {
         expect(result.needsSetup.some((a) => a.id === "gemini-cli")).toBe(true);
       });
 
-      it("gemini does not use filesystem fallback when probe explicitly reports not installed", async () => {
+      it("gemini ignores incidental MCP output", async () => {
         const { fs, execService } = createScenarioScanMocks({
           detectedDirs: [joinPath(homeDir, ".gemini", "extensions", "githits")],
           existingFiles: [
@@ -2848,10 +2941,10 @@ describe("scanAgents", () => {
               stdout: "/usr/bin/gemini\n",
               stderr: "",
             },
-            "gemini extensions config githits": {
+            "gemini mcp list": {
               exitCode: 0,
-              stdout: "",
-              stderr: 'Extension "githits" is not installed.\n',
+              stdout: "No githits MCP server installed\n",
+              stderr: "",
             },
           },
         });

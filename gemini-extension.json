@@ -4,8 +4,7 @@
   "description": "The code context layer for AI coding agents",
   "mcpServers": {
     "githits": {
-      "command": "npx",
-      "args": ["-y", "githits@latest", "mcp", "start"]
+      "httpUrl": "https://mcp.githits.com"
     }
   },
   "contextFileName": "GEMINI.md"

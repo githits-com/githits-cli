@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "githits": {
-      "command": "npx",
-      "args": ["-y", "githits@latest", "mcp", "start"]
-    }
-  }
-}

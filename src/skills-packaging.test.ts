@@ -1,12 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  CLAUDE_GITHITS_MCP_SKILL_TARGET,
-  GITHITS_MCP_SKILL_SOURCE,
-  syncClaudeSkillAssets,
-} from "../scripts/sync-claude-skill-assets.ts";
 
 const root = join(import.meta.dir, "..");
 const onboardingSkillPath = join(
@@ -22,15 +16,14 @@ const troubleshootingPath = join(
   "references",
   "troubleshooting.md",
 );
-const claudeOnboardingSkillPath = join(
+const githitsMcpSkillPath = join(root, "skills", "githits-mcp", "SKILL.md");
+const pluginMaintenanceSkillPath = join(
   root,
-  "plugins",
-  "claude",
+  ".agents",
   "skills",
-  "onboarding",
+  "githits-plugin-maintenance",
   "SKILL.md",
 );
-const githitsMcpSkillPath = join(root, "skills", "githits-mcp", "SKILL.md");
 async function read(path: string): Promise<string> {
   return readFile(path, "utf8");
 }
@@ -166,92 +159,47 @@ describe("agent skills packaging", () => {
     ]);
   });
 
-  it("packages Claude marketplace onboarding guidance with matching safety posture", async () => {
-    const content = await read(claudeOnboardingSkillPath);
+  it("keeps install review and guidance repair behavior in the canonical onboarding skill", async () => {
+    const content = await read(onboardingSkillPath);
 
     expectContainsAll(content, [
-      "name: onboarding",
-      "Use `npx -y githits@latest ...` for every normal onboarding command.",
-      "guarantees the latest published GitHits CLI behavior",
-      "Do not use a globally installed `githits` binary",
-      "local, dev, or pinned CLI build",
-      "npx -y githits@latest init --detect-agents --json",
-      "npx -y githits@latest init --project --detect-agents --json",
-      "npx -y githits@latest init --install-agents",
-      "npx -y githits@latest init --project --install-agents",
-      "npx -y githits@latest auth status",
-      "npx -y githits@latest login",
-      "npx -y githits@latest login --no-browser",
-      "Configure all actionable tools",
-      "structured choice",
-      "My user account (Recommended)",
-      "This project only",
-      "sign-in/signup",
-      "Run onboarding commands inline",
-      "Do not delegate",
-      "Do not use subagents",
-      "subagents",
-      "background",
-      "pkill",
-      "official detection fails",
-      "manually probe tools to infer install IDs",
-      "passwords",
-      "OAuth codes",
-      "cookies",
-      "access tokens",
-      "refresh tokens",
-      "API keys",
+      "actionableIds",
+      "use `installableIds` for MCP setup",
+      "do not infer guidance-only repair",
+      "guidance repair",
+      "GitHits queries and public package, repository, and documentation targets are sent to GitHits services",
+      "Feedback submission is an outbound write",
+      "does not itself upload the local workspace",
+      "new coding-agent session",
+      "terminal and machine do not need to be restarted",
+      "every agent is `not_detected`",
+      "stop before review, installation, or authentication",
+      "offer user-level detection",
+      "continue only with supported agents",
+      "at least one supported agent is `already_configured`",
+      "execute `suggestedCommand` exactly",
+      "preserve `--no-guidance`",
+      "Follow the CLI-emitted verification instruction",
+      "acknowledges the install review",
+      "stop onboarding without installing or starting authentication",
+      "https://mcp.githits.com",
+      "Cursor-managed OAuth",
+      "cursor-agent mcp list-tools GitHits",
+      "new Cursor Agent chat",
     ]);
-    expect(content).not.toContain("command -v githits");
-    expect(content).not.toContain("{GITHITS}");
+    const reviewIndex = content.indexOf("show the install review before");
+    const classificationIndex = content.indexOf(
+      "Before showing the review, classify",
+    );
+    const approvalIndex = content.indexOf("Ask before writing configuration");
+    const authIndex = content.indexOf("Start GitHits sign-in/signup");
+    expect(classificationIndex).toBeGreaterThanOrEqual(0);
+    expect(reviewIndex).toBeGreaterThan(classificationIndex);
+    expect(approvalIndex).toBeGreaterThan(reviewIndex);
+    expect(authIndex).toBeGreaterThan(approvalIndex);
   });
 
-  it("keeps install review and guidance repair behavior aligned across onboarding skills", async () => {
-    const skills = [
-      await read(onboardingSkillPath),
-      await read(claudeOnboardingSkillPath),
-    ];
-
-    for (const content of skills) {
-      expectContainsAll(content, [
-        "actionableIds",
-        "use `installableIds` for MCP setup",
-        "do not infer guidance-only repair",
-        "guidance repair",
-        "GitHits queries and public package, repository, and documentation targets are sent to GitHits services",
-        "Feedback submission is an outbound write",
-        "does not itself upload the local workspace",
-        "new coding-agent session",
-        "terminal and machine do not need to be restarted",
-        "every agent is `not_detected`",
-        "stop before review, installation, or authentication",
-        "offer user-level detection",
-        "continue only with supported agents",
-        "at least one supported agent is `already_configured`",
-        "execute `suggestedCommand` exactly",
-        "preserve `--no-guidance`",
-        "Follow the CLI-emitted verification instruction",
-        "acknowledges the install review",
-        "stop onboarding without installing or starting authentication",
-        "https://mcp.githits.com",
-        "Cursor-managed OAuth",
-        "cursor-agent mcp list-tools GitHits",
-        "new Cursor Agent chat",
-      ]);
-      const reviewIndex = content.indexOf("show the install review before");
-      const classificationIndex = content.indexOf(
-        "Before showing the review, classify",
-      );
-      const approvalIndex = content.indexOf("Ask before writing configuration");
-      const authIndex = content.indexOf("Start GitHits sign-in/signup");
-      expect(classificationIndex).toBeGreaterThanOrEqual(0);
-      expect(reviewIndex).toBeGreaterThan(classificationIndex);
-      expect(approvalIndex).toBeGreaterThan(reviewIndex);
-      expect(authIndex).toBeGreaterThan(approvalIndex);
-    }
-  });
-
-  it("packages public and Claude GitHits MCP skills with OSS context triggers", async () => {
+  it("packages the canonical GitHits MCP skill with OSS context triggers", async () => {
     const publicContent = await read(githitsMcpSkillPath);
 
     expectContainsAll(publicContent, [
@@ -286,41 +234,36 @@ describe("agent skills packaging", () => {
       "structured fields",
       "tool-owned reference/provenance sections",
     ]);
-
-    const tempRoot = await mkdtemp(join(tmpdir(), "githits-skill-sync-"));
-    try {
-      await mkdir(join(tempRoot, "skills", "githits-mcp"), {
-        recursive: true,
-      });
-      await writeFile(join(tempRoot, GITHITS_MCP_SKILL_SOURCE), publicContent);
-
-      await syncClaudeSkillAssets({ root: tempRoot });
-      expect(await read(join(tempRoot, CLAUDE_GITHITS_MCP_SKILL_TARGET))).toBe(
-        publicContent,
-      );
-
-      await syncClaudeSkillAssets({ root: tempRoot, clean: true });
-      await expect(
-        readFile(join(tempRoot, CLAUDE_GITHITS_MCP_SKILL_TARGET), "utf8"),
-      ).rejects.toThrow();
-    } finally {
-      await rm(tempRoot, { recursive: true, force: true });
-    }
   });
 
-  it("wires Claude skill asset sync into package creation", async () => {
+  it("requires generated plugin asset validation before package creation", async () => {
     const packageJson = JSON.parse(await read(join(root, "package.json"))) as {
       scripts?: Record<string, string>;
+      files?: string[];
     };
 
-    expect(packageJson.scripts?.["sync:claude-skills"]).toContain(
-      "scripts/sync-claude-skill-assets.ts",
+    expect(packageJson.scripts?.["plugins:generate"]).toContain(
+      "scripts/generate-plugin-assets.ts",
     );
-    expect(packageJson.scripts?.prepack).toBe(
-      "bun run scripts/sync-claude-skill-assets.ts",
-    );
-    expect(packageJson.scripts?.postpack).toBe(
-      "bun run scripts/sync-claude-skill-assets.ts --clean",
-    );
+    expect(packageJson.scripts?.["plugins:check"]).toContain("--check");
+    expect(packageJson.scripts?.prepack).toBe("bun run plugins:check");
+    expect(packageJson.scripts?.postpack).toBeUndefined();
+    expect(packageJson.files).toContain("skills");
+    expect(packageJson.files).toContain(".codex-plugin");
+    expect(packageJson.files).toContain("plugin.json");
+    expect(packageJson.files).toContain("mcp_config.json");
+    expect(packageJson.files).not.toContain(".agents");
+    expect(packageJson.files).not.toContain("plugins");
+    expect(packageJson.files).not.toContain("commands");
+  });
+
+  it("keeps the plugin maintenance skill repository-internal", async () => {
+    const content = await read(pluginMaintenanceSkillPath);
+
+    expectContainsAll(content, [
+      "Internal repository-maintenance skill",
+      "internal, repository-only skill",
+      "Do not publish or package it",
+    ]);
   });
 });

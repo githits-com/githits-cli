@@ -4,6 +4,10 @@
 
 The `githits-onboarding` skill lets an agent guide a user from discovery to a usable GitHits setup with the current CLI surface. The skill orchestrates detection, MCP installation, sign-in/signup startup, verification, and recovery guidance.
 
+The root `skills/githits-onboarding` directory is the only authored onboarding
+skill. Claude, Cursor, Gemini, and generic/Codex packaging expose this same
+content; host-specific onboarding forks are not supported.
+
 ## Current Flow
 
 GitHits setup is currently split across existing CLI commands:
@@ -16,6 +20,18 @@ GitHits setup is currently split across existing CLI commands:
 Cursor is the remote-MCP exception. Its user and project config entries point to `https://mcp.githits.com`, and existing local stdio entries are migrated. Cursor manages OAuth separately, so local CLI auth does not establish Cursor readiness. Onboarding verifies Cursor with `cursor-agent mcp list` and `cursor-agent mcp list-tools GitHits` when available, uses `cursor-agent mcp login GitHits` when needed, and always requires a new Cursor Agent chat plus confirmation that GitHits tools were discovered.
 
 The onboarding skill uses `npx -y githits@latest` for normal onboarding so new users get the latest published CLI behavior. Installed global `githits` binaries may be stale and are only used when the user explicitly asks to test a local, dev, or pinned CLI build. This may be slower or require network access, but the latest published onboarding behavior is the product requirement.
+
+Claude detection checks for the user-scoped stdio MCP entry installed by the
+CLI. Legacy plugin and marketplace state is actionable setup: after approval,
+init removes it, replaces any existing user-scoped GitHits MCP entry, and adds
+`npx -y githits@latest mcp start`. Already-absent cleanup steps are treated as
+safe no-ops. Direct Claude marketplace installs remain a separate, remote-MCP
+path.
+
+Gemini detection likewise checks for the user-scoped stdio MCP entry installed
+by the CLI. Direct setup removes a legacy GitHits extension and any existing
+user-scoped GitHits MCP entry before adding `npx -y githits@latest mcp start`.
+Gemini extension installs remain a separate remote-MCP path.
 
 ## User Experience Contract
 
@@ -79,7 +95,7 @@ Onboarding commands such as `npx -y githits@latest`, detection, login, and setup
 
 ## Detection Probe Reliability
 
-Agent detection may call read-only third-party CLI probes such as `which codex`, `codex mcp list`, `claude plugin list`, `gemini extensions config githits`, and Pi package-manager bin lookups. These probes are bounded so one slow or stuck agent CLI cannot prevent `init --detect-agents --json` from returning. Binary lookups use a short timeout, package-manager global-bin probes use a short timeout, and read-only configuration checks use a slightly longer timeout. Timed-out probes are treated as non-fatal probe failures: binary lookup timeouts make that agent not detected, while configuration-check timeouts leave an already-detected agent installable instead of blocking the whole detection response.
+Agent detection may call read-only third-party CLI probes such as `which codex`, `codex mcp list`, `claude mcp list`, `gemini mcp list`, and Pi package-manager bin lookups. These probes are bounded so one slow or stuck agent CLI cannot prevent `init --detect-agents --json` from returning. Binary lookups use a short timeout, package-manager global-bin probes use a short timeout, and read-only configuration checks use a slightly longer timeout. Timed-out probes are treated as non-fatal probe failures: binary lookup timeouts make that agent not detected, while configuration-check timeouts leave an already-detected agent installable instead of blocking the whole detection response.
 
 Set `GITHITS_INIT_TRACE=1` to diagnose detection hangs. Trace mode writes progress to stderr only and keeps JSON stdout parseable. It reports scan start/end, per-agent probe start/end, elapsed time, exit codes, and probe timeouts without logging environment values or secrets.
 

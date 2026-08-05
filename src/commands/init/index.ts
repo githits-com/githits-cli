@@ -8,7 +8,6 @@ export {
   type ConfigFileFormat,
   type ConfigFileSetup,
   detectAgents,
-  isGeminiExtensionInstalledFromFilesystem,
   type SetupConfig,
   type UninstallConfig,
 } from "./agent-definitions.js";

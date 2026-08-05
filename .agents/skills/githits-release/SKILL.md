@@ -15,7 +15,7 @@ Use this skill for GitHits release work, version-bump PRs, release-readiness rev
 ## Release Checklist
 
 - Root `githits` and `@githits/mcp` have separate release flows. Bump both only when both surfaces changed.
-- For root `githits` releases, bump `package.json`, `server.json`, `.plugin/plugin.json`, `.claude-plugin/plugin.json`, `plugins/claude/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `gemini-extension.json` together.
+- For root `githits` releases, bump `package.json` and `server.json`, then run `bun run plugins:generate` to update `.plugin/plugin.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `.codex-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `gemini-extension.json`, and the versionless Antigravity `plugin.json`/`mcp_config.json` adapter together.
 - For `@githits/mcp` releases, bump `packages/mcp/package.json` only when MCP package API, tool behavior, instructions, schemas, MCP auth/error behavior, or remote-server-facing public types changed.
 - For coordinated CLI and MCP releases, keep the MCP minor aligned with the CLI minor for discoverability. Start the first MCP release for a CLI minor at `X.Y.0`, then bump MCP patch for later MCP-package-visible changes in that CLI minor. Do not bump MCP for CLI-only changes.
 - After merge, the root release workflow and MCP release workflow both run from the successful `Main` workflow on `main`. The MCP workflow publishes only when `@githits/mcp@<version>` is not already on npm; use its manual `workflow_dispatch` path only for recovery or explicit dry runs.
@@ -23,6 +23,7 @@ Use this skill for GitHits release work, version-bump PRs, release-readiness rev
 - Keep `server.json.version`, the npm package entry version in `server.json`, and root `package.json.version` aligned. The release workflow rewrites a temporary registry manifest from `package.json`, but the committed `server.json` should still reflect the intended next root release for review and local validation.
 - Keep root `package.json#mcpName` equal to `com.githits/githits`; npm registry ownership validation depends on the published package manifest matching `server.json.name`.
 - Run or rely on package-scoped version checks to verify root plugin versions stay aligned and MCP versions are intentionally independent.
+- Run `bun run plugins:generate`, inspect the generated diff, and run `bun run plugins:check` before release-readiness signoff. Do not release with manually edited or stale generated assets.
 - Collect a changelog of user-visible changes before release. Include CLI behavior, MCP tool behavior, Agent Skills, auth/error UX, output format changes, and agent-facing instruction changes.
 - Review public skills before signoff whenever user-facing CLI/MCP behavior changed. After the behavior is released or included in the same release branch, update `skills/githits-code/SKILL.md`, `skills/githits-package/SKILL.md`, and their references so `skills.sh` users get instructions that match the released surface.
 - Keep PR titles and labels release-note friendly; GitHub release notes are generated from merged PRs and `.github/release.yml` categories.
@@ -46,6 +47,7 @@ Use this skill for GitHits release work, version-bump PRs, release-readiness rev
 - Do not update `skills/` to describe unreleased CLI/MCP behavior. A merge to `main` can expose those skill instructions immediately.
 - After the backing CLI/MCP behavior is released or part of the release being prepared, update `skills/` so skill descriptions, decision flows, examples, detailed references, and command-to-MCP mappings match the released surface.
 - When MCP instructions, tool descriptions, or guardrails change, review `skills/githits-code/SKILL.md`, `skills/githits-package/SKILL.md`, and their references for parity. Keep MCP instructions as the quality baseline; they are currently strong and should not be weakened casually.
+- After changing public skills or plugin-facing guidance, run `bun run plugins:generate` and `bun run plugins:check` so every host manifest remains aligned with the canonical root surface.
 - If a skill update is intentionally delayed until after release, note that in the release/change plan so it is not forgotten.
 
 ## Changelog Collection

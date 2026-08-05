@@ -40,7 +40,6 @@ import {
   GITHITS_MCP_INVOCATION,
   getAgentSetupConfig,
   type InitSetupScope,
-  isGeminiExtensionInstalledFromFilesystem,
   type ManagedBlockSetup,
   type ScanProgress,
   type ScanResult,
@@ -3407,10 +3406,8 @@ async function executeAgentSetupWithVerification(
       result = {
         status: "failed",
         message:
-          agent.id === "gemini-cli"
-            ? "Gemini installation did not complete. Retry, or run: gemini extensions install --consent https://github.com/githits-com/githits-cli"
-            : (verification.message ??
-              `${agent.name} verification failed after setup.`),
+          verification.message ??
+          `${agent.name} verification failed after setup.`,
         // Preserve what was written so the user can still locate/fix it.
         changes: result.changes,
       };
@@ -3954,12 +3951,6 @@ async function inspectSetupForUninstall(
     );
     if (checkStatus === "configured") return "configured";
     if (checkStatus === "not_configured") return "not_configured";
-    if (
-      agent.id === "gemini-cli" &&
-      (await isGeminiExtensionInstalledFromFilesystem(fileSystemService))
-    ) {
-      return "configured";
-    }
     return {
       status: "failed",
       message: `Cannot inspect ${agent.name}: ${config.checkCommand.command} ${config.checkCommand.args.join(" ")} failed.`,

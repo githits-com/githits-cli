@@ -23,12 +23,17 @@ describe("plugin metadata consistency", () => {
       join(root, ".claude-plugin", "plugin.json"),
     );
 
-    const claudePayloadPlugin = await readJson<{ version: string }>(
-      join(root, "plugins", "claude", ".claude-plugin", "plugin.json"),
+    const codexPlugin = await readJson<{ version: string }>(
+      join(root, ".codex-plugin", "plugin.json"),
+    );
+
+    const cursorPlugin = await readJson<{ version: string }>(
+      join(root, ".cursor-plugin", "plugin.json"),
     );
 
     const claudeMarketplace = await readJson<{
       metadata?: { version?: string };
+      plugins?: Array<{ name?: string; version?: string }>;
     }>(join(root, ".claude-plugin", "marketplace.json"));
 
     const geminiExtension = await readJson<{ version: string }>(
@@ -39,8 +44,13 @@ describe("plugin metadata consistency", () => {
 
     expect(openPlugin.version).toBe(expected);
     expect(claudePlugin.version).toBe(expected);
-    expect(claudePayloadPlugin.version).toBe(expected);
+    expect(codexPlugin.version).toBe(expected);
+    expect(cursorPlugin.version).toBe(expected);
     expect(claudeMarketplace.metadata?.version).toBe(expected);
+    expect(
+      claudeMarketplace.plugins?.find((plugin) => plugin.name === "githits")
+        ?.version,
+    ).toBe(expected);
     expect(geminiExtension.version).toBe(expected);
   });
 
@@ -55,8 +65,11 @@ describe("plugin metadata consistency", () => {
     const claudePlugin = await readJson<{ description: string }>(
       join(root, ".claude-plugin", "plugin.json"),
     );
-    const claudePayloadPlugin = await readJson<{ description: string }>(
-      join(root, "plugins", "claude", ".claude-plugin", "plugin.json"),
+    const codexPlugin = await readJson<{ description: string }>(
+      join(root, ".codex-plugin", "plugin.json"),
+    );
+    const cursorPlugin = await readJson<{ description: string }>(
+      join(root, ".cursor-plugin", "plugin.json"),
     );
     const claudeMarketplace = await readJson<{
       metadata?: { description?: string };
@@ -65,20 +78,19 @@ describe("plugin metadata consistency", () => {
     const geminiExtension = await readJson<{ description: string }>(
       join(root, "gemini-extension.json"),
     );
-    const geminiContext = await readFile(join(root, "GEMINI.md"), "utf8");
     const readme = await readFile(join(root, "README.md"), "utf8");
     const expected = packageJson.description;
 
     expect(openPlugin.description).toBe(expected);
     expect(claudePlugin.description).toBe(expected);
-    expect(claudePayloadPlugin.description).toBe(expected);
+    expect(codexPlugin.description).toBe(expected);
+    expect(cursorPlugin.description).toBe(expected);
     expect(claudeMarketplace.metadata?.description).toBe(expected);
     expect(
       claudeMarketplace.plugins?.find((plugin) => plugin.name === "githits")
         ?.description,
     ).toBe(expected);
     expect(geminiExtension.description).toBe(expected);
-    expect(geminiContext.split(/\r?\n/)[2]).toBe(`${expected}.`);
     expect(readme.split(/\r?\n/).map((line) => line.trim())).toContain(
       `${expected}.`,
     );

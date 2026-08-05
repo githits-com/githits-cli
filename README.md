@@ -43,8 +43,9 @@ enough.
 npx githits@latest init
 ```
 
-`init` signs you in, detects supported coding tools, and configures the local
-GitHits MCP server for the tools you select.
+`init` signs you in, detects supported coding tools, and configures GitHits for
+the tools you select. It uses the local stdio MCP except for Cursor, whose
+direct setup uses the hosted remote MCP.
 
 Automatic setup currently supports Claude Code, Cursor, Windsurf,
 VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI,
@@ -250,18 +251,32 @@ npx githits@latest init --install-agents cursor,codex
 
 ## Plugin and Extension Packaging
 
-The npm package also includes the existing plugin and extension assets used by
-compatible hosts:
+The repository and published package provide the plugin and extension assets
+used by compatible hosts. Git-based installs also retain the context-file
+symlinks (`CLAUDE.md` and `GEMINI.md`) to the canonical `AGENTS.md`:
 
 - `.plugin/plugin.json`
 - `.claude-plugin/plugin.json`
 - `.claude-plugin/marketplace.json`
+- `.codex-plugin/plugin.json`
+- `.cursor-plugin/plugin.json`
 - `.mcp.json`
 - `gemini-extension.json`
+- `plugin.json` (Google Antigravity)
+- `mcp_config.json` (Google Antigravity)
+- `AGENTS.md`
+- `CLAUDE.md`
 - `GEMINI.md`
-- `plugins/claude/`
 - `skills/`
-- `commands/`
+
+The root skill tree is shared by all supported hosts. Every plugin and extension
+install uses the hosted remote MCP, including Claude, Codex, Cursor, Gemini CLI,
+Google Antigravity, and VS Code/GitHub Copilot OpenPlugin. Direct `githits init`
+setup is a separate path: it installs local stdio configurations for supported
+tools except Cursor, which remains remote-only. The repository root is a native
+Antigravity plugin through `plugin.json`, `mcp_config.json`, and the shared
+`skills/` tree. Generated manifests are refreshed with `bun run plugins:generate`
+and validated with `bun run plugins:check`.
 
 For Claude Code marketplace installs:
 

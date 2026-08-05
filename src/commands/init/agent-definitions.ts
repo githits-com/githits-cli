@@ -4,7 +4,6 @@ import type { FileSystemService } from "../../services/filesystem-service.js";
 import { traceInit, traceProbeEnd, traceProbeStart } from "./init-trace.js";
 import {
   type CliCheckCommand,
-  getCliCheckStatus,
   isSetupAlreadyConfigured,
 } from "./setup-handlers.js";
 
@@ -14,13 +13,15 @@ export interface CliCommand {
   command: string;
   /** Command arguments */
   args: string[];
+  /** Treat a recognized already-absent result as success during replacement. */
+  allowAlreadyAbsent?: boolean;
 }
 
 export type NonEmptyCliCommands = [CliCommand, ...CliCommand[]];
 
 /**
  * Setup configuration for agents that use CLI commands.
- * Supports multi-step installs (e.g., plugin marketplace add + plugin install).
+ * Supports multi-step installs (e.g., legacy cleanup followed by MCP add).
  */
 export interface CliSetup {
   method: "cli";
@@ -129,8 +130,6 @@ export const GITHITS_MCP_INVOCATION = [
 ] as const;
 const CLAUDE_GITHITS_PLUGIN = "githits";
 const CLAUDE_GITHITS_MARKETPLACE = "githits-plugins";
-const CLAUDE_GITHITS_PLUGIN_REF = `${CLAUDE_GITHITS_PLUGIN}@${CLAUDE_GITHITS_MARKETPLACE}`;
-const CLAUDE_GITHITS_MARKETPLACE_SOURCE = "githits-com/githits-cli";
 const BINARY_LOOKUP_TIMEOUT_MS = 2_000;
 const GLOBAL_BIN_PROBE_TIMEOUT_MS = 3_000;
 
@@ -517,7 +516,7 @@ async function detectAmazonQCommand(
   return null;
 }
 
-/** Claude Code: detected by claude executable, configured via plugin install */
+/** Claude Code: detected by claude executable, configured via npm/stdio. */
 const claudeCode: AgentDefinition = {
   name: "Claude Code",
   id: "claude-code",
@@ -529,22 +528,39 @@ const claudeCode: AgentDefinition = {
     commands: [
       {
         command: "claude",
-        args: [
-          "plugin",
-          "marketplace",
-          "add",
-          CLAUDE_GITHITS_MARKETPLACE_SOURCE,
-        ],
+        args: ["plugin", "uninstall", CLAUDE_GITHITS_PLUGIN],
+        allowAlreadyAbsent: true,
       },
       {
         command: "claude",
-        args: ["plugin", "install", CLAUDE_GITHITS_PLUGIN_REF],
+        args: ["plugin", "marketplace", "remove", CLAUDE_GITHITS_MARKETPLACE],
+        allowAlreadyAbsent: true,
+      },
+      {
+        command: "claude",
+        args: ["mcp", "remove", "githits", "--scope", "user"],
+        allowAlreadyAbsent: true,
+      },
+      {
+        command: "claude",
+        args: [
+          "mcp",
+          "add",
+          "--transport",
+          "stdio",
+          "--scope",
+          "user",
+          "githits",
+          "--",
+          ...GITHITS_MCP_INVOCATION,
+        ],
       },
     ],
     checkCommand: {
       command: "claude",
-      args: ["plugin", "list"],
-      configuredPattern: /(^|\s)githits@githits-plugins\b/i,
+      args: ["mcp", "list"],
+      configuredPattern:
+        /^\s*githits\b[^\r\n]*\bnpx\b[^\r\n]*\bgithits@latest\b/im,
     },
   }),
   getUninstallConfig: () => ({
@@ -552,11 +568,17 @@ const claudeCode: AgentDefinition = {
     commands: [
       {
         command: "claude",
+        args: ["mcp", "remove", "githits", "--scope", "user"],
+      },
+      {
+        command: "claude",
         args: ["plugin", "uninstall", CLAUDE_GITHITS_PLUGIN],
+        allowAlreadyAbsent: true,
       },
       {
         command: "claude",
         args: ["plugin", "marketplace", "remove", CLAUDE_GITHITS_MARKETPLACE],
+        allowAlreadyAbsent: true,
       },
     ],
   }),
@@ -855,7 +877,7 @@ const cline: AgentDefinition = {
   ),
 };
 
-/** Gemini CLI: detected by gemini executable, configured via extensions install */
+/** Gemini CLI: detected by gemini executable, configured via npm/stdio. */
 const geminiCli: AgentDefinition = {
   name: "Gemini CLI",
   id: "gemini-cli",
@@ -867,22 +889,36 @@ const geminiCli: AgentDefinition = {
     commands: [
       {
         command: "gemini",
+        args: ["extensions", "uninstall", "githits"],
+        allowAlreadyAbsent: true,
+      },
+      {
+        command: "gemini",
+        args: ["mcp", "remove", "--scope", "user", "githits"],
+        allowAlreadyAbsent: true,
+      },
+      {
+        command: "gemini",
         args: [
-          "extensions",
-          "install",
-          "--consent",
-          "https://github.com/githits-com/githits-cli",
+          "mcp",
+          "add",
+          "--transport",
+          "stdio",
+          "--scope",
+          "user",
+          "githits",
+          GITHITS_MCP_INVOCATION[0],
+          "--",
+          ...GITHITS_MCP_INVOCATION.slice(1),
         ],
       },
     ],
     checkCommand: {
       command: "gemini",
-      args: ["extensions", "config", "githits"],
-      // `gemini extensions list` can return empty output in non-interactive
-      // environments. `extensions config githits` is a deterministic probe:
-      // stderr includes "not installed" when missing.
-      notConfiguredPattern: /not installed/i,
+      args: ["mcp", "list"],
       requireExitCodeZero: true,
+      configuredPattern:
+        /^\s*(?:[^\w\s]+\s+)?githits\b[^\r\n]*\bnpx\b[^\r\n]*\bgithits@latest\b/im,
     },
   }),
   getUninstallConfig: () => ({
@@ -890,7 +926,12 @@ const geminiCli: AgentDefinition = {
     commands: [
       {
         command: "gemini",
+        args: ["mcp", "remove", "--scope", "user", "githits"],
+      },
+      {
+        command: "gemini",
         args: ["extensions", "uninstall", "githits"],
+        allowAlreadyAbsent: true,
       },
     ],
   }),
@@ -900,19 +941,6 @@ const geminiCli: AgentDefinition = {
       getProjectJsonConfig(fs, [".gemini", "settings.json"], "mcpServers"),
   },
 };
-
-export async function isGeminiExtensionInstalledFromFilesystem(
-  fs: FileSystemService,
-): Promise<boolean> {
-  const extensionManifestPath = fs.joinPath(
-    fs.getHomeDir(),
-    ".gemini",
-    "extensions",
-    "githits",
-    "gemini-extension.json",
-  );
-  return fs.exists(extensionManifestPath);
-}
 
 /** Google Antigravity: detected by ~/.gemini/antigravity/ directory */
 const googleAntigravity: AgentDefinition = {
@@ -926,16 +954,18 @@ const googleAntigravity: AgentDefinition = {
     configPath: fs.joinPath(
       fs.getHomeDir(),
       ".gemini",
-      "antigravity",
+      "config",
       "mcp_config.json",
     ),
     serversKey: "mcpServers",
     serverName: GITHITS_SERVER_NAME,
     serverConfig: getStandardMcpServerConfig(),
   }),
-  projectSetup: getUnsupportedProjectSetup(
-    "Google Antigravity project-level MCP config not verified",
-  ),
+  projectSetup: {
+    supported: true,
+    getSetupConfig: (fs) =>
+      getProjectJsonConfig(fs, [".agents", "mcp_config.json"], "mcpServers"),
+  },
 };
 
 /** OpenCode: detected by CLI binary or desktop/config directories, configured via config file */
@@ -1377,35 +1407,11 @@ async function scanSingleAgent(
     resolvedSetupConfig: config,
     resolvedSetupContext: setupContext,
   };
-  if (agent.id === "gemini-cli" && config.method === "cli") {
-    if (!config.checkCommand) {
-      return { status: "needs_setup", agent: scannedAgent };
-    }
-
-    const checkStatus = await getCliCheckStatus(
-      config.checkCommand,
-      execService,
-      { agentId: agent.id, phase: "check" },
-    );
-    let configured = checkStatus === "configured";
-    // Only use filesystem fallback when the CLI probe itself failed.
-    // If Gemini explicitly reports "not installed", do not override it.
-    if (!configured && checkStatus === "probe_failed") {
-      configured = await isGeminiExtensionInstalledFromFilesystem(fs);
-    }
-    const status = configured ? "already_configured" : "needs_setup";
-    traceInit(
-      `agent:end agent=${agent.id} status=${status} elapsedMs=${Date.now() - scanStartedAt}`,
-    );
-    return { status, agent: scannedAgent };
-  }
-
-  if (
-    await isSetupAlreadyConfigured(config, fs, execService, {
-      agentId: agent.id,
-      phase: "check",
-    })
-  ) {
+  const configured = await isSetupAlreadyConfigured(config, fs, execService, {
+    agentId: agent.id,
+    phase: "check",
+  });
+  if (configured) {
     traceInit(
       `agent:end agent=${agent.id} status=already_configured elapsedMs=${Date.now() - scanStartedAt}`,
     );

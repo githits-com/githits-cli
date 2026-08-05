@@ -1,0 +1,42 @@
+{
+  "name": "githits",
+  "version": "0.6.7",
+  "description": "The code context layer for AI coding agents",
+  "author": {
+    "name": "GitHits"
+  },
+  "homepage": "https://githits.com",
+  "repository": "https://github.com/githits-com/githits-cli",
+  "license": "Apache-2.0",
+  "keywords": [
+    "githits",
+    "context layer",
+    "public open-source",
+    "open-source code",
+    "code search",
+    "package documentation",
+    "documentation search",
+    "package metadata",
+    "vulnerabilities",
+    "changelogs",
+    "dependency graphs",
+    "upgrade evidence",
+    "implementation examples"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "GitHits",
+    "shortDescription": "The code context layer for AI coding agents",
+    "longDescription": "Search public open-source code, documentation, package metadata, vulnerabilities, changelogs, dependencies, and implementation examples.",
+    "developerName": "GitHits",
+    "category": "Developer Tools",
+    "capabilities": ["Code Search", "Documentation Search", "Package Research"],
+    "websiteURL": "https://githits.com",
+    "defaultPrompt": [
+      "Use GitHits to inspect this project's open-source dependencies.",
+      "Find source-backed examples for this implementation.",
+      "Research package documentation and upgrade risks."
+    ]
+  }
+}
