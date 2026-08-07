@@ -35,6 +35,7 @@ describe("plugin manifest wiring", () => {
       [".codex-plugin", "plugin.json"],
       [".cursor-plugin", "plugin.json"],
       ["gemini-extension.json"],
+      ["plugin.json"],
     ];
 
     for (const parts of manifestPaths) {
@@ -64,6 +65,7 @@ describe("plugin manifest wiring", () => {
       [".claude-plugin", "plugin.json"],
       [".codex-plugin", "plugin.json"],
       [".cursor-plugin", "plugin.json"],
+      ["plugin.json"],
     ]) {
       const manifest = JSON.parse(
         await readFile(join(root, ...parts), "utf8"),
@@ -91,12 +93,17 @@ describe("plugin manifest wiring", () => {
     expect(cursorManifest.mcpServers).toBe(".mcp.json");
   });
 
-  it("provides the native Antigravity plugin marker at the repository root", async () => {
+  it("provides the shared Agent Plugins and Antigravity manifest", async () => {
     const manifest = JSON.parse(
       await readFile(join(root, "plugin.json"), "utf8"),
     ) as { name?: string };
 
-    expect(manifest).toEqual({ name: "githits" });
+    expect(manifest).toEqual(
+      expect.objectContaining({
+        $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+        name: "githits",
+      }),
+    );
   });
 
   it("uses only the canonical root skill tree", async () => {
