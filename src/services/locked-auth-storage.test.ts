@@ -18,6 +18,8 @@ import {
 
 describe("LockedAuthStorage", () => {
   const baseUrl = "https://mcp.githits.com";
+  const testProcessStartedAt = async (): Promise<string> =>
+    "test-process-started-at";
   const tempDirs: string[] = [];
 
   afterEach(async () => {
@@ -33,10 +35,12 @@ describe("LockedAuthStorage", () => {
     const first = new LockedAuthStorage(
       new AuthStorageImpl(fs, configDir),
       fsWithHome,
+      { getProcessStartedAt: testProcessStartedAt },
     );
     const second = new LockedAuthStorage(
       new AuthStorageImpl(fs, configDir),
       fsWithHome,
+      { getProcessStartedAt: testProcessStartedAt },
     );
     const initial = createValidTokenData({ accessToken: "initial" });
     await first.saveTokens(baseUrl, initial);
@@ -58,6 +62,39 @@ describe("LockedAuthStorage", () => {
     const finalToken = await first.loadTokens(baseUrl);
     expect(finalToken).not.toBeNull();
     expect(["first", "second"]).toContain(finalToken?.accessToken ?? "");
+  });
+
+  it("reuses the current process identity across lock acquisitions", async () => {
+    const { fsWithHome } = await createStoragePaths();
+    const getProcessStartedAt = mock(async (_pid: number) =>
+      Promise.resolve("test-process-started-at"),
+    );
+    const storage = new LockedAuthStorage(createMockAuthStorage(), fsWithHome, {
+      getProcessStartedAt,
+    });
+
+    await storage.saveTokens(baseUrl, createValidTokenData());
+    await storage.clearTokens(baseUrl);
+
+    expect(getProcessStartedAt).toHaveBeenCalledTimes(1);
+    expect(getProcessStartedAt).toHaveBeenCalledWith(process.pid);
+  });
+
+  it("retries an unavailable current process identity", async () => {
+    const { fsWithHome } = await createStoragePaths();
+    let lookupCount = 0;
+    const getProcessStartedAt = mock(async (_pid: number) => {
+      lookupCount += 1;
+      return lookupCount === 1 ? null : "test-process-started-at";
+    });
+    const storage = new LockedAuthStorage(createMockAuthStorage(), fsWithHome, {
+      getProcessStartedAt,
+    });
+
+    await storage.saveTokens(baseUrl, createValidTokenData());
+    await storage.clearTokens(baseUrl);
+
+    expect(getProcessStartedAt).toHaveBeenCalledTimes(2);
   });
 
   it("serializes token loads with external writes", async () => {
@@ -91,8 +128,11 @@ describe("LockedAuthStorage", () => {
         return Promise.resolve();
       }),
     });
-    const first = new LockedAuthStorage(firstInner, fsWithHome);
+    const first = new LockedAuthStorage(firstInner, fsWithHome, {
+      getProcessStartedAt: testProcessStartedAt,
+    });
     const second = new LockedAuthStorage(secondInner, fsWithHome, {
+      getProcessStartedAt: testProcessStartedAt,
       isOwnerAlive: async () => {
         contentionStarted();
         return true;
@@ -143,8 +183,11 @@ describe("LockedAuthStorage", () => {
         return Promise.resolve();
       }),
     });
-    const first = new LockedAuthStorage(firstInner, fsWithHome);
+    const first = new LockedAuthStorage(firstInner, fsWithHome, {
+      getProcessStartedAt: testProcessStartedAt,
+    });
     const second = new LockedAuthStorage(secondInner, fsWithHome, {
+      getProcessStartedAt: testProcessStartedAt,
       isOwnerAlive: async () => {
         contentionStarted();
         return true;
