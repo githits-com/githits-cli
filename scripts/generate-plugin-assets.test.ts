@@ -3,6 +3,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  AGENT_PLUGINS_MCP_SCHEMA_URL,
+  AGENT_PLUGINS_SCHEMA_URL,
   CANONICAL_SKILL_NAMES,
   createPluginAssetInputs,
   generatePluginAssets,
@@ -70,7 +72,16 @@ describe("plugin asset generation", () => {
       },
     });
     const assetPaths: string[] = [...assets.keys()];
-    expect(assetPaths).not.toContain("mcp.json");
+    expect(assetPaths).toContain("mcp.json");
+    expect(JSON.parse(assets.get("mcp.json") ?? "{}")).toEqual({
+      $schema: AGENT_PLUGINS_MCP_SCHEMA_URL,
+      mcpServers: {
+        githits: {
+          type: "streamable-http",
+          url: "https://mcp.githits.com",
+        },
+      },
+    });
     expect(
       JSON.parse(assets.get("gemini-extension.json") ?? "{}").mcpServers,
     ).toEqual({
@@ -79,7 +90,15 @@ describe("plugin asset generation", () => {
       },
     });
     expect(JSON.parse(assets.get("plugin.json") ?? "{}")).toEqual({
+      $schema: AGENT_PLUGINS_SCHEMA_URL,
       name: "githits",
+      version: "1.2.3",
+      description: "The code context layer for AI coding agents",
+      author: { name: "GitHits" },
+      homepage: "https://githits.com",
+      repository: "https://github.com/githits-com/githits-cli",
+      license: "Apache-2.0",
+      keywords: registryKeywords,
     });
     expect(JSON.parse(assets.get("mcp_config.json") ?? "{}")).toEqual(
       expect.objectContaining({
@@ -164,7 +183,7 @@ describe("plugin asset generation", () => {
       await generatePluginAssets({ root });
       await expect(
         generatePluginAssets({ root, check: true }),
-      ).resolves.toHaveLength(9);
+      ).resolves.toHaveLength(10);
 
       await writeFile(join(root, ".mcp.json"), "{}\n");
       await expect(generatePluginAssets({ root, check: true })).rejects.toThrow(

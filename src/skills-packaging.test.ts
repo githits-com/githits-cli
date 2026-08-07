@@ -251,6 +251,7 @@ describe("agent skills packaging", () => {
     expect(packageJson.files).toContain("skills");
     expect(packageJson.files).toContain(".codex-plugin");
     expect(packageJson.files).toContain("plugin.json");
+    expect(packageJson.files).toContain("mcp.json");
     expect(packageJson.files).toContain("mcp_config.json");
     expect(packageJson.files).not.toContain(".agents");
     expect(packageJson.files).not.toContain("plugins");

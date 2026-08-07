@@ -9,6 +9,10 @@ export const CANONICAL_SKILL_NAMES = [
   "githits-package",
 ] as const;
 
+export const AGENT_PLUGINS_VERSION = "1.0.0";
+export const AGENT_PLUGINS_SCHEMA_URL = `https://agent-plugins.org/schemas/${AGENT_PLUGINS_VERSION}/plugin.schema.json`;
+export const AGENT_PLUGINS_MCP_SCHEMA_URL = `https://agent-plugins.org/schemas/${AGENT_PLUGINS_VERSION}/mcp.schema.json`;
+
 export const GENERATED_PLUGIN_ASSET_PATHS = [
   ".plugin/plugin.json",
   ".claude-plugin/plugin.json",
@@ -16,6 +20,7 @@ export const GENERATED_PLUGIN_ASSET_PATHS = [
   ".codex-plugin/plugin.json",
   ".cursor-plugin/plugin.json",
   ".mcp.json",
+  "mcp.json",
   "gemini-extension.json",
   "plugin.json",
   "mcp_config.json",
@@ -309,6 +314,18 @@ export function renderPluginAssets(
       }),
     },
     {
+      path: "mcp.json",
+      content: json({
+        $schema: AGENT_PLUGINS_MCP_SCHEMA_URL,
+        mcpServers: {
+          githits: {
+            type: "streamable-http",
+            url: inputs.remoteMcpUrl,
+          },
+        },
+      }),
+    },
+    {
       path: "gemini-extension.json",
       content: json({
         name: inputs.name,
@@ -324,7 +341,10 @@ export function renderPluginAssets(
     },
     {
       path: "plugin.json",
-      content: json({ name: inputs.name }),
+      content: json({
+        $schema: AGENT_PLUGINS_SCHEMA_URL,
+        ...sharedManifest,
+      }),
     },
     {
       path: "mcp_config.json",

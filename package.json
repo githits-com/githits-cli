@@ -15,6 +15,7 @@
     ".codex-plugin",
     ".cursor-plugin",
     ".mcp.json",
+    "mcp.json",
     "server.json",
     "gemini-extension.json",
     "plugin.json",
