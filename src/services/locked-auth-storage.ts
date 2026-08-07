@@ -54,6 +54,10 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     pid: number,
     processStartedAt: string | null,
   ) => Promise<boolean>;
+  private readonly processStartedAtLookup: (
+    pid: number,
+  ) => Promise<string | null>;
+  private currentProcessStartedAtPromise: Promise<string | null> | undefined;
   private readonly lockContext = new AsyncLocalStorage<string>();
   private currentOwner: LockOwner | null = null;
   private readonly lockLoads: boolean;
@@ -67,10 +71,22 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
         pid: number,
         processStartedAt: string | null,
       ) => Promise<boolean>;
+      getProcessStartedAt?: (pid: number) => Promise<string | null>;
     } = {},
   ) {
     this.lockTimeoutMs = options.lockTimeoutMs ?? LOCK_TIMEOUT_MS;
-    this.isOwnerAlive = options.isOwnerAlive ?? isOriginalProcessAlive;
+    this.processStartedAtLookup =
+      options.getProcessStartedAt ?? getProcessStartedAt;
+    this.isOwnerAlive =
+      options.isOwnerAlive ??
+      ((pid, processStartedAt) =>
+        isOriginalProcessAlive(
+          pid,
+          processStartedAt,
+          pid === process.pid
+            ? () => this.getCurrentProcessStartedAt()
+            : this.processStartedAtLookup,
+        ));
     this.lockLoads = storage.requiresLoadLock === true;
     this.lockPath = fileSystemService.joinPath(
       getAuthLockDir(fileSystemService),
@@ -180,7 +196,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   }
 
   private async acquireLock(): Promise<void> {
-    const processStartedAt = await getProcessStartedAt(process.pid);
+    const processStartedAt = await this.getCurrentProcessStartedAt();
     const startedAt = Date.now();
     await mkdir(dirname(this.lockPath), { recursive: true, mode: 0o700 });
     while (true) {
@@ -221,6 +237,29 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     return new AuthStorageLockTimeoutError(
       `Timed out waiting for GitHits auth storage lock at ${this.lockPath}. If no githits process is running, remove this directory and retry.`,
     );
+  }
+
+  private getCurrentProcessStartedAt(): Promise<string | null> {
+    if (!this.currentProcessStartedAtPromise) {
+      const lookup = this.processStartedAtLookup(process.pid);
+      this.currentProcessStartedAtPromise = lookup;
+      void lookup.then(
+        (startedAt) => {
+          if (
+            startedAt === null &&
+            this.currentProcessStartedAtPromise === lookup
+          ) {
+            this.currentProcessStartedAtPromise = undefined;
+          }
+        },
+        () => {
+          if (this.currentProcessStartedAtPromise === lookup) {
+            this.currentProcessStartedAtPromise = undefined;
+          }
+        },
+      );
+    }
+    return this.currentProcessStartedAtPromise;
   }
 
   private async writeOwner(processStartedAt: string | null): Promise<void> {
@@ -314,10 +353,11 @@ function sleep(ms: number): Promise<void> {
 async function isOriginalProcessAlive(
   pid: number,
   processStartedAt: string | null,
+  getStartedAt: (pid: number) => Promise<string | null>,
 ): Promise<boolean> {
   if (!isProcessAlive(pid)) return false;
   if (!processStartedAt) return true;
-  return (await getProcessStartedAt(pid)) === processStartedAt;
+  return (await getStartedAt(pid)) === processStartedAt;
 }
 
 function isProcessAlive(pid: number): boolean {
