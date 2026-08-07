@@ -18,13 +18,24 @@ Scope boundaries:
 Use the most targeted GitHits MCP tool or combination of tools for the job:
 
 - Use `search` and `docs_*` for package documentation, repository docs, exact APIs, configuration, or setup behavior.
+- Use `search_status` with `search_ref` to follow up on a prior search that returned a `searchRef` or is still indexing.
 - Use `search`, `code_files`, `code_grep`, and `code_read` for version-specific package/repository source, tests, symbols, call sites, and implementation evidence.
 - Use `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, and `pkg_upgrade_review` for package metadata, versions, adoption, vulnerabilities, dependency graphs, changelogs, and upgrade-review evidence.
 - Use `get_example` as the broad OSS-first discovery, planning, and research path for vague issues, unfamiliar errors, "how do others do this" questions, multi-library/API combinations, global implementation-pattern scans, and rare needle-in-the-haystack examples that may appear in only one or a few repositories. When the dependency or repository is already known, default to `search`, `docs_*`, and `code_*` first; add `get_example` when you need broader cross-project evidence or a hard-to-find real-world example.
+- Use `search_language` to search for valid language names before calling `get_example` if you are unsure of the exact spelling of a programming language.
+- Use `feedback` to submit positive or negative ratings and comments about a specific solution (using `solution_id`) or general tool results (omitting `solution_id`).
 
 Prefer the default compact text output. Request JSON only when exact structured fields are necessary.
 
 When answering, ground claims in fetched GitHits evidence and cite the relevant package, repository, file, docs page, or version facts when available. If GitHits does not have enough evidence, say what is missing and then use the next best source.
+
+## Input Parameter Mapping & Casing
+
+MCP tool input parameters are strictly `snake_case`, but returned response keys may be `camelCase`. Always map returned fields to the correct tool parameters:
+- **`docs_read`**: The search or list hit returns `locator.pageId` (camelCase). You must pass this value to the `page_id` parameter (snake_case).
+- **`code_read`**: The search or grep hit returns `locator.filePath`, `locator.startLine`, and `locator.endLine`. You must map these to the `path`, `start_line`, and `end_line` parameters.
+- **`search_status`**: The search response returns `searchRef`. You must pass this value to the `search_ref` parameter.
+- **`feedback`**: The example response returns `solutionId`. You must pass this value to the `solution_id` parameter.
 
 ## External Content Posture
 

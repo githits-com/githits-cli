@@ -77,6 +77,17 @@ const STRATEGY_TIP =
   "Strategy — reference-first. Source, symbols, tests, and call sites beat docs prose. Enumerate paths with `code_files`; locate symbols/lines with `search` or `code_grep`; read focused windows with `code_read`.";
 
 /**
+ * Guidance to ensure correct mapping from camelCase returned fields in responses
+ * (e.g. search results or examples) to snake_case input parameters of the MCP tools.
+ */
+const INPUT_MAPPING_TIP =
+  "**Casing & Input Parameter Mapping:** MCP tool parameters are snake_case, but returned response keys may be camelCase. Always map returned fields to the correct tool inputs:\n" +
+  "- For `docs_read`: Pass the returned `pageId` value to the `page_id` parameter.\n" +
+  "- For `code_read`: Pass `filePath` to the `path` parameter, `startLine` to `start_line`, and `endLine` to `end_line`.\n" +
+  "- For `search_status`: Pass `searchRef` from search progress responses to the `search_ref` parameter.\n" +
+  "- For `feedback`: Pass `solutionId` (if present) to the `solution_id` parameter, and specify `accepted` (boolean).";
+
+/**
  * Build the server-level instructions string for the current session.
  *
  * Emits the core block plus the package/code-tools section.
@@ -126,6 +137,7 @@ export function buildMcpInstructions(
     MULTI_TURN_TIP,
     bullets.join("\n"),
     STRATEGY_TIP,
+    INPUT_MAPPING_TIP,
   ].join("\n\n");
 
   // External-content posture lands between the core orientation and the

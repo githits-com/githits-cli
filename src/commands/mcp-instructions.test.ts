@@ -71,6 +71,13 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain(
       "request JSON only when exact structured fields are necessary",
     );
+    expect(instructions).toContain("Casing & Input Parameter Mapping");
+    expect(instructions).toContain("`pageId` value to the `page_id` parameter");
+    expect(instructions).toContain("`filePath` to the `path` parameter");
+    expect(instructions).toContain("`startLine` to `start_line`");
+    expect(instructions).toContain("`endLine` to `end_line`");
+    expect(instructions).toContain("`searchRef` from search progress responses to the `search_ref` parameter");
+    expect(instructions).toContain("`solutionId` (if present) to the `solution_id` parameter");
   });
 
   it("includes the external-content posture by default", () => {
