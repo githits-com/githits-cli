@@ -438,6 +438,11 @@ function longestPathLength(entries: LeanRepoFileEntry[]): number {
   return max;
 }
 
+/**
+ * Optimized padding using native `String.prototype.padEnd`.
+ * Built-in native implementation in C++ is faster and more efficient
+ * than manually concatenating strings via `repeat` inside loops.
+ */
 function padRight(text: string, width: number): string {
-  return text.length >= width ? text : text + " ".repeat(width - text.length);
+  return text.padEnd(width);
 }
