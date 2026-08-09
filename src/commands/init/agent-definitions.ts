@@ -449,7 +449,9 @@ type PiGlobalBinProbe = (typeof PI_GLOBAL_BIN_PROBES)[number];
 const PI_ADAPTER_CONFIGURED_PATTERN =
   /(?:^|\s|:)(?:npm:)?pi-mcp-adapter(?:[\s@:]|$)/i;
 
-function getPiExecutableNames(platform: NodeJS.Platform = process.platform): string[] {
+function getPiExecutableNames(
+  platform: NodeJS.Platform = process.platform,
+): string[] {
   return platform === "win32" ? ["pi.cmd", "pi.exe", "pi"] : ["pi"];
 }
 

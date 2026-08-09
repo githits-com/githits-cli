@@ -1354,7 +1354,11 @@ describe("scanAgents", () => {
     execResults?: Record<string, ExecResult | Error>;
     pathPlatform?: "posix" | "win32" | "darwin" | "linux";
   }) {
-    const platform = opts.pathPlatform === "posix" ? "linux" : (opts.pathPlatform ?? process.platform);
+    const platform =
+      opts.pathPlatform === "posix"
+        ? "linux"
+        : (opts.pathPlatform ??
+          (process.platform === "win32" ? "linux" : process.platform));
     const isWin32 = platform === "win32";
     const fs = createMockFileSystemService({
       platform,
@@ -2625,7 +2629,11 @@ describe("scanAgents", () => {
     describe(`comprehensive all-agents scenarios (${platform})`, () => {
       const createScenarioScanMocks = (
         scenarioOpts: Parameters<typeof createScanMocks>[0],
-      ) => createScanMocks({ ...scenarioOpts, pathPlatform: platform as "posix" | "win32" | "darwin" | "linux" });
+      ) =>
+        createScanMocks({
+          ...scenarioOpts,
+          pathPlatform: platform as "posix" | "win32" | "darwin" | "linux",
+        });
       beforeAll(() => {
         opts.envSetup?.();
       });
