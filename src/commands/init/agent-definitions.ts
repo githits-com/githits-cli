@@ -211,8 +211,9 @@ export interface AgentDefinition {
  * Linux: ~/.config/<app>
  */
 function getAppDataPath(fs: FileSystemService, appName: string): string {
+  const platform = fs.platform ?? process.platform;
   const home = fs.getHomeDir();
-  switch (process.platform) {
+  switch (platform) {
     case "win32":
       return fs.joinPath(
         process.env.APPDATA ?? fs.joinPath(home, "AppData", "Roaming"),
@@ -232,8 +233,9 @@ function getAppDataPath(fs: FileSystemService, appName: string): string {
  * Linux: $XDG_DATA_HOME (or ~/.local/share fallback)
  */
 function getUserDataRoot(fs: FileSystemService): string {
+  const platform = fs.platform ?? process.platform;
   const home = fs.getHomeDir();
-  switch (process.platform) {
+  switch (platform) {
     case "win32":
       return process.env.APPDATA ?? fs.joinPath(home, "AppData", "Roaming");
     case "darwin":
@@ -244,7 +246,8 @@ function getUserDataRoot(fs: FileSystemService): string {
 }
 
 function getOpenCodeConfigDir(fs: FileSystemService): string {
-  if (process.platform === "win32") {
+  const platform = fs.platform ?? process.platform;
+  if (platform === "win32") {
     return fs.joinPath(getUserDataRoot(fs), "opencode");
   }
   return fs.joinPath(fs.getHomeDir(), ".config", "opencode");
@@ -417,7 +420,8 @@ async function isExecutableAvailable(
   executable: string,
 ): Promise<boolean> {
   try {
-    const lookupCommand = process.platform === "win32" ? "where" : "which";
+    const platform = exec.platform ?? process.platform;
+    const lookupCommand = platform === "win32" ? "where" : "which";
     const result = await exec.exec(lookupCommand, [executable], {
       timeoutMs: BINARY_LOOKUP_TIMEOUT_MS,
     });
@@ -445,14 +449,15 @@ type PiGlobalBinProbe = (typeof PI_GLOBAL_BIN_PROBES)[number];
 const PI_ADAPTER_CONFIGURED_PATTERN =
   /(?:^|\s|:)(?:npm:)?pi-mcp-adapter(?:[\s@:]|$)/i;
 
-function getPiExecutableNames(): string[] {
-  return process.platform === "win32" ? ["pi.cmd", "pi.exe", "pi"] : ["pi"];
+function getPiExecutableNames(platform: NodeJS.Platform = process.platform): string[] {
+  return platform === "win32" ? ["pi.cmd", "pi.exe", "pi"] : ["pi"];
 }
 
 async function runGlobalBinProbe(
   exec: ExecService,
   probe: PiGlobalBinProbe,
 ): Promise<string | null> {
+  const platform = exec.platform ?? process.platform;
   try {
     const result = await exec.exec(probe.command, [...probe.args], {
       timeoutMs: GLOBAL_BIN_PROBE_TIMEOUT_MS,
@@ -467,7 +472,7 @@ async function runGlobalBinProbe(
     if (!probePath) {
       return null;
     }
-    if (probe.output === "prefix" && process.platform !== "win32") {
+    if (probe.output === "prefix" && platform !== "win32") {
       return fsJoinPathLike(probePath, "bin");
     }
     return probePath;
@@ -484,6 +489,7 @@ async function detectPiExecutable(
   exec: ExecService,
   fs: FileSystemService,
 ): Promise<ResolvedAgentCommand | null> {
+  const platform = exec.platform ?? fs.platform ?? process.platform;
   if (await resolveExecutableFromPath(exec, "pi")) {
     return { command: "pi" };
   }
@@ -493,7 +499,7 @@ async function detectPiExecutable(
     if (!binDir) {
       continue;
     }
-    for (const executableName of getPiExecutableNames()) {
+    for (const executableName of getPiExecutableNames(platform)) {
       const candidate = fs.joinPath(binDir, executableName);
       if (await fs.exists(candidate)) {
         return { command: candidate };
@@ -649,8 +655,9 @@ const claudeDesktop: AgentDefinition = {
   detectionMethod: "path",
   setupMethod: "config-file",
   detectPaths: (fs) => {
+    const platform = fs.platform ?? process.platform;
     const appData = getAppDataPath(fs, "Claude");
-    if (process.platform === "win32") {
+    if (platform === "win32") {
       const home = fs.getHomeDir();
       const localAppData =
         process.env.LOCALAPPDATA ?? fs.joinPath(home, "AppData", "Local");

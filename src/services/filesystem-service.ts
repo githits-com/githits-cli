@@ -17,6 +17,9 @@ import { dirname, join } from "node:path";
  * Abstraction allows for easy testing with mock implementations.
  */
 export interface FileSystemService {
+  /** Optional platform override, mainly for testing. */
+  platform?: NodeJS.Platform;
+
   /** Read file contents as string */
   readFile(path: string): Promise<string>;
 
@@ -71,6 +74,8 @@ export interface FileSystemService {
  * Production implementation using node:fs/promises.
  */
 export class FileSystemServiceImpl implements FileSystemService {
+  platform: NodeJS.Platform = process.platform;
+
   async readFile(path: string): Promise<string> {
     return readFile(path, "utf-8");
   }

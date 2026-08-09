@@ -101,6 +101,9 @@ export class ExecTimeoutError extends Error {
  * Abstraction allows for easy testing with mock implementations.
  */
 export interface ExecService {
+  /** Optional platform override, mainly for testing. */
+  platform?: NodeJS.Platform;
+
   /** Execute a command with arguments and return the result */
   exec(
     command: string,
@@ -117,6 +120,8 @@ export interface ExecService {
  * Callers must not pass untrusted input as command or args.
  */
 export class ExecServiceImpl implements ExecService {
+  platform: NodeJS.Platform = process.platform;
+
   async exec(
     command: string,
     args: string[],

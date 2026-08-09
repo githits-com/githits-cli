@@ -1352,10 +1352,12 @@ describe("scanAgents", () => {
     configFiles?: Record<string, string>;
     existingFiles?: string[];
     execResults?: Record<string, ExecResult | Error>;
-    pathPlatform?: "posix" | "win32";
+    pathPlatform?: "posix" | "win32" | "darwin" | "linux";
   }) {
-    const isWin32 = opts.pathPlatform === "win32";
+    const platform = opts.pathPlatform === "posix" ? "linux" : (opts.pathPlatform ?? process.platform);
+    const isWin32 = platform === "win32";
     const fs = createMockFileSystemService({
+      platform,
       getHomeDir: mock(() => (isWin32 ? "C:\\Users\\test" : "/home/test")),
       joinPath: mock((...segments: string[]) =>
         isWin32 ? win32.join(...segments) : segments.join("/"),
@@ -1374,6 +1376,7 @@ describe("scanAgents", () => {
       ),
     });
     const execService = createMockExecService({
+      platform,
       exec: mock(async (cmd: string, args: string[], _options?: unknown) => {
         const key = `${cmd} ${args.join(" ")}`;
         if (opts.execResults && key in opts.execResults) {
@@ -2620,23 +2623,13 @@ describe("scanAgents", () => {
     };
 
     describe(`comprehensive all-agents scenarios (${platform})`, () => {
-      const pathPlatform = platform === "win32" ? "win32" : "posix";
       const createScenarioScanMocks = (
         scenarioOpts: Parameters<typeof createScanMocks>[0],
-      ) => createScanMocks({ ...scenarioOpts, pathPlatform });
-      const originalPlatform = process.platform;
+      ) => createScanMocks({ ...scenarioOpts, pathPlatform: platform as "posix" | "win32" | "darwin" | "linux" });
       beforeAll(() => {
-        Object.defineProperty(process, "platform", {
-          value: platform,
-          configurable: true,
-        });
         opts.envSetup?.();
       });
       afterAll(() => {
-        Object.defineProperty(process, "platform", {
-          value: originalPlatform,
-          configurable: true,
-        });
         opts.envTeardown?.();
       });
 
