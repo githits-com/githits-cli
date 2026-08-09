@@ -272,10 +272,10 @@ export async function loginFlow(
   try {
     callback = await Promise.race([callbackServer.result, timeoutPromise]);
     if (timeoutId) clearTimeout(timeoutId);
-    await callbackServer.close().catch(() => {});
+    void callbackServer.close().catch(() => {});
   } catch (error) {
     if (timeoutId) clearTimeout(timeoutId);
-    await callbackServer.close().catch(() => {});
+    void callbackServer.close().catch(() => {});
     if (shouldClearClientOnFailedAttempt) {
       await authStorage.clearActiveClient(mcpUrl).catch(() => {});
     }
@@ -284,10 +284,10 @@ export async function loginFlow(
     return { status: "failed", message: ensureTerminalPeriod(msg) };
   }
 
+  output.write("Sign-in callback received. Completing authentication...\n");
+
   // Step 7: Handle callback outcome
   if (callback.type !== "success") {
-    // Let the callback server finish sending the error page to the browser
-    await new Promise((r) => setTimeout(r, 2000));
     if (shouldClearClientOnFailedAttempt) {
       await authStorage.clearActiveClient(mcpUrl).catch(() => {});
     }

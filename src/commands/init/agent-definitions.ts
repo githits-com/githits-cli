@@ -1169,7 +1169,7 @@ const amazonQCli: AgentDefinition = {
             "--name",
             "githits",
             "--command",
-            GITHITS_MCP_INVOCATION[0]!,
+            GITHITS_MCP_INVOCATION[0],
             "--args",
             JSON.stringify(GITHITS_MCP_INVOCATION.slice(1)),
           ],

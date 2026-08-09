@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
-import { createServer } from "node:http";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { once } from "node:events";
+import { createServer, ServerResponse } from "node:http";
+import { connect } from "node:net";
 import { FetchTimeoutError } from "@githits/core-internal";
 import {
   AuthServiceImpl,
+  type CallbackServerHandle,
   classifyTerminalRefreshError,
   evaluateCallback,
   TokenRefreshError,
@@ -12,6 +15,48 @@ function asFetchFn<T extends (...args: never[]) => unknown>(
   fn: T,
 ): typeof fetch {
   return fn as unknown as typeof fetch;
+}
+
+async function getAvailablePort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  const port =
+    typeof address === "object" && address !== null ? address.port : 0;
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+  if (port === 0) throw new Error("Failed to allocate a callback test port");
+  return port;
+}
+
+interface CallbackTestServer {
+  handle: CallbackServerHandle;
+  port: number;
+}
+
+async function startCallbackTestServer(
+  service: AuthServiceImpl,
+  expectedState: string,
+): Promise<CallbackTestServer> {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const port = await getAvailablePort();
+    try {
+      return {
+        handle: await service.startCallbackServer(port, expectedState),
+        port,
+      };
+    } catch (error) {
+      const portWasReallocated =
+        error instanceof Error && error.message.includes("EADDRINUSE");
+      if (!portWasReallocated || attempt === maxAttempts) throw error;
+    }
+  }
+  throw new Error("Failed to start callback test server");
 }
 
 describe("AuthServiceImpl", () => {
@@ -383,6 +428,93 @@ describe("AuthServiceImpl", () => {
             else resolve();
           });
         });
+      }
+    });
+
+    it("serves the callback before force closing its kept-alive connection", async () => {
+      const { handle, port } = await startCallbackTestServer(
+        service,
+        "expected-state",
+      );
+      const socket = connect(port, "127.0.0.1");
+      socket.setEncoding("utf8");
+      await once(socket, "connect");
+
+      let response = "";
+      const responseReceived = new Promise<void>((resolve) => {
+        socket.on("data", (chunk: string) => {
+          response += chunk;
+          if (response.includes("</html>")) resolve();
+        });
+      });
+      const socketClosed = once(socket, "close");
+      socket.write(
+        [
+          "GET /callback?code=test-code&state=expected-state HTTP/1.1",
+          `Host: 127.0.0.1:${port}`,
+          "Connection: keep-alive",
+          "",
+          "",
+        ].join("\r\n"),
+      );
+
+      try {
+        await responseReceived;
+        expect(response).toContain("HTTP/1.1 200 OK");
+        expect(response).toContain("signed in");
+        expect(await handle.result).toEqual({
+          type: "success",
+          code: "test-code",
+          state: "expected-state",
+        });
+
+        await handle.close();
+        await socketClosed;
+        expect(socket.destroyed).toBe(true);
+      } finally {
+        socket.destroy();
+        await handle.close().catch(() => {});
+      }
+    });
+
+    it("settles a valid callback when the response closes before finish", async () => {
+      const { handle, port } = await startCallbackTestServer(
+        service,
+        "expected-state",
+      );
+      const socket = connect(port, "127.0.0.1");
+      await once(socket, "connect");
+      const socketClosed = once(socket, "close");
+
+      // A client-side destroy races the kernel flush and may still emit finish.
+      // Destroying in end deterministically exercises the close-only path.
+      const endSpy = spyOn(ServerResponse.prototype, "end").mockImplementation(
+        function (this: ServerResponse): ServerResponse {
+          this.destroy();
+          return this;
+        },
+      );
+      try {
+        socket.write(
+          [
+            "GET /callback?code=test-code&state=expected-state HTTP/1.1",
+            `Host: 127.0.0.1:${port}`,
+            "Connection: keep-alive",
+            "",
+            "",
+          ].join("\r\n"),
+        );
+
+        await socketClosed;
+        expect(await handle.result).toEqual({
+          type: "success",
+          code: "test-code",
+          state: "expected-state",
+        });
+      } finally {
+        endSpy.mockRestore();
+        socket.destroy();
+        await handle.close().catch(() => {});
       }
     });
   });
