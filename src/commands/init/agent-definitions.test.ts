@@ -1325,7 +1325,7 @@ describe("detectAgents", () => {
 });
 
 describe("scanAgents", () => {
-  function lookupCommandFor(platform: string = process.platform): string {
+  function lookupCommandFor(platform: string = "linux"): string {
     return platform === "win32" ? "where" : "which";
   }
 
