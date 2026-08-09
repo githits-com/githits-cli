@@ -441,6 +441,7 @@ describe("loginFlow", () => {
     const authService = createMockAuthService({
       startCallbackServer: mock(() =>
         Promise.resolve({
+          port: 8080,
           result: Promise.resolve({
             type: "success",
             code: "test-code",
@@ -675,8 +676,61 @@ describe("loginFlow", () => {
       ),
     ).toBe(true);
     expect(writes).toContain("Waiting for sign-in to finish...\n");
+    expect(writes).toContain(
+      "Sign-in callback received. Completing authentication...\n",
+    );
     expect(consoleSpy).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
+  });
+
+  it("continues authentication while the callback server is closing", async () => {
+    const close = mock(() => new Promise<void>(() => {}));
+    let closeStarted = false;
+    close.mockImplementation(() => {
+      closeStarted = true;
+      return new Promise<void>(() => {});
+    });
+    const exchangeCodeForTokens = mock(() => {
+      expect(closeStarted).toBe(true);
+      return Promise.resolve({
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        expiresIn: 3600,
+      });
+    });
+    const authService = createMockAuthService({
+      startCallbackServer: mock(() =>
+        Promise.resolve({
+          port: 8080,
+          result: Promise.resolve({
+            type: "success" as const,
+            code: "test-code",
+            state: "test-state",
+          }),
+          close,
+        }),
+      ),
+      exchangeCodeForTokens,
+    });
+
+    const loginPromise = loginFlow(
+      { port: 8080 },
+      {
+        authService,
+        authStorage: createMockAuthStorage(),
+        browserService: createMockBrowserService(),
+        mcpUrl,
+      },
+      silentLoginOutput,
+    );
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(exchangeCodeForTokens).toHaveBeenCalledTimes(1);
+    expect(await loginPromise).toEqual({
+      status: "success",
+      message: "Logged in successfully.",
+    });
+    expect(close).toHaveBeenCalledTimes(1);
   });
 
   it("prints manual URL when browser opening fails", async () => {
@@ -714,6 +768,7 @@ describe("loginFlow", () => {
     const authService = createMockAuthService({
       startCallbackServer: mock(() =>
         Promise.resolve({
+          port: 8080,
           result: Promise.reject(new Error("callback failed")),
           close,
         }),
@@ -743,6 +798,7 @@ describe("loginFlow", () => {
     const authService = createMockAuthService({
       startCallbackServer: mock(() =>
         Promise.resolve({
+          port: 8080,
           result: new Promise<never>(() => {}),
           close,
         }),
@@ -798,6 +854,7 @@ describe("loginFlow", () => {
     const authService = createMockAuthService({
       startCallbackServer: mock(() =>
         Promise.resolve({
+          port: 8080,
           result: Promise.reject(new Error("callback failed")),
           close,
         }),
@@ -838,6 +895,7 @@ describe("loginFlow", () => {
     const authService = createMockAuthService({
       startCallbackServer: mock(() =>
         Promise.resolve({
+          port: 9090,
           result: Promise.reject(new Error("callback failed")),
           close,
         }),

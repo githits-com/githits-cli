@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
+import { once } from "node:events";
 import { createServer } from "node:http";
+import { connect } from "node:net";
 import { FetchTimeoutError } from "@githits/core-internal";
 import {
   AuthServiceImpl,
@@ -383,6 +385,49 @@ describe("AuthServiceImpl", () => {
             else resolve();
           });
         });
+      }
+    });
+
+    it("serves the callback before force closing its kept-alive connection", async () => {
+      const handle = await service.startCallbackServer(0, "expected-state");
+      const socket = connect(handle.port, "127.0.0.1");
+      socket.setEncoding("utf8");
+      await once(socket, "connect");
+
+      let response = "";
+      const responseReceived = new Promise<void>((resolve) => {
+        socket.on("data", (chunk: string) => {
+          response += chunk;
+          if (response.includes("</html>")) resolve();
+        });
+      });
+      const socketClosed = once(socket, "close");
+      socket.write(
+        [
+          "GET /callback?code=test-code&state=expected-state HTTP/1.1",
+          `Host: 127.0.0.1:${handle.port}`,
+          "Connection: keep-alive",
+          "",
+          "",
+        ].join("\r\n"),
+      );
+
+      try {
+        await responseReceived;
+        expect(response).toContain("HTTP/1.1 200 OK");
+        expect(response).toContain("signed in");
+        expect(await handle.result).toEqual({
+          type: "success",
+          code: "test-code",
+          state: "expected-state",
+        });
+
+        await handle.close();
+        await socketClosed;
+        expect(socket.destroyed).toBe(true);
+      } finally {
+        socket.destroy();
+        await handle.close().catch(() => {});
       }
     });
   });

@@ -1,4 +1,5 @@
 import { createServer, type Server, type ServerResponse } from "node:http";
+import type { Socket } from "node:net";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   fetchWithTimeout,
@@ -175,6 +176,8 @@ export interface AuthService {
 }
 
 export interface CallbackServerHandle {
+  /** Effective listener port, including when the service receives port 0. */
+  port: number;
   result: Promise<CallbackResult>;
   close(): Promise<void>;
 }
@@ -294,10 +297,15 @@ export class AuthServiceImpl implements AuthService {
     port: number,
     expectedState: string,
   ): Promise<CallbackServerHandle> {
-    let closeTimer: ReturnType<typeof setTimeout> | undefined;
     const server = createServer();
+    const connections = new Set<Socket>();
     let callbackHandled = false;
     let resolved = false;
+
+    server.on("connection", (socket) => {
+      connections.add(socket);
+      socket.once("close", () => connections.delete(socket));
+    });
 
     const result = new Promise<CallbackResult>((resolve) => {
       server.on("request", (req, res) => {
@@ -347,13 +355,13 @@ export class AuthServiceImpl implements AuthService {
           expectedState,
         });
         callbackHandled = true;
+        res.once("finish", () => {
+          if (!resolved) {
+            resolved = true;
+            resolve(evaluation.result);
+          }
+        });
         sendHtmlResponse(res, evaluation.statusCode, evaluation.html);
-        if (!resolved) {
-          resolved = true;
-          resolve(evaluation.result);
-        }
-        if (closeTimer) clearTimeout(closeTimer);
-        closeTimer = setTimeout(() => closeServer(server), 1500);
       });
     });
 
@@ -365,12 +373,13 @@ export class AuthServiceImpl implements AuthService {
       server.listen(port, "127.0.0.1", () => {
         server.off("error", onError);
         server.on("error", () => {});
+        const address = server.address();
+        const actualPort =
+          typeof address === "object" && address !== null ? address.port : port;
         resolve({
+          port: actualPort,
           result,
-          close: async () => {
-            if (closeTimer) clearTimeout(closeTimer);
-            await closeServer(server);
-          },
+          close: () => closeCallbackServerConnections(server, connections),
         });
       });
     });
@@ -943,10 +952,17 @@ function sendHtmlResponse(
   res.end(html);
 }
 
-/** Close server gracefully */
-function closeServer(server: Server): Promise<void> {
+/** Stop accepting callbacks and destroy every temporary callback connection. */
+function closeCallbackServerConnections(
+  server: Server,
+  connections: Set<Socket>,
+): Promise<void> {
   return new Promise((resolve, reject) => {
+    const destroyConnections = (): void => {
+      for (const socket of connections) socket.destroy();
+    };
     if (!server.listening) {
+      destroyConnections();
       resolve();
       return;
     }
@@ -954,6 +970,7 @@ function closeServer(server: Server): Promise<void> {
       if (error) reject(error);
       else resolve();
     });
+    destroyConnections();
   });
 }
 
