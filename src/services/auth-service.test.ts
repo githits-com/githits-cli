@@ -5,6 +5,7 @@ import { connect } from "node:net";
 import { FetchTimeoutError } from "@githits/core-internal";
 import {
   AuthServiceImpl,
+  type CallbackServerHandle,
   classifyTerminalRefreshError,
   evaluateCallback,
   TokenRefreshError,
@@ -30,6 +31,32 @@ async function getAvailablePort(): Promise<number> {
   });
   if (port === 0) throw new Error("Failed to allocate a callback test port");
   return port;
+}
+
+interface CallbackTestServer {
+  handle: CallbackServerHandle;
+  port: number;
+}
+
+async function startCallbackTestServer(
+  service: AuthServiceImpl,
+  expectedState: string,
+): Promise<CallbackTestServer> {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const port = await getAvailablePort();
+    try {
+      return {
+        handle: await service.startCallbackServer(port, expectedState),
+        port,
+      };
+    } catch (error) {
+      const portWasReallocated =
+        error instanceof Error && error.message.includes("EADDRINUSE");
+      if (!portWasReallocated || attempt === maxAttempts) throw error;
+    }
+  }
+  throw new Error("Failed to start callback test server");
 }
 
 describe("AuthServiceImpl", () => {
@@ -405,8 +432,10 @@ describe("AuthServiceImpl", () => {
     });
 
     it("serves the callback before force closing its kept-alive connection", async () => {
-      const port = await getAvailablePort();
-      const handle = await service.startCallbackServer(port, "expected-state");
+      const { handle, port } = await startCallbackTestServer(
+        service,
+        "expected-state",
+      );
       const socket = connect(port, "127.0.0.1");
       socket.setEncoding("utf8");
       await once(socket, "connect");
@@ -449,6 +478,16 @@ describe("AuthServiceImpl", () => {
     });
 
     it("settles a valid callback when the response closes before finish", async () => {
+      const { handle, port } = await startCallbackTestServer(
+        service,
+        "expected-state",
+      );
+      const socket = connect(port, "127.0.0.1");
+      await once(socket, "connect");
+      const socketClosed = once(socket, "close");
+
+      // A client-side destroy races the kernel flush and may still emit finish.
+      // Destroying in end deterministically exercises the close-only path.
       const endSpy = spyOn(ServerResponse.prototype, "end").mockImplementation(
         function (this: ServerResponse): ServerResponse {
           this.destroy();
@@ -456,15 +495,6 @@ describe("AuthServiceImpl", () => {
         },
       );
       try {
-        const port = await getAvailablePort();
-        const handle = await service.startCallbackServer(
-          port,
-          "expected-state",
-        );
-        const socket = connect(port, "127.0.0.1");
-        await once(socket, "connect");
-        const socketClosed = once(socket, "close");
-
         socket.write(
           [
             "GET /callback?code=test-code&state=expected-state HTTP/1.1",
@@ -475,19 +505,16 @@ describe("AuthServiceImpl", () => {
           ].join("\r\n"),
         );
 
-        try {
-          await socketClosed;
-          expect(await handle.result).toEqual({
-            type: "success",
-            code: "test-code",
-            state: "expected-state",
-          });
-        } finally {
-          socket.destroy();
-          await handle.close().catch(() => {});
-        }
+        await socketClosed;
+        expect(await handle.result).toEqual({
+          type: "success",
+          code: "test-code",
+          state: "expected-state",
+        });
       } finally {
         endSpy.mockRestore();
+        socket.destroy();
+        await handle.close().catch(() => {});
       }
     });
   });
