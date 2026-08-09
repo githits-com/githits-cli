@@ -275,7 +275,7 @@ export async function loginFlow(
     void callbackServer.close().catch(() => {});
   } catch (error) {
     if (timeoutId) clearTimeout(timeoutId);
-    await callbackServer.close().catch(() => {});
+    void callbackServer.close().catch(() => {});
     if (shouldClearClientOnFailedAttempt) {
       await authStorage.clearActiveClient(mcpUrl).catch(() => {});
     }

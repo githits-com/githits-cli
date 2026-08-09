@@ -18,11 +18,12 @@ one login flow:
 When no port is supplied, the login flow continues to reuse a stored client's
 redirect URI or select a port in its existing random range.
 
-After serving the callback response, the CLI immediately stops the temporary
-listener and destroys any remaining callback connections. Token exchange and
-credential persistence proceed without waiting for listener shutdown. This is
-required for remote environments whose port proxy may retain the callback
-connection after the browser has rendered the response.
+After the callback response finishes or its connection closes, the CLI
+immediately stops the temporary listener and destroys any remaining callback
+connections. Token exchange, credential persistence, and callback error
+reporting proceed without waiting for listener shutdown. This is required for
+remote environments whose port proxy may retain or terminate the callback
+connection independently of the browser.
 
 ## Documentation handoff
 

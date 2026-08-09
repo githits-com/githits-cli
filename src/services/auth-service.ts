@@ -176,8 +176,6 @@ export interface AuthService {
 }
 
 export interface CallbackServerHandle {
-  /** Effective listener port, including when the service receives port 0. */
-  port: number;
   result: Promise<CallbackResult>;
   close(): Promise<void>;
 }
@@ -355,12 +353,14 @@ export class AuthServiceImpl implements AuthService {
           expectedState,
         });
         callbackHandled = true;
-        res.once("finish", () => {
+        const settle = (): void => {
           if (!resolved) {
             resolved = true;
             resolve(evaluation.result);
           }
-        });
+        };
+        res.once("finish", settle);
+        res.once("close", settle);
         sendHtmlResponse(res, evaluation.statusCode, evaluation.html);
       });
     });
@@ -373,11 +373,7 @@ export class AuthServiceImpl implements AuthService {
       server.listen(port, "127.0.0.1", () => {
         server.off("error", onError);
         server.on("error", () => {});
-        const address = server.address();
-        const actualPort =
-          typeof address === "object" && address !== null ? address.port : port;
         resolve({
-          port: actualPort,
           result,
           close: () => closeCallbackServerConnections(server, connections),
         });

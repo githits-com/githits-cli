@@ -441,7 +441,6 @@ describe("loginFlow", () => {
     const authService = createMockAuthService({
       startCallbackServer: mock(() =>
         Promise.resolve({
-          port: 8080,
           result: Promise.resolve({
             type: "success",
             code: "test-code",
@@ -684,14 +683,14 @@ describe("loginFlow", () => {
   });
 
   it("continues authentication while the callback server is closing", async () => {
-    const close = mock(() => new Promise<void>(() => {}));
     let closeStarted = false;
-    close.mockImplementation(() => {
+    let exchangeStartedAfterClose = false;
+    const close = mock(() => {
       closeStarted = true;
       return new Promise<void>(() => {});
     });
     const exchangeCodeForTokens = mock(() => {
-      expect(closeStarted).toBe(true);
+      exchangeStartedAfterClose = closeStarted;
       return Promise.resolve({
         accessToken: "access-token",
         refreshToken: "refresh-token",
@@ -701,7 +700,6 @@ describe("loginFlow", () => {
     const authService = createMockAuthService({
       startCallbackServer: mock(() =>
         Promise.resolve({
-          port: 8080,
           result: Promise.resolve({
             type: "success" as const,
             code: "test-code",
@@ -731,6 +729,7 @@ describe("loginFlow", () => {
       message: "Logged in successfully.",
     });
     expect(close).toHaveBeenCalledTimes(1);
+    expect(exchangeStartedAfterClose).toBe(true);
   });
 
   it("prints manual URL when browser opening fails", async () => {
@@ -762,13 +761,12 @@ describe("loginFlow", () => {
     ).toBe(true);
   });
 
-  it("closes callback server and clears fresh client when authentication wait fails", async () => {
-    const close = mock(() => Promise.resolve());
+  it("reports callback failure without awaiting callback server shutdown", async () => {
+    const close = mock(() => new Promise<void>(() => {}));
     const authStorage = createMockAuthStorage();
     const authService = createMockAuthService({
       startCallbackServer: mock(() =>
         Promise.resolve({
-          port: 8080,
           result: Promise.reject(new Error("callback failed")),
           close,
         }),
@@ -793,12 +791,11 @@ describe("loginFlow", () => {
   });
 
   it("returns actionable timeout message and clears fresh client", async () => {
-    const close = mock(() => Promise.resolve());
+    const close = mock(() => new Promise<void>(() => {}));
     const authStorage = createMockAuthStorage();
     const authService = createMockAuthService({
       startCallbackServer: mock(() =>
         Promise.resolve({
-          port: 8080,
           result: new Promise<never>(() => {}),
           close,
         }),
@@ -854,7 +851,6 @@ describe("loginFlow", () => {
     const authService = createMockAuthService({
       startCallbackServer: mock(() =>
         Promise.resolve({
-          port: 8080,
           result: Promise.reject(new Error("callback failed")),
           close,
         }),
@@ -895,7 +891,6 @@ describe("loginFlow", () => {
     const authService = createMockAuthService({
       startCallbackServer: mock(() =>
         Promise.resolve({
-          port: 9090,
           result: Promise.reject(new Error("callback failed")),
           close,
         }),

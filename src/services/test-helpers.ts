@@ -104,7 +104,6 @@ export function createMockAuthService(
     }),
     startCallbackServer: mock(() =>
       Promise.resolve({
-        port: 8080,
         result: Promise.resolve(defaultCallbackResult),
         close: mock(() => Promise.resolve()),
       }),

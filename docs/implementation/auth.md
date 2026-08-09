@@ -33,7 +33,7 @@ The login command (`src/commands/login.ts`) orchestrates a 9-step OAuth flow (ma
 8. **Exchange code for tokens** — POST to token endpoint with PKCE verifier
 9. **Save tokens** — Store to the configured auth store
 
-The flow has a 5-minute timeout. The callback server must start before the browser opens so it's ready to receive the redirect. After the callback response finishes, the CLI immediately stops the temporary listener and destroys its remaining connections. Token exchange and credential persistence continue without awaiting listener shutdown, so a proxy-held callback connection cannot block authentication completion.
+The flow has a 5-minute timeout. The callback server must start before the browser opens so it's ready to receive the redirect. After the callback response finishes or its connection closes, the CLI immediately stops the temporary listener and destroys its remaining connections. Token exchange, credential persistence, and callback error reporting continue without awaiting listener shutdown, so a proxy-held callback connection cannot block authentication completion.
 
 OAuth discovery, registration, exchange, and refresh validate endpoint schemes immediately before network use. Remote endpoints must use HTTPS; exact loopback HTTP endpoints remain available for local development. Registration and token responses are runtime-validated, positive numeric-string `expires_in` values are normalized to numbers for OAuth-provider compatibility, and HTTP failures surface only bounded JSON error details rather than raw HTML/plain-text response bodies.
 
