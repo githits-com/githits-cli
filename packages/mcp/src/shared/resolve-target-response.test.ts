@@ -116,7 +116,7 @@ describe("buildResolveTargetSuccessPayload", () => {
 });
 
 describe("formatResolveTargetTerminal", () => {
-  it("renders a compact best result and copyable supplied-query follow-up", () => {
+  it("renders a compact candidate list and copyable supplied-query follow-up", () => {
     const output = formatResolveTargetTerminal(result(), {
       name: "express",
       query: "router's middleware",
@@ -124,15 +124,15 @@ describe("formatResolveTargetTerminal", () => {
     });
 
     expect(output).toContain(
-      "Best: npm:express [exact] · package · 66k stars · 89M downloads/mo · docs · code",
+      "Candidates:\n  1. npm:express [exact] · package · 66k stars · 89M downloads/mo · docs · code · protected exact-name match",
     );
-    expect(output).toContain("  Fast web framework");
+    expect(output).toContain("     Fast web framework");
     expect(output).toContain(
       `Next: githits search 'router'"'"'s middleware' --in 'npm:express'`,
     );
   });
 
-  it("partitions protected matches from ranked alternatives", () => {
+  it("renders protected matches inline without changing candidate order", () => {
     const protectedExtra = candidate({
       canonicalKey: "pypi:express",
       registry: "PYPI",
@@ -153,12 +153,44 @@ describe("formatResolveTargetTerminal", () => {
     );
 
     expect(output).toContain(
-      "Protected exact-name matches:\n  pypi:express [exact] · package · 66k stars · 89M downloads/mo · docs · code\n    Fast web framework",
+      "1. npm:express [exact] · package · 66k stars · 89M downloads/mo · docs · code · protected exact-name match",
     );
     expect(output).toContain(
-      "Also consider:\n  github:expressjs/express [high] · repository · 66k stars · docs · code\n    Fast web framework",
+      "2. pypi:express [exact] · package · 66k stars · 89M downloads/mo · docs · code · protected exact-name match",
     );
+    expect(output).toContain(
+      "3. github:expressjs/express [high] · repository · 66k stars · docs · code",
+    );
+    expect(output).not.toContain("Also consider:");
+    expect(output).not.toContain("Protected exact-name matches:");
     expect(output).toContain("githits search '<query>'");
+  });
+
+  it("appends missing protected and best candidates after ranked candidates", () => {
+    const protectedExtra = candidate({
+      canonicalKey: "pypi:express",
+      registry: "PYPI",
+    });
+    const best = candidate({
+      kind: "REPOSITORY",
+      canonicalKey: "github:expressjs/express",
+      displayName: "expressjs/express",
+      registry: undefined,
+    });
+    const output = formatResolveTargetTerminal(
+      result({
+        best,
+        protectedMatches: [candidate(), protectedExtra],
+        candidates: [candidate()],
+      }),
+      { name: "express", useColors: false },
+    );
+
+    expect(output.match(/^ {2}\d+\. \S+/gm)).toEqual([
+      "  1. npm:express",
+      "  2. pypi:express",
+      "  3. github:expressjs/express",
+    ]);
   });
 
   it("shows total downloads or a linked repository when monthly downloads are unavailable", () => {
@@ -184,12 +216,12 @@ describe("formatResolveTargetTerminal", () => {
 
     expect(output).toContain("crates:serde [exact] · package · 500M downloads");
     expect(output).toContain(
-      "maven:com.google.guava:guava [exact] · package · repo github.com/google/guava",
+      "maven:com.google.guava:guava [exact] · package · repo github:google/guava",
     );
-    expect(output).toContain("    Google core libraries for Java");
+    expect(output).toContain("     Google core libraries for Java");
   });
 
-  it("renders specific ambiguity guidance and Top wording", () => {
+  it("renders specific ambiguity guidance and a generic follow-up target", () => {
     const messages = {
       DUPLICATE_EXACT_NAME:
         "multiple exact package names match; narrow with --registry",
@@ -203,28 +235,31 @@ describe("formatResolveTargetTerminal", () => {
         { name: "express", useColors: false },
       );
       expect(output).toContain(`Ambiguous: ${message}`);
-      expect(output).toContain("Top: npm:express");
+      expect(output).toContain("Candidates:\n  1. npm:express");
+      expect(output).toContain(
+        "Next after choosing: githits search '<query>' --in '<target>'",
+      );
     }
   });
 
-  it("uses Top for a non-ambiguous medium result", () => {
+  it("does not add recommendation wording for a medium result", () => {
     const medium = candidate({ confidence: "MEDIUM" });
     expect(
       formatResolveTargetTerminal(
         result({ best: medium, candidates: [medium], protectedMatches: [] }),
         { name: "express", useColors: false },
       ),
-    ).toContain("Top: npm:express");
+    ).toContain("Candidates:\n  1. npm:express");
   });
 
-  it("normalizes and caps the best description at 120 characters", () => {
-    const long = candidate({ description: `first\n${"x".repeat(150)}` });
+  it("normalizes and caps candidate descriptions at 240 characters", () => {
+    const long = candidate({ description: `first\n${"x".repeat(300)}` });
     const output = formatResolveTargetTerminal(
       result({ best: long, candidates: [long] }),
       { name: "express", useColors: false },
     );
-    const description = output.split("\n")[1]?.trim() ?? "";
-    expect(description.length).toBe(120);
+    const description = output.split("\n")[2]?.trim() ?? "";
+    expect(description.length).toBe(240);
     expect(description).toEndWith("...");
   });
 
@@ -234,7 +269,7 @@ describe("formatResolveTargetTerminal", () => {
       result({ best: drifted, candidates: [drifted], protectedMatches: [] }),
       { name: "express", useColors: false },
     );
-    expect(output).toContain("Top: npm:express [unknown] · target");
+    expect(output).toContain("1. npm:express [unknown] · target");
     expect(output).not.toContain("very_high");
     expect(output).not.toContain("workspace");
   });
@@ -253,7 +288,7 @@ describe("formatResolveTargetTerminal", () => {
     expect(output).not.toContain("\u0007");
     expect(output).not.toContain("\u009b");
     expect(output).not.toContain("\r");
-    expect(output).toContain("Best: npm:x [");
+    expect(output).toContain("1. npm:x [");
     expect(output).toContain("--in 'npm:x'");
     expect(output).toContain("safeclick red bell return");
 

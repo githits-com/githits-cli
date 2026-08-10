@@ -73,7 +73,9 @@ describe("resolveAction", () => {
       limit: 3,
       includeDetailedFields: false,
     });
-    expect(String(writeSpy.mock.calls[0]?.[0])).toContain("Best: npm:express");
+    expect(String(writeSpy.mock.calls[0]?.[0])).toContain(
+      "Candidates:\n  1. npm:express",
+    );
   });
 
   it("requests detailed data and prints clean JSON", async () => {

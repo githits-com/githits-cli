@@ -75,6 +75,15 @@ containing `resolve` until all of these are true:
    candidates, or we explicitly accept shipping without them. See
    `docs/sharing/PKGSEER_RESOLVE_CANDIDATE_TRUST_METRICS.md`.
 
+The branch reached 2,651 insertions across 21 files against the plan's rough
+1,500-line stop-and-re-slice gate. On 2026-08-10 the size exception was
+explicitly approved after review found no unnecessary runtime machinery:
+approximately 1,100 lines are tests and 421 are documentation, while splitting
+the remaining service and CLI contracts would create dependent review slices.
+This exception applies only to this completed resolver increment. The verified
+repository-wide terminal control-sequence gap remains a separate increment in
+`docs/plans/terminal-text-sanitization.md`.
+
 Resolver defects found during dogfooding go in the findings log at the end of
 this file with exact input, hints, expected result, actual result, and date.
 Move each finding into the backend `cases.json` corpus, then remove its log
@@ -193,34 +202,34 @@ resolveTarget(params)
 Default terminal output is compact and scannable:
 
 ```text
-Best: npm:express [exact] · package · 497M downloads/mo · docs
-  Fast, unopinionated, minimalist web framework
-
-Also consider:
-  github:expressjs/express [exact] · repository · 69k stars · code
-    Fast, unopinionated, minimalist web framework
+Candidates:
+  1. npm:express [exact] · package · 497M downloads/mo · docs · protected exact-name match
+     Fast, unopinionated, minimalist web framework
+  2. github:expressjs/express [exact] · repository · 69k stars · code
+     Fast, unopinionated, minimalist web framework
 
 Next: githits search '<query>' --in npm:express
 ```
 
 Rules:
 
-- Use `Best` only for non-ambiguous `EXACT`/`HIGH`; otherwise use `Top`.
+- Render one numbered `Candidates` list without `Best`, `Top`, or separate
+  alternative sections. Preserve backend candidate order, then append protected
+  matches and `best` only when absent, deduplicating by kind and canonical key.
 - If ambiguous, print one plain-language line before the result. Give specific
   guidance for duplicate exact names (`--registry`), close candidates, and low
   confidence; unknown reasons get neutral generic wording.
-- Render protected matches excluding `best` in `Protected exact-name matches`.
-  Render other ranked candidates excluding `best` and all protected keys in
-  `Also consider`. Preserve backend order and first occurrence.
-- Show each candidate's normalized description capped at 120 characters.
+- Annotate protected exact-name candidates inline without changing list order.
+- Show each candidate's normalized description capped at 240 characters.
 - Show available stars, monthly downloads (or total downloads when monthly is
   absent), and docs/code availability. When a package has no repository
-  popularity, show its linked repository URL as fallback evidence. Never render
-  missing popularity as zero.
+  popularity, show its linked repository as canonical `github:owner/repo`
+  fallback evidence. Never render missing popularity as zero.
 - Reuse `formatCompactNumber`, colors, `shellQuote`, and canonical keys. If
   `--query` was supplied, the `Next` command uses it; otherwise it contains the
-  literal `<query>` placeholder. Repository and package targets use the same
-  valid `search --in` follow-up.
+  literal `<query>` placeholder. Ambiguous output uses a literal `<target>`
+  placeholder rather than implicitly selecting candidate 1. Repository and
+  package targets use the same valid `search --in` follow-up.
 - In text mode, no candidates prints `No targets found for '<name>'.`; in JSON
   mode, emit the empty envelope below. Both exit 1.
 
@@ -291,9 +300,9 @@ Register `resolve` unconditionally with lightweight commands and add it to root
   lowercase-to-GraphQL enum conversion, strict integer/range validation, and
   normalized wire params.
 - Response/terminal: stable JSON shape, null omission, lowercase/unknown enums,
-  all ambiguity reasons, best/top wording, protected overlap partitioning,
+  all ambiguity reasons, neutral numbered candidates, inline protected markers,
   unbounded protected extras and JSON reference closure, no candidates,
-  120-character description, scoped target and quoted-query follow-ups, ANSI
+  240-character description, scoped target and quoted-query follow-ups, ANSI
   on/off.
 - Command: auth before service call, text and JSON success, detailed-mode service
   flag, stdout/stderr discipline, mapped errors, no-result `exitCode = 1`
@@ -320,9 +329,11 @@ bun run smoke:cli:built
 bun run smoke:mcp:built
 ```
 
-Target size: roughly 1.2-1.5k changed lines including tests and docs. If the
-implementation requires a new generic GraphQL executor or exceeds this budget,
-stop and re-slice rather than broadening the refactor.
+The original target was roughly 1.2-1.5k changed lines including tests and docs,
+with a stop-and-re-slice gate for a new generic GraphQL executor or broader
+refactor. The completed increment exceeded that target under the explicit size
+exception documented in `Scope and release gate`; no generic executor or
+additional runtime machinery was introduced.
 
 ## Not handling
 

@@ -674,9 +674,9 @@ async function runLiveSmoke(): Promise<void> {
     "resolve terminal",
   );
   assert(
-    resolveText.includes("npm:express") &&
-      (resolveText.includes("Best:") || resolveText.includes("Top:")),
-    "resolve terminal missing ranked express target",
+    resolveText.includes("Candidates:") &&
+      /\n\s+\d+\. npm:express/.test(resolveText),
+    "resolve terminal missing numbered express candidate",
   );
 
   const resolveJson = assertJsonOutput(

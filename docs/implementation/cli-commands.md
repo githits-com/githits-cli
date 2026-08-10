@@ -247,14 +247,20 @@ githits resolve "pi agent" --query "coding agent CLI" --json
 
 Resolves a human-provided package or GitHub repository name to ranked canonical
 targets such as `npm:express` or `github:openai/codex`. The default output is a
-compact best/top candidate block, ambiguity guidance when needed, protected
-exact-name matches, alternatives, and a copyable `githits search --in`
-follow-up. Every candidate includes its available description and cheap trust
-evidence: repository stars, monthly or total package downloads, and docs/code
-availability. When package repository popularity is unavailable, its linked
-repository URL is shown as fallback evidence. Missing evidence is omitted
-rather than shown as zero. No candidates is a valid JSON/text result but exits
-1 because the command did not resolve a target.
+compact numbered `Candidates` list with ambiguity guidance when needed and
+protected exact-name matches annotated inline. It does not label any terminal
+candidate as best or top. Every candidate includes its available normalized
+description, capped at 240 characters, and cheap trust evidence: repository
+stars, monthly or total package downloads, and docs/code availability. When
+package repository popularity is unavailable, its linked repository is shown
+as a canonical `github:owner/repo` fallback. Missing evidence is omitted rather
+than shown as zero.
+
+The copyable `githits search --in` follow-up uses the resolved target only for
+non-ambiguous results. Ambiguous results use the literal `<target>` placeholder
+so the terminal does not imply that candidate 1 was selected. No candidates is
+a valid JSON/text result but exits 1 because the command did not resolve a
+target.
 
 `--registry` accepts a comma-separated package-registry list; repository
 candidates remain eligible. `--prefer-kind package|repository` is a soft

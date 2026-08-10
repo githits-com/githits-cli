@@ -2,8 +2,9 @@ import type {
   ResolveTargetCandidate,
   ResolveTargetResult,
 } from "@githits/core-internal";
-import { colorize, dim, highlight } from "./colors.js";
+import { dim, highlight } from "./colors.js";
 import { formatCompactNumber } from "./format-number.js";
+import { formatRepositoryTarget } from "./repository-target.js";
 import { shellQuote } from "./shell-quote.js";
 
 export interface ResolveTargetCandidatePayload {
@@ -107,52 +108,33 @@ export function formatResolveTargetTerminal(
   const useColors = options.useColors ?? false;
   const lines: string[] = [];
   if (result.ambiguous) lines.push(ambiguityMessage(result.ambiguousReason));
-
-  const bestLabel =
-    !result.ambiguous && ["EXACT", "HIGH"].includes(result.best.confidence)
-      ? "Best"
-      : "Top";
-  lines.push(
-    `${colorize(`${bestLabel}:`, "green", useColors)} ${formatCandidate(result.best, useColors)}`,
-  );
-  const description = compactDescription(result.best.description);
-  if (description) lines.push(`  ${dim(description, useColors)}`);
-
-  const bestKey = candidateKey(result.best);
-  const protectedMatches = dedupeCandidates(result.protectedMatches).filter(
-    (candidate) => candidateKey(candidate) !== bestKey,
-  );
-  if (protectedMatches.length > 0) {
-    lines.push("", "Protected exact-name matches:");
-    lines.push(
-      ...protectedMatches.flatMap((candidate) =>
-        formatCandidateLines(candidate, useColors),
-      ),
-    );
-  }
-
   const protectedKeys = new Set(
     result.protectedMatches.map((candidate) => candidateKey(candidate)),
   );
-  const alternatives = dedupeCandidates(result.candidates).filter(
-    (candidate) => {
-      const key = candidateKey(candidate);
-      return key !== bestKey && !protectedKeys.has(key);
-    },
-  );
-  if (alternatives.length > 0) {
-    lines.push("", "Also consider:");
-    lines.push(
-      ...alternatives.flatMap((candidate) =>
-        formatCandidateLines(candidate, useColors),
+  const candidates = dedupeCandidates([
+    ...result.candidates,
+    ...result.protectedMatches,
+    result.best,
+  ]);
+  lines.push("Candidates:");
+  lines.push(
+    ...candidates.flatMap((candidate, index) =>
+      formatCandidateLines(
+        candidate,
+        index + 1,
+        protectedKeys.has(candidateKey(candidate)),
+        useColors,
       ),
-    );
-  }
+    ),
+  );
 
   const query = sanitizeTerminalText(options.query?.trim() || "<query>");
+  const target = result.ambiguous
+    ? "<target>"
+    : sanitizeTerminalText(result.best.canonicalKey);
   lines.push(
     "",
-    `Next: githits search ${shellQuote(query)} --in ${shellQuote(sanitizeTerminalText(result.best.canonicalKey))}`,
+    `${result.ambiguous ? "Next after choosing" : "Next"}: githits search ${shellQuote(query)} --in ${shellQuote(target)}`,
   );
   return `${lines.join("\n")}\n`;
 }
@@ -196,18 +178,21 @@ function formatCandidate(
 
 function formatCandidateLines(
   candidate: ResolveTargetCandidate,
+  index: number,
+  protectedMatch: boolean,
   useColors: boolean,
 ): string[] {
-  const lines = [`  ${formatCandidate(candidate, useColors)}`];
+  const marker = protectedMatch ? " · protected exact-name match" : "";
+  const lines = [
+    `  ${index}. ${formatCandidate(candidate, useColors)}${marker}`,
+  ];
   const description = compactDescription(candidate.description);
-  if (description) lines.push(`    ${dim(description, useColors)}`);
+  if (description) lines.push(`     ${dim(description, useColors)}`);
   return lines;
 }
 
 function compactRepositoryUrl(value: string): string {
-  return sanitizeTerminalText(value)
-    .replace(/^https?:\/\//i, "")
-    .replace(/\/$/, "");
+  return sanitizeTerminalText(formatRepositoryTarget(value));
 }
 
 function ambiguityMessage(reason: string): string {
@@ -228,8 +213,8 @@ function compactDescription(value: string | undefined): string | undefined {
     (value ?? "").replace(/\s+/g, " "),
   ).trim();
   if (!normalized) return undefined;
-  return normalized.length > 120
-    ? `${normalized.slice(0, 117).trimEnd()}...`
+  return normalized.length > 240
+    ? `${normalized.slice(0, 237).trimEnd()}...`
     : normalized;
 }
 
