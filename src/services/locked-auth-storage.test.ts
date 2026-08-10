@@ -225,6 +225,7 @@ describe("LockedAuthStorage", () => {
     const storage = new LockedAuthStorage(createMockAuthStorage(), fsWithHome, {
       isOwnerAlive: async () => true,
       lockTimeoutMs: 10,
+      getProcessStartedAt: testProcessStartedAt,
     });
 
     await expect(storage.loadTokens(baseUrl)).resolves.toBeNull();
@@ -234,7 +235,9 @@ describe("LockedAuthStorage", () => {
   it("clearActiveTokensIfUnchanged delegates through the lock", async () => {
     const { fsWithHome } = await createStoragePaths();
     const inner = createMockAuthStorage();
-    const storage = new LockedAuthStorage(inner, fsWithHome);
+    const storage = new LockedAuthStorage(inner, fsWithHome, {
+      getProcessStartedAt: testProcessStartedAt,
+    });
     const token = createValidTokenData();
 
     await storage.clearActiveTokensIfUnchanged(baseUrl, token);
@@ -250,6 +253,7 @@ describe("LockedAuthStorage", () => {
     const inner = createMockAuthStorage();
     const storage = new LockedAuthStorage(inner, fsWithHome, {
       lockTimeoutMs: 100,
+      getProcessStartedAt: testProcessStartedAt,
     });
 
     // Would time out acquiring the lock again if it were not re-entrant.
@@ -265,7 +269,7 @@ describe("LockedAuthStorage", () => {
     const storage = new LockedAuthStorage(
       new AuthStorageImpl(fs, configDir),
       fsWithHome,
-      { lockTimeoutMs: 100 },
+      { lockTimeoutMs: 100, getProcessStartedAt: testProcessStartedAt },
     );
     const token = createValidTokenData({ accessToken: "nested" });
 
@@ -282,13 +286,17 @@ describe("LockedAuthStorage", () => {
       "XDG_CONFIG_HOME",
       join(root, "xdg-a"),
       () =>
-        new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome),
+        new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome, {
+          getProcessStartedAt: testProcessStartedAt,
+        }),
     );
     const second = await withTestEnvVar(
       "XDG_CONFIG_HOME",
       join(root, "xdg-b"),
       () =>
-        new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome),
+        new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome, {
+          getProcessStartedAt: testProcessStartedAt,
+        }),
     );
     let active = 0;
     let maxActive = 0;
@@ -321,7 +329,7 @@ describe("LockedAuthStorage", () => {
     const storage = new LockedAuthStorage(
       new AuthStorageImpl(fs, configDir),
       fsWithHome,
-      { lockTimeoutMs: 100 },
+      { lockTimeoutMs: 100, getProcessStartedAt: testProcessStartedAt },
     );
     const token = createValidTokenData({ accessToken: "fresh" });
 
@@ -345,7 +353,11 @@ describe("LockedAuthStorage", () => {
     const storage = new LockedAuthStorage(
       new AuthStorageImpl(fs, configDir),
       fsWithHome,
-      { isOwnerAlive: async () => true, lockTimeoutMs: 100 },
+      {
+        isOwnerAlive: async () => true,
+        lockTimeoutMs: 100,
+        getProcessStartedAt: testProcessStartedAt,
+      },
     );
 
     await expect(
