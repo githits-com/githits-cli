@@ -12,8 +12,8 @@ errors.
 
 | Public artifact | Current release | Pending bump | Reason |
 |---|---:|---:|---|
-| `githits` | 0.8.0 | patch | OAuth callback reliability and HTTP client security fixes |
-| `@githits/mcp` | 0.6.4 | none | No MCP-package-visible changes |
+| `githits` | 0.9.0 | none | Repository-only release process documentation |
+| `@githits/mcp` | 0.9.0 | none | No MCP-package-visible changes |
 
 ### Changed
 
@@ -22,13 +22,59 @@ errors.
   public artifact, immutable historical release sections, and version-boundary
   validation during release preparation.
 
+## [githits 0.9.0] - 2026-08-11
+
+Minor release: adds canonical account settings and Terms of Service commands,
+improves bounded search recovery, and fixes browser login completion in proxied
+or sandboxed environments. `@githits/mcp` is released alongside the CLI at
+0.9.0 for the shared terms-remediation and search-recovery behavior.
+
+### Added
+
+- **Account settings commands** - `githits settings` now supports showing,
+  reading, updating, and clearing canonical account preferences with aligned
+  terminal and JSON output.
+- **Terms acceptance flow** - `githits settings terms` reports acceptance state,
+  while `githits settings terms accept` performs explicit confirmation and
+  refreshes OAuth credentials after acceptance.
+
 ### Fixed
 
-- **OAuth callback completion (`githits`)** - browser login now completes when
-  a sandbox or proxy retains or closes the callback connection, without waiting
-  for temporary listener teardown before token exchange and credential storage.
-- **HTTP client security updates (`githits`)** - updated the bundled HTTP client
-  to a patched release that retains the supported Node.js 20 runtime boundary.
+- **Search and grep recovery** - terminal search sessions use bounded status
+  waits, deferred work provides an explicit continuation, and empty results no
+  longer encourage identical retry loops across CLI text and JSON output.
+- **OAuth callback completion** - browser login completes when a sandbox or
+  proxy retains or closes the callback connection, without waiting for
+  temporary listener teardown before token exchange and credential storage.
+- **Forward-compatible settings** - newer account APIs can add fields without
+  breaking older CLI settings parsing.
+
+### Security
+
+- **HTTP client advisories** - updated the bundled HTTP client to a patched
+  release while retaining the supported Node.js 20 runtime boundary.
+
+## [@githits/mcp 0.9.0] - 2026-08-11
+
+Minor release: adds shared Terms of Service remediation and bounded,
+agent-oriented search recovery while preserving structured errors.
+
+### Added
+
+- **Terms remediation** - shared REST and GraphQL failures preserve structured
+  authentication errors and direct callers to the canonical terms-acceptance
+  flow for both OAuth and static API-token authentication.
+- **Bounded search status waits** - search status exposes backend progress
+  waiting through the shared bounded default and reports explicit deferred
+  continuations.
+
+### Fixed
+
+- **Agent retry guidance** - search, search status, and grep responses stop
+  suggesting futile identical retries, retain backend diagnostics, and provide
+  accurate case-sensitive and truncation-aware pivots.
+- **Public declarations** - error metadata constructors remain usable from the
+  standalone published declarations without changing runtime behavior.
 
 ## [githits 0.8.0] - 2026-08-07
 
