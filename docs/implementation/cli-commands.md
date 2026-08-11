@@ -319,6 +319,12 @@ and JSON contracts, promote only the smallest required API through
 `@githits/mcp`, add CLI/MCP parity and smoke coverage, document agent usage, and
 run targeted Claude and Codex agent evaluations.
 
+This increment exceeded its original rough 1,500-line review threshold under an
+explicit 2026-08-10 exception: most of the delta is isolated tests and durable
+documentation, while splitting the service and CLI contracts would create
+dependent review slices. The exception does not extend to the repository-wide
+terminal sanitization work retained in its separate plan.
+
 ### Proxy Support
 
 CLI-originated HTTP traffic uses `src/services/proxy-fetch.ts`. This includes OAuth discovery, client registration, token exchange/refresh, REST API calls, code/package service calls, local MCP tool calls started through `githits mcp start`, and npm update checks. The fetch factory supports `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` plus lowercase aliases; lowercase values win when both cases are set, matching undici's env proxy precedence.
