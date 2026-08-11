@@ -600,7 +600,9 @@ export class CodeNavigationTargetNotFoundError extends Error {
     public readonly availableVersions?: AvailableVersion[],
     public readonly repoUrl?: string,
     public readonly requestedRef?: string,
-    public readonly metadata?: CodeNavigationErrorMetadata,
+    public readonly metadata:
+      | CodeNavigationErrorMetadata
+      | undefined = undefined,
   ) {
     super(message);
     this.name = "CodeNavigationTargetNotFoundError";
@@ -639,7 +641,9 @@ export class CodeNavigationVersionNotFoundError extends Error {
     public readonly requestedVersion: string | undefined,
     public readonly latestIndexed: string | undefined,
     public readonly availableVersions: AvailableVersion[] | undefined,
-    public readonly metadata?: CodeNavigationErrorMetadata,
+    public readonly metadata:
+      | CodeNavigationErrorMetadata
+      | undefined = undefined,
   ) {
     super(message);
     this.name = "CodeNavigationVersionNotFoundError";
@@ -658,7 +662,9 @@ export class CodeNavigationRefNotFoundError extends Error {
     public readonly requestedRef: string | undefined,
     public readonly availableRefs: AvailableRef[] | undefined,
     public readonly suggestedRefs: SuggestedRef[] | undefined,
-    public readonly metadata?: CodeNavigationErrorMetadata,
+    public readonly metadata:
+      | CodeNavigationErrorMetadata
+      | undefined = undefined,
   ) {
     super(message);
     this.name = "CodeNavigationRefNotFoundError";
@@ -707,7 +713,9 @@ export class CodeNavigationBackendError extends Error {
      * April 2026 `extensions.retryable` contract on GraphQL errors.
      */
     public readonly retryable?: boolean,
-    public readonly metadata?: CodeNavigationErrorMetadata,
+    public readonly metadata:
+      | CodeNavigationErrorMetadata
+      | undefined = undefined,
   ) {
     super(message);
     this.name = "CodeNavigationBackendError";
