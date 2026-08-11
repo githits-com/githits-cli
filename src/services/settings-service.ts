@@ -11,7 +11,9 @@ import { z } from "zod";
 
 export const DEFAULT_ACCOUNTS_URL = "https://accounts.githits.com";
 
-const SETTINGS_SCHEMA = z.strictObject({
+// Strip unknown fields so additive account API changes remain compatible with
+// older CLI versions while every field this version consumes stays validated.
+const SETTINGS_SCHEMA = z.object({
   user_id: z.uuid(),
   default_language_id: z.uuid().nullable(),
   license_mode: z.enum(["safe", "yolo", "custom"]),

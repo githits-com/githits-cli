@@ -53,7 +53,7 @@ Package/source access uses the package/source service URL from `GITHITS_CODE_NAV
 | `GITHITS_MCP_URL` | Override MCP server URL | `http://localhost:7071/mcp` |
 | `GITHITS_API_URL` | Override REST API URL | `http://localhost:8000` |
 | `GITHITS_CODE_NAV_URL` | Override package/source service URL | `http://localhost:4000` |
-| `GITHITS_ACCOUNTS_URL` | Override account settings origin | `https://zcwquvryvmjuwckxdevg.supabase.co` |
+| `GITHITS_ACCOUNTS_URL` | Override account settings origin | `https://accounts.example.test` |
 | `GITHITS_API_TOKEN` | API token for authentication | `ghi-abc123...` |
 | `GITHITS_AUTH_STORAGE` | Override OAuth credential storage for the current process (`keychain` or `file`) | `file` |
 | `GITHITS_TELEMETRY` | Emit end-of-run timing spans to stderr for local profiling | `1` |

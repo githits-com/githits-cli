@@ -105,6 +105,18 @@ describe("SettingsServiceImpl", () => {
     );
   });
 
+  it("ignores additive settings fields from newer account APIs", async () => {
+    const service = new SettingsServiceImpl(
+      DEFAULT_ACCOUNTS_URL,
+      createMockTokenProvider(),
+      mock(() =>
+        Promise.resolve(response({ ...SETTINGS, future_setting: true })),
+      ) as unknown as typeof fetch,
+    );
+
+    await expect(service.getSettings()).resolves.toEqual(SETTINGS);
+  });
+
   it("throws AuthenticationError when no active token exists", async () => {
     const fetchFn = mock(() => Promise.resolve(response(SETTINGS)));
     const service = new SettingsServiceImpl(
@@ -144,9 +156,9 @@ describe("getAccountsUrl", () => {
   it("supports a secure development override", () => {
     expect(
       getAccountsUrl({
-        GITHITS_ACCOUNTS_URL: "https://zcwquvryvmjuwckxdevg.supabase.co",
+        GITHITS_ACCOUNTS_URL: "https://accounts.example.test",
       }),
-    ).toBe("https://zcwquvryvmjuwckxdevg.supabase.co");
+    ).toBe("https://accounts.example.test");
   });
 
   it("rejects insecure non-loopback overrides", () => {
