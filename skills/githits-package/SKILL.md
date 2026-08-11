@@ -17,6 +17,7 @@ Use GitHits package intelligence before making dependency claims from memory.
 - If `githits` is not found, retry the same command as `npx -y githits@latest ...`.
 - Use `--json` when comparing versions, counting vulnerabilities, or extracting fields.
 - Do not expose credentials. If auth is required interactively, run `githits login`; use `githits login --no-browser` only when the user can complete the printed URL flow. In noninteractive eval/CI, do not start OAuth; report that `GITHITS_API_TOKEN` or prior login is required.
+- If a command returns `TERMS_ACCEPTANCE_REQUIRED`, run `githits settings terms accept` or use the returned authenticated acceptance URL, then retry once.
 
 ## Package Spec
 

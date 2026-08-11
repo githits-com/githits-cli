@@ -16,6 +16,7 @@ Use GitHits for evidence from real open-source code instead of guessing from mod
 - If `githits` is not found, retry the same command as `npx -y githits@latest ...`.
 - Use `--json` when you need stable fields to parse or chain into another command.
 - Do not expose credentials. If auth is required interactively, run `githits login`; use `githits login --no-browser` only when the user can complete the printed URL flow. In noninteractive eval/CI, do not start OAuth; report that `GITHITS_API_TOKEN` or prior login is required.
+- If a command returns `TERMS_ACCEPTANCE_REQUIRED`, run `githits settings terms accept` or use the returned authenticated acceptance URL, then retry once.
 
 ## Decision Flow
 
@@ -58,6 +59,8 @@ githits docs read <pageId> --lines 20-120
 - For multi-step code/docs investigations, keep raw CLI output out of the final answer unless it is the evidence the user needs.
 - If output says it used recent/stale indexed evidence, treat the displayed served target as provenance; if freshness matters, retry with a longer `--wait` or use one of the displayed `queryable now` versions/refs, or inspect JSON `targetResolution` for structured candidates.
 - Treat partial documentation coverage as incomplete evidence and retry later when advised. Capped coverage is terminal for the current crawl, so report the limitation instead of retrying.
+- If search returns a `searchRef`, continue with `githits search-status <searchRef>` instead of repeating the original search. Its bounded wait defaults to 20 seconds; use `--wait 0-60` to adjust it.
+- If grep returns no matches, do not repeat it unchanged. Follow the returned guidance by changing the pattern, broadening the file scope, or switching to `githits search` for conceptual discovery.
 - If a code-navigation command returns `INDEXING`, use the elapsed/expected duration in the message to decide whether to retry with `--wait`; prefer any displayed indexed refs/versions when you need an immediate follow-up.
 - After using GitHits results, send feedback when practical. Use `githits feedback <solution_id> --accept|--reject` for `githits example` results, or omit `<solution_id>` for generic session feedback such as `githits feedback --reject --tool search -m "missing kotlin support"`.
 

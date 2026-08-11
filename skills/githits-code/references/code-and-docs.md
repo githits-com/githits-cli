@@ -8,7 +8,7 @@ Package target syntax requires an explicit registry: `registry:name[@version]`, 
 
 Useful filters: `--kind`, `--category`, `--path-prefix`, `--intent`, `--public`, `--name`, `--lang`, `--limit`, `--offset`, `--wait`, `--allow-partial`, `--json`.
 
-If search returns a `searchRef`, continue with `githits search-status <searchRef>`.
+If search returns a `searchRef`, do not repeat the original search. Continue with `githits search-status <searchRef> [--wait 0-60]`; the bounded wait defaults to 20 seconds.
 
 ## Code Files
 
@@ -27,6 +27,7 @@ For repository addressing: `githits code read --repo-url <url> [--git-ref <ref>]
 `githits code grep <spec> <pattern> [path-prefix]` runs deterministic text grep. Use `--regex` for RE2 regex, `--case-sensitive`, `-C`, `-A`, `-B`, `--path`, repeatable `--glob`, repeatable `--ext`, `--exclude-docs`, `--exclude-tests`, `--limit`, `--per-file-limit`, `--cursor`, `--symbol-field`, `--wait`, `--verbose`, `--json`.
 
 Use `search` for discovery and `code grep` only when you know the pattern.
+When grep returns no matches, do not repeat it unchanged. Change or shorten the pattern, broaden the path/filter scope, or switch to `search` for conceptual intent.
 
 ## Docs
 
