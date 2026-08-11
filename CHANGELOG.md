@@ -97,6 +97,31 @@ not change its public package surface.
   reuse the verified process identity instead of resolving it for every lock
   acquisition.
 
+## [githits 0.7.0] - 2026-08-05
+
+Minor release: consolidates the cross-host plugin packages around one canonical
+skill and guidance surface. `@githits/mcp` remains at 0.6.4 because the reusable
+MCP package surface is unchanged.
+
+### Added
+
+- **Codex and Cursor plugin packages** - generated host manifests add native
+  package entry points for Codex and Cursor alongside the existing Claude,
+  Gemini, and VS Code/GitHub Copilot surfaces.
+- **Antigravity package** - the repository root includes the native plugin and
+  remote MCP configuration required by Google Antigravity.
+
+### Changed
+
+- **Canonical plugin assets** - root `skills/` and `AGENTS.md` now drive every
+  host package through deterministic generation, replacing duplicated Claude
+  skills, commands, and payload metadata.
+- **Transport boundaries** - plugin and extension installs use the hosted
+  remote MCP. Direct `githits init` setup remains local stdio except for Cursor,
+  which uses the hosted remote MCP.
+- **MCP directory discoverability** - added repository ownership metadata and a
+  README link for the Glama MCP server listing.
+
 ## [@githits/mcp 0.6.4] - 2026-08-04
 
 Patch release: improves site-targeted search and agent-facing recovery guidance.
