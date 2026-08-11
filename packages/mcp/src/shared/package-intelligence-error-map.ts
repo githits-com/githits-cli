@@ -28,7 +28,10 @@ import type {
   MappedErrorCode,
   MappedErrorDetails,
 } from "./code-navigation-error-map.js";
-import { buildUpdateRequiredError } from "./code-navigation-error-map.js";
+import {
+  buildUpdateRequiredError,
+  mapTermsAcceptanceError,
+} from "./code-navigation-error-map.js";
 import { AuthRequiredError } from "./require-auth.js";
 
 // Re-export for caller convenience — callers of
@@ -54,6 +57,8 @@ export function mapPackageIntelligenceError(error: unknown): MappedError {
 }
 
 function classify(error: unknown): MappedError {
+  const termsError = mapTermsAcceptanceError(error);
+  if (termsError) return termsError;
   if (error instanceof ClientUpdateRequiredError) {
     return buildUpdateRequiredError(error.reason, error.currentVersion);
   }

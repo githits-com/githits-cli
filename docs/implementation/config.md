@@ -2,11 +2,11 @@
 
 ## Purpose
 
-The CLI uses three separate service URLs and supports three authentication modes. Getting these wrong causes subtle failures — wrong URL means auth works but API calls fail, wrong auth mode means some tools work but others silently return errors. This document explains the configuration model so changes are made with full context.
+The CLI uses four separate service URLs and supports three authentication modes. Getting these wrong causes subtle failures — wrong URL means auth works but API calls fail, wrong auth mode means some tools work but others silently return errors. This document explains the configuration model so changes are made with full context.
 
 ## Background
 
-GitHits separates its MCP server (which handles OAuth discovery and the MCP protocol), REST API (which handles search, languages, and feedback), and package/source service. In production, they use independent endpoints.
+GitHits separates its MCP server (which handles OAuth discovery and the MCP protocol), REST API (which handles search, languages, and feedback), account settings API, and package/source service. In production, they use independent endpoints.
 
 ## URL Configuration
 
@@ -14,6 +14,7 @@ GitHits separates its MCP server (which handles OAuth discovery and the MCP prot
 |---|---|---|---|
 | **MCP URL** | `https://mcp.githits.com` | `GITHITS_MCP_URL` | OAuth discovery (`.well-known`), DCR registration, auth flow |
 | **API URL** | `https://api.githits.com` | `GITHITS_API_URL` | REST endpoints (`/search`, `/languages`, `/feedbacks`) |
+| **Accounts URL** | `https://accounts.githits.com` | `GITHITS_ACCOUNTS_URL` | Self-scoped settings and Terms of Service acceptance |
 | **Package/source URL** | GitHits-managed package/source service | `GITHITS_CODE_NAV_URL` | Package/source service endpoint used by indexed `search` / `pkg` / `docs` / `code` tooling |
 
 > **These are different services.** Override every URL that differs from production when pointing to a non-production backend.
@@ -41,6 +42,7 @@ The container (`src/container.ts`) resolves authentication in priority order:
 | `/search` | Full access | Full access | Blocked |
 | `/languages` | Full access | Full access | Blocked |
 | `/feedbacks` | Full access | Full access | Blocked |
+| `/functions/v1/settings/me` | Full access | Full access | Blocked |
 
 Package/source access uses the package/source service URL from `GITHITS_CODE_NAV_URL`, defaulting to the GitHits-managed endpoint. MCP registration for `search`, `search_status`, `docs_*`, `pkg_*`, `code_files`, `code_read`, and `code_grep` is always on; CLI registration for top-level `search` / `search-status` plus the `githits code`, `githits pkg`, and `githits docs` groups is also always on.
 
@@ -51,6 +53,7 @@ Package/source access uses the package/source service URL from `GITHITS_CODE_NAV
 | `GITHITS_MCP_URL` | Override MCP server URL | `http://localhost:7071/mcp` |
 | `GITHITS_API_URL` | Override REST API URL | `http://localhost:8000` |
 | `GITHITS_CODE_NAV_URL` | Override package/source service URL | `http://localhost:4000` |
+| `GITHITS_ACCOUNTS_URL` | Override account settings origin | `https://zcwquvryvmjuwckxdevg.supabase.co` |
 | `GITHITS_API_TOKEN` | API token for authentication | `ghi-abc123...` |
 | `GITHITS_AUTH_STORAGE` | Override OAuth credential storage for the current process (`keychain` or `file`) | `file` |
 | `GITHITS_TELEMETRY` | Emit end-of-run timing spans to stderr for local profiling | `1` |

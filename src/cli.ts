@@ -29,6 +29,7 @@ import {
   registerLogoutCommand,
   registerMcpCommand,
   registerPkgCommandGroup,
+  registerSettingsCommand,
   registerUnifiedSearchCommands,
 } from "./commands/index.js";
 import { loginFlow, stderrLoginOutput } from "./commands/login.js";
@@ -133,6 +134,7 @@ Support: support@githits.com`,
   registerLanguagesCommand(program);
   registerFeedbackCommand(program);
   registerDoctorCommand(program);
+  registerSettingsCommand(program);
   const registrationArgv = stripRootRegistrationOptions(argv);
   const updateCheckTask = startUpdateCheckTaskForInvocation({
     args: argv,

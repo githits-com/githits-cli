@@ -35,6 +35,7 @@ import {
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import {
   AuthenticationError,
+  isTokenRefreshableError,
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
 import { promoteGenericVersionNotFound } from "./promote-version-not-found.js";
@@ -2292,7 +2293,7 @@ export class PackageIntelligenceServiceImpl
       executeWithTokenRefresh({
         getToken: () => this.tokenProvider.getToken(),
         forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: (error) => error instanceof AuthenticationError,
+        shouldRefresh: isTokenRefreshableError,
         executeWithToken: (token) => this.executePackageSummary(token, params),
       }),
     );
@@ -2405,7 +2406,6 @@ export class PackageIntelligenceServiceImpl
       typeof extensions?.retryable === "boolean"
         ? extensions.retryable
         : undefined;
-
     if (isClientUpdateRequiredGraphQLError({ message, code })) {
       return new ClientUpdateRequiredError(
         undefined,
@@ -2565,7 +2565,7 @@ export class PackageIntelligenceServiceImpl
       executeWithTokenRefresh({
         getToken: () => this.tokenProvider.getToken(),
         forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: (error) => error instanceof AuthenticationError,
+        shouldRefresh: isTokenRefreshableError,
         executeWithToken: (token) =>
           this.executePackageVulnerabilities(token, params),
       }),
@@ -2772,7 +2772,7 @@ export class PackageIntelligenceServiceImpl
       executeWithTokenRefresh({
         getToken: () => this.tokenProvider.getToken(),
         forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: (error) => error instanceof AuthenticationError,
+        shouldRefresh: isTokenRefreshableError,
         executeWithToken: (token) =>
           this.executePackageDependencies(token, params),
       }),
@@ -2786,7 +2786,7 @@ export class PackageIntelligenceServiceImpl
       executeWithTokenRefresh({
         getToken: () => this.tokenProvider.getToken(),
         forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: (error) => error instanceof AuthenticationError,
+        shouldRefresh: isTokenRefreshableError,
         executeWithToken: (token) =>
           this.executePackageUpgradeDependencyProbe(token, params),
       }),
@@ -2800,7 +2800,7 @@ export class PackageIntelligenceServiceImpl
       executeWithTokenRefresh({
         getToken: () => this.tokenProvider.getToken(),
         forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: (error) => error instanceof AuthenticationError,
+        shouldRefresh: isTokenRefreshableError,
         executeWithToken: (token) =>
           this.executePackageUpgradeReview(token, params),
       }),
@@ -3244,7 +3244,7 @@ export class PackageIntelligenceServiceImpl
       executeWithTokenRefresh({
         getToken: () => this.tokenProvider.getToken(),
         forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: (error) => error instanceof AuthenticationError,
+        shouldRefresh: isTokenRefreshableError,
         executeWithToken: (token) =>
           this.executePackageChangelog(token, params),
       }),
@@ -3365,7 +3365,7 @@ export class PackageIntelligenceServiceImpl
       executeWithTokenRefresh({
         getToken: () => this.tokenProvider.getToken(),
         forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: (error) => error instanceof AuthenticationError,
+        shouldRefresh: isTokenRefreshableError,
         executeWithToken: (token) => this.executeListPackageDocs(token, params),
       }),
     );
@@ -3469,7 +3469,7 @@ export class PackageIntelligenceServiceImpl
       executeWithTokenRefresh({
         getToken: () => this.tokenProvider.getToken(),
         forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: (error) => error instanceof AuthenticationError,
+        shouldRefresh: isTokenRefreshableError,
         executeWithToken: (token) => this.executeReadPackageDoc(token, params),
       }),
     );

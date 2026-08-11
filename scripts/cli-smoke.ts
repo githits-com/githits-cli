@@ -54,6 +54,7 @@ export const EXPECTED_TOP_LEVEL_COMMANDS = [
   "languages",
   "feedback",
   "doctor",
+  "settings",
   "search",
   "search-status",
   "code",

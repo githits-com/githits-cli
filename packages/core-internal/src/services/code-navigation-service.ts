@@ -16,6 +16,7 @@ import {
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import {
   AuthenticationError,
+  isTokenRefreshableError,
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
 import type { TokenProvider } from "./token-provider.js";
@@ -1837,7 +1838,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     return executeWithTokenRefresh({
       getToken: () => this.tokenProvider.getToken(),
       forceRefresh: () => this.tokenProvider.forceRefresh(),
-      shouldRefresh: (error) => error instanceof AuthenticationError,
+      shouldRefresh: isTokenRefreshableError,
       executeWithToken: (token) => this.executeUnifiedSearch(token, params),
     });
   }
@@ -1849,7 +1850,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     return executeWithTokenRefresh({
       getToken: () => this.tokenProvider.getToken(),
       forceRefresh: () => this.tokenProvider.forceRefresh(),
-      shouldRefresh: (error) => error instanceof AuthenticationError,
+      shouldRefresh: isTokenRefreshableError,
       executeWithToken: (token) =>
         this.executeUnifiedSearchStatus(token, searchRef, waitTimeoutMs),
     });
@@ -2449,7 +2450,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     return executeWithTokenRefresh({
       getToken: () => this.tokenProvider.getToken(),
       forceRefresh: () => this.tokenProvider.forceRefresh(),
-      shouldRefresh: (error) => error instanceof AuthenticationError,
+      shouldRefresh: isTokenRefreshableError,
       executeWithToken: (token) => this.executeListFiles(token, params),
     });
   }
@@ -2552,7 +2553,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     return executeWithTokenRefresh({
       getToken: () => this.tokenProvider.getToken(),
       forceRefresh: () => this.tokenProvider.forceRefresh(),
-      shouldRefresh: (error) => error instanceof AuthenticationError,
+      shouldRefresh: isTokenRefreshableError,
       executeWithToken: (token) => this.executeReadFile(token, params),
     });
   }
@@ -2632,7 +2633,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     return executeWithTokenRefresh({
       getToken: () => this.tokenProvider.getToken(),
       forceRefresh: () => this.tokenProvider.forceRefresh(),
-      shouldRefresh: (error) => error instanceof AuthenticationError,
+      shouldRefresh: isTokenRefreshableError,
       executeWithToken: (token) => this.executeGrepRepo(token, params),
     });
   }

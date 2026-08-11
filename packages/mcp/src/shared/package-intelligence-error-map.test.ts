@@ -11,10 +11,24 @@ import {
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceValidationError,
   PackageIntelligenceVersionNotFoundError,
+  TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
 import { mapPackageIntelligenceError } from "./package-intelligence-error-map.js";
 
 describe("mapPackageIntelligenceError", () => {
+  it("maps terms gating with stable command and URL remediation", () => {
+    expect(
+      mapPackageIntelligenceError(new TermsAcceptanceRequiredError()),
+    ).toMatchObject({
+      code: "TERMS_ACCEPTANCE_REQUIRED",
+      retryable: false,
+      details: {
+        action: "githits settings terms accept",
+        termsUrl: "https://githits.com/legal/terms-of-service/",
+        acceptanceUrl: "https://app.githits.com/settings/privacy",
+      },
+    });
+  });
   it("maps ClientUpdateRequiredError to UPDATE_REQUIRED", () => {
     const mapped = mapPackageIntelligenceError(
       new ClientUpdateRequiredError(undefined, undefined, "0.2.0"),

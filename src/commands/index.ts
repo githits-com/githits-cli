@@ -62,3 +62,15 @@ export {
   searchAction,
   searchStatusAction,
 } from "./search.js";
+export {
+  registerSettingsCommand,
+  type SettingsCommandDependencies,
+  type SettingsOptions,
+  type SettingsTermsAcceptOptions,
+  settingsAction,
+  settingsClearAction,
+  settingsGetAction,
+  settingsSetAction,
+  settingsTermsAcceptAction,
+  settingsTermsAction,
+} from "./settings.js";

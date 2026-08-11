@@ -28,7 +28,9 @@ export async function executeWithTokenRefresh<T>(
   try {
     return await options.executeWithToken(token);
   } catch (error) {
-    if (!options.shouldRefresh(error)) {
+    // Opaque ghi-* credentials are re-evaluated server-side and have no local
+    // refresh flow. Do not invoke the provider's refresh hook for them.
+    if (token.startsWith("ghi-") || !options.shouldRefresh(error)) {
       throw error;
     }
 
