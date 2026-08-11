@@ -605,7 +605,7 @@ function formatTerminalNotes(
   if (envelope.hasMore && envelope.nextCursor) {
     lines.push(
       dim(
-        `More grep results available — rerun with --cursor ${shellQuote(envelope.nextCursor)}`,
+        `More matches available — rerun with --cursor ${shellQuote(envelope.nextCursor)}`,
         useColors,
       ),
     );

@@ -187,9 +187,33 @@ describe("formatGrepRepoTerminal", () => {
 
     expect(stdout).toContain("0 matches in 0 files");
     expect(stdout).toContain("No matches.");
-    expect(stderr).toContain("files: 1 scanned | 1 in scope");
+    expect(stderr).toContain("files scanned: 1 (full scope)");
     expect(stderr).toContain("Do not repeat this grep unchanged.");
     expect(stderr).toContain("shorten or change the pattern");
+    expect(stderr).toContain("use githits search for conceptual intent");
+    expect(stderr).not.toContain("case-sensitive");
+  });
+
+  it("uses CLI syntax when a case-sensitive empty grep can be broadened", () => {
+    const envelope = buildGrepRepoSuccessPayload(
+      {
+        ...baseResult,
+        matches: [],
+        totalMatches: 0,
+        uniqueFilesMatched: 0,
+      },
+      {
+        ...baseOptions,
+        caseSensitive: true,
+        explicit: { ...baseOptions.explicit, caseSensitive: true },
+      },
+    );
+    const { stderr } = formatGrepRepoTerminal(envelope, {
+      useColors: false,
+    });
+
+    expect(stderr).toContain("drop --case-sensitive");
+    expect(stderr).not.toContain("case_sensitive");
   });
 
   it("plain mode preserves grep-style stdout silence and explains empty scope on stderr", () => {
@@ -209,9 +233,9 @@ describe("formatGrepRepoTerminal", () => {
     });
 
     expect(stdout).toBe("");
-    expect(stderr).toContain("files: 0 scanned | 0 in scope");
+    expect(stderr).toContain("files scanned: 0 (full scope)");
     expect(stderr).toContain(
-      "loosen path, path_prefix, globs, extensions, or exclusion filters",
+      "loosen the optional path-prefix argument, --path, --glob, --ext, or exclusion flags",
     );
   });
 
@@ -231,7 +255,7 @@ describe("formatGrepRepoTerminal", () => {
       useColors: false,
     });
 
-    expect(stderr).toContain("More grep results available — rerun");
+    expect(stderr).toContain("More matches available — rerun");
     expect(stderr).toContain("--cursor 'next-page'");
     expect(stderr).not.toContain("Do not repeat this grep unchanged.");
   });
@@ -423,7 +447,7 @@ describe("formatGrepRepoTerminal", () => {
     });
 
     expect(rendered.stderr).toBe(
-      "More grep results available — rerun with --cursor 'cursor_abc123'\n",
+      "More matches available — rerun with --cursor 'cursor_abc123'\n",
     );
   });
 

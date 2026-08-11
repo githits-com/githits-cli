@@ -254,7 +254,7 @@ function buildTrailer(
     const status = payload.progress?.status;
     const action =
       status === "TIMEOUT"
-        ? "Search timed out waiting for fresh data."
+        ? "Search timed out before completion."
         : status === "FAILED"
           ? "Search failed before completion."
           : status === "SEARCHING"
@@ -265,10 +265,8 @@ function buildTrailer(
         `progress: ${payload.progress.targetsReady}/${payload.progress.targetsTotal} targets ready.`,
       );
     }
-    lines.push(`${action} Do not repeat search.`);
-    lines.push(
-      `Call search_status with search_ref=${JSON.stringify(payload.searchRef)}.`,
-    );
+    lines.push(action);
+    appendIncompleteSearchNextAction(lines, status, payload.searchRef);
   }
 
   if (options.includeSourceStatus) {
@@ -284,6 +282,27 @@ function buildTrailer(
   }
 
   return lines;
+}
+
+export function appendIncompleteSearchNextAction(
+  lines: string[],
+  status: string | undefined,
+  searchRef: string,
+): void {
+  if (status === "FAILED" || status === "TIMEOUT") {
+    lines.push("Do not call search_status again for this session.");
+    lines.push(
+      status === "TIMEOUT"
+        ? "next: rerun search with a larger wait_timeout_ms."
+        : "next: rerun search.",
+    );
+    return;
+  }
+
+  lines.push("Do not repeat search.");
+  lines.push(
+    `next: call search_status with search_ref=${JSON.stringify(searchRef)}.`,
+  );
 }
 
 function appendWarnings(lines: string[], warnings: string[] | undefined): void {
@@ -398,7 +417,7 @@ function formatEmptySearchHeadline(
     const sources = Array.from(
       new Set(sourceStatus.map((entry) => entry.source)),
     ).join(", ");
-    return `No hits across ${sources} sources.`;
+    return `No hits from any source (${sources}).`;
   }
 
   const entry = sourceStatus[0];

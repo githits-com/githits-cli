@@ -5,6 +5,7 @@ import type {
 } from "./unified-search-response.js";
 import {
   appendEmptySearchGuidance,
+  appendIncompleteSearchNextAction,
   appendSourceStatusNotes,
   appendUnifiedSearchHits,
   formatProgressTarget,
@@ -39,9 +40,10 @@ export function renderUnifiedSearchStatusText(payload: StatusPayload): string {
   if (result) appendResult(lines, result, payload.completed);
 
   if (!payload.completed) {
-    lines.push("Do not repeat search.");
-    lines.push(
-      `next: call search_status search_ref=${quote(payload.searchRef)}`,
+    appendIncompleteSearchNextAction(
+      lines,
+      payload.progress?.status,
+      payload.searchRef,
     );
   }
 
@@ -108,8 +110,4 @@ function formatProgress(progress: {
   elapsedMs: number;
 }): string {
   return `progress: ${progress.status}, ${progress.targetsReady}/${progress.targetsTotal} targets ready, ${progress.elapsedMs}ms elapsed`;
-}
-
-function quote(value: string): string {
-  return JSON.stringify(value);
 }

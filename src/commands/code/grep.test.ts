@@ -168,7 +168,7 @@ describe("pkgGrepAction", () => {
 
     const stderr = stderrWrites.join("");
     expect(stderr).toContain(
-      "More grep results available — rerun with --cursor 'cursor_abc123'",
+      "More matches available — rerun with --cursor 'cursor_abc123'",
     );
     stdoutSpy.mockRestore();
     stderrSpy.mockRestore();
@@ -542,7 +542,7 @@ describe("pkgGrepAction", () => {
         "Do not repeat this grep unchanged.",
       );
       expect(errorWrites.join("")).toContain(
-        "use search for conceptual intent",
+        "use githits search for conceptual intent",
       );
       expect(process.exitCode).toBe(1);
     } finally {

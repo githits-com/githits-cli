@@ -97,16 +97,17 @@ export function buildEmptyGrepGuidance(
   if (skipNotes.length > 0) lines.push(`Note: ${skipNotes.join(", ")}.`);
 
   if (envelope.truncatedReason) {
+    const reason = formatTruncationReason(envelope.truncatedReason);
     lines.push(
       surface === "cli"
-        ? `Truncated: ${envelope.truncatedReason}. Narrow the file selectors or increase --limit.`
-        : `Truncated: ${envelope.truncatedReason}. Pass narrower path/path_prefix/globs or increase max_matches.`,
+        ? `Truncated: ${reason}. Narrow the file selectors or increase --limit.`
+        : `Truncated: ${reason}. Pass narrower path/path_prefix/globs or increase max_matches.`,
     );
   }
   if (envelope.hasMore && envelope.nextCursor) {
     lines.push(
       surface === "cli"
-        ? `More grep results available — rerun with --cursor ${shellQuote(envelope.nextCursor)}`
+        ? `More matches available — rerun with --cursor ${shellQuote(envelope.nextCursor)}`
         : `More matches available. Pass cursor=${envelope.nextCursor} for the next page.`,
     );
   } else if (envelope.hasMore) {
@@ -115,11 +116,27 @@ export function buildEmptyGrepGuidance(
   if (envelope.truncatedReason || envelope.hasMore) return lines;
 
   lines.push("Do not repeat this grep unchanged.");
-  lines.push(
-    envelope.filesInScope === 0
-      ? "next: loosen path, path_prefix, globs, extensions, or exclusion filters."
-      : "next: shorten or change the pattern, check casing, or use search for conceptual intent.",
+  if (envelope.filesInScope === 0) {
+    lines.push(
+      surface === "cli"
+        ? "next: loosen the optional path-prefix argument, --path, --glob, --ext, or exclusion flags."
+        : "next: loosen path, path_prefix, globs, extensions, or exclusion filters.",
+    );
+    return lines;
+  }
+
+  const pivots = ["shorten or change the pattern"];
+  if (envelope.caseSensitive) {
+    pivots.push(
+      surface === "cli" ? "drop --case-sensitive" : "set case_sensitive: false",
+    );
+  }
+  pivots.push(
+    surface === "cli"
+      ? "use githits search for conceptual intent"
+      : "use search for conceptual intent",
   );
+  lines.push(`next: ${pivots.join("; ")}.`);
   return lines;
 }
 
@@ -127,7 +144,11 @@ function formatEmptyGrepFileCounts(envelope: LeanGrepRepoEnvelope): string {
   if (envelope.filesScanned < envelope.filesInScope) {
     return `files: ${envelope.filesInScope} in scope | ${envelope.filesScanned} content-scanned after index pruning`;
   }
-  return `files: ${envelope.filesScanned} scanned | ${envelope.filesInScope} in scope`;
+  return `files scanned: ${envelope.filesScanned} (full scope)`;
+}
+
+function formatTruncationReason(reason: string): string {
+  return reason === "DEADLINE" ? "time limit reached" : reason;
 }
 
 function formatGrepServedTarget(
@@ -170,7 +191,7 @@ function buildTrailer(envelope: LeanGrepRepoEnvelope): string[] {
 
   if (envelope.truncatedReason) {
     lines.push(
-      `Truncated: ${envelope.truncatedReason}. Pass narrower path/path_prefix/globs or increase max_matches.`,
+      `Truncated: ${formatTruncationReason(envelope.truncatedReason)}. Pass narrower path/path_prefix/globs or increase max_matches.`,
     );
   }
 

@@ -37,11 +37,18 @@ describe("renderGrepRepoText", () => {
     expect(text).toContain("code_grep | 0 matches in 0 files");
     expect(text).toContain('pattern="applyEdit"');
     expect(text).toContain("No matches.");
-    expect(text).toContain("files: 120 scanned | 120 in scope");
+    expect(text).toContain("files scanned: 120 (full scope)");
     expect(text).toContain("Do not repeat this grep unchanged.");
     expect(text).toContain("shorten or change the pattern");
-    expect(text).toContain("check casing");
+    expect(text).not.toContain("casing");
+    expect(text).not.toContain("case_sensitive");
     expect(text).toContain("use search for conceptual intent");
+  });
+
+  it("advises disabling case sensitivity only when it was enabled", () => {
+    const text = renderGrepRepoText(envelope({ caseSensitive: true }));
+
+    expect(text).toContain("set case_sensitive: false");
   });
 
   it("advises loosening selectors when no files are in scope", () => {
@@ -53,7 +60,7 @@ describe("renderGrepRepoText", () => {
       }),
     );
 
-    expect(text).toContain("files: 0 scanned | 0 in scope");
+    expect(text).toContain("files scanned: 0 (full scope)");
     expect(text).toContain("served=v5.2.1");
     expect(text).toContain(
       "loosen path, path_prefix, globs, extensions, or exclusion filters",
@@ -211,6 +218,17 @@ describe("renderGrepRepoText", () => {
 
     expect(text).toContain("Truncated: limit.");
     expect(text).not.toContain("Do not repeat this grep unchanged.");
+  });
+
+  it("humanizes deadline truncation", () => {
+    const text = renderGrepRepoText(
+      envelope({
+        truncatedReason: "DEADLINE",
+      }),
+    );
+
+    expect(text).toContain("Truncated: time limit reached.");
+    expect(text).not.toContain("Truncated: DEADLINE.");
   });
 
   it("renders pattern-type and case-sensitive flags in header when set", () => {

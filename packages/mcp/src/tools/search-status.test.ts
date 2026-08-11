@@ -185,6 +185,25 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("search_status | timeout | searchRef=ref-timeout");
     expect(text).not.toContain("search_status | indexing");
+    expect(text).toContain("Do not call search_status again for this session.");
+    expect(text).toContain("next: rerun search with a larger wait_timeout_ms.");
+    expect(text).not.toContain("next: call search_status");
+  });
+
+  it("stops polling a failed search session", async () => {
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() =>
+          Promise.resolve(createIncompleteOutcome("FAILED", "ref-failed")),
+        ),
+      }),
+    );
+
+    const result = await tool.handler({ search_ref: "ref-failed" }, {});
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("Do not call search_status again for this session.");
+    expect(text).toContain("next: rerun search.");
+    expect(text).not.toContain("next: call search_status");
   });
 
   it("surfaces progress freshness warnings", async () => {
@@ -333,7 +352,9 @@ describe("searchStatusTool", () => {
     expect(text).toContain("search_status | searching | searchRef=ref-text");
     expect(text).toContain("progress: SEARCHING, 0/1 targets ready");
     expect(text).toContain("Do not repeat search.");
-    expect(text).toContain('next: call search_status search_ref="ref-text"');
+    expect(text).toContain(
+      'next: call search_status with search_ref="ref-text".',
+    );
     expect(text).not.toContain("searchRef=ref-text to follow up");
     expect(() => JSON.parse(text)).toThrow();
   });

@@ -295,10 +295,38 @@ describe("renderUnifiedSearchSuccess", () => {
     const text = renderUnifiedSearchSuccess(incomplete);
     expect(text).toContain("1 partial");
     expect(text).toContain("searchRef=ref_abc-123");
-    expect(text).toContain("Indexing in progress. Do not repeat search.");
-    expect(text).toContain('Call search_status with search_ref="ref_abc-123".');
+    expect(text).toContain("Indexing in progress.\nDo not repeat search.");
+    expect(text).toContain(
+      'next: call search_status with search_ref="ref_abc-123".',
+    );
     expect(text).not.toContain("searchRef=ref_abc-123 to follow up");
   });
+
+  it.each(["FAILED", "TIMEOUT"] as const)(
+    "stops polling a terminal %s session",
+    (status) => {
+      const incomplete: UnifiedSearchIncompletePayload = {
+        query: { raw: "myers" },
+        completed: false,
+        hasMore: false,
+        results: [],
+        searchRef: `ref-${status.toLowerCase()}`,
+        progress: {
+          status,
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 20_000,
+        },
+      };
+
+      const text = renderUnifiedSearchSuccess(incomplete);
+      expect(text).toContain(
+        "Do not call search_status again for this session.",
+      );
+      expect(text).toContain("next: rerun search");
+      expect(text).not.toContain("next: call search_status");
+    },
+  );
 
   it("labels deferred indexed alternatives as immediately queryable", () => {
     const incomplete: UnifiedSearchIncompletePayload = {
@@ -391,6 +419,28 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text.indexOf("warnings:")).toBeLessThan(
       text.indexOf("Do not repeat this search unchanged."),
     );
+  });
+
+  it("uses a compact headline when every requested source is empty", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "code",
+            targetLabel: "npm:zod@4.3.6",
+            resultCount: 0,
+          },
+          {
+            source: "docs",
+            targetLabel: "npm:zod@4.3.6",
+            resultCount: 0,
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain("No hits from any source (code, docs).");
+    expect(text).not.toContain("No hits across");
   });
 
   it("uses requestedRef when repo follow-up lacks served gitRef", () => {
