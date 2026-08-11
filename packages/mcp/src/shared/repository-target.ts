@@ -140,6 +140,12 @@ export function formatRepositoryTargetLabel(label: string): string | undefined {
   const [owner, repoName, ...rest] = repoLabel.split("/");
   if (!owner || !repoName || rest.length > 0) return undefined;
   if (owner.includes(":") || repoName.includes(":")) return undefined;
+  if (
+    !GITHUB_OWNER_PATTERN.test(owner) ||
+    !GITHUB_REPO_PATTERN.test(repoName)
+  ) {
+    return undefined;
+  }
   const gitRef =
     atRefDelimiter === -1 ? undefined : label.slice(atRefDelimiter + 1);
   if (gitRef === "") return undefined;

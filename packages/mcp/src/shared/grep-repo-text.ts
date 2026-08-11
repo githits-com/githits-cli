@@ -15,7 +15,11 @@ import type {
   LeanGrepRepoEnvelope,
   LeanGrepRepoMatch,
 } from "./grep-repo-response.js";
-import { buildTargetResolutionNotes } from "./target-resolution.js";
+import { shellQuote } from "./shell-quote.js";
+import {
+  buildTargetResolutionNotes,
+  formatTargetResolutionIdentity,
+} from "./target-resolution.js";
 
 const SEP = " | ";
 
@@ -37,11 +41,7 @@ export function renderGrepRepoText(envelope: LeanGrepRepoEnvelope): string {
 
   if (envelope.matches.length === 0) {
     lines.push("No matches.");
-    const trailer = buildTrailer(envelope);
-    if (trailer.length > 0) {
-      lines.push("");
-      for (const t of trailer) lines.push(t);
-    }
+    for (const note of buildEmptyGrepGuidance(envelope)) lines.push(note);
     return lines.join("\n");
   }
 
@@ -74,6 +74,112 @@ export function renderGrepRepoText(envelope: LeanGrepRepoEnvelope): string {
   return lines.join("\n");
 }
 
+/** Shared empty-result context used by MCP text and CLI terminal output. */
+export function buildEmptyGrepGuidance(
+  envelope: LeanGrepRepoEnvelope,
+  surface: "mcp" | "cli" = "mcp",
+): string[] {
+  const lines = [formatEmptyGrepFileCounts(envelope)];
+  const served = formatGrepServedTarget(envelope);
+  if (served) lines.push(served);
+  for (const note of buildTargetResolutionNotes(envelope.targetResolution)) {
+    lines.push(note);
+  }
+  const skipNotes: string[] = [];
+  if (envelope.binaryFilesSkipped) {
+    skipNotes.push(`${envelope.binaryFilesSkipped} binary file(s) skipped`);
+  }
+  if (envelope.filesTooLargeSkipped) {
+    skipNotes.push(
+      `${envelope.filesTooLargeSkipped} oversized file(s) skipped`,
+    );
+  }
+  if (skipNotes.length > 0) lines.push(`Note: ${skipNotes.join(", ")}.`);
+
+  if (envelope.truncatedReason) {
+    const reason = formatTruncationReason(envelope.truncatedReason);
+    lines.push(
+      surface === "cli"
+        ? `Truncated: ${reason}. Narrow the file selectors or increase --limit.`
+        : `Truncated: ${reason}. Pass narrower path/path_prefix/globs or increase max_matches.`,
+    );
+  }
+  if (envelope.hasMore && envelope.nextCursor) {
+    lines.push(
+      surface === "cli"
+        ? `More matches available — rerun with --cursor ${shellQuote(envelope.nextCursor)}`
+        : `More matches available. Pass cursor=${envelope.nextCursor} for the next page.`,
+    );
+  } else if (envelope.hasMore) {
+    lines.push("More matches available.");
+  }
+  if (envelope.truncatedReason || envelope.hasMore) return lines;
+
+  lines.push("Do not repeat this grep unchanged.");
+  if (envelope.filesInScope === 0) {
+    lines.push(
+      surface === "cli"
+        ? "next: loosen the optional path-prefix argument, --path, --glob, --ext, or exclusion flags."
+        : "next: loosen path, path_prefix, globs, extensions, or exclusion filters.",
+    );
+    return lines;
+  }
+
+  const pivots = ["shorten or change the pattern"];
+  if (envelope.caseSensitive) {
+    pivots.push(
+      surface === "cli" ? "drop --case-sensitive" : "set case_sensitive: false",
+    );
+  }
+  pivots.push(
+    surface === "cli"
+      ? "use githits search for conceptual intent"
+      : "use search for conceptual intent",
+  );
+  lines.push(`next: ${pivots.join("; ")}.`);
+  return lines;
+}
+
+function formatEmptyGrepFileCounts(envelope: LeanGrepRepoEnvelope): string {
+  if (envelope.filesInScope === 0) {
+    return `files scanned: ${envelope.filesScanned} (no files in scope)`;
+  }
+  if (envelope.filesScanned < envelope.filesInScope) {
+    return `files: ${envelope.filesInScope} in scope | ${envelope.filesScanned} content-scanned after index pruning`;
+  }
+  return `files scanned: ${envelope.filesScanned} (full scope)`;
+}
+
+function formatTruncationReason(reason: string): string {
+  switch (reason) {
+    case "deadline":
+      return "time limit reached";
+    case "max_matches":
+      return "match limit reached";
+    case "max_matches_per_file":
+      return "per-file match limit reached";
+    default:
+      return reason;
+  }
+}
+
+function formatGrepServedTarget(
+  envelope: LeanGrepRepoEnvelope,
+): string | undefined {
+  const resolved = formatTargetResolutionIdentity(
+    envelope.targetResolution?.served,
+  );
+  if (resolved) {
+    const state = envelope.targetResolution?.freshness;
+    return `target: served=${resolved}${state ? ` | state=${state}` : ""}`;
+  }
+  const servedRef =
+    envelope.indexedVersion ??
+    envelope.resolution?.resolvedRef ??
+    envelope.gitRef;
+  return servedRef ? `target: served=${servedRef}` : undefined;
+}
+
 function buildHeader(envelope: LeanGrepRepoEnvelope): string {
   const parts = [
     `code_grep${SEP}${envelope.totalMatches} match${
@@ -97,7 +203,7 @@ function buildTrailer(envelope: LeanGrepRepoEnvelope): string[] {
 
   if (envelope.truncatedReason) {
     lines.push(
-      `Truncated: ${envelope.truncatedReason}. Pass narrower path/path_prefix/globs or increase max_matches.`,
+      `Truncated: ${formatTruncationReason(envelope.truncatedReason)}. Pass narrower path/path_prefix/globs or increase max_matches.`,
     );
   }
 

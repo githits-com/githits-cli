@@ -73,6 +73,8 @@ test suite anchors the doc.
 - **CLI flags** use `--kebab-case`. They are the user-facing surface.
   `allow_partial_results` maps to CLI `--allow-partial` because the CLI
   name reads better as a command flag while preserving the same behaviour.
+  `search_status.wait_timeout_ms` maps to `search-status --wait <seconds>`;
+  both default to the shared 20-second bounded wait.
 - **Public enum values** are lowercase strings on both surfaces
   (`production`, `test`, `summary`, `all`).
 - **Service coercion** from lowercase enum values to the internal
@@ -119,6 +121,9 @@ test suite anchors the doc.
   `allow_partial_results` / `--allow-partial` opt into backend partial
   payloads while indexing continues; incomplete JSON envelopes may then
   carry non-empty `results` plus the `searchRef`.
+- Completed empty search JSON retains zero-result source/target context;
+  healthy source status remains suppressed for non-empty success. Text advice
+  is renderer-only and never replaces structured JSON.
 
 ### `PARITY-ERROR-ENVELOPE`
 
@@ -132,6 +137,9 @@ test suite anchors the doc.
   mechanism, not a convention.
 - MCP error text is always valid JSON. A client that parses
   `content[0].text` on error gets the same envelope as CLI `--json`.
+- Backend error messages, hints, indexing estimates, available versions/refs,
+  and suggested refs are preserved when supplied. Clients do not replace
+  specific backend guidance or synthesize target candidates.
 - The REST-backed `example`, `languages`, and `feedback` CLI commands preserve
   this envelope for generic transport/backend failures as well as typed auth
   failures. Human mode renders the same message as terminal text.
@@ -144,6 +152,11 @@ test suite anchors the doc.
   CLI-only instructions like `--verbose` or `--lifecycle all`.
 - Default MCP success output should be compact `text-v1`; programmatic
   parity tests must pass `format: "json"` explicitly.
+- Empty `code_grep` decision guidance is shared between MCP text and CLI
+  terminal stderr, with surface-native cursor syntax. Incomplete empty pages
+  render truncation/pagination guidance instead of completed-result pivots.
+  CLI stdout remains empty for grep-compatible zero-match behavior; JSON
+  remains the shared structured envelope.
 
 ## Checklist for adding a new dual-surface tool
 
@@ -347,4 +360,7 @@ envelope shape.
   whole-target regexes must include at least one literal substring.
   `symbol_fields` / `--symbol-field` passes backend symbol
   hydration through to `symbolFields`; the response envelope
-  carries `matches[].symbol` when the backend hydrates it.
+  carries `matches[].symbol` when the backend hydrates it. Empty text uses
+  shared scan/scope/served-target context and branches recovery on whether
+  `filesInScope` is zero. Completed scans reject an unchanged repeat;
+  incomplete empty pages preserve truncation/pagination continuation instead.

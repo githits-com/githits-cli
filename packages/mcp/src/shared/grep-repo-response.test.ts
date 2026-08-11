@@ -4,6 +4,7 @@ import {
   buildGrepRepoSuccessPayload,
   formatGrepRepoTerminal,
 } from "./grep-repo-response.js";
+import { renderGrepRepoText } from "./grep-repo-text.js";
 
 const baseResult: GrepRepoResult = {
   matches: [
@@ -170,7 +171,7 @@ describe("formatGrepRepoTerminal", () => {
     expect(stdout).toContain("> 10  const app = express();");
   });
 
-  it("verbose mode explains zero-match results", () => {
+  it("verbose mode explains zero-match results and pattern pivots", () => {
     const envelope = buildGrepRepoSuccessPayload(
       {
         ...baseResult,
@@ -180,16 +181,21 @@ describe("formatGrepRepoTerminal", () => {
       },
       baseOptions,
     );
-    const { stdout } = formatGrepRepoTerminal(envelope, {
+    const { stdout, stderr } = formatGrepRepoTerminal(envelope, {
       useColors: false,
       verbose: true,
     });
 
     expect(stdout).toContain("0 matches in 0 files");
     expect(stdout).toContain("No matches.");
+    expect(stderr).toContain("files scanned: 1 (full scope)");
+    expect(stderr).toContain("Do not repeat this grep unchanged.");
+    expect(stderr).toContain("shorten or change the pattern");
+    expect(stderr).toContain("use githits search for conceptual intent");
+    expect(stderr).not.toContain("case-sensitive");
   });
 
-  it("plain mode preserves grep-style silence for zero-match results", () => {
+  it("uses CLI syntax when a case-sensitive empty grep can be broadened", () => {
     const envelope = buildGrepRepoSuccessPayload(
       {
         ...baseResult,
@@ -197,13 +203,125 @@ describe("formatGrepRepoTerminal", () => {
         totalMatches: 0,
         uniqueFilesMatched: 0,
       },
+      {
+        ...baseOptions,
+        caseSensitive: true,
+        explicit: { ...baseOptions.explicit, caseSensitive: true },
+      },
+    );
+    const { stderr } = formatGrepRepoTerminal(envelope, {
+      useColors: false,
+    });
+
+    expect(stderr).toContain("drop --case-sensitive");
+    expect(stderr).not.toContain("case_sensitive");
+  });
+
+  it("plain mode preserves grep-style stdout silence and explains empty scope on stderr", () => {
+    const envelope = buildGrepRepoSuccessPayload(
+      {
+        ...baseResult,
+        matches: [],
+        totalMatches: 0,
+        uniqueFilesMatched: 0,
+        filesScanned: 0,
+        filesInScope: 0,
+      },
       baseOptions,
     );
-    const { stdout } = formatGrepRepoTerminal(envelope, {
+    const { stdout, stderr } = formatGrepRepoTerminal(envelope, {
       useColors: false,
     });
 
     expect(stdout).toBe("");
+    expect(stderr).toContain("files scanned: 0 (no files in scope)");
+    expect(stderr).toContain(
+      "loosen the optional path-prefix argument, --path, --glob, --ext, or exclusion flags",
+    );
+  });
+
+  it("preserves CLI cursor guidance for an empty incomplete page", () => {
+    const envelope = buildGrepRepoSuccessPayload(
+      {
+        ...baseResult,
+        matches: [],
+        totalMatches: 0,
+        uniqueFilesMatched: 0,
+        hasMore: true,
+        nextCursor: "next-page",
+      },
+      baseOptions,
+    );
+    const { stderr } = formatGrepRepoTerminal(envelope, {
+      useColors: false,
+    });
+
+    expect(stderr).toContain("More matches available — rerun");
+    expect(stderr).toContain("--cursor 'next-page'");
+    expect(stderr).not.toContain("Do not repeat this grep unchanged.");
+  });
+
+  it("uses the real CLI limit flag for an empty truncated result", () => {
+    const envelope = buildGrepRepoSuccessPayload(
+      {
+        ...baseResult,
+        matches: [],
+        totalMatches: 0,
+        uniqueFilesMatched: 0,
+        truncatedReason: "MAX_MATCHES",
+      },
+      baseOptions,
+    );
+    const { stderr } = formatGrepRepoTerminal(envelope, {
+      useColors: false,
+    });
+
+    expect(stderr).toContain("Truncated: match limit reached.");
+    expect(stderr).toContain("increase --limit");
+    expect(stderr).not.toContain("--max-matches");
+  });
+
+  it.each([
+    ["MAX_MATCHES", "max_matches", "match limit reached"],
+    [
+      "MAX_MATCHES_PER_FILE",
+      "max_matches_per_file",
+      "per-file match limit reached",
+    ],
+    ["DEADLINE", "deadline", "time limit reached"],
+  ] as const)(
+    "humanizes producer-normalized %s truncation",
+    (backendReason, normalizedReason, humanReason) => {
+      const envelope = buildGrepRepoSuccessPayload(
+        {
+          ...baseResult,
+          matches: [],
+          totalMatches: 0,
+          uniqueFilesMatched: 0,
+          truncatedReason: backendReason,
+        },
+        baseOptions,
+      );
+
+      expect(envelope.truncatedReason).toBe(normalizedReason);
+      expect(renderGrepRepoText(envelope)).toContain(
+        `Truncated: ${humanReason}.`,
+      );
+      expect(
+        formatGrepRepoTerminal(envelope, { useColors: false }).stderr,
+      ).toContain(`Truncated: ${humanReason}.`);
+    },
+  );
+
+  it("humanizes a producer-built truncation trailer with matches", () => {
+    const envelope = buildGrepRepoSuccessPayload(
+      { ...baseResult, truncatedReason: "MAX_MATCHES" },
+      baseOptions,
+    );
+
+    expect(renderGrepRepoText(envelope)).toContain(
+      "Truncated: match limit reached.",
+    );
   });
 
   it("verbose mode renders minimal symbol hints", () => {
@@ -374,7 +492,7 @@ describe("formatGrepRepoTerminal", () => {
     });
 
     expect(rendered.stderr).toBe(
-      "More grep results available — rerun with --cursor 'cursor_abc123'\n",
+      "More matches available — rerun with --cursor 'cursor_abc123'\n",
     );
   });
 

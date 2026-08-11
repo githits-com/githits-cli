@@ -6,7 +6,10 @@ import type {
   UnifiedSearchProgress,
   UnifiedSearchSessionStatus,
 } from "@githits/core-internal";
-import { AuthenticationError } from "@githits/core-internal";
+import {
+  AuthenticationError,
+  CodeNavigationIndexingError,
+} from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import {
   createMockCodeNavigationService,
@@ -75,6 +78,42 @@ describe("searchAction", () => {
     expect(errorSpy.mock.calls[0]?.[0]).toBe(
       "Authentication required. Run `githits login` to authenticate or set GITHITS_API_TOKEN.",
     );
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("renders indexing wait guidance and structured details in human output", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const indexingError = new CodeNavigationIndexingError(
+      "Target is indexing.",
+      "idx-search",
+      [{ version: "5.2.1", ref: "v5.2.1" }],
+      undefined,
+      undefined,
+      { lowerSeconds: 7, upperSeconds: 19, elapsedSeconds: 3 },
+      "Wait until ready with CLI `--wait 60000` or MCP `wait_timeout_ms: 60000`.",
+    );
+
+    await expect(
+      searchAction(
+        "router middleware",
+        { in: ["npm:express"] },
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            search: mock(() => Promise.reject(indexingError)),
+          }),
+        }),
+      ),
+    ).rejects.toThrow("process.exit");
+
+    const output = String(errorSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("--wait 60000");
+    expect(output).toContain("indexing ref: idx-search");
+    expect(output).toContain("indexing estimate: 7-19s, 3s elapsed");
+    expect(output).toContain("indexed refs/versions: 5.2.1");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
@@ -1010,6 +1049,44 @@ describe("searchStatusAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("waits up to the shared default and forwards an explicit status wait", async () => {
+    const searchStatus = mock((_searchRef: string, _waitTimeoutMs?: number) =>
+      Promise.resolve(createIncompleteOutcome("SEARCHING", "search-ref-wait")),
+    );
+    const deps = createDeps({
+      codeNavigationService: createMockCodeNavigationService({ searchStatus }),
+    });
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchStatusAction("search-ref-wait", {}, deps);
+    expect(searchStatus.mock.calls[0]).toEqual(["search-ref-wait", 20_000]);
+
+    searchStatus.mockClear();
+    await searchStatusAction("search-ref-wait", { wait: "45" }, deps);
+    expect(searchStatus.mock.calls[0]).toEqual(["search-ref-wait", 45_000]);
+
+    consoleSpy.mockRestore();
+  });
+
+  it("rejects an out-of-range search-status wait", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await expect(
+        searchStatusAction("search-ref-wait", { wait: "61" }, createDeps()),
+      ).rejects.toThrow("process.exit");
+      expect(String(errorSpy.mock.calls[0]?.[0])).toContain(
+        "--wait expects an integer between 0 and 60. Got 61.",
+      );
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
   it("includes target details for incomplete search refs", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
@@ -1087,7 +1164,33 @@ describe("searchStatusAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain("Search timed out.");
+    expect(output).toContain("This search session is terminal.");
+    expect(output).toContain("Start a new search.");
+    expect(output).not.toContain("longer wait");
     expect(output).not.toContain("Search still in progress.");
+    consoleSpy.mockRestore();
+  });
+
+  it("replaces polling guidance in terminal search-status JSON", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchStatusAction(
+      "search-ref-timeout",
+      { json: true },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() =>
+            Promise.resolve(
+              createIncompleteOutcome("TIMEOUT", "search-ref-timeout"),
+            ),
+          ),
+        }),
+      }),
+    );
+
+    const payload = JSON.parse(String(consoleSpy.mock.calls[0]?.[0]));
+    expect(payload.progress.next).toBe("rerun search");
+    expect(payload.progress.next).not.toContain("search_status");
     consoleSpy.mockRestore();
   });
 

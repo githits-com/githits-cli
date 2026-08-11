@@ -78,11 +78,153 @@ function completed(
 }
 
 describe("renderUnifiedSearchSuccess", () => {
-  it("renders an empty completed envelope with a clear message", () => {
-    const text = renderUnifiedSearchSuccess(completed([]));
+  it("renders an empty completed envelope with bounded anti-retry guidance", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        query: {
+          raw: "diff myers",
+          filters: { kind: "function" },
+        },
+        sourceStatus: [
+          {
+            source: "code",
+            targetLabel: "npm:express@5.2.1",
+            requestedTarget: "npm:express latest",
+            servedTarget: "npm:express@5.2.1",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          },
+        ],
+      }),
+    );
     expect(text).toContain("0 hits");
     expect(text).toContain('query="diff myers"');
-    expect(text).toContain("No hits.");
+    expect(text).toContain(
+      "No hits for code on npm:express@5.2.1 (requested npm:express latest; current).",
+    );
+    expect(text).toContain("Do not repeat this search unchanged.");
+    expect(text).toContain("shorten or broaden the query");
+    expect(text).toContain("remove restrictive filters");
+    expect(text).toContain('source="symbol"');
+    expect(text).toContain("known literal or regex");
+  });
+
+  it("directs completed indexing results to wait or indexed alternatives", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "code",
+            targetLabel: "npm:express@5.2.1",
+            servedTarget: "npm:express@5.2.1",
+            indexingStatus: "INDEXING",
+            codeIndexState: "INDEXING",
+            resultCount: 0,
+            targetResolution: {
+              freshness: "indexing",
+              availableVersions: [{ version: "5.1.0", ref: "v5.1.0" }],
+              availableRefs: [],
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain("wait_timeout_ms");
+    expect(text).toContain("queryable now");
+    expect(text).not.toContain("shorten or broaden the query");
+  });
+
+  it("does not suggest symbol search when already using the symbol source", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        query: { raw: "Router", sources: ["symbol"] },
+      }),
+    );
+
+    expect(text).not.toContain('source="symbol"');
+    expect(text).not.toContain("remove restrictive filters");
+  });
+
+  it("does not call explicit public_only=false restrictive", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        query: { raw: "Router", filters: { publicOnly: false } },
+      }),
+    );
+
+    expect(text).not.toContain("remove restrictive filters");
+  });
+
+  it("does not suggest code_grep for a standalone docs site", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        query: { raw: "middleware", sources: ["docs"] },
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "site:expressjs.com",
+            resultCount: 0,
+            targetResolution: {
+              requested: { site: "site:expressjs.com" },
+              served: { site: "site:expressjs.com" },
+              freshness: "current",
+              availableVersions: [],
+              availableRefs: [],
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(text).not.toContain("code_grep");
+  });
+
+  it("prefers a failed lifecycle state over a healthy sibling", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        warnings: ["Source 'code' for npm:express@5.2.1: status FAILED"],
+        sourceStatus: [
+          {
+            source: "code",
+            targetLabel: "npm:express@5.2.1",
+            servedTarget: "npm:express@5.2.1",
+            indexingStatus: "FAILED",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain("No hits for code on npm:express@5.2.1 (failed).");
+    expect(text).not.toContain(
+      "No hits for code on npm:express@5.2.1 (current).",
+    );
+  });
+
+  it("prefers a stale lifecycle state over a healthy sibling", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "code",
+            targetLabel: "npm:express@5.2.1",
+            servedTarget: "npm:express@5.2.1",
+            indexingStatus: "STALE",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "No hits for code on npm:express@5.2.1 (previous-snapshot).",
+    );
+    expect(text).not.toContain(
+      "No hits for code on npm:express@5.2.1 (current).",
+    );
   });
 
   it("renders a single code hit with locator, title, and summary", () => {
@@ -153,9 +295,67 @@ describe("renderUnifiedSearchSuccess", () => {
     const text = renderUnifiedSearchSuccess(incomplete);
     expect(text).toContain("1 partial");
     expect(text).toContain("searchRef=ref_abc-123");
+    expect(text).toContain("Indexing in progress.\nDo not repeat search.");
     expect(text).toContain(
-      "Indexing in progress. Call search_status with searchRef=ref_abc-123",
+      'next: call search_status with search_ref="ref_abc-123" and wait_timeout_ms=20000.',
     );
+    expect(text).not.toContain("searchRef=ref_abc-123 to follow up");
+  });
+
+  it.each(["FAILED", "TIMEOUT"] as const)(
+    "stops polling a terminal %s session",
+    (status) => {
+      const incomplete: UnifiedSearchIncompletePayload = {
+        query: { raw: "myers" },
+        completed: false,
+        hasMore: false,
+        results: [],
+        searchRef: `ref-${status.toLowerCase()}`,
+        progress: {
+          status,
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 20_000,
+        },
+      };
+
+      const text = renderUnifiedSearchSuccess(incomplete);
+      expect(text).toContain(
+        "Do not call search_status again for this session.",
+      );
+      expect(text).toContain("next: rerun search");
+      expect(text).not.toContain("next: call search_status");
+    },
+  );
+
+  it("labels deferred indexed alternatives as immediately queryable", () => {
+    const incomplete: UnifiedSearchIncompletePayload = {
+      query: { raw: "router" },
+      completed: false,
+      hasMore: false,
+      results: [],
+      searchRef: "ref-indexing",
+      progress: {
+        status: "INDEXING",
+        targetsReady: 0,
+        targetsTotal: 1,
+        elapsedMs: 100,
+        targets: [
+          {
+            requested: "npm:express latest",
+            availableVersions: [{ version: "4.18.2", ref: "v4.18.2" }],
+            availableRefs: [{ ref: "main" }],
+          },
+        ],
+      },
+    };
+
+    const text = renderUnifiedSearchSuccess(incomplete);
+    expect(text).toContain("0/1 targets");
+    expect(text).toContain(
+      "queryable now: versions=4.18.2@v4.18.2 | refs=main",
+    );
+    expect(text).not.toContain("allow_partial_results");
   });
 
   it("wraps long summaries at the configured width", () => {
@@ -216,6 +416,31 @@ describe("renderUnifiedSearchSuccess", () => {
     );
     // Source notes block still rendered for structured detail.
     expect(text).toContain("source notes:");
+    expect(text.indexOf("warnings:")).toBeLessThan(
+      text.indexOf("Do not repeat this search unchanged."),
+    );
+  });
+
+  it("uses a compact headline when every requested source is empty", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "code",
+            targetLabel: "npm:zod@4.3.6",
+            resultCount: 0,
+          },
+          {
+            source: "docs",
+            targetLabel: "npm:zod@4.3.6",
+            resultCount: 0,
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain("No hits from any source (code, docs).");
+    expect(text).not.toContain("No hits across");
   });
 
   it("uses requestedRef when repo follow-up lacks served gitRef", () => {
@@ -278,6 +503,8 @@ describe("renderUnifiedSearchSuccess", () => {
   it("omits the warnings preamble when no warnings are present", () => {
     const text = renderUnifiedSearchSuccess(completed([codeHit()]));
     expect(text).not.toContain("warnings:");
+    expect(text).not.toContain("Do not repeat this search unchanged.");
+    expect(text).not.toContain('source="symbol"');
   });
 
   it("separates multiple hits with a blank line", () => {

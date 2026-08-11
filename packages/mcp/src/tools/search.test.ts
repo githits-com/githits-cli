@@ -10,6 +10,13 @@ import {
 import { createSearchTool } from "./search.js";
 
 describe("searchTool", () => {
+  it("directs deferred calls to search_status instead of repeated search", () => {
+    const tool = createSearchTool(createMockCodeNavigationService());
+
+    expect(tool.description).toContain("do not repeat `search`");
+    expect(tool.description).toContain("`search_status`");
+  });
+
   it("returns unified search payload from service", async () => {
     const tool = createSearchTool(createMockCodeNavigationService());
 

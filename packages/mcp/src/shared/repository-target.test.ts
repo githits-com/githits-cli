@@ -28,4 +28,10 @@ describe("formatRepositoryTargetLabel", () => {
   it("does not rewrite package-style labels", () => {
     expect(formatRepositoryTargetLabel("npm:express@5.2.1")).toBeUndefined();
   });
+
+  it("does not URL-encode human-readable default-branch labels", () => {
+    expect(
+      formatRepositoryTargetLabel("expressjs/express default branch"),
+    ).toBeUndefined();
+  });
 });

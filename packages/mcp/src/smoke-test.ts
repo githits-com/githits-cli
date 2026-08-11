@@ -762,6 +762,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     const statusJson = assertJsonResult(
       await callTool(caller, "search_status", {
         search_ref: searchRef,
+        wait_timeout_ms: 0,
         format: "json",
       }),
       "search_status json",
@@ -775,6 +776,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     assertErrorCode(
       await callTool(caller, "search_status", {
         search_ref: "smoke-invalid-search-ref",
+        wait_timeout_ms: 0,
       }),
       "search_status invalid ref",
       "NOT_FOUND",

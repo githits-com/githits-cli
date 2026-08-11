@@ -32,11 +32,51 @@ function match(overrides: Partial<LeanGrepRepoMatch> = {}): LeanGrepRepoMatch {
 }
 
 describe("renderGrepRepoText", () => {
-  it("renders zero-match header and empty body", () => {
+  it("renders scoped zero-match context and pattern pivots", () => {
     const text = renderGrepRepoText(envelope());
     expect(text).toContain("code_grep | 0 matches in 0 files");
     expect(text).toContain('pattern="applyEdit"');
     expect(text).toContain("No matches.");
+    expect(text).toContain("files scanned: 120 (full scope)");
+    expect(text).toContain("Do not repeat this grep unchanged.");
+    expect(text).toContain("shorten or change the pattern");
+    expect(text).not.toContain("casing");
+    expect(text).not.toContain("case_sensitive");
+    expect(text).toContain("use search for conceptual intent");
+  });
+
+  it("advises disabling case sensitivity only when it was enabled", () => {
+    const text = renderGrepRepoText(envelope({ caseSensitive: true }));
+
+    expect(text).toContain("set case_sensitive: false");
+  });
+
+  it("advises loosening selectors when no files are in scope", () => {
+    const text = renderGrepRepoText(
+      envelope({
+        filesScanned: 0,
+        filesInScope: 0,
+        indexedVersion: "v5.2.1",
+      }),
+    );
+
+    expect(text).toContain("files scanned: 0 (no files in scope)");
+    expect(text).toContain("served=v5.2.1");
+    expect(text).toContain(
+      "loosen path, path_prefix, globs, extensions, or exclusion filters",
+    );
+    expect(text).not.toContain("use search for conceptual intent");
+  });
+
+  it("explains when the content index pruned files before verification", () => {
+    const text = renderGrepRepoText(
+      envelope({ filesScanned: 1, filesInScope: 206 }),
+    );
+
+    expect(text).toContain(
+      "files: 206 in scope | 1 content-scanned after index pruning",
+    );
+    expect(text).not.toContain("files: 1 scanned | 206 in scope");
   });
 
   it("renders single-file matches grouped under the file with line gutter", () => {
@@ -58,6 +98,7 @@ describe("renderGrepRepoText", () => {
       "  142: export function applyEdit(input: string): string {",
     );
     expect(text).toContain("  287:   const result = applyEdit(input, hunk);");
+    expect(text).not.toContain("Do not repeat this grep unchanged.");
   });
 
   it("renders matches across multiple files with blank-line separators", () => {
@@ -128,20 +169,6 @@ describe("renderGrepRepoText", () => {
     expect(text).toContain("  --");
   });
 
-  it("renders truncation notice when truncatedReason is set", () => {
-    const text = renderGrepRepoText(
-      envelope({
-        totalMatches: 50,
-        uniqueFilesMatched: 7,
-        truncatedReason: "limit",
-        hasMore: true,
-        matches: [match()],
-      }),
-    );
-    expect(text).toContain("Truncated: limit.");
-    expect(text).toContain("max_matches");
-  });
-
   it("renders next-cursor note when hasMore", () => {
     const text = renderGrepRepoText(
       envelope({
@@ -153,6 +180,19 @@ describe("renderGrepRepoText", () => {
       }),
     );
     expect(text).toContain("More matches available. Pass cursor=ABC123");
+  });
+
+  it("pages an empty incomplete result instead of changing the grep", () => {
+    const text = renderGrepRepoText(
+      envelope({
+        hasMore: true,
+        nextCursor: "ABC123",
+      }),
+    );
+
+    expect(text).toContain("More matches available. Pass cursor=ABC123");
+    expect(text).not.toContain("Do not repeat this grep unchanged.");
+    expect(text).not.toContain("shorten or change the pattern");
   });
 
   it("renders pattern-type and case-sensitive flags in header when set", () => {

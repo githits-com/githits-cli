@@ -12,6 +12,7 @@ import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { mapCodeNavigationError } from "./code-navigation-error-map.js";
 import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
 import { formatRepositoryTargetLabel } from "./repository-target.js";
+import { isHealthySearchLifecycleState } from "./search-lifecycle.js";
 import {
   buildResolutionFromRetryCandidates,
   buildTargetResolutionNotes,
@@ -270,6 +271,7 @@ export function buildUnifiedSearchSuccessPayload(
   if (outcome.searchRef) completed.searchRef = outcome.searchRef;
   const sourceStatus = compactSourceStatus(outcome.result.sourceStatus, {
     completed: true,
+    includeEmptyResultContext: completed.results.length === 0,
   });
   if (sourceStatus) completed.sourceStatus = sourceStatus;
   const combinedWarnings = combineWarnings(
@@ -377,7 +379,10 @@ function buildUnifiedSearchStatusResultPayload(
   if (result.sources.length > 0) {
     payload.sources = result.sources.map((entry) => entry.toLowerCase());
   }
-  const sourceStatus = compactSourceStatus(result.sourceStatus, options);
+  const sourceStatus = compactSourceStatus(result.sourceStatus, {
+    ...options,
+    includeEmptyResultContext: options.completed && result.results.length === 0,
+  });
   if (sourceStatus) payload.sourceStatus = sourceStatus;
   const combinedWarnings = combineWarnings(
     result.queryWarnings,
@@ -557,7 +562,10 @@ function compactProgress(
     >;
   }
   if (progress.expiresAt) payload.expiresAt = progress.expiresAt;
-  payload.next = `search_status search_ref=${JSON.stringify(progress.searchRef)}`;
+  payload.next =
+    progress.status === "FAILED" || progress.status === "TIMEOUT"
+      ? "rerun search"
+      : `search_status search_ref=${JSON.stringify(progress.searchRef)} wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}`;
   return payload;
 }
 
@@ -848,14 +856,14 @@ function warningForEntry(
   if (entry.ignoredFilters?.length) {
     reasons.push(`ignored filters [${entry.ignoredFilters.join(", ")}]`);
   }
-  // Healthy lifecycle states (`INDEXED`, `CURRENT`, `STALE`) are
-  // already filtered out upstream in `compactSourceStatusEntry`; if
-  // these fields are present here, the state is genuinely worth
-  // surfacing.
+  // Empty completed results intentionally retain lifecycle context. STALE is
+  // usable and warns only when target divergence produced a freshness warning.
   if (
     !terminalLifecycleReason &&
     reasons.length === 0 &&
     entry.indexingStatus &&
+    !isHealthySearchLifecycleState(entry.indexingStatus) &&
+    entry.indexingStatus !== "STALE" &&
     !(entry.indexingStatus === "INDEXING" && options.completed)
   ) {
     reasons.push(`indexing status ${entry.indexingStatus}`);
@@ -866,6 +874,7 @@ function warningForEntry(
     entry.codeIndexState
   ) {
     if (
+      !isHealthySearchLifecycleState(entry.codeIndexState) &&
       entry.codeIndexState !== "STALE" &&
       !(entry.codeIndexState === "INDEXING" && options.completed)
     ) {
@@ -901,7 +910,10 @@ function terminalLifecycleWarningReason(
     new Set([entry.indexingStatus, entry.codeIndexState].filter(Boolean)),
   ) as string[];
   const terminalStates = states.filter(
-    (state) => state !== "INDEXING" && state !== "STALE",
+    (state) =>
+      !isHealthySearchLifecycleState(state) &&
+      state !== "INDEXING" &&
+      state !== "STALE",
   );
   if (terminalStates.length === 0) return undefined;
   const status = terminalStates.join("/");
@@ -958,7 +970,10 @@ function projectDocCoverage(
 
 function compactSourceStatus(
   sourceStatus: UnifiedSearchSourceStatus[] | undefined,
-  options: { completed?: boolean } = {},
+  options: {
+    completed?: boolean;
+    includeEmptyResultContext?: boolean;
+  } = {},
 ): UnifiedSearchSourceStatusPayload[] | undefined {
   if (!sourceStatus || sourceStatus.length === 0) return undefined;
   const compact: UnifiedSearchSourceStatusPayload[] = [];
@@ -971,13 +986,50 @@ function compactSourceStatus(
 
 function compactSourceStatusEntry(
   entry: UnifiedSearchSourceStatus,
-  options: { completed?: boolean },
+  options: {
+    completed?: boolean;
+    includeEmptyResultContext?: boolean;
+  },
 ): UnifiedSearchSourceStatusPayload | undefined {
   const payload: UnifiedSearchSourceStatusPayload = {
     source: entry.source.toLowerCase(),
     targetLabel: formatTargetLabel(entry.targetLabel),
   };
   let interesting = false;
+
+  if (options.includeEmptyResultContext) {
+    const servedTarget = entry.servedTargetLabel
+      ? formatTargetLabel(entry.servedTargetLabel)
+      : undefined;
+    const comparisonTarget = servedTarget ?? payload.targetLabel;
+    const requestedTarget = entry.requestedTargetLabel
+      ? formatTargetLabel(entry.requestedTargetLabel)
+      : undefined;
+    const freshTarget = entry.freshTargetLabel
+      ? formatTargetLabel(entry.freshTargetLabel)
+      : undefined;
+    if (
+      requestedTarget &&
+      canonicalTargetLabel(requestedTarget) !==
+        canonicalTargetLabel(comparisonTarget)
+    ) {
+      payload.requestedTarget = requestedTarget;
+    }
+    if (
+      freshTarget &&
+      canonicalTargetLabel(freshTarget) !==
+        canonicalTargetLabel(comparisonTarget)
+    ) {
+      payload.freshTarget = freshTarget;
+    }
+    if (servedTarget) payload.servedTarget = servedTarget;
+    if (entry.indexingStatus) payload.indexingStatus = entry.indexingStatus;
+    if (entry.codeIndexState) payload.codeIndexState = entry.codeIndexState;
+    if (typeof entry.resultCount === "number") {
+      payload.resultCount = entry.resultCount;
+    }
+    interesting = true;
+  }
 
   const staleDiverges =
     entry.codeIndexState === "STALE" &&
@@ -1039,7 +1091,11 @@ function compactSourceStatusEntry(
     payload.coverage = coverage;
     interesting = true;
   }
-  if (typeof entry.resultCount === "number" && entry.resultCount > 0) {
+  if (
+    !options.includeEmptyResultContext &&
+    typeof entry.resultCount === "number" &&
+    entry.resultCount > 0
+  ) {
     payload.resultCount = entry.resultCount;
   }
   if (entry.ignoredFilters.length > 0) {

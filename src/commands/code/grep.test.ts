@@ -168,7 +168,7 @@ describe("pkgGrepAction", () => {
 
     const stderr = stderrWrites.join("");
     expect(stderr).toContain(
-      "More grep results available — rerun with --cursor 'cursor_abc123'",
+      "More matches available — rerun with --cursor 'cursor_abc123'",
     );
     stdoutSpy.mockRestore();
     stderrSpy.mockRestore();
@@ -497,9 +497,10 @@ describe("pkgGrepAction", () => {
     }
   });
 
-  it("prints zero-match text before setting exit code 1", async () => {
+  it("prints zero-match guidance before setting exit code 1", async () => {
     const originalExitCode = process.exitCode;
     const writes: string[] = [];
+    const errorWrites: string[] = [];
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
       chunk: string | Uint8Array,
     ) => {
@@ -508,6 +509,14 @@ describe("pkgGrepAction", () => {
       );
       return true;
     }) as typeof process.stdout.write);
+    const errorWriteSpy = spyOn(process.stderr, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      errorWrites.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stderr.write);
     try {
       const service = createMockCodeNavigationService({
         grepRepo: mock(() =>
@@ -529,9 +538,16 @@ describe("pkgGrepAction", () => {
       );
 
       expect(writes.join("")).toContain("No matches.");
+      expect(errorWrites.join("")).toContain(
+        "Do not repeat this grep unchanged.",
+      );
+      expect(errorWrites.join("")).toContain(
+        "use githits search for conceptual intent",
+      );
       expect(process.exitCode).toBe(1);
     } finally {
       writeSpy.mockRestore();
+      errorWriteSpy.mockRestore();
       process.exitCode = originalExitCode ?? 0;
     }
   });
