@@ -16,9 +16,11 @@
  */
 
 import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
+import { isHealthySearchLifecycleState } from "./search-lifecycle.js";
 import {
   buildResolutionFromRetryCandidates,
   buildTargetResolutionNotes,
+  formatTargetResolutionIdentity,
   type LeanTargetResolution,
 } from "./target-resolution.js";
 import type {
@@ -26,6 +28,7 @@ import type {
   UnifiedSearchErrorPayload,
   UnifiedSearchHitPayload,
   UnifiedSearchIncompletePayload,
+  UnifiedSearchQueryEcho,
 } from "./unified-search-response.js";
 
 const SUMMARY_WRAP_WIDTH = 76;
@@ -43,13 +46,27 @@ export function renderUnifiedSearchSuccess(
   lines.push(buildHeader(payload));
   lines.push("");
 
-  if (payload.results.length === 0) {
-    lines.push(payload.completed ? "No hits." : noHitsYetMessage(payload));
+  const completedEmpty = payload.completed && payload.results.length === 0;
+  if (completedEmpty) {
+    appendWarnings(lines, payload.warnings);
+    appendSourceStatusNotes(lines, payload.sourceStatus);
+    if (lines[lines.length - 1] !== "") lines.push("");
+    appendEmptySearchGuidance(lines, {
+      query: payload.query,
+      sourceStatus: payload.sourceStatus,
+    });
+  } else if (payload.results.length === 0) {
+    lines.push(
+      noHitsYetMessage("progress" in payload ? payload.progress : undefined),
+    );
   } else {
     appendUnifiedSearchHits(lines, payload.results);
   }
 
-  const trailer = buildTrailer(payload);
+  const trailer = buildTrailer(payload, {
+    includeWarnings: !completedEmpty,
+    includeSourceStatus: !completedEmpty,
+  });
   if (trailer.length > 0) {
     lines.push("");
     for (const line of trailer) lines.push(line);
@@ -58,9 +75,10 @@ export function renderUnifiedSearchSuccess(
   return lines.join("\n");
 }
 
-function noHitsYetMessage(payload: SearchSuccessPayload): string {
-  if (payload.completed) return "No hits.";
-  const status = payload.progress?.status;
+function noHitsYetMessage(
+  progress: UnifiedSearchIncompletePayload["progress"],
+): string {
+  const status = progress?.status;
   if (status === "TIMEOUT") return "No hits yet - timed out waiting.";
   if (status === "FAILED") return "No hits - search failed.";
   if (status === "SEARCHING") return "No hits yet - searching.";
@@ -216,15 +234,13 @@ function formatLineRange(start?: number, end?: number): string {
   return `:${start}-${end}`;
 }
 
-function buildTrailer(payload: SearchSuccessPayload): string[] {
+function buildTrailer(
+  payload: SearchSuccessPayload,
+  options: { includeWarnings: boolean; includeSourceStatus: boolean },
+): string[] {
   const lines: string[] = [];
 
-  if (payload.warnings && payload.warnings.length > 0) {
-    lines.push("warnings:");
-    for (const warning of payload.warnings) {
-      lines.push(`  - ${warning}`);
-    }
-  }
+  if (options.includeWarnings) appendWarnings(lines, payload.warnings);
 
   if (payload.hasMore) {
     const nextOffsetHint =
@@ -244,16 +260,19 @@ function buildTrailer(payload: SearchSuccessPayload): string[] {
           : status === "SEARCHING"
             ? "Search in progress."
             : "Indexing in progress.";
+    if (payload.progress) {
+      lines.push(
+        `progress: ${payload.progress.targetsReady}/${payload.progress.targetsTotal} targets ready.`,
+      );
+    }
+    lines.push(`${action} Do not repeat search.`);
     lines.push(
-      `${action} Call search_status with searchRef=${payload.searchRef} to follow up.`,
+      `Call search_status with search_ref=${JSON.stringify(payload.searchRef)}.`,
     );
   }
 
-  if (payload.sourceStatus && payload.sourceStatus.length > 0) {
-    lines.push("source notes:");
-    for (const entry of payload.sourceStatus) {
-      lines.push(`  - ${formatSourceStatus(entry)}`);
-    }
+  if (options.includeSourceStatus) {
+    appendSourceStatusNotes(lines, payload.sourceStatus);
   }
 
   const progress = "progress" in payload ? payload.progress : undefined;
@@ -265,6 +284,146 @@ function buildTrailer(payload: SearchSuccessPayload): string[] {
   }
 
   return lines;
+}
+
+function appendWarnings(lines: string[], warnings: string[] | undefined): void {
+  if (!warnings || warnings.length === 0) return;
+  lines.push("warnings:");
+  for (const warning of warnings) lines.push(`  - ${warning}`);
+}
+
+export function appendSourceStatusNotes(
+  lines: string[],
+  sourceStatus:
+    | UnifiedSearchCompletedPayload["sourceStatus"]
+    | UnifiedSearchIncompletePayload["sourceStatus"],
+): void {
+  if (!sourceStatus || sourceStatus.length === 0) return;
+  lines.push("source notes:");
+  for (const entry of sourceStatus) {
+    lines.push(`  - ${formatSourceStatus(entry)}`);
+  }
+}
+
+export function appendEmptySearchGuidance(
+  lines: string[],
+  options: {
+    query?: UnifiedSearchQueryEcho;
+    showQuery?: boolean;
+    sourceStatus?: UnifiedSearchCompletedPayload["sourceStatus"];
+  },
+): void {
+  if (options.showQuery && options.query?.raw) {
+    lines.push(`query=${quote(options.query.raw)}`);
+  }
+  lines.push(formatEmptySearchHeadline(options.sourceStatus));
+  lines.push("Do not repeat this search unchanged.");
+  if (hasIndexingSource(options.sourceStatus)) {
+    const hasAlternatives = options.sourceStatus?.some(
+      (entry) =>
+        Boolean(entry.targetResolution?.availableVersions.length) ||
+        Boolean(entry.targetResolution?.availableRefs.length),
+    );
+    lines.push(
+      hasAlternatives
+        ? 'next: query an indexed version/ref labelled "queryable now", or rerun with a larger wait_timeout_ms to wait for indexing.'
+        : "next: rerun with a larger wait_timeout_ms to wait for indexing.",
+    );
+    return;
+  }
+
+  const pivots = ["shorten or broaden the query"];
+  if (hasRestrictiveSearchFilters(options.query)) {
+    pivots.push("remove restrictive filters");
+  }
+  if (!options.query?.sources?.includes("symbol")) {
+    pivots.push('use source="symbol" for an exact API/entity name');
+  }
+  if (!isStandaloneSiteSearch(options.sourceStatus)) {
+    pivots.push("use code_grep for a known literal or regex");
+  }
+  lines.push(`next: ${pivots.join("; ")}.`);
+}
+
+function hasIndexingSource(
+  sourceStatus: UnifiedSearchCompletedPayload["sourceStatus"],
+): boolean {
+  return Boolean(
+    sourceStatus?.some(
+      (entry) =>
+        entry.targetResolution?.freshness === "indexing" ||
+        entry.indexingStatus === "INDEXING" ||
+        entry.codeIndexState === "INDEXING",
+    ),
+  );
+}
+
+function hasRestrictiveSearchFilters(
+  query: UnifiedSearchQueryEcho | undefined,
+): boolean {
+  const filters = query?.filters;
+  return Boolean(
+    filters?.kind ||
+      filters?.category ||
+      filters?.pathPrefix ||
+      filters?.fileIntent ||
+      filters?.publicOnly === true ||
+      (query?.raw &&
+        /(?:^|\s)(?:kind|category|path|lang|name|intent):/i.test(query.raw)),
+  );
+}
+
+function isStandaloneSiteSearch(
+  sourceStatus: UnifiedSearchCompletedPayload["sourceStatus"],
+): boolean {
+  return Boolean(
+    sourceStatus?.length &&
+      sourceStatus.every((entry) => {
+        const resolution = entry.targetResolution;
+        return Boolean(
+          entry.targetLabel.startsWith("site:") ||
+            resolution?.requested?.site ||
+            resolution?.resolvedRequested?.site ||
+            resolution?.served?.site,
+        );
+      }),
+  );
+}
+
+function formatEmptySearchHeadline(
+  sourceStatus: UnifiedSearchCompletedPayload["sourceStatus"],
+): string {
+  if (!sourceStatus || sourceStatus.length === 0) return "No hits.";
+  if (sourceStatus.length > 1) {
+    const sources = Array.from(
+      new Set(sourceStatus.map((entry) => entry.source)),
+    ).join(", ");
+    return `No hits across ${sources} sources.`;
+  }
+
+  const entry = sourceStatus[0];
+  if (!entry) return "No hits.";
+  const served =
+    entry.servedTarget ??
+    formatTargetResolutionIdentity(entry.targetResolution?.served) ??
+    entry.targetLabel;
+  const requested =
+    entry.requestedTarget ??
+    formatTargetResolutionIdentity(entry.targetResolution?.requested);
+  // STALE is headline-worthy provenance even when it is not warning-worthy.
+  const unhealthyIndexState = [entry.indexingStatus, entry.codeIndexState].find(
+    (state) => state && !isHealthySearchLifecycleState(state),
+  );
+  const freshness =
+    unhealthyIndexState ??
+    entry.targetResolution?.freshness ??
+    entry.codeIndexState ??
+    entry.indexingStatus;
+  const context: string[] = [];
+  if (requested && requested !== served) context.push(`requested ${requested}`);
+  if (freshness) context.push(describeFreshness(freshness));
+  const suffix = context.length > 0 ? ` (${context.join("; ")})` : "";
+  return `No hits for ${entry.source} on ${served}${suffix}.`;
 }
 
 export function formatProgressTarget(target: {
@@ -314,9 +473,13 @@ export function describeFreshness(value: string): string {
 export function formatSourceStatus(entry: {
   source: string;
   targetLabel: string;
+  requestedTarget?: string;
+  freshTarget?: string;
+  servedTarget?: string;
   targetResolution?: LeanTargetResolution;
   indexingStatus?: string;
   codeIndexState?: string;
+  resultCount?: number;
   ignoredFilters?: string[];
   incompatibleFilters?: string[];
   ignoredQueryFeatures?: string[];
@@ -329,6 +492,14 @@ export function formatSourceStatus(entry: {
   }
 
   const parts: string[] = [`${entry.source} (${entry.targetLabel})`];
+  if (entry.requestedTarget) parts.push(`requested=${entry.requestedTarget}`);
+  if (entry.freshTarget) parts.push(`fresh=${entry.freshTarget}`);
+  if (entry.servedTarget && entry.servedTarget !== entry.targetLabel) {
+    parts.push(`served=${entry.servedTarget}`);
+  }
+  if (typeof entry.resultCount === "number") {
+    parts.push(`results=${entry.resultCount}`);
+  }
   if (entry.indexingStatus) parts.push(`indexState=${entry.indexingStatus}`);
   if (entry.codeIndexState) parts.push(`codeIndex=${entry.codeIndexState}`);
   if (entry.ignoredFilters?.length) {
@@ -361,7 +532,10 @@ function terminalLifecycleReason(entry: {
     new Set([entry.indexingStatus, entry.codeIndexState].filter(Boolean)),
   ) as string[];
   const terminalStates = states.filter(
-    (state) => state !== "INDEXING" && state !== "STALE",
+    (state) =>
+      !isHealthySearchLifecycleState(state) &&
+      state !== "INDEXING" &&
+      state !== "STALE",
   );
   if (terminalStates.length === 0) return undefined;
   const status = terminalStates.join("/");

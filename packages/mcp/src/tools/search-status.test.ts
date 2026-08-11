@@ -64,6 +64,7 @@ describe("searchStatusTool", () => {
 
     expect(tool.description).toContain("partial hits");
     expect(tool.description).toContain("allow_partial_results");
+    expect(tool.description).toContain("instead of repeating `search`");
   });
 
   it("adds local MCP auth remediation to auth errors", async () => {
@@ -106,6 +107,45 @@ describe("searchStatusTool", () => {
     expect(payload.searchRef).toBe(defaultUnifiedSearchOutcome.searchRef);
     expect(payload.result.results).toHaveLength(1);
     expect(payload).not.toHaveProperty("query");
+  });
+
+  it("keeps completed empty JSON structured", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const completedOutcome = defaultUnifiedSearchOutcome;
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() =>
+          Promise.resolve({
+            ...completedOutcome,
+            result: {
+              ...completedOutcome.result,
+              results: [],
+              page: {
+                ...completedOutcome.result.page,
+                returned: 0,
+              },
+              sourceStatus: completedOutcome.result.sourceStatus.map(
+                (entry) => ({ ...entry, resultCount: 0 }),
+              ),
+            },
+          }),
+        ),
+      }),
+    );
+
+    const result = await tool.handler(
+      { search_ref: "search-ref-123", format: "json" },
+      {},
+    );
+    const payload = JSON.parse(result.content[0]?.text ?? "{}");
+
+    expect(payload.result.results).toEqual([]);
+    expect(payload.result.sourceStatus[0].resultCount).toBe(0);
+    expect(result.content[0]?.text).not.toContain(
+      "Do not repeat this search unchanged.",
+    );
   });
 
   it("surfaces TIMEOUT status without pretending the search is still running", async () => {
@@ -292,7 +332,38 @@ describe("searchStatusTool", () => {
     expect(result.isError).toBeUndefined();
     expect(text).toContain("search_status | searching | searchRef=ref-text");
     expect(text).toContain("progress: SEARCHING, 0/1 targets ready");
+    expect(text).toContain("Do not repeat search.");
     expect(text).toContain('next: call search_status search_ref="ref-text"');
+    expect(text).not.toContain("searchRef=ref-text to follow up");
     expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("renders immediately queryable alternatives while deferred", async () => {
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() =>
+          Promise.resolve(
+            createIncompleteOutcome("INDEXING", "ref-alternatives", {
+              targets: [
+                {
+                  requested: "npm:express latest",
+                  availableVersions: [{ version: "4.18.2", ref: "v4.18.2" }],
+                  availableRefs: [{ ref: "main" }],
+                },
+              ],
+            }),
+          ),
+        ),
+      }),
+    );
+
+    const result = await tool.handler({ search_ref: "ref-alternatives" }, {});
+    const text = result.content[0]?.text ?? "";
+
+    expect(text).toContain(
+      "queryable now: versions=4.18.2@v4.18.2 | refs=main",
+    );
+    expect(text).toContain("Do not repeat search.");
+    expect(text).not.toContain("allow_partial_results: true");
   });
 });

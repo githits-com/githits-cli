@@ -135,6 +135,17 @@ describe("formatMappedErrorForTerminal", () => {
     ).toBe("No matching version found");
   });
 
+  it("preserves backend hints in terminal errors", () => {
+    expect(
+      formatMappedErrorForTerminal({
+        code: "NOT_FOUND",
+        message: "Backend target message.",
+        retryable: false,
+        details: { hint: "Use the canonical package name." },
+      }),
+    ).toBe("Backend target message.\n  hint: Use the canonical package name.");
+  });
+
   it("formats UPDATE_REQUIRED with update command", () => {
     expect(
       formatMappedErrorForTerminal({

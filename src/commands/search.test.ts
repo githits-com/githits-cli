@@ -6,7 +6,10 @@ import type {
   UnifiedSearchProgress,
   UnifiedSearchSessionStatus,
 } from "@githits/core-internal";
-import { AuthenticationError } from "@githits/core-internal";
+import {
+  AuthenticationError,
+  CodeNavigationIndexingError,
+} from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import {
   createMockCodeNavigationService,
@@ -75,6 +78,42 @@ describe("searchAction", () => {
     expect(errorSpy.mock.calls[0]?.[0]).toBe(
       "Authentication required. Run `githits login` to authenticate or set GITHITS_API_TOKEN.",
     );
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("renders indexing wait guidance and structured details in human output", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const indexingError = new CodeNavigationIndexingError(
+      "Target is indexing.",
+      "idx-search",
+      [{ version: "5.2.1", ref: "v5.2.1" }],
+      undefined,
+      undefined,
+      { lowerSeconds: 7, upperSeconds: 19, elapsedSeconds: 3 },
+      "Wait until ready with CLI `--wait 60000` or MCP `wait_timeout_ms: 60000`.",
+    );
+
+    await expect(
+      searchAction(
+        "router middleware",
+        { in: ["npm:express"] },
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            search: mock(() => Promise.reject(indexingError)),
+          }),
+        }),
+      ),
+    ).rejects.toThrow("process.exit");
+
+    const output = String(errorSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("--wait 60000");
+    expect(output).toContain("indexing ref: idx-search");
+    expect(output).toContain("indexing estimate: 7-19s, 3s elapsed");
+    expect(output).toContain("indexed refs/versions: 5.2.1");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });

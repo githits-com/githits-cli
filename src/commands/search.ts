@@ -16,6 +16,7 @@ import {
   knownSymbolCategoryList,
   knownSymbolKindList,
   type LeanTargetResolution,
+  type MappedError,
   parseUnifiedSearchTargetSpec,
   requireAuth,
   shouldUseColors,
@@ -29,6 +30,7 @@ import { type Command, Option } from "commander";
 import { parseIntCliOption } from "../shared/cli-options.js";
 import { startSpinner } from "../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
+import { formatIndexingError } from "./code/code-nav-cli-helpers.js";
 import { formatMappedErrorForTerminal } from "./format-mapped-error.js";
 
 export interface SearchCommandOptions {
@@ -359,21 +361,31 @@ function handleSearchError(
 }
 
 function formatSearchErrorTerminal(
-  payload: { error: string; code: string; details?: Record<string, unknown> },
+  payload: {
+    error: string;
+    code: string;
+    retryable?: boolean;
+    details?: Record<string, unknown>;
+  },
   context: "search" | "status",
 ): string {
+  const mapped: MappedError = {
+    code: payload.code as MappedError["code"],
+    message: payload.error,
+    retryable: payload.retryable,
+    details: payload.details as MappedError["details"],
+  };
   if (payload.code === "AUTH_REQUIRED") {
-    return formatMappedErrorForTerminal({
-      code: "AUTH_REQUIRED",
-      message: payload.error,
-      retryable: false,
-      details: payload.details,
-    });
+    return formatMappedErrorForTerminal(mapped);
   }
+  if (payload.code === "INDEXING") {
+    return formatIndexingError(mapped);
+  }
+  const formatted = formatMappedErrorForTerminal(mapped);
   if (context === "status" && payload.code === "NOT_FOUND") {
-    return `${payload.error}\n  Search sessions expire; run \`githits search ...\` to start a new one.`;
+    return `${formatted}\n  Search sessions expire; run \`githits search ...\` to start a new one.`;
   }
-  return payload.error;
+  return formatted;
 }
 
 function formatUnifiedSearchTerminal(payload: {

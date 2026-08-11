@@ -36,7 +36,7 @@ const schema: ZodRawShape = {
 
 const DESCRIPTION =
   "Use only after `search` returns a `searchRef`. Check progress, fetch partial hits (when the original request used `allow_partial_results: true`), or fetch final results for a prior `search` that returned a `searchRef`. " +
-  "Pass the `searchRef` from that response as `search_ref` here (response field is camelCase; this parameter is snake_case).";
+  "Pass the `searchRef` from that response as `search_ref` here (response field is camelCase; this parameter is snake_case); while it is active, continue with `search_status` instead of repeating `search`.";
 
 export function createSearchStatusTool(
   service: CodeNavigationService,

@@ -20,6 +20,9 @@ import {
 } from "./githits-service.js";
 import type { TokenProvider } from "./token-provider.js";
 
+const INDEXING_WAIT_HINT =
+  "Wait until ready with CLI `--wait 60000` or MCP `wait_timeout_ms: 60000`.";
+
 /**
  * Back-compat alias — the canonical registry union now lives in
  * `src/shared/pkgseer-registry.ts`. Re-exported here so existing
@@ -558,10 +561,20 @@ export class CodeNavigationIndexingError extends Error {
     public readonly indexingEstimate:
       | IndexingDurationEstimate
       | undefined = undefined,
+    public readonly hint: string | undefined = undefined,
   ) {
     super(message);
     this.name = "CodeNavigationIndexingError";
   }
+}
+
+export interface CodeNavigationErrorMetadata {
+  hint?: string;
+  availableVersions?: AvailableVersion[];
+  availableRefs?: AvailableRef[];
+  suggestedRefs?: SuggestedRef[];
+  targetResolution?: TargetResolution;
+  indexingEstimate?: IndexingDurationEstimate;
 }
 
 export class CodeNavigationUnresolvableError extends Error {
@@ -584,6 +597,7 @@ export class CodeNavigationTargetNotFoundError extends Error {
     public readonly availableVersions?: AvailableVersion[],
     public readonly repoUrl?: string,
     public readonly requestedRef?: string,
+    public readonly metadata?: CodeNavigationErrorMetadata,
   ) {
     super(message);
     this.name = "CodeNavigationTargetNotFoundError";
@@ -622,6 +636,7 @@ export class CodeNavigationVersionNotFoundError extends Error {
     public readonly requestedVersion: string | undefined,
     public readonly latestIndexed: string | undefined,
     public readonly availableVersions: AvailableVersion[] | undefined,
+    public readonly metadata?: CodeNavigationErrorMetadata,
   ) {
     super(message);
     this.name = "CodeNavigationVersionNotFoundError";
@@ -640,6 +655,7 @@ export class CodeNavigationRefNotFoundError extends Error {
     public readonly requestedRef: string | undefined,
     public readonly availableRefs: AvailableRef[] | undefined,
     public readonly suggestedRefs: SuggestedRef[] | undefined,
+    public readonly metadata?: CodeNavigationErrorMetadata,
   ) {
     super(message);
     this.name = "CodeNavigationRefNotFoundError";
@@ -688,6 +704,7 @@ export class CodeNavigationBackendError extends Error {
      * April 2026 `extensions.retryable` contract on GraphQL errors.
      */
     public readonly retryable?: boolean,
+    public readonly metadata?: CodeNavigationErrorMetadata,
   ) {
     super(message);
     this.name = "CodeNavigationBackendError";
@@ -2023,6 +2040,10 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         : undefined;
     const indexingRef = getGraphQLIndexingRef(errors);
     const indexingEstimate = parseIndexingDurationEstimate(extensions);
+    const errorMetadata = parseGraphQLErrorMetadata(
+      extensions,
+      indexingEstimate,
+    );
 
     if (isClientUpdateRequiredGraphQLError({ message, code })) {
       return new ClientUpdateRequiredError(
@@ -2055,16 +2076,16 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     switch (code) {
       case "PACKAGE_INDEXING":
         return new CodeNavigationIndexingError(
-          this.createIndexingMessage(
-            indexingRef,
-            indexingEstimate,
-            typeof extensions?.hint === "string" ? extensions.hint : undefined,
-          ),
+          message,
           indexingRef,
           parseAvailableVersions(extensions),
           parseAvailableRefs(extensions),
           parseTargetResolution(extensions),
           indexingEstimate,
+          appendIndexingWaitHint(
+            message,
+            typeof extensions?.hint === "string" ? extensions.hint : undefined,
+          ),
         );
 
       case "GREP_PATTERN_TOO_SHORT":
@@ -2095,6 +2116,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
             ? extensions.latest_indexed
             : undefined,
           parseAvailableVersions(extensions),
+          errorMetadata,
         );
 
       case "REF_NOT_FOUND":
@@ -2104,12 +2126,19 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
           parseGraphQLGitRef(extensions),
           parseAvailableRefs(extensions),
           parseSuggestedRefs(extensions),
+          errorMetadata,
         );
 
       case "NOT_FOUND":
       case "PACKAGE_NOT_FOUND":
       case "NO_REPOSITORY_URL":
-        return new CodeNavigationTargetNotFoundError(message);
+        return new CodeNavigationTargetNotFoundError(
+          message,
+          parseAvailableVersions(extensions),
+          parseGraphQLRepoUrl(extensions),
+          parseGraphQLGitRef(extensions),
+          errorMetadata,
+        );
 
       case "REPOSITORY_NOT_FOUND":
         return new CodeNavigationTargetNotFoundError(
@@ -2117,6 +2146,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
           undefined,
           parseGraphQLRepoUrl(extensions),
           parseGraphQLGitRef(extensions),
+          errorMetadata,
         );
 
       case "FILE_NOT_FOUND":
@@ -2162,6 +2192,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
           undefined,
           code,
           retryable,
+          errorMetadata,
         );
 
       // `code` was present but not one of the recognised values —
@@ -2184,30 +2215,23 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         return new CodeNavigationUnresolvableError(message);
       }
       if (isTargetNotFoundMessage(message)) {
-        return new CodeNavigationTargetNotFoundError(message);
+        return new CodeNavigationTargetNotFoundError(
+          message,
+          parseAvailableVersions(extensions),
+          parseGraphQLRepoUrl(extensions),
+          parseGraphQLGitRef(extensions),
+          errorMetadata,
+        );
       }
     }
 
-    return new CodeNavigationBackendError(message, undefined, code, retryable);
-  }
-
-  private createIndexingMessage(
-    indexingRef?: string,
-    estimate?: IndexingDurationEstimate,
-    backendHint?: string,
-  ): string {
-    const retryGuidance =
-      "Retry, or wait until ready with CLI `--wait 60000` / MCP `wait_timeout_ms: 60000`.";
-    const estimateMessage = formatIndexingDurationEstimate(estimate);
-    const base = estimateMessage
-      ? `Target is indexing. ${estimateMessage} ${retryGuidance}`
-      : backendHint
-        ? appendRetryGuidance(backendHint, retryGuidance)
-        : `Target is indexing. Usually completes within 30 seconds. ${retryGuidance}`;
-    if (indexingRef) {
-      return `${base} Indexing ref: ${indexingRef}.`;
-    }
-    return base;
+    return new CodeNavigationBackendError(
+      message,
+      undefined,
+      code,
+      retryable,
+      errorMetadata,
+    );
   }
 
   private normaliseUnifiedSearchOutcome(
@@ -2390,10 +2414,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         data.indexingEstimate,
       );
       throw new CodeNavigationIndexingError(
-        this.createIndexingMessage(
-          data.indexingRef ?? targetResolution?.indexingRef,
-          indexingEstimate,
-        ),
+        `Target is indexing. ${INDEXING_WAIT_HINT}`,
         data.indexingRef ?? targetResolution?.indexingRef,
         normaliseAvailableVersions(data.availableVersions) ??
           targetResolution?.availableVersions,
@@ -2841,6 +2862,24 @@ function parseSuggestedRefs(
   return parseAvailableArtifacts(raw);
 }
 
+function parseGraphQLErrorMetadata(
+  extensions: Record<string, unknown> | undefined,
+  indexingEstimate: IndexingDurationEstimate | undefined,
+): CodeNavigationErrorMetadata | undefined {
+  const metadata: CodeNavigationErrorMetadata = {};
+  if (typeof extensions?.hint === "string") metadata.hint = extensions.hint;
+  const availableVersions = parseAvailableVersions(extensions);
+  if (availableVersions?.length) metadata.availableVersions = availableVersions;
+  const availableRefs = parseAvailableRefs(extensions);
+  if (availableRefs?.length) metadata.availableRefs = availableRefs;
+  const suggestedRefs = parseSuggestedRefs(extensions);
+  if (suggestedRefs?.length) metadata.suggestedRefs = suggestedRefs;
+  const targetResolution = parseTargetResolution(extensions);
+  if (targetResolution) metadata.targetResolution = targetResolution;
+  if (indexingEstimate) metadata.indexingEstimate = indexingEstimate;
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
 function parseGraphQLRepoUrl(
   extensions: Record<string, unknown> | undefined,
 ): string | undefined {
@@ -2918,34 +2957,20 @@ function normaliseIndexingDurationEstimate(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-function formatIndexingDurationEstimate(
-  estimate: IndexingDurationEstimate | undefined,
+function appendIndexingWaitHint(
+  message: string,
+  backendHint: string | undefined,
 ): string | undefined {
-  if (!estimate) return undefined;
-  const parts: string[] = [];
-  if (typeof estimate.elapsedSeconds === "number") {
-    parts.push(`Running for ${formatSeconds(estimate.elapsedSeconds)}.`);
+  const hintAlreadyInMessage = Boolean(
+    backendHint && message.includes(backendHint),
+  );
+  const existingGuidance = `${message} ${backendHint ?? ""}`;
+  if (/(?:--wait\b|wait_timeout_ms|waitTimeoutMs)/i.test(existingGuidance)) {
+    return hintAlreadyInMessage ? undefined : backendHint;
   }
-  if (
-    typeof estimate.lowerSeconds === "number" &&
-    typeof estimate.upperSeconds === "number"
-  ) {
-    const duration =
-      estimate.lowerSeconds === estimate.upperSeconds
-        ? formatSeconds(estimate.lowerSeconds)
-        : `${estimate.lowerSeconds} to ${formatSeconds(estimate.upperSeconds)}`;
-    parts.push(`Similar refs usually index in ${duration}.`);
-  }
-  return parts.length > 0 ? parts.join(" ") : undefined;
-}
-
-function formatSeconds(seconds: number): string {
-  return `${seconds} ${seconds === 1 ? "second" : "seconds"}`;
-}
-
-function appendRetryGuidance(hint: string, retryGuidance: string): string {
-  if (hint.includes("--wait") || hint.includes("wait_timeout_ms")) return hint;
-  return `${hint} ${retryGuidance}`;
+  return backendHint && !hintAlreadyInMessage
+    ? `${backendHint} ${INDEXING_WAIT_HINT}`
+    : INDEXING_WAIT_HINT;
 }
 
 function parseAvailableArtifacts(raw: unknown): AvailableVersion[] | undefined {

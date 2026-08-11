@@ -413,7 +413,7 @@ Deterministic text grep over indexed dependency or repository source. Defaults t
 
 **`--verbose`.** Adds a summary header and grouped file sections with a `>` marker on match lines.
 
-**`stdout` vs `stderr` routing (plain mode).** The pagination hint for `nextCursor` goes to **stderr** so stdout stays machine-friendly.
+**`stdout` vs `stderr` routing (plain mode).** Pagination and zero-match decision guidance go to **stderr** so stdout stays machine-friendly. Empty guidance reports scanned/in-scope counts and the served ref/version when known. A completed scan with zero files in scope recommends loosening selectors; otherwise it recommends changing the pattern/checking casing or using conceptual `search`, and explicitly rejects an unchanged repeat. An incomplete empty page instead preserves truncation or `--cursor` continuation guidance.
 
 **Exit codes (grep-compatible).**
 
