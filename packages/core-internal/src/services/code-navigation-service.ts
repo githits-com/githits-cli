@@ -528,7 +528,10 @@ export interface GrepRepoResult {
 
 export interface CodeNavigationService {
   search(params: UnifiedSearchParams): Promise<UnifiedSearchOutcome>;
-  searchStatus(searchRef: string): Promise<UnifiedSearchOutcome>;
+  searchStatus(
+    searchRef: string,
+    waitTimeoutMs?: number,
+  ): Promise<UnifiedSearchOutcome>;
   listFiles(params: ListFilesParams): Promise<ListFilesResult>;
   readFile(params: ReadFileParams): Promise<ReadFileResult>;
   grepRepo(params: GrepRepoParams): Promise<GrepRepoResult>;
@@ -946,8 +949,8 @@ query UnifiedSearch(
 }`;
 
 const UNIFIED_SEARCH_STATUS_QUERY = `
-query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!) {
-  discoverySearchProgress(searchRef: $searchRef, includeResults: $includeResults) {
+query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitTimeoutMs: Int) {
+  discoverySearchProgress(searchRef: $searchRef, includeResults: $includeResults, waitTimeoutMs: $waitTimeoutMs) {
     searchRef
     status
     targetsTotal
@@ -1831,13 +1834,16 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
     });
   }
 
-  async searchStatus(searchRef: string): Promise<UnifiedSearchOutcome> {
+  async searchStatus(
+    searchRef: string,
+    waitTimeoutMs = 0,
+  ): Promise<UnifiedSearchOutcome> {
     return executeWithTokenRefresh({
       getToken: () => this.tokenProvider.getToken(),
       forceRefresh: () => this.tokenProvider.forceRefresh(),
       shouldRefresh: (error) => error instanceof AuthenticationError,
       executeWithToken: (token) =>
-        this.executeUnifiedSearchStatus(token, searchRef),
+        this.executeUnifiedSearchStatus(token, searchRef, waitTimeoutMs),
     });
   }
 
@@ -1914,6 +1920,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
   private async executeUnifiedSearchStatus(
     token: string,
     searchRef: string,
+    waitTimeoutMs: number,
   ): Promise<UnifiedSearchOutcome> {
     let response: PkgseerGraphqlResponse;
     try {
@@ -1923,6 +1930,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         variables: {
           searchRef,
           includeResults: true,
+          waitTimeoutMs,
         },
       });
     } catch (cause) {

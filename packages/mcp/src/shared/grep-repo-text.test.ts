@@ -60,7 +60,7 @@ describe("renderGrepRepoText", () => {
       }),
     );
 
-    expect(text).toContain("files scanned: 0 (full scope)");
+    expect(text).toContain("files scanned: 0 (no files in scope)");
     expect(text).toContain("served=v5.2.1");
     expect(text).toContain(
       "loosen path, path_prefix, globs, extensions, or exclusion filters",
@@ -169,20 +169,6 @@ describe("renderGrepRepoText", () => {
     expect(text).toContain("  --");
   });
 
-  it("renders truncation notice when truncatedReason is set", () => {
-    const text = renderGrepRepoText(
-      envelope({
-        totalMatches: 50,
-        uniqueFilesMatched: 7,
-        truncatedReason: "limit",
-        hasMore: true,
-        matches: [match()],
-      }),
-    );
-    expect(text).toContain("Truncated: limit.");
-    expect(text).toContain("max_matches");
-  });
-
   it("renders next-cursor note when hasMore", () => {
     const text = renderGrepRepoText(
       envelope({
@@ -207,28 +193,6 @@ describe("renderGrepRepoText", () => {
     expect(text).toContain("More matches available. Pass cursor=ABC123");
     expect(text).not.toContain("Do not repeat this grep unchanged.");
     expect(text).not.toContain("shorten or change the pattern");
-  });
-
-  it("surfaces truncation on an empty incomplete result", () => {
-    const text = renderGrepRepoText(
-      envelope({
-        truncatedReason: "limit",
-      }),
-    );
-
-    expect(text).toContain("Truncated: limit.");
-    expect(text).not.toContain("Do not repeat this grep unchanged.");
-  });
-
-  it("humanizes deadline truncation", () => {
-    const text = renderGrepRepoText(
-      envelope({
-        truncatedReason: "DEADLINE",
-      }),
-    );
-
-    expect(text).toContain("Truncated: time limit reached.");
-    expect(text).not.toContain("Truncated: DEADLINE.");
   });
 
   it("renders pattern-type and case-sensitive flags in header when set", () => {

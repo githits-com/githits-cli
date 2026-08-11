@@ -562,7 +562,10 @@ function compactProgress(
     >;
   }
   if (progress.expiresAt) payload.expiresAt = progress.expiresAt;
-  payload.next = `search_status search_ref=${JSON.stringify(progress.searchRef)}`;
+  payload.next =
+    progress.status === "FAILED" || progress.status === "TIMEOUT"
+      ? "rerun search"
+      : `search_status search_ref=${JSON.stringify(progress.searchRef)} wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}`;
   return payload;
 }
 

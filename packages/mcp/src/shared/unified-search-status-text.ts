@@ -9,6 +9,7 @@ import {
   appendSourceStatusNotes,
   appendUnifiedSearchHits,
   formatProgressTarget,
+  noHitsYetMessage,
 } from "./unified-search-text.js";
 
 const SEP = " | ";
@@ -37,7 +38,14 @@ export function renderUnifiedSearchStatusText(payload: StatusPayload): string {
   }
 
   const result = payload.result;
-  if (result) appendResult(lines, result, payload.completed);
+  if (result) {
+    appendResult(
+      lines,
+      result,
+      payload.completed,
+      payload.completed ? undefined : payload.progress,
+    );
+  }
 
   if (!payload.completed) {
     appendIncompleteSearchNextAction(
@@ -63,6 +71,7 @@ function appendResult(
   lines: string[],
   result: UnifiedSearchStatusResultPayload,
   completed: boolean,
+  progress: UnifiedSearchStatusIncompletePayload["progress"] | undefined,
 ): void {
   lines.push("");
   if (result.warnings && result.warnings.length > 0) {
@@ -80,7 +89,7 @@ function appendResult(
         sourceStatus: result.sourceStatus,
       });
     } else {
-      lines.push("No hits yet.");
+      lines.push(noHitsYetMessage(progress));
     }
   } else {
     appendUnifiedSearchHits(lines, result.results);

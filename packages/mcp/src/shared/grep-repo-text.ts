@@ -141,6 +141,9 @@ export function buildEmptyGrepGuidance(
 }
 
 function formatEmptyGrepFileCounts(envelope: LeanGrepRepoEnvelope): string {
+  if (envelope.filesInScope === 0) {
+    return `files scanned: ${envelope.filesScanned} (no files in scope)`;
+  }
   if (envelope.filesScanned < envelope.filesInScope) {
     return `files: ${envelope.filesInScope} in scope | ${envelope.filesScanned} content-scanned after index pruning`;
   }
@@ -148,7 +151,16 @@ function formatEmptyGrepFileCounts(envelope: LeanGrepRepoEnvelope): string {
 }
 
 function formatTruncationReason(reason: string): string {
-  return reason === "DEADLINE" ? "time limit reached" : reason;
+  switch (reason) {
+    case "deadline":
+      return "time limit reached";
+    case "max_matches":
+      return "match limit reached";
+    case "max_matches_per_file":
+      return "per-file match limit reached";
+    default:
+      return reason;
+  }
 }
 
 function formatGrepServedTarget(

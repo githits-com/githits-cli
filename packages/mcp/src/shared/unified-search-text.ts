@@ -15,6 +15,7 @@
  * `docs/implementation/tools.md` when changing the format.
  */
 
+import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
 import { isHealthySearchLifecycleState } from "./search-lifecycle.js";
 import {
@@ -75,11 +76,11 @@ export function renderUnifiedSearchSuccess(
   return lines.join("\n");
 }
 
-function noHitsYetMessage(
-  progress: UnifiedSearchIncompletePayload["progress"],
+export function noHitsYetMessage(
+  progress: { status?: string } | undefined,
 ): string {
   const status = progress?.status;
-  if (status === "TIMEOUT") return "No hits yet - timed out waiting.";
+  if (status === "TIMEOUT") return "No hits - search timed out.";
   if (status === "FAILED") return "No hits - search failed.";
   if (status === "SEARCHING") return "No hits yet - searching.";
   return "No hits yet - indexing.";
@@ -291,17 +292,13 @@ export function appendIncompleteSearchNextAction(
 ): void {
   if (status === "FAILED" || status === "TIMEOUT") {
     lines.push("Do not call search_status again for this session.");
-    lines.push(
-      status === "TIMEOUT"
-        ? "next: rerun search with a larger wait_timeout_ms."
-        : "next: rerun search.",
-    );
+    lines.push("next: rerun search.");
     return;
   }
 
   lines.push("Do not repeat search.");
   lines.push(
-    `next: call search_status with search_ref=${JSON.stringify(searchRef)}.`,
+    `next: call search_status with search_ref=${JSON.stringify(searchRef)} and wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}.`,
   );
 }
 

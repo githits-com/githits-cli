@@ -297,7 +297,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("searchRef=ref_abc-123");
     expect(text).toContain("Indexing in progress.\nDo not repeat search.");
     expect(text).toContain(
-      'next: call search_status with search_ref="ref_abc-123".',
+      'next: call search_status with search_ref="ref_abc-123" and wait_timeout_ms=20000.',
     );
     expect(text).not.toContain("searchRef=ref_abc-123 to follow up");
   });

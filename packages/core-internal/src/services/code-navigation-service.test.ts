@@ -735,6 +735,49 @@ describe("CodeNavigationServiceImpl", () => {
     expect(body.variables.allowPartialResults).toBe(true);
   });
 
+  it("forwards the search-status wait window to GraphQL", async () => {
+    let capturedBody = "";
+    globalThis.fetch = mock((_, init?: RequestInit) => {
+      capturedBody = String(init?.body ?? "");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              discoverySearchProgress: {
+                searchRef: "search-ref-wait",
+                status: "SEARCHING",
+                targetsTotal: 1,
+                targetsReady: 1,
+                elapsedMs: 500,
+                query: "router",
+                queryWarnings: [],
+                sources: ["CODE"],
+                results: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    }) as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+      globalThis.fetch,
+    );
+
+    await service.searchStatus("search-ref-wait", 25_000);
+
+    const body = JSON.parse(capturedBody);
+    expect(body.query).toContain("$waitTimeoutMs: Int");
+    expect(body.query).toContain("waitTimeoutMs: $waitTimeoutMs");
+    expect(body.variables).toEqual({
+      searchRef: "search-ref-wait",
+      includeResults: true,
+      waitTimeoutMs: 25_000,
+    });
+  });
+
   it("emits safe debug logging for unified search request shape without query text", async () => {
     process.env.GITHITS_DEBUG = "code-nav";
     const stderrSpy = spyOn(process.stderr, "write").mockImplementation(

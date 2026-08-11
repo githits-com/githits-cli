@@ -4,6 +4,7 @@ import {
   buildGrepRepoSuccessPayload,
   formatGrepRepoTerminal,
 } from "./grep-repo-response.js";
+import { renderGrepRepoText } from "./grep-repo-text.js";
 
 const baseResult: GrepRepoResult = {
   matches: [
@@ -233,7 +234,7 @@ describe("formatGrepRepoTerminal", () => {
     });
 
     expect(stdout).toBe("");
-    expect(stderr).toContain("files scanned: 0 (full scope)");
+    expect(stderr).toContain("files scanned: 0 (no files in scope)");
     expect(stderr).toContain(
       "loosen the optional path-prefix argument, --path, --glob, --ext, or exclusion flags",
     );
@@ -275,8 +276,52 @@ describe("formatGrepRepoTerminal", () => {
       useColors: false,
     });
 
+    expect(stderr).toContain("Truncated: match limit reached.");
     expect(stderr).toContain("increase --limit");
     expect(stderr).not.toContain("--max-matches");
+  });
+
+  it.each([
+    ["MAX_MATCHES", "max_matches", "match limit reached"],
+    [
+      "MAX_MATCHES_PER_FILE",
+      "max_matches_per_file",
+      "per-file match limit reached",
+    ],
+    ["DEADLINE", "deadline", "time limit reached"],
+  ] as const)(
+    "humanizes producer-normalized %s truncation",
+    (backendReason, normalizedReason, humanReason) => {
+      const envelope = buildGrepRepoSuccessPayload(
+        {
+          ...baseResult,
+          matches: [],
+          totalMatches: 0,
+          uniqueFilesMatched: 0,
+          truncatedReason: backendReason,
+        },
+        baseOptions,
+      );
+
+      expect(envelope.truncatedReason).toBe(normalizedReason);
+      expect(renderGrepRepoText(envelope)).toContain(
+        `Truncated: ${humanReason}.`,
+      );
+      expect(
+        formatGrepRepoTerminal(envelope, { useColors: false }).stderr,
+      ).toContain(`Truncated: ${humanReason}.`);
+    },
+  );
+
+  it("humanizes a producer-built truncation trailer with matches", () => {
+    const envelope = buildGrepRepoSuccessPayload(
+      { ...baseResult, truncatedReason: "MAX_MATCHES" },
+      baseOptions,
+    );
+
+    expect(renderGrepRepoText(envelope)).toContain(
+      "Truncated: match limit reached.",
+    );
   });
 
   it("verbose mode renders minimal symbol hints", () => {

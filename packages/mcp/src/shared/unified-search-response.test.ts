@@ -219,7 +219,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
         targetsTotal: 1,
         elapsedMs: 200,
         query: "router middleware",
-        next: 'search_status search_ref="search-ref-123"',
+        next: 'search_status search_ref="search-ref-123" wait_timeout_ms=20000',
       },
     });
   });
@@ -1557,7 +1557,7 @@ describe("buildUnifiedSearchStatusPayload", () => {
         targetsTotal: 1,
         elapsedMs: 200,
         query: "router middleware",
-        next: 'search_status search_ref="search-ref-123"',
+        next: 'search_status search_ref="search-ref-123" wait_timeout_ms=20000',
       },
     });
   });
@@ -1591,4 +1591,29 @@ describe("buildUnifiedSearchStatusPayload", () => {
       ],
     });
   });
+
+  it.each(["FAILED", "TIMEOUT"] as const)(
+    "replaces status polling for a terminal %s session",
+    (status) => {
+      const payload = buildUnifiedSearchStatusPayload({
+        state: "incomplete",
+        completed: false,
+        searchRef: `search-ref-${status.toLowerCase()}`,
+        progress: {
+          searchRef: `search-ref-${status.toLowerCase()}`,
+          status,
+          targetsTotal: 1,
+          targetsReady: 0,
+          elapsedMs: 60_000,
+          query: "router middleware",
+          queryWarnings: [],
+          sources: ["CODE"],
+        },
+      });
+      if (payload.completed) throw new Error("expected incomplete payload");
+
+      expect(payload.progress?.next).toBe("rerun search");
+      expect(payload.progress?.next).not.toContain("search_status");
+    },
+  );
 });

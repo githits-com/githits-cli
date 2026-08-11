@@ -13,7 +13,7 @@ The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback
 | `login` | — | `--no-browser`, `--port <port>`, `--force` | Authenticate with browser OAuth using a loopback callback on the machine running GitHits |
 | `example <query>` | `<query>` | `-l, --lang <language>`, `--license <mode>`, `--explain`, `--json` | Search for code examples |
 | `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols. Defaults to 10 results. |
-| `search-status <search-ref>` | `<search-ref>` | `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search |
+| `search-status <search-ref>` | `<search-ref>` | `--wait <seconds>`, `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search; waits up to 20 seconds by default |
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback [solution_id]` | `--accept` or `--reject` | `-m, --message <text>`, `--tool <name>`, `--json` | Submit solution-tied or generic session feedback |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
@@ -413,7 +413,7 @@ Deterministic text grep over indexed dependency or repository source. Defaults t
 
 **`--verbose`.** Adds a summary header and grouped file sections with a `>` marker on match lines.
 
-**`stdout` vs `stderr` routing (plain mode).** Pagination and zero-match decision guidance go to **stderr** so stdout stays machine-friendly. Empty guidance reports scanned/in-scope counts and the served ref/version when known. A completed scan with zero files in scope recommends loosening selectors; otherwise it recommends changing the pattern/checking casing or using conceptual `search`, and explicitly rejects an unchanged repeat. An incomplete empty page instead preserves truncation or `--cursor` continuation guidance.
+**`stdout` vs `stderr` routing (plain mode).** Pagination and zero-match decision guidance go to **stderr** so stdout stays machine-friendly. Empty guidance reports scanned/in-scope counts and the served ref/version when known. A completed scan with zero files in scope recommends loosening selectors; otherwise it recommends changing the pattern or using conceptual `search`, and explicitly rejects an unchanged repeat. When the failed call enabled `--case-sensitive`, it also recommends dropping that flag. An incomplete empty page instead preserves truncation or `--cursor` continuation guidance.
 
 **Exit codes (grep-compatible).**
 
