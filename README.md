@@ -348,6 +348,7 @@ githits mcp              Show setup instructions or start the local MCP server
 githits mcp start        Always start the local MCP server over stdio
 githits example          Find real-world implementations from open source
 githits languages        List or filter supported programming languages
+githits resolve          Resolve a package or GitHub repository name to canonical targets
 githits feedback         Submit feedback about GitHits results
 githits doctor           Diagnose configuration and auth state
 githits settings         View and update preferences, privacy, and terms

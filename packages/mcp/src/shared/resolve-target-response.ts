@@ -1,5 +1,6 @@
 import type {
   ResolveTargetCandidate,
+  ResolveTargetReference,
   ResolveTargetResult,
 } from "@githits/core-internal";
 import { dim, highlight } from "./colors.js";
@@ -43,16 +44,16 @@ export interface ResolveTargetPayload {
 export function buildResolveTargetSuccessPayload(
   result: ResolveTargetResult,
 ): ResolveTargetPayload {
-  const candidates = dedupeCandidates([
+  const candidates = dedupeTargets([
     ...result.candidates,
     ...result.protectedMatches,
     ...(result.best ? [result.best] : []),
-  ]).map(projectCandidate);
+  ]).map(projectTarget);
   const payload: ResolveTargetPayload = {
     ambiguous: result.ambiguous,
     candidates,
-    protectedMatches: dedupeCandidates(result.protectedMatches).map(
-      (candidate) => candidate.canonicalKey,
+    protectedMatches: dedupeTargets(result.protectedMatches).map(
+      (target) => target.canonicalKey,
     ),
   };
   if (result.best) payload.best = result.best.canonicalKey;
@@ -62,14 +63,16 @@ export function buildResolveTargetSuccessPayload(
   return payload;
 }
 
-function projectCandidate(
-  candidate: ResolveTargetCandidate,
+function projectTarget(
+  target: ResolveTargetReference,
 ): ResolveTargetCandidatePayload {
   const payload: ResolveTargetCandidatePayload = {
-    target: candidate.canonicalKey,
-    kind: candidate.kind.toLowerCase(),
-    confidence: candidate.confidence.toLowerCase(),
+    target: target.canonicalKey,
+    kind: target.kind.toLowerCase(),
+    confidence: target.confidence.toLowerCase(),
   };
+  if (!isCandidate(target)) return payload;
+  const candidate = target;
   assign(payload, "name", candidate.displayName);
   assign(payload, "description", candidate.description);
   assign(payload, "registry", candidate.registry?.toLowerCase());
@@ -111,7 +114,7 @@ export function formatResolveTargetTerminal(
   const protectedKeys = new Set(
     result.protectedMatches.map((candidate) => candidateKey(candidate)),
   );
-  const candidates = dedupeCandidates([
+  const candidates = dedupeTargets([
     ...result.candidates,
     ...result.protectedMatches,
     result.best,
@@ -143,41 +146,42 @@ const KNOWN_CONFIDENCE_VALUES = new Set(["exact", "high", "medium", "low"]);
 const KNOWN_KIND_VALUES = new Set(["package", "repository"]);
 
 function formatCandidate(
-  candidate: ResolveTargetCandidate,
+  target: ResolveTargetReference,
   useColors: boolean,
 ): string {
-  const confidence = candidate.confidence.toLowerCase();
-  const kind = candidate.kind.toLowerCase();
+  const candidate = isCandidate(target) ? target : undefined;
+  const confidence = target.confidence.toLowerCase();
+  const kind = target.kind.toLowerCase();
   const fields = [
-    `${highlight(sanitizeTerminalText(candidate.canonicalKey), useColors)} [${
+    `${highlight(sanitizeTerminalText(target.canonicalKey), useColors)} [${
       KNOWN_CONFIDENCE_VALUES.has(confidence) ? confidence : "unknown"
     }]`,
     KNOWN_KIND_VALUES.has(kind) ? kind : "target",
   ];
-  if (candidate.stars !== undefined) {
+  if (candidate?.stars !== undefined) {
     fields.push(`${formatCompactNumber(candidate.stars)} stars`);
   }
-  if (candidate.downloadsLastMonth !== undefined) {
+  if (candidate?.downloadsLastMonth !== undefined) {
     fields.push(
       `${formatCompactNumber(candidate.downloadsLastMonth)} downloads/mo`,
     );
-  } else if (candidate.downloadsTotal !== undefined) {
+  } else if (candidate?.downloadsTotal !== undefined) {
     fields.push(`${formatCompactNumber(candidate.downloadsTotal)} downloads`);
   }
   if (
     kind === "package" &&
-    candidate.repositoryUrl &&
+    candidate?.repositoryUrl &&
     candidate.stars === undefined
   ) {
     fields.push(`repo ${compactRepositoryUrl(candidate.repositoryUrl)}`);
   }
-  if (candidate.docsAvailable) fields.push("docs");
-  if (candidate.codeAvailable) fields.push("code");
+  if (candidate?.docsAvailable) fields.push("docs");
+  if (candidate?.codeAvailable) fields.push("code");
   return fields.join(" · ");
 }
 
 function formatCandidateLines(
-  candidate: ResolveTargetCandidate,
+  candidate: ResolveTargetReference,
   index: number,
   protectedMatch: boolean,
   useColors: boolean,
@@ -186,7 +190,9 @@ function formatCandidateLines(
   const lines = [
     `  ${index}. ${formatCandidate(candidate, useColors)}${marker}`,
   ];
-  const description = compactDescription(candidate.description);
+  const description = compactDescription(
+    isCandidate(candidate) ? candidate.description : undefined,
+  );
   if (description) lines.push(`     ${dim(description, useColors)}`);
   return lines;
 }
@@ -230,9 +236,9 @@ function sanitizeTerminalText(value: string): string {
   return value.replace(TERMINAL_CONTROL_PATTERN, "");
 }
 
-function dedupeCandidates(
-  candidates: ResolveTargetCandidate[],
-): ResolveTargetCandidate[] {
+function dedupeTargets<Target extends ResolveTargetReference>(
+  candidates: Target[],
+): Target[] {
   const seen = new Set<string>();
   return candidates.filter((candidate) => {
     const key = candidateKey(candidate);
@@ -242,8 +248,14 @@ function dedupeCandidates(
   });
 }
 
-function candidateKey(candidate: ResolveTargetCandidate): string {
+function candidateKey(candidate: ResolveTargetReference): string {
   return `${candidate.kind}:${candidate.canonicalKey}`;
+}
+
+function isCandidate(
+  target: ResolveTargetReference,
+): target is ResolveTargetCandidate {
+  return Object.hasOwn(target, "docsAvailable");
 }
 
 function assign<Key extends keyof ResolveTargetCandidatePayload>(

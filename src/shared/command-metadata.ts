@@ -19,6 +19,12 @@ export const AUTHENTICATED_COMMANDS = [
     jsonCapable: true,
   },
   {
+    path: "resolve",
+    autoLoginEligible: true,
+    postLoginMessage: "Authentication complete. Resolving target...",
+    jsonCapable: true,
+  },
+  {
     path: "feedback",
     autoLoginEligible: true,
     postLoginMessage: "Authentication complete. Submitting feedback...",

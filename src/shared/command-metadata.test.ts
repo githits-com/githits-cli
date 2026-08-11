@@ -9,6 +9,7 @@ describe("authenticated command metadata", () => {
     expect(AUTHENTICATED_COMMANDS.map((entry) => entry.path)).toEqual([
       "example",
       "languages",
+      "resolve",
       "feedback",
       "settings",
       "settings show",
@@ -30,6 +31,15 @@ describe("authenticated command metadata", () => {
       "pkg changelog",
       "pkg upgrade-review",
     ]);
+  });
+
+  it("marks resolve as auto-login eligible and JSON-capable", () => {
+    expect(getAuthenticatedCommandMetadata("resolve")).toEqual({
+      path: "resolve",
+      autoLoginEligible: true,
+      postLoginMessage: "Authentication complete. Resolving target...",
+      jsonCapable: true,
+    });
   });
 
   it("marks pkg upgrade-review as auto-login eligible", () => {

@@ -30,10 +30,11 @@ function deps(
   };
 }
 
-let originalExitCode: typeof process.exitCode;
+let originalExitCode: string | number | null | undefined;
 
 beforeEach(() => {
   originalExitCode = process.exitCode;
+  process.exitCode = 0;
 });
 
 afterEach(() => {

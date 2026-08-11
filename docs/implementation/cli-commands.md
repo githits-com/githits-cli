@@ -249,12 +249,15 @@ Resolves a human-provided package or GitHub repository name to ranked canonical
 targets such as `npm:express` or `github:openai/codex`. The default output is a
 compact numbered `Candidates` list with ambiguity guidance when needed and
 protected exact-name matches annotated inline. It does not label any terminal
-candidate as best or top. Every candidate includes its available normalized
+candidate as best or top. Ranked candidates include their available normalized
 description, capped at 240 characters, and cheap trust evidence: repository
-stars, monthly or total package downloads, and docs/code availability. When
-package repository popularity is unavailable, its linked repository is shown
-as a canonical `github:owner/repo` fallback. Missing evidence is omitted rather
-than shown as zero.
+stars, monthly or total package downloads, and docs/code availability. When a
+protected match falls outside the requested ranked limit, it is appended with
+the identity and confidence fields returned by the lightweight protected-match
+reference. When a ranked package has a repository URL but no package-level
+stars, the terminal shows its linked repository as a canonical
+`github:owner/repo` fallback. Missing evidence is omitted rather than shown as
+zero.
 
 The copyable `githits search --in` follow-up uses the resolved target only for
 non-ambiguous results. Ambiguous results use the literal `<target>` placeholder
@@ -273,15 +276,48 @@ content.
 `--json` emits the stable compact diagnostic envelope
 `{best?, ambiguous, ambiguousReason?, candidates, protectedMatches}`. Candidate
 objects occur once; `best` and `protectedMatches` use canonical-key references.
-Detailed ranking fields are fetched only for JSON. Null fields are omitted and
-enum values are lowercase. Errors use the standard JSON envelope on stderr with
-clean stdout.
+Reference-only best/protected targets outside the ranked list produce minimal
+candidate objects with `target`, `kind`, and `confidence`, because no redundant
+detail fields are requested for those lists. Detailed ranking fields are fetched
+only for JSON. Null fields are omitted and enum values are lowercase. Errors use
+the standard JSON envelope on stderr with clean stdout.
 
-The current resolver candidate contract does not propagate linked GitHub
-stars/forks/issues onto package candidates, so Maven packages can show their
-repository URL but not its popularity. The backend request is documented in
-`docs/sharing/PKGSEER_RESOLVE_CANDIDATE_TRUST_METRICS.md`; the CLI deliberately
-does not select expensive per-candidate `inspection` metadata.
+The command uses an internal CLI-only service and does not change the public
+`@githits/mcp` service interface. Its GraphQL selection keeps `best` and
+`protectedMatches` to `kind`, `canonicalKey`, and `confidence`; full compact and
+conditional JSON fields are selected only for ranked `candidates`. This keeps
+the operation below production's GraphQL complexity limit while preserving all
+fields consumed by each output mode. The CLI deliberately does not select
+expensive per-candidate `inspection` metadata. HTTP, transport, GraphQL, auth
+refresh, and client-version error classification are shared with the package
+intelligence service.
+
+The current candidate contract does not propagate linked GitHub
+stars/forks/issues onto package candidates. A package can therefore show its
+linked repository without its popularity evidence. This remains a known
+release decision; the CLI does not fetch expensive `inspection` metadata to
+compensate for it.
+
+#### Release posture and next phase
+
+The command remains a draft dogfood surface as of 2026-08-11. A 36-case
+production audit across all supported package registries selected the expected
+package in 25 cases. The remaining Maven, Go, Zig, Packagist, and Swift cases
+were dispatched to the backend evaluation corpus. The earlier `guava` mismatch
+now resolves to `maven:com.google.guava:guava` in production.
+
+Do not publish the command until the expanded production corpus has no known
+wrong exact-package result, ambiguity wording is accepted, fuzzy latency and
+rate limiting are validated for expected CLI/MCP volume, and shipping without
+linked-repository popularity evidence is explicitly accepted or that evidence
+is exposed cheaply. The reduced query has been validated below production's
+GraphQL complexity limit; roughly 50 dogfood calls completed without protocol,
+schema, complexity, or rate-limit errors, but that is not a volume test.
+
+After CLI dogfooding, add an MCP `resolve_target` tool using the stable request
+and JSON contracts, promote only the smallest required API through
+`@githits/mcp`, add CLI/MCP parity and smoke coverage, document agent usage, and
+run targeted Claude and Codex agent evaluations.
 
 ### Proxy Support
 

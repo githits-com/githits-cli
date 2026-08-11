@@ -100,15 +100,19 @@ describe("ResolveTargetServiceImpl", () => {
     });
     expect(request.query).toBe(RESOLVE_TARGET_QUERY);
     expect(request.query).toContain(`best {
-      ...ResolveTargetListFields
-      ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
+      ...ResolveTargetReferenceFields
     }`);
     expect(request.query).toContain(`protectedMatches {
-      ...ResolveTargetListFields
-      ...ResolveTargetJsonFields @include(if: $includeDetailedFields)`);
+      ...ResolveTargetReferenceFields`);
     expect(request.query).toContain(`candidates {
       ...ResolveTargetListFields
       ...ResolveTargetJsonFields @include(if: $includeDetailedFields)`);
+    expect(request.query.match(/\.\.\.ResolveTargetJsonFields/g)).toHaveLength(
+      1,
+    );
+    expect(request.query.match(/\.\.\.ResolveTargetListFields/g)).toHaveLength(
+      1,
+    );
     for (const field of [
       "kind",
       "canonicalKey",
@@ -128,7 +132,6 @@ describe("ResolveTargetServiceImpl", () => {
       "displayName",
       "registry",
       "packageName",
-      "latestVersion",
       "latestVersion",
       "repositoryUrl",
       "repositoryOwner",
@@ -153,7 +156,18 @@ describe("ResolveTargetServiceImpl", () => {
       docsAvailable: true,
       codeAvailable: true,
     };
-    expect(result.best).toEqual(compactResult);
+    expect(result.best).toEqual({
+      kind: "PACKAGE",
+      canonicalKey: "npm:express",
+      confidence: "EXACT",
+    });
+    expect(result.protectedMatches).toEqual([
+      {
+        kind: "PACKAGE",
+        canonicalKey: "npm:express",
+        confidence: "EXACT",
+      },
+    ]);
     expect(result.candidates).toEqual([compactResult]);
   });
 
@@ -190,10 +204,15 @@ describe("ResolveTargetServiceImpl", () => {
       includeDetailedFields: true,
     });
     expect(result.best).toEqual({
+      kind: "PACKAGE",
+      canonicalKey: "npm:express",
+      confidence: "EXACT",
+    });
+    expect(result.candidates[0]).toEqual({
       ...DETAILED_CANDIDATE,
       downloadsTotal: undefined,
     });
-    expect(result.best).not.toHaveProperty("downloadsTotal");
+    expect(result.candidates[0]).not.toHaveProperty("downloadsTotal");
   });
 
   it("requires detailed non-null fields only in detailed mode", async () => {

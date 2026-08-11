@@ -29,9 +29,13 @@ export interface ResolveTargetParams {
   includeDetailedFields: boolean;
 }
 
-export interface ResolveTargetCandidate {
+export interface ResolveTargetReference {
   kind: string;
   canonicalKey: string;
+  confidence: string;
+}
+
+export interface ResolveTargetCandidate extends ResolveTargetReference {
   displayName?: string;
   description?: string;
   registry?: string;
@@ -45,17 +49,16 @@ export interface ResolveTargetCandidate {
   downloadsTotal?: number;
   documentationUrl?: string;
   matchedAliases?: string[];
-  docsAvailable?: boolean;
-  codeAvailable?: boolean;
+  docsAvailable: boolean;
+  codeAvailable: boolean;
   matchTier?: number;
   score?: number;
-  confidence: string;
   reason?: string;
 }
 
 export interface ResolveTargetResult {
-  best?: ResolveTargetCandidate;
-  protectedMatches: ResolveTargetCandidate[];
+  best?: ResolveTargetReference;
+  protectedMatches: ResolveTargetReference[];
   candidates: ResolveTargetCandidate[];
   ambiguous: boolean;
   ambiguousReason: string;
@@ -78,6 +81,12 @@ const listCandidateSchema = z.object({
   codeAvailable: z.boolean(),
 });
 
+const targetReferenceSchema = listCandidateSchema.pick({
+  kind: true,
+  canonicalKey: true,
+  confidence: true,
+});
+
 const detailedCandidateSchema = listCandidateSchema.extend({
   displayName: z.string(),
   registry: z.string().nullable().optional(),
@@ -97,13 +106,12 @@ const graphQLErrorSchema = z.object({
   extensions: z.record(z.string(), z.unknown()).optional(),
 });
 
-function responseSchema<Best extends z.ZodType, Candidate extends z.ZodType>(
-  bestSchema: Best,
+function responseSchema<Candidate extends z.ZodType>(
   candidateSchema: Candidate,
 ) {
   const resultSchema = z.object({
-    best: bestSchema.nullable(),
-    protectedMatches: z.array(candidateSchema),
+    best: targetReferenceSchema.nullable(),
+    protectedMatches: z.array(targetReferenceSchema),
     candidates: z.array(candidateSchema),
     ambiguous: z.boolean(),
     ambiguousReason: z.string(),
@@ -137,12 +145,10 @@ query ResolveTarget(
     limit: $limit
   ) {
     best {
-      ...ResolveTargetListFields
-      ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
+      ...ResolveTargetReferenceFields
     }
     protectedMatches {
-      ...ResolveTargetListFields
-      ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
+      ...ResolveTargetReferenceFields
     }
     candidates {
       ...ResolveTargetListFields
@@ -151,6 +157,12 @@ query ResolveTarget(
     ambiguous
     ambiguousReason
   }
+}
+
+fragment ResolveTargetReferenceFields on TargetResolutionCandidate {
+  kind
+  canonicalKey
+  confidence
 }
 
 fragment ResolveTargetListFields on TargetResolutionCandidate {
@@ -233,8 +245,8 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
 
     const parsed = (
       params.includeDetailedFields
-        ? responseSchema(detailedCandidateSchema, detailedCandidateSchema)
-        : responseSchema(listCandidateSchema, listCandidateSchema)
+        ? responseSchema(detailedCandidateSchema)
+        : responseSchema(listCandidateSchema)
     ).safeParse(response.parsedBody);
     if (!parsed.success) {
       throw new MalformedPackageIntelligenceResponseError(
@@ -257,13 +269,23 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
     }
 
     return {
-      best: result.best ? normaliseCandidate(result.best) : undefined,
-      protectedMatches: result.protectedMatches.map(normaliseCandidate),
+      best: result.best ? normaliseReference(result.best) : undefined,
+      protectedMatches: result.protectedMatches.map(normaliseReference),
       candidates: result.candidates.map(normaliseCandidate),
       ambiguous: result.ambiguous,
       ambiguousReason: result.ambiguousReason,
     };
   }
+}
+
+function normaliseReference(
+  target: z.infer<typeof targetReferenceSchema>,
+): ResolveTargetReference {
+  return {
+    kind: target.kind,
+    canonicalKey: target.canonicalKey,
+    confidence: target.confidence,
+  };
 }
 
 function buildVariables(params: ResolveTargetParams): Record<string, unknown> {
@@ -291,6 +313,8 @@ function normaliseCandidate(
     kind: candidate.kind,
     canonicalKey: candidate.canonicalKey,
     confidence: candidate.confidence,
+    docsAvailable: candidate.docsAvailable,
+    codeAvailable: candidate.codeAvailable,
   };
 
   assignDefined(result, "description", candidate.description);
@@ -298,8 +322,6 @@ function normaliseCandidate(
   assignDefined(result, "stars", candidate.stars);
   assignDefined(result, "downloadsLastMonth", candidate.downloadsLastMonth);
   assignDefined(result, "downloadsTotal", candidate.downloadsTotal);
-  assignDefined(result, "docsAvailable", candidate.docsAvailable);
-  assignDefined(result, "codeAvailable", candidate.codeAvailable);
   if ("matchedAliases" in candidate) {
     assignDefined(result, "displayName", candidate.displayName);
     assignDefined(result, "registry", candidate.registry);

@@ -8,8 +8,8 @@ Preserve normal Unicode and printable text, existing formatter-owned ANSI
 colors, JSON payloads, and raw source/document content contracts.
 
 This work follows the local `sanitizeTerminalText` fix added for `githits
-resolve`. It starts on a fresh branch after the resolver increment so the
-approved resolver size exception does not grow further.
+resolve`. It remains a separate increment because it spans existing CLI and
+public MCP formatter contracts beyond target resolution.
 
 ## Verified issue
 

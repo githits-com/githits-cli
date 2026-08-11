@@ -74,10 +74,11 @@ describe("buildResolveTargetSuccessPayload", () => {
   });
 
   it("appends unbounded protected extras once so every reference resolves", () => {
-    const extra = candidate({
+    const extra = {
+      kind: "PACKAGE",
       canonicalKey: "pypi:express",
-      registry: "PYPI",
-    });
+      confidence: "EXACT",
+    };
     const payload = buildResolveTargetSuccessPayload(
       result({ protectedMatches: [candidate(), extra, extra] }),
     );
@@ -87,6 +88,11 @@ describe("buildResolveTargetSuccessPayload", () => {
       "pypi:express",
     ]);
     expect(payload.protectedMatches).toEqual(["npm:express", "pypi:express"]);
+    expect(payload.candidates[1]).toEqual({
+      target: "pypi:express",
+      kind: "package",
+      confidence: "exact",
+    });
   });
 
   it("uses safe lowercase strings for unknown enum values", () => {
@@ -167,16 +173,16 @@ describe("formatResolveTargetTerminal", () => {
   });
 
   it("appends missing protected and best candidates after ranked candidates", () => {
-    const protectedExtra = candidate({
+    const protectedExtra = {
+      kind: "PACKAGE",
       canonicalKey: "pypi:express",
-      registry: "PYPI",
-    });
-    const best = candidate({
+      confidence: "EXACT",
+    };
+    const best = {
       kind: "REPOSITORY",
       canonicalKey: "github:expressjs/express",
-      displayName: "expressjs/express",
-      registry: undefined,
-    });
+      confidence: "HIGH",
+    };
     const output = formatResolveTargetTerminal(
       result({
         best,
@@ -191,6 +197,8 @@ describe("formatResolveTargetTerminal", () => {
       "  2. pypi:express",
       "  3. github:expressjs/express",
     ]);
+    expect(output).toContain("2. pypi:express [exact] · package");
+    expect(output).toContain("3. github:expressjs/express [high] · repository");
   });
 
   it("shows total downloads or a linked repository when monthly downloads are unavailable", () => {

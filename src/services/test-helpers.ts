@@ -974,17 +974,29 @@ export const defaultResolveTargetResult: ResolveTargetResult = {
   best: {
     kind: "PACKAGE",
     canonicalKey: "npm:express",
-    displayName: "express",
-    description: "Fast web framework",
-    registry: "NPM",
-    stars: 66_000,
-    downloadsLastMonth: 89_000_000,
-    docsAvailable: true,
-    codeAvailable: true,
     confidence: "EXACT",
   },
-  protectedMatches: [],
-  candidates: [],
+  protectedMatches: [
+    {
+      kind: "PACKAGE",
+      canonicalKey: "npm:express",
+      confidence: "EXACT",
+    },
+  ],
+  candidates: [
+    {
+      kind: "PACKAGE",
+      canonicalKey: "npm:express",
+      displayName: "express",
+      description: "Fast web framework",
+      registry: "NPM",
+      stars: 66_000,
+      downloadsLastMonth: 89_000_000,
+      docsAvailable: true,
+      codeAvailable: true,
+      confidence: "EXACT",
+    },
+  ],
   ambiguous: false,
   ambiguousReason: "NOT_AMBIGUOUS",
 };
