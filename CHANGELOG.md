@@ -12,8 +12,15 @@ errors.
 
 | Public artifact | Current release | Pending bump | Reason |
 |---|---:|---:|---|
-| `githits` | 0.9.0 | patch | Clarify packaged Agent Skill syntax for search-status waits |
+| `githits` | 0.9.0 | minor | Adds the `githits resolve` target-resolution command and clarifies packaged Agent Skill syntax for search-status waits |
 | `@githits/mcp` | 0.9.0 | none | No MCP-package-visible changes |
+
+### Added
+
+- **Target resolution CLI dogfood surface** - `githits resolve` ranks canonical
+  package and GitHub repository targets with compact terminal and diagnostic
+  JSON output. Do not publish the command until the documented production
+  relevance, latency, rate-limit, and trust-evidence gates clear.
 
 ### Changed
 

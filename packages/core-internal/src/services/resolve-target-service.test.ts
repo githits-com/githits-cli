@@ -103,10 +103,18 @@ describe("ResolveTargetServiceImpl", () => {
       ...ResolveTargetReferenceFields
     }`);
     expect(request.query).toContain(`protectedMatches {
-      ...ResolveTargetReferenceFields`);
+      ...ResolveTargetReferenceFields
+    }`);
     expect(request.query).toContain(`candidates {
       ...ResolveTargetListFields
       ...ResolveTargetJsonFields @include(if: $includeDetailedFields)`);
+    expect(
+      request.query,
+    ).toContain(`fragment ResolveTargetReferenceFields on TargetResolutionCandidate {
+  kind
+  canonicalKey
+  confidence
+}`);
     expect(request.query.match(/\.\.\.ResolveTargetJsonFields/g)).toHaveLength(
       1,
     );

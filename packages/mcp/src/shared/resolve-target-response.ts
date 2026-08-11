@@ -215,9 +215,9 @@ function ambiguityMessage(reason: string): string {
 }
 
 function compactDescription(value: string | undefined): string | undefined {
-  const normalized = sanitizeTerminalText(
-    (value ?? "").replace(/\s+/g, " "),
-  ).trim();
+  const normalized = sanitizeTerminalText(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!normalized) return undefined;
   return normalized.length > 240
     ? `${normalized.slice(0, 237).trimEnd()}...`

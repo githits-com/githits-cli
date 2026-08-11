@@ -133,14 +133,17 @@ exact output contracts.
 ### Release boundary
 
 This changes both the root CLI and public `@githits/mcp` package tool text. Bump
-the root `githits` patch version and keep `server.json`, `.plugin/plugin.json`,
-`.claude-plugin/plugin.json`, `plugins/claude/.claude-plugin/plugin.json`,
-`.claude-plugin/marketplace.json`, and `gemini-extension.json` aligned. Bump the
-`@githits/mcp` patch version in `packages/mcp/package.json`; for a new root minor,
-follow the coordinated-release rule and start the MCP package at `X.Y.0`.
-Include the text-output security hardening in release notes. Review public Agent
-Skills for wording impact, but do not change them unless their documented output
-behavior is now inaccurate.
+the root `githits` patch version in `package.json` and `server.json`, then run
+`bun run plugins:generate` to align `.plugin/plugin.json`,
+`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`,
+`.cursor-plugin/plugin.json`, `.claude-plugin/marketplace.json`,
+`gemini-extension.json`, and the versionless Antigravity `plugin.json` and
+`mcp_config.json` assets. Bump the `@githits/mcp` patch version in
+`packages/mcp/package.json`; for a new root minor, follow the coordinated-release
+rule and start the MCP package at `X.Y.0`. Add the security hardening and explicit
+pending bumps to the `CHANGELOG.md` Unreleased section. Review public Agent Skills
+for wording impact, but do not change them unless their documented output behavior
+is now inaccurate. Run `bun run plugins:check` after generation.
 
 ## Tests
 

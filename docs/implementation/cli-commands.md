@@ -263,7 +263,8 @@ The copyable `githits search --in` follow-up uses the resolved target only for
 non-ambiguous results. Ambiguous results use the literal `<target>` placeholder
 so the terminal does not imply that candidate 1 was selected. No candidates is
 a valid JSON/text result but exits 1 because the command did not resolve a
-target.
+target. The backend guarantees that `best` is absent only when there are no
+candidates, so the terminal no-result message and exit status key off `best`.
 
 `--registry` accepts a comma-separated package-registry list; repository
 candidates remain eligible. `--prefer-kind package|repository` is a soft

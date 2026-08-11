@@ -286,7 +286,7 @@ describe("formatResolveTargetTerminal", () => {
     const hostile = candidate({
       canonicalKey: "npm:x\u001b[31m",
       description:
-        "safe\u001b]8;;https://evil.test\u0007click\u001b]8;;\u0007 \u009bred \u0007bell \rreturn",
+        "safe\u001b]8;;https://evil.test\u0007click\u001b]8;;\u0007 \u009bred \u0007 bell \rreturn",
     });
     const output = formatResolveTargetTerminal(
       result({ best: hostile, candidates: [hostile], protectedMatches: [] }),
@@ -299,6 +299,7 @@ describe("formatResolveTargetTerminal", () => {
     expect(output).toContain("1. npm:x [");
     expect(output).toContain("--in 'npm:x'");
     expect(output).toContain("safeclick red bell return");
+    expect(output).not.toContain("red  bell");
 
     expect(
       formatResolveTargetTerminal(
