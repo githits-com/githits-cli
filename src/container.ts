@@ -16,6 +16,7 @@ import {
   PackageIntelligenceServiceImpl,
   RefreshingGitHitsService,
   startTelemetrySpan,
+  type TokenProvider,
   withTelemetrySpan,
 } from "@githits/core-internal";
 import { version } from "../package.json";
@@ -247,6 +248,8 @@ export interface Dependencies {
   packageIntelligenceService: PackageIntelligenceService;
   /** GitHits REST API service */
   githitsService: GitHitsService;
+  /** Active credential provider shared by CLI-only account services. */
+  tokenProvider: TokenProvider;
 }
 
 export interface CreateContainerOptions {
@@ -326,6 +329,7 @@ export async function createContainer(
           undefined,
           serviceRuntime,
         ),
+        tokenProvider,
       };
     }
 
@@ -384,6 +388,7 @@ export async function createContainer(
           ),
         serviceRuntime,
       ),
+      tokenProvider: tokenManager,
     };
   });
 }

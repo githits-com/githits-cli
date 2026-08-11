@@ -1,21 +1,17 @@
 import type { GitHitsService } from "@githits/core-internal";
-import { AuthenticationError } from "@githits/core-internal";
 import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
   colorize,
   dim,
   type LanguageMatch,
+  mapGitHitsServiceError,
   requireAuth,
   shouldUseColors,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
-import {
-  buildCliMappedErrorPayload,
-  formatCliMappedError,
-  formatMappedErrorForTerminal,
-} from "./format-mapped-error.js";
+import { formatCliMappedError } from "./format-mapped-error.js";
 
 export interface LanguagesOptions {
   json?: boolean;
@@ -75,30 +71,8 @@ export async function languagesAction(
       }
     }
   } catch (error) {
-    if (error instanceof AuthenticationError) {
-      const mapped = {
-        code: "AUTH_REQUIRED" as const,
-        message: error.message,
-        retryable: false,
-        details: { authSource: error.source },
-      };
-      if (options.json) {
-        console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
-      } else {
-        console.error(formatMappedErrorForTerminal(mapped));
-      }
-      process.exit(1);
-    }
-    console.error(
-      formatCliMappedError(
-        {
-          code: "UNKNOWN",
-          message: `Failed to list languages: ${error instanceof Error ? error.message : "Unexpected error."}`,
-          retryable: false,
-        },
-        options.json ?? false,
-      ),
-    );
+    const mapped = mapGitHitsServiceError("list languages", error);
+    console.error(formatCliMappedError(mapped, options.json ?? false));
     process.exit(1);
   }
 }

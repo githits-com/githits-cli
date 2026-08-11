@@ -6,8 +6,8 @@
  * - Owns: URL trailing-slash normalisation, required headers
  *   (`Authorization`, `Content-Type`, `User-Agent`), one POST attempt,
  *   optional `fetchFn` injection, structured response shape, transport
- *   wrapping via {@link PkgseerTransportError}.
- * - Does NOT own: token refresh, GraphQL-error classification, Zod
+ *   wrapping via {@link PkgseerTransportError}, and the shared terms gate.
+ * - Does NOT own: token refresh, domain GraphQL-error classification, Zod
  *   schema validation, HTTP status dispatch. Those live per-service
  *   so that GraphQL-level `UNAUTHORIZED` (which we only learn *after*
  *   the POST completes) can still trigger the service's
@@ -16,8 +16,8 @@
  * Return contract:
  * - On any HTTP response (2xx, 4xx, 5xx): returns
  *   `{ status, responseBody, parsedBody }`. `parsedBody` is the
- *   JSON-parsed body when valid JSON, otherwise `null`. **Never
- *   throws for a completed response**, regardless of status.
+ *   JSON-parsed body when valid JSON, otherwise `null`. Completed responses
+ *   only throw when they carry the cross-service terms-acceptance contract.
  * - On fetch rejection (DNS, socket, abort): emits one
  *   `pkg-graphql` debug line, then throws
  *   {@link PkgseerTransportError} preserving the rejection `cause`.
@@ -27,6 +27,7 @@ import { validateServiceUrl } from "../services/config.js";
 import { debugLog } from "./debug-log.js";
 import { DEFAULT_FETCH_TIMEOUT_MS, fetchWithTimeout } from "./fetch-timeout.js";
 import type { ClientHeaderBuilder } from "./request-headers.js";
+import { throwIfTermsAcceptanceRequired } from "./terms-acceptance.js";
 
 export interface PkgseerGraphqlRequest {
   /** Full base URL for the package/source service. Trailing slashes tolerated. */
@@ -128,6 +129,7 @@ export async function postPkgseerGraphql(
 
   const responseBody = await response.text().catch(() => "");
   const parsedBody = parseJsonOrNull(responseBody);
+  throwIfTermsAcceptanceRequired(parsedBody);
 
   return {
     status: response.status,

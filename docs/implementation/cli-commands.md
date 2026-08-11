@@ -17,6 +17,13 @@ The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback [solution_id]` | `--accept` or `--reject` | `-m, --message <text>`, `--tool <name>`, `--json` | Submit solution-tied or generic session feedback |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
+| `settings` | — | `--json` | Show canonical preferences, privacy and terms, and account limits |
+| `settings show` | — | `--json` | Explicit form of `settings` for showing all account settings |
+| `settings get <key>` | setting key | `--json` | Read one writable setting using its public CLI name |
+| `settings set <key> <values...>` | setting key and typed value(s) | `--json` | Selectively update one writable account setting |
+| `settings clear <key>` | clearable setting key | `--json` | Clear the default language or replace blocked license IDs with an empty list |
+| `settings terms` | — | `--json` | Show the current Terms of Service acceptance state |
+| `settings terms accept` | — | `--yes`, `--json` | Confirm and accept the current Terms of Service |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift) |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph (npm/pypi/hex/crates/vcpkg/zig/rubygems/go/swift) |
@@ -93,6 +100,50 @@ The command uses `createContainer()` lazily for the login step. Tool detection a
 For automation, `githits init uninstall --yes` is user-level only and never touches project files. Use `githits init uninstall --project --yes` for non-interactive project-level removal.
 
 **File structure:** The init command uses a subdirectory (`src/commands/init/`) because it has distinct submodules (agent definitions, setup handlers, orchestrator). This is an accepted variation for commands with significant internal complexity.
+
+### `githits settings`
+
+```sh
+githits settings
+githits settings --json
+githits settings show
+githits settings get license-mode
+githits settings set license-mode safe
+githits settings set marketing-emails disabled
+githits settings set blocked-license-ids 0198a7d0-6750-7ace-a68c-418062117d95 0198a7d0-6750-7ace-a68c-418062117d96
+githits settings clear blocked-license-ids
+githits settings terms
+githits settings terms accept
+githits settings terms accept --yes --json
+```
+
+Settings calls the self-scoped account API with the active credential. The root
+command and `show` display all settings. `get`, `set`, and `clear` use a
+whitelisted public key schema: `default-language-id`, `license-mode`,
+`blocked-license-ids`, and `marketing-emails`. The schema validates each value
+and maps it to the canonical API field, so the CLI does not expose the negative
+`marketing_email_opted_out` storage name. `marketing-emails` accepts
+`enabled`/`disabled`; `license-mode` accepts `safe`/`yolo`/`custom`; blocked
+license IDs are an atomic list replacement. `clear blocked-license-ids` sends
+an explicit empty list, while `clear default-language-id` sends null.
+
+JSON overview and update output remains the canonical settings object.
+`settings get <key> --json` returns `{key, value}` using the public key and
+value. Every mutation sends exactly one selective PATCH. JSON batch input is
+intentionally omitted until an atomic multi-setting workflow is required.
+
+Terms acceptance prompts unless `--yes` is supplied. OAuth sessions are
+force-refreshed after the write so subsequent requests receive the updated JWT
+claim. Static `GITHITS_API_TOKEN` credentials are not refreshed; their terms
+state is re-evaluated server-side without token refresh. If acceptance succeeds but
+OAuth refresh fails, output reports the saved acceptance and instructs the user
+to run `githits login --force`.
+
+Downstream REST and GraphQL clients recognize the structured
+`TERMS_ACCEPTANCE_REQUIRED` response, refresh OAuth at most once, and retry at
+most once. A still-gated request returns the stable
+`githits settings terms accept` remediation plus the authenticated web
+acceptance URL; `ghi-*` credentials never enter a refresh loop.
 
 ### `githits example`
 

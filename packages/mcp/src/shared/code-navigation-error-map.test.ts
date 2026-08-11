@@ -15,6 +15,7 @@ import {
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
   MalformedCodeNavigationResponseError,
+  TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
 import { mapCodeNavigationError } from "./code-navigation-error-map.js";
 
@@ -33,6 +34,19 @@ class UnsupportedRegistryError extends Error {
 }
 
 describe("mapCodeNavigationError", () => {
+  it("maps terms gating with stable command and URL remediation", () => {
+    expect(
+      mapCodeNavigationError(new TermsAcceptanceRequiredError()),
+    ).toMatchObject({
+      code: "TERMS_ACCEPTANCE_REQUIRED",
+      retryable: false,
+      details: {
+        action: "githits settings terms accept",
+        termsUrl: "https://githits.com/legal/terms-of-service/",
+        acceptanceUrl: "https://app.githits.com/settings/privacy",
+      },
+    });
+  });
   it("classifies ClientUpdateRequiredError as UPDATE_REQUIRED", () => {
     expect(
       mapCodeNavigationError(

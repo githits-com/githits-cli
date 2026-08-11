@@ -23,6 +23,7 @@ import {
   MalformedCodeNavigationResponseError,
   type SuggestedRef,
   type TargetResolution,
+  TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
 import { AuthRequiredError } from "./require-auth.js";
 
@@ -35,6 +36,7 @@ export type MappedErrorCode =
   | "UNRESOLVABLE"
   | "ACCESS_DENIED"
   | "AUTH_REQUIRED"
+  | "TERMS_ACCEPTANCE_REQUIRED"
   | "NETWORK"
   | "INVALID_ARGUMENT"
   | "BACKEND_ERROR"
@@ -81,6 +83,10 @@ export interface MappedErrorDetails {
   reason?: string;
   /** Whether auth failed before making a request or after backend rejection. */
   authSource?: AuthenticationErrorSource;
+  /** Canonical legal document URL for terms-acceptance remediation. */
+  termsUrl?: string;
+  /** Authenticated web UI where the user can accept the current terms. */
+  acceptanceUrl?: string;
 }
 
 export interface MappedError {
@@ -123,7 +129,25 @@ export function mapCodeNavigationError(error: unknown): MappedError {
   return mapped;
 }
 
+export function mapTermsAcceptanceError(
+  error: unknown,
+): MappedError | undefined {
+  if (!(error instanceof TermsAcceptanceRequiredError)) return undefined;
+  return {
+    code: "TERMS_ACCEPTANCE_REQUIRED",
+    message: error.message,
+    retryable: false,
+    details: {
+      action: "githits settings terms accept",
+      termsUrl: error.termsUrl,
+      acceptanceUrl: error.acceptanceUrl,
+    },
+  };
+}
+
 function classify(error: unknown): MappedError {
+  const termsError = mapTermsAcceptanceError(error);
+  if (termsError) return termsError;
   if (error instanceof ClientUpdateRequiredError) {
     return buildUpdateRequiredError(error.reason, error.currentVersion);
   }

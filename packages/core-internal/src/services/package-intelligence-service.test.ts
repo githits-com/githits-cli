@@ -8,7 +8,10 @@ import {
   spyOn,
 } from "bun:test";
 import { FetchTimeoutError } from "../shared/fetch-timeout.js";
-import { AuthenticationError } from "./githits-service.js";
+import {
+  AuthenticationError,
+  TermsAcceptanceRequiredError,
+} from "./githits-service.js";
 import {
   MalformedPackageIntelligenceResponseError,
   PackageIntelligenceAccessError,
@@ -373,6 +376,76 @@ describe("PackageIntelligenceServiceImpl", () => {
 
     expect(refreshed).toHaveBeenCalledTimes(1);
     expect(result.package.name).toBe("express");
+  });
+
+  it("refreshes and retries once for GraphQL terms gating", async () => {
+    let callCount = 0;
+    const fetchFn = mock(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve(
+          jsonResponse({
+            errors: [
+              {
+                message: "Terms acceptance required",
+                extensions: { code: "TERMS_ACCEPTANCE_REQUIRED" },
+              },
+            ],
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse(HAPPY_BODY));
+    });
+    const refreshed = mock(() => Promise.resolve("new-token"));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider({ forceRefresh: refreshed }),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageSummary({
+      registry: "NPM",
+      packageName: "express",
+    });
+
+    expect(result.package.name).toBe("express");
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("recognises the canonical terms-required HTTP 403 contract", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse(
+          {
+            errors: [
+              {
+                message: "Terms acceptance required",
+                extensions: {
+                  code: "TERMS_ACCEPTANCE_REQUIRED",
+                  terms_url: "https://githits.com/legal/terms-of-service/",
+                  acceptance_url:
+                    "https://acceptance.example.test/settings/privacy",
+                },
+              },
+            ],
+          },
+          403,
+        ),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider({
+        forceRefresh: mock(() => Promise.resolve(undefined)),
+      }),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.packageSummary({ registry: "NPM", packageName: "express" }),
+    ).rejects.toBeInstanceOf(TermsAcceptanceRequiredError);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
   it("classifies 403 as PackageIntelligenceAccessError", async () => {

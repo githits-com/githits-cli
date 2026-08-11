@@ -1,5 +1,8 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import { AuthenticationError } from "@githits/core-internal";
+import {
+  AuthenticationError,
+  TermsAcceptanceRequiredError,
+} from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import { createMockGitHitsService } from "../services/test-helpers.js";
 import { type FeedbackDependencies, feedbackAction } from "./feedback.js";
@@ -299,6 +302,41 @@ describe("feedbackAction", () => {
       error: "Failed to submit feedback: offline",
       code: "UNKNOWN",
       retryable: false,
+    });
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("preserves terms remediation in the JSON error envelope", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({
+        submitFeedback: mock(() =>
+          Promise.reject(
+            new TermsAcceptanceRequiredError({
+              termsUrl: "https://githits.com/legal/terms-of-service/",
+              acceptanceUrl: "https://acceptance.example.test/settings/privacy",
+            }),
+          ),
+        ),
+      }),
+    });
+
+    await expect(
+      feedbackAction("abc-123", { accept: true, json: true }, deps),
+    ).rejects.toThrow("process.exit");
+
+    expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toMatchObject({
+      code: "TERMS_ACCEPTANCE_REQUIRED",
+      details: {
+        action: "githits settings terms accept",
+        termsUrl: "https://githits.com/legal/terms-of-service/",
+        acceptanceUrl: "https://acceptance.example.test/settings/privacy",
+      },
     });
     expect(exitSpy).toHaveBeenCalledWith(1);
     errorSpy.mockRestore();

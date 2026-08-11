@@ -101,6 +101,7 @@ describe("doctor", () => {
           HOME: "/home/test",
           GITHITS_MCP_URL: "https://mcp.example.test",
           GITHITS_API_URL: "https://api.example.test",
+          GITHITS_ACCOUNTS_URL: "https://accounts.example.test",
           GITHITS_CODE_NAV_URL: "https://code.example.test",
         },
       }),
@@ -113,6 +114,10 @@ describe("doctor", () => {
     expect(report.services.apiUrl).toEqual({
       source: "env",
       value: "https://api.example.test",
+    });
+    expect(report.services.accountsUrl).toEqual({
+      source: "env",
+      value: "https://accounts.example.test",
     });
     expect(report.services.codeNavigationUrl).toEqual({
       source: "env",

@@ -17,6 +17,7 @@ import {
   CodeNavigationTargetNotFoundError,
   CodeNavigationVersionNotFoundError,
 } from "./code-navigation-service.js";
+import { TermsAcceptanceRequiredError } from "./githits-service.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
 function mockFetch(impl: () => Promise<Response>) {
@@ -32,6 +33,42 @@ describe("CodeNavigationServiceImpl", () => {
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
+  });
+
+  it("recognises HTTP terms gating and does not loop without a refresh token", async () => {
+    const fetchFn = mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: "Terms acceptance required",
+                extensions: {
+                  code: "TERMS_ACCEPTANCE_REQUIRED",
+                  terms_url: "https://githits.com/legal/terms-of-service/",
+                  acceptance_url:
+                    "https://acceptance.example.test/settings/privacy",
+                },
+              },
+            ],
+          }),
+          { status: 403 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider({
+        forceRefresh: mock(() => Promise.resolve(undefined)),
+      }),
+    );
+
+    await expect(
+      service.listFiles({
+        target: { registry: "NPM", packageName: "express" },
+      }),
+    ).rejects.toBeInstanceOf(TermsAcceptanceRequiredError);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
   afterEach(() => {

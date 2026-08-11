@@ -1,11 +1,11 @@
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import {
-  AuthenticationError,
   type FeedbackParams,
   type FeedbackResult,
   type GitHitsService,
   GitHitsServiceImpl,
   type GitHitsServiceRuntimeOptions,
+  isTokenRefreshableError,
   type Language,
   type SearchParams,
 } from "./githits-service.js";
@@ -57,7 +57,7 @@ export class RefreshingGitHitsService implements GitHitsService {
     return executeWithTokenRefresh({
       getToken: () => this.tokenProvider.getToken(),
       forceRefresh: () => this.tokenProvider.forceRefresh(),
-      shouldRefresh: (error) => error instanceof AuthenticationError,
+      shouldRefresh: isTokenRefreshableError,
       executeWithToken: async (token) => {
         const service = this.serviceFactory
           ? this.serviceFactory(this.apiUrl, token)

@@ -4,6 +4,7 @@ import {
   FetchTimeoutError,
 } from "@githits/core-internal";
 import type { MappedError } from "./code-navigation-error-map.js";
+import { mapTermsAcceptanceError } from "./code-navigation-error-map.js";
 
 /**
  * Classify errors from the GitHits API service into the shared envelope used
@@ -13,6 +14,8 @@ export function mapGitHitsServiceError(
   operation: string,
   error: unknown,
 ): MappedError {
+  const termsError = mapTermsAcceptanceError(error);
+  if (termsError) return termsError;
   if (error instanceof AuthenticationError) {
     return {
       code: "AUTH_REQUIRED",

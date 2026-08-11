@@ -1,5 +1,8 @@
 import { describe, expect, it, mock } from "bun:test";
-import { AuthenticationError } from "./githits-service.js";
+import {
+  AuthenticationError,
+  TermsAcceptanceRequiredError,
+} from "./githits-service.js";
 import { RefreshingGitHitsService } from "./refreshing-githits-service.js";
 import {
   createMockGitHitsService,
@@ -82,6 +85,54 @@ describe("RefreshingGitHitsService", () => {
       await expect(
         service.search({ query: "test", language: "js" }),
       ).rejects.toThrow(AuthenticationError);
+    });
+
+    it("refreshes and retries once when terms are accepted but the JWT claim is stale", async () => {
+      const gatedService = createMockGitHitsService({
+        search: mock(() => Promise.reject(new TermsAcceptanceRequiredError())),
+      });
+      const successService = createMockGitHitsService({
+        search: mock(() => Promise.resolve("result after terms refresh")),
+      });
+      let callCount = 0;
+      const factory = mock(() =>
+        callCount++ === 0 ? gatedService : successService,
+      );
+      const tokenProvider = createMockTokenProvider();
+      const service = new RefreshingGitHitsService(
+        API_URL,
+        tokenProvider,
+        factory,
+      );
+
+      expect(await service.search({ query: "test" })).toBe(
+        "result after terms refresh",
+      );
+      expect(tokenProvider.forceRefresh).toHaveBeenCalledTimes(1);
+      expect(factory).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not retry terms gating when a static token cannot refresh", async () => {
+      const gatedService = createMockGitHitsService({
+        search: mock(() => Promise.reject(new TermsAcceptanceRequiredError())),
+      });
+      const factory = mock(() => gatedService);
+      const forceRefresh = mock(() => Promise.resolve(undefined));
+      const tokenProvider = createMockTokenProvider({
+        getToken: mock(() => Promise.resolve("ghi-static-token")),
+        forceRefresh,
+      });
+      const service = new RefreshingGitHitsService(
+        API_URL,
+        tokenProvider,
+        factory,
+      );
+
+      await expect(service.search({ query: "test" })).rejects.toBeInstanceOf(
+        TermsAcceptanceRequiredError,
+      );
+      expect(factory).toHaveBeenCalledTimes(1);
+      expect(forceRefresh).not.toHaveBeenCalled();
     });
   });
 
