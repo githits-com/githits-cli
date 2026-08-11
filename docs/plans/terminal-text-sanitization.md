@@ -87,7 +87,11 @@ The helper remains a pure string transform. It strips complete ANSI CSI/OSC and
 two-byte escape sequences before residual C0/C1/DEL controls so payload text
 cannot survive as partial terminal instructions. It does not normalize,
 truncate, wrap, quote, or filter printable content; those remain formatter
-responsibilities.
+responsibilities. Single-line renderers normalize whitespace to spaces before
+sanitizing and collapse it again afterward, so newlines and tabs remain word
+separators while stripped controls cannot leave duplicate gaps. Helper and
+formatter tests cover `a\nb`, `a\tb`, and `a <BEL> b` in that order-sensitive
+contract.
 
 No configurable mode, recursive object sanitizer, output stream wrapper, or
 global hook is added. Field-level calls are more explicit and avoid corrupting

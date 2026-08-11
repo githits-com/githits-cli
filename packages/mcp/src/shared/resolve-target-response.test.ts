@@ -267,6 +267,7 @@ describe("formatResolveTargetTerminal", () => {
       { name: "express", useColors: false },
     );
     const description = output.split("\n")[2]?.trim() ?? "";
+    expect(description).toStartWith("first x");
     expect(description.length).toBe(240);
     expect(description).toEndWith("...");
   });
