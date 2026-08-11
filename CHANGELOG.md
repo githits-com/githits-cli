@@ -22,6 +22,12 @@ errors.
   public artifact, immutable historical release sections, and version-boundary
   validation during release preparation.
 
+### Fixed
+
+- **Cross-platform changelog validation (repository)** - release-boundary tests
+  accept both LF and CRLF Markdown while enforcing identical package-version
+  content.
+
 ## [githits 0.9.0] - 2026-08-11
 
 Minor release: adds canonical account settings and Terms of Service commands,

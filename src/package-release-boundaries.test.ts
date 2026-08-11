@@ -26,30 +26,37 @@ function allDependencyNames(packageJson: PackageJson): Set<string> {
 }
 
 describe("package release boundaries", () => {
-  it("documents the current public package versions in the changelog", async () => {
+  it("documents the current public package versions across changelog line endings", async () => {
     const root = join(import.meta.dir, "..");
     const rootPackage = await readJson<PackageJson>(join(root, "package.json"));
     const mcpPackage = await readJson<PackageJson>(
       join(root, "packages", "mcp", "package.json"),
     );
-    const changelog = await readFile(join(root, "CHANGELOG.md"), "utf8");
-    const unreleased = changelog.match(
-      /## \[Unreleased\]\n([\s\S]*?)(?=\n## \[)/,
-    )?.[1];
+    const rawChangelog = await readFile(join(root, "CHANGELOG.md"), "utf8");
+    const lfChangelog = rawChangelog.replaceAll("\r\n", "\n");
 
-    expect(unreleased).toBeDefined();
-    expect(unreleased).toContain(
-      `| \`${rootPackage.name}\` | ${rootPackage.version} |`,
-    );
-    expect(unreleased).toContain(
-      `| \`${mcpPackage.name}\` | ${mcpPackage.version} |`,
-    );
-    expect(changelog).toContain(
-      `## [${rootPackage.name} ${rootPackage.version}]`,
-    );
-    expect(changelog).toContain(
-      `## [${mcpPackage.name} ${mcpPackage.version}]`,
-    );
+    for (const changelog of [
+      lfChangelog,
+      lfChangelog.replaceAll("\n", "\r\n"),
+    ]) {
+      const unreleased = changelog.match(
+        /## \[Unreleased\]\r?\n([\s\S]*?)(?=\r?\n## \[)/,
+      )?.[1];
+
+      expect(unreleased).toBeDefined();
+      expect(unreleased).toContain(
+        `| \`${rootPackage.name}\` | ${rootPackage.version} |`,
+      );
+      expect(unreleased).toContain(
+        `| \`${mcpPackage.name}\` | ${mcpPackage.version} |`,
+      );
+      expect(changelog).toContain(
+        `## [${rootPackage.name} ${rootPackage.version}]`,
+      );
+      expect(changelog).toContain(
+        `## [${mcpPackage.name} ${mcpPackage.version}]`,
+      );
+    }
   });
 
   it("keeps root githits releasable without a published @githits/mcp", async () => {
