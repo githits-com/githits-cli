@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  CodeNavigationIndexingError,
   CodeNavigationRefNotFoundError,
   CodeNavigationTargetNotFoundError,
   type UnifiedSearchOutcome,
@@ -12,6 +13,59 @@ import {
   buildUnifiedSearchStatusPayload,
   buildUnifiedSearchSuccessPayload,
 } from "./unified-search-response.js";
+
+describe("buildUnifiedSearchErrorPayload", () => {
+  it("preserves backend indexing guidance, estimates, and alternatives", () => {
+    const payload = buildUnifiedSearchErrorPayload(
+      new CodeNavigationIndexingError(
+        "Backend indexing message.",
+        "idx-42",
+        [{ version: "5.2.1", ref: "v5.2.1" }],
+        [{ ref: "main" }],
+        undefined,
+        { lowerSeconds: 7, upperSeconds: 19, sampleCount: 9 },
+        "Backend indexing hint.",
+      ),
+    );
+
+    expect(payload).toEqual({
+      error: "Backend indexing message.",
+      code: "INDEXING",
+      retryable: true,
+      details: {
+        indexingRef: "idx-42",
+        availableVersions: [{ version: "5.2.1", ref: "v5.2.1" }],
+        availableRefs: [{ ref: "main" }],
+        indexingEstimate: { lowerSeconds: 7, upperSeconds: 19, sampleCount: 9 },
+        hint: "Backend indexing hint.",
+      },
+    });
+  });
+
+  it("preserves backend not-found messages and alternatives", () => {
+    const payload = buildUnifiedSearchErrorPayload(
+      new CodeNavigationTargetNotFoundError(
+        "Backend target message.",
+        [{ version: "5.2.1", ref: "v5.2.1" }],
+        undefined,
+        undefined,
+        {
+          hint: "Backend target hint.",
+          availableRefs: [{ ref: "main" }],
+          suggestedRefs: [{ ref: "v5.2.1" }],
+        },
+      ),
+    );
+
+    expect(payload.error).toBe("Backend target message.");
+    expect(payload.details?.availableVersions).toEqual([
+      { version: "5.2.1", ref: "v5.2.1" },
+    ]);
+    expect(payload.details?.hint).toBe("Backend target hint.");
+    expect(payload.details?.availableRefs).toEqual([{ ref: "main" }]);
+    expect(payload.details?.suggestedRefs).toEqual([{ ref: "v5.2.1" }]);
+  });
+});
 
 describe("buildUnifiedSearchSuccessPayload", () => {
   const params: UnifiedSearchParams = {
@@ -165,7 +219,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
         targetsTotal: 1,
         elapsedMs: 200,
         query: "router middleware",
-        next: 'search_status search_ref="search-ref-123"',
+        next: 'search_status search_ref="search-ref-123" wait_timeout_ms=20000',
       },
     });
   });
@@ -849,7 +903,12 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       },
     );
 
-    expect(payload.sourceStatus).toBeUndefined();
+    expect(payload.sourceStatus).toEqual([
+      {
+        source: "docs",
+        targetLabel: "site:expressjs.com",
+      },
+    ]);
     expect(payload.warnings).toBeUndefined();
   });
 
@@ -1158,7 +1217,7 @@ describe("buildUnifiedSearchSuccessPayload — sourceStatus warnings on complete
     expect(payload.warnings).toBeUndefined();
   });
 
-  it("omits indexing-only targetResolution on completed empty results", () => {
+  it("retains source and target context on completed empty results", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed fixture");
     }
@@ -1176,8 +1235,12 @@ describe("buildUnifiedSearchSuccessPayload — sourceStatus warnings on complete
           {
             source: "CODE",
             targetLabel: "github:expressjs/express#master",
+            requestedTargetLabel: "expressjs/express default branch",
+            freshTargetLabel: "expressjs/express@master",
+            servedTargetLabel: "expressjs/express@master",
             indexingStatus: "INDEXING",
             codeIndexState: "INDEXING",
+            resultCount: 0,
             appliedFilters: [],
             ignoredFilters: [],
             incompatibleFilters: [],
@@ -1215,7 +1278,100 @@ describe("buildUnifiedSearchSuccessPayload — sourceStatus warnings on complete
     expect(payload.completed).toBe(true);
     expect(payload.results).toEqual([]);
     expect(payload.warnings).toBeUndefined();
-    expect(payload.sourceStatus).toBeUndefined();
+    expect(payload.sourceStatus?.[0]).toMatchObject({
+      source: "code",
+      targetLabel: "github:expressjs/express#master",
+      requestedTarget: "expressjs/express default branch",
+      servedTarget: "github:expressjs/express#master",
+      indexingStatus: "INDEXING",
+      codeIndexState: "INDEXING",
+      resultCount: 0,
+    });
+  });
+
+  it("does not warn for healthy lifecycle states on completed empty results", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed fixture");
+    }
+    const sourceStatus = defaultUnifiedSearchOutcome.result.sourceStatus[0];
+    if (!sourceStatus) throw new Error("expected source status fixture");
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        page: {
+          ...defaultUnifiedSearchOutcome.result.page,
+          returned: 0,
+          hasMore: false,
+        },
+        sourceStatus: [
+          {
+            ...sourceStatus,
+            indexingStatus: "INDEXED",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      outcome,
+    );
+
+    expect(payload.warnings).toBeUndefined();
+    expect(payload.sourceStatus?.[0]).toMatchObject({
+      indexingStatus: "INDEXED",
+      codeIndexState: "CURRENT",
+      resultCount: 0,
+    });
+  });
+
+  it("omits redundant requested and fresh labels on completed empty results", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed fixture");
+    }
+    const sourceStatus = defaultUnifiedSearchOutcome.result.sourceStatus[0];
+    if (!sourceStatus) throw new Error("expected source status fixture");
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        page: {
+          ...defaultUnifiedSearchOutcome.result.page,
+          returned: 0,
+          hasMore: false,
+        },
+        sourceStatus: [
+          {
+            ...sourceStatus,
+            targetLabel: "npm:express@5.2.1",
+            requestedTargetLabel: "npm:express@5.2.1",
+            freshTargetLabel: "npm:express@v5.2.1",
+            servedTargetLabel: "npm:express@5.2.1",
+            indexingStatus: "INDEXED",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      outcome,
+    );
+
+    expect(payload.sourceStatus?.[0]?.servedTarget).toBe("npm:express@5.2.1");
+    expect(payload.sourceStatus?.[0]?.requestedTarget).toBeUndefined();
+    expect(payload.sourceStatus?.[0]?.freshTarget).toBeUndefined();
   });
 
   it("omits warnings[] for current targetResolution on floating repo targets", () => {
@@ -1401,7 +1557,7 @@ describe("buildUnifiedSearchStatusPayload", () => {
         targetsTotal: 1,
         elapsedMs: 200,
         query: "router middleware",
-        next: 'search_status search_ref="search-ref-123"',
+        next: 'search_status search_ref="search-ref-123" wait_timeout_ms=20000',
       },
     });
   });
@@ -1435,4 +1591,29 @@ describe("buildUnifiedSearchStatusPayload", () => {
       ],
     });
   });
+
+  it.each(["FAILED", "TIMEOUT"] as const)(
+    "replaces status polling for a terminal %s session",
+    (status) => {
+      const payload = buildUnifiedSearchStatusPayload({
+        state: "incomplete",
+        completed: false,
+        searchRef: `search-ref-${status.toLowerCase()}`,
+        progress: {
+          searchRef: `search-ref-${status.toLowerCase()}`,
+          status,
+          targetsTotal: 1,
+          targetsReady: 0,
+          elapsedMs: 60_000,
+          query: "router middleware",
+          queryWarnings: [],
+          sources: ["CODE"],
+        },
+      });
+      if (payload.completed) throw new Error("expected incomplete payload");
+
+      expect(payload.progress?.next).toBe("rerun search");
+      expect(payload.progress?.next).not.toContain("search_status");
+    },
+  );
 });

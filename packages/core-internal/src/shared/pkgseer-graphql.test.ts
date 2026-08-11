@@ -5,6 +5,7 @@ import {
   postPkgseerGraphql,
 } from "./pkgseer-graphql.js";
 import { createClientHeaderBuilder } from "./request-headers.js";
+import { TermsAcceptanceRequiredError } from "./terms-acceptance.js";
 
 function makeResponse(
   body: string,
@@ -64,6 +65,60 @@ describe("postPkgseerGraphql", () => {
     expect(result.status).toBe(200);
     expect(result.responseBody).toBe(VALID_JSON);
     expect(result.parsedBody).toEqual(JSON.parse(VALID_JSON));
+  });
+
+  it("centralizes HTTP terms-gate classification for all consumers", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        makeResponse(
+          JSON.stringify({
+            code: "TERMS_ACCEPTANCE_REQUIRED",
+            acceptance_url: "https://acceptance.example.test/settings/privacy",
+          }),
+          { status: 403 },
+        ),
+      ),
+    );
+
+    await expect(
+      postPkgseerGraphql({
+        endpointUrl: ENDPOINT,
+        token: TOKEN,
+        query: "query { x }",
+        variables: {},
+        fetchFn: asFetchFn(fetchFn),
+      }),
+    ).rejects.toMatchObject({
+      name: TermsAcceptanceRequiredError.name,
+      acceptanceUrl: "https://acceptance.example.test/settings/privacy",
+    });
+  });
+
+  it("centralizes GraphQL terms-gate classification for all consumers", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        makeResponse(
+          JSON.stringify({
+            data: null,
+            errors: [
+              {
+                extensions: { code: "TERMS_ACCEPTANCE_REQUIRED" },
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+
+    await expect(
+      postPkgseerGraphql({
+        endpointUrl: ENDPOINT,
+        token: TOKEN,
+        query: "query { x }",
+        variables: {},
+        fetchFn: asFetchFn(fetchFn),
+      }),
+    ).rejects.toBeInstanceOf(TermsAcceptanceRequiredError);
   });
 
   it("returns parsedBody: null for 200 + invalid JSON", async () => {

@@ -350,6 +350,7 @@ githits example          Find real-world implementations from open source
 githits languages        List or filter supported programming languages
 githits feedback         Submit feedback about GitHits results
 githits doctor           Diagnose configuration and auth state
+githits settings         View and update preferences, privacy, and terms
 githits search           Explore repository code, dependencies, docs, and symbols
 githits search-status    Check the status of a previous indexed search
 githits code             List, read, and grep indexed dependency source

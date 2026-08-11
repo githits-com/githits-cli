@@ -54,6 +54,7 @@ export const EXPECTED_TOP_LEVEL_COMMANDS = [
   "languages",
   "feedback",
   "doctor",
+  "settings",
   "search",
   "search-status",
   "code",
@@ -1077,7 +1078,13 @@ async function runLiveSmoke(): Promise<void> {
   );
   if (typeof searchJson.searchRef === "string") {
     const statusJson = assertJsonOutput(
-      await runCli(["search-status", searchJson.searchRef, "--json"]),
+      await runCli([
+        "search-status",
+        searchJson.searchRef,
+        "--wait",
+        "0",
+        "--json",
+      ]),
       "search-status json",
     );
     assertRecord(statusJson, "search-status json");
@@ -1087,7 +1094,13 @@ async function runLiveSmoke(): Promise<void> {
     );
   } else {
     assertJsonErrorCode(
-      await runCli(["search-status", "smoke-invalid-search-ref", "--json"]),
+      await runCli([
+        "search-status",
+        "smoke-invalid-search-ref",
+        "--wait",
+        "0",
+        "--json",
+      ]),
       "search-status invalid json error",
       "NOT_FOUND",
     );

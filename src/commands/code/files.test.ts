@@ -517,10 +517,18 @@ describe("pkgFilesAction", () => {
     const service = createMockCodeNavigationService({
       listFiles: mock(() =>
         Promise.reject(
-          new CodeNavigationIndexingError("Target is indexing.", "ref_xyz", [
-            { version: "4.21.0", ref: "v4.21.0" },
-            { version: "4.20.1", ref: "v4.20.1" },
-          ]),
+          new CodeNavigationIndexingError(
+            "Target is indexing. Backend says this ref is queued.",
+            "ref_xyz",
+            [
+              { version: "4.21.0", ref: "v4.21.0" },
+              { version: "4.20.1", ref: "v4.20.1" },
+            ],
+            undefined,
+            undefined,
+            { lowerSeconds: 7, upperSeconds: 19, elapsedSeconds: 3 },
+            "Backend says this ref is queued.",
+          ),
         ),
       ),
     });
@@ -537,6 +545,8 @@ describe("pkgFilesAction", () => {
     const output = errorSpy.mock.calls[0]?.[0] as string;
     expect(output).toContain("indexing");
     expect(output).toContain("indexing ref: ref_xyz");
+    expect(output.match(/Backend says this ref is queued\./g)).toHaveLength(1);
+    expect(output).toContain("indexing estimate: 7-19s, 3s elapsed");
     expect(output).toContain("indexed refs/versions: 4.21.0, 4.20.1");
     errorSpy.mockRestore();
     exitSpy.mockRestore();

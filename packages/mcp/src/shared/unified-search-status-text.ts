@@ -4,9 +4,12 @@ import type {
   UnifiedSearchStatusResultPayload,
 } from "./unified-search-response.js";
 import {
+  appendEmptySearchGuidance,
+  appendIncompleteSearchNextAction,
+  appendSourceStatusNotes,
   appendUnifiedSearchHits,
   formatProgressTarget,
-  formatSourceStatus,
+  noHitsYetMessage,
 } from "./unified-search-text.js";
 
 const SEP = " | ";
@@ -35,11 +38,20 @@ export function renderUnifiedSearchStatusText(payload: StatusPayload): string {
   }
 
   const result = payload.result;
-  if (result) appendResult(lines, result);
+  if (result) {
+    appendResult(
+      lines,
+      result,
+      payload.completed,
+      payload.completed ? undefined : payload.progress,
+    );
+  }
 
   if (!payload.completed) {
-    lines.push(
-      `next: call search_status search_ref=${quote(payload.searchRef)}`,
+    appendIncompleteSearchNextAction(
+      lines,
+      payload.progress?.status,
+      payload.searchRef,
     );
   }
 
@@ -58,6 +70,8 @@ function buildHeader(payload: StatusPayload): string {
 function appendResult(
   lines: string[],
   result: UnifiedSearchStatusResultPayload,
+  completed: boolean,
+  progress: UnifiedSearchStatusIncompletePayload["progress"] | undefined,
 ): void {
   lines.push("");
   if (result.warnings && result.warnings.length > 0) {
@@ -66,7 +80,17 @@ function appendResult(
     lines.push("");
   }
   if (result.results.length === 0) {
-    lines.push("No hits.");
+    if (completed) {
+      appendSourceStatusNotes(lines, result.sourceStatus);
+      if (result.sourceStatus?.length) lines.push("");
+      appendEmptySearchGuidance(lines, {
+        query: result.query,
+        showQuery: true,
+        sourceStatus: result.sourceStatus,
+      });
+    } else {
+      lines.push(noHitsYetMessage(progress));
+    }
   } else {
     appendUnifiedSearchHits(lines, result.results);
   }
@@ -78,12 +102,13 @@ function appendResult(
     lines.push("");
     lines.push(`More hits available.${nextOffsetHint}`);
   }
-  if (result.sourceStatus && result.sourceStatus.length > 0) {
+  if (
+    result.results.length > 0 &&
+    result.sourceStatus &&
+    result.sourceStatus.length > 0
+  ) {
     lines.push("");
-    lines.push("source notes:");
-    for (const entry of result.sourceStatus) {
-      lines.push(`  - ${formatSourceStatus(entry)}`);
-    }
+    appendSourceStatusNotes(lines, result.sourceStatus);
   }
 }
 
@@ -92,12 +117,6 @@ function formatProgress(progress: {
   targetsReady: number;
   targetsTotal: number;
   elapsedMs: number;
-  next?: string;
 }): string {
-  const next = progress.next ? `; next: ${progress.next}` : "";
-  return `progress: ${progress.status}, ${progress.targetsReady}/${progress.targetsTotal} targets ready, ${progress.elapsedMs}ms elapsed${next}`;
-}
-
-function quote(value: string): string {
-  return JSON.stringify(value);
+  return `progress: ${progress.status}, ${progress.targetsReady}/${progress.targetsTotal} targets ready, ${progress.elapsedMs}ms elapsed`;
 }

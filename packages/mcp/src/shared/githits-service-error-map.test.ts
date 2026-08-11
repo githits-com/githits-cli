@@ -3,10 +3,26 @@ import {
   ApiRateLimitError,
   AuthenticationError,
   FetchTimeoutError,
+  TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
 import { mapGitHitsServiceError } from "./githits-service-error-map.js";
 
 describe("mapGitHitsServiceError", () => {
+  it("preserves stable terms acceptance remediation", () => {
+    expect(
+      mapGitHitsServiceError("search", new TermsAcceptanceRequiredError()),
+    ).toEqual({
+      code: "TERMS_ACCEPTANCE_REQUIRED",
+      message:
+        "Terms acceptance required. Run `githits settings terms accept`, then retry.",
+      retryable: false,
+      details: {
+        action: "githits settings terms accept",
+        termsUrl: "https://githits.com/legal/terms-of-service/",
+        acceptanceUrl: "https://app.githits.com/settings/privacy",
+      },
+    });
+  });
   it("maps authentication errors without changing their message or source", () => {
     const mapped = mapGitHitsServiceError(
       "perform request",

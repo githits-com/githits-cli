@@ -83,8 +83,8 @@ export function resolveCliCodeNavTarget(
  * `indexingRef` + a sample of `availableVersions` as dimmed
  * detail lines under the error message.
  *
- * Common to `code files` / `code read` / `code grep` since all three
- * share the same indexing-retry story.
+ * Shared by human `search` / `search-status` errors and the indexed
+ * `code files` / `code read` / `code grep` commands.
  */
 export function formatIndexingError(mapped: MappedError): string {
   if (mapped.code === "UPDATE_REQUIRED") {
@@ -93,7 +93,24 @@ export function formatIndexingError(mapped: MappedError): string {
   if (mapped.code !== "INDEXING") return formatMappedErrorForTerminal(mapped);
   const detail = mapped.details ?? {};
   const lines = [mapped.message];
+  if (detail.hint && !mapped.message.includes(detail.hint)) {
+    lines.push(`  hint: ${detail.hint}`);
+  }
   if (detail.indexingRef) lines.push(`  indexing ref: ${detail.indexingRef}`);
+  const estimate = detail.indexingEstimate;
+  if (estimate) {
+    const bounds =
+      typeof estimate.lowerSeconds === "number" &&
+      typeof estimate.upperSeconds === "number"
+        ? `${estimate.lowerSeconds}-${estimate.upperSeconds}s`
+        : undefined;
+    const elapsed =
+      typeof estimate.elapsedSeconds === "number"
+        ? `${estimate.elapsedSeconds}s elapsed`
+        : undefined;
+    const summary = [bounds, elapsed].filter(Boolean).join(", ");
+    if (summary) lines.push(`  indexing estimate: ${summary}`);
+  }
   const versions = detail.availableVersions;
   if (versions && versions.length > 0) {
     const shown = versions
@@ -130,16 +147,16 @@ export function formatFileErrorWithFilesHint(mapped: MappedError): string {
     return formatMappedErrorForTerminal(mapped);
   }
   if (mapped.code === "FILE_NOT_FOUND") {
-    return `${mapped.message}\n  Use \`code files\` to list available paths.`;
+    return `${formatMappedErrorForTerminal(mapped)}\n  Use \`code files\` to list available paths.`;
   }
   if (
     mapped.code === "NOT_FOUND" &&
     looksLikeMissingFileMessage(mapped.message)
   ) {
-    return `${mapped.message}\n  Use \`code files\` to list available paths.`;
+    return `${formatMappedErrorForTerminal(mapped)}\n  Use \`code files\` to list available paths.`;
   }
   if (mapped.code === "REF_NOT_FOUND") {
-    return `${mapped.message}\n  Check that the repository URL and git ref exist and are publicly accessible.`;
+    return `${formatMappedErrorForTerminal(mapped)}\n  Check that the repository URL and git ref exist and are publicly accessible.`;
   }
   if (looksLikeMissingNavpackMessage(mapped.message)) {
     return [
@@ -151,7 +168,7 @@ export function formatFileErrorWithFilesHint(mapped: MappedError): string {
     const retry = mapped.retryable
       ? "Retry in a moment; if it persists, narrow the target or file an issue."
       : "Narrow the target (path, path-prefix, glob) and retry; if it persists, file an issue.";
-    return `${mapped.message}\n  ${retry}`;
+    return `${formatMappedErrorForTerminal(mapped)}\n  ${retry}`;
   }
   return formatIndexingError(mapped);
 }

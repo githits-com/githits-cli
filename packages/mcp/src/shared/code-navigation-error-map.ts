@@ -7,6 +7,7 @@ import {
   ClientUpdateRequiredError,
   CodeNavigationAccessError,
   CodeNavigationBackendError,
+  type CodeNavigationErrorMetadata,
   CodeNavigationFeatureFlagRequiredError,
   CodeNavigationFileNotFoundError,
   CodeNavigationGraphQLError,
@@ -22,6 +23,7 @@ import {
   MalformedCodeNavigationResponseError,
   type SuggestedRef,
   type TargetResolution,
+  TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
 import { AuthRequiredError } from "./require-auth.js";
 
@@ -34,6 +36,7 @@ export type MappedErrorCode =
   | "UNRESOLVABLE"
   | "ACCESS_DENIED"
   | "AUTH_REQUIRED"
+  | "TERMS_ACCEPTANCE_REQUIRED"
   | "NETWORK"
   | "INVALID_ARGUMENT"
   | "BACKEND_ERROR"
@@ -45,6 +48,7 @@ export type MappedErrorCode =
 
 export interface MappedErrorDetails {
   action?: string;
+  hint?: string;
   availableVersions?: AvailableVersion[];
   availableRefs?: AvailableRef[];
   suggestedRefs?: SuggestedRef[];
@@ -79,6 +83,10 @@ export interface MappedErrorDetails {
   reason?: string;
   /** Whether auth failed before making a request or after backend rejection. */
   authSource?: AuthenticationErrorSource;
+  /** Canonical legal document URL for terms-acceptance remediation. */
+  termsUrl?: string;
+  /** Authenticated web UI where the user can accept the current terms. */
+  acceptanceUrl?: string;
 }
 
 export interface MappedError {
@@ -121,12 +129,31 @@ export function mapCodeNavigationError(error: unknown): MappedError {
   return mapped;
 }
 
+export function mapTermsAcceptanceError(
+  error: unknown,
+): MappedError | undefined {
+  if (!(error instanceof TermsAcceptanceRequiredError)) return undefined;
+  return {
+    code: "TERMS_ACCEPTANCE_REQUIRED",
+    message: error.message,
+    retryable: false,
+    details: {
+      action: "githits settings terms accept",
+      termsUrl: error.termsUrl,
+      acceptanceUrl: error.acceptanceUrl,
+    },
+  };
+}
+
 function classify(error: unknown): MappedError {
+  const termsError = mapTermsAcceptanceError(error);
+  if (termsError) return termsError;
   if (error instanceof ClientUpdateRequiredError) {
     return buildUpdateRequiredError(error.reason, error.currentVersion);
   }
   if (error instanceof CodeNavigationVersionNotFoundError) {
     const details: MappedErrorDetails = {};
+    preserveBackendMetadata(details, error.metadata);
     if (error.packageName) details.package = error.packageName;
     if (error.requestedVersion) {
       details.requestedVersion = error.requestedVersion;
@@ -144,6 +171,7 @@ function classify(error: unknown): MappedError {
   }
   if (error instanceof CodeNavigationTargetNotFoundError) {
     const details: MappedErrorDetails = {};
+    preserveBackendMetadata(details, error.metadata);
     if (error.availableVersions && error.availableVersions.length > 0) {
       details.availableVersions = error.availableVersions;
     }
@@ -158,6 +186,7 @@ function classify(error: unknown): MappedError {
   }
   if (error instanceof CodeNavigationRefNotFoundError) {
     const details: MappedErrorDetails = {};
+    preserveBackendMetadata(details, error.metadata);
     if (error.repoUrl) details.repoUrl = error.repoUrl;
     if (error.requestedRef) details.requestedRef = error.requestedRef;
     if (error.availableRefs && error.availableRefs.length > 0) {
@@ -196,6 +225,7 @@ function classify(error: unknown): MappedError {
     if (error.indexingEstimate) {
       details.indexingEstimate = error.indexingEstimate;
     }
+    if (error.hint) details.hint = error.hint;
     return {
       code: "INDEXING",
       message: error.message,
@@ -302,6 +332,7 @@ export function buildUpdateRequiredError(
  */
 function classifyBackendError(error: CodeNavigationBackendError): MappedError {
   const details: MappedErrorDetails = {};
+  preserveBackendMetadata(details, error.metadata);
   if (typeof error.status === "number") details.status = error.status;
   if (error.graphqlCode) details.graphqlCode = error.graphqlCode;
 
@@ -327,6 +358,29 @@ function classifyBackendError(error: CodeNavigationBackendError): MappedError {
       return build("BACKEND_ERROR", true);
     default:
       return build("BACKEND_ERROR", false);
+  }
+}
+
+function preserveBackendMetadata(
+  details: MappedErrorDetails,
+  metadata: CodeNavigationErrorMetadata | undefined,
+): void {
+  if (!metadata) return;
+  if (metadata.hint) details.hint = metadata.hint;
+  if (metadata.availableVersions?.length) {
+    details.availableVersions = metadata.availableVersions;
+  }
+  if (metadata.availableRefs?.length) {
+    details.availableRefs = metadata.availableRefs;
+  }
+  if (metadata.suggestedRefs?.length) {
+    details.suggestedRefs = metadata.suggestedRefs;
+  }
+  if (metadata.targetResolution) {
+    details.targetResolution = metadata.targetResolution;
+  }
+  if (metadata.indexingEstimate) {
+    details.indexingEstimate = metadata.indexingEstimate;
   }
 }
 

@@ -177,7 +177,7 @@ CLI startup / MCP server start
 
 Per API call (via RefreshingGitHitsService):
   └─ TokenProvider.getToken() → get fresh token
-       └─ on AuthenticationError from API → forceRefresh() → retry once
+       └─ on AuthenticationError or TERMS_ACCEPTANCE_REQUIRED → forceRefresh() → retry once
 ```
 
 The MCP server starts without a synchronous auth gate. Tool calls resolve tokens through the shared token provider and return per-tool auth errors when no valid token is available.
@@ -185,6 +185,7 @@ The MCP server starts without a synchronous auth gate. Tool calls resolve tokens
 ## Troubleshooting
 
 - **"Authentication required" from a command or MCP tool** — No valid token found. Run `githits login` or set `GITHITS_API_TOKEN`.
+- **"Terms acceptance required"** — Run `githits settings terms accept` or open the environment-specific `acceptance_url` returned by the backend. OAuth sessions refresh after acceptance; static `ghi-*` tokens remain unchanged and are re-evaluated server-side without token refresh.
 - **Different auth behavior across terminals or agents** — Run `githits doctor` or `githits doctor --json` to compare redacted runtime, environment, config, and auth-storage diagnostics without exposing token values.
 - **"Already logged in."** — Token is still valid. Use `githits login --force` to re-authenticate.
 - **Port conflicts on login** — The callback server uses the port from the stored client registration. On first login, a random port (8000–9999) is chosen and saved. Use `--port <port>` to change it (triggers re-registration).

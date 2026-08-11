@@ -7,6 +7,7 @@ import {
   buildUnifiedSearchParams,
   buildUnifiedSearchStatusPayload,
   buildUnifiedSearchSuccessPayload,
+  DEFAULT_WAIT_TIMEOUT_MS,
   dim,
   formatProgressTarget,
   highlight,
@@ -16,6 +17,8 @@ import {
   knownSymbolCategoryList,
   knownSymbolKindList,
   type LeanTargetResolution,
+  MAX_WAIT_TIMEOUT_MS,
+  type MappedError,
   parseUnifiedSearchTargetSpec,
   requireAuth,
   shouldUseColors,
@@ -29,6 +32,7 @@ import { type Command, Option } from "commander";
 import { parseIntCliOption } from "../shared/cli-options.js";
 import { startSpinner } from "../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
+import { formatIndexingError } from "./code/code-nav-cli-helpers.js";
 import { formatMappedErrorForTerminal } from "./format-mapped-error.js";
 
 export interface SearchCommandOptions {
@@ -49,6 +53,7 @@ export interface SearchCommandOptions {
 }
 
 export interface SearchStatusCommandOptions {
+  wait?: string;
   json?: boolean;
 }
 
@@ -129,7 +134,10 @@ export async function searchStatusAction(
 
   try {
     const service = requireSearchService(deps);
-    const outcome = await service.searchStatus(searchRef);
+    const outcome = await service.searchStatus(
+      searchRef,
+      parseWaitMs(options.wait) ?? DEFAULT_WAIT_TIMEOUT_MS,
+    );
     const payload = buildUnifiedSearchStatusPayload(outcome);
 
     if (options.json) {
@@ -183,7 +191,8 @@ const SEARCH_STATUS_DESCRIPTION = `Check the status of a unified search started 
 
 Pass the searchRef returned by githits search when the initial request could
 not complete within the wait window. This can return progress, partial hits when
-the original request used --allow-partial, or final results.`;
+the original request used --allow-partial, or final results. By default it waits
+up to 20 seconds for progress before returning the latest status.`;
 
 export function registerSearchCommand(program: Command) {
   program
@@ -264,6 +273,10 @@ export function registerSearchCommand(program: Command) {
     .summary("Check the status of a previous search")
     .description(SEARCH_STATUS_DESCRIPTION)
     .argument("<search-ref>", "Search reference returned by githits search")
+    .option(
+      "--wait <seconds>",
+      "Max seconds to wait for progress (0-60; default: 20)",
+    )
     .option("--json", "Output as JSON")
     .action(async (searchRef: string, options: SearchStatusCommandOptions) => {
       const deps = await loadContainer();
@@ -334,7 +347,12 @@ function parseWaitMs(value: string | undefined): number | undefined {
       "--wait must be an integer between 0 and 60 seconds.",
     );
   }
-  const seconds = parseIntCliOption(match.groups.seconds, "--wait", 0, 60);
+  const seconds = parseIntCliOption(
+    match.groups.seconds,
+    "--wait",
+    0,
+    MAX_WAIT_TIMEOUT_MS / 1000,
+  );
   if (seconds === undefined) return undefined;
   return seconds * 1000;
 }
@@ -359,21 +377,31 @@ function handleSearchError(
 }
 
 function formatSearchErrorTerminal(
-  payload: { error: string; code: string; details?: Record<string, unknown> },
+  payload: {
+    error: string;
+    code: string;
+    retryable?: boolean;
+    details?: Record<string, unknown>;
+  },
   context: "search" | "status",
 ): string {
+  const mapped: MappedError = {
+    code: payload.code as MappedError["code"],
+    message: payload.error,
+    retryable: payload.retryable,
+    details: payload.details as MappedError["details"],
+  };
   if (payload.code === "AUTH_REQUIRED") {
-    return formatMappedErrorForTerminal({
-      code: "AUTH_REQUIRED",
-      message: payload.error,
-      retryable: false,
-      details: payload.details,
-    });
+    return formatMappedErrorForTerminal(mapped);
   }
+  if (payload.code === "INDEXING") {
+    return formatIndexingError(mapped);
+  }
+  const formatted = formatMappedErrorForTerminal(mapped);
   if (context === "status" && payload.code === "NOT_FOUND") {
-    return `${payload.error}\n  Search sessions expire; run \`githits search ...\` to start a new one.`;
+    return `${formatted}\n  Search sessions expire; run \`githits search ...\` to start a new one.`;
   }
-  return payload.error;
+  return formatted;
 }
 
 function formatUnifiedSearchTerminal(payload: {
@@ -531,9 +559,7 @@ function formatSearchStatusTerminal(payload: {
     }
   }
   if (status === "TIMEOUT") {
-    lines.push(
-      "Search timed out before completion. Retry with a longer wait or start a new search.",
-    );
+    lines.push("This search session is terminal. Start a new search.");
     return lines.join("\n");
   }
   if (status === "FAILED") {
@@ -542,7 +568,9 @@ function formatSearchStatusTerminal(payload: {
     );
     return lines.join("\n");
   }
-  lines.push("Use `githits search-status <search-ref>` to check again.");
+  lines.push(
+    `next: githits search-status ${payload.searchRef} --wait ${DEFAULT_WAIT_TIMEOUT_MS / 1000}`,
+  );
   return lines.join("\n");
 }
 

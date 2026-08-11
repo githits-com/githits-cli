@@ -1,5 +1,6 @@
 import type { GrepRepoMatch, GrepRepoResult } from "@githits/core-internal";
 import { colorize, dim, highlightRanges } from "./colors.js";
+import { buildEmptyGrepGuidance } from "./grep-repo-text.js";
 import { shellQuote } from "./shell-quote.js";
 import {
   buildTargetResolutionNotes,
@@ -586,6 +587,12 @@ function formatTerminalNotes(
 ): string | undefined {
   const lines: string[] = [];
 
+  if (envelope.matches.length === 0) {
+    return `${buildEmptyGrepGuidance(envelope, "cli")
+      .map((line) => dim(line, useColors))
+      .join("\n")}\n`;
+  }
+
   if (shouldSuggestNarrowingScope(envelope)) {
     lines.push(
       dim(
@@ -598,7 +605,7 @@ function formatTerminalNotes(
   if (envelope.hasMore && envelope.nextCursor) {
     lines.push(
       dim(
-        `More grep results available — rerun with --cursor ${shellQuote(envelope.nextCursor)}`,
+        `More matches available — rerun with --cursor ${shellQuote(envelope.nextCursor)}`,
         useColors,
       ),
     );

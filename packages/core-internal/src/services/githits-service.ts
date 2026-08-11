@@ -8,7 +8,20 @@ import {
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import { withTelemetrySpan } from "../shared/telemetry.js";
+import {
+  TermsAcceptanceRequiredError,
+  throwIfTermsAcceptanceRequired,
+} from "../shared/terms-acceptance.js";
 import { validateServiceUrl } from "./config.js";
+
+export {
+  createTermsAcceptanceError,
+  TERMS_ACCEPTANCE_REQUIRED_CODE,
+  TERMS_ACCEPTANCE_URL,
+  TERMS_URL,
+  type TermsAcceptanceRemediation,
+  TermsAcceptanceRequiredError,
+} from "../shared/terms-acceptance.js";
 
 const DEFAULT_EXAMPLE_REQUEST_TIMEOUT_MS = 240_000;
 
@@ -39,6 +52,14 @@ export class AuthenticationError extends Error {
     this.name = "AuthenticationError";
     this.source = source;
   }
+}
+
+/** A stale OAuth JWT can be refreshed once for either auth failure signal. */
+export function isTokenRefreshableError(error: unknown): boolean {
+  return (
+    error instanceof AuthenticationError ||
+    error instanceof TermsAcceptanceRequiredError
+  );
 }
 
 /**
@@ -352,6 +373,7 @@ export class GitHitsServiceImpl implements GitHitsService {
     const status = response.status;
     const body = await response.text().catch(() => "");
     const detail = parseHttpErrorDetail(body, ["detail"]);
+    throwIfTermsAcceptanceRequired(body);
 
     switch (status) {
       case 401:

@@ -26,7 +26,7 @@ export function formatMappedErrorForTerminal(mapped: MappedError): string {
   }
   if (mapped.code === "RATE_LIMITED") {
     if (mapped.retryable !== true || hasRetryGuidance(mapped.message)) {
-      return mapped.message;
+      return appendBackendHint(mapped, mapped.message);
     }
     const retryAfterSeconds = mapped.details?.retryAfterSeconds;
     if (
@@ -36,18 +36,21 @@ export function formatMappedErrorForTerminal(mapped: MappedError): string {
     ) {
       const seconds = Math.ceil(retryAfterSeconds);
       const unit = seconds === 1 ? "second" : "seconds";
-      return `${mapped.message} Try again in ${seconds} ${unit}.`;
+      return appendBackendHint(
+        mapped,
+        `${mapped.message} Try again in ${seconds} ${unit}.`,
+      );
     }
-    return `${mapped.message} Try again shortly.`;
+    return appendBackendHint(mapped, `${mapped.message} Try again shortly.`);
   }
   if (mapped.code === "TIMEOUT") {
     if (mapped.retryable !== true || hasRetryGuidance(mapped.message)) {
-      return mapped.message;
+      return appendBackendHint(mapped, mapped.message);
     }
-    return `${mapped.message} Try again.`;
+    return appendBackendHint(mapped, `${mapped.message} Try again.`);
   }
   if (mapped.code !== "UPDATE_REQUIRED") {
-    return mapped.message;
+    return appendBackendHint(mapped, mapped.message);
   }
   const detail = mapped.details ?? {};
   const updateCommand =
@@ -55,6 +58,12 @@ export function formatMappedErrorForTerminal(mapped: MappedError): string {
       ? detail.updateCommand
       : "npm i -g githits@latest";
   return [mapped.message, "", "Update with:", `  ${updateCommand}`].join("\n");
+}
+
+function appendBackendHint(mapped: MappedError, text: string): string {
+  const hint = mapped.details?.hint;
+  if (!hint || text.includes(hint)) return text;
+  return `${text}\n  hint: ${hint}`;
 }
 
 function hasRetryGuidance(message: string): boolean {

@@ -15,7 +15,9 @@ import {
   CodeNavigationRefNotFoundError,
   CodeNavigationServiceImpl,
   CodeNavigationTargetNotFoundError,
+  CodeNavigationVersionNotFoundError,
 } from "./code-navigation-service.js";
+import { TermsAcceptanceRequiredError } from "./githits-service.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
 function mockFetch(impl: () => Promise<Response>) {
@@ -31,6 +33,42 @@ describe("CodeNavigationServiceImpl", () => {
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
+  });
+
+  it("recognises HTTP terms gating and does not loop without a refresh token", async () => {
+    const fetchFn = mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: "Terms acceptance required",
+                extensions: {
+                  code: "TERMS_ACCEPTANCE_REQUIRED",
+                  terms_url: "https://githits.com/legal/terms-of-service/",
+                  acceptance_url:
+                    "https://acceptance.example.test/settings/privacy",
+                },
+              },
+            ],
+          }),
+          { status: 403 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider({
+        forceRefresh: mock(() => Promise.resolve(undefined)),
+      }),
+    );
+
+    await expect(
+      service.listFiles({
+        target: { registry: "NPM", packageName: "express" },
+      }),
+    ).rejects.toBeInstanceOf(TermsAcceptanceRequiredError);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
   afterEach(() => {
@@ -253,13 +291,9 @@ describe("CodeNavigationServiceImpl", () => {
       expect(error).toBeInstanceOf(CodeNavigationIndexingError);
       const typed = error as CodeNavigationIndexingError;
       expect(typed.indexingRef).toBe("ref_xyz");
-      expect(typed.message).toContain("Running for 12 seconds.");
-      expect(typed.message).toContain(
-        "Similar refs usually index in 7 to 19 seconds.",
-      );
-      expect(typed.message).not.toContain(
-        "Indexing usually completes within 30 seconds",
-      );
+      expect(typed.message).toContain("--wait 60000");
+      expect(typed.message).not.toContain("Running for 12 seconds.");
+      expect(typed.message).not.toContain("Similar refs usually index");
       expect(typed.indexingEstimate).toEqual({
         lowerSeconds: 7,
         upperSeconds: 19,
@@ -738,6 +772,49 @@ describe("CodeNavigationServiceImpl", () => {
     expect(body.variables.allowPartialResults).toBe(true);
   });
 
+  it("forwards the search-status wait window to GraphQL", async () => {
+    let capturedBody = "";
+    globalThis.fetch = mock((_, init?: RequestInit) => {
+      capturedBody = String(init?.body ?? "");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              discoverySearchProgress: {
+                searchRef: "search-ref-wait",
+                status: "SEARCHING",
+                targetsTotal: 1,
+                targetsReady: 1,
+                elapsedMs: 500,
+                query: "router",
+                queryWarnings: [],
+                sources: ["CODE"],
+                results: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    }) as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+      globalThis.fetch,
+    );
+
+    await service.searchStatus("search-ref-wait", 25_000);
+
+    const body = JSON.parse(capturedBody);
+    expect(body.query).toContain("$waitTimeoutMs: Int");
+    expect(body.query).toContain("waitTimeoutMs: $waitTimeoutMs");
+    expect(body.variables).toEqual({
+      searchRef: "search-ref-wait",
+      includeResults: true,
+      waitTimeoutMs: 25_000,
+    });
+  });
+
   it("emits safe debug logging for unified search request shape without query text", async () => {
     process.env.GITHITS_DEBUG = "code-nav";
     const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
@@ -1169,12 +1246,12 @@ describe("CodeNavigationServiceImpl", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(CodeNavigationIndexingError);
       const typed = error as CodeNavigationIndexingError;
-      expect(typed.message).toContain("Running for 3 seconds.");
-      expect(typed.message).toContain(
-        "Similar refs usually index in 1 second.",
+      expect(typed.message).toBe("Target is indexing");
+      expect(typed.hint).toContain(
+        "Backend says this ref is queued for indexing.",
       );
-      expect(typed.message).not.toContain("Backend says");
-      expect(typed.message).toContain("--wait 60000");
+      expect(typed.hint).toContain("--wait 60000");
+      expect(typed.hint).toContain("wait_timeout_ms: 60000");
       expect(typed.indexingEstimate).toEqual({
         lowerSeconds: 1,
         upperSeconds: 1,
@@ -1182,6 +1259,139 @@ describe("CodeNavigationServiceImpl", () => {
         sampleCount: 4,
         source: "same_repository_refs",
       });
+    }
+  });
+
+  it("does not repeat a backend hint already present in the indexing message", async () => {
+    const backendHint = "Backend says this ref is queued for indexing.";
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: `Target is indexing. ${backendHint}`,
+                extensions: {
+                  code: "PACKAGE_INDEXING",
+                  hint: backendHint,
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    try {
+      await service.listFiles({
+        target: { registry: "NPM", packageName: "express" },
+      });
+      throw new Error("expected listFiles to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationIndexingError);
+      const typed = error as CodeNavigationIndexingError;
+      expect(
+        `${typed.message} ${typed.hint}`.match(new RegExp(backendHint, "g")),
+      ).toHaveLength(1);
+      expect(typed.hint).toContain("--wait 60000");
+      expect(typed.hint).not.toContain(backendHint);
+    }
+  });
+
+  it("does not append fallback guidance when the message or hint names a wait argument", async () => {
+    const cases = [
+      {
+        message: "Target is indexing",
+        hint: "Call again with wait_timeout_ms: 45000.",
+        waitArgument: "wait_timeout_ms: 45000",
+      },
+      {
+        message: "Target is indexing. Wait with --wait 60000.",
+        hint: "Backend says this ref is queued.",
+        waitArgument: "--wait 60000",
+      },
+    ];
+
+    for (const testCase of cases) {
+      mockFetch(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              errors: [
+                {
+                  message: testCase.message,
+                  extensions: {
+                    code: "PACKAGE_INDEXING",
+                    hint: testCase.hint,
+                  },
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
+        ),
+      );
+      const service = new CodeNavigationServiceImpl(
+        BASE_URL,
+        createMockTokenProvider(),
+      );
+
+      try {
+        await service.listFiles({
+          target: { registry: "NPM", packageName: "express" },
+        });
+        throw new Error("expected listFiles to throw");
+      } catch (error) {
+        expect(error).toBeInstanceOf(CodeNavigationIndexingError);
+        const typed = error as CodeNavigationIndexingError;
+        const combined = `${typed.message} ${typed.hint}`;
+        expect(typed.hint).toBe(testCase.hint);
+        expect(combined.split(testCase.waitArgument)).toHaveLength(2);
+        expect(combined).not.toContain("Wait until ready with CLI");
+      }
+    }
+  });
+
+  it("preserves a bare PACKAGE_INDEXING message and supplies wait guidance", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: "Target is indexing",
+                extensions: {
+                  code: "PACKAGE_INDEXING",
+                  indexing_ref: "idx-error",
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    try {
+      await service.listFiles({
+        target: { registry: "NPM", packageName: "express" },
+      });
+      throw new Error("expected listFiles to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationIndexingError);
+      const typed = error as CodeNavigationIndexingError;
+      expect(typed.message).toBe("Target is indexing");
+      expect(typed.hint).toContain("--wait 60000");
+      expect(typed.hint).toContain("wait_timeout_ms: 60000");
     }
   });
 
@@ -1196,6 +1406,10 @@ describe("CodeNavigationServiceImpl", () => {
                 extensions: {
                   code: "GREP_FILE_TOO_LARGE",
                   file_path: "dist/bundle.js",
+                  hint: "Use a narrower source path.",
+                  available_versions: [{ version: "5.2.1", ref: "v5.2.1" }],
+                  available_refs: [{ ref: "main", version: null }],
+                  suggested_refs: [{ ref: "v5.2.1", version: null }],
                 },
               },
             ],
@@ -1220,6 +1434,106 @@ describe("CodeNavigationServiceImpl", () => {
       expect((error as CodeNavigationBackendError).graphqlCode).toBe(
         "GREP_FILE_TOO_LARGE",
       );
+      expect((error as CodeNavigationBackendError).metadata).toEqual({
+        hint: "Use a narrower source path.",
+        availableVersions: [{ version: "5.2.1", ref: "v5.2.1" }],
+        availableRefs: [{ ref: "main", version: undefined }],
+        suggestedRefs: [{ ref: "v5.2.1", version: undefined }],
+      });
+    }
+  });
+
+  it("preserves GraphQL VERSION_NOT_FOUND guidance and alternatives", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: "Version 4 is not indexed.",
+                extensions: {
+                  code: "VERSION_NOT_FOUND",
+                  package: "npm/express",
+                  requested_version: "4",
+                  latest_indexed: "5.2.1",
+                  hint: "Use an indexed version.",
+                  available_versions: [{ version: "5.2.1", ref: "v5.2.1" }],
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    try {
+      await service.search({
+        targets: [{ registry: "NPM", packageName: "express", version: "4" }],
+        query: "router",
+      });
+      throw new Error("expected VERSION_NOT_FOUND");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationVersionNotFoundError);
+      const typed = error as CodeNavigationVersionNotFoundError;
+      expect(typed.message).toBe("Version 4 is not indexed.");
+      expect(typed.availableVersions).toEqual([
+        { version: "5.2.1", ref: "v5.2.1" },
+      ]);
+      expect(typed.metadata?.hint).toBe("Use an indexed version.");
+    }
+  });
+
+  it("preserves GraphQL NOT_FOUND guidance and alternatives", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: "Target not found. Check the package name.",
+                extensions: {
+                  code: "NOT_FOUND",
+                  hint: "Use the canonical registry package name.",
+                  available_versions: [{ version: "5.2.1", ref: "v5.2.1" }],
+                  available_refs: [{ ref: "main", version: null }],
+                  suggested_refs: [{ ref: "v5.2.1", version: null }],
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    try {
+      await service.search({
+        targets: [{ registry: "NPM", packageName: "missing" }],
+        query: "router",
+      });
+      throw new Error("expected NOT_FOUND");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationTargetNotFoundError);
+      const typed = error as CodeNavigationTargetNotFoundError;
+      expect(typed.message).toBe("Target not found. Check the package name.");
+      expect(typed.availableVersions).toEqual([
+        { version: "5.2.1", ref: "v5.2.1" },
+      ]);
+      expect(typed.metadata).toEqual({
+        hint: "Use the canonical registry package name.",
+        availableVersions: [{ version: "5.2.1", ref: "v5.2.1" }],
+        availableRefs: [{ ref: "main", version: undefined }],
+        suggestedRefs: [{ ref: "v5.2.1", version: undefined }],
+      });
     }
   });
 
@@ -1237,6 +1551,7 @@ describe("CodeNavigationServiceImpl", () => {
                   retryable: false,
                   repo_url: "https://github.com/openai/codex",
                   git_ref: "1.2.3",
+                  hint: "Choose one of the indexed refs.",
                   available_refs: [{ ref: "main", version: null }],
                   suggested_refs: [
                     { ref: "codex@1.2.3", version: null },
@@ -1275,6 +1590,7 @@ describe("CodeNavigationServiceImpl", () => {
         { ref: "codex@1.2.3", version: undefined },
         { ref: "v1.2.3", version: undefined },
       ]);
+      expect(typed.metadata?.hint).toBe("Choose one of the indexed refs.");
     }
   });
 

@@ -16,6 +16,7 @@ import {
   ApiRateLimitError,
   AuthenticationError,
   GitHitsServiceImpl,
+  TermsAcceptanceRequiredError,
 } from "./githits-service.js";
 
 // Helper to mock global fetch with proper typing
@@ -79,6 +80,44 @@ describe("GitHitsServiceImpl", () => {
   });
 
   describe("search", () => {
+    it("recognises the canonical terms-required 403 contract", async () => {
+      mockFetch(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              reason: "Terms acceptance required",
+              code: "TERMS_ACCEPTANCE_REQUIRED",
+              terms_url: "https://githits.com/legal/terms-of-service/",
+              acceptance_url:
+                "https://acceptance.example.test/settings/privacy",
+            }),
+            { status: 403 },
+          ),
+        ),
+      );
+
+      await expect(service.search({ query: "test" })).rejects.toMatchObject({
+        name: TermsAcceptanceRequiredError.name,
+        termsUrl: "https://githits.com/legal/terms-of-service/",
+        acceptanceUrl: "https://acceptance.example.test/settings/privacy",
+      });
+    });
+
+    it("uses the production acceptance page when a legacy response omits it", async () => {
+      mockFetch(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ code: "TERMS_ACCEPTANCE_REQUIRED" }), {
+            status: 403,
+          }),
+        ),
+      );
+
+      await expect(service.search({ query: "test" })).rejects.toMatchObject({
+        name: TermsAcceptanceRequiredError.name,
+        acceptanceUrl: "https://app.githits.com/settings/privacy",
+      });
+    });
+
     it("sends correct request and returns markdown", async () => {
       const fn = mockFetch(() =>
         Promise.resolve(new Response("# Result\nCode example here")),

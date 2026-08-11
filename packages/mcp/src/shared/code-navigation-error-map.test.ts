@@ -15,6 +15,7 @@ import {
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
   MalformedCodeNavigationResponseError,
+  TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
 import { mapCodeNavigationError } from "./code-navigation-error-map.js";
 
@@ -33,6 +34,19 @@ class UnsupportedRegistryError extends Error {
 }
 
 describe("mapCodeNavigationError", () => {
+  it("maps terms gating with stable command and URL remediation", () => {
+    expect(
+      mapCodeNavigationError(new TermsAcceptanceRequiredError()),
+    ).toMatchObject({
+      code: "TERMS_ACCEPTANCE_REQUIRED",
+      retryable: false,
+      details: {
+        action: "githits settings terms accept",
+        termsUrl: "https://githits.com/legal/terms-of-service/",
+        acceptanceUrl: "https://app.githits.com/settings/privacy",
+      },
+    });
+  });
   it("classifies ClientUpdateRequiredError as UPDATE_REQUIRED", () => {
     expect(
       mapCodeNavigationError(
@@ -59,6 +73,33 @@ describe("mapCodeNavigationError", () => {
       message: "Package not found",
       retryable: false,
       details: { availableVersions: [{ version: "5.2.1", ref: "v5.2.1" }] },
+    });
+  });
+
+  it("preserves backend metadata on typed not-found errors", () => {
+    const err = new CodeNavigationTargetNotFoundError(
+      "Target not found.",
+      undefined,
+      undefined,
+      undefined,
+      {
+        hint: "Use the canonical package name.",
+        availableRefs: [{ ref: "main" }],
+        suggestedRefs: [{ ref: "v5.2.1" }],
+        indexingEstimate: { lowerSeconds: 3, upperSeconds: 8 },
+      },
+    );
+
+    expect(mapCodeNavigationError(err)).toEqual({
+      code: "NOT_FOUND",
+      message: "Target not found.",
+      retryable: false,
+      details: {
+        hint: "Use the canonical package name.",
+        availableRefs: [{ ref: "main" }],
+        suggestedRefs: [{ ref: "v5.2.1" }],
+        indexingEstimate: { lowerSeconds: 3, upperSeconds: 8 },
+      },
     });
   });
 
@@ -177,6 +218,7 @@ describe("mapCodeNavigationError", () => {
       undefined,
       undefined,
       { lowerSeconds: 7, upperSeconds: 19, sampleCount: 9 },
+      "Use an indexed version now or wait for this target.",
     );
     expect(mapCodeNavigationError(err)).toEqual({
       code: "INDEXING",
@@ -186,6 +228,7 @@ describe("mapCodeNavigationError", () => {
         indexingRef: "idx-42",
         availableVersions: [{ version: "5.2.1", ref: "v5.2.1" }],
         indexingEstimate: { lowerSeconds: 7, upperSeconds: 19, sampleCount: 9 },
+        hint: "Use an indexed version now or wait for this target.",
       },
     });
   });
@@ -268,6 +311,34 @@ describe("mapCodeNavigationError", () => {
       message: "Server error (502)",
       retryable: false,
       details: { status: 502, graphqlCode: "INTERNAL_ERROR" },
+    });
+  });
+
+  it("preserves backend metadata on generic GraphQL errors", () => {
+    const err = new CodeNavigationBackendError(
+      "Backend-specific failure.",
+      undefined,
+      "FUTURE_ERROR",
+      false,
+      {
+        hint: "Follow the backend-specific recovery path.",
+        availableVersions: [{ version: "5.2.1", ref: "v5.2.1" }],
+        availableRefs: [{ ref: "main" }],
+        suggestedRefs: [{ ref: "v5.2.1" }],
+      },
+    );
+
+    expect(mapCodeNavigationError(err)).toEqual({
+      code: "BACKEND_ERROR",
+      message: "Backend-specific failure.",
+      retryable: false,
+      details: {
+        hint: "Follow the backend-specific recovery path.",
+        availableVersions: [{ version: "5.2.1", ref: "v5.2.1" }],
+        availableRefs: [{ ref: "main" }],
+        suggestedRefs: [{ ref: "v5.2.1" }],
+        graphqlCode: "FUTURE_ERROR",
+      },
     });
   });
 

@@ -29,6 +29,7 @@ import {
   type FileSystemService,
   FileSystemServiceImpl,
 } from "../services/filesystem-service.js";
+import { DEFAULT_ACCOUNTS_URL } from "../services/settings-service.js";
 
 type ProbeStatus =
   | "present"
@@ -104,6 +105,7 @@ export interface DoctorReport {
   services: {
     mcpUrl: ServiceProbe;
     apiUrl: ServiceProbe;
+    accountsUrl: ServiceProbe;
     codeNavigationUrl: ServiceProbe;
   };
   config: {
@@ -283,6 +285,7 @@ function buildServicesReport(env: NodeJS.ProcessEnv): DoctorReport["services"] {
   return {
     mcpUrl: serviceProbe(env.GITHITS_MCP_URL, DEFAULT_MCP_URL),
     apiUrl: serviceProbe(env.GITHITS_API_URL, DEFAULT_API_URL),
+    accountsUrl: serviceProbe(env.GITHITS_ACCOUNTS_URL, DEFAULT_ACCOUNTS_URL),
     codeNavigationUrl: serviceProbe(
       env.GITHITS_CODE_NAV_URL ?? env.PKGSEER_URL,
       DEFAULT_CODE_NAV_URL,
@@ -663,6 +666,9 @@ function formatDoctorReport(report: DoctorReport): string {
   lines.push("Services:");
   lines.push(`  MCP URL: ${formatServiceProbe(report.services.mcpUrl)}`);
   lines.push(`  API URL: ${formatServiceProbe(report.services.apiUrl)}`);
+  lines.push(
+    `  Accounts URL: ${formatServiceProbe(report.services.accountsUrl)}`,
+  );
   lines.push(
     `  Code navigation URL: ${formatServiceProbe(report.services.codeNavigationUrl)}`,
     "",
