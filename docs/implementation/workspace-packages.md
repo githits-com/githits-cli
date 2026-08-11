@@ -54,6 +54,10 @@ manifest move is complete.
 
 ## Release Boundaries
 
+- `CHANGELOG.md` continuously records pending changes and the required SemVer
+  impact for every public artifact. See
+  `docs/implementation/release-process.md` for entry and release-finalization
+  rules.
 - Root `githits` and public `@githits/mcp` releases are independent. Coordinated
   releases are allowed, but version equality is not required.
 - When both are released together, keep the MCP minor aligned with the CLI minor

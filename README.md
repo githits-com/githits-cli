@@ -387,6 +387,9 @@ This repository contains the GitHits CLI and reusable MCP package:
 - `docs/` - implementation notes and contributor guidelines
 - `scripts/` - package validation, smoke tests, and development utilities
 
+See [CHANGELOG.md](CHANGELOG.md) for released changes, pending work, and the
+current package-version impact.
+
 ## Development
 
 Requirements:

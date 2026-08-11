@@ -31,6 +31,8 @@ Checklist for reviewing code changes in githits-cli.
 - [ ] Comments explain "why" not just "what"
 - [ ] Implementation docs updated if needed
 - [ ] `AGENTS.md` updated if agent-facing patterns change
+- [ ] Notable public changes update `CHANGELOG.md` and its per-artifact pending bumps
+- [ ] Historical changelog sections are unchanged unless a minimal edit corrects a blatant factual error
 
 ## Build & Lint
 

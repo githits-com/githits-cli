@@ -1,16 +1,16 @@
 ---
 name: githits-release
 description: >-
-  Use when preparing, reviewing, or executing a GitHits CLI release. Covers
-  release-version consistency, plugin manifests, user-visible changelog notes,
-  MCP instruction quality, MCP registry publishing/versioning, and the special
-  lifecycle for published Agent Skills.
+  Use when maintaining the GitHits changelog or preparing, reviewing, or
+  executing a GitHits release. Covers continuous per-package release impact,
+  version consistency, plugin manifests, MCP instruction quality, MCP registry
+  publishing/versioning, and the special lifecycle for published Agent Skills.
 compatibility: Project-local skill for GitHits maintainers; not packaged for end users.
 metadata:
   internal: true
 ---
 
-Use this skill for GitHits release work, version-bump PRs, release-readiness reviews, and release notes.
+Use this skill for GitHits changelog maintenance, release work, version-bump PRs, release-readiness reviews, and release notes.
 
 ## Release Checklist
 
@@ -23,8 +23,9 @@ Use this skill for GitHits release work, version-bump PRs, release-readiness rev
 - Keep `server.json.version`, the npm package entry version in `server.json`, and root `package.json.version` aligned. The release workflow rewrites a temporary registry manifest from `package.json`, but the committed `server.json` should still reflect the intended next root release for review and local validation.
 - Keep root `package.json#mcpName` equal to `com.githits/githits`; npm registry ownership validation depends on the published package manifest matching `server.json.name`.
 - Run or rely on package-scoped version checks to verify root plugin versions stay aligned and MCP versions are intentionally independent.
+- Reconcile the complete package-specific tag-to-HEAD delta with `CHANGELOG.md`. Its `Unreleased` impact table must name every public artifact and an explicit pending bump, including `none` for unaffected packages.
 - Run `bun run plugins:generate`, inspect the generated diff, and run `bun run plugins:check` before release-readiness signoff. Do not release with manually edited or stale generated assets.
-- Collect a changelog of user-visible changes before release. Include CLI behavior, MCP tool behavior, Agent Skills, auth/error UX, output format changes, and agent-facing instruction changes.
+- Finalize the continuously maintained changelog before release. Move shipped entries into a separate `## [<artifact> <version>] - YYYY-MM-DD` section for each released artifact, leave a fresh `Unreleased` section, and reset every pending bump to `none`.
 - Review public skills before signoff whenever user-facing CLI/MCP behavior changed. After the behavior is released or included in the same release branch, update `skills/githits-code/SKILL.md`, `skills/githits-package/SKILL.md`, and their references so `skills.sh` users get instructions that match the released surface.
 - Keep PR titles and labels release-note friendly; GitHub release notes are generated from merged PRs and `.github/release.yml` categories.
 - Run `bun run build` before release-readiness signoff. Run targeted smoke/eval commands when MCP tools, CLI commands, shared formatters, auth/error envelopes, Agent Skills, or agent-facing instructions changed.
@@ -50,9 +51,13 @@ Use this skill for GitHits release work, version-bump PRs, release-readiness rev
 - After changing public skills or plugin-facing guidance, run `bun run plugins:generate` and `bun run plugins:check` so every host manifest remains aligned with the canonical root surface.
 - If a skill update is intentionally delayed until after release, note that in the release/change plan so it is not forgotten.
 
-## Changelog Collection
+## Continuous Changelog
 
-- Use `git log` and merged PRs since the previous tag to identify user-visible changes.
+- Follow `docs/implementation/release-process.md`; `CHANGELOG.md` is maintained with each notable change rather than reconstructed only at release time.
+- For every notable change, update the existing `Unreleased` entries and recompute the aggregate pending bump in the same change. Do not add a second unreleased section or choose a target version before release preparation.
+- Use `git log` and merged PRs since each package's previous tag to audit the maintained entries and find omissions.
+- Record the pending SemVer impact for `githits`, `@githits/mcp`, and every future independently versioned public artifact. Keep unaffected packages explicit as `none`.
+- Treat dated, versioned sections as immutable historical records. Change one only for a blatant, demonstrable factual error and make the smallest correction that restores accuracy; wording improvements and omitted minor details do not qualify.
 - Exclude purely internal refactors unless they affect users, agent behavior, performance, or reliability.
 - Call out changes that require users or agents to adjust commands, flags, config, auth setup, environment variables, MCP setup, or skill usage.
 - Mention known limitations or intentionally deferred skill updates when they affect current users.
@@ -61,5 +66,7 @@ Use this skill for GitHits release work, version-bump PRs, release-readiness rev
 
 - Do not expose credentials while verifying release/auth flows.
 - Do not force-push, amend, or rewrite release history unless explicitly requested.
+- Refuse historical changelog cleanup or expansion unless the existing text is blatantly factually wrong.
+- If the changelog impact table, package manifests, or verified package-visible delta disagree, stop and reconcile them before release signoff.
 - If root package and plugin manifests disagree, stop and fix them before a root `githits` release.
 - If `@githits/mcp` changed but its package version did not, stop and either bump it or document why the change is not MCP-package-visible.
