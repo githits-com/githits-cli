@@ -12,8 +12,8 @@ errors.
 
 | Public artifact | Current release | Pending bump | Reason |
 |---|---:|---:|---|
-| `githits` | 0.9.1 | minor | Adds CLI-native exact-path recovery |
-| `@githits/mcp` | 0.9.0 | minor | Adds MCP-native exact-path read and grep recovery; first MCP release for the pending CLI 0.10 minor stays minor-aligned |
+| `githits` | 0.9.1 | patch | Fixes CLI-native exact-path recovery |
+| `@githits/mcp` | 0.9.0 | patch | Fixes MCP-native exact-path read and grep recovery; later MCP-visible changes in the CLI 0.9 minor bump the MCP patch |
 
 ### Fixed
 
