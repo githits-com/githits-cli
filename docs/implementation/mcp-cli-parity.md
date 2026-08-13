@@ -138,8 +138,9 @@ test suite anchors the doc.
   mechanism, not a convention.
 - MCP error text is always valid JSON. A client that parses
   `content[0].text` on error gets the same envelope shape and structured data as
-  CLI `--json`. Path-recovery `details.action` is deliberately surface-native:
-  MCP names MCP tools/arguments, while CLI JSON names CLI commands/options.
+  CLI `--json`. Client-owned validation messages and path-recovery
+  `details.action` are deliberately surface-native: MCP names MCP
+  tools/arguments, while CLI JSON names CLI commands/options.
   Cross-surface account actions such as `githits settings terms accept` remain
   identical because they name one shared external remediation.
 - Backend error messages, hints, indexing estimates, available versions/refs,

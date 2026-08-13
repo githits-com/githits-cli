@@ -330,6 +330,74 @@ describe("pkgReadAction", () => {
     exitSpy.mockRestore();
   });
 
+  it("uses CLI syntax when a directory is passed to code read", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgReadAction(
+          "npm:express",
+          "lib/",
+          { json: true },
+          createDeps(),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        code: string;
+        error: string;
+      };
+      expect(payload.code).toBe("INVALID_ARGUMENT");
+      expect(payload.error).toContain("`githits code files`");
+      expect(payload.error).toContain('path prefix "lib/"');
+      expect(payload.error).toContain("`githits code read`");
+      expect(payload.error).not.toContain("code_files");
+      expect(payload.error).not.toContain("code_read");
+      expect(payload.error).not.toContain("path_prefix");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("uses CLI option names for a reversed explicit line range", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgReadAction(
+          "npm:express",
+          "src/index.js",
+          { start: "40", end: "10", json: true },
+          createDeps(),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        code: string;
+        error: string;
+      };
+      expect(payload.code).toBe("INVALID_ARGUMENT");
+      expect(payload.error).toContain("--start (40)");
+      expect(payload.error).toContain("--end (10)");
+      expect(payload.error).not.toContain("start_line");
+      expect(payload.error).not.toContain("end_line");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
   it("renders the binary sentinel via stdout.write", async () => {
     const writes: string[] = [];
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(((

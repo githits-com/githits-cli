@@ -303,17 +303,24 @@ describe("read_file parity", () => {
   });
 
   it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT on reversed range", async () => {
-    const cli = await cliJson("npm:express", "src/index.js", {
+    const cli = (await cliJson("npm:express", "src/index.js", {
       start: "40",
       end: "10",
-    });
-    const mcp = await mcpJson({
+    })) as { code: string; error: string; retryable: boolean };
+    const mcp = (await mcpJson({
       target: { registry: "npm", package_name: "express" },
       path: "src/index.js",
       start_line: 40,
       end_line: 10,
-    });
-    expect(cli).toMatchObject({ code: "INVALID_ARGUMENT" });
-    expect(mcp).toMatchObject({ code: "INVALID_ARGUMENT" });
+    })) as { code: string; error: string; retryable: boolean };
+    const { error: cliError, ...cliData } = cli;
+    const { error: mcpError, ...mcpData } = mcp;
+
+    expect(cliData).toEqual(mcpData);
+    expect(cli.code).toBe("INVALID_ARGUMENT");
+    expect(cliError).toContain("--start (40)");
+    expect(cliError).toContain("--end (10)");
+    expect(mcpError).toContain("start_line (40)");
+    expect(mcpError).toContain("end_line (10)");
   });
 });

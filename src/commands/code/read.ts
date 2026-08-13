@@ -103,7 +103,7 @@ export async function pkgReadAction(
       MAX_WAIT_TIMEOUT_MS,
     );
 
-    const build = buildReadFileParams({
+    const build = buildCliReadFileParams({
       target,
       filePath: pathWithRange.filePath,
       startLine: range.startLine,
@@ -144,6 +144,29 @@ export async function pkgReadAction(
       1,
       (mapped) => withCliReadFileRecovery(mapped, requestedFilePath),
     );
+  }
+}
+
+function buildCliReadFileParams(
+  input: Parameters<typeof buildReadFileParams>[0],
+): ReturnType<typeof buildReadFileParams> {
+  try {
+    return buildReadFileParams(input);
+  } catch (error) {
+    if (!(error instanceof InvalidPackageSpecError)) throw error;
+    const rewritten = error.message
+      .replace(/`file_path`/g, "`<path>`")
+      .replace(/`start_line`/g, "`--start`")
+      .replace(/`end_line`/g, "`--end`")
+      .replace("start_line (", "--start (")
+      .replace("end_line (", "--end (")
+      .replace(/`wait_timeout_ms`/g, "`--wait`")
+      .replace(/`code_files`/g, "`githits code files`")
+      .replace(/`path_prefix: ([^`]+)`/g, "path prefix $1")
+      .replace(/emitted `path`/g, "emitted path")
+      .replace(/`code_read`/g, "`githits code read`");
+    if (rewritten === error.message) throw error;
+    throw new InvalidPackageSpecError(rewritten);
   }
 }
 

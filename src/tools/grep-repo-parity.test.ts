@@ -237,13 +237,24 @@ describe("grep_repo parity", () => {
     expect(mcpAction).toContain("`code_grep`");
   });
 
-  it("PARITY-ERROR-ENVELOPE: whitespace-only pattern is INVALID_ARGUMENT on both surfaces", async () => {
-    const cli = await cliJson("npm:express", "   ", undefined);
-    const mcp = await mcpJson({
+  it("PARITY-ERROR-ENVELOPE: whitespace-only pattern shares data with surface-native messages", async () => {
+    const cli = (await cliJson("npm:express", "   ", undefined)) as {
+      code: string;
+      error: string;
+      retryable: boolean;
+    };
+    const mcp = (await mcpJson({
       target: { registry: "npm", package_name: "express" },
       pattern: "   ",
-    });
-    expect(cli).toEqual(mcp);
-    expect((cli as { code: string }).code).toBe("INVALID_ARGUMENT");
+    })) as { code: string; error: string; retryable: boolean };
+    const { error: cliError, ...cliData } = cli;
+    const { error: mcpError, ...mcpData } = mcp;
+
+    expect(cliData).toEqual(mcpData);
+    expect(cli.code).toBe("INVALID_ARGUMENT");
+    expect(cliError).toContain("`<pattern>`");
+    expect(cliError).toContain("`githits code files`");
+    expect(mcpError).toContain("`pattern`");
+    expect(mcpError).toContain("`code_files`");
   });
 });
