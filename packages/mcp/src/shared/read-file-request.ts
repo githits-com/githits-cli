@@ -26,6 +26,8 @@ export interface ReadFileRequestBuildResult {
   params: ReadFileParams;
 }
 
+// CLI rewrites MCP identifiers from these errors, including the raw reversed-range
+// labels; keep them stable with src/commands/code/read.ts or update its tests.
 export function buildReadFileParams(
   input: ReadFileRequestInput,
 ): ReadFileRequestBuildResult {

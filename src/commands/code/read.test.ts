@@ -365,6 +365,37 @@ describe("pkgReadAction", () => {
     }
   });
 
+  it("preserves backticks in a directory path suggestion", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgReadAction(
+          "npm:express",
+          "li`b/",
+          { json: true },
+          createDeps(),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        code: string;
+        error: string;
+      };
+      expect(payload.code).toBe("INVALID_ARGUMENT");
+      expect(payload.error).toContain('path prefix "li`b/"');
+      expect(payload.error).not.toContain('path prefix "lib/"');
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
   it("uses CLI option names for a reversed explicit line range", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {

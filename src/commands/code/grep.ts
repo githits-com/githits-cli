@@ -228,6 +228,10 @@ function collectRepeatable(value: string, previous: string[] = []): string[] {
   return [...previous, value];
 }
 
+/**
+ * Translate CLI-reachable, backtick-delimited MCP validation tokens. Anchored
+ * rules preserve API field names embedded in the `symbol_fields` value list.
+ */
 function buildCliGrepParams(
   input: GrepRepoRequestInput,
 ): GrepRepoRequestBuildResult {
@@ -237,18 +241,9 @@ function buildCliGrepParams(
     if (!(error instanceof InvalidPackageSpecError)) throw error;
     const rewritten = error.message
       .replace(/^`pattern`/, "`<pattern>`")
-      .replace(/`path`/g, "`--path`")
-      .replace(/`path_prefix`/g, "`[path-prefix]`")
       .replace(/`globs`/g, "`--glob`")
       .replace(/`extensions`/g, "`--ext`")
-      .replace(/`context_lines`/g, "`--context`")
-      .replace(/`context_lines_before`/g, "`--before-context`")
-      .replace(/`context_lines_after`/g, "`--after-context`")
-      .replace(/`max_matches`/g, "`--limit`")
-      .replace(/`max_matches_per_file`/g, "`--per-file-limit`")
-      .replace(/`wait_timeout_ms`/g, "`--wait`")
       .replace(/^`symbol_fields`/, "`--symbol-field`")
-      .replace(/`symbol_fields` value/g, "`--symbol-field` value")
       .replace(/`code_files`/g, "`githits code files`");
     if (rewritten === error.message) throw error;
     throw new InvalidPackageSpecError(rewritten);

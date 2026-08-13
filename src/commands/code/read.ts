@@ -7,6 +7,8 @@ import {
   formatReadFileTerminal,
   InvalidPackageSpecError,
   MAX_WAIT_TIMEOUT_MS,
+  type ReadFileRequestBuildResult,
+  type ReadFileRequestInput,
   requireAuth,
   shouldUseColors,
 } from "@githits/mcp/internal";
@@ -147,22 +149,26 @@ export async function pkgReadAction(
   }
 }
 
+/**
+ * Translate CLI-reachable MCP validation tokens. Unchanged errors are rethrown
+ * so this boundary does not mask unrelated shared validation failures.
+ */
 function buildCliReadFileParams(
-  input: Parameters<typeof buildReadFileParams>[0],
-): ReturnType<typeof buildReadFileParams> {
+  input: ReadFileRequestInput,
+): ReadFileRequestBuildResult {
   try {
     return buildReadFileParams(input);
   } catch (error) {
     if (!(error instanceof InvalidPackageSpecError)) throw error;
     const rewritten = error.message
       .replace(/`file_path`/g, "`<path>`")
-      .replace(/`start_line`/g, "`--start`")
-      .replace(/`end_line`/g, "`--end`")
       .replace("start_line (", "--start (")
       .replace("end_line (", "--end (")
-      .replace(/`wait_timeout_ms`/g, "`--wait`")
       .replace(/`code_files`/g, "`githits code files`")
-      .replace(/`path_prefix: ([^`]+)`/g, "path prefix $1")
+      .replace(
+        /`path_prefix: ([\s\S]+)` to list files/g,
+        "path prefix $1 to list files",
+      )
       .replace(/emitted `path`/g, "emitted path")
       .replace(/`code_read`/g, "`githits code read`");
     if (rewritten === error.message) throw error;
