@@ -12,7 +12,7 @@ errors.
 
 | Public artifact | Current release | Pending bump | Reason |
 |---|---:|---:|---|
-| `githits` | 0.9.1 | patch | Fixes CLI-native exact-path recovery |
+| `githits` | 0.9.1 | patch | Fixes CLI-native exact-path recovery and Claude Code/Codex CLI init detection and verification |
 | `@githits/mcp` | 0.9.0 | patch | Fixes MCP-native exact-path read and grep recovery; later MCP-visible changes in the CLI 0.9 minor bump the MCP patch |
 
 ### Fixed
@@ -24,6 +24,11 @@ errors.
   respectively, and extensionless exact files use their containing directory.
   Generic `NOT_FOUND` errors that do not describe a missing file path no longer
   receive path-discovery guidance.
+- **Claude Code and Codex CLI init setup** - user-scoped MCP checks now run
+  outside project configuration, use targeted server probes with host-specific
+  timeouts, distinguish missing, non-canonical, disabled, and failed checks,
+  preserve enabled customized Codex entries, and avoid reporting cleanup no-ops
+  as successful setup when a later command fails.
 
 ## [githits 0.9.1] - 2026-08-13
 

@@ -82,3 +82,21 @@ describe("FileSystemServiceImpl.atomicWriteFile", () => {
     expect((await stat(path)).mode & 0o777).toBe(expected);
   }
 });
+
+describe("FileSystemServiceImpl.createTempDir", () => {
+  it("creates unique directories under the OS temp directory", async () => {
+    const service = new FileSystemServiceImpl();
+    const first = await service.createTempDir("githits-init-probe-");
+    const second = await service.createTempDir("githits-init-probe-");
+    try {
+      expect(first).not.toBe(second);
+      expect(first.toLowerCase()).toStartWith(tmpdir().toLowerCase());
+      expect(second.toLowerCase()).toStartWith(tmpdir().toLowerCase());
+    } finally {
+      await Promise.all([
+        rm(first, { recursive: true, force: true }),
+        rm(second, { recursive: true, force: true }),
+      ]);
+    }
+  });
+});

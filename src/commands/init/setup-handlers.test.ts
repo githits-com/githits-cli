@@ -29,6 +29,7 @@ import {
   executeSkillUninstall,
   getCliCheckStatus,
   getConfigUninstallCheckStatus,
+  getSetupCheckStatus,
   hasServerConfigEntry,
   isAlreadyConfigured,
   isCliAlreadyConfigured,
@@ -534,6 +535,118 @@ describe("getCliCheckStatus", () => {
     });
 
     expect(await getCliCheckStatus(check, execService)).toBe("probe_failed");
+  });
+
+  it("runs isolated checks from a unique cwd and removes it", async () => {
+    const createTempDir = mock(() =>
+      Promise.resolve("C:\\Temp\\githits-probe-1"),
+    );
+    const deleteDirIfEmpty = mock(() => Promise.resolve());
+    const fs = createMockFileSystemService({ createTempDir, deleteDirIfEmpty });
+    const exec = mock(() =>
+      Promise.resolve({ exitCode: 0, stdout: "configured", stderr: "" }),
+    );
+    const execService = createMockExecService({ exec });
+    const check: CliCheckCommand = {
+      command: "codex",
+      args: ["mcp", "get", "githits", "--json"],
+      timeoutMs: 12_000,
+      useIsolatedCwd: true,
+      evaluateResult: () => "configured",
+    };
+
+    expect(await getCliCheckStatus(check, execService, fs)).toBe("configured");
+    expect(createTempDir).toHaveBeenCalledWith("githits-init-probe-");
+    expect(exec).toHaveBeenCalledWith(check.command, check.args, {
+      timeoutMs: 12_000,
+      cwd: "C:\\Temp\\githits-probe-1",
+    });
+    expect(deleteDirIfEmpty).toHaveBeenCalledWith("C:\\Temp\\githits-probe-1");
+  });
+
+  it("preserves the probe result when isolated cwd cleanup fails", async () => {
+    const fs = createMockFileSystemService({
+      createTempDir: mock(() => Promise.resolve("/tmp/githits-probe-1")),
+      deleteDirIfEmpty: mock(() =>
+        Promise.reject(Object.assign(new Error("busy"), { code: "EBUSY" })),
+      ),
+    });
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 0, stdout: "disabled", stderr: "" }),
+      ),
+    });
+
+    expect(
+      await getCliCheckStatus(
+        {
+          command: "codex",
+          args: ["mcp", "get", "githits", "--json"],
+          useIsolatedCwd: true,
+          evaluateResult: () => "disabled",
+        },
+        execService,
+        fs,
+      ),
+    ).toBe("disabled");
+  });
+});
+
+describe("getSetupCheckStatus", () => {
+  it("preserves composite probe_failed, disabled, and non-canonical precedence", async () => {
+    const config: CompositeSetup = {
+      method: "composite",
+      steps: [
+        {
+          method: "cli",
+          commands: [],
+          checkCommand: {
+            command: "first",
+            args: [],
+            evaluateResult: () => "disabled",
+          },
+        },
+        {
+          method: "cli",
+          commands: [],
+          checkCommand: {
+            command: "second",
+            args: [],
+            evaluateResult: () => "probe_failed",
+          },
+        },
+      ],
+    };
+    const fs = createMockFileSystemService();
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+      ),
+    });
+
+    expect(await getSetupCheckStatus(config, fs, execService)).toBe(
+      "probe_failed",
+    );
+    config.steps.pop();
+    expect(await getSetupCheckStatus(config, fs, execService)).toBe("disabled");
+
+    const nonCanonicalConfig: CompositeSetup = {
+      method: "composite",
+      steps: [
+        {
+          method: "cli",
+          commands: [],
+          checkCommand: {
+            command: "first",
+            args: [],
+            evaluateResult: () => "non_canonical",
+          },
+        },
+      ],
+    };
+    expect(await getSetupCheckStatus(nonCanonicalConfig, fs, execService)).toBe(
+      "non_canonical",
+    );
   });
 });
 
@@ -1577,6 +1690,59 @@ describe("executeCliSetup", () => {
     expect(result.message).toBe("GitHits already configured via claude");
   });
 
+  it("allows Claude's exact missing-user-scope cleanup response", async () => {
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: 'No MCP server named "githits" in user scope\n',
+        }),
+      ),
+    });
+    const result = await executeCliSetup(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["mcp", "remove", "githits", "--scope", "user"],
+            allowAlreadyAbsent: true,
+          },
+        ],
+      },
+      execService,
+    );
+
+    expect(result.status).toBe("already_configured");
+  });
+
+  it("does not accept missing responses for another Claude scope or server", async () => {
+    for (const stderr of [
+      'No MCP server named "other" in user scope',
+      'No MCP server named "githits" in project scope',
+    ]) {
+      const result = await executeCliSetup(
+        {
+          method: "cli",
+          commands: [
+            {
+              command: "claude",
+              args: ["mcp", "remove", "githits", "--scope", "user"],
+              allowAlreadyAbsent: true,
+            },
+          ],
+        },
+        createMockExecService({
+          exec: mock(() =>
+            Promise.resolve({ exitCode: 1, stdout: "", stderr }),
+          ),
+        }),
+      );
+      expect(result.status).toBe("failed");
+    }
+  });
+
   it("emits one ran change per command on success", async () => {
     const execService = createMockExecService({
       exec: mock(() =>
@@ -1845,6 +2011,31 @@ describe("executeCliUninstall", () => {
     });
 
     const result = await executeCliUninstall(uninstall, execService);
+    expect(result.status).toBe("not_configured");
+  });
+
+  it("returns not_configured for Claude's missing user-scope entry", async () => {
+    const result = await executeCliUninstall(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["mcp", "remove", "githits", "--scope", "user"],
+          },
+        ],
+      },
+      createMockExecService({
+        exec: mock(() =>
+          Promise.resolve({
+            exitCode: 1,
+            stdout: "",
+            stderr: 'No MCP server named "githits" in user scope\n',
+          }),
+        ),
+      }),
+    );
+
     expect(result.status).toBe("not_configured");
   });
 

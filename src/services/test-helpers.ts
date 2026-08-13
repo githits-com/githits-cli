@@ -236,6 +236,7 @@ export function createMockFileSystemService(
     deleteDirIfEmpty: mock(() => Promise.resolve()),
     exists: mock(() => Promise.resolve(false)),
     ensureDir: mock(() => Promise.resolve()),
+    createTempDir: mock(() => Promise.resolve("/tmp/githits-init-probe-test")),
     getHomeDir: mock(() => "/home/test"),
     joinPath: mock((...segments: string[]) => segments.join("/")),
     getCwd: mock(() => "/current/dir"),
