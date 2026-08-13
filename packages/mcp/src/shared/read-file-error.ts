@@ -1,38 +1,51 @@
 import type { MappedError } from "./code-navigation-error-map.js";
+import {
+  buildContainingPathPrefix,
+  buildPathPrefixSuggestion,
+  looksLikeMissingFileMessage,
+} from "./file-path-recovery.js";
 
 export function withReadFileRecovery(
   mapped: MappedError,
   requestedPath: string,
 ): MappedError {
-  if (mapped.code !== "FILE_NOT_FOUND" && mapped.code !== "NOT_FOUND") {
+  if (
+    mapped.code !== "FILE_NOT_FOUND" &&
+    (mapped.code !== "NOT_FOUND" ||
+      !looksLikeMissingFileMessage(mapped.message))
+  ) {
     return mapped;
   }
 
+  const recoveryPath = mapped.details?.filePath ?? requestedPath;
   return {
     ...mapped,
     details: {
       ...mapped.details,
-      action: buildReadFileNotFoundAction(requestedPath),
+      action: buildReadFileNotFoundAction(
+        recoveryPath,
+        mapped.code === "FILE_NOT_FOUND",
+      ),
     },
   };
 }
 
-function buildReadFileNotFoundAction(requestedPath: string): string {
-  const prefix = buildPathPrefixSuggestion(requestedPath);
+function buildReadFileNotFoundAction(
+  requestedPath: string,
+  exactFilePath: boolean,
+): string {
+  const prefix = exactFilePath
+    ? buildContainingPathPrefix(requestedPath)
+    : buildPathPrefixSuggestion(requestedPath);
+  const preamble = exactFilePath
+    ? "`code_read` requires an indexed exact file path. "
+    : "`code_read` reads files only, not directories. ";
+  const listing =
+    prefix === ""
+      ? "Use `code_files` without `path_prefix`"
+      : `Use \`code_files\` with \`path_prefix: ${JSON.stringify(prefix)}\``;
   return (
-    "`code_read` reads files only, not directories. " +
-    `Use \`code_files\` with \`path_prefix: ${JSON.stringify(prefix)}\` ` +
-    "to list candidate files, then pass an emitted `path` back to `code_read`."
+    `${preamble}${listing} to list valid indexed paths, then ` +
+    "pass an emitted `path` back to `code_read`."
   );
-}
-
-function buildPathPrefixSuggestion(requestedPath: string): string {
-  const trimmed = requestedPath.trim();
-  if (trimmed === "") return "";
-  if (trimmed.endsWith("/")) return trimmed;
-
-  const slash = trimmed.lastIndexOf("/");
-  const basename = slash === -1 ? trimmed : trimmed.slice(slash + 1);
-  if (!basename.includes(".")) return `${trimmed}/`;
-  return slash === -1 ? "" : trimmed.slice(0, slash + 1);
 }

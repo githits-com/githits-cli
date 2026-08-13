@@ -22,6 +22,7 @@ import {
   handleCodeNavCommandError,
   parseIntCliOption,
   resolveCliCodeNavTarget,
+  withCliGrepFileRecovery,
 } from "./code-nav-cli-helpers.js";
 
 export interface PkgGrepCommandOptions {
@@ -192,6 +193,7 @@ export async function pkgGrepAction(
       options.json ?? false,
       formatFileErrorWithFilesHint,
       2,
+      withCliGrepFileRecovery,
     );
   }
 }

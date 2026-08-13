@@ -98,8 +98,9 @@ export const DESCRIPTION: string =
   "are fuzzy ref hints and may need indexing first. On `INDEXING` " +
   "retry with a longer `wait_timeout_ms` or use a version/ref from " +
   "error details. " +
-  "On `NOT_FOUND` / `FILE_NOT_FOUND` call " +
-  "`code_files` to discover the actual path." +
+  "On `FILE_NOT_FOUND`, or a legacy `NOT_FOUND` that specifically " +
+  "describes a missing file path, call `code_files` to discover the " +
+  "actual path." +
   `\n\n${CODE_READ_GUARDRAIL}`;
 
 interface BoundedRange {

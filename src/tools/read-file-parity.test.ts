@@ -223,7 +223,7 @@ describe("read_file parity", () => {
     expect(cli).toEqual(mcp);
   });
 
-  it("PARITY-ERROR-ENVELOPE: FILE_NOT_FOUND identical on both surfaces", async () => {
+  it("PARITY-ERROR-ENVELOPE: FILE_NOT_FOUND shares data with surface-native actions", async () => {
     const fn = mock(() =>
       Promise.reject(
         new CodeNavigationFileNotFoundError(
@@ -249,8 +249,28 @@ describe("read_file parity", () => {
       },
       fn as never,
     );
-    expect(cli).toEqual(mcp);
-    expect((cli as { code: string }).code).toBe("FILE_NOT_FOUND");
+    const cliEnvelope = cli as {
+      code: string;
+      details: { action?: string; filePath?: string };
+    };
+    const mcpEnvelope = mcp as {
+      code: string;
+      details: { action?: string; filePath?: string };
+    };
+    const { action: cliAction, ...cliDetails } = cliEnvelope.details;
+    const { action: mcpAction, ...mcpDetails } = mcpEnvelope.details;
+
+    expect({ ...cliEnvelope, details: cliDetails }).toEqual({
+      ...mcpEnvelope,
+      details: mcpDetails,
+    });
+    expect(cliEnvelope.code).toBe("FILE_NOT_FOUND");
+    expect(cliAction).toContain("`githits code files`");
+    expect(cliAction).toContain("`githits code read`");
+    expect(cliAction).toContain("without a path prefix");
+    expect(mcpAction).toContain("`code_files`");
+    expect(mcpAction).toContain("`code_read`");
+    expect(mcpAction).toContain("without `path_prefix`");
   });
 
   it("PARITY-ERROR-ENVELOPE: INDEXING identical on both surfaces", async () => {
