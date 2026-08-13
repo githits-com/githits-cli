@@ -12,7 +12,7 @@ errors.
 
 | Public artifact | Current release | Pending bump | Reason |
 |---|---:|---:|---|
-| `githits` | 0.9.0 | none | Repository-only release process documentation |
+| `githits` | 0.9.0 | patch | Clarify packaged Agent Skill syntax for search-status waits |
 | `@githits/mcp` | 0.9.0 | none | No MCP-package-visible changes |
 
 ### Changed
@@ -24,6 +24,9 @@ errors.
 
 ### Fixed
 
+- **Search-status skill syntax (`githits`)** - agent guidance now presents
+  `--wait <seconds>` as a placeholder with the valid 0-60 integer range instead
+  of resembling a literal `--wait 0-60` invocation.
 - **Cross-platform changelog validation (repository)** - release-boundary tests
   accept both LF and CRLF Markdown while enforcing identical package-version
   content.

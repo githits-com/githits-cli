@@ -59,7 +59,7 @@ githits docs read <pageId> --lines 20-120
 - For multi-step code/docs investigations, keep raw CLI output out of the final answer unless it is the evidence the user needs.
 - If output says it used recent/stale indexed evidence, treat the displayed served target as provenance; if freshness matters, retry with a longer `--wait` or use one of the displayed `queryable now` versions/refs, or inspect JSON `targetResolution` for structured candidates.
 - Treat partial documentation coverage as incomplete evidence and retry later when advised. Capped coverage is terminal for the current crawl, so report the limitation instead of retrying.
-- If search returns a `searchRef`, continue with `githits search-status <searchRef>` instead of repeating the original search. Its bounded wait defaults to 20 seconds; use `--wait 0-60` to adjust it.
+- If search returns a `searchRef`, continue with `githits search-status <searchRef>` instead of repeating the original search. Its bounded wait defaults to 20 seconds; use `--wait <seconds>` with an integer from 0 to 60 to adjust it.
 - If grep returns no matches, do not repeat it unchanged. Follow the returned guidance by changing the pattern, broadening the file scope, or switching to `githits search` for conceptual discovery.
 - If a code-navigation command returns `INDEXING`, use the elapsed/expected duration in the message to decide whether to retry with `--wait`; prefer any displayed indexed refs/versions when you need an immediate follow-up.
 - After using GitHits results, send feedback when practical. Use `githits feedback <solution_id> --accept|--reject` for `githits example` results, or omit `<solution_id>` for generic session feedback such as `githits feedback --reject --tool search -m "missing kotlin support"`.
