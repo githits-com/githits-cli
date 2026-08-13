@@ -353,9 +353,12 @@ describe("pkgReadAction", () => {
         error: string;
       };
       expect(payload.code).toBe("INVALID_ARGUMENT");
+      expect(payload.error).toContain("`<path>` must be an exact file path");
       expect(payload.error).toContain("`githits code files`");
       expect(payload.error).toContain('path prefix "lib/"');
       expect(payload.error).toContain("`githits code read`");
+      expect(payload.error).not.toContain("emitted `path`");
+      expect(payload.error).not.toContain("`file_path`");
       expect(payload.error).not.toContain("code_files");
       expect(payload.error).not.toContain("code_read");
       expect(payload.error).not.toContain("path_prefix");

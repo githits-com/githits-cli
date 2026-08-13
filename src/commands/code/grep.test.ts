@@ -533,6 +533,38 @@ describe("pkgGrepAction", () => {
     }
   });
 
+  it("uses --glob for empty shared glob validation", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgGrepAction(
+          "npm:express",
+          "middleware",
+          undefined,
+          { glob: [" "], json: true },
+          createDeps(),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        code: string;
+        error: string;
+      };
+      expect(payload.code).toBe("INVALID_ARGUMENT");
+      expect(payload.error).toContain("`--glob` entries cannot be empty");
+      expect(payload.error).not.toContain("`globs`");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
   it("keeps API field names in the --symbol-field validation message", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
