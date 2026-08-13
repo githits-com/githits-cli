@@ -12,14 +12,23 @@ errors.
 
 | Public artifact | Current release | Pending bump | Reason |
 |---|---:|---:|---|
-| `githits` | 0.9.0 | minor | Adds `githits resolve` and clarifies packaged Agent Skill syntax for search-status waits; hold release until the gates in `docs/implementation/cli-commands.md` clear |
+| `githits` | 0.9.1 | none | No unreleased package-visible changes |
 | `@githits/mcp` | 0.9.0 | none | No MCP-package-visible changes |
+
+## [githits 0.9.1] - 2026-08-13
+
+Patch release: silently launches a CLI-only target-resolution dogfood surface,
+corrects packaged Agent Skill syntax, and improves release visibility.
+`@githits/mcp` remains at 0.9.0 because this release adds no MCP tool or public
+MCP package surface.
 
 ### Added
 
 - **Target resolution CLI dogfood surface** - `githits resolve` ranks canonical
   package and GitHub repository targets with compact terminal and diagnostic
-  JSON output, discoverable registry help, and terminal-safe text errors.
+  JSON output, discoverable registry help, and terminal-safe text errors. This
+  silent launch is CLI-only and is not promoted through Agent Skills or an MCP
+  tool.
 
 ### Changed
 
