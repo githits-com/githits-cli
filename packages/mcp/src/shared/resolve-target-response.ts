@@ -232,7 +232,7 @@ const TERMINAL_CONTROL_PATTERN = new RegExp(
   "g",
 );
 
-function sanitizeTerminalText(value: string): string {
+export function sanitizeTerminalText(value: string): string {
   return value.replace(TERMINAL_CONTROL_PATTERN, "");
 }
 

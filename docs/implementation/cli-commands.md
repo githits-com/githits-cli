@@ -255,9 +255,9 @@ stars, monthly or total package downloads, and docs/code availability. When a
 protected match falls outside the requested ranked limit, it is appended with
 the identity and confidence fields returned by the lightweight protected-match
 reference. When a ranked package has a repository URL but no package-level
-stars, the terminal shows its linked repository as a canonical
-`github:owner/repo` fallback. Missing evidence is omitted rather than shown as
-zero.
+stars, the terminal shows its linked repository as compact
+`github:owner/repo` when possible and otherwise preserves the repository URL.
+Missing evidence is omitted rather than shown as zero.
 
 The copyable `githits search --in` follow-up uses the resolved target only for
 non-ambiguous results. Ambiguous results use the literal `<target>` placeholder
@@ -266,13 +266,15 @@ a valid JSON/text result but exits 1 because the command did not resolve a
 target. The backend guarantees that `best` is absent only when there are no
 candidates, so the terminal no-result message and exit status key off `best`.
 
-`--registry` accepts a comma-separated package-registry list; repository
-candidates remain eligible. `--prefer-kind package|repository` is a soft
-preference, not a filter. `--intent-hint` is repeatable. `--limit` controls the
-ranked list from 1-20 (default 8); protected exact-name matches can be additional.
-`--query` and `--intent-hint` are sent to the service as ranking context and
-must not contain credentials, personal data, private code, or proprietary
-content.
+`--registry` accepts a comma-separated package-registry list and the command
+help enumerates every accepted value; repository candidates remain eligible.
+`--prefer-kind package|repository` is a soft preference, not a filter.
+`--intent-hint` is repeatable. `--limit` controls the ranked list from 1-20
+(default 8); protected exact-name matches can be additional. `--query` and
+`--intent-hint` are sent to the service as ranking context and must not contain
+credentials, personal data, private code, or proprietary content. Terminal
+errors sanitize untrusted service and option text while JSON errors preserve
+the structured value through JSON escaping.
 
 `--json` emits the stable compact diagnostic envelope
 `{best?, ambiguous, ambiguousReason?, candidates, protectedMatches}`. Candidate
@@ -301,11 +303,13 @@ compensate for it.
 
 #### Release posture and next phase
 
-The command remains a draft dogfood surface as of 2026-08-11. A 36-case
-production audit across all supported package registries selected the expected
-package in 25 cases. The remaining Maven, Go, Zig, Packagist, and Swift cases
-were dispatched to the backend evaluation corpus. The earlier `guava` mismatch
-now resolves to `maven:com.google.guava:guava` in production.
+The command remains a dogfood surface. The initial 36-case production audit
+selected the expected package in 25 cases. After backend ranking work, a
+113-case dev audit across all 12 supported registries matched 102 exact
+expectations; ten actionable population, alias, or current-module ranking gaps
+and one explicit family ambiguity were recorded in the backend relevance
+corpus. Those findings do not block landing the CLI dogfood surface. The earlier
+`guava` and `symfony/framework-bundle` mismatches now resolve correctly on dev.
 
 Do not publish the command until the expanded production corpus has no known
 wrong exact-package result, ambiguity wording is accepted, fuzzy latency and

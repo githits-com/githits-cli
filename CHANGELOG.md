@@ -19,7 +19,7 @@ errors.
 
 - **Target resolution CLI dogfood surface** - `githits resolve` ranks canonical
   package and GitHub repository targets with compact terminal and diagnostic
-  JSON output.
+  JSON output, discoverable registry help, and terminal-safe text errors.
 
 ### Changed
 

@@ -4,6 +4,7 @@ import {
   MalformedPackageIntelligenceResponseError,
   PackageIntelligenceAccessError,
   PackageIntelligenceFeatureFlagRequiredError,
+  PackageIntelligenceNetworkError,
   PackageIntelligenceValidationError,
 } from "./package-intelligence-service.js";
 import {
@@ -326,6 +327,42 @@ describe("ResolveTargetServiceImpl", () => {
         includeDetailedFields: false,
       }),
     ).rejects.toBeInstanceOf(PackageIntelligenceAccessError);
+  });
+
+  it("preserves shared transport-error classification", async () => {
+    const service = new ResolveTargetServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(mock(() => Promise.reject(new TypeError("network failed")))),
+    );
+
+    await expect(
+      service.resolveTarget({
+        name: "express",
+        limit: 8,
+        includeDetailedFields: false,
+      }),
+    ).rejects.toBeInstanceOf(PackageIntelligenceNetworkError);
+  });
+
+  it("rejects an empty resolveTarget payload", async () => {
+    const service = new ResolveTargetServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(
+        mock(() =>
+          Promise.resolve(jsonResponse({ data: { resolveTarget: null } })),
+        ),
+      ),
+    );
+
+    await expect(
+      service.resolveTarget({
+        name: "express",
+        limit: 8,
+        includeDetailedFields: false,
+      }),
+    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
 
   it("maps feature-gate and validation GraphQL errors", async () => {

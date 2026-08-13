@@ -1,10 +1,16 @@
-import type { ResolveTargetService } from "@githits/core-internal";
+import {
+  PKGSEER_REGISTRY_LIST,
+  type ResolveTargetService,
+} from "@githits/core-internal";
 import {
   buildResolveTargetParams,
   buildResolveTargetSuccessPayload,
   formatResolveTargetTerminal,
   mapPackageIntelligenceError,
+  RESOLVE_TARGET_DEFAULT_LIMIT,
+  RESOLVE_TARGET_MAX_LIMIT,
   requireAuth,
+  sanitizeTerminalText,
   shouldUseColors,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
@@ -37,13 +43,24 @@ export async function resolveAction(
 ): Promise<void> {
   try {
     requireAuth(deps);
+  } catch (error) {
+    if (options.json) handleResolveError(error, true);
+    throw error;
+  }
+
+  try {
     const params = buildResolveTargetParams({
       name,
       query: options.query,
       registry: options.registry,
       preferKind: options.preferKind,
       intentHints: options.intentHint,
-      limit: parseIntCliOption(options.limit, "--limit", 1, 20),
+      limit: parseIntCliOption(
+        options.limit,
+        "--limit",
+        1,
+        RESOLVE_TARGET_MAX_LIMIT,
+      ),
       includeDetailedFields: options.json === true,
     });
     const result = await deps.resolveTargetService.resolveTarget(params);
@@ -67,10 +84,15 @@ export async function resolveAction(
 
 function handleResolveError(error: unknown, json: boolean): never {
   const mapped = mapPackageIntelligenceError(error);
+  // Package-intelligence mappings never set `details.hint`, and their update
+  // command is local. Sanitize any new terminal-visible mapped text here too.
   console.error(
     json
       ? JSON.stringify(buildCliMappedErrorPayload(mapped))
-      : formatMappedErrorForTerminal(mapped),
+      : formatMappedErrorForTerminal({
+          ...mapped,
+          message: sanitizeTerminalText(mapped.message),
+        }),
   );
   process.exit(1);
 }
@@ -92,7 +114,10 @@ export function registerResolveCommand(program: Command): Command {
     .description(DESCRIPTION)
     .argument("<name>", "Package or GitHub repository name")
     .option("-q, --query <text>", "Task context used as a soft ranking hint")
-    .option("--registry <list>", "Comma-separated package registries")
+    .option(
+      "--registry <list>",
+      `Comma-separated package registries: ${PKGSEER_REGISTRY_LIST}`,
+    )
     .option("--prefer-kind <kind>", "Soft preference: package or repository")
     .option(
       "--intent-hint <text>",
@@ -101,7 +126,7 @@ export function registerResolveCommand(program: Command): Command {
     )
     .option(
       "-n, --limit <n>",
-      "Ranked candidates (1-20, default 8); protected exact matches may be additional",
+      `Ranked candidates (1-${RESOLVE_TARGET_MAX_LIMIT}, default ${RESOLVE_TARGET_DEFAULT_LIMIT}); protected exact matches may be additional`,
     )
     .option("--json", "Emit structured diagnostic JSON")
     .action(async (name: string, options: ResolveCommandOptions) => {

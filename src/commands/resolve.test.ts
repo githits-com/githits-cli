@@ -7,7 +7,12 @@ import {
   mock,
   spyOn,
 } from "bun:test";
-import { PackageIntelligenceFeatureFlagRequiredError } from "@githits/core-internal";
+import {
+  PackageIntelligenceFeatureFlagRequiredError,
+  PKGSEER_REGISTRY_ARGS,
+  PKGSEER_REGISTRY_LIST,
+} from "@githits/core-internal";
+import { AuthRequiredError } from "@githits/mcp/internal";
 import { Command } from "commander";
 import {
   createMockResolveTargetService,
@@ -15,6 +20,7 @@ import {
 } from "../services/test-helpers.js";
 import {
   type ResolveCommandDependencies,
+  type ResolveCommandOptions,
   registerResolveCommand,
   resolveAction,
 } from "./resolve.js";
@@ -215,7 +221,7 @@ describe("resolveAction", () => {
     );
   });
 
-  it("requires authentication before calling the service", async () => {
+  it("requires authentication before calling the service in JSON mode", async () => {
     const resolveTarget = mock(() =>
       Promise.resolve(defaultResolveTargetResult),
     );
@@ -241,6 +247,29 @@ describe("resolveAction", () => {
     expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0])).code).toBe(
       "AUTH_REQUIRED",
     );
+  });
+
+  it("rethrows terminal authentication failures for shared CLI rendering", async () => {
+    const resolveTarget = mock(() =>
+      Promise.resolve(defaultResolveTargetResult),
+    );
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      resolveAction(
+        "express",
+        {},
+        deps({
+          hasValidToken: false,
+          resolveTargetService: createMockResolveTargetService({
+            resolveTarget,
+          }),
+        }),
+      ),
+    ).rejects.toThrow(AuthRequiredError);
+
+    expect(resolveTarget).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 
   it("maps feature-gate errors to ACCESS_DENIED", async () => {
@@ -302,13 +331,46 @@ describe("resolveAction", () => {
     expect(errorSpy).toHaveBeenCalledWith("not enabled");
     expect(writeSpy).not.toHaveBeenCalled();
   });
+
+  it("sanitizes invalid option values in terminal errors but preserves JSON", async () => {
+    const hostileOptions: ResolveCommandOptions[] = [
+      { registry: "npm,\u001b]2;owned\u0007" },
+      { preferKind: "package\u001b[31m" },
+    ];
+    const terminalErrorSpy = spyOn(console, "error").mockImplementation(
+      () => {},
+    );
+    spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    for (const options of hostileOptions) {
+      await expect(resolveAction("express", options, deps())).rejects.toThrow(
+        "process.exit",
+      );
+
+      const terminalError = String(terminalErrorSpy.mock.calls[0]?.[0]);
+      expect(terminalError).not.toContain("\u001b");
+      expect(terminalError).not.toContain("\u0007");
+
+      terminalErrorSpy.mockClear();
+      await expect(
+        resolveAction("express", { ...options, json: true }, deps()),
+      ).rejects.toThrow("process.exit");
+
+      const payload = JSON.parse(String(terminalErrorSpy.mock.calls[0]?.[0]));
+      expect(payload.error).toContain("\u001b");
+      terminalErrorSpy.mockClear();
+    }
+  });
 });
 
 describe("registerResolveCommand", () => {
   it("documents every option and the query privacy warning", () => {
     const program = new Command();
     registerResolveCommand(program);
-    const help = program.commands[0]?.helpInformation() ?? "";
+    const resolveCommand = program.commands[0];
+    const help = resolveCommand?.helpInformation() ?? "";
 
     for (const value of [
       "--query",
@@ -317,10 +379,35 @@ describe("registerResolveCommand", () => {
       "--intent-hint",
       "--limit",
       "--json",
-      "--query and --intent-hint values are sent",
-      "include credentials, personal data, private code",
     ]) {
       expect(help).toContain(value);
     }
+    expect(resolveCommand?.description()).toContain(
+      "--query and --intent-hint values are sent",
+    );
+    expect(resolveCommand?.description()).toContain(
+      "include credentials, personal data, private code",
+    );
+    for (const registry of PKGSEER_REGISTRY_ARGS) {
+      expect(help).toContain(registry);
+    }
+    expect(
+      resolveCommand?.options.find((option) => option.long === "--registry")
+        ?.description,
+    ).toBe(`Comma-separated package registries: ${PKGSEER_REGISTRY_LIST}`);
+  });
+
+  it("collects repeated intent hints in command-line order", () => {
+    const program = new Command();
+    registerResolveCommand(program);
+    const option = program.commands[0]?.options.find(
+      (candidate) => candidate.long === "--intent-hint",
+    );
+    const parseArg = option?.parseArg as
+      | ((value: string, previous?: string[]) => string[])
+      | undefined;
+    if (!parseArg) throw new Error("intent-hint parser is missing");
+
+    expect(parseArg("api", parseArg("server"))).toEqual(["server", "api"]);
   });
 });

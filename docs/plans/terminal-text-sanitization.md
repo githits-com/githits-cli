@@ -78,10 +78,11 @@ changing round-trip content. Do not design a raw-content mode or new flag in PR
 ### Shared helper
 
 Move the existing regex and `sanitizeTerminalText(value: string): string` into
-`packages/mcp/src/shared/terminal-text.ts`. Keep it package-internal in PR 1; do
-not export it through `packages/mcp/src/index.ts`, `packages/mcp/src/internal.ts`,
-or the public package export map. The later root CLI slice may expose it through
-the workspace-only internal entrypoint when that concrete caller exists.
+`packages/mcp/src/shared/terminal-text.ts`. The resolve CLI now consumes the
+helper through the workspace-only `packages/mcp/src/internal.ts` entrypoint for
+terminal error messages. Preserve that internal export in PR 1, but do not
+expose the helper through `packages/mcp/src/index.ts` or the public package
+export map.
 
 The helper remains a pure string transform. It strips complete ANSI CSI/OSC and
 two-byte escape sequences before residual C0/C1/DEL controls so payload text
