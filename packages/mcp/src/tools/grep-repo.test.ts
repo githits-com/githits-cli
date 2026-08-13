@@ -1,5 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
 import {
+  CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
 } from "@githits/core-internal";
@@ -349,6 +350,142 @@ describe("createGrepRepoTool — validation errors", () => {
 });
 
 describe("createGrepRepoTool — service errors", () => {
+  it("adds code_files recovery details for an exact missing path", async () => {
+    const service = createMockCodeNavigationService({
+      grepRepo: mock(() =>
+        Promise.reject(
+          new CodeNavigationFileNotFoundError(
+            "Path not found in the index: docs/missing.md.",
+            "docs/missing.md",
+          ),
+        ),
+      ),
+    });
+    const tool = createGrepRepoTool(service);
+    const result = await tool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        pattern: "pagination",
+        path: "docs/missing.md",
+      },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    const payload = parseText(result) as {
+      code: string;
+      details?: { action?: string; filePath?: string };
+    };
+    expect(payload.code).toBe("FILE_NOT_FOUND");
+    expect(payload.details?.filePath).toBe("docs/missing.md");
+    expect(payload.details?.action).toContain("`code_files`");
+    expect(payload.details?.action).toContain('path_prefix: "docs/"');
+    expect(payload.details?.action).toContain("`code_grep`");
+    expect(payload.details?.action).not.toContain("githits code");
+  });
+
+  it("uses the containing directory for an extensionless exact path", async () => {
+    const service = createMockCodeNavigationService({
+      grepRepo: mock(() =>
+        Promise.reject(
+          new CodeNavigationFileNotFoundError(
+            "Path not found in the index: benchmarks/run.",
+            "benchmarks/run",
+          ),
+        ),
+      ),
+    });
+    const result = await createGrepRepoTool(service).handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        pattern: "benchmark",
+        path: "benchmarks/run",
+      },
+      {},
+    );
+
+    const payload = parseText(result) as {
+      details?: { action?: string };
+    };
+    expect(payload.details?.action).toContain('path_prefix: "benchmarks/"');
+    expect(payload.details?.action).not.toContain("benchmarks/run/");
+  });
+
+  it("uses an empty prefix for a root-level extensionless exact path", async () => {
+    const service = createMockCodeNavigationService({
+      grepRepo: mock(() =>
+        Promise.reject(
+          new CodeNavigationFileNotFoundError(
+            "Path not found in the index: LICENSE.",
+            "LICENSE",
+          ),
+        ),
+      ),
+    });
+    const result = await createGrepRepoTool(service).handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        pattern: "copyright",
+        path: "LICENSE",
+      },
+      {},
+    );
+
+    const payload = parseText(result) as {
+      details?: { action?: string };
+    };
+    expect(payload.details?.action).toContain("without `path_prefix`");
+    expect(payload.details?.action).not.toContain("LICENSE/");
+  });
+
+  it("does not add file recovery to generic NOT_FOUND errors", async () => {
+    const service = createMockCodeNavigationService({
+      grepRepo: mock(() =>
+        Promise.reject(
+          new CodeNavigationTargetNotFoundError("Package not found"),
+        ),
+      ),
+    });
+    const result = await createGrepRepoTool(service).handler(
+      {
+        target: { registry: "npm", package_name: "ghost" },
+        pattern: "middleware",
+      },
+      {},
+    );
+
+    const payload = parseText(result) as {
+      details?: { action?: string };
+    };
+    expect(payload.details?.action).toBeUndefined();
+  });
+
+  it("does not infer recovery when FILE_NOT_FOUND omits filePath", async () => {
+    const service = createMockCodeNavigationService({
+      grepRepo: mock(() =>
+        Promise.reject(
+          new CodeNavigationFileNotFoundError(
+            "Path not found in the index.",
+            undefined,
+          ),
+        ),
+      ),
+    });
+    const result = await createGrepRepoTool(service).handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        pattern: "middleware",
+        path: "docs/missing.md",
+      },
+      {},
+    );
+
+    const payload = parseText(result) as {
+      details?: { action?: string };
+    };
+    expect(payload.details?.action).toBeUndefined();
+  });
+
   it("classifies CodeNavigationIndexingError as INDEXING", async () => {
     const service = createMockCodeNavigationService({
       grepRepo: mock(() =>

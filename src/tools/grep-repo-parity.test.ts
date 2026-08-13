@@ -1,5 +1,6 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
+  CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
   type GrepRepoResult,
@@ -85,6 +86,7 @@ interface McpArgs {
     git_ref?: string;
   };
   pattern: string;
+  path?: string;
   path_prefix?: string;
   wait_timeout_ms?: number;
   format?: "json" | "text" | "text-v1";
@@ -188,6 +190,51 @@ describe("grep_repo parity", () => {
     );
     expect(cli).toEqual(mcp);
     expect((cli as { code: string }).code).toBe("NOT_FOUND");
+  });
+
+  it("PARITY-ERROR-ENVELOPE: FILE_NOT_FOUND shares data with surface-native actions", async () => {
+    const fn = mock(() =>
+      Promise.reject(
+        new CodeNavigationFileNotFoundError(
+          "Path not found in the index: docs/missing.md.",
+          "docs/missing.md",
+        ),
+      ),
+    );
+    const cli = (await cliJson(
+      "npm:express",
+      "middleware",
+      undefined,
+      { path: "docs/missing.md" },
+      cliDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          grepRepo: fn as never,
+        }),
+      }),
+    )) as {
+      details: { action?: string; filePath?: string };
+    };
+    const mcp = (await mcpJson(
+      {
+        target: { registry: "npm", package_name: "express" },
+        pattern: "middleware",
+        path: "docs/missing.md",
+      },
+      fn as never,
+    )) as {
+      details: { action?: string; filePath?: string };
+    };
+    const { action: cliAction, ...cliDetails } = cli.details;
+    const { action: mcpAction, ...mcpDetails } = mcp.details;
+
+    expect({ ...cli, details: cliDetails }).toEqual({
+      ...mcp,
+      details: mcpDetails,
+    });
+    expect(cliAction).toContain("`githits code files`");
+    expect(cliAction).toContain("`githits code grep`");
+    expect(mcpAction).toContain("`code_files`");
+    expect(mcpAction).toContain("`code_grep`");
   });
 
   it("PARITY-ERROR-ENVELOPE: whitespace-only pattern is INVALID_ARGUMENT on both surfaces", async () => {

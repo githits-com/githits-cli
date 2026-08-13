@@ -12,8 +12,38 @@ errors.
 
 | Public artifact | Current release | Pending bump | Reason |
 |---|---:|---:|---|
-| `githits` | 0.9.0 | patch | Fix Claude Code and Codex CLI init detection and verification |
-| `@githits/mcp` | 0.9.0 | none | No MCP-package-visible changes |
+| `githits` | 0.9.1 | patch | Fixes CLI-native exact-path recovery and Claude Code/Codex CLI init detection and verification |
+| `@githits/mcp` | 0.9.0 | patch | Fixes MCP-native exact-path read and grep recovery; later MCP-visible changes in the CLI 0.9 minor bump the MCP patch |
+
+### Fixed
+
+- **Exact-path recovery (CLI/MCP)** - typed `FILE_NOT_FOUND` responses from
+  `code_read` and `code_grep` now add surface-native path-discovery guidance: MCP names
+  `code_files` / `code_grep`, while CLI JSON names `githits code files` /
+  `githits code grep`. Read recovery names `code_read` or `githits code read`
+  respectively, and extensionless exact files use their containing directory.
+  Generic `NOT_FOUND` errors that do not describe a missing file path no longer
+  receive path-discovery guidance.
+- **Claude Code and Codex CLI init setup** - user-scoped MCP checks now run
+  outside project configuration, use targeted server probes with host-specific
+  timeouts, distinguish missing, non-canonical, disabled, and failed checks,
+  preserve enabled customized Codex entries, and avoid reporting cleanup no-ops
+  as successful setup when a later command fails.
+
+## [githits 0.9.1] - 2026-08-13
+
+Patch release: silently launches a CLI-only target-resolution dogfood surface,
+corrects packaged Agent Skill syntax, and improves release visibility.
+`@githits/mcp` remains at 0.9.0 because this release adds no MCP tool or public
+MCP package surface.
+
+### Added
+
+- **Target resolution CLI dogfood surface** - `githits resolve` ranks canonical
+  package and GitHub repository targets with compact terminal and diagnostic
+  JSON output, discoverable registry help, and terminal-safe text errors. This
+  silent launch is CLI-only and is not promoted through Agent Skills or an MCP
+  tool.
 
 ### Changed
 
@@ -24,11 +54,9 @@ errors.
 
 ### Fixed
 
-- **Claude Code and Codex CLI init setup** - user-scoped MCP checks now run
-  outside project configuration, use targeted server probes with host-specific
-  timeouts, distinguish missing, non-canonical, disabled, and failed checks,
-  preserve enabled customized Codex entries, and avoid reporting cleanup no-ops
-  as successful setup when a later command fails.
+- **Search-status skill syntax (`githits`)** - agent guidance now presents
+  `--wait <seconds>` as a placeholder with the valid 0-60 integer range instead
+  of resembling a literal `--wait 0-60` invocation.
 - **Cross-platform changelog validation (repository)** - release-boundary tests
   accept both LF and CRLF Markdown while enforcing identical package-version
   content.

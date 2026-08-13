@@ -22,7 +22,9 @@ describe("createReadFileTool — metadata", () => {
       "Read one exact file from an indexed dependency",
     );
     expect(tool.description).toContain("does not list directories");
-    expect(tool.description).toContain("NOT_FOUND");
+    expect(tool.description).toContain(
+      "On `FILE_NOT_FOUND`, or a legacy `NOT_FOUND` that specifically describes a missing file path",
+    );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "end_line",
       "format",
@@ -340,8 +342,35 @@ describe("createReadFileTool — service errors", () => {
     expect(payload.code).toBe("FILE_NOT_FOUND");
     expect(payload.details?.filePath).toBe("nope.js");
     expect(payload.details?.action).toContain("`code_files`");
-    expect(payload.details?.action).toContain('path_prefix: ""');
+    expect(payload.details?.action).toContain("without `path_prefix`");
     expect(payload.details?.action).toContain("emitted `path`");
+  });
+
+  it("uses the normalized containing directory for an extensionless exact path", async () => {
+    const service = createMockCodeNavigationService({
+      readFile: mock(() =>
+        Promise.reject(
+          new CodeNavigationFileNotFoundError(
+            "File not found: lib/internal",
+            "lib/internal",
+          ),
+        ),
+      ),
+    });
+    const result = await createReadFileTool(service).handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        path: "./lib/internal",
+      },
+      {},
+    );
+
+    const payload = parseText(result) as {
+      details?: { action?: string };
+    };
+    expect(payload.details?.action).toContain('path_prefix: "lib/"');
+    expect(payload.details?.action).not.toContain("./lib/");
+    expect(payload.details?.action).not.toContain("lib/internal/");
   });
 
   it("points directory-looking NOT_FOUND errors at code_files path_prefix", async () => {
@@ -368,6 +397,28 @@ describe("createReadFileTool — service errors", () => {
     expect(payload.code).toBe("NOT_FOUND");
     expect(payload.details?.action).toContain("reads files only");
     expect(payload.details?.action).toContain('path_prefix: "lib/"');
+  });
+
+  it("does not add file recovery to unrelated NOT_FOUND errors", async () => {
+    const service = createMockCodeNavigationService({
+      readFile: mock(() =>
+        Promise.reject(
+          new CodeNavigationTargetNotFoundError("Package not found"),
+        ),
+      ),
+    });
+    const result = await createReadFileTool(service).handler(
+      {
+        target: { registry: "npm", package_name: "ghost" },
+        path: "src/index.js",
+      },
+      {},
+    );
+
+    const payload = parseText(result) as {
+      details?: { action?: string };
+    };
+    expect(payload.details?.action).toBeUndefined();
   });
 
   it("classifies CodeNavigationIndexingError as INDEXING", async () => {

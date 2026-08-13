@@ -88,7 +88,7 @@ export function toPkgseerRegistryLowercase(
 export function isKnownPkgseerRegistryArg(
   value: string,
 ): value is PkgseerRegistryArg {
-  return value in registryMap;
+  return Object.hasOwn(registryMap, value);
 }
 
 export function knownPkgseerRegistryArgs(): ReadonlyArray<PkgseerRegistryArg> {

@@ -8,7 +8,7 @@ Package target syntax requires an explicit registry: `registry:name[@version]`, 
 
 Useful filters: `--kind`, `--category`, `--path-prefix`, `--intent`, `--public`, `--name`, `--lang`, `--limit`, `--offset`, `--wait`, `--allow-partial`, `--json`.
 
-If search returns a `searchRef`, do not repeat the original search. Continue with `githits search-status <searchRef> [--wait 0-60]`; the bounded wait defaults to 20 seconds.
+If search returns a `searchRef`, do not repeat the original search. Continue with `githits search-status <searchRef> [--wait <seconds>]`; the bounded wait defaults to 20 seconds, and the explicit value must be an integer from 0 to 60.
 
 ## Code Files
 

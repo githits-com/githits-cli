@@ -2351,143 +2351,19 @@ export class PackageIntelligenceServiceImpl
   }
 
   private createHttpError(response: PkgseerGraphqlResponse): Error {
-    const status = response.status;
-    const detail = parseDetail(response.responseBody);
-
-    if (status === 401) {
-      return new AuthenticationError(
-        SERVER_AUTHENTICATION_REJECTED_MESSAGE,
-        "server",
-      );
-    }
-
-    if (status === 403) {
-      return new PackageIntelligenceAccessError(detail ?? "Access denied.");
-    }
-
-    if (status >= 500) {
-      return new PackageIntelligenceBackendError(
-        detail
-          ? `Server error (${status}): ${detail}`
-          : `Server error (${status})`,
-        status,
-      );
-    }
-
-    return new PackageIntelligenceBackendError(
-      detail ?? `Request failed with status ${status}`,
-      status,
-    );
+    return createPackageIntelligenceHttpError(response);
   }
 
   private createTransportError(error: PkgseerTransportError): Error {
-    if (isFetchTimeoutError(error.cause)) {
-      return new PackageIntelligenceBackendError(
-        "Package intelligence request timed out.",
-        undefined,
-        "TIMEOUT",
-        true,
-      );
-    }
-    return new PackageIntelligenceNetworkError(
-      "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
-      { cause: error },
-    );
+    return createPackageIntelligenceTransportError(error);
   }
 
   private createGraphQLError(
     errors: Array<z.infer<typeof graphQLErrorSchema>>,
   ): Error {
-    const message = errors.map((error) => error.message).join(", ");
-    const extensions = getPrimaryExtensions(errors);
-    const code =
-      typeof extensions?.code === "string" ? extensions.code : undefined;
-    const retryable =
-      typeof extensions?.retryable === "boolean"
-        ? extensions.retryable
-        : undefined;
-    if (isClientUpdateRequiredGraphQLError({ message, code })) {
-      return new ClientUpdateRequiredError(
-        undefined,
-        undefined,
-        this.runtime.clientVersion,
-      );
-    }
-
-    if (isGraphQLSchemaMismatchError({ message, code })) {
-      const sanitized =
-        "Backend protocol mismatch. Your CLI may be newer than the server, or the server may require a newer CLI. Run `githits update-check` to verify your installed version. Set GITHITS_DEBUG=pkg-graphql to inspect GraphQL details during local development.";
-      debugLog("pkg-graphql", {
-        event: "graphql-schema-mismatch",
-        code: code ?? "omitted",
-        message,
-      });
-      return new PackageIntelligenceBackendError(
-        isDebugAreaEnabled("pkg-graphql") ? message : sanitized,
-        undefined,
-        code,
-        retryable,
-      );
-    }
-
-    switch (code) {
-      case "NOT_FOUND":
-      case "PACKAGE_NOT_FOUND":
-        return new PackageIntelligenceTargetNotFoundError(message);
-
-      case "VERSION_NOT_FOUND":
-        return new PackageIntelligenceVersionNotFoundError(
-          message,
-          typeof extensions?.package === "string"
-            ? extensions.package
-            : undefined,
-          typeof extensions?.requested_version === "string"
-            ? extensions.requested_version
-            : undefined,
-          parseVersionList(
-            extensions?.available_versions ?? extensions?.availableVersions,
-          ),
-        );
-
-      case "UNSUPPORTED_REGISTRY":
-      case "VALIDATION_ERROR":
-        return new PackageIntelligenceValidationError(message);
-
-      case "FEATURE_FLAG_REQUIRED":
-        return new PackageIntelligenceFeatureFlagRequiredError(message);
-
-      case "UNAUTHORIZED":
-        return new AuthenticationError(
-          SERVER_AUTHENTICATION_REJECTED_MESSAGE,
-          "server",
-        );
-
-      case "FORBIDDEN":
-        return new PackageIntelligenceAccessError(
-          "Access denied. This feature may not be enabled for your account.",
-        );
-
-      case "UPSTREAM_ERROR":
-      case "TIMEOUT":
-      case "RATE_LIMITED":
-      case "INTERNAL_ERROR":
-      case "UNKNOWN_ERROR":
-        return new PackageIntelligenceBackendError(
-          message,
-          undefined,
-          code,
-          retryable,
-        );
-
-      default:
-        break;
-    }
-
-    return new PackageIntelligenceBackendError(
-      message,
-      undefined,
-      code,
-      retryable,
+    return createPackageIntelligenceGraphQLError(
+      errors,
+      this.runtime.clientVersion,
     );
   }
 
@@ -3571,6 +3447,155 @@ function stripNullProperties(value: unknown): unknown {
   return result;
 }
 
+export interface PackageIntelligenceGraphQLResponseError {
+  message: string;
+  extensions?: Record<string, unknown>;
+}
+
+/** Shared HTTP classification for clients of the package/source GraphQL API. */
+export function createPackageIntelligenceHttpError(
+  response: PkgseerGraphqlResponse,
+): Error {
+  const status = response.status;
+  const detail = parseDetail(response.responseBody);
+
+  if (status === 401) {
+    return new AuthenticationError(
+      SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+      "server",
+    );
+  }
+
+  if (status === 403) {
+    return new PackageIntelligenceAccessError(detail ?? "Access denied.");
+  }
+
+  if (status >= 500) {
+    return new PackageIntelligenceBackendError(
+      detail
+        ? `Server error (${status}): ${detail}`
+        : `Server error (${status})`,
+      status,
+    );
+  }
+
+  return new PackageIntelligenceBackendError(
+    detail ?? `Request failed with status ${status}`,
+    status,
+  );
+}
+
+/** Shared transport classification for clients of the package/source API. */
+export function createPackageIntelligenceTransportError(
+  error: PkgseerTransportError,
+): Error {
+  if (isFetchTimeoutError(error.cause)) {
+    return new PackageIntelligenceBackendError(
+      "Package intelligence request timed out.",
+      undefined,
+      "TIMEOUT",
+      true,
+    );
+  }
+  return new PackageIntelligenceNetworkError(
+    "Could not reach the package intelligence service. Check your connection or set GITHITS_CODE_NAV_URL.",
+    { cause: error },
+  );
+}
+
+/** Shared GraphQL classification for clients of the package/source API. */
+export function createPackageIntelligenceGraphQLError(
+  errors: PackageIntelligenceGraphQLResponseError[],
+  clientVersion?: string,
+): Error {
+  const message = errors.map((error) => error.message).join(", ");
+  const extensions = getPrimaryExtensions(errors);
+  const code =
+    typeof extensions?.code === "string" ? extensions.code : undefined;
+  const retryable =
+    typeof extensions?.retryable === "boolean"
+      ? extensions.retryable
+      : undefined;
+
+  if (isClientUpdateRequiredGraphQLError({ message, code })) {
+    return new ClientUpdateRequiredError(undefined, undefined, clientVersion);
+  }
+
+  if (isGraphQLSchemaMismatchError({ message, code })) {
+    const sanitized =
+      "Backend protocol mismatch. Your CLI may be newer than the server, or the server may require a newer CLI. Run `githits update-check` to verify your installed version. Set GITHITS_DEBUG=pkg-graphql to inspect GraphQL details during local development.";
+    debugLog("pkg-graphql", {
+      event: "graphql-schema-mismatch",
+      code: code ?? "omitted",
+      message,
+    });
+    return new PackageIntelligenceBackendError(
+      isDebugAreaEnabled("pkg-graphql") ? message : sanitized,
+      undefined,
+      code,
+      retryable,
+    );
+  }
+
+  switch (code) {
+    case "NOT_FOUND":
+    case "PACKAGE_NOT_FOUND":
+      return new PackageIntelligenceTargetNotFoundError(message);
+
+    case "VERSION_NOT_FOUND":
+      return new PackageIntelligenceVersionNotFoundError(
+        message,
+        typeof extensions?.package === "string"
+          ? extensions.package
+          : undefined,
+        typeof extensions?.requested_version === "string"
+          ? extensions.requested_version
+          : undefined,
+        parseVersionList(
+          extensions?.available_versions ?? extensions?.availableVersions,
+        ),
+      );
+
+    case "UNSUPPORTED_REGISTRY":
+    case "VALIDATION_ERROR":
+      return new PackageIntelligenceValidationError(message);
+
+    case "FEATURE_FLAG_REQUIRED":
+      return new PackageIntelligenceFeatureFlagRequiredError(message);
+
+    case "UNAUTHORIZED":
+      return new AuthenticationError(
+        SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+        "server",
+      );
+
+    case "FORBIDDEN":
+      return new PackageIntelligenceAccessError(
+        "Access denied. This feature may not be enabled for your account.",
+      );
+
+    case "UPSTREAM_ERROR":
+    case "TIMEOUT":
+    case "RATE_LIMITED":
+    case "INTERNAL_ERROR":
+    case "UNKNOWN_ERROR":
+      return new PackageIntelligenceBackendError(
+        message,
+        undefined,
+        code,
+        retryable,
+      );
+
+    default:
+      return new PackageIntelligenceBackendError(
+        message,
+        undefined,
+        code,
+        retryable,
+      );
+  }
+}
+
 function parseDetail(body: string): string | undefined {
   if (!body) return undefined;
   try {
@@ -3584,7 +3609,7 @@ function parseDetail(body: string): string | undefined {
 }
 
 function getPrimaryExtensions(
-  errors: Array<z.infer<typeof graphQLErrorSchema>>,
+  errors: PackageIntelligenceGraphQLResponseError[],
 ): Record<string, unknown> | undefined {
   for (const error of errors) {
     if (error.extensions && Object.keys(error.extensions).length > 0) {

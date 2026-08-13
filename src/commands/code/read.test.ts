@@ -422,6 +422,166 @@ describe("pkgReadAction", () => {
     exitSpy.mockRestore();
   });
 
+  it("uses CLI command names in structured FILE_NOT_FOUND recovery", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgReadAction(
+          "npm:express",
+          "docs/missing.md",
+          { json: true },
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              readFile: mock(() =>
+                Promise.reject(
+                  new CodeNavigationFileNotFoundError(
+                    "File not found: docs/missing.md",
+                    "docs/missing.md",
+                  ),
+                ),
+              ),
+            }),
+          }),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        details?: { action?: string };
+      };
+      expect(payload.details?.action).toContain("`githits code files`");
+      expect(payload.details?.action).toContain('path prefix "docs/"');
+      expect(payload.details?.action).toContain("`githits code read`");
+      expect(payload.details?.action).not.toContain("code_files");
+      expect(payload.details?.action).not.toContain("code_read");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("uses the normalized containing directory for extensionless FILE_NOT_FOUND recovery", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgReadAction(
+          "npm:express",
+          "./lib/internal",
+          { json: true },
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              readFile: mock(() =>
+                Promise.reject(
+                  new CodeNavigationFileNotFoundError(
+                    "File not found: lib/internal",
+                    "lib/internal",
+                  ),
+                ),
+              ),
+            }),
+          }),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        details?: { action?: string };
+      };
+      expect(payload.details?.action).toContain('path prefix "lib/"');
+      expect(payload.details?.action).not.toContain("./lib/");
+      expect(payload.details?.action).not.toContain("lib/internal/");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("uses CLI names for legacy missing-file NOT_FOUND recovery", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgReadAction(
+          "npm:express",
+          "lib",
+          { json: true },
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              readFile: mock(() =>
+                Promise.reject(
+                  new CodeNavigationTargetNotFoundError(
+                    "File not found in repository",
+                  ),
+                ),
+              ),
+            }),
+          }),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        details?: { action?: string };
+      };
+      expect(payload.details?.action).toContain("`githits code read`");
+      expect(payload.details?.action).toContain('path prefix "lib/"');
+      expect(payload.details?.action).not.toContain("code_read");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("does not add file recovery to unrelated JSON NOT_FOUND errors", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgReadAction(
+          "npm:ghost",
+          "src/index.js",
+          { json: true },
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              readFile: mock(() =>
+                Promise.reject(
+                  new CodeNavigationTargetNotFoundError("Package not found"),
+                ),
+              ),
+            }),
+          }),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        details?: { action?: string };
+      };
+      expect(payload.details?.action).toBeUndefined();
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
   it("routes REF_NOT_FOUND with a repo/ref hint instead of path narrowing", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {

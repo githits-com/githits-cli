@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
 import {
   flushTelemetry,
+  ResolveTargetServiceImpl,
   resetTelemetryCollectorForTests,
 } from "@githits/core-internal";
 import {
@@ -148,6 +149,30 @@ describe("container auth dependencies", () => {
 });
 
 describe("createContainer", () => {
+  it("constructs the resolve service for environment-token auth", async () => {
+    await withoutProxyEnv(async () =>
+      withApiToken("ghi-test", async () => {
+        const deps = await createContainer({ resolveStoredToken: false });
+        expect(deps.resolveTargetService).toBeInstanceOf(
+          ResolveTargetServiceImpl,
+        );
+      }),
+    );
+  });
+
+  it("constructs the resolve service for stored-token auth", async () => {
+    await withoutProxyEnv(async () =>
+      withApiToken(undefined, async () =>
+        withAuthStorageEnv("file", async () => {
+          const deps = await createContainer({ resolveStoredToken: false });
+          expect(deps.resolveTargetService).toBeInstanceOf(
+            ResolveTargetServiceImpl,
+          );
+        }),
+      ),
+    );
+  });
+
   it("rejects insecure service URLs before constructing authenticated clients", async () => {
     await withEnvVars(
       {

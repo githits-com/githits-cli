@@ -105,8 +105,9 @@ test suite anchors the doc.
 
 ### `PARITY-JSON-KEYS`
 
-- The CLI `--json` payload and the MCP `format: "json"` payload,
-  parsed as JSON, must `deepEqual` for equivalent inputs.
+- Successful CLI `--json` and MCP `format: "json"` payloads, parsed as JSON,
+  must `deepEqual` for equivalent inputs. Error parity follows
+  `PARITY-ERROR-ENVELOPE`, including its surface-native action exception.
 - String-equal is explicitly not the contract. Key ordering,
   whitespace, and trailing newlines are free.
 - **No leading-underscore keys.** `warning`, `hint`, and all other
@@ -136,7 +137,11 @@ test suite anchors the doc.
   `packages/mcp/src/shared/*-error-map.test.ts`; those tests are the enforcement
   mechanism, not a convention.
 - MCP error text is always valid JSON. A client that parses
-  `content[0].text` on error gets the same envelope as CLI `--json`.
+  `content[0].text` on error gets the same envelope shape and structured data as
+  CLI `--json`. Path-recovery `details.action` is deliberately surface-native:
+  MCP names MCP tools/arguments, while CLI JSON names CLI commands/options.
+  Cross-surface account actions such as `githits settings terms accept` remain
+  identical because they name one shared external remediation.
 - Backend error messages, hints, indexing estimates, available versions/refs,
   and suggested refs are preserved when supplied. Clients do not replace
   specific backend guidance or synthesize target candidates.
@@ -351,6 +356,8 @@ envelope shape.
   `indexingRef`, `indexingEstimate`, and any backend-provided
   indexed refs/versions; callers must branch on whichever retry
   candidates are present instead of assuming every tool has all fields.
+  Missing exact paths preserve `details.filePath` across surfaces while
+  `details.action` renders the matching MCP or CLI recovery syntax.
 - **`code_grep`**: `GREP_REPO_PATTERN_NOTE` (exported from
   `grep-repo-request.ts`) keeps the literal-vs-regex disclosure
   identical across MCP description, MCP `pattern` describe, and
@@ -364,3 +371,5 @@ envelope shape.
   shared scan/scope/served-target context and branches recovery on whether
   `filesInScope` is zero. Completed scans reject an unchanged repeat;
   incomplete empty pages preserve truncation/pagination continuation instead.
+  Exact-path `FILE_NOT_FOUND` errors follow the same shared-data,
+  surface-native-action contract as `code_read`.

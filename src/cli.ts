@@ -29,6 +29,7 @@ import {
   registerLogoutCommand,
   registerMcpCommand,
   registerPkgCommandGroup,
+  registerResolveCommand,
   registerSettingsCommand,
   registerUnifiedSearchCommands,
 } from "./commands/index.js";
@@ -113,6 +114,7 @@ ${colorizeBrand("Getting started:", "primary", useColors, { bold: true })}
   githits login                        Sign in to your GitHits account
   githits mcp                          Show MCP setup instructions
   githits example "query"              Find real-world implementations
+  githits resolve express              Resolve a package or repository name
 
 Learn more at https://githits.com
 Docs: https://docs.githits.com
@@ -134,6 +136,7 @@ Support: support@githits.com`,
   registerLanguagesCommand(program);
   registerFeedbackCommand(program);
   registerDoctorCommand(program);
+  registerResolveCommand(program);
   registerSettingsCommand(program);
   const registrationArgv = stripRootRegistrationOptions(argv);
   const updateCheckTask = startUpdateCheckTaskForInvocation({
