@@ -50,5 +50,7 @@ describe("isKnownPkgseerRegistryArg", () => {
     expect(isKnownPkgseerRegistryArg("NPM")).toBe(false);
     expect(isKnownPkgseerRegistryArg("foobar")).toBe(false);
     expect(isKnownPkgseerRegistryArg("")).toBe(false);
+    expect(isKnownPkgseerRegistryArg("constructor")).toBe(false);
+    expect(isKnownPkgseerRegistryArg("__proto__")).toBe(false);
   });
 });

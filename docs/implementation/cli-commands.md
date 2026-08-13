@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
+The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback`, target `resolve`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
 
 ## Commands
 
@@ -17,6 +17,7 @@ The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback [solution_id]` | `--accept` or `--reject` | `-m, --message <text>`, `--tool <name>`, `--json` | Submit solution-tied or generic session feedback |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
+| `resolve <name>` | package or GitHub repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
 | `settings` | — | `--json` | Show canonical preferences, privacy and terms, and account limits |
 | `settings show` | — | `--json` | Explicit form of `settings` for showing all account settings |
 | `settings get <key>` | setting key | `--json` | Read one writable setting using its public CLI name |
@@ -234,6 +235,100 @@ githits doctor --json
 ```
 
 Prints redacted diagnostics for comparing GitHits behavior across terminals or agents. The report includes CLI/runtime identity, selected environment variables, service URL sources, config file status, active and legacy auth storage locations, token/client/metadata presence and timestamps, and recommendations. Secret-bearing values such as tokens, client secrets, API tokens, and proxy credentials are never printed; presence is reported as `set` / `present` only. JSON output uses `schemaVersion: 1` for support tooling.
+
+### `githits resolve`
+
+```text
+githits resolve express
+githits resolve codex --prefer-kind repository
+githits resolve guava --registry maven --limit 3
+githits resolve "pi agent" --query "coding agent CLI" --json
+```
+
+Resolves a human-provided package or GitHub repository name to ranked canonical
+targets such as `npm:express` or `github:openai/codex`. The default output is a
+compact numbered `Candidates` list with ambiguity guidance when needed and
+protected exact-name matches annotated inline. It does not label any terminal
+candidate as best or top. Ranked candidates include their available normalized
+description, capped at 240 characters, and cheap trust evidence: repository
+stars, monthly or total package downloads, and docs/code availability. When a
+protected match falls outside the requested ranked limit, it is appended with
+the identity and confidence fields returned by the lightweight protected-match
+reference. When a ranked package has a repository URL but no package-level
+stars, the terminal shows its linked repository as compact
+`github:owner/repo` when possible and otherwise preserves the repository URL.
+Missing evidence is omitted rather than shown as zero.
+
+The copyable `githits search --in` follow-up uses the resolved target only for
+non-ambiguous results. Ambiguous results use the literal `<target>` placeholder
+so the terminal does not imply that candidate 1 was selected. No candidates is
+a valid JSON/text result but exits 1 because the command did not resolve a
+target. The backend guarantees that `best` is absent only when there are no
+candidates, so the terminal no-result message and exit status key off `best`.
+
+`--registry` accepts a comma-separated package-registry list and the command
+help enumerates every accepted value; repository candidates remain eligible.
+`--prefer-kind package|repository` is a soft preference, not a filter.
+`--intent-hint` is repeatable. `--limit` controls the ranked list from 1-20
+(default 8); protected exact-name matches can be additional. `--query` and
+`--intent-hint` are sent to the service as ranking context and must not contain
+credentials, personal data, private code, or proprietary content. Terminal
+errors sanitize untrusted service and option text while JSON errors preserve
+the structured value through JSON escaping.
+
+`--json` emits the stable compact diagnostic envelope
+`{best?, ambiguous, ambiguousReason?, candidates, protectedMatches}`. Candidate
+objects occur once; `best` and `protectedMatches` use canonical-key references.
+Reference-only best/protected targets outside the ranked list produce minimal
+candidate objects with `target`, `kind`, and `confidence`, because no redundant
+detail fields are requested for those lists. Detailed ranking fields are fetched
+only for JSON. Null fields are omitted and enum values are lowercase. Errors use
+the standard JSON envelope on stderr with clean stdout.
+
+The command uses an internal CLI-only service and does not change the public
+`@githits/mcp` service interface. Its GraphQL selection keeps `best` and
+`protectedMatches` to `kind`, `canonicalKey`, and `confidence`; full compact and
+conditional JSON fields are selected only for ranked `candidates`. This keeps
+the operation below production's GraphQL complexity limit while preserving all
+fields consumed by each output mode. The CLI deliberately does not select
+expensive per-candidate `inspection` metadata. HTTP, transport, GraphQL, auth
+refresh, and client-version error classification are shared with the package
+intelligence service.
+
+The current candidate contract does not propagate linked GitHub
+stars/forks/issues onto package candidates. A package can therefore show its
+linked repository without its popularity evidence. This remains a known
+release decision; the CLI does not fetch expensive `inspection` metadata to
+compensate for it.
+
+#### Release posture and next phase
+
+The command remains a dogfood surface. The initial 36-case production audit
+selected the expected package in 25 cases. After backend ranking work, a
+113-case dev audit across all 12 supported registries matched 102 exact
+expectations; ten actionable population, alias, or current-module ranking gaps
+and one explicit family ambiguity were recorded in the backend relevance
+corpus. Those findings do not block landing the CLI dogfood surface. The earlier
+`guava` and `symfony/framework-bundle` mismatches now resolve correctly on dev.
+
+Do not publish the command until the expanded production corpus has no known
+wrong exact-package result, ambiguity wording is accepted, fuzzy latency and
+rate limiting are validated for expected CLI/MCP volume, and shipping without
+linked-repository popularity evidence is explicitly accepted or that evidence
+is exposed cheaply. The reduced query has been validated below production's
+GraphQL complexity limit; roughly 50 dogfood calls completed without protocol,
+schema, complexity, or rate-limit errors, but that is not a volume test.
+
+After CLI dogfooding, add an MCP `resolve_target` tool using the stable request
+and JSON contracts, promote only the smallest required API through
+`@githits/mcp`, add CLI/MCP parity and smoke coverage, document agent usage, and
+run targeted Claude and Codex agent evaluations.
+
+This increment exceeded its original rough 1,500-line review threshold under an
+explicit 2026-08-10 exception: most of the delta is isolated tests and durable
+documentation, while splitting the service and CLI contracts would create
+dependent review slices. The exception does not extend to the repository-wide
+terminal sanitization work retained in its separate plan.
 
 ### Proxy Support
 

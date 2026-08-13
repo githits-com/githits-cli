@@ -29,6 +29,16 @@ package description, code, docs) do not. Defense intensity follows
 that gradient — see "Per-tool addenda" below for which tools get
 heavier framing.
 
+## Terminal text trust boundary
+
+Backend, registry, and caller/request metadata is untrusted terminal data even
+after schema validation. Human-readable formatters must sanitize it before
+layout or formatter-owned styling is applied. Formatter-owned line structure
+and ANSI styling are trusted. Raw source files, documentation bodies, and grep
+source lines are preserved content and require an explicit product decision
+before sanitization can change their bytes. Structured JSON remains faithful to
+the source values and relies on JSON escaping rather than terminal sanitization.
+
 ## What the guardrail does
 
 One layer, with a second held in reserve:

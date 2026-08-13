@@ -100,6 +100,7 @@ describe("isAutoLoginEligibleCommand", () => {
     for (const path of [
       ["search"],
       ["search-status"],
+      ["resolve"],
       ["code", "files"],
       ["code", "read"],
       ["code", "grep"],

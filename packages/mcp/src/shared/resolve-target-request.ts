@@ -1,0 +1,101 @@
+import {
+  isKnownPkgseerRegistryArg,
+  PKGSEER_REGISTRY_LIST,
+  type PkgseerRegistry,
+  type PkgseerRegistryArg,
+  type ResolveTargetKind,
+  type ResolveTargetParams,
+  toPkgseerRegistry,
+} from "@githits/core-internal";
+import { InvalidPackageSpecError } from "./package-spec.js";
+
+export const RESOLVE_TARGET_DEFAULT_LIMIT = 8;
+export const RESOLVE_TARGET_MAX_LIMIT = 20;
+
+export interface ResolveTargetRequestInput {
+  name: string;
+  query?: string;
+  registry?: string;
+  preferKind?: string;
+  intentHints?: string[];
+  limit?: number;
+  includeDetailedFields: boolean;
+}
+
+export function buildResolveTargetParams(
+  input: ResolveTargetRequestInput,
+): ResolveTargetParams {
+  const name = input.name?.trim() ?? "";
+  if (!name) throw new InvalidPackageSpecError("Target name is required.");
+
+  const limit = input.limit ?? RESOLVE_TARGET_DEFAULT_LIMIT;
+  if (
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > RESOLVE_TARGET_MAX_LIMIT
+  ) {
+    throw new InvalidPackageSpecError(
+      `limit expects an integer between 1 and ${RESOLVE_TARGET_MAX_LIMIT}. Got ${String(limit)}.`,
+    );
+  }
+
+  const params: ResolveTargetParams = {
+    name,
+    limit,
+    includeDetailedFields: input.includeDetailedFields,
+  };
+  const query = input.query?.trim();
+  if (query) params.query = query;
+
+  const registries = parseRegistries(input.registry);
+  if (registries.length > 0) params.registries = registries;
+
+  const preferredKind = parsePreferredKind(input.preferKind);
+  if (preferredKind) params.preferredKinds = [preferredKind];
+
+  const intentHints = normaliseStrings(input.intentHints);
+  if (intentHints.length > 0) params.intentHints = intentHints;
+  return params;
+}
+
+function parseRegistries(value: string | undefined): PkgseerRegistry[] {
+  if (value === undefined) return [];
+  const registries: PkgseerRegistry[] = [];
+  for (const raw of value.split(",")) {
+    const registry = raw.trim().toLowerCase();
+    if (!registry) continue;
+    if (!isKnownPkgseerRegistryArg(registry)) {
+      throw new InvalidPackageSpecError(
+        `Unsupported registry '${raw.trim()}'. Supported: ${PKGSEER_REGISTRY_LIST}.`,
+      );
+    }
+    const mapped = toPkgseerRegistry(registry as PkgseerRegistryArg);
+    if (!registries.includes(mapped)) registries.push(mapped);
+  }
+  return registries;
+}
+
+function parsePreferredKind(
+  value: string | undefined,
+): ResolveTargetKind | undefined {
+  const kind = value?.trim().toLowerCase();
+  if (!kind) return undefined;
+  if (kind === "package") return "PACKAGE";
+  if (kind === "repository") return "REPOSITORY";
+  throw new InvalidPackageSpecError(
+    `prefer-kind expects package or repository. Got '${value}'.`,
+  );
+}
+
+function normaliseStrings(values: string[] | undefined): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values ?? []) {
+    const value = raw.trim();
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) continue;
+    seen.add(key);
+    result.push(value);
+  }
+  return result;
+}
