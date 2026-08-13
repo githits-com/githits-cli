@@ -311,13 +311,15 @@ and one explicit family ambiguity were recorded in the backend relevance
 corpus. Those findings do not block landing the CLI dogfood surface. The earlier
 `guava` and `symfony/framework-bundle` mismatches now resolve correctly on dev.
 
-Do not publish the command until the expanded production corpus has no known
-wrong exact-package result, ambiguity wording is accepted, fuzzy latency and
-rate limiting are validated for expected CLI/MCP volume, and shipping without
-linked-repository popularity evidence is explicitly accepted or that evidence
-is exposed cheaply. The reduced query has been validated below production's
-GraphQL complexity limit; roughly 50 dogfood calls completed without protocol,
-schema, complexity, or rate-limit errors, but that is not a volume test.
+The command ships as a silent CLI-only dogfood surface. Do not promote it
+through Agent Skills or add an MCP tool until the expanded production corpus
+has no known wrong exact-package result, ambiguity wording is accepted, fuzzy
+latency and rate limiting are validated for expected CLI/MCP volume, and
+shipping without linked-repository popularity evidence is explicitly accepted
+or that evidence is exposed cheaply. The reduced query has been validated
+below production's GraphQL complexity limit; roughly 50 dogfood calls completed
+without protocol, schema, complexity, or rate-limit errors, but that is not a
+volume test.
 
 After CLI dogfooding, add an MCP `resolve_target` tool using the stable request
 and JSON contracts, promote only the smallest required API through
