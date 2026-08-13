@@ -89,8 +89,8 @@ export interface GrepRepoRequestBuildResult {
   };
 }
 
-// CLI rewrites MCP identifiers from these errors; keep their spelling stable with
-// src/commands/code/grep.ts or update its mapping and tests.
+// CLI rewrites pattern, code_files, globs, extensions, and symbol_fields from
+// these errors; keep them stable with src/commands/code/grep.ts or update its tests.
 export function buildGrepRepoParams(
   input: GrepRepoRequestInput,
 ): GrepRepoRequestBuildResult {

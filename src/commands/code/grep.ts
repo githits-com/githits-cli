@@ -230,7 +230,7 @@ function collectRepeatable(value: string, previous: string[] = []): string[] {
 
 /**
  * Translate CLI-reachable, backtick-delimited MCP validation tokens. Anchored
- * rules preserve API field names embedded in the `symbol_fields` value list.
+ * rules prevent replacements inside user values echoed after `Got:`.
  */
 function buildCliGrepParams(
   input: GrepRepoRequestInput,
