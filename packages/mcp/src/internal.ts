@@ -7,6 +7,7 @@ export * from "./shared/code-navigation-target.js";
 export * from "./shared/colors.js";
 export * from "./shared/docs-follow-up.js";
 export * from "./shared/extract-solution-id.js";
+export * from "./shared/file-path-recovery.js";
 export * from "./shared/follow-up-command-text.js";
 export * from "./shared/format-date.js";
 export * from "./shared/format-number.js";

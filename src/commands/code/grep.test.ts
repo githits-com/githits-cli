@@ -670,6 +670,95 @@ describe("pkgGrepAction", () => {
     exitSpy.mockRestore();
   });
 
+  it("adds CLI recovery details to exact-path JSON errors", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgGrepAction(
+          "npm:express",
+          "middleware",
+          undefined,
+          { json: true, path: "docs/missing.md" },
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              grepRepo: mock(() =>
+                Promise.reject(
+                  new CodeNavigationFileNotFoundError(
+                    "Path not found in the index: docs/missing.md.",
+                    "docs/missing.md",
+                  ),
+                ),
+              ),
+            }),
+          }),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        code: string;
+        details?: { action?: string; filePath?: string };
+      };
+      expect(payload.code).toBe("FILE_NOT_FOUND");
+      expect(payload.details?.filePath).toBe("docs/missing.md");
+      expect(payload.details?.action).toContain("`githits code files`");
+      expect(payload.details?.action).toContain('path prefix "docs/"');
+      expect(payload.details?.action).toContain("`--path <path>`");
+      expect(payload.details?.action).toContain("`githits code grep`");
+      expect(payload.details?.action).not.toContain("code_files");
+      expect(payload.details?.action).not.toContain("code_grep");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("uses the containing directory for extensionless exact-path JSON errors", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgGrepAction(
+          "npm:express",
+          "benchmark",
+          undefined,
+          { json: true, path: "benchmarks/run" },
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              grepRepo: mock(() =>
+                Promise.reject(
+                  new CodeNavigationFileNotFoundError(
+                    "Path not found in the index: benchmarks/run.",
+                    "benchmarks/run",
+                  ),
+                ),
+              ),
+            }),
+          }),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        details?: { action?: string };
+      };
+      expect(payload.details?.action).toContain('path prefix "benchmarks/"');
+      expect(payload.details?.action).not.toContain("benchmarks/run/");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
   it("rewrites navpack backend failures into actionable CLI guidance", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {

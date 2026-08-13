@@ -9,7 +9,6 @@ import {
   MAX_WAIT_TIMEOUT_MS,
   requireAuth,
   shouldUseColors,
-  withReadFileRecovery,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
@@ -20,6 +19,7 @@ import {
   handleCodeNavCommandError,
   parseIntCliOption,
   resolveCliCodeNavTarget,
+  withCliReadFileRecovery,
 } from "./code-nav-cli-helpers.js";
 
 export interface PkgReadCommandOptions {
@@ -142,7 +142,7 @@ export async function pkgReadAction(
       options.json ?? false,
       formatFileErrorWithFilesHint,
       1,
-      (mapped) => withReadFileRecovery(mapped, requestedFilePath),
+      (mapped) => withCliReadFileRecovery(mapped, requestedFilePath),
     );
   }
 }

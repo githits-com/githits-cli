@@ -543,7 +543,7 @@ Reads a file from an indexed dependency. `<path>` is package-relative in spec mo
 
 **Binary files.** Plain mode writes `Binary file — cannot display as text.` to stdout (consistent with `grep`'s binary-file convention). `--verbose` adds the header above the sentinel. `--json` exposes the classification via `isBinary: true` with `content` omitted — agents branch on the flag, not a null check.
 
-**Exit codes.** `0` on success. `1` on error — `FILE_NOT_FOUND` (path doesn't resolve) carries a "Use `code files` to list available paths" hint in terminal output.
+**Exit codes.** `0` on success. `1` on error — `FILE_NOT_FOUND` (path doesn't resolve) carries a "Use `code files` to list available paths" hint in terminal output. With `--json`, `FILE_NOT_FOUND` and legacy `NOT_FOUND` messages that specifically describe a missing file path add a structured `details.action`. It names `githits code files`, the applicable positional path-prefix narrowing (or its omission at repository root), and `githits code read` so callers can retry without translating MCP tool names.
 
 ### `githits code grep`
 
@@ -570,6 +570,8 @@ Deterministic text grep over indexed dependency or repository source. Defaults t
 - `2` — error (missing file, indexing, invalid arguments, backend failure). Distinguished from "no match" so scripts can branch correctly.
 
 This is still the standard `grep(1)` contract even though the output includes file paths by default.
+
+With `--json`, a structured missing-file error names `githits code files`, the applicable positional path-prefix narrowing (or its omission at repository root), and `githits code grep --path` in `details.action`.
 
 **Pattern note.** The `GREP_REPO_PATTERN_NOTE` string is shared verbatim across the CLI help text, the MCP tool description, and the MCP `pattern` argument's `describe` so the three surfaces never disagree about literal-vs-regex semantics.
 

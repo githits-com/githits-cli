@@ -1,5 +1,8 @@
 import { describe, expect, it, mock } from "bun:test";
-import { AuthenticationError } from "@githits/core-internal";
+import {
+  AuthenticationError,
+  CodeNavigationFileNotFoundError,
+} from "@githits/core-internal";
 import {
   buildMcpInstructions,
   createMcpServer,
@@ -149,5 +152,43 @@ describe("public MCP package surface", () => {
         authSource: "server",
       },
     });
+  });
+
+  it("applies MCP-native file recovery through the remote server API", async () => {
+    const grepRepo = mock(() =>
+      Promise.reject(
+        new CodeNavigationFileNotFoundError(
+          "Path not found in the index: docs/missing.md.",
+          "docs/missing.md",
+        ),
+      ),
+    );
+    const server = createMcpServer({
+      metadata: { name: "remote-githits", version: "0.0.0" },
+      services: createServices({
+        codeNavigationService: createMockCodeNavigationService({ grepRepo }),
+      }),
+    });
+
+    const result = await registeredTool(server, "code_grep").handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        pattern: "pagination",
+        path: "docs/missing.md",
+      },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      details?: { action?: string };
+    };
+    expect(payload.details?.action).toContain("`code_files`");
+    expect(payload.details?.action).toContain('path_prefix: "docs/"');
+    expect(payload.details?.action).toContain("`code_grep`");
+    expect(payload.details?.action).not.toContain("githits code");
   });
 });

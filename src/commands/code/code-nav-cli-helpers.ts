@@ -13,7 +13,10 @@ import type {
   CodeNavigationTarget,
 } from "@githits/core-internal";
 import {
+  buildContainingPathPrefix,
+  buildPathPrefixSuggestion,
   InvalidPackageSpecError,
+  looksLikeMissingFileMessage,
   type MappedError,
   mapCodeNavigationError,
   parseCodeNavigationTargetSpec,
@@ -173,14 +176,70 @@ export function formatFileErrorWithFilesHint(mapped: MappedError): string {
   return formatIndexingError(mapped);
 }
 
-function looksLikeMissingFileMessage(message: string): boolean {
-  const lower = message.toLowerCase();
-  return (
-    lower.includes("file not found") ||
-    lower.includes("path not found") ||
-    lower.includes("path doesn't resolve") ||
-    lower.includes("path does not resolve")
+/** Add CLI-native structured recovery for a missing `code read` path. */
+export function withCliReadFileRecovery(
+  mapped: MappedError,
+  requestedPath: string,
+): MappedError {
+  if (
+    mapped.code !== "FILE_NOT_FOUND" &&
+    (mapped.code !== "NOT_FOUND" ||
+      !looksLikeMissingFileMessage(mapped.message))
+  ) {
+    return mapped;
+  }
+
+  return withCliPathRecovery(
+    mapped,
+    mapped.details?.filePath ?? requestedPath,
+    "read",
+    mapped.code === "FILE_NOT_FOUND",
   );
+}
+
+/** Add CLI-native structured recovery for an exact-path `code grep` miss. */
+export function withCliGrepFileRecovery(mapped: MappedError): MappedError {
+  if (
+    mapped.code !== "FILE_NOT_FOUND" ||
+    mapped.details?.filePath === undefined
+  ) {
+    return mapped;
+  }
+
+  return withCliPathRecovery(mapped, mapped.details.filePath, "grep", true);
+}
+
+function withCliPathRecovery(
+  mapped: MappedError,
+  requestedPath: string,
+  command: "read" | "grep",
+  exactFilePath: boolean,
+): MappedError {
+  const prefix = exactFilePath
+    ? buildContainingPathPrefix(requestedPath)
+    : buildPathPrefixSuggestion(requestedPath);
+  const handoff =
+    command === "grep"
+      ? "pass an emitted path as `--path <path>` to `githits code grep`."
+      : "pass an emitted path to `githits code read`.";
+  const readPreamble =
+    command === "read"
+      ? exactFilePath
+        ? "`githits code read` requires an indexed exact file path. "
+        : "`githits code read` reads files only, not directories. "
+      : "";
+  const listing =
+    prefix === ""
+      ? "Use `githits code files` without a path prefix"
+      : `Use \`githits code files\` with path prefix ${JSON.stringify(prefix)}`;
+
+  return {
+    ...mapped,
+    details: {
+      ...mapped.details,
+      action: `${readPreamble}${listing} to list valid indexed paths, then ${handoff}`,
+    },
+  };
 }
 
 function looksLikeMissingNavpackMessage(message: string): boolean {

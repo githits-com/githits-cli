@@ -12,8 +12,18 @@ errors.
 
 | Public artifact | Current release | Pending bump | Reason |
 |---|---:|---:|---|
-| `githits` | 0.9.1 | none | No unreleased package-visible changes |
-| `@githits/mcp` | 0.9.0 | none | No MCP-package-visible changes |
+| `githits` | 0.9.1 | patch | Fixes CLI-native exact-path recovery |
+| `@githits/mcp` | 0.9.0 | patch | Fixes MCP-native exact-path read and grep recovery; later MCP-visible changes in the CLI 0.9 minor bump the MCP patch |
+
+### Fixed
+
+- **Exact-path recovery (CLI/MCP)** - typed `FILE_NOT_FOUND` responses from
+  `code_read` and `code_grep` now add surface-native path-discovery guidance: MCP names
+  `code_files` / `code_grep`, while CLI JSON names `githits code files` /
+  `githits code grep`. Read recovery names `code_read` or `githits code read`
+  respectively, and extensionless exact files use their containing directory.
+  Generic `NOT_FOUND` errors that do not describe a missing file path no longer
+  receive path-discovery guidance.
 
 ## [githits 0.9.1] - 2026-08-13
 

@@ -2,6 +2,7 @@ import type { CodeNavigationService } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { z } from "zod";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
+import { withGrepFileRecovery } from "../shared/file-path-recovery.js";
 import {
   buildGrepRepoParams,
   GREP_REPO_CONTEXT_MAX,
@@ -201,7 +202,7 @@ export function createGrepRepoTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
-        const mapped = mapCodeNavigationError(error);
+        const mapped = withGrepFileRecovery(mapCodeNavigationError(error));
         return mcpMappedErrorResult(mapped);
       }
     },
