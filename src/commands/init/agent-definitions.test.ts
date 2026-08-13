@@ -1472,9 +1472,10 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude mcp list": {
+        "claude mcp get githits": {
           exitCode: 0,
-          stdout: "githits: npx -y githits@latest mcp start\nother\n",
+          stdout:
+            "githits:\n  Scope: User config\n  Type: stdio\n  Command: npx\n  Args: -y githits@latest mcp start\n  Status: Failed to connect\n",
           stderr: "",
         },
       },
@@ -1496,7 +1497,7 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude mcp list": {
+        "claude mcp get githits": {
           exitCode: 0,
           stdout: "plugin:githits:githits: https://mcp.githits.com\n",
           stderr: "",
@@ -1509,6 +1510,84 @@ describe("scanAgents", () => {
     expect(result.alreadyConfigured.some((a) => a.id === "claude-code")).toBe(
       false,
     );
+    expect(
+      result.needsSetup.find((a) => a.id === "claude-code")
+        ?.resolvedSetupCheckStatus,
+    ).toBe("non_canonical");
+  });
+
+  it("recognizes Claude get's exact missing-server response", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      execResults: {
+        [`${lookupCmd} claude`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/claude\n",
+          stderr: "",
+        },
+        "claude mcp get githits": {
+          exitCode: 1,
+          stdout: "",
+          stderr:
+            'No MCP server named "githits". Run `claude mcp add` to add one.\n',
+        },
+      },
+    });
+
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(
+      result.needsSetup.find((a) => a.id === "claude-code")
+        ?.resolvedSetupCheckStatus,
+    ).toBe("not_configured");
+  });
+
+  it("accepts a changed Claude recommendation after the stable missing-server sentence", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      execResults: {
+        [`${lookupCmd} claude`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/claude\n",
+          stderr: "",
+        },
+        "claude mcp get githits": {
+          exitCode: 1,
+          stdout: "",
+          stderr:
+            'No MCP server named "githits". Use `claude mcp add ...` to configure one.\n',
+        },
+      },
+    });
+
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(
+      result.needsSetup.find((a) => a.id === "claude-code")
+        ?.resolvedSetupCheckStatus,
+    ).toBe("not_configured");
+  });
+
+  it("recognizes Claude's missing-server diagnostic after stdout noise", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      execResults: {
+        [`${lookupCmd} claude`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/claude\n",
+          stderr: "",
+        },
+        "claude mcp get githits": {
+          exitCode: 1,
+          stdout: "Update available\n",
+          stderr: 'No MCP server named "githits" in user scope\n',
+        },
+      },
+    });
+
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(
+      result.needsSetup.find((a) => a.id === "claude-code")
+        ?.resolvedSetupCheckStatus,
+    ).toBe("not_configured");
   });
 
   it("does not categorize Claude Code as configured for a non-stdio MCP row", async () => {
@@ -1521,7 +1600,7 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude mcp list": {
+        "claude mcp get githits": {
           exitCode: 0,
           stdout: "githits: https://mcp.githits.com\n",
           stderr: "",
@@ -1545,7 +1624,7 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude mcp list": {
+        "claude mcp get githits": {
           exitCode: 0,
           stdout: "No githits MCP server installed\n",
           stderr: "",
@@ -1595,7 +1674,7 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude mcp list": {
+        "claude mcp get githits": {
           exitCode: 0,
           stdout: "other-plugin\n",
           stderr: "",
@@ -1619,7 +1698,7 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude mcp list": Object.assign(new Error("spawn ENOENT"), {
+        "claude mcp get githits": Object.assign(new Error("spawn ENOENT"), {
           code: "ENOENT",
         }),
       },
@@ -1739,9 +1818,10 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/codex\n",
           stderr: "",
         },
-        "codex mcp list": {
+        "codex mcp get githits --json": {
           exitCode: 0,
-          stdout: "githits  npx -y githits@latest mcp start\n",
+          stdout:
+            '{"name":"githits","enabled":true,"transport":{"type":"stdio","command":"custom","args":[]}}',
           stderr: "",
         },
       },
@@ -1766,7 +1846,7 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/codex\n",
           stderr: "",
         },
-        "codex mcp list": timeout,
+        "codex mcp get githits --json": timeout,
       },
     });
 
@@ -1776,6 +1856,174 @@ describe("scanAgents", () => {
     expect(result.alreadyConfigured.some((a) => a.id === "codex-cli")).toBe(
       false,
     );
+  });
+
+  it("preserves an enabled customized Codex entry", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      execResults: {
+        [`${lookupCmd} codex`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/codex\n",
+          stderr: "",
+        },
+        "codex mcp get githits --json": {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            name: "githits",
+            enabled: true,
+            transport: { type: "stdio", command: "custom", args: ["--pinned"] },
+            future_field: { accepted: true },
+          }),
+          stderr: "",
+        },
+      },
+    });
+
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.alreadyConfigured.some((a) => a.id === "codex-cli")).toBe(
+      true,
+    );
+  });
+
+  it("preserves Codex entries from versions without an enabled field", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      execResults: {
+        [`${lookupCmd} codex`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/codex\n",
+          stderr: "",
+        },
+        "codex mcp get githits --json": {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            name: "githits",
+            transport: {
+              type: "stdio",
+              command: "custom",
+              args: ["--pinned"],
+            },
+          }),
+          stderr: "",
+        },
+      },
+    });
+
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(result.alreadyConfigured.some((a) => a.id === "codex-cli")).toBe(
+      true,
+    );
+    expect(result.needsSetup.some((a) => a.id === "codex-cli")).toBe(false);
+  });
+
+  it("rejects a non-boolean Codex enabled field", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      execResults: {
+        [`${lookupCmd} codex`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/codex\n",
+          stderr: "",
+        },
+        "codex mcp get githits --json": {
+          exitCode: 0,
+          stdout: JSON.stringify({ name: "githits", enabled: "yes" }),
+          stderr: "",
+        },
+      },
+    });
+
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(
+      result.needsSetup.find((a) => a.id === "codex-cli")
+        ?.resolvedSetupCheckStatus,
+    ).toBe("probe_failed");
+  });
+
+  it("carries a disabled Codex entry as an installable but distinct state", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      execResults: {
+        [`${lookupCmd} codex`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/codex\n",
+          stderr: "",
+        },
+        "codex mcp get githits --json": {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            name: "githits",
+            enabled: false,
+            disabled_reason: "disabled in config",
+          }),
+          stderr: "",
+        },
+      },
+    });
+
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(
+      result.needsSetup.find((a) => a.id === "codex-cli")
+        ?.resolvedSetupCheckStatus,
+    ).toBe("disabled");
+    expect(execService.exec).toHaveBeenCalledWith(
+      "codex",
+      ["mcp", "get", "githits", "--json"],
+      {
+        timeoutMs: 10_000,
+        cwd: "/tmp/githits-init-probe-test",
+      },
+    );
+  });
+
+  it("treats malformed Codex get JSON as a probe failure", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      execResults: {
+        [`${lookupCmd} codex`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/codex\n",
+          stderr: "",
+        },
+        "codex mcp get githits --json": {
+          exitCode: 0,
+          stdout: "not-json",
+          stderr: "",
+        },
+      },
+    });
+
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(
+      result.needsSetup.find((a) => a.id === "codex-cli")
+        ?.resolvedSetupCheckStatus,
+    ).toBe("probe_failed");
+  });
+
+  it("recognizes Codex's missing-server diagnostic among extra output", async () => {
+    const lookupCmd = lookupCommandFor();
+    const { fs, execService } = createScanMocks({
+      execResults: {
+        [`${lookupCmd} codex`]: {
+          exitCode: 0,
+          stdout: "/usr/bin/codex\n",
+          stderr: "",
+        },
+        "codex mcp get githits --json": {
+          exitCode: 1,
+          stdout: "Update available\n",
+          stderr:
+            "Warning: using existing config\nError: No MCP server named 'githits' found. Run `codex mcp add` to add one.\n",
+        },
+      },
+    });
+
+    const result = await scanAgents(agentDefinitions, fs, execService);
+    expect(
+      result.needsSetup.find((a) => a.id === "codex-cli")
+        ?.resolvedSetupCheckStatus,
+    ).toBe("not_configured");
   });
 
   it("does not categorize Codex CLI as configured for incidental githits text", async () => {
@@ -1791,7 +2039,7 @@ describe("scanAgents", () => {
             stdout: "/usr/bin/codex\n",
             stderr: "",
           },
-          "codex mcp list": {
+          "codex mcp get githits --json": {
             exitCode: 0,
             stdout: output,
             stderr: "",
@@ -2328,9 +2576,10 @@ describe("scanAgents", () => {
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude mcp list": {
+        "claude mcp get githits": {
           exitCode: 0,
-          stdout: "githits: npx -y githits@latest mcp start\n",
+          stdout:
+            "githits:\n  Scope: User config\n  Type: stdio\n  Command: npx\n  Args: -y githits@latest mcp start\n  Status: Failed to connect\n",
           stderr: "",
         },
       },
@@ -2561,9 +2810,10 @@ describe("scanAgents", () => {
         stdout: "/usr/bin/claude\n",
         stderr: "",
       },
-      "claude mcp list": {
+      "claude mcp get githits": {
         exitCode: 0,
-        stdout: "githits: npx -y githits@latest mcp start\n",
+        stdout:
+          "githits:\n  Scope: User config\n  Type: stdio\n  Command: npx\n  Args: -y githits@latest mcp start\n  Status: Connected\n",
         stderr: "",
       },
       [`${whichCmd} codex`]: {
@@ -2571,9 +2821,10 @@ describe("scanAgents", () => {
         stdout: "/usr/bin/codex\n",
         stderr: "",
       },
-      "codex mcp list": {
+      "codex mcp get githits --json": {
         exitCode: 0,
-        stdout: "githits  npx -y githits@latest mcp start\n",
+        stdout:
+          '{"name":"githits","enabled":true,"transport":{"type":"stdio","command":"custom","args":[]}}',
         stderr: "",
       },
       [`${whichCmd} pi`]: {
@@ -2789,9 +3040,10 @@ describe("scanAgents", () => {
               stdout: "/usr/bin/claude\n",
               stderr: "",
             },
-            "claude mcp list": {
+            "claude mcp get githits": {
               exitCode: 0,
-              stdout: "githits: npx -y githits@latest mcp start\n",
+              stdout:
+                "githits:\n  Scope: User config\n  Type: stdio\n  Command: npx\n  Args: -y githits@latest mcp start\n  Status: Connected\n",
               stderr: "",
             },
             [`${whichCmd} codex`]: {
@@ -2799,7 +3051,11 @@ describe("scanAgents", () => {
               stdout: "/usr/bin/codex\n",
               stderr: "",
             },
-            "codex mcp list": { exitCode: 0, stdout: "", stderr: "" },
+            "codex mcp get githits --json": {
+              exitCode: 0,
+              stdout: "",
+              stderr: "",
+            },
             [`${whichCmd} opencode`]: {
               exitCode: 0,
               stdout: "/usr/bin/opencode\n",
@@ -2858,8 +3114,8 @@ describe("scanAgents", () => {
               stdout: "/usr/bin/gemini\n",
               stderr: "",
             },
-            "claude mcp list": enoent,
-            "codex mcp list": enoent,
+            "claude mcp get githits": enoent,
+            "codex mcp get githits --json": enoent,
             "gemini mcp list": enoent,
           },
         });

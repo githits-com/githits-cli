@@ -4,7 +4,8 @@ import type { FileSystemService } from "../../services/filesystem-service.js";
 import { traceInit, traceProbeEnd, traceProbeStart } from "./init-trace.js";
 import {
   type CliCheckCommand,
-  isSetupAlreadyConfigured,
+  getSetupCheckStatus,
+  type SetupCheckStatus,
 } from "./setup-handlers.js";
 
 /** A single CLI command step (command + arguments). */
@@ -132,6 +133,75 @@ const CLAUDE_GITHITS_PLUGIN = "githits";
 const CLAUDE_GITHITS_MARKETPLACE = "githits-plugins";
 const BINARY_LOOKUP_TIMEOUT_MS = 2_000;
 const GLOBAL_BIN_PROBE_TIMEOUT_MS = 3_000;
+const CLAUDE_MCP_CHECK_TIMEOUT_MS = 30_000;
+const CODEX_MCP_CHECK_TIMEOUT_MS = 10_000;
+
+function evaluateClaudeMcpGet(result: {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}): SetupCheckStatus {
+  const output = `${result.stdout}\n${result.stderr}`;
+  const diagnosticLines = output.split(/\r?\n/).map((line) => line.trim());
+  if (result.exitCode !== 0) {
+    if (
+      diagnosticLines.some((line) =>
+        /^No MCP server named ["']githits["'](?:\.| in user scope(?:\.|$)|$)/i.test(
+          line,
+        ),
+      )
+    ) {
+      return "not_configured";
+    }
+    return "probe_failed";
+  }
+  const isStdio = /^\s*Type:\s*stdio\s*$/im.test(output);
+  const usesNpx = /^\s*Command:\s*npx\s*$/im.test(output);
+  const hasCanonicalArgs =
+    /^\s*Args:\s*-y\s+githits@latest\s+mcp\s+start\s*$/im.test(output);
+  return isStdio && usesNpx && hasCanonicalArgs
+    ? "configured"
+    : "non_canonical";
+}
+
+function evaluateCodexMcpGet(result: {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}): SetupCheckStatus {
+  const output = `${result.stdout}\n${result.stderr}`;
+  if (result.exitCode !== 0) {
+    if (
+      output
+        .split(/\r?\n/)
+        .some((line) =>
+          /^Error:\s*No MCP server named ['"]githits['"] found(?:\.|$)/i.test(
+            line.trim(),
+          ),
+        )
+    ) {
+      return "not_configured";
+    }
+    return "probe_failed";
+  }
+  try {
+    const parsed: unknown = JSON.parse(result.stdout);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("name" in parsed) ||
+      parsed.name !== "githits" ||
+      ("enabled" in parsed && typeof parsed.enabled !== "boolean")
+    ) {
+      return "probe_failed";
+    }
+    return "enabled" in parsed && parsed.enabled === false
+      ? "disabled"
+      : "configured";
+  } catch {
+    return "probe_failed";
+  }
+}
 
 /** How an agent is considered present on the machine. */
 type DetectionMethod = "binary" | "path" | "hybrid";
@@ -191,6 +261,8 @@ export interface AgentDefinition {
   projectSetup?: ProjectSetupSupport;
   /** Setup config resolved during scan, including any detected command path. */
   resolvedSetupConfig?: SetupConfig;
+  /** Non-collapsed setup status captured by the scan's single config probe. */
+  resolvedSetupCheckStatus?: SetupCheckStatus;
   /** Returns CLI uninstall config when the agent cannot be removed via config editing. */
   getUninstallConfig?: (
     fs: FileSystemService,
@@ -558,9 +630,10 @@ const claudeCode: AgentDefinition = {
     ],
     checkCommand: {
       command: "claude",
-      args: ["mcp", "list"],
-      configuredPattern:
-        /^\s*githits\b[^\r\n]*\bnpx\b[^\r\n]*\bgithits@latest\b/im,
+      args: ["mcp", "get", "githits"],
+      timeoutMs: CLAUDE_MCP_CHECK_TIMEOUT_MS,
+      useIsolatedCwd: true,
+      evaluateResult: evaluateClaudeMcpGet,
     },
   }),
   getUninstallConfig: () => ({
@@ -694,8 +767,10 @@ const codexCli: AgentDefinition = {
     ],
     checkCommand: {
       command: "codex",
-      args: ["mcp", "list"],
-      configuredPattern: /^\s*githits\b/im,
+      args: ["mcp", "get", "githits", "--json"],
+      timeoutMs: CODEX_MCP_CHECK_TIMEOUT_MS,
+      useIsolatedCwd: true,
+      evaluateResult: evaluateCodexMcpGet,
     },
   }),
   getUninstallConfig: () => ({
@@ -1407,11 +1482,12 @@ async function scanSingleAgent(
     resolvedSetupConfig: config,
     resolvedSetupContext: setupContext,
   };
-  const configured = await isSetupAlreadyConfigured(config, fs, execService, {
+  const checkStatus = await getSetupCheckStatus(config, fs, execService, {
     agentId: agent.id,
     phase: "check",
   });
-  if (configured) {
+  scannedAgent.resolvedSetupCheckStatus = checkStatus;
+  if (checkStatus === "configured") {
     traceInit(
       `agent:end agent=${agent.id} status=already_configured elapsedMs=${Date.now() - scanStartedAt}`,
     );
@@ -1426,7 +1502,7 @@ async function scanSingleAgent(
 /**
  * Scan all agents: detect availability and check configuration status.
  * Config-file agents get a pre-check via isAlreadyConfigured().
- * CLI agents with a checkCommand get a pre-check via isCliAlreadyConfigured().
+ * CLI agents with a checkCommand retain their detailed setup check result.
  * CLI agents without a checkCommand are treated as needsSetup.
  * Agent probes run in parallel while output order remains definition order.
  */

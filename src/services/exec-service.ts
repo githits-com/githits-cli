@@ -78,6 +78,8 @@ export interface ExecResult {
 
 export interface ExecOptions {
   timeoutMs?: number;
+  /** Working directory for the spawned command. */
+  cwd?: string;
 }
 
 export class ExecTimeoutError extends Error {
@@ -127,6 +129,7 @@ export class ExecServiceImpl implements ExecService {
       const child = spawn(spawnCommand.command, spawnCommand.args, {
         stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env },
+        ...(options.cwd !== undefined && { cwd: options.cwd }),
         ...(spawnCommand.shell !== undefined && { shell: spawnCommand.shell }),
         ...(spawnCommand.windowsVerbatimArguments !== undefined && {
           windowsVerbatimArguments: spawnCommand.windowsVerbatimArguments,

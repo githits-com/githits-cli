@@ -38,7 +38,10 @@ Install and uninstall share one renderer and read consistently.
   - `executeCliSetup`: one change per command (`ran` / `unchanged`), preserving
     the full structured result for JSON output. Text output hides unchanged
     command rows unless every command was unnecessary; then it renders the
-    read-only check command as `checked via <command>` when one exists.
+    read-only check command as `checked via <command>` when one exists. Failed
+    outcomes never synthesize that successful `unchanged` row from cleanup
+    commands that were already absent; commands that actually ran remain
+    visible before the failure row.
   - `executeCompositeSetup`: concatenates executed-step changes with
     synthesized `unchanged` changes for pre-skipped steps (so Pi shows all
     sub-steps).

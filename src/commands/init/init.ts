@@ -2978,6 +2978,7 @@ function visibleChangeRows<T extends SetupChange | UninstallChange>(
   changes: T[] | undefined,
   fileSystemService: FileSystemService,
   unchangedCommandDetail: string | undefined,
+  showSyntheticUnchanged: boolean,
   toRow: (
     name: string,
     change: T,
@@ -2997,6 +2998,7 @@ function visibleChangeRows<T extends SetupChange | UninstallChange>(
   const rows: ChangeRow[] = [];
 
   if (
+    showSyntheticUnchanged &&
     hiddenCommandChanges.length > 0 &&
     !hasVisibleCommandChange &&
     unchangedCommandDetail
@@ -3007,7 +3009,11 @@ function visibleChangeRows<T extends SetupChange | UninstallChange>(
       verb: "unchanged",
       detail: unchangedCommandDetail,
     });
-  } else if (visibleChanges.length === 0 && hiddenCommandChanges.length > 0) {
+  } else if (
+    showSyntheticUnchanged &&
+    visibleChanges.length === 0 &&
+    hiddenCommandChanges.length > 0
+  ) {
     rows.push({ tone: "ok", label: name, verb: "unchanged", detail: "" });
   }
 
@@ -3044,6 +3050,7 @@ function uninstallOutcomeRows(
     outcome.changes,
     fileSystemService,
     unchangedCommandDetail,
+    outcome.status !== "failed",
     uninstallChangeToRow,
   );
   if (outcome.status === "failed") {
@@ -3358,10 +3365,32 @@ async function verifyAgentConfigured(
   const postCheck = await scanAgents([agent], fileSystemService, execService, {
     scope,
   });
-  if (postCheck.alreadyConfigured.some((a) => a.id === agent.id)) {
+  const checkedAgent = [
+    ...postCheck.alreadyConfigured,
+    ...postCheck.needsSetup,
+  ].find((candidate) => candidate.id === agent.id);
+  if (checkedAgent?.resolvedSetupCheckStatus === "configured") {
     return { ok: true };
   }
-  if (postCheck.needsSetup.some((a) => a.id === agent.id)) {
+  if (checkedAgent?.resolvedSetupCheckStatus === "disabled") {
+    return {
+      ok: false,
+      message: `${agent.name} verification failed: the githits entry is disabled. Re-enable or remove it, then run init again.`,
+    };
+  }
+  if (checkedAgent?.resolvedSetupCheckStatus === "probe_failed") {
+    return {
+      ok: false,
+      message: `${agent.name} verification inconclusive: the configuration probe failed after setup.`,
+    };
+  }
+  if (checkedAgent?.resolvedSetupCheckStatus === "non_canonical") {
+    return {
+      ok: false,
+      message: `${agent.name} verification failed: the githits entry is present but does not match the expected setup.`,
+    };
+  }
+  if (checkedAgent?.resolvedSetupCheckStatus === "not_configured") {
     return {
       ok: false,
       message: `${agent.name} verification failed: not configured after setup.`,
@@ -3380,6 +3409,13 @@ async function executeAgentSetupWithVerification(
   scope: InitSetupScope,
 ): Promise<SetupResult> {
   const config = getResolvedSetupConfig(agent, fileSystemService);
+  if (agent.resolvedSetupCheckStatus === "disabled") {
+    return {
+      status: "failed",
+      message: `${agent.name} has a disabled githits entry. Re-enable or remove it, then run init again. The existing entry was left unchanged.`,
+      changes: [],
+    };
+  }
   let result =
     config.method === "cli"
       ? await executeCliSetup(config, execService)
@@ -3541,6 +3577,7 @@ function agentOutcomeRows(
     outcome.changes,
     fileSystemService,
     unchangedCommandDetail,
+    outcome.status !== "failed",
     changeToRow,
   );
   if (outcome.status === "failed") {
@@ -3676,6 +3713,7 @@ function guidanceRowsForKind(
     outcome.changes?.filter((change) => change.kind === kind),
     fileSystemService,
     undefined,
+    outcome.status !== "failed",
     (name, change, fs) =>
       changeToRow(
         "path" in change
@@ -3907,13 +3945,23 @@ async function verifyAgentUnconfigured(
   execService: ExecService,
 ): Promise<{ ok: boolean; message?: string }> {
   const postCheck = await scanAgents([agent], fileSystemService, execService);
-  if (postCheck.needsSetup.some((a) => a.id === agent.id)) {
+  const checkedAgent = [
+    ...postCheck.alreadyConfigured,
+    ...postCheck.needsSetup,
+  ].find((candidate) => candidate.id === agent.id);
+  if (checkedAgent?.resolvedSetupCheckStatus === "not_configured") {
     return { ok: true };
   }
   if (postCheck.notDetected.some((a) => a.id === agent.id)) {
     return {
       ok: false,
       message: `${agent.name} verification failed: agent was not detected after uninstall, so removal could not be confirmed.`,
+    };
+  }
+  if (checkedAgent?.resolvedSetupCheckStatus === "probe_failed") {
+    return {
+      ok: false,
+      message: `${agent.name} verification inconclusive: the configuration probe failed after uninstall.`,
     };
   }
   return {
@@ -3948,8 +3996,15 @@ async function inspectSetupForUninstall(
     const checkStatus = await getCliCheckStatus(
       config.checkCommand,
       execService,
+      fileSystemService,
     );
-    if (checkStatus === "configured") return "configured";
+    if (
+      checkStatus === "configured" ||
+      checkStatus === "disabled" ||
+      checkStatus === "non_canonical"
+    ) {
+      return "configured";
+    }
     if (checkStatus === "not_configured") return "not_configured";
     return {
       status: "failed",
@@ -4006,12 +4061,25 @@ async function scanAgentsForUninstall(
     ...setupScan.needsSetup,
   ]) {
     const config = getResolvedSetupConfig(agent, fileSystemService);
-    const check = await inspectSetupForUninstall(
-      agent,
-      config,
-      fileSystemService,
-      execService,
-    );
+    const knownStatus = agent.resolvedSetupCheckStatus;
+    const check: UninstallInspectionResult =
+      config.method === "cli" && knownStatus
+        ? knownStatus === "configured" ||
+          knownStatus === "disabled" ||
+          knownStatus === "non_canonical"
+          ? "configured"
+          : knownStatus === "not_configured"
+            ? "not_configured"
+            : {
+                status: "failed",
+                message: `Cannot inspect ${agent.name}: its configuration probe failed.`,
+              }
+        : await inspectSetupForUninstall(
+            agent,
+            config,
+            fileSystemService,
+            execService,
+          );
     if (check === "configured") {
       result.configured.push(agent);
     } else if (check === "not_configured") {

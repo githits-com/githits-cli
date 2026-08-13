@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   mkdir,
+  mkdtemp,
   readdir,
   readFile,
   rename,
@@ -9,7 +10,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 /**
@@ -34,6 +35,9 @@ export interface FileSystemService {
 
   /** Ensure directory exists, creating parent directories recursively as needed */
   ensureDir(path: string, mode?: number): Promise<void>;
+
+  /** Create a unique temporary directory owned by the caller. */
+  createTempDir(prefix: string): Promise<string>;
 
   /** Get user home directory */
   getHomeDir(): string;
@@ -116,6 +120,10 @@ export class FileSystemServiceImpl implements FileSystemService {
 
   async ensureDir(path: string, mode?: number): Promise<void> {
     await mkdir(path, { recursive: true, mode });
+  }
+
+  async createTempDir(prefix: string): Promise<string> {
+    return mkdtemp(join(tmpdir(), prefix));
   }
 
   getHomeDir(): string {

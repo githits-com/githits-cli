@@ -13,7 +13,7 @@ import {
   stringify as stringifyYaml,
   type YAMLMap,
 } from "yaml";
-import type { ExecService } from "../../services/exec-service.js";
+import type { ExecResult, ExecService } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
 import type {
   CliCommand,
@@ -54,9 +54,21 @@ export interface CliCheckCommand {
   notConfiguredPattern?: RegExp;
   /** Require exitCode=0 for the check command to be considered valid. */
   requireExitCodeZero?: boolean;
+  /** Per-command probe timeout. Defaults to five seconds. */
+  timeoutMs?: number;
+  /** Run the probe from a unique temporary directory to hide project config. */
+  useIsolatedCwd?: boolean;
+  /** Interpret structured or host-specific command output. */
+  evaluateResult?: (result: ExecResult) => SetupCheckStatus;
 }
 
-export type CliCheckStatus = "configured" | "not_configured" | "probe_failed";
+export type SetupCheckStatus =
+  | "configured"
+  | "not_configured"
+  | "non_canonical"
+  | "disabled"
+  | "probe_failed";
+export type CliCheckStatus = SetupCheckStatus;
 
 /** Result of merging server config into an existing config file */
 export type MergeResult =
@@ -1070,31 +1082,62 @@ export async function isSetupAlreadyConfigured(
   execService: ExecService,
   trace?: { agentId: string; phase: string },
 ): Promise<boolean> {
+  return (
+    (await getSetupCheckStatus(config, fs, execService, trace)) === "configured"
+  );
+}
+
+/**
+ * Inspect a complete setup without collapsing probe failures or disabled entries.
+ * Composite precedence preserves the most actionable child state.
+ */
+export async function getSetupCheckStatus(
+  config: SetupConfig,
+  fs: FileSystemService,
+  execService: ExecService,
+  trace?: { agentId: string; phase: string },
+): Promise<SetupCheckStatus> {
   if (config.method === "config-file") {
-    return isAlreadyConfigured(config, fs);
+    return (await isAlreadyConfigured(config, fs))
+      ? "configured"
+      : "not_configured";
   }
 
   if (config.method === "skill") {
-    return isSkillAlreadyConfigured(config, fs);
+    return (await isSkillAlreadyConfigured(config, fs))
+      ? "configured"
+      : "not_configured";
   }
 
   if (config.method === "managed-block") {
-    return isManagedBlockAlreadyConfigured(config, fs);
+    return (await isManagedBlockAlreadyConfigured(config, fs))
+      ? "configured"
+      : "not_configured";
   }
 
   if (config.method === "cli") {
     if (!config.checkCommand) {
-      return false;
+      return "not_configured";
     }
-    return isCliAlreadyConfigured(config.checkCommand, execService, trace);
+    return getCliCheckStatus(config.checkCommand, execService, fs, trace);
   }
 
+  const statuses: SetupCheckStatus[] = [];
   for (const step of config.steps) {
-    if (!(await isSetupAlreadyConfigured(step, fs, execService, trace))) {
-      return false;
-    }
+    statuses.push(await getSetupCheckStatus(step, fs, execService, trace));
   }
-  return true;
+  if (statuses.some((status) => status === "probe_failed")) {
+    return "probe_failed";
+  }
+  if (statuses.some((status) => status === "disabled")) {
+    return "disabled";
+  }
+  if (statuses.some((status) => status === "non_canonical")) {
+    return "non_canonical";
+  }
+  return statuses.every((status) => status === "configured")
+    ? "configured"
+    : "not_configured";
 }
 
 async function isSkillAlreadyConfigured(
@@ -1139,16 +1182,20 @@ export async function isCliAlreadyConfigured(
   execService: ExecService,
   trace?: { agentId: string; phase: string },
 ): Promise<boolean> {
-  return (await getCliCheckStatus(check, execService, trace)) === "configured";
+  return (
+    (await getCliCheckStatus(check, execService, undefined, trace)) ===
+    "configured"
+  );
 }
 
 /**
- * Check CLI configuration status with tri-state output so callers can
- * distinguish a definitive "not configured" from probe failures.
+ * Check CLI configuration status without collapsing disabled entries or probe
+ * failures into a definitive "not configured" result.
  */
 export async function getCliCheckStatus(
   check: CliCheckCommand,
   execService: ExecService,
+  fs?: FileSystemService,
   trace?: { agentId: string; phase: string },
 ): Promise<CliCheckStatus> {
   const startedAt = Date.now();
@@ -1160,9 +1207,17 @@ export async function getCliCheckStatus(
       args: check.args,
     });
   }
+  let isolatedCwd: string | undefined;
   try {
+    if (check.useIsolatedCwd) {
+      if (!fs) {
+        return "probe_failed";
+      }
+      isolatedCwd = await fs.createTempDir("githits-init-probe-");
+    }
     const result = await execService.exec(check.command, check.args, {
-      timeoutMs: 5_000,
+      timeoutMs: check.timeoutMs ?? 5_000,
+      ...(isolatedCwd !== undefined && { cwd: isolatedCwd }),
     });
     if (trace) {
       traceProbeEnd({
@@ -1172,6 +1227,9 @@ export async function getCliCheckStatus(
         status: "end",
         exitCode: result.exitCode,
       });
+    }
+    if (check.evaluateResult) {
+      return check.evaluateResult(result);
     }
     const combined = `${result.stdout} ${result.stderr}`;
     if (check.notConfiguredPattern?.test(combined)) {
@@ -1202,6 +1260,15 @@ export async function getCliCheckStatus(
       });
     }
     return "probe_failed";
+  } finally {
+    if (isolatedCwd && fs) {
+      try {
+        await fs.deleteDirIfEmpty(isolatedCwd);
+      } catch {
+        // A timed-out Windows wrapper may leave a child holding the directory.
+        // Cleanup is best-effort and must never change the probe outcome.
+      }
+    }
   }
 }
 
@@ -1215,6 +1282,7 @@ const ALREADY_EXISTS_PATTERNS = [
 
 /** Patterns in CLI output that indicate GitHits was already absent */
 const ALREADY_ABSENT_PATTERNS = [
+  /^\s*No MCP server named ["']githits["'] in user scope\.?\s*$/im,
   /(?:plugin|extension|server|mcp server)\s+["']?githits["']?\s+(?:was\s+)?not\s+found/i,
   /["']?githits["']?\s+(?:plugin|extension|server)?\s*(?:does\s+not\s+exist|is\s+not\s+installed|not\s+installed)/i,
   /(?:package\s+)?["']?pi-mcp-adapter["']?\s+(?:(?:is\s+)?not\s+installed|not\s+found)/i,

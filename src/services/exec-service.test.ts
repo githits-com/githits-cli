@@ -1,4 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import {
   ExecServiceImpl,
   ExecTimeoutError,
@@ -33,6 +36,22 @@ describe("ExecServiceImpl", () => {
       "process.stderr.write('err-msg')",
     ]);
     expect(result.stderr).toContain("err-msg");
+  });
+
+  it("runs commands from the requested working directory", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "githits-exec-cwd-"));
+    try {
+      const result = await new ExecServiceImpl().exec(
+        "node",
+        ["-e", "process.stdout.write(process.cwd())"],
+        { cwd },
+      );
+      expect(resolve(result.stdout).toLowerCase()).toBe(
+        resolve(cwd).toLowerCase(),
+      );
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   });
 
   it("rejects with timeout error when command exceeds timeout", async () => {

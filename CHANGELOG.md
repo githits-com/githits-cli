@@ -12,7 +12,7 @@ errors.
 
 | Public artifact | Current release | Pending bump | Reason |
 |---|---:|---:|---|
-| `githits` | 0.9.0 | none | Repository-only release process documentation |
+| `githits` | 0.9.0 | patch | Fix Claude Code and Codex CLI init detection and verification |
 | `@githits/mcp` | 0.9.0 | none | No MCP-package-visible changes |
 
 ### Changed
@@ -24,6 +24,11 @@ errors.
 
 ### Fixed
 
+- **Claude Code and Codex CLI init setup** - user-scoped MCP checks now run
+  outside project configuration, use targeted server probes with host-specific
+  timeouts, distinguish missing, non-canonical, disabled, and failed checks,
+  preserve enabled customized Codex entries, and avoid reporting cleanup no-ops
+  as successful setup when a later command fails.
 - **Cross-platform changelog validation (repository)** - release-boundary tests
   accept both LF and CRLF Markdown while enforcing identical package-version
   content.
