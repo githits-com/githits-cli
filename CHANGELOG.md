@@ -1,26 +1,9 @@
 # Changelog
 
-All notable GitHits CLI and public package changes are recorded here. The
-`Unreleased` section is updated with each notable change so pending releases and
-package-version impact remain visible during development. Dated, versioned
-sections are historical records and change only to correct blatant factual
-errors.
-
-## [Unreleased]
-
-### Release impact
-
-| Public artifact | Current release | Pending bump | Reason |
-|---|---:|---:|---|
-| `githits` | 0.9.2 | patch | Fixes CLI-native code-validation guidance |
-| `@githits/mcp` | 0.9.1 | none | No unreleased package-visible changes |
-
-### Fixed
-
-- **Code validation guidance (`githits`)** - client-side `INVALID_ARGUMENT`
-  errors from shared code-read and grep request builders now name CLI commands,
-  positionals, and options on the CLI while MCP keeps MCP-native tool and
-  argument syntax.
+All notable GitHits CLI and public package changes are recorded here. Unreleased
+changes use independent files under [`changes/`](changes/README.md) and are
+consolidated here only during release preparation. Dated, versioned sections
+are historical records and change only to correct blatant factual errors.
 
 ## [githits 0.9.2] - 2026-08-14
 

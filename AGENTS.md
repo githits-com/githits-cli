@@ -118,14 +118,19 @@ See `docs/guidelines/TESTING.md` for comprehensive patterns.
 
 ## Release Boundaries
 
-- Keep `CHANGELOG.md` current during development. Every notable user-, agent-, operator-, or public-API-visible change must update `Unreleased` in the same change, including the explicit pending SemVer impact for every public artifact. Follow `docs/implementation/release-process.md`.
+- Every notable user-, agent-, operator-, or public-API-visible change must add
+  one independent `changes/<unique-name>.<category>.md` fragment with an
+  explicit pending SemVer impact for every public artifact. Do not edit
+  `CHANGELOG.md` outside release preparation. Follow
+  `docs/implementation/release-process.md` and `changes/README.md`.
 - Treat dated, versioned changelog sections as immutable historical records. Change them only to correct blatant, demonstrable factual errors, and keep any correction minimal.
 - `githits` and `@githits/mcp` have separate release flows. They may be bumped together when both surfaces changed, but CLI-only changes should not bump `@githits/mcp`.
 - Root `githits` release versions must stay aligned with generated plugin/assistant manifests: `.plugin/plugin.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `gemini-extension.json`. The versionless Antigravity `plugin.json` and `mcp_config.json` must also be regenerated and checked.
 - `@githits/mcp` release versions live in `packages/mcp/package.json` and should change only for MCP package API, tool behavior, MCP instructions, schemas, MCP auth/error behavior, or remote-server-facing public type changes.
 - For coordinated CLI and MCP releases, keep the MCP minor aligned with the CLI minor for discoverability. The first MCP release for a CLI minor starts at `X.Y.0`; later MCP-package-visible changes in that CLI minor bump the MCP patch.
 - Successful `Main` runs on `main` trigger both root and MCP release workflows. The MCP workflow publishes only when the package version is not already published; manual dispatch is for recovery or dry runs.
-- Release preparation moves shipped entries from `Unreleased` into separate versioned sections for each released artifact and leaves a fresh impact table with pending bumps reset to `none`.
+- Release preparation consumes all fragments into separate versioned sections
+  for each released artifact and deletes the consumed files.
 - Validate package behavior from outside root path aliases. Repo-local imports can hide package export-map or declaration problems.
 
 ### Common Pitfalls

@@ -148,7 +148,7 @@ the root `githits` patch version in `package.json` and `server.json`, then run
 `mcp_config.json` assets. Bump the `@githits/mcp` patch version in
 `packages/mcp/package.json`; for a new root minor, follow the coordinated-release
 rule and start the MCP package at `X.Y.0`. Add the security hardening and explicit
-pending bumps to the `CHANGELOG.md` Unreleased section. Review public Agent Skills
+pending bumps in an independent `changes/` fragment. Review public Agent Skills
 for wording impact, but do not change them unless their documented output behavior
 is now inaccurate. Run `bun run plugins:check` after generation.
 
