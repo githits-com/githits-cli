@@ -39,6 +39,7 @@ CLI initialization checks more reliable.
   timeouts, distinguish missing, non-canonical, disabled, and failed checks,
   preserve enabled customized Codex entries, and avoid reporting cleanup no-ops
   as successful setup when a later command fails.
+
 ## [@githits/mcp 0.9.1] - 2026-08-14
 
 Patch release: improves surface-native recovery from exact-path read and grep
