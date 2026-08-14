@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import {
   ExecServiceImpl,
   ExecTimeoutError,
@@ -46,8 +46,8 @@ describe("ExecServiceImpl", () => {
         ["-e", "process.stdout.write(process.cwd())"],
         { cwd },
       );
-      expect(resolve(result.stdout).toLowerCase()).toBe(
-        resolve(cwd).toLowerCase(),
+      expect((await realpath(result.stdout)).toLowerCase()).toBe(
+        (await realpath(cwd)).toLowerCase(),
       );
     } finally {
       await rm(cwd, { recursive: true, force: true });
