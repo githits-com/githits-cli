@@ -1089,6 +1089,26 @@ async function runLiveSmoke(): Promise<void> {
     "code read json missing content",
   );
 
+  const codeReadInvalid = await runCli([
+    "code",
+    "read",
+    SMOKE_PACKAGE_SPEC,
+    "lib/",
+    "--json",
+  ]);
+  const codeReadInvalidEnvelope = assertCleanErrorEnvelope(
+    codeReadInvalid.stderr,
+    "code read invalid json",
+  );
+  assert(
+    codeReadInvalid.exitCode !== 0 &&
+      codeReadInvalidEnvelope.code === "INVALID_ARGUMENT" &&
+      codeReadInvalidEnvelope.error.includes("githits code files") &&
+      codeReadInvalidEnvelope.error.includes("githits code read") &&
+      !codeReadInvalidEnvelope.error.includes("code_files"),
+    "code read invalid json missing CLI-native recovery",
+  );
+
   const codeGrepText = assertTerminalOutput(
     await runCli([
       "code",
@@ -1123,6 +1143,26 @@ async function runLiveSmoke(): Promise<void> {
   assert(
     "matches" in codeGrepJson || "totalMatches" in codeGrepJson,
     "code grep json missing matches",
+  );
+
+  const codeGrepInvalid = await runCli([
+    "code",
+    "grep",
+    SMOKE_PACKAGE_SPEC,
+    " ",
+    "--json",
+  ]);
+  const codeGrepInvalidEnvelope = assertCleanErrorEnvelope(
+    codeGrepInvalid.stderr,
+    "code grep invalid json",
+  );
+  assert(
+    codeGrepInvalid.exitCode !== 0 &&
+      codeGrepInvalidEnvelope.code === "INVALID_ARGUMENT" &&
+      codeGrepInvalidEnvelope.error.includes("<pattern>") &&
+      codeGrepInvalidEnvelope.error.includes("githits code files") &&
+      !codeGrepInvalidEnvelope.error.includes("code_files"),
+    "code grep invalid json missing CLI-native recovery",
   );
 
   const searchText = assertTerminalOutput(

@@ -89,6 +89,8 @@ export interface GrepRepoRequestBuildResult {
   };
 }
 
+// CLI rewrites pattern, code_files, globs, extensions, and symbol_fields from
+// these errors; keep them stable with src/commands/code/grep.ts or update its tests.
 export function buildGrepRepoParams(
   input: GrepRepoRequestInput,
 ): GrepRepoRequestBuildResult {

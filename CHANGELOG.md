@@ -12,8 +12,15 @@ errors.
 
 | Public artifact | Current release | Pending bump | Reason |
 |---|---:|---:|---|
-| `githits` | 0.9.2 | none | No unreleased package-visible changes |
+| `githits` | 0.9.2 | patch | Fixes CLI-native code-validation guidance |
 | `@githits/mcp` | 0.9.1 | none | No unreleased package-visible changes |
+
+### Fixed
+
+- **Code validation guidance (`githits`)** - client-side `INVALID_ARGUMENT`
+  errors from shared code-read and grep request builders now name CLI commands,
+  positionals, and options on the CLI while MCP keeps MCP-native tool and
+  argument syntax.
 
 ## [githits 0.9.2] - 2026-08-14
 

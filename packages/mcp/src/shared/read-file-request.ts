@@ -8,11 +8,13 @@ import type {
   CodeNavigationTarget,
   ReadFileParams,
 } from "@githits/core-internal";
-import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
+import {
+  DEFAULT_WAIT_TIMEOUT_MS,
+  MAX_WAIT_TIMEOUT_MS,
+} from "./code-navigation-defaults.js";
 import { InvalidPackageSpecError } from "./package-spec.js";
 
 const WAIT_MIN = 0;
-const WAIT_MAX = 60_000;
 
 export interface ReadFileRequestInput {
   target: CodeNavigationTarget;
@@ -26,6 +28,8 @@ export interface ReadFileRequestBuildResult {
   params: ReadFileParams;
 }
 
+// CLI rewrites MCP identifiers from these errors, including the raw reversed-range
+// labels; keep them stable with src/commands/code/read.ts or update its tests.
 export function buildReadFileParams(
   input: ReadFileRequestInput,
 ): ReadFileRequestBuildResult {
@@ -77,9 +81,9 @@ function normaliseLine(
 
 function normaliseWaitTimeoutMs(raw: number | undefined): number {
   if (raw === undefined) return DEFAULT_WAIT_TIMEOUT_MS;
-  if (!Number.isInteger(raw) || raw < WAIT_MIN || raw > WAIT_MAX) {
+  if (!Number.isInteger(raw) || raw < WAIT_MIN || raw > MAX_WAIT_TIMEOUT_MS) {
     throw new InvalidPackageSpecError(
-      `\`wait_timeout_ms\` must be an integer between ${WAIT_MIN} and ${WAIT_MAX}. Got ${raw}.`,
+      `\`wait_timeout_ms\` must be an integer between ${WAIT_MIN} and ${MAX_WAIT_TIMEOUT_MS}. Got ${raw}.`,
     );
   }
   return raw;

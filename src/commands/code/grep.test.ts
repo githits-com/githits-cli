@@ -468,6 +468,171 @@ describe("pkgGrepAction", () => {
     exitSpy.mockRestore();
   });
 
+  it("uses CLI syntax when a blank pattern suggests listing files", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgGrepAction(
+          "npm:express",
+          "   ",
+          undefined,
+          { json: true },
+          createDeps(),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        code: string;
+        error: string;
+      };
+      expect(payload.code).toBe("INVALID_ARGUMENT");
+      expect(payload.error).toContain("`<pattern>` is required");
+      expect(payload.error).toContain("`githits code files`");
+      expect(payload.error).not.toContain("code_files");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("uses CLI option names for shared grep validation", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgGrepAction(
+          "npm:express",
+          "middleware",
+          undefined,
+          { ext: [".js"], json: true },
+          createDeps(),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        code: string;
+        error: string;
+      };
+      expect(payload.code).toBe("INVALID_ARGUMENT");
+      expect(payload.error).toContain("`--ext` values");
+      expect(payload.error).not.toContain("`extensions`");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("uses --glob for empty shared glob validation", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgGrepAction(
+          "npm:express",
+          "middleware",
+          undefined,
+          { glob: [" "], json: true },
+          createDeps(),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        code: string;
+        error: string;
+      };
+      expect(payload.code).toBe("INVALID_ARGUMENT");
+      expect(payload.error).toContain("`--glob` entries cannot be empty");
+      expect(payload.error).not.toContain("`globs`");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("keeps API field names in the --symbol-field validation message", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgGrepAction(
+          "npm:express",
+          "middleware",
+          undefined,
+          { symbolField: ["invalid"], json: true },
+          createDeps(),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        code: string;
+        error: string;
+      };
+      expect(payload.code).toBe("INVALID_ARGUMENT");
+      expect(payload.error).toContain("`--symbol-field` value must be one of:");
+      expect(payload.error).toContain("file_path");
+      expect(payload.error).toContain("start_line");
+      expect(payload.error).toContain("end_line");
+      expect(payload.error).not.toContain("`symbol_fields`");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("does not rewrite MCP-like text echoed from a symbol-field value", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      try {
+        await pkgGrepAction(
+          "npm:express",
+          "middleware",
+          undefined,
+          { symbolField: ["`symbol_fields`"], json: true },
+          createDeps(),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+        code: string;
+        error: string;
+      };
+      expect(payload.code).toBe("INVALID_ARGUMENT");
+      expect(payload.error).toContain("`--symbol-field` value must be one of:");
+      expect(payload.error).toContain("Got: `symbol_fields`.");
+      expect(payload.error).not.toContain("Got: `--symbol-field`.");
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
   it("sets exit code 1 on zero-match JSON while preserving output", async () => {
     const originalExitCode = process.exitCode;
     const logSpy = spyOn(console, "log").mockImplementation(() => {});

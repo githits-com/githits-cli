@@ -228,6 +228,10 @@ function collectRepeatable(value: string, previous: string[] = []): string[] {
   return [...previous, value];
 }
 
+/**
+ * Translate CLI-reachable, backtick-delimited MCP validation tokens. Anchored
+ * rules prevent replacements inside user values echoed after `Got:`.
+ */
 function buildCliGrepParams(
   input: GrepRepoRequestInput,
 ): GrepRepoRequestBuildResult {
@@ -236,8 +240,11 @@ function buildCliGrepParams(
   } catch (error) {
     if (!(error instanceof InvalidPackageSpecError)) throw error;
     const rewritten = error.message
+      .replace(/^`pattern`/, "`<pattern>`")
+      .replace(/`globs`/g, "`--glob`")
+      .replace(/`extensions`/g, "`--ext`")
       .replace(/^`symbol_fields`/, "`--symbol-field`")
-      .replace(/`symbol_fields` value/g, "`--symbol-field` value");
+      .replace(/`code_files`/g, "`githits code files`");
     if (rewritten === error.message) throw error;
     throw new InvalidPackageSpecError(rewritten);
   }
