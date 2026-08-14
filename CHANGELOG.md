@@ -12,23 +12,38 @@ errors.
 
 | Public artifact | Current release | Pending bump | Reason |
 |---|---:|---:|---|
-| `githits` | 0.9.1 | patch | Fixes CLI-native exact-path recovery and Claude Code/Codex CLI init detection and verification |
-| `@githits/mcp` | 0.9.0 | patch | Fixes MCP-native exact-path read and grep recovery; later MCP-visible changes in the CLI 0.9 minor bump the MCP patch |
+| `githits` | 0.9.2 | none | No unreleased package-visible changes |
+| `@githits/mcp` | 0.9.1 | none | No unreleased package-visible changes |
+
+## [githits 0.9.2] - 2026-08-14
+
+Patch release: improves CLI exact-path recovery and makes Claude Code and Codex
+CLI initialization checks more reliable.
 
 ### Fixed
 
-- **Exact-path recovery (CLI/MCP)** - typed `FILE_NOT_FOUND` responses from
-  `code_read` and `code_grep` now add surface-native path-discovery guidance: MCP names
-  `code_files` / `code_grep`, while CLI JSON names `githits code files` /
-  `githits code grep`. Read recovery names `code_read` or `githits code read`
-  respectively, and extensionless exact files use their containing directory.
-  Generic `NOT_FOUND` errors that do not describe a missing file path no longer
-  receive path-discovery guidance.
+- **Exact-path recovery** - typed `FILE_NOT_FOUND` responses from CLI code read
+  and grep commands now name `githits code files`, `githits code grep`, and
+  `githits code read` in path-discovery guidance. Extensionless exact files use
+  their containing directory, and generic `NOT_FOUND` errors do not receive
+  file-path guidance.
 - **Claude Code and Codex CLI init setup** - user-scoped MCP checks now run
   outside project configuration, use targeted server probes with host-specific
   timeouts, distinguish missing, non-canonical, disabled, and failed checks,
   preserve enabled customized Codex entries, and avoid reporting cleanup no-ops
   as successful setup when a later command fails.
+
+## [@githits/mcp 0.9.1] - 2026-08-14
+
+Patch release: improves surface-native recovery from exact-path read and grep
+failures.
+
+### Fixed
+
+- **Exact-path recovery** - typed `FILE_NOT_FOUND` responses from `code_read`
+  and `code_grep` now name `code_files`, `code_grep`, and `code_read` in
+  path-discovery guidance. Extensionless exact files use their containing
+  directory, and generic `NOT_FOUND` errors do not receive file-path guidance.
 
 ## [githits 0.9.1] - 2026-08-13
 
