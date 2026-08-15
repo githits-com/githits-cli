@@ -22,6 +22,8 @@ describe("createListFilesTool — metadata", () => {
       "First choice for file/path enumeration",
     );
     expect(tool.description).toContain("`path_prefix` for directory prefixes");
+    expect(tool.description).toContain("`FILE_PATH_EXCLUDED`");
+    expect(tool.description).toContain("`SOURCE_FILE_INVENTORY_UNKNOWN`");
     expect(Object.keys(tool.schema).sort()).toEqual([
       "exclude_doc_files",
       "exclude_file_intents",

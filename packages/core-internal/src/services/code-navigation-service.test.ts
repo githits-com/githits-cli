@@ -618,6 +618,86 @@ describe("CodeNavigationServiceImpl", () => {
     }
   });
 
+  it.each([
+    ["FILE_PATH_EXCLUDED", "generated_or_large", "bench/data/issue-90.json"],
+    [
+      "SOURCE_FILE_INVENTORY_UNKNOWN",
+      "inventory_unavailable",
+      "src/missing.ts",
+    ],
+  ] as const)(
+    "preserves exact-path authority metadata for %s",
+    async (code, exclusionReason, filePath) => {
+      mockFetch(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              errors: [
+                {
+                  message: `Exact path unavailable: ${filePath}`,
+                  extensions: {
+                    code,
+                    retryable: false,
+                    file_path: filePath,
+                    exclusion_reason: exclusionReason,
+                    target_resolution: {
+                      requested: {
+                        registry: "HEX",
+                        packageName: "jason",
+                        version: "1.4.4",
+                      },
+                      served: {
+                        registry: "HEX",
+                        packageName: "jason",
+                        version: "1.4.4",
+                      },
+                      freshness: "current",
+                      freshnessReason: "exact_current",
+                      availableVersions: [],
+                      availableRefs: [],
+                    },
+                  },
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
+        ),
+      );
+      const service = new CodeNavigationServiceImpl(
+        BASE_URL,
+        createMockTokenProvider(),
+      );
+
+      try {
+        await service.grepRepo({
+          target: {
+            registry: "HEX",
+            packageName: "jason",
+            version: "1.4.4",
+          },
+          pattern: "{",
+          pathSelectors: [{ kind: "EXACT", value: filePath }],
+        });
+        throw new Error("expected grepRepo to throw");
+      } catch (error) {
+        expect(error).toBeInstanceOf(CodeNavigationBackendError);
+        expect(error).toMatchObject({
+          graphqlCode: code,
+          retryable: false,
+          metadata: {
+            filePath,
+            exclusionReason,
+            targetResolution: {
+              freshness: "current",
+              freshnessReason: "exact_current",
+            },
+          },
+        });
+      }
+    },
+  );
+
   // ------------------------------------------------------------------
   // grepRepo
   // ------------------------------------------------------------------
@@ -1436,6 +1516,7 @@ describe("CodeNavigationServiceImpl", () => {
       );
       expect((error as CodeNavigationBackendError).metadata).toEqual({
         hint: "Use a narrower source path.",
+        filePath: "dist/bundle.js",
         availableVersions: [{ version: "5.2.1", ref: "v5.2.1" }],
         availableRefs: [{ ref: "main", version: undefined }],
         suggestedRefs: [{ ref: "v5.2.1", version: undefined }],

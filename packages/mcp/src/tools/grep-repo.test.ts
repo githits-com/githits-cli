@@ -1,5 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
 import {
+  CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
@@ -19,6 +20,9 @@ describe("createGrepRepoTool — metadata", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     expect(tool.name).toBe("code_grep");
     expect(tool.description).toContain("Deterministic text or regex grep");
+    expect(tool.description).toContain(
+      "`FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or `SOURCE_FILE_INVENTORY_UNKNOWN`",
+    );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "case_sensitive",
       "context_lines",
@@ -383,6 +387,49 @@ describe("createGrepRepoTool — service errors", () => {
     expect(payload.details?.action).toContain("`code_grep`");
     expect(payload.details?.action).not.toContain("githits code");
   });
+
+  it.each([
+    ["FILE_PATH_EXCLUDED", "excluded from the indexed source"],
+    ["SOURCE_FILE_INVENTORY_UNKNOWN", "cannot verify this path"],
+  ] as const)(
+    "adds indexed-path recovery details for %s",
+    async (code, expectedGuidance) => {
+      const service = createMockCodeNavigationService({
+        grepRepo: mock(() =>
+          Promise.reject(
+            new CodeNavigationBackendError(
+              "Exact path is not queryable.",
+              undefined,
+              code,
+              false,
+              { filePath: "bench/data/issue-90.json" },
+            ),
+          ),
+        ),
+      });
+      const result = await createGrepRepoTool(service).handler(
+        {
+          target: {
+            registry: "hex",
+            package_name: "jason",
+            version: "1.4.4",
+          },
+          pattern: "{",
+          path: "bench/data/issue-90.json",
+        },
+        {},
+      );
+
+      const payload = parseText(result) as {
+        details?: { action?: string };
+      };
+      expect(payload.details?.action).toContain(expectedGuidance);
+      expect(payload.details?.action).toContain("`code_files`");
+      expect(payload.details?.action).toContain('path_prefix: "bench/data/"');
+      expect(payload.details?.action).toContain("`code_grep`");
+      expect(payload.details?.action).not.toContain("githits code");
+    },
+  );
 
   it("uses the containing directory for an extensionless exact path", async () => {
     const service = createMockCodeNavigationService({

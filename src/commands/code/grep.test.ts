@@ -1,5 +1,6 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
+  CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
@@ -834,6 +835,54 @@ describe("pkgGrepAction", () => {
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
+
+  it.each([
+    ["FILE_PATH_EXCLUDED", "excluded from the indexed source"],
+    ["SOURCE_FILE_INVENTORY_UNKNOWN", "cannot verify this path"],
+  ] as const)(
+    "renders indexed-path guidance for %s",
+    async (code, expectedGuidance) => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit");
+      });
+
+      try {
+        await pkgGrepAction(
+          "hex:jason@1.4.4",
+          "{",
+          undefined,
+          { path: "bench/data/issue-90.json" },
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              grepRepo: mock(() =>
+                Promise.reject(
+                  new CodeNavigationBackendError(
+                    "Exact path is not queryable.",
+                    undefined,
+                    code,
+                    false,
+                    { filePath: "bench/data/issue-90.json" },
+                  ),
+                ),
+              ),
+            }),
+          }),
+        );
+      } catch {
+        /* expected */
+      }
+
+      try {
+        const output = String(errorSpy.mock.calls[0]?.[0]);
+        expect(output).toContain(expectedGuidance);
+        expect(output).toContain("`code files`");
+      } finally {
+        errorSpy.mockRestore();
+        exitSpy.mockRestore();
+      }
+    },
+  );
 
   it("adds CLI recovery details to exact-path JSON errors", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});

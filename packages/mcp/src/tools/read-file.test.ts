@@ -1,5 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
 import {
+  CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
@@ -23,7 +24,7 @@ describe("createReadFileTool — metadata", () => {
     );
     expect(tool.description).toContain("does not list directories");
     expect(tool.description).toContain(
-      "On `FILE_NOT_FOUND`, or a legacy `NOT_FOUND` that specifically describes a missing file path",
+      "On `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, `SOURCE_FILE_INVENTORY_UNKNOWN`, or a legacy `NOT_FOUND`",
     );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "end_line",
@@ -345,6 +346,48 @@ describe("createReadFileTool — service errors", () => {
     expect(payload.details?.action).toContain("without `path_prefix`");
     expect(payload.details?.action).toContain("emitted `path`");
   });
+
+  it.each([
+    ["FILE_PATH_EXCLUDED", "excluded from the indexed source"],
+    ["SOURCE_FILE_INVENTORY_UNKNOWN", "cannot verify this path"],
+  ] as const)(
+    "adds indexed-path recovery details for %s",
+    async (code, expectedGuidance) => {
+      const service = createMockCodeNavigationService({
+        readFile: mock(() =>
+          Promise.reject(
+            new CodeNavigationBackendError(
+              "Exact path is not queryable.",
+              undefined,
+              code,
+              false,
+              { filePath: "bench/data/issue-90.json" },
+            ),
+          ),
+        ),
+      });
+      const result = await createReadFileTool(service).handler(
+        {
+          target: {
+            registry: "hex",
+            package_name: "jason",
+            version: "1.4.4",
+          },
+          path: "bench/data/issue-90.json",
+        },
+        {},
+      );
+
+      const payload = parseText(result) as {
+        details?: { action?: string };
+      };
+      expect(payload.details?.action).toContain(expectedGuidance);
+      expect(payload.details?.action).toContain("`code_files`");
+      expect(payload.details?.action).toContain('path_prefix: "bench/data/"');
+      expect(payload.details?.action).toContain("`code_read`");
+      expect(payload.details?.action).not.toContain("githits code");
+    },
+  );
 
   it("uses the normalized containing directory for an extensionless exact path", async () => {
     const service = createMockCodeNavigationService({

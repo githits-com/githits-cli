@@ -30,6 +30,8 @@ import { AuthRequiredError } from "./require-auth.js";
 export type MappedErrorCode =
   | "NOT_FOUND"
   | "FILE_NOT_FOUND"
+  | "FILE_PATH_EXCLUDED"
+  | "SOURCE_FILE_INVENTORY_UNKNOWN"
   | "REF_NOT_FOUND"
   | "VERSION_NOT_FOUND"
   | "INDEXING"
@@ -73,8 +75,10 @@ export interface MappedErrorDetails {
   repoUrl?: string;
   /** Git ref the caller asked for (for `REF_NOT_FOUND`). */
   requestedRef?: string;
-  /** The file path the caller asked for (for `FILE_NOT_FOUND`). */
+  /** The exact file path involved in a path-authority error. */
   filePath?: string;
+  /** Why an exact path was omitted from the indexed source inventory. */
+  exclusionReason?: string;
   /** Installed CLI version when an update is required. */
   currentVersion?: string;
   /** Suggested package-manager command when an update is required. */
@@ -354,6 +358,10 @@ function classifyBackendError(error: CodeNavigationBackendError): MappedError {
       return build("NOT_FOUND", false);
     case "REF_NOT_FOUND":
       return build("REF_NOT_FOUND", false);
+    case "FILE_PATH_EXCLUDED":
+      return build("FILE_PATH_EXCLUDED", false);
+    case "SOURCE_FILE_INVENTORY_UNKNOWN":
+      return build("SOURCE_FILE_INVENTORY_UNKNOWN", false);
     case "UPSTREAM_ERROR":
       return build("BACKEND_ERROR", true);
     default:
@@ -367,6 +375,10 @@ function preserveBackendMetadata(
 ): void {
   if (!metadata) return;
   if (metadata.hint) details.hint = metadata.hint;
+  if (metadata.filePath) details.filePath = metadata.filePath;
+  if (metadata.exclusionReason) {
+    details.exclusionReason = metadata.exclusionReason;
+  }
   if (metadata.availableVersions?.length) {
     details.availableVersions = metadata.availableVersions;
   }

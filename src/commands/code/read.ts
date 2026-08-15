@@ -369,9 +369,9 @@ github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]) OR
 --repo-url <url> [--git-ref <ref>]. <path> is package-relative for package targets
 and repo-relative for repo targets.
 
-Binary files show a one-line sentinel instead of content. When a
-path is missing, the response is a FILE_NOT_FOUND error — use
-\`code files\` to discover available paths.`;
+Binary files show a one-line sentinel instead of content. If an exact path is
+missing, excluded, or cannot be verified by the source inventory, use
+\`code files\` to inspect the indexed paths.`;
 
 export function registerCodeReadCommand(pkgCommand: Command): Command {
   return pkgCommand

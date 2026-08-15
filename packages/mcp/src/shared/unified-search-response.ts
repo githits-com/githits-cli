@@ -15,6 +15,8 @@ import { formatRepositoryTargetLabel } from "./repository-target.js";
 import { isHealthySearchLifecycleState } from "./search-lifecycle.js";
 import {
   buildResolutionFromRetryCandidates,
+  buildRetryCandidateLine,
+  buildSuggestedRefsLine,
   buildTargetResolutionNotes,
   formatTargetResolutionIdentity,
   type LeanAvailableArtifact,
@@ -1052,9 +1054,14 @@ function compactSourceStatusEntry(
   const targetResolution = projectTargetResolution(entry.targetResolution);
   if (targetResolution) {
     payload.targetResolution = targetResolution;
+    const hasRetryCandidates = Boolean(
+      buildRetryCandidateLine(targetResolution) ??
+        buildSuggestedRefsLine(targetResolution),
+    );
     if (
-      buildTargetResolutionNotes(targetResolution).length > 0 &&
-      !(targetResolution.freshness === "indexing" && options.completed)
+      (buildTargetResolutionNotes(targetResolution).length > 0 &&
+        !(targetResolution.freshness === "indexing" && options.completed)) ||
+      (targetResolution.freshness === "current" && hasRetryCandidates)
     ) {
       interesting = true;
     }

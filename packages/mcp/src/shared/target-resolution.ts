@@ -105,8 +105,10 @@ export function buildTargetResolutionNotes(
       // `current` is a healthy state. The backend may describe requested,
       // resolved, and served identities at different abstraction layers
       // (for example npm:express -> GitHub tag@sha), but the freshness value
-      // is the authoritative user-facing signal: no action is needed.
-      break;
+      // is the authoritative user-facing signal: no action is needed. This
+      // also suppresses retry candidates retained from an earlier indexing
+      // snapshot, including after a waited search completes.
+      return lines;
     }
     default: {
       if (resolution.freshness || identitiesDiffer(requested, fresh, served)) {
@@ -191,7 +193,7 @@ export function buildResolutionFromRetryCandidates(
     return undefined;
   }
   return {
-    freshness: target.freshness,
+    freshness: target.freshness === "CURRENT" ? "current" : target.freshness,
     indexingRef: target.indexingRef,
     availableVersions: target.availableVersions ?? [],
     availableRefs: target.availableRefs ?? [],
