@@ -704,6 +704,45 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.warnings?.join("\n")).toContain("suggested refs");
   });
 
+  it("suppresses stale candidates for an incomplete progress target that is already current", () => {
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        state: "incomplete",
+        completed: false,
+        searchRef: "search-ref-current",
+        progress: {
+          searchRef: "search-ref-current",
+          status: "SEARCHING",
+          targetsTotal: 2,
+          targetsReady: 1,
+          elapsedMs: 200,
+          query: "router middleware",
+          queryWarnings: [],
+          sources: ["CODE"],
+          targets: [
+            {
+              requested: "github:foo/bar#def456",
+              resolvedRequested: "github:foo/bar#def456",
+              served: "github:foo/bar#def456",
+              freshness: "CURRENT",
+              availableRefs: [{ ref: "abc123" }],
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.completed).toBe(false);
+    if (payload.completed) throw new Error("expected incomplete payload");
+    expect(payload.progress?.targets?.[0]?.availableRefs).toEqual([
+      { ref: "abc123" },
+    ]);
+    expect(payload.warnings).toBeUndefined();
+  });
+
   it("surfaces docs coverage on progress targets while polling", () => {
     const payload = buildUnifiedSearchSuccessPayload(
       { targets: [{ site: "site:expressjs.com" }], query: "router" },
@@ -1469,6 +1508,68 @@ describe("buildUnifiedSearchStatusPayload — combined warnings", () => {
       "unrecognised qualifier 'xyz:'",
       expect.stringContaining("incompatible query features [kind]"),
     ]);
+  });
+
+  it("drops prior-ref guidance when a waited search completes exact-current", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed fixture");
+    }
+    const sourceStatus = defaultUnifiedSearchOutcome.result.sourceStatus[0];
+    if (!sourceStatus) throw new Error("expected source status fixture");
+    const requestedCommit = "e8100a10da49858cfa8d26883d170e9cc8281988";
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      searchRef: "waited-search-ref",
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: defaultUnifiedSearchOutcome.result.results.map((result) => ({
+          ...result,
+          targetLabel: `github:dmmulroy/anti-slop#${requestedCommit}`,
+        })),
+        sourceStatus: [
+          {
+            ...sourceStatus,
+            targetLabel: `github:dmmulroy/anti-slop#${requestedCommit}`,
+            requestedTargetLabel: `github:dmmulroy/anti-slop#${requestedCommit}`,
+            freshTargetLabel: `github:dmmulroy/anti-slop#${requestedCommit}`,
+            servedTargetLabel: `github:dmmulroy/anti-slop#${requestedCommit}`,
+            indexingStatus: "INDEXED",
+            codeIndexState: "CURRENT",
+            targetResolution: {
+              requested: {
+                repoUrl: "https://github.com/dmmulroy/anti-slop",
+                gitRef: requestedCommit,
+              },
+              resolvedRequested: {
+                repoUrl: "https://github.com/dmmulroy/anti-slop",
+                gitRef: requestedCommit,
+                commitSha: requestedCommit,
+              },
+              served: {
+                repoUrl: "https://github.com/dmmulroy/anti-slop",
+                gitRef: requestedCommit,
+                commitSha: requestedCommit,
+              },
+              freshness: "current",
+              freshnessReason: "exact_current",
+              availableVersions: [],
+              availableRefs: [
+                { ref: "cd064fe602b5915ff35e1e1c20836ca9bcb3729a" },
+              ],
+            },
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchStatusPayload(outcome);
+    if (!payload.completed) throw new Error("expected completed payload");
+    expect(payload.result.warnings).toBeUndefined();
+    expect(payload.result.sourceStatus?.[0]?.targetResolution).toMatchObject({
+      freshness: "current",
+      freshnessReason: "exact_current",
+      served: { commitSha: requestedCommit },
+    });
   });
 });
 

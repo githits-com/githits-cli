@@ -118,8 +118,9 @@ const DESCRIPTION =
   "enumeration tasks such as files under a directory; use " +
   "`path_prefix` for directory prefixes (e.g. `lib/`) and optional " +
   "`extensions` for language filtering. Use this to discover paths " +
-  "before `code_read` (when `code_read` returns `FILE_NOT_FOUND` or " +
-  "you don't yet know the path) and to scope `code_grep`. Address " +
+  "before `code_read` (when you don't yet know the path, or it returns " +
+  "`FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or " +
+  "`SOURCE_FILE_INVENTORY_UNKNOWN`) and to scope `code_grep`. Address " +
   "via `target.registry` + `target.package_name` (package scope) or " +
   "`target.repo_url` + optional `target.git_ref` (repo scope), mutually " +
   "exclusive. Narrow with `path`, `path_prefix`, `globs`, " +

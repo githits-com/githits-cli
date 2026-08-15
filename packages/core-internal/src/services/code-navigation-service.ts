@@ -574,6 +574,8 @@ export class CodeNavigationIndexingError extends Error {
 
 export interface CodeNavigationErrorMetadata {
   hint?: string;
+  filePath?: string;
+  exclusionReason?: string;
   availableVersions?: AvailableVersion[];
   availableRefs?: AvailableRef[];
   suggestedRefs?: SuggestedRef[];
@@ -2202,6 +2204,8 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       case "GREP_SERVICE_UNAVAILABLE":
       case "GREP_FAILED":
       case "GREP_INDEX_NOT_AVAILABLE":
+      case "FILE_PATH_EXCLUDED":
+      case "SOURCE_FILE_INVENTORY_UNKNOWN":
       case "INTERNAL_ERROR":
       case "UNKNOWN_ERROR":
         return new CodeNavigationBackendError(
@@ -2885,6 +2889,13 @@ function parseGraphQLErrorMetadata(
 ): CodeNavigationErrorMetadata | undefined {
   const metadata: CodeNavigationErrorMetadata = {};
   if (typeof extensions?.hint === "string") metadata.hint = extensions.hint;
+  const filePath = extensions?.file_path ?? extensions?.filePath;
+  if (typeof filePath === "string") metadata.filePath = filePath;
+  const exclusionReason =
+    extensions?.exclusion_reason ?? extensions?.exclusionReason;
+  if (typeof exclusionReason === "string") {
+    metadata.exclusionReason = exclusionReason;
+  }
   const availableVersions = parseAvailableVersions(extensions);
   if (availableVersions?.length) metadata.availableVersions = availableVersions;
   const availableRefs = parseAvailableRefs(extensions);

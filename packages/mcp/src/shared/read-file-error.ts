@@ -2,13 +2,19 @@ import type { MappedError } from "./code-navigation-error-map.js";
 import {
   buildContainingPathPrefix,
   buildPathPrefixSuggestion,
+  isExactPathAuthorityError,
   looksLikeMissingFileMessage,
+  withExactPathAuthorityRecovery,
 } from "./file-path-recovery.js";
 
 export function withReadFileRecovery(
   mapped: MappedError,
   requestedPath: string,
 ): MappedError {
+  if (isExactPathAuthorityError(mapped)) {
+    return withExactPathAuthorityRecovery(mapped, "read");
+  }
+
   if (
     mapped.code !== "FILE_NOT_FOUND" &&
     (mapped.code !== "NOT_FOUND" ||

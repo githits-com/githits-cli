@@ -567,6 +567,58 @@ describe("pkgReadAction", () => {
     }
   });
 
+  it.each([
+    ["FILE_PATH_EXCLUDED", "excluded from the indexed source"],
+    ["SOURCE_FILE_INVENTORY_UNKNOWN", "cannot verify this path"],
+  ] as const)(
+    "uses CLI recovery details for %s",
+    async (code, expectedGuidance) => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit");
+      });
+
+      try {
+        await pkgReadAction(
+          "hex:jason@1.4.4",
+          "bench/data/issue-90.json",
+          { json: true },
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              readFile: mock(() =>
+                Promise.reject(
+                  new CodeNavigationBackendError(
+                    "Exact path is not queryable.",
+                    undefined,
+                    code,
+                    false,
+                    { filePath: "bench/data/issue-90.json" },
+                  ),
+                ),
+              ),
+            }),
+          }),
+        );
+      } catch {
+        /* expected */
+      }
+
+      try {
+        const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
+          details?: { action?: string };
+        };
+        expect(payload.details?.action).toContain(expectedGuidance);
+        expect(payload.details?.action).toContain("`githits code files`");
+        expect(payload.details?.action).toContain("`githits code read`");
+        expect(payload.details?.action).not.toContain("code_files");
+        expect(payload.details?.action).not.toContain("code_read");
+      } finally {
+        errorSpy.mockRestore();
+        exitSpy.mockRestore();
+      }
+    },
+  );
+
   it("uses the normalized containing directory for extensionless FILE_NOT_FOUND recovery", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {

@@ -227,7 +227,7 @@ When a new tool lands with both MCP and CLI surfaces:
 | `packages/mcp/src/shared/grep-repo-response.ts` | JSON envelope builder for `code_grep`. |
 | `packages/mcp/src/shared/list-package-docs-request.ts` / `list-package-docs-response.ts` | Shared request and envelope for `docs_list`. |
 | `packages/mcp/src/shared/read-package-doc-request.ts` / `read-package-doc-response.ts` | Shared request and envelope for `docs_read`. |
-| `packages/mcp/src/shared/code-navigation-error-map.ts` | Owns the `INDEXING` / `FILE_NOT_FOUND` / `NOT_FOUND` codes shared across all code-nav tools. |
+| `packages/mcp/src/shared/code-navigation-error-map.ts` | Owns the `INDEXING`, target/file-not-found, and exact-path authority codes shared across all code-nav tools. |
 | `packages/mcp/src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier (reuses `MappedError` from the code-nav map). |
 | `packages/core-internal/src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. |
 | `packages/mcp/src/tools/code-navigation-shared.ts` | `codeTargetSchema` + `resolveCodeTarget` — the addressing primitive used by `code_files`, `code_read`, `code_grep`, and unified `search`. |
@@ -375,5 +375,6 @@ envelope shape.
   shared scan/scope/served-target context and branches recovery on whether
   `filesInScope` is zero. Completed scans reject an unchanged repeat;
   incomplete empty pages preserve truncation/pagination continuation instead.
-  Exact-path `FILE_NOT_FOUND` errors follow the same shared-data,
+  Exact-path `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, and
+  `SOURCE_FILE_INVENTORY_UNKNOWN` errors follow the same shared-data,
   surface-native-action contract as `code_read`.

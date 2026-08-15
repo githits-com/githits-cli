@@ -1,5 +1,6 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
+  CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
@@ -236,6 +237,79 @@ describe("grep_repo parity", () => {
     expect(mcpAction).toContain("`code_files`");
     expect(mcpAction).toContain("`code_grep`");
   });
+
+  it.each([
+    ["FILE_PATH_EXCLUDED", "generated_or_large"],
+    ["SOURCE_FILE_INVENTORY_UNKNOWN", "inventory_unavailable"],
+  ] as const)(
+    "PARITY-ERROR-ENVELOPE: %s exact-path authority details are identical",
+    async (code, exclusionReason) => {
+      const fn = mock(() =>
+        Promise.reject(
+          new CodeNavigationBackendError(
+            "Exact path is not queryable.",
+            undefined,
+            code,
+            false,
+            {
+              filePath: "bench/data/issue-90.json",
+              exclusionReason,
+            },
+          ),
+        ),
+      );
+      const cli = await cliJson(
+        "hex:jason@1.4.4",
+        "{",
+        undefined,
+        { path: "bench/data/issue-90.json" },
+        cliDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            grepRepo: fn as never,
+          }),
+        }),
+      );
+      const mcp = await mcpJson(
+        {
+          target: {
+            registry: "hex",
+            package_name: "jason",
+            version: "1.4.4",
+          },
+          pattern: "{",
+          path: "bench/data/issue-90.json",
+        },
+        fn as never,
+      );
+
+      const cliEnvelope = cli as {
+        details: { action?: string };
+      };
+      const mcpEnvelope = mcp as {
+        details: { action?: string };
+      };
+      const { action: cliAction, ...cliDetails } = cliEnvelope.details;
+      const { action: mcpAction, ...mcpDetails } = mcpEnvelope.details;
+
+      expect({ ...cliEnvelope, details: cliDetails }).toEqual({
+        ...mcpEnvelope,
+        details: mcpDetails,
+      });
+      expect(cliEnvelope).toMatchObject({
+        code,
+        retryable: false,
+        details: {
+          filePath: "bench/data/issue-90.json",
+          exclusionReason,
+          graphqlCode: code,
+        },
+      });
+      expect(cliAction).toContain("`githits code files`");
+      expect(cliAction).toContain("`githits code grep`");
+      expect(mcpAction).toContain("`code_files`");
+      expect(mcpAction).toContain("`code_grep`");
+    },
+  );
 
   it("PARITY-ERROR-ENVELOPE: whitespace-only pattern shares data with surface-native messages", async () => {
     const cli = (await cliJson("npm:express", "   ", undefined)) as {

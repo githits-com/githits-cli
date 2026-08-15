@@ -280,6 +280,9 @@ repeatable --ext for extension filtering. When [path-prefix], --path, and
 --glob are combined they are unioned — a file matches if any selector matches;
 use --ext to narrow further (intersection).
 
+If an exact --path is missing, excluded, or cannot be verified by the source
+inventory, use \`code files\` to inspect the indexed paths.
+
 Default output is \`file:line:text\`, pipe-friendly like grep. Use -C / -A / -B
 for context, --verbose for grouped output, and --cursor to continue a paginated
 grep run. --symbol-field hydrates enclosing symbol metadata (appears under each

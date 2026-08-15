@@ -209,6 +209,31 @@ describe("target-resolution helpers", () => {
     ).toEqual([]);
   });
 
+  it("suppresses obsolete retry candidates after a waited target becomes current", () => {
+    expect(
+      buildTargetResolutionNotes({
+        requested: {
+          repoUrl: "https://github.com/dmmulroy/anti-slop",
+          gitRef: "e8100a10da49858cfa8d26883d170e9cc8281988",
+        },
+        resolvedRequested: {
+          repoUrl: "https://github.com/dmmulroy/anti-slop",
+          gitRef: "e8100a10da49858cfa8d26883d170e9cc8281988",
+          commitSha: "e8100a10da49858cfa8d26883d170e9cc8281988",
+        },
+        served: {
+          repoUrl: "https://github.com/dmmulroy/anti-slop",
+          gitRef: "e8100a10da49858cfa8d26883d170e9cc8281988",
+          commitSha: "e8100a10da49858cfa8d26883d170e9cc8281988",
+        },
+        freshness: "current",
+        freshnessReason: "exact_current",
+        availableVersions: [],
+        availableRefs: [{ ref: "cd064fe602b5915ff35e1e1c20836ca9bcb3729a" }],
+      }),
+    ).toEqual([]);
+  });
+
   it("suppresses current provenance even when identities use different layers", () => {
     expect(
       buildTargetResolutionNotes({

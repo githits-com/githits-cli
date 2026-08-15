@@ -342,6 +342,60 @@ describe("mapCodeNavigationError", () => {
     });
   });
 
+  it.each([
+    ["FILE_PATH_EXCLUDED", "generated_or_large"],
+    ["SOURCE_FILE_INVENTORY_UNKNOWN", "inventory_unavailable"],
+  ] as const)(
+    "promotes %s and preserves exact-path authority details",
+    (code, exclusionReason) => {
+      const err = new CodeNavigationBackendError(
+        "Exact path is not queryable.",
+        undefined,
+        code,
+        false,
+        {
+          filePath: "bench/data/issue-90.json",
+          exclusionReason,
+          targetResolution: {
+            requested: {
+              registry: "HEX",
+              packageName: "jason",
+              version: "1.4.4",
+            },
+            served: { registry: "HEX", packageName: "jason", version: "1.4.4" },
+            freshness: "current",
+            freshnessReason: "exact_current",
+            availableVersions: [],
+            availableRefs: [],
+          },
+        },
+      );
+
+      expect(mapCodeNavigationError(err)).toEqual({
+        code,
+        message: "Exact path is not queryable.",
+        retryable: false,
+        details: {
+          filePath: "bench/data/issue-90.json",
+          exclusionReason,
+          targetResolution: {
+            requested: {
+              registry: "HEX",
+              packageName: "jason",
+              version: "1.4.4",
+            },
+            served: { registry: "HEX", packageName: "jason", version: "1.4.4" },
+            freshness: "current",
+            freshnessReason: "exact_current",
+            availableVersions: [],
+            availableRefs: [],
+          },
+          graphqlCode: code,
+        },
+      });
+    },
+  );
+
   it("classifies CodeNavigationBackendError with TIMEOUT as TIMEOUT (retryable)", () => {
     const err = new CodeNavigationBackendError(
       "Backend timed out",

@@ -133,6 +133,7 @@ const DESCRIPTION =
   "Use `search` for discovery instead. " +
   "Whole-target grep is the default — narrow with `path`, `path_prefix`, `globs`, or `extensions` to keep responses small. " +
   "Each match's `filePath` (or text file heading) chains into `code_read.path`; pick a window around `match.line` for `code_read.start_line` / `end_line`. " +
+  "When an exact path returns `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or `SOURCE_FILE_INVENTORY_UNKNOWN`, follow `details.action` to inspect paths available through `code_files`. " +
   "When fresh data is not ready within the wait window, responses may include `targetResolution` provenance, `indexingEstimate`, and immediately-queryable alternatives in error details. " +
   "`availableVersions` and `availableRefs` are already indexed/queryable; `suggestedRefs` are fuzzy ref hints and may need indexing first." +
   `\n\n${CODE_GREP_GUARDRAIL}`;

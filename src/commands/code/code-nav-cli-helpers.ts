@@ -16,6 +16,7 @@ import {
   buildContainingPathPrefix,
   buildPathPrefixSuggestion,
   InvalidPackageSpecError,
+  isExactPathAuthorityError,
   looksLikeMissingFileMessage,
   type MappedError,
   mapCodeNavigationError,
@@ -152,6 +153,13 @@ export function formatFileErrorWithFilesHint(mapped: MappedError): string {
   if (mapped.code === "FILE_NOT_FOUND") {
     return `${formatMappedErrorForTerminal(mapped)}\n  Use \`code files\` to list available paths.`;
   }
+  if (isExactPathAuthorityError(mapped)) {
+    const guidance =
+      mapped.code === "FILE_PATH_EXCLUDED"
+        ? "This path is excluded from the indexed source; use `code files` to list indexed paths."
+        : "The source inventory cannot verify this path; use `code files` to list indexed paths it can currently verify.";
+    return `${formatMappedErrorForTerminal(mapped)}\n  ${guidance}`;
+  }
   if (
     mapped.code === "NOT_FOUND" &&
     looksLikeMissingFileMessage(mapped.message)
@@ -181,6 +189,10 @@ export function withCliReadFileRecovery(
   mapped: MappedError,
   requestedPath: string,
 ): MappedError {
+  if (isExactPathAuthorityError(mapped)) {
+    return withCliExactPathAuthorityRecovery(mapped, "read");
+  }
+
   if (
     mapped.code !== "FILE_NOT_FOUND" &&
     (mapped.code !== "NOT_FOUND" ||
@@ -199,6 +211,10 @@ export function withCliReadFileRecovery(
 
 /** Add CLI-native structured recovery for an exact-path `code grep` miss. */
 export function withCliGrepFileRecovery(mapped: MappedError): MappedError {
+  if (isExactPathAuthorityError(mapped)) {
+    return withCliExactPathAuthorityRecovery(mapped, "grep");
+  }
+
   if (
     mapped.code !== "FILE_NOT_FOUND" ||
     mapped.details?.filePath === undefined
@@ -207,6 +223,37 @@ export function withCliGrepFileRecovery(mapped: MappedError): MappedError {
   }
 
   return withCliPathRecovery(mapped, mapped.details.filePath, "grep", true);
+}
+
+function withCliExactPathAuthorityRecovery(
+  mapped: MappedError,
+  command: "read" | "grep",
+): MappedError {
+  if (
+    !isExactPathAuthorityError(mapped) ||
+    mapped.details?.filePath === undefined
+  ) {
+    return mapped;
+  }
+
+  const prefix = buildContainingPathPrefix(mapped.details.filePath);
+  const listing =
+    prefix === ""
+      ? "Use `githits code files` without a path prefix"
+      : `Use \`githits code files\` with path prefix ${JSON.stringify(prefix)}`;
+  const reason =
+    mapped.code === "FILE_PATH_EXCLUDED"
+      ? "This path is excluded from the indexed source."
+      : "The source inventory cannot verify this path.";
+  return {
+    ...mapped,
+    details: {
+      ...mapped.details,
+      action:
+        `${reason} ${listing} to list indexed paths available to ` +
+        `\`githits code ${command}\`.`,
+    },
+  };
 }
 
 function withCliPathRecovery(
