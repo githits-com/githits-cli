@@ -39,6 +39,10 @@ export interface CodeDiffCommandDependencies {
   mcpUrl: string;
 }
 
+interface RootCommandWithRawArgs extends Command {
+  rawArgs?: string[];
+}
+
 /** Execute the silent-dogfood CodeDiff CLI adapter. */
 export async function codeDiffAction(
   arg1: string | undefined,
@@ -46,6 +50,7 @@ export async function codeDiffAction(
   arg3: string | undefined,
   options: CodeDiffCommandOptions,
   deps: CodeDiffCommandDependencies,
+  pathGlobAfterDoubleDash = false,
 ): Promise<void> {
   try {
     requireAuth(deps);
@@ -69,6 +74,11 @@ export async function codeDiffAction(
       arg3,
       options.repoUrl !== undefined,
     );
+    if (positionals.pathGlob !== undefined && !pathGlobAfterDoubleDash) {
+      throw new InvalidPackageSpecError(
+        "Pass the repository-relative <path-glob> after `--`.",
+      );
+    }
     const view = resolveView(options);
     const build = buildCodeDiffParams({
       target: positionals.target,
@@ -230,7 +240,7 @@ export function registerCodeDiffCommand(codeCommand: Command): Command {
     )
     .argument(
       "[path-glob]",
-      "One repository-relative glob, preferably passed after `--`.",
+      "One repository-relative glob; must be passed after `--`.",
     )
     .option("--repo-url <url>", "Public GitHub repository URL addressing")
     .option("-p, --patch", "Emit bounded patches (default)")
@@ -250,14 +260,28 @@ export function registerCodeDiffCommand(codeCommand: Command): Command {
         arg2: string | undefined,
         arg3: string | undefined,
         options: CodeDiffCommandOptions,
+        command: Command,
       ) => {
         const deps = await createContainer();
-        await codeDiffAction(arg1, arg2, arg3, options, {
-          codeNavigationService: deps.codeNavigationService,
-          codeNavigationUrl: deps.codeNavigationUrl,
-          hasValidToken: deps.hasValidToken,
-          mcpUrl: deps.mcpUrl,
-        });
+        await codeDiffAction(
+          arg1,
+          arg2,
+          arg3,
+          options,
+          {
+            codeNavigationService: deps.codeNavigationService,
+            codeNavigationUrl: deps.codeNavigationUrl,
+            hasValidToken: deps.hasValidToken,
+            mcpUrl: deps.mcpUrl,
+          },
+          rootCommandUsedDoubleDash(command),
+        );
       },
     );
+}
+
+function rootCommandUsedDoubleDash(command: Command): boolean {
+  let root = command;
+  while (root.parent) root = root.parent;
+  return (root as RootCommandWithRawArgs).rawArgs?.includes("--") ?? false;
 }

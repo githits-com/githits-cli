@@ -1,8 +1,9 @@
 # Plan: CodeDiff CLI dogfood and agent rollout
 
-> Overall status: Phase 1 is merged. Phase 2 is implementation-ready as a
-> silent CLI-only dogfood launch. MCP and agent-facing exposure are deferred
-> until the CLI contract has been exercised.
+> Overall status: Phase 1 is merged. Phase 2 is implemented and locally/live
+> verified as a silent CLI-only dogfood launch; review and merge are pending.
+> MCP and agent-facing exposure remain deferred until the CLI contract has
+> been exercised after merge.
 >
 > Reoriented: 2026-08-17 against `githits` `origin/main` at `77417aa` and
 > PkgSeer backend `origin/main` at `c0cf92e` with GraphQL schema hash
@@ -54,9 +55,8 @@ CodeDiff remains a separate, unexposed backend evaluation surface.
 - Root `githits` is version `0.9.2`; public `@githits/mcp` is version `0.9.1`.
   A new CLI command affects `githits` only unless implementation changes a
   public MCP export or behavior.
-- This worktree remains at the merged PR head `f263cf8` while `origin/main`
-  points at the merge commit. Phase 2 implementation must begin from current
-  `origin/main`; this replan does not itself rewrite branch history.
+- Phase 2 implementation began from `origin/main` at `77417aa`; subsequent
+  branch commits contain only the silent CLI dogfood delta described here.
 
 ### Backend contract
 
@@ -340,7 +340,7 @@ There is no blocking product decision for Phase 2.
 | Phase | Status | Outcome |
 |---|---|---|
 | 1. Transport-neutral CodeDiff adapter | Complete and merged | Typed exact-tree request/result/error support with no CLI command or MCP tool |
-| 2. Silent CLI dogfood | Implementation-ready | Git-like `githits code diff`, CLI-only tests/smoke/docs/release fragment, and dogfood evidence with no agent exposure |
+| 2. Silent CLI dogfood | Implemented and verified; review pending | Git-like `githits code diff`, CLI-only tests/smoke/docs/release fragment, and initial live dogfood evidence with no agent exposure |
 | 3. MCP and agent rollout | Blocked on Phase 2 evidence | Stable `code_diff`, CLI/MCP parity, instructions, assets, smoke, and agent evaluation |
 | 4. Changelog steering | Blocked on backend action contract and stable Phase 3 invocation | Typed sparse-changelog actions that point to valid CLI/MCP diff calls |
 | Structural track | Out of scope / backend-blocked | Separate future proposal only after backend says structural evidence is externally safe |
@@ -370,7 +370,9 @@ guidance was added.
 
 ## Phase 2: silent CLI dogfood
 
-**Status:** implementation-ready.
+**Status:** implemented and verified; review and merge pending. Authenticated
+package smoke against `npm:express` `5.2.0..5.2.1` succeeded; broader
+representative dogfooding remains the post-merge gate before Phase 3.
 
 **Expected outcome:** developers and deliberate CLI users can run an
 authoritative exact-tree raw diff through `githits code diff` with familiar

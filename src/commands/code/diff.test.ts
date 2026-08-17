@@ -68,6 +68,7 @@ describe("codeDiffAction", () => {
       dependencies({
         codeNavigationService: createMockCodeNavigationService({ codeDiff }),
       }),
+      true,
     );
 
     expect(codeDiff).toHaveBeenCalledWith({
@@ -196,6 +197,31 @@ describe("codeDiffAction", () => {
       // process.exit is mocked as a throw.
     }
     expect(error.mock.calls[0]?.[0]).toContain("at most one");
+    error.mockRestore();
+    exit.mockRestore();
+  });
+
+  it("requires the Git-style -- delimiter before a path glob", async () => {
+    const codeDiff = mock(() => Promise.resolve(defaultCodeDiffResult));
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    try {
+      await codeDiffAction(
+        "npm:express",
+        "1.0.0..2.0.0",
+        "src/**/*.ts",
+        {},
+        dependencies({
+          codeNavigationService: createMockCodeNavigationService({ codeDiff }),
+        }),
+      );
+    } catch {
+      // process.exit is mocked as a throw.
+    }
+    expect(error.mock.calls[0]?.[0]).toContain("after `--`");
+    expect(codeDiff).not.toHaveBeenCalled();
     error.mockRestore();
     exit.mockRestore();
   });
