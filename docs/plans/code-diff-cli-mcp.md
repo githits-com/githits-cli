@@ -4,7 +4,7 @@
 > against the accepted Git-like direction and the narrower backend glob
 > contract.
 >
-> Reoriented: 2026-08-17 against `githits` `origin/main` at `57619e8` and
+> Reoriented: 2026-08-17 against `githits` `origin/main` at `fa27604` and
 > the PkgSeer backend `main` GraphQL schema and implementation.
 
 ## Problem and expected outcome
@@ -29,8 +29,8 @@ separate, unexposed backend capability.
 
 ### Repository state
 
-- The working branch was rebased on 2026-08-17 and exactly matches
-  `origin/main` at `57619e8`; it has no branch-only commits.
+- The working branch was rebased on 2026-08-17 against `origin/main` at
+  `fa27604`.
 - No CodeDiff client, CLI command, MCP tool, response formatter, or changelog
   action consumer exists in the current GitHits tree.
 - `CodeNavigationService` owns source navigation and is the verified service

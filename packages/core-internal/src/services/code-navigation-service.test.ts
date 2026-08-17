@@ -3232,6 +3232,15 @@ describe("CodeNavigationServiceImpl", () => {
       },
       {
         target: {
+          registry: "NPM",
+          packageName: "express",
+          repoUrl: undefined,
+        },
+        message:
+          "CodeDiff target has conflicting present keys: registry, packageName, repoUrl. Target shape is determined by key presence, even when a value is undefined.",
+      },
+      {
+        target: {
           packageName: "express",
           repoUrl: "https://github.com/expressjs/express",
         },
