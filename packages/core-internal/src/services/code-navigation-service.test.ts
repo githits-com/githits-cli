@@ -26,6 +26,65 @@ function mockFetch(impl: () => Promise<Response>) {
   return fn;
 }
 
+interface SuggestedSiteTargetsFixture {
+  name: string;
+  note?: string;
+  targets: string[];
+  truncated: boolean;
+}
+
+const suggestedSiteTargetsFixtures: SuggestedSiteTargetsFixture[] = [
+  { name: "empty", targets: [], truncated: false },
+  {
+    name: "ambiguous",
+    note: "Multiple indexed site scopes match the requested host.",
+    targets: ["site:example.com/docs", "site:example.com/guide"],
+    truncated: false,
+  },
+  {
+    name: "redirected",
+    note: "The requested site redirected to another documentation site.",
+    targets: ["site:new.example.com/docs"],
+    truncated: false,
+  },
+  {
+    name: "truncated",
+    targets: Array.from(
+      { length: 10 },
+      (_, index) => `site:example.com/docs-${index + 1}`,
+    ),
+    truncated: true,
+  },
+];
+
+function buildSuggestedSiteSearchResult(
+  fixture: SuggestedSiteTargetsFixture,
+): Record<string, unknown> {
+  return {
+    query: "router",
+    queryWarnings: [],
+    sources: ["DOCS"],
+    results: [],
+    page: { offset: 0, limit: 20, returned: 0, hasMore: false },
+    partialResults: false,
+    sourceStatus: [
+      {
+        source: "DOCS",
+        targetLabel: "site:example.com",
+        appliedFilters: [],
+        ignoredFilters: [],
+        incompatibleFilters: [],
+        appliedQueryFeatures: [],
+        ignoredQueryFeatures: [],
+        incompatibleQueryFeatures: [],
+        suggestedSiteTargets: fixture.targets,
+        suggestedSiteTargetsTruncated: fixture.truncated,
+        note: fixture.note,
+      },
+    ],
+  };
+}
+
 describe("CodeNavigationServiceImpl", () => {
   const BASE_URL = "https://nav.example.com";
   let originalFetch: typeof globalThis.fetch;
@@ -1030,7 +1089,7 @@ describe("CodeNavigationServiceImpl", () => {
     stderrSpy.mockRestore();
   });
 
-  it("requests documentation coverage and site fields in the search query", async () => {
+  it("requests documentation coverage, site fields, and recovery suggestions in the search query", async () => {
     const fn = mockFetch(() =>
       Promise.resolve(
         new Response(
@@ -1071,10 +1130,77 @@ describe("CodeNavigationServiceImpl", () => {
     const query = JSON.parse(init.body as string).query as string;
     expect(query).toContain("coverageState");
     expect(query).toContain("frontierRemaining");
+    expect(query).toContain("suggestedSiteTargets");
+    expect(query).toContain("suggestedSiteTargetsTruncated");
     // requestedTargets must select `site`, otherwise standalone site
     // targets echo back as empty objects during progress polling.
     expect(query).toMatch(/requestedTargets\s*{[^}]*site/);
   });
+
+  for (const operation of ["search", "searchStatus"] as const) {
+    for (const fixture of suggestedSiteTargetsFixtures) {
+      it(`normalises ${fixture.name} site recovery suggestions from ${operation}`, async () => {
+        const result = buildSuggestedSiteSearchResult(fixture);
+        const fn = mockFetch(() =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify({
+                data:
+                  operation === "search"
+                    ? {
+                        search: {
+                          completed: true,
+                          searchRef: "search-ref-site",
+                          result,
+                          progress: null,
+                        },
+                      }
+                    : {
+                        discoverySearchProgress: {
+                          searchRef: "search-ref-site",
+                          status: "COMPLETED",
+                          targetsTotal: 1,
+                          targetsReady: 1,
+                          elapsedMs: 25,
+                          query: "router",
+                          queryWarnings: [],
+                          sources: ["DOCS"],
+                          results: result,
+                        },
+                      },
+              }),
+              { headers: { "Content-Type": "application/json" } },
+            ),
+          ),
+        );
+        const service = new CodeNavigationServiceImpl(
+          BASE_URL,
+          createMockTokenProvider(),
+          globalThis.fetch,
+        );
+
+        const outcome =
+          operation === "search"
+            ? await service.search({
+                targets: [{ site: "site:example.com" }],
+                query: "router",
+              })
+            : await service.searchStatus("search-ref-site");
+
+        if (outcome.state !== "completed") {
+          throw new Error("expected completed search outcome");
+        }
+        expect(outcome.result.sourceStatus[0]).toMatchObject({
+          suggestedSiteTargets: fixture.targets,
+          suggestedSiteTargetsTruncated: fixture.truncated,
+        });
+        const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+        const query = JSON.parse(init.body as string).query as string;
+        expect(query).toContain("suggestedSiteTargets");
+        expect(query).toContain("suggestedSiteTargetsTruncated");
+      });
+    }
+  }
 
   it("normalises documentation coverage on source status", async () => {
     mockFetch(() =>
@@ -1102,6 +1228,8 @@ describe("CodeNavigationServiceImpl", () => {
                       appliedQueryFeatures: [],
                       ignoredQueryFeatures: [],
                       incompatibleQueryFeatures: [],
+                      suggestedSiteTargets: [],
+                      suggestedSiteTargetsTruncated: false,
                       coverage: {
                         coverageState: "PARTIAL",
                         pagesCrawled: 42,
@@ -1165,6 +1293,8 @@ describe("CodeNavigationServiceImpl", () => {
                       appliedQueryFeatures: [],
                       ignoredQueryFeatures: [],
                       incompatibleQueryFeatures: [],
+                      suggestedSiteTargets: [],
+                      suggestedSiteTargetsTruncated: false,
                       coverage: { coverageState: "NONE", pagesCrawled: 0 },
                     },
                   ],

@@ -395,6 +395,32 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("ignored=fileIntent");
   });
 
+  it("renders structured site recovery guidance in backend order", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "site:example.com",
+            suggestedSiteTargets: [
+              "site:example.com/docs",
+              "site:example.com/guide",
+            ],
+            suggestedSiteTargetsTruncated: true,
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "Suggested site targets: site:example.com/docs, site:example.com/guide",
+    );
+    expect(text).toContain("Additional site targets were omitted.");
+    expect(text.indexOf("site:example.com/docs")).toBeLessThan(
+      text.indexOf("site:example.com/guide"),
+    );
+  });
+
   it("renders a warnings preamble when payload-level warnings are populated", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {

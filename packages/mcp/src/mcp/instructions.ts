@@ -30,7 +30,7 @@ const MULTI_TURN_TIP =
   '**Delegate multi-call work to a sub-agent.** Code navigation (`search`, `code_files`, `code_grep`, `code_read`) often takes 3-10 calls. For mapping, comparisons, or "how does X work" investigations, delegate and ask for a compact synthesis.';
 
 const SEARCH_BULLET =
-  "- `search` — discover relevant docs, code, tests, examples, and symbols in known packages/repos before reading exact files.";
+  "- `search` — discover relevant docs, code, tests, examples, and symbols in known packages/repos or exact `site:<host[/path]>` documentation targets before reading exact files; retry advisory `suggestedSiteTargets` explicitly when returned.";
 
 const SEARCH_STATUS_BULLET =
   "- `search_status` — follow up a prior `searchRef` from `search`.";

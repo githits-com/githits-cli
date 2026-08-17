@@ -292,6 +292,8 @@ export interface UnifiedSearchSourceStatus {
   appliedQueryFeatures: string[];
   ignoredQueryFeatures: string[];
   incompatibleQueryFeatures: string[];
+  suggestedSiteTargets: string[];
+  suggestedSiteTargetsTruncated: boolean;
   note?: string;
   coverage?: DocCoverage;
 }
@@ -911,6 +913,8 @@ query UnifiedSearch(
         appliedQueryFeatures
         ignoredQueryFeatures
         incompatibleQueryFeatures
+        suggestedSiteTargets
+        suggestedSiteTargetsTruncated
         note
         ${DOC_COVERAGE_SELECTION}
       }
@@ -1064,6 +1068,8 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitT
         appliedQueryFeatures
         ignoredQueryFeatures
         incompatibleQueryFeatures
+        suggestedSiteTargets
+        suggestedSiteTargetsTruncated
         note
         ${DOC_COVERAGE_SELECTION}
       }
@@ -1281,6 +1287,8 @@ const unifiedSearchSourceStatusSchema = z.object({
   appliedQueryFeatures: z.array(z.string()),
   ignoredQueryFeatures: z.array(z.string()),
   incompatibleQueryFeatures: z.array(z.string()),
+  suggestedSiteTargets: z.array(z.string()),
+  suggestedSiteTargetsTruncated: z.boolean(),
   note: z.string().nullable().optional(),
   coverage: docCoverageSchema,
 });
@@ -2366,6 +2374,8 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
         appliedQueryFeatures: entry.appliedQueryFeatures,
         ignoredQueryFeatures: entry.ignoredQueryFeatures,
         incompatibleQueryFeatures: entry.incompatibleQueryFeatures,
+        suggestedSiteTargets: entry.suggestedSiteTargets,
+        suggestedSiteTargetsTruncated: entry.suggestedSiteTargetsTruncated,
         note: entry.note ?? undefined,
         coverage: normaliseDocCoverage(entry.coverage),
       })),

@@ -808,6 +808,8 @@ describe("buildUnifiedSearchSuccessPayload", () => {
               appliedQueryFeatures: [],
               ignoredQueryFeatures: [],
               incompatibleQueryFeatures: [],
+              suggestedSiteTargets: [],
+              suggestedSiteTargetsTruncated: false,
               coverage: {
                 coverageState: "PARTIAL",
                 pagesCrawled: 42,
@@ -853,6 +855,8 @@ describe("buildUnifiedSearchSuccessPayload", () => {
               appliedQueryFeatures: [],
               ignoredQueryFeatures: [],
               incompatibleQueryFeatures: [],
+              suggestedSiteTargets: [],
+              suggestedSiteTargetsTruncated: false,
               coverage: {
                 coverageState: "PARTIAL",
                 note: "Site crawl is in progress",
@@ -893,6 +897,8 @@ describe("buildUnifiedSearchSuccessPayload", () => {
               appliedQueryFeatures: [],
               ignoredQueryFeatures: [],
               incompatibleQueryFeatures: [],
+              suggestedSiteTargets: [],
+              suggestedSiteTargetsTruncated: false,
               coverage: {
                 coverageState: "CAPPED",
                 coverageReason: "page_limit_reached",
@@ -935,6 +941,8 @@ describe("buildUnifiedSearchSuccessPayload", () => {
               appliedQueryFeatures: [],
               ignoredQueryFeatures: [],
               incompatibleQueryFeatures: [],
+              suggestedSiteTargets: [],
+              suggestedSiteTargetsTruncated: false,
               coverage: { coverageState: "COMPLETE", pagesCrawled: 200 },
             },
           ],
@@ -949,6 +957,91 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       },
     ]);
     expect(payload.warnings).toBeUndefined();
+  });
+
+  it("preserves ordered site recovery suggestions and the exact false truncation value", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const payload = buildUnifiedSearchSuccessPayload(
+      { targets: [{ site: "site:example.com" }], query: "router" },
+      "router",
+      "router",
+      {
+        ...defaultUnifiedSearchOutcome,
+        result: {
+          ...defaultUnifiedSearchOutcome.result,
+          results: [],
+          sourceStatus: [
+            {
+              source: "DOCS",
+              targetLabel: "site:example.com",
+              appliedFilters: [],
+              ignoredFilters: [],
+              incompatibleFilters: [],
+              appliedQueryFeatures: [],
+              ignoredQueryFeatures: [],
+              incompatibleQueryFeatures: [],
+              suggestedSiteTargets: [
+                "site:example.com/docs",
+                "site:example.com/guide",
+              ],
+              suggestedSiteTargetsTruncated: false,
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.sourceStatus).toEqual([
+      {
+        source: "docs",
+        targetLabel: "site:example.com",
+        suggestedSiteTargets: [
+          "site:example.com/docs",
+          "site:example.com/guide",
+        ],
+        suggestedSiteTargetsTruncated: false,
+      },
+    ]);
+  });
+
+  it("preserves truncated site recovery suggestions in search-status results", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const payload = buildUnifiedSearchStatusPayload({
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "site:example.com",
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            suggestedSiteTargets: ["site:example.com/docs"],
+            suggestedSiteTargetsTruncated: true,
+          },
+        ],
+      },
+    });
+
+    expect(payload.completed).toBe(true);
+    if (!payload.completed) throw new Error("expected completed payload");
+    expect(payload.result.sourceStatus).toEqual([
+      {
+        source: "docs",
+        targetLabel: "site:example.com",
+        suggestedSiteTargets: ["site:example.com/docs"],
+        suggestedSiteTargetsTruncated: true,
+      },
+    ]);
   });
 
   it("preserves site requestedTargets and targetResolution in progress payloads", () => {
@@ -1286,6 +1379,8 @@ describe("buildUnifiedSearchSuccessPayload — sourceStatus warnings on complete
             appliedQueryFeatures: [],
             ignoredQueryFeatures: [],
             incompatibleQueryFeatures: [],
+            suggestedSiteTargets: [],
+            suggestedSiteTargetsTruncated: false,
             targetResolution: {
               requested: {
                 repoUrl: "https://github.com/expressjs/express",

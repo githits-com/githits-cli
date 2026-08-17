@@ -10,6 +10,7 @@ import {
   DEFAULT_WAIT_TIMEOUT_MS,
   dim,
   formatProgressTarget,
+  formatSuggestedSiteTargetGuidance,
   highlight,
   highlightMatch,
   highlightRanges,
@@ -154,7 +155,7 @@ export async function searchStatusAction(
           }),
         );
       } else {
-        console.log(formatSearchStatusTerminal(payload));
+        console.log(formatSearchStatusTerminal(payload, payload.warnings));
       }
       return;
     }
@@ -165,16 +166,21 @@ export async function searchStatusAction(
   }
 }
 
-const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed dependencies and repositories.
+const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed dependencies, repositories, and documentation sites.
 
 Repeatable --in targets accept explicit package form (registry:name[@version],
 for example npm:express[@version]) or repo form (github:org/repo[#ref|@ref],
-github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]).
+github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]),
+or an exact documentation site as site:<host[/path]>. Missing or
+ambiguous sites may return advisory site targets to retry explicitly.
 Output uses canonical github:org/repo#ref formatting. Structured
-flags are AND-combined with the query. Complete by default — if indexing is
-still running, returns a searchRef instead of partial hits unless
---allow-partial is passed. Use \`githits example\` for canonical cross-project
-examples; \`--source symbol\` here returns symbol-shaped hits.
+flags are AND-combined with the query. Complete by default — if indexing or
+refresh is still running, returns a searchRef; stale-but-serveable evidence
+may accompany it while refresh continues. Follow the reference with
+\`githits search-status\` instead of repeating search. Missing or ambiguous
+sites may instead return terminal recovery guidance without a searchRef. Use
+\`githits example\` for canonical cross-project examples; \`--source symbol\`
+here returns symbol-shaped hits.
 
 The query supports implicit AND, uppercase OR, parens, unary -, "phrases",
 and qualifiers (kind:, category:, path:, lang:, name:, intent:, registry:,
@@ -182,6 +188,7 @@ package:, version:, repo:).
 
 Examples:
   githits search "router middleware" --in npm:express
+  githits search "routing" --in site:expressjs.com --source docs
   githits search '"body parser" OR multer' --in npm:express --source docs
   githits search "compose" --in npm:lodash --source code --kind function
   githits search "debounce" --in npm:lodash --source symbol
@@ -190,9 +197,11 @@ Examples:
 const SEARCH_STATUS_DESCRIPTION = `Check the status of a unified search started earlier.
 
 Pass the searchRef returned by githits search when the initial request could
-not complete within the wait window. This can return progress, partial hits when
-the original request used --allow-partial, or final results. By default it waits
-up to 20 seconds for progress before returning the latest status.`;
+not complete within the wait window. This can return progress, interim hits
+covering every runnable target/source pair while refresh continues, partial
+hits from a serveable subset when the original request used --allow-partial,
+or final results. By default it waits up to 20 seconds for progress before
+returning the latest status.`;
 
 export function registerSearchCommand(program: Command) {
   program
@@ -202,7 +211,7 @@ export function registerSearchCommand(program: Command) {
     .argument("<query>", "Search query")
     .requiredOption(
       "--in <target>",
-      "Search target: registry:name[@version], github:org/repo[#ref|@ref], github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]",
+      "Search target: registry:name[@version], github:org/repo[#ref|@ref], github.com/org/repo[#ref|@ref], https://github.com/org/repo[#ref|@ref], or site:<host[/path]>",
       collectRepeatable,
       [] as string[],
     )
@@ -254,7 +263,7 @@ export function registerSearchCommand(program: Command) {
     .option("--lang <language>", "Structured language qualifier")
     .option(
       "--allow-partial",
-      "Include hits already available while indexing continues; a searchRef is still returned so search-status can fetch the rest",
+      "Permit a serveable subset of target/source pairs while others remain unavailable; a searchRef is still returned for continuation",
     )
     .option("--limit <n>", "Max results (1-100, default: 10)")
     .option("--offset <n>", "Result offset")
@@ -449,24 +458,28 @@ function formatUnifiedSearchTerminal(payload: {
     lines.push("");
   }
 
+  const sourceStatusNotes = formatSourceStatusNotes(
+    payload.sourceStatus,
+    warnings,
+  );
+
   if (!payload.completed) {
     const statusText = formatSearchStatusTerminal({
       completed: false,
       searchRef: payload.searchRef ?? "",
       progress: payload.progress,
     });
-    if (payload.results.length === 0) {
-      return statusText;
-    }
     lines.push(statusText);
+    if (payload.results.length === 0) {
+      if (sourceStatusNotes.length > 0) {
+        lines.push("");
+        lines.push(...sourceStatusNotes);
+      }
+      return lines.join("\n").trimEnd();
+    }
     lines.push("");
     lines.push("Partial results:");
   }
-
-  const sourceStatusNotes = formatSourceStatusNotes(
-    payload.sourceStatus,
-    warnings,
-  );
 
   if (payload.results.length === 0) {
     lines.push("No results.");
@@ -529,16 +542,24 @@ function formatUnifiedSearchTerminal(payload: {
   return lines.join("\n").trimEnd();
 }
 
-function formatSearchStatusTerminal(payload: {
-  completed: false;
-  searchRef: string;
-  progress?: SearchProgressForTerminal;
-}): string {
+function formatSearchStatusTerminal(
+  payload: {
+    completed: false;
+    searchRef: string;
+    progress?: SearchProgressForTerminal;
+  },
+  warnings?: string[],
+): string {
   const status = payload.progress?.status;
-  const lines = [
-    formatSearchStatusHeadline(status),
-    `searchRef: ${payload.searchRef}`,
-  ];
+  const lines: string[] = [];
+  if (warnings && warnings.length > 0) {
+    for (const warning of warnings) {
+      lines.push(`Warning: ${warning}`);
+    }
+    lines.push("");
+  }
+  lines.push(formatSearchStatusHeadline(status));
+  lines.push(`searchRef: ${payload.searchRef}`);
   if (payload.progress) {
     if (payload.progress.status) {
       lines.push(`status: ${payload.progress.status.toLowerCase()}`);
@@ -615,6 +636,9 @@ function formatSearchStatusPartialTerminal(
     result: UnifiedSearchStatusResultPayload;
   },
 ): string {
+  const warnings = Array.from(
+    new Set([...(payload.warnings ?? []), ...(payload.result.warnings ?? [])]),
+  );
   return formatUnifiedSearchTerminal({
     completed: false,
     hasMore: payload.result.hasMore,
@@ -626,7 +650,7 @@ function formatSearchStatusPartialTerminal(
       raw: payload.result.query?.raw,
       warnings: payload.result.warnings,
     },
-    warnings: payload.result.warnings,
+    warnings: warnings.length > 0 ? warnings : undefined,
     sourceStatus: payload.result.sourceStatus,
   });
 }
@@ -639,6 +663,8 @@ interface SourceStatusEntry {
   incompatibleFilters?: string[];
   ignoredQueryFeatures?: string[];
   incompatibleQueryFeatures?: string[];
+  suggestedSiteTargets?: string[];
+  suggestedSiteTargetsTruncated?: boolean;
   note?: string;
   targetResolution?: LeanTargetResolution;
 }
@@ -672,6 +698,9 @@ function formatSourceStatusNotes(
 
   const lines: string[] = [];
   for (const entry of sourceStatus) {
+    for (const guidance of formatSuggestedSiteTargetGuidance(entry)) {
+      lines.push(dim(`${entry.targetLabel}: ${guidance}`, useColors));
+    }
     const warningPrefix = `Source '${entry.source.toLowerCase()}' for ${entry.targetLabel}:`;
     if (warnings?.some((warning) => warning.startsWith(warningPrefix))) {
       continue;

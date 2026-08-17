@@ -318,6 +318,9 @@ export function appendSourceStatusNotes(
   lines.push("source notes:");
   for (const entry of sourceStatus) {
     lines.push(`  - ${formatSourceStatus(entry)}`);
+    for (const guidance of formatSuggestedSiteTargetGuidance(entry)) {
+      lines.push(`    ${guidance}`);
+    }
   }
 }
 
@@ -537,6 +540,23 @@ export function formatSourceStatus(entry: {
     parts.push(note);
   }
   return parts.join(SEP);
+}
+
+/** Render replayable standalone-site recovery guidance from structured fields. */
+export function formatSuggestedSiteTargetGuidance(entry: {
+  suggestedSiteTargets?: string[];
+  suggestedSiteTargetsTruncated?: boolean;
+}): string[] {
+  const lines: string[] = [];
+  if (entry.suggestedSiteTargets?.length) {
+    lines.push(
+      `Suggested site targets: ${entry.suggestedSiteTargets.join(", ")}`,
+    );
+  }
+  if (entry.suggestedSiteTargetsTruncated) {
+    lines.push("Additional site targets were omitted.");
+  }
+  return lines;
 }
 
 function terminalLifecycleReason(entry: {

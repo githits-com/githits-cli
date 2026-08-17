@@ -138,6 +138,8 @@ export interface UnifiedSearchSourceStatusPayload {
   incompatibleFilters?: string[];
   ignoredQueryFeatures?: string[];
   incompatibleQueryFeatures?: string[];
+  suggestedSiteTargets?: string[];
+  suggestedSiteTargetsTruncated?: boolean;
   note?: string;
   coverage?: LeanDocCoverage;
 }
@@ -1119,6 +1121,14 @@ function compactSourceStatusEntry(
   }
   if (entry.incompatibleQueryFeatures.length > 0) {
     payload.incompatibleQueryFeatures = entry.incompatibleQueryFeatures;
+    interesting = true;
+  }
+  if (
+    entry.suggestedSiteTargets.length > 0 ||
+    entry.suggestedSiteTargetsTruncated
+  ) {
+    payload.suggestedSiteTargets = entry.suggestedSiteTargets;
+    payload.suggestedSiteTargetsTruncated = entry.suggestedSiteTargetsTruncated;
     interesting = true;
   }
   if (entry.note) {

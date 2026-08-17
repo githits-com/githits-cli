@@ -18,6 +18,29 @@ describe("registerUnifiedSearchCommands", () => {
     ).toBe(true);
   });
 
+  it("documents explicit standalone site targets in search help", () => {
+    const program = new Command();
+    registerSearchCommand(program);
+    const searchCommand = program.commands.find(
+      (command) => command.name() === "search",
+    );
+
+    expect(searchCommand?.helpInformation()).toContain("site:<host[/path]>");
+    expect(searchCommand?.helpInformation()).toContain(
+      "terminal recovery guidance without a searchRef",
+    );
+    expect(searchCommand?.helpInformation()).toContain(
+      "stale-but-serveable evidence",
+    );
+    expect(searchCommand?.helpInformation()).toContain("serveable subset");
+
+    const statusCommand = program.commands.find(
+      (command) => command.name() === "search-status",
+    );
+    expect(statusCommand?.helpInformation()).toContain("interim hits");
+    expect(statusCommand?.helpInformation()).toContain("serveable subset");
+  });
+
   it("rejects repeated --source values instead of changing semantics silently", () => {
     const program = new Command();
     program.exitOverride();

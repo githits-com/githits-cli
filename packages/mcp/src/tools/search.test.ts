@@ -15,6 +15,18 @@ describe("searchTool", () => {
 
     expect(tool.description).toContain("do not repeat `search`");
     expect(tool.description).toContain("`search_status`");
+    expect(tool.description).toContain("serveable subset");
+  });
+
+  it("documents explicit site search and advisory retry targets", () => {
+    const tool = createSearchTool(createMockCodeNavigationService());
+
+    expect(tool.description).toContain("site:<host[/path]>");
+    expect(tool.description).toContain("suggestedSiteTargets");
+    expect(tool.description).toContain(
+      "terminal recovery guidance without a `searchRef`",
+    );
+    expect(tool.description).toContain("Stale-but-serveable evidence");
   });
 
   it("returns unified search payload from service", async () => {

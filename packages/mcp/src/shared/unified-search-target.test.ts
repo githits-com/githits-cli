@@ -42,7 +42,7 @@ describe("parseUnifiedSearchTargetSpec", () => {
     });
   });
 
-  it("accepts standalone indexed documentation site targets", () => {
+  it("accepts exact standalone documentation site targets", () => {
     expect(parseUnifiedSearchTargetSpec("site:ExpressJS.com")).toEqual({
       site: "site:expressjs.com",
     });

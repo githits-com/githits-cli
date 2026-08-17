@@ -62,7 +62,9 @@ describe("searchStatusTool", () => {
   it("describes partial-result follow-up behavior", () => {
     const tool = createSearchStatusTool(createMockCodeNavigationService());
 
+    expect(tool.description).toContain("interim hits");
     expect(tool.description).toContain("partial hits");
+    expect(tool.description).toContain("serveable subset");
     expect(tool.description).toContain("allow_partial_results");
     expect(tool.description).toContain("instead of repeating `search`");
   });
@@ -278,32 +280,92 @@ describe("searchStatusTool", () => {
     },
   );
 
-  it("surfaces progress freshness warnings", async () => {
+  it("renders site recovery guidance for incomplete results without hits", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome("INDEXING", "ref-site-recovery");
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      results: [],
+      sourceStatus: [
+        {
+          source: "DOCS",
+          targetLabel: "site:example.com",
+          appliedFilters: [],
+          ignoredFilters: [],
+          incompatibleFilters: [],
+          appliedQueryFeatures: [],
+          ignoredQueryFeatures: [],
+          incompatibleQueryFeatures: [],
+          suggestedSiteTargets: ["site:docs.example.com"],
+          suggestedSiteTargetsTruncated: true,
+        },
+      ],
+    };
     const tool = createSearchStatusTool(
       createMockCodeNavigationService({
-        searchStatus: mock(() =>
-          Promise.resolve(
-            createIncompleteOutcome("INDEXING", "ref-stale", {
-              targets: [
-                {
-                  requested: "npm:express latest",
-                  resolvedRequested: "npm:express@5.2.1",
-                  served: "npm:express@5.1.0",
-                  freshness: "STALE",
-                },
-              ],
-            }),
-          ),
-        ),
+        searchStatus: mock(() => Promise.resolve(incomplete)),
+      }),
+    );
+
+    const result = await tool.handler({ search_ref: incomplete.searchRef }, {});
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("No hits yet");
+    expect(text).toContain("source notes:");
+    expect(text).toContain("Suggested site targets: site:docs.example.com");
+    expect(text).toContain("Additional site targets were omitted.");
+  });
+
+  it("surfaces progress freshness warnings", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome("INDEXING", "ref-stale", {
+      targets: [
+        {
+          requested: "npm:express latest",
+          resolvedRequested: "npm:express@5.2.1",
+          served: "npm:express@5.1.0",
+          freshness: "STALE",
+        },
+      ],
+    });
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      results: [],
+      sourceStatus: [
+        {
+          source: "CODE",
+          targetLabel: "npm:express@5.1.0",
+          requestedTargetLabel: "npm:express latest",
+          freshTargetLabel: "npm:express@5.2.1",
+          servedTargetLabel: "npm:express@5.1.0",
+          codeIndexState: "STALE",
+          appliedFilters: [],
+          ignoredFilters: [],
+          incompatibleFilters: [],
+          appliedQueryFeatures: [],
+          ignoredQueryFeatures: [],
+          incompatibleQueryFeatures: [],
+          suggestedSiteTargets: [],
+          suggestedSiteTargetsTruncated: false,
+        },
+      ],
+    };
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() => Promise.resolve(incomplete)),
       }),
     );
 
     const result = await tool.handler({ search_ref: "ref-stale" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("warnings:");
-    expect(text).toContain(
-      "requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.",
-    );
+    const warning =
+      "requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.";
+    expect(text).toContain(warning);
+    expect(text.split(warning)).toHaveLength(2);
   });
 
   it("renders source targetResolution notes in completed text", async () => {
@@ -353,6 +415,45 @@ describe("searchStatusTool", () => {
       "Using recent indexed snapshot while branch resolution is deferred",
     );
     expect(text).toContain("queryable now: versions=4.18.2@v4.18.2");
+  });
+
+  it("renders structured site recovery guidance in completed text", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const completedOutcome = defaultUnifiedSearchOutcome;
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() =>
+          Promise.resolve({
+            ...completedOutcome,
+            result: {
+              ...completedOutcome.result,
+              results: [],
+              sourceStatus: [
+                {
+                  source: "DOCS" as const,
+                  targetLabel: "site:example.com",
+                  appliedFilters: [],
+                  ignoredFilters: [],
+                  incompatibleFilters: [],
+                  appliedQueryFeatures: [],
+                  ignoredQueryFeatures: [],
+                  incompatibleQueryFeatures: [],
+                  suggestedSiteTargets: ["site:example.com/docs"],
+                  suggestedSiteTargetsTruncated: true,
+                },
+              ],
+            },
+          }),
+        ),
+      }),
+    );
+
+    const result = await tool.handler({ search_ref: "search-ref-123" }, {});
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("Suggested site targets: site:example.com/docs");
+    expect(text).toContain("Additional site targets were omitted.");
   });
 
   it("renders terminal source status compactly in completed text", async () => {

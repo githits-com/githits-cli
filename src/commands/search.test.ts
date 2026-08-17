@@ -205,6 +205,99 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("renders site recovery suggestions for an initial search", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "site:example.com",
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            suggestedSiteTargets: [
+              "site:example.com/docs",
+              "site:example.com/guide",
+            ],
+            suggestedSiteTargetsTruncated: false,
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router",
+      { in: ["site:example.com"], source: "docs" },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Suggested site targets: site:example.com/docs, site:example.com/guide",
+    );
+    expect(output).not.toContain("Additional site targets were omitted.");
+    consoleSpy.mockRestore();
+  });
+
+  it("preserves site recovery suggestions in CLI JSON", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "site:example.com",
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            suggestedSiteTargets: ["site:new.example.com/docs"],
+            suggestedSiteTargetsTruncated: false,
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router",
+      { in: ["site:example.com"], source: "docs", json: true },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const payload = JSON.parse(String(consoleSpy.mock.calls[0]?.[0]));
+    expect(payload.sourceStatus[0]).toMatchObject({
+      suggestedSiteTargets: ["site:new.example.com/docs"],
+      suggestedSiteTargetsTruncated: false,
+    });
+    consoleSpy.mockRestore();
+  });
+
   it("preserves omitted repo refs for CLI discovery search targets", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),
@@ -432,6 +525,56 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("preserves warnings and attributed site guidance for empty incomplete results", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome("INDEXING", "search-ref-site");
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      results: [],
+      sourceStatus: [
+        {
+          source: "DOCS",
+          targetLabel: "site:example.com",
+          indexingStatus: "INDEXING",
+          appliedFilters: [],
+          ignoredFilters: [],
+          incompatibleFilters: ["language"],
+          appliedQueryFeatures: [],
+          ignoredQueryFeatures: [],
+          incompatibleQueryFeatures: [],
+          suggestedSiteTargets: ["site:docs.example.com"],
+          suggestedSiteTargetsTruncated: true,
+        },
+      ],
+    };
+
+    await searchAction(
+      "router",
+      { in: ["site:example.com"], source: "docs" },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(incomplete)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Indexing/search still in progress");
+    expect(output).toContain(
+      "Warning: Source 'docs' for site:example.com: incompatible filters [language]",
+    );
+    expect(output).toContain(
+      "site:example.com: Suggested site targets: site:docs.example.com",
+    );
+    expect(output).toContain(
+      "site:example.com: Additional site targets were omitted.",
+    );
+    consoleSpy.mockRestore();
+  });
+
   it("prints one compact source-status warning when a filter is ignored", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
@@ -455,6 +598,8 @@ describe("searchAction", () => {
             appliedQueryFeatures: [],
             ignoredQueryFeatures: [],
             incompatibleQueryFeatures: [],
+            suggestedSiteTargets: [],
+            suggestedSiteTargetsTruncated: false,
           },
         ],
       },
@@ -501,6 +646,8 @@ describe("searchAction", () => {
             appliedQueryFeatures: [],
             ignoredQueryFeatures: ["kind"],
             incompatibleQueryFeatures: ["name"],
+            suggestedSiteTargets: [],
+            suggestedSiteTargetsTruncated: false,
           },
         ],
       },
@@ -1049,6 +1196,93 @@ describe("searchStatusAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("renders progress warnings when incomplete status has no result", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchStatusAction(
+      "search-ref-stale",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() =>
+            Promise.resolve(
+              createIncompleteOutcome("INDEXING", "search-ref-stale", {
+                targets: [
+                  {
+                    requested: "site:example.com",
+                    resolvedRequested: "site:example.com",
+                    served: "site:example.com/old",
+                    freshness: "STALE",
+                  },
+                ],
+              }),
+            ),
+          ),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Warning: requested site:example.com; served older snapshot site:example.com/old while site:example.com indexes.",
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it("merges progress warnings with incomplete site recovery guidance", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome("INDEXING", "search-ref-site", {
+      targets: [
+        {
+          requested: "site:example.com",
+          resolvedRequested: "site:example.com",
+          served: "site:example.com/old",
+          freshness: "STALE",
+        },
+      ],
+    });
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      results: [],
+      sourceStatus: [
+        {
+          source: "DOCS",
+          targetLabel: "site:example.com",
+          appliedFilters: [],
+          ignoredFilters: [],
+          incompatibleFilters: [],
+          appliedQueryFeatures: [],
+          ignoredQueryFeatures: [],
+          incompatibleQueryFeatures: [],
+          suggestedSiteTargets: ["site:docs.example.com"],
+          suggestedSiteTargetsTruncated: false,
+        },
+      ],
+    };
+
+    await searchStatusAction(
+      incomplete.searchRef,
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() => Promise.resolve(incomplete)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Warning: requested site:example.com; served older snapshot site:example.com/old while site:example.com indexes.",
+    );
+    expect(output).toContain(
+      "site:example.com: Suggested site targets: site:docs.example.com",
+    );
+    consoleSpy.mockRestore();
+  });
+
   it("waits up to the shared default and forwards an explicit status wait", async () => {
     const searchStatus = mock((_searchRef: string, _waitTimeoutMs?: number) =>
       Promise.resolve(createIncompleteOutcome("SEARCHING", "search-ref-wait")),
@@ -1230,6 +1464,49 @@ describe("searchStatusAction", () => {
     expect(payload.result.query.raw).toBe("router middleware");
     expect(payload.result.results).toHaveLength(1);
     expect(payload).not.toHaveProperty("query.raw");
+    consoleSpy.mockRestore();
+  });
+
+  it("renders truncated site recovery suggestions for search-status", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "site:example.com",
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            suggestedSiteTargets: ["site:example.com/docs"],
+            suggestedSiteTargetsTruncated: true,
+          },
+        ],
+      },
+    };
+
+    await searchStatusAction(
+      "search-ref-123",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Suggested site targets: site:example.com/docs");
+    expect(output).toContain("Additional site targets were omitted.");
     consoleSpy.mockRestore();
   });
 

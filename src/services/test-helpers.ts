@@ -171,6 +171,8 @@ export const defaultUnifiedSearchOutcome: UnifiedSearchOutcome = {
         appliedQueryFeatures: [],
         ignoredQueryFeatures: [],
         incompatibleQueryFeatures: [],
+        suggestedSiteTargets: [],
+        suggestedSiteTargetsTruncated: false,
       },
     ],
   },
