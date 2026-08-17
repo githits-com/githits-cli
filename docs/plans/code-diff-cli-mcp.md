@@ -1,597 +1,594 @@
-# Plan: Raw code diff CLI and MCP surface
+# Plan: CodeDiff CLI dogfood and agent rollout
 
-> Overall status: Phase 1 complete; Phase 2 ergonomics require focused design
-> against the accepted Git-like direction and the narrower backend glob
-> contract.
+> Overall status: Phase 1 is merged. Phase 2 is implementation-ready as a
+> silent CLI-only dogfood launch. MCP and agent-facing exposure are deferred
+> until the CLI contract has been exercised.
 >
-> Reoriented: 2026-08-17 against `githits` `origin/main` at `fa27604` and
-> the PkgSeer backend `main` GraphQL schema and implementation.
+> Reoriented: 2026-08-17 against `githits` `origin/main` at `77417aa` and
+> PkgSeer backend `origin/main` at `c0cf92e` with GraphQL schema hash
+> `sha256:28413c4e9b31`.
 
-## Problem and expected outcome
+## Problem and overall expected outcome
 
 Package changelogs are often missing or too abstract to explain an upgrade.
-GitHits should expose PkgSeer's authoritative raw `codeDiff` evidence through:
+GitHits needs a bounded source diff that compares the exact resolved `from`
+and `to` trees and remains truthful about package scope, truncation, omitted
+content, and failures.
 
-- `githits code diff` for humans and shell automation; and
-- `code_diff` for agents.
+The rollout is deliberately staged:
 
-Both surfaces must compare the exact resolved `from` and `to` trees, return
-bounded source-file evidence, distinguish missing content from an empty diff,
-and preserve enough exact identity for `code_read` follow-ups. They must not
-claim compatibility, safety, or semantic impact that the raw patch does not
-prove.
+1. land the transport-neutral CodeDiff client;
+2. expose `githits code diff` as a normally registered but unpromoted CLI
+   dogfood surface;
+3. use dogfood evidence to stabilize the contract before adding `code_diff`,
+   MCP instructions, or agent guidance; and
+4. later consume typed changelog steering when PkgSeer publishes that
+   contract.
 
-The completed effort also lets package-changelog responses steer callers to
-the stable diff operation through typed data. Structural/symbol diff remains a
-separate, unexposed backend capability.
+The completed effort gives humans and agents the same authoritative raw diff
+facts without claiming compatibility, upgrade safety, semantic impact, rename
+identity, or any other conclusion the raw evidence cannot prove. Structural
+CodeDiff remains a separate, unexposed backend evaluation surface.
 
-## Verified current state
+## Verified current state and evidence
 
-### Repository state
+### GitHits repository
 
-- The working branch was rebased on 2026-08-17 against `origin/main` at
-  `fa27604`.
-- The CodeDiff client adapter now exists; no CLI command, MCP tool, response
-  formatter, or changelog action consumer exists in the current GitHits tree.
-- `CodeNavigationService` owns source navigation and is the verified service
-  boundary for the new operation. CLI commands live under `src/commands/code/`;
-  MCP tools and shared request/response modules live under
-  `packages/mcp/src/tools/` and `packages/mcp/src/shared/`.
+- Phase 1 merged through PR #287 at `origin/main` `77417aa`. The merged delta
+  adds `CodeNavigationService.codeDiff`, exact request/result/error types,
+  mode-minimal GraphQL selections, runtime validation, fixtures, public client
+  exports, and `docs/implementation/code-diff.md`.
+- The declaration-build pipeline failure was fixed before merge. Phase 1's
+  focused tests, full tests, build, and public-package validation passed.
+- No `githits code diff` command, `code_diff` MCP tool, response formatter,
+  MCP instruction, Agent Skill guidance, plugin asset, or changelog action
+  consumer exists on `origin/main`.
+- `CodeNavigationService` is already available through the CLI container and
+  its mock factory. Existing indexed `code` commands keep Commander and
+  terminal adaptation under `src/commands/code/` while reusing pure request,
+  response, text, and error helpers through the workspace-only
+  `@githits/mcp/internal` boundary.
+- `githits resolve` is the verified silent-rollout precedent: it is a normally
+  registered, documented CLI command backed by workspace-internal pure
+  helpers, but it has no MCP tool or Agent Skill promotion.
 - Root `githits` is version `0.9.2`; public `@githits/mcp` is version `0.9.1`.
-  User-visible implementation will require one independent changelog fragment
-  with pending impacts for both artifacts. Version bumps happen during release
-  preparation, not feature implementation.
-- `CodeNavigationService` and `CodeNavigationServiceImpl` are publicly
-  re-exported through `@githits/mcp/client`, and `CodeNavigationService` is part
-  of public `McpToolServices`. Phase 1 therefore adds public client API even
-  though it adds no MCP tool or CLI command. Custom service implementations
-  must add the required method when adopting that package version.
+  A new CLI command affects `githits` only unless implementation changes a
+  public MCP export or behavior.
+- This worktree remains at the merged PR head `f263cf8` while `origin/main`
+  points at the merge commit. Phase 2 implementation must begin from current
+  `origin/main`; this replan does not itself rewrite branch history.
 
 ### Backend contract
 
-PkgSeer backend `main` replaced GitHub Compare with credential-free aigrep
-RawDiff and transferred the lasting contract into its repository-internal
-CodeDiff implementation guide.
+PkgSeer `origin/main` now contains the completed GraphQL documentation round.
+The SDL and implementation documentation prove:
 
-The committed GraphQL schema and implementation now prove:
+- `codeDiff` accepts exactly one complete addressing form: package
+  `registry/name/fromVersion/toVersion` or public GitHub repository
+  `repoUrl/fromRef/toRef`.
+- Both endpoints resolve to full immutable commit SHAs before raw work. Forward,
+  reverse, diverged, and identical pairs use the same direct tree-to-tree
+  contract; identical SHAs perform no raw subprocess work.
+- GraphQL selection determines Inventory, Stats, or Patches work. Phase 1 maps
+  those shapes to `inventory`, `stats`, and `patches` service modes and proves
+  their selected fields at the wire boundary.
+- `pathGlob` and `pathPrefix` are repository-relative even for package scope.
+  Package publication evidence restricts the inventory but does not rewrite
+  returned paths or caller filters to package-relative values.
+- `pathGlob` supports a bounded subset: `*` and `?` stay within a component and
+  an exact `**` component spans components. Unsupported shell/pathspec syntax
+  is rejected. Only one glob is accepted per request.
+- Server defaults are `maxFiles=50` and `maxPatchBytes=262144`; each patch also
+  has a fixed 131072-byte ceiling. The server clamps numeric options, but the
+  CLI must reject out-of-range user values rather than silently altering them.
+- `summary`, `hasMoreFiles`, and `contentCoverage` answer different questions.
+  `summary` covers the full filtered inventory before projectability and
+  `maxFiles`; `hasMoreFiles` covers omitted projectable paths; content coverage
+  covers only returned file evidence.
+- Content outcomes distinguish inventory-only, stats, patch, binary,
+  metadata-only, omitted, and unavailable rows. A failed post-inventory content
+  phase remains data with an authoritative inventory; a first-inventory or
+  resolution failure is a typed GraphQL error.
+- The documentation round was description/contract clarification plus tests;
+  it did not replace Phase 1's GraphQL shapes. The later correction at
+  `1388b42` clarified repository-relative path identity and is consistent with
+  this plan.
 
-- `codeDiff` resolves package versions or repository refs to full immutable
-  commit SHAs before raw execution.
-- Raw compares the two exact trees directly. Forward, reverse, and diverged
-  pairs share the same directional contract; identical SHAs perform no raw
-  subprocess work.
-- A broad authoritative inventory is filtered by verified publication scope,
-  optional `pathPrefix` and `pathGlob`, then relevance-sorted before
-  `maxFiles`. The old provider-order and 300-file upstream cap blockers are
-  gone.
-- `RawCodeDiffSummary` reports scoped counts before projectability and
-  `maxFiles`: `filesChanged`, added/deleted/modified, mode/type changes,
-  `inventoryComplete`, and `unprojectableFiles`.
-- `hasMoreFiles` reports additional projectable files after `maxFiles`; it does
-  not include overlong unprojectable paths.
-- Selection controls work. Inventory requires one raw call; selecting stats or
-  patches performs one additional exact-path call only for retained files.
-- Content truth is typed independently through `contentCoverage`, optional
-  `contentFailure`, and per-file `contentStatus` /
-  `contentOmissionReason`. Paths also expose `pathEncoding` and
-  `contentSafety`.
-- Backend bounds/defaults are `maxFiles=50` within `1..300` and
-  `maxPatchBytes=262144` within `1024..2097152`, with a fixed 131072-byte
-  per-file patch ceiling. Numeric values are clamped by the backend; the client
-  must reject out-of-range values instead of silently changing agent input.
-- `pathPrefix` and `pathGlob` are independently optional, compose by
-  intersection, reject explicit empty values, and have 1024-byte limits.
-- First-inventory failures are GraphQL field errors. Failures after an
-  authoritative inventory remain data under `contentFailure`, preserving the
-  inventory and selected file identities.
-- Raw file status is only `ADDED`, `DELETED`, or `MODIFIED`. The contract does
-  not expose rename identity, so the client must not infer or advertise
-  renames.
+Deployment of schema hash `sha256:28413c4e9b31` to the development endpoint has
+not been authenticated or introspected during this replan. That is an external
+readiness check due before Phase 2 is represented as live-validated, not a
+blocker for isolated implementation and fixtures.
 
-The local backend checkout matches its `origin/main`, but deployment of this
-exact schema to the development and production GraphQL endpoints has not been
-verified in this reorientation. The schema changelog still labels the
-replacement change as pending. The user reported on 2026-08-17 that a backend
-GraphQL documentation round is still needed. Phase 1 can use the committed SDL
-and implementation contract; if that round changes fields or semantics rather
-than descriptions, reorient before implementation continues.
+### Reorientation contradiction and resolution
 
-### Contradictions retired from the old proposal
-
-| Old proposal statement | Current verified contract |
-|---|---|
-| GitHub `BASE...HEAD` cannot produce reverse patches | Exact-tree RawDiff supports forward, reverse, and diverged transformations |
-| GitHub exposes at most 300 upstream files | Authoritative inventory has no GitHub Compare file window |
-| Upstream ordering can consume the file/patch budget | PkgSeer applies publication scope and relevance before caller limits |
-| Counts are repository-wide before caller scope | Summary counts are recomputed after publication and caller scope |
-| `compareUrl`, direction counts, previous rename path, and patch-omission enums are available | Those fields were removed; use exact resolutions, content coverage/failure, content status, and omission strings |
-| Only patch/stat views need consideration | Backend has distinct Inventory, Stats, and Patches execution modes |
+The merged plan still grouped CLI, MCP, instructions, plugin assets, parity,
+and agent evaluation into one public Phase 2. That conflicts with the user's
+2026-08-17 decision to launch the CLI silently, dogfood it like `resolve`, and
+leave the MCP tool and instructions out. This revision splits those outcomes
+into separate phases. Do not implement the old combined Phase 2.
 
 ## Scope
 
-### In scope
+### Overall scope
 
-- Package addressing for all registries accepted by the existing code-target
-  parser, when PkgSeer can resolve both published versions to public GitHub
+- Package comparisons for registries already accepted by the code-target
+  parser when PkgSeer can resolve both published versions to public GitHub
   source.
-- Public GitHub repository addressing with explicit `from` and `to` refs.
-- Raw inventory, stats, and patch projections, subject to the Phase 2 view
-  decision.
-- Prefix/glob filtering, file and patch budgets, compact text, structured JSON,
-  typed errors, CLI/MCP parity, smoke coverage, and agent evaluation.
-- Later consumption of a typed package-changelog diff action once PkgSeer
-  publishes that action contract.
+- Public GitHub repository comparisons with explicit base and target refs.
+- Authoritative raw Inventory, Stats, and Patches projections.
+- Repository-relative glob filtering, file and patch budgets, exact resolved
+  identity, pipe-friendly terminal output, structured JSON, typed errors, and
+  truthful completeness signals.
+- CLI-only dogfooding before MCP/agent exposure.
+- Later MCP parity and typed changelog steering after their dependencies are
+  verified.
 
-### Non-goals
+### Overall non-goals
 
 - Public structural/symbol diff.
-- Compatibility, upgrade-safety, API-stability, or semantic-version verdicts.
-- Private repositories, local worktrees, proprietary code, or uncommitted
-  changes.
-- Client-side ranking, patch inversion, rename detection, patch synthesis, or
-  fallback to a hosted compare API.
-- A client cache, queue, lock, concurrency gate, retry layer, or feature flag.
-- Reproducing Git's full revision or pathspec language.
+- Compatibility, safety, API-stability, or semantic-version verdicts.
+- Rename/copy detection or compare-era ahead/behind/diverged relationships.
+- Working-tree, staged, local-path, private-repository, or arbitrary Git host
+  diff.
+- Full Git revision grammar, three-dot merge-base semantics, multiple
+  pathspecs, pathspec magic, exclusions, attributes, or unbounded output.
+- Automatic indexing, background rollout machinery, feature flags, telemetry
+  infrastructure, or persistent storage.
+- Changelog action parsing before PkgSeer commits the typed action contract.
 
-## Target architecture
+## Target architecture and end state
 
 ### Boundaries and responsibilities
 
-`packages/core-internal` owns the transport-neutral contract:
+- `CodeNavigationService.codeDiff` remains the only network/service boundary.
+  It owns authenticated GraphQL execution, exact variable construction,
+  mode-minimal selections, runtime validation, and typed CodeDiff errors.
+- Small pure CodeDiff request, response, text, and error helpers live under
+  `packages/mcp/src/shared/` and are exported only through
+  `packages/mcp/src/internal.ts` during CLI dogfooding. This follows the
+  existing `resolve` pattern and lets a later MCP adapter reuse an exercised
+  contract without exposing a public `@githits/mcp` API prematurely.
+- `src/commands/code/diff.ts` owns Commander syntax, CLI-native validation
+  wording, dependency acquisition, spinner lifecycle, stdout/stderr routing,
+  JSON serialization, and process exit behavior. It does not construct
+  GraphQL or duplicate backend response mapping.
+- Phase 3 adds a thin MCP `code_diff` adapter only after Phase 2 evidence is
+  reviewed. It reuses the pure contract, adds agent-native descriptions and
+  errors, and introduces no second CodeDiff service path.
+- Changelog steering later produces typed calls to the stable CLI/MCP
+  invocation; it never parses human changelog prose for suggestions.
 
-- Add explicit CodeDiff request/result/error types and
-  `CodeNavigationService.codeDiff(params)`.
-- Build the GraphQL variables from one normalized package or repository target.
-- Use a mode-specific selection for inventory, stats, and patches. Never select
-  structural fields. Patch mode selects patch fields; stats omits patch and
-  patch-only fields; inventory omits per-file `additions`, `deletions`, and
-  patch content. The authoritative summary's added/deleted file counts remain
-  selected in every mode.
-- Validate the external response with Zod and preserve backend enum/string
-  values needed to represent content truth.
-- Handle root errors separately from `raw` field-local errors. A field-local
-  raw error must carry parsed GraphQL extensions plus the successfully returned
-  package/from/to resolutions; ordinary CodeNavigation methods may keep their
-  existing fail-on-any-error behavior.
+The root CLI may import `@githits/mcp/internal`. Public packages and future
+remote MCP servers must not. No new module from Phase 2 is exported by
+`@githits/mcp`, `@githits/mcp/client`, or `@githits/mcp/smoke-test`.
 
-`packages/mcp` owns public request and response behavior:
-
-- A dedicated diff-target builder reuses existing package/repository parsers
-  but rejects target-embedded package versions and repository refs because the
-  comparison endpoints own both identities.
-- Shared pure modules normalize view, filters, explicit defaults, and error
-  envelopes once for CLI/MCP parity.
-- A data-first camelCase JSON envelope exposes exact resolutions, scoped
-  summary, scope, content coverage/failure, files, `hasMoreFiles`, and only the
-  effective/caller-supplied filters needed to interpret truncation.
-- Compact text shows the requested range and exact resolved SHAs once, then
-  scoped summary, scope warning if unknown, relevance-ordered files, selected
-  stats/patches, and only actionable recovery guidance.
-- MCP validation failures and service errors remain JSON error envelopes in
-  every requested format.
-
-The root CLI owns Commander syntax and terminal error adaptation. The MCP
-server owns tool registration, annotations, descriptions, instructions, and
-public package exports. Both call the same shared builders and formatters.
-
-### Data flow
+### Data flow during silent dogfood
 
 ```text
-CLI args / MCP input
-  -> shared target, endpoint, view, and option normalization
+CLI target + from..to + view/filter/bounds
+  -> pure CLI request normalization
   -> CodeNavigationService.codeDiff
-  -> mode-minimal GraphQL selection of codeDiff.raw
-  -> Zod-validated transport result or typed partial/root error
-  -> shared data-first envelope
-  -> CLI text/JSON or MCP text-v1/JSON
+  -> mode-minimal codeDiff.raw GraphQL selection
+  -> typed CodeDiff result or error
+  -> pure selected-view JSON/text projection
+  -> primary view on stdout + diagnostics on stderr
 ```
 
-### Failure behavior
+Phase 3 later adds MCP input/output adapters on either side of the same pure
+normalization and projection modules.
 
-- Invalid target/range/filter/budget input returns `INVALID_ARGUMENT` without a
-  network request.
-- Shared resolution errors retain backend `code`, `retryable`, side, retry
-  delay, publication/ref candidates, and ambiguity kinds when supplied.
-- Raw first-call failures preserve partial root resolution data when GraphQL
-  returned it. Codes such as `RAW_DIFF_LIMIT_EXCEEDED`,
-  `RAW_DIFF_UNAVAILABLE`, `RATE_LIMITED`, `TIMEOUT`, and `UPSTREAM_ERROR` must
-  not collapse when they imply different recovery.
-- A post-inventory `contentFailure` is a successful partial evidence result,
-  not a thrown request error. Text and JSON must show that inventory is
-  authoritative while requested content is partial or failed.
-- `UNKNOWN` package scope is visibly repository-wide. Empty scoped inventory
-  is not described as missing evidence when `inventoryComplete=true`.
-- `BYTE_ESCAPED` paths remain evidence but cannot be reused as if they were an
-  exact UTF-8 path. Follow-up hints are emitted only for stable UTF-8 paths.
+### CLI dogfood contract
 
-## Assumptions and open decisions
+The initial syntax is:
 
-### Verified assumptions
+```text
+githits code diff <target> <from>..<to> [options] [-- <path-glob>]
+githits code diff --repo-url <url> <from>..<to> [options] [-- <path-glob>]
+```
 
-1. `code` remains the correct command/tool family because the output is source
-   evidence and composes with `code_read`.
-2. Raw remains read-only from the caller's perspective and does not enqueue
-   indexing. MCP annotations can therefore use the existing read-only shape.
-3. The exact-tree schema on backend `main` is the implementation target; no
-   compatibility adapter for the removed GitHub Compare schema will be added.
-4. Structural exposure remains independently blocked by backend quality and
-   uncertainty work documented in PkgSeer's implementation guide.
+- `<target>` accepts an unversioned package target such as `npm:express` or an
+  existing compact public GitHub target. `--repo-url` remains available for
+  consistency with the other `code` commands.
+- Versions/refs belong only in `<from>..<to>`. A version embedded in a package
+  target, a ref embedded in a repository target, `--git-ref`, an empty side,
+  more than one `..` separator, or `...` is rejected before network I/O.
+- Direction is always left-to-right. Reverse comparison is expressed by
+  swapping the endpoints; no compare relationship or merge-base behavior is
+  inferred.
+- The default view is patch output, matching ordinary `git diff`. Explicit
+  `-p`/`--patch`, `--stat`, `--name-only`, and `--name-status` are supported and
+  mutually exclusive. `--name-only` and `--name-status` both use the cheap
+  Inventory service mode; they differ only in the selected output projection.
+- One value after `--` maps to backend `pathGlob` and is the primary public
+  path filter. It is called a repository-relative glob in help and errors, not
+  a full Git pathspec. Multiple values and unsupported pathspec syntax are
+  rejected. `pathPrefix` is not exposed during dogfooding; evidence must show a
+  distinct need before adding a second path control.
+- `--max-files` is valid for every view. `--max-patch-bytes` is valid only for
+  patch view. Omitted values are omitted from the service request so dogfooding
+  measures the documented backend defaults rather than pinning a separate
+  client default.
+- `--json` returns a data-first envelope containing normalized target identity,
+  public view, exact `from`/`to` resolutions, scoped summary, scope,
+  `contentCoverage`, optional `contentFailure`, selected file facts, and
+  `hasMoreFiles`. File objects contain only facts selected for the view:
+  path-only for `name-only`, path/status for `name-status`, line counts and
+  content status for `stat`, and bounded patch/omission/safety facts for patch.
+- Default text keeps stdout compatible with the chosen Git-style view:
+  patches for patch mode, bare paths for `--name-only`, status plus path for
+  `--name-status`, and line-count rows plus a total for `--stat`. Resolution,
+  scope, truncation, unprojectable-path, safety, and incomplete-content
+  diagnostics go to stderr so piping the primary output remains useful.
+- `--verbose` adds requested/resolved identities, full summary, effective
+  scope/filter, returned count, and content coverage to terminal output. JSON
+  already carries these facts and does not change shape under `--verbose`.
+- No rename wording is emitted. Binary and metadata-only changes explicitly
+  state that content differs without claiming a textual patch. Byte-escaped
+  paths are marked display-only and are never suggested as exact follow-up
+  identities.
 
-### Resolved product direction (2026-08-17)
+### Failure and exit behavior
 
-1. **CLI addressing:** use the compact
-   `githits code diff <target> <from>..<to>` form for packages and repositories,
-   with paired `--from` / `--to` only as the delimiter escape hatch.
-2. **Public views:** expose Inventory, Stats, and Patches behavior. Design the
-   names, defaults, flags, output, and option interactions to match `git diff`
-   expectations as closely as the backend can truthfully support; validate the
-   ergonomics with agents rather than treating the provisional
-   `inventory | stat | patch` names as final.
-3. **Path scoping:** when a caller supplies path scope, make backend `pathGlob`
-   the primary public mechanism. An omitted path filter still means the whole
-   resolved package/repository scope. Retain `pathPrefix` only when it provides
-   a materially clearer exact-subtree escape hatch.
+- Empty authoritative diffs exit 0, matching normal `git diff` behavior.
+- Client validation, authentication, root/shared-resolution errors, and raw
+  field errors exit 1 and use the existing CLI JSON error envelope on stderr.
+- CodeDiff-specific backend details are mapped into a bounded CLI error shape;
+  arbitrary GraphQL extensions and raw backend codes are not passed through.
+  Preserve safe side, published-version/ref candidates, retry timing, stage,
+  limit kind, repository identity, and any partial exact resolutions.
+- `PARTIAL` or `FAILED` content coverage inside a successful result remains a
+  successful evidence envelope and exits 0 because the authoritative inventory
+  is usable. Text emits an unmistakable stderr warning; JSON retains structured
+  coverage/failure and per-file statuses. Dogfooding must revisit whether this
+  is suitable for agent automation before Phase 3.
+- Terminal-visible backend text and paths use existing sanitization. Patches
+  use the backend's content-safety projection; the CLI does not restore removed
+  content or log patches.
 
-The backend glob is not a Git pathspec. It accepts one pattern, keeps `*` and
-`?` within one component, and lets an exact `**` component span directories.
-It rejects character classes, brace alternatives, negation, empty components,
-and multiple patterns. CLI design should investigate a familiar
-`-- <path-glob>` position after the range, but help/tool descriptions must call
-the value a bounded glob and document the difference rather than claiming full
-Git pathspec compatibility. MCP should use `path_glob` as the primary field.
+## Overall assumptions and unknowns
 
-The exact client defaults for returned files and cumulative patch bytes are
-not a product decision yet. Start with 20 files and 32 KiB as evaluation
-hypotheses only. Phase 2 must measure them against the backend's relevance
-ordering and select the smallest useful defaults before public descriptions or
-tests pin them.
+### Assumptions
 
-### External unknowns
+1. Phase 1's public service signatures are sufficient for the CLI; dogfooding
+   should change normalization and presentation before changing that boundary.
+2. Git-like syntax means matching familiar behavior where backend semantics
+   are equivalent, not accepting Git flags or pathspecs that would be ignored
+   or approximated.
+3. Silent rollout means normal CLI registration, help, implementation docs,
+   smoke coverage, and a release fragment, while omitting MCP registration,
+   MCP instructions, Agent Skills, plugin guidance, and proactive agent
+   evaluation.
+4. Manual dogfood notes and existing debug facilities are sufficient for this
+   phase. No feature flag, telemetry schema, counter, or rollout service is
+   authorized.
 
-- Whether the exact schema is deployed to the development endpoint. Evidence:
-  authenticated schema/introspection or representative dev calls. Due before
-  Phase 2 live smoke; lack of deployment does not block the isolated Phase 1
-  adapter and fixtures.
-- Whether the backend GraphQL documentation round is description-only.
-  Evidence: inspect the resulting SDL hash/changelog and implementation diff.
-  Due before Phase 1 merges if the round lands while Phase 1 is open; any shape
-  or semantic change requires immediate reorientation.
-- The future PkgSeer changelog action discriminator and argument fields. Due
-  before Phase 3; resolve from the committed backend schema, not prose.
+### Unknowns and product decisions
 
-### Overall dependencies
+- **Development deployment:** whether the dev endpoint serves schema hash
+  `sha256:28413c4e9b31`. Resolve with authenticated introspection or a
+  representative CLI call before claiming authenticated live smoke passed.
+- **Client defaults:** whether later public agent use needs file/patch limits
+  smaller than backend defaults. Resolve from Phase 2 dogfood evidence before
+  Phase 3 schema/descriptions pin defaults.
+- **Agent view schema:** whether MCP should expose Git-like view names or the
+  service's Inventory/Stats/Patches names. Resolve after CLI dogfood and before
+  Phase 3 implementation.
+- **Content-failure exit semantics:** Phase 2 deliberately keeps successful
+  authoritative inventory at exit 0. Reassess from shell and automation
+  dogfooding before agent exposure.
+- **Changelog action shape:** discriminator, fields, and placement do not yet
+  exist as a committed client contract. Resolve from future PkgSeer SDL and
+  implementation before the changelog-steering phase.
 
-- The exact-tree PkgSeer GraphQL contract remains stable through Phase 1 and is
-  deployed before Phase 2 live validation.
-- Phase 2 follows the transport-neutral Phase 1 API and the resolved Git-like
-  product direction; Phase 3 follows the stable Phase 2 invocation and a
-  committed backend changelog-action contract.
-- Existing CodeNavigation authentication, request-header, content-safety,
-  smoke, plugin-generation, and package-boundary workflows remain the shared
-  infrastructure. This effort does not replace them.
+There is no blocking product decision for Phase 2.
 
 ## Cross-cutting considerations
 
 ### Security and privacy
 
-- Never print, persist, or place credentials in command output, fixtures,
-  plans, telemetry, or tool-call evidence. Live validation may use existing
-  process-local authentication only.
-- Keep public-Git scope explicit. Do not accept credential-bearing repository
-  URLs or weaken the existing repository parser.
-- Treat paths and patches as untrusted. Respect backend `contentSafety`, keep
-  formatter-owned layout separate, and do not invent exact-path hints after
-  identity-changing normalization.
+- Only already-supported public package and public GitHub addressing is
+  accepted. Existing URL parsing must continue rejecting credential-bearing or
+  path-bearing repository URLs rather than silently canonicalizing them.
+- Do not expose, print, persist, fixture, or record credentials. Authenticated
+  smoke may use an existing credential only through the normal client path and
+  must not print its value.
+- Dogfood notes may record target/version pairs, aggregate sizes, latency, and
+  outcome categories, but never patches, file bodies, tokens, or arbitrary
+  backend failure prose.
+- Preserve content-safety and terminal-sanitization behavior in every text and
+  JSON path.
 
-### Performance and data minimization
+### Performance and data fetching
 
-- Mode-minimal GraphQL selections are part of the contract and require wire
-  tests. Inventory must not request stats or patches; stat must not request
-  patches.
-- Evaluate response bytes, model tokens, materially relevant patched files,
-  end-to-end time, and agent follow-up quality before fixing client defaults.
-  Use release builds for any reported performance numbers.
-- Do not add client-side ranking. Backend relevance runs over authoritative
-  scoped inventory before bounds and is the correct ownership boundary.
+- Each CLI call makes one CodeDiff GraphQL request through the existing
+  service. No local Git checkout, GitHub Compare fallback, cache, queue, or
+  background indexing is introduced.
+- View choice must reach the service unchanged so Inventory never selects line
+  counts and Stats never selects patches or omission reasons. Existing Phase 1
+  wire tests remain the authority for this boundary.
+- Omitted limits stay omitted. Dogfood observation is not a performance claim
+  or optimization benchmark; any later optimization requires the repository's
+  benchmark-first workflow.
 
 ### Compatibility, release, and rollback
 
-- Phase 2 changes both public artifacts and therefore adds one changelog
-  fragment with pending SemVer impacts for `githits` and `@githits/mcp`.
-- Use the repository-internal `githits-plugin-maintenance` skill for MCP
-  instructions, root Agent Skill, plugin/extension manifests, and generated
-  assets. Edit canonical inputs, run `bun run plugins:generate`, then
-  `bun run plugins:check`.
-- Rollback is the previous CLI/MCP package version; this feature writes no
-  persistent data and needs no cleanup or migration.
+- Phase 2 adds a root CLI command and therefore adds one independent fragment
+  with pending impacts `githits: minor` and `@githits/mcp: none`.
+- Phase 2 does not bump versions directly. Release preparation owns package and
+  generated-manifest versions.
+- Workspace-internal shared modules must not appear in public export maps or
+  declarations reachable through `@githits/mcp`, `@githits/mcp/client`, or
+  `@githits/mcp/smoke-test`.
+- The feature writes no state and needs no migration. Rollback is the previous
+  root CLI release; no cleanup is required.
 
 ### Durable documentation
 
-Implementation starts a focused CodeDiff document in Phase 1 and updates
-`docs/implementation/tools.md`,
-`docs/implementation/cli-commands.md`, MCP/CLI parity documentation where the
-new shared contract matters, and a focused CodeDiff implementation document.
-The durable document must explain exact-tree identity, scope/summary semantics,
-content coverage/failure, view-minimal fetching, and non-goals. It must not
-copy transient rollout detail from this plan.
+- Update `docs/implementation/code-diff.md` with the exercised CLI projection,
+  exact-tree identity, repository-relative glob semantics, output/failure
+  contract, and current absence of an MCP tool.
+- Update `docs/implementation/cli-commands.md` with command examples, piping,
+  view flags, JSON shape, warnings, exit behavior, and the silent dogfood
+  posture.
+- Do not edit MCP instructions, `docs/implementation/tools.md`, root Agent
+  Skills/guidance, generated plugin assets, or `CHANGELOG.md` in Phase 2.
 
 ## Phase map
 
 | Phase | Status | Outcome |
 |---|---|---|
-| 1. Transport-neutral CodeDiff adapter | Complete | Typed exact-tree request/result/error support in `CodeNavigationService`, with no public command/tool yet |
-| 2. Public CLI/MCP raw diff | Design refinement pending; no product blocker | Git-like shared request/response rendering, validated defaults, `githits code diff`, and `code_diff` with tests, smoke, docs, assets, and release fragment |
-| 3. Changelog steering | Blocked on backend action contract and Phase 2 | Consume typed PkgSeer changelog actions and render context-appropriate diff calls |
+| 1. Transport-neutral CodeDiff adapter | Complete and merged | Typed exact-tree request/result/error support with no CLI command or MCP tool |
+| 2. Silent CLI dogfood | Implementation-ready | Git-like `githits code diff`, CLI-only tests/smoke/docs/release fragment, and dogfood evidence with no agent exposure |
+| 3. MCP and agent rollout | Blocked on Phase 2 evidence | Stable `code_diff`, CLI/MCP parity, instructions, assets, smoke, and agent evaluation |
+| 4. Changelog steering | Blocked on backend action contract and stable Phase 3 invocation | Typed sparse-changelog actions that point to valid CLI/MCP diff calls |
 | Structural track | Out of scope / backend-blocked | Separate future proposal only after backend says structural evidence is externally safe |
 
 ## Phase 1: transport-neutral CodeDiff adapter
 
-**Status:** complete.
+**Status:** complete and merged through PR #287.
 
-**Expected outcome:** `packages/core-internal` can request and validate all
-three raw modes through `CodeNavigationService.codeDiff`, represent partial
-content separately from field errors, and preserve exact root identity on raw
-field errors. The method and types become public through
-`@githits/mcp/client`; no MCP tool, CLI command, or user-facing default is
-introduced.
+**Expected outcome:** the transport-neutral service can request and validate
+exact-tree raw CodeDiff Inventory, Stats, and Patches without exposing a CLI or
+MCP surface.
 
-**Assumptions:** backend `main` exact-tree schema is the intended final client
-contract; service callers choose an explicit mode; no compatibility with the
-removed compare schema is required.
+**Assumptions:** the committed exact-tree backend contract is the client
+target; no compatibility adapter for the removed GitHub Compare shape is
+needed.
 
-**Unknowns/product decisions:** none for this client adapter. The deployment
-state is not needed for isolated tests.
+**Unknowns/product decisions:** none remaining for this completed phase.
 
-**Dependencies:** current `CodeNavigationService`, shared request-header/token
-provider behavior, the inspected PkgSeer backend `main` SDL, and existing
-service mock factories.
+**Dependencies:** completed backend exact-tree SDL and existing authenticated
+CodeNavigation request boundary.
 
-**Likely files:**
+**Observed outcome and acceptance:** mode-minimal variables/selections, runtime
+schemas, partial/root error separation, fixtures, mock factories, public client
+exports, durable documentation, release fragment, focused tests, full tests,
+build, and public-package validation merged. No user command/tool or agent
+guidance was added.
 
-- `packages/core-internal/src/services/code-navigation-service.ts`
-- `packages/core-internal/src/services/code-navigation-service.test.ts`
-- `packages/core-internal/src/index.ts` if public workspace exports require it
-- `packages/mcp/src/client.ts`
-- `packages/mcp/src/mcp/server.ts` for the descriptor-only service stub
-- `packages/mcp/src/services/test-helpers.ts`
-- `src/services/test-helpers.ts`
-- `scripts/validate-public-packages.ts`
-- `docs/implementation/code-diff.md`
-- one independent `changes/*.added.md` fragment
+## Phase 2: silent CLI dogfood
 
-**Contracts and edge cases:**
+**Status:** implementation-ready.
 
-- Params use a normalized unversioned package/repository target plus explicit
-  `from`, `to`, raw mode, and optional raw bounds/filters.
-- Package variables populate only `registry/name/fromVersion/toVersion`;
-  repository variables populate only `repoUrl/fromRef/toRef`. Empty opposite
-  fields are omitted, not sent as empty strings.
-- Each mode has a test-visible minimal selection. Shared identity, summary,
-  scope, files, `hasMoreFiles`, and `contentSafety` remain selected where used;
-  content fields appear only in the mode that consumes them.
-- Runtime schemas cover every committed enum and nullable field. Unknown
-  omission/failure strings remain bounded backend facts rather than closed
-  client enums unless the SDL defines an enum.
-- Identical SHAs, empty authoritative inventory, unknown scope, moved package
-  roots, unprojectable paths, binary/metadata-only files, byte-escaped paths,
-  partial/failed content, and field-local raw errors all have fixtures.
-- Field-local errors preserve root data; root/shared-resolution errors do not
-  fabricate a result.
+**Expected outcome:** developers and deliberate CLI users can run an
+authoritative exact-tree raw diff through `githits code diff` with familiar
+Git-style views, pipe-friendly text, structured JSON, and truthful bounded
+evidence. Agents receive no new tool, instructions, suggestions, or packaged
+guidance.
 
-**Ordered implementation:**
+**Assumptions:** Phase 1 types remain sufficient; existing code-target parsing,
+container injection, auth handling, sanitization, spinner, and CLI error
+envelopes can be reused without changing their unrelated behavior; backend
+defaults are acceptable evaluation defaults but are not yet endorsed for agent
+use.
 
-1. Add service-level request/result/error interfaces and update both mock
-   factories first so compilation exposes every consumer.
-2. Add Zod schemas for CodeDiff root, raw modes, GraphQL extensions, and partial
-   responses. Keep them local to the service until a second consumer proves a
-   shared schema is needed.
-3. Add mode-minimal query selections and exact variable construction. Prefer
-   the smallest explicit query construction that lets tests assert selected
-   fields; do not introduce a general GraphQL query builder.
-4. Implement `codeDiff` using the existing authenticated request boundary and
-   a dedicated mapper for CodeDiff-specific partial/root errors.
-5. Add focused async service tests for variables, selections, normalization,
-   malformed responses, root errors, raw field errors with root data, and
-   post-inventory failure-as-data.
-6. Document the client adapter's exact-tree identity, mode-minimal fetching,
-   partial/error contract, public export boundary, and current lack of a CLI or
-   MCP tool. Add a changelog fragment with `githits: none` and
-   `@githits/mcp: minor`; the required interface method is a public client API
-   addition and custom service implementations must adopt it.
-7. Run focused tests, the full `bun test`, `bun run build`, and
-   `bun run validate:packages`. Inspect built declarations and packed artifacts
-   to ensure private `@githits/core-internal` names do not leak.
+**Unknowns/product decisions:** none blocking implementation. The development
+deployment, later client defaults, Phase 3 MCP view names, and final
+content-failure automation semantics remain evidence questions described
+above.
 
-**Acceptance criteria:**
+**Dependencies:** current `origin/main`; merged Phase 1; committed backend SDL
+and CodeDiff guide; existing CLI container and smoke harness. Authenticated dev
+deployment is required only for authenticated live validation.
 
-- All three modes produce exact variables and minimal selections proven by
-  wire-level tests.
-- Every schema field needed by later text/JSON consumers survives typed
-  normalization without compare-era fields.
-- Partial content remains successful evidence; field-local and root errors are
-  distinguishable and retain all safe actionable metadata the backend sent.
-- Existing navigation behavior and error mapping are unchanged.
-- Durable documentation and the changelog fragment state the public client API
-  impact without advertising an unimplemented tool or command.
-- Focused tests, `bun test`, `bun run build`, and
-  `bun run validate:packages` pass.
+### Likely files and components
 
-## Phase 2: public CLI/MCP raw diff
+- `packages/mcp/src/shared/code-diff-request.ts` and focused tests for target,
+  range, view, glob, and numeric normalization;
+- `packages/mcp/src/shared/code-diff-response.ts` and focused tests for
+  selected-view success/error envelopes;
+- `packages/mcp/src/shared/code-diff-text.ts` and focused tests for
+  pipe-friendly views and diagnostic facts;
+- a small CodeDiff-specific error mapper beside those modules if the existing
+  generic code-navigation mapper cannot preserve the required bounded details
+  without broadening unrelated error behavior;
+- `packages/mcp/src/internal.ts` for workspace-only exports, with no public
+  export-map or package-index change;
+- `src/commands/code/diff.ts` and `src/commands/code/diff.test.ts`;
+- `src/commands/code/index.ts` registration and code-group help;
+- `scripts/cli-smoke.ts` structural command/help/auth/JSON coverage;
+- `docs/implementation/code-diff.md`,
+  `docs/implementation/cli-commands.md`, and one new
+  `changes/*.added.md` fragment.
 
-**Status:** product direction resolved; detailed ergonomics must be validated
-after Phase 1 and before the public schema/help is pinned.
+Do not add or edit an MCP tool, MCP server registration, MCP instruction,
+smoke-test tool inventory, Agent Skill, `AGENTS.md`, plugin/marketplace manifest,
+plugin generator, or generated agent asset in this phase.
 
-**Expected outcome:** users and agents can invoke the same exact-tree raw diff
-through `githits code diff` and `code_diff`, with compact truthful output,
-lossless selected JSON, useful defaults, and complete local/built/live
-validation.
+### Contracts and edge cases
 
-**Assumptions:** Phase 1 result types remain sufficient; the deployed dev
-schema matches the committed SDL before live smoke; the selected public modes
-map directly to backend selection modes.
+- Parse package and repository forms into the Phase 1 target union without
+  own-key leakage from the opposite target shape.
+- Accept exactly one non-empty `from..to` pair. Preserve endpoint spelling in
+  the request and exact resolved identity in the result. Identical endpoints
+  and equal resolved SHAs are valid; empty sides, whitespace-only sides,
+  `...`, or ambiguous separators are invalid.
+- Reject versions/refs embedded in target syntax because comparison endpoints
+  own both identities. Reject `--git-ref` for the same reason.
+- Map patch, stat, name-only, and name-status views to the minimal Phase 1
+  service mode. Explicit conflicting view flags are invalid instead of relying
+  on Commander option order.
+- Accept at most one non-empty repository-relative glob after `--`. Reject
+  multiple values, absolute paths, invalid encoding/length, and unsupported
+  backend glob syntax before network I/O.
+- Validate `--max-files` against 1..300 and `--max-patch-bytes` against
+  1024..2097152. Reject patch bytes outside patch view. Do not populate omitted
+  option keys.
+- Cover package scope, repository scope, unknown scope, moved package roots,
+  empty inventory, identical SHA, reverse/diverged pairs, truncation,
+  unprojectable and byte-escaped paths, binary and metadata-only files,
+  content omissions, partial/failed content, safety modifications, root errors,
+  and raw field errors with partial resolutions.
+- Keep summary counts separate from returned file count. Never infer that
+  `contentCoverage: COMPLETE` means the full inventory was returned.
+- Preserve pipe-friendly stdout in every view and send non-primary diagnostics
+  to stderr. Tests must assert the two streams separately.
 
-**Unknowns/product decisions:** no remaining product blocker. Exact Git-like
-view names/flags and the single-glob CLI spelling require usability design;
-client file/patch defaults require workload evidence. Both are due before the
-public schema, descriptions, and tests are finalized.
+### Ordered implementation
 
-**Dependencies:** completed Phase 1; deployed development backend for final
-smoke; plugin-maintenance workflow; current smoke/eval harnesses.
-
-**Likely files/components:**
-
-- shared `code-diff-request.ts`, `code-diff-response.ts`, and
-  `code-diff-text.ts` modules with focused tests;
-- `packages/mcp/src/shared/code-navigation-error-map.ts` for CodeDiff error
-  envelope mapping;
-- `packages/mcp/src/tools/code-diff.ts`, tool index/server registration,
-  instructions, public types/exports, and test helpers;
-- `src/commands/code/diff.ts`, command registration/help, CLI helpers, and
-  parity tests;
-- smoke-test tool inventories, CLI/MCP smoke scripts, targeted agent workloads,
-  canonical Agent Skill/guidance, generated plugin assets, implementation
-  docs, and one `changes/*.added.md` fragment.
-
-**Behavior and constraints:**
-
-- MCP input is `target + from + to`, not the backend's coupled flat XOR groups.
-  The target may be compact or structured but must not embed an endpoint.
-- The normal CLI begins with `githits code diff <target> <from>..<to>`. View and
-  path controls should borrow familiar Git spelling where semantics align.
-  Familiar spelling must not imply unsupported Git pathspec, revision, rename,
-  or unbounded-output behavior.
-- `path_glob` is the primary MCP path filter. Evaluate one CLI glob after `--`
-  as the closest honest match to `git diff ... -- <pathspec>`; do not accept
-  multiple values or unsupported pathspec magic unless the backend contract
-  gains equivalent semantics.
-- CLI and MCP reject empty endpoints, mixed/partial range forms, explicit empty
-  filters, invalid glob syntax, out-of-range numeric values, and no-op option
-  combinations before network I/O. `maxPatchBytes` is valid only for the patch
-  view; other views reject it instead of accepting an ignored coupled option.
-- JSON is a stable data-first projection, not a raw GraphQL wrapper. It retains
-  selected content truth and exact full SHAs without prose-only facts.
-- Text shows exact range direction as `from -> to`; it does not recreate the
-  removed AHEAD/BEHIND/DIVERGED model. Equal full SHAs are labeled identical.
-- Summary counts describe the complete scoped inventory. Returned-file counts,
-  `hasMoreFiles`, and `unprojectableFiles` remain separate.
-- Patch omission actions depend on `contentStatus`, omission reason, and
-  coverage. Raising total bytes is never suggested for a fixed per-file,
-  binary, metadata-only, invalid-UTF-8, or transport failure.
-- No rename wording appears because the backend does not preserve rename
-  identity.
-
-**Ordered implementation:**
-
-1. Reorient against Phase 1 types and the completed backend documentation
-   round. Build small CLI/MCP ergonomics fixtures for common `git diff`
-   expectations, then pin only the spellings whose semantics match.
-2. Add pure target/range/view/filter normalization tests, then implement the
-   shared request builder. Reuse existing parsers without loosening other code
-   tools.
-3. Add data-first response and text fixtures covering every scope, summary,
-   coverage, failure, content status, path encoding, truncation, identity, and
-   error state; then implement the smallest formatter modules that satisfy
-   them.
-4. Add MCP and CLI adapters, registrations, read-only annotations, JSON parity,
-   and surface-native hints. Extend the internal closed `MappedErrorCode` union
-   and exhaustive mapping switch for `CodeDiffError`: map backend details to a
-   closed recovery category rather than passing `details.code` through, while
-   preserving publication/ref candidates and retry timing in the bounded error
-   details. This is internal error mapping, not a public API change.
-5. Before pinning defaults, run representative small patch, medium minor,
-   large major, non-root monorepo, root-workspace, unknown-scope,
+1. Start from current `origin/main`. Add focused behavior fixtures for the
+   accepted CLI grammar and the four Git-style views, including rejected Git
+   syntax the backend cannot honor.
+2. Write request-normalization tests, then implement the smallest pure builder
+   that produces `CodeDiffParams`. Reuse existing package/repository parsing
+   without loosening other `code` commands.
+3. Write data-first response fixtures for all scope, summary, coverage,
+   content-status, safety, truncation, identity, and error states. Implement
+   selected-view envelopes and the bounded CodeDiff error mapping.
+4. Write stdout/stderr formatter fixtures, then implement patch, stat,
+   name-only, name-status, verbose context, and actionable warnings. Do not
+   synthesize rename or compare-relationship facts.
+5. Add the thin Commander action and registration. Use the existing container,
+   auth gate, spinner, color/sanitization, JSON error, and exit paths.
+6. Extend CLI smoke with command/help registration, unauthenticated auth
+   handling, invalid local grammar, and built-product coverage. If an existing
+   credential is available without exposing it and dev serves the schema, run
+   representative package and repository calls; otherwise record the live
+   check as unavailable.
+7. Dogfood representative small patch, medium release, large release,
+   non-root monorepo package, root-workspace package, unknown package scope,
    generated/lockfile-heavy, binary, reverse, diverged, and identical cases.
-   Compare 16/32/64 KiB and practical file caps using release builds. Record
-   aggregate counts, bytes/tokens, latency, content status, and agent follow-up
-   quality without persisting patches or credentials.
-6. Pin defaults and descriptions from the evidence. Run targeted Claude and
-   Codex `agent:e2e` workloads when practical; inspect tool calls,
-   `toolIssues`, `instructionIssues`, follow-ups, and unsupported conclusions.
-7. Update smoke inventories, durable docs, canonical guidance, and changelog
-   fragment. Use `githits-plugin-maintenance`, generate assets, and inspect the
-   complete diff.
-8. Run `bun test`, `bun run build`, `bun run smoke:cli`,
-   `bun run smoke:mcp`, `bun run smoke:cli:built`,
-   `bun run smoke:mcp:built`, `bun run plugins:check`, and external package
-   export/declaration validation. Run authenticated dev smoke only if an
-   existing credential is available without exposing it; unauthenticated smoke
-   must still pass its auth-handling contract.
+   Record only target/version pairs and aggregate outcome/size/latency notes.
+   Evaluate view spelling, stdout piping, one-glob sufficiency, backend default
+   usefulness, warnings, and recovery behavior; add no instrumentation.
+8. Update durable CLI/CodeDiff documentation and add the CLI-only release
+   fragment. Inspect the complete diff to confirm MCP instructions, tool
+   inventories, Agent Skills, and generated assets are unchanged.
+9. Run focused tests, `bun test`, `bun run build`, `bun run smoke:cli`,
+   `bun run smoke:cli:built`, `bun run validate:packages`, formatting/lint
+   checks required by the changed files, and package-artifact inspection. Do
+   not report an unavailable authenticated smoke as passed.
 
-**Acceptance criteria:**
+### Acceptance criteria
 
-- Equivalent CLI/MCP calls send equivalent normalized service params and
-  produce the same JSON success/error facts.
-- Inventory/stat/patch behavior matches the accepted public view set and each
-  view fetches no unused GraphQL fields.
-- CLI addressing, view flags, `--` path placement, help, and errors feel
-  familiar to `git diff` users while explicitly rejecting unsupported
-  pathspec/revision behavior; agents select the intended view and filter in
-  targeted evaluations.
-- Ordinary package upgrades return materially relevant bounded evidence under
-  the measured defaults; incomplete evidence is unmistakable and leads to a
-  valid focused follow-up.
-- Reverse and diverged calls are direct exact-tree transformations, not
-  compare-era relationship claims.
-- Scope, authoritative summary, returned/projectable counts, content coverage,
-  partial content failure, and per-file status are impossible to confuse in
-  text or JSON.
-- All required unit, parity, smoke, built-product, plugin, package-boundary,
-  and agent evaluations pass. Any unavailable authenticated dev check is
-  reported explicitly rather than represented as passed.
+- The documented package and repository examples normalize to exact Phase 1
+  service params; invalid/mixed/empty forms fail before service invocation.
+- Default patch, explicit patch, stat, name-only, and name-status output use the
+  intended minimal service modes and preserve Git-like stdout discipline.
+- Omitted bounds are absent on the wire; explicit bounds and the single glob
+  are validated and forwarded exactly.
+- Text and JSON cannot confuse full scoped summary, returned/projectable
+  files, content coverage, content failure, or per-file content status.
+- Exact resolutions and safe recovery facts survive success and typed error
+  projections without arbitrary GraphQL extensions or unsafe terminal text.
+- Empty and identical diffs succeed; real errors fail; successful partial or
+  failed content evidence succeeds with unmistakable structured/text warnings.
+- CLI help states the bounded glob and revision limitations without claiming
+  full Git pathspec or revision compatibility.
+- No `code_diff` tool, MCP instruction, agent guidance, plugin asset, or public
+  `@githits/mcp` export is added or changed.
+- Durable docs describe the dogfood posture and one release fragment records
+  `githits: minor`, `@githits/mcp: none`.
+- Focused tests, full tests, build, CLI smoke, built CLI smoke, package
+  validation, and relevant format/lint checks pass. Authenticated dev results
+  are recorded accurately.
 
-## Phase 3: changelog steering
+## Phase 3: MCP and agent rollout
 
-**Status:** blocked on Phase 2 and a committed backend action contract.
+**Status:** blocked on Phase 2 merge, dogfood evidence, and phase-boundary
+reorientation.
 
-**Expected outcome:** sparse/missing range changelogs carry typed package-only
-diff arguments that GitHits maps to the active MCP or CLI syntax without
-matching human prose.
+**Expected outcome:** the exercised raw-diff contract becomes a public
+`code_diff` MCP tool with CLI/MCP JSON parity, agent-native errors and
+descriptions, minimal instructions/guidance, generated assets, complete smoke
+coverage, and targeted agent evaluation.
 
-**Assumptions:** the action remains transport-neutral and package-addressed;
-Phase 2 invocation is stable.
+**Assumptions:** dogfooding identifies a stable view/filter contract and useful
+bounded defaults; no Phase 1 service redesign is required; structural remains
+unexposed.
 
-**Unknowns/product decisions:** exact discriminator, field names, and success /
-error placement. Resolve from the future SDL and backend implementation during
-phase-boundary reorientation.
+**Unknowns/product decisions:** MCP view names, public defaults, content-failure
+automation semantics, whether `pathPrefix` has proven necessary, and any CLI
+signature corrections found during dogfooding. Resolve from Phase 2 evidence
+before adding tactical Phase 3 steps.
 
-**Dependencies:** deployed Phase 2 and committed/deployed PkgSeer action schema.
+**Dependencies:** merged Phase 2; verified deployed backend; accepted dogfood
+findings; MCP/package release workflow; plugin-maintenance workflow; smoke and
+agent-evaluation harnesses.
+
+**Acceptance criteria:** equivalent CLI/MCP requests produce equivalent
+normalized service params and JSON facts; every view remains mode-minimal;
+agents choose correct views/filters and avoid unsupported conclusions in
+targeted Claude and Codex evaluations; MCP/CLI smoke, built smoke, plugin
+generation/checks, package validation, and required release fragments pass;
+durable instructions remain concise and truthful. Tactical files and steps are
+intentionally deferred until Phase 2 reorientation supplies evidence.
+
+## Phase 4: changelog steering
+
+**Status:** blocked on a stable Phase 3 invocation and a committed/deployed
+PkgSeer changelog-action contract.
+
+**Expected outcome:** sparse or missing package range changelogs carry typed
+package-only diff arguments that GitHits maps to the active CLI or MCP syntax
+without matching human prose.
+
+**Assumptions:** the future action remains transport-neutral and
+package-addressed; the stabilized diff invocation can represent it directly.
+
+**Unknowns/product decisions:** exact discriminator, field names, success/error
+placement, and fallback behavior. Resolve from the future SDL and backend
+implementation during phase-boundary reorientation.
+
+**Dependencies:** merged Phase 3 and committed/deployed PkgSeer action schema.
 
 **Acceptance criteria:** empty, partial, and missing-content range outcomes
-steer to a valid CodeDiff call in both contexts; latest/repository outcomes and
-unknown actions remain truthful; structural stays unexposed. Tactical files
-and steps are intentionally deferred until the backend contract exists.
+steer to valid CodeDiff calls in both contexts; latest/repository outcomes and
+unknown actions remain truthful; structural stays unexposed. Tactical detail is
+intentionally deferred until the backend contract exists.
 
 ## Phase-boundary reorientation
 
-After each phase merges, fetch and rebase on current `origin/main`, inspect the
-merged delta and current PkgSeer SDL/changelog/implementation guide, then update
-this same plan before detailing or implementing the next phase. Record:
+After each phase merges and before detailing or implementing the next phase:
 
-- the merged outcome and tests actually passed;
-- changed schema fields, assumptions, decisions, dependencies, or release
-  boundaries;
-- contradictions between this plan, implementation, backend behavior, or user
-  comments; and
-- whether the next phase is `READY`, `REPLAN`, or `PRODUCT INPUT NEEDED`.
+1. run `$next-steps` against current `origin/main` and fetch the backend's
+   current `origin/main`;
+2. inspect the merged delta, tests actually passed, SDL hash/changelog,
+   deployment evidence, and dogfood findings;
+3. record changed assumptions, decisions, dependencies, release boundaries,
+   and contradictions in this same plan;
+4. classify the next phase as `READY`, `REPLAN`, or `PRODUCT INPUT NEEDED`; and
+5. add tactical detail only when its blocking evidence and product decisions
+   are resolved.
 
-Do not carry forward compare-era fields, an unmeasured client default, or an
-unverified changelog action shape.
+Do not rebase or rewrite branch history unless explicitly requested. Do not
+carry forward compare-era fields, unmeasured client defaults, or an unverified
+changelog action shape.
 
 ## Overall acceptance, completion, and plan cleanup
 
 The effort is complete only when:
 
 - raw CodeDiff is released through CLI and MCP with exact-tree identity,
-  truthful scoped inventory/content states, and measured useful defaults;
+  truthful scope/inventory/content states, and evidence-backed defaults;
 - typed changelog steering is consumed in both CLI and MCP contexts;
 - structural remains honestly unexposed;
-- durable docs match the implementation and no compare-era contract remains in
-  active guidance; and
+- durable implementation docs match shipped behavior and no compare-era
+  contract remains in active guidance; and
 - all required unit, build, parity, smoke, built-product, package-boundary,
-  plugin, live-when-authenticated, and targeted agent validation has passed or
-  an unavailable authenticated check is explicitly reported.
+  plugin, and agent validations for the affected phases pass.
 
-Keep this plan through final implementation review. Then transfer remaining
-lasting decisions to `docs/implementation/`, delete this plan as the final
-substantive cleanup, and search the repository for stale compare-era or plan
-references.
+Keep this plan through implementation review. After the final phase merges,
+transfer all lasting architecture, contracts, operational findings, and
+rollout decisions to `docs/implementation/`, then delete this temporary plan so
+it cannot become stale guidance.
