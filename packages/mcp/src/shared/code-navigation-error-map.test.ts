@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import {
   AuthenticationError,
   ClientUpdateRequiredError,
+  CodeDiffError,
   CodeNavigationAccessError,
   CodeNavigationBackendError,
   CodeNavigationFeatureFlagRequiredError,
@@ -63,6 +64,127 @@ describe("mapCodeNavigationError", () => {
       },
     });
   });
+
+  it("classifies CodeDiff version failures with bounded recovery details", () => {
+    const error = new CodeDiffError("Version was not published.", {
+      code: "VERSION_NOT_FOUND",
+      retryable: false,
+      side: "from",
+      registry: "NPM",
+      publishedVersions: ["2.0.0", "1.0.0"],
+      publishedVersionsTruncated: true,
+    });
+
+    expect(mapCodeNavigationError(error)).toEqual({
+      code: "VERSION_NOT_FOUND",
+      message: "Version was not published.",
+      retryable: false,
+      details: {
+        side: "from",
+        registry: "NPM",
+        publishedVersions: ["2.0.0", "1.0.0"],
+        publishedVersionsTruncated: true,
+      },
+    });
+  });
+
+  it("classifies ambiguous CodeDiff refs without exposing the raw code", () => {
+    const error = new CodeDiffError("Ref is ambiguous.", {
+      code: "AMBIGUOUS_REF",
+      repoUrl: "https://github.com/example/repo",
+      gitRef: "release",
+      availableRefs: [{ ref: "refs/heads/release" }],
+      suggestedRefs: [{ ref: "refs/tags/release", version: "1.0.0" }],
+      refKinds: ["BRANCH", "TAG"],
+    });
+
+    expect(mapCodeNavigationError(error)).toEqual({
+      code: "REF_NOT_FOUND",
+      message: "Ref is ambiguous.",
+      retryable: false,
+      details: {
+        repoUrl: "https://github.com/example/repo",
+        gitRef: "release",
+        availableRefs: [{ ref: "refs/heads/release" }],
+        suggestedRefs: [{ ref: "refs/tags/release", version: "1.0.0" }],
+        refKinds: ["BRANCH", "TAG"],
+      },
+    });
+  });
+
+  it("preserves exact root identity for a CodeDiff raw-field failure", () => {
+    const error = new CodeDiffError(
+      "Raw diff limit exceeded.",
+      {
+        code: "RAW_DIFF_LIMIT_EXCEEDED",
+        retryable: false,
+        stage: "content",
+        limitKind: "max_content_entries",
+      },
+      {
+        package: {
+          registry: "NPM",
+          name: "example",
+          repoUrl: "https://github.com/example/repo",
+        },
+        fromResolution: {
+          requested: "1.0.0",
+          resolvedVersion: "1.0.0",
+          ref: "v1.0.0",
+          commitSha: "0123456789abcdef0123456789abcdef01234567",
+          refKind: "TAG",
+          versionSource: "REGISTRY",
+        },
+        toResolution: {
+          requested: "2.0.0",
+          resolvedVersion: "2.0.0",
+          ref: "v2.0.0",
+          commitSha: "fedcba9876543210fedcba9876543210fedcba98",
+          refKind: "TAG",
+          versionSource: "REGISTRY",
+        },
+      },
+    );
+
+    const mapped = mapCodeNavigationError(error);
+    expect(mapped.code).toBe("BACKEND_ERROR");
+    expect(mapped.retryable).toBe(false);
+    expect(mapped.details).toMatchObject({
+      stage: "content",
+      limitKind: "max_content_entries",
+      codeDiffResolution: {
+        package: { registry: "NPM", name: "example" },
+        from: { commitSha: "0123456789abcdef0123456789abcdef01234567" },
+        to: { commitSha: "fedcba9876543210fedcba9876543210fedcba98" },
+      },
+    });
+    expect(mapped.details).not.toHaveProperty("graphqlCode");
+  });
+
+  it.each([
+    ["VALIDATION_ERROR", "INVALID_ARGUMENT", false],
+    ["REF_NOT_FOUND", "REF_NOT_FOUND", false],
+    ["REPOSITORY_NOT_FOUND", "NOT_FOUND", false],
+    ["TIMEOUT", "TIMEOUT", true],
+    ["RATE_LIMITED", "RATE_LIMITED", true],
+    ["RAW_DIFF_UNAVAILABLE", "BACKEND_ERROR", false],
+    [undefined, "BACKEND_ERROR", false],
+  ] as const)(
+    "maps CodeDiff code %s to %s",
+    (graphqlCode, expectedCode, retryable) => {
+      const mapped = mapCodeNavigationError(
+        new CodeDiffError("failure", {
+          code: graphqlCode,
+          retryAfterMs: 250,
+        }),
+      );
+      expect(mapped).toMatchObject({
+        code: expectedCode,
+        retryable,
+        details: { retryAfterMs: 250 },
+      });
+    },
+  );
 
   it("classifies CodeNavigationTargetNotFoundError as NOT_FOUND", () => {
     const err = new CodeNavigationTargetNotFoundError("Package not found", [
@@ -590,6 +712,7 @@ describe("mapCodeNavigationError debug instrumentation", () => {
     process.env.GITHITS_DEBUG = "*";
     const errors: unknown[] = [
       new CodeNavigationTargetNotFoundError("x"),
+      new CodeDiffError("x", { code: "RAW_DIFF_UNAVAILABLE" }),
       new CodeNavigationFileNotFoundError("x", "some/path"),
       new CodeNavigationIndexingError("x"),
       new CodeNavigationRefNotFoundError(
