@@ -492,6 +492,16 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "resolve help should disclose query privacy guidance",
     );
 
+    const codeDiffHelp = await runCliWithEnv(["code", "diff", "--help"], env);
+    assert(codeDiffHelp.exitCode === 0, "code diff help should succeed");
+    assert(
+      codeDiffHelp.stdout.includes("<from>..<to>") &&
+        codeDiffHelp.stdout.includes("repository-relative") &&
+        codeDiffHelp.stdout.includes("--name-status") &&
+        !codeDiffHelp.stdout.includes("--git-ref"),
+      "code diff help should expose the bounded dogfood contract",
+    );
+
     for (const command of ["init", "login"] as const) {
       const commandHelp = await runCliWithEnv([command, "--help"], env);
       assert(commandHelp.exitCode === 0, `${command} help should succeed`);
@@ -539,6 +549,23 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
         details: { authSource: "local" },
       },
       "unauthenticated languages JSON envelope",
+    );
+
+    const codeDiffAuth = await runCliWithEnv(
+      ["code", "diff", "npm:express", "5.2.0..5.2.1", "--json"],
+      env,
+    );
+    assert(
+      codeDiffAuth.exitCode !== 0 && codeDiffAuth.stdout.trim() === "",
+      "unauthenticated code diff JSON should fail with clean stdout",
+    );
+    const codeDiffAuthPayload = assertCleanErrorEnvelope(
+      codeDiffAuth.stderr,
+      "unauthenticated code diff",
+    );
+    assert(
+      codeDiffAuthPayload.code === "AUTH_REQUIRED",
+      "unauthenticated code diff should preserve the shared auth envelope",
     );
 
     const resolveJson = await runCliWithEnv(
@@ -1163,6 +1190,46 @@ async function runLiveSmoke(): Promise<void> {
       codeGrepInvalidEnvelope.error.includes("githits code files") &&
       !codeGrepInvalidEnvelope.error.includes("code_files"),
     "code grep invalid json missing CLI-native recovery",
+  );
+
+  const codeDiffJson = assertJsonOutput(
+    await runCli([
+      "code",
+      "diff",
+      "npm:express",
+      "5.2.0..5.2.1",
+      "--name-only",
+      "--max-files",
+      "2",
+      "--json",
+    ]),
+    "code diff json",
+  );
+  assertRecord(codeDiffJson, "code diff json");
+  assert(
+    codeDiffJson.view === "name-only" &&
+      Array.isArray(codeDiffJson.files) &&
+      typeof codeDiffJson.from === "object" &&
+      typeof codeDiffJson.to === "object",
+    "code diff json missing selected view or exact resolutions",
+  );
+
+  const codeDiffInvalid = await runCli([
+    "code",
+    "diff",
+    "npm:express",
+    "5.2.0...5.2.1",
+    "--json",
+  ]);
+  const codeDiffInvalidEnvelope = assertCleanErrorEnvelope(
+    codeDiffInvalid.stderr,
+    "code diff invalid json",
+  );
+  assert(
+    codeDiffInvalid.exitCode !== 0 &&
+      codeDiffInvalidEnvelope.code === "INVALID_ARGUMENT" &&
+      codeDiffInvalidEnvelope.error.includes("not `...`"),
+    "code diff invalid JSON should explain the two-dot range",
   );
 
   const searchText = assertTerminalOutput(

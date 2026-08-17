@@ -32,6 +32,7 @@ The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback
 | `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports facts only. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages for a package. Entries include page IDs for `docs read`; JSON includes exact repo-file follow-up metadata when available. |
 | `docs read <page-id>` | page ID from `docs list` or search results | `--lines`, `--verbose`, `--json` | Read a documentation page by page ID. Default output is content-only; `--lines` fetches a bounded range for long pages. |
+| `code diff <target> <from>..<to>` | unversioned package/repository target and exact range, or `--repo-url` and range | `--patch`, `--stat`, `--name-only`, `--name-status`, `--max-files`, `--max-patch-bytes`, `--verbose`, `--json`, one glob after `--` | Silently dogfood a bounded exact-tree diff; not exposed through MCP or agent guidance |
 | `code files [spec] [path-prefix]` | package spec OR `--repo-url` with optional `--git-ref`; optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `--file-type`, repeatable `--language`, repeatable `--file-intent`, repeatable `--exclude-intent`, `--exclude-docs`, `--exclude-tests`, `--hidden`, `--limit`, `--wait`, `--verbose`, `--json` | List files in an indexed dependency. Selectors (`[path-prefix]`, `--path`, `--glob`) are OR-ed; the other flags filter that scope down further. Plain output is one path per line; `--verbose` adds language / type / size annotations. Indexing errors include elapsed/expected duration when available plus retry via `--wait` or indexed refs/versions from the error detail. |
 | `code read <spec?> <path>` | package spec OR `--repo-url` with optional `--git-ref`; plus `<path>` | `--lines`, `--start`, `--end`, `--wait`, `--verbose`, `--json` | Read a file's contents. Plain output is the raw file bytes (pipe-friendly); `--verbose` adds a header and a line-number gutter. `--lines 10-40` concise form; `--start`/`--end` equivalent. Binary files show a sentinel line. |
 | `code grep [spec] <pattern> [path-prefix]` | package spec OR `--repo-url` with optional `--git-ref`; plus `<pattern>` and optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, `--regex`, `--case-sensitive`, `-C/-A/-B`, `--exclude-docs`, `--exclude-tests`, `--limit`, `--per-file-limit`, `--cursor`, `--symbol-field`, `--wait`, `--verbose`, `--json` | Deterministic text grep over indexed dependency or repository source. Defaults to whole-target, literal, ASCII case-insensitive matching; non-ASCII letters match case-sensitively. Narrow with `[path-prefix]`, `--path`, `--glob`, or `--ext`. Plain output is `file:line:text`; `--verbose` groups matches by file. |
@@ -501,6 +502,37 @@ Reads a documentation page returned by `docs list` or search results. Default ou
 **Output envelope.** `{pageId, title?, sourceKind?, sourceUrl?, repoUrl?, gitRef?, filePath?, totalLines?, startLine?, endLine?, content}`. Repo-backed docs include exact source metadata for `code read` follow-up.
 
 **Troubleshooting.** Same debug areas as the `pkg` family.
+
+### `githits code diff`
+
+```sh
+githits code diff npm:express 4.18.1..4.18.2
+githits code diff npm:express 4.18.1..4.18.2 --stat
+githits code diff npm:express 4.18.1..4.18.2 --name-status -- 'lib/**/*.js'
+githits code diff --repo-url https://github.com/expressjs/express v4.18.1..v4.18.2 --name-only
+```
+
+Compares two exact source trees left-to-right. Package targets must omit a
+version and repository targets must omit a ref because both endpoints belong
+in the required two-dot range. Three-dot merge-base syntax and `--git-ref` are
+rejected. The optional value after `--` is one repository-relative bounded
+glob, not a full Git pathspec.
+
+Patch output is the default. `--stat`, `--name-only`, and `--name-status`
+select cheaper views and are mutually exclusive with `--patch` and each other.
+`--max-files` applies to every view; `--max-patch-bytes` is patch-only. The CLI
+does not send client defaults for either bound.
+
+The selected Git-like view stays on stdout. Completeness, truncation, scope,
+content-safety, and display-only path warnings stay on stderr; `--verbose` adds
+exact resolutions and scope facts there. JSON keeps the same evidence as a
+lean selected-view envelope. Empty authoritative diffs and successful partial
+post-inventory evidence exit 0; request, auth, resolution, and backend errors
+exit 1.
+
+This is a silent dogfood surface. It is normally registered and documented for
+maintainers, but no MCP tool, MCP instruction, Agent Skill, or plugin guidance
+promotes it yet.
 
 ### `githits code files`
 
