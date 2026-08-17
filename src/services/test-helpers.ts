@@ -2,6 +2,7 @@ import { mock } from "bun:test";
 import { posix, win32 } from "node:path";
 import type {
   ChangelogReport,
+  CodeDiffResult,
   CodeNavigationService,
   DependencyReport,
   GitHitsService,
@@ -479,6 +480,63 @@ export const defaultGrepRepoResult: GrepRepoResult = {
   },
 };
 
+export const defaultCodeDiffResult: CodeDiffResult = {
+  package: {
+    registry: "NPM",
+    name: "express",
+    repoUrl: "https://github.com/expressjs/express",
+  },
+  fromResolution: {
+    requested: "4.18.1",
+    resolvedVersion: "4.18.1",
+    ref: "v4.18.1",
+    commitSha: "from-sha",
+    refKind: "TAG",
+    versionSource: "REGISTRY",
+  },
+  toResolution: {
+    requested: "4.18.2",
+    resolvedVersion: "4.18.2",
+    ref: "v4.18.2",
+    commitSha: "to-sha",
+    refKind: "TAG",
+    versionSource: "REGISTRY",
+  },
+  raw: {
+    summary: {
+      filesChanged: 1,
+      added: 0,
+      deleted: 0,
+      modified: 1,
+      modeChanged: 0,
+      typeChanged: 0,
+      inventoryComplete: true,
+      unprojectableFiles: 0,
+    },
+    scope: {
+      status: "PACKAGE",
+      fromSubpath: "",
+      toSubpath: "",
+    },
+    contentCoverage: "COMPLETE",
+    files: [
+      {
+        path: "lib/express.js",
+        pathEncoding: "UTF8",
+        status: "MODIFIED",
+        modeChanged: false,
+        typeChanged: false,
+        additions: 1,
+        deletions: 1,
+        patch: "@@ -1 +1 @@\n-old\n+new",
+        contentStatus: "PATCH",
+        contentSafety: { filtered: false, modifications: [] },
+      },
+    ],
+    hasMoreFiles: false,
+  },
+};
+
 /**
  * Creates a mock CodeNavigationService with default implementations.
  */
@@ -491,6 +549,7 @@ export function createMockCodeNavigationService(
     listFiles: mock(() => Promise.resolve(defaultListFilesResult)),
     readFile: mock(() => Promise.resolve(defaultReadFileResult)),
     grepRepo: mock(() => Promise.resolve(defaultGrepRepoResult)),
+    codeDiff: mock(() => Promise.resolve(defaultCodeDiffResult)),
     ...impl,
   };
 }

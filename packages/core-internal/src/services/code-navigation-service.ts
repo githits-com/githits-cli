@@ -444,6 +444,184 @@ export interface ReadFileResult {
   availableVersions?: AvailableVersion[];
 }
 
+/**
+ * A package target for CodeDiff. Version resolution belongs to the
+ * comparison endpoints, so this target intentionally has no version field.
+ */
+export interface CodeDiffPackageTarget {
+  registry: CodeNavigationRegistry;
+  packageName: string;
+}
+
+/**
+ * A public repository target for CodeDiff. Ref resolution belongs to the
+ * comparison endpoints, so this target intentionally has no gitRef field.
+ */
+export interface CodeDiffRepositoryTarget {
+  repoUrl: string;
+}
+
+export type CodeDiffTarget = CodeDiffPackageTarget | CodeDiffRepositoryTarget;
+
+export type CodeDiffMode = "inventory" | "stats" | "patches";
+
+export interface CodeDiffOptions {
+  maxFiles?: number;
+  maxPatchBytes?: number;
+  pathPrefix?: string;
+  pathGlob?: string;
+}
+
+export interface CodeDiffParams {
+  target: CodeDiffTarget;
+  from: string;
+  to: string;
+  mode: CodeDiffMode;
+  options?: CodeDiffOptions;
+}
+
+export type CodeDiffRefKind = "SHA" | "TAG" | "BRANCH" | "HEAD" | "UNKNOWN";
+
+export type CodeDiffVersionSource = "REGISTRY" | "GIT_HEAD" | "TAG" | "RELEASE";
+
+export type RawCodeDiffScopeStatus = "PACKAGE" | "REPOSITORY" | "UNKNOWN";
+
+export type RawCodeDiffFileStatus = "ADDED" | "DELETED" | "MODIFIED";
+
+export type RawCodeDiffPathEncoding = "UTF8" | "BYTE_ESCAPED";
+
+export type RawCodeDiffFileContentStatus =
+  | "NOT_REQUESTED"
+  | "STATS"
+  | "PATCH"
+  | "BINARY"
+  | "METADATA_ONLY"
+  | "OMITTED"
+  | "UNAVAILABLE";
+
+export type RawCodeDiffContentCoverage =
+  | "NOT_REQUESTED"
+  | "COMPLETE"
+  | "PARTIAL"
+  | "FAILED";
+
+export type ContentModification =
+  | "INVISIBLE_CONTROLS_STRIPPED"
+  | "HTML_COMMENTS_STRIPPED"
+  | "IMAGES_REPLACED"
+  | "UNSAFE_LINKS_NEUTRALIZED";
+
+export interface CodeDiffPackageInfo {
+  registry: CodeNavigationRegistry;
+  name: string;
+  repoUrl: string;
+}
+
+export interface CodeDiffRefResolution {
+  requested: string;
+  resolvedVersion?: string;
+  ref: string;
+  commitSha: string;
+  refKind: CodeDiffRefKind;
+  versionSource?: CodeDiffVersionSource;
+}
+
+export interface RawCodeDiffSummary {
+  filesChanged: number;
+  added: number;
+  deleted: number;
+  modified: number;
+  modeChanged: number;
+  typeChanged: number;
+  inventoryComplete: boolean;
+  unprojectableFiles: number;
+}
+
+export interface RawCodeDiffScope {
+  status: RawCodeDiffScopeStatus;
+  fromSubpath?: string;
+  toSubpath?: string;
+  pathPrefix?: string;
+  pathGlob?: string;
+}
+
+export interface RawCodeDiffContentFailure {
+  code: string;
+  retryable: boolean;
+  retryAfterMs?: number;
+  stage?: string;
+  limitKind?: string;
+}
+
+export interface ContentSafety {
+  filtered: boolean;
+  modifications: ContentModification[];
+}
+
+export interface RawCodeDiffFile {
+  path: string;
+  pathEncoding: RawCodeDiffPathEncoding;
+  status: RawCodeDiffFileStatus;
+  modeChanged: boolean;
+  typeChanged: boolean;
+  additions?: number;
+  deletions?: number;
+  patch?: string;
+  contentStatus: RawCodeDiffFileContentStatus;
+  contentOmissionReason?: string;
+  contentSafety: ContentSafety;
+}
+
+export interface RawCodeDiff {
+  summary: RawCodeDiffSummary;
+  scope: RawCodeDiffScope;
+  contentCoverage: RawCodeDiffContentCoverage;
+  contentFailure?: RawCodeDiffContentFailure;
+  files: RawCodeDiffFile[];
+  hasMoreFiles: boolean;
+}
+
+export interface CodeDiffResult {
+  package?: CodeDiffPackageInfo;
+  fromResolution: CodeDiffRefResolution;
+  toResolution: CodeDiffRefResolution;
+  raw: RawCodeDiff;
+}
+
+export interface CodeDiffErrorRef {
+  ref: string;
+  version?: string;
+}
+
+/**
+ * Bounded metadata retained from PkgSeer CodeDiff GraphQL errors. Do not add
+ * arbitrary extension values here: this object is safe to pass to public
+ * error envelopes and telemetry.
+ */
+export interface CodeDiffErrorDetails {
+  code?: string;
+  retryable?: boolean;
+  side?: string;
+  publishedVersions?: string[];
+  publishedVersionsTruncated?: boolean;
+  registry?: string;
+  retryAfterMs?: number;
+  stage?: string;
+  limitKind?: string;
+  repoUrl?: string;
+  gitRef?: string;
+  availableRefs?: CodeDiffErrorRef[];
+  suggestedRefs?: CodeDiffErrorRef[];
+  refKinds?: string[];
+}
+
+export interface CodeDiffPartialResult {
+  package?: CodeDiffPackageInfo;
+  fromResolution: CodeDiffRefResolution;
+  toResolution: CodeDiffRefResolution;
+  raw?: RawCodeDiff;
+}
+
 export type GrepRepoPatternType = "LITERAL" | "REGEX";
 
 export type GrepPathSelectorKind = "EXACT" | "PREFIX" | "GLOB";
@@ -538,6 +716,7 @@ export interface CodeNavigationService {
   listFiles(params: ListFilesParams): Promise<ListFilesResult>;
   readFile(params: ReadFileParams): Promise<ReadFileResult>;
   grepRepo(params: GrepRepoParams): Promise<GrepRepoResult>;
+  codeDiff(params: CodeDiffParams): Promise<CodeDiffResult>;
 }
 
 export class CodeNavigationAccessError extends Error {
@@ -596,6 +775,21 @@ export class MalformedCodeNavigationResponseError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "MalformedCodeNavigationResponseError";
+  }
+}
+
+/**
+ * GraphQL resolver error for CodeDiff. `partial` is present only when the
+ * backend returned a valid root resolution alongside a field-local error.
+ */
+export class CodeDiffError extends Error {
+  constructor(
+    message: string,
+    public readonly details?: CodeDiffErrorDetails,
+    public readonly partial?: CodeDiffPartialResult,
+  ) {
+    super(message);
+    this.name = "CodeDiffError";
   }
 }
 
@@ -1116,7 +1310,7 @@ function debugUnifiedSearchRequest(variables: {
 }
 
 function debugGraphqlWireRequest(
-  operation: "search",
+  operation: "search" | "codeDiff",
   graphqlQuery: string,
   variables: Record<string, unknown>,
 ): void {
@@ -1380,6 +1574,231 @@ const graphQLErrorSchema = z.object({
   message: z.string(),
   extensions: z.record(z.string(), z.unknown()).optional(),
 });
+
+const codeDiffGraphQLErrorSchema = z.object({
+  message: z.string(),
+  path: z
+    .array(z.union([z.string(), z.number().int()]))
+    .nullable()
+    .optional(),
+  extensions: z.record(z.string(), z.unknown()).optional(),
+});
+
+const codeDiffRegistrySchema = z.enum([
+  "NPM",
+  "PYPI",
+  "HEX",
+  "CRATES",
+  "NUGET",
+  "MAVEN",
+  "ZIG",
+  "VCPKG",
+  "PACKAGIST",
+  "RUBYGEMS",
+  "GO",
+  "SWIFT",
+]);
+
+const codeDiffPackageInfoSchema = z.object({
+  registry: codeDiffRegistrySchema,
+  name: z.string(),
+  repoUrl: z.string(),
+});
+
+const codeDiffRefResolutionSchema = z.object({
+  requested: z.string(),
+  resolvedVersion: z.string().nullable().optional(),
+  ref: z.string(),
+  commitSha: z.string(),
+  refKind: z.enum(["SHA", "TAG", "BRANCH", "HEAD", "UNKNOWN"]),
+  versionSource: z
+    .enum(["REGISTRY", "GIT_HEAD", "TAG", "RELEASE"])
+    .nullable()
+    .optional(),
+});
+
+const rawCodeDiffSummarySchema = z.object({
+  filesChanged: z.number().int(),
+  added: z.number().int(),
+  deleted: z.number().int(),
+  modified: z.number().int(),
+  modeChanged: z.number().int(),
+  typeChanged: z.number().int(),
+  inventoryComplete: z.boolean(),
+  unprojectableFiles: z.number().int(),
+});
+
+const rawCodeDiffScopeSchema = z.object({
+  status: z.enum(["PACKAGE", "REPOSITORY", "UNKNOWN"]),
+  fromSubpath: z.string().nullable().optional(),
+  toSubpath: z.string().nullable().optional(),
+  pathPrefix: z.string().nullable().optional(),
+  pathGlob: z.string().nullable().optional(),
+});
+
+const rawCodeDiffContentFailureSchema = z.object({
+  code: z.string(),
+  retryable: z.boolean(),
+  retryAfterMs: z.number().int().nullable().optional(),
+  stage: z.string().nullable().optional(),
+  limitKind: z.string().nullable().optional(),
+});
+
+const contentSafetySchema = z.object({
+  filtered: z.boolean(),
+  modifications: z.array(
+    z.enum([
+      "INVISIBLE_CONTROLS_STRIPPED",
+      "HTML_COMMENTS_STRIPPED",
+      "IMAGES_REPLACED",
+      "UNSAFE_LINKS_NEUTRALIZED",
+    ]),
+  ),
+});
+
+const rawCodeDiffFileSchema = z.object({
+  path: z.string(),
+  pathEncoding: z.enum(["UTF8", "BYTE_ESCAPED"]),
+  status: z.enum(["ADDED", "DELETED", "MODIFIED"]),
+  modeChanged: z.boolean(),
+  typeChanged: z.boolean(),
+  additions: z.number().int().nullable().optional(),
+  deletions: z.number().int().nullable().optional(),
+  patch: z.string().nullable().optional(),
+  contentStatus: z.enum([
+    "NOT_REQUESTED",
+    "STATS",
+    "PATCH",
+    "BINARY",
+    "METADATA_ONLY",
+    "OMITTED",
+    "UNAVAILABLE",
+  ]),
+  contentOmissionReason: z.string().nullable().optional(),
+  contentSafety: contentSafetySchema,
+});
+
+const rawCodeDiffSchema = z.object({
+  summary: rawCodeDiffSummarySchema,
+  scope: rawCodeDiffScopeSchema,
+  contentCoverage: z.enum(["NOT_REQUESTED", "COMPLETE", "PARTIAL", "FAILED"]),
+  contentFailure: rawCodeDiffContentFailureSchema.nullable().optional(),
+  files: z.array(rawCodeDiffFileSchema),
+  hasMoreFiles: z.boolean(),
+});
+
+const codeDiffResultSchema = z.object({
+  package: codeDiffPackageInfoSchema.nullable().optional(),
+  fromResolution: codeDiffRefResolutionSchema,
+  toResolution: codeDiffRefResolutionSchema,
+  raw: rawCodeDiffSchema.nullable().optional(),
+});
+
+const codeDiffGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      codeDiff: codeDiffResultSchema.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(codeDiffGraphQLErrorSchema).optional(),
+});
+
+const CODE_DIFF_COMMON_SELECTION = `
+package {
+  registry
+  name
+  repoUrl
+}
+fromResolution {
+  requested
+  resolvedVersion
+  ref
+  commitSha
+  refKind
+  versionSource
+}
+toResolution {
+  requested
+  resolvedVersion
+  ref
+  commitSha
+  refKind
+  versionSource
+}
+raw {
+  summary {
+    filesChanged
+    added
+    deleted
+    modified
+    modeChanged
+    typeChanged
+    inventoryComplete
+    unprojectableFiles
+  }
+  scope {
+    status
+    fromSubpath
+    toSubpath
+    pathPrefix
+    pathGlob
+  }
+  contentCoverage
+  contentFailure {
+    code
+    retryable
+    retryAfterMs
+    stage
+    limitKind
+  }
+  files {
+    path
+    pathEncoding
+    status
+    modeChanged
+    typeChanged
+    contentStatus
+    contentSafety {
+      filtered
+      modifications
+    }`;
+
+function buildCodeDiffQuery(mode: CodeDiffMode): string {
+  const contentFields =
+    mode === "inventory"
+      ? ""
+      : mode === "stats"
+        ? "\n    additions\n    deletions"
+        : "\n    additions\n    deletions\n    patch\n    contentOmissionReason";
+
+  return `
+query CodeDiff(
+  $registry: Registry
+  $name: String
+  $fromVersion: String
+  $toVersion: String
+  $repoUrl: String
+  $fromRef: String
+  $toRef: String
+  $rawOptions: RawCodeDiffOptions
+) {
+  codeDiff(
+    registry: $registry
+    name: $name
+    fromVersion: $fromVersion
+    toVersion: $toVersion
+    repoUrl: $repoUrl
+    fromRef: $fromRef
+    toRef: $toRef
+    rawOptions: $rawOptions
+  ) {${CODE_DIFF_COMMON_SELECTION}${contentFields}
+    }
+    hasMoreFiles
+  }
+}
+}`;
+}
 
 // --------------------------------------------------------------------
 // Zod schemas + queries for the file-exploration bundle.
@@ -1864,6 +2283,108 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       executeWithToken: (token) =>
         this.executeUnifiedSearchStatus(token, searchRef, waitTimeoutMs),
     });
+  }
+
+  async codeDiff(params: CodeDiffParams): Promise<CodeDiffResult> {
+    validateCodeDiffParams(params);
+    return executeWithTokenRefresh({
+      getToken: () => this.tokenProvider.getToken(),
+      forceRefresh: () => this.tokenProvider.forceRefresh(),
+      shouldRefresh: isTokenRefreshableError,
+      executeWithToken: (token) => this.executeCodeDiff(token, params),
+    });
+  }
+
+  private async executeCodeDiff(
+    token: string,
+    params: CodeDiffParams,
+  ): Promise<CodeDiffResult> {
+    const query = buildCodeDiffQuery(params.mode);
+    const variables = buildCodeDiffVariables(params);
+    debugGraphqlWireRequest("codeDiff", query, variables);
+
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await this.postGraphqlWithTargetResolutionFallback({
+        token,
+        query,
+        variables,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw this.createTransportError(cause);
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = codeDiffGraphQLResponseSchema.safeParse(response.parsedBody);
+    if (!parsed.success) {
+      throw new MalformedCodeNavigationResponseError(
+        "Malformed response from code navigation service.",
+      );
+    }
+
+    const data = parsed.data.data?.codeDiff;
+    const errors = parsed.data.errors ?? [];
+    if (errors.length > 0) {
+      const rawErrors = errors.filter(isCodeDiffRawError);
+      if (rawErrors.length > 0) {
+        throw new CodeDiffError(
+          rawErrors.map((error) => error.message).join(", "),
+          parseCodeDiffErrorDetails(rawErrors),
+          data ? normaliseCodeDiffPartial(data) : undefined,
+        );
+      }
+
+      throw this.createCodeDiffRootError(errors);
+    }
+
+    if (!data?.raw) {
+      throw new MalformedCodeNavigationResponseError(
+        "CodeDiff response missing non-null raw result.",
+      );
+    }
+
+    return normaliseCodeDiffResult(data);
+  }
+
+  private createCodeDiffRootError(
+    errors: Array<z.infer<typeof codeDiffGraphQLErrorSchema>>,
+  ): Error {
+    const graphQLErrors = errors.map(({ message, extensions }) => ({
+      message,
+      extensions,
+    }));
+    const message = errors.map((error) => error.message).join(", ");
+    const extensions = errors.find(
+      (error) => error.extensions && Object.keys(error.extensions).length > 0,
+    )?.extensions;
+    const code =
+      typeof extensions?.code === "string" ? extensions.code : undefined;
+
+    if (code === "AUTHENTICATION_REQUIRED") {
+      return new AuthenticationError(
+        SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+        "server",
+      );
+    }
+
+    if (
+      code === "UNAUTHORIZED" ||
+      code === "FORBIDDEN" ||
+      code === "FEATURE_FLAG_REQUIRED" ||
+      isClientUpdateRequiredGraphQLError({ message, code }) ||
+      isGraphQLSchemaMismatchError({ message, code }) ||
+      (code === undefined && isAuthMessage(message))
+    ) {
+      return this.createGraphQLError(graphQLErrors);
+    }
+
+    return new CodeDiffError(message, parseCodeDiffErrorDetails(errors));
   }
 
   private async executeUnifiedSearch(
@@ -2772,6 +3293,337 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       targetResolution: normaliseTargetResolution(data.targetResolution),
     };
   }
+}
+
+function validateCodeDiffParams(
+  params: unknown,
+): asserts params is CodeDiffParams {
+  const paramsRecord = asRecord(params);
+  if (!paramsRecord) {
+    throw new CodeNavigationValidationError(
+      "CodeDiff params must be an object.",
+    );
+  }
+
+  if (
+    paramsRecord.mode !== "inventory" &&
+    paramsRecord.mode !== "stats" &&
+    paramsRecord.mode !== "patches"
+  ) {
+    throw new CodeNavigationValidationError(
+      "CodeDiff mode must be inventory, stats, or patches.",
+    );
+  }
+
+  if (typeof paramsRecord.from !== "string" || paramsRecord.from.length === 0) {
+    throw new CodeNavigationValidationError(
+      "CodeDiff from ref or version must not be empty.",
+    );
+  }
+  if (typeof paramsRecord.to !== "string" || paramsRecord.to.length === 0) {
+    throw new CodeNavigationValidationError(
+      "CodeDiff to ref or version must not be empty.",
+    );
+  }
+
+  const target = asRecord(paramsRecord.target);
+  if (!target) {
+    throw new CodeNavigationValidationError(
+      "CodeDiff target must be a package or repository target.",
+    );
+  }
+
+  if (
+    Object.hasOwn(target, "registry") &&
+    Object.hasOwn(target, "packageName") &&
+    !Object.hasOwn(target, "repoUrl")
+  ) {
+    if (!codeDiffRegistrySchema.safeParse(target.registry).success) {
+      throw new CodeNavigationValidationError(
+        "CodeDiff package target has an unsupported registry.",
+      );
+    }
+    if (
+      typeof target.packageName !== "string" ||
+      target.packageName.length === 0
+    ) {
+      throw new CodeNavigationValidationError(
+        "CodeDiff package target name must not be empty.",
+      );
+    }
+  } else if (
+    Object.hasOwn(target, "repoUrl") &&
+    !Object.hasOwn(target, "registry") &&
+    !Object.hasOwn(target, "packageName")
+  ) {
+    if (typeof target.repoUrl !== "string" || target.repoUrl.length === 0) {
+      throw new CodeNavigationValidationError(
+        "CodeDiff repository target URL must not be empty.",
+      );
+    }
+  } else {
+    throw new CodeNavigationValidationError(
+      "CodeDiff target must be a package or repository target.",
+    );
+  }
+
+  const optionsValue = paramsRecord.options;
+  if (optionsValue === undefined) return;
+  const options = asRecord(optionsValue);
+  if (!options) {
+    throw new CodeNavigationValidationError(
+      "CodeDiff options must be an object when supplied.",
+    );
+  }
+
+  validateCodeDiffIntegerOption(options.maxFiles, "maxFiles", 1, 300);
+  validateCodeDiffIntegerOption(
+    options.maxPatchBytes,
+    "maxPatchBytes",
+    1024,
+    2_097_152,
+  );
+  validateCodeDiffPathOption(options.pathPrefix, "pathPrefix");
+  validateCodeDiffPathOption(options.pathGlob, "pathGlob");
+}
+
+function validateCodeDiffIntegerOption(
+  value: unknown,
+  name: string,
+  minimum: number,
+  maximum: number,
+): void {
+  if (value === undefined) return;
+  if (
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value < minimum ||
+    value > maximum
+  ) {
+    throw new CodeNavigationValidationError(
+      `CodeDiff ${name} must be an integer from ${minimum} through ${maximum}.`,
+    );
+  }
+}
+
+function validateCodeDiffPathOption(value: unknown, name: string): void {
+  if (value === undefined) return;
+  if (typeof value !== "string") {
+    throw new CodeNavigationValidationError(
+      `CodeDiff ${name} must be a string when supplied.`,
+    );
+  }
+  if (value.length === 0) {
+    throw new CodeNavigationValidationError(
+      `CodeDiff ${name} must not be empty when supplied.`,
+    );
+  }
+  if (new TextEncoder().encode(value).byteLength > 1024) {
+    throw new CodeNavigationValidationError(
+      `CodeDiff ${name} must be at most 1024 bytes.`,
+    );
+  }
+}
+
+function buildCodeDiffVariables(
+  params: CodeDiffParams,
+): Record<string, unknown> {
+  const target = params.target;
+  const variables: Record<string, unknown> = {};
+  if ("registry" in target) {
+    variables.registry = target.registry;
+    variables.name = target.packageName;
+    variables.fromVersion = params.from;
+    variables.toVersion = params.to;
+  } else {
+    variables.repoUrl = target.repoUrl;
+    variables.fromRef = params.from;
+    variables.toRef = params.to;
+  }
+
+  const rawOptions = Object.fromEntries(
+    Object.entries(params.options ?? {}).filter(
+      ([, value]) => value !== undefined,
+    ),
+  );
+  if (Object.keys(rawOptions).length > 0) variables.rawOptions = rawOptions;
+  return variables;
+}
+
+function isCodeDiffRawError(
+  error: z.infer<typeof codeDiffGraphQLErrorSchema>,
+): boolean {
+  return error.path?.some((part) => part === "raw") ?? false;
+}
+
+function normaliseCodeDiffResult(
+  result: z.infer<typeof codeDiffResultSchema>,
+): CodeDiffResult {
+  if (!result.raw) {
+    throw new MalformedCodeNavigationResponseError(
+      "CodeDiff response missing non-null raw result.",
+    );
+  }
+  return {
+    package: normaliseCodeDiffPackage(result.package),
+    fromResolution: normaliseCodeDiffResolution(result.fromResolution),
+    toResolution: normaliseCodeDiffResolution(result.toResolution),
+    raw: normaliseRawCodeDiff(result.raw),
+  };
+}
+
+function normaliseCodeDiffPartial(
+  result: z.infer<typeof codeDiffResultSchema>,
+): CodeDiffPartialResult {
+  return {
+    package: normaliseCodeDiffPackage(result.package),
+    fromResolution: normaliseCodeDiffResolution(result.fromResolution),
+    toResolution: normaliseCodeDiffResolution(result.toResolution),
+    raw: result.raw ? normaliseRawCodeDiff(result.raw) : undefined,
+  };
+}
+
+function normaliseCodeDiffPackage(
+  value: z.infer<typeof codeDiffPackageInfoSchema> | null | undefined,
+): CodeDiffPackageInfo | undefined {
+  if (!value) return undefined;
+  return {
+    registry: value.registry,
+    name: value.name,
+    repoUrl: value.repoUrl,
+  };
+}
+
+function normaliseCodeDiffResolution(
+  value: z.infer<typeof codeDiffRefResolutionSchema>,
+): CodeDiffRefResolution {
+  return {
+    requested: value.requested,
+    resolvedVersion: value.resolvedVersion ?? undefined,
+    ref: value.ref,
+    commitSha: value.commitSha,
+    refKind: value.refKind,
+    versionSource: value.versionSource ?? undefined,
+  };
+}
+
+function normaliseRawCodeDiff(
+  value: z.infer<typeof rawCodeDiffSchema>,
+): RawCodeDiff {
+  return {
+    summary: value.summary,
+    scope: {
+      status: value.scope.status,
+      fromSubpath: value.scope.fromSubpath ?? undefined,
+      toSubpath: value.scope.toSubpath ?? undefined,
+      pathPrefix: value.scope.pathPrefix ?? undefined,
+      pathGlob: value.scope.pathGlob ?? undefined,
+    },
+    contentCoverage: value.contentCoverage,
+    contentFailure: value.contentFailure
+      ? {
+          code: value.contentFailure.code,
+          retryable: value.contentFailure.retryable,
+          retryAfterMs: value.contentFailure.retryAfterMs ?? undefined,
+          stage: value.contentFailure.stage ?? undefined,
+          limitKind: value.contentFailure.limitKind ?? undefined,
+        }
+      : undefined,
+    files: value.files.map((file) => ({
+      path: file.path,
+      pathEncoding: file.pathEncoding,
+      status: file.status,
+      modeChanged: file.modeChanged,
+      typeChanged: file.typeChanged,
+      additions: file.additions ?? undefined,
+      deletions: file.deletions ?? undefined,
+      patch: file.patch ?? undefined,
+      contentStatus: file.contentStatus,
+      contentOmissionReason: file.contentOmissionReason ?? undefined,
+      contentSafety: {
+        filtered: file.contentSafety.filtered,
+        modifications: file.contentSafety.modifications,
+      },
+    })),
+    hasMoreFiles: value.hasMoreFiles,
+  };
+}
+
+function parseCodeDiffErrorDetails(
+  errors: Array<z.infer<typeof codeDiffGraphQLErrorSchema>>,
+): CodeDiffErrorDetails | undefined {
+  const extensions = errors.find(
+    (error) => error.extensions && Object.keys(error.extensions).length > 0,
+  )?.extensions;
+  if (!extensions) return undefined;
+
+  const details: CodeDiffErrorDetails = {};
+  if (typeof extensions.code === "string") details.code = extensions.code;
+  if (typeof extensions.retryable === "boolean") {
+    details.retryable = extensions.retryable;
+  }
+  if (extensions.side === "from" || extensions.side === "to") {
+    details.side = extensions.side;
+  }
+  const publishedVersions = parseCodeDiffStringArray(
+    extensions.published_versions,
+  );
+  if (publishedVersions) details.publishedVersions = publishedVersions;
+  if (typeof extensions.published_versions_truncated === "boolean") {
+    details.publishedVersionsTruncated =
+      extensions.published_versions_truncated;
+  }
+  if (typeof extensions.registry === "string") {
+    details.registry = extensions.registry;
+  }
+  if (
+    typeof extensions.retry_after_ms === "number" &&
+    Number.isInteger(extensions.retry_after_ms) &&
+    extensions.retry_after_ms >= 0
+  ) {
+    details.retryAfterMs = extensions.retry_after_ms;
+  }
+  if (typeof extensions.stage === "string") details.stage = extensions.stage;
+  if (typeof extensions.limit_kind === "string") {
+    details.limitKind = extensions.limit_kind;
+  }
+  if (typeof extensions.repo_url === "string") {
+    details.repoUrl = extensions.repo_url;
+  }
+  if (typeof extensions.git_ref === "string")
+    details.gitRef = extensions.git_ref;
+  const availableRefs = parseCodeDiffErrorRefs(extensions.available_refs);
+  if (availableRefs) details.availableRefs = availableRefs;
+  const suggestedRefs = parseCodeDiffErrorRefs(extensions.suggested_refs);
+  if (suggestedRefs) details.suggestedRefs = suggestedRefs;
+  const refKinds = parseCodeDiffStringArray(extensions.ref_kinds);
+  if (refKinds) details.refKinds = refKinds;
+  return Object.keys(details).length > 0 ? details : undefined;
+}
+
+function parseCodeDiffStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const values = value.filter(
+    (entry): entry is string => typeof entry === "string",
+  );
+  return values;
+}
+
+function parseCodeDiffErrorRefs(
+  value: unknown,
+): CodeDiffErrorRef[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const refs: CodeDiffErrorRef[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const record = entry as Record<string, unknown>;
+    if (typeof record.ref !== "string") continue;
+    refs.push({
+      ref: record.ref,
+      version: typeof record.version === "string" ? record.version : undefined,
+    });
+  }
+  return refs;
 }
 
 function parseDetail(body: string): string | undefined {

@@ -368,11 +368,46 @@ async function verifyMcpConsumer(
       2,
     ),
   );
+  await writeFile(
+    join(appDirectory, "code-diff-check.ts"),
+    `import { CodeDiffError, CodeNavigationServiceImpl, createStaticTokenProvider, getCodeNavigationUrl, type CodeDiffMode, type CodeDiffPackageTarget, type CodeDiffParams, type CodeDiffRepositoryTarget, type CodeDiffResult, type CodeNavigationService } from "@githits/mcp/client";
+const packageTarget: CodeDiffPackageTarget = { registry: "NPM", packageName: "express" };
+const repositoryTarget: CodeDiffRepositoryTarget = { repoUrl: "https://github.com/expressjs/express" };
+const mode: CodeDiffMode = "inventory";
+const params: CodeDiffParams = { target: packageTarget, from: "4.18.1", to: "4.18.2", mode };
+const result: CodeDiffResult | undefined = undefined;
+const service: CodeNavigationService = new CodeNavigationServiceImpl(getCodeNavigationUrl(), createStaticTokenProvider("token"));
+void repositoryTarget;
+void params;
+void result;
+void service;
+void CodeDiffError;
+`,
+  );
   await runCommand(
     "npx",
     ["tsc", "--noEmit"],
     appDirectory,
     "typecheck packed mcp consumer",
+  );
+  await runCommand(
+    "npx",
+    [
+      "tsc",
+      "--noEmit",
+      "--strict",
+      "--skipLibCheck",
+      "--target",
+      "ES2022",
+      "--module",
+      "NodeNext",
+      "--moduleResolution",
+      "NodeNext",
+      "--ignoreConfig",
+      "code-diff-check.ts",
+    ],
+    appDirectory,
+    "typecheck packed code-diff consumer",
   );
 }
 

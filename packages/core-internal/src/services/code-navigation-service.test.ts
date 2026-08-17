@@ -9,15 +9,24 @@ import {
 } from "bun:test";
 import { FetchTimeoutError } from "../shared/fetch-timeout.js";
 import {
+  CodeDiffError,
+  type CodeDiffParams,
+  CodeNavigationAccessError,
   CodeNavigationBackendError,
+  CodeNavigationFeatureFlagRequiredError,
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationRefNotFoundError,
   CodeNavigationServiceImpl,
   CodeNavigationTargetNotFoundError,
+  CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
+  MalformedCodeNavigationResponseError,
 } from "./code-navigation-service.js";
-import { TermsAcceptanceRequiredError } from "./githits-service.js";
+import {
+  AuthenticationError,
+  TermsAcceptanceRequiredError,
+} from "./githits-service.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
 function mockFetch(impl: () => Promise<Response>) {
@@ -82,6 +91,86 @@ function buildSuggestedSiteSearchResult(
         note: fixture.note,
       },
     ],
+  };
+}
+
+function codeDiffPayload(
+  rawOverrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    data: {
+      codeDiff: {
+        package: {
+          registry: "NPM",
+          name: "express",
+          repoUrl: "https://github.com/expressjs/express",
+        },
+        fromResolution: {
+          requested: "4.18.1",
+          resolvedVersion: "4.18.1",
+          ref: "v4.18.1",
+          commitSha: "from-sha",
+          refKind: "TAG",
+          versionSource: "REGISTRY",
+        },
+        toResolution: {
+          requested: "4.18.2",
+          resolvedVersion: "4.18.2",
+          ref: "v4.18.2",
+          refKind: "TAG",
+          versionSource: "REGISTRY",
+          commitSha: "to-sha",
+        },
+        raw: {
+          summary: {
+            filesChanged: 1,
+            added: 0,
+            deleted: 0,
+            modified: 1,
+            modeChanged: 0,
+            typeChanged: 0,
+            inventoryComplete: true,
+            unprojectableFiles: 0,
+          },
+          scope: {
+            status: "PACKAGE",
+            fromSubpath: "",
+            toSubpath: "",
+            pathPrefix: null,
+            pathGlob: null,
+          },
+          contentCoverage: "COMPLETE",
+          contentFailure: null,
+          files: [
+            {
+              path: "lib/express.js",
+              pathEncoding: "UTF8",
+              status: "MODIFIED",
+              modeChanged: false,
+              typeChanged: false,
+              additions: 1,
+              deletions: 1,
+              patch: "@@ -1 +1 @@\n-old\n+new",
+              contentStatus: "PATCH",
+              contentOmissionReason: null,
+              contentSafety: { filtered: false, modifications: [] },
+            },
+          ],
+          hasMoreFiles: false,
+          ...rawOverrides,
+        },
+      },
+    },
+  };
+}
+
+function codeDiffRootErrorPayload(
+  extensions: Record<string, unknown>,
+  message = "CodeDiff resolution failed",
+): Record<string, unknown> {
+  return {
+    data: { codeDiff: null },
+    errors: [{ message, path: ["codeDiff"], extensions }],
   };
 }
 
@@ -2069,5 +2158,532 @@ describe("CodeNavigationServiceImpl", () => {
       waitTimeoutMs: 5000,
     });
     expect(body.query).toContain("indexingEstimate");
+  });
+
+  it("sends exclusive package variables and inventory-minimal file fields", async () => {
+    const fn = mock((_url: string, init?: RequestInit) =>
+      Promise.resolve(
+        new Response(JSON.stringify(codeDiffPayload()), { status: 200 }),
+      ),
+    );
+    globalThis.fetch = fn as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    await service.codeDiff({
+      target: { registry: "NPM", packageName: "express" },
+      from: "4.18.1",
+      to: "4.18.2",
+      mode: "inventory",
+      options: { maxFiles: 20, pathGlob: "src/**/*.js" },
+    });
+
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      variables: Record<string, unknown>;
+      query: string;
+    };
+    expect(body.variables).toEqual({
+      registry: "NPM",
+      name: "express",
+      fromVersion: "4.18.1",
+      toVersion: "4.18.2",
+      rawOptions: { maxFiles: 20, pathGlob: "src/**/*.js" },
+    });
+    expect(body.variables).not.toHaveProperty("repoUrl");
+    expect(body.variables).not.toHaveProperty("fromRef");
+    expect(body.variables).not.toHaveProperty("toRef");
+    const summarySelection = body.query.slice(
+      body.query.indexOf("summary {"),
+      body.query.indexOf("scope {"),
+    );
+    expect(summarySelection).toContain("\n    added\n");
+    expect(summarySelection).toContain("\n    deleted\n");
+    const fileSelection = body.query.slice(
+      body.query.indexOf("files {"),
+      body.query.indexOf("hasMoreFiles"),
+    );
+    expect(fileSelection).toContain("contentStatus");
+    expect(fileSelection).toContain("contentSafety");
+    expect(fileSelection).not.toContain("additions");
+    expect(fileSelection).not.toContain("deletions");
+    expect(fileSelection).not.toContain("patch");
+    expect(fileSelection).not.toContain("contentOmissionReason");
+  });
+
+  it("selects stats fields without patch content", async () => {
+    const fn = mock((_url: string, init?: RequestInit) =>
+      Promise.resolve(
+        new Response(JSON.stringify(codeDiffPayload()), { status: 200 }),
+      ),
+    );
+    globalThis.fetch = fn as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    await service.codeDiff({
+      target: { repoUrl: "https://github.com/expressjs/express" },
+      from: "v4.18.1",
+      to: "v4.18.2",
+      mode: "stats",
+    });
+
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      variables: Record<string, unknown>;
+      query: string;
+    };
+    expect(body.variables).toEqual({
+      repoUrl: "https://github.com/expressjs/express",
+      fromRef: "v4.18.1",
+      toRef: "v4.18.2",
+    });
+    expect(body.variables).not.toHaveProperty("registry");
+    expect(body.variables).not.toHaveProperty("name");
+    const fileSelection = body.query.slice(
+      body.query.indexOf("files {"),
+      body.query.indexOf("hasMoreFiles"),
+    );
+    expect(fileSelection).toContain("additions");
+    expect(fileSelection).toContain("deletions");
+    expect(fileSelection).not.toContain("patch");
+    expect(fileSelection).not.toContain("contentOmissionReason");
+  });
+
+  it("selects patch fields and normalizes exact identity and content safety", async () => {
+    const fn = mock((_url: string, init?: RequestInit) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            codeDiffPayload({
+              contentCoverage: "PARTIAL",
+              contentFailure: {
+                code: "RAW_DIFF_LIMIT_EXCEEDED",
+                retryable: false,
+                retryAfterMs: 0,
+                stage: "content",
+                limitKind: "patch_bytes",
+              },
+              files: [
+                {
+                  path: "src/main.ts",
+                  pathEncoding: "BYTE_ESCAPED",
+                  status: "ADDED",
+                  modeChanged: true,
+                  typeChanged: false,
+                  additions: 5,
+                  deletions: 0,
+                  patch: null,
+                  contentStatus: "OMITTED",
+                  contentOmissionReason: "invalid_utf8",
+                  contentSafety: {
+                    filtered: true,
+                    modifications: ["HTML_COMMENTS_STRIPPED"],
+                  },
+                },
+              ],
+              hasMoreFiles: true,
+            }),
+          ),
+          { status: 200 },
+        ),
+      ),
+    );
+    globalThis.fetch = fn as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    const result = await service.codeDiff({
+      target: { registry: "NPM", packageName: "express" },
+      from: "4.18.1",
+      to: "4.18.2",
+      mode: "patches",
+      options: {},
+    });
+
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      variables: Record<string, unknown>;
+      query: string;
+    };
+    expect(body.variables).not.toHaveProperty("rawOptions");
+    const fileSelection = body.query.slice(
+      body.query.indexOf("files {"),
+      body.query.indexOf("hasMoreFiles"),
+    );
+    expect(fileSelection).toContain("additions");
+    expect(fileSelection).toContain("deletions");
+    expect(fileSelection).toContain("patch");
+    expect(fileSelection).toContain("contentOmissionReason");
+    expect(result.fromResolution.commitSha).toBe("from-sha");
+    expect(result.toResolution.commitSha).toBe("to-sha");
+    expect(result.raw.contentCoverage).toBe("PARTIAL");
+    expect(result.raw.contentFailure).toEqual({
+      code: "RAW_DIFF_LIMIT_EXCEEDED",
+      retryable: false,
+      retryAfterMs: 0,
+      stage: "content",
+      limitKind: "patch_bytes",
+    });
+    expect(result.raw.files[0]).toMatchObject({
+      path: "src/main.ts",
+      pathEncoding: "BYTE_ESCAPED",
+      contentStatus: "OMITTED",
+      contentOmissionReason: "invalid_utf8",
+      contentSafety: {
+        filtered: true,
+        modifications: ["HTML_COMMENTS_STRIPPED"],
+      },
+    });
+  });
+
+  it("maps raw field errors to a bounded CodeDiffError with partial root identity", async () => {
+    const fn = mock(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              codeDiff: {
+                package: {
+                  registry: "NPM",
+                  name: "express",
+                  repoUrl: "https://github.com/expressjs/express",
+                },
+                fromResolution: {
+                  requested: "4.18.1",
+                  resolvedVersion: "4.18.1",
+                  ref: "v4.18.1",
+                  commitSha: "from-sha",
+                  refKind: "TAG",
+                  versionSource: "REGISTRY",
+                },
+                toResolution: {
+                  requested: "4.18.2",
+                  ref: "v4.18.2",
+                  commitSha: "to-sha",
+                  refKind: "TAG",
+                  versionSource: "REGISTRY",
+                },
+                raw: null,
+              },
+            },
+            errors: [
+              {
+                message: "The raw diff source was unavailable",
+                path: ["codeDiff", "raw"],
+                extensions: {
+                  code: "RAW_DIFF_UNAVAILABLE",
+                  retryable: false,
+                  side: "from",
+                  registry: "NPM",
+                  repo_url: "https://github.com/expressjs/express",
+                  git_ref: "v4.18.1",
+                  available_refs: [{ ref: "main", version: null }],
+                  suggested_refs: [{ ref: "v4.18.2" }],
+                  ref_kinds: ["TAG", "BRANCH"],
+                  secret: "must-not-survive",
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    globalThis.fetch = fn as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    try {
+      await service.codeDiff({
+        target: { registry: "NPM", packageName: "express" },
+        from: "4.18.1",
+        to: "4.18.2",
+        mode: "inventory",
+      });
+      throw new Error("expected CodeDiffError");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeDiffError);
+      const typed = error as CodeDiffError;
+      expect(typed.details).toEqual({
+        code: "RAW_DIFF_UNAVAILABLE",
+        retryable: false,
+        side: "from",
+        registry: "NPM",
+        repoUrl: "https://github.com/expressjs/express",
+        gitRef: "v4.18.1",
+        availableRefs: [{ ref: "main", version: undefined }],
+        suggestedRefs: [{ ref: "v4.18.2", version: undefined }],
+        refKinds: ["TAG", "BRANCH"],
+      });
+      expect(typed.partial?.fromResolution.commitSha).toBe("from-sha");
+      expect(typed.partial?.toResolution.commitSha).toBe("to-sha");
+      expect(typed.partial?.raw).toBeUndefined();
+      expect(JSON.stringify(typed)).not.toContain("must-not-survive");
+    }
+  });
+
+  it("keeps AUTHENTICATION_REQUIRED on the existing authentication boundary", async () => {
+    const forceRefresh = mock(() => Promise.resolve(undefined));
+    const fn = mock(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: { codeDiff: null },
+            errors: [
+              {
+                message: "Authentication required",
+                extensions: {
+                  code: "AUTHENTICATION_REQUIRED",
+                  retryable: false,
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    globalThis.fetch = fn as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider({ forceRefresh }),
+    );
+
+    await expect(
+      service.codeDiff({
+        target: { repoUrl: "https://github.com/expressjs/express" },
+        from: "main",
+        to: "release",
+        mode: "inventory",
+      }),
+    ).rejects.toBeInstanceOf(AuthenticationError);
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(forceRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps root GraphQL access errors on the existing boundaries", async () => {
+    for (const [code, errorClass] of [
+      ["FORBIDDEN", CodeNavigationAccessError],
+      ["FEATURE_FLAG_REQUIRED", CodeNavigationFeatureFlagRequiredError],
+    ] as const) {
+      const fn = mock(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(
+              codeDiffRootErrorPayload({ code, retryable: false }),
+            ),
+            { status: 200 },
+          ),
+        ),
+      );
+      globalThis.fetch = fn as unknown as typeof fetch;
+      const service = new CodeNavigationServiceImpl(
+        BASE_URL,
+        createMockTokenProvider(),
+      );
+
+      await expect(
+        service.codeDiff({
+          target: { repoUrl: "https://github.com/expressjs/express" },
+          from: "main",
+          to: "release",
+          mode: "inventory",
+        }),
+      ).rejects.toBeInstanceOf(errorClass);
+      expect(fn).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("maps root version errors to CodeDiffError with bounded publication metadata", async () => {
+    const fn = mock(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            codeDiffRootErrorPayload({
+              code: "VERSION_NOT_FOUND",
+              retryable: false,
+              side: "from",
+              registry: "NPM",
+              published_versions: [],
+              published_versions_truncated: true,
+              retry_after_ms: 1200,
+              secret: "must-not-survive",
+            }),
+          ),
+          { status: 200 },
+        ),
+      ),
+    );
+    globalThis.fetch = fn as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    let caught: unknown;
+    try {
+      await service.codeDiff({
+        target: { registry: "NPM", packageName: "express" },
+        from: "9.9.9",
+        to: "10.0.0",
+        mode: "inventory",
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(CodeDiffError);
+    const error = caught as CodeDiffError;
+    expect(error.details).toEqual({
+      code: "VERSION_NOT_FOUND",
+      retryable: false,
+      side: "from",
+      publishedVersions: [],
+      publishedVersionsTruncated: true,
+      registry: "NPM",
+      retryAfterMs: 1200,
+    });
+    expect(error.partial).toBeUndefined();
+    expect(JSON.stringify(error)).not.toContain("must-not-survive");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps root ambiguous-ref errors with empty candidate arrays and kinds", async () => {
+    const fn = mock(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            codeDiffRootErrorPayload({
+              code: "AMBIGUOUS_REF",
+              retryable: false,
+              repo_url: "https://github.com/expressjs/express",
+              git_ref: "release",
+              available_refs: [],
+              suggested_refs: [],
+              ref_kinds: ["TAG", "BRANCH"],
+              secret: { should: "not survive" },
+            }),
+          ),
+          { status: 200 },
+        ),
+      ),
+    );
+    globalThis.fetch = fn as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    let caught: unknown;
+    try {
+      await service.codeDiff({
+        target: { repoUrl: "https://github.com/expressjs/express" },
+        from: "release",
+        to: "main",
+        mode: "inventory",
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(CodeDiffError);
+    const error = caught as CodeDiffError;
+    expect(error.details).toEqual({
+      code: "AMBIGUOUS_REF",
+      retryable: false,
+      repoUrl: "https://github.com/expressjs/express",
+      gitRef: "release",
+      availableRefs: [],
+      suggestedRefs: [],
+      refKinds: ["TAG", "BRANCH"],
+    });
+    expect(error.partial).toBeUndefined();
+    expect(JSON.stringify(error)).not.toContain("should");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("validates malformed CodeDiff params before authentication or fetch", async () => {
+    const getToken = mock(() => Promise.resolve("mock-access-token"));
+    const forceRefresh = mock(() => Promise.resolve("mock-refreshed-token"));
+    const fetchFn = mock((_url: string, _init?: RequestInit) =>
+      Promise.resolve(new Response(null, { status: 200 })),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      { getToken, forceRefresh },
+      fetchFn as unknown as typeof fetch,
+    );
+    const validParams = {
+      target: { repoUrl: "https://github.com/expressjs/express" },
+      from: "main",
+      to: "release",
+      mode: "inventory" as const,
+    };
+    const invalidParams: unknown[] = [
+      null,
+      { ...validParams, target: null },
+      { ...validParams, target: "https://github.com/expressjs/express" },
+      { ...validParams, options: null },
+      { ...validParams, options: { maxFiles: "50" } },
+      { ...validParams, options: { pathGlob: null } },
+    ];
+
+    for (const params of invalidParams) {
+      await expect(
+        service.codeDiff(params as CodeDiffParams),
+      ).rejects.toBeInstanceOf(CodeNavigationValidationError);
+    }
+
+    expect(getToken).not.toHaveBeenCalled();
+    expect(forceRefresh).not.toHaveBeenCalled();
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("rejects unknown response enums and invalid raw bounds", async () => {
+    const unknownEnumFetch = mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            codeDiffPayload({
+              contentCoverage: "NOT_A_COVERAGE",
+            }),
+          ),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+    await expect(
+      service.codeDiff({
+        target: { repoUrl: "https://github.com/expressjs/express" },
+        from: "v1",
+        to: "v2",
+        mode: "inventory",
+      }),
+    ).rejects.toBeInstanceOf(MalformedCodeNavigationResponseError);
+    expect(unknownEnumFetch).toHaveBeenCalledTimes(1);
+
+    await expect(
+      service.codeDiff({
+        target: { repoUrl: "https://github.com/expressjs/express" },
+        from: "v1",
+        to: "v2",
+        mode: "stats",
+        options: { maxPatchBytes: 1023 },
+      }),
+    ).rejects.toThrow("maxPatchBytes");
+    expect(unknownEnumFetch).toHaveBeenCalledTimes(1);
   });
 });
