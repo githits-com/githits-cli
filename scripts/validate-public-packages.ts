@@ -362,11 +362,27 @@ async function verifyMcpConsumer(
           skipLibCheck: true,
           noEmit: true,
         },
-        include: ["check.ts"],
+        include: ["check.ts", "code-diff-check.ts"],
       },
       null,
       2,
     ),
+  );
+  await writeFile(
+    join(appDirectory, "code-diff-check.ts"),
+    `import { CodeDiffError, CodeNavigationServiceImpl, createStaticTokenProvider, getCodeNavigationUrl, type CodeDiffMode, type CodeDiffPackageTarget, type CodeDiffParams, type CodeDiffRepositoryTarget, type CodeDiffResult, type CodeNavigationService } from "@githits/mcp/client";
+const packageTarget: CodeDiffPackageTarget = { registry: "NPM", packageName: "express" };
+const repositoryTarget: CodeDiffRepositoryTarget = { repoUrl: "https://github.com/expressjs/express" };
+const mode: CodeDiffMode = "inventory";
+const params: CodeDiffParams = { target: packageTarget, from: "4.18.1", to: "4.18.2", mode };
+const result: CodeDiffResult | undefined = undefined;
+const service: CodeNavigationService = new CodeNavigationServiceImpl(getCodeNavigationUrl(), createStaticTokenProvider("token"));
+void repositoryTarget;
+void params;
+void result;
+void service;
+void CodeDiffError;
+`,
   );
   await runCommand(
     "npx",

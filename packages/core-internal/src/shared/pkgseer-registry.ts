@@ -10,20 +10,6 @@
  * the existing `CodeNavigationRegistry*` names.
  */
 
-export type PkgseerRegistry =
-  | "NPM"
-  | "PYPI"
-  | "HEX"
-  | "CRATES"
-  | "NUGET"
-  | "MAVEN"
-  | "ZIG"
-  | "VCPKG"
-  | "PACKAGIST"
-  | "RUBYGEMS"
-  | "GO"
-  | "SWIFT";
-
 export const PKGSEER_REGISTRY_ARGS = [
   "npm",
   "pypi",
@@ -54,7 +40,14 @@ const registryMap = {
   rubygems: "RUBYGEMS",
   go: "GO",
   swift: "SWIFT",
-} as const satisfies Record<PkgseerRegistryArg, PkgseerRegistry>;
+} as const satisfies Record<PkgseerRegistryArg, string>;
+
+export type PkgseerRegistry = (typeof registryMap)[keyof typeof registryMap];
+
+export const PKGSEER_REGISTRY_VALUES = Object.values(registryMap) as [
+  PkgseerRegistry,
+  ...PkgseerRegistry[],
+];
 
 export const PKGSEER_REGISTRY_LIST: string = PKGSEER_REGISTRY_ARGS.join(", ");
 
