@@ -76,8 +76,9 @@ The SDL and implementation documentation prove:
   Package publication evidence restricts the inventory but does not rewrite
   returned paths or caller filters to package-relative values.
 - `pathGlob` supports a bounded subset: `*` and `?` stay within a component and
-  an exact `**` component spans components. Unsupported shell/pathspec syntax
-  is rejected. Only one glob is accepted per request.
+  an exact `**` component spans components. A backslash escapes one following
+  non-slash character. Unsupported shell/pathspec syntax is rejected. Only one
+  glob is accepted per request.
 - Server defaults are `maxFiles=50` and `maxPatchBytes=262144`; each patch also
   has a fixed 131072-byte ceiling. The server clamps numeric options, but the
   CLI must reject out-of-range user values rather than silently altering them.

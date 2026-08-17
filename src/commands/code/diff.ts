@@ -2,6 +2,12 @@ import type { CodeNavigationService } from "@githits/core-internal";
 import {
   buildCodeDiffParams,
   buildCodeDiffSuccessPayload,
+  CODE_DIFF_MAX_FILES_MAX,
+  CODE_DIFF_MAX_FILES_MIN,
+  CODE_DIFF_MAX_PATCH_BYTES_MAX,
+  CODE_DIFF_MAX_PATCH_BYTES_MIN,
+  type CodeDiffRequestBuildResult,
+  type CodeDiffRequestInput,
   type CodeDiffView,
   formatCodeDiffTerminal,
   InvalidPackageSpecError,
@@ -83,18 +89,23 @@ export async function codeDiffAction(
       );
     }
     const view = resolveView(options);
-    const build = buildCodeDiffParams({
+    const build = buildCliCodeDiffParams({
       target: positionals.target,
       repoUrl: options.repoUrl,
       range: positionals.range,
       view,
       pathGlob: positionals.pathGlob,
-      maxFiles: parseIntCliOption(options.maxFiles, "--max-files", 1, 300),
+      maxFiles: parseIntCliOption(
+        options.maxFiles,
+        "--max-files",
+        CODE_DIFF_MAX_FILES_MIN,
+        CODE_DIFF_MAX_FILES_MAX,
+      ),
       maxPatchBytes: parseIntCliOption(
         options.maxPatchBytes,
         "--max-patch-bytes",
-        1024,
-        2_097_152,
+        CODE_DIFF_MAX_PATCH_BYTES_MIN,
+        CODE_DIFF_MAX_PATCH_BYTES_MAX,
       ),
     });
 
@@ -124,6 +135,23 @@ export async function codeDiffAction(
       options.json ?? false,
       formatCodeDiffError,
     );
+  }
+}
+
+function buildCliCodeDiffParams(
+  input: CodeDiffRequestInput,
+): CodeDiffRequestBuildResult {
+  try {
+    return buildCodeDiffParams(input);
+  } catch (error) {
+    if (!(error instanceof InvalidPackageSpecError)) throw error;
+    const rewritten = error.message
+      .replace(/`maxPatchBytes`/g, "`--max-patch-bytes`")
+      .replace(/`maxFiles`/g, "`--max-files`")
+      .replace(/`pathGlob`/g, "`<path-glob>`")
+      .replace(/CodeDiff view/g, "Diff view");
+    if (rewritten === error.message) throw error;
+    throw new InvalidPackageSpecError(rewritten);
   }
 }
 
@@ -183,7 +211,12 @@ function resolveView(options: CodeDiffCommandOptions): CodeDiffView {
 /** Render bounded CodeDiff diagnostics without exposing raw GraphQL details. */
 export function formatCodeDiffError(mapped: MappedError): string {
   const safe = (value: string): string => sanitizeTerminalText(value);
-  const lines = [safe(formatMappedErrorForTerminal(mapped))];
+  const safeBlock = (value: string): string =>
+    value
+      .split("\n")
+      .map((line) => safe(line))
+      .join("\n");
+  const lines = [safeBlock(formatMappedErrorForTerminal(mapped))];
   const details = mapped.details;
   if (!details) return lines[0] as string;
 
@@ -192,26 +225,42 @@ export function formatCodeDiffError(mapped: MappedError): string {
   if (details.limitKind) lines.push(`  limit: ${safe(details.limitKind)}`);
   if (details.publishedVersions?.length) {
     lines.push(
-      `  published versions: ${details.publishedVersions.slice(0, 8).map(safe).join(", ")}${details.publishedVersionsTruncated ? ", …" : ""}`,
+      `  published versions: ${formatRecoveryList(
+        details.publishedVersions,
+        safe,
+        details.publishedVersionsTruncated,
+      )}`,
     );
   }
   if (details.availableRefs?.length) {
     lines.push(
-      `  available refs: ${details.availableRefs
-        .slice(0, 8)
-        .map((entry) => safe(entry.version ?? entry.ref))
-        .join(", ")}`,
+      `  available refs: ${formatRecoveryList(
+        details.availableRefs.map((entry) => entry.version ?? entry.ref),
+        safe,
+      )}`,
     );
   }
   if (details.suggestedRefs?.length) {
     lines.push(
-      `  suggested refs: ${details.suggestedRefs
-        .slice(0, 8)
-        .map((entry) => safe(entry.version ?? entry.ref))
-        .join(", ")}`,
+      `  suggested refs: ${formatRecoveryList(
+        details.suggestedRefs.map((entry) => entry.version ?? entry.ref),
+        safe,
+      )}`,
     );
   }
   return lines.join("\n");
+}
+
+function formatRecoveryList(
+  values: string[],
+  safe: (value: string) => string,
+  backendTruncated = false,
+): string {
+  const limit = 8;
+  const shown = values.slice(0, limit).map(safe).join(", ");
+  if (backendTruncated) return `${shown} (+more)`;
+  const omitted = values.length - limit;
+  return omitted > 0 ? `${shown} (+${omitted} more)` : shown;
 }
 
 const CODE_DIFF_DESCRIPTION = `Compare two exact dependency source trees.
@@ -226,7 +275,7 @@ is always left-to-right; three-dot merge-base syntax is not supported.
 
 After \`--\`, one optional <path-glob> applies a repository-relative bounded
 glob. It supports *, ?, and an exact ** path component; it is not a full Git
-pathspec.`;
+pathspec. A backslash escapes one following non-slash character.`;
 
 export function registerCodeDiffCommand(
   codeCommand: Command,

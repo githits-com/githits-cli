@@ -107,7 +107,7 @@ describe("formatCodeDiffTerminal", () => {
     );
 
     expect(result.stdout).toBe(
-      "   text.ts | 6 ++++--\n image.png | binary content differs\n 2 files changed, 4 insertions(+), 2 deletions(-)\n",
+      " text.ts   | 6 ++++--\n image.png | binary content differs\n 2 files changed, 4 insertions(+), 2 deletions(-)\n",
     );
   });
 
@@ -132,9 +132,41 @@ describe("formatCodeDiffTerminal", () => {
       options,
     );
 
-    expect(result.stdout).toContain(
-      "1 returned file changed, 1 insertion(+), 0 deletions(-)",
+    expect(result.stdout).toContain("1 returned file changed, 1 insertion(+)");
+  });
+
+  it("keeps a visible sign for every non-zero stat direction", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({
+        view: "stat",
+        summary: {
+          filesChanged: 1,
+          added: 0,
+          deleted: 0,
+          modified: 1,
+          modeChanged: 0,
+          typeChanged: 0,
+          inventoryComplete: true,
+          unprojectableFiles: 0,
+        },
+        files: [
+          {
+            path: "skewed.ts",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            additions: 1,
+            deletions: 100,
+            contentStatus: "stats",
+          },
+        ],
+      }),
+      options,
     );
+
+    expect(result.stdout.split("\n")[0]).toContain("+");
+    expect(result.stdout.split("\n")[0]).toContain("-");
   });
 
   it("preserves served patches and renders truthful non-text outcomes", () => {

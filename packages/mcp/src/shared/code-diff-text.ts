@@ -48,7 +48,12 @@ function formatPrimaryOutput(envelope: LeanCodeDiffEnvelope): string {
 }
 
 function formatStat(envelope: LeanCodeDiffEnvelope): string {
-  const rows: Array<{ path: string; detail: string }> = [];
+  const rows: Array<{
+    path: string;
+    additions?: number;
+    deletions?: number;
+    contentStatus: LeanCodeDiffStatFile["contentStatus"];
+  }> = [];
   let additions = 0;
   let deletions = 0;
 
@@ -58,20 +63,34 @@ function formatStat(envelope: LeanCodeDiffEnvelope): string {
     if (stat.additions !== undefined && stat.deletions !== undefined) {
       rows.push({
         path,
-        detail: formatStatCounts(stat.additions, stat.deletions),
+        additions: stat.additions,
+        deletions: stat.deletions,
+        contentStatus: stat.contentStatus,
       });
       additions += stat.additions;
       deletions += stat.deletions;
       continue;
     }
-    rows.push({ path, detail: contentLabel(stat.contentStatus) });
+    rows.push({ path, contentStatus: stat.contentStatus });
   }
 
   if (rows.length === 0) return "";
-  const width = Math.max(...rows.map(({ path }) => path.length));
-  const lines = rows.map(
-    ({ path, detail }) => ` ${path.padStart(width)} | ${detail}`,
+  const pathWidth = Math.max(...rows.map(({ path }) => path.length));
+  const countWidth = Math.max(
+    1,
+    ...rows.map(({ additions, deletions }) =>
+      additions !== undefined && deletions !== undefined
+        ? String(additions + deletions).length
+        : 0,
+    ),
   );
+  const lines = rows.map(({ path, additions, deletions, contentStatus }) => {
+    const detail =
+      additions !== undefined && deletions !== undefined
+        ? formatStatCounts(additions, deletions, countWidth)
+        : contentLabel(contentStatus);
+    return ` ${path.padEnd(pathWidth)} | ${detail}`;
+  });
   const noun = rows.length === 1 ? "file" : "files";
   const inventoryFullyRepresented =
     envelope.summary.inventoryComplete &&
@@ -79,21 +98,33 @@ function formatStat(envelope: LeanCodeDiffEnvelope): string {
     !envelope.hasMoreFiles &&
     rows.length === envelope.summary.filesChanged;
   const qualifier = inventoryFullyRepresented ? "" : "returned ";
-  const totals = [
-    `${rows.length} ${qualifier}${noun} changed`,
-    `${additions} ${additions === 1 ? "insertion" : "insertions"}(+)`,
-    `${deletions} ${deletions === 1 ? "deletion" : "deletions"}(-)`,
-  ];
+  const totals = [`${rows.length} ${qualifier}${noun} changed`];
+  if (additions > 0) {
+    totals.push(
+      `${additions} ${additions === 1 ? "insertion" : "insertions"}(+)`,
+    );
+  }
+  if (deletions > 0) {
+    totals.push(
+      `${deletions} ${deletions === 1 ? "deletion" : "deletions"}(-)`,
+    );
+  }
   lines.push(` ${totals.join(", ")}`);
   return formatLines(lines);
 }
 
-function formatStatCounts(additions: number, deletions: number): string {
+function formatStatCounts(
+  additions: number,
+  deletions: number,
+  countWidth: number,
+): string {
   const total = additions + deletions;
-  if (total === 0) return "0";
+  if (total === 0) return "0".padStart(countWidth);
   const barWidth = Math.min(total, 40);
-  const pluses = Math.round((additions / total) * barWidth);
-  return `${total} ${"+".repeat(pluses)}${"-".repeat(barWidth - pluses)}`;
+  let pluses = Math.round((additions / total) * barWidth);
+  if (additions > 0) pluses = Math.max(1, pluses);
+  if (deletions > 0) pluses = Math.min(barWidth - 1, pluses);
+  return `${String(total).padStart(countWidth)} ${"+".repeat(pluses)}${"-".repeat(barWidth - pluses)}`;
 }
 
 function formatPatches(files: LeanCodeDiffFile[]): string {

@@ -516,7 +516,8 @@ Compares two exact source trees left-to-right. Package targets must omit a
 version and repository targets must omit a ref because both endpoints belong
 in the required two-dot range. Three-dot merge-base syntax and `--git-ref` are
 rejected. The optional value after `--` is one repository-relative bounded
-glob, not a full Git pathspec.
+glob, not a full Git pathspec. A backslash escapes one following non-slash
+character according to the backend grammar.
 
 Patch output is the default. `--stat`, `--name-only`, and `--name-status`
 select cheaper views and are mutually exclusive with `--patch` and each other.

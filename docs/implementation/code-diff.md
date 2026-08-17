@@ -90,7 +90,9 @@ The default is bounded patch output. `--patch`, `--stat`, `--name-only`, and
 `--name-status` are mutually exclusive; the inventory-backed name views avoid
 requesting stats or patches. One optional repository-relative glob follows
 `--`. It is the backend's bounded `*`/`?`/exact-`**` grammar, not a Git
-pathspec. `--max-files` applies to every view and `--max-patch-bytes` applies
+pathspec. A backslash escapes exactly one following non-slash character; this
+mirrors PkgSeer's `CodeDiff.Raw.PathGlob` compiler rather than shell or Git
+escaping. `--max-files` applies to every view and `--max-patch-bytes` applies
 only to patch output. Omitted bounds remain absent on the wire so the backend
 owns its defaults.
 

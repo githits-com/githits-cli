@@ -145,12 +145,16 @@ describe("codeDiffAction", () => {
   });
 
   it.each([
-    [{ patch: true, stat: true }, "Choose only one diff view"],
-    [{ stat: true, maxPatchBytes: "2048" }, "valid only"],
-    [{ maxFiles: "0" }, "--max-files expects"],
+    [{ patch: true, stat: true }, "Choose only one diff view", undefined],
+    [
+      { stat: true, maxPatchBytes: "2048" },
+      "`--max-patch-bytes` is valid only",
+      "maxPatchBytes",
+    ],
+    [{ maxFiles: "0" }, "--max-files expects", undefined],
   ] as const)(
     "rejects invalid options before network I/O",
-    async (options, text) => {
+    async (options, text, forbidden) => {
       const codeDiff = mock(() => Promise.resolve(defaultCodeDiffResult));
       const error = spyOn(console, "error").mockImplementation(() => {});
       const exit = spyOn(process, "exit").mockImplementation(() => {
@@ -174,6 +178,7 @@ describe("codeDiffAction", () => {
       }
 
       expect(error.mock.calls[0]?.[0]).toContain(text);
+      if (forbidden) expect(error.mock.calls[0]?.[0]).not.toContain(forbidden);
       expect(codeDiff).not.toHaveBeenCalled();
       error.mockRestore();
       exit.mockRestore();
@@ -197,6 +202,34 @@ describe("codeDiffAction", () => {
       // process.exit is mocked as a throw.
     }
     expect(error.mock.calls[0]?.[0]).toContain("at most one");
+    error.mockRestore();
+    exit.mockRestore();
+  });
+
+  it("uses CLI-native wording for invalid path globs", async () => {
+    const codeDiff = mock(() => Promise.resolve(defaultCodeDiffResult));
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    try {
+      await codeDiffAction(
+        "npm:express",
+        "1.0.0..2.0.0",
+        ":(exclude)lib/**",
+        {},
+        dependencies({
+          codeNavigationService: createMockCodeNavigationService({ codeDiff }),
+        }),
+        true,
+      );
+    } catch {
+      // process.exit is mocked as a throw.
+    }
+    expect(error.mock.calls[0]?.[0]).toContain("`<path-glob>`");
+    expect(error.mock.calls[0]?.[0]).toContain("pathspec magic");
+    expect(error.mock.calls[0]?.[0]).not.toContain("pathGlob");
+    expect(codeDiff).not.toHaveBeenCalled();
     error.mockRestore();
     exit.mockRestore();
   });
@@ -243,7 +276,23 @@ describe("formatCodeDiffError", () => {
 
     expect(output).toContain("side: from");
     expect(output).toContain("stage: resolution");
-    expect(output).toContain("2.0.0, 1.0.0, …");
+    expect(output).toContain("2.0.0, 1.0.0 (+more)");
+  });
+
+  it("marks locally truncated recovery lists", () => {
+    const output = formatCodeDiffError({
+      code: "REF_NOT_FOUND",
+      message: "Ref was not found.",
+      retryable: false,
+      details: {
+        availableRefs: Array.from({ length: 10 }, (_, index) => ({
+          ref: `ref-${index}`,
+        })),
+      },
+    });
+
+    expect(output).toContain("ref-0, ref-1");
+    expect(output).toContain("(+2 more)");
   });
 });
 

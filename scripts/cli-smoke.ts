@@ -1202,6 +1202,8 @@ async function runLiveSmoke(): Promise<void> {
       "--max-files",
       "2",
       "--json",
+      "--",
+      "**/*.js",
     ]),
     "code diff json",
   );
@@ -1230,6 +1232,25 @@ async function runLiveSmoke(): Promise<void> {
       codeDiffInvalidEnvelope.code === "INVALID_ARGUMENT" &&
       codeDiffInvalidEnvelope.error.includes("not `...`"),
     "code diff invalid JSON should explain the two-dot range",
+  );
+
+  const codeDiffBareGlob = await runCli([
+    "code",
+    "diff",
+    "npm:express",
+    "5.2.0..5.2.1",
+    "**/*.js",
+    "--json",
+  ]);
+  const codeDiffBareGlobEnvelope = assertCleanErrorEnvelope(
+    codeDiffBareGlob.stderr,
+    "code diff bare glob JSON",
+  );
+  assert(
+    codeDiffBareGlob.exitCode !== 0 &&
+      codeDiffBareGlobEnvelope.code === "INVALID_ARGUMENT" &&
+      codeDiffBareGlobEnvelope.error.includes("after `--`"),
+    "code diff should require the Git-style glob delimiter",
   );
 
   const searchText = assertTerminalOutput(

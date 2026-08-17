@@ -202,6 +202,12 @@ describe("buildCodeDiffParams", () => {
       "src/!test.ts",
       "src/foo\\",
       "src/foo\\/*.ts",
+      ":",
+      ":(exclude)lib/**",
+      ":(glob)src/*",
+      ":/src/**",
+      ":!lib/**",
+      ":^lib/**",
     ]) {
       invalid({ target: "npm:express", range: "1..2", pathGlob });
     }

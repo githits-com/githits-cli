@@ -30,10 +30,10 @@ const VIEW_TO_MODE: Record<CodeDiffView, CodeDiffParams["mode"]> = {
 };
 
 const MAX_PATH_GLOB_BYTES = 1024;
-const MAX_FILES_MIN = 1;
-const MAX_FILES_MAX = 300;
-const MAX_PATCH_BYTES_MIN = 1024;
-const MAX_PATCH_BYTES_MAX = 2_097_152;
+export const CODE_DIFF_MAX_FILES_MIN = 1;
+export const CODE_DIFF_MAX_FILES_MAX = 300;
+export const CODE_DIFF_MAX_PATCH_BYTES_MIN = 1024;
+export const CODE_DIFF_MAX_PATCH_BYTES_MAX = 2_097_152;
 
 export function buildCodeDiffParams(
   input: CodeDiffRequestInput,
@@ -45,14 +45,14 @@ export function buildCodeDiffParams(
   const maxFiles = normaliseIntegerOption(
     input.maxFiles,
     "maxFiles",
-    MAX_FILES_MIN,
-    MAX_FILES_MAX,
+    CODE_DIFF_MAX_FILES_MIN,
+    CODE_DIFF_MAX_FILES_MAX,
   );
   const maxPatchBytes = normaliseIntegerOption(
     input.maxPatchBytes,
     "maxPatchBytes",
-    MAX_PATCH_BYTES_MIN,
-    MAX_PATCH_BYTES_MAX,
+    CODE_DIFF_MAX_PATCH_BYTES_MIN,
+    CODE_DIFF_MAX_PATCH_BYTES_MAX,
   );
 
   if (maxPatchBytes !== undefined && view !== "patch") {
@@ -209,6 +209,18 @@ interface GlobToken {
 }
 
 function validatePathGlobGrammar(pathGlob: string): void {
+  if (
+    pathGlob === ":" ||
+    pathGlob.startsWith(":(") ||
+    pathGlob.startsWith(":/") ||
+    pathGlob.startsWith(":!") ||
+    pathGlob.startsWith(":^")
+  ) {
+    throw invalid(
+      "`pathGlob` does not support Git pathspec magic; pass one bounded glob.",
+    );
+  }
+
   const components: GlobToken[][] = [];
   let component: GlobToken[] = [];
   const characters = Array.from(pathGlob);
