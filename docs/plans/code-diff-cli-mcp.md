@@ -1,7 +1,7 @@
 # Plan: CodeDiff CLI dogfood and agent rollout
 
 > Overall status: Phase 1 is merged. Phase 2 is implemented and locally/live
-> verified as a silent CLI-only dogfood launch; review and merge are pending.
+> verified and reviewed as a silent CLI-only dogfood launch; merge is pending.
 > MCP and agent-facing exposure remain deferred until the CLI contract has
 > been exercised after merge.
 >
@@ -341,7 +341,7 @@ There is no blocking product decision for Phase 2.
 | Phase | Status | Outcome |
 |---|---|---|
 | 1. Transport-neutral CodeDiff adapter | Complete and merged | Typed exact-tree request/result/error support with no CLI command or MCP tool |
-| 2. Silent CLI dogfood | Implemented and verified; review pending | Git-like `githits code diff`, CLI-only tests/smoke/docs/release fragment, and initial live dogfood evidence with no agent exposure |
+| 2. Silent CLI dogfood | Implemented, verified, and reviewed; merge pending | Git-like `githits code diff`, CLI-only tests/smoke/docs/release fragment, and initial live dogfood evidence with no agent exposure |
 | 3. MCP and agent rollout | Blocked on Phase 2 evidence | Stable `code_diff`, CLI/MCP parity, instructions, assets, smoke, and agent evaluation |
 | 4. Changelog steering | Blocked on backend action contract and stable Phase 3 invocation | Typed sparse-changelog actions that point to valid CLI/MCP diff calls |
 | Structural track | Out of scope / backend-blocked | Separate future proposal only after backend says structural evidence is externally safe |
@@ -371,7 +371,7 @@ guidance was added.
 
 ## Phase 2: silent CLI dogfood
 
-**Status:** implemented and verified; review and merge pending. Authenticated
+**Status:** implemented, verified, and reviewed; merge pending. Authenticated
 package smoke against `npm:express` `5.2.0..5.2.1` succeeded; broader
 representative dogfooding remains the post-merge gate before Phase 3.
 
@@ -507,6 +507,15 @@ plugin generator, or generated agent asset in this phase.
 - Focused tests, full tests, build, CLI smoke, built CLI smoke, package
   validation, and relevant format/lint checks pass. Authenticated dev results
   are recorded accurately.
+
+**Observed outcome and acceptance:** the command, pure request/result/error
+adapters, Git-like text formatter, smoke coverage, durable documentation, and
+release fragment are complete without MCP or agent-facing exposure. The final
+full suite passed 2,888 tests, build, built CLI smoke, format, lint, and public
+package validation. Authenticated source smoke exercised a live package diff.
+Preflight, internal runtime review, and the retained external Claude review are
+clean after correcting delimiter enforcement, Git-like stat presentation, glob
+grammar, bounded recovery lists, and CLI-native validation messages.
 
 ## Phase 3: MCP and agent rollout
 
