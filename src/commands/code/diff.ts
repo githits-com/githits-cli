@@ -293,12 +293,7 @@ function pathGlobFollowsDoubleDash(
   while (root.parent) root = root.parent;
   const rawArgs = (root as RootCommandWithRawArgs).rawArgs;
   if (!rawArgs) return false;
-  const delimiter = rawArgs.lastIndexOf("--");
-  return (
-    delimiter >= 0 &&
-    delimiter === rawArgs.length - 2 &&
-    rawArgs[delimiter + 1] === pathGlob
-  );
+  return rawArgs.at(-2) === "--" && rawArgs.at(-1) === pathGlob;
 }
 
 async function createCodeDiffCommandDependencies(): Promise<CodeDiffCommandDependencies> {

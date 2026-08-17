@@ -261,36 +261,39 @@ describe("registerCodeDiffCommand", () => {
     );
   });
 
-  it("accepts a path glob only when the raw argv suffix is -- <glob>", async () => {
-    const codeDiff = mock(() => Promise.resolve(defaultCodeDiffResult));
-    const stdout = spyOn(process.stdout, "write").mockImplementation(
-      (() => true) as typeof process.stdout.write,
-    );
-    const program = new Command("githits");
-    const code = program.command("code");
-    registerCodeDiffCommand(code, async () =>
-      dependencies({
-        codeNavigationService: createMockCodeNavigationService({ codeDiff }),
-      }),
-    );
+  it.each(["src/**/*.ts", "--"])(
+    "accepts path glob %s when the raw argv suffix is -- <glob>",
+    async (pathGlob) => {
+      const codeDiff = mock(() => Promise.resolve(defaultCodeDiffResult));
+      const stdout = spyOn(process.stdout, "write").mockImplementation(
+        (() => true) as typeof process.stdout.write,
+      );
+      const program = new Command("githits");
+      const code = program.command("code");
+      registerCodeDiffCommand(code, async () =>
+        dependencies({
+          codeNavigationService: createMockCodeNavigationService({ codeDiff }),
+        }),
+      );
 
-    await program.parseAsync([
-      "node",
-      "githits",
-      "code",
-      "diff",
-      "npm:express",
-      "1.0.0..2.0.0",
-      "--",
-      "src/**/*.ts",
-    ]);
+      await program.parseAsync([
+        "node",
+        "githits",
+        "code",
+        "diff",
+        "npm:express",
+        "1.0.0..2.0.0",
+        "--",
+        pathGlob,
+      ]);
 
-    const calls = codeDiff.mock.calls as unknown as Array<
-      [{ options?: { pathGlob?: string } }]
-    >;
-    expect(calls[0]?.[0].options?.pathGlob).toBe("src/**/*.ts");
-    stdout.mockRestore();
-  });
+      const calls = codeDiff.mock.calls as unknown as Array<
+        [{ options?: { pathGlob?: string } }]
+      >;
+      expect(calls[0]?.[0].options?.pathGlob).toBe(pathGlob);
+      stdout.mockRestore();
+    },
+  );
 
   it.each([
     [
