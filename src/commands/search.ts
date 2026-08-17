@@ -456,24 +456,28 @@ function formatUnifiedSearchTerminal(payload: {
     lines.push("");
   }
 
+  const sourceStatusNotes = formatSourceStatusNotes(
+    payload.sourceStatus,
+    warnings,
+  );
+
   if (!payload.completed) {
     const statusText = formatSearchStatusTerminal({
       completed: false,
       searchRef: payload.searchRef ?? "",
       progress: payload.progress,
     });
-    if (payload.results.length === 0) {
-      return statusText;
-    }
     lines.push(statusText);
+    if (payload.results.length === 0) {
+      if (sourceStatusNotes.length > 0) {
+        lines.push("");
+        lines.push(...sourceStatusNotes);
+      }
+      return lines.join("\n").trimEnd();
+    }
     lines.push("");
     lines.push("Partial results:");
   }
-
-  const sourceStatusNotes = formatSourceStatusNotes(
-    payload.sourceStatus,
-    warnings,
-  );
 
   if (payload.results.length === 0) {
     lines.push("No results.");
@@ -682,7 +686,7 @@ function formatSourceStatusNotes(
   const lines: string[] = [];
   for (const entry of sourceStatus) {
     for (const guidance of formatSuggestedSiteTargetGuidance(entry)) {
-      lines.push(dim(guidance, useColors));
+      lines.push(dim(`${entry.targetLabel}: ${guidance}`, useColors));
     }
     const warningPrefix = `Source '${entry.source.toLowerCase()}' for ${entry.targetLabel}:`;
     if (warnings?.some((warning) => warning.startsWith(warningPrefix))) {

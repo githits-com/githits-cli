@@ -525,6 +525,56 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("preserves warnings and attributed site guidance for empty incomplete results", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome("INDEXING", "search-ref-site");
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      results: [],
+      sourceStatus: [
+        {
+          source: "DOCS",
+          targetLabel: "site:example.com",
+          indexingStatus: "INDEXING",
+          appliedFilters: [],
+          ignoredFilters: [],
+          incompatibleFilters: ["language"],
+          appliedQueryFeatures: [],
+          ignoredQueryFeatures: [],
+          incompatibleQueryFeatures: [],
+          suggestedSiteTargets: ["site:docs.example.com"],
+          suggestedSiteTargetsTruncated: true,
+        },
+      ],
+    };
+
+    await searchAction(
+      "router",
+      { in: ["site:example.com"], source: "docs" },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(incomplete)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Indexing/search still in progress");
+    expect(output).toContain(
+      "Warning: Source 'docs' for site:example.com: incompatible filters [language]",
+    );
+    expect(output).toContain(
+      "site:example.com: Suggested site targets: site:docs.example.com",
+    );
+    expect(output).toContain(
+      "site:example.com: Additional site targets were omitted.",
+    );
+    consoleSpy.mockRestore();
+  });
+
   it("prints one compact source-status warning when a filter is ignored", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
