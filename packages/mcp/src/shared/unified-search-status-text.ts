@@ -32,9 +32,17 @@ export function renderUnifiedSearchStatusText(payload: StatusPayload): string {
     }
   }
 
-  if (!payload.completed && payload.warnings && payload.warnings.length > 0) {
+  const incompleteWarnings = !payload.completed
+    ? Array.from(
+        new Set([
+          ...(payload.warnings ?? []),
+          ...(payload.result?.warnings ?? []),
+        ]),
+      )
+    : [];
+  if (incompleteWarnings.length > 0) {
     lines.push("warnings:");
-    for (const warning of payload.warnings) lines.push(`  - ${warning}`);
+    for (const warning of incompleteWarnings) lines.push(`  - ${warning}`);
   }
 
   const result = payload.result;
@@ -44,6 +52,7 @@ export function renderUnifiedSearchStatusText(payload: StatusPayload): string {
       result,
       payload.completed,
       payload.completed ? undefined : payload.progress,
+      payload.completed ? result.warnings : undefined,
     );
   }
 
@@ -72,11 +81,12 @@ function appendResult(
   result: UnifiedSearchStatusResultPayload,
   completed: boolean,
   progress: UnifiedSearchStatusIncompletePayload["progress"] | undefined,
+  warnings: string[] | undefined,
 ): void {
   lines.push("");
-  if (result.warnings && result.warnings.length > 0) {
+  if (warnings && warnings.length > 0) {
     lines.push("warnings:");
-    for (const warning of result.warnings) lines.push(`  - ${warning}`);
+    for (const warning of warnings) lines.push(`  - ${warning}`);
     lines.push("");
   }
   if (result.results.length === 0) {

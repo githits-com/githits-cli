@@ -316,31 +316,54 @@ describe("searchStatusTool", () => {
   });
 
   it("surfaces progress freshness warnings", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome("INDEXING", "ref-stale", {
+      targets: [
+        {
+          requested: "npm:express latest",
+          resolvedRequested: "npm:express@5.2.1",
+          served: "npm:express@5.1.0",
+          freshness: "STALE",
+        },
+      ],
+    });
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      results: [],
+      sourceStatus: [
+        {
+          source: "CODE",
+          targetLabel: "npm:express@5.1.0",
+          requestedTargetLabel: "npm:express latest",
+          freshTargetLabel: "npm:express@5.2.1",
+          servedTargetLabel: "npm:express@5.1.0",
+          codeIndexState: "STALE",
+          appliedFilters: [],
+          ignoredFilters: [],
+          incompatibleFilters: [],
+          appliedQueryFeatures: [],
+          ignoredQueryFeatures: [],
+          incompatibleQueryFeatures: [],
+          suggestedSiteTargets: [],
+          suggestedSiteTargetsTruncated: false,
+        },
+      ],
+    };
     const tool = createSearchStatusTool(
       createMockCodeNavigationService({
-        searchStatus: mock(() =>
-          Promise.resolve(
-            createIncompleteOutcome("INDEXING", "ref-stale", {
-              targets: [
-                {
-                  requested: "npm:express latest",
-                  resolvedRequested: "npm:express@5.2.1",
-                  served: "npm:express@5.1.0",
-                  freshness: "STALE",
-                },
-              ],
-            }),
-          ),
-        ),
+        searchStatus: mock(() => Promise.resolve(incomplete)),
       }),
     );
 
     const result = await tool.handler({ search_ref: "ref-stale" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("warnings:");
-    expect(text).toContain(
-      "requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.",
-    );
+    const warning =
+      "requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.";
+    expect(text).toContain(warning);
+    expect(text.split(warning)).toHaveLength(2);
   });
 
   it("renders source targetResolution notes in completed text", async () => {
