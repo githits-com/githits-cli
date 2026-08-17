@@ -6,7 +6,10 @@ import {
   PkgseerTransportError,
   postPkgseerGraphql,
 } from "../shared/pkgseer-graphql.js";
-import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
+import {
+  PKGSEER_REGISTRY_VALUES,
+  type PkgseerRegistry,
+} from "../shared/pkgseer-registry.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import {
   ClientUpdateRequiredError,
@@ -1584,20 +1587,7 @@ const codeDiffGraphQLErrorSchema = z.object({
   extensions: z.record(z.string(), z.unknown()).optional(),
 });
 
-const codeDiffRegistrySchema = z.enum([
-  "NPM",
-  "PYPI",
-  "HEX",
-  "CRATES",
-  "NUGET",
-  "MAVEN",
-  "ZIG",
-  "VCPKG",
-  "PACKAGIST",
-  "RUBYGEMS",
-  "GO",
-  "SWIFT",
-]);
+const codeDiffRegistrySchema = z.enum(PKGSEER_REGISTRY_VALUES);
 
 const codeDiffPackageInfoSchema = z.object({
   registry: codeDiffRegistrySchema,
@@ -1704,73 +1694,79 @@ const codeDiffGraphQLResponseSchema = z.object({
   errors: z.array(codeDiffGraphQLErrorSchema).optional(),
 });
 
-const CODE_DIFF_COMMON_SELECTION = `
-package {
-  registry
-  name
-  repoUrl
-}
-fromResolution {
-  requested
-  resolvedVersion
-  ref
-  commitSha
-  refKind
-  versionSource
-}
-toResolution {
-  requested
-  resolvedVersion
-  ref
-  commitSha
-  refKind
-  versionSource
-}
-raw {
-  summary {
-    filesChanged
-    added
-    deleted
-    modified
-    modeChanged
-    typeChanged
-    inventoryComplete
-    unprojectableFiles
-  }
-  scope {
-    status
-    fromSubpath
-    toSubpath
-    pathPrefix
-    pathGlob
-  }
-  contentCoverage
-  contentFailure {
-    code
-    retryable
-    retryAfterMs
-    stage
-    limitKind
-  }
-  files {
-    path
-    pathEncoding
-    status
-    modeChanged
-    typeChanged
-    contentStatus
-    contentSafety {
-      filtered
-      modifications
-    }`;
+const CODE_DIFF_OPTION_KEYS: ReadonlySet<string> = new Set([
+  "maxFiles",
+  "maxPatchBytes",
+  "pathPrefix",
+  "pathGlob",
+]);
+
+const CODE_DIFF_COMMON_SELECTION = `    package {
+      registry
+      name
+      repoUrl
+    }
+    fromResolution {
+      requested
+      resolvedVersion
+      ref
+      commitSha
+      refKind
+      versionSource
+    }
+    toResolution {
+      requested
+      resolvedVersion
+      ref
+      commitSha
+      refKind
+      versionSource
+    }
+    raw {
+      summary {
+        filesChanged
+        added
+        deleted
+        modified
+        modeChanged
+        typeChanged
+        inventoryComplete
+        unprojectableFiles
+      }
+      scope {
+        status
+        fromSubpath
+        toSubpath
+        pathPrefix
+        pathGlob
+      }
+      contentCoverage
+      contentFailure {
+        code
+        retryable
+        retryAfterMs
+        stage
+        limitKind
+      }
+      files {
+        path
+        pathEncoding
+        status
+        modeChanged
+        typeChanged
+        contentStatus
+        contentSafety {
+          filtered
+          modifications
+        }`;
 
 function buildCodeDiffQuery(mode: CodeDiffMode): string {
   const contentFields =
     mode === "inventory"
       ? ""
       : mode === "stats"
-        ? "\n    additions\n    deletions"
-        : "\n    additions\n    deletions\n    patch\n    contentOmissionReason";
+        ? "\n        additions\n        deletions"
+        : "\n        additions\n        deletions\n        patch\n        contentOmissionReason";
 
   return `
 query CodeDiff(
@@ -1792,11 +1788,12 @@ query CodeDiff(
     fromRef: $fromRef
     toRef: $toRef
     rawOptions: $rawOptions
-  ) {${CODE_DIFF_COMMON_SELECTION}${contentFields}
+  ) {
+${CODE_DIFF_COMMON_SELECTION}${contentFields}
+      }
+      hasMoreFiles
     }
-    hasMoreFiles
   }
-}
 }`;
 }
 
@@ -3376,6 +3373,14 @@ function validateCodeDiffParams(
     );
   }
 
+  for (const key of Object.keys(options)) {
+    if (!CODE_DIFF_OPTION_KEYS.has(key)) {
+      throw new CodeNavigationValidationError(
+        `CodeDiff options contains unknown key '${key}'.`,
+      );
+    }
+  }
+
   validateCodeDiffIntegerOption(options.maxFiles, "maxFiles", 1, 300);
   validateCodeDiffIntegerOption(
     options.maxPatchBytes,
@@ -3603,10 +3608,8 @@ function parseCodeDiffErrorDetails(
 
 function parseCodeDiffStringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  const values = value.filter(
-    (entry): entry is string => typeof entry === "string",
-  );
-  return values;
+  if (value.some((entry) => typeof entry !== "string")) return undefined;
+  return value as string[];
 }
 
 function parseCodeDiffErrorRefs(
@@ -3615,9 +3618,18 @@ function parseCodeDiffErrorRefs(
   if (!Array.isArray(value)) return undefined;
   const refs: CodeDiffErrorRef[] = [];
   for (const entry of value) {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return undefined;
+    }
     const record = entry as Record<string, unknown>;
-    if (typeof record.ref !== "string") continue;
+    if (
+      typeof record.ref !== "string" ||
+      (record.version !== undefined &&
+        record.version !== null &&
+        typeof record.version !== "string")
+    ) {
+      return undefined;
+    }
     refs.push({
       ref: record.ref,
       version: typeof record.version === "string" ? record.version : undefined,

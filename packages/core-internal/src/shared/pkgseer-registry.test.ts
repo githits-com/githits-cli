@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   isKnownPkgseerRegistryArg,
   knownPkgseerRegistryArgs,
+  PKGSEER_REGISTRY_VALUES,
   type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
@@ -28,6 +29,14 @@ describe("toPkgseerRegistry", () => {
     for (const [arg, expected] of cases) {
       expect(toPkgseerRegistry(arg)).toBe(expected);
     }
+  });
+});
+
+describe("PKGSEER_REGISTRY_VALUES", () => {
+  it("stays coupled to the shared registry map", () => {
+    expect([...PKGSEER_REGISTRY_VALUES]).toEqual(
+      knownPkgseerRegistryArgs().map(toPkgseerRegistry),
+    );
   });
 });
 

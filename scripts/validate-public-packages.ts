@@ -362,7 +362,7 @@ async function verifyMcpConsumer(
           skipLibCheck: true,
           noEmit: true,
         },
-        include: ["check.ts"],
+        include: ["check.ts", "code-diff-check.ts"],
       },
       null,
       2,
@@ -389,25 +389,6 @@ void CodeDiffError;
     ["tsc", "--noEmit"],
     appDirectory,
     "typecheck packed mcp consumer",
-  );
-  await runCommand(
-    "npx",
-    [
-      "tsc",
-      "--noEmit",
-      "--strict",
-      "--skipLibCheck",
-      "--target",
-      "ES2022",
-      "--module",
-      "NodeNext",
-      "--moduleResolution",
-      "NodeNext",
-      "--ignoreConfig",
-      "code-diff-check.ts",
-    ],
-    appDirectory,
-    "typecheck packed code-diff consumer",
   );
 }
 

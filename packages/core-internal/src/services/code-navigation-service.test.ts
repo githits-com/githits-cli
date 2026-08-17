@@ -96,6 +96,7 @@ function buildSuggestedSiteSearchResult(
 
 function codeDiffPayload(
   rawOverrides: Record<string, unknown> = {},
+  resultOverrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return {
     data: {
@@ -159,6 +160,7 @@ function codeDiffPayload(
           hasMoreFiles: false,
           ...rawOverrides,
         },
+        ...resultOverrides,
       },
     },
   };
@@ -173,6 +175,25 @@ function codeDiffRootErrorPayload(
     errors: [{ message, path: ["codeDiff"], extensions }],
   };
 }
+
+function expectBalancedSelectionBraces(query: string): void {
+  let depth = 0;
+
+  for (const character of query) {
+    if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      depth -= 1;
+      expect(depth).toBeGreaterThanOrEqual(0);
+    }
+  }
+
+  expect(depth).toBe(0);
+}
+
+const UNPROJECTABLE_CODE_DIFF_PATH = `packages/old/${"a".repeat(4_085)}`;
+const BYTE_ESCAPED_CODE_DIFF_PATH =
+  "\\x6C\\x69\\x62\\x2F\\xFF\\x2F\\x78\\x2E\\x65\\x78";
 
 describe("CodeNavigationServiceImpl", () => {
   const BASE_URL = "https://nav.example.com";
@@ -2185,6 +2206,7 @@ describe("CodeNavigationServiceImpl", () => {
       variables: Record<string, unknown>;
       query: string;
     };
+    expectBalancedSelectionBraces(body.query);
     expect(body.variables).toEqual({
       registry: "NPM",
       name: "express",
@@ -2199,8 +2221,8 @@ describe("CodeNavigationServiceImpl", () => {
       body.query.indexOf("summary {"),
       body.query.indexOf("scope {"),
     );
-    expect(summarySelection).toContain("\n    added\n");
-    expect(summarySelection).toContain("\n    deleted\n");
+    expect(summarySelection).toContain("\n        added\n");
+    expect(summarySelection).toContain("\n        deleted\n");
     const fileSelection = body.query.slice(
       body.query.indexOf("files {"),
       body.query.indexOf("hasMoreFiles"),
@@ -2237,6 +2259,7 @@ describe("CodeNavigationServiceImpl", () => {
       variables: Record<string, unknown>;
       query: string;
     };
+    expectBalancedSelectionBraces(body.query);
     expect(body.variables).toEqual({
       repoUrl: "https://github.com/expressjs/express",
       fromRef: "v4.18.1",
@@ -2312,6 +2335,7 @@ describe("CodeNavigationServiceImpl", () => {
       variables: Record<string, unknown>;
       query: string;
     };
+    expectBalancedSelectionBraces(body.query);
     expect(body.variables).not.toHaveProperty("rawOptions");
     const fileSelection = body.query.slice(
       body.query.indexOf("files {"),
@@ -2341,6 +2365,441 @@ describe("CodeNavigationServiceImpl", () => {
         modifications: ["HTML_COMMENTS_STRIPPED"],
       },
     });
+  });
+
+  it("normalizes authoritative inventory, scope, and content-status edge cases", async () => {
+    const fixtures = [
+      {
+        target: { registry: "NPM", packageName: "express" } as const,
+        from: "1.0.0",
+        to: "2.0.0",
+        mode: "patches" as const,
+        sourcePaths: [
+          "packages/old/lib/a.ex",
+          "packages/new/lib/a.ex",
+          UNPROJECTABLE_CODE_DIFF_PATH,
+        ],
+        raw: {
+          summary: {
+            filesChanged: 3,
+            added: 1,
+            deleted: 2,
+            modified: 0,
+            modeChanged: 0,
+            typeChanged: 0,
+            inventoryComplete: true,
+            unprojectableFiles: 1,
+          },
+          scope: {
+            status: "PACKAGE",
+            fromSubpath: "packages/old",
+            toSubpath: "packages/new",
+            pathPrefix: null,
+            pathGlob: null,
+          },
+          contentCoverage: "FAILED",
+          contentFailure: {
+            code: "RAW_DIFF_LIMIT_EXCEEDED",
+            retryable: false,
+            retryAfterMs: null,
+            stage: "content",
+            limitKind: "max_patch_bytes",
+          },
+          files: [
+            {
+              path: "packages/new/lib/a.ex",
+              pathEncoding: "UTF8",
+              status: "ADDED",
+              modeChanged: false,
+              typeChanged: false,
+              additions: null,
+              deletions: null,
+              patch: null,
+              contentStatus: "UNAVAILABLE",
+              contentOmissionReason: null,
+              contentSafety: { filtered: false, modifications: [] },
+            },
+            {
+              path: "packages/old/lib/a.ex",
+              pathEncoding: "UTF8",
+              status: "DELETED",
+              modeChanged: false,
+              typeChanged: false,
+              additions: null,
+              deletions: null,
+              patch: null,
+              contentStatus: "UNAVAILABLE",
+              contentOmissionReason: null,
+              contentSafety: { filtered: false, modifications: [] },
+            },
+          ],
+          hasMoreFiles: false,
+        },
+        result: {
+          fromResolution: {
+            requested: "1.0.0",
+            resolvedVersion: "1.0.0",
+            ref: "v1.0.0",
+            commitSha: "old-sha",
+            refKind: "TAG",
+            versionSource: "REGISTRY",
+          },
+          toResolution: {
+            requested: "2.0.0",
+            resolvedVersion: "2.0.0",
+            ref: "v2.0.0",
+            commitSha: "new-sha",
+            refKind: "TAG",
+            versionSource: "REGISTRY",
+          },
+        },
+        expected: {
+          fromSha: "old-sha",
+          toSha: "new-sha",
+          fromVersion: "1.0.0",
+          toVersion: "2.0.0",
+          versionSource: "REGISTRY",
+          scopeStatus: "PACKAGE",
+          fromSubpath: "packages/old",
+          toSubpath: "packages/new",
+          coverage: "FAILED",
+          paths: ["packages/new/lib/a.ex", "packages/old/lib/a.ex"],
+          statuses: ["UNAVAILABLE", "UNAVAILABLE"],
+          omissions: [undefined, undefined],
+          filesChanged: 3,
+          added: 1,
+          deleted: 2,
+          modified: 0,
+          unprojectableFiles: 1,
+        },
+      },
+      {
+        target: { registry: "NPM", packageName: "express" } as const,
+        from: "1.0.0",
+        to: "1.0.0",
+        mode: "inventory" as const,
+        raw: {
+          summary: {
+            filesChanged: 0,
+            added: 0,
+            deleted: 0,
+            modified: 0,
+            modeChanged: 0,
+            typeChanged: 0,
+            inventoryComplete: true,
+            unprojectableFiles: 0,
+          },
+          scope: {
+            status: "PACKAGE",
+            fromSubpath: "",
+            toSubpath: "",
+            pathPrefix: null,
+            pathGlob: null,
+          },
+          contentCoverage: "NOT_REQUESTED",
+          contentFailure: null,
+          files: [],
+          hasMoreFiles: false,
+        },
+        result: {
+          fromResolution: {
+            requested: "1.0.0",
+            resolvedVersion: "1.0.0",
+            ref: "v1.0.0",
+            commitSha: "same-sha",
+            refKind: "TAG",
+            versionSource: "REGISTRY",
+          },
+          toResolution: {
+            requested: "1.0.0",
+            resolvedVersion: "1.0.0",
+            ref: "v1.0.0",
+            commitSha: "same-sha",
+            refKind: "TAG",
+            versionSource: "REGISTRY",
+          },
+        },
+        expected: {
+          fromSha: "same-sha",
+          toSha: "same-sha",
+          fromVersion: "1.0.0",
+          toVersion: "1.0.0",
+          versionSource: "REGISTRY",
+          scopeStatus: "PACKAGE",
+          fromSubpath: "",
+          toSubpath: "",
+          coverage: "NOT_REQUESTED",
+          paths: [],
+          statuses: [],
+          omissions: [],
+          filesChanged: 0,
+          added: 0,
+          deleted: 0,
+          modified: 0,
+          unprojectableFiles: 0,
+        },
+      },
+      {
+        target: { registry: "NPM", packageName: "express" } as const,
+        from: "1.0.0",
+        to: "2.0.0",
+        mode: "inventory" as const,
+        raw: {
+          summary: {
+            filesChanged: 1,
+            added: 0,
+            deleted: 0,
+            modified: 1,
+            modeChanged: 0,
+            typeChanged: 0,
+            inventoryComplete: true,
+            unprojectableFiles: 0,
+          },
+          scope: {
+            status: "UNKNOWN",
+            fromSubpath: null,
+            toSubpath: null,
+            pathPrefix: null,
+            pathGlob: null,
+          },
+          contentCoverage: "NOT_REQUESTED",
+          contentFailure: null,
+          files: [
+            {
+              path: "src/unknown.ts",
+              pathEncoding: "UTF8",
+              status: "MODIFIED",
+              modeChanged: false,
+              typeChanged: false,
+              additions: null,
+              deletions: null,
+              patch: null,
+              contentStatus: "NOT_REQUESTED",
+              contentOmissionReason: null,
+              contentSafety: { filtered: false, modifications: [] },
+            },
+          ],
+          hasMoreFiles: false,
+        },
+        result: {
+          fromResolution: {
+            requested: "1.0.0",
+            resolvedVersion: "1.0.0",
+            ref: "v1.0.0",
+            commitSha: "unknown-from-sha",
+            refKind: "TAG",
+            versionSource: "REGISTRY",
+          },
+          toResolution: {
+            requested: "2.0.0",
+            resolvedVersion: "2.0.0",
+            ref: "v2.0.0",
+            commitSha: "unknown-to-sha",
+            refKind: "TAG",
+            versionSource: "REGISTRY",
+          },
+        },
+        expected: {
+          fromSha: "unknown-from-sha",
+          toSha: "unknown-to-sha",
+          fromVersion: "1.0.0",
+          toVersion: "2.0.0",
+          versionSource: "REGISTRY",
+          scopeStatus: "UNKNOWN",
+          fromSubpath: undefined,
+          toSubpath: undefined,
+          coverage: "NOT_REQUESTED",
+          paths: ["src/unknown.ts"],
+          statuses: ["NOT_REQUESTED"],
+          omissions: [undefined],
+          filesChanged: 1,
+          added: 0,
+          deleted: 0,
+          modified: 1,
+          unprojectableFiles: 0,
+        },
+      },
+      {
+        target: { registry: "NPM", packageName: "express" } as const,
+        from: "1.0.0",
+        to: "2.0.0",
+        mode: "patches" as const,
+        raw: {
+          summary: {
+            filesChanged: 3,
+            added: 0,
+            deleted: 0,
+            modified: 3,
+            modeChanged: 0,
+            typeChanged: 0,
+            inventoryComplete: true,
+            unprojectableFiles: 0,
+          },
+          scope: {
+            status: "UNKNOWN",
+            fromSubpath: null,
+            toSubpath: null,
+            pathPrefix: null,
+            pathGlob: null,
+          },
+          contentCoverage: "PARTIAL",
+          contentFailure: null,
+          files: [
+            {
+              path: BYTE_ESCAPED_CODE_DIFF_PATH,
+              pathEncoding: "BYTE_ESCAPED",
+              status: "MODIFIED",
+              modeChanged: false,
+              typeChanged: false,
+              additions: null,
+              deletions: null,
+              patch: null,
+              contentStatus: "BINARY",
+              contentOmissionReason: null,
+              contentSafety: { filtered: false, modifications: [] },
+            },
+            {
+              path: "package.json",
+              pathEncoding: "UTF8",
+              status: "MODIFIED",
+              modeChanged: false,
+              typeChanged: false,
+              additions: null,
+              deletions: null,
+              patch: null,
+              contentStatus: "METADATA_ONLY",
+              contentOmissionReason: null,
+              contentSafety: { filtered: false, modifications: [] },
+            },
+            {
+              path: "README.md",
+              pathEncoding: "UTF8",
+              status: "MODIFIED",
+              modeChanged: false,
+              typeChanged: false,
+              additions: null,
+              deletions: null,
+              patch: null,
+              contentStatus: "OMITTED",
+              contentOmissionReason: "content_budget",
+              contentSafety: { filtered: false, modifications: [] },
+            },
+          ],
+          hasMoreFiles: false,
+        },
+        result: {
+          fromResolution: {
+            requested: "1.0.0",
+            resolvedVersion: "1.0.0",
+            ref: "v1.0.0",
+            commitSha: "content-from-sha",
+            refKind: "TAG",
+            versionSource: "REGISTRY",
+          },
+          toResolution: {
+            requested: "2.0.0",
+            resolvedVersion: "2.0.0",
+            ref: "v2.0.0",
+            commitSha: "content-to-sha",
+            refKind: "TAG",
+            versionSource: "REGISTRY",
+          },
+        },
+        expected: {
+          fromSha: "content-from-sha",
+          toSha: "content-to-sha",
+          fromVersion: "1.0.0",
+          toVersion: "2.0.0",
+          versionSource: "REGISTRY",
+          scopeStatus: "UNKNOWN",
+          fromSubpath: undefined,
+          toSubpath: undefined,
+          coverage: "PARTIAL",
+          paths: [BYTE_ESCAPED_CODE_DIFF_PATH, "package.json", "README.md"],
+          statuses: ["BINARY", "METADATA_ONLY", "OMITTED"],
+          omissions: [undefined, undefined, "content_budget"],
+          filesChanged: 3,
+          added: 0,
+          deleted: 0,
+          modified: 3,
+          unprojectableFiles: 0,
+        },
+      },
+    ] as const;
+
+    expect(fixtures[0].sourcePaths).toHaveLength(
+      fixtures[0].expected.filesChanged,
+    );
+    expect(
+      fixtures[0].sourcePaths.filter((path) => path.length > 4_096),
+    ).toHaveLength(fixtures[0].expected.unprojectableFiles);
+    expect(fixtures[0].raw.files).toHaveLength(
+      fixtures[0].expected.filesChanged -
+        fixtures[0].expected.unprojectableFiles,
+    );
+
+    for (const fixture of fixtures) {
+      const fn = mock(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(codeDiffPayload(fixture.raw, fixture.result)),
+            { status: 200 },
+          ),
+        ),
+      );
+      globalThis.fetch = fn as unknown as typeof fetch;
+      const service = new CodeNavigationServiceImpl(
+        BASE_URL,
+        createMockTokenProvider(),
+      );
+
+      const result = await service.codeDiff({
+        target: fixture.target,
+        from: fixture.from,
+        to: fixture.to,
+        mode: fixture.mode,
+      });
+
+      expect(result.fromResolution.commitSha).toBe(fixture.expected.fromSha);
+      expect(result.toResolution.commitSha).toBe(fixture.expected.toSha);
+      expect(result.fromResolution.resolvedVersion).toBe(
+        fixture.expected.fromVersion,
+      );
+      expect(result.toResolution.resolvedVersion).toBe(
+        fixture.expected.toVersion,
+      );
+      expect(result.fromResolution.versionSource).toBe(
+        fixture.expected.versionSource,
+      );
+      expect(result.toResolution.versionSource).toBe(
+        fixture.expected.versionSource,
+      );
+      expect(result.raw.scope).toMatchObject({
+        status: fixture.expected.scopeStatus,
+      });
+      expect(result.raw.scope.fromSubpath).toBe(fixture.expected.fromSubpath);
+      expect(result.raw.scope.toSubpath).toBe(fixture.expected.toSubpath);
+      expect(result.raw.contentCoverage).toBe(fixture.expected.coverage);
+      expect(result.raw.summary.filesChanged).toBe(
+        fixture.expected.filesChanged,
+      );
+      expect(result.raw.summary.added).toBe(fixture.expected.added);
+      expect(result.raw.summary.deleted).toBe(fixture.expected.deleted);
+      expect(result.raw.summary.modified).toBe(fixture.expected.modified);
+      expect(result.raw.summary.unprojectableFiles).toBe(
+        fixture.expected.unprojectableFiles,
+      );
+      expect(result.raw.files.map((file) => file.path)).toEqual([
+        ...fixture.expected.paths,
+      ]);
+      expect(result.raw.files.map((file) => file.contentStatus)).toEqual([
+        ...fixture.expected.statuses,
+      ]);
+      expect(
+        result.raw.files.map((file) => file.contentOmissionReason),
+      ).toEqual([...fixture.expected.omissions]);
+      expect(fn).toHaveBeenCalledTimes(1);
+    }
   });
 
   it("maps raw field errors to a bounded CodeDiffError with partial root identity", async () => {
@@ -2611,6 +3070,50 @@ describe("CodeNavigationServiceImpl", () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
+  it("drops malformed error arrays instead of treating them as empty", async () => {
+    const fn = mock(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            codeDiffRootErrorPayload({
+              code: "AMBIGUOUS_REF",
+              retryable: false,
+              published_versions: ["1.0.0", 2],
+              ref_kinds: ["TAG", 3],
+              available_refs: [{ ref: "main" }, null],
+              suggested_refs: [{ ref: "release", version: 4 }],
+            }),
+          ),
+          { status: 200 },
+        ),
+      ),
+    );
+    globalThis.fetch = fn as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    let caught: unknown;
+    try {
+      await service.codeDiff({
+        target: { repoUrl: "https://github.com/expressjs/express" },
+        from: "release",
+        to: "main",
+        mode: "inventory",
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(CodeDiffError);
+    expect((caught as CodeDiffError).details).toEqual({
+      code: "AMBIGUOUS_REF",
+      retryable: false,
+    });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
   it("validates malformed CodeDiff params before authentication or fetch", async () => {
     const getToken = mock(() => Promise.resolve("mock-access-token"));
     const forceRefresh = mock(() => Promise.resolve("mock-refreshed-token"));
@@ -2635,6 +3138,7 @@ describe("CodeNavigationServiceImpl", () => {
       { ...validParams, options: null },
       { ...validParams, options: { maxFiles: "50" } },
       { ...validParams, options: { pathGlob: null } },
+      { ...validParams, options: { unknownOption: true } },
     ];
 
     for (const params of invalidParams) {

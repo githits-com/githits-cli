@@ -30,7 +30,8 @@ detect renames, or fall back to a hosted compare endpoint.
 The adapter rejects client values outside PkgSeer's raw bounds instead of
 silently clamping them: `maxFiles` is `1..300`, `maxPatchBytes` is
 `1024..2097152`, and each path prefix/glob is non-empty and at most 1024 UTF-8
-bytes.
+bytes. Unknown raw option keys are rejected before token acquisition or a
+network request.
 
 ## Response and error contract
 

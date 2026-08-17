@@ -4,9 +4,8 @@
 > against the accepted Git-like direction and the narrower backend glob
 > contract.
 >
-> Reoriented: 2026-08-17 against `githits` `origin/main` at `57619e8`,
-> PkgSeer backend `main` at `91d4b2079`, and GraphQL schema hash
-> `sha256:e7046c0af330`.
+> Reoriented: 2026-08-17 against `githits` `origin/main` at `57619e8` and
+> the PkgSeer backend `main` GraphQL schema and implementation.
 
 ## Problem and expected outcome
 
@@ -50,10 +49,9 @@ separate, unexposed backend capability.
 
 ### Backend contract
 
-PkgSeer commit `59f0f0283` replaced GitHub Compare with credential-free aigrep
-RawDiff. That commit is an ancestor of backend `main`; backend commit
-`9a90e294d` retired its completed CodeDiff plan after transferring the lasting
-contract to `docs/implementation/CODE_DIFF.md`.
+PkgSeer backend `main` replaced GitHub Compare with credential-free aigrep
+RawDiff and transferred the lasting contract into its repository-internal
+CodeDiff implementation guide.
 
 The committed GraphQL schema and implementation now prove:
 
@@ -345,8 +343,8 @@ removed compare schema is required.
 state is not needed for isolated tests.
 
 **Dependencies:** current `CodeNavigationService`, shared request-header/token
-provider behavior, PkgSeer SDL hash `e7046c0af330`, and existing service mock
-factories.
+provider behavior, the inspected PkgSeer backend `main` SDL, and existing
+service mock factories.
 
 **Likely files:**
 
