@@ -107,7 +107,33 @@ describe("formatCodeDiffTerminal", () => {
     );
 
     expect(result.stdout).toBe(
-      "text.ts | +4 -2\nimage.png | binary content differs\n2 returned files, +4 -2\n",
+      "   text.ts | 6 ++++--\n image.png | binary content differs\n 2 files changed, 4 insertions(+), 2 deletions(-)\n",
+    );
+  });
+
+  it("marks stat totals as returned-only when file projection is truncated", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({
+        view: "stat",
+        hasMoreFiles: true,
+        files: [
+          {
+            path: "one.ts",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            additions: 1,
+            deletions: 0,
+            contentStatus: "stats",
+          },
+        ],
+      }),
+      options,
+    );
+
+    expect(result.stdout).toContain(
+      "1 returned file changed, 1 insertion(+), 0 deletions(-)",
     );
   });
 
