@@ -265,7 +265,11 @@ describe("LockedAuthStorage", () => {
     const storage = new LockedAuthStorage(
       new AuthStorageImpl(fs, configDir),
       fsWithHome,
-      { lockTimeoutMs: 100 },
+      {
+        lockTimeoutMs: 100,
+        getProcessStartedAt: testProcessStartedAt,
+        isOwnerAlive: async () => false,
+      },
     );
     const token = createValidTokenData({ accessToken: "nested" });
 
