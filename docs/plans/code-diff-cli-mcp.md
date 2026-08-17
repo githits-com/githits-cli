@@ -211,9 +211,11 @@ githits code diff --repo-url <url> <from>..<to> [options] [-- <path-glob>]
 - `--json` returns a data-first envelope containing normalized target identity,
   public view, exact `from`/`to` resolutions, scoped summary, scope,
   `contentCoverage`, optional `contentFailure`, selected file facts, and
-  `hasMoreFiles`. File objects contain only facts selected for the view:
-  path-only for `name-only`, path/status for `name-status`, line counts and
-  content status for `stat`, and bounded patch/omission/safety facts for patch.
+  `hasMoreFiles`. Every file keeps `pathEncoding` so byte-escaped display paths
+  cannot be mistaken for reusable identities. Beyond that safety fact, file
+  objects contain only facts selected for the view: path-only for `name-only`,
+  path/status for `name-status`, line counts and content status for `stat`, and
+  bounded patch/omission/safety facts for patch.
 - Default text keeps stdout compatible with the chosen Git-style view:
   patches for patch mode, bare paths for `--name-only`, status plus path for
   `--name-status`, and line-count rows plus a total for `--stat`. Resolution,
