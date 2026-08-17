@@ -792,8 +792,8 @@ export class MalformedCodeNavigationResponseError extends Error {
 export class CodeDiffError extends Error {
   constructor(
     message: string,
-    public readonly details?: CodeDiffErrorDetails,
-    public readonly partial?: CodeDiffPartialResult,
+    public readonly details: CodeDiffErrorDetails | undefined = undefined,
+    public readonly partial: CodeDiffPartialResult | undefined = undefined,
   ) {
     super(message);
     this.name = "CodeDiffError";

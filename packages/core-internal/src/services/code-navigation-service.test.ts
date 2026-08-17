@@ -2182,7 +2182,7 @@ describe("CodeNavigationServiceImpl", () => {
   });
 
   it("sends exclusive package variables and inventory-minimal file fields", async () => {
-    const fn = mock((_url: string, init?: RequestInit) =>
+    const fn = mock((_url: string, _init?: RequestInit) =>
       Promise.resolve(
         new Response(JSON.stringify(codeDiffPayload()), { status: 200 }),
       ),
@@ -2236,7 +2236,7 @@ describe("CodeNavigationServiceImpl", () => {
   });
 
   it("selects stats fields without patch content", async () => {
-    const fn = mock((_url: string, init?: RequestInit) =>
+    const fn = mock((_url: string, _init?: RequestInit) =>
       Promise.resolve(
         new Response(JSON.stringify(codeDiffPayload()), { status: 200 }),
       ),
@@ -2278,7 +2278,7 @@ describe("CodeNavigationServiceImpl", () => {
   });
 
   it("selects patch fields and normalizes exact identity and content safety", async () => {
-    const fn = mock((_url: string, init?: RequestInit) =>
+    const fn = mock((_url: string, _init?: RequestInit) =>
       Promise.resolve(
         new Response(
           JSON.stringify(
