@@ -197,9 +197,11 @@ Examples:
 const SEARCH_STATUS_DESCRIPTION = `Check the status of a unified search started earlier.
 
 Pass the searchRef returned by githits search when the initial request could
-not complete within the wait window. This can return progress, partial hits when
-the original request used --allow-partial, or final results. By default it waits
-up to 20 seconds for progress before returning the latest status.`;
+not complete within the wait window. This can return progress, interim hits
+covering every runnable target/source pair while refresh continues, partial
+hits from a serveable subset when the original request used --allow-partial,
+or final results. By default it waits up to 20 seconds for progress before
+returning the latest status.`;
 
 export function registerSearchCommand(program: Command) {
   program
@@ -261,7 +263,7 @@ export function registerSearchCommand(program: Command) {
     .option("--lang <language>", "Structured language qualifier")
     .option(
       "--allow-partial",
-      "Include hits already available while indexing continues; a searchRef is still returned so search-status can fetch the rest",
+      "Permit a serveable subset of target/source pairs while others remain unavailable; a searchRef is still returned for continuation",
     )
     .option("--limit <n>", "Max results (1-100, default: 10)")
     .option("--offset <n>", "Result offset")

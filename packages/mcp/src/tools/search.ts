@@ -210,7 +210,7 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Default false waits for all sources; if the wait window expires, returns only searchRef/progress. When true, includes hits from sources that finished so far and still returns searchRef for continuation. Partial payloads support normal pagination via nextOffset.",
+      "Default false keeps hits atomic across runnable target/source pairs, although a complete serveable interim result may accompany searchRef while refresh continues. When true, permits a serveable subset while other pairs remain unavailable and still returns searchRef for continuation. Partial payloads support normal pagination via nextOffset.",
     ),
   limit: z.coerce
     .number()
@@ -235,7 +235,7 @@ const DESCRIPTION =
   "Omit `source` to let GitHits select the best sources; set it only to restrict results to docs, code, or symbols. " +
   'Structured parameters combine with the `query` using AND semantics. For `source:"docs"`, code/symbol-only filters (`category`, `kind`, `file_intent`, `public_only`) are ignored because docs search does not support them. ' +
   "Complete by default — if required indexing or refresh outlasts the wait window, the response carries a `searchRef`; do not repeat `search`, pass that reference to `search_status`. Stale-but-serveable evidence can accompany the reference while refresh continues. A missing or ambiguous site can instead return terminal recovery guidance without a `searchRef`; follow any `suggestedSiteTargets` explicitly rather than calling `search_status`. " +
-  "Set `allow_partial_results: true` to opt into hits from sources that finished while others continue indexing. " +
+  "Set `allow_partial_results: true` to permit a serveable subset of target/source pairs while others remain unavailable. " +
   "Each hit's `type` tells you the follow-up tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present)." +
   `\n\n${SEARCH_GUARDRAIL}`;
 

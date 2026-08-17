@@ -15,6 +15,7 @@ describe("searchTool", () => {
 
     expect(tool.description).toContain("do not repeat `search`");
     expect(tool.description).toContain("`search_status`");
+    expect(tool.description).toContain("serveable subset");
   });
 
   it("documents explicit site search and advisory retry targets", () => {

@@ -119,9 +119,10 @@ test suite anchors the doc.
   echo and return only backend-known fields:
   `{completed, searchRef?, progress?, result?}`.
 - Unified `search` is complete-by-default (`allowPartialResults: false`).
-  `allow_partial_results` / `--allow-partial` opt into backend partial
-  payloads while indexing continues; incomplete JSON envelopes may then
-  carry non-empty `results` plus the `searchRef`.
+  An incomplete response may still carry an atomic interim result when every
+  runnable target/source pair is serveable. `allow_partial_results` /
+  `--allow-partial` additionally permit a serveable subset while other pairs
+  remain unavailable; both forms carry `results` plus the `searchRef`.
 - Completed empty search JSON retains zero-result source/target context;
   healthy source status remains suppressed for non-empty success. Text advice
   is renderer-only and never replaces structured JSON.
