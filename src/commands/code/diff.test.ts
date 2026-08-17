@@ -234,6 +234,43 @@ describe("codeDiffAction", () => {
     exit.mockRestore();
   });
 
+  it.each([
+    {
+      arg1: "npm:express@5.0.0",
+      arg2: "1.0.0..2.0.0",
+      options: {},
+      expected: "`<from>..<to>`",
+      forbidden: "`range`",
+    },
+    {
+      arg1: "1.0.0..2.0.0",
+      arg2: undefined,
+      options: { repoUrl: "npm:express" },
+      expected: "`--repo-url`",
+      forbidden: "`repoUrl`",
+    },
+  ])("uses CLI names for target validation", async (testCase) => {
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    try {
+      await codeDiffAction(
+        testCase.arg1,
+        testCase.arg2,
+        undefined,
+        testCase.options,
+        dependencies(),
+      );
+    } catch {
+      // process.exit is mocked as a throw.
+    }
+    expect(error.mock.calls[0]?.[0]).toContain(testCase.expected);
+    expect(error.mock.calls[0]?.[0]).not.toContain(testCase.forbidden);
+    error.mockRestore();
+    exit.mockRestore();
+  });
+
   it("requires the Git-style -- delimiter before a path glob", async () => {
     const codeDiff = mock(() => Promise.resolve(defaultCodeDiffResult));
     const error = spyOn(console, "error").mockImplementation(() => {});
@@ -293,6 +330,23 @@ describe("formatCodeDiffError", () => {
 
     expect(output).toContain("ref-0, ref-1");
     expect(output).toContain("(+2 more)");
+  });
+
+  it("preserves a local lower bound when the backend also truncated", () => {
+    const output = formatCodeDiffError({
+      code: "VERSION_NOT_FOUND",
+      message: "Version was not found.",
+      retryable: false,
+      details: {
+        publishedVersions: Array.from(
+          { length: 10 },
+          (_, index) => `${index}.0.0`,
+        ),
+        publishedVersionsTruncated: true,
+      },
+    });
+
+    expect(output).toContain("(+2+ more)");
   });
 });
 

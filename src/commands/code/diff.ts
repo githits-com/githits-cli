@@ -149,6 +149,8 @@ function buildCliCodeDiffParams(
       .replace(/`maxPatchBytes`/g, "`--max-patch-bytes`")
       .replace(/`maxFiles`/g, "`--max-files`")
       .replace(/`pathGlob`/g, "`<path-glob>`")
+      .replace(/`repoUrl`/g, "`--repo-url`")
+      .replace(/`range`/g, "`<from>..<to>`")
       .replace(/CodeDiff view/g, "Diff view");
     if (rewritten === error.message) throw error;
     throw new InvalidPackageSpecError(rewritten);
@@ -258,8 +260,10 @@ function formatRecoveryList(
 ): string {
   const limit = 8;
   const shown = values.slice(0, limit).map(safe).join(", ");
-  if (backendTruncated) return `${shown} (+more)`;
   const omitted = values.length - limit;
+  if (backendTruncated) {
+    return omitted > 0 ? `${shown} (+${omitted}+ more)` : `${shown} (+more)`;
+  }
   return omitted > 0 ? `${shown} (+${omitted} more)` : shown;
 }
 
