@@ -355,6 +355,45 @@ describe("searchStatusTool", () => {
     expect(text).toContain("queryable now: versions=4.18.2@v4.18.2");
   });
 
+  it("renders structured site recovery guidance in completed text", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const completedOutcome = defaultUnifiedSearchOutcome;
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() =>
+          Promise.resolve({
+            ...completedOutcome,
+            result: {
+              ...completedOutcome.result,
+              results: [],
+              sourceStatus: [
+                {
+                  source: "DOCS" as const,
+                  targetLabel: "site:example.com",
+                  appliedFilters: [],
+                  ignoredFilters: [],
+                  incompatibleFilters: [],
+                  appliedQueryFeatures: [],
+                  ignoredQueryFeatures: [],
+                  incompatibleQueryFeatures: [],
+                  suggestedSiteTargets: ["site:example.com/docs"],
+                  suggestedSiteTargetsTruncated: true,
+                },
+              ],
+            },
+          }),
+        ),
+      }),
+    );
+
+    const result = await tool.handler({ search_ref: "search-ref-123" }, {});
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("Suggested site targets: site:example.com/docs");
+    expect(text).toContain("Additional site targets were omitted.");
+  });
+
   it("renders terminal source status compactly in completed text", async () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");

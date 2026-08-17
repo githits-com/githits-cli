@@ -18,9 +18,12 @@ Scope boundaries:
 Use the most targeted GitHits MCP tool or combination of tools for the job:
 
 - Use `search` and `docs_*` for package documentation, repository docs, exact APIs, configuration, or setup behavior.
+- For an exact standalone documentation site, call `search` with target `site:<host[/path]>` and source `docs`. Follow a returned `searchRef` with `search_status`; if a missing or ambiguous site instead returns `suggestedSiteTargets`, retry one exact suggestion explicitly rather than rewriting the target or treating it as an alias.
 - Use `search`, `code_files`, `code_grep`, and `code_read` for version-specific package/repository source, tests, symbols, call sites, and implementation evidence.
 - Use `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, and `pkg_upgrade_review` for package metadata, versions, adoption, vulnerabilities, dependency graphs, changelogs, and upgrade-review evidence.
 - Use `get_example` as the broad OSS-first discovery, planning, and research path for vague issues, unfamiliar errors, "how do others do this" questions, multi-library/API combinations, global implementation-pattern scans, and rare needle-in-the-haystack examples that may appear in only one or a few repositories. When the dependency or repository is already known, default to `search`, `docs_*`, and `code_*` first; add `get_example` when you need broader cross-project evidence or a hard-to-find real-world example.
+
+If GitHits MCP tools are unavailable but the `githits` CLI is installed, switch to the `githits-code` or `githits-package` skill and use its equivalent CLI commands. Do not treat missing MCP registration as evidence that GitHits lacks the requested content.
 
 Prefer the default compact text output. Request JSON only when exact structured fields are necessary.
 

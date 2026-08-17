@@ -1,14 +1,16 @@
 # GitHits Code And Docs CLI Reference
 
-Package target syntax requires an explicit registry: `registry:name[@version]`, for example `npm:express@5.2.1`; omit `@version` for the latest release. Repository compact targets use `github:org/repo[#ref|@ref]`, `github.com/org/repo[#ref|@ref]`, or `https://github.com/org/repo[#ref|@ref]`; omitted refs request the backend default-branch intent. Output uses canonical `github:org/repo#ref` formatting so refs can contain `@` safely. `code` commands also support `--repo-url <url> [--git-ref <ref>]`.
+Package target syntax requires an explicit registry: `registry:name[@version]`, for example `npm:express@5.2.1`; omit `@version` for the latest release. Repository compact targets use `github:org/repo[#ref|@ref]`, `github.com/org/repo[#ref|@ref]`, or `https://github.com/org/repo[#ref|@ref]`; omitted refs request the backend default-branch intent. Exact standalone documentation sites use `site:<host[/path]>`. Output uses canonical `github:org/repo#ref` formatting so refs can contain `@` safely. `code` commands also support `--repo-url <url> [--git-ref <ref>]`.
 
 ## Search
 
-`githits search "<query>" --in <target>` searches indexed dependency code, docs, and symbols. Repeat `--in` for multiple targets. Use `--source code`, `--source docs`, or `--source symbol` to force a source; omit it for auto-routing.
+`githits search "<query>" --in <target>` searches indexed dependency code, docs, symbols, and exact standalone documentation sites. Repeat `--in` for multiple targets. Use `--source code`, `--source docs`, or `--source symbol` to force a source; omit it for auto-routing. For a standalone site, pass `--source docs --in site:<host[/path]>`.
 
 Useful filters: `--kind`, `--category`, `--path-prefix`, `--intent`, `--public`, `--name`, `--lang`, `--limit`, `--offset`, `--wait`, `--allow-partial`, `--json`.
 
 If search returns a `searchRef`, do not repeat the original search. Continue with `githits search-status <searchRef> [--wait <seconds>]`; the bounded wait defaults to 20 seconds, and the explicit value must be an integer from 0 to 60.
+
+If a missing or ambiguous site returns suggested site targets, retry one of those exact labels explicitly. They are advisory, not aliases, and GitHits does not select or retry one automatically. A truncation notice means more valid candidates were omitted.
 
 ## Code Files
 
@@ -33,7 +35,7 @@ When grep returns no matches, do not repeat it unchanged. Change or shorten the 
 
 `githits docs list <spec>` browses available documentation pages. It is not topic search.
 
-`githits docs read <pageId>` reads a page. Text output returns at most 150 lines per call, including larger explicit ranges; continue from the reported returned range when more context is needed. Use `--lines` for bounded windows and `--json` when extracting `totalLines` or source metadata.
+`githits docs read <pageId>` reads a page. Text output returns at most 150 lines per call, including larger explicit ranges; continue with explicit `--lines` windows when more context is needed. Use `--json` when extracting `startLine`, `endLine`, `totalLines`, or source metadata.
 
 For topic search, use `githits search "<topic>" --source docs --in <target>`, then pass the returned page ID to `docs read`.
 

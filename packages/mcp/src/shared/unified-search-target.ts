@@ -56,7 +56,7 @@ function normaliseSiteTargetSpec(spec: string): string {
   const value = spec.slice("site:".length).trim();
   if (value.length === 0) {
     throw new InvalidArgumentError(
-      "Site target cannot be empty. Expected site:<host[/path]> for an already-indexed documentation site.",
+      "Site target cannot be empty. Expected site:<host[/path]> for an exact documentation site.",
     );
   }
 
@@ -81,7 +81,7 @@ function normaliseSiteTargetSpec(spec: string): string {
   const canonical = `${host.toLowerCase()}${path}`.replace(/\/+$/, "");
   if (canonical.length === 0 || /\s/.test(canonical)) {
     throw new InvalidArgumentError(
-      `Invalid site target ${JSON.stringify(spec)}. Expected site:<host[/path]> for an already-indexed documentation site.`,
+      `Invalid site target ${JSON.stringify(spec)}. Expected site:<host[/path]> for an exact documentation site.`,
     );
   }
 

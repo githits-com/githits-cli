@@ -24,6 +24,7 @@ Use GitHits for evidence from real open-source code instead of guessing from mod
 - Need package metadata, vulnerability/advisory status, dependency graphs, or release notes: stop and use the `githits-package` skill instead.
 - Exact language name uncertain for `example --lang`: run `githits languages <query>` first.
 - Inspecting a known dependency or GitHub repo: start with `githits search` scoped by `--in`.
+- Searching an exact standalone documentation site: use `githits search "<topic>" --source docs --in site:<host[/path]>`. If the result reports suggested site targets, retry one explicitly; suggestions are advisory targets, not aliases.
 - Need file/path enumeration: use `githits code files`; do not probe directories with `code read`.
 - Know the exact text to match: use `githits code grep` (literal by default). Pass `--regex` for RE2 syntax; lookaround and backreferences are unsupported. Use `githits search` for discovery.
 - Need documentation pages: use `githits search "<topic>" --source docs --in <target>` for topic search, or `githits docs list <spec>` to browse available pages.
@@ -38,6 +39,7 @@ githits languages type
 githits search "router middleware" --in npm:express@5.2.1
 githits search "debounce" --in npm:lodash@4.18.1 --source symbol
 githits search '"body parser" OR multer' --in npm:express --source docs --json
+githits search "middleware" --in site:expressjs.com --source docs
 githits search-status <searchRef>
 
 githits code files npm:express@5.2.1 lib/ --ext js --limit 100
@@ -55,12 +57,13 @@ githits docs read <pageId> --lines 20-120
 - For `githits example` results, report the source repositories/citations shown in GitHits' generated references/provenance section; they are core evidence for the synthesized pattern.
 - Package targets inspect published artifacts and omitted versions resolve to the latest release; repository targets inspect repository trees. For source-layout questions, always pin and report the package version or Git ref.
 - For source work, locate symbols or matches first, then read a focused window with explicit `--lines`.
-- Documentation text reads return at most 150 lines per call. Continue with the reported returned range and `totalLines` when more context is needed.
+- Documentation text reads return at most 150 lines per call. Continue with explicit `--lines` windows when more context is needed; pass `--json` when you need `startLine`, `endLine`, or `totalLines` pagination metadata.
 - For multi-step code/docs investigations, keep raw CLI output out of the final answer unless it is the evidence the user needs.
 - If output says it used recent/stale indexed evidence, treat the displayed served target as provenance; if freshness matters, retry with a longer `--wait` or use one of the displayed `queryable now` versions/refs, or inspect JSON `targetResolution` for structured candidates.
 - Treat partial documentation coverage as incomplete evidence and retry later when advised. Capped coverage is terminal for the current crawl, so report the limitation instead of retrying.
 - If search returns a `searchRef`, continue with `githits search-status <searchRef>` instead of repeating the original search. Its bounded wait defaults to 20 seconds; use `--wait <seconds>` with an integer from 0 to 60 to adjust it.
 - If grep returns no matches, do not repeat it unchanged. Follow the returned guidance by changing the pattern, broadening the file scope, or switching to `githits search` for conceptual discovery.
+- For a missing or ambiguous standalone site, use the returned `suggestedSiteTargets` in order. Do not rewrite the original target or retry automatically; when `suggestedSiteTargetsTruncated` is true, state that additional candidates were omitted.
 - If a code-navigation command returns `INDEXING`, use the elapsed/expected duration in the message to decide whether to retry with `--wait`; prefer any displayed indexed refs/versions when you need an immediate follow-up.
 - After using GitHits results, send feedback when practical. Use `githits feedback <solution_id> --accept|--reject` for `githits example` results, or omit `<solution_id>` for generic session feedback such as `githits feedback --reject --tool search -m "missing kotlin support"`.
 

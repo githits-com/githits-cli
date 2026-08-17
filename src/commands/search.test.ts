@@ -205,6 +205,99 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("renders site recovery suggestions for an initial search", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "site:example.com",
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            suggestedSiteTargets: [
+              "site:example.com/docs",
+              "site:example.com/guide",
+            ],
+            suggestedSiteTargetsTruncated: false,
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router",
+      { in: ["site:example.com"], source: "docs" },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Suggested site targets: site:example.com/docs, site:example.com/guide",
+    );
+    expect(output).not.toContain("Additional site targets were omitted.");
+    consoleSpy.mockRestore();
+  });
+
+  it("preserves site recovery suggestions in CLI JSON", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "site:example.com",
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            suggestedSiteTargets: ["site:new.example.com/docs"],
+            suggestedSiteTargetsTruncated: false,
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router",
+      { in: ["site:example.com"], source: "docs", json: true },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const payload = JSON.parse(String(consoleSpy.mock.calls[0]?.[0]));
+    expect(payload.sourceStatus[0]).toMatchObject({
+      suggestedSiteTargets: ["site:new.example.com/docs"],
+      suggestedSiteTargetsTruncated: false,
+    });
+    consoleSpy.mockRestore();
+  });
+
   it("preserves omitted repo refs for CLI discovery search targets", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),
@@ -455,6 +548,8 @@ describe("searchAction", () => {
             appliedQueryFeatures: [],
             ignoredQueryFeatures: [],
             incompatibleQueryFeatures: [],
+            suggestedSiteTargets: [],
+            suggestedSiteTargetsTruncated: false,
           },
         ],
       },
@@ -501,6 +596,8 @@ describe("searchAction", () => {
             appliedQueryFeatures: [],
             ignoredQueryFeatures: ["kind"],
             incompatibleQueryFeatures: ["name"],
+            suggestedSiteTargets: [],
+            suggestedSiteTargetsTruncated: false,
           },
         ],
       },
@@ -1230,6 +1327,49 @@ describe("searchStatusAction", () => {
     expect(payload.result.query.raw).toBe("router middleware");
     expect(payload.result.results).toHaveLength(1);
     expect(payload).not.toHaveProperty("query.raw");
+    consoleSpy.mockRestore();
+  });
+
+  it("renders truncated site recovery suggestions for search-status", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "site:example.com",
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            suggestedSiteTargets: ["site:example.com/docs"],
+            suggestedSiteTargetsTruncated: true,
+          },
+        ],
+      },
+    };
+
+    await searchStatusAction(
+      "search-ref-123",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Suggested site targets: site:example.com/docs");
+    expect(output).toContain("Additional site targets were omitted.");
     consoleSpy.mockRestore();
   });
 

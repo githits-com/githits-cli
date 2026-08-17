@@ -108,7 +108,7 @@ const structuredSearchTargetSchema: z.ZodType<StructuredSearchTargetArg> =
       site: z.string().optional(),
     })
     .describe(
-      "Target: provide registry + package_name (package scope) or repo_url with optional git_ref (repo scope; omitted ref means default branch intent).",
+      "Target: provide registry + package_name (package scope), repo_url with optional git_ref (repo scope; omitted ref means default branch intent), or site as site:<host[/path]> for an exact documentation site.",
     );
 
 const searchTargetSchema = z.union([
@@ -117,7 +117,7 @@ const searchTargetSchema = z.union([
     .string()
     .min(1)
     .describe(
-      "Compact discovery target string. Package with explicit registry: `npm:react@18.2.0` or `npm:react` for latest release. Repository: `github:facebook/react`, `github.com/facebook/react`, `https://github.com/facebook/react`, or any repo form with `#HEAD` / `@HEAD` for a git ref. Output uses canonical `github:owner/repo#ref` form.",
+      "Compact discovery target string. Package with explicit registry: `npm:react@18.2.0` or `npm:react` for latest release. Repository: `github:facebook/react`, `github.com/facebook/react`, `https://github.com/facebook/react`, or any repo form with `#HEAD` / `@HEAD` for a git ref. Exact documentation site: `site:<host[/path]>`. Output uses canonical `github:owner/repo#ref` form.",
     ),
 ]);
 
@@ -131,14 +131,14 @@ const schema: ZodRawShape = {
   target: searchTargetSchema
     .optional()
     .describe(
-      "One package or repository target. Pass `target` or `targets`, not both.",
+      "One package, repository, or exact documentation-site target. Pass `target` or `targets`, not both.",
     ),
   targets: z
     .array(searchTargetSchema)
     .max(20)
     .optional()
     .describe(
-      "Multiple package or repository targets. Pass `targets` or `target`, not both.",
+      "Multiple package, repository, or exact documentation-site targets. Pass `targets` or `target`, not both.",
     ),
   source: z
     .enum(["docs", "code", "symbol"])
@@ -230,11 +230,11 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Use when investigating a known package or repository and you need to discover relevant docs, source files, examples, tests, or APIs before reading exact files. Search indexed dependency and repository code, docs, and explicit symbols. " +
+  "Use when investigating a known package, repository, or exact documentation site and you need to discover relevant docs, source files, examples, tests, or APIs before reading exact files. Search indexed dependency and repository code, docs, explicit symbols, or standalone docs with `site:<host[/path]>`. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
   "Required: `query` plus either `target` or `targets`; pass `target` or `targets`, not both. " +
   "Omit `source` to let GitHits select the best sources; set it only to restrict results to docs, code, or symbols. " +
   'Structured parameters combine with the `query` using AND semantics. For `source:"docs"`, code/symbol-only filters (`category`, `kind`, `file_intent`, `public_only`) are ignored because docs search does not support them. ' +
-  "Complete by default — if indexing is still running, the response carries a `searchRef` and no hits; do not repeat `search`, pass that reference to `search_status`. " +
+  "Complete by default — if required indexing or refresh outlasts the wait window, the response carries a `searchRef`; do not repeat `search`, pass that reference to `search_status`. Stale-but-serveable evidence can accompany the reference while refresh continues. A missing or ambiguous site can instead return terminal recovery guidance without a `searchRef`; follow any `suggestedSiteTargets` explicitly rather than calling `search_status`. " +
   "Set `allow_partial_results: true` to opt into hits from sources that finished while others continue indexing. " +
   "Each hit's `type` tells you the follow-up tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present)." +
   `\n\n${SEARCH_GUARDRAIL}`;

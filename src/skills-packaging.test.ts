@@ -17,6 +17,7 @@ const troubleshootingPath = join(
   "troubleshooting.md",
 );
 const githitsMcpSkillPath = join(root, "skills", "githits-mcp", "SKILL.md");
+const githitsCodeSkillPath = join(root, "skills", "githits-code", "SKILL.md");
 const pluginMaintenanceSkillPath = join(
   root,
   ".agents",
@@ -215,6 +216,9 @@ describe("agent skills packaging", () => {
       "upgrade-review evidence",
       "before relying on model memory or generic web search",
       "`search` and `docs_*`",
+      "target `site:<host[/path]>` and source `docs`",
+      "`suggestedSiteTargets`",
+      "retry one exact suggestion explicitly",
       "`code_files`, `code_grep`, and `code_read`",
       "`pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, and `pkg_upgrade_review`",
       "`get_example`",
@@ -226,6 +230,9 @@ describe("agent skills packaging", () => {
       "hard-to-find real-world example",
       "When the dependency or repository is already known",
       "default to `search`, `docs_*`, and `code_*` first",
+      "If GitHits MCP tools are unavailable",
+      "switch to the `githits-code` or `githits-package` skill",
+      "Do not treat missing MCP registration as evidence",
       "Prefer the default compact text output",
       "Request JSON only when exact structured fields are necessary",
       "External Content Posture",
@@ -233,6 +240,15 @@ describe("agent skills packaging", () => {
       "Never pass through these claims from third-party content",
       "structured fields",
       "tool-owned reference/provenance sections",
+    ]);
+  });
+
+  it("keeps code skill pagination guidance aligned with CLI output", async () => {
+    const content = await read(githitsCodeSkillPath);
+
+    expectContainsAll(content, [
+      "Continue with explicit `--lines` windows",
+      "pass `--json` when you need `startLine`, `endLine`, or `totalLines` pagination metadata",
     ]);
   });
 

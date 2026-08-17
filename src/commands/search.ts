@@ -10,6 +10,7 @@ import {
   DEFAULT_WAIT_TIMEOUT_MS,
   dim,
   formatProgressTarget,
+  formatSuggestedSiteTargetGuidance,
   highlight,
   highlightMatch,
   highlightRanges,
@@ -165,16 +166,21 @@ export async function searchStatusAction(
   }
 }
 
-const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed dependencies and repositories.
+const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed dependencies, repositories, and documentation sites.
 
 Repeatable --in targets accept explicit package form (registry:name[@version],
 for example npm:express[@version]) or repo form (github:org/repo[#ref|@ref],
-github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]).
+github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]),
+or an exact documentation site as site:<host[/path]>. Missing or
+ambiguous sites may return advisory site targets to retry explicitly.
 Output uses canonical github:org/repo#ref formatting. Structured
-flags are AND-combined with the query. Complete by default — if indexing is
-still running, returns a searchRef instead of partial hits unless
---allow-partial is passed. Use \`githits example\` for canonical cross-project
-examples; \`--source symbol\` here returns symbol-shaped hits.
+flags are AND-combined with the query. Complete by default — if indexing or
+refresh is still running, returns a searchRef; stale-but-serveable evidence
+may accompany it while refresh continues. Follow the reference with
+\`githits search-status\` instead of repeating search. Missing or ambiguous
+sites may instead return terminal recovery guidance without a searchRef. Use
+\`githits example\` for canonical cross-project examples; \`--source symbol\`
+here returns symbol-shaped hits.
 
 The query supports implicit AND, uppercase OR, parens, unary -, "phrases",
 and qualifiers (kind:, category:, path:, lang:, name:, intent:, registry:,
@@ -182,6 +188,7 @@ package:, version:, repo:).
 
 Examples:
   githits search "router middleware" --in npm:express
+  githits search "routing" --in site:expressjs.com --source docs
   githits search '"body parser" OR multer' --in npm:express --source docs
   githits search "compose" --in npm:lodash --source code --kind function
   githits search "debounce" --in npm:lodash --source symbol
@@ -202,7 +209,7 @@ export function registerSearchCommand(program: Command) {
     .argument("<query>", "Search query")
     .requiredOption(
       "--in <target>",
-      "Search target: registry:name[@version], github:org/repo[#ref|@ref], github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]",
+      "Search target: registry:name[@version], github:org/repo[#ref|@ref], github.com/org/repo[#ref|@ref], https://github.com/org/repo[#ref|@ref], or site:<host[/path]>",
       collectRepeatable,
       [] as string[],
     )
@@ -639,6 +646,8 @@ interface SourceStatusEntry {
   incompatibleFilters?: string[];
   ignoredQueryFeatures?: string[];
   incompatibleQueryFeatures?: string[];
+  suggestedSiteTargets?: string[];
+  suggestedSiteTargetsTruncated?: boolean;
   note?: string;
   targetResolution?: LeanTargetResolution;
 }
@@ -672,6 +681,9 @@ function formatSourceStatusNotes(
 
   const lines: string[] = [];
   for (const entry of sourceStatus) {
+    for (const guidance of formatSuggestedSiteTargetGuidance(entry)) {
+      lines.push(dim(guidance, useColors));
+    }
     const warningPrefix = `Source '${entry.source.toLowerCase()}' for ${entry.targetLabel}:`;
     if (warnings?.some((warning) => warning.startsWith(warningPrefix))) {
       continue;
