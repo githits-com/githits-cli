@@ -319,14 +319,14 @@ copy transient rollout detail from this plan.
 
 | Phase | Status | Outcome |
 |---|---|---|
-| 1. Transport-neutral CodeDiff adapter | Ready | Typed exact-tree request/result/error support in `CodeNavigationService`, with no public command/tool yet |
+| 1. Transport-neutral CodeDiff adapter | Complete | Typed exact-tree request/result/error support in `CodeNavigationService`, with no public command/tool yet |
 | 2. Public CLI/MCP raw diff | Design refinement pending; no product blocker | Git-like shared request/response rendering, validated defaults, `githits code diff`, and `code_diff` with tests, smoke, docs, assets, and release fragment |
 | 3. Changelog steering | Blocked on backend action contract and Phase 2 | Consume typed PkgSeer changelog actions and render context-appropriate diff calls |
 | Structural track | Out of scope / backend-blocked | Separate future proposal only after backend says structural evidence is externally safe |
 
 ## Phase 1: transport-neutral CodeDiff adapter
 
-**Status:** ready.
+**Status:** complete.
 
 **Expected outcome:** `packages/core-internal` can request and validate all
 three raw modes through `CodeNavigationService.codeDiff`, represent partial
@@ -339,7 +339,7 @@ introduced.
 contract; service callers choose an explicit mode; no compatibility with the
 removed compare schema is required.
 
-**Unknowns/product decisions:** none for this internal adapter. The deployment
+**Unknowns/product decisions:** none for this client adapter. The deployment
 state is not needed for isolated tests.
 
 **Dependencies:** current `CodeNavigationService`, shared request-header/token
