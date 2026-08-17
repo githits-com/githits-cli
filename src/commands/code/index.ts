@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { registerCodeDiffCommand } from "./diff.js";
 import { registerCodeFilesCommand } from "./files.js";
 import { registerCodeGrepCommand } from "./grep.js";
 import { registerCodeReadCommand } from "./read.js";
@@ -13,10 +14,11 @@ export async function registerCodeCommandGroup(
     .command("code")
     .summary("Inspect dependency source code and symbols")
     .description(
-      "List files, read files, and grep substrings inside indexed dependency source. Every command accepts either `<spec>` (registry:name[@version]) or `--repo-url <url> [--git-ref <ref>]`. Omitted package versions use the latest release; omitted repo refs use the default-branch intent. For package-level metadata use `githits pkg`.",
+      "List files, read files, grep substrings, and compare exact trees inside indexed dependency source. Read/list/grep accept either `<spec>` (registry:name[@version]) or `--repo-url <url> [--git-ref <ref>]`; diff keeps both versions or refs in its required `<from>..<to>` range. For package-level metadata use `githits pkg`.",
     );
 
   registerCodeFilesCommand(codeCommand);
   registerCodeReadCommand(codeCommand);
   registerCodeGrepCommand(codeCommand);
+  registerCodeDiffCommand(codeCommand);
 }

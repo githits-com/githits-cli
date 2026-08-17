@@ -14,5 +14,8 @@ describe("registerCodeCommandGroup", () => {
     expect(
       codeCommand?.commands.some((command) => command.name() === "files"),
     ).toBe(true);
+    expect(
+      codeCommand?.commands.some((command) => command.name() === "diff"),
+    ).toBe(true);
   });
 });
