@@ -39,6 +39,9 @@ export interface CodeDiffCommandDependencies {
   mcpUrl: string;
 }
 
+export type CodeDiffCommandDependencyFactory =
+  () => Promise<CodeDiffCommandDependencies>;
+
 interface RootCommandWithRawArgs extends Command {
   rawArgs?: string[];
 }
@@ -225,7 +228,10 @@ After \`--\`, one optional <path-glob> applies a repository-relative bounded
 glob. It supports *, ?, and an exact ** path component; it is not a full Git
 pathspec.`;
 
-export function registerCodeDiffCommand(codeCommand: Command): Command {
+export function registerCodeDiffCommand(
+  codeCommand: Command,
+  createDependencies: CodeDiffCommandDependencyFactory = createCodeDiffCommandDependencies,
+): Command {
   return codeCommand
     .command("diff")
     .summary("Compare two dependency source trees")
@@ -262,26 +268,45 @@ export function registerCodeDiffCommand(codeCommand: Command): Command {
         options: CodeDiffCommandOptions,
         command: Command,
       ) => {
-        const deps = await createContainer();
+        const deps = await createDependencies();
         await codeDiffAction(
           arg1,
           arg2,
           arg3,
           options,
-          {
-            codeNavigationService: deps.codeNavigationService,
-            codeNavigationUrl: deps.codeNavigationUrl,
-            hasValidToken: deps.hasValidToken,
-            mcpUrl: deps.mcpUrl,
-          },
-          rootCommandUsedDoubleDash(command),
+          deps,
+          pathGlobFollowsDoubleDash(
+            command,
+            options.repoUrl !== undefined ? arg2 : arg3,
+          ),
         );
       },
     );
 }
 
-function rootCommandUsedDoubleDash(command: Command): boolean {
+function pathGlobFollowsDoubleDash(
+  command: Command,
+  pathGlob: string | undefined,
+): boolean {
+  if (pathGlob === undefined) return false;
   let root = command;
   while (root.parent) root = root.parent;
-  return (root as RootCommandWithRawArgs).rawArgs?.includes("--") ?? false;
+  const rawArgs = (root as RootCommandWithRawArgs).rawArgs;
+  if (!rawArgs) return false;
+  const delimiter = rawArgs.lastIndexOf("--");
+  return (
+    delimiter >= 0 &&
+    delimiter === rawArgs.length - 2 &&
+    rawArgs[delimiter + 1] === pathGlob
+  );
+}
+
+async function createCodeDiffCommandDependencies(): Promise<CodeDiffCommandDependencies> {
+  const deps = await createContainer();
+  return {
+    codeNavigationService: deps.codeNavigationService,
+    codeNavigationUrl: deps.codeNavigationUrl,
+    hasValidToken: deps.hasValidToken,
+    mcpUrl: deps.mcpUrl,
+  };
 }
