@@ -1,6 +1,6 @@
 # Plan: Raw code diff CLI and MCP surface
 
-> Overall status: ready for Phase 1; Phase 2 ergonomics require focused design
+> Overall status: Phase 1 complete; Phase 2 ergonomics require focused design
 > against the accepted Git-like direction and the narrower backend glob
 > contract.
 >
@@ -31,8 +31,8 @@ separate, unexposed backend capability.
 
 - The working branch was rebased on 2026-08-17 against `origin/main` at
   `fa27604`.
-- No CodeDiff client, CLI command, MCP tool, response formatter, or changelog
-  action consumer exists in the current GitHits tree.
+- The CodeDiff client adapter now exists; no CLI command, MCP tool, response
+  formatter, or changelog action consumer exists in the current GitHits tree.
 - `CodeNavigationService` owns source navigation and is the verified service
   boundary for the new operation. CLI commands live under `src/commands/code/`;
   MCP tools and shared request/response modules live under
