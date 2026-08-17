@@ -2367,6 +2367,52 @@ describe("CodeNavigationServiceImpl", () => {
     });
   });
 
+  it("accepts CodeDiff option boundaries and sends them on the wire", async () => {
+    const exact1024BytePath = "a".repeat(1024);
+    const cases = [
+      { mode: "inventory" as const, options: { maxFiles: 1 } },
+      { mode: "inventory" as const, options: { maxFiles: 300 } },
+      { mode: "patches" as const, options: { maxPatchBytes: 1024 } },
+      {
+        mode: "patches" as const,
+        options: { maxPatchBytes: 2_097_152 },
+      },
+      {
+        mode: "inventory" as const,
+        options: { pathPrefix: exact1024BytePath },
+      },
+    ];
+    const fn = mock((_url: string, _init?: RequestInit) =>
+      Promise.resolve(
+        new Response(JSON.stringify(codeDiffPayload()), { status: 200 }),
+      ),
+    );
+    globalThis.fetch = fn as unknown as typeof fetch;
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    for (const fixture of cases) {
+      await service.codeDiff({
+        target: { repoUrl: "https://github.com/expressjs/express" },
+        from: "v1",
+        to: "v2",
+        mode: fixture.mode,
+        options: fixture.options,
+      });
+    }
+
+    expect(fn).toHaveBeenCalledTimes(cases.length);
+    for (const [index, fixture] of cases.entries()) {
+      const [, init] = fn.mock.calls[index] as unknown as [string, RequestInit];
+      const body = JSON.parse(init.body as string) as {
+        variables: Record<string, unknown>;
+      };
+      expect(body.variables.rawOptions).toEqual(fixture.options);
+    }
+  });
+
   it("normalizes authoritative inventory, scope, and content-status edge cases", async () => {
     const fixtures = [
       {
@@ -3131,8 +3177,6 @@ describe("CodeNavigationServiceImpl", () => {
       to: "release",
       mode: "inventory" as const,
     };
-    const ambiguousTargetMessage =
-      "CodeDiff target has conflicting present keys: registry, packageName, repoUrl. Target shape is determined by key presence, even when a value is undefined.";
     const invalidParams: unknown[] = [
       null,
       { ...validParams, target: null },
@@ -3156,28 +3200,15 @@ describe("CodeNavigationServiceImpl", () => {
           repoUrl: "https://github.com/expressjs/express",
         },
       },
-      {
-        ...validParams,
-        target: {
-          registry: "NPM",
-          packageName: "express",
-          repoUrl: undefined,
-        },
-      },
-      {
-        ...validParams,
-        target: {
-          repoUrl: "https://github.com/expressjs/express",
-          registry: undefined,
-        },
-      },
       { ...validParams, options: null },
       { ...validParams, options: { maxFiles: "50" } },
+      { ...validParams, options: { maxFiles: 50.5 } },
       { ...validParams, options: { maxFiles: 0 } },
       { ...validParams, options: { maxFiles: 301 } },
       { ...validParams, options: { maxPatchBytes: 2_097_153 } },
       { ...validParams, options: { pathPrefix: "" } },
       { ...validParams, options: { pathPrefix: "a".repeat(1_025) } },
+      { ...validParams, options: { pathPrefix: "é".repeat(513) } },
       { ...validParams, options: { pathGlob: "" } },
       { ...validParams, options: { pathGlob: "a".repeat(1_025) } },
       { ...validParams, options: { pathGlob: null } },
@@ -3190,27 +3221,37 @@ describe("CodeNavigationServiceImpl", () => {
       ).rejects.toBeInstanceOf(CodeNavigationValidationError);
     }
 
-    for (const params of [
+    const invalidTargetMessages = [
       {
-        ...validParams,
         target: {
-          registry: "NPM",
+          repoUrl: "https://github.com/expressjs/express",
+          registry: undefined,
+        },
+        message:
+          "CodeDiff target has conflicting present keys: registry, repoUrl. Target shape is determined by key presence, even when a value is undefined.",
+      },
+      {
+        target: {
           packageName: "express",
           repoUrl: "https://github.com/expressjs/express",
         },
+        message:
+          "CodeDiff target has conflicting present keys: packageName, repoUrl. Target shape is determined by key presence, even when a value is undefined.",
       },
       {
-        ...validParams,
-        target: {
-          registry: "NPM",
-          packageName: "express",
-          repoUrl: undefined,
-        },
+        target: { registry: "NPM" },
+        message: "CodeDiff target must be a package or repository target.",
       },
-    ]) {
-      await expect(service.codeDiff(params as CodeDiffParams)).rejects.toThrow(
-        ambiguousTargetMessage,
-      );
+      {
+        target: { packageName: "express" },
+        message: "CodeDiff target must be a package or repository target.",
+      },
+    ];
+
+    for (const { target, message } of invalidTargetMessages) {
+      await expect(
+        service.codeDiff({ ...validParams, target } as CodeDiffParams),
+      ).rejects.toThrow(message);
     }
 
     expect(getToken).not.toHaveBeenCalled();

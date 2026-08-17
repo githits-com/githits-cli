@@ -493,11 +493,11 @@ smoke; plugin-maintenance workflow; current smoke/eval harnesses.
    error state; then implement the smallest formatter modules that satisfy
    them.
 4. Add MCP and CLI adapters, registrations, read-only annotations, JSON parity,
-   and surface-native hints. Extend `mapCodeNavigationError` for
-   `CodeDiffError`: preserve `details.code` / `details.retryable` as the mapped
-   recovery category and forward publication/ref candidates and retry timing
-   into the bounded error details instead of collapsing semantic failures to
-   `UNKNOWN`.
+   and surface-native hints. Extend the internal closed `MappedErrorCode` union
+   and exhaustive mapping switch for `CodeDiffError`: map backend details to a
+   closed recovery category rather than passing `details.code` through, while
+   preserving publication/ref candidates and retry timing in the bounded error
+   details. This is internal error mapping, not a public API change.
 5. Before pinning defaults, run representative small patch, medium minor,
    large major, non-root monorepo, root-workspace, unknown-scope,
    generated/lockfile-heavy, binary, reverse, diverged, and identical cases.

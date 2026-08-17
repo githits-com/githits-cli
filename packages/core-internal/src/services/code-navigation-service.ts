@@ -450,6 +450,8 @@ export interface ReadFileResult {
 /**
  * A package target for CodeDiff. Version resolution belongs to the
  * comparison endpoints, so this target intentionally has no version field.
+ * Target selection uses own-key presence; a `repoUrl` key rejects this shape
+ * even when its value is `undefined`.
  */
 export interface CodeDiffPackageTarget {
   registry: CodeNavigationRegistry;
@@ -459,6 +461,8 @@ export interface CodeDiffPackageTarget {
 /**
  * A public repository target for CodeDiff. Ref resolution belongs to the
  * comparison endpoints, so this target intentionally has no gitRef field.
+ * Target selection uses own-key presence; a `registry` or `packageName` key
+ * rejects this shape even when its value is `undefined`.
  */
 export interface CodeDiffRepositoryTarget {
   repoUrl: string;

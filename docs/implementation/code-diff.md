@@ -27,6 +27,9 @@ Repository requests send only `repoUrl`, `fromRef`, and `toRef`. Raw options are
 omitted when empty. The adapter does not infer refs, synthesize patches,
 detect renames, or fall back to a hosted compare endpoint.
 
+Target selection uses own-key presence: an opposite target key is rejected even
+when its value is `undefined`.
+
 The adapter rejects client values outside PkgSeer's raw bounds instead of
 silently clamping them: `maxFiles` is `1..300`, `maxPatchBytes` is
 `1024..2097152`, and each path prefix/glob is non-empty and at most 1024 UTF-8
