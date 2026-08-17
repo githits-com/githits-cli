@@ -3131,12 +3131,55 @@ describe("CodeNavigationServiceImpl", () => {
       to: "release",
       mode: "inventory" as const,
     };
+    const ambiguousTargetMessage =
+      "CodeDiff target has conflicting present keys: registry, packageName, repoUrl. Target shape is determined by key presence, even when a value is undefined.";
     const invalidParams: unknown[] = [
       null,
       { ...validParams, target: null },
       { ...validParams, target: "https://github.com/expressjs/express" },
+      { ...validParams, mode: "unknown" },
+      { ...validParams, from: "" },
+      { ...validParams, from: 123 },
+      { ...validParams, to: "" },
+      { ...validParams, to: 123 },
+      {
+        ...validParams,
+        target: { registry: "UNKNOWN", packageName: "express" },
+      },
+      { ...validParams, target: { registry: "NPM", packageName: "" } },
+      { ...validParams, target: { repoUrl: "" } },
+      {
+        ...validParams,
+        target: {
+          registry: "NPM",
+          packageName: "express",
+          repoUrl: "https://github.com/expressjs/express",
+        },
+      },
+      {
+        ...validParams,
+        target: {
+          registry: "NPM",
+          packageName: "express",
+          repoUrl: undefined,
+        },
+      },
+      {
+        ...validParams,
+        target: {
+          repoUrl: "https://github.com/expressjs/express",
+          registry: undefined,
+        },
+      },
       { ...validParams, options: null },
       { ...validParams, options: { maxFiles: "50" } },
+      { ...validParams, options: { maxFiles: 0 } },
+      { ...validParams, options: { maxFiles: 301 } },
+      { ...validParams, options: { maxPatchBytes: 2_097_153 } },
+      { ...validParams, options: { pathPrefix: "" } },
+      { ...validParams, options: { pathPrefix: "a".repeat(1_025) } },
+      { ...validParams, options: { pathGlob: "" } },
+      { ...validParams, options: { pathGlob: "a".repeat(1_025) } },
       { ...validParams, options: { pathGlob: null } },
       { ...validParams, options: { unknownOption: true } },
     ];
@@ -3145,6 +3188,29 @@ describe("CodeNavigationServiceImpl", () => {
       await expect(
         service.codeDiff(params as CodeDiffParams),
       ).rejects.toBeInstanceOf(CodeNavigationValidationError);
+    }
+
+    for (const params of [
+      {
+        ...validParams,
+        target: {
+          registry: "NPM",
+          packageName: "express",
+          repoUrl: "https://github.com/expressjs/express",
+        },
+      },
+      {
+        ...validParams,
+        target: {
+          registry: "NPM",
+          packageName: "express",
+          repoUrl: undefined,
+        },
+      },
+    ]) {
+      await expect(service.codeDiff(params as CodeDiffParams)).rejects.toThrow(
+        ambiguousTargetMessage,
+      );
     }
 
     expect(getToken).not.toHaveBeenCalled();

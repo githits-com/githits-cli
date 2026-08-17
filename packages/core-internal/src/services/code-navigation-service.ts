@@ -2357,9 +2357,7 @@ export class CodeNavigationServiceImpl implements CodeNavigationService {
       extensions,
     }));
     const message = errors.map((error) => error.message).join(", ");
-    const extensions = errors.find(
-      (error) => error.extensions && Object.keys(error.extensions).length > 0,
-    )?.extensions;
+    const extensions = getPrimaryExtensions(errors);
     const code =
       typeof extensions?.code === "string" ? extensions.code : undefined;
 
@@ -3358,6 +3356,17 @@ function validateCodeDiffParams(
         "CodeDiff repository target URL must not be empty.",
       );
     }
+  } else if (
+    (Object.hasOwn(target, "registry") ||
+      Object.hasOwn(target, "packageName")) &&
+    Object.hasOwn(target, "repoUrl")
+  ) {
+    const conflictingKeys = ["registry", "packageName", "repoUrl"]
+      .filter((key) => Object.hasOwn(target, key))
+      .join(", ");
+    throw new CodeNavigationValidationError(
+      `CodeDiff target has conflicting present keys: ${conflictingKeys}. Target shape is determined by key presence, even when a value is undefined.`,
+    );
   } else {
     throw new CodeNavigationValidationError(
       "CodeDiff target must be a package or repository target.",
@@ -3557,9 +3566,7 @@ function normaliseRawCodeDiff(
 function parseCodeDiffErrorDetails(
   errors: Array<z.infer<typeof codeDiffGraphQLErrorSchema>>,
 ): CodeDiffErrorDetails | undefined {
-  const extensions = errors.find(
-    (error) => error.extensions && Object.keys(error.extensions).length > 0,
-  )?.extensions;
+  const extensions = getPrimaryExtensions(errors);
   if (!extensions) return undefined;
 
   const details: CodeDiffErrorDetails = {};

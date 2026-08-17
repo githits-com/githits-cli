@@ -442,6 +442,8 @@ smoke; plugin-maintenance workflow; current smoke/eval harnesses.
 
 - shared `code-diff-request.ts`, `code-diff-response.ts`, and
   `code-diff-text.ts` modules with focused tests;
+- `packages/mcp/src/shared/code-navigation-error-map.ts` for CodeDiff error
+  envelope mapping;
 - `packages/mcp/src/tools/code-diff.ts`, tool index/server registration,
   instructions, public types/exports, and test helpers;
 - `src/commands/code/diff.ts`, command registration/help, CLI helpers, and
@@ -464,7 +466,8 @@ smoke; plugin-maintenance workflow; current smoke/eval harnesses.
   gains equivalent semantics.
 - CLI and MCP reject empty endpoints, mixed/partial range forms, explicit empty
   filters, invalid glob syntax, out-of-range numeric values, and no-op option
-  combinations before network I/O.
+  combinations before network I/O. `maxPatchBytes` is valid only for the patch
+  view; other views reject it instead of accepting an ignored coupled option.
 - JSON is a stable data-first projection, not a raw GraphQL wrapper. It retains
   selected content truth and exact full SHAs without prose-only facts.
 - Text shows exact range direction as `from -> to`; it does not recreate the
@@ -490,7 +493,11 @@ smoke; plugin-maintenance workflow; current smoke/eval harnesses.
    error state; then implement the smallest formatter modules that satisfy
    them.
 4. Add MCP and CLI adapters, registrations, read-only annotations, JSON parity,
-   and surface-native hints.
+   and surface-native hints. Extend `mapCodeNavigationError` for
+   `CodeDiffError`: preserve `details.code` / `details.retryable` as the mapped
+   recovery category and forward publication/ref candidates and retry timing
+   into the bounded error details instead of collapsing semantic failures to
+   `UNKNOWN`.
 5. Before pinning defaults, run representative small patch, medium minor,
    large major, non-root monorepo, root-workspace, unknown-scope,
    generated/lockfile-heavy, binary, reverse, diverged, and identical cases.
