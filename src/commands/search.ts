@@ -155,7 +155,7 @@ export async function searchStatusAction(
           }),
         );
       } else {
-        console.log(formatSearchStatusTerminal(payload));
+        console.log(formatSearchStatusTerminal(payload, payload.warnings));
       }
       return;
     }
@@ -540,16 +540,24 @@ function formatUnifiedSearchTerminal(payload: {
   return lines.join("\n").trimEnd();
 }
 
-function formatSearchStatusTerminal(payload: {
-  completed: false;
-  searchRef: string;
-  progress?: SearchProgressForTerminal;
-}): string {
+function formatSearchStatusTerminal(
+  payload: {
+    completed: false;
+    searchRef: string;
+    progress?: SearchProgressForTerminal;
+  },
+  warnings?: string[],
+): string {
   const status = payload.progress?.status;
-  const lines = [
-    formatSearchStatusHeadline(status),
-    `searchRef: ${payload.searchRef}`,
-  ];
+  const lines: string[] = [];
+  if (warnings && warnings.length > 0) {
+    for (const warning of warnings) {
+      lines.push(`Warning: ${warning}`);
+    }
+    lines.push("");
+  }
+  lines.push(formatSearchStatusHeadline(status));
+  lines.push(`searchRef: ${payload.searchRef}`);
   if (payload.progress) {
     if (payload.progress.status) {
       lines.push(`status: ${payload.progress.status.toLowerCase()}`);
@@ -626,6 +634,9 @@ function formatSearchStatusPartialTerminal(
     result: UnifiedSearchStatusResultPayload;
   },
 ): string {
+  const warnings = Array.from(
+    new Set([...(payload.warnings ?? []), ...(payload.result.warnings ?? [])]),
+  );
   return formatUnifiedSearchTerminal({
     completed: false,
     hasMore: payload.result.hasMore,
@@ -637,7 +648,7 @@ function formatSearchStatusPartialTerminal(
       raw: payload.result.query?.raw,
       warnings: payload.result.warnings,
     },
-    warnings: payload.result.warnings,
+    warnings: warnings.length > 0 ? warnings : undefined,
     sourceStatus: payload.result.sourceStatus,
   });
 }

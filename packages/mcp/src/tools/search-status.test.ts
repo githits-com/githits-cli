@@ -278,6 +278,43 @@ describe("searchStatusTool", () => {
     },
   );
 
+  it("renders site recovery guidance for incomplete results without hits", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome("INDEXING", "ref-site-recovery");
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      results: [],
+      sourceStatus: [
+        {
+          source: "DOCS",
+          targetLabel: "site:example.com",
+          appliedFilters: [],
+          ignoredFilters: [],
+          incompatibleFilters: [],
+          appliedQueryFeatures: [],
+          ignoredQueryFeatures: [],
+          incompatibleQueryFeatures: [],
+          suggestedSiteTargets: ["site:docs.example.com"],
+          suggestedSiteTargetsTruncated: true,
+        },
+      ],
+    };
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() => Promise.resolve(incomplete)),
+      }),
+    );
+
+    const result = await tool.handler({ search_ref: incomplete.searchRef }, {});
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("No hits yet");
+    expect(text).toContain("source notes:");
+    expect(text).toContain("Suggested site targets: site:docs.example.com");
+    expect(text).toContain("Additional site targets were omitted.");
+  });
+
   it("surfaces progress freshness warnings", async () => {
     const tool = createSearchStatusTool(
       createMockCodeNavigationService({

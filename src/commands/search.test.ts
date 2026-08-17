@@ -1196,6 +1196,93 @@ describe("searchStatusAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("renders progress warnings when incomplete status has no result", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchStatusAction(
+      "search-ref-stale",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() =>
+            Promise.resolve(
+              createIncompleteOutcome("INDEXING", "search-ref-stale", {
+                targets: [
+                  {
+                    requested: "site:example.com",
+                    resolvedRequested: "site:example.com",
+                    served: "site:example.com/old",
+                    freshness: "STALE",
+                  },
+                ],
+              }),
+            ),
+          ),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Warning: requested site:example.com; served older snapshot site:example.com/old while site:example.com indexes.",
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it("merges progress warnings with incomplete site recovery guidance", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome("INDEXING", "search-ref-site", {
+      targets: [
+        {
+          requested: "site:example.com",
+          resolvedRequested: "site:example.com",
+          served: "site:example.com/old",
+          freshness: "STALE",
+        },
+      ],
+    });
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      results: [],
+      sourceStatus: [
+        {
+          source: "DOCS",
+          targetLabel: "site:example.com",
+          appliedFilters: [],
+          ignoredFilters: [],
+          incompatibleFilters: [],
+          appliedQueryFeatures: [],
+          ignoredQueryFeatures: [],
+          incompatibleQueryFeatures: [],
+          suggestedSiteTargets: ["site:docs.example.com"],
+          suggestedSiteTargetsTruncated: false,
+        },
+      ],
+    };
+
+    await searchStatusAction(
+      incomplete.searchRef,
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() => Promise.resolve(incomplete)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Warning: requested site:example.com; served older snapshot site:example.com/old while site:example.com indexes.",
+    );
+    expect(output).toContain(
+      "site:example.com: Suggested site targets: site:docs.example.com",
+    );
+    consoleSpy.mockRestore();
+  });
+
   it("waits up to the shared default and forwards an explicit status wait", async () => {
     const searchStatus = mock((_searchRef: string, _waitTimeoutMs?: number) =>
       Promise.resolve(createIncompleteOutcome("SEARCHING", "search-ref-wait")),

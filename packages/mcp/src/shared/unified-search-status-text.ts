@@ -89,6 +89,8 @@ function appendResult(
         sourceStatus: result.sourceStatus,
       });
     } else {
+      appendSourceStatusNotes(lines, result.sourceStatus);
+      if (result.sourceStatus?.length) lines.push("");
       lines.push(noHitsYetMessage(progress));
     }
   } else {
