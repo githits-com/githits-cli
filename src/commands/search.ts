@@ -471,6 +471,7 @@ function formatUnifiedSearchTerminal(
   const sourceStatusNotes = formatSourceStatusNotes(
     payload.sourceStatus,
     warnings,
+    payload.completed,
   );
   const documentationCorporaNotes = formatDocumentationCorporaTerminal(
     payload.sourceStatus,
@@ -712,6 +713,7 @@ interface SearchProgressForTerminal {
 function formatSourceStatusNotes(
   sourceStatus: SourceStatusEntry[] | undefined,
   warnings: string[] | undefined,
+  completed: boolean,
 ): string[] {
   const useColors = shouldUseColors();
   if (!sourceStatus) {
@@ -766,7 +768,9 @@ function formatSourceStatusNotes(
     if (entry.indexingStatus === "INDEXING") {
       lines.push(
         dim(
-          `Note: ${label} still indexing — re-run with the searchRef for full results.`,
+          completed
+            ? `Note: ${label} still indexing.`
+            : `Note: ${label} still indexing — re-run with the searchRef for full results.`,
           useColors,
         ),
       );

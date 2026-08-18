@@ -1616,11 +1616,15 @@ describe("searchStatusAction", () => {
 
   it("renders stored documentation evidence without repeating completed status", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const result = createDocumentationSearchResult();
+    const sourceStatus = result.sourceStatus[0];
+    if (!sourceStatus) throw new Error("expected documentation source status");
+    sourceStatus.indexingStatus = "INDEXING";
     const outcome: UnifiedSearchOutcome = {
       state: "completed",
       completed: true,
       searchRef: "search-ref-docs",
-      result: createDocumentationSearchResult(),
+      result,
     };
 
     await searchStatusAction(
@@ -1638,6 +1642,7 @@ describe("searchStatusAction", () => {
     expect(output).toContain("ready, not searched site docs expressjs.com");
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
     expect(output).not.toContain("githits search-status search-ref-docs");
+    expect(output).not.toContain("re-run with the searchRef");
     consoleSpy.mockRestore();
   });
 

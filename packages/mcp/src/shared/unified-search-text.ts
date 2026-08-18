@@ -293,7 +293,7 @@ function buildTrailer(
   return lines;
 }
 
-export function appendEvidenceSearchStatusNextAction(
+function appendEvidenceSearchStatusNextAction(
   lines: string[],
   searchRef: string,
 ): void {
@@ -381,7 +381,7 @@ export function appendDocumentationCorpora(
   }
 }
 
-export function formatDocumentationContributor(
+function formatDocumentationContributor(
   contributor: NonNullable<
     UnifiedSearchSourceStatusPayload["contributors"]
   >[number],

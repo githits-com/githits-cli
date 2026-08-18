@@ -1280,6 +1280,10 @@ describe("CodeNavigationServiceImpl", () => {
                 resultCount: 2,
                 repositoryUrl: "https://github.com/expressjs/express",
                 commitSha: "0123456789abcdef0123456789abcdef01234567",
+                coverage: {
+                  coverageState: "NONE",
+                  pagesCrawled: 69,
+                },
               },
               {
                 kind: "DOCPACK",
@@ -1364,6 +1368,12 @@ describe("CodeNavigationServiceImpl", () => {
         frontierRemaining: null,
         artifactOverflowPageCount: 12,
       });
+      expect(
+        outcome.result.sourceStatus[0]?.contributors?.[0]?.coverage,
+      ).toEqual({
+        coverageState: "NONE",
+        pagesCrawled: 69,
+      });
       const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
       const query = JSON.parse(init.body as string).query as string;
       for (const field of [
@@ -1377,7 +1387,7 @@ describe("CodeNavigationServiceImpl", () => {
         expect(query).toContain(field);
       }
       expect(query).toMatch(
-        /contributors\s*\{[\s\S]*?siteKey[\s\S]*?coverage\s*\{[\s\S]*?artifactOverflowPageCount[\s\S]*?\}/,
+        /contributors\s*\{\s*kind\s+state\s+freshness\s+resultCount\s+repositoryUrl\s+commitSha\s+siteKey\s+coverage\s*\{\s*coverageState\s+coverageReason\s+pagesCrawled\s+frontierRemaining\s+artifactOverflowPageCount\s+estimatedTotalPages\s+note\s*\}\s*\}/,
       );
     });
   }
