@@ -295,21 +295,26 @@ The MCP server starts without a synchronous auth check; auth errors surface per-
 
 ```
 CLI stdio wrapper (src/commands/mcp.ts)
-  └─ creates local services from the CLI container and connects StdioServerTransport
-       └─ transport-neutral MCP server (packages/mcp/src/mcp/server.ts)
-            └─ registers tools using McpToolServices
-                 └─ each tool: createXxxTool(service)
+  └─ loads local policy and creates extended local services
+       └─ workspace-internal local composer (@githits/mcp/internal)
+            └─ shared factory engine (packages/mcp/src/mcp/server.ts)
+                 └─ registers each tool: createXxxTool(service)
                       └─ ToolDefinition { name, description, schema, handler, annotations? }
                            └─ handler calls GitHitsService / CodeNavigationService / PackageIntelligenceService
                                 └─ service implementation makes HTTP calls
+
+Public/remote createMcpServer()
+  └─ shared factory engine with stable McpToolServices and public tool inventory
 ```
 
 The layering is intentional:
 
 - **Tool definitions** (`packages/mcp/src/tools/*.ts`) own the MCP contract: names, descriptions, schemas, and response formatting
 - **GitHitsService / CodeNavigationService / PackageIntelligenceService** own the HTTP transport contracts and live in `packages/core-internal`
-- **Transport-neutral MCP server setup** (`packages/mcp/src/mcp/server.ts`) owns MCP SDK tool registration from `McpToolServices`
-- **CLI MCP command** (`src/commands/mcp.ts`) owns local stdio startup: creates services from the CLI container, sets request-header mode, connects `StdioServerTransport`, and prints TTY setup instructions
+- **Shared factory engine** (`packages/mcp/src/mcp/server.ts`) owns MCP SDK registration, per-call provider resolution, and auth/trace wrapping
+- **Workspace-internal local composer** (`packages/mcp/src/mcp/local-server.ts`) combines the local policy with extended local services while keeping those requirements out of the public package
+- **Public/remote server setup** (`createMcpServer()` from `@githits/mcp`) uses stable `McpToolServices` and the stable public inventory
+- **CLI MCP command** (`src/commands/mcp.ts`) owns local stdio startup: loads policy only for an actual server start, creates services from the CLI container, sets request-header mode, connects `StdioServerTransport`, and prints TTY setup instructions
 
 This separation means tool logic can be tested without HTTP calls, and service logic can be tested without MCP SDK dependencies.
 

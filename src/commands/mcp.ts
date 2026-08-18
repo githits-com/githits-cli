@@ -1,18 +1,31 @@
 import type { AgentInfo } from "@githits/core-internal";
-import type { McpToolServices } from "@githits/mcp";
-import { createMcpServer } from "@githits/mcp";
-import { dim, highlight, shouldUseColors } from "@githits/mcp/internal";
+import {
+  createLocalMcpServer,
+  dim,
+  highlight,
+  type LocalExperimentalMcpPolicy,
+  type LocalMcpToolServices,
+  shouldUseColors,
+} from "@githits/mcp/internal";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Command } from "commander";
 import { version } from "../../package.json";
 import { createContainer } from "../container.js";
+import { loadExperimentalSettings } from "../services/experimental-config.js";
+import { FileSystemServiceImpl } from "../services/filesystem-service.js";
 
 const LOCAL_MCP_SERVER_METADATA = { name: "githits", version };
 
-type LocalMcpServer = ReturnType<typeof createMcpServer>;
+type LocalMcpServer = ReturnType<typeof createLocalMcpServer>;
+
+const DISABLED_LOCAL_MCP_POLICY: LocalExperimentalMcpPolicy = {
+  tools: false,
+  reportToolIssues: undefined,
+};
 
 export interface StartMcpServerOptions {
   onServerCreated?: (server: LocalMcpServer) => void;
+  experimentalPolicy?: LocalExperimentalMcpPolicy;
 }
 
 /**
@@ -24,12 +37,13 @@ export interface StartMcpServerOptions {
  * connecting client's `clientInfo` when it creates those services.
  */
 export async function startMcpServer(
-  services: McpToolServices,
+  services: LocalMcpToolServices,
   options: StartMcpServerOptions = {},
 ): Promise<void> {
-  const server = createMcpServer({
+  const server = createLocalMcpServer({
     services,
     metadata: LOCAL_MCP_SERVER_METADATA,
+    policy: options.experimentalPolicy ?? DISABLED_LOCAL_MCP_POLICY,
   });
   const transport = new StdioServerTransport();
 
@@ -64,10 +78,14 @@ function readMcpClientVersion(
   }
 }
 
-async function createMcpCommandStartup(): Promise<{
-  services: McpToolServices;
+export interface McpCommandStartup {
+  services: LocalMcpToolServices;
+  experimentalPolicy: LocalExperimentalMcpPolicy;
   onServerCreated: (server: LocalMcpServer) => void;
-}> {
+}
+
+export async function createMcpCommandStartup(): Promise<McpCommandStartup> {
+  const settings = await loadExperimentalSettings(new FileSystemServiceImpl());
   let server: LocalMcpServer | undefined;
   const services = await createContainer({
     resolveStoredToken: false,
@@ -76,6 +94,10 @@ async function createMcpCommandStartup(): Promise<{
   });
   return {
     services,
+    experimentalPolicy: {
+      tools: settings.tools,
+      reportToolIssues: settings.reportToolIssues,
+    },
     onServerCreated: (created: LocalMcpServer) => {
       server = created;
     },
@@ -137,6 +159,7 @@ Authenticated tool calls require a valid GitHits token.`,
       }
       const startup = await createMcpCommandStartup();
       await startMcpServer(startup.services, {
+        experimentalPolicy: startup.experimentalPolicy,
         onServerCreated: startup.onServerCreated,
       });
     });
@@ -153,6 +176,7 @@ in MCP configuration files. Use 'githits mcp' for interactive setup.`,
     .action(async () => {
       const startup = await createMcpCommandStartup();
       await startMcpServer(startup.services, {
+        experimentalPolicy: startup.experimentalPolicy,
         onServerCreated: startup.onServerCreated,
       });
     });

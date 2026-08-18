@@ -1,4 +1,12 @@
 export * from "./index.js";
+export {
+  type CreateLocalMcpServerOptions,
+  createLocalMcpServer,
+  type LocalExperimentalMcpPolicy,
+  type LocalExperimentalReportToolIssues,
+  type LocalMcpToolServices,
+  type LocalMcpToolServicesProvider,
+} from "./mcp/local-server.js";
 export { getMcpToolDefinitions } from "./mcp/server.js";
 export * from "./shared/code-diff-request.js";
 export * from "./shared/code-diff-response.js";

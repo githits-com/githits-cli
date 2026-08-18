@@ -3,6 +3,7 @@ import {
   AuthenticationError,
   CodeNavigationFileNotFoundError,
 } from "@githits/core-internal";
+import * as publicMcp from "@githits/mcp";
 import {
   buildMcpInstructions,
   createMcpServer,
@@ -11,6 +12,8 @@ import {
   type McpToolServicesProvider,
   registerMcpTools,
 } from "@githits/mcp";
+import { getMcpToolDefinitions } from "@githits/mcp/internal";
+import { EXPECTED_MCP_TOOLS } from "@githits/mcp/smoke-test";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type {
@@ -53,7 +56,76 @@ function registeredTool(server: McpServer, name: string): RegisteredTool {
   )._registeredTools[name]!;
 }
 
+const EXPECTED_DESCRIPTOR_NAMES = [
+  "get_example",
+  "search_language",
+  "feedback",
+  "search",
+  "search_status",
+  "code_files",
+  "code_read",
+  "code_grep",
+  "docs_list",
+  "docs_read",
+  "pkg_info",
+  "pkg_vulns",
+  "pkg_deps",
+  "pkg_changelog",
+  "pkg_upgrade_review",
+] as const;
+
+const EXPECTED_SMOKE_NAMES = [
+  "get_example",
+  "search_language",
+  "pkg_info",
+  "pkg_deps",
+  "pkg_vulns",
+  "pkg_changelog",
+  "pkg_upgrade_review",
+  "docs_list",
+  "docs_read",
+  "code_files",
+  "code_read",
+  "code_grep",
+  "search",
+  "search_status",
+  "feedback",
+] as const;
+
 describe("public MCP package surface", () => {
+  it("keeps the public and smoke inventories stable and non-experimental", () => {
+    const names = getMcpToolDescriptors().map((tool) => tool.name);
+    const definitions = getMcpToolDefinitions(createServices()).map(
+      (tool) => tool.name,
+    );
+    const server = createMcpServer({
+      metadata: { name: "public-githits", version: "0.0.0" },
+      services: createServices(),
+    });
+    const registeredNames = Object.keys(
+      (
+        server as unknown as {
+          _registeredTools: Record<string, unknown>;
+        }
+      )._registeredTools,
+    );
+
+    expect(names).toEqual([...EXPECTED_DESCRIPTOR_NAMES]);
+    expect(definitions).toEqual([...EXPECTED_DESCRIPTOR_NAMES]);
+    expect(registeredNames).toEqual([...EXPECTED_DESCRIPTOR_NAMES]);
+    expect(EXPECTED_MCP_TOOLS).toEqual([...EXPECTED_SMOKE_NAMES]);
+    for (const inventory of [
+      names,
+      definitions,
+      registeredNames,
+      [...EXPECTED_MCP_TOOLS],
+    ]) {
+      expect(inventory).not.toContain("resolve_target");
+      expect(inventory).not.toContain("code_diff");
+    }
+    expect("createLocalMcpServer" in publicMcp).toBe(false);
+  });
+
   it("contains the APIs needed by a remote MCP server without internal imports", () => {
     const provider: McpToolServicesProvider<RemoteExtra> = () =>
       createServices();

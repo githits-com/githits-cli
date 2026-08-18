@@ -1,33 +1,60 @@
 import { describe, expect, it, mock } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { AuthenticationError } from "@githits/core-internal";
 import {
   createMcpServer,
   getMcpToolDescriptors,
   type McpToolExecutionHook,
-  type McpToolServices,
   registerMcpTools,
 } from "@githits/mcp";
-import { getMcpToolDefinitions, type ToolResult } from "@githits/mcp/internal";
+import {
+  getMcpToolDefinitions,
+  type LocalMcpToolServices,
+  type ToolResult,
+} from "@githits/mcp/internal";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type {
   ServerNotification,
   ServerRequest,
 } from "@modelcontextprotocol/sdk/types.js";
+import { Command } from "commander";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
   createMockPackageIntelligenceService,
+  createMockResolveTargetService,
 } from "../services/test-helpers.js";
-import { startMcpServer } from "./mcp.js";
+import {
+  createMcpCommandStartup,
+  registerMcpCommand,
+  startMcpServer,
+} from "./mcp.js";
+
+async function withXdgConfigHome<T>(
+  xdgConfigHome: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const previous = process.env.XDG_CONFIG_HOME;
+  process.env.XDG_CONFIG_HOME = xdgConfigHome;
+  try {
+    return await fn();
+  } finally {
+    if (previous === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = previous;
+  }
+}
 
 function createTestServices(
-  overrides: Partial<McpToolServices> = {},
-): McpToolServices {
+  overrides: Partial<LocalMcpToolServices> = {},
+): LocalMcpToolServices {
   return {
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
     githitsService: createMockGitHitsService(),
+    resolveTargetService: createMockResolveTargetService(),
     ...overrides,
   };
 }
@@ -364,5 +391,77 @@ describe("startMcpServer", () => {
 
     expect(onServerCreated).toHaveBeenCalledTimes(1);
     expect(onServerCreated.mock.calls[0]?.[0]).toBeDefined();
+  });
+});
+
+describe("createMcpCommandStartup", () => {
+  it("maps strict host settings into the neutral local policy", async () => {
+    const xdgConfigHome = await mkdtemp(join(tmpdir(), "githits-mcp-policy-"));
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    await writeFile(
+      join(configDir, "config.toml"),
+      '[experimental]\ntools = true\nreport_tool_issues = "all"\n',
+    );
+    const previousToken = process.env.GITHITS_API_TOKEN;
+
+    try {
+      process.env.GITHITS_API_TOKEN = "test-mcp-startup-token";
+      await withXdgConfigHome(xdgConfigHome, async () => {
+        const startup = await createMcpCommandStartup();
+        expect(startup.experimentalPolicy).toEqual({
+          tools: true,
+          reportToolIssues: "all",
+        });
+        expect(startup.services.resolveTargetService).toBeDefined();
+        expect(startup.services.codeNavigationService.codeDiff).toBeDefined();
+      });
+    } finally {
+      if (previousToken === undefined) delete process.env.GITHITS_API_TOKEN;
+      else process.env.GITHITS_API_TOKEN = previousToken;
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("consumes malformed config strictly only when local startup is created", async () => {
+    const xdgConfigHome = await mkdtemp(join(tmpdir(), "githits-mcp-start-"));
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    await writeFile(join(configDir, "config.toml"), "[experimental\n");
+
+    try {
+      await withXdgConfigHome(xdgConfigHome, async () => {
+        await expect(createMcpCommandStartup()).rejects.toThrow(
+          `Cannot parse GitHits config at ${join(configDir, "config.toml")}`,
+        );
+      });
+    } finally {
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps mcp help from creating local startup dependencies", async () => {
+    const xdgConfigHome = await mkdtemp(join(tmpdir(), "githits-mcp-help-"));
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    await writeFile(join(configDir, "config.toml"), "[experimental\n");
+
+    try {
+      await withXdgConfigHome(xdgConfigHome, async () => {
+        const program = new Command();
+        program.configureOutput({
+          writeOut: () => {},
+          writeErr: () => {},
+        });
+        program.exitOverride();
+        registerMcpCommand(program);
+
+        await expect(
+          program.parseAsync(["node", "test", "mcp", "--help"]),
+        ).rejects.toMatchObject({ code: "commander.helpDisplayed" });
+      });
+    } finally {
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
   });
 });
