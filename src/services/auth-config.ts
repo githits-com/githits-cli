@@ -1,9 +1,6 @@
-import { parse as parseToml } from "smol-toml";
 import { z } from "zod";
-import {
-  getAuthConfigPath,
-  getLegacyMacAuthConfigPath,
-} from "./app-config-paths.js";
+import { AppConfigError, readAppConfig } from "./app-config.js";
+import { getAuthConfigPath } from "./app-config-paths.js";
 import type { FileSystemService } from "./filesystem-service.js";
 
 export const AUTH_STORAGE_MODES = ["keychain", "file"] as const;
@@ -45,11 +42,13 @@ export function parseAuthStorageMode(value: string): AuthStorageMode {
 export async function loadAuthConfig(
   fs: FileSystemService,
 ): Promise<AuthConfig> {
-  let configPath = getAuthConfigPath(fs);
   const envMode = process.env.GITHITS_AUTH_STORAGE;
   if (envMode !== undefined && envMode.trim() !== "") {
     try {
-      return { storage: parseAuthStorageMode(envMode), configPath };
+      return {
+        storage: parseAuthStorageMode(envMode),
+        configPath: getAuthConfigPath(fs),
+      };
     } catch (error) {
       if (error instanceof AuthConfigError) {
         throw new AuthConfigError(
@@ -60,46 +59,37 @@ export async function loadAuthConfig(
     }
   }
 
-  if (!(await fs.exists(configPath))) {
-    const legacyMacConfigPath = getLegacyMacAuthConfigPath(fs);
-    if (
-      process.platform === "darwin" &&
-      (await fs.exists(legacyMacConfigPath))
-    ) {
-      configPath = legacyMacConfigPath;
-    } else {
-      return { storage: "keychain", configPath };
-    }
-  }
-
-  let rawConfig: unknown;
+  let document: Awaited<ReturnType<typeof readAppConfig>>;
   try {
-    rawConfig = parseToml(await fs.readFile(configPath));
+    document = await readAppConfig(fs);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new AuthConfigError(
-      `Cannot parse GitHits config at ${configPath}: ${message}`,
-    );
+    if (error instanceof AppConfigError) {
+      throw new AuthConfigError(error.message);
+    }
+    throw error;
   }
 
-  const parsed = CONFIG_SCHEMA.safeParse(rawConfig);
+  const parsed = CONFIG_SCHEMA.safeParse(document.data);
   if (!parsed.success) {
     throw new AuthConfigError(
-      `Invalid GitHits config at ${configPath}: ${z.prettifyError(parsed.error)}`,
+      `Invalid GitHits config at ${document.configPath}: ${z.prettifyError(parsed.error)}`,
     );
   }
 
   const configuredMode = parsed.data.auth?.storage;
   if (configuredMode === undefined || configuredMode.trim() === "") {
-    return { storage: "keychain", configPath };
+    return { storage: "keychain", configPath: document.configPath };
   }
 
   try {
-    return { storage: parseAuthStorageMode(configuredMode), configPath };
+    return {
+      storage: parseAuthStorageMode(configuredMode),
+      configPath: document.configPath,
+    };
   } catch (error) {
     if (error instanceof AuthConfigError) {
       throw new AuthConfigError(
-        `Invalid GitHits config at ${configPath}: ${error.message}`,
+        `Invalid GitHits config at ${document.configPath}: ${error.message}`,
       );
     }
     throw error;

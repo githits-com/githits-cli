@@ -1,5 +1,9 @@
 export * from "@githits/core-internal";
-
+export type { AppConfigDocument } from "./app-config.js";
+export {
+  AppConfigError,
+  readAppConfig,
+} from "./app-config.js";
 export {
   getAppConfigDir,
   getAppConfigDirForEnv,
@@ -63,6 +67,15 @@ export {
 } from "./chunking-keyring-service.js";
 export type { ExecResult, ExecService } from "./exec-service.js";
 export { ExecServiceImpl } from "./exec-service.js";
+export type {
+  ExperimentalReportToolIssuesMode,
+  ExperimentalSettings,
+} from "./experimental-config.js";
+export {
+  EXPERIMENTAL_REPORT_TOOL_ISSUES_MODES,
+  ExperimentalConfigError,
+  loadExperimentalSettings,
+} from "./experimental-config.js";
 export type { FileSystemService } from "./filesystem-service.js";
 export { FileSystemServiceImpl } from "./filesystem-service.js";
 export { KeychainAuthStorage } from "./keychain-auth-storage.js";

@@ -148,4 +148,20 @@ describe("auth config", () => {
       ).rejects.toThrow(/Invalid GitHits config/);
     });
   });
+
+  it("does not validate the experimental subsection for auth", async () => {
+    await withEnv(undefined, async () => {
+      const config = await loadAuthConfig(
+        createMockFileSystemService({
+          exists: mock(() => Promise.resolve(true)),
+          readFile: mock(() =>
+            Promise.resolve(
+              '[experimental]\ntools = "not-a-boolean"\n\n[auth]\nstorage = "file"\n',
+            ),
+          ),
+        }),
+      );
+      expect(config.storage).toBe("file");
+    });
+  });
 });
