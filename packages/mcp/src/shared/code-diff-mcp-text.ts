@@ -163,7 +163,7 @@ function formatScope(envelope: LeanCodeDiffEnvelope): string {
   const scope = envelope.scope;
   const roots =
     scope.fromSubpath || scope.toSubpath
-      ? `, roots ${safe(scope.fromSubpath ?? "?")} -> ${safe(scope.toSubpath ?? "?")}`
+      ? `, roots ${safe(scope.fromSubpath || "?")} -> ${safe(scope.toSubpath || "?")}`
       : "";
   const glob = scope.pathGlob ? `, glob ${safe(scope.pathGlob)}` : "";
   return `${safe(scope.status)}${roots}${glob}`;

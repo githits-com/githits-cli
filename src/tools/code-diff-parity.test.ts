@@ -281,7 +281,7 @@ describe("code_diff parity", () => {
       code: "INVALID_ARGUMENT",
       retryable: false,
       error:
-        "The `--max-patch-bytes` option is valid only when the view is patch.",
+        "The `--max-patch-bytes` option is valid only when `--patch` is selected.",
     });
     expect(mcp).toMatchObject({
       code: "INVALID_ARGUMENT",
@@ -333,6 +333,41 @@ describe("code_diff parity", () => {
     );
   });
 
+  it("PARITY-ERROR-ENVELOPE: CLI and MCP repository ref messages name their endpoint shapes", async () => {
+    const cli = await cliJson(
+      "github:expressjs/express#main",
+      "1..2",
+      undefined,
+      { nameStatus: true },
+      cliDeps(),
+    );
+    const mcpTool = createParityExperimentalMcpTool("code_diff");
+    const mcpResult = await mcpTool.handler(
+      {
+        target: "github:expressjs/express#main",
+        from: "1",
+        to: "2",
+        view: "name-status",
+        format: "json",
+      },
+      {},
+    );
+    const mcp = JSON.parse(mcpResult.content[0]?.text ?? "{}");
+
+    expect(cli).toEqual({
+      code: "INVALID_ARGUMENT",
+      error:
+        "Repository targets must not include a ref; put both refs in `<from>..<to>`.",
+      retryable: false,
+    });
+    expect(mcp).toEqual({
+      code: "INVALID_ARGUMENT",
+      error:
+        "Repository targets must not include a ref; put both refs in the comparison endpoints.",
+      retryable: false,
+    });
+  });
+
   it("PARITY-ERROR-ENVELOPE: empty comparison endpoint keeps stable shape", async () => {
     const cli = await cliJson(
       "npm:express",
@@ -358,12 +393,12 @@ describe("code_diff parity", () => {
     expect(cli).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      error: "CodeDiff range endpoints must not be empty.",
+      error: "Diff range endpoints must not be empty.",
     });
     expect(mcp).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      error: "CodeDiff from endpoint must not be empty.",
+      error: "Diff from endpoint must not be empty.",
     });
     expect(Object.keys(cli as object).sort()).toEqual(
       Object.keys(mcp as object).sort(),

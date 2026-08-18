@@ -251,20 +251,24 @@ describe("handleCliError", () => {
     mkdirSync(join(xdgConfigHome, "githits"), { recursive: true });
     const configPath = join(xdgConfigHome, "githits", "config.toml");
     writeFileSync(configPath, "[auth\n");
+    const env = { ...process.env };
+    delete env.GITHITS_API_TOKEN;
+    env.GITHITS_AUTH_STORAGE = "";
+    env.GITHITS_API_URL = "https://api-malformed-auth.invalid";
+    env.GITHITS_MCP_URL = "https://mcp-malformed-auth.invalid";
+    env.GITHITS_CODE_NAV_URL = "https://code-malformed-auth.invalid";
+    env.GITHITS_ACCOUNTS_URL = "https://accounts-malformed-auth.invalid";
+    env.GITHITS_DISABLE_UPDATE_CHECK = "1";
+    env.XDG_CONFIG_HOME = xdgConfigHome;
+    env.GITHITS_DEBUG = "";
+    env.NO_COLOR = "1";
     const proc = Bun.spawn(
       ["bun", "run", "src/cli.ts", "languages", "--json"],
       {
         cwd: process.cwd(),
         stdout: "pipe",
         stderr: "pipe",
-        env: {
-          ...process.env,
-          GITHITS_AUTH_STORAGE: "",
-          GITHITS_DISABLE_UPDATE_CHECK: "1",
-          XDG_CONFIG_HOME: xdgConfigHome,
-          GITHITS_DEBUG: "",
-          NO_COLOR: "1",
-        },
+        env,
       },
     );
     try {

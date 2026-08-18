@@ -192,7 +192,7 @@ describe("codeDiffAction", () => {
     [{ patch: true, stat: true }, "Choose only one diff view", undefined],
     [
       { stat: true, maxPatchBytes: "2048" },
-      "The `--max-patch-bytes` option is valid only when the view is patch.",
+      "The `--max-patch-bytes` option is valid only when `--patch` is selected.",
       "maxPatchBytes",
     ],
     [

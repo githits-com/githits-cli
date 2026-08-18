@@ -195,7 +195,7 @@ describe("code_diff MCP adapter", () => {
     expect(parseError(invalid)).toEqual({
       code: "INVALID_ARGUMENT",
       error:
-        "CodeDiff target must be a compact string or include package `registry` + `package_name` or repository `repo_url`.",
+        "Diff target must be a compact string or include package `registry` + `package_name` or repository `repo_url`.",
       retryable: false,
     });
 
@@ -283,6 +283,30 @@ describe("code_diff MCP adapter", () => {
       }),
     );
     expect(patchText).toContain("patch preview: @@ -1 +1 @@");
+  });
+
+  it("renders an unknown side of a mixed scope as a question mark", () => {
+    const fromOnly = structuredClone(defaultCodeDiffResult);
+    fromOnly.raw.scope.fromSubpath = "packages/old";
+    fromOnly.raw.scope.toSubpath = "";
+    const fromOnlyText = formatCodeDiffMcpText(
+      buildCodeDiffSuccessPayload(fromOnly, {
+        target: { registry: "NPM", packageName: "express" },
+        view: "name-status",
+      }),
+    );
+    expect(fromOnlyText).toContain("Scope: package, roots packages/old -> ?");
+
+    const toOnly = structuredClone(defaultCodeDiffResult);
+    toOnly.raw.scope.fromSubpath = "";
+    toOnly.raw.scope.toSubpath = "packages/new";
+    const toOnlyText = formatCodeDiffMcpText(
+      buildCodeDiffSuccessPayload(toOnly, {
+        target: { registry: "NPM", packageName: "express" },
+        view: "name-status",
+      }),
+    );
+    expect(toOnlyText).toContain("Scope: package, roots ? -> packages/new");
   });
 
   it("omits empty patch previews and trailing blank lines", () => {

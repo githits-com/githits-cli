@@ -177,6 +177,23 @@ describe("buildCodeDiffParams", () => {
       },
       "must not include a ref",
     );
+    expect(() =>
+      buildCodeDiffParams({
+        target: "github:expressjs/express#main",
+        range: "1..2",
+      }),
+    ).toThrow(
+      "Repository targets must not include a ref; put both refs in `range`.",
+    );
+    expect(() =>
+      buildCodeDiffMcpParams({
+        target: "github:expressjs/express#main",
+        from: "1",
+        to: "2",
+      }),
+    ).toThrow(
+      "Repository targets must not include a ref; put both refs in the comparison endpoints.",
+    );
   });
 
   it("rejects invalid ranges and accepts identical endpoints", () => {
