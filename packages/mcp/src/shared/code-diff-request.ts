@@ -3,7 +3,7 @@ import type {
   CodeNavigationTarget,
 } from "@githits/core-internal";
 import { parseCodeNavigationTargetSpec } from "./code-navigation-target.js";
-import { InvalidPackageSpecError } from "./package-spec.js";
+import { InvalidPackageSpecError, KNOWN_REGISTRIES } from "./package-spec.js";
 
 export type CodeDiffView = "patch" | "stat" | "name-only" | "name-status";
 
@@ -139,7 +139,7 @@ function parseTarget(raw: string): CodeNavigationTarget {
     return parseCodeNavigationTargetSpec(raw);
   } catch {
     throw invalid(
-      "Invalid CodeDiff target. Expected an unversioned package target `<registry>:<name>` (for example `npm:express`) or an unversioned repository target (for example `github:expressjs/express`).",
+      `Invalid CodeDiff target. Expected an unversioned package target \`<registry>:<name>\` (for example \`npm:express\`; supported registries: ${KNOWN_REGISTRIES.join(", ")}) or an unversioned repository target (for example \`github:expressjs/express\`).`,
     );
   }
 }

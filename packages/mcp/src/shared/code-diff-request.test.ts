@@ -140,6 +140,18 @@ describe("buildCodeDiffParams", () => {
     invalid({ repoUrl: "npm:express", range: "1..2" }, "repository target");
   });
 
+  it("gives supported registries without suggesting embedded versions", () => {
+    try {
+      buildCodeDiffParams({ target: "nppm:express", range: "1..2" });
+      throw new Error("Expected target validation to fail.");
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidPackageSpecError);
+      expect((error as Error).message).toContain("supported registries");
+      expect((error as Error).message).toContain("npm");
+      expect((error as Error).message).not.toContain("[@<version>]");
+    }
+  });
+
   it("rejects versions and refs embedded in target addressing", () => {
     invalid(
       { target: "npm:express@4.18.1", range: "1..2" },
