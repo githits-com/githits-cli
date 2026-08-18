@@ -7,6 +7,8 @@ import {
   formatAuthRequiredForTerminal,
 } from "@githits/mcp/internal";
 import { AuthConfigError } from "../services/auth-config.js";
+import { ExperimentalToolsDisabledError } from "../services/experimental-cli-policy.js";
+import { ExperimentalConfigError } from "../services/experimental-config.js";
 import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
 import { AuthStoragePolicyError } from "../services/mode-aware-file-auth-storage.js";
 
@@ -57,6 +59,8 @@ export function handleCliError(
 function isUserFacingError(error: unknown): error is Error {
   return (
     error instanceof AuthConfigError ||
+    error instanceof ExperimentalConfigError ||
+    error instanceof ExperimentalToolsDisabledError ||
     error instanceof AuthStorageLockTimeoutError ||
     error instanceof AuthStoragePolicyError
   );

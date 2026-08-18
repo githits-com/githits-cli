@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { AuthRequiredError } from "@githits/mcp/internal";
+import { ExperimentalToolsDisabledError } from "../services/experimental-cli-policy.js";
+import { ExperimentalConfigError } from "../services/experimental-config.js";
 import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
 import { handleCliError, runCliMain } from "./errors.js";
 
@@ -64,6 +66,22 @@ describe("handleCliError", () => {
     expect(output).toContain("lock timed out");
     expect(output).not.toContain("AuthStorageLockTimeoutError");
     expect(output).not.toContain("at ");
+  });
+
+  it("prints experimental policy errors as concise user-facing failures", () => {
+    const disabled = captureCliError(
+      new ExperimentalToolsDisabledError("resolve", "/tmp/config.toml"),
+    );
+    expect(disabled.output).toContain("[experimental]\ntools = true");
+    expect(disabled.output).not.toContain("githits doctor");
+
+    const malformed = captureCliError(
+      new ExperimentalConfigError(
+        "Cannot parse GitHits config at /tmp/config.toml: invalid TOML",
+      ),
+    );
+    expect(malformed.output).toContain("/tmp/config.toml");
+    expect(malformed.output).not.toContain("githits doctor");
   });
 
   for (const error of [

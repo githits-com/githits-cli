@@ -1,4 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   flushTelemetry,
   ResolveTargetServiceImpl,
@@ -8,6 +11,7 @@ import {
   createAuthCommandDependencies,
   createAuthStatusDependencies,
   createContainer,
+  createLogoutCommandDependencies,
   recordAuthFingerprint,
 } from "./container.js";
 import { AuthConfigError } from "./services/auth-config.js";
@@ -79,6 +83,37 @@ async function withoutProxyEnv<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 describe("container auth dependencies", () => {
+  it("constructs logout dependencies without parsing malformed auth config", async () => {
+    const xdgConfigHome = await mkdtemp(
+      join(tmpdir(), "githits-logout-config-"),
+    );
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    try {
+      for (const contents of [
+        "[experimental\n",
+        '[auth]\nstorage = "invalid"\n',
+      ]) {
+        await writeFile(join(configDir, "config.toml"), contents);
+        await withEnvVars(
+          {
+            XDG_CONFIG_HOME: xdgConfigHome,
+            GITHITS_AUTH_STORAGE: "invalid",
+            GITHITS_API_TOKEN: undefined,
+          },
+          async () => {
+            const deps = await createLogoutCommandDependencies();
+            expect(deps.authStorage).toBeDefined();
+            expect(deps.authDiagnostics).toBeDefined();
+            expect(deps.mcpUrl).toBe("https://mcp.githits.com");
+          },
+        );
+      }
+    } finally {
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
   it("login/logout auth dependencies still honor auth storage config with env token set", async () => {
     await withApiToken("ghi-test", async () => {
       await withAuthStorageEnv("file", async () => {
