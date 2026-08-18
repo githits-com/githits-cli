@@ -29,7 +29,20 @@ export interface CodeDiffMcpArgs {
 
 const schema: ZodRawShape = {
   target: z
-    .unknown()
+    .union([
+      z.string(),
+      z
+        .object({
+          registry: z.string(),
+          package_name: z.string(),
+        })
+        .strict(),
+      z
+        .object({
+          repo_url: z.string(),
+        })
+        .strict(),
+    ])
     .describe(
       "One unversioned compact target string such as `npm:express` or `github:expressjs/express`, or an exact object `{registry, package_name}` / `{repo_url}`. Do not embed a version or ref.",
     ),
@@ -40,8 +53,9 @@ const schema: ZodRawShape = {
     .string()
     .describe("Required ending package version or public repository ref."),
   view: z
-    .string()
+    .enum(["name-status", "name-only", "stat", "patch"])
     .optional()
+    .default("name-status")
     .describe(
       "Projection: `name-status` (default, bounded inventory), `name-only`, `stat`, or `patch`. `max_patch_bytes` is valid only for `patch`.",
     ),
@@ -53,10 +67,16 @@ const schema: ZodRawShape = {
     ),
   max_files: z
     .number()
+    .int()
+    .min(1)
+    .max(300)
     .optional()
     .describe("Optional returned-file bound from 1 through 300."),
   max_patch_bytes: z
     .number()
+    .int()
+    .min(1024)
+    .max(2_097_152)
     .optional()
     .describe(
       "Optional aggregate patch-byte bound from 1024 through 2097152; patch view only.",

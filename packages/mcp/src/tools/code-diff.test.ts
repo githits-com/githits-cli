@@ -62,6 +62,43 @@ describe("code_diff MCP adapter", () => {
       default: "text-v1",
       enum: ["text-v1", "text", "json"],
     });
+    expect(schema.properties?.view).toMatchObject({
+      default: "name-status",
+      enum: ["name-status", "name-only", "stat", "patch"],
+    });
+    expect(schema.properties?.max_files).toMatchObject({
+      type: "integer",
+      minimum: 1,
+      maximum: 300,
+    });
+    expect(schema.properties?.max_patch_bytes).toMatchObject({
+      type: "integer",
+      minimum: 1024,
+      maximum: 2_097_152,
+    });
+    const targetSchema = schema.properties?.target as {
+      anyOf?: Array<Record<string, unknown>>;
+    };
+    expect(targetSchema.anyOf).toEqual([
+      { type: "string" },
+      {
+        type: "object",
+        properties: {
+          registry: { type: "string" },
+          package_name: { type: "string" },
+        },
+        required: ["registry", "package_name"],
+        additionalProperties: false,
+      },
+      {
+        type: "object",
+        properties: {
+          repo_url: { type: "string" },
+        },
+        required: ["repo_url"],
+        additionalProperties: false,
+      },
+    ]);
     for (const phrase of [
       "exact source changes",
       "package_name",
@@ -242,6 +279,31 @@ describe("code_diff MCP adapter", () => {
     expect(text).toContain("modified for content safety");
     expect(text).toContain("not presented as authoritative");
     expect(text).toContain("patch omitted: content_budget");
+    expect(text).toContain("path_glob");
+    expect(text).toContain("max_files");
+    expect(text).toContain('format "json"');
     expect(text).not.toContain("\u001b");
+  });
+
+  it("keeps patch previews within a UTF-8 byte bound", () => {
+    const result = structuredClone(defaultCodeDiffResult);
+    result.raw.files[0] = {
+      ...result.raw.files[0]!,
+      patch: "€".repeat(200),
+    };
+    const text = formatCodeDiffMcpText(
+      buildCodeDiffSuccessPayload(result, {
+        target: { registry: "NPM", packageName: "express" },
+        view: "patch",
+      }),
+    );
+    const preview = text
+      .split("\n")
+      .find((line) => line.includes("patch preview:"))
+      ?.split("patch preview: ")[1];
+    expect(preview).toBeDefined();
+    expect(
+      new TextEncoder().encode(preview ?? "").byteLength,
+    ).toBeLessThanOrEqual(320);
   });
 });

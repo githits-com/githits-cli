@@ -8,6 +8,7 @@ import { sanitizeTerminalText } from "./resolve-target-response.js";
 
 const MAX_FILE_ROWS = 20;
 const MAX_PATCH_PREVIEW_BYTES = 320;
+const UTF8_ENCODER = new TextEncoder();
 
 /** Render bounded CodeDiff evidence with MCP-native follow-up guidance. */
 export function formatCodeDiffMcpText(envelope: LeanCodeDiffEnvelope): string {
@@ -130,7 +131,10 @@ function appendFile(
   if (view === "patch") {
     const patch = file as LeanCodeDiffPatchFile;
     if (canShowPatch(patch)) {
-      const preview = safe(patch.patch ?? "").slice(0, MAX_PATCH_PREVIEW_BYTES);
+      const preview = truncateUtf8(
+        safe(patch.patch ?? ""),
+        MAX_PATCH_PREVIEW_BYTES,
+      );
       if (preview) lines.push(`    patch preview: ${preview}`);
     } else if (patch.contentOmissionReason) {
       lines.push(`    patch omitted: ${safe(patch.contentOmissionReason)}`);
@@ -171,6 +175,25 @@ function nextAction(envelope: LeanCodeDiffEnvelope): string {
   const target = formatTarget(envelope);
   const from = safe(envelope.from.requested);
   const to = safe(envelope.to.requested);
+  const needsScopeRecovery =
+    envelope.scope.status === "unknown" ||
+    !envelope.summary.inventoryComplete ||
+    envelope.summary.unprojectableFiles > 0 ||
+    envelope.hasMoreFiles;
+  const needsContentRecovery =
+    envelope.contentCoverage === "partial" ||
+    envelope.contentCoverage === "failed" ||
+    (envelope.view === "patch" && patchIsNotAuthoritative(envelope));
+  if (needsScopeRecovery || needsContentRecovery) {
+    const recovery: string[] = [];
+    if (needsScopeRecovery) {
+      recovery.push("narrow `path_glob` or set `max_files` to a larger bound");
+    }
+    if (needsContentRecovery) {
+      recovery.push('use view "stat" or format "json" for structured evidence');
+    }
+    return `Next: call code_diff again with target ${target}, from "${from}", to "${to}"; ${recovery.join("; ")}. Raw diffs do not prove compatibility or upgrade safety.`;
+  }
   const nextView =
     envelope.view === "name-only" || envelope.view === "name-status"
       ? "stat"
@@ -210,4 +233,16 @@ function canShowPatch(file: LeanCodeDiffPatchFile): boolean {
 
 function safe(value: string): string {
   return sanitizeTerminalText(value).replace(/\s+/g, " ").trim();
+}
+
+function truncateUtf8(value: string, maxBytes: number): string {
+  let result = "";
+  let byteLength = 0;
+  for (const character of value) {
+    const characterBytes = UTF8_ENCODER.encode(character).byteLength;
+    if (byteLength + characterBytes > maxBytes) break;
+    result += character;
+    byteLength += characterBytes;
+  }
+  return result;
 }
