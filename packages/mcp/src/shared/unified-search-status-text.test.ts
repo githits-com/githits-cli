@@ -41,8 +41,11 @@ describe("renderUnifiedSearchStatusText", () => {
     const text = renderUnifiedSearchStatusText(payload);
 
     expect(text).toContain(
-      "searched site docs docs.example.com | current | no hits on this page | published coverage: partial, 120 published pages",
+      "site docs.example.com - searched; published snapshot is partial: 120 pages included",
     );
+    expect(text).toContain("documentation sources for site:docs.example.com:");
+    expect(text).not.toContain("hits on this page");
+    expect(text).not.toContain("documentation corpora");
     expect(text).not.toContain("Indexing is still in progress");
     expect(text).toContain("No hits in the searched evidence on this page.");
     expect(text).toContain("Do not repeat immediately.");

@@ -32,7 +32,9 @@ function codeHit(
   };
 }
 
-function docsHit(): UnifiedSearchHitPayload {
+function docsHit(
+  overrides: Partial<UnifiedSearchHitPayload> = {},
+): UnifiedSearchHitPayload {
   return {
     type: "documentation_page",
     target: "aider-AI/aider@v0.55.0",
@@ -43,6 +45,7 @@ function docsHit(): UnifiedSearchHitPayload {
       sourceUrl: "https://aider.chat/docs/more/edit-formats.html",
       sourceKind: "hosted",
     },
+    ...overrides,
   };
 }
 
@@ -544,7 +547,63 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("[3] continuedev/continue@v0.9.42");
   });
 
-  it("explains documentation corpora without implying progress from coverage", () => {
+  it("lists healthy documentation references without repeating result metadata", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed(
+        [
+          docsHit({
+            target: "npm:express@5.2.1",
+            locator: {
+              pageId: "express/routing",
+              sourceUrl: "https://expressjs.com/en/guide/routing.html",
+              sourceKind: "hosted",
+            },
+          }),
+        ],
+        {
+          sourceStatus: [
+            {
+              source: "docs",
+              targetLabel: "npm:express@5.2.1",
+              contributors: [
+                {
+                  kind: "DOCPACK",
+                  state: "SEARCHED",
+                  freshness: "CURRENT",
+                  resultCount: 4,
+                  siteKey: "34150829eb8a7c57",
+                  coverage: {
+                    coverageState: "COMPLETE",
+                    pagesCrawled: 124,
+                    frontierRemaining: 0,
+                    artifactOverflowPageCount: 0,
+                  },
+                },
+                {
+                  kind: "REPOSITORY_DOCS",
+                  state: "SEARCHED",
+                  freshness: "CURRENT",
+                  resultCount: 1,
+                  repositoryUrl: "https://github.com/expressjs/express",
+                  commitSha: "0123456789abcdef0123456789abcdef01234567",
+                },
+              ],
+            },
+          ],
+        },
+      ),
+    );
+
+    expect(text).toContain(
+      "docs searched for npm:express@5.2.1: site expressjs.com; repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
+    );
+    expect(text).not.toContain("documentation corpora");
+    expect(text).not.toContain("hits on this page");
+    expect(text).not.toContain("current");
+    expect(text).not.toContain("124");
+  });
+
+  it("explains documentation source exceptions without implying progress from coverage", () => {
     const notice =
       "Results reflect disclosed snapshots; pending work may change hits and ordering.";
     const text = renderUnifiedSearchSuccess(
@@ -625,28 +684,29 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("documentation corpora:");
+    expect(text).toContain("documentation sources for npm:express@5.1.0:");
     expect(text).not.toContain("source notes:");
     expect(text).toContain(
-      "searched repository docs https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567 | current | 1 hit on this page",
+      "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
     );
     expect(text).toContain(
-      "searched site docs expressjs.com | stale | 2 hits on this page | published coverage: capped, 480 published pages, 12 pages omitted by the docpack size limit, about 700 pages estimated, reason: artifact size",
+      "site expressjs.com - searched an older snapshot; published snapshot hit its size cap: 480 pages included, 12 pages omitted, about 700 estimated total",
     );
     expect(text).toContain(
-      "ready, not searched site docs ready.example.com | current | published coverage: complete, 75 published pages",
+      "site ready.example.com - available, but not searched for this response",
     );
     expect(text).toContain(
-      "searched site docs legacy.example.com | stale | no hits on this page | published coverage: not measured, 69 published pages",
+      "site legacy.example.com - searched an older snapshot; published coverage was not measured: 69 pages included",
     );
     expect(text).not.toContain("Coverage has not been computed");
     expect(text).toContain(
-      "pending, not searched site docs pending.example.com",
+      "site pending.example.com - not ready, so it was not searched",
     );
     expect(text).toContain(
-      "unavailable, not searched site docs missing.example.com",
+      "site missing.example.com - unavailable and was not searched",
     );
-    expect(text).not.toContain("0 hits");
+    expect(text).not.toContain("hits on this page");
+    expect(text).not.toContain("documentation corpora");
     expect(text).not.toContain("Indexing is still in progress");
     expect(text.match(new RegExp(notice, "g"))).toHaveLength(1);
     expect(text).toContain(

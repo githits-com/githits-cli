@@ -4,7 +4,7 @@ import type {
   UnifiedSearchStatusResultPayload,
 } from "./unified-search-response.js";
 import {
-  appendDocumentationCorpora,
+  appendDocumentationSources,
   appendEmptySearchGuidance,
   appendEvidenceNotice,
   appendIncompleteSearchNextAction,
@@ -95,7 +95,7 @@ function appendResult(
     if (completed) {
       const sourceDetailsStart = lines.length;
       appendSourceStatusNotes(lines, result.sourceStatus);
-      appendDocumentationCorpora(lines, result.sourceStatus);
+      appendDocumentationSources(lines, result.sourceStatus, result.results);
       if (lines.length > sourceDetailsStart) lines.push("");
       appendEmptySearchGuidance(lines, {
         query: result.query,
@@ -106,7 +106,7 @@ function appendResult(
     } else {
       const sourceDetailsStart = lines.length;
       appendSourceStatusNotes(lines, result.sourceStatus);
-      appendDocumentationCorpora(lines, result.sourceStatus);
+      appendDocumentationSources(lines, result.sourceStatus, result.results);
       if (lines.length > sourceDetailsStart) lines.push("");
       lines.push(noHitsYetMessage(progress));
     }
@@ -128,7 +128,7 @@ function appendResult(
   ) {
     lines.push("");
     appendSourceStatusNotes(lines, result.sourceStatus);
-    appendDocumentationCorpora(lines, result.sourceStatus);
+    appendDocumentationSources(lines, result.sourceStatus, result.results);
   }
   appendEvidenceNotice(lines, result.evidenceNotice);
 }

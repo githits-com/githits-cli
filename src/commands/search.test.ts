@@ -375,17 +375,74 @@ describe("searchAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output).toContain("Documentation corpora:");
+    expect(output).toContain("Documentation sources for npm:express@5.1.0:");
     expect(output).toContain(
-      "searched repository docs https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
+      "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
     );
-    expect(output).toContain("ready, not searched site docs expressjs.com");
     expect(output).toContain(
-      "published coverage: partial, 120 published pages",
+      "site expressjs.com - available, but not searched for this response; the available snapshot is older; published snapshot is partial: 120 pages included",
     );
+    expect(output).not.toContain("hits on this page");
+    expect(output).not.toContain("Documentation corpora");
     expect(output).not.toContain("indexing is still in progress");
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
     expect(output).toContain("githits search-status search-ref-docs");
+    consoleSpy.mockRestore();
+  });
+
+  it("renders healthy documentation as references only", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const result = createDocumentationSearchResult();
+    result.results = [
+      {
+        id: "docs-express-routing",
+        resultType: "DOCUMENTATION_PAGE",
+        targetLabel: "npm:express@5.1.0",
+        title: "Routing",
+        locator: {
+          pageId: "express/routing",
+          sourceUrl: "https://expressjs.com/en/guide/routing.html",
+        },
+      },
+    ];
+    result.page.returned = 1;
+    const contributors = result.sourceStatus[0]?.contributors;
+    if (!contributors?.[0] || !contributors[1]) {
+      throw new Error("expected documentation contributors");
+    }
+    contributors[1].state = "SEARCHED";
+    contributors[1].freshness = "CURRENT";
+    contributors[1].resultCount = 1;
+    contributors[1].siteKey = "34150829eb8a7c57";
+    contributors[1].coverage = {
+      coverageState: "COMPLETE",
+      pagesCrawled: 124,
+      frontierRemaining: 0,
+      artifactOverflowPageCount: 0,
+    };
+    const outcome: UnifiedSearchOutcome = {
+      state: "completed",
+      completed: true,
+      result,
+    };
+
+    await searchAction(
+      "router",
+      { in: ["npm:express"], source: "docs" },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Docs searched for npm:express@5.1.0: repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567; site expressjs.com",
+    );
+    expect(output).not.toContain("Documentation sources");
+    expect(output).not.toContain("hits on this page");
+    expect(output).not.toContain("124 pages");
     consoleSpy.mockRestore();
   });
 
@@ -661,8 +718,10 @@ describe("searchAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output).toContain("Documentation corpora:");
-    expect(output).toContain("ready, not searched site docs expressjs.com");
+    expect(output).toContain("Documentation sources for npm:express@5.1.0:");
+    expect(output).toContain(
+      "site expressjs.com - available, but not searched for this response",
+    );
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
     expect(output).toContain("githits search-status search-ref-docs");
     consoleSpy.mockRestore();
@@ -1638,8 +1697,10 @@ describe("searchStatusAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output).toContain("Documentation corpora:");
-    expect(output).toContain("ready, not searched site docs expressjs.com");
+    expect(output).toContain("Documentation sources for npm:express@5.1.0:");
+    expect(output).toContain(
+      "site expressjs.com - available, but not searched for this response",
+    );
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
     expect(output).not.toContain("githits search-status search-ref-docs");
     expect(output).not.toContain("re-run with the searchRef");

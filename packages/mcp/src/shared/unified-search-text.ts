@@ -53,7 +53,7 @@ export function renderUnifiedSearchSuccess(
   if (completedEmpty) {
     appendWarnings(lines, payload.warnings);
     appendSourceStatusNotes(lines, payload.sourceStatus);
-    appendDocumentationCorpora(lines, payload.sourceStatus);
+    appendDocumentationSources(lines, payload.sourceStatus, payload.results);
     if (lines[lines.length - 1] !== "") lines.push("");
     appendEmptySearchGuidance(lines, {
       query: payload.query,
@@ -257,7 +257,7 @@ function buildTrailer(
 
   if (options.includeSourceStatus) {
     appendSourceStatusNotes(lines, payload.sourceStatus);
-    appendDocumentationCorpora(lines, payload.sourceStatus);
+    appendDocumentationSources(lines, payload.sourceStatus, payload.results);
   }
 
   appendEvidenceNotice(lines, payload.evidenceNotice);
@@ -364,20 +364,44 @@ function hasSourceStatusNote(entry: UnifiedSearchSourceStatusPayload): boolean {
   );
 }
 
-/** Render one compact section explaining the physical documentation corpora. */
-export function appendDocumentationCorpora(
+export interface DocumentationSourceResult {
+  type: string;
+  target: string;
+  locator: { sourceUrl?: string };
+}
+
+/** Render compact references for healthy docs and explain only exceptions. */
+export function appendDocumentationSources(
   lines: string[],
   sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
+  results: DocumentationSourceResult[] = [],
 ): void {
   const documented =
     sourceStatus?.filter((entry) => entry.contributors?.length) ?? [];
   if (documented.length === 0) return;
 
-  lines.push("documentation corpora:");
   for (const entry of documented) {
-    lines.push(`  ${entry.targetLabel}:`);
-    for (const contributor of entry.contributors ?? []) {
-      lines.push(`    - ${formatDocumentationContributor(contributor)}`);
+    const contributors = entry.contributors ?? [];
+    const identities = contributors.map((contributor) =>
+      formatDocumentationContributorIdentity(
+        contributor,
+        entry.targetLabel,
+        results,
+        contributors,
+      ),
+    );
+    if (contributors.every(isHealthyDocumentationContributor)) {
+      lines.push(
+        `docs searched for ${entry.targetLabel}: ${identities.join("; ")}`,
+      );
+      continue;
+    }
+
+    lines.push(`documentation sources for ${entry.targetLabel}:`);
+    for (const [index, contributor] of contributors.entries()) {
+      lines.push(
+        `  - ${formatDocumentationContributor(contributor, identities[index] ?? "docs")}`,
+      );
     }
   }
 }
@@ -386,23 +410,26 @@ function formatDocumentationContributor(
   contributor: NonNullable<
     UnifiedSearchSourceStatusPayload["contributors"]
   >[number],
+  identity: string,
 ): string {
-  const parts = [
-    `${formatDocumentationContributorState(contributor.state)} ${formatDocumentationContributorIdentity(contributor)}`,
-  ];
-  if (contributor.freshness) {
-    parts.push(contributor.freshness.toLowerCase());
-  }
+  if (isHealthyDocumentationContributor(contributor)) return identity;
+
+  const details: string[] = [];
   if (contributor.state === "SEARCHED") {
-    parts.push(
-      contributor.resultCount === 0
-        ? "no hits on this page"
-        : `${contributor.resultCount} hit${contributor.resultCount === 1 ? "" : "s"} on this page`,
+    details.push(
+      contributor.freshness === "STALE"
+        ? "searched an older snapshot"
+        : "searched",
     );
+  } else {
+    details.push(formatDocumentationContributorState(contributor.state));
+    if (contributor.freshness === "STALE") {
+      details.push("the available snapshot is older");
+    }
   }
   const coverage = formatPublishedCoverage(contributor.coverage);
-  if (coverage) parts.push(coverage);
-  return parts.join(SEP);
+  if (coverage) details.push(coverage);
+  return `${identity} - ${details.join("; ")}`;
 }
 
 export function appendEvidenceNotice(
@@ -419,11 +446,11 @@ function formatDocumentationContributorState(
     case "SEARCHED":
       return "searched";
     case "READY":
-      return "ready, not searched";
+      return "available, but not searched for this response";
     case "PENDING":
-      return "pending, not searched";
+      return "not ready, so it was not searched";
     case "UNAVAILABLE":
-      return "unavailable, not searched";
+      return "unavailable and was not searched";
   }
 }
 
@@ -431,14 +458,88 @@ function formatDocumentationContributorIdentity(
   contributor: NonNullable<
     UnifiedSearchSourceStatusPayload["contributors"]
   >[number],
+  targetLabel: string,
+  results: DocumentationSourceResult[],
+  contributors: UnifiedSearchDocumentationContributorPayload[],
 ): string {
   if (contributor.kind === "REPOSITORY_DOCS") {
     const identity = [contributor.repositoryUrl, contributor.commitSha]
       .filter(Boolean)
       .join(" @ ");
-    return identity ? `repository docs ${identity}` : "repository docs";
+    return identity ? `repo ${identity}` : "repository docs";
   }
-  return contributor.siteKey ? `site docs ${contributor.siteKey}` : "site docs";
+  const readableSiteKey = formatReadableSiteReference(contributor.siteKey);
+  if (readableSiteKey) return `site ${readableSiteKey}`;
+
+  const targetSite = targetLabel.startsWith("site:")
+    ? targetLabel.slice("site:".length)
+    : undefined;
+  if (targetSite) return `site ${targetSite}`;
+
+  const docpackCount = contributors.filter(
+    (candidate) => candidate.kind === "DOCPACK",
+  ).length;
+  if (docpackCount === 1) {
+    const matchingHosts = new Set(
+      results
+        .filter(
+          (result) =>
+            result.type === "documentation_page" &&
+            result.target === targetLabel &&
+            result.locator.sourceUrl,
+        )
+        .map((result) => hostnameFromUrl(result.locator.sourceUrl))
+        .filter((host): host is string => Boolean(host)),
+    );
+    if (matchingHosts.size === 1) {
+      return `site ${matchingHosts.values().next().value}`;
+    }
+  }
+
+  return contributor.siteKey
+    ? `site key ${contributor.siteKey}`
+    : "site documentation";
+}
+
+function isHealthyDocumentationContributor(
+  contributor: UnifiedSearchDocumentationContributorPayload,
+): boolean {
+  if (contributor.state !== "SEARCHED" || contributor.freshness !== "CURRENT") {
+    return false;
+  }
+  return (
+    contributor.kind === "REPOSITORY_DOCS" ||
+    contributor.coverage?.coverageState === "COMPLETE"
+  );
+}
+
+function formatReadableSiteReference(
+  siteKey: string | undefined,
+): string | undefined {
+  if (!siteKey) return undefined;
+  const candidate = siteKey.replace(/^site:/, "");
+  const hostname = hostnameFromUrl(
+    candidate.includes("://") ? candidate : `https://${candidate}`,
+  );
+  if (!hostname?.includes(".")) return undefined;
+  try {
+    const url = new URL(
+      candidate.includes("://") ? candidate : `https://${candidate}`,
+    );
+    const path = url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "");
+    return `${url.hostname}${path}`;
+  } catch {
+    return undefined;
+  }
+}
+
+function hostnameFromUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    return new URL(value).hostname || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function formatPublishedCoverage(
@@ -447,14 +548,12 @@ function formatPublishedCoverage(
   >[number]["coverage"],
 ): string | undefined {
   if (!coverage) return undefined;
-  const details: string[] = [
-    coverage.coverageState === "NONE"
-      ? "not measured"
-      : coverage.coverageState.toLowerCase(),
-  ];
+  if (coverage.coverageState === "COMPLETE") return undefined;
+
+  const details: string[] = [];
   if (typeof coverage.pagesCrawled === "number") {
     details.push(
-      `${coverage.pagesCrawled} published page${coverage.pagesCrawled === 1 ? "" : "s"}`,
+      `${coverage.pagesCrawled} page${coverage.pagesCrawled === 1 ? "" : "s"} included`,
     );
   }
   if (
@@ -462,7 +561,7 @@ function formatPublishedCoverage(
     coverage.artifactOverflowPageCount > 0
   ) {
     details.push(
-      `${coverage.artifactOverflowPageCount} page${coverage.artifactOverflowPageCount === 1 ? "" : "s"} omitted by the docpack size limit`,
+      `${coverage.artifactOverflowPageCount} page${coverage.artifactOverflowPageCount === 1 ? "" : "s"} omitted`,
     );
   }
   if (
@@ -470,26 +569,34 @@ function formatPublishedCoverage(
     coverage.frontierRemaining > 0
   ) {
     details.push(
-      `${coverage.frontierRemaining} discovered page${coverage.frontierRemaining === 1 ? "" : "s"} outside this snapshot`,
+      `${coverage.frontierRemaining} discovered page${coverage.frontierRemaining === 1 ? "" : "s"} not included`,
     );
   }
   if (typeof coverage.estimatedTotalPages === "number") {
-    details.push(`about ${coverage.estimatedTotalPages} pages estimated`);
+    details.push(`about ${coverage.estimatedTotalPages} estimated total`);
   }
-  if (coverage.coverageReason && coverage.coverageState !== "PARTIAL") {
-    details.push(`reason: ${humanizeCoverageReason(coverage.coverageReason)}`);
-  }
+
+  const reason = coverage.coverageReason
+    ? humanizeCoverageReason(coverage.coverageReason)
+    : undefined;
   if (
-    coverage.note &&
-    coverage.coverageState !== "NONE" &&
-    // The deployed PARTIAL note incorrectly derives indexing progress from
-    // published coverage. Preserve it in JSON, but keep text lifecycle-neutral.
-    coverage.coverageState !== "PARTIAL" &&
-    !coverage.coverageReason
+    reason &&
+    !(coverage.coverageState === "CAPPED" && reason === "artifact size")
   ) {
-    details.push(coverage.note);
+    details.push(`limited by ${reason}`);
   }
-  return `published coverage: ${details.join(", ")}`;
+
+  const detailText = details.length > 0 ? `: ${details.join(", ")}` : "";
+  switch (coverage.coverageState) {
+    case "PARTIAL":
+      return `published snapshot is partial${detailText}`;
+    case "CAPPED":
+      return `published snapshot hit its size cap${detailText}`;
+    case "NONE":
+      return `published coverage was not measured${detailText}`;
+    default:
+      return `published coverage is ${coverage.coverageState.toLowerCase()}${detailText}`;
+  }
 }
 
 function humanizeCoverageReason(reason: string): string {

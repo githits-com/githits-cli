@@ -3,7 +3,7 @@ import type {
   UnifiedSearchSource,
 } from "@githits/core-internal";
 import {
-  appendDocumentationCorpora,
+  appendDocumentationSources,
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchParams,
   buildUnifiedSearchStatusPayload,
@@ -473,8 +473,9 @@ function formatUnifiedSearchTerminal(
     warnings,
     payload.completed,
   );
-  const documentationCorporaNotes = formatDocumentationCorporaTerminal(
+  const documentationSourceNotes = formatDocumentationSourcesTerminal(
     payload.sourceStatus,
+    payload.results,
   );
   const evidenceNotes = payload.evidenceNotice
     ? [`Evidence notice: ${payload.evidenceNotice}`]
@@ -491,7 +492,7 @@ function formatUnifiedSearchTerminal(
   }
   const provenanceNotes = [
     ...sourceStatusNotes,
-    ...documentationCorporaNotes,
+    ...documentationSourceNotes,
     ...evidenceNotes,
   ];
 
@@ -783,16 +784,25 @@ function formatSourceStatusNotes(
   return lines;
 }
 
-function formatDocumentationCorporaTerminal(
+function formatDocumentationSourcesTerminal(
   sourceStatus: SourceStatusEntry[] | undefined,
+  results: Array<{
+    type: string;
+    target: string;
+    locator: { sourceUrl?: string };
+  }>,
 ): string[] {
   const lines: string[] = [];
-  appendDocumentationCorpora(lines, sourceStatus);
-  if (lines[0] === "documentation corpora:") {
-    lines[0] = "Documentation corpora:";
-  }
+  appendDocumentationSources(lines, sourceStatus, results);
   const useColors = shouldUseColors();
-  return lines.map((line) => dim(line, useColors));
+  return lines.map((line) => {
+    const terminalLine =
+      line.startsWith("docs searched") ||
+      line.startsWith("documentation sources")
+        ? `${line[0]?.toUpperCase()}${line.slice(1)}`
+        : line;
+    return dim(terminalLine, useColors);
+  });
 }
 
 function dedupeSearchResultsForDisplay<

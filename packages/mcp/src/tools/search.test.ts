@@ -82,8 +82,12 @@ describe("searchTool", () => {
       },
       {},
     );
-    expect(text.content[0]?.text).toContain("documentation corpora:");
-    expect(text.content[0]?.text).toContain("pending, not searched");
+    expect(text.content[0]?.text).toContain(
+      "documentation sources for npm:express@5.1.0:",
+    );
+    expect(text.content[0]?.text).toContain(
+      "site expressjs.com - not ready, so it was not searched",
+    );
   });
 
   it("passes compiled request through to code navigation service", async () => {

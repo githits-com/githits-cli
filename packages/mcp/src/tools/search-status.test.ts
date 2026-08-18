@@ -168,8 +168,12 @@ describe("searchStatusTool", () => {
     );
 
     const text = await tool.handler({ search_ref: "search-ref-docs" }, {});
-    expect(text.content[0]?.text).toContain("documentation corpora:");
-    expect(text.content[0]?.text).toContain("pending, not searched");
+    expect(text.content[0]?.text).toContain(
+      "documentation sources for npm:express@5.1.0:",
+    );
+    expect(text.content[0]?.text).toContain(
+      "site expressjs.com - not ready, so it was not searched",
+    );
   });
 
   it("keeps completed empty JSON structured", async () => {
