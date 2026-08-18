@@ -123,14 +123,21 @@ function appendResult(
     lines.push("");
     lines.push(`More hits available.${nextOffsetHint}`);
   }
+  const sourceNotes: string[] = [];
   if (
     result.results.length > 0 &&
     result.sourceStatus &&
     result.sourceStatus.length > 0
   ) {
-    const sourceNotes: string[] = [];
     appendSourceStatusNotes(sourceNotes, result.sourceStatus);
     if (sourceNotes.length > 0) lines.push("", ...sourceNotes);
+  }
+  if (
+    result.results.length > 0 &&
+    sourceNotes.length === 0 &&
+    result.evidenceNotice
+  ) {
+    lines.push("");
   }
   appendEvidenceNotice(lines, result.evidenceNotice);
 }

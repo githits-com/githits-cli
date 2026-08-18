@@ -82,6 +82,7 @@ describe("renderUnifiedSearchStatusText", () => {
       searchRef: "search-ref-healthy",
       result: {
         hasMore: false,
+        evidenceNotice: "Results may change after pending work completes.",
         results: [
           {
             type: "documentation_page",
@@ -115,6 +116,9 @@ describe("renderUnifiedSearchStatusText", () => {
     const text = renderUnifiedSearchStatusText(payload);
 
     expect(text.indexOf("searched:")).toBeLessThan(text.indexOf("[1]"));
+    expect(text).toContain(
+      "\n\nevidence notice: Results may change after pending work completes.",
+    );
     expect(text.endsWith("\n")).toBe(false);
   });
 });
