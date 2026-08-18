@@ -5,6 +5,67 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.9.3] - 2026-08-18
+
+Patch release: adds an unpromoted CodeDiff CLI dogfood surface and improves
+CLI recovery, validation guidance, and search diagnostics.
+
+### Added
+
+- **Silent CodeDiff CLI dogfooding** - adds `githits code diff` with bounded
+  Git-like views, repository-relative glob filtering, reversible path quoting,
+  apply-safe patch handling, structured completeness diagnostics, and JSON
+  output without exposing an MCP tool or agent guidance yet.
+
+### Changed
+
+- **Independent changelog fragments** - notable changes now record release
+  notes and per-artifact SemVer impact in independently owned files, avoiding
+  conflicts in `CHANGELOG.md` during normal development.
+
+### Fixed
+
+- **Code validation guidance** - client-side `INVALID_ARGUMENT` errors from
+  shared code-read and grep request builders now name CLI commands,
+  positionals, and options on the CLI while MCP keeps MCP-native tool and
+  argument syntax.
+- **Remove obsolete ref suggestions** - waited searches no longer recommend an
+  older ref after reaching the requested commit.
+- **Explain unavailable exact paths** - CLI and MCP now return
+  `FILE_PATH_EXCLUDED` for excluded files and
+  `SOURCE_FILE_INVENTORY_UNKNOWN` when the index cannot verify a path, with
+  actionable path and resolution details.
+- **Standalone-site search recovery** - CLI and MCP search now preserve ordered
+  backend site suggestions, distinguish truncated candidate lists, and direct
+  active crawls through search status without guessing or rewriting targets.
+  Help text also distinguishes atomic interim evidence from opted-in partial
+  target/source subsets.
+
+## [@githits/mcp 0.9.2] - 2026-08-18
+
+Patch release: adds an opt-in CodeDiff client capability and improves search
+and exact-path recovery without exposing a new remote MCP tool.
+
+### Added
+
+- **CodeDiff client support** - adds the transport-neutral package and
+  repository diff adapter as an additive `CodeDiffService` capability without
+  exposing a remote MCP tool.
+
+### Fixed
+
+- **Remove obsolete ref suggestions** - waited searches no longer recommend an
+  older ref after reaching the requested commit.
+- **Explain unavailable exact paths** - MCP tools now return
+  `FILE_PATH_EXCLUDED` for excluded files and
+  `SOURCE_FILE_INVENTORY_UNKNOWN` when the index cannot verify a path, with
+  actionable path and resolution details.
+- **Standalone-site search recovery** - MCP search now preserves ordered
+  backend site suggestions, distinguishes truncated candidate lists, and
+  directs active crawls through search status without guessing or rewriting
+  targets. Help text also distinguishes atomic interim evidence from opted-in
+  partial target/source subsets.
+
 ## [githits 0.9.2] - 2026-08-14
 
 Patch release: improves CLI exact-path recovery and makes Claude Code and Codex

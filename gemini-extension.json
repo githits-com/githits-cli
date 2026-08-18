@@ -1,6 +1,6 @@
 {
   "name": "githits",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "description": "The code context layer for AI coding agents",
   "mcpServers": {
     "githits": {

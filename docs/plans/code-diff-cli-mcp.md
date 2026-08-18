@@ -1,9 +1,8 @@
 # Plan: CodeDiff CLI dogfood and agent rollout
 
-> Overall status: Phase 1 is merged. Phase 2 is implemented and locally/live
-> verified and reviewed as a silent CLI-only dogfood launch; merge is pending.
-> MCP and agent-facing exposure remain deferred until the CLI contract has
-> been exercised after merge.
+> Overall status: Phases 1 and 2 are merged as a silent CLI-only dogfood
+> launch. MCP and agent-facing exposure remain deferred until the CLI contract
+> has been exercised after release.
 >
 > Reoriented: 2026-08-17 against `githits` `origin/main` at `77417aa` and
 > PkgSeer backend `origin/main` at `c0cf92e` with GraphQL schema hash
@@ -36,9 +35,10 @@ CodeDiff remains a separate, unexposed backend evaluation surface.
 ### GitHits repository
 
 - Phase 1 merged through PR #287 at `origin/main` `77417aa`. The merged delta
-  adds `CodeNavigationService.codeDiff`, exact request/result/error types,
-  mode-minimal GraphQL selections, runtime validation, fixtures, public client
-  exports, and `docs/implementation/code-diff.md`.
+  adds the separate `CodeDiffService.codeDiff` capability, exact
+  request/result/error types, mode-minimal GraphQL selections, runtime
+  validation, fixtures, public client exports, and
+  `docs/implementation/code-diff.md`.
 - The declaration-build pipeline failure was fixed before merge. Phase 1's
   focused tests, full tests, build, and public-package validation passed.
 - No `githits code diff` command, `code_diff` MCP tool, response formatter,
@@ -141,7 +141,7 @@ into separate phases. Do not implement the old combined Phase 2.
 
 ### Boundaries and responsibilities
 
-- `CodeNavigationService.codeDiff` remains the only network/service boundary.
+- `CodeDiffService.codeDiff` remains the only network/service boundary.
   It owns authenticated GraphQL execution, exact variable construction,
   mode-minimal selections, runtime validation, and typed CodeDiff errors.
 - Small pure CodeDiff request, response, text, and error helpers live under
@@ -168,7 +168,7 @@ remote MCP servers must not. No new module from Phase 2 is exported by
 ```text
 CLI target + from..to + view/filter/bounds
   -> pure CLI request normalization
-  -> CodeNavigationService.codeDiff
+  -> CodeDiffService.codeDiff
   -> mode-minimal codeDiff.raw GraphQL selection
   -> typed CodeDiff result or error
   -> pure selected-view JSON/text projection
@@ -315,8 +315,9 @@ There is no blocking product decision for Phase 2.
 
 ### Compatibility, release, and rollback
 
-- Phase 2 adds a root CLI command and therefore adds one independent fragment
-  with pending impacts `githits: minor` and `@githits/mcp: none`.
+- Phase 2 adds an unpromoted root CLI dogfood command and therefore adds one
+  independent fragment with pending impacts `githits: patch` and
+  `@githits/mcp: none`.
 - Phase 2 does not bump versions directly. Release preparation owns package and
   generated-manifest versions.
 - Workspace-internal shared modules must not appear in public export maps or
@@ -500,10 +501,10 @@ plugin generator, or generated agent asset in this phase.
   failed content evidence succeeds with unmistakable structured/text warnings.
 - CLI help states the bounded glob and revision limitations without claiming
   full Git pathspec or revision compatibility.
-- No `code_diff` tool, MCP instruction, agent guidance, plugin asset, or public
-  `@githits/mcp` export is added or changed.
+- No `code_diff` tool, MCP instruction, agent guidance, or plugin asset is
+  added or changed by Phase 2.
 - Durable docs describe the dogfood posture and one release fragment records
-  `githits: minor`, `@githits/mcp: none`.
+  `githits: patch`, `@githits/mcp: none`.
 - Focused tests, full tests, build, CLI smoke, built CLI smoke, package
   validation, and relevant format/lint checks pass. Authenticated dev results
   are recorded accurately.

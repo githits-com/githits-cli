@@ -370,17 +370,21 @@ async function verifyMcpConsumer(
   );
   await writeFile(
     join(appDirectory, "code-diff-check.ts"),
-    `import { CodeDiffError, CodeNavigationServiceImpl, createStaticTokenProvider, getCodeNavigationUrl, type CodeDiffMode, type CodeDiffPackageTarget, type CodeDiffParams, type CodeDiffRepositoryTarget, type CodeDiffResult, type CodeNavigationService } from "@githits/mcp/client";
+    `import { CodeDiffError, CodeNavigationServiceImpl, createStaticTokenProvider, getCodeNavigationUrl, type CodeDiffMode, type CodeDiffPackageTarget, type CodeDiffParams, type CodeDiffRepositoryTarget, type CodeDiffResult, type CodeDiffService, type CodeNavigationService } from "@githits/mcp/client";
 const packageTarget: CodeDiffPackageTarget = { registry: "NPM", packageName: "express" };
 const repositoryTarget: CodeDiffRepositoryTarget = { repoUrl: "https://github.com/expressjs/express" };
 const mode: CodeDiffMode = "inventory";
 const params: CodeDiffParams = { target: packageTarget, from: "4.18.1", to: "4.18.2", mode };
 const result: CodeDiffResult | undefined = undefined;
 const service: CodeNavigationService = new CodeNavigationServiceImpl(getCodeNavigationUrl(), createStaticTokenProvider("token"));
+const diffService: CodeDiffService = new CodeNavigationServiceImpl(getCodeNavigationUrl(), createStaticTokenProvider("token"));
+const codeNavigationRemainsCompatible: "codeDiff" extends keyof CodeNavigationService ? never : true = true;
 void repositoryTarget;
 void params;
 void result;
 void service;
+void diffService;
+void codeNavigationRemainsCompatible;
 void CodeDiffError;
 `,
   );

@@ -1,5 +1,6 @@
 import {
   type AgentInfo,
+  type CodeDiffService,
   type CodeNavigationService,
   CodeNavigationServiceImpl,
   createClientHeaderBuilder,
@@ -240,7 +241,7 @@ export interface Dependencies {
   /** Code navigation backend URL */
   codeNavigationUrl: string;
   /** Code navigation service used by CLI/MCP paths */
-  codeNavigationService: CodeNavigationService;
+  codeNavigationService: CodeNavigationService & CodeDiffService;
   /**
    * Package intelligence service — reads registry metadata,
    * vulnerabilities, dependencies, and changelogs from the
