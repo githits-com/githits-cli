@@ -594,13 +594,59 @@ describe("renderUnifiedSearchSuccess", () => {
       ),
     );
 
-    expect(text).toContain(
-      "docs searched for npm:express@5.2.1: site expressjs.com; repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
+    const searchedLine = text
+      .split("\n")
+      .find((line) => line.startsWith("searched:"));
+    expect(searchedLine).toBe(
+      "searched: site expressjs.com; repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
     );
+    expect(text.indexOf("searched:")).toBeLessThan(text.indexOf("[1]"));
     expect(text).not.toContain("documentation corpora");
     expect(text).not.toContain("hits on this page");
     expect(text).not.toContain("current");
     expect(text).not.toContain("124");
+  });
+
+  it("labels documentation sources only when multiple targets need disambiguation", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([docsHit()], {
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                freshness: "CURRENT",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/expressjs/express",
+                commitSha: "0123456789abcdef0123456789abcdef01234567",
+              },
+            ],
+          },
+          {
+            source: "docs",
+            targetLabel: "npm:koa@3.0.1",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                freshness: "CURRENT",
+                resultCount: 0,
+                repositoryUrl: "https://github.com/koajs/koa",
+                commitSha: "abcdef0123456789abcdef0123456789abcdef01",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "searched:\n  npm:express@5.2.1: repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567\n  npm:koa@3.0.1: repo https://github.com/koajs/koa @ abcdef0123456789abcdef0123456789abcdef01",
+    );
+    expect(text.indexOf("searched:")).toBeLessThan(text.indexOf("[1]"));
   });
 
   it("explains capped page coverage without repeating the limit reason", () => {
@@ -733,7 +779,10 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("documentation sources for npm:express@5.1.0:");
+    expect(text).toContain("documentation sources:");
+    expect(text.indexOf("documentation sources:")).toBeLessThan(
+      text.indexOf("[1]"),
+    );
     expect(text).not.toContain("source notes:");
     expect(text).toContain(
       "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",

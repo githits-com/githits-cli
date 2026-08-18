@@ -43,7 +43,7 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(text).toContain(
       "site docs.example.com - searched; published snapshot is partial: 120 pages included",
     );
-    expect(text).toContain("documentation sources for site:docs.example.com:");
+    expect(text).toContain("documentation sources:");
     expect(text).not.toContain("hits on this page");
     expect(text).not.toContain("documentation corpora");
     expect(text).not.toContain("Indexing is still in progress");

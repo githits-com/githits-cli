@@ -61,10 +61,14 @@ export function renderUnifiedSearchSuccess(
       evidenceNotice: payload.evidenceNotice,
     });
   } else if (payload.results.length === 0) {
+    appendDocumentationSources(lines, payload.sourceStatus, payload.results);
+    if (lines[lines.length - 1] !== "") lines.push("");
     lines.push(
       noHitsYetMessage("progress" in payload ? payload.progress : undefined),
     );
   } else {
+    appendDocumentationSources(lines, payload.sourceStatus, payload.results);
+    if (lines[lines.length - 1] !== "") lines.push("");
     appendUnifiedSearchHits(lines, payload.results);
   }
 
@@ -257,7 +261,6 @@ function buildTrailer(
 
   if (options.includeSourceStatus) {
     appendSourceStatusNotes(lines, payload.sourceStatus);
-    appendDocumentationSources(lines, payload.sourceStatus, payload.results);
   }
 
   appendEvidenceNotice(lines, payload.evidenceNotice);
@@ -380,7 +383,7 @@ export function appendDocumentationSources(
     sourceStatus?.filter((entry) => entry.contributors?.length) ?? [];
   if (documented.length === 0) return;
 
-  for (const entry of documented) {
+  const entries = documented.map((entry) => {
     const contributors = entry.contributors ?? [];
     const sources = contributors.map((contributor) => ({
       contributor,
@@ -391,18 +394,43 @@ export function appendDocumentationSources(
         contributors,
       ),
     }));
-    if (contributors.every(isHealthyDocumentationContributor)) {
-      lines.push(
-        `docs searched for ${entry.targetLabel}: ${sources.map(({ identity }) => identity).join("; ")}`,
-      );
-      continue;
-    }
+    return {
+      entry,
+      sources,
+      healthy: contributors.every(isHealthyDocumentationContributor),
+    };
+  });
+  const healthy = entries.filter((entry) => entry.healthy);
+  const exceptional = entries.filter((entry) => !entry.healthy);
+  const showTargets = entries.length > 1;
 
-    lines.push(`documentation sources for ${entry.targetLabel}:`);
-    for (const { contributor, identity } of sources) {
+  if (healthy.length > 0) {
+    if (showTargets) {
+      lines.push("searched:");
+      for (const { entry, sources } of healthy) {
+        lines.push(
+          `  ${entry.targetLabel}: ${sources.map(({ identity }) => identity).join("; ")}`,
+        );
+      }
+    } else {
       lines.push(
-        `  - ${formatDocumentationContributor(contributor, identity)}`,
+        `searched: ${healthy.flatMap(({ sources }) => sources.map(({ identity }) => identity)).join("; ")}`,
       );
+    }
+  }
+
+  if (healthy.length > 0 && exceptional.length > 0) lines.push("");
+
+  if (exceptional.length > 0) {
+    lines.push("documentation sources:");
+    for (const { entry, sources } of exceptional) {
+      if (showTargets) lines.push(`  ${entry.targetLabel}:`);
+      const indent = showTargets ? "    " : "  ";
+      for (const { contributor, identity } of sources) {
+        lines.push(
+          `${indent}- ${formatDocumentationContributor(contributor, identity)}`,
+        );
+      }
     }
   }
 }

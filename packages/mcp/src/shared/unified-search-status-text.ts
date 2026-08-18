@@ -111,6 +111,8 @@ function appendResult(
       lines.push(noHitsYetMessage(progress));
     }
   } else {
+    appendDocumentationSources(lines, result.sourceStatus, result.results);
+    if (lines[lines.length - 1] !== "") lines.push("");
     appendUnifiedSearchHits(lines, result.results);
   }
   if (result.hasMore) {
@@ -128,7 +130,6 @@ function appendResult(
   ) {
     lines.push("");
     appendSourceStatusNotes(lines, result.sourceStatus);
-    appendDocumentationSources(lines, result.sourceStatus, result.results);
   }
   appendEvidenceNotice(lines, result.evidenceNotice);
 }

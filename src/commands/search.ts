@@ -490,7 +490,8 @@ function formatUnifiedSearchTerminal(
       `next: githits search-status ${payload.searchRef} --wait ${DEFAULT_WAIT_TIMEOUT_MS / 1000}`,
     );
   }
-  const provenanceNotes = [
+  const provenanceNotes = [...sourceStatusNotes, ...evidenceNotes];
+  const emptyResultNotes = [
     ...sourceStatusNotes,
     ...documentationSourceNotes,
     ...evidenceNotes,
@@ -504,9 +505,9 @@ function formatUnifiedSearchTerminal(
     });
     lines.push(statusText);
     if (payload.results.length === 0) {
-      if (provenanceNotes.length > 0) {
+      if (emptyResultNotes.length > 0) {
         lines.push("");
-        lines.push(...provenanceNotes);
+        lines.push(...emptyResultNotes);
       }
       return lines.join("\n").trimEnd();
     }
@@ -517,9 +518,9 @@ function formatUnifiedSearchTerminal(
   if (payload.results.length === 0) {
     lines.push("No results.");
     if (payload.evidenceNotice) lines.push("Do not repeat immediately.");
-    if (provenanceNotes.length > 0) {
+    if (emptyResultNotes.length > 0) {
       lines.push("");
-      lines.push(...provenanceNotes);
+      lines.push(...emptyResultNotes);
     }
     return lines.join("\n").trimEnd();
   }
@@ -537,6 +538,9 @@ function formatUnifiedSearchTerminal(
   lines.push(
     `${highlight(baseCount, useColors)}${dim(countSuffix, useColors)}${typeSummary ? dim(` | ${typeSummary}`, useColors) : ""}`,
   );
+  if (documentationSourceNotes.length > 0) {
+    lines.push(...documentationSourceNotes);
+  }
   lines.push("");
 
   for (const entry of display) {
@@ -797,8 +801,7 @@ function formatDocumentationSourcesTerminal(
   const useColors = shouldUseColors();
   return lines.map((line) => {
     const terminalLine =
-      line.startsWith("docs searched") ||
-      line.startsWith("documentation sources")
+      line.startsWith("searched") || line.startsWith("documentation sources")
         ? `${line[0]?.toUpperCase()}${line.slice(1)}`
         : line;
     return dim(terminalLine, useColors);

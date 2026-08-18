@@ -375,7 +375,7 @@ describe("searchAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output).toContain("Documentation sources for npm:express@5.1.0:");
+    expect(output).toContain("Documentation sources:");
     expect(output).toContain(
       "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
     );
@@ -438,7 +438,7 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain(
-      "Docs searched for npm:express@5.1.0: repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567; site expressjs.com",
+      "1 result | 1 docs page\nSearched: repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567; site expressjs.com",
     );
     expect(output).not.toContain("Documentation sources");
     expect(output).not.toContain("hits on this page");
@@ -718,7 +718,7 @@ describe("searchAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output).toContain("Documentation sources for npm:express@5.1.0:");
+    expect(output).toContain("Documentation sources:");
     expect(output).toContain(
       "site documentation - available, but not searched for this response",
     );
@@ -1697,7 +1697,7 @@ describe("searchStatusAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output).toContain("Documentation sources for npm:express@5.1.0:");
+    expect(output).toContain("Documentation sources:");
     expect(output).toContain(
       "site documentation - available, but not searched for this response",
     );
