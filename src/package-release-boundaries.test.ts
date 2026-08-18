@@ -172,4 +172,25 @@ describe("package release boundaries", () => {
     expect(publishIndex).toBeGreaterThan(-1);
     expect(createTagIndex).toBeLessThan(publishIndex);
   });
+
+  it("requires separate human approval to merge a release PR", async () => {
+    const root = join(import.meta.dir, "..");
+    const instructionPaths = [
+      "AGENTS.md",
+      join(".agents", "skills", "githits-release", "SKILL.md"),
+      join("changes", "README.md"),
+      join("docs", "implementation", "release-process.md"),
+      join("docs", "guidelines", "REVIEW_GUIDELINES.md"),
+    ];
+
+    for (const instructionPath of instructionPaths) {
+      const instructions = (
+        await readFile(join(root, instructionPath), "utf8")
+      ).replaceAll(/\s+/g, " ");
+
+      expect(instructions).toContain("separate, explicit human approval");
+      expect(instructions).toContain("after the release PR exists");
+      expect(instructions).toContain("does not authorize merging");
+    }
+  });
 });

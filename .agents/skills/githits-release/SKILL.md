@@ -12,6 +12,22 @@ metadata:
 
 Use this skill for GitHits changelog maintenance, release work, version-bump PRs, release-readiness reviews, and release notes.
 
+## Human Merge Gate
+
+- Release preparation ends with an open release PR. A request to audit,
+  prepare, create, cut, or release a version does not authorize merging,
+  enabling auto-merge, tagging, publishing, or waiting for publication.
+- Merge a release PR only after receiving separate, explicit human approval
+  given after the release PR exists. The approval must explicitly authorize
+  merging and identify that PR by number, URL, or an otherwise unambiguous
+  reference to the already-open PR.
+- Earlier requests for an end-to-end release do not satisfy the merge gate.
+  After opening the PR, report its URL and check status, then stop and ask for
+  merge approval. Do not enable auto-merge as a substitute for approval.
+- After the separate approval, merge only the approved PR. The successful
+  `Main` workflow will trigger publication, which may then be monitored to
+  completion.
+
 ## Release Checklist
 
 - Root `githits` and `@githits/mcp` have separate release flows. Bump both only when both surfaces changed.

@@ -36,3 +36,9 @@ partially. Group entries by category into each affected artifact's versioned
 unrelated to that release untouched. A fragment with `none` for every artifact
 documents repository or release-operation impact; it does not trigger a release
 and is consumed into the next `githits` release.
+
+Opening the release PR completes release preparation. A request to audit,
+prepare, create, cut, or release a version does not authorize merging or
+enabling auto-merge. Merge requires separate, explicit human approval given
+after the release PR exists and identifying that PR; earlier release requests
+do not count as merge approval.
