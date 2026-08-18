@@ -221,7 +221,7 @@ describe("formatCodeDiffTerminal", () => {
             modeChanged: false,
             typeChanged: false,
             contentStatus: "omitted",
-            contentOmissionReason: "content_budget",
+            contentOmissionReason: "total_patch_bytes",
             contentSafety: { filtered: false, modifications: [] },
           },
         ],
@@ -230,8 +230,34 @@ describe("formatCodeDiffTerminal", () => {
     );
 
     expect(result.stdout).toBe(
-      "--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-old\n+new\n--- /dev/null\n+++ b/added file.ts\n@@ -0,0 +1 @@\n+new\n--- a/deleted.ts\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\nPatch omitted: large.ts (content_budget)\n",
+      "--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-old\n+new\n--- /dev/null\n+++ b/added file.ts\n@@ -0,0 +1 @@\n+new\n--- a/deleted.ts\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\nPatch omitted: large.ts (total_patch_bytes)\n",
     );
+  });
+
+  it("accepts both backend names for an explicit patch-budget omission", () => {
+    for (const reason of ["content_budget", "total_patch_bytes"]) {
+      const result = formatCodeDiffTerminal(
+        envelope({
+          contentCoverage: "partial",
+          files: [
+            {
+              path: "large.ts",
+              pathEncoding: "utf8",
+              status: "modified",
+              modeChanged: false,
+              typeChanged: false,
+              contentStatus: "omitted",
+              contentOmissionReason: reason,
+              contentSafety: { filtered: false, modifications: [] },
+            },
+          ],
+        }),
+        { ...options, explicitMaxPatchBytes: true },
+      );
+
+      expect(result.stdout).toContain(`Patch omitted: large.ts (${reason})`);
+      expect(result.exitCode).toBeUndefined();
+    }
   });
 
   it("suppresses patch streams that cannot represent binary changes", () => {
@@ -254,6 +280,10 @@ describe("formatCodeDiffTerminal", () => {
 
     expect(result.stdout).toBe("");
     expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      "1 binary change cannot be represented as an applicable text patch",
+    );
+    expect(result.stderr).toContain("Use --stat or --name-status");
   });
 
   it("preserves patches without backend placeholder headers", () => {
@@ -434,8 +464,11 @@ describe("formatCodeDiffTerminal", () => {
     expect(result.stderr).toContain("repository-wide");
     expect(result.stderr).toContain("inventory is incomplete");
     expect(result.stderr).toContain("More matching files");
+    expect(result.stderr).toContain("Add a path glob after `--`");
     expect(result.stderr).toContain("2 matching path(s)");
     expect(result.stderr).toContain("Requested content failed");
+    expect(result.stderr).toContain("Use --stat or --name-status");
+    expect(result.stderr).toContain("--json");
     expect(result.stderr).toContain("display-only byte escapes");
     expect(result.stderr).toContain("modified for content safety");
   });

@@ -114,10 +114,14 @@ suppresses stdout and exits 1 when unexpected truncation, failed or unavailable
 content, binary/metadata-only changes, display-only paths, unprojectable files,
 or content-safety changes would make the stream unsafe to apply. An explicit
 `--max-files` authorizes file-count truncation, and an explicit
-`--max-patch-bytes` authorizes `content_budget` omissions; neither authorizes
-unrelated failure classes. Validation, authentication, resolution, and
-raw-field errors exit 1 through the shared CLI error envelope. No `code_diff`
-MCP tool, instruction, skill, or plugin promotion exists during this phase.
+`--max-patch-bytes` authorizes aggregate patch-budget omissions; neither
+authorizes unrelated failure classes. Suppression diagnostics name
+binary/metadata-only causes and direct humans to stat/name views while JSON
+retains structured partial evidence. The applicable patch stream is unified
+diff content; the backend does not provide Git index or mode headers.
+Validation, authentication, resolution, and raw-field errors exit 1 through
+the shared CLI error envelope. No `code_diff` MCP tool, instruction, skill, or
+plugin promotion exists during this phase.
 
 ## Key reference files
 

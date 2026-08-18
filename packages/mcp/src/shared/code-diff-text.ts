@@ -21,6 +21,11 @@ export interface FormattedCodeDiffTerminal {
   exitCode?: 1;
 }
 
+const EXPLICIT_PATCH_BUDGET_OMISSION_REASONS = new Set([
+  "content_budget",
+  "total_patch_bytes",
+]);
+
 /** Render a Git-like primary stream plus truthful bounded-evidence diagnostics. */
 export function formatCodeDiffTerminal(
   envelope: LeanCodeDiffEnvelope,
@@ -31,7 +36,7 @@ export function formatCodeDiffTerminal(
   if (suppressPatch) {
     diagnostics.push(
       warn(
-        "Patch output was suppressed because the result is not safely applicable. Use --json to inspect the partial evidence.",
+        "Patch output was suppressed because the result is not safely applicable. Use --stat or --name-status to inspect changes, or --json for structured partial evidence.",
         options,
       ),
     );
@@ -204,7 +209,10 @@ function shouldSuppressPatch(
     return !(
       options.explicitMaxPatchBytes &&
       patchFile.contentStatus === "omitted" &&
-      patchFile.contentOmissionReason === "content_budget"
+      patchFile.contentOmissionReason !== undefined &&
+      EXPLICIT_PATCH_BUDGET_OMISSION_REASONS.has(
+        patchFile.contentOmissionReason,
+      )
     );
   });
 }
@@ -230,9 +238,12 @@ function buildDiagnostics(
     );
   }
   if (envelope.hasMoreFiles) {
+    const recovery = envelope.scope.pathGlob
+      ? "Narrow the path glob or raise --max-files (up to 300)."
+      : "Add a path glob after `--` or raise --max-files (up to 300).";
     lines.push(
       warn(
-        `More matching files exist than the ${envelope.files.length} returned. Narrow the glob or raise --max-files.`,
+        `More matching files exist than the ${envelope.files.length} returned. ${recovery}`,
         options,
       ),
     );
@@ -247,7 +258,12 @@ function buildDiagnostics(
   }
   if (envelope.contentCoverage === "partial") {
     lines.push(
-      warn("Requested content is partial; inspect per-file status.", options),
+      warn(
+        envelope.view === "patch"
+          ? "Requested content is partial; inspect per-file status with --stat or --json."
+          : "Requested content is partial; inspect the returned rows or use --json.",
+        options,
+      ),
     );
   } else if (envelope.contentCoverage === "failed") {
     const failure = envelope.contentFailure;
@@ -283,6 +299,31 @@ function buildDiagnostics(
     lines.push(
       warn(`${filtered} patch(es) were modified for content safety.`, options),
     );
+  }
+  if (envelope.view === "patch") {
+    const binary = envelope.files.filter(
+      (file) => "contentStatus" in file && file.contentStatus === "binary",
+    ).length;
+    if (binary > 0) {
+      lines.push(
+        warn(
+          `${binary} binary ${binary === 1 ? "change" : "changes"} cannot be represented as an applicable text patch.`,
+          options,
+        ),
+      );
+    }
+    const metadataOnly = envelope.files.filter(
+      (file) =>
+        "contentStatus" in file && file.contentStatus === "metadata_only",
+    ).length;
+    if (metadataOnly > 0) {
+      lines.push(
+        warn(
+          `${metadataOnly} metadata-only ${metadataOnly === 1 ? "change" : "changes"} cannot be represented as an applicable text patch.`,
+          options,
+        ),
+      );
+    }
   }
   return lines;
 }

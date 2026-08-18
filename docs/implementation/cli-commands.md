@@ -533,8 +533,10 @@ control characters. Empty authoritative diffs exit 0. Caller-selected
 `--max-files` and `--max-patch-bytes` bounds may intentionally produce partial
 patches and still exit 0 with warnings. Unexpectedly incomplete or non-applicable
 plain patches are suppressed and exit 1; name, stat, and JSON views preserve
-their structured partial evidence. Request, auth, resolution, and backend
-errors also exit 1.
+their structured partial evidence. Suppression diagnostics name binary and
+metadata-only causes and direct terminal users to stat/name views. Patch output
+is applicable unified-diff content but may omit Git metadata such as index and
+mode headers. Request, auth, resolution, and backend errors also exit 1.
 
 This is a silent dogfood surface. It is normally registered and documented for
 maintainers, but no MCP tool, MCP instruction, Agent Skill, or plugin guidance

@@ -337,6 +337,37 @@ describe("codeDiffAction", () => {
     error.mockRestore();
     exit.mockRestore();
   });
+
+  it("uses diff-specific target guidance", async () => {
+    const codeDiff = mock(() => Promise.resolve(defaultCodeDiffResult));
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await codeDiffAction(
+        "express",
+        "1.0.0..2.0.0",
+        undefined,
+        {},
+        dependencies({
+          codeNavigationService: createMockCodeNavigationService({ codeDiff }),
+        }),
+      );
+    } catch {
+      // process.exit is mocked as a throw.
+    }
+
+    expect(error.mock.calls[0]?.[0]).toContain(
+      "unversioned package target `<registry>:<name>`",
+    );
+    expect(error.mock.calls[0]?.[0]).not.toContain("[@<version>]");
+    expect(error.mock.calls[0]?.[0]).not.toContain("[#ref|@ref]");
+    expect(codeDiff).not.toHaveBeenCalled();
+    error.mockRestore();
+    exit.mockRestore();
+  });
 });
 
 describe("formatCodeDiffError", () => {
@@ -418,6 +449,8 @@ describe("registerCodeDiffCommand", () => {
       "githits code diff [options] --repo-url <url> <from>..<to> [-- <path-glob>]",
     );
     expect(help).not.toContain("[target-or-range] [range-or-path-glob]");
+    expect(help).toContain("Target examples: `npm:express`");
+    expect(help).toContain("suppressed patch output exits 1");
   });
 
   it.each(["src/**/*.ts", "--"])(

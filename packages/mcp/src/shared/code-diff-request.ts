@@ -137,10 +137,10 @@ function buildTarget(input: CodeDiffRequestInput): CodeDiffParams["target"] {
 function parseTarget(raw: string): CodeNavigationTarget {
   try {
     return parseCodeNavigationTargetSpec(raw);
-  } catch (error) {
-    if (error instanceof InvalidPackageSpecError) throw error;
-    const message = error instanceof Error ? error.message : "Invalid target.";
-    throw invalid(message);
+  } catch {
+    throw invalid(
+      "Invalid CodeDiff target. Expected an unversioned package target `<registry>:<name>` (for example `npm:express`) or an unversioned repository target (for example `github:expressjs/express`).",
+    );
   }
 }
 

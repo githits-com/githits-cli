@@ -285,7 +285,12 @@ is always left-to-right; three-dot merge-base syntax is not supported.
 
 After \`--\`, one optional <path-glob> applies a repository-relative bounded
 glob. It supports *, ?, and an exact ** path component; it is not a full Git
-pathspec. A backslash escapes one following non-slash character.`;
+pathspec. A backslash escapes one following non-slash character.
+
+Target examples: \`npm:express\` or \`github:expressjs/express\`; keep versions
+and refs in <from>..<to>. Empty diffs exit 0; suppressed patch output exits 1.
+Patch output is applicable unified-diff content and may omit Git metadata such
+as index and mode headers.`;
 
 export function registerCodeDiffCommand(
   codeCommand: Command,
