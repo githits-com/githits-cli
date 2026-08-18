@@ -23,7 +23,7 @@ describe("renderUnifiedSearchStatusText", () => {
                 state: "SEARCHED",
                 freshness: "CURRENT",
                 resultCount: 0,
-                siteKey: "docs.example.com",
+                siteKey: "5555555555555555",
                 coverage: {
                   coverageState: "PARTIAL",
                   pagesCrawled: 120,

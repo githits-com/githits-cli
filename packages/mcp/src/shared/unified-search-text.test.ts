@@ -603,6 +603,41 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("124");
   });
 
+  it("explains capped page coverage without repeating the limit reason", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                freshness: "CURRENT",
+                resultCount: 0,
+                siteKey: "34150829eb8a7c57",
+                coverage: {
+                  coverageState: "CAPPED",
+                  coverageReason: "max_pages",
+                  pagesCrawled: 500,
+                  frontierRemaining: 24,
+                  artifactOverflowPageCount: 0,
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "site documentation - searched; published snapshot reached its page limit: 500 pages included, 24 discovered pages not included",
+    );
+    expect(text).not.toContain("limited by max pages");
+    expect(text).not.toContain("34150829eb8a7c57");
+  });
+
   it("explains documentation source exceptions without implying progress from coverage", () => {
     const notice =
       "Results reflect disclosed snapshots; pending work may change hits and ordering.";
@@ -628,7 +663,7 @@ describe("renderUnifiedSearchSuccess", () => {
                 state: "SEARCHED",
                 freshness: "STALE",
                 resultCount: 2,
-                siteKey: "expressjs.com",
+                siteKey: "34150829eb8a7c57",
                 coverage: {
                   coverageState: "CAPPED",
                   coverageReason: "artifact_size",
@@ -644,7 +679,7 @@ describe("renderUnifiedSearchSuccess", () => {
                 state: "READY",
                 freshness: "CURRENT",
                 resultCount: 0,
-                siteKey: "ready.example.com",
+                siteKey: "1111111111111111",
                 coverage: {
                   coverageState: "COMPLETE",
                   pagesCrawled: 75,
@@ -657,7 +692,7 @@ describe("renderUnifiedSearchSuccess", () => {
                 state: "SEARCHED",
                 freshness: "STALE",
                 resultCount: 0,
-                siteKey: "legacy.example.com",
+                siteKey: "2222222222222222",
                 coverage: {
                   coverageState: "NONE",
                   pagesCrawled: 69,
@@ -670,13 +705,13 @@ describe("renderUnifiedSearchSuccess", () => {
                 kind: "DOCPACK",
                 state: "PENDING",
                 resultCount: 0,
-                siteKey: "pending.example.com",
+                siteKey: "3333333333333333",
               },
               {
                 kind: "DOCPACK",
                 state: "UNAVAILABLE",
                 resultCount: 0,
-                siteKey: "missing.example.com",
+                siteKey: "4444444444444444",
               },
             ],
           },
@@ -690,23 +725,24 @@ describe("renderUnifiedSearchSuccess", () => {
       "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
     );
     expect(text).toContain(
-      "site expressjs.com - searched an older snapshot; published snapshot hit its size cap: 480 pages included, 12 pages omitted, about 700 estimated total",
+      "site documentation - searched an older snapshot; published snapshot hit its size cap: 480 pages included, 12 pages omitted, about 700 estimated total",
     );
     expect(text).toContain(
-      "site ready.example.com - available, but not searched for this response",
+      "site documentation - available, but not searched for this response",
     );
     expect(text).toContain(
-      "site legacy.example.com - searched an older snapshot; published coverage was not measured: 69 pages included",
+      "site documentation - searched an older snapshot; published coverage was not measured: 69 pages included",
     );
     expect(text).not.toContain("Coverage has not been computed");
     expect(text).toContain(
-      "site pending.example.com - not ready, so it was not searched",
+      "site documentation - not ready, so it was not searched",
     );
     expect(text).toContain(
-      "site missing.example.com - unavailable and was not searched",
+      "site documentation - unavailable and was not searched",
     );
     expect(text).not.toContain("hits on this page");
     expect(text).not.toContain("documentation corpora");
+    expect(text).not.toContain("34150829eb8a7c57");
     expect(text).not.toContain("Indexing is still in progress");
     expect(text.match(new RegExp(notice, "g"))).toHaveLength(1);
     expect(text).toContain(

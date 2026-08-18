@@ -60,7 +60,7 @@ function createDocumentationSearchResult(): UnifiedSearchResult {
             state: "READY",
             freshness: "STALE",
             resultCount: 0,
-            siteKey: "expressjs.com",
+            siteKey: "34150829eb8a7c57",
             coverage: {
               coverageState: "PARTIAL",
               pagesCrawled: 120,
@@ -380,7 +380,7 @@ describe("searchAction", () => {
       "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
     );
     expect(output).toContain(
-      "site expressjs.com - available, but not searched for this response; the available snapshot is older; published snapshot is partial: 120 pages included",
+      "site documentation - available, but not searched for this response; the available snapshot is older; published snapshot is partial: 120 pages included",
     );
     expect(output).not.toContain("hits on this page");
     expect(output).not.toContain("Documentation corpora");
@@ -720,7 +720,7 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain("Documentation sources for npm:express@5.1.0:");
     expect(output).toContain(
-      "site expressjs.com - available, but not searched for this response",
+      "site documentation - available, but not searched for this response",
     );
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
     expect(output).toContain("githits search-status search-ref-docs");
@@ -1699,7 +1699,7 @@ describe("searchStatusAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain("Documentation sources for npm:express@5.1.0:");
     expect(output).toContain(
-      "site expressjs.com - available, but not searched for this response",
+      "site documentation - available, but not searched for this response",
     );
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
     expect(output).not.toContain("githits search-status search-ref-docs");

@@ -382,25 +382,26 @@ export function appendDocumentationSources(
 
   for (const entry of documented) {
     const contributors = entry.contributors ?? [];
-    const identities = contributors.map((contributor) =>
-      formatDocumentationContributorIdentity(
+    const sources = contributors.map((contributor) => ({
+      contributor,
+      identity: formatDocumentationContributorIdentity(
         contributor,
         entry.targetLabel,
         results,
         contributors,
       ),
-    );
+    }));
     if (contributors.every(isHealthyDocumentationContributor)) {
       lines.push(
-        `docs searched for ${entry.targetLabel}: ${identities.join("; ")}`,
+        `docs searched for ${entry.targetLabel}: ${sources.map(({ identity }) => identity).join("; ")}`,
       );
       continue;
     }
 
     lines.push(`documentation sources for ${entry.targetLabel}:`);
-    for (const [index, contributor] of contributors.entries()) {
+    for (const { contributor, identity } of sources) {
       lines.push(
-        `  - ${formatDocumentationContributor(contributor, identities[index] ?? "docs")}`,
+        `  - ${formatDocumentationContributor(contributor, identity)}`,
       );
     }
   }
@@ -468,9 +469,6 @@ function formatDocumentationContributorIdentity(
       .join(" @ ");
     return identity ? `repo ${identity}` : "repository docs";
   }
-  const readableSiteKey = formatReadableSiteReference(contributor.siteKey);
-  if (readableSiteKey) return `site ${readableSiteKey}`;
-
   const targetSite = targetLabel.startsWith("site:")
     ? targetLabel.slice("site:".length)
     : undefined;
@@ -496,9 +494,7 @@ function formatDocumentationContributorIdentity(
     }
   }
 
-  return contributor.siteKey
-    ? `site key ${contributor.siteKey}`
-    : "site documentation";
+  return "site documentation";
 }
 
 function isHealthyDocumentationContributor(
@@ -511,26 +507,6 @@ function isHealthyDocumentationContributor(
     contributor.kind === "REPOSITORY_DOCS" ||
     contributor.coverage?.coverageState === "COMPLETE"
   );
-}
-
-function formatReadableSiteReference(
-  siteKey: string | undefined,
-): string | undefined {
-  if (!siteKey) return undefined;
-  const candidate = siteKey.replace(/^site:/, "");
-  const hostname = hostnameFromUrl(
-    candidate.includes("://") ? candidate : `https://${candidate}`,
-  );
-  if (!hostname?.includes(".")) return undefined;
-  try {
-    const url = new URL(
-      candidate.includes("://") ? candidate : `https://${candidate}`,
-    );
-    const path = url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "");
-    return `${url.hostname}${path}`;
-  } catch {
-    return undefined;
-  }
 }
 
 function hostnameFromUrl(value: string | undefined): string | undefined {
@@ -579,10 +555,10 @@ function formatPublishedCoverage(
   const reason = coverage.coverageReason
     ? humanizeCoverageReason(coverage.coverageReason)
     : undefined;
-  if (
-    reason &&
-    !(coverage.coverageState === "CAPPED" && reason === "artifact size")
-  ) {
+  const cappedReasonIsHeadline =
+    coverage.coverageState === "CAPPED" &&
+    (reason === "artifact size" || reason === "max pages");
+  if (reason && !cappedReasonIsHeadline) {
     details.push(`limited by ${reason}`);
   }
 
@@ -591,7 +567,13 @@ function formatPublishedCoverage(
     case "PARTIAL":
       return `published snapshot is partial${detailText}`;
     case "CAPPED":
-      return `published snapshot hit its size cap${detailText}`;
+      if (reason === "artifact size") {
+        return `published snapshot hit its size cap${detailText}`;
+      }
+      if (reason === "max pages") {
+        return `published snapshot reached its page limit${detailText}`;
+      }
+      return `published snapshot is capped${detailText}`;
     case "NONE":
       return `published coverage was not measured${detailText}`;
     default:
@@ -600,6 +582,7 @@ function formatPublishedCoverage(
 }
 
 function humanizeCoverageReason(reason: string): string {
+  if (reason === "trap_suspected") return "a suspected crawl trap";
   return reason.replaceAll(/[_-]+/g, " ");
 }
 

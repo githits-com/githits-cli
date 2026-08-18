@@ -172,7 +172,7 @@ describe("searchStatusTool", () => {
       "documentation sources for npm:express@5.1.0:",
     );
     expect(text.content[0]?.text).toContain(
-      "site expressjs.com - not ready, so it was not searched",
+      "site documentation - not ready, so it was not searched",
     );
   });
 
