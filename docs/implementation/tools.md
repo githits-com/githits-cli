@@ -287,6 +287,12 @@ The MCP server advertises a short, cross-tool orientation via the protocol's ser
   Disabled or dormant reporting returns the public builder's exact baseline;
   public and remote servers never receive this block.
 
+The reporting contract is validated structurally in the focused instruction
+tests: one concise `accepted: false` report per distinct issue, exact enabled
+tool scope, redacted context, duplicate and non-defect suppression, and no
+retry or recursive report when feedback fails. Evaluations keep reporting off;
+production feedback is never synthesized for validation.
+
 When adding a new package tool, extend the composer with a one-line bullet (`\`tool_name\` — one-sentence purpose`) in the same PR that registers the tool. Keep the bullet terse; argument and response detail belong in the tool's `description`. `mcp-instructions.test.ts` enforces both directions of the mention↔registration invariant.
 
 ## Entry Points

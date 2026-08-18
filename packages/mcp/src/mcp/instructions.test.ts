@@ -53,10 +53,15 @@ describe("buildLocalMcpInstructions", () => {
     expect(experimental).toContain("`resolve_target`");
     expect(experimental).not.toContain("`code_diff`");
     expect(experimental).toContain("`accepted: false`");
+    expect(experimental).toContain("exactly one concise negative");
     expect(experimental).toContain("exact `tool_name`");
     expect(experimental).toContain("redacted expected-vs-observed context");
     expect(experimental).toContain("Do not report valid empty results");
+    expect(experimental).toContain("Avoid duplicates");
+    expect(experimental).toContain("never include credentials");
+    expect(experimental).toContain("private/proprietary content");
     expect(experimental).toContain("do not retry");
+    expect(experimental).toContain("do not report that failure");
 
     const all = buildLocal(["code_diff"], "all");
     expect(all).toContain("Opt-in issue reporting (all)");

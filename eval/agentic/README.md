@@ -190,6 +190,8 @@ use at least one agent for quick iteration.
 | File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior |
 | Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |
 | Multi-tool code navigation strategy and MCP/skill instructions | `express-router.md` |
+| Experimental target resolution | `experimental-resolution-follow-up.md` |
+| Experimental exact source diff | `experimental-code-diff.md` |
 
 For broad MCP instruction edits, run at least:
 
@@ -210,6 +212,25 @@ bun run agent:e2e --agent opencode --surface skills --server local --workload ev
 For tool-specific edits, add the workload from the table. Compare
 `tool-calls.json` plus the final JSON's `toolIssues`, `instructionIssues`, and
 `githitsUsefulnessReason` across branches or against a published run.
+
+For local experimental tool changes, run both new workloads and the
+`express-router.md` regression cohort with Claude and Codex:
+
+```bash
+bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/experimental-resolution-follow-up.md
+bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/experimental-resolution-follow-up.md
+bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/experimental-code-diff.md
+bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/experimental-code-diff.md
+bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
+```
+
+The eval override forces issue reporting off. Inspect raw `tool-calls.json`
+for the actual tool sequence and arguments, then inspect `final.json` for
+`toolIssues`, `instructionIssues`, usefulness, and confidence. For
+resolution, check that ambiguity is retained when warranted and source
+follow-up uses the selected identity; for source diffs, check exact
+changed-file evidence and bounded summaries without compatibility claims.
 
 ### Current Baseline Observations
 
