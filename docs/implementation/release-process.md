@@ -84,6 +84,11 @@ that review.
 
 ## Release Preparation
 
+Release preparation and release execution have separate authorization
+boundaries. A request to audit, prepare, create, cut, or release a version
+authorizes the work below through opening the release PR only; it does not
+authorize merging, enabling auto-merge, tagging, or publishing.
+
 For each artifact being released:
 
 1. Inspect the complete package-specific tag-to-HEAD delta (`vX.Y.Z` for
@@ -104,6 +109,13 @@ For each artifact being released:
    fragment.
 6. Run the release skill checklist, package validation, tests, build, and the
    smoke or agent evaluations required by the changed surfaces.
+
+After validation, commit and push the preparation and open the release PR.
+Report its URL and check status, then stop. Merge only after receiving separate,
+explicit human approval given after the release PR exists and identifying that
+PR. Earlier release requests do not count as merge approval, and auto-merge
+must not be enabled as a substitute. Once the separately approved PR merges,
+the successful `Main` workflow triggers the root and MCP publication workflows.
 
 The release-boundary tests validate fragment names, front matter, and body
 shape during development, and require release sections for the versions

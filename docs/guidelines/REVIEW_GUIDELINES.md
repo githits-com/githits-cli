@@ -35,6 +35,12 @@ Checklist for reviewing code changes in githits-cli.
 - [ ] Feature pull requests do not edit `CHANGELOG.md`
 - [ ] Historical changelog sections are unchanged unless a minimal edit corrects a blatant factual error
 
+## Release PRs
+
+- [ ] A request to audit, prepare, create, cut, or release a version does not authorize merging or enabling auto-merge
+- [ ] The release PR is merged only with separate, explicit human approval given after the release PR exists and identifying that PR
+- [ ] Earlier release requests are not treated as merge approval, and the agent stops after opening the PR to report its URL and check status
+
 ## Build & Lint
 
 - [ ] `bun run build` succeeds
