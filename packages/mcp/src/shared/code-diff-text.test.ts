@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { LeanCodeDiffEnvelope } from "./code-diff-response.js";
 import { formatCodeDiffTerminal } from "./code-diff-text.js";
+import { colors } from "./colors.js";
 
 function envelope(
   overrides: Partial<LeanCodeDiffEnvelope> = {},
@@ -113,6 +114,152 @@ describe("formatCodeDiffTerminal", () => {
 
     expect(result.stdout).toBe(
       " text.ts   | 6 ++++--\n image.png | binary content differs\n 2 files changed, 4 insertions(+), 2 deletions(-)\n",
+    );
+  });
+
+  it("aligns stat dividers by terminal-cell width for wide UTF-8 paths", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({
+        view: "stat",
+        files: [
+          {
+            path: "한",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            additions: 1,
+            deletions: 0,
+            contentStatus: "stats",
+          },
+          {
+            path: "longer",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            additions: 0,
+            deletions: 1,
+            contentStatus: "stats",
+          },
+          {
+            path: "👨‍👩‍👧‍👦",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            additions: 1,
+            deletions: 1,
+            contentStatus: "stats",
+          },
+        ],
+      }),
+      options,
+    );
+
+    expect(result.stdout).toStartWith(
+      " 한     | 1 +\n longer | 1 -\n 👨‍👩‍👧‍👦     | 2 +-\n",
+    );
+  });
+
+  it("colors stat directions without changing the plain projection", () => {
+    const input = envelope({
+      view: "stat",
+      files: [
+        {
+          path: "text.ts",
+          pathEncoding: "utf8",
+          status: "modified",
+          modeChanged: false,
+          typeChanged: false,
+          additions: 4,
+          deletions: 2,
+          contentStatus: "stats",
+        },
+      ],
+    });
+    const plain = formatCodeDiffTerminal(input, options).stdout;
+    const colored = formatCodeDiffTerminal(input, {
+      useColors: true,
+    }).stdout;
+
+    expect(colored).toContain(`${colors.green}++++${colors.reset}`);
+    expect(colored).toContain(`${colors.red}--${colors.reset}`);
+    expect(colored).toContain(`4 insertions(${colors.green}+${colors.reset})`);
+    expect(colored).toContain(`2 deletions(${colors.red}-${colors.reset})`);
+    expect(stripAnsi(colored)).toBe(plain);
+  });
+
+  it("does not emit empty color spans for one-direction stat rows", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({
+        view: "stat",
+        files: [
+          {
+            path: "added.ts",
+            pathEncoding: "utf8",
+            status: "added",
+            modeChanged: false,
+            typeChanged: false,
+            additions: 2,
+            deletions: 0,
+            contentStatus: "stats",
+          },
+        ],
+      }),
+      { useColors: true },
+    );
+
+    expect(result.stdout).toContain(`${colors.green}++${colors.reset}`);
+    expect(result.stdout).not.toContain(`${colors.red}${colors.reset}`);
+  });
+
+  it("colors unified patch syntax without changing patch content", () => {
+    const input = envelope({
+      files: [
+        {
+          path: "a.ts",
+          pathEncoding: "utf8",
+          status: "modified",
+          modeChanged: false,
+          typeChanged: false,
+          additions: 1,
+          deletions: 1,
+          patch: "--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-old\n+new\n context\n",
+          contentStatus: "patch",
+          contentSafety: { filtered: false, modifications: [] },
+        },
+      ],
+    });
+    const plain = formatCodeDiffTerminal(input, options).stdout;
+    const colored = formatCodeDiffTerminal(input, {
+      useColors: true,
+    }).stdout;
+
+    expect(colored).toContain(`${colors.red}--- a/a.ts${colors.reset}`);
+    expect(colored).toContain(`${colors.green}+++ b/a.ts${colors.reset}`);
+    expect(colored).toContain(`${colors.cyan}@@ -1 +1 @@${colors.reset}`);
+    expect(colored).toContain(`${colors.red}-old${colors.reset}`);
+    expect(colored).toContain(`${colors.green}+new${colors.reset}`);
+    expect(stripAnsi(colored)).toBe(plain);
+  });
+
+  it("colors name-status letters by change kind", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({
+        view: "name-status",
+        contentCoverage: "not_requested",
+        files: [
+          { path: "a.ts", pathEncoding: "utf8", status: "added" },
+          { path: "d.ts", pathEncoding: "utf8", status: "deleted" },
+          { path: "m.ts", pathEncoding: "utf8", status: "modified" },
+        ],
+      }),
+      { useColors: true },
+    );
+
+    expect(result.stdout).toBe(
+      `${colors.green}A${colors.reset}\ta.ts\n${colors.red}D${colors.reset}\td.ts\n${colors.yellow}M${colors.reset}\tm.ts\n`,
     );
   });
 
@@ -258,6 +405,50 @@ describe("formatCodeDiffTerminal", () => {
       expect(result.stdout).toContain(`Patch omitted: large.ts (${reason})`);
       expect(result.exitCode).toBeUndefined();
     }
+  });
+
+  it("colors an explicitly budgeted patch omission", () => {
+    const plain = formatCodeDiffTerminal(
+      envelope({
+        contentCoverage: "partial",
+        files: [
+          {
+            path: "large.ts",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            contentStatus: "omitted",
+            contentOmissionReason: "total_patch_bytes",
+            contentSafety: { filtered: false, modifications: [] },
+          },
+        ],
+      }),
+      { ...options, explicitMaxPatchBytes: true },
+    ).stdout;
+    const colored = formatCodeDiffTerminal(
+      envelope({
+        contentCoverage: "partial",
+        files: [
+          {
+            path: "large.ts",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            contentStatus: "omitted",
+            contentOmissionReason: "total_patch_bytes",
+            contentSafety: { filtered: false, modifications: [] },
+          },
+        ],
+      }),
+      { useColors: true, explicitMaxPatchBytes: true },
+    ).stdout;
+
+    expect(colored).toContain(
+      `${colors.yellow}Patch omitted: large.ts (total_patch_bytes)${colors.reset}`,
+    );
+    expect(stripAnsi(colored)).toBe(plain);
   });
 
   it("suppresses patch streams that cannot represent binary changes", () => {
@@ -529,3 +720,10 @@ describe("formatCodeDiffTerminal", () => {
     expect(result.stderr).toContain('glob "packages/**/*.ts"');
   });
 });
+
+function stripAnsi(value: string): string {
+  return value.replace(ANSI_SGR_PATTERN, "");
+}
+
+const ESC = String.fromCharCode(0x1b);
+const ANSI_SGR_PATTERN = new RegExp(`${ESC}\\[[0-9;]*m`, "g");

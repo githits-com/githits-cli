@@ -529,7 +529,12 @@ content-safety, and display-only path warnings stay on stderr; `--verbose` adds
 exact resolutions and scope facts there. JSON keeps the same evidence as a
 lean selected-view envelope, including authoritative paths in normalized patch
 headers. Text paths use reversible Git-style quoting rather than deleting
-control characters. Empty authoritative diffs exit 0. Caller-selected
+control characters. Stat columns use terminal-cell width, so wide Unicode and
+emoji filenames remain aligned. Interactive color-capable terminals use
+red/green patch lines, stat bars, and summary direction markers, cyan hunk
+headers, and colored change status letters; redirected output and `NO_COLOR`
+remain plain. Empty
+authoritative diffs exit 0. Caller-selected
 `--max-files` and `--max-patch-bytes` bounds may intentionally produce partial
 patches and still exit 0 with warnings. Unexpectedly incomplete or non-applicable
 plain patches are suppressed and exit 1; name, stat, and JSON views preserve
