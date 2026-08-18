@@ -185,3 +185,4 @@ repository/latest outcomes and unknown actions must remain unchanged.
 | `src/commands/code/diff.ts` | Commander syntax, service call, stream routing, and CLI errors |
 | `packages/mcp/src/tools/code-diff.ts` | Local-only MCP schema, handler, and structured error mapping |
 | `scripts/validate-public-packages.ts` | Packed-package runtime and no-network TypeScript consumer checks |
+| `docs/implementation/cli-commands.md` | Config-gated CLI surface and local-only MCP rollout status |
