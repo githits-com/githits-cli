@@ -199,6 +199,19 @@ describe("code_diff MCP adapter", () => {
       retryable: false,
     });
 
+    const invalidMaxFiles = await invoke(tool, {
+      target: "npm:express",
+      from: "1",
+      to: "2",
+      max_files: 0,
+    });
+    expect(invalidMaxFiles.isError).toBe(true);
+    expect(parseError(invalidMaxFiles)).toEqual({
+      code: "INVALID_ARGUMENT",
+      error: "`maximum files` must be an integer from 1 through 300.",
+      retryable: false,
+    });
+
     const service = createCodeDiffTool({
       codeDiff: mock(() =>
         Promise.reject(

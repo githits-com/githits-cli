@@ -90,7 +90,7 @@ function buildCodeDiffParamsFromParts(
   const pathGlob = normalisePathGlob(input.pathGlob);
   const maxFiles = normaliseIntegerOption(
     input.maxFiles,
-    "maxFiles",
+    "maximum files",
     CODE_DIFF_MAX_FILES_MIN,
     CODE_DIFF_MAX_FILES_MAX,
   );

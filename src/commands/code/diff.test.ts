@@ -195,7 +195,11 @@ describe("codeDiffAction", () => {
       "`--max-patch-bytes` is valid only",
       "maxPatchBytes",
     ],
-    [{ maxFiles: "0" }, "--max-files expects", undefined],
+    [
+      { maxFiles: "0" },
+      "--max-files expects an integer between 1 and 300. Got 0.",
+      undefined,
+    ],
   ] as const)(
     "rejects invalid options before network I/O",
     async (options, text, forbidden) => {
