@@ -23,7 +23,10 @@ export interface IsolatedSmokeEnvironment {
   cleanup(): void;
 }
 
-/** Creates a temporary config root while preserving inherited auth credentials. */
+/**
+ * Creates a temporary config root while preserving inherited environment
+ * credentials such as an env token. Host file-auth state is not copied.
+ */
 export function createScopedSmokeEnvironment(
   prefix: string,
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,

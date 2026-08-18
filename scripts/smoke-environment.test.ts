@@ -47,14 +47,16 @@ describe("createIsolatedSmokeEnvironment", () => {
 });
 
 describe("createScopedSmokeEnvironment", () => {
-  it("preserves inherited credentials while isolating config", () => {
+  it("preserves inherited env credentials while isolating config", () => {
     const scoped = createScopedSmokeEnvironment("githits-scoped-smoke-", {
       GITHITS_API_TOKEN: "secret",
+      GITHITS_AUTH_STORAGE: "file",
       HOME: "/real-home",
       XDG_CONFIG_HOME: "/real-config",
     });
     try {
       expect(scoped.env.GITHITS_API_TOKEN).toBe("secret");
+      expect(scoped.env.GITHITS_AUTH_STORAGE).toBe("file");
       expect(scoped.env.HOME).toBe("/real-home");
       expect(scoped.env.XDG_CONFIG_HOME).not.toBe("/real-config");
       const configPath = writeSmokeConfig(

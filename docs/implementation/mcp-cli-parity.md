@@ -59,10 +59,13 @@ The dual-surface tools today are:
 - `code_diff` ↔ `githits code diff` *(config-gated, local-only)*
 
 The local smoke runners execute these cohorts independently in source and
-built modes. Stable runs use an isolated config with no experimental policy;
-experimental runs use a temporary opt-in config plus the hidden local launch
-override. Live experimental probes are bounded and skipped only when the auth
-probe reports `AUTH_REQUIRED`; public/remote smoke remains stable-only.
+built modes. CLI experimental runs use a temporary opt-in config. MCP
+experimental registration and live runs use the hidden session override,
+which forces the local tools on and reporting off without reading host
+experimental policy. Scoped temporary roots preserve inherited environment
+credentials but do not copy host file-auth state; authenticated live
+validation is conditional and skips with `AUTH_REQUIRED` when unavailable.
+Public/remote smoke remains stable-only.
 
 `feedback` is mutating, so smoke coverage exercises registration and
 validation/auth paths only. It does not submit fake feedback to the live

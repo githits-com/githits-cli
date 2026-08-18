@@ -762,10 +762,8 @@ async function runExperimentalLiveSmoke(
   );
   assert(
     resolveText.includes("Candidates:") &&
-      /\n\s+\d+\. npm:express/.test(resolveText) &&
-      !resolveText.includes("githits ") &&
-      !resolveText.includes("--"),
-    "experimental resolve text should be compact and MCP-native",
+      /\n\s+\d+\. (?:npm|github):\S+/.test(resolveText),
+    "experimental resolve text should include ranked canonical candidates",
   );
 
   const resolveJson = assertJsonOutput(
@@ -814,10 +812,8 @@ async function runExperimentalLiveSmoke(
     "experimental code diff terminal",
   );
   assert(
-    codeDiffText.length > 0 &&
-      !codeDiffText.includes("githits ") &&
-      !codeDiffText.includes("--"),
-    "experimental code diff text should be compact and MCP-native",
+    /^[AMDRT?]\t\S.+$/m.test(codeDiffText),
+    "experimental code diff text should include CLI-native status/path evidence",
   );
 
   const codeDiffJson = assertJsonOutput(

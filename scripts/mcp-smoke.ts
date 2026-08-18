@@ -14,7 +14,6 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import {
   createIsolatedSmokeEnvironment,
   createScopedSmokeEnvironment,
-  writeSmokeConfig,
 } from "./smoke-environment.ts";
 import {
   type CliLaunchTarget,
@@ -272,7 +271,6 @@ async function runExperimentalLiveSmoke(
 ): Promise<void> {
   const scoped = createScopedSmokeEnvironment("githits-mcp-experimental-live-");
   try {
-    writeSmokeConfig(scoped.env, "[experimental]\ntools = true\n");
     await withMcpClient(
       target,
       scoped.env,
