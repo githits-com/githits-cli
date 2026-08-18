@@ -360,6 +360,7 @@ describe("searchAction", () => {
     const outcome: UnifiedSearchOutcome = {
       state: "completed",
       completed: true,
+      searchRef: "search-ref-docs",
       result,
     };
 
@@ -384,7 +385,7 @@ describe("searchAction", () => {
     );
     expect(output).not.toContain("indexing is still in progress");
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
-    expect(output).not.toContain("githits search-status");
+    expect(output).toContain("githits search-status search-ref-docs");
     consoleSpy.mockRestore();
   });
 
@@ -1613,7 +1614,7 @@ describe("searchStatusAction", () => {
     consoleSpy.mockRestore();
   });
 
-  it("renders stored documentation evidence with searchRef follow-up", async () => {
+  it("renders stored documentation evidence without repeating completed status", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const outcome: UnifiedSearchOutcome = {
       state: "completed",
@@ -1636,7 +1637,7 @@ describe("searchStatusAction", () => {
     expect(output).toContain("Documentation corpora:");
     expect(output).toContain("ready, not searched site docs expressjs.com");
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
-    expect(output).toContain("githits search-status search-ref-docs");
+    expect(output).not.toContain("githits search-status search-ref-docs");
     consoleSpy.mockRestore();
   });
 

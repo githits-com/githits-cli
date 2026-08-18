@@ -199,7 +199,7 @@ The original unified-search plan envisaged hiding partial mode entirely in v1 to
 
 Contributor-bearing rows omit redundant pair-level `resultCount`, pair-level `coverage`, and healthy resolution metadata from the compact JSON projection. Other source-status signals remain unchanged: ignored / incompatible filters and query features, terminal indexing notes, promoted freshness warnings, and ordered standalone-site recovery targets. Site suggestions come from `suggestedSiteTargets`; the exact `suggestedSiteTargetsTruncated` Boolean is retained whenever suggestions are present. They are advisory labels to retry explicitly, not aliases, and the client never selects or retries one automatically.
 
-When pending or required work can change the disclosed snapshots, the result carries one backend-owned `evidenceNotice`. Human output renders it once. If a `searchRef` is present, follow it with `search-status`; otherwise the notice explains that a later retry may produce different hits or ordering. This notice is independent of `allowPartialResults`: pair-level partial results and partial/capped docpack coverage remain separate concepts.
+When pending or required work can change the disclosed snapshots, the result carries one backend-owned `evidenceNotice`. Human output renders it once. An initial search with a `searchRef` points to `search-status`; a completed `search-status` response never tells callers to repeat that already-terminal check. Without a reference, the notice explains that a later search retry may produce different hits or ordering. This notice is independent of `allowPartialResults`: pair-level partial results and partial/capped docpack coverage remain separate concepts.
 
 ### `githits search-status`
 

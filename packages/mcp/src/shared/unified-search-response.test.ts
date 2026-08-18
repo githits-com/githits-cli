@@ -1080,6 +1080,72 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(statusPayload.result.sourceStatus).toEqual(payload.sourceStatus);
   });
 
+  it("keeps independently actionable source context beside contributors", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        sources: ["DOCS"],
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "npm:express@5.1.0",
+            targetResolution: {
+              requested: {
+                kind: "package_exact_version",
+                registry: "npm",
+                packageName: "express",
+                version: "5.1.0",
+              },
+              freshness: "unavailable",
+              freshnessReason: "no_current_fallback",
+              availableVersions: [],
+              availableRefs: [],
+            },
+            resultCount: 0,
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            suggestedSiteTargets: [],
+            suggestedSiteTargetsTruncated: false,
+            note: "Repository documentation is unavailable for this version.",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "UNAVAILABLE",
+                resultCount: 0,
+                repositoryUrl: "https://github.com/expressjs/express",
+                commitSha: "0123456789abcdef0123456789abcdef01234567",
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      {
+        targets: [{ registry: "NPM", packageName: "express" }],
+        query: "router",
+      },
+      "router",
+      "router",
+      outcome,
+    );
+
+    expect(payload.sourceStatus?.[0]).toMatchObject({
+      note: "Repository documentation is unavailable for this version.",
+      targetResolution: { freshness: "unavailable" },
+      contributors: [{ kind: "REPOSITORY_DOCS", state: "UNAVAILABLE" }],
+    });
+  });
+
   it("preserves ordered site recovery suggestions and the exact false truncation value", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");

@@ -811,11 +811,11 @@ function parsePackageVersionLabel(
 /**
  * Build the human-readable reason for incomplete documentation coverage.
  *
- * The backend note is preferred verbatim when present — the schema
- * documents it as "suitable for CLI/MCP rendering", so phrasing stays
- * backend-owned and can improve without a client release. Client wording is
- * only a fallback. Coverage describes a selected published corpus; it does not
- * imply indexing progress or retryability.
+ * Backend notes remain preferred except for PARTIAL, whose currently deployed
+ * note derives indexing progress from the coverage state. PARTIAL therefore
+ * uses neutral client wording until that backend copy is corrected. Coverage
+ * describes a selected published corpus; it does not imply indexing progress
+ * or retryability.
  */
 function docCoverageWarningReason(
   coverage: LeanDocCoverage | undefined,
@@ -1180,6 +1180,8 @@ function compactSourceStatusEntry(
     payload.suggestedSiteTargetsTruncated = entry.suggestedSiteTargetsTruncated;
     interesting = true;
   }
+  // Contributors already disclose this exact backend progress state. Keep the
+  // suppression narrow so unrelated pair-level notes remain actionable.
   const redundantContributorNote =
     contributors &&
     entry.source === "DOCS" &&

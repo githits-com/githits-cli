@@ -7,7 +7,6 @@ import {
   appendDocumentationCorpora,
   appendEmptySearchGuidance,
   appendEvidenceNotice,
-  appendEvidenceSearchStatusNextAction,
   appendIncompleteSearchNextAction,
   appendSourceStatusNotes,
   appendUnifiedSearchHits,
@@ -65,8 +64,6 @@ export function renderUnifiedSearchStatusText(payload: StatusPayload): string {
       payload.progress?.status,
       payload.searchRef,
     );
-  } else if (result?.evidenceNotice && payload.searchRef) {
-    appendEvidenceSearchStatusNextAction(lines, payload.searchRef);
   }
 
   return lines.join("\n");

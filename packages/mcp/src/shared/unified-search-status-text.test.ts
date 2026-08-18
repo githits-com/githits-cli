@@ -45,10 +45,8 @@ describe("renderUnifiedSearchStatusText", () => {
     );
     expect(text).not.toContain("Indexing is still in progress");
     expect(text).toContain("No hits in the searched evidence on this page.");
-    expect(text).not.toContain("Do not repeat this search unchanged.");
+    expect(text).toContain("Do not repeat immediately.");
     expect(text.match(new RegExp(notice, "g"))).toHaveLength(1);
-    expect(text).toContain(
-      'next: call search_status with search_ref="search-ref-docs"',
-    );
+    expect(text).not.toContain("next: call search_status");
   });
 });

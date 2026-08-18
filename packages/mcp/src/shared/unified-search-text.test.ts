@@ -663,6 +663,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain("No hits in the searched evidence on this page.");
+    expect(text).toContain("Do not repeat immediately.");
     expect(text).not.toContain("Do not repeat this search unchanged.");
     expect(text).not.toContain("shorten or broaden the query");
     expect(text).toContain(

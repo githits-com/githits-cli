@@ -1376,6 +1376,9 @@ describe("CodeNavigationServiceImpl", () => {
       ]) {
         expect(query).toContain(field);
       }
+      expect(query).toMatch(
+        /contributors\s*\{[\s\S]*?siteKey[\s\S]*?coverage\s*\{[\s\S]*?artifactOverflowPageCount[\s\S]*?\}/,
+      );
     });
   }
 

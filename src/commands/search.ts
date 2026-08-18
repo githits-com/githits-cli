@@ -117,7 +117,11 @@ export async function searchAction(
       return;
     }
 
-    console.log(formatUnifiedSearchTerminal(payload));
+    console.log(
+      formatUnifiedSearchTerminal(payload, {
+        includeCompletedSearchRefFollowUp: true,
+      }),
+    );
   } catch (error) {
     handleSearchError(error, options.json ?? false);
   }
@@ -415,41 +419,44 @@ function formatSearchErrorTerminal(
   return formatted;
 }
 
-function formatUnifiedSearchTerminal(payload: {
-  completed: boolean;
-  hasMore: boolean;
-  nextOffset?: number;
-  results: Array<{
-    type: string;
-    target: string;
-    title?: string;
-    summary?: string;
-    highlights?: {
-      title?: Array<readonly [number, number]>;
-      summary?: Array<readonly [number, number]>;
-    };
-    locator: {
-      registry?: string;
-      packageName?: string;
-      version?: string;
-      repoUrl?: string;
-      gitRef?: string;
-      requestedRef?: string;
-      pageId?: string;
-      sourceKind?: string;
-      sourceUrl?: string;
-      filePath?: string;
-      startLine?: number;
-      endLine?: number;
-    };
-  }>;
-  searchRef?: string;
-  progress?: SearchProgressForTerminal;
-  query: { raw?: string; warnings?: string[] };
-  warnings?: string[];
-  sourceStatus?: SourceStatusEntry[];
-  evidenceNotice?: string;
-}): string {
+function formatUnifiedSearchTerminal(
+  payload: {
+    completed: boolean;
+    hasMore: boolean;
+    nextOffset?: number;
+    results: Array<{
+      type: string;
+      target: string;
+      title?: string;
+      summary?: string;
+      highlights?: {
+        title?: Array<readonly [number, number]>;
+        summary?: Array<readonly [number, number]>;
+      };
+      locator: {
+        registry?: string;
+        packageName?: string;
+        version?: string;
+        repoUrl?: string;
+        gitRef?: string;
+        requestedRef?: string;
+        pageId?: string;
+        sourceKind?: string;
+        sourceUrl?: string;
+        filePath?: string;
+        startLine?: number;
+        endLine?: number;
+      };
+    }>;
+    searchRef?: string;
+    progress?: SearchProgressForTerminal;
+    query: { raw?: string; warnings?: string[] };
+    warnings?: string[];
+    sourceStatus?: SourceStatusEntry[];
+    evidenceNotice?: string;
+  },
+  options: { includeCompletedSearchRefFollowUp?: boolean } = {},
+): string {
   const lines: string[] = [];
   const useColors = shouldUseColors();
 
@@ -471,7 +478,12 @@ function formatUnifiedSearchTerminal(payload: {
   const evidenceNotes = payload.evidenceNotice
     ? [`Evidence notice: ${payload.evidenceNotice}`]
     : [];
-  if (payload.completed && payload.evidenceNotice && payload.searchRef) {
+  if (
+    options.includeCompletedSearchRefFollowUp &&
+    payload.completed &&
+    payload.evidenceNotice &&
+    payload.searchRef
+  ) {
     evidenceNotes.push(
       `next: githits search-status ${payload.searchRef} --wait ${DEFAULT_WAIT_TIMEOUT_MS / 1000}`,
     );
@@ -502,6 +514,7 @@ function formatUnifiedSearchTerminal(payload: {
 
   if (payload.results.length === 0) {
     lines.push("No results.");
+    if (payload.evidenceNotice) lines.push("Do not repeat immediately.");
     if (provenanceNotes.length > 0) {
       lines.push("");
       lines.push(...provenanceNotes);

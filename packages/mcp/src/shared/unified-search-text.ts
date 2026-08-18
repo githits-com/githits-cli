@@ -481,6 +481,8 @@ function formatPublishedCoverage(
   if (
     coverage.note &&
     coverage.coverageState !== "NONE" &&
+    // The deployed PARTIAL note incorrectly derives indexing progress from
+    // published coverage. Preserve it in JSON, but keep text lifecycle-neutral.
     coverage.coverageState !== "PARTIAL" &&
     !coverage.coverageReason
   ) {
@@ -507,6 +509,7 @@ export function appendEmptySearchGuidance(
   }
   if (options.evidenceNotice) {
     lines.push("No hits in the searched evidence on this page.");
+    lines.push("Do not repeat immediately.");
     return;
   }
   lines.push(formatEmptySearchHeadline(options.sourceStatus));
