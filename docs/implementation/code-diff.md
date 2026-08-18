@@ -13,8 +13,8 @@ compatibility.
 The local adapter is enabled only when the host experimental-tools policy is
 enabled. Its MCP-native target union, separate endpoints, bounded projections,
 and structured error envelope are internal to local composition; combined MCP
-instructions, remote/public exposure, and agent guidance remain later rollout
-steps after dogfood and evaluation.
+instructions, remote/public exposure, and Agent Skill guidance remain later
+rollout steps after dogfood and evaluation.
 
 ## Addressing and modes
 
@@ -150,8 +150,9 @@ Validation, authentication, resolution, and raw-field errors exit 1 through
 the shared CLI error envelope. The local `code_diff` MCP adapter maps the same
 classes of failures into the structured MCP error envelope and uses compact
 MCP-native text by default, with the lean JSON projection available explicitly.
-It is not included in public/remote descriptors, smoke inventories, MCP
-instructions, Agent Skills, or plugin guidance during this phase.
+It is not included in public/remote descriptors or smoke inventories, and its
+guidance is not promoted through public/remote MCP instructions, Agent Skills,
+or plugin guidance during this phase.
 
 ## Deferred rollout boundaries
 

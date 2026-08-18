@@ -6,7 +6,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createCodeDiffTool } from "../tools/code-diff.js";
 import { createResolveTargetTool } from "../tools/resolve-target.js";
 import type { McpToolServices } from "../tools/tool-services.js";
-import { buildMcpInstructions } from "./instructions.js";
+import {
+  buildLocalMcpInstructions,
+  type LocalExperimentalToolName,
+} from "./instructions.js";
 import {
   createDescriptorServices,
   createMcpServerWithFactories,
@@ -46,24 +49,18 @@ export interface CreateLocalMcpServerOptions<TExtra = unknown> {
   traceTool?: McpToolExecutionHook;
 }
 
-/**
- * Compose the local MCP server while keeping local-only service requirements
- * and experimental policy outside the public package surface.
- *
- * Experimental instructions remain deferred to the combined instruction
- * slice; enabling the policy only adds the local adapter inventory here.
- */
+/** Compose the local MCP server while keeping local-only service requirements
+ * and experimental policy outside the public package surface. */
 export function createLocalMcpServer<TExtra = unknown>(
   options: CreateLocalMcpServerOptions<TExtra>,
 ): McpServer {
-  const toolFactories: readonly McpToolFactory<LocalMcpToolServices>[] = options
-    .policy.tools
-    ? [
-        ...STABLE_MCP_TOOL_FACTORIES,
-        LOCAL_RESOLVE_TARGET_FACTORY,
-        LOCAL_CODE_DIFF_FACTORY,
-      ]
-    : STABLE_MCP_TOOL_FACTORIES;
+  const enabledExperimentalTools = options.policy.tools
+    ? LOCAL_EXPERIMENTAL_TOOL_DEFINITIONS
+    : [];
+  const toolFactories: readonly McpToolFactory<LocalMcpToolServices>[] = [
+    ...STABLE_MCP_TOOL_FACTORIES,
+    ...enabledExperimentalTools.map(({ factory }) => factory),
+  ];
   return createMcpServerWithFactories({
     metadata: options.metadata,
     services: options.services,
@@ -71,7 +68,14 @@ export function createLocalMcpServer<TExtra = unknown>(
     descriptorServices: createLocalDescriptorServices(),
     authAction: options.authAction,
     traceTool: options.traceTool,
-    instructions: buildMcpInstructions(),
+    instructions: buildLocalMcpInstructions({
+      enabledExperimentalTools: enabledExperimentalTools.map(
+        ({ name }) => name,
+      ),
+      reportToolIssues: options.policy.tools
+        ? options.policy.reportToolIssues
+        : undefined,
+    }),
   });
 }
 
@@ -82,6 +86,17 @@ const LOCAL_RESOLVE_TARGET_FACTORY: McpToolFactory<LocalMcpToolServices> = (
 const LOCAL_CODE_DIFF_FACTORY: McpToolFactory<LocalMcpToolServices> = (
   services,
 ) => eraseMcpTool(createCodeDiffTool(services.codeNavigationService));
+
+interface LocalExperimentalToolDefinition {
+  name: LocalExperimentalToolName;
+  factory: McpToolFactory<LocalMcpToolServices>;
+}
+
+const LOCAL_EXPERIMENTAL_TOOL_DEFINITIONS: readonly LocalExperimentalToolDefinition[] =
+  [
+    { name: "resolve_target", factory: LOCAL_RESOLVE_TARGET_FACTORY },
+    { name: "code_diff", factory: LOCAL_CODE_DIFF_FACTORY },
+  ];
 
 function createLocalDescriptorServices(): LocalMcpToolServices {
   const fail = () => {

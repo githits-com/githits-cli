@@ -11,7 +11,10 @@ import {
   createMockPackageIntelligenceService,
   defaultCodeDiffResult,
 } from "../services/test-helpers.js";
-import { buildMcpInstructions } from "./instructions.js";
+import {
+  buildLocalMcpInstructions,
+  buildMcpInstructions,
+} from "./instructions.js";
 import {
   createLocalMcpServer,
   type LocalExperimentalMcpPolicy,
@@ -118,7 +121,14 @@ describe("createLocalMcpServer", () => {
       ...EXPECTED_EXPERIMENTAL_NAMES,
     ]);
     expect(registeredToolNames(server)).toHaveLength(17);
-    expect(serverInstructions(server)).toBe(buildMcpInstructions());
+    expect(serverInstructions(server)).toBe(
+      buildLocalMcpInstructions({
+        enabledExperimentalTools: ["resolve_target", "code_diff"],
+      }),
+    );
+    for (const name of EXPECTED_EXPERIMENTAL_NAMES) {
+      expect(serverInstructions(server)).toContain(`\`${name}\``);
+    }
   });
 
   it("resolves the extended service from the request-scoped local provider", async () => {

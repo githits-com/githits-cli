@@ -279,6 +279,13 @@ The MCP server advertises a short, cross-tool orientation via the protocol's ser
 - **Package-tools block** — always appended. Contains a preamble plus one bullet per package/code tool, plus two cross-tool tips:
   - **Delegate multi-call work**: anticipate 3+ code-navigation calls? Use a sub-agent and ask for a compact synthesis.
   - **Strategy / reference-first**: source, symbols, tests, and call sites beat docs prose; enumerate paths first, locate symbols or lines, then read focused windows.
+- **Local experimental block** — appended only by the workspace-internal local
+  composer when the host policy enables experimental tools. It names only the
+  registered local `resolve_target`/`code_diff` subset, routes fuzzy identity
+  before canonical diff evidence, states public-OSS/privacy limits, and adds
+  opt-in negative-feedback guidance only for the configured reporting scope.
+  Disabled or dormant reporting returns the public builder's exact baseline;
+  public and remote servers never receive this block.
 
 When adding a new package tool, extend the composer with a one-line bullet (`\`tool_name\` — one-sentence purpose`) in the same PR that registers the tool. Keep the bullet terse; argument and response detail belong in the tool's `description`. `mcp-instructions.test.ts` enforces both directions of the mention↔registration invariant.
 
@@ -312,7 +319,7 @@ The layering is intentional:
 - **Tool definitions** (`packages/mcp/src/tools/*.ts`) own the MCP contract: names, descriptions, schemas, and response formatting
 - **GitHitsService / CodeNavigationService / PackageIntelligenceService** own the HTTP transport contracts and live in `packages/core-internal`
 - **Shared factory engine** (`packages/mcp/src/mcp/server.ts`) owns MCP SDK registration, per-call provider resolution, and auth/trace wrapping
-- **Workspace-internal local composer** (`packages/mcp/src/mcp/local-server.ts`) combines the local policy with extended local services while keeping those requirements out of the public package
+- **Workspace-internal local composer** (`packages/mcp/src/mcp/local-server.ts`) combines the local policy with extended local services and composes the matching experimental instruction subset while keeping those requirements out of the public package
 - **Public/remote server setup** (`createMcpServer()` from `@githits/mcp`) uses stable `McpToolServices` and the stable public inventory
 - **CLI MCP command** (`src/commands/mcp.ts`) owns local stdio startup: loads policy only for an actual server start, creates services from the CLI container, sets request-header mode, connects `StdioServerTransport`, and prints TTY setup instructions
 

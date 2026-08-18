@@ -350,7 +350,8 @@ explicit calls are rejected with the config path and enable snippet. The same
 opt-in exposes the local-only MCP `resolve_target` adapter. Its compact text,
 JSON contract, privacy guidance, and structured error mapping reuse the shared
 resolver request/service contracts; local experimental instructions are
-completed later in this phase.
+composed only for the enabled local tool inventory. Reporting guidance is
+opt-in and remains dormant when tools are disabled.
 
 Remote/public MCP, generated transports, and Agent Skill promotion remain
 blocked pending dogfood and evaluation evidence: the expanded production
