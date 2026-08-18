@@ -3,6 +3,7 @@ import type {
   ResolveTargetService,
 } from "@githits/core-internal";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { createCodeDiffTool } from "../tools/code-diff.js";
 import { createResolveTargetTool } from "../tools/resolve-target.js";
 import type { McpToolServices } from "../tools/tool-services.js";
 import { buildMcpInstructions } from "./instructions.js";
@@ -57,7 +58,11 @@ export function createLocalMcpServer<TExtra = unknown>(
 ): McpServer {
   const toolFactories: readonly McpToolFactory<LocalMcpToolServices>[] = options
     .policy.tools
-    ? [...STABLE_MCP_TOOL_FACTORIES, LOCAL_RESOLVE_TARGET_FACTORY]
+    ? [
+        ...STABLE_MCP_TOOL_FACTORIES,
+        LOCAL_RESOLVE_TARGET_FACTORY,
+        LOCAL_CODE_DIFF_FACTORY,
+      ]
     : STABLE_MCP_TOOL_FACTORIES;
   return createMcpServerWithFactories({
     metadata: options.metadata,
@@ -73,6 +78,10 @@ export function createLocalMcpServer<TExtra = unknown>(
 const LOCAL_RESOLVE_TARGET_FACTORY: McpToolFactory<LocalMcpToolServices> = (
   services,
 ) => eraseMcpTool(createResolveTargetTool(services.resolveTargetService));
+
+const LOCAL_CODE_DIFF_FACTORY: McpToolFactory<LocalMcpToolServices> = (
+  services,
+) => eraseMcpTool(createCodeDiffTool(services.codeNavigationService));
 
 function createLocalDescriptorServices(): LocalMcpToolServices {
   const fail = () => {

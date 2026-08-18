@@ -9,6 +9,7 @@ import {
   createMockCodeNavigationService,
   createMockGitHitsService,
   createMockPackageIntelligenceService,
+  defaultCodeDiffResult,
 } from "../services/test-helpers.js";
 import { buildMcpInstructions } from "./instructions.js";
 import {
@@ -38,6 +39,7 @@ const EXPECTED_STABLE_NAMES = [
 const EXPECTED_EXPERIMENTAL_NAMES = [
   ...EXPECTED_STABLE_NAMES,
   "resolve_target",
+  "code_diff",
 ] as const;
 
 interface TestRegisteredTool {
@@ -105,7 +107,7 @@ describe("createLocalMcpServer", () => {
     }
   });
 
-  it("adds resolve_target only when enabled and preserves baseline instructions", () => {
+  it("adds both experimental tools only when enabled and preserves baseline instructions", () => {
     const server = createLocalMcpServer({
       metadata: { name: "local-githits", version: "0.0.0" },
       services: createServices(),
@@ -115,6 +117,7 @@ describe("createLocalMcpServer", () => {
     expect(registeredToolNames(server)).toEqual([
       ...EXPECTED_EXPERIMENTAL_NAMES,
     ]);
+    expect(registeredToolNames(server)).toHaveLength(17);
     expect(serverInstructions(server)).toBe(buildMcpInstructions());
   });
 
@@ -161,6 +164,42 @@ describe("createLocalMcpServer", () => {
       name: "express",
       limit: 8,
       includeDetailedFields: true,
+    });
+
+    const codeDiff = mock(() => Promise.resolve(defaultCodeDiffResult));
+    const diffServices = createServices({
+      codeNavigationService: createMockCodeNavigationService({ codeDiff }),
+    });
+    const diffProvider = mock(() => diffServices);
+    const diffServer = createLocalMcpServer({
+      metadata: { name: "local-githits", version: "0.0.0" },
+      services: diffProvider,
+      policy: { tools: true, reportToolIssues: undefined },
+    });
+    const diffTool = (
+      diffServer as unknown as {
+        _registeredTools: Record<string, TestRegisteredTool>;
+      }
+    )._registeredTools.code_diff!;
+    const diffResult = await diffTool.handler(
+      {
+        target: { registry: "npm", package_name: "express" },
+        from: "4.18.1",
+        to: "4.18.2",
+        format: "json",
+      },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+    expect(diffResult.isError).toBeUndefined();
+    expect(diffProvider).toHaveBeenCalledWith({ extra: undefined });
+    expect(codeDiff).toHaveBeenCalledWith({
+      target: { registry: "NPM", packageName: "express" },
+      from: "4.18.1",
+      to: "4.18.2",
+      mode: "inventory",
     });
   });
 });

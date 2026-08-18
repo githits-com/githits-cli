@@ -17,6 +17,30 @@ export interface CodeDiffRequestInput {
   maxPatchBytes?: number;
 }
 
+export interface CodeDiffMcpPackageTarget {
+  registry: string;
+  package_name: string;
+}
+
+export interface CodeDiffMcpRepositoryTarget {
+  repo_url: string;
+}
+
+export type CodeDiffMcpTarget =
+  | string
+  | CodeDiffMcpPackageTarget
+  | CodeDiffMcpRepositoryTarget;
+
+export interface CodeDiffMcpRequestInput {
+  target: CodeDiffMcpTarget;
+  from: string;
+  to: string;
+  view?: CodeDiffView;
+  pathGlob?: string;
+  maxFiles?: number;
+  maxPatchBytes?: number;
+}
+
 export interface CodeDiffRequestBuildResult {
   params: CodeDiffParams;
   view: CodeDiffView;
@@ -40,6 +64,28 @@ export function buildCodeDiffParams(
 ): CodeDiffRequestBuildResult {
   const target = buildTarget(input);
   const { from, to } = parseRange(input.range);
+  return buildCodeDiffParamsFromParts(target, from, to, input);
+}
+
+/** Build CodeDiff params from MCP's separate endpoints and target union. */
+export function buildCodeDiffMcpParams(
+  input: CodeDiffMcpRequestInput,
+): CodeDiffRequestBuildResult {
+  const target = buildMcpTarget(input.target);
+  const from = normaliseMcpEndpoint(input.from, "from");
+  const to = normaliseMcpEndpoint(input.to, "to");
+  return buildCodeDiffParamsFromParts(target, from, to, input);
+}
+
+function buildCodeDiffParamsFromParts(
+  target: CodeDiffParams["target"],
+  from: string,
+  to: string,
+  input: Pick<
+    CodeDiffRequestInput,
+    "view" | "pathGlob" | "maxFiles" | "maxPatchBytes"
+  >,
+): CodeDiffRequestBuildResult {
   const view = normaliseView(input.view);
   const pathGlob = normalisePathGlob(input.pathGlob);
   const maxFiles = normaliseIntegerOption(
@@ -89,22 +135,102 @@ function buildTarget(input: CodeDiffRequestInput): CodeDiffParams["target"] {
     throw invalid("CodeDiff target must be a string.");
   }
 
-  const parsed = parseTarget(raw);
-  if (hasTarget && parsed.version !== undefined) {
+  return buildTargetFromRaw(raw, hasTarget ? "target" : "repoUrl");
+}
+
+function buildMcpTarget(raw: CodeDiffMcpTarget): CodeDiffParams["target"] {
+  if (typeof raw === "string") {
+    return buildTargetFromRaw(raw, "target");
+  }
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     throw invalid(
-      "Package targets must not include a version; put both versions in `range`.",
+      "CodeDiff target must be a compact target string or a package/repository object.",
+    );
+  }
+  const object = raw as unknown as Record<string, unknown>;
+
+  const hasRegistry = Object.hasOwn(object, "registry");
+  const hasPackageName = Object.hasOwn(object, "package_name");
+  const hasRepoUrl = Object.hasOwn(object, "repo_url");
+  if (hasRepoUrl && (hasRegistry || hasPackageName)) {
+    throw invalid(
+      "CodeDiff target cannot combine package and repository fields.",
+    );
+  }
+  if (hasRegistry || hasPackageName) {
+    if (!hasRegistry || !hasPackageName) {
+      throw invalid(
+        "CodeDiff package target must include `registry` and `package_name`.",
+      );
+    }
+    if (
+      Object.keys(object).some(
+        (key) => key !== "registry" && key !== "package_name",
+      )
+    ) {
+      throw invalid(
+        "CodeDiff package target may contain only `registry` and `package_name`.",
+      );
+    }
+    if (
+      typeof object.registry !== "string" ||
+      typeof object.package_name !== "string" ||
+      !object.registry.trim() ||
+      !object.package_name.trim()
+    ) {
+      throw invalid(
+        "CodeDiff package target `registry` and `package_name` must not be empty.",
+      );
+    }
+    return buildTargetFromRaw(
+      `${object.registry}:${object.package_name}`,
+      "mcpPackage",
+    );
+  }
+  if (hasRepoUrl) {
+    if (Object.keys(object).some((key) => key !== "repo_url")) {
+      throw invalid("CodeDiff repository target may contain only `repo_url`.");
+    }
+    if (typeof object.repo_url !== "string" || !object.repo_url.trim()) {
+      throw invalid("CodeDiff repository target `repo_url` must not be empty.");
+    }
+    return buildTargetFromRaw(object.repo_url, "mcpRepository");
+  }
+  throw invalid(
+    "CodeDiff target must be a compact string or include package `registry` + `package_name` or repository `repo_url`.",
+  );
+}
+
+type CodeDiffTargetSource =
+  | "target"
+  | "repoUrl"
+  | "mcpPackage"
+  | "mcpRepository";
+
+function buildTargetFromRaw(
+  raw: string,
+  source: CodeDiffTargetSource,
+): CodeDiffParams["target"] {
+  const parsed = parseTarget(raw);
+  if ((source === "target" || source === "mcpPackage") && parsed.version) {
+    throw invalid(
+      source === "target"
+        ? "Package targets must not include a version; put both versions in `range`."
+        : "Package targets must not include a version; put both versions in the comparison endpoints.",
     );
   }
   if (parsed.gitRef !== undefined) {
     throw invalid(
-      "Repository targets must not include a ref; put both refs in `range`.",
+      source === "repoUrl"
+        ? "Repository targets must not include a ref; put both refs in `range`."
+        : "Repository targets must not include a ref; put both refs in the comparison endpoints.",
     );
   }
 
   const hasPackageKeys =
     Object.hasOwn(parsed, "registry") || Object.hasOwn(parsed, "packageName");
   const hasRepoKey = Object.hasOwn(parsed, "repoUrl");
-  if (hasRepoUrl && hasPackageKeys) {
+  if ((source === "repoUrl" || source === "mcpRepository") && hasPackageKeys) {
     throw invalid("`repoUrl` must identify a repository target.");
   }
   if (hasPackageKeys && hasRepoKey) {
@@ -129,7 +255,13 @@ function buildTarget(input: CodeDiffRequestInput): CodeDiffParams["target"] {
     };
   }
   if (hasRepoKey && parsed.repoUrl !== undefined) {
+    if (source === "mcpPackage") {
+      throw invalid("CodeDiff package target must identify a package.");
+    }
     return { repoUrl: parsed.repoUrl };
+  }
+  if (source === "mcpRepository") {
+    throw invalid("CodeDiff repository target must identify a repository.");
   }
   throw invalid("CodeDiff target must be a package or repository target.");
 }
@@ -168,6 +300,13 @@ function parseRange(raw: string): { from: string; to: string } {
     throw invalid("CodeDiff range endpoints must not be empty.");
   }
   return { from, to };
+}
+
+function normaliseMcpEndpoint(raw: string, name: "from" | "to"): string {
+  if (typeof raw !== "string" || !raw.trim()) {
+    throw invalid(`CodeDiff ${name} endpoint must not be empty.`);
+  }
+  return raw.trim();
 }
 
 function normaliseView(raw: CodeDiffView | undefined): CodeDiffView {
