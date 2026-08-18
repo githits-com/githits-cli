@@ -18,12 +18,12 @@ export function formatCodeDiffMcpText(envelope: LeanCodeDiffEnvelope): string {
     `Resolved endpoints: ${formatResolution(envelope.from)} -> ${formatResolution(envelope.to)}`,
     `Scope: ${formatScope(envelope)}`,
     `Summary: ${formatSummary(envelope)}`,
-    `Content: ${formatContentCoverage(envelope)}`,
+    `Content: ${safe(envelope.contentCoverage)}`,
   ];
 
   appendWarnings(lines, envelope);
-  appendFiles(lines, envelope);
-  lines.push(nextAction(envelope));
+  const displayTruncatedPreviews = appendFiles(lines, envelope);
+  lines.push(nextAction(envelope, displayTruncatedPreviews));
   return `${lines.join("\n")}\n`;
 }
 
@@ -86,35 +86,39 @@ function appendWarnings(lines: string[], envelope: LeanCodeDiffEnvelope): void {
   }
 }
 
-function appendFiles(lines: string[], envelope: LeanCodeDiffEnvelope): void {
+function appendFiles(lines: string[], envelope: LeanCodeDiffEnvelope): number {
   if (envelope.files.length === 0) {
     lines.push(
       envelope.summary.filesChanged === 0
         ? "No changes between the requested endpoints."
         : "No file rows were returned; inspect the structured JSON evidence.",
     );
-    return;
+    return 0;
   }
 
   lines.push("Files:");
   const shown = envelope.files.slice(0, MAX_FILE_ROWS);
-  for (const file of shown) appendFile(lines, file, envelope.view);
+  let displayTruncatedPreviews = 0;
+  for (const file of shown) {
+    if (appendFile(lines, file, envelope.view)) displayTruncatedPreviews += 1;
+  }
   if (envelope.files.length > shown.length) {
     lines.push(
       `  ... ${envelope.files.length - shown.length} additional file(s) omitted from compact text; use format=json for the complete list.`,
     );
   }
+  return displayTruncatedPreviews;
 }
 
 function appendFile(
   lines: string[],
   file: LeanCodeDiffFile,
   view: LeanCodeDiffEnvelope["view"],
-): void {
+): boolean {
   const path = safe(file.path);
   if (view === "name-only") {
     lines.push(`  ${path}`);
-    return;
+    return false;
   }
 
   const status = "status" in file ? safe(file.status) : "unknown";
@@ -136,20 +140,20 @@ function appendFile(
         MAX_PATCH_PREVIEW_BYTES,
       );
       if (previewLines.lines.length > 0) {
-        lines.push(`    patch preview: ${previewLines.lines[0]}`);
+        const label = previewLines.truncated
+          ? "patch preview (truncated)"
+          : "patch preview";
+        lines.push(`    ${label}: ${previewLines.lines[0]}`);
         lines.push(
           ...previewLines.lines.slice(1).map((line) => `      ${line}`),
         );
       }
-      if (previewLines.truncated) {
-        lines.push(
-          `    patch preview truncated at ${MAX_PATCH_PREVIEW_BYTES} UTF-8 bytes; use format "json" for the full returned patch (still subject to max_patch_bytes and backend content coverage; JSON cannot recover backend-omitted content).`,
-        );
-      }
+      return previewLines.truncated;
     } else if (patch.contentOmissionReason) {
       lines.push(`    patch omitted: ${safe(patch.contentOmissionReason)}`);
     }
   }
+  return false;
 }
 
 function formatTarget(envelope: LeanCodeDiffEnvelope): string {
@@ -176,19 +180,15 @@ function formatScope(envelope: LeanCodeDiffEnvelope): string {
   return `${safe(scope.status)}${roots}${glob}`;
 }
 
-function formatContentCoverage(envelope: LeanCodeDiffEnvelope): string {
-  const coverage = safe(envelope.contentCoverage);
-  return envelope.view === "patch"
-    ? `${coverage} (backend-returned patch coverage; text-v1 preview is bounded)`
-    : coverage;
-}
-
 function formatSummary(envelope: LeanCodeDiffEnvelope): string {
   const summary = envelope.summary;
   return `${summary.filesChanged} changed, ${summary.added} added, ${summary.deleted} deleted, ${summary.modified} modified`;
 }
 
-function nextAction(envelope: LeanCodeDiffEnvelope): string {
+function nextAction(
+  envelope: LeanCodeDiffEnvelope,
+  displayTruncatedPreviews: number,
+): string {
   const target = formatTarget(envelope);
   const from = safe(envelope.from.requested);
   const to = safe(envelope.to.requested);
@@ -201,13 +201,22 @@ function nextAction(envelope: LeanCodeDiffEnvelope): string {
     envelope.contentCoverage === "partial" ||
     envelope.contentCoverage === "failed" ||
     (envelope.view === "patch" && patchIsNotAuthoritative(envelope));
-  if (needsScopeRecovery || needsContentRecovery) {
+  if (
+    needsScopeRecovery ||
+    needsContentRecovery ||
+    displayTruncatedPreviews > 0
+  ) {
     const recovery: string[] = [];
     if (needsScopeRecovery) {
       recovery.push("narrow `path_glob` or set `max_files` to a larger bound");
     }
-    if (needsContentRecovery) {
+    if (needsContentRecovery && displayTruncatedPreviews === 0) {
       recovery.push('use view "stat" or format "json" for structured evidence');
+    }
+    if (displayTruncatedPreviews > 0) {
+      recovery.push(
+        `use format "json" for the full returned patch content (${displayTruncatedPreviews} preview${displayTruncatedPreviews === 1 ? "" : "s"} truncated); still subject to max_patch_bytes/backend coverage, and JSON cannot recover backend-omitted content`,
+      );
     }
     return `Next: call code_diff again with target ${target}, from "${from}", to "${to}"; ${recovery.join("; ")}. Raw diffs do not prove compatibility or upgrade safety.`;
   }

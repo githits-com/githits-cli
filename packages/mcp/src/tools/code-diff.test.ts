@@ -285,10 +285,11 @@ describe("code_diff MCP adapter", () => {
       }),
     );
     expect(patchText).toContain("patch preview: @@ -1 +1 @@");
-    expect(patchText).toContain(
-      "Content: complete (backend-returned patch coverage; text-v1 preview is bounded)",
+    expect(patchText).toContain("Content: complete");
+    expect(patchText).not.toContain("patch preview (truncated)");
+    expect(patchText).not.toContain(
+      'use format "json" for the full returned patch content',
     );
-    expect(patchText).not.toContain("patch preview truncated");
   });
 
   it("marks bounded previews while JSON preserves the full returned patch", async () => {
@@ -305,9 +306,13 @@ describe("code_diff MCP adapter", () => {
         view: "patch",
       }),
     );
+    expect(text).toContain("patch preview (truncated):");
     expect(text).toContain(
-      'patch preview truncated at 320 UTF-8 bytes; use format "json" for the full returned patch',
+      'use format "json" for the full returned patch content (1 preview truncated)',
     );
+    expect(
+      text.match(/use format "json" for the full returned patch content/g),
+    ).toHaveLength(1);
     expect(text).toContain("JSON cannot recover backend-omitted content");
 
     const tool = createCodeDiffTool({
@@ -324,6 +329,37 @@ describe("code_diff MCP adapter", () => {
     expect(payload.files[0].patch).toBe(longPatch);
   });
 
+  it("aggregates recovery for multiple truncated patch previews", () => {
+    const longPatch = `@@ -1 +1 @@\n+${"x".repeat(500)}`;
+    const result = structuredClone(defaultCodeDiffResult);
+    result.raw.summary.filesChanged = 2;
+    result.raw.summary.modified = 2;
+    result.raw.files[0] = {
+      ...result.raw.files[0]!,
+      patch: longPatch,
+    };
+    result.raw.files.push({
+      ...result.raw.files[0]!,
+      path: "lib/router.js",
+      patch: longPatch,
+    });
+
+    const text = formatCodeDiffMcpText(
+      buildCodeDiffSuccessPayload(result, {
+        target: { registry: "NPM", packageName: "express" },
+        view: "patch",
+      }),
+    );
+
+    expect(text.match(/patch preview \(truncated\):/g)).toHaveLength(2);
+    expect(text).toContain(
+      'use format "json" for the full returned patch content (2 previews truncated)',
+    );
+    expect(
+      text.match(/use format "json" for the full returned patch content/g),
+    ).toHaveLength(1);
+  });
+
   it("distinguishes text bounds from backend-incomplete patch coverage", () => {
     const result = structuredClone(defaultCodeDiffResult);
     result.raw.contentCoverage = "PARTIAL";
@@ -338,11 +374,11 @@ describe("code_diff MCP adapter", () => {
       }),
     );
 
-    expect(text).toContain(
-      "Content: partial (backend-returned patch coverage; text-v1 preview is bounded)",
-    );
+    expect(text).toContain("Content: partial");
     expect(text).toContain("Warning: requested content is partial.");
-    expect(text).toContain("JSON cannot recover backend-omitted content");
+    expect(text).toContain(
+      'use format "json" for the full returned patch content (1 preview truncated)',
+    );
   });
 
   it("renders an unknown side of a mixed scope as a question mark", () => {
@@ -445,8 +481,8 @@ describe("code_diff MCP adapter", () => {
     );
     const preview = text
       .split("\n")
-      .find((line) => line.includes("patch preview:"))
-      ?.split("patch preview: ")[1];
+      .find((line) => line.includes("patch preview"))
+      ?.match(/patch preview(?: \(truncated\))?: (.*)$/)?.[1];
     expect(preview).toBeDefined();
     expect(
       new TextEncoder().encode(preview ?? "").byteLength,
@@ -465,7 +501,7 @@ describe("code_diff MCP adapter", () => {
         view: "patch",
       }),
     );
-    expect(text).toContain("    patch preview: @@ -1 +1 @@");
+    expect(text).toContain("    patch preview (truncated): @@ -1 +1 @@");
     expect(text).toContain("      +new");
     expect(text).toContain("      -old");
     expect(text).toContain("      ");
@@ -475,11 +511,11 @@ describe("code_diff MCP adapter", () => {
       .split("\n")
       .filter(
         (line) =>
-          line.startsWith("    patch preview:") || line.startsWith("      "),
+          line.startsWith("    patch preview") || line.startsWith("      "),
       )
       .map((line) =>
-        line.startsWith("    patch preview:")
-          ? line.slice("    patch preview: ".length)
+        line.startsWith("    patch preview")
+          ? line.replace(/^ {4}patch preview(?: \(truncated\))?: /, "")
           : line.slice("      ".length),
       )
       .join("\n");

@@ -152,10 +152,11 @@ test suite anchors the doc.
   names a command/flag and MCP names a tool/argument.
 - Text rendering, agent-specific descriptions, and the deliberate default
   view divergence are not parity targets. The MCP default is compact
-  `text-v1`; `code_diff` patch previews are bounded at 320 UTF-8 bytes and
-  mark display truncation, while `format: "json"` returns the full patch
-  returned by the backend subject to backend limits and content coverage.
-  Parity uses `format: "json"` explicitly.
+  `text-v1`; `code_diff` patch previews are bounded at 320 UTF-8 bytes, label
+  each affected file, and emit one aggregate `Next:` recovery, while
+  `format: "json"` returns the full patch returned by the backend subject to
+  backend limits and content coverage. Parity uses `format: "json"`
+  explicitly.
 
 ### `PARITY-REQUEST`
 
