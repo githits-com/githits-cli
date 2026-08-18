@@ -225,12 +225,15 @@ function buildDiagnostics(
   if (options.verbose) appendVerboseContext(lines, envelope);
 
   if (envelope.scope.status === "unknown") {
-    lines.push(
-      warn(
-        "Package ownership could not be proved; this evidence is repository-wide.",
-        options,
-      ),
-    );
+    let message =
+      "Showing changes for the entire repository because GitHits could not identify this package's directory. Unrelated files may be included.";
+    if (envelope.scope.pathGlob) {
+      message =
+        "GitHits could not identify this package's directory, so the path glob was applied across the entire repository. Matching files from other packages may be included; narrow the path glob if needed.";
+    } else if (!envelope.hasMoreFiles) {
+      message += " Add a path glob after `--` to narrow the diff.";
+    }
+    lines.push(warn(message, options));
   }
   if (!envelope.summary.inventoryComplete) {
     lines.push(

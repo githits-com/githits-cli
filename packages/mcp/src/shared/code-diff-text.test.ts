@@ -461,7 +461,10 @@ describe("formatCodeDiffTerminal", () => {
       options,
     );
 
-    expect(result.stderr).toContain("repository-wide");
+    expect(result.stderr).toContain(
+      "Showing changes for the entire repository",
+    );
+    expect(result.stderr).toContain("Unrelated files may be included");
     expect(result.stderr).toContain("inventory is incomplete");
     expect(result.stderr).toContain("More matching files");
     expect(result.stderr).toContain("Add a path glob after `--`");
@@ -471,6 +474,38 @@ describe("formatCodeDiffTerminal", () => {
     expect(result.stderr).toContain("--json");
     expect(result.stderr).toContain("display-only byte escapes");
     expect(result.stderr).toContain("modified for content safety");
+  });
+
+  it("explains that an unknown package scope applies the glob repository-wide", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({
+        scope: { status: "unknown", pathGlob: "packages/**/*.ts" },
+      }),
+      options,
+    );
+
+    expect(result.stderr).toContain(
+      "the path glob was applied across the entire repository",
+    );
+    expect(result.stderr).toContain(
+      "Matching files from other packages may be included",
+    );
+    expect(result.stderr).toContain("narrow the path glob if needed");
+    expect(result.stderr).not.toContain("add a path glob");
+  });
+
+  it("offers a path glob when unknown package scope is otherwise complete", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({ scope: { status: "unknown" } }),
+      options,
+    );
+
+    expect(result.stderr).toContain(
+      "Showing changes for the entire repository",
+    );
+    expect(result.stderr).toContain(
+      "Add a path glob after `--` to narrow the diff",
+    );
   });
 
   it("adds full exact identity and scope facts only in verbose diagnostics", () => {
