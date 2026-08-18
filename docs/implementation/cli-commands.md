@@ -11,7 +11,20 @@ Enable the experimental CLI surface in the shared host config:
 ```toml
 [experimental]
 tools = true
+report_tool_issues = "experimental" # optional: "experimental" or "all"
 ```
+
+`experimental.tools` is a strict boolean and defaults to `false` when absent.
+`experimental.report_tool_issues` is optional; accepted values are
+`"experimental"` (the local `resolve_target` and `code_diff` tools) and
+`"all"` (any GitHits tool while the experimental suite is active). Omission
+means reporting is off. A reporting value is dormant when `tools = false`, but
+invalid values and types are still rejected by strict config-consuming paths.
+Reporting changes agent guidance only: it never sends feedback automatically;
+when explicitly enabled, an agent may make one concise, redacted negative
+feedback call per distinct observed issue with `accepted: false` and the exact
+tool name. Credentials, personal/private data, proprietary content, full file
+bodies, and large outputs must not be included.
 
 GitHits reads `$XDG_CONFIG_HOME/githits/config.toml` (or
 `~/.config/githits/config.toml` when `XDG_CONFIG_HOME` is unset) on Unix-like

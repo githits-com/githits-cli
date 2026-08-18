@@ -1,6 +1,7 @@
 # Plan: Local experimental tools and agent dogfooding
 
-> Overall status: ready for implementation. The existing `resolve` and
+> Overall status: Phase 3 implementation-complete; eval acceptance pending.
+> The existing `resolve` and
 > `code diff` CLI dogfood contracts are merged and released. This plan replaces
 > their deferred direct-to-GA MCP rollout with a reusable local experimental
 > surface.
@@ -15,7 +16,7 @@ GitHits currently has two deliberately unpromoted CLI commands:
 agents from exercising their primary intended use, so shortcomings in schemas,
 descriptions, output, and multi-tool workflows are found too late.
 
-The completed effort provides a long-lived local experimental-tool mechanism:
+The implementation provides a long-lived local experimental-tool mechanism:
 
 - a host-wide config opt-in enables the current experimental CLI commands and
   local MCP tools;
@@ -399,7 +400,7 @@ There are no blocking product decisions for the next implementation phase.
 |---|---|---|
 | 1. CodeDiff transport adapter | Complete and released | Exact-tree service contract with mode-minimal selections and typed results/errors |
 | 2. Resolve and CodeDiff CLI dogfood | Complete and released | Exercised CLI requests, JSON projections, terminal UX, smoke coverage, and durable docs |
-| 3. Local experimental tools | Ready | Config-gated CLI plus local-only `resolve_target`/`code_diff`, optional issue reporting, smoke/eval coverage, unchanged stable/remote baseline |
+| 3. Local experimental tools | Implementation complete; eval pending | Config-gated CLI plus local-only `resolve_target`/`code_diff`, optional issue reporting, smoke/eval coverage, unchanged stable/remote baseline |
 | 4. Per-tool graduation | Pending evidence | Independently promote, revise, retain, or remove each experimental tool without changing the suite flag |
 | 5. Changelog steering | Blocked on backend contract and stable diff invocation | Typed sparse-changelog actions mapped to the active stable invocation |
 
@@ -443,7 +444,7 @@ corrections shipped. Neither command has an MCP adapter.
 
 ## Phase 3: Local experimental tools
 
-**Status:** ready for implementation.
+**Status:** implementation-complete; Phase 3 eval acceptance pending.
 
 **Expected outcome:** one explicit host config enables both experimental CLI and
 local MCP surfaces; optional reporting improves dogfooding; stable/remote
@@ -459,6 +460,15 @@ evals, not reasons to defer the experimental surface.
 **Dependencies:** released CLI/service contracts; existing config path and
 filesystem abstraction; local MCP internal boundary; feedback tool; smoke and
 agent-eval harnesses.
+
+**Phase 3 evaluation record:** Claude and Codex discovered and selected both
+experimental tools with correct bounded arguments, but all experimental calls
+and stable `express-router` regression calls timed out before results because
+the host's default macOS Keychain credential read blocked non-interactively.
+No successful final answers or follow-ups were produced and no feedback was
+submitted. The harness initially orphaned MCP children on timeout; process-tree
+cleanup is now implemented. Phase 3 implementation is complete, while eval
+acceptance remains blocked pending a rerun with non-blocking authentication.
 
 ### Likely files and components
 
@@ -600,10 +610,11 @@ agent-eval harnesses.
 - The session-only override is absent from normal MCP CLI help and documented
   only as eval/development infrastructure; host users enable the suite through
   `config.toml`.
-- Eval artifacts prove Claude and Codex can discover and use both experimental
-  tools, choose sensible follow-ups, and produce useful answers without stable
-  workload regressions. Any observed issues are fixed in this phase when minor;
-  major findings are recorded in this plan before deferral.
+- Eval acceptance remains pending: the recorded Claude/Codex runs discovered
+  both experimental tools with bounded arguments, but timed out before results
+  because non-interactive macOS Keychain access blocked authentication. A
+  rerun must establish successful answers/follow-ups and stable-workload
+  regression evidence before graduation review.
 - Required unit, parity, full, build, CLI/MCP smoke, built smoke, package,
   plugin, format, and lint checks pass, with live validation status stated
   truthfully.

@@ -67,6 +67,17 @@ credentials but do not copy host file-auth state; authenticated live
 validation is conditional and skips with `AUTH_REQUIRED` when unavailable.
 Public/remote smoke remains stable-only.
 
+### Phase 3 evaluation record
+
+The Claude and Codex experimental workloads discovered and selected both local
+experimental tools with the expected bounded arguments. The experimental calls
+and the stable `express-router` regression calls then all timed out before
+results because this host's default macOS Keychain credential read blocked
+non-interactively. No successful final answers or follow-ups were produced and
+no feedback was submitted. The eval harness also orphaned MCP child processes
+on timeout; its timeout cleanup now terminates the subprocess tree. Experimental
+eval acceptance remains pending a rerun with non-blocking authentication.
+
 `feedback` is mutating, so smoke coverage exercises registration and
 validation/auth paths only. It does not submit fake feedback to the live
 backend.

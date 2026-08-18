@@ -293,6 +293,14 @@ tool scope, redacted context, duplicate and non-defect suppression, and no
 retry or recursive report when feedback fails. Evaluations keep reporting off;
 production feedback is never synthesized for validation.
 
+Host users configure the local policy in `config.toml` with
+`[experimental] tools = true` and may optionally set
+`report_tool_issues = "experimental"` or `"all"`; omission means off. The
+reporting value is dormant while tools are disabled. The hidden
+`githits mcp start --experimental-tools` eval override enables the local tools
+for one process and forces reporting off without changing host config. The
+stable public and hosted/remote MCP inventories remain unchanged.
+
 When adding a new package tool, extend the composer with a one-line bullet (`\`tool_name\` — one-sentence purpose`) in the same PR that registers the tool. Keep the bullet terse; argument and response detail belong in the tool's `description`. `mcp-instructions.test.ts` enforces both directions of the mention↔registration invariant.
 
 ## Entry Points
