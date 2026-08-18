@@ -216,7 +216,6 @@ function createDescriptorServices(): McpToolServices {
       listFiles: fail,
       readFile: fail,
       grepRepo: fail,
-      codeDiff: fail,
     },
     packageIntelligenceService: {
       packageSummary: fail,

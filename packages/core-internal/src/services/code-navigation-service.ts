@@ -723,6 +723,10 @@ export interface CodeNavigationService {
   listFiles(params: ListFilesParams): Promise<ListFilesResult>;
   readFile(params: ReadFileParams): Promise<ReadFileResult>;
   grepRepo(params: GrepRepoParams): Promise<GrepRepoResult>;
+}
+
+/** Additive client capability for the unpromoted CodeDiff surface. */
+export interface CodeDiffService {
   codeDiff(params: CodeDiffParams): Promise<CodeDiffResult>;
 }
 
@@ -2212,7 +2216,9 @@ const unifiedSearchStatusGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
-export class CodeNavigationServiceImpl implements CodeNavigationService {
+export class CodeNavigationServiceImpl
+  implements CodeNavigationService, CodeDiffService
+{
   constructor(
     private readonly codeNavigationUrl: string,
     private readonly tokenProvider: TokenProvider,

@@ -1,4 +1,4 @@
-import type { CodeNavigationService } from "@githits/core-internal";
+import type { CodeDiffService } from "@githits/core-internal";
 import {
   buildCodeDiffParams,
   buildCodeDiffSuccessPayload,
@@ -39,7 +39,7 @@ export interface CodeDiffCommandOptions {
 }
 
 export interface CodeDiffCommandDependencies {
-  codeNavigationService: CodeNavigationService | undefined;
+  codeNavigationService: CodeDiffService | undefined;
   codeNavigationUrl: string | undefined;
   hasValidToken: boolean;
   mcpUrl: string;

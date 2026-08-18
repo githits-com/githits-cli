@@ -12,6 +12,7 @@ export type {
   CodeDiffRefResolution,
   CodeDiffRepositoryTarget,
   CodeDiffResult,
+  CodeDiffService,
   CodeDiffTarget,
   CodeDiffVersionSource,
   CodeNavigationService,
