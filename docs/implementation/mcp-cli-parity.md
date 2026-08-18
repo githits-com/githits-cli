@@ -52,6 +52,8 @@ The dual-surface tools today are:
 - `pkg_upgrade_review` ↔ `githits pkg upgrade-review`
 - `docs_list` ↔ `githits docs list`
 - `docs_read` ↔ `githits docs read`
+- `resolve_target` ↔ `githits resolve` *(config-gated, local-only)*
+- `code_diff` ↔ `githits code diff` *(config-gated, local-only)*
 
 `feedback` is mutating, so smoke coverage exercises registration and
 validation/auth paths only. It does not submit fake feedback to the live
@@ -93,6 +95,31 @@ test suite anchors the doc.
   is applied at the shared request builder — not at the surface — so
   both surfaces apply defaults at the same point and under the same
   conditions.
+- The local experimental pair is a deliberate explicit-default exception:
+  CLI `githits code diff` defaults to patch output while MCP `code_diff`
+  defaults to `name-status` inventory. Parity tests select the same explicit
+  view and request JSON on both surfaces before comparing service params or
+  success envelopes. `resolve_target` keeps its shared limit and detailed
+  selection defaults.
+
+### `PARITY-EXPERIMENTAL-LOCAL`
+
+- `resolve_target` and `code_diff` are config-gated local CLI/MCP pairs. They
+  are absent from the public/remote tool definitions, descriptors, smoke
+  inventory, package exports, and Agent Skill surfaces until promotion is
+  separately approved.
+- Equivalent explicit calls must normalize to identical service params. CLI
+  comma-separated registries and MCP registry arrays, CLI repeated intent
+  hints and MCP hint arrays, CLI target/range syntax and MCP target/endpoints,
+  and surface-specific field names are compared after the shared request
+  builders normalize them.
+- Explicit JSON success payloads and mapped service-error envelopes must be
+  deeply equal. Invalid caller input keeps the stable classification and
+  envelope shape; surface-native validation prose is allowed where the CLI
+  names a command/flag and MCP names a tool/argument.
+- Text rendering, agent-specific descriptions, and the deliberate default
+  view divergence are not parity targets. The MCP default is compact
+  `text-v1`; parity uses `format: "json"` explicitly.
 
 ### `PARITY-REQUEST`
 
@@ -186,6 +213,9 @@ When a new tool lands with both MCP and CLI surfaces:
 - [ ] Parity test at `src/tools/<tool>-parity.test.ts` that cites the
   rule IDs it enforces (in a file header comment). Covers at minimum:
   successful query, zero-result, two error codes.
+- [ ] For config-gated local-only pairs, add explicit service-param, JSON
+  success, mapped-error, and invalid-input shape coverage without adding the
+  tool to public or smoke inventories.
 - [ ] MCP tool description mirrored across every shipped MCP surface
   before public release.
 - [ ] Tool name added to `EXPECTED_MCP_TOOLS` in
