@@ -5,6 +5,9 @@ import {
   type AvailableVersion,
   CLIENT_UPDATE_REQUIRED_REASON,
   ClientUpdateRequiredError,
+  CodeDiffError,
+  type CodeDiffPackageInfo,
+  type CodeDiffRefResolution,
   CodeNavigationAccessError,
   CodeNavigationBackendError,
   type CodeNavigationErrorMetadata,
@@ -91,6 +94,28 @@ export interface MappedErrorDetails {
   termsUrl?: string;
   /** Authenticated web UI where the user can accept the current terms. */
   acceptanceUrl?: string;
+  /** CodeDiff comparison side involved in a bounded resolver failure. */
+  side?: string;
+  /** Published package versions supplied for CodeDiff recovery. */
+  publishedVersions?: string[];
+  publishedVersionsTruncated?: boolean;
+  /** Canonical registry supplied by a CodeDiff resolver failure. */
+  registry?: string;
+  /** Retry delay retained at millisecond precision for CodeDiff. */
+  retryAfterMs?: number;
+  /** Bounded raw-diff failure stage and limit identifier. */
+  stage?: string;
+  limitKind?: string;
+  /** Git ref supplied by a CodeDiff resolver failure. */
+  gitRef?: string;
+  /** Ref classifications retained for ambiguous-ref recovery. */
+  refKinds?: string[];
+  /** Immutable root identity retained when only the raw field failed. */
+  codeDiffResolution?: {
+    package?: CodeDiffPackageInfo;
+    from: CodeDiffRefResolution;
+    to: CodeDiffRefResolution;
+  };
 }
 
 export interface MappedError {
@@ -154,6 +179,9 @@ function classify(error: unknown): MappedError {
   if (termsError) return termsError;
   if (error instanceof ClientUpdateRequiredError) {
     return buildUpdateRequiredError(error.reason, error.currentVersion);
+  }
+  if (error instanceof CodeDiffError) {
+    return classifyCodeDiffError(error);
   }
   if (error instanceof CodeNavigationVersionNotFoundError) {
     const details: MappedErrorDetails = {};
@@ -309,6 +337,70 @@ function classify(error: unknown): MappedError {
     return { code: "UNKNOWN", message: error.message, retryable: false };
   }
   return { code: "UNKNOWN", message: "Unknown error", retryable: false };
+}
+
+function classifyCodeDiffError(error: CodeDiffError): MappedError {
+  const details: MappedErrorDetails = {};
+  const source = error.details;
+
+  if (source?.side !== undefined) details.side = source.side;
+  if (source?.publishedVersions !== undefined) {
+    details.publishedVersions = source.publishedVersions;
+  }
+  if (source?.publishedVersionsTruncated !== undefined) {
+    details.publishedVersionsTruncated = source.publishedVersionsTruncated;
+  }
+  if (source?.registry !== undefined) details.registry = source.registry;
+  if (source?.retryAfterMs !== undefined) {
+    details.retryAfterMs = source.retryAfterMs;
+  }
+  if (source?.stage !== undefined) details.stage = source.stage;
+  if (source?.limitKind !== undefined) details.limitKind = source.limitKind;
+  if (source?.repoUrl !== undefined) details.repoUrl = source.repoUrl;
+  if (source?.gitRef !== undefined) details.gitRef = source.gitRef;
+  if (source?.availableRefs !== undefined) {
+    details.availableRefs = source.availableRefs.map((entry) => ({ ...entry }));
+  }
+  if (source?.suggestedRefs !== undefined) {
+    details.suggestedRefs = source.suggestedRefs.map((entry) => ({ ...entry }));
+  }
+  if (source?.refKinds !== undefined) details.refKinds = source.refKinds;
+  if (error.partial !== undefined) {
+    details.codeDiffResolution = {
+      package: error.partial.package,
+      from: error.partial.fromResolution,
+      to: error.partial.toResolution,
+    };
+  }
+
+  const build = (
+    code: MappedErrorCode,
+    defaultRetryable: boolean,
+  ): MappedError => ({
+    code,
+    message: error.message,
+    retryable: source?.retryable ?? defaultRetryable,
+    details: Object.keys(details).length > 0 ? details : undefined,
+  });
+
+  switch (source?.code) {
+    case "VALIDATION_ERROR":
+      return build("INVALID_ARGUMENT", false);
+    case "VERSION_NOT_FOUND":
+      return build("VERSION_NOT_FOUND", false);
+    case "REF_NOT_FOUND":
+    case "AMBIGUOUS_REF":
+      return build("REF_NOT_FOUND", false);
+    case "REPOSITORY_NOT_FOUND":
+    case "PACKAGE_NOT_FOUND":
+      return build("NOT_FOUND", false);
+    case "TIMEOUT":
+      return build("TIMEOUT", true);
+    case "RATE_LIMITED":
+      return build("RATE_LIMITED", true);
+    default:
+      return build("BACKEND_ERROR", false);
+  }
 }
 
 export function buildUpdateRequiredError(

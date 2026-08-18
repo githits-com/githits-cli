@@ -1,5 +1,8 @@
 export * from "./index.js";
 export { getMcpToolDefinitions } from "./mcp/server.js";
+export * from "./shared/code-diff-request.js";
+export * from "./shared/code-diff-response.js";
+export * from "./shared/code-diff-text.js";
 export * from "./shared/code-navigation.js";
 export * from "./shared/code-navigation-defaults.js";
 export * from "./shared/code-navigation-error-map.js";
