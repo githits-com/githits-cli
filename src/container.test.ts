@@ -95,9 +95,13 @@ describe("container auth dependencies", () => {
         '[auth]\nstorage = "invalid"\n',
       ]) {
         await writeFile(join(configDir, "config.toml"), contents);
+        const configEnv =
+          process.platform === "win32"
+            ? { APPDATA: xdgConfigHome, XDG_CONFIG_HOME: undefined }
+            : { XDG_CONFIG_HOME: xdgConfigHome, APPDATA: undefined };
         await withEnvVars(
           {
-            XDG_CONFIG_HOME: xdgConfigHome,
+            ...configEnv,
             GITHITS_AUTH_STORAGE: "invalid",
             GITHITS_API_TOKEN: undefined,
           },

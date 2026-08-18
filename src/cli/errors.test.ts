@@ -9,6 +9,23 @@ import { ExperimentalConfigError } from "../services/experimental-config.js";
 import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
 import { handleCliError, runCliMain } from "./errors.js";
 
+const configHomeEnvKey =
+  process.platform === "win32" ? "APPDATA" : "XDG_CONFIG_HOME";
+const alternateConfigHomeEnvKey =
+  configHomeEnvKey === "APPDATA" ? "XDG_CONFIG_HOME" : "APPDATA";
+
+function withConfigHomeEnv(
+  env: NodeJS.ProcessEnv,
+  configHome: string,
+): NodeJS.ProcessEnv {
+  const configured = {
+    ...env,
+    [configHomeEnvKey]: configHome,
+  };
+  delete configured[alternateConfigHomeEnvKey];
+  return configured;
+}
+
 describe("handleCliError", () => {
   const originalDebug = process.env.GITHITS_DEBUG;
 
@@ -214,17 +231,19 @@ describe("handleCliError", () => {
         cwd: process.cwd(),
         stdout: "pipe",
         stderr: "pipe",
-        env: {
-          ...process.env,
-          GITHITS_API_TOKEN: "test-token",
-          GITHITS_API_URL: "http://attacker.test",
-          GITHITS_MCP_URL: "https://mcp.githits.com",
-          GITHITS_CODE_NAV_URL: "https://pkgseer.dev",
-          GITHITS_DISABLE_UPDATE_CHECK: "1",
-          XDG_CONFIG_HOME: xdgConfigHome,
-          GITHITS_DEBUG: "",
-          NO_COLOR: "1",
-        },
+        env: withConfigHomeEnv(
+          {
+            ...process.env,
+            GITHITS_API_TOKEN: "test-token",
+            GITHITS_API_URL: "http://attacker.test",
+            GITHITS_MCP_URL: "https://mcp.githits.com",
+            GITHITS_CODE_NAV_URL: "https://pkgseer.dev",
+            GITHITS_DISABLE_UPDATE_CHECK: "1",
+            GITHITS_DEBUG: "",
+            NO_COLOR: "1",
+          },
+          xdgConfigHome,
+        ),
       },
     );
     try {
@@ -259,7 +278,8 @@ describe("handleCliError", () => {
     env.GITHITS_CODE_NAV_URL = "https://code-malformed-auth.invalid";
     env.GITHITS_ACCOUNTS_URL = "https://accounts-malformed-auth.invalid";
     env.GITHITS_DISABLE_UPDATE_CHECK = "1";
-    env.XDG_CONFIG_HOME = xdgConfigHome;
+    env[configHomeEnvKey] = xdgConfigHome;
+    delete env[alternateConfigHomeEnvKey];
     env.GITHITS_DEBUG = "";
     env.NO_COLOR = "1";
     const proc = Bun.spawn(

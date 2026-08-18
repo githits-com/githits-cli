@@ -9,14 +9,18 @@ interface CliResult {
   exitCode: number;
 }
 
+const configHomeEnvKey =
+  process.platform === "win32" ? "APPDATA" : "XDG_CONFIG_HOME";
+const alternateConfigHomeEnvKey =
+  configHomeEnvKey === "APPDATA" ? "XDG_CONFIG_HOME" : "APPDATA";
+
 async function runCli(
-  xdgConfigHome: string,
+  configHome: string,
   args: string[],
   isolatedHome?: string,
 ): Promise<CliResult> {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    XDG_CONFIG_HOME: xdgConfigHome,
     GITHITS_DISABLE_UPDATE_CHECK: "1",
     GITHITS_API_URL: "not-a-url",
     GITHITS_MCP_URL: "not-a-url",
@@ -28,8 +32,9 @@ async function runCli(
   if (isolatedHome !== undefined) {
     env.HOME = isolatedHome;
     env.USERPROFILE = isolatedHome;
-    env.APPDATA = join(isolatedHome, "AppData", "Roaming");
   }
+  env[configHomeEnvKey] = configHome;
+  delete env[alternateConfigHomeEnvKey];
 
   const child = Bun.spawn(["bun", "run", "src/cli.ts", ...args], {
     cwd: process.cwd(),
@@ -47,34 +52,34 @@ async function runCli(
 
 async function withConfig<T>(
   contents: string | undefined,
-  fn: (xdgConfigHome: string) => Promise<T>,
+  fn: (configHome: string) => Promise<T>,
 ): Promise<T> {
-  const xdgConfigHome = await mkdtemp(join(tmpdir(), "githits-cli-policy-"));
+  const configHome = await mkdtemp(join(tmpdir(), "githits-cli-policy-"));
   try {
     if (contents !== undefined) {
-      const configDir = join(xdgConfigHome, "githits");
+      const configDir = join(configHome, "githits");
       await mkdir(configDir, { recursive: true });
       await writeFile(join(configDir, "config.toml"), contents);
     }
-    return await fn(xdgConfigHome);
+    return await fn(configHome);
   } finally {
-    await rm(xdgConfigHome, { recursive: true, force: true });
+    await rm(configHome, { recursive: true, force: true });
   }
 }
 
 async function withMissingConfig<T>(
-  fn: (xdgConfigHome: string, isolatedHome: string) => Promise<T>,
+  fn: (configHome: string, isolatedHome: string) => Promise<T>,
 ): Promise<T> {
-  const xdgConfigHome = await mkdtemp(
+  const configHome = await mkdtemp(
     join(tmpdir(), "githits-cli-missing-config-"),
   );
   const isolatedHome = await mkdtemp(
     join(tmpdir(), "githits-cli-missing-home-"),
   );
   try {
-    return await fn(xdgConfigHome, isolatedHome);
+    return await fn(configHome, isolatedHome);
   } finally {
-    await rm(xdgConfigHome, { recursive: true, force: true });
+    await rm(configHome, { recursive: true, force: true });
     await rm(isolatedHome, { recursive: true, force: true });
   }
 }

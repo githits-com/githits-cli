@@ -39,17 +39,26 @@ import {
   startMcpServer,
 } from "./mcp.js";
 
-async function withXdgConfigHome<T>(
-  xdgConfigHome: string,
+async function withConfigHome<T>(
+  configHome: string,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const previous = process.env.XDG_CONFIG_HOME;
-  process.env.XDG_CONFIG_HOME = xdgConfigHome;
+  const configHomeEnvKey =
+    process.platform === "win32" ? "APPDATA" : "XDG_CONFIG_HOME";
+  const alternateConfigHomeEnvKey =
+    configHomeEnvKey === "APPDATA" ? "XDG_CONFIG_HOME" : "APPDATA";
+  const previous = process.env[configHomeEnvKey];
+  const previousAlternate = process.env[alternateConfigHomeEnvKey];
+  process.env[configHomeEnvKey] = configHome;
+  delete process.env[alternateConfigHomeEnvKey];
   try {
     return await fn();
   } finally {
-    if (previous === undefined) delete process.env.XDG_CONFIG_HOME;
-    else process.env.XDG_CONFIG_HOME = previous;
+    if (previous === undefined) delete process.env[configHomeEnvKey];
+    else process.env[configHomeEnvKey] = previous;
+    if (previousAlternate === undefined)
+      delete process.env[alternateConfigHomeEnvKey];
+    else process.env[alternateConfigHomeEnvKey] = previousAlternate;
   }
 }
 
@@ -413,7 +422,7 @@ describe("createMcpCommandStartup", () => {
 
     try {
       process.env.GITHITS_API_TOKEN = "test-mcp-startup-token";
-      await withXdgConfigHome(xdgConfigHome, async () => {
+      await withConfigHome(xdgConfigHome, async () => {
         const startup = await createMcpCommandStartup();
         expect(startup.experimentalPolicy).toEqual({
           tools: true,
@@ -436,7 +445,7 @@ describe("createMcpCommandStartup", () => {
     await writeFile(join(configDir, "config.toml"), "[experimental\n");
 
     try {
-      await withXdgConfigHome(xdgConfigHome, async () => {
+      await withConfigHome(xdgConfigHome, async () => {
         await expect(createMcpCommandStartup()).rejects.toThrow(
           `Cannot parse GitHits config at ${join(configDir, "config.toml")}`,
         );
@@ -461,7 +470,7 @@ describe("createMcpCommandStartup", () => {
     try {
       delete process.env.GITHITS_API_TOKEN;
       delete process.env.GITHITS_AUTH_STORAGE;
-      await withXdgConfigHome(xdgConfigHome, async () => {
+      await withConfigHome(xdgConfigHome, async () => {
         await expect(
           createMcpCommandStartup({ experimentalTools: true }),
         ).rejects.toThrow(`Cannot parse GitHits config at ${configPath}`);
@@ -500,7 +509,7 @@ describe("createMcpCommandStartup", () => {
         now: () => 0,
         write: (text) => telemetry.push(text),
       });
-      await withXdgConfigHome(xdgConfigHome, async () => {
+      await withConfigHome(xdgConfigHome, async () => {
         await expect(createMcpCommandStartup()).rejects.toThrow(
           `Invalid GitHits config at ${configPath}`,
         );
@@ -517,7 +526,7 @@ describe("createMcpCommandStartup", () => {
       expect(telemetry.join(" ")).toContain("mode=file");
 
       process.env.GITHITS_AUTH_STORAGE = "invalid";
-      await withXdgConfigHome(xdgConfigHome, async () => {
+      await withConfigHome(xdgConfigHome, async () => {
         await expect(
           createMcpCommandStartup({ experimentalTools: true }),
         ).rejects.toThrow("Invalid GITHITS_AUTH_STORAGE");
@@ -550,7 +559,7 @@ describe("createMcpCommandStartup", () => {
     try {
       delete process.env.GITHITS_API_TOKEN;
       delete process.env.GITHITS_AUTH_STORAGE;
-      await withXdgConfigHome(xdgConfigHome, async () => {
+      await withConfigHome(xdgConfigHome, async () => {
         const startup = await createMcpCommandStartup({
           experimentalTools: true,
         });
@@ -658,7 +667,7 @@ describe("createMcpCommandStartup", () => {
     await writeFile(join(configDir, "config.toml"), "[experimental\n");
 
     try {
-      await withXdgConfigHome(xdgConfigHome, async () => {
+      await withConfigHome(xdgConfigHome, async () => {
         const program = new Command();
         program.configureOutput({
           writeOut: () => {},
