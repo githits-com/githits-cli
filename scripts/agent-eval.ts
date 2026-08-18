@@ -1017,7 +1017,38 @@ export function isValidAgentReport(value: unknown): boolean {
   );
 }
 
-async function runWithTimeout(
+function killProcessTree(
+  proc: Bun.Subprocess,
+  signal: "SIGTERM" | "SIGKILL",
+): void {
+  const pid = proc.pid;
+  if (pid === undefined) {
+    proc.kill(signal);
+    return;
+  }
+
+  if (process.platform === "win32") {
+    Bun.spawn(
+      [
+        "taskkill",
+        "/PID",
+        String(pid),
+        "/T",
+        ...(signal === "SIGKILL" ? ["/F"] : []),
+      ],
+      { stdout: "ignore", stderr: "ignore" },
+    );
+    return;
+  }
+
+  try {
+    process.kill(-pid, signal);
+  } catch {
+    proc.kill(signal);
+  }
+}
+
+export async function runWithTimeout(
   command: string[],
   cwd: string,
   env: Record<string, string>,
@@ -1031,14 +1062,17 @@ async function runWithTimeout(
   const proc = Bun.spawn(command, {
     cwd,
     env,
+    detached: process.platform !== "win32",
     stdout: "pipe",
     stderr: "pipe",
   });
   let timedOut = false;
+  let escalationTimer: ReturnType<typeof setTimeout> | undefined;
   const timer = setTimeout(() => {
     timedOut = true;
-    proc.kill("SIGTERM");
-    setTimeout(() => proc.kill("SIGKILL"), 2_000).unref?.();
+    killProcessTree(proc, "SIGTERM");
+    escalationTimer = setTimeout(() => killProcessTree(proc, "SIGKILL"), 2_000);
+    escalationTimer.unref?.();
   }, timeoutSeconds * 1_000);
 
   const [stdout, stderr, exitCode] = await Promise.all([
@@ -1047,6 +1081,7 @@ async function runWithTimeout(
     proc.exited.catch(() => undefined),
   ]);
   clearTimeout(timer);
+  if (escalationTimer !== undefined) clearTimeout(escalationTimer);
   return { stdout, stderr, exitCode, timedOut };
 }
 

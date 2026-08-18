@@ -26,6 +26,7 @@ import {
   parseArgs,
   redactText,
   runAgentEval,
+  runWithTimeout,
   sanitizedEnvSummary,
 } from "./agent-eval.ts";
 import {
@@ -110,6 +111,55 @@ describe("agent eval harness", () => {
       command: "bun",
       args: ["run", "--cwd", "/repo/githits-cli", "dev", "mcp", "start"],
     });
+  });
+
+  it("preserves ordinary subprocess completion", async () => {
+    const result = await runWithTimeout(
+      [process.execPath, "-e", "process.stdout.write('complete')"],
+      process.cwd(),
+      {},
+      5,
+    );
+
+    expect(result.timedOut).toBe(false);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("complete");
+  });
+
+  it("kills a timed-out POSIX subprocess process group", async () => {
+    if (process.platform === "win32") return;
+
+    const root = mkdtempSync(join(tmpdir(), "agent-eval-timeout-"));
+    const scriptPath = join(root, "descendant.sh");
+    const pidPath = join(root, "descendant.pid");
+    writeFileSync(
+      scriptPath,
+      '#!/bin/sh\nsleep 60 &\necho "$!" > "$1"\ntrap "exit 0" TERM INT\nwhile :; do sleep 1; done\n',
+    );
+
+    let descendantPid: number | undefined;
+    try {
+      const result = await runWithTimeout(
+        ["sh", scriptPath, pidPath],
+        root,
+        {},
+        0.1,
+      );
+      descendantPid = Number(readFileSync(pidPath, "utf8").trim());
+
+      expect(result.timedOut).toBe(true);
+      expect(descendantPid).toBeGreaterThan(0);
+      expect(() => process.kill(descendantPid!, 0)).toThrow();
+    } finally {
+      if (descendantPid !== undefined) {
+        try {
+          process.kill(descendantPid, "SIGKILL");
+        } catch {
+          // The process group cleanup already removed the descendant.
+        }
+      }
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("builds published MCP config with pinned package spec", () => {
