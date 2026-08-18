@@ -29,6 +29,7 @@ function invoke(
 function parseResult(result: Awaited<ReturnType<typeof invoke>>): {
   code?: string;
   error?: string;
+  retryable?: boolean;
 } {
   return JSON.parse(result.content[0]?.text ?? "{}");
 }
@@ -267,6 +268,16 @@ describe("resolve_target MCP adapter", () => {
       expect(response.isError).toBe(true);
       expect(parseResult(response).code).toBe("INVALID_ARGUMENT");
     }
+
+    const preferredKind = await invoke(tool, {
+      name: "express",
+      preferred_kind: "workspace",
+    });
+    expect(parseResult(preferredKind)).toEqual({
+      code: "INVALID_ARGUMENT",
+      error: "Preferred kind expects package or repository. Got 'workspace'.",
+      retryable: false,
+    });
   });
 
   it("reports omitted candidates and protected matches in bounded text", () => {

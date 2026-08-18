@@ -131,11 +131,14 @@ function appendFile(
   if (view === "patch") {
     const patch = file as LeanCodeDiffPatchFile;
     if (canShowPatch(patch)) {
-      const preview = truncateUtf8(
-        safe(patch.patch ?? ""),
+      const previewLines = formatPatchPreview(
+        patch.patch ?? "",
         MAX_PATCH_PREVIEW_BYTES,
       );
-      if (preview) lines.push(`    patch preview: ${preview}`);
+      if (previewLines.length > 0) {
+        lines.push(`    patch preview: ${previewLines[0]}`);
+        lines.push(...previewLines.slice(1).map((line) => `      ${line}`));
+      }
     } else if (patch.contentOmissionReason) {
       lines.push(`    patch omitted: ${safe(patch.contentOmissionReason)}`);
     }
@@ -233,6 +236,27 @@ function canShowPatch(file: LeanCodeDiffPatchFile): boolean {
 
 function safe(value: string): string {
   return sanitizeTerminalText(value).replace(/\s+/g, " ").trim();
+}
+
+function formatPatchPreview(value: string, maxBytes: number): string[] {
+  const sanitizedLines = value
+    .split(/\r?\n/)
+    .map((line) => sanitizeTerminalText(line));
+  const retained: string[] = [];
+  let byteLength = 0;
+  for (const line of sanitizedLines) {
+    const separatorBytes = retained.length > 0 ? 1 : 0;
+    const lineBytes = UTF8_ENCODER.encode(line).byteLength;
+    const available = maxBytes - byteLength - separatorBytes;
+    if (available < lineBytes) {
+      const truncated = truncateUtf8(line, Math.max(available, 0));
+      if (truncated) retained.push(truncated);
+      break;
+    }
+    retained.push(line);
+    byteLength += separatorBytes + lineBytes;
+  }
+  return retained;
 }
 
 function truncateUtf8(value: string, maxBytes: number): string {

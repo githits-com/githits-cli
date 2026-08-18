@@ -87,7 +87,7 @@ function parsePreferredKind(
   if (kind === "package") return "PACKAGE";
   if (kind === "repository") return "REPOSITORY";
   throw new InvalidPackageSpecError(
-    `prefer-kind expects package or repository. Got '${value}'.`,
+    `Preferred kind expects package or repository. Got '${value}'.`,
   );
 }
 

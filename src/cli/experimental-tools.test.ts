@@ -57,8 +57,8 @@ async function withConfig<T>(
 }
 
 describe("experimental CLI process policy", () => {
-  it("hides experimental commands from absent and false config help", async () => {
-    for (const contents of [undefined, "[experimental]\ntools = false\n"]) {
+  it("hides experimental commands from empty and false config help", async () => {
+    for (const contents of ["", "[experimental]\ntools = false\n"]) {
       await withConfig(contents, async (xdgConfigHome) => {
         const root = await runCli(xdgConfigHome, ["--help"]);
         expect(root.exitCode).toBe(0);
@@ -92,25 +92,42 @@ describe("experimental CLI process policy", () => {
   }, 30_000);
 
   it("rejects disabled direct commands before auth, update, or service work", async () => {
-    await withConfig(undefined, async (xdgConfigHome) => {
-      for (const args of [
-        ["resolve", "--help"],
-        ["code", "diff", "--help"],
-        ["help", "resolve"],
-        ["help", "code", "diff"],
-      ]) {
-        const result = await runCli(xdgConfigHome, args);
-        expect(result.exitCode).toBe(1);
-        expect(result.stdout).toBe("");
-        expect(result.stderr).toContain(
-          join(xdgConfigHome, "githits", "config.toml"),
-        );
-        expect(result.stderr).toContain("[experimental]\ntools = true");
-        expect(result.stderr).not.toContain("unknown command");
-        expect(result.stderr).not.toContain("Invalid GITHITS_API_URL");
-        expect(result.stderr).not.toContain("Authentication");
-      }
-    });
+    await withConfig(
+      "[experimental]\ntools = false\n",
+      async (xdgConfigHome) => {
+        for (const args of [
+          ["resolve", "--help"],
+          ["code", "diff", "--help"],
+          ["help", "resolve"],
+          ["help", "code", "diff"],
+        ]) {
+          const result = await runCli(xdgConfigHome, args);
+          expect(result.exitCode).toBe(1);
+          expect(result.stdout).toBe("");
+          expect(result.stderr).toContain(
+            join(xdgConfigHome, "githits", "config.toml"),
+          );
+          expect(result.stderr).toContain("[experimental]\ntools = true");
+          expect(result.stderr).not.toContain("unknown command");
+          expect(result.stderr).not.toContain("Invalid GITHITS_API_URL");
+          expect(result.stderr).not.toContain("Authentication");
+        }
+        const directJson = await runCli(xdgConfigHome, [
+          "code",
+          "diff",
+          "npm:express",
+          "5.2.0..5.2.1",
+          "--json",
+        ]);
+        expect(directJson.exitCode).toBe(1);
+        expect(directJson.stdout).toBe("");
+        expect(JSON.parse(directJson.stderr)).toEqual({
+          error: `Experimental CLI command "code diff" is disabled. Enable it in ${join(xdgConfigHome, "githits", "config.toml")} by adding:\n[experimental]\ntools = true`,
+          code: "INVALID_ARGUMENT",
+          retryable: false,
+        });
+      },
+    );
   }, 30_000);
 
   it("keeps stable recovery surfaces available for malformed config", async () => {
@@ -142,6 +159,18 @@ describe("experimental CLI process policy", () => {
       ]);
       expect(directDiff.exitCode).toBe(1);
       expect(directDiff.stderr).toContain("Cannot parse GitHits config");
+
+      const directJson = await runCli(xdgConfigHome, [
+        "resolve",
+        "express",
+        "--json",
+      ]);
+      expect(directJson.exitCode).toBe(1);
+      expect(directJson.stdout).toBe("");
+      expect(JSON.parse(directJson.stderr)).toMatchObject({
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
     });
   }, 30_000);
 });

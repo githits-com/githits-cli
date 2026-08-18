@@ -114,6 +114,10 @@ describe("agent eval harness", () => {
   });
 
   it("preserves ordinary subprocess completion", async () => {
+    const before = {
+      sigint: process.listenerCount("SIGINT"),
+      sigterm: process.listenerCount("SIGTERM"),
+    };
     const result = await runWithTimeout(
       [process.execPath, "-e", "process.stdout.write('complete')"],
       process.cwd(),
@@ -124,6 +128,8 @@ describe("agent eval harness", () => {
     expect(result.timedOut).toBe(false);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("complete");
+    expect(process.listenerCount("SIGINT")).toBe(before.sigint);
+    expect(process.listenerCount("SIGTERM")).toBe(before.sigterm);
   });
 
   it("kills a timed-out POSIX subprocess process group", async () => {
@@ -131,33 +137,25 @@ describe("agent eval harness", () => {
 
     const root = mkdtempSync(join(tmpdir(), "agent-eval-timeout-"));
     const scriptPath = join(root, "descendant.sh");
-    const pidPath = join(root, "descendant.pid");
+    const before = {
+      sigint: process.listenerCount("SIGINT"),
+      sigterm: process.listenerCount("SIGTERM"),
+    };
     writeFileSync(
       scriptPath,
-      '#!/bin/sh\nsleep 60 &\necho "$!" > "$1"\ntrap "exit 0" TERM INT\nwhile :; do sleep 1; done\n',
+      '#!/bin/sh\nprintf "READY\\n"\nsleep 60 &\nchild=$!\ntrap "kill \\$child 2>/dev/null; wait \\$child; printf \\"DESCENDANT_STOPPED\\\\n\\"; printf \\"PARENT_STOPPED\\\\n\\"; exit 0" TERM INT\nwhile :; do sleep 1; done\n',
     );
 
-    let descendantPid: number | undefined;
     try {
-      const result = await runWithTimeout(
-        ["sh", scriptPath, pidPath],
-        root,
-        {},
-        0.1,
-      );
-      descendantPid = Number(readFileSync(pidPath, "utf8").trim());
+      const result = await runWithTimeout(["sh", scriptPath], root, {}, 0.2);
 
       expect(result.timedOut).toBe(true);
-      expect(descendantPid).toBeGreaterThan(0);
-      expect(() => process.kill(descendantPid!, 0)).toThrow();
+      expect(result.stdout).toContain("READY");
+      expect(result.stdout).toContain("DESCENDANT_STOPPED");
+      expect(result.stdout).toContain("PARENT_STOPPED");
+      expect(process.listenerCount("SIGINT")).toBe(before.sigint);
+      expect(process.listenerCount("SIGTERM")).toBe(before.sigterm);
     } finally {
-      if (descendantPid !== undefined) {
-        try {
-          process.kill(descendantPid, "SIGKILL");
-        } catch {
-          // The process group cleanup already removed the descendant.
-        }
-      }
       rmSync(root, { recursive: true, force: true });
     }
   });

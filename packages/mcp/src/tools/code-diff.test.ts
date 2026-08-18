@@ -33,6 +33,8 @@ function payload(result: CodeDiffResult = defaultCodeDiffResult) {
 
 function parseError(result: Awaited<ReturnType<typeof invoke>>): {
   code: string;
+  error: string;
+  retryable: boolean;
 } {
   return JSON.parse(result.content[0]?.text ?? "{}");
 }
@@ -190,7 +192,12 @@ describe("code_diff MCP adapter", () => {
       to: "2",
     });
     expect(invalid.isError).toBe(true);
-    expect(parseError(invalid).code).toBe("INVALID_ARGUMENT");
+    expect(parseError(invalid)).toEqual({
+      code: "INVALID_ARGUMENT",
+      error:
+        "CodeDiff target must be a compact string or include package `registry` + `package_name` or repository `repo_url`.",
+      retryable: false,
+    });
 
     const service = createCodeDiffTool({
       codeDiff: mock(() =>
@@ -305,5 +312,40 @@ describe("code_diff MCP adapter", () => {
     expect(
       new TextEncoder().encode(preview ?? "").byteLength,
     ).toBeLessThanOrEqual(320);
+  });
+
+  it("preserves sanitized multiline patch preview lines with indentation", () => {
+    const result = structuredClone(defaultCodeDiffResult);
+    result.raw.files[0] = {
+      ...result.raw.files[0]!,
+      patch: `@@ -1 +1 @@\n+new\u001b[31m\n-old\r\n ${"€".repeat(200)}`,
+    };
+    const text = formatCodeDiffMcpText(
+      buildCodeDiffSuccessPayload(result, {
+        target: { registry: "NPM", packageName: "express" },
+        view: "patch",
+      }),
+    );
+    expect(text).toContain("    patch preview: @@ -1 +1 @@");
+    expect(text).toContain("      +new");
+    expect(text).toContain("      -old");
+    expect(text).toContain("      ");
+    expect(text).not.toContain("\u001b");
+    expect(text).not.toContain("\n+new");
+    const preview = text
+      .split("\n")
+      .filter(
+        (line) =>
+          line.startsWith("    patch preview:") || line.startsWith("      "),
+      )
+      .map((line) =>
+        line.startsWith("    patch preview:")
+          ? line.slice("    patch preview: ".length)
+          : line.slice("      ".length),
+      )
+      .join("\n");
+    expect(new TextEncoder().encode(preview).byteLength).toBeLessThanOrEqual(
+      320,
+    );
   });
 });

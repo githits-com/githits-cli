@@ -280,12 +280,13 @@ describe("code_diff parity", () => {
     expect(cli).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      error: expect.any(String),
+      error: "`--max-patch-bytes` is valid only when the Diff view is `patch`.",
     });
     expect(mcp).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      error: expect.any(String),
+      error:
+        "`maximum patch bytes` is valid only when the CodeDiff view is `patch`.",
     });
     expect(Object.keys(cli as object).sort()).toEqual(
       Object.keys(mcp as object).sort(),
@@ -317,12 +318,14 @@ describe("code_diff parity", () => {
     expect(cli).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      error: expect.any(String),
+      error:
+        "Package targets must not include a version; put both versions in `<from>..<to>`.",
     });
     expect(mcp).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      error: expect.any(String),
+      error:
+        "Package targets must not include a version; put both versions in `range`.",
     });
     expect(Object.keys(cli as object).sort()).toEqual(
       Object.keys(mcp as object).sort(),
@@ -354,12 +357,12 @@ describe("code_diff parity", () => {
     expect(cli).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      error: expect.any(String),
+      error: "CodeDiff range endpoints must not be empty.",
     });
     expect(mcp).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      error: expect.any(String),
+      error: "CodeDiff from endpoint must not be empty.",
     });
     expect(Object.keys(cli as object).sort()).toEqual(
       Object.keys(mcp as object).sort(),

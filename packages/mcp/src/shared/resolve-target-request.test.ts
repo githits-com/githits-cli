@@ -81,7 +81,7 @@ describe("buildResolveTargetParams", () => {
         preferKind: "site",
         includeDetailedFields: false,
       }),
-    ).toThrow("prefer-kind expects package or repository");
+    ).toThrow("Preferred kind expects package or repository");
   });
 
   it("rejects non-integer and out-of-range limits", () => {

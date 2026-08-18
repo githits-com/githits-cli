@@ -34,9 +34,12 @@ the canonical file is absent.
 
 Without the setting, or with `tools = false`, root and `code` help omit
 `resolve` and `diff`. Direct invocations fail before authentication or network
-startup with the resolved config path and the snippet above. Malformed config
+startup with the resolved config path and the snippet above. Terminal failures
+retain that exact path/snippet; `--json` failures write only the structured
+`INVALID_ARGUMENT` envelope to stderr and keep stdout empty. Malformed config
 falls back to the stable help/version and recovery surfaces; direct
-experimental invocations report the path-qualified config error.
+experimental invocations report the path-qualified config error using the same
+terminal/JSON split.
 
 ## Commands
 

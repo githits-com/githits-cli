@@ -199,6 +199,7 @@ async function main(): Promise<void> {
 await runCliMain(main, {
   stderr: process.stderr,
   exit: process.exit as (code: number) => never,
+  json: argv.includes("--json"),
 });
 
 /**

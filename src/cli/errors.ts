@@ -15,6 +15,7 @@ import { AuthStoragePolicyError } from "../services/mode-aware-file-auth-storage
 export interface CliErrorHandlerDeps {
   stderr: Pick<NodeJS.WriteStream, "write">;
   exit: (code: number) => never;
+  json?: boolean;
 }
 
 export async function runCliMain(
@@ -32,6 +33,17 @@ export function handleCliError(
   error: unknown,
   deps: CliErrorHandlerDeps,
 ): never {
+  if (deps.json && isExperimentalPolicyError(error)) {
+    deps.stderr.write(
+      `${JSON.stringify({
+        error: error.message,
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      })}\n`,
+    );
+    deps.exit(1);
+  }
+
   if (error instanceof AuthRequiredError) {
     deps.stderr.write(`${formatAuthRequiredForTerminal(error)}\n`);
     deps.exit(1);
@@ -63,5 +75,12 @@ function isUserFacingError(error: unknown): error is Error {
     error instanceof ExperimentalToolsDisabledError ||
     error instanceof AuthStorageLockTimeoutError ||
     error instanceof AuthStoragePolicyError
+  );
+}
+
+function isExperimentalPolicyError(error: unknown): error is Error {
+  return (
+    error instanceof ExperimentalConfigError ||
+    error instanceof ExperimentalToolsDisabledError
   );
 }

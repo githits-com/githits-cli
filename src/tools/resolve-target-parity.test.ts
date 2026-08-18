@@ -201,12 +201,14 @@ describe("resolve_target parity", () => {
     expect(cli).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      error: expect.any(String),
+      error:
+        "Unsupported registry 'not-a-registry'. Supported: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist, rubygems, go, swift.",
     });
     expect(mcp).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      error: expect.any(String),
+      error:
+        "Unsupported registry 'not-a-registry'. Supported: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist, rubygems, go, swift.",
     });
     expect(Object.keys(cli as object).sort()).toEqual(
       Object.keys(mcp as object).sort(),

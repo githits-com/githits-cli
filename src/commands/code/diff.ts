@@ -153,8 +153,10 @@ function buildCliCodeDiffParams(
     if (!(error instanceof InvalidPackageSpecError)) throw error;
     const rewritten = error.message
       .replace(/`maxPatchBytes`/g, "`--max-patch-bytes`")
+      .replace(/`maximum patch bytes`/g, "`--max-patch-bytes`")
       .replace(/`maxFiles`/g, "`--max-files`")
       .replace(/`pathGlob`/g, "`<path-glob>`")
+      .replace(/`path glob`/g, "`<path-glob>`")
       .replace(/`repoUrl`/g, "`--repo-url`")
       .replace(/`range`/g, "`<from>..<to>`")
       .replace(/CodeDiff view/g, "Diff view");

@@ -9,6 +9,7 @@ import {
   EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS,
   EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
   EXPECTED_TOP_LEVEL_COMMANDS,
+  formatCliLiveCohortSummary,
   parseCliSmokeArgs,
   parseRootHelpCommands,
 } from "./cli-smoke.ts";
@@ -192,5 +193,25 @@ describe("MCP smoke cohorts", () => {
       "resolve_target",
       "code_diff",
     ]);
+  });
+});
+
+describe("CLI live smoke cohort reporting", () => {
+  it("distinguishes both passed, partial, and both skipped outcomes", () => {
+    expect(formatCliLiveCohortSummary("passed", "passed")).toContain(
+      "stable and experimental live cohorts passed",
+    );
+    expect(formatCliLiveCohortSummary("passed", "skipped")).toContain(
+      "partial pass",
+    );
+    expect(formatCliLiveCohortSummary("skipped", "passed")).toContain(
+      "partial pass",
+    );
+    expect(formatCliLiveCohortSummary("skipped", "skipped")).toContain(
+      "CLI smoke skipped",
+    );
+    expect(formatCliLiveCohortSummary("skipped", "skipped")).not.toContain(
+      "CLI smoke passed",
+    );
   });
 });

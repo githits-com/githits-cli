@@ -38,6 +38,21 @@ export interface CliSmokeOptions {
   target: CliLaunchTarget;
 }
 
+export type CliLiveCohortStatus = "passed" | "skipped";
+
+export function formatCliLiveCohortSummary(
+  stable: CliLiveCohortStatus,
+  experimental: CliLiveCohortStatus,
+): string {
+  if (stable === "passed" && experimental === "passed") {
+    return "CLI smoke passed: stable and experimental live cohorts passed";
+  }
+  if (stable === "skipped" && experimental === "skipped") {
+    return "CLI smoke skipped: stable and experimental live cohorts skipped (AUTH_REQUIRED)";
+  }
+  return `CLI smoke partial pass: stable live cohort ${stable}; experimental live cohort ${experimental}`;
+}
+
 interface JsonParityFixture {
   name: string;
   cliArgs: string[];
@@ -486,6 +501,7 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
   const isolated = createIsolatedSmokeEnvironment("githits-cli-smoke-home-");
   const { env } = isolated;
   try {
+    writeSmokeConfig(env, "[experimental]\ntools = false\n");
     const helpResult = await runCliWithEnv(["--help"], env);
     assert(helpResult.exitCode === 0, "root help should succeed");
     assert(
@@ -510,10 +526,7 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
     const configHome = env.XDG_CONFIG_HOME;
     assert(configHome, "isolated smoke environment missing config home");
     const configPath = join(configHome, "githits", "config.toml");
-    const disabledResolve = await runCliWithEnv(
-      ["resolve", "express", "--json"],
-      env,
-    );
+    const disabledResolve = await runCliWithEnv(["resolve", "express"], env);
     assert(
       disabledResolve.exitCode !== 0 &&
         `${disabledResolve.stderr}\n${disabledResolve.stdout}`.includes(
@@ -522,8 +535,29 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "disabled resolve should expose the exact config path and snippet",
     );
 
+    const disabledResolveJson = await runCliWithEnv(
+      ["resolve", "express", "--json"],
+      env,
+    );
+    assertJsonErrorCode(
+      disabledResolveJson,
+      "disabled resolve JSON",
+      "INVALID_ARGUMENT",
+    );
+    assert(
+      disabledResolveJson.stdout.trim() === "",
+      "disabled resolve JSON should keep stdout empty",
+    );
+    assert(
+      assertCleanErrorEnvelope(
+        disabledResolveJson.stderr,
+        "disabled resolve JSON",
+      ).error.includes(`[experimental]\ntools = true`),
+      "disabled resolve JSON should retain the enable snippet",
+    );
+
     const disabledCodeDiff = await runCliWithEnv(
-      ["code", "diff", "npm:express", "5.2.0..5.2.1", "--json"],
+      ["code", "diff", "npm:express", "5.2.0..5.2.1"],
       env,
     );
     assert(
@@ -532,6 +566,27 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
           `Experimental CLI command "code diff" is disabled. Enable it in ${configPath} by adding:\n[experimental]\ntools = true`,
         ),
       "disabled code diff should expose the exact config path and snippet",
+    );
+
+    const disabledCodeDiffJson = await runCliWithEnv(
+      ["code", "diff", "npm:express", "5.2.0..5.2.1", "--json"],
+      env,
+    );
+    assertJsonErrorCode(
+      disabledCodeDiffJson,
+      "disabled code diff JSON",
+      "INVALID_ARGUMENT",
+    );
+    assert(
+      disabledCodeDiffJson.stdout.trim() === "",
+      "disabled code diff JSON should keep stdout empty",
+    );
+    assert(
+      assertCleanErrorEnvelope(
+        disabledCodeDiffJson.stderr,
+        "disabled code diff JSON",
+      ).error.includes(`[experimental]\ntools = true`),
+      "disabled code diff JSON should retain the enable snippet",
     );
 
     for (const command of ["init", "login"] as const) {
@@ -1404,10 +1459,13 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   const stableLive = createScopedSmokeEnvironment(
     "githits-cli-live-stable-home-",
   );
+  let stableStatus: CliLiveCohortStatus = "skipped";
   try {
+    writeSmokeConfig(stableLive.env, "[experimental]\ntools = false\n");
     if (await assertLiveOrAuthRequired(stableLive.env)) {
       await runLiveSmoke(stableLive.env);
       await assertJsonParity(stableLive.env);
+      stableStatus = "passed";
     }
   } finally {
     stableLive.cleanup();
@@ -1416,15 +1474,17 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   const experimentalLive = createScopedSmokeEnvironment(
     "githits-cli-live-experimental-home-",
   );
+  let experimentalStatus: CliLiveCohortStatus = "skipped";
   try {
     writeSmokeConfig(experimentalLive.env, "[experimental]\ntools = true\n");
     if (await assertLiveOrAuthRequired(experimentalLive.env)) {
       await runExperimentalLiveSmoke(experimentalLive.env);
+      experimentalStatus = "passed";
     }
   } finally {
     experimentalLive.cleanup();
   }
-  console.log("CLI smoke passed");
+  console.log(formatCliLiveCohortSummary(stableStatus, experimentalStatus));
 }
 
 function inheritedEnv(): Record<string, string> {

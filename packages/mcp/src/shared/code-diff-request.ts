@@ -96,14 +96,14 @@ function buildCodeDiffParamsFromParts(
   );
   const maxPatchBytes = normaliseIntegerOption(
     input.maxPatchBytes,
-    "maxPatchBytes",
+    "maximum patch bytes",
     CODE_DIFF_MAX_PATCH_BYTES_MIN,
     CODE_DIFF_MAX_PATCH_BYTES_MAX,
   );
 
   if (maxPatchBytes !== undefined && view !== "patch") {
     throw invalid(
-      "`maxPatchBytes` is valid only when the CodeDiff view is `patch`.",
+      "`maximum patch bytes` is valid only when the CodeDiff view is `patch`.",
     );
   }
 
@@ -322,19 +322,19 @@ function normaliseView(raw: CodeDiffView | undefined): CodeDiffView {
 function normalisePathGlob(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
   if (typeof raw !== "string") {
-    throw invalid("`pathGlob` must be a string when supplied.");
+    throw invalid("`path glob` must be a string when supplied.");
   }
 
   const pathGlob = raw;
   if (pathGlob.length === 0) {
-    throw invalid("`pathGlob` must not be empty when supplied.");
+    throw invalid("`path glob` must not be empty when supplied.");
   }
   if (hasInvalidUtf16(pathGlob)) {
-    throw invalid("`pathGlob` must be valid UTF-8.");
+    throw invalid("`path glob` must be valid UTF-8.");
   }
   if (new TextEncoder().encode(pathGlob).byteLength > MAX_PATH_GLOB_BYTES) {
     throw invalid(
-      `\`pathGlob\` must be at most ${MAX_PATH_GLOB_BYTES} UTF-8 bytes.`,
+      `\`path glob\` must be at most ${MAX_PATH_GLOB_BYTES} UTF-8 bytes.`,
     );
   }
 
@@ -356,7 +356,7 @@ function validatePathGlobGrammar(pathGlob: string): void {
     pathGlob.startsWith(":^")
   ) {
     throw invalid(
-      "`pathGlob` does not support Git pathspec magic; pass one bounded glob.",
+      "`path glob` does not support Git pathspec magic; pass one bounded glob.",
     );
   }
 
@@ -376,7 +376,7 @@ function validatePathGlobGrammar(pathGlob: string): void {
       const escaped = characters[index + 1];
       if (escaped === undefined || escaped === "/") {
         throw invalid(
-          "`pathGlob` backslashes must escape one following non-slash character.",
+          "`path glob` backslashes must escape one following non-slash character.",
         );
       }
       component.push({ char: escaped, escaped: true });
@@ -391,7 +391,7 @@ function validatePathGlobGrammar(pathGlob: string): void {
       character === "!"
     ) {
       throw invalid(
-        "`pathGlob` does not support unescaped brackets, braces, or `!`.",
+        "`path glob` does not support unescaped brackets, braces, or `!`.",
       );
     }
     component.push({ char: character, escaped: false });
@@ -413,7 +413,7 @@ function validatePathGlobGrammar(pathGlob: string): void {
         !token.escaped
       ) {
         throw invalid(
-          "`pathGlob` allows adjacent stars only as an exact `**` component.",
+          "`path glob` allows adjacent stars only as an exact `**` component.",
         );
       }
       previous = token;
@@ -427,12 +427,12 @@ function addGlobComponent(
 ): void {
   if (component.length === 0) {
     throw invalid(
-      "`pathGlob` must use non-empty repository-relative components.",
+      "`path glob` must use non-empty repository-relative components.",
     );
   }
   const literal = component.map(({ char }) => char).join("");
   if (literal === "." || literal === "..") {
-    throw invalid("`pathGlob` must not contain `.` or `..` components.");
+    throw invalid("`path glob` must not contain `.` or `..` components.");
   }
   components.push(component);
 }

@@ -1017,10 +1017,10 @@ export function isValidAgentReport(value: unknown): boolean {
   );
 }
 
-function killProcessTree(
+async function killProcessTree(
   proc: Bun.Subprocess,
-  signal: "SIGTERM" | "SIGKILL",
-): void {
+  signal: "SIGINT" | "SIGTERM" | "SIGKILL",
+): Promise<void> {
   const pid = proc.pid;
   if (pid === undefined) {
     proc.kill(signal);
@@ -1028,7 +1028,7 @@ function killProcessTree(
   }
 
   if (process.platform === "win32") {
-    Bun.spawn(
+    const taskkill = Bun.spawn(
       [
         "taskkill",
         "/PID",
@@ -1038,6 +1038,7 @@ function killProcessTree(
       ],
       { stdout: "ignore", stderr: "ignore" },
     );
+    await taskkill.exited.catch(() => undefined);
     return;
   }
 
@@ -1068,21 +1069,53 @@ export async function runWithTimeout(
   });
   let timedOut = false;
   let escalationTimer: ReturnType<typeof setTimeout> | undefined;
+  let cleanupPromise: Promise<void> | undefined;
+  const signalHandlers = new Map<"SIGINT" | "SIGTERM", () => void>();
+  const removeSignalHandlers = (): void => {
+    for (const [signal, handler] of signalHandlers) {
+      process.removeListener(signal, handler);
+    }
+    signalHandlers.clear();
+  };
+  const forwardSignal = (signal: "SIGINT" | "SIGTERM"): void => {
+    removeSignalHandlers();
+    void killProcessTree(proc, signal).finally(() => {
+      process.kill(process.pid, signal);
+    });
+  };
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    const handler = (): void => forwardSignal(signal);
+    signalHandlers.set(signal, handler);
+    process.once(signal, handler);
+  }
+
   const timer = setTimeout(() => {
     timedOut = true;
-    killProcessTree(proc, "SIGTERM");
-    escalationTimer = setTimeout(() => killProcessTree(proc, "SIGKILL"), 2_000);
-    escalationTimer.unref?.();
+    cleanupPromise = (async () => {
+      await killProcessTree(proc, "SIGTERM");
+      await new Promise<void>((resolve) => {
+        escalationTimer = setTimeout(() => {
+          void killProcessTree(proc, "SIGKILL").finally(resolve);
+        }, 2_000);
+        escalationTimer.unref?.();
+      });
+    })();
   }, timeoutSeconds * 1_000);
 
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited.catch(() => undefined),
-  ]);
-  clearTimeout(timer);
-  if (escalationTimer !== undefined) clearTimeout(escalationTimer);
-  return { stdout, stderr, exitCode, timedOut };
+  try {
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited.catch(() => undefined),
+    ]);
+    clearTimeout(timer);
+    if (cleanupPromise !== undefined) await cleanupPromise;
+    return { stdout, stderr, exitCode, timedOut };
+  } finally {
+    clearTimeout(timer);
+    if (cleanupPromise !== undefined) await cleanupPromise;
+    removeSignalHandlers();
+  }
 }
 
 export function buildClaudeCommand(

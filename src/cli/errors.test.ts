@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import { ExperimentalToolsDisabledError } from "../services/experimental-cli-policy.js";
 import { ExperimentalConfigError } from "../services/experimental-config.js";
@@ -84,6 +87,33 @@ describe("handleCliError", () => {
     expect(malformed.output).not.toContain("githits doctor");
   });
 
+  it("renders experimental policy errors as clean JSON when requested", () => {
+    const disabled = captureCliError(
+      new ExperimentalToolsDisabledError("code diff", "/tmp/config.toml"),
+      true,
+    );
+    expect(disabled.output.trim()).toBe(
+      JSON.stringify({
+        error:
+          'Experimental CLI command "code diff" is disabled. Enable it in /tmp/config.toml by adding:\n[experimental]\ntools = true',
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      }),
+    );
+
+    const malformed = captureCliError(
+      new ExperimentalConfigError(
+        "Cannot parse GitHits config at /tmp/config.toml: invalid TOML",
+      ),
+      true,
+    );
+    expect(JSON.parse(malformed.output)).toEqual({
+      error: "Cannot parse GitHits config at /tmp/config.toml: invalid TOML",
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+  });
+
   for (const error of [
     new Error("plain failure"),
     new TypeError("fetch failed"),
@@ -159,6 +189,12 @@ describe("handleCliError", () => {
   });
 
   it("renders unexpected action failures once in a real CLI process", async () => {
+    const xdgConfigHome = mkdtempSync(join(tmpdir(), "githits-cli-errors-"));
+    mkdirSync(join(xdgConfigHome, "githits"), { recursive: true });
+    writeFileSync(
+      join(xdgConfigHome, "githits", "config.toml"),
+      "[experimental]\ntools = false\n",
+    );
     const proc = Bun.spawn(
       ["bun", "run", "src/cli.ts", "languages", "--json"],
       {
@@ -172,26 +208,34 @@ describe("handleCliError", () => {
           GITHITS_MCP_URL: "https://mcp.githits.com",
           GITHITS_CODE_NAV_URL: "https://pkgseer.dev",
           GITHITS_DISABLE_UPDATE_CHECK: "1",
+          XDG_CONFIG_HOME: xdgConfigHome,
           GITHITS_DEBUG: "",
           NO_COLOR: "1",
         },
       },
     );
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ]);
+    try {
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
 
-    expect(exitCode).toBe(1);
-    expect(stdout).toBe("");
-    expect(stderr.match(/Invalid GITHITS_API_URL/g)).toHaveLength(1);
-    expect(stderr).toContain("githits doctor");
-    expect(stderr).not.toContain("\n    at ");
+      expect(exitCode).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr.match(/Invalid GITHITS_API_URL/g)).toHaveLength(1);
+      expect(stderr).toContain("githits doctor");
+      expect(stderr).not.toContain("\n    at ");
+    } finally {
+      rmSync(xdgConfigHome, { recursive: true, force: true });
+    }
   });
 });
 
-function captureCliError(error: unknown): {
+function captureCliError(
+  error: unknown,
+  json = false,
+): {
   output: string;
   exitCodes: number[];
 } {
@@ -211,6 +255,7 @@ function captureCliError(error: unknown): {
         },
       },
       exit,
+      json,
     }),
   ).toThrow("process.exit:1");
 

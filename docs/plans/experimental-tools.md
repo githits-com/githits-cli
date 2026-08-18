@@ -592,6 +592,8 @@ acceptance remains blocked pending a rerun with non-blocking authentication.
   the host.
 - Disabled CLI help does not mention the commands indirectly; explicit calls
   fail locally with the exact enable path/snippet and no auth/network call.
+  With `--json`, the same policy failures emit only a structured
+  `INVALID_ARGUMENT` envelope on stderr and leave stdout empty.
 - Stable CLI commands and recovery paths continue working when experimental
   tools are off; malformed config does not lock users out of help/version,
   doctor, logout, or credential cleanup.
