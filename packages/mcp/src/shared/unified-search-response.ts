@@ -1095,16 +1095,19 @@ function compactSourceStatusEntry(
 
   const targetResolution = projectTargetResolution(entry.targetResolution);
   if (targetResolution) {
+    const targetResolutionCarriesNotes =
+      buildTargetResolutionNotes(targetResolution).length > 0;
     const hasRetryCandidates = Boolean(
       buildRetryCandidateLine(targetResolution) ??
         buildSuggestedRefsLine(targetResolution),
     );
     const targetResolutionIsInteresting =
-      (buildTargetResolutionNotes(targetResolution).length > 0 &&
+      (targetResolutionCarriesNotes &&
         !(targetResolution.freshness === "indexing" && options.completed)) ||
       (targetResolution.freshness === "current" && hasRetryCandidates);
     if (
       !contributors ||
+      targetResolutionCarriesNotes ||
       targetResolutionIsInteresting ||
       options.includeEmptyResultContext
     ) {

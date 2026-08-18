@@ -1022,6 +1022,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
                 resultCount: 1,
                 repositoryUrl: "https://github.com/expressjs/express",
                 commitSha: "0123456789abcdef0123456789abcdef01234567",
+                coverage: { coverageState: "NONE", pagesCrawled: 69 },
               },
               {
                 kind: "DOCPACK",
@@ -1029,6 +1030,8 @@ describe("buildUnifiedSearchSuccessPayload", () => {
                 freshness: "STALE",
                 resultCount: 2,
                 siteKey: "expressjs.com",
+                repositoryUrl: "https://github.com/ignored/docpack",
+                commitSha: "ignored-docpack-sha",
                 coverage: {
                   coverageState: "CAPPED",
                   coverageReason: "artifact_size",
@@ -1066,7 +1069,38 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       {
         source: "docs",
         targetLabel: "npm:express@5.1.0",
-        contributors: outcome.result.sourceStatus[0]?.contributors,
+        contributors: [
+          {
+            kind: "REPOSITORY_DOCS",
+            state: "SEARCHED",
+            freshness: "CURRENT",
+            resultCount: 1,
+            repositoryUrl: "https://github.com/expressjs/express",
+            commitSha: "0123456789abcdef0123456789abcdef01234567",
+          },
+          {
+            kind: "DOCPACK",
+            state: "SEARCHED",
+            freshness: "STALE",
+            resultCount: 2,
+            siteKey: "expressjs.com",
+            coverage: {
+              coverageState: "CAPPED",
+              coverageReason: "artifact_size",
+              pagesCrawled: 480,
+              frontierRemaining: null,
+              artifactOverflowPageCount: 12,
+              estimatedTotalPages: 700,
+              note: "Published documentation reached the artifact limit.",
+            },
+          },
+          {
+            kind: "DOCPACK",
+            state: "PENDING",
+            resultCount: 0,
+            siteKey: "api.example.com",
+          },
+        ],
       },
     ]);
     expect(payload.sourceStatus?.[0]).not.toHaveProperty("resultCount");
@@ -1144,6 +1178,71 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       targetResolution: { freshness: "unavailable" },
       contributors: [{ kind: "REPOSITORY_DOCS", state: "UNAVAILABLE" }],
     });
+  });
+
+  it("keeps actionable indexing resolution beside contributors without promoting a warning", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        sources: ["DOCS"],
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "npm:express@5.1.0",
+            targetResolution: {
+              requested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "main",
+              },
+              freshness: "indexing",
+              freshnessReason: "requested_ref_indexing",
+              indexingRef: "idx_express_main",
+              availableVersions: [],
+              availableRefs: [{ ref: "main" }],
+            },
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            suggestedSiteTargets: [],
+            suggestedSiteTargetsTruncated: false,
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                freshness: "CURRENT",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/expressjs/express",
+                commitSha: "0123456789abcdef0123456789abcdef01234567",
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      {
+        targets: [{ registry: "NPM", packageName: "express" }],
+        query: "router",
+      },
+      "router",
+      "router",
+      outcome,
+    );
+
+    expect(payload.sourceStatus?.[0]?.targetResolution).toMatchObject({
+      freshness: "indexing",
+      indexingRef: "idx_express_main",
+      availableRefs: [{ ref: "main" }],
+    });
+    expect(payload.warnings).toBeUndefined();
   });
 
   it("preserves ordered site recovery suggestions and the exact false truncation value", () => {

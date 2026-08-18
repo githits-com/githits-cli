@@ -93,9 +93,10 @@ function appendResult(
   }
   if (result.results.length === 0) {
     if (completed) {
+      const sourceDetailsStart = lines.length;
       appendSourceStatusNotes(lines, result.sourceStatus);
       appendDocumentationCorpora(lines, result.sourceStatus);
-      if (result.sourceStatus?.length) lines.push("");
+      if (lines.length > sourceDetailsStart) lines.push("");
       appendEmptySearchGuidance(lines, {
         query: result.query,
         showQuery: true,
@@ -103,9 +104,10 @@ function appendResult(
         evidenceNotice: result.evidenceNotice,
       });
     } else {
+      const sourceDetailsStart = lines.length;
       appendSourceStatusNotes(lines, result.sourceStatus);
       appendDocumentationCorpora(lines, result.sourceStatus);
-      if (result.sourceStatus?.length) lines.push("");
+      if (lines.length > sourceDetailsStart) lines.push("");
       lines.push(noHitsYetMessage(progress));
     }
   } else {

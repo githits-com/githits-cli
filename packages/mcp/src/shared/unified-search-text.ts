@@ -26,6 +26,7 @@ import {
 } from "./target-resolution.js";
 import type {
   UnifiedSearchCompletedPayload,
+  UnifiedSearchDocumentationContributorPayload,
   UnifiedSearchErrorPayload,
   UnifiedSearchHitPayload,
   UnifiedSearchIncompletePayload,
@@ -411,7 +412,9 @@ export function appendEvidenceNotice(
   if (evidenceNotice) lines.push(`evidence notice: ${evidenceNotice}`);
 }
 
-function formatDocumentationContributorState(state: string): string {
+function formatDocumentationContributorState(
+  state: UnifiedSearchDocumentationContributorPayload["state"],
+): string {
   switch (state) {
     case "SEARCHED":
       return "searched";
@@ -421,8 +424,6 @@ function formatDocumentationContributorState(state: string): string {
       return "pending, not searched";
     case "UNAVAILABLE":
       return "unavailable, not searched";
-    default:
-      return state.toLowerCase();
   }
 }
 

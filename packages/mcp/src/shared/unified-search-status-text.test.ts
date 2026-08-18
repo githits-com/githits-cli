@@ -49,4 +49,27 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(text.match(new RegExp(notice, "g"))).toHaveLength(1);
     expect(text).not.toContain("next: call search_status");
   });
+
+  it("does not add an empty source-details separator", () => {
+    const payload: UnifiedSearchStatusCompletedPayload = {
+      completed: true,
+      searchRef: "search-ref-healthy",
+      result: {
+        hasMore: false,
+        results: [],
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "site:docs.example.com",
+            contributors: [],
+          },
+        ],
+      },
+    };
+
+    const text = renderUnifiedSearchStatusText(payload);
+
+    expect(text).toContain("\n\nNo hits for docs on site:docs.example.com.");
+    expect(text).not.toContain("\n\n\n");
+  });
 });
