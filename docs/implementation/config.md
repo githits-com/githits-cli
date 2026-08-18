@@ -104,6 +104,43 @@ Legacy `~/.githits/auth.json`, `~/.githits/client.json`, and the old macOS `~/Li
 
 When writing config or auth files, use `FileSystemService` rather than `node:fs` directly — this enables testing via mock implementations from `src/services/test-helpers.ts`. Auth-associated rewrites must pass a 0600 maximum to `atomicWriteFile()` to avoid preserving permissive modes and to prevent readers from observing truncated JSON.
 
+## Experimental Tools Policy
+
+The same canonical `config.toml` also controls the local experimental CLI and
+stdio MCP surface:
+
+```toml
+[experimental]
+tools = true
+report_tool_issues = "experimental" # optional: "experimental" or "all"
+```
+
+`experimental.tools` is a strict boolean and defaults to `false` when absent.
+`report_tool_issues` is optional; its only accepted values are `"experimental"`
+and `"all"`, and omission means reporting is off. The former covers the local
+experimental tools and the latter covers any GitHits tool while that suite is
+active. Reporting is agent guidance only: it never sends feedback automatically.
+When enabled, the guidance allows one concise, redacted `accepted: false`
+feedback call per distinct observed issue, with the exact tool name; it must not
+include credentials, personal or private data, proprietary content, full file
+bodies, or large outputs. The reporting value is dormant when experimental tools
+are disabled, but invalid values and types are still rejected by strict
+experimental-config consumers.
+
+Auth and experimental settings share TOML discovery/parsing and the canonical
+platform path above, including the existing macOS legacy fallback, but validate
+their own subsections independently. Unknown keys remain accepted. With the
+host policy enabled, local `resolve`/`code diff` and MCP `resolve_target`/
+`code_diff` become available; the public/remote `@githits/mcp` surface remains
+the stable 15-tool inventory and does not acquire experimental service
+requirements.
+
+The hidden `githits mcp start --experimental-tools` option is for isolated
+evaluation/development only. It enables local tools for that process and forces
+reporting off without writing or inheriting the host experimental policy; valid
+host auth settings still apply, and malformed shared TOML can still prevent
+auth startup.
+
 Non-secret update-check state uses the XDG config location:
 
 ```
@@ -119,14 +156,19 @@ eligibility rules.
 
 ```
 Environment variables + config.toml
-  └─ packages/core-internal/src/services/config.ts / src/services/auth-config.ts
-       └─ src/container.ts (createContainer)
-            ├─ mcpUrl → passed to auth commands, used as storage key
-            ├─ apiUrl → passed to GitHitsServiceImpl constructor
-            ├─ codeNavigationUrl → passed to CodeNavigationServiceImpl and PackageIntelligenceServiceImpl
-            ├─ auth.storage → controls OAuth credential persistence
-            ├─ apiToken → resolved from env var or OAuth storage
-            └─ hasValidToken → gates authenticated commands
+  ├─ packages/core-internal/src/services/config.ts (URL/token resolution)
+  ├─ src/services/app-config.ts (shared TOML discovery/parsing)
+  │    ├─ src/services/auth-config.ts → auth storage mode
+  │    └─ src/services/experimental-config.ts → local tools/reporting policy
+  └─ src/container.ts (createContainer)
+       ├─ mcpUrl → passed to auth commands, used as storage key
+       ├─ apiUrl → passed to GitHitsServiceImpl constructor
+       ├─ codeNavigationUrl → passed to CodeNavigationServiceImpl and PackageIntelligenceServiceImpl
+       ├─ auth.storage → controls OAuth credential persistence
+       ├─ experimental.tools → local CLI/MCP availability
+       ├─ experimental.report_tool_issues → local agent guidance scope
+       ├─ apiToken → resolved from env var or OAuth storage
+       └─ hasValidToken → gates authenticated commands
 ```
 
 Commands receive the full `Dependencies` object. Services receive only what they need (e.g., `GitHitsServiceImpl` gets `apiUrl` and `token`).
@@ -155,6 +197,8 @@ Commands receive the full `Dependencies` object. Services receive only what they
 |---|---|
 | `packages/core-internal/src/services/config.ts` | URL and token resolution plus HTTPS/loopback enforcement |
 | `src/services/auth-config.ts` | `config.toml` and `GITHITS_AUTH_STORAGE` auth storage mode parsing |
+| `src/services/app-config.ts` | Shared canonical/legacy TOML discovery and parsing |
+| `src/services/experimental-config.ts` | Typed local experimental tools and reporting policy |
 | `src/services/app-config-paths.ts` | Platform config path resolution |
 | `src/container.ts` | Auth priority logic and dependency wiring |
 | `src/services/auth-storage.ts` | File-based token storage with secure permissions |
