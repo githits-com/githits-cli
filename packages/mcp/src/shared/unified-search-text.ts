@@ -402,7 +402,11 @@ export function appendDocumentationSources(
   });
   const healthy = entries.filter((entry) => entry.healthy);
   const exceptional = entries.filter((entry) => !entry.healthy);
-  const showTargets = entries.length > 1;
+  const responseTargets = new Set([
+    ...(sourceStatus?.map((entry) => entry.targetLabel) ?? []),
+    ...results.map((result) => result.target),
+  ]);
+  const showTargets = responseTargets.size > 1;
 
   if (healthy.length > 0) {
     if (showTargets) {

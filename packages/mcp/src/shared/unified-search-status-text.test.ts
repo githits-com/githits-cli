@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import type { UnifiedSearchStatusCompletedPayload } from "./unified-search-response.js";
+import type {
+  UnifiedSearchStatusCompletedPayload,
+  UnifiedSearchStatusIncompletePayload,
+} from "./unified-search-response.js";
 import { renderUnifiedSearchStatusText } from "./unified-search-status-text.js";
 
 describe("renderUnifiedSearchStatusText", () => {
@@ -82,7 +85,6 @@ describe("renderUnifiedSearchStatusText", () => {
       searchRef: "search-ref-healthy",
       result: {
         hasMore: false,
-        evidenceNotice: "Results may change after pending work completes.",
         results: [
           {
             type: "documentation_page",
@@ -116,9 +118,54 @@ describe("renderUnifiedSearchStatusText", () => {
     const text = renderUnifiedSearchStatusText(payload);
 
     expect(text.indexOf("searched:")).toBeLessThan(text.indexOf("[1]"));
+    expect(text.endsWith("\n")).toBe(false);
+  });
+
+  it("separates stored evidence metadata from the final hit", () => {
+    const payload: UnifiedSearchStatusCompletedPayload = {
+      completed: true,
+      searchRef: "search-ref-evidence",
+      result: {
+        hasMore: false,
+        evidenceNotice: "Results may change after pending work completes.",
+        results: [
+          {
+            type: "documentation_page",
+            target: "npm:express@5.2.1",
+            title: "Routing",
+            locator: { pageId: "express/routing" },
+          },
+        ],
+      },
+    };
+
+    const text = renderUnifiedSearchStatusText(payload);
+
     expect(text).toContain(
       "\n\nevidence notice: Results may change after pending work completes.",
     );
     expect(text.endsWith("\n")).toBe(false);
+  });
+
+  it("separates incomplete next actions from returned hits", () => {
+    const payload: UnifiedSearchStatusIncompletePayload = {
+      completed: false,
+      searchRef: "search-ref-incomplete",
+      result: {
+        hasMore: false,
+        results: [
+          {
+            type: "documentation_page",
+            target: "npm:express@5.2.1",
+            title: "Routing",
+            locator: { pageId: "express/routing" },
+          },
+        ],
+      },
+    };
+
+    const text = renderUnifiedSearchStatusText(payload);
+
+    expect(text).toContain("    Routing\n\nDo not repeat search.");
   });
 });

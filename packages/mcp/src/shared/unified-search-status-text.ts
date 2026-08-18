@@ -58,12 +58,33 @@ export function renderUnifiedSearchStatusText(payload: StatusPayload): string {
     );
   }
 
+  const trailer: string[] = [];
+  if (result?.hasMore) {
+    const nextOffsetHint =
+      typeof result.nextOffset === "number"
+        ? ` Pass offset=${result.nextOffset} for the next page or limit=N to widen.`
+        : " Pass limit=N to widen.";
+    trailer.push(`More hits available.${nextOffsetHint}`);
+  }
+  if (result?.results.length) {
+    appendSourceStatusNotes(trailer, result.sourceStatus);
+  }
+  if (result) appendEvidenceNotice(trailer, result.evidenceNotice);
   if (!payload.completed) {
     appendIncompleteSearchNextAction(
-      lines,
+      trailer,
       payload.progress?.status,
       payload.searchRef,
     );
+  }
+  if (trailer.length > 0) {
+    if (
+      (result?.results.length || result?.hasMore) &&
+      lines[lines.length - 1] !== ""
+    ) {
+      lines.push("");
+    }
+    lines.push(...trailer);
   }
 
   return lines.join("\n");
@@ -115,31 +136,6 @@ function appendResult(
     if (lines[lines.length - 1] !== "") lines.push("");
     appendUnifiedSearchHits(lines, result.results);
   }
-  if (result.hasMore) {
-    const nextOffsetHint =
-      typeof result.nextOffset === "number"
-        ? ` Pass offset=${result.nextOffset} for the next page or limit=N to widen.`
-        : " Pass limit=N to widen.";
-    lines.push("");
-    lines.push(`More hits available.${nextOffsetHint}`);
-  }
-  const sourceNotes: string[] = [];
-  if (
-    result.results.length > 0 &&
-    result.sourceStatus &&
-    result.sourceStatus.length > 0
-  ) {
-    appendSourceStatusNotes(sourceNotes, result.sourceStatus);
-    if (sourceNotes.length > 0) lines.push("", ...sourceNotes);
-  }
-  if (
-    result.results.length > 0 &&
-    sourceNotes.length === 0 &&
-    result.evidenceNotice
-  ) {
-    lines.push("");
-  }
-  appendEvidenceNotice(lines, result.evidenceNotice);
 }
 
 function formatProgress(progress: {

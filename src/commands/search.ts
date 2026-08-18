@@ -800,6 +800,7 @@ function formatDocumentationSourcesTerminal(
   appendDocumentationSources(lines, sourceStatus, results);
   const useColors = shouldUseColors();
   return lines.map((line) => {
+    if (line === "") return line;
     const terminalLine =
       line.startsWith("searched") || line.startsWith("documentation sources")
         ? `${line[0]?.toUpperCase()}${line.slice(1)}`

@@ -589,6 +589,11 @@ describe("renderUnifiedSearchSuccess", () => {
                 },
               ],
             },
+            {
+              source: "code",
+              targetLabel: "npm:express@5.2.1",
+              contributors: [],
+            },
           ],
         },
       ),
@@ -599,6 +604,9 @@ describe("renderUnifiedSearchSuccess", () => {
       .find((line) => line.startsWith("searched:"));
     expect(searchedLine).toBe(
       "searched: site expressjs.com; repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
+    );
+    expect(text).toContain(
+      "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567\n\n[1]",
     );
     expect(text.indexOf("searched:")).toBeLessThan(text.indexOf("[1]"));
     expect(text).not.toContain("documentation corpora");
@@ -647,6 +655,43 @@ describe("renderUnifiedSearchSuccess", () => {
       "searched:\n  npm:express@5.2.1: repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567\n  npm:koa@3.0.1: repo https://github.com/koajs/koa @ abcdef0123456789abcdef0123456789abcdef01",
     );
     expect(text.indexOf("searched:")).toBeLessThan(text.indexOf("[1]"));
+  });
+
+  it("retains the source target when another response target has no contributors", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed(
+        [
+          codeHit({
+            target: "npm:express@5.2.1",
+          }),
+        ],
+        {
+          sourceStatus: [
+            {
+              source: "docs",
+              targetLabel: "npm:koa@3.0.1",
+              contributors: [
+                {
+                  kind: "DOCPACK",
+                  state: "PENDING",
+                  resultCount: 0,
+                  siteKey: "1111111111111111",
+                },
+              ],
+            },
+            {
+              source: "code",
+              targetLabel: "npm:express@5.2.1",
+              contributors: [],
+            },
+          ],
+        },
+      ),
+    );
+
+    expect(text).toContain(
+      "documentation sources:\n  npm:koa@3.0.1:\n    - site documentation - not ready, so it was not searched\n\n[1]",
+    );
   });
 
   it("groups mixed source health by target without repeating section labels", () => {
