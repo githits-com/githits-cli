@@ -123,7 +123,7 @@ describe("formatCodeDiffTerminal", () => {
         view: "stat",
         files: [
           {
-            path: "한.txt",
+            path: "한",
             pathEncoding: "utf8",
             status: "modified",
             modeChanged: false,
@@ -143,7 +143,7 @@ describe("formatCodeDiffTerminal", () => {
             contentStatus: "stats",
           },
           {
-            path: "👨‍👩‍👧‍👦.txt",
+            path: "👨‍👩‍👧‍👦",
             pathEncoding: "utf8",
             status: "modified",
             modeChanged: false,
@@ -158,7 +158,7 @@ describe("formatCodeDiffTerminal", () => {
     );
 
     expect(result.stdout).toStartWith(
-      " 한.txt | 1 +\n longer | 1 -\n 👨‍👩‍👧‍👦.txt | 2 +-\n",
+      " 한     | 1 +\n longer | 1 -\n 👨‍👩‍👧‍👦     | 2 +-\n",
     );
   });
 
@@ -405,6 +405,50 @@ describe("formatCodeDiffTerminal", () => {
       expect(result.stdout).toContain(`Patch omitted: large.ts (${reason})`);
       expect(result.exitCode).toBeUndefined();
     }
+  });
+
+  it("colors an explicitly budgeted patch omission", () => {
+    const plain = formatCodeDiffTerminal(
+      envelope({
+        contentCoverage: "partial",
+        files: [
+          {
+            path: "large.ts",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            contentStatus: "omitted",
+            contentOmissionReason: "total_patch_bytes",
+            contentSafety: { filtered: false, modifications: [] },
+          },
+        ],
+      }),
+      { ...options, explicitMaxPatchBytes: true },
+    ).stdout;
+    const colored = formatCodeDiffTerminal(
+      envelope({
+        contentCoverage: "partial",
+        files: [
+          {
+            path: "large.ts",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            contentStatus: "omitted",
+            contentOmissionReason: "total_patch_bytes",
+            contentSafety: { filtered: false, modifications: [] },
+          },
+        ],
+      }),
+      { useColors: true, explicitMaxPatchBytes: true },
+    ).stdout;
+
+    expect(colored).toContain(
+      `${colors.yellow}Patch omitted: large.ts (total_patch_bytes)${colors.reset}`,
+    );
+    expect(stripAnsi(colored)).toBe(plain);
   });
 
   it("suppresses patch streams that cannot represent binary changes", () => {

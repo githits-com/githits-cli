@@ -220,7 +220,7 @@ describe("formatListFilesTerminal", () => {
       {
         ...baseResult,
         files: [
-          { path: "한.txt", language: "text" },
+          { path: "한", language: "text" },
           { path: "longer", language: "text" },
         ],
         total: 2,
@@ -232,7 +232,7 @@ describe("formatListFilesTerminal", () => {
       useColors: false,
     });
 
-    expect(stdout).toContain("한.txt  · text\nlonger  · text");
+    expect(stdout).toContain("한      · text\nlonger  · text");
   });
 
   it("verbose mode: uses the canonical repo target as identity for repo addressing", () => {

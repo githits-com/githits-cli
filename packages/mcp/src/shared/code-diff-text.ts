@@ -171,7 +171,7 @@ function formatPatches(files: LeanCodeDiffFile[], useColors: boolean): string {
       if (!patch.endsWith("\n")) output += "\n";
       continue;
     }
-    output += `${colorizePatchFallback(patchFallback(patchFile), patchFile, useColors)}\n`;
+    output += `${colorizePatchFallback(patchFallback(patchFile), useColors)}\n`;
   }
   return output;
 }
@@ -189,16 +189,8 @@ function colorizePatch(patch: string, useColors: boolean): string {
     .join("\n");
 }
 
-function colorizePatchFallback(
-  text: string,
-  file: LeanCodeDiffPatchFile,
-  useColors: boolean,
-): string {
-  return colorize(
-    text,
-    file.contentStatus === "unavailable" ? "red" : "yellow",
-    useColors,
-  );
+function colorizePatchFallback(text: string, useColors: boolean): string {
+  return colorize(text, "yellow", useColors);
 }
 
 function patchFallback(file: LeanCodeDiffPatchFile): string {
