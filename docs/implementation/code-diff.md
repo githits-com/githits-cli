@@ -105,6 +105,11 @@ camel-case data envelope whose file objects include only fields relevant to the
 selected view, except that `pathEncoding` is always retained to distinguish
 display-only byte escapes. Text views use reversible Git-style quoting for
 control characters, quotes, and backslashes instead of changing path identity.
+Stat rows measure quoted paths in terminal cells rather than JavaScript string
+length, keeping dividers aligned for wide Unicode and emoji filenames. On an
+interactive color-capable terminal, patch additions/deletions, stat bars, and
+summary direction markers use green/red, hunk headers use cyan, and name-status
+letters reflect the change kind; redirected output and `NO_COLOR` remain plain.
 The response projector replaces the raw content service's `a/file` and
 `b/file` patch placeholders with the authoritative Git-quoted file path, so
 plain and JSON patches agree; added and deleted sides use `/dev/null` like Git.
@@ -124,6 +129,27 @@ Validation, authentication, resolution, and raw-field errors exit 1 through
 the shared CLI error envelope. No `code_diff` MCP tool, instruction, skill, or
 plugin promotion exists during this phase.
 
+## Deferred rollout boundaries
+
+Public MCP and agent exposure remains deferred until post-merge CLI dogfooding
+resolves the MCP view vocabulary, evidence-backed `maxFiles` and
+`maxPatchBytes` defaults, automation semantics for partial or failed content,
+and whether `pathPrefix` or any CLI signature correction is actually needed.
+Before implementation, reverify the merged CLI contract and deployed backend
+rather than carrying these open decisions forward as assumptions.
+
+The next rollout stage is a public `code_diff` tool with mode-minimal fetching,
+CLI/MCP JSON parity, agent-native errors and descriptions, concise generated
+guidance, targeted Claude and Codex evaluation, and the corresponding smoke,
+package, plugin, and release validation. Structural CodeDiff remains unexposed.
+
+Typed changelog steering is a separate later stage, blocked on both a stable
+public CodeDiff invocation and a committed/deployed PkgSeer changelog-action
+contract. Its discriminator, field names, result placement, and fallback
+behavior must come from that future backend contract rather than inferred
+prose. Package range outcomes may then steer to valid CLI and MCP calls;
+repository/latest outcomes and unknown actions must remain unchanged.
+
 ## Key reference files
 
 | File | Responsibility |
@@ -134,4 +160,3 @@ plugin promotion exists during this phase.
 | `packages/mcp/src/shared/code-diff-{request,response,text}.ts` | CLI-internal normalization, lean projection, and Git-like rendering |
 | `src/commands/code/diff.ts` | Commander syntax, service call, stream routing, and CLI errors |
 | `scripts/validate-public-packages.ts` | Packed-package runtime and no-network TypeScript consumer checks |
-| `docs/plans/code-diff-cli-mcp.md` | Remaining rollout phases and dogfood acceptance evidence |
