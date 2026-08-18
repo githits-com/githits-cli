@@ -1359,7 +1359,7 @@ describe("CodeNavigationServiceImpl", () => {
           ?.contributors as UnifiedSearchDocumentationContributor[],
       );
       expect(
-        outcome.result.sourceStatus[0]?.contributors[1]?.coverage,
+        outcome.result.sourceStatus[0]?.contributors?.[1]?.coverage,
       ).toMatchObject({
         frontierRemaining: null,
         artifactOverflowPageCount: 12,

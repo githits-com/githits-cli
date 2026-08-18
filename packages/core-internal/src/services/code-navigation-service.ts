@@ -293,7 +293,7 @@ export interface UnifiedSearchSourceStatus {
   suggestedSiteTargetsTruncated: boolean;
   note?: string;
   coverage?: DocCoverage;
-  contributors: UnifiedSearchDocumentationContributor[];
+  contributors?: UnifiedSearchDocumentationContributor[];
 }
 
 export type UnifiedSearchDocumentationContributorKind =

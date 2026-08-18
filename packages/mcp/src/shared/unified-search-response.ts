@@ -1195,7 +1195,7 @@ function compactSourceStatusEntry(
 function projectDocumentationContributors(
   contributors: UnifiedSearchSourceStatus["contributors"],
 ): UnifiedSearchDocumentationContributorPayload[] | undefined {
-  if (contributors.length === 0) return undefined;
+  if (!contributors || contributors.length === 0) return undefined;
   return contributors.map((contributor) => {
     const payload: UnifiedSearchDocumentationContributorPayload = {
       kind: contributor.kind,
