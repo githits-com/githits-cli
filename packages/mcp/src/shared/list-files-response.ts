@@ -24,6 +24,7 @@ import {
   type LeanTargetResolution,
   projectTargetResolution,
 } from "./target-resolution.js";
+import { padTerminalEnd, terminalWidth } from "./terminal-width.js";
 
 export interface LeanRepoFileEntry {
   path: string;
@@ -433,11 +434,12 @@ function plural(singular: string, pluralForm: string, count: number): string {
 function longestPathLength(entries: LeanRepoFileEntry[]): number {
   let max = 0;
   for (const entry of entries) {
-    if (entry.path.length > max) max = entry.path.length;
+    const width = terminalWidth(entry.path);
+    if (width > max) max = width;
   }
   return max;
 }
 
 function padRight(text: string, width: number): string {
-  return text.length >= width ? text : text + " ".repeat(width - text.length);
+  return padTerminalEnd(text, width);
 }

@@ -215,6 +215,26 @@ describe("formatListFilesTerminal", () => {
     expect(stdout).toContain("8.3 KB");
   });
 
+  it("verbose mode: aligns annotations by terminal-cell width", () => {
+    const envelope = buildListFilesSuccessPayload(
+      {
+        ...baseResult,
+        files: [
+          { path: "한.txt", language: "text" },
+          { path: "longer", language: "text" },
+        ],
+        total: 2,
+      },
+      baseOptions,
+    );
+    const { stdout } = formatListFilesTerminal(envelope, {
+      verbose: true,
+      useColors: false,
+    });
+
+    expect(stdout).toContain("한.txt  · text\nlonger  · text");
+  });
+
   it("verbose mode: uses the canonical repo target as identity for repo addressing", () => {
     const envelope = buildListFilesSuccessPayload(baseResult, {
       ...baseOptions,

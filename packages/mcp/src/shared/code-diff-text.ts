@@ -5,8 +5,9 @@ import type {
   LeanCodeDiffPatchFile,
   LeanCodeDiffStatFile,
 } from "./code-diff-response.js";
-import { warning } from "./colors.js";
+import { colorize, warning } from "./colors.js";
 import { sanitizeTerminalText } from "./resolve-target-response.js";
+import { padTerminalEnd, terminalWidth } from "./terminal-width.js";
 
 export interface FormatCodeDiffTerminalOptions {
   useColors: boolean;
@@ -42,13 +43,16 @@ export function formatCodeDiffTerminal(
     );
   }
   return {
-    stdout: suppressPatch ? "" : formatPrimaryOutput(envelope),
+    stdout: suppressPatch ? "" : formatPrimaryOutput(envelope, options),
     stderr: diagnostics.length > 0 ? `${diagnostics.join("\n")}\n` : undefined,
     ...(suppressPatch ? { exitCode: 1 as const } : {}),
   };
 }
 
-function formatPrimaryOutput(envelope: LeanCodeDiffEnvelope): string {
+function formatPrimaryOutput(
+  envelope: LeanCodeDiffEnvelope,
+  options: FormatCodeDiffTerminalOptions,
+): string {
   switch (envelope.view) {
     case "name-only":
       return formatLines(envelope.files.map((file) => quoteGitPath(file.path)));
@@ -56,17 +60,20 @@ function formatPrimaryOutput(envelope: LeanCodeDiffEnvelope): string {
       return formatLines(
         envelope.files.map(
           (file) =>
-            `${statusLetter(requireStatus(file))}\t${quoteGitPath(file.path)}`,
+            `${formatStatus(requireStatus(file), options.useColors)}\t${quoteGitPath(file.path)}`,
         ),
       );
     case "stat":
-      return formatStat(envelope);
+      return formatStat(envelope, options.useColors);
     case "patch":
-      return formatPatches(envelope.files);
+      return formatPatches(envelope.files, options.useColors);
   }
 }
 
-function formatStat(envelope: LeanCodeDiffEnvelope): string {
+function formatStat(
+  envelope: LeanCodeDiffEnvelope,
+  useColors: boolean,
+): string {
   const rows: Array<{
     path: string;
     additions?: number;
@@ -94,7 +101,7 @@ function formatStat(envelope: LeanCodeDiffEnvelope): string {
   }
 
   if (rows.length === 0) return "";
-  const pathWidth = Math.max(...rows.map(({ path }) => path.length));
+  const pathWidth = Math.max(...rows.map(({ path }) => terminalWidth(path)));
   const countWidth = Math.max(
     1,
     ...rows.map(({ additions, deletions }) =>
@@ -106,9 +113,9 @@ function formatStat(envelope: LeanCodeDiffEnvelope): string {
   const lines = rows.map(({ path, additions, deletions, contentStatus }) => {
     const detail =
       additions !== undefined && deletions !== undefined
-        ? formatStatCounts(additions, deletions, countWidth)
+        ? formatStatCounts(additions, deletions, countWidth, useColors)
         : contentLabel(contentStatus);
-    return ` ${path.padEnd(pathWidth)} | ${detail}`;
+    return ` ${padTerminalEnd(path, pathWidth)} | ${detail}`;
   });
   const noun = rows.length === 1 ? "file" : "files";
   const inventoryFullyRepresented =
@@ -119,13 +126,15 @@ function formatStat(envelope: LeanCodeDiffEnvelope): string {
   const qualifier = inventoryFullyRepresented ? "" : "returned ";
   const totals = [`${rows.length} ${qualifier}${noun} changed`];
   if (additions > 0) {
+    const marker = colorize("+", "green", useColors);
     totals.push(
-      `${additions} ${additions === 1 ? "insertion" : "insertions"}(+)`,
+      `${additions} ${additions === 1 ? "insertion" : "insertions"}(${marker})`,
     );
   }
   if (deletions > 0) {
+    const marker = colorize("-", "red", useColors);
     totals.push(
-      `${deletions} ${deletions === 1 ? "deletion" : "deletions"}(-)`,
+      `${deletions} ${deletions === 1 ? "deletion" : "deletions"}(${marker})`,
     );
   }
   lines.push(` ${totals.join(", ")}`);
@@ -136,6 +145,7 @@ function formatStatCounts(
   additions: number,
   deletions: number,
   countWidth: number,
+  useColors: boolean,
 ): string {
   const total = additions + deletions;
   if (total === 0) return "0".padStart(countWidth);
@@ -143,22 +153,52 @@ function formatStatCounts(
   let pluses = Math.round((additions / total) * barWidth);
   if (additions > 0) pluses = Math.max(1, pluses);
   if (deletions > 0) pluses = Math.min(barWidth - 1, pluses);
-  return `${String(total).padStart(countWidth)} ${"+".repeat(pluses)}${"-".repeat(barWidth - pluses)}`;
+  const plusBar =
+    pluses > 0 ? colorize("+".repeat(pluses), "green", useColors) : "";
+  const minuses = barWidth - pluses;
+  const minusBar =
+    minuses > 0 ? colorize("-".repeat(minuses), "red", useColors) : "";
+  return `${String(total).padStart(countWidth)} ${plusBar}${minusBar}`;
 }
 
-function formatPatches(files: LeanCodeDiffFile[]): string {
+function formatPatches(files: LeanCodeDiffFile[], useColors: boolean): string {
   let output = "";
   for (const file of files) {
     const patchFile = requirePatch(file);
     if (patchFile.patch !== undefined) {
       const patch = patchFile.patch;
-      output += patch;
+      output += colorizePatch(patch, useColors);
       if (!patch.endsWith("\n")) output += "\n";
       continue;
     }
-    output += `${patchFallback(patchFile)}\n`;
+    output += `${colorizePatchFallback(patchFallback(patchFile), patchFile, useColors)}\n`;
   }
   return output;
+}
+
+function colorizePatch(patch: string, useColors: boolean): string {
+  if (!useColors) return patch;
+  return patch
+    .split("\n")
+    .map((line) => {
+      if (line.startsWith("@@")) return colorize(line, "cyan", useColors);
+      if (line.startsWith("+")) return colorize(line, "green", useColors);
+      if (line.startsWith("-")) return colorize(line, "red", useColors);
+      return line;
+    })
+    .join("\n");
+}
+
+function colorizePatchFallback(
+  text: string,
+  file: LeanCodeDiffPatchFile,
+  useColors: boolean,
+): string {
+  return colorize(
+    text,
+    file.contentStatus === "unavailable" ? "red" : "yellow",
+    useColors,
+  );
 }
 
 function patchFallback(file: LeanCodeDiffPatchFile): string {
@@ -382,8 +422,13 @@ function requirePatch(file: LeanCodeDiffFile): LeanCodeDiffPatchFile {
   return file;
 }
 
-function statusLetter(status: "added" | "deleted" | "modified"): string {
-  return status === "added" ? "A" : status === "deleted" ? "D" : "M";
+function formatStatus(
+  status: "added" | "deleted" | "modified",
+  useColors: boolean,
+): string {
+  if (status === "added") return colorize("A", "green", useColors);
+  if (status === "deleted") return colorize("D", "red", useColors);
+  return colorize("M", "yellow", useColors);
 }
 
 function contentLabel(status: LeanCodeDiffStatFile["contentStatus"]): string {

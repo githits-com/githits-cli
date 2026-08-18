@@ -104,6 +104,11 @@ camel-case data envelope whose file objects include only fields relevant to the
 selected view, except that `pathEncoding` is always retained to distinguish
 display-only byte escapes. Text views use reversible Git-style quoting for
 control characters, quotes, and backslashes instead of changing path identity.
+Stat rows measure quoted paths in terminal cells rather than JavaScript string
+length, keeping dividers aligned for wide Unicode and emoji filenames. On an
+interactive color-capable terminal, patch additions/deletions, stat bars, and
+summary direction markers use green/red, hunk headers use cyan, and name-status
+letters reflect the change kind; redirected output and `NO_COLOR` remain plain.
 The response projector replaces the raw content service's `a/file` and
 `b/file` patch placeholders with the authoritative Git-quoted file path, so
 plain and JSON patches agree; added and deleted sides use `/dev/null` like Git.
@@ -133,4 +138,3 @@ plugin promotion exists during this phase.
 | `packages/mcp/src/shared/code-diff-{request,response,text}.ts` | CLI-internal normalization, lean projection, and Git-like rendering |
 | `src/commands/code/diff.ts` | Commander syntax, service call, stream routing, and CLI errors |
 | `scripts/validate-public-packages.ts` | Packed-package runtime and no-network TypeScript consumer checks |
-| `docs/plans/code-diff-cli-mcp.md` | Remaining rollout phases and dogfood acceptance evidence |
