@@ -18,7 +18,7 @@ export function formatCodeDiffMcpText(envelope: LeanCodeDiffEnvelope): string {
     `Resolved endpoints: ${formatResolution(envelope.from)} -> ${formatResolution(envelope.to)}`,
     `Scope: ${formatScope(envelope)}`,
     `Summary: ${formatSummary(envelope)}`,
-    `Content: ${safe(envelope.contentCoverage)}`,
+    `Content: ${formatContentCoverage(envelope)}`,
   ];
 
   appendWarnings(lines, envelope);
@@ -135,9 +135,16 @@ function appendFile(
         patch.patch ?? "",
         MAX_PATCH_PREVIEW_BYTES,
       );
-      if (previewLines.length > 0) {
-        lines.push(`    patch preview: ${previewLines[0]}`);
-        lines.push(...previewLines.slice(1).map((line) => `      ${line}`));
+      if (previewLines.lines.length > 0) {
+        lines.push(`    patch preview: ${previewLines.lines[0]}`);
+        lines.push(
+          ...previewLines.lines.slice(1).map((line) => `      ${line}`),
+        );
+      }
+      if (previewLines.truncated) {
+        lines.push(
+          `    patch preview truncated at ${MAX_PATCH_PREVIEW_BYTES} UTF-8 bytes; use format "json" for the full returned patch (still subject to max_patch_bytes and backend content coverage; JSON cannot recover backend-omitted content).`,
+        );
       }
     } else if (patch.contentOmissionReason) {
       lines.push(`    patch omitted: ${safe(patch.contentOmissionReason)}`);
@@ -167,6 +174,13 @@ function formatScope(envelope: LeanCodeDiffEnvelope): string {
       : "";
   const glob = scope.pathGlob ? `, glob ${safe(scope.pathGlob)}` : "";
   return `${safe(scope.status)}${roots}${glob}`;
+}
+
+function formatContentCoverage(envelope: LeanCodeDiffEnvelope): string {
+  const coverage = safe(envelope.contentCoverage);
+  return envelope.view === "patch"
+    ? `${coverage} (backend-returned patch coverage; text-v1 preview is bounded)`
+    : coverage;
 }
 
 function formatSummary(envelope: LeanCodeDiffEnvelope): string {
@@ -238,7 +252,15 @@ function safe(value: string): string {
   return sanitizeTerminalText(value).replace(/\s+/g, " ").trim();
 }
 
-function formatPatchPreview(value: string, maxBytes: number): string[] {
+interface FormattedPatchPreview {
+  lines: string[];
+  truncated: boolean;
+}
+
+function formatPatchPreview(
+  value: string,
+  maxBytes: number,
+): FormattedPatchPreview {
   const sanitizedLines = value
     .split(/\r?\n/)
     .map((line) => sanitizeTerminalText(line));
@@ -252,12 +274,12 @@ function formatPatchPreview(value: string, maxBytes: number): string[] {
     if (available < lineBytes) {
       const truncated = truncateUtf8(line, Math.max(available, 0));
       if (truncated) retained.push(truncated);
-      break;
+      return { lines: retained, truncated: true };
     }
     retained.push(line);
     byteLength += separatorBytes + lineBytes;
   }
-  return retained;
+  return { lines: retained, truncated: false };
 }
 
 function truncateUtf8(value: string, maxBytes: number): string {

@@ -69,14 +69,18 @@ Public/remote smoke remains stable-only.
 
 ### Phase 3 evaluation record
 
-The Claude and Codex experimental workloads discovered and selected both local
-experimental tools with the expected bounded arguments. The experimental calls
-and the stable `express-router` regression calls then all timed out before
-results because this host's default macOS Keychain credential read blocked
-non-interactively. No successful final answers or follow-ups were produced and
-no feedback was submitted. The eval harness also orphaned MCP child processes
-on timeout; its timeout cleanup now terminates the subprocess tree. Experimental
-eval acceptance remains pending a rerun with non-blocking authentication.
+Claude and Codex each completed the experimental-resolution-follow-up,
+experimental-code-diff, and `express-router` regression workloads successfully.
+All six runs rated the usefulness of the result as helped: Claude rated the
+three workloads high/high/high, and Codex rated them medium/high/high. The
+execution gate is complete with the following findings, not issue-free status:
+both agents received zero fuzzy candidates for `lodahs` from `resolve_target`;
+stable `code_read` indexing retries exceeded the estimate before succeeding
+later; and the removed-package security error was ambiguous. These are
+external/backend findings, with no client-side fuzzy fallback or other client
+claim of resolution. No feedback was submitted. The local `code_diff` text-v1
+patch preview truncation was fixed to mark the 320-byte display bound and point
+to JSON for the full returned patch, while preserving backend omission limits.
 
 `feedback` is mutating, so smoke coverage exercises registration and
 validation/auth paths only. It does not submit fake feedback to the live
@@ -142,7 +146,10 @@ test suite anchors the doc.
   names a command/flag and MCP names a tool/argument.
 - Text rendering, agent-specific descriptions, and the deliberate default
   view divergence are not parity targets. The MCP default is compact
-  `text-v1`; parity uses `format: "json"` explicitly.
+  `text-v1`; `code_diff` patch previews are bounded at 320 UTF-8 bytes and
+  mark display truncation, while `format: "json"` returns the full patch
+  returned by the backend subject to backend limits and content coverage.
+  Parity uses `format: "json"` explicitly.
 
 ### `PARITY-REQUEST`
 

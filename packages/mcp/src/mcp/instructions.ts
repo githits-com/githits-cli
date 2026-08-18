@@ -155,7 +155,7 @@ const LOCAL_RESOLVE_TARGET_GUIDANCE =
   "- `resolve_target` — use only when a human-friendly, fuzzy, misspelled, or ambiguous name is not yet a canonical `registry:name` or GitHub target. Do not call it for a canonical target. An ambiguous result requires judgment or a narrowing query; never auto-select a candidate. Continue with the exact canonical target returned by the chosen result.";
 
 const LOCAL_CODE_DIFF_GUIDANCE =
-  "- `code_diff` — after the target is canonical, compare exact package versions or public GitHub refs. Start with `pkg_changelog` or `pkg_upgrade_review` when they answer the upgrade question; use the default `name-status` inventory first, `stat` for magnitude, and a scoped `patch` only for needed content. Treat scope, truncation, incomplete content, and safety warnings as limits; use JSON for exact facts. A raw diff does not prove compatibility or upgrade safety.";
+  "- `code_diff` — after the target is canonical, compare exact package versions or public GitHub refs. Start with `pkg_changelog` or `pkg_upgrade_review` when they answer the upgrade question; use the default `name-status` inventory first, `stat` for magnitude, and a scoped `patch` only for needed content. Treat scope, truncation, incomplete content, and safety warnings as limits; text-v1 patch previews are bounded at 320 UTF-8 bytes, so use JSON for the exact returned patch (still subject to max_patch_bytes and backend content coverage). A raw diff does not prove compatibility or upgrade safety.";
 
 /**
  * Compose local-only experimental guidance without changing the public

@@ -150,7 +150,12 @@ diff content; the backend does not provide Git index or mode headers.
 Validation, authentication, resolution, and raw-field errors exit 1 through
 the shared CLI error envelope. The local `code_diff` MCP adapter maps the same
 classes of failures into the structured MCP error envelope and uses compact
-MCP-native text by default, with the lean JSON projection available explicitly.
+MCP-native text by default. Its `text-v1` patch previews are bounded at 320
+UTF-8 bytes and mark display truncation explicitly; `format: "json"` returns
+the full patch returned by the backend, still subject to backend limits and
+content coverage. `Content: complete` describes backend-returned coverage, not
+that every returned byte was printed in the compact preview. JSON cannot
+recover content omitted by the backend.
 It is not included in public/remote descriptors or smoke inventories, and its
 guidance is not promoted through public/remote MCP instructions, Agent Skills,
 or plugin guidance during this phase.

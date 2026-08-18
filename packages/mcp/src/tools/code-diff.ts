@@ -85,12 +85,12 @@ const schema: ZodRawShape = {
     .enum(["text-v1", "text", "json"])
     .default("text-v1")
     .describe(
-      "Response format. Default `text-v1` is compact MCP-native evidence; `text` is an alias. Use `json` for the complete structured projection.",
+      "Response format. Default `text-v1` is compact MCP-native evidence with patch previews bounded at 320 UTF-8 bytes; `text` is an alias. Use `json` for the complete structured projection and full returned patch, still subject to backend limits and content coverage.",
     ),
 };
 
 export const DESCRIPTION =
-  "Use for exact source changes between two explicit package versions or public GitHub refs after the target is already canonical. Pass one unversioned compact target string or exactly one structured package `{registry, package_name}` / repository `{repo_url}` target, plus separate `from` and `to` endpoints; never embed a version or ref in the target. The default `name-status` view is bounded inventory; use `stat` for magnitude or `patch` for content. Empty and identical diffs succeed. Incomplete, filtered, byte-escaped, omitted, or unavailable patch evidence is not authoritative or safely applicable. Raw diffs never prove compatibility or upgrade safety. Do not include credentials, personal data, private code, or proprietary content in inputs.";
+  'Use for exact source changes between two explicit package versions or public GitHub refs after the target is already canonical. Pass one unversioned compact target string or exactly one structured package `{registry, package_name}` / repository `{repo_url}` target, plus separate `from` and `to` endpoints; never embed a version or ref in the target. The default `name-status` view is bounded inventory; use `stat` for magnitude or `patch` for content. In `text-v1`, patch previews are bounded at 320 UTF-8 bytes; use `format: "json"` for the exact full returned patch, still subject to `max_patch_bytes` and backend content coverage. Incomplete, filtered, byte-escaped, omitted, or unavailable patch evidence is not authoritative or safely applicable. Raw diffs never prove compatibility or upgrade safety. Do not include credentials, personal data, private code, or proprietary content in inputs.';
 
 export function createCodeDiffTool(
   service: CodeDiffService,

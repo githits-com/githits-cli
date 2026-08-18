@@ -113,6 +113,8 @@ describe("code_diff MCP adapter", () => {
       "credentials",
       "private code",
       "proprietary content",
+      "320 UTF-8 bytes",
+      "full returned patch",
     ]) {
       expect(DESCRIPTION).toContain(phrase);
     }
@@ -283,6 +285,64 @@ describe("code_diff MCP adapter", () => {
       }),
     );
     expect(patchText).toContain("patch preview: @@ -1 +1 @@");
+    expect(patchText).toContain(
+      "Content: complete (backend-returned patch coverage; text-v1 preview is bounded)",
+    );
+    expect(patchText).not.toContain("patch preview truncated");
+  });
+
+  it("marks bounded previews while JSON preserves the full returned patch", async () => {
+    const longPatch = `@@ -1 +1 @@\n+${"x".repeat(500)}`;
+    const result = structuredClone(defaultCodeDiffResult);
+    result.raw.files[0] = {
+      ...result.raw.files[0]!,
+      patch: longPatch,
+    };
+
+    const text = formatCodeDiffMcpText(
+      buildCodeDiffSuccessPayload(result, {
+        target: { registry: "NPM", packageName: "express" },
+        view: "patch",
+      }),
+    );
+    expect(text).toContain(
+      'patch preview truncated at 320 UTF-8 bytes; use format "json" for the full returned patch',
+    );
+    expect(text).toContain("JSON cannot recover backend-omitted content");
+
+    const tool = createCodeDiffTool({
+      codeDiff: mock(() => Promise.resolve(result)),
+    });
+    const json = await invoke(tool, {
+      target: "npm:express",
+      from: "4.18.1",
+      to: "4.18.2",
+      view: "patch",
+      format: "json",
+    });
+    const payload = JSON.parse(json.content[0]?.text ?? "{}");
+    expect(payload.files[0].patch).toBe(longPatch);
+  });
+
+  it("distinguishes text bounds from backend-incomplete patch coverage", () => {
+    const result = structuredClone(defaultCodeDiffResult);
+    result.raw.contentCoverage = "PARTIAL";
+    result.raw.files[0] = {
+      ...result.raw.files[0]!,
+      patch: `@@ -1 +1 @@\n+${"x".repeat(500)}`,
+    };
+    const text = formatCodeDiffMcpText(
+      buildCodeDiffSuccessPayload(result, {
+        target: { registry: "NPM", packageName: "express" },
+        view: "patch",
+      }),
+    );
+
+    expect(text).toContain(
+      "Content: partial (backend-returned patch coverage; text-v1 preview is bounded)",
+    );
+    expect(text).toContain("Warning: requested content is partial.");
+    expect(text).toContain("JSON cannot recover backend-omitted content");
   });
 
   it("renders an unknown side of a mixed scope as a question mark", () => {

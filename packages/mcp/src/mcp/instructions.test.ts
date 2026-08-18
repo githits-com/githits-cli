@@ -40,6 +40,8 @@ describe("buildLocalMcpInstructions", () => {
     expect(instructions).toContain("never auto-select");
     expect(instructions).toContain("`pkg_upgrade_review`");
     expect(instructions).toContain("name-status");
+    expect(instructions).toContain("320 UTF-8 bytes");
+    expect(instructions).toContain("exact returned patch");
     expect(instructions).toContain("compatibility or upgrade safety");
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private code or repositories");

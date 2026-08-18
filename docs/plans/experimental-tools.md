@@ -1,6 +1,7 @@
 # Plan: Local experimental tools and agent dogfooding
 
-> Overall status: Phase 3 implementation-complete; eval acceptance pending.
+> Overall status: Phase 3 implementation-complete; eval acceptance recorded
+> complete with documented experimental findings.
 > The existing `resolve` and
 > `code diff` CLI dogfood contracts are merged and released. This plan replaces
 > their deferred direct-to-GA MCP rollout with a reusable local experimental
@@ -400,7 +401,7 @@ There are no blocking product decisions for the next implementation phase.
 |---|---|---|
 | 1. CodeDiff transport adapter | Complete and released | Exact-tree service contract with mode-minimal selections and typed results/errors |
 | 2. Resolve and CodeDiff CLI dogfood | Complete and released | Exercised CLI requests, JSON projections, terminal UX, smoke coverage, and durable docs |
-| 3. Local experimental tools | Implementation complete; eval pending | Config-gated CLI plus local-only `resolve_target`/`code_diff`, optional issue reporting, smoke/eval coverage, unchanged stable/remote baseline |
+| 3. Local experimental tools | Implementation and eval gate complete; findings documented | Config-gated CLI plus local-only `resolve_target`/`code_diff`, optional issue reporting, smoke/eval coverage, unchanged stable/remote baseline |
 | 4. Per-tool graduation | Pending evidence | Independently promote, revise, retain, or remove each experimental tool without changing the suite flag |
 | 5. Changelog steering | Blocked on backend contract and stable diff invocation | Typed sparse-changelog actions mapped to the active stable invocation |
 
@@ -444,7 +445,8 @@ corrections shipped. Neither command has an MCP adapter.
 
 ## Phase 3: Local experimental tools
 
-**Status:** implementation-complete; Phase 3 eval acceptance pending.
+**Status:** implementation-complete; Phase 3 eval acceptance complete with
+documented experimental findings.
 
 **Expected outcome:** one explicit host config enables both experimental CLI and
 local MCP surfaces; optional reporting improves dogfooding; stable/remote
@@ -461,14 +463,19 @@ evals, not reasons to defer the experimental surface.
 filesystem abstraction; local MCP internal boundary; feedback tool; smoke and
 agent-eval harnesses.
 
-**Phase 3 evaluation record:** Claude and Codex discovered and selected both
-experimental tools with correct bounded arguments, but all experimental calls
-and stable `express-router` regression calls timed out before results because
-the host's default macOS Keychain credential read blocked non-interactively.
-No successful final answers or follow-ups were produced and no feedback was
-submitted. The harness initially orphaned MCP children on timeout; process-tree
-cleanup is now implemented. Phase 3 implementation is complete, while eval
-acceptance remains blocked pending a rerun with non-blocking authentication.
+**Phase 3 evaluation record:** Claude and Codex each completed the
+experimental-resolution-follow-up, experimental-code-diff, and
+`express-router` regression workloads successfully. All six runs rated
+usefulness as helped: Claude rated the three workloads high/high/high, and
+Codex rated them medium/high/high. The execution gate is complete with
+documented findings, not issue-free status: both agents received zero fuzzy
+candidates for `lodahs` from `resolve_target`; stable `code_read` indexing
+retries exceeded the estimate before succeeding later; and the removed-package
+security error was ambiguous. These are external/backend findings; no
+client-side fuzzy fallback or other client fix is claimed. No feedback was
+submitted. The local `code_diff` text-v1 patch preview truncation was fixed to
+mark the 320-byte display bound and point to JSON for the full returned patch,
+while preserving backend omission limits.
 
 ### Likely files and components
 
@@ -612,11 +619,14 @@ acceptance remains blocked pending a rerun with non-blocking authentication.
 - The session-only override is absent from normal MCP CLI help and documented
   only as eval/development infrastructure; host users enable the suite through
   `config.toml`.
-- Eval acceptance remains pending: the recorded Claude/Codex runs discovered
-  both experimental tools with bounded arguments, but timed out before results
-  because non-interactive macOS Keychain access blocked authentication. A
-  rerun must establish successful answers/follow-ups and stable-workload
-  regression evidence before graduation review.
+- Eval acceptance is complete for the Phase 3 agent-execution gate: Claude and
+  Codex each completed the two experimental workloads and the stable
+  `express-router` regression workload, and all six rated usefulness as helped
+  (Claude high/high/high; Codex medium/high/high). The recorded external/backend
+  findings are zero fuzzy `lodahs` candidates for both agents, delayed but
+  later successful stable `code_read` indexing, and an ambiguous removed-package
+  security error. These findings do not claim the client is issue-free or
+  trigger a client-side fuzzy fallback.
 - Required unit, parity, full, build, CLI/MCP smoke, built smoke, package,
   plugin, format, and lint checks pass, with live validation status stated
   truthfully.
