@@ -234,7 +234,9 @@ describe("LockedAuthStorage", () => {
   it("clearActiveTokensIfUnchanged delegates through the lock", async () => {
     const { fsWithHome } = await createStoragePaths();
     const inner = createMockAuthStorage();
-    const storage = new LockedAuthStorage(inner, fsWithHome);
+    const storage = new LockedAuthStorage(inner, fsWithHome, {
+      getProcessStartedAt: testProcessStartedAt,
+    });
     const token = createValidTokenData();
 
     await storage.clearActiveTokensIfUnchanged(baseUrl, token);
@@ -250,6 +252,7 @@ describe("LockedAuthStorage", () => {
     const inner = createMockAuthStorage();
     const storage = new LockedAuthStorage(inner, fsWithHome, {
       lockTimeoutMs: 100,
+      getProcessStartedAt: testProcessStartedAt,
     });
 
     // Would time out acquiring the lock again if it were not re-entrant.
