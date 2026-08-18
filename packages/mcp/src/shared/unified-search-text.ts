@@ -472,12 +472,14 @@ function formatDocumentationContributorIdentity(
   const targetSite = targetLabel.startsWith("site:")
     ? targetLabel.slice("site:".length)
     : undefined;
-  if (targetSite) return `site ${targetSite}`;
-
-  const docpackCount = contributors.filter(
+  const docpacks = contributors.filter(
     (candidate) => candidate.kind === "DOCPACK",
-  ).length;
-  if (docpackCount === 1) {
+  );
+  const docpackNumber = docpacks.indexOf(contributor) + 1;
+  const numberSuffix = docpacks.length > 1 ? ` ${docpackNumber}` : "";
+  if (targetSite) return `site ${targetSite}${numberSuffix}`;
+
+  if (docpacks.length === 1) {
     const matchingHosts = new Set(
       results
         .filter(
@@ -494,7 +496,7 @@ function formatDocumentationContributorIdentity(
     }
   }
 
-  return "site documentation";
+  return `site documentation${numberSuffix}`;
 }
 
 function isHealthyDocumentationContributor(

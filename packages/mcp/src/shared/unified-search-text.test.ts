@@ -713,6 +713,20 @@ describe("renderUnifiedSearchSuccess", () => {
                 resultCount: 0,
                 siteKey: "4444444444444444",
               },
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                freshness: "CURRENT",
+                resultCount: 0,
+                siteKey: "5555555555555555",
+                coverage: {
+                  coverageState: "CAPPED",
+                  coverageReason: "trap_suspected",
+                  pagesCrawled: 20,
+                  frontierRemaining: null,
+                  artifactOverflowPageCount: 0,
+                },
+              },
             ],
           },
         ],
@@ -725,20 +739,23 @@ describe("renderUnifiedSearchSuccess", () => {
       "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
     );
     expect(text).toContain(
-      "site documentation - searched an older snapshot; published snapshot hit its size cap: 480 pages included, 12 pages omitted, about 700 estimated total",
+      "site documentation 1 - searched an older snapshot; published snapshot hit its size cap: 480 pages included, 12 pages omitted, about 700 estimated total",
     );
     expect(text).toContain(
-      "site documentation - available, but not searched for this response",
+      "site documentation 2 - available, but not searched for this response",
     );
     expect(text).toContain(
-      "site documentation - searched an older snapshot; published coverage was not measured: 69 pages included",
+      "site documentation 3 - searched an older snapshot; published coverage was not measured: 69 pages included",
     );
     expect(text).not.toContain("Coverage has not been computed");
     expect(text).toContain(
-      "site documentation - not ready, so it was not searched",
+      "site documentation 4 - not ready, so it was not searched",
     );
     expect(text).toContain(
-      "site documentation - unavailable and was not searched",
+      "site documentation 5 - unavailable and was not searched",
+    );
+    expect(text).toContain(
+      "site documentation 6 - searched; published snapshot is capped: 20 pages included, limited by a suspected crawl trap",
     );
     expect(text).not.toContain("hits on this page");
     expect(text).not.toContain("documentation corpora");
