@@ -1,7 +1,7 @@
 # Plan: Local experimental tools and agent dogfooding
 
 > Overall status: Phase 3 implementation, eval acceptance, and review complete;
-> draft PR preparation in progress with documented experimental findings.
+> draft PR #293 is open with documented experimental findings.
 > The existing `resolve` and
 > `code diff` CLI dogfood contracts are merged and released. This plan replaces
 > their deferred direct-to-GA MCP rollout with a reusable local experimental
@@ -401,7 +401,7 @@ There are no blocking product decisions for the next implementation phase.
 |---|---|---|
 | 1. CodeDiff transport adapter | Complete and released | Exact-tree service contract with mode-minimal selections and typed results/errors |
 | 2. Resolve and CodeDiff CLI dogfood | Complete and released | Exercised CLI requests, JSON projections, terminal UX, smoke coverage, and durable docs |
-| 3. Local experimental tools | Implementation, eval gate, and review complete; draft PR pending | Config-gated CLI plus local-only `resolve_target`/`code_diff`, optional issue reporting, smoke/eval coverage, unchanged stable/remote baseline |
+| 3. Local experimental tools | Implementation, eval gate, and review complete; draft PR #293 open | Config-gated CLI plus local-only `resolve_target`/`code_diff`, optional issue reporting, smoke/eval coverage, unchanged stable/remote baseline |
 | 4. Per-tool graduation | Pending evidence | Independently promote, revise, retain, or remove each experimental tool without changing the suite flag |
 | 5. Changelog steering | Blocked on backend contract and stable diff invocation | Typed sparse-changelog actions mapped to the active stable invocation |
 
@@ -446,7 +446,7 @@ corrections shipped. Neither command has an MCP adapter.
 ## Phase 3: Local experimental tools
 
 **Status:** implementation, Phase 3 eval acceptance, and review complete with
-documented experimental findings; draft PR preparation in progress.
+documented experimental findings; draft PR #293 is open.
 
 **Expected outcome:** one explicit host config enables both experimental CLI and
 local MCP surfaces; optional reporting improves dogfooding; stable/remote
