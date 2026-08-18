@@ -280,13 +280,14 @@ describe("code_diff parity", () => {
     expect(cli).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      error: "`--max-patch-bytes` is valid only when the Diff view is patch.",
+      error:
+        "The `--max-patch-bytes` option is valid only when the view is patch.",
     });
     expect(mcp).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
       error:
-        "Maximum patch bytes is valid only when the CodeDiff view is patch.",
+        "The maximum patch byte limit is valid only when the view is patch.",
     });
     expect(Object.keys(cli as object).sort()).toEqual(
       Object.keys(mcp as object).sort(),

@@ -90,20 +90,20 @@ function buildCodeDiffParamsFromParts(
   const pathGlob = normalisePathGlob(input.pathGlob);
   const maxFiles = normaliseIntegerOption(
     input.maxFiles,
-    "maximum files",
+    "Maximum files",
     CODE_DIFF_MAX_FILES_MIN,
     CODE_DIFF_MAX_FILES_MAX,
   );
   const maxPatchBytes = normaliseIntegerOption(
     input.maxPatchBytes,
-    "maximum patch bytes",
+    "Maximum patch bytes",
     CODE_DIFF_MAX_PATCH_BYTES_MIN,
     CODE_DIFF_MAX_PATCH_BYTES_MAX,
   );
 
   if (maxPatchBytes !== undefined && view !== "patch") {
     throw invalid(
-      "Maximum patch bytes is valid only when the CodeDiff view is patch.",
+      "The maximum patch byte limit is valid only when the view is patch.",
     );
   }
 

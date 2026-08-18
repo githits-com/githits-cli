@@ -152,6 +152,10 @@ function buildCliCodeDiffParams(
   } catch (error) {
     if (!(error instanceof InvalidPackageSpecError)) throw error;
     const rewritten = error.message
+      .replace(
+        /The maximum patch byte limit/gi,
+        "The `--max-patch-bytes` option",
+      )
       .replace(/maximum patch bytes/gi, "`--max-patch-bytes`")
       .replace(/maximum files/gi, "`--max-files`")
       .replace(/path glob/gi, "`<path-glob>`")

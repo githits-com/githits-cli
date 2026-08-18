@@ -262,13 +262,13 @@ describe("buildCodeDiffParams", () => {
     ]) {
       invalid(
         { target: "npm:express", range: "1..2", maxFiles },
-        "maximum files",
+        "Maximum files",
       );
     }
     for (const maxPatchBytes of [1023, 2_097_153, 1.5, Number.NaN]) {
       invalid(
         { target: "npm:express", range: "1..2", maxPatchBytes },
-        "maximum patch bytes",
+        "Maximum patch bytes",
       );
     }
     invalid(

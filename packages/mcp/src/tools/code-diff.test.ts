@@ -208,7 +208,7 @@ describe("code_diff MCP adapter", () => {
     expect(invalidMaxFiles.isError).toBe(true);
     expect(parseError(invalidMaxFiles)).toEqual({
       code: "INVALID_ARGUMENT",
-      error: "maximum files must be an integer from 1 through 300.",
+      error: "Maximum files must be an integer from 1 through 300.",
       retryable: false,
     });
 
