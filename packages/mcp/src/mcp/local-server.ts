@@ -3,15 +3,18 @@ import type {
   ResolveTargetService,
 } from "@githits/core-internal";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { createResolveTargetTool } from "../tools/resolve-target.js";
 import type { McpToolServices } from "../tools/tool-services.js";
 import { buildMcpInstructions } from "./instructions.js";
 import {
   createDescriptorServices,
   createMcpServerWithFactories,
+  eraseMcpTool,
   type McpAuthAction,
   type McpRequestContext,
   type McpServerMetadata,
   type McpToolExecutionHook,
+  type McpToolFactory,
   STABLE_MCP_TOOL_FACTORIES,
 } from "./server.js";
 
@@ -46,24 +49,30 @@ export interface CreateLocalMcpServerOptions<TExtra = unknown> {
  * Compose the local MCP server while keeping local-only service requirements
  * and experimental policy outside the public package surface.
  *
- * Experimental factories are intentionally absent in this pre-adapter slice;
- * every policy state therefore uses the exact stable factory and instruction
- * inventories.
+ * Experimental instructions remain deferred to the combined instruction
+ * slice; enabling the policy only adds the local adapter inventory here.
  */
 export function createLocalMcpServer<TExtra = unknown>(
   options: CreateLocalMcpServerOptions<TExtra>,
 ): McpServer {
-  void options.policy;
+  const toolFactories: readonly McpToolFactory<LocalMcpToolServices>[] = options
+    .policy.tools
+    ? [...STABLE_MCP_TOOL_FACTORIES, LOCAL_RESOLVE_TARGET_FACTORY]
+    : STABLE_MCP_TOOL_FACTORIES;
   return createMcpServerWithFactories({
     metadata: options.metadata,
     services: options.services,
-    toolFactories: STABLE_MCP_TOOL_FACTORIES,
+    toolFactories,
     descriptorServices: createLocalDescriptorServices(),
     authAction: options.authAction,
     traceTool: options.traceTool,
     instructions: buildMcpInstructions(),
   });
 }
+
+const LOCAL_RESOLVE_TARGET_FACTORY: McpToolFactory<LocalMcpToolServices> = (
+  services,
+) => eraseMcpTool(createResolveTargetTool(services.resolveTargetService));
 
 function createLocalDescriptorServices(): LocalMcpToolServices {
   const fail = () => {

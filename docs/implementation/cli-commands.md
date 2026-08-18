@@ -317,8 +317,8 @@ detail fields are requested for those lists. Detailed ranking fields are fetched
 only for JSON. Null fields are omitted and enum values are lowercase. Errors use
 the standard JSON envelope on stderr with clean stdout.
 
-The command uses an internal CLI-only service and does not change the public
-`@githits/mcp` service interface. Its GraphQL selection keeps `best` and
+The command and local experimental MCP adapter use an internal service and do
+not change the public `@githits/mcp` service interface. Its GraphQL selection keeps `best` and
 `protectedMatches` to `kind`, `canonicalKey`, and `confidence`; full compact and
 conditional JSON fields are selected only for ranked `candidates`. This keeps
 the operation below production's GraphQL complexity limit while preserving all
@@ -343,20 +343,25 @@ and one explicit family ambiguity were recorded in the backend relevance
 corpus. Those findings do not block landing the CLI dogfood surface. The earlier
 `guava` and `symfony/framework-bundle` mismatches now resolve correctly on dev.
 
-The command ships as a silent CLI-only dogfood surface. Do not promote it
-through Agent Skills or add an MCP tool until the expanded production corpus
-has no known wrong exact-package result, ambiguity wording is accepted, fuzzy
-latency and rate limiting are validated for expected CLI/MCP volume, and
-shipping without linked-repository popularity evidence is explicitly accepted
-or that evidence is exposed cheaply. The reduced query has been validated
-below production's GraphQL complexity limit; roughly 50 dogfood calls completed
-without protocol, schema, complexity, or rate-limit errors, but that is not a
-volume test.
+The command is part of the config-gated experimental CLI surface. When
+`[experimental] tools = true` is enabled in the canonical host config,
+`resolve` and `code diff` are available; otherwise they remain hidden and
+explicit calls are rejected with the config path and enable snippet. The same
+opt-in exposes the local-only MCP `resolve_target` adapter. Its compact text,
+JSON contract, privacy guidance, and structured error mapping reuse the shared
+resolver request/service contracts; local experimental instructions and the
+remaining `code_diff` adapter are completed later in this phase.
 
-After CLI dogfooding, add an MCP `resolve_target` tool using the stable request
-and JSON contracts, promote only the smallest required API through
-`@githits/mcp`, add CLI/MCP parity and smoke coverage, document agent usage, and
-run targeted Claude and Codex agent evaluations.
+Remote/public MCP, generated transports, and Agent Skill promotion remain
+blocked pending dogfood and evaluation evidence: the expanded production
+corpus must have no known wrong exact-package result, ambiguity wording must be
+accepted, fuzzy latency and rate limiting must be validated for expected
+CLI/MCP volume, and shipping without linked-repository popularity evidence must
+be explicitly accepted or exposed cheaply. The reduced query has been
+validated below production's GraphQL complexity limit; roughly 50 dogfood calls
+completed without protocol, schema, complexity, or rate-limit errors, but that
+is not a volume test. Combined MCP instructions, smoke coverage, and Claude and
+Codex evaluations are completed later in this phase.
 
 This increment exceeded its original rough 1,500-line review threshold under an
 explicit 2026-08-10 exception: most of the delta is isolated tests and durable
@@ -585,9 +590,9 @@ metadata-only causes and direct terminal users to stat/name views. Patch output
 is applicable unified-diff content but may omit Git metadata such as index and
 mode headers. Request, auth, resolution, and backend errors also exit 1.
 
-This is a silent dogfood surface. It is normally registered and documented for
-maintainers, but no MCP tool, MCP instruction, Agent Skill, or plugin guidance
-promotes it yet.
+This is a config-gated experimental CLI dogfood surface. It is not yet exposed
+as a local MCP adapter or promoted through MCP instructions, Agent Skills, or
+plugin guidance; that work follows the local `resolve_target` slice.
 
 ### `githits code files`
 

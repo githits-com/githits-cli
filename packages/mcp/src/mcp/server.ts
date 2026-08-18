@@ -76,33 +76,40 @@ export type McpToolFactory<
 > = (services: TServices) => ToolDefinition<unknown>;
 
 export const STABLE_MCP_TOOL_FACTORIES: readonly McpToolFactory[] = [
-  (services) => eraseTool(createGetExampleTool(services.githitsService)),
-  (services) => eraseTool(createSearchLanguageTool(services.githitsService)),
-  (services) => eraseTool(createFeedbackTool(services.githitsService)),
-  (services) => eraseTool(createSearchTool(services.codeNavigationService)),
+  (services) => eraseMcpTool(createGetExampleTool(services.githitsService)),
+  (services) => eraseMcpTool(createSearchLanguageTool(services.githitsService)),
+  (services) => eraseMcpTool(createFeedbackTool(services.githitsService)),
+  (services) => eraseMcpTool(createSearchTool(services.codeNavigationService)),
   (services) =>
-    eraseTool(createSearchStatusTool(services.codeNavigationService)),
-  (services) => eraseTool(createListFilesTool(services.codeNavigationService)),
-  (services) => eraseTool(createReadFileTool(services.codeNavigationService)),
-  (services) => eraseTool(createGrepRepoTool(services.codeNavigationService)),
+    eraseMcpTool(createSearchStatusTool(services.codeNavigationService)),
   (services) =>
-    eraseTool(createListPackageDocsTool(services.packageIntelligenceService)),
+    eraseMcpTool(createListFilesTool(services.codeNavigationService)),
   (services) =>
-    eraseTool(createReadPackageDocTool(services.packageIntelligenceService)),
+    eraseMcpTool(createReadFileTool(services.codeNavigationService)),
   (services) =>
-    eraseTool(createPackageSummaryTool(services.packageIntelligenceService)),
+    eraseMcpTool(createGrepRepoTool(services.codeNavigationService)),
   (services) =>
-    eraseTool(
+    eraseMcpTool(
+      createListPackageDocsTool(services.packageIntelligenceService),
+    ),
+  (services) =>
+    eraseMcpTool(createReadPackageDocTool(services.packageIntelligenceService)),
+  (services) =>
+    eraseMcpTool(createPackageSummaryTool(services.packageIntelligenceService)),
+  (services) =>
+    eraseMcpTool(
       createPackageVulnerabilitiesTool(services.packageIntelligenceService),
     ),
   (services) =>
-    eraseTool(
+    eraseMcpTool(
       createPackageDependenciesTool(services.packageIntelligenceService),
     ),
   (services) =>
-    eraseTool(createPackageChangelogTool(services.packageIntelligenceService)),
+    eraseMcpTool(
+      createPackageChangelogTool(services.packageIntelligenceService),
+    ),
   (services) =>
-    eraseTool(
+    eraseMcpTool(
       createPackageUpgradeReviewTool(services.packageIntelligenceService),
     ),
 ];
@@ -134,7 +141,7 @@ export function getMcpToolDescriptors(): McpToolDescriptor[] {
   );
 }
 
-function eraseTool<TArgs, TSchema extends ZodRawShape>(
+export function eraseMcpTool<TArgs, TSchema extends ZodRawShape>(
   tool: ToolDefinition<TArgs, TSchema>,
 ): ToolDefinition<unknown> {
   return {

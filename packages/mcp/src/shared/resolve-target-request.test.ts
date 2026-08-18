@@ -95,4 +95,35 @@ describe("buildResolveTargetParams", () => {
       ).toThrow("limit expects an integer between 1 and 20");
     }
   });
+
+  it("normalizes MCP registry arrays and preferred kind", () => {
+    expect(
+      buildResolveTargetParams({
+        name: "express",
+        registries: [" npm ", "NPM", "", "pypi", "PyPI"],
+        preferKind: " repository ",
+        includeDetailedFields: false,
+      }),
+    ).toMatchObject({
+      registries: ["NPM", "PYPI"],
+      preferredKinds: ["REPOSITORY"],
+    });
+  });
+
+  it("rejects invalid MCP registry entries and preserves an empty filter", () => {
+    expect(() =>
+      buildResolveTargetParams({
+        name: "express",
+        registries: ["npm", "cargo"],
+        includeDetailedFields: false,
+      }),
+    ).toThrow("Unsupported registry 'cargo'");
+    expect(
+      buildResolveTargetParams({
+        name: "express",
+        registries: [],
+        includeDetailedFields: false,
+      }),
+    ).not.toHaveProperty("registries");
+  });
 });

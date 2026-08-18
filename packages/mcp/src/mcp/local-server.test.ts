@@ -1,5 +1,10 @@
 import { describe, expect, it, mock } from "bun:test";
 import type { ResolveTargetService } from "@githits/core-internal";
+import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
+import type {
+  ServerNotification,
+  ServerRequest,
+} from "@modelcontextprotocol/sdk/types.js";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
@@ -30,7 +35,24 @@ const EXPECTED_STABLE_NAMES = [
   "pkg_upgrade_review",
 ] as const;
 
-function createServices(): LocalMcpToolServices {
+const EXPECTED_EXPERIMENTAL_NAMES = [
+  ...EXPECTED_STABLE_NAMES,
+  "resolve_target",
+] as const;
+
+interface TestRegisteredTool {
+  handler: (
+    args: unknown,
+    extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
+  ) => Promise<{
+    content: Array<{ type: "text"; text: string }>;
+    isError?: boolean;
+  }>;
+}
+
+function createServices(
+  overrides: Partial<LocalMcpToolServices> = {},
+): LocalMcpToolServices {
   const resolveTargetService: ResolveTargetService = {
     resolveTarget: mock(() => Promise.reject(new Error("unused"))),
   };
@@ -39,6 +61,7 @@ function createServices(): LocalMcpToolServices {
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
     resolveTargetService,
+    ...overrides,
   };
 }
 
@@ -63,15 +86,14 @@ function serverInstructions(
 }
 
 describe("createLocalMcpServer", () => {
-  const policies: LocalExperimentalMcpPolicy[] = [
+  const disabledPolicies: LocalExperimentalMcpPolicy[] = [
     { tools: false, reportToolIssues: undefined },
     { tools: false, reportToolIssues: "experimental" },
     { tools: false, reportToolIssues: "all" },
-    { tools: true, reportToolIssues: undefined },
   ];
 
-  it("keeps every local pre-adapter policy on the stable tool and instruction inventories", () => {
-    for (const policy of policies) {
+  it("keeps disabled and dormant policies on the exact stable inventories", () => {
+    for (const policy of disabledPolicies) {
       const server = createLocalMcpServer({
         metadata: { name: "local-githits", version: "0.0.0" },
         services: createServices(),
@@ -81,5 +103,64 @@ describe("createLocalMcpServer", () => {
       expect(registeredToolNames(server)).toEqual([...EXPECTED_STABLE_NAMES]);
       expect(serverInstructions(server)).toBe(buildMcpInstructions());
     }
+  });
+
+  it("adds resolve_target only when enabled and preserves baseline instructions", () => {
+    const server = createLocalMcpServer({
+      metadata: { name: "local-githits", version: "0.0.0" },
+      services: createServices(),
+      policy: { tools: true, reportToolIssues: undefined },
+    });
+
+    expect(registeredToolNames(server)).toEqual([
+      ...EXPECTED_EXPERIMENTAL_NAMES,
+    ]);
+    expect(serverInstructions(server)).toBe(buildMcpInstructions());
+  });
+
+  it("resolves the extended service from the request-scoped local provider", async () => {
+    const resolveTarget = mock(() =>
+      Promise.resolve({
+        best: {
+          kind: "PACKAGE",
+          canonicalKey: "npm:express",
+          confidence: "EXACT",
+        },
+        protectedMatches: [],
+        candidates: [],
+        ambiguous: false,
+        ambiguousReason: "NOT_AMBIGUOUS",
+      }),
+    );
+    const services = createServices({
+      resolveTargetService: { resolveTarget },
+    });
+    const provider = mock(() => services);
+    const server = createLocalMcpServer({
+      metadata: { name: "local-githits", version: "0.0.0" },
+      services: provider,
+      policy: { tools: true, reportToolIssues: undefined },
+    });
+    const registered = (
+      server as unknown as {
+        _registeredTools: Record<string, TestRegisteredTool>;
+      }
+    )._registeredTools.resolve_target!;
+
+    const result = await registered.handler(
+      { name: "express", format: "json" },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(provider).toHaveBeenCalledWith({ extra: undefined });
+    expect(resolveTarget).toHaveBeenCalledWith({
+      name: "express",
+      limit: 8,
+      includeDetailedFields: true,
+    });
   });
 });
