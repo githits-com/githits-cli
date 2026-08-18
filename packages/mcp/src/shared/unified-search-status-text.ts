@@ -128,8 +128,9 @@ function appendResult(
     result.sourceStatus &&
     result.sourceStatus.length > 0
   ) {
-    lines.push("");
-    appendSourceStatusNotes(lines, result.sourceStatus);
+    const sourceNotes: string[] = [];
+    appendSourceStatusNotes(sourceNotes, result.sourceStatus);
+    if (sourceNotes.length > 0) lines.push("", ...sourceNotes);
   }
   appendEvidenceNotice(lines, result.evidenceNotice);
 }

@@ -75,4 +75,46 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(text).toContain("\n\nNo hits for docs on site:docs.example.com.");
     expect(text).not.toContain("\n\n\n");
   });
+
+  it("does not leave a trailing separator after healthy stored results", () => {
+    const payload: UnifiedSearchStatusCompletedPayload = {
+      completed: true,
+      searchRef: "search-ref-healthy",
+      result: {
+        hasMore: false,
+        results: [
+          {
+            type: "documentation_page",
+            target: "npm:express@5.2.1",
+            title: "Routing",
+            locator: {
+              pageId: "express/routing",
+              sourceUrl: "https://expressjs.com/en/guide/routing.html",
+            },
+          },
+        ],
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                freshness: "CURRENT",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/expressjs/express",
+                commitSha: "0123456789abcdef0123456789abcdef01234567",
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const text = renderUnifiedSearchStatusText(payload);
+
+    expect(text.indexOf("searched:")).toBeLessThan(text.indexOf("[1]"));
+    expect(text.endsWith("\n")).toBe(false);
+  });
 });

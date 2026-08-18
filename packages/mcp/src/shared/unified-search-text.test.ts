@@ -649,6 +649,58 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text.indexOf("searched:")).toBeLessThan(text.indexOf("[1]"));
   });
 
+  it("groups mixed source health by target without repeating section labels", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([docsHit()], {
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                freshness: "CURRENT",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/expressjs/express",
+                commitSha: "0123456789abcdef0123456789abcdef01234567",
+              },
+            ],
+          },
+          {
+            source: "docs",
+            targetLabel: "npm:koa@3.0.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "PENDING",
+                resultCount: 0,
+                siteKey: "1111111111111111",
+              },
+            ],
+          },
+          {
+            source: "docs",
+            targetLabel: "npm:react@19.1.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "UNAVAILABLE",
+                resultCount: 0,
+                siteKey: "2222222222222222",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "searched:\n  npm:express@5.2.1: repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567\n\ndocumentation sources:\n  npm:koa@3.0.1:\n    - site documentation - not ready, so it was not searched\n  npm:react@19.1.1:\n    - site documentation - unavailable and was not searched",
+    );
+    expect(text.match(/documentation sources:/g)).toHaveLength(1);
+  });
+
   it("explains capped page coverage without repeating the limit reason", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
