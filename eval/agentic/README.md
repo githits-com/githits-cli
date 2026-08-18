@@ -60,6 +60,7 @@ bun run agent:e2e --server local --workload eval/agentic/workloads/express-route
 bun run agent:e2e --server published --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --surface skills --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent opencode --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent claude --model haiku --workload eval/agentic/workloads/package-overview-vulnerabilities.md
 bun run agent:e2e --agent codex --model gpt-5.4-mini --workload eval/agentic/workloads/package-overview-vulnerabilities.md
@@ -75,6 +76,7 @@ bun run agent:session --agent claude --surface skills --server local --model hai
 bun run agent:session --agent codex --surface skills --server local --prompt "Evaluate npm:express"
 bun run agent:session --agent codex --surface mcp --server local --dry-run
 bun run agent:session --agent opencode --surface mcp --server local --prompt "Evaluate npm:express" --dry-run
+bun run agent:session --agent codex --surface mcp --server local --experimental-tools --dry-run
 ```
 
 `agent:session` creates an isolated temp workspace by default and leaves it in
@@ -100,7 +102,16 @@ Useful options:
 --timeout <seconds>             Per-workload timeout, default 300
 --published-package <spec>      Published package spec, default `githits@latest`
 --workload <path>               Repeatable workload path
+--experimental-tools            Enable local experimental MCP tools for this eval/session
 ```
+
+`--experimental-tools` is development/eval infrastructure only. It is valid
+only with `--surface mcp --server local`, appends the hidden
+`githits mcp start --experimental-tools` session flag to every generated local
+MCP launch vector, and forces issue reporting off for that process. The flag
+does not apply to published servers or skills runs, and it never writes or
+reads the host experimental policy from `~/.config/githits/config.toml`;
+host dogfooding uses that `config.toml` instead.
 
 Normal GitHits backend overrides are passed through when set:
 
@@ -243,6 +254,10 @@ Each run writes:
   `stderr.txt`, `tool-calls.json`, and `final.json` when parsing succeeds.
 - MCP runs write a GitHits `mcp.json`, `codex-config.toml`, and `opencode.json`;
   skills runs write an empty `mcp.json` and empty `opencode.json` for isolation.
+- When the local experimental override is enabled, `run.json`, each workload's
+  dry-run metadata, and `.agent-session/session.json` persist
+  `experimentalTools: true`; the Claude, Codex, and OpenCode local launch
+  vectors contain the same `--experimental-tools` flag.
 - Skills runs also write `skill-installation.json` with the copied skill path
   and CLI shim path.
 

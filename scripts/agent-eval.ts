@@ -28,6 +28,7 @@ export interface AgentEvalOptions {
   model?: string;
   surface: EvalSurface;
   server: ServerMode;
+  experimentalTools: boolean;
   workloads: string[];
   outDir: string;
   timeoutSeconds: number;
@@ -71,6 +72,7 @@ interface WorkloadRunMetadata {
   workspaceDir: string;
   workloadDir: string;
   toolCallCount?: number;
+  experimentalTools: boolean;
   skillInstallation?: SkillInstallationMetadata;
 }
 
@@ -172,6 +174,7 @@ export function parseArgs(
     agent: "claude",
     surface: "mcp",
     server: "local",
+    experimentalTools: false,
     workloads: [],
     outDir: defaultOutDir(repoRoot),
     timeoutSeconds: 300,
@@ -263,6 +266,9 @@ export function parseArgs(
       case "--dry-run":
         options.dryRun = true;
         break;
+      case "--experimental-tools":
+        options.experimentalTools = true;
+        break;
       case "--help":
       case "-h":
         printHelp();
@@ -278,8 +284,19 @@ export function parseArgs(
       join(repoRoot, "eval", "agentic", "workloads", "express-router.md"),
     );
   }
+  validateExperimentalToolsScope(options);
   options.workloads = options.workloads.map((path) => resolve(repoRoot, path));
   return options;
+}
+
+export function validateExperimentalToolsScope(
+  options: Pick<AgentEvalOptions, "surface" | "server" | "experimentalTools">,
+): void {
+  assert(
+    !options.experimentalTools ||
+      (options.surface === "mcp" && options.server === "local"),
+    "--experimental-tools requires --surface mcp --server local",
+  );
 }
 
 function printHelp(): void {
@@ -294,6 +311,7 @@ Options:
   --out <dir>                     Output directory
   --timeout <seconds>             Per-workload timeout (default: 300)
   --published-package <spec>      Package for published mode (default: githits@latest)
+  --experimental-tools            Enable local experimental MCP tools for this run
   --schema <path>                 Result JSON schema path
   --reporting <path>              Reporting contract markdown path
   --dry-run                       Generate artifacts without invoking the agent
@@ -301,7 +319,10 @@ Options:
 }
 
 export function buildMcpConfig(
-  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage"
+  > & { experimentalTools?: boolean },
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): McpServerConfig {
   const command = buildMcpCommand(options, baseEnv);
@@ -313,14 +334,25 @@ export function buildMcpConfig(
 }
 
 function buildMcpCommand(
-  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage"
+  > & { experimentalTools?: boolean },
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): McpServerConfig["mcpServers"]["githits"] {
   const env = buildMcpServerEnv(baseEnv);
   if (options.server === "local") {
     return {
       command: "bun",
-      args: ["run", "--cwd", options.repoRoot, "dev", "mcp", "start"],
+      args: [
+        "run",
+        "--cwd",
+        options.repoRoot,
+        "dev",
+        "mcp",
+        "start",
+        ...(options.experimentalTools ? ["--experimental-tools"] : []),
+      ],
       ...(env ? { env } : {}),
     };
   }
@@ -344,7 +376,10 @@ function buildMcpServerEnv(
 }
 
 export function buildCodexConfig(
-  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage"
+  > & { experimentalTools?: boolean },
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): string {
   const command = buildMcpCommand(options, baseEnv);
@@ -364,7 +399,10 @@ export function buildCodexConfig(
 }
 
 export function buildCodexConfigArgs(
-  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage"
+  > & { experimentalTools?: boolean },
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): string[] {
   const command = buildMcpCommand(options, baseEnv);
@@ -386,7 +424,10 @@ export function buildCodexConfigArgs(
 }
 
 export function buildOpenCodeConfig(
-  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage"
+  > & { experimentalTools?: boolean },
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): OpenCodeConfig {
   const command = buildMcpCommand(options, baseEnv);
@@ -1187,6 +1228,7 @@ async function runWorkload(
     command,
     workspaceDir,
     workloadDir,
+    experimentalTools: options.experimentalTools,
     ...(skillInstallation ? { skillInstallation } : {}),
   };
 
@@ -1317,6 +1359,7 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
     model: options.model,
     surface: options.surface,
     server: options.server,
+    experimentalTools: options.experimentalTools,
     publishedPackage: options.publishedPackage,
     dryRun: options.dryRun,
     timeoutSeconds: options.timeoutSeconds,

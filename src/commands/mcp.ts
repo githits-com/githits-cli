@@ -8,7 +8,7 @@ import {
   shouldUseColors,
 } from "@githits/mcp/internal";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import type { Command } from "commander";
+import { type Command, Option } from "commander";
 import { version } from "../../package.json";
 import { createContainer } from "../container.js";
 import { loadExperimentalSettings } from "../services/experimental-config.js";
@@ -23,9 +23,18 @@ const DISABLED_LOCAL_MCP_POLICY: LocalExperimentalMcpPolicy = {
   reportToolIssues: undefined,
 };
 
+const OVERRIDE_LOCAL_MCP_POLICY: LocalExperimentalMcpPolicy = {
+  tools: true,
+  reportToolIssues: undefined,
+};
+
 export interface StartMcpServerOptions {
   onServerCreated?: (server: LocalMcpServer) => void;
   experimentalPolicy?: LocalExperimentalMcpPolicy;
+}
+
+export interface CreateMcpCommandStartupOptions {
+  experimentalTools?: boolean;
 }
 
 /**
@@ -84,20 +93,51 @@ export interface McpCommandStartup {
   onServerCreated: (server: LocalMcpServer) => void;
 }
 
-export async function createMcpCommandStartup(): Promise<McpCommandStartup> {
-  const settings = await loadExperimentalSettings(new FileSystemServiceImpl());
+async function createMcpContainer(
+  options: CreateMcpCommandStartupOptions,
+  agentProvider: () => AgentInfo | undefined,
+) {
+  const previousAuthStorage = process.env.GITHITS_AUTH_STORAGE;
+  if (options.experimentalTools) {
+    // The eval/session override must not let a malformed host TOML document
+    // affect startup. This process-local value only selects the already
+    // supported keychain construction path while createContainer initializes;
+    // it is restored before the caller continues.
+    process.env.GITHITS_AUTH_STORAGE = "keychain";
+  }
+  try {
+    return await createContainer({
+      resolveStoredToken: false,
+      clientName: "githits-cli/mcp",
+      agentProvider,
+    });
+  } finally {
+    if (previousAuthStorage === undefined) {
+      delete process.env.GITHITS_AUTH_STORAGE;
+    } else {
+      process.env.GITHITS_AUTH_STORAGE = previousAuthStorage;
+    }
+  }
+}
+
+export async function createMcpCommandStartup(
+  options: CreateMcpCommandStartupOptions = {},
+): Promise<McpCommandStartup> {
+  const experimentalPolicy = options.experimentalTools
+    ? OVERRIDE_LOCAL_MCP_POLICY
+    : await loadExperimentalSettings(new FileSystemServiceImpl()).then(
+        (settings): LocalExperimentalMcpPolicy => ({
+          tools: settings.tools,
+          reportToolIssues: settings.reportToolIssues,
+        }),
+      );
   let server: LocalMcpServer | undefined;
-  const services = await createContainer({
-    resolveStoredToken: false,
-    clientName: "githits-cli/mcp",
-    agentProvider: () => readMcpClientVersion(server),
-  });
+  const services = await createMcpContainer(options, () =>
+    readMcpClientVersion(server),
+  );
   return {
     services,
-    experimentalPolicy: {
-      tools: settings.tools,
-      reportToolIssues: settings.reportToolIssues,
-    },
+    experimentalPolicy,
     onServerCreated: (created: LocalMcpServer) => {
       server = created;
     },
@@ -140,7 +180,17 @@ function showMcpSetupInstructions(): void {
  * Register the mcp command on the given program.
  * Uses lazy container creation so `--help` doesn't trigger auth.
  */
-export function registerMcpCommand(program: Command) {
+export interface McpCommandRegistrationDependencies {
+  createStartup?: typeof createMcpCommandStartup;
+  startServer?: typeof startMcpServer;
+}
+
+export function registerMcpCommand(
+  program: Command,
+  dependencies: McpCommandRegistrationDependencies = {},
+) {
+  const createStartup = dependencies.createStartup ?? createMcpCommandStartup;
+  const startServer = dependencies.startServer ?? startMcpServer;
   const mcpCommand = program
     .command("mcp")
     .summary("Show MCP setup instructions or start the local MCP server")
@@ -157,8 +207,8 @@ Authenticated tool calls require a valid GitHits token.`,
         showMcpSetupInstructions();
         return;
       }
-      const startup = await createMcpCommandStartup();
-      await startMcpServer(startup.services, {
+      const startup = await createStartup();
+      await startServer(startup.services, {
         experimentalPolicy: startup.experimentalPolicy,
         onServerCreated: startup.onServerCreated,
       });
@@ -173,9 +223,12 @@ Authenticated tool calls require a valid GitHits token.`,
 This command explicitly starts the server and is intended for use
 in MCP configuration files. Use 'githits mcp' for interactive setup.`,
     )
-    .action(async () => {
-      const startup = await createMcpCommandStartup();
-      await startMcpServer(startup.services, {
+    .addOption(new Option("--experimental-tools").hideHelp())
+    .action(async (options: CreateMcpCommandStartupOptions) => {
+      const startup = await createStartup(
+        options.experimentalTools ? { experimentalTools: true } : undefined,
+      );
+      await startServer(startup.services, {
         experimentalPolicy: startup.experimentalPolicy,
         onServerCreated: startup.onServerCreated,
       });

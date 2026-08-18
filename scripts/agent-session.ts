@@ -12,12 +12,14 @@ import {
   prepareSkillsWorkspace,
   type ServerMode,
   type SkillInstallationMetadata,
+  validateExperimentalToolsScope,
 } from "./agent-eval.ts";
 
 export interface AgentSessionOptions {
   agent: AgentName;
   surface: EvalSurface;
   server: ServerMode;
+  experimentalTools: boolean;
   model?: string;
   prompt?: string;
   workspaceDir: string;
@@ -43,6 +45,7 @@ export function parseSessionArgs(
     agent: "claude",
     surface: "mcp",
     server: "local",
+    experimentalTools: false,
     workspaceDir: defaultWorkspaceDir(),
     repoRoot,
     publishedPackage: "githits@latest",
@@ -110,6 +113,9 @@ export function parseSessionArgs(
       case "--bypass-permissions":
         options.bypassPermissions = true;
         break;
+      case "--experimental-tools":
+        options.experimentalTools = true;
+        break;
       case "--help":
       case "-h":
         printHelp();
@@ -120,6 +126,7 @@ export function parseSessionArgs(
     }
   }
 
+  validateExperimentalToolsScope(options);
   return options;
 }
 
@@ -134,6 +141,7 @@ Options:
   --prompt <text>                 Optional initial prompt
   --workspace <dir>               Workspace to use; defaults to a temp dir
   --published-package <spec>      Package for published mode (default: githits@latest)
+  --experimental-tools            Enable local experimental MCP tools for this session
   --bypass-permissions            Start with noninteractive/bypass approvals enabled
   --dry-run                       Print setup metadata and command without launching
 `);
@@ -201,6 +209,7 @@ export function prepareAgentSession(options: AgentSessionOptions): {
   skillInstallation?: SkillInstallationMetadata;
 } {
   mkdirSync(options.workspaceDir, { recursive: true });
+  validateExperimentalToolsScope(options);
   const sessionDir = join(options.workspaceDir, ".agent-session");
   mkdirSync(sessionDir, { recursive: true });
   const mcpConfigPath = join(sessionDir, "mcp.json");
@@ -239,6 +248,7 @@ export function prepareAgentSession(options: AgentSessionOptions): {
     agent: options.agent,
     surface: options.surface,
     server: options.server,
+    experimentalTools: options.experimentalTools,
     model: options.model,
     workspaceDir: options.workspaceDir,
     mcpConfigPath,

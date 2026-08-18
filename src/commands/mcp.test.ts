@@ -28,7 +28,9 @@ import {
   createMockResolveTargetService,
 } from "../services/test-helpers.js";
 import {
+  type CreateMcpCommandStartupOptions,
   createMcpCommandStartup,
+  type McpCommandRegistrationDependencies,
   registerMcpCommand,
   startMcpServer,
 } from "./mcp.js";
@@ -437,6 +439,159 @@ describe("createMcpCommandStartup", () => {
       });
     } finally {
       await rm(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("uses the session override without reading or writing malformed host config", async () => {
+    const xdgConfigHome = await mkdtemp(
+      join(tmpdir(), "githits-mcp-override-"),
+    );
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    const configPath = join(configDir, "config.toml");
+    const originalConfig = "[experimental\n";
+    await writeFile(configPath, originalConfig);
+    const previousToken = process.env.GITHITS_API_TOKEN;
+    const previousStorage = process.env.GITHITS_AUTH_STORAGE;
+
+    try {
+      delete process.env.GITHITS_API_TOKEN;
+      delete process.env.GITHITS_AUTH_STORAGE;
+      await withXdgConfigHome(xdgConfigHome, async () => {
+        const startup = await createMcpCommandStartup({
+          experimentalTools: true,
+        });
+        expect(startup.experimentalPolicy).toEqual({
+          tools: true,
+          reportToolIssues: undefined,
+        });
+        expect(await Bun.file(configPath).text()).toBe(originalConfig);
+      });
+      expect(process.env.GITHITS_AUTH_STORAGE).toBeUndefined();
+    } finally {
+      if (previousToken === undefined) delete process.env.GITHITS_API_TOKEN;
+      else process.env.GITHITS_API_TOKEN = previousToken;
+      if (previousStorage === undefined)
+        delete process.env.GITHITS_AUTH_STORAGE;
+      else process.env.GITHITS_AUTH_STORAGE = previousStorage;
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("does not inherit a disabled host policy or its reporting mode", async () => {
+    const xdgConfigHome = await mkdtemp(
+      join(tmpdir(), "githits-mcp-override-policy-"),
+    );
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    await writeFile(
+      join(configDir, "config.toml"),
+      '[experimental]\ntools = false\nreport_tool_issues = "all"\n',
+    );
+    const previousToken = process.env.GITHITS_API_TOKEN;
+    const previousStorage = process.env.GITHITS_AUTH_STORAGE;
+
+    try {
+      delete process.env.GITHITS_API_TOKEN;
+      delete process.env.GITHITS_AUTH_STORAGE;
+      await withXdgConfigHome(xdgConfigHome, async () => {
+        const startup = await createMcpCommandStartup({
+          experimentalTools: true,
+        });
+        expect(startup.experimentalPolicy).toEqual({
+          tools: true,
+          reportToolIssues: undefined,
+        });
+      });
+    } finally {
+      if (previousToken === undefined) delete process.env.GITHITS_API_TOKEN;
+      else process.env.GITHITS_API_TOKEN = previousToken;
+      if (previousStorage === undefined)
+        delete process.env.GITHITS_AUTH_STORAGE;
+      else process.env.GITHITS_AUTH_STORAGE = previousStorage;
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("maps the hidden override through mcp start without advertising it", async () => {
+    const startupOptions: Array<CreateMcpCommandStartupOptions | undefined> =
+      [];
+    const dependencies: McpCommandRegistrationDependencies = {
+      createStartup: async (options) => {
+        startupOptions.push(options);
+        return {
+          services: createTestServices(),
+          experimentalPolicy: {
+            tools: options?.experimentalTools === true,
+            reportToolIssues: undefined,
+          },
+          onServerCreated: () => {},
+        };
+      },
+      startServer: async () => {},
+    };
+
+    const explicit = new Command();
+    let explicitHelp = "";
+    explicit.configureOutput({
+      writeOut: (value) => {
+        explicitHelp += value;
+      },
+      writeErr: (value) => {
+        explicitHelp += value;
+      },
+    });
+    explicit.exitOverride();
+    registerMcpCommand(explicit, dependencies);
+    await explicit.parseAsync([
+      "node",
+      "test",
+      "mcp",
+      "start",
+      "--experimental-tools",
+    ]);
+    expect(startupOptions).toEqual([{ experimentalTools: true }]);
+    expect(explicitHelp).not.toContain("experimental-tools");
+
+    const normal = new Command();
+    let normalHelp = "";
+    normal.configureOutput({
+      writeOut: (value) => {
+        normalHelp += value;
+      },
+      writeErr: (value) => {
+        normalHelp += value;
+      },
+    });
+    normal.exitOverride();
+    registerMcpCommand(normal, dependencies);
+    await normal.parseAsync(["node", "test", "mcp", "start"]);
+    expect(startupOptions).toEqual([{ experimentalTools: true }, undefined]);
+    expect(normalHelp).not.toContain("experimental-tools");
+  });
+
+  it("does not advertise the session override in mcp or root help", async () => {
+    for (const args of [
+      ["mcp", "--help"],
+      ["mcp", "start", "--help"],
+      ["--help"],
+    ]) {
+      const program = new Command();
+      let output = "";
+      program.configureOutput({
+        writeOut: (value) => {
+          output += value;
+        },
+        writeErr: (value) => {
+          output += value;
+        },
+      });
+      program.exitOverride();
+      registerMcpCommand(program);
+      await expect(
+        program.parseAsync(["node", "test", ...args]),
+      ).rejects.toMatchObject({ code: "commander.helpDisplayed" });
+      expect(output).not.toContain("experimental-tools");
     }
   });
 
