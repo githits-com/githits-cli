@@ -103,7 +103,7 @@ function buildCodeDiffParamsFromParts(
 
   if (maxPatchBytes !== undefined && view !== "patch") {
     throw invalid(
-      "`maximum patch bytes` is valid only when the CodeDiff view is `patch`.",
+      "Maximum patch bytes is valid only when the CodeDiff view is patch.",
     );
   }
 
@@ -140,7 +140,7 @@ function buildTarget(input: CodeDiffRequestInput): CodeDiffParams["target"] {
 
 function buildMcpTarget(raw: CodeDiffMcpTarget): CodeDiffParams["target"] {
   if (typeof raw === "string") {
-    return buildTargetFromRaw(raw, "target");
+    return buildTargetFromRaw(raw, "mcpTarget");
   }
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     throw invalid(
@@ -203,6 +203,7 @@ function buildMcpTarget(raw: CodeDiffMcpTarget): CodeDiffParams["target"] {
 
 type CodeDiffTargetSource =
   | "target"
+  | "mcpTarget"
   | "repoUrl"
   | "mcpPackage"
   | "mcpRepository";
@@ -212,7 +213,12 @@ function buildTargetFromRaw(
   source: CodeDiffTargetSource,
 ): CodeDiffParams["target"] {
   const parsed = parseTarget(raw);
-  if ((source === "target" || source === "mcpPackage") && parsed.version) {
+  if (
+    (source === "target" ||
+      source === "mcpTarget" ||
+      source === "mcpPackage") &&
+    parsed.version
+  ) {
     throw invalid(
       source === "target"
         ? "Package targets must not include a version; put both versions in `range`."
@@ -231,7 +237,9 @@ function buildTargetFromRaw(
     Object.hasOwn(parsed, "registry") || Object.hasOwn(parsed, "packageName");
   const hasRepoKey = Object.hasOwn(parsed, "repoUrl");
   if ((source === "repoUrl" || source === "mcpRepository") && hasPackageKeys) {
-    throw invalid("`repoUrl` must identify a repository target.");
+    throw invalid(
+      "Repository target must identify a repository, not a package.",
+    );
   }
   if (hasPackageKeys && hasRepoKey) {
     throw invalid(
@@ -322,19 +330,19 @@ function normaliseView(raw: CodeDiffView | undefined): CodeDiffView {
 function normalisePathGlob(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
   if (typeof raw !== "string") {
-    throw invalid("`path glob` must be a string when supplied.");
+    throw invalid("Path glob must be a string when supplied.");
   }
 
   const pathGlob = raw;
   if (pathGlob.length === 0) {
-    throw invalid("`path glob` must not be empty when supplied.");
+    throw invalid("Path glob must not be empty when supplied.");
   }
   if (hasInvalidUtf16(pathGlob)) {
-    throw invalid("`path glob` must be valid UTF-8.");
+    throw invalid("Path glob must be valid UTF-8.");
   }
   if (new TextEncoder().encode(pathGlob).byteLength > MAX_PATH_GLOB_BYTES) {
     throw invalid(
-      `\`path glob\` must be at most ${MAX_PATH_GLOB_BYTES} UTF-8 bytes.`,
+      `Path glob must be at most ${MAX_PATH_GLOB_BYTES} UTF-8 bytes.`,
     );
   }
 
@@ -356,7 +364,7 @@ function validatePathGlobGrammar(pathGlob: string): void {
     pathGlob.startsWith(":^")
   ) {
     throw invalid(
-      "`path glob` does not support Git pathspec magic; pass one bounded glob.",
+      "Path glob does not support Git pathspec magic; pass one bounded glob.",
     );
   }
 
@@ -376,7 +384,7 @@ function validatePathGlobGrammar(pathGlob: string): void {
       const escaped = characters[index + 1];
       if (escaped === undefined || escaped === "/") {
         throw invalid(
-          "`path glob` backslashes must escape one following non-slash character.",
+          "Path glob backslashes must escape one following non-slash character.",
         );
       }
       component.push({ char: escaped, escaped: true });
@@ -391,7 +399,7 @@ function validatePathGlobGrammar(pathGlob: string): void {
       character === "!"
     ) {
       throw invalid(
-        "`path glob` does not support unescaped brackets, braces, or `!`.",
+        "Path glob does not support unescaped brackets, braces, or `!`.",
       );
     }
     component.push({ char: character, escaped: false });
@@ -413,7 +421,7 @@ function validatePathGlobGrammar(pathGlob: string): void {
         !token.escaped
       ) {
         throw invalid(
-          "`path glob` allows adjacent stars only as an exact `**` component.",
+          "Path glob allows adjacent stars only as an exact `**` component.",
         );
       }
       previous = token;
@@ -427,12 +435,12 @@ function addGlobComponent(
 ): void {
   if (component.length === 0) {
     throw invalid(
-      "`path glob` must use non-empty repository-relative components.",
+      "Path glob must use non-empty repository-relative components.",
     );
   }
   const literal = component.map(({ char }) => char).join("");
   if (literal === "." || literal === "..") {
-    throw invalid("`path glob` must not contain `.` or `..` components.");
+    throw invalid("Path glob must not contain `.` or `..` components.");
   }
   components.push(component);
 }
@@ -462,7 +470,7 @@ function normaliseIntegerOption(
   if (value === undefined) return undefined;
   if (!Number.isInteger(value) || value < minimum || value > maximum) {
     throw invalid(
-      `\`${name}\` must be an integer from ${minimum} through ${maximum}.`,
+      `${name} must be an integer from ${minimum} through ${maximum}.`,
     );
   }
   return value;

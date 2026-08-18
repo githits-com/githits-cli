@@ -191,10 +191,11 @@ test suite anchors the doc.
   `content[0].text` on error gets the same envelope shape and structured data as
   CLI `--json`. Client-owned validation messages and path-recovery
   `details.action` are deliberately surface-native: MCP names MCP
-  tools/arguments, while CLI JSON names CLI commands/options. The CLI request
-  wrappers translate MCP validation identifiers from the shared builders, normally
-  using their backtick delimiters and explicitly handling raw reversed-range labels;
-  changes to those identifiers must update the CLI mappings and parity tests.
+  tools/arguments, while CLI JSON names CLI commands/options. Shared request
+  builders use natural, surface-neutral prose for semantic validation labels;
+  CLI request adapters translate those phrases to flags and CLI syntax, while
+  MCP preserves the neutral wording. Changes to either adapter or the shared
+  prose must update the corresponding exact assertions and parity tests.
   Cross-surface account actions such as `githits settings terms accept` remain
   identical because they name one shared external remediation.
 - Backend error messages, hints, indexing estimates, available versions/refs,

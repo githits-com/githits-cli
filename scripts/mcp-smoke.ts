@@ -14,6 +14,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import {
   createIsolatedSmokeEnvironment,
   createScopedSmokeEnvironment,
+  writeSmokeConfig,
 } from "./smoke-environment.ts";
 import {
   type CliLaunchTarget,
@@ -37,6 +38,7 @@ export const EXPECTED_EXPERIMENTAL_MCP_TOOLS = [
   "resolve_target",
   "code_diff",
 ] as const;
+export const STABLE_MCP_SMOKE_CONFIG = "[experimental]\ntools = false\n";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -184,6 +186,7 @@ async function assertUnauthenticatedBehavior(
 ): Promise<void> {
   const isolated = createIsolatedSmokeEnvironment("githits-mcp-smoke-home-");
   try {
+    writeSmokeConfig(isolated.env, STABLE_MCP_SMOKE_CONFIG);
     await withMcpClient(target, isolated.env, [], async (client) => {
       await assertStableMcpSession(client, "stable unauthenticated");
       await assertStableAuthProbe(client, "unauthenticated");
@@ -198,6 +201,7 @@ async function runRegistrationSmoke(target: CliLaunchTarget): Promise<void> {
     "githits-mcp-registration-smoke-home-",
   );
   try {
+    writeSmokeConfig(isolated.env, STABLE_MCP_SMOKE_CONFIG);
     await withMcpClient(target, isolated.env, [], async (client) => {
       await assertStableMcpSession(client, "stable registration");
       await assertStableAuthProbe(client, "registration");
@@ -401,6 +405,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   await assertUnauthenticatedBehavior(options.target);
   const stable = createScopedSmokeEnvironment("githits-mcp-live-stable-");
   try {
+    writeSmokeConfig(stable.env, STABLE_MCP_SMOKE_CONFIG);
     await withMcpClient(options.target, stable.env, [], async (client) => {
       await assertStableMcpSession(client, "stable live");
       await runMcpSmoke(createSmokeCaller(client), { logger: console });

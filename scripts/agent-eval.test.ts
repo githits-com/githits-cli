@@ -143,7 +143,7 @@ describe("agent eval harness", () => {
     };
     writeFileSync(
       scriptPath,
-      '#!/bin/sh\nprintf "READY\\n"\nsleep 60 &\nchild=$!\ntrap "kill \\$child 2>/dev/null; wait \\$child; printf \\"DESCENDANT_STOPPED\\\\n\\"; printf \\"PARENT_STOPPED\\\\n\\"; exit 0" TERM INT\nwhile :; do sleep 1; done\n',
+      '#!/bin/sh\nprintf "READY\\n"\n( trap "printf \\"DESCENDANT_STOPPED\\\\n\\"; exit 0" TERM INT; while :; do sleep 1; done ) &\ntrap "printf \\"PARENT_STOPPED\\\\n\\"; exit 0" TERM INT\nwhile :; do sleep 1; done\n',
     );
 
     try {

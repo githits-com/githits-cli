@@ -39,7 +39,9 @@ retain that exact path/snippet; `--json` failures write only the structured
 `INVALID_ARGUMENT` envelope to stderr and keep stdout empty. Malformed config
 falls back to the stable help/version and recovery surfaces; direct
 experimental invocations report the path-qualified config error using the same
-terminal/JSON split.
+terminal/JSON split. Stable commands that need authentication likewise render
+malformed auth/config failures as the same stderr-only `INVALID_ARGUMENT` JSON
+envelope when `--json` is requested; terminal output remains human-readable.
 
 ## Commands
 

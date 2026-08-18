@@ -139,7 +139,7 @@ describe("buildCodeDiffParams", () => {
     );
     invalid({ target: "   ", range: "1..2" });
     invalid({ repoUrl: "   ", range: "1..2" });
-    invalid({ repoUrl: "npm:express", range: "1..2" }, "repository target");
+    invalid({ repoUrl: "npm:express", range: "1..2" }, "Repository target");
   });
 
   it("gives supported registries without suggesting embedded versions", () => {

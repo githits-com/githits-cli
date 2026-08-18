@@ -162,7 +162,7 @@ function formatResolution(resolution: LeanCodeDiffEnvelope["from"]): string {
 function formatScope(envelope: LeanCodeDiffEnvelope): string {
   const scope = envelope.scope;
   const roots =
-    scope.fromSubpath !== undefined || scope.toSubpath !== undefined
+    scope.fromSubpath || scope.toSubpath
       ? `, roots ${safe(scope.fromSubpath ?? "?")} -> ${safe(scope.toSubpath ?? "?")}`
       : "";
   const glob = scope.pathGlob ? `, glob ${safe(scope.pathGlob)}` : "";
@@ -242,6 +242,7 @@ function formatPatchPreview(value: string, maxBytes: number): string[] {
   const sanitizedLines = value
     .split(/\r?\n/)
     .map((line) => sanitizeTerminalText(line));
+  while (sanitizedLines.at(-1) === "") sanitizedLines.pop();
   const retained: string[] = [];
   let byteLength = 0;
   for (const line of sanitizedLines) {

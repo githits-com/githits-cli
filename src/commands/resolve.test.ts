@@ -49,6 +49,21 @@ afterEach(() => {
 });
 
 describe("resolveAction", () => {
+  it("uses the CLI option name for invalid preferred kinds", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    await expect(
+      resolveAction("express", { preferKind: "workspace" }, deps()),
+    ).rejects.toThrow("process.exit");
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      "`--prefer-kind` expects package or repository. Got 'workspace'.",
+    );
+  });
+
   it("normalizes options, requests compact data, and renders terminal output", async () => {
     const resolveTarget = mock(() =>
       Promise.resolve(defaultResolveTargetResult),

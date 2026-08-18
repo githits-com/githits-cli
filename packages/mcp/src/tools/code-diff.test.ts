@@ -208,7 +208,19 @@ describe("code_diff MCP adapter", () => {
     expect(invalidMaxFiles.isError).toBe(true);
     expect(parseError(invalidMaxFiles)).toEqual({
       code: "INVALID_ARGUMENT",
-      error: "`maximum files` must be an integer from 1 through 300.",
+      error: "maximum files must be an integer from 1 through 300.",
+      retryable: false,
+    });
+
+    const invalidRepositoryTarget = await invoke(tool, {
+      target: { repo_url: "npm:express" },
+      from: "1",
+      to: "2",
+    });
+    expect(invalidRepositoryTarget.isError).toBe(true);
+    expect(parseError(invalidRepositoryTarget)).toEqual({
+      code: "INVALID_ARGUMENT",
+      error: "Repository target must identify a repository, not a package.",
       retryable: false,
     });
 
@@ -257,6 +269,7 @@ describe("code_diff MCP adapter", () => {
     expect(text).toContain("Resolved endpoints: v4.18.1");
     expect(text).toContain("from-sha");
     expect(text).toContain("Scope: package");
+    expect(text).not.toContain("roots");
     expect(text).toContain("lib/express.js [status=modified]");
     expect(text).toContain('view "stat"');
     expect(text).not.toContain("--stat");
@@ -270,6 +283,35 @@ describe("code_diff MCP adapter", () => {
       }),
     );
     expect(patchText).toContain("patch preview: @@ -1 +1 @@");
+  });
+
+  it("omits empty patch previews and trailing blank lines", () => {
+    const emptyPatch = structuredClone(defaultCodeDiffResult);
+    emptyPatch.raw.files[0] = {
+      ...emptyPatch.raw.files[0]!,
+      patch: "",
+    };
+    const emptyText = formatCodeDiffMcpText(
+      buildCodeDiffSuccessPayload(emptyPatch, {
+        target: { registry: "NPM", packageName: "express" },
+        view: "patch",
+      }),
+    );
+    expect(emptyText).not.toContain("patch preview:");
+
+    const trailingBlankLines = structuredClone(defaultCodeDiffResult);
+    trailingBlankLines.raw.files[0] = {
+      ...trailingBlankLines.raw.files[0]!,
+      patch: "@@ -1 +1 @@\n-old\n+new\n\n",
+    };
+    const trailingText = formatCodeDiffMcpText(
+      buildCodeDiffSuccessPayload(trailingBlankLines, {
+        target: { registry: "NPM", packageName: "express" },
+        view: "patch",
+      }),
+    );
+    expect(trailingText).toContain("      +new");
+    expect(trailingText).not.toContain("      \n");
   });
 
   it("marks incomplete, unsafe, filtered, omitted, and byte-escaped patch evidence", () => {

@@ -12,6 +12,7 @@ interface CliResult {
 async function runCli(
   xdgConfigHome: string,
   args: string[],
+  isolatedHome?: string,
 ): Promise<CliResult> {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -24,6 +25,11 @@ async function runCli(
     NO_COLOR: "1",
   };
   delete env.GITHITS_API_TOKEN;
+  if (isolatedHome !== undefined) {
+    env.HOME = isolatedHome;
+    env.USERPROFILE = isolatedHome;
+    env.APPDATA = join(isolatedHome, "AppData", "Roaming");
+  }
 
   const child = Bun.spawn(["bun", "run", "src/cli.ts", ...args], {
     cwd: process.cwd(),
@@ -56,7 +62,40 @@ async function withConfig<T>(
   }
 }
 
+async function withMissingConfig<T>(
+  fn: (xdgConfigHome: string, isolatedHome: string) => Promise<T>,
+): Promise<T> {
+  const xdgConfigHome = await mkdtemp(
+    join(tmpdir(), "githits-cli-missing-config-"),
+  );
+  const isolatedHome = await mkdtemp(
+    join(tmpdir(), "githits-cli-missing-home-"),
+  );
+  try {
+    return await fn(xdgConfigHome, isolatedHome);
+  } finally {
+    await rm(xdgConfigHome, { recursive: true, force: true });
+    await rm(isolatedHome, { recursive: true, force: true });
+  }
+}
+
 describe("experimental CLI process policy", () => {
+  it("hides experimental commands when canonical and legacy config are absent", async () => {
+    await withMissingConfig(async (xdgConfigHome, isolatedHome) => {
+      const root = await runCli(xdgConfigHome, ["--help"], isolatedHome);
+      expect(root.exitCode).toBe(0);
+      expect(root.stdout).not.toContain("resolve");
+
+      const code = await runCli(
+        xdgConfigHome,
+        ["code", "--help"],
+        isolatedHome,
+      );
+      expect(code.exitCode).toBe(0);
+      expect(code.stdout).not.toContain("diff");
+    });
+  }, 30_000);
+
   it("hides experimental commands from empty and false config help", async () => {
     for (const contents of ["", "[experimental]\ntools = false\n"]) {
       await withConfig(contents, async (xdgConfigHome) => {

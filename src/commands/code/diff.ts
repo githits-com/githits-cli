@@ -152,12 +152,13 @@ function buildCliCodeDiffParams(
   } catch (error) {
     if (!(error instanceof InvalidPackageSpecError)) throw error;
     const rewritten = error.message
-      .replace(/`maxPatchBytes`/g, "`--max-patch-bytes`")
-      .replace(/`maximum patch bytes`/g, "`--max-patch-bytes`")
-      .replace(/`maxFiles`/g, "`--max-files`")
-      .replace(/`maximum files`/g, "`--max-files`")
-      .replace(/`pathGlob`/g, "`<path-glob>`")
-      .replace(/`path glob`/g, "`<path-glob>`")
+      .replace(/maximum patch bytes/gi, "`--max-patch-bytes`")
+      .replace(/maximum files/gi, "`--max-files`")
+      .replace(/path glob/gi, "`<path-glob>`")
+      .replace(
+        "Repository target must identify a repository, not a package.",
+        "`--repo-url` must identify a repository target.",
+      )
       .replace(/`repoUrl`/g, "`--repo-url`")
       .replace(/`range`/g, "`<from>..<to>`")
       .replace(/CodeDiff view/g, "Diff view");

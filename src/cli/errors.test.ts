@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AuthRequiredError } from "@githits/mcp/internal";
+import { AuthConfigError } from "../services/auth-config.js";
 import { ExperimentalToolsDisabledError } from "../services/experimental-cli-policy.js";
 import { ExperimentalConfigError } from "../services/experimental-config.js";
 import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
@@ -108,6 +109,18 @@ describe("handleCliError", () => {
       true,
     );
     expect(JSON.parse(malformed.output)).toEqual({
+      error: "Cannot parse GitHits config at /tmp/config.toml: invalid TOML",
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+
+    const authConfig = captureCliError(
+      new AuthConfigError(
+        "Cannot parse GitHits config at /tmp/config.toml: invalid TOML",
+      ),
+      true,
+    );
+    expect(JSON.parse(authConfig.output)).toEqual({
       error: "Cannot parse GitHits config at /tmp/config.toml: invalid TOML",
       code: "INVALID_ARGUMENT",
       retryable: false,
@@ -226,6 +239,51 @@ describe("handleCliError", () => {
       expect(stderr.match(/Invalid GITHITS_API_URL/g)).toHaveLength(1);
       expect(stderr).toContain("githits doctor");
       expect(stderr).not.toContain("\n    at ");
+    } finally {
+      rmSync(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("renders malformed auth config as a clean JSON error in a real CLI process", async () => {
+    const xdgConfigHome = mkdtempSync(
+      join(tmpdir(), "githits-cli-auth-config-"),
+    );
+    mkdirSync(join(xdgConfigHome, "githits"), { recursive: true });
+    const configPath = join(xdgConfigHome, "githits", "config.toml");
+    writeFileSync(configPath, "[auth\n");
+    const proc = Bun.spawn(
+      ["bun", "run", "src/cli.ts", "languages", "--json"],
+      {
+        cwd: process.cwd(),
+        stdout: "pipe",
+        stderr: "pipe",
+        env: {
+          ...process.env,
+          GITHITS_AUTH_STORAGE: "",
+          GITHITS_DISABLE_UPDATE_CHECK: "1",
+          XDG_CONFIG_HOME: xdgConfigHome,
+          GITHITS_DEBUG: "",
+          NO_COLOR: "1",
+        },
+      },
+    );
+    try {
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+
+      expect(exitCode).toBe(1);
+      expect(stdout).toBe("");
+      const payload = JSON.parse(stderr);
+      expect(payload).toMatchObject({
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+      expect(payload.error).toContain(
+        `Cannot parse GitHits config at ${configPath}:`,
+      );
     } finally {
       rmSync(xdgConfigHome, { recursive: true, force: true });
     }

@@ -280,13 +280,13 @@ describe("code_diff parity", () => {
     expect(cli).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      error: "`--max-patch-bytes` is valid only when the Diff view is `patch`.",
+      error: "`--max-patch-bytes` is valid only when the Diff view is patch.",
     });
     expect(mcp).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
       error:
-        "`maximum patch bytes` is valid only when the CodeDiff view is `patch`.",
+        "Maximum patch bytes is valid only when the CodeDiff view is patch.",
     });
     expect(Object.keys(cli as object).sort()).toEqual(
       Object.keys(mcp as object).sort(),
@@ -325,7 +325,7 @@ describe("code_diff parity", () => {
       code: "INVALID_ARGUMENT",
       retryable: false,
       error:
-        "Package targets must not include a version; put both versions in `range`.",
+        "Package targets must not include a version; put both versions in the comparison endpoints.",
     });
     expect(Object.keys(cli as object).sort()).toEqual(
       Object.keys(mcp as object).sort(),

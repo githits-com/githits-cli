@@ -17,6 +17,7 @@ import { parseMcpCallArgs } from "./mcp-call.ts";
 import {
   EXPECTED_EXPERIMENTAL_MCP_TOOLS,
   parseMcpSmokeArgs,
+  STABLE_MCP_SMOKE_CONFIG,
 } from "./mcp-smoke.ts";
 import { toStdioLaunch } from "./smoke-launch-target.ts";
 
@@ -193,6 +194,10 @@ describe("MCP smoke cohorts", () => {
       "resolve_target",
       "code_diff",
     ]);
+  });
+
+  it("pins every stable cohort to an explicit disabled experimental config", () => {
+    expect(STABLE_MCP_SMOKE_CONFIG).toBe("[experimental]\ntools = false\n");
   });
 });
 

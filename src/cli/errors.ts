@@ -33,7 +33,7 @@ export function handleCliError(
   error: unknown,
   deps: CliErrorHandlerDeps,
 ): never {
-  if (deps.json && isExperimentalPolicyError(error)) {
+  if (deps.json && isJsonConfigError(error)) {
     deps.stderr.write(
       `${JSON.stringify({
         error: error.message,
@@ -78,8 +78,9 @@ function isUserFacingError(error: unknown): error is Error {
   );
 }
 
-function isExperimentalPolicyError(error: unknown): error is Error {
+function isJsonConfigError(error: unknown): error is Error {
   return (
+    error instanceof AuthConfigError ||
     error instanceof ExperimentalConfigError ||
     error instanceof ExperimentalToolsDisabledError
   );
