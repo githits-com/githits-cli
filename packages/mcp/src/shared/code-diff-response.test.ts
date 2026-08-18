@@ -328,6 +328,69 @@ describe("buildCodeDiffSuccessPayload", () => {
     ]);
   });
 
+  it("binds placeholder patch headers to Git-quoted authoritative paths", () => {
+    const result = makeResult();
+    result.raw.files = [
+      {
+        path: "src/line\nname.ts",
+        pathEncoding: "UTF8",
+        status: "MODIFIED",
+        modeChanged: false,
+        typeChanged: false,
+        additions: 1,
+        deletions: 1,
+        patch: "--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\n+new\n",
+        contentStatus: "PATCH",
+        contentSafety: { filtered: false, modifications: [] },
+      },
+      {
+        path: "added file.ts",
+        pathEncoding: "UTF8",
+        status: "ADDED",
+        modeChanged: false,
+        typeChanged: false,
+        additions: 1,
+        deletions: 0,
+        patch: "--- /dev/null\n+++ b/file\n@@ -0,0 +1 @@\n+new\n",
+        contentStatus: "PATCH",
+        contentSafety: { filtered: false, modifications: [] },
+      },
+      {
+        path: "deleted.ts",
+        pathEncoding: "UTF8",
+        status: "DELETED",
+        modeChanged: false,
+        typeChanged: false,
+        additions: 0,
+        deletions: 1,
+        patch: "--- a/file\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\n",
+        contentStatus: "PATCH",
+        contentSafety: { filtered: false, modifications: [] },
+      },
+    ];
+
+    const payload = buildCodeDiffSuccessPayload(result, options());
+
+    expect(
+      payload.files.map((file) => ("patch" in file ? file.patch : null)),
+    ).toEqual([
+      '--- "a/src/line\\012name.ts"\n+++ "b/src/line\\012name.ts"\n@@ -1 +1 @@\n-old\n+new\n',
+      "--- /dev/null\n+++ b/added file.ts\n@@ -0,0 +1 @@\n+new\n",
+      "--- a/deleted.ts\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\n",
+    ]);
+  });
+
+  it("preserves upstream patches whose headers are already authoritative", () => {
+    const result = makeResult();
+    const file = result.raw.files[1];
+    if (!file) throw new Error("Expected second fixture file.");
+    file.patch = "--- a/second.ts\n+++ b/second.ts\n@@ -1 +1 @@\n-old\n+new\n";
+
+    const payload = buildCodeDiffSuccessPayload(result, options());
+
+    expect(payload.files[1]).toMatchObject({ patch: file.patch });
+  });
+
   it("preserves content failure fields for failed content coverage", () => {
     const result = makeResult();
     result.raw.contentCoverage = "FAILED";

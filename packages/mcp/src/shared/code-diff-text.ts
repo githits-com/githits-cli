@@ -1,3 +1,4 @@
+import { quoteGitPath } from "./code-diff-path.js";
 import type {
   LeanCodeDiffEnvelope,
   LeanCodeDiffFile,
@@ -10,11 +11,14 @@ import { sanitizeTerminalText } from "./resolve-target-response.js";
 export interface FormatCodeDiffTerminalOptions {
   useColors: boolean;
   verbose?: boolean;
+  explicitMaxFiles?: boolean;
+  explicitMaxPatchBytes?: boolean;
 }
 
 export interface FormattedCodeDiffTerminal {
   stdout: string;
   stderr?: string;
+  exitCode?: 1;
 }
 
 /** Render a Git-like primary stream plus truthful bounded-evidence diagnostics. */
@@ -22,22 +26,32 @@ export function formatCodeDiffTerminal(
   envelope: LeanCodeDiffEnvelope,
   options: FormatCodeDiffTerminalOptions,
 ): FormattedCodeDiffTerminal {
-  const stdout = formatPrimaryOutput(envelope);
   const diagnostics = buildDiagnostics(envelope, options);
+  const suppressPatch = shouldSuppressPatch(envelope, options);
+  if (suppressPatch) {
+    diagnostics.push(
+      warn(
+        "Patch output was suppressed because the result is not safely applicable. Use --json to inspect the partial evidence.",
+        options,
+      ),
+    );
+  }
   return {
-    stdout,
+    stdout: suppressPatch ? "" : formatPrimaryOutput(envelope),
     stderr: diagnostics.length > 0 ? `${diagnostics.join("\n")}\n` : undefined,
+    ...(suppressPatch ? { exitCode: 1 as const } : {}),
   };
 }
 
 function formatPrimaryOutput(envelope: LeanCodeDiffEnvelope): string {
   switch (envelope.view) {
     case "name-only":
-      return formatLines(envelope.files.map((file) => safe(file.path)));
+      return formatLines(envelope.files.map((file) => quoteGitPath(file.path)));
     case "name-status":
       return formatLines(
         envelope.files.map(
-          (file) => `${statusLetter(requireStatus(file))}\t${safe(file.path)}`,
+          (file) =>
+            `${statusLetter(requireStatus(file))}\t${quoteGitPath(file.path)}`,
         ),
       );
     case "stat":
@@ -59,7 +73,7 @@ function formatStat(envelope: LeanCodeDiffEnvelope): string {
 
   for (const file of envelope.files) {
     const stat = requireStat(file);
-    const path = safe(stat.path);
+    const path = quoteGitPath(stat.path);
     if (stat.additions !== undefined && stat.deletions !== undefined) {
       rows.push({
         path,
@@ -132,7 +146,7 @@ function formatPatches(files: LeanCodeDiffFile[]): string {
   for (const file of files) {
     const patchFile = requirePatch(file);
     if (patchFile.patch !== undefined) {
-      const patch = bindPatchHeaders(patchFile);
+      const patch = patchFile.patch;
       output += patch;
       if (!patch.endsWith("\n")) output += "\n";
       continue;
@@ -142,23 +156,8 @@ function formatPatches(files: LeanCodeDiffFile[]): string {
   return output;
 }
 
-const RAW_DIFF_PLACEHOLDER_HEADERS = "--- a/file\n+++ b/file\n";
-
-/** Bind the raw diff service's content-only placeholders to its owning file. */
-function bindPatchHeaders(file: LeanCodeDiffPatchFile): string {
-  const patch = file.patch;
-  if (patch === undefined || !patch.startsWith(RAW_DIFF_PLACEHOLDER_HEADERS)) {
-    return patch ?? "";
-  }
-
-  const path = safe(file.path);
-  const fromPath = file.status === "added" ? "/dev/null" : `a/${path}`;
-  const toPath = file.status === "deleted" ? "/dev/null" : `b/${path}`;
-  return `--- ${fromPath}\n+++ ${toPath}\n${patch.slice(RAW_DIFF_PLACEHOLDER_HEADERS.length)}`;
-}
-
 function patchFallback(file: LeanCodeDiffPatchFile): string {
-  const path = safe(file.path);
+  const path = quoteGitPath(file.path);
   switch (file.contentStatus) {
     case "binary":
       return `Binary file ${path} differs`;
@@ -175,6 +174,39 @@ function patchFallback(file: LeanCodeDiffPatchFile): string {
     default:
       return `No textual patch: ${path}`;
   }
+}
+
+function shouldSuppressPatch(
+  envelope: LeanCodeDiffEnvelope,
+  options: FormatCodeDiffTerminalOptions,
+): boolean {
+  if (envelope.view !== "patch") return false;
+  if (
+    !envelope.summary.inventoryComplete ||
+    envelope.summary.unprojectableFiles > 0 ||
+    (envelope.hasMoreFiles && !options.explicitMaxFiles) ||
+    envelope.contentCoverage === "failed" ||
+    (envelope.contentCoverage === "partial" && !options.explicitMaxPatchBytes)
+  ) {
+    return true;
+  }
+  if (envelope.files.length === 0) return false;
+
+  return envelope.files.some((file) => {
+    const patchFile = requirePatch(file);
+    if (
+      patchFile.pathEncoding === "byte_escaped" ||
+      patchFile.contentSafety.filtered
+    ) {
+      return true;
+    }
+    if (patchFile.patch !== undefined) return false;
+    return !(
+      options.explicitMaxPatchBytes &&
+      patchFile.contentStatus === "omitted" &&
+      patchFile.contentOmissionReason === "content_budget"
+    );
+  });
 }
 
 function buildDiagnostics(

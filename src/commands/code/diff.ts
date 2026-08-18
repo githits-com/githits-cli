@@ -61,6 +61,7 @@ export async function codeDiffAction(
   deps: CodeDiffCommandDependencies,
   pathGlobAfterDoubleDash = false,
 ): Promise<void> {
+  let terminalExitCode: 1 | undefined;
   try {
     requireAuth(deps);
   } catch (error) {
@@ -126,9 +127,12 @@ export async function codeDiffAction(
     const formatted = formatCodeDiffTerminal(payload, {
       useColors: shouldUseColors(),
       verbose: options.verbose ?? false,
+      explicitMaxFiles: options.maxFiles !== undefined,
+      explicitMaxPatchBytes: options.maxPatchBytes !== undefined,
     });
     if (formatted.stdout) process.stdout.write(formatted.stdout);
     if (formatted.stderr) process.stderr.write(formatted.stderr);
+    terminalExitCode = formatted.exitCode;
   } catch (error) {
     handleCodeNavCommandError(
       error,
@@ -136,6 +140,8 @@ export async function codeDiffAction(
       formatCodeDiffError,
     );
   }
+
+  if (terminalExitCode !== undefined) process.exit(terminalExitCode);
 }
 
 function buildCliCodeDiffParams(
@@ -289,13 +295,16 @@ export function registerCodeDiffCommand(
     .command("diff")
     .summary("Compare two dependency source trees")
     .description(CODE_DIFF_DESCRIPTION)
+    .usage(
+      "[options] <target> <from>..<to> [-- <path-glob>]\n       githits code diff [options] --repo-url <url> <from>..<to> [-- <path-glob>]",
+    )
     .argument(
       "[target-or-range]",
-      "Unversioned target, or the range when using --repo-url.",
+      "Package mode: target. Repository mode: from..to range.",
     )
     .argument(
       "[range-or-path-glob]",
-      "from..to range, or the path glob when using --repo-url.",
+      "Package mode: from..to range. Repository mode: path glob.",
     )
     .argument(
       "[path-glob]",

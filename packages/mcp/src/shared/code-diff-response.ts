@@ -3,6 +3,7 @@ import type {
   CodeDiffResult,
   RawCodeDiffFile,
 } from "@githits/core-internal";
+import { quoteGitPath } from "./code-diff-path.js";
 import type { CodeDiffView } from "./code-diff-request.js";
 
 export type CodeDiffEnvelopeRefKind =
@@ -269,11 +270,38 @@ function projectFile(
       modifications: file.contentSafety.modifications.map(lower),
     },
   };
-  if (file.patch != null) patch.patch = file.patch;
+  if (file.patch != null) {
+    patch.patch = bindPatchHeaders(file.patch, file.path, patch.status);
+  }
   if (file.contentOmissionReason != null) {
     patch.contentOmissionReason = file.contentOmissionReason;
   }
   return patch;
+}
+
+/** Bind the raw diff service's content-only placeholders to its owning file. */
+function bindPatchHeaders(
+  patch: string,
+  path: string,
+  status: CodeDiffEnvelopeFileStatus,
+): string {
+  const firstEnd = patch.indexOf("\n");
+  if (firstEnd < 0) return patch;
+  const secondStart = firstEnd + 1;
+  const secondEnd = patch.indexOf("\n", secondStart);
+  if (secondEnd < 0) return patch;
+
+  const originalFrom = patch.slice(0, firstEnd);
+  const originalTo = patch.slice(secondStart, secondEnd);
+  if (originalFrom !== "--- a/file" && originalTo !== "+++ b/file") {
+    return patch;
+  }
+
+  const fromPath = status === "added" ? "/dev/null" : quoteGitPath(`a/${path}`);
+  const toPath = status === "deleted" ? "/dev/null" : quoteGitPath(`b/${path}`);
+  const from = originalFrom === "--- a/file" ? `--- ${fromPath}` : originalFrom;
+  const to = originalTo === "+++ b/file" ? `+++ ${toPath}` : originalTo;
+  return `${from}\n${to}\n${patch.slice(secondEnd + 1)}`;
 }
 
 function lower<T extends string>(value: T): Lowercase<T> {

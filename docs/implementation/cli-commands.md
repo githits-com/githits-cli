@@ -527,9 +527,14 @@ does not send client defaults for either bound.
 The selected Git-like view stays on stdout. Completeness, truncation, scope,
 content-safety, and display-only path warnings stay on stderr; `--verbose` adds
 exact resolutions and scope facts there. JSON keeps the same evidence as a
-lean selected-view envelope. Empty authoritative diffs and successful partial
-post-inventory evidence exit 0; request, auth, resolution, and backend errors
-exit 1.
+lean selected-view envelope, including authoritative paths in normalized patch
+headers. Text paths use reversible Git-style quoting rather than deleting
+control characters. Empty authoritative diffs exit 0. Caller-selected
+`--max-files` and `--max-patch-bytes` bounds may intentionally produce partial
+patches and still exit 0 with warnings. Unexpectedly incomplete or non-applicable
+plain patches are suppressed and exit 1; name, stat, and JSON views preserve
+their structured partial evidence. Request, auth, resolution, and backend
+errors also exit 1.
 
 This is a silent dogfood surface. It is normally registered and documented for
 maintainers, but no MCP tool, MCP instruction, Agent Skill, or plugin guidance

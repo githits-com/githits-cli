@@ -102,15 +102,22 @@ content-safety diagnostics go to stderr. `--verbose` adds exact identity and
 scope diagnostics without changing the primary stream. `--json` emits a lean
 camel-case data envelope whose file objects include only fields relevant to the
 selected view, except that `pathEncoding` is always retained to distinguish
-display-only byte escapes. For text patches, the formatter replaces the raw
-content service's `a/file` and `b/file` placeholders with the authoritative
-file path; added and deleted sides use `/dev/null` like Git.
+display-only byte escapes. Text views use reversible Git-style quoting for
+control characters, quotes, and backslashes instead of changing path identity.
+The response projector replaces the raw content service's `a/file` and
+`b/file` patch placeholders with the authoritative Git-quoted file path, so
+plain and JSON patches agree; added and deleted sides use `/dev/null` like Git.
 
-An empty authoritative diff exits 0. `PARTIAL` or `FAILED` post-inventory
-content also exits 0 with explicit diagnostics because the inventory remains
-usable evidence. Validation, authentication, resolution, and raw-field errors
-exit 1 through the shared CLI error envelope. No `code_diff` MCP tool,
-instruction, skill, or plugin promotion exists during this phase.
+An empty authoritative diff exits 0. Name, stat, and JSON views retain partial
+evidence with explicit completeness fields and diagnostics. Plain patch mode
+suppresses stdout and exits 1 when unexpected truncation, failed or unavailable
+content, binary/metadata-only changes, display-only paths, unprojectable files,
+or content-safety changes would make the stream unsafe to apply. An explicit
+`--max-files` authorizes file-count truncation, and an explicit
+`--max-patch-bytes` authorizes `content_budget` omissions; neither authorizes
+unrelated failure classes. Validation, authentication, resolution, and
+raw-field errors exit 1 through the shared CLI error envelope. No `code_diff`
+MCP tool, instruction, skill, or plugin promotion exists during this phase.
 
 ## Key reference files
 

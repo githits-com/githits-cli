@@ -102,7 +102,35 @@ describe("codeDiffAction", () => {
     log.mockRestore();
   });
 
-  it("keeps failed post-inventory content as successful evidence", async () => {
+  it("emits authoritative patch headers in JSON", async () => {
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    const result = structuredClone(defaultCodeDiffResult);
+    result.raw.files[0] = {
+      ...result.raw.files[0]!,
+      patch: "--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\n+new\n",
+    };
+
+    await codeDiffAction(
+      "npm:express",
+      "4.18.1..4.18.2",
+      undefined,
+      { json: true },
+      dependencies({
+        codeNavigationService: createMockCodeNavigationService({
+          codeDiff: mock(() => Promise.resolve(result)),
+        }),
+      }),
+    );
+
+    const payload = JSON.parse(log.mock.calls[0]?.[0] as string);
+    expect(payload.files[0].path).toBe("lib/express.js");
+    expect(payload.files[0].patch).toStartWith(
+      "--- a/lib/express.js\n+++ b/lib/express.js\n",
+    );
+    log.mockRestore();
+  });
+
+  it("suppresses failed post-inventory patch content and exits nonzero", async () => {
     const stdout = spyOn(process.stdout, "write").mockImplementation(
       (() => true) as typeof process.stdout.write,
     );
@@ -125,23 +153,37 @@ describe("codeDiffAction", () => {
       contentStatus: "UNAVAILABLE",
     };
 
-    await codeDiffAction(
-      "npm:express",
-      "4.18.1..4.18.2",
-      undefined,
-      {},
-      dependencies({
-        codeNavigationService: createMockCodeNavigationService({
-          codeDiff: mock(() => Promise.resolve(result)),
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await codeDiffAction(
+        "npm:express",
+        "4.18.1..4.18.2",
+        undefined,
+        {},
+        dependencies({
+          codeNavigationService: createMockCodeNavigationService({
+            codeDiff: mock(() => Promise.resolve(result)),
+          }),
         }),
-      }),
-    );
+      );
+    } catch {
+      // process.exit is mocked as a throw.
+    }
 
     expect(String(stderr.mock.calls[0]?.[0])).toContain(
       "Requested content failed",
     );
+    expect(String(stderr.mock.calls[0]?.[0])).toContain(
+      "Patch output was suppressed",
+    );
+    expect(stdout).not.toHaveBeenCalled();
+    expect(exit).toHaveBeenCalledWith(1);
     stdout.mockRestore();
     stderr.mockRestore();
+    exit.mockRestore();
   });
 
   it.each([
@@ -362,6 +404,20 @@ describe("registerCodeDiffCommand", () => {
     expect(command.options.some((option) => option.long === "--git-ref")).toBe(
       false,
     );
+  });
+
+  it("shows the two concrete invocation forms in help", () => {
+    const program = new Command("githits");
+    const command = registerCodeDiffCommand(program.command("code"));
+    const help = command.helpInformation();
+
+    expect(help).toContain(
+      "githits code diff [options] <target> <from>..<to> [-- <path-glob>]",
+    );
+    expect(help).toContain(
+      "githits code diff [options] --repo-url <url> <from>..<to> [-- <path-glob>]",
+    );
+    expect(help).not.toContain("[target-or-range] [range-or-path-glob]");
   });
 
   it.each(["src/**/*.ts", "--"])(

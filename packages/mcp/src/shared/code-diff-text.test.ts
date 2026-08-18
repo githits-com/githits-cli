@@ -45,7 +45,7 @@ function envelope(
 const options = { useColors: false } as const;
 
 describe("formatCodeDiffTerminal", () => {
-  it("renders name-only as one sanitized path per line", () => {
+  it("renders name-only with reversible Git quoting", () => {
     const result = formatCodeDiffTerminal(
       envelope({
         view: "name-only",
@@ -53,12 +53,17 @@ describe("formatCodeDiffTerminal", () => {
         files: [
           { path: "src/a.ts", pathEncoding: "utf8" },
           { path: "bad\u001b[31m.ts", pathEncoding: "utf8" },
+          { path: "line\u2028separator.ts", pathEncoding: "utf8" },
         ],
       }),
       options,
     );
 
-    expect(result).toEqual({ stdout: "src/a.ts\nbad.ts\n", stderr: undefined });
+    expect(result).toEqual({
+      stdout:
+        'src/a.ts\n"bad\\033[31m.ts"\n"line\\342\\200\\250separator.ts"\n',
+      stderr: undefined,
+    });
   });
 
   it("renders name-status with Git status letters", () => {
@@ -169,7 +174,7 @@ describe("formatCodeDiffTerminal", () => {
     expect(result.stdout.split("\n")[0]).toContain("-");
   });
 
-  it("binds served patch headers to the authoritative file path", () => {
+  it("renders normalized patches and an explicitly budgeted omission", () => {
     const result = formatCodeDiffTerminal(
       envelope({
         files: [
@@ -181,7 +186,7 @@ describe("formatCodeDiffTerminal", () => {
             typeChanged: false,
             additions: 1,
             deletions: 1,
-            patch: "--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\n+new\n",
+            patch: "--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-old\n+new\n",
             contentStatus: "patch",
             contentSafety: { filtered: false, modifications: [] },
           },
@@ -193,7 +198,7 @@ describe("formatCodeDiffTerminal", () => {
             typeChanged: false,
             additions: 1,
             deletions: 0,
-            patch: "--- a/file\n+++ b/file\n@@ -0,0 +1 @@\n+new\n",
+            patch: "--- /dev/null\n+++ b/added file.ts\n@@ -0,0 +1 @@\n+new\n",
             contentStatus: "patch",
             contentSafety: { filtered: false, modifications: [] },
           },
@@ -205,26 +210,8 @@ describe("formatCodeDiffTerminal", () => {
             typeChanged: false,
             additions: 0,
             deletions: 1,
-            patch: "--- a/file\n+++ b/file\n@@ -1 +0,0 @@\n-old\n",
+            patch: "--- a/deleted.ts\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\n",
             contentStatus: "patch",
-            contentSafety: { filtered: false, modifications: [] },
-          },
-          {
-            path: "image.png",
-            pathEncoding: "utf8",
-            status: "modified",
-            modeChanged: false,
-            typeChanged: false,
-            contentStatus: "binary",
-            contentSafety: { filtered: false, modifications: [] },
-          },
-          {
-            path: "mode.sh",
-            pathEncoding: "utf8",
-            status: "modified",
-            modeChanged: true,
-            typeChanged: false,
-            contentStatus: "metadata_only",
             contentSafety: { filtered: false, modifications: [] },
           },
           {
@@ -234,7 +221,30 @@ describe("formatCodeDiffTerminal", () => {
             modeChanged: false,
             typeChanged: false,
             contentStatus: "omitted",
-            contentOmissionReason: "content_budget\u001b[31m",
+            contentOmissionReason: "content_budget",
+            contentSafety: { filtered: false, modifications: [] },
+          },
+        ],
+      }),
+      { ...options, explicitMaxPatchBytes: true },
+    );
+
+    expect(result.stdout).toBe(
+      "--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-old\n+new\n--- /dev/null\n+++ b/added file.ts\n@@ -0,0 +1 @@\n+new\n--- a/deleted.ts\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\nPatch omitted: large.ts (content_budget)\n",
+    );
+  });
+
+  it("suppresses patch streams that cannot represent binary changes", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({
+        files: [
+          {
+            path: "image.png",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            contentStatus: "binary",
             contentSafety: { filtered: false, modifications: [] },
           },
         ],
@@ -242,9 +252,8 @@ describe("formatCodeDiffTerminal", () => {
       options,
     );
 
-    expect(result.stdout).toBe(
-      "--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-old\n+new\n--- /dev/null\n+++ b/added file.ts\n@@ -0,0 +1 @@\n+new\n--- a/deleted.ts\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\nBinary file image.png differs\nMetadata changed: mode.sh\nPatch omitted: large.ts (content_budget)\n",
-    );
+    expect(result.stdout).toBe("");
+    expect(result.exitCode).toBe(1);
   });
 
   it("preserves patches without backend placeholder headers", () => {
@@ -271,11 +280,115 @@ describe("formatCodeDiffTerminal", () => {
     expect(result.stdout).toBe("@@ -1 +1 @@\n-old\n+new\n");
   });
 
+  it("suppresses unexpectedly incomplete patch streams", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({
+        hasMoreFiles: true,
+        files: [
+          {
+            path: "one.ts",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            additions: 1,
+            deletions: 1,
+            patch: "--- a/one.ts\n+++ b/one.ts\n@@ -1 +1 @@\n-old\n+new\n",
+            contentStatus: "patch",
+            contentSafety: { filtered: false, modifications: [] },
+          },
+        ],
+      }),
+      options,
+    );
+
+    expect(result.stdout).toBe("");
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Patch output was suppressed");
+  });
+
+  it("keeps explicitly file-limited patch streams successful", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({
+        hasMoreFiles: true,
+        files: [
+          {
+            path: "one.ts",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            additions: 1,
+            deletions: 1,
+            patch: "--- a/one.ts\n+++ b/one.ts\n@@ -1 +1 @@\n-old\n+new\n",
+            contentStatus: "patch",
+            contentSafety: { filtered: false, modifications: [] },
+          },
+        ],
+      }),
+      { ...options, explicitMaxFiles: true },
+    );
+
+    expect(result.stdout).toContain("--- a/one.ts");
+    expect(result.exitCode).toBeUndefined();
+  });
+
+  it("does not let explicit limits authorize unrelated patch failures", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({
+        contentCoverage: "failed",
+        files: [
+          {
+            path: "one.ts",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            contentStatus: "unavailable",
+            contentSafety: { filtered: false, modifications: [] },
+          },
+        ],
+      }),
+      {
+        ...options,
+        explicitMaxFiles: true,
+        explicitMaxPatchBytes: true,
+      },
+    );
+
+    expect(result.stdout).toBe("");
+    expect(result.exitCode).toBe(1);
+  });
+
   it("keeps an empty authoritative diff silent in plain mode", () => {
     expect(formatCodeDiffTerminal(envelope({ files: [] }), options)).toEqual({
       stdout: "",
       stderr: undefined,
     });
+  });
+
+  it("does not treat an all-unprojectable result as an empty diff", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({
+        summary: {
+          filesChanged: 1,
+          added: 0,
+          deleted: 0,
+          modified: 1,
+          modeChanged: 0,
+          typeChanged: 0,
+          inventoryComplete: true,
+          unprojectableFiles: 1,
+        },
+        files: [],
+      }),
+      options,
+    );
+
+    expect(result.stdout).toBe("");
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("1 matching path(s)");
+    expect(result.stderr).toContain("Patch output was suppressed");
   });
 
   it("renders completeness, scope, encoding, safety, and content warnings", () => {
