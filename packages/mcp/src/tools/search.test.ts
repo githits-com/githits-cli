@@ -6,6 +6,7 @@ import type {
 import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,
+  documentationContributorOutcome,
 } from "../services/test-helpers.js";
 import { createSearchTool } from "./search.js";
 
@@ -45,6 +46,44 @@ describe("searchTool", () => {
     const payload = JSON.parse(result.content[0]?.text ?? "{}");
     expect(payload.completed).toBe(true);
     expect(payload.results[0].target).toBe("npm:express@4.18.2");
+  });
+
+  it("returns documentation contributors and evidence metadata in JSON and text", async () => {
+    const tool = createSearchTool(
+      createMockCodeNavigationService({
+        search: mock(() => Promise.resolve(documentationContributorOutcome)),
+      }),
+    );
+
+    const json = await tool.handler(
+      {
+        query: "router",
+        target: { registry: "npm", package_name: "express" },
+        format: "json",
+      },
+      {},
+    );
+    const payload = JSON.parse(json.content[0]?.text ?? "{}");
+    expect(payload.sourceStatus[0].contributors).toEqual(
+      documentationContributorOutcome.state === "completed"
+        ? documentationContributorOutcome.result.sourceStatus[0]?.contributors
+        : [],
+    );
+    expect(payload.evidenceNotice).toBe(
+      documentationContributorOutcome.state === "completed"
+        ? documentationContributorOutcome.result.evidenceNotice
+        : undefined,
+    );
+
+    const text = await tool.handler(
+      {
+        query: "router",
+        target: { registry: "npm", package_name: "express" },
+      },
+      {},
+    );
+    expect(text.content[0]?.text).toContain("documentation corpora:");
+    expect(text.content[0]?.text).toContain("pending, not searched");
   });
 
   it("passes compiled request through to code navigation service", async () => {

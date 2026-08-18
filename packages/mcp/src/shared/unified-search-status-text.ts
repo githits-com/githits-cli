@@ -4,7 +4,10 @@ import type {
   UnifiedSearchStatusResultPayload,
 } from "./unified-search-response.js";
 import {
+  appendDocumentationCorpora,
   appendEmptySearchGuidance,
+  appendEvidenceNotice,
+  appendEvidenceSearchStatusNextAction,
   appendIncompleteSearchNextAction,
   appendSourceStatusNotes,
   appendUnifiedSearchHits,
@@ -62,6 +65,8 @@ export function renderUnifiedSearchStatusText(payload: StatusPayload): string {
       payload.progress?.status,
       payload.searchRef,
     );
+  } else if (result?.evidenceNotice && payload.searchRef) {
+    appendEvidenceSearchStatusNextAction(lines, payload.searchRef);
   }
 
   return lines.join("\n");
@@ -92,14 +97,17 @@ function appendResult(
   if (result.results.length === 0) {
     if (completed) {
       appendSourceStatusNotes(lines, result.sourceStatus);
+      appendDocumentationCorpora(lines, result.sourceStatus);
       if (result.sourceStatus?.length) lines.push("");
       appendEmptySearchGuidance(lines, {
         query: result.query,
         showQuery: true,
         sourceStatus: result.sourceStatus,
+        evidenceNotice: result.evidenceNotice,
       });
     } else {
       appendSourceStatusNotes(lines, result.sourceStatus);
+      appendDocumentationCorpora(lines, result.sourceStatus);
       if (result.sourceStatus?.length) lines.push("");
       lines.push(noHitsYetMessage(progress));
     }
@@ -121,7 +129,9 @@ function appendResult(
   ) {
     lines.push("");
     appendSourceStatusNotes(lines, result.sourceStatus);
+    appendDocumentationCorpora(lines, result.sourceStatus);
   }
+  appendEvidenceNotice(lines, result.evidenceNotice);
 }
 
 function formatProgress(progress: {

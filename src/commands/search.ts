@@ -3,6 +3,7 @@ import type {
   UnifiedSearchSource,
 } from "@githits/core-internal";
 import {
+  appendDocumentationCorpora,
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchParams,
   buildUnifiedSearchStatusPayload,
@@ -26,6 +27,7 @@ import {
   toFileIntent,
   toSymbolCategory,
   toSymbolKind,
+  type UnifiedSearchSourceStatusPayload,
   type UnifiedSearchStatusIncompletePayload,
   type UnifiedSearchStatusResultPayload,
 } from "@githits/mcp/internal";
@@ -446,6 +448,7 @@ function formatUnifiedSearchTerminal(payload: {
   query: { raw?: string; warnings?: string[] };
   warnings?: string[];
   sourceStatus?: SourceStatusEntry[];
+  evidenceNotice?: string;
 }): string {
   const lines: string[] = [];
   const useColors = shouldUseColors();
@@ -462,6 +465,22 @@ function formatUnifiedSearchTerminal(payload: {
     payload.sourceStatus,
     warnings,
   );
+  const documentationCorporaNotes = formatDocumentationCorporaTerminal(
+    payload.sourceStatus,
+  );
+  const evidenceNotes = payload.evidenceNotice
+    ? [`Evidence notice: ${payload.evidenceNotice}`]
+    : [];
+  if (payload.completed && payload.evidenceNotice && payload.searchRef) {
+    evidenceNotes.push(
+      `next: githits search-status ${payload.searchRef} --wait ${DEFAULT_WAIT_TIMEOUT_MS / 1000}`,
+    );
+  }
+  const provenanceNotes = [
+    ...sourceStatusNotes,
+    ...documentationCorporaNotes,
+    ...evidenceNotes,
+  ];
 
   if (!payload.completed) {
     const statusText = formatSearchStatusTerminal({
@@ -471,9 +490,9 @@ function formatUnifiedSearchTerminal(payload: {
     });
     lines.push(statusText);
     if (payload.results.length === 0) {
-      if (sourceStatusNotes.length > 0) {
+      if (provenanceNotes.length > 0) {
         lines.push("");
-        lines.push(...sourceStatusNotes);
+        lines.push(...provenanceNotes);
       }
       return lines.join("\n").trimEnd();
     }
@@ -483,9 +502,9 @@ function formatUnifiedSearchTerminal(payload: {
 
   if (payload.results.length === 0) {
     lines.push("No results.");
-    if (sourceStatusNotes.length > 0) {
+    if (provenanceNotes.length > 0) {
       lines.push("");
-      lines.push(...sourceStatusNotes);
+      lines.push(...provenanceNotes);
     }
     return lines.join("\n").trimEnd();
   }
@@ -534,9 +553,9 @@ function formatUnifiedSearchTerminal(payload: {
     lines.push(dim(`Next offset: ${payload.nextOffset}`, useColors));
   }
 
-  if (sourceStatusNotes.length > 0) {
+  if (provenanceNotes.length > 0) {
     lines.push("");
-    lines.push(...sourceStatusNotes);
+    lines.push(...provenanceNotes);
   }
 
   return lines.join("\n").trimEnd();
@@ -628,6 +647,7 @@ function formatSearchStatusCompletedTerminal(payload: {
     },
     warnings: payload.result.warnings,
     sourceStatus: payload.result.sourceStatus,
+    evidenceNotice: payload.result.evidenceNotice,
   });
 }
 
@@ -652,22 +672,11 @@ function formatSearchStatusPartialTerminal(
     },
     warnings: warnings.length > 0 ? warnings : undefined,
     sourceStatus: payload.result.sourceStatus,
+    evidenceNotice: payload.result.evidenceNotice,
   });
 }
 
-interface SourceStatusEntry {
-  source: string;
-  targetLabel: string;
-  indexingStatus?: string;
-  ignoredFilters?: string[];
-  incompatibleFilters?: string[];
-  ignoredQueryFeatures?: string[];
-  incompatibleQueryFeatures?: string[];
-  suggestedSiteTargets?: string[];
-  suggestedSiteTargetsTruncated?: boolean;
-  note?: string;
-  targetResolution?: LeanTargetResolution;
-}
+type SourceStatusEntry = UnifiedSearchSourceStatusPayload;
 
 interface SearchProgressForTerminal {
   targetsReady?: number;
@@ -755,6 +764,18 @@ function formatSourceStatusNotes(
   }
 
   return lines;
+}
+
+function formatDocumentationCorporaTerminal(
+  sourceStatus: SourceStatusEntry[] | undefined,
+): string[] {
+  const lines: string[] = [];
+  appendDocumentationCorpora(lines, sourceStatus);
+  if (lines[0] === "documentation corpora:") {
+    lines[0] = "Documentation corpora:";
+  }
+  const useColors = shouldUseColors();
+  return lines.map((line) => dim(line, useColors));
 }
 
 function dedupeSearchResultsForDisplay<

@@ -73,6 +73,7 @@ export const defaultUnifiedSearchOutcome: UnifiedSearchOutcome = {
         incompatibleQueryFeatures: [],
         suggestedSiteTargets: [],
         suggestedSiteTargetsTruncated: false,
+        contributors: [],
       },
     ],
   },
@@ -85,6 +86,53 @@ export const defaultUnifiedSearchOutcome: UnifiedSearchOutcome = {
     query: "router middleware",
     queryWarnings: [],
     sources: ["CODE"],
+  },
+};
+
+export const documentationContributorOutcome: UnifiedSearchOutcome = {
+  state: "completed",
+  completed: true,
+  searchRef: "search-ref-docs",
+  result: {
+    query: "router",
+    queryWarnings: [],
+    sources: ["DOCS"],
+    results: [],
+    page: { offset: 0, limit: 10, returned: 0, hasMore: false },
+    partialResults: false,
+    evidenceNotice:
+      "Results reflect disclosed snapshots; pending work may change hits and ordering.",
+    sourceStatus: [
+      {
+        source: "DOCS",
+        targetLabel: "npm:express@5.1.0",
+        resultCount: 0,
+        appliedFilters: [],
+        ignoredFilters: [],
+        incompatibleFilters: [],
+        appliedQueryFeatures: [],
+        ignoredQueryFeatures: [],
+        incompatibleQueryFeatures: [],
+        suggestedSiteTargets: [],
+        suggestedSiteTargetsTruncated: false,
+        contributors: [
+          {
+            kind: "REPOSITORY_DOCS",
+            state: "SEARCHED",
+            freshness: "CURRENT",
+            resultCount: 0,
+            repositoryUrl: "https://github.com/expressjs/express",
+            commitSha: "0123456789abcdef0123456789abcdef01234567",
+          },
+          {
+            kind: "DOCPACK",
+            state: "PENDING",
+            resultCount: 0,
+            siteKey: "expressjs.com",
+          },
+        ],
+      },
+    ],
   },
 };
 /**

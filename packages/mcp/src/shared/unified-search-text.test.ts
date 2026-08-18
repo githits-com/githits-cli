@@ -543,6 +543,132 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("[2] aider/edit-formats aider-AI/aider");
     expect(text).toContain("[3] continuedev/continue@v0.9.42");
   });
+
+  it("explains documentation corpora without implying progress from coverage", () => {
+    const notice =
+      "Results reflect disclosed snapshots; pending work may change hits and ordering.";
+    const text = renderUnifiedSearchSuccess(
+      completed([docsHit()], {
+        searchRef: "search-ref-docs",
+        evidenceNotice: notice,
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:express@5.1.0",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                freshness: "CURRENT",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/expressjs/express",
+                commitSha: "0123456789abcdef0123456789abcdef01234567",
+              },
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                freshness: "STALE",
+                resultCount: 2,
+                siteKey: "expressjs.com",
+                coverage: {
+                  coverageState: "CAPPED",
+                  coverageReason: "artifact_size",
+                  pagesCrawled: 480,
+                  frontierRemaining: null,
+                  artifactOverflowPageCount: 12,
+                  estimatedTotalPages: 700,
+                  note: "Indexing is still in progress.",
+                },
+              },
+              {
+                kind: "DOCPACK",
+                state: "READY",
+                freshness: "CURRENT",
+                resultCount: 0,
+                siteKey: "ready.example.com",
+                coverage: {
+                  coverageState: "COMPLETE",
+                  pagesCrawled: 75,
+                  frontierRemaining: 0,
+                  artifactOverflowPageCount: 0,
+                },
+              },
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                freshness: "STALE",
+                resultCount: 0,
+                siteKey: "legacy.example.com",
+                coverage: {
+                  coverageState: "NONE",
+                  pagesCrawled: 69,
+                  frontierRemaining: null,
+                  artifactOverflowPageCount: 0,
+                  note: "Coverage has not been computed.",
+                },
+              },
+              {
+                kind: "DOCPACK",
+                state: "PENDING",
+                resultCount: 0,
+                siteKey: "pending.example.com",
+              },
+              {
+                kind: "DOCPACK",
+                state: "UNAVAILABLE",
+                resultCount: 0,
+                siteKey: "missing.example.com",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain("documentation corpora:");
+    expect(text).not.toContain("source notes:");
+    expect(text).toContain(
+      "searched repository docs https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567 | current | 1 hit on this page",
+    );
+    expect(text).toContain(
+      "searched site docs expressjs.com | stale | 2 hits on this page | published coverage: capped, 480 published pages, 12 pages omitted by the docpack size limit, about 700 pages estimated, reason: artifact size",
+    );
+    expect(text).toContain(
+      "ready, not searched site docs ready.example.com | current | published coverage: complete, 75 published pages",
+    );
+    expect(text).toContain(
+      "searched site docs legacy.example.com | stale | no hits on this page | published coverage: not measured, 69 published pages",
+    );
+    expect(text).not.toContain("Coverage has not been computed");
+    expect(text).toContain(
+      "pending, not searched site docs pending.example.com",
+    );
+    expect(text).toContain(
+      "unavailable, not searched site docs missing.example.com",
+    );
+    expect(text).not.toContain("0 hits");
+    expect(text).not.toContain("Indexing is still in progress");
+    expect(text.match(new RegExp(notice, "g"))).toHaveLength(1);
+    expect(text).toContain(
+      'next: call search_status with search_ref="search-ref-docs"',
+    );
+  });
+
+  it("does not give query-pivot advice for empty evidence-bearing results", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        searchRef: "search-ref-docs",
+        evidenceNotice: "Pending work may change hits and ordering.",
+      }),
+    );
+
+    expect(text).toContain("No hits in the searched evidence on this page.");
+    expect(text).not.toContain("Do not repeat this search unchanged.");
+    expect(text).not.toContain("shorten or broaden the query");
+    expect(text).toContain(
+      'next: call search_status with search_ref="search-ref-docs"',
+    );
+  });
 });
 
 describe("renderUnifiedSearchError", () => {

@@ -195,7 +195,11 @@ The original unified-search plan envisaged hiding partial mode entirely in v1 to
 
 **Highlighting.** The CLI applies the backend's structured `highlights` spans on titles and summaries, plus structural emphasis on headers and badges. It does **not** attempt client-side substring highlighting for terms the backend did not flag, since the compiled query is not a faithful match spec.
 
-**Trust signals.** The JSON `sourceStatus` block is included only when a source reports an actionable condition. Human-readable output surfaces the same actionable subset: ignored / incompatible filters, ignored / incompatible query features, terminal indexing states with backend notes, an `INDEXING` indicator when a source is still indexing on an incomplete result payload, promoted freshness warnings when a floating target was served from stale evidence while a fresher index is building, and ordered standalone-site recovery targets. Site suggestions come from `suggestedSiteTargets`; the exact `suggestedSiteTargetsTruncated` Boolean is retained whenever suggestions are present. They are advisory labels to retry explicitly, not aliases, and the client never selects or retries one automatically. `CURRENT` target-resolution metadata is suppressed because it does not change how a user should interpret displayed results.
+**Trust signals.** The JSON `sourceStatus` block is included when a source reports an actionable condition or a DOCS row discloses physical `contributors`. Human output renders those contributors under one **Documentation corpora** section. Each corpus is explicitly labelled `searched`, `ready, not searched`, `pending, not searched`, or `unavailable, not searched`, so a non-searched zero count cannot be mistaken for a real zero-hit search. Repository docs show normalized repository URL, full indexed commit SHA, freshness, and current-page hits. Site docs show stable site key and a compact selected-published-coverage summary. Partial and capped coverage are usable published evidence; they never imply indexing progress or retryability. Coverage details remain lossless in JSON, including explicit null frontier state and artifact overflow, while human output omits zero/null details that add no decision value.
+
+Contributor-bearing rows omit redundant pair-level `resultCount`, pair-level `coverage`, and healthy resolution metadata from the compact JSON projection. Other source-status signals remain unchanged: ignored / incompatible filters and query features, terminal indexing notes, promoted freshness warnings, and ordered standalone-site recovery targets. Site suggestions come from `suggestedSiteTargets`; the exact `suggestedSiteTargetsTruncated` Boolean is retained whenever suggestions are present. They are advisory labels to retry explicitly, not aliases, and the client never selects or retries one automatically.
+
+When pending or required work can change the disclosed snapshots, the result carries one backend-owned `evidenceNotice`. Human output renders it once. If a `searchRef` is present, follow it with `search-status`; otherwise the notice explains that a later retry may produce different hits or ordering. This notice is independent of `allowPartialResults`: pair-level partial results and partial/capped docpack coverage remain separate concepts.
 
 ### `githits search-status`
 
@@ -207,6 +211,11 @@ githits search-status ref_abc123 --json
 Follow-up for a prior unified search. Use the `searchRef` returned by `githits search` when the initial request could not complete inside the wait window. Before completion, `search-status` can return an atomic interim result when every runnable target/source pair is serveable; if the original request used `--allow-partial`, it can instead return a serveable subset while other pairs remain unavailable.
 
 `search-status` deliberately does **not** reconstruct the original structured request echo. The backend status API exposes progress, final results, and the backend-normalized query string, but it does not expose the original target/filter/defaulting inputs. The JSON payload therefore contains only fields the follow-up endpoint can actually know: `{completed, searchRef?, progress?, result?}`.
+
+With `includeResults: true`, the stored `result` retains the same documentation
+contributors and `evidenceNotice` as the initial search result. The CLI uses the
+same projection and corpus formatter for both commands; contributors are not
+duplicated onto generic progress targets.
 
 ### `githits languages`
 

@@ -4,6 +4,7 @@ import type {
   UnifiedSearchOutcome,
   UnifiedSearchParams,
   UnifiedSearchProgress,
+  UnifiedSearchResult,
   UnifiedSearchSessionStatus,
 } from "@githits/core-internal";
 import {
@@ -20,6 +21,59 @@ import {
   searchAction,
   searchStatusAction,
 } from "./search.js";
+
+const DOCUMENTATION_EVIDENCE_NOTICE =
+  "Results and status reflect the disclosed snapshots at this response boundary. Pending or required work may change hits and ordering; callers may follow searchRef when present or retry.";
+
+function createDocumentationSearchResult(): UnifiedSearchResult {
+  return {
+    query: "router",
+    queryWarnings: [],
+    sources: ["DOCS"],
+    results: [],
+    page: { offset: 0, limit: 10, returned: 0, hasMore: false },
+    partialResults: false,
+    evidenceNotice: DOCUMENTATION_EVIDENCE_NOTICE,
+    sourceStatus: [
+      {
+        source: "DOCS",
+        targetLabel: "npm:express@5.1.0",
+        appliedFilters: [],
+        ignoredFilters: [],
+        incompatibleFilters: [],
+        appliedQueryFeatures: [],
+        ignoredQueryFeatures: [],
+        incompatibleQueryFeatures: [],
+        suggestedSiteTargets: [],
+        suggestedSiteTargetsTruncated: false,
+        contributors: [
+          {
+            kind: "REPOSITORY_DOCS",
+            state: "SEARCHED",
+            freshness: "CURRENT",
+            resultCount: 0,
+            repositoryUrl: "https://github.com/expressjs/express",
+            commitSha: "0123456789abcdef0123456789abcdef01234567",
+          },
+          {
+            kind: "DOCPACK",
+            state: "READY",
+            freshness: "STALE",
+            resultCount: 0,
+            siteKey: "expressjs.com",
+            coverage: {
+              coverageState: "PARTIAL",
+              pagesCrawled: 120,
+              frontierRemaining: null,
+              artifactOverflowPageCount: 0,
+              note: "Indexed 120 pages so far; indexing is still in progress.",
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
 
 describe("searchAction", () => {
   const mcpUrl = "https://mcp.githits.com";
@@ -230,6 +284,7 @@ describe("searchAction", () => {
               "site:example.com/guide",
             ],
             suggestedSiteTargetsTruncated: false,
+            contributors: [],
           },
         ],
       },
@@ -275,6 +330,7 @@ describe("searchAction", () => {
             incompatibleQueryFeatures: [],
             suggestedSiteTargets: ["site:new.example.com/docs"],
             suggestedSiteTargetsTruncated: false,
+            contributors: [],
           },
         ],
       },
@@ -295,6 +351,69 @@ describe("searchAction", () => {
       suggestedSiteTargets: ["site:new.example.com/docs"],
       suggestedSiteTargetsTruncated: false,
     });
+    consoleSpy.mockRestore();
+  });
+
+  it("renders compact documentation evidence for completed initial searches", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const result = createDocumentationSearchResult();
+    const outcome: UnifiedSearchOutcome = {
+      state: "completed",
+      completed: true,
+      result,
+    };
+
+    await searchAction(
+      "router",
+      { in: ["npm:express"], source: "docs" },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Documentation corpora:");
+    expect(output).toContain(
+      "searched repository docs https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
+    );
+    expect(output).toContain("ready, not searched site docs expressjs.com");
+    expect(output).toContain(
+      "published coverage: partial, 120 published pages",
+    );
+    expect(output).not.toContain("indexing is still in progress");
+    expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
+    expect(output).not.toContain("githits search-status");
+    consoleSpy.mockRestore();
+  });
+
+  it("preserves lossless documentation contributor JSON", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const result = createDocumentationSearchResult();
+    const outcome: UnifiedSearchOutcome = {
+      state: "completed",
+      completed: true,
+      result,
+    };
+
+    await searchAction(
+      "router",
+      { in: ["npm:express"], source: "docs", json: true },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const payload = JSON.parse(String(consoleSpy.mock.calls[0]?.[0]));
+    expect(payload.sourceStatus[0].contributors).toEqual(
+      result.sourceStatus[0]?.contributors,
+    );
+    expect(payload.sourceStatus[0]).not.toHaveProperty("resultCount");
+    expect(payload.sourceStatus[0]).not.toHaveProperty("coverage");
+    expect(payload.evidenceNotice).toBe(DOCUMENTATION_EVIDENCE_NOTICE);
     consoleSpy.mockRestore();
   });
 
@@ -525,6 +644,29 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("renders documentation evidence on incomplete initial searches", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const incomplete = createIncompleteOutcome("INDEXING", "search-ref-docs");
+    incomplete.result = createDocumentationSearchResult();
+
+    await searchAction(
+      "router",
+      { in: ["npm:express"], source: "docs" },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(incomplete)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Documentation corpora:");
+    expect(output).toContain("ready, not searched site docs expressjs.com");
+    expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
+    expect(output).toContain("githits search-status search-ref-docs");
+    consoleSpy.mockRestore();
+  });
+
   it("preserves warnings and attributed site guidance for empty incomplete results", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -547,6 +689,7 @@ describe("searchAction", () => {
           incompatibleQueryFeatures: [],
           suggestedSiteTargets: ["site:docs.example.com"],
           suggestedSiteTargetsTruncated: true,
+          contributors: [],
         },
       ],
     };
@@ -600,6 +743,7 @@ describe("searchAction", () => {
             incompatibleQueryFeatures: [],
             suggestedSiteTargets: [],
             suggestedSiteTargetsTruncated: false,
+            contributors: [],
           },
         ],
       },
@@ -648,6 +792,7 @@ describe("searchAction", () => {
             incompatibleQueryFeatures: ["name"],
             suggestedSiteTargets: [],
             suggestedSiteTargetsTruncated: false,
+            contributors: [],
           },
         ],
       },
@@ -1259,6 +1404,7 @@ describe("searchStatusAction", () => {
           incompatibleQueryFeatures: [],
           suggestedSiteTargets: ["site:docs.example.com"],
           suggestedSiteTargetsTruncated: false,
+          contributors: [],
         },
       ],
     };
@@ -1467,6 +1613,33 @@ describe("searchStatusAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("renders stored documentation evidence with searchRef follow-up", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const outcome: UnifiedSearchOutcome = {
+      state: "completed",
+      completed: true,
+      searchRef: "search-ref-docs",
+      result: createDocumentationSearchResult(),
+    };
+
+    await searchStatusAction(
+      "search-ref-docs",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Documentation corpora:");
+    expect(output).toContain("ready, not searched site docs expressjs.com");
+    expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
+    expect(output).toContain("githits search-status search-ref-docs");
+    consoleSpy.mockRestore();
+  });
+
   it("renders truncated site recovery suggestions for search-status", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -1489,6 +1662,7 @@ describe("searchStatusAction", () => {
             incompatibleQueryFeatures: [],
             suggestedSiteTargets: ["site:example.com/docs"],
             suggestedSiteTargetsTruncated: true,
+            contributors: [],
           },
         ],
       },

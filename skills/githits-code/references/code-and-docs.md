@@ -39,7 +39,7 @@ When grep returns no matches, do not repeat it unchanged. Change or shorten the 
 
 For topic search, use `githits search "<topic>" --source docs --in <target>`, then pass the returned page ID to `docs read`.
 
-When search reports partial documentation coverage, treat the evidence as incomplete and retry later when advised. Capped coverage means the current crawl stopped at a limit; report that limitation instead of retrying.
+Partial and capped documentation coverage are usable published evidence. Report the disclosed limit, but infer neither indexing progress nor retryability from coverage; follow only `searchRef` and the evidence notice.
 
 ## Command Name Mapping
 
