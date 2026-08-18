@@ -24,9 +24,12 @@ strings. These modes remove token variables, select isolated file auth and
 config roots, disable advisory update checks, and point GitHits service URLs at
 reserved `.invalid` hosts. CLI built smoke verifies the exact top-level command
 set from root help plus JSON/terminal auth behavior. MCP built smoke calls only
-`listTools` and requires every name in `EXPECTED_MCP_TOOLS`; it makes no live
-tool calls. One CI step applies a combined two-minute timeout and logs each
-harness timing summary and selected launch vector.
+`listTools` and requires the exact stable `EXPECTED_MCP_TOOLS` cohort plus a
+separate local-only experimental cohort launched with the hidden session
+override. The experimental cohort also checks its local instruction block and
+unauthenticated tool envelopes; it never changes the public smoke constant or
+submits feedback. One CI step applies a combined two-minute timeout and logs
+each harness timing summary and selected launch vector.
 
 The suites intentionally avoid exact-output snapshots because backend ranking
 and release metadata can change. They assert durable UX invariants instead:
@@ -54,6 +57,12 @@ The dual-surface tools today are:
 - `docs_read` ↔ `githits docs read`
 - `resolve_target` ↔ `githits resolve` *(config-gated, local-only)*
 - `code_diff` ↔ `githits code diff` *(config-gated, local-only)*
+
+The local smoke runners execute these cohorts independently in source and
+built modes. Stable runs use an isolated config with no experimental policy;
+experimental runs use a temporary opt-in config plus the hidden local launch
+override. Live experimental probes are bounded and skipped only when the auth
+probe reports `AUTH_REQUIRED`; public/remote smoke remains stable-only.
 
 `feedback` is mutating, so smoke coverage exercises registration and
 validation/auth paths only. It does not submit fake feedback to the live

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -21,6 +21,39 @@ export interface IsolatedSmokeEnvironment {
   env: Record<string, string>;
   root: string;
   cleanup(): void;
+}
+
+/** Creates a temporary config root while preserving inherited auth credentials. */
+export function createScopedSmokeEnvironment(
+  prefix: string,
+  baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): IsolatedSmokeEnvironment {
+  const root = mkdtempSync(join(tmpdir(), prefix));
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (value !== undefined) env[key] = value;
+  }
+  env.XDG_CONFIG_HOME = join(root, ".config");
+  env.GITHITS_DISABLE_UPDATE_CHECK = "1";
+  return {
+    env,
+    root,
+    cleanup: () => rmSync(root, { recursive: true, force: true }),
+  };
+}
+
+export function writeSmokeConfig(
+  env: Record<string, string | undefined>,
+  contents: string,
+): string {
+  const configHome = env.XDG_CONFIG_HOME;
+  if (!configHome)
+    throw new Error("Smoke config environment has no XDG_CONFIG_HOME");
+  const configDir = join(configHome, "githits");
+  mkdirSync(configDir, { recursive: true });
+  const configPath = join(configDir, "config.toml");
+  writeFileSync(configPath, contents);
+  return configPath;
 }
 
 /** Creates a credential-free config root without mutating the inherited environment. */

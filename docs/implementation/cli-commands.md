@@ -733,14 +733,17 @@ All commands support two output modes:
 ## Product Smoke
 
 `bun run smoke:cli` is the local live-capable suite. It launches source through
-`bun run dev`, verifies isolated unauthenticated behavior, and runs the live
-corpus plus CLI/MCP JSON parity when local credentials are available.
+`bun run dev`, verifies separate isolated stable and experimental cohorts, and
+runs the stable live corpus plus CLI/MCP JSON parity when local credentials are
+available. Experimental live probes run only in a temporary opt-in config and
+are skipped with an explicit `AUTH_REQUIRED` message when credentials are not
+available.
 
 `bun run smoke:cli:built` is the secret-free CI product check. After
 `bun run build`, its Bun harness launches `node <absolute dist/cli.js>` and:
 
-- parses the root `Commands:` table and requires the complete top-level product
-  command set;
+- parses the root `Commands:` table and requires the exact stable top-level
+  product command set, then separately checks the experimental opt-in cohort;
 - verifies JSON and terminal authentication failures under isolated file auth;
 - strips inherited credentials and redirects all config roots and GitHits URLs;
 - exits before live probes or parity calls.

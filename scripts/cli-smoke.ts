@@ -1,4 +1,9 @@
-import { createIsolatedSmokeEnvironment } from "./smoke-environment.ts";
+import { join } from "node:path";
+import {
+  createIsolatedSmokeEnvironment,
+  createScopedSmokeEnvironment,
+  writeSmokeConfig,
+} from "./smoke-environment.ts";
 import {
   appendCliArgs,
   type CliLaunchTarget,
@@ -45,7 +50,7 @@ const JSON_PARITY_CONCURRENCY = 2;
 const SMOKE_PACKAGE_SPEC = "npm:express@5.2.1";
 let cliLaunchTarget = SOURCE_CLI_LAUNCH_TARGET;
 
-export const EXPECTED_TOP_LEVEL_COMMANDS = [
+export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
   "init",
   "login",
   "logout",
@@ -54,7 +59,6 @@ export const EXPECTED_TOP_LEVEL_COMMANDS = [
   "languages",
   "feedback",
   "doctor",
-  "resolve",
   "settings",
   "search",
   "search-status",
@@ -63,6 +67,14 @@ export const EXPECTED_TOP_LEVEL_COMMANDS = [
   "docs",
   "auth",
 ] as const;
+
+export const EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS = [
+  ...EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
+  "resolve",
+] as const;
+
+/** Backwards-compatible name for the exact stable baseline command set. */
+export const EXPECTED_TOP_LEVEL_COMMANDS = EXPECTED_STABLE_TOP_LEVEL_COMMANDS;
 
 const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
   {
@@ -252,9 +264,12 @@ export function parseRootHelpCommands(helpText: string): string[] {
   return commands;
 }
 
-export function assertRootHelpStructure(helpText: string): void {
+export function assertRootHelpStructure(
+  helpText: string,
+  expectedCommands: readonly string[] = EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
+): void {
   const actual = new Set(parseRootHelpCommands(helpText));
-  const expected = new Set<string>(EXPECTED_TOP_LEVEL_COMMANDS);
+  const expected = new Set<string>(expectedCommands);
   const missing = [...expected].filter((command) => !actual.has(command));
   const unexpected = [...actual].filter((command) => !expected.has(command));
   assert(
@@ -354,10 +369,6 @@ function assertJsonErrorCode(
   );
 }
 
-async function runCli(args: string[]): Promise<CommandResult> {
-  return runCliWithEnv(args, process.env);
-}
-
 async function runCliWithEnv(
   args: string[],
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined>,
@@ -442,7 +453,11 @@ function jsonContractShape(value: unknown): unknown {
   return typeof value;
 }
 
-async function assertJsonParity(): Promise<void> {
+async function assertJsonParity(
+  env: Record<string, string> = inheritedEnv(),
+): Promise<void> {
+  const runCli = (args: string[]): Promise<CommandResult> =>
+    runCliWithEnv(args, env);
   await mapWithConcurrency(
     JSON_PARITY_FIXTURES,
     JSON_PARITY_CONCURRENCY,
@@ -477,29 +492,46 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       helpResult.stdout.trim().length > 0,
       "root help should produce stdout",
     );
-    assertRootHelpStructure(helpResult.stdout);
+    assertRootHelpStructure(
+      helpResult.stdout,
+      EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
+    );
     assert(
-      helpResult.stdout.includes("githits resolve express"),
-      "root help should include resolve in Getting started",
+      !helpResult.stdout.includes("resolve"),
+      "stable root help should omit resolve",
     );
 
-    const resolveHelp = await runCliWithEnv(["resolve", "--help"], env);
-    assert(resolveHelp.exitCode === 0, "resolve help should succeed");
+    const codeHelp = await runCliWithEnv(["code", "--help"], env);
     assert(
-      resolveHelp.stdout.includes("--query and --intent-hint") &&
-        resolveHelp.stdout.includes("Do not") &&
-        resolveHelp.stdout.includes("include credentials"),
-      "resolve help should disclose query privacy guidance",
+      codeHelp.exitCode === 0 && !codeHelp.stdout.includes("diff"),
+      "stable code help should omit diff",
     );
 
-    const codeDiffHelp = await runCliWithEnv(["code", "diff", "--help"], env);
-    assert(codeDiffHelp.exitCode === 0, "code diff help should succeed");
+    const configHome = env.XDG_CONFIG_HOME;
+    assert(configHome, "isolated smoke environment missing config home");
+    const configPath = join(configHome, "githits", "config.toml");
+    const disabledResolve = await runCliWithEnv(
+      ["resolve", "express", "--json"],
+      env,
+    );
     assert(
-      codeDiffHelp.stdout.includes("<from>..<to>") &&
-        codeDiffHelp.stdout.includes("repository-relative") &&
-        codeDiffHelp.stdout.includes("--name-status") &&
-        !codeDiffHelp.stdout.includes("--git-ref"),
-      "code diff help should expose the bounded dogfood contract",
+      disabledResolve.exitCode !== 0 &&
+        `${disabledResolve.stderr}\n${disabledResolve.stdout}`.includes(
+          `Experimental CLI command "resolve" is disabled. Enable it in ${configPath} by adding:\n[experimental]\ntools = true`,
+        ),
+      "disabled resolve should expose the exact config path and snippet",
+    );
+
+    const disabledCodeDiff = await runCliWithEnv(
+      ["code", "diff", "npm:express", "5.2.0..5.2.1", "--json"],
+      env,
+    );
+    assert(
+      disabledCodeDiff.exitCode !== 0 &&
+        `${disabledCodeDiff.stderr}\n${disabledCodeDiff.stdout}`.includes(
+          `Experimental CLI command "code diff" is disabled. Enable it in ${configPath} by adding:\n[experimental]\ntools = true`,
+        ),
+      "disabled code diff should expose the exact config path and snippet",
     );
 
     for (const command of ["init", "login"] as const) {
@@ -551,38 +583,6 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "unauthenticated languages JSON envelope",
     );
 
-    const codeDiffAuth = await runCliWithEnv(
-      ["code", "diff", "npm:express", "5.2.0..5.2.1", "--json"],
-      env,
-    );
-    assert(
-      codeDiffAuth.exitCode !== 0 && codeDiffAuth.stdout.trim() === "",
-      "unauthenticated code diff JSON should fail with clean stdout",
-    );
-    const codeDiffAuthPayload = assertCleanErrorEnvelope(
-      codeDiffAuth.stderr,
-      "unauthenticated code diff",
-    );
-    assert(
-      codeDiffAuthPayload.code === "AUTH_REQUIRED",
-      "unauthenticated code diff should preserve the shared auth envelope",
-    );
-
-    const resolveJson = await runCliWithEnv(
-      ["resolve", "express", "--json"],
-      env,
-    );
-    assert(resolveJson.exitCode !== 0, "unauthenticated resolve should fail");
-    assert(
-      resolveJson.stdout.trim() === "",
-      "unauthenticated resolve JSON should keep stdout clean",
-    );
-    assert(
-      assertCleanErrorEnvelope(resolveJson.stderr, "unauthenticated resolve")
-        .code === "AUTH_REQUIRED",
-      "unauthenticated resolve should return AUTH_REQUIRED",
-    );
-
     const terminalResult = await runCliWithEnv(["languages", "python"], env);
     assert(
       terminalResult.exitCode !== 0,
@@ -605,24 +605,79 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       !authGuidance.includes("tool call"),
       "unauthenticated terminal probe used MCP-style auth guidance",
     );
+  } finally {
+    isolated.cleanup();
+  }
+}
 
-    const resolveTerminal = await runCliWithEnv(["resolve", "express"], env);
-    const resolveGuidance = `${resolveTerminal.stderr}\n${resolveTerminal.stdout}`;
-    assert(
-      resolveTerminal.exitCode !== 0,
-      "unauthenticated resolve should fail",
+async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
+  const isolated = createIsolatedSmokeEnvironment(
+    "githits-cli-experimental-smoke-home-",
+  );
+  const { env } = isolated;
+  try {
+    writeSmokeConfig(env, "[experimental]\ntools = true\n");
+    const helpResult = await runCliWithEnv(["--help"], env);
+    assert(helpResult.exitCode === 0, "experimental root help should succeed");
+    assertRootHelpStructure(
+      helpResult.stdout,
+      EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS,
     );
     assert(
-      resolveGuidance.includes("githits login"),
-      "unauthenticated resolve should include login guidance",
+      helpResult.stdout.includes("githits resolve express"),
+      "experimental root help should include resolve in Getting started",
+    );
+
+    const codeHelp = await runCliWithEnv(["code", "--help"], env);
+    assert(
+      codeHelp.exitCode === 0 && codeHelp.stdout.includes("diff"),
+      "experimental code help should expose diff",
+    );
+    const resolveHelp = await runCliWithEnv(["resolve", "--help"], env);
+    assert(
+      resolveHelp.exitCode === 0 &&
+        resolveHelp.stdout.includes("credentials") &&
+        resolveHelp.stdout.includes("private code"),
+      "experimental resolve help should expose privacy guidance",
+    );
+    const codeDiffHelp = await runCliWithEnv(["code", "diff", "--help"], env);
+    assert(
+      codeDiffHelp.exitCode === 0 &&
+        codeDiffHelp.stdout.includes("<from>..<to>") &&
+        codeDiffHelp.stdout.includes("--name-status"),
+      "experimental code diff help should expose the bounded contract",
+    );
+
+    const resolveJson = await runCliWithEnv(
+      ["resolve", "express", "--json"],
+      env,
+    );
+    assertJsonErrorCode(
+      resolveJson,
+      "experimental unauthenticated resolve",
+      "AUTH_REQUIRED",
+    );
+    const codeDiffJson = await runCliWithEnv(
+      ["code", "diff", "npm:express", "5.2.0..5.2.1", "--json"],
+      env,
+    );
+    assertJsonErrorCode(
+      codeDiffJson,
+      "experimental unauthenticated code diff",
+      "AUTH_REQUIRED",
     );
   } finally {
     isolated.cleanup();
   }
 }
 
-async function assertLiveOrAuthRequired(): Promise<boolean> {
-  const languagesResult = await runCli(["languages", "python", "--json"]);
+async function assertLiveOrAuthRequired(
+  env: Record<string, string> = inheritedEnv(),
+): Promise<boolean> {
+  const languagesResult = await runCliWithEnv(
+    ["languages", "python", "--json"],
+    env,
+  );
   if (languagesResult.exitCode !== 0) {
     const jsonAuthPayload = assertCleanErrorEnvelope(
       languagesResult.stderr,
@@ -660,7 +715,10 @@ async function assertLiveOrAuthRequired(): Promise<boolean> {
     "languages auth probe: expected array",
   );
 
-  const packageResult = await runCli(["pkg", "info", "npm:express", "--json"]);
+  const packageResult = await runCliWithEnv(
+    ["pkg", "info", "npm:express", "--json"],
+    env,
+  );
   if (packageResult.exitCode === 0) {
     const payload = parseJson(packageResult.stdout, "package auth probe");
     assertRecord(payload, "package auth probe");
@@ -695,49 +753,102 @@ async function assertLiveOrAuthRequired(): Promise<boolean> {
   return false;
 }
 
-async function runLiveSmoke(): Promise<void> {
+async function runExperimentalLiveSmoke(
+  env: Record<string, string>,
+): Promise<void> {
   const resolveText = assertTerminalOutput(
-    await runCli(["resolve", "express"]),
-    "resolve terminal",
+    await runCliWithEnv(["resolve", "express"], env),
+    "experimental resolve terminal",
   );
   assert(
     resolveText.includes("Candidates:") &&
-      /\n\s+\d+\. npm:express/.test(resolveText),
-    "resolve terminal missing numbered express candidate",
+      /\n\s+\d+\. npm:express/.test(resolveText) &&
+      !resolveText.includes("githits ") &&
+      !resolveText.includes("--"),
+    "experimental resolve text should be compact and MCP-native",
   );
 
   const resolveJson = assertJsonOutput(
-    await runCli([
-      "resolve",
-      "express",
-      "--registry",
-      "npm",
-      "--prefer-kind",
-      "package",
-      "--intent-hint",
-      "web server",
-      "--query",
-      "web framework",
-      "--limit",
-      "3",
-      "--json",
-    ]),
-    "resolve json",
+    await runCliWithEnv(
+      [
+        "resolve",
+        "express",
+        "--registry",
+        "npm",
+        "--prefer-kind",
+        "package",
+        "--intent-hint",
+        "web server",
+        "--query",
+        "web framework",
+        "--limit",
+        "3",
+        "--json",
+      ],
+      env,
+    ),
+    "experimental resolve json",
   );
-  assertRecord(resolveJson, "resolve json");
+  assertRecord(resolveJson, "experimental resolve json");
   assert(
-    typeof resolveJson.best === "string" && resolveJson.best === "npm:express",
-    "resolve json missing best npm target",
-  );
-  assert(
-    Array.isArray(resolveJson.candidates),
-    "resolve json missing candidates",
-  );
-  assert(
-    Array.isArray(resolveJson.protectedMatches),
-    "resolve json missing protected matches",
+    typeof resolveJson.best === "string" &&
+      resolveJson.best === "npm:express" &&
+      Array.isArray(resolveJson.candidates) &&
+      Array.isArray(resolveJson.protectedMatches),
+    "experimental resolve JSON missing structured candidate facts",
   );
 
+  const codeDiffText = assertTerminalOutput(
+    await runCliWithEnv(
+      [
+        "code",
+        "diff",
+        "npm:express",
+        "5.2.0..5.2.1",
+        "--name-status",
+        "--max-files",
+        "2",
+      ],
+      env,
+    ),
+    "experimental code diff terminal",
+  );
+  assert(
+    codeDiffText.length > 0 &&
+      !codeDiffText.includes("githits ") &&
+      !codeDiffText.includes("--"),
+    "experimental code diff text should be compact and MCP-native",
+  );
+
+  const codeDiffJson = assertJsonOutput(
+    await runCliWithEnv(
+      [
+        "code",
+        "diff",
+        "npm:express",
+        "5.2.0..5.2.1",
+        "--name-status",
+        "--max-files",
+        "2",
+        "--json",
+      ],
+      env,
+    ),
+    "experimental code diff json",
+  );
+  assertRecord(codeDiffJson, "experimental code diff json");
+  assert(
+    codeDiffJson.view === "name-status" &&
+      Array.isArray(codeDiffJson.files) &&
+      typeof codeDiffJson.from === "object" &&
+      typeof codeDiffJson.to === "object",
+    "experimental code diff JSON missing exact resolutions",
+  );
+}
+
+async function runLiveSmoke(env: Record<string, string>): Promise<void> {
+  const runCli = (args: string[]): Promise<CommandResult> =>
+    runCliWithEnv(args, env);
   const languagesText = assertTerminalOutput(
     await runCli(["languages", "python"]),
     "languages terminal",
@@ -1192,84 +1303,6 @@ async function runLiveSmoke(): Promise<void> {
     "code grep invalid json missing CLI-native recovery",
   );
 
-  const codeDiffJson = assertJsonOutput(
-    await runCli([
-      "code",
-      "diff",
-      "npm:express",
-      "5.2.0..5.2.1",
-      "--name-only",
-      "--max-files",
-      "2",
-      "--json",
-      "--",
-      "**/*.js",
-    ]),
-    "code diff json",
-  );
-  assertRecord(codeDiffJson, "code diff json");
-  assert(
-    codeDiffJson.view === "name-only" &&
-      Array.isArray(codeDiffJson.files) &&
-      typeof codeDiffJson.from === "object" &&
-      typeof codeDiffJson.to === "object",
-    "code diff json missing selected view or exact resolutions",
-  );
-
-  const codeDiffPatchText = assertTerminalOutput(
-    await runCli([
-      "code",
-      "diff",
-      "npm:express",
-      "5.2.0..5.2.1",
-      "--",
-      "lib/utils.js",
-    ]),
-    "code diff patch",
-  );
-  assert(
-    codeDiffPatchText.startsWith("--- a/lib/utils.js\n+++ b/lib/utils.js\n") &&
-      !codeDiffPatchText.includes("--- a/file\n+++ b/file\n"),
-    "code diff patch should bind headers to the authoritative file path",
-  );
-
-  const codeDiffInvalid = await runCli([
-    "code",
-    "diff",
-    "npm:express",
-    "5.2.0...5.2.1",
-    "--json",
-  ]);
-  const codeDiffInvalidEnvelope = assertCleanErrorEnvelope(
-    codeDiffInvalid.stderr,
-    "code diff invalid json",
-  );
-  assert(
-    codeDiffInvalid.exitCode !== 0 &&
-      codeDiffInvalidEnvelope.code === "INVALID_ARGUMENT" &&
-      codeDiffInvalidEnvelope.error.includes("not `...`"),
-    "code diff invalid JSON should explain the two-dot range",
-  );
-
-  const codeDiffBareGlob = await runCli([
-    "code",
-    "diff",
-    "npm:express",
-    "5.2.0..5.2.1",
-    "**/*.js",
-    "--json",
-  ]);
-  const codeDiffBareGlobEnvelope = assertCleanErrorEnvelope(
-    codeDiffBareGlob.stderr,
-    "code diff bare glob JSON",
-  );
-  assert(
-    codeDiffBareGlob.exitCode !== 0 &&
-      codeDiffBareGlobEnvelope.code === "INVALID_ARGUMENT" &&
-      codeDiffBareGlobEnvelope.error.includes("after `--`"),
-    "code diff should require the Git-style glob delimiter",
-  );
-
   const searchText = assertTerminalOutput(
     await runCli([
       "search",
@@ -1358,12 +1391,6 @@ async function runLiveSmoke(): Promise<void> {
     "pkg info invalid json error",
     "INVALID_ARGUMENT",
   );
-
-  assertJsonErrorCode(
-    await runCli(["resolve", " ", "--json"]),
-    "resolve empty name json error",
-    "INVALID_ARGUMENT",
-  );
 }
 
 export async function main(argv = process.argv.slice(2)): Promise<void> {
@@ -1373,15 +1400,43 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     `[smoke] CLI launch target: ${formatCliLaunchTarget(options.target)}\n`,
   );
   await assertUnauthenticatedBehavior();
+  await assertExperimentalUnauthenticatedBehavior();
   if (options.mode === "unauthenticated") {
-    console.log("CLI unauthenticated smoke passed");
+    console.log("CLI stable + experimental unauthenticated smoke passed");
     return;
   }
-  if (await assertLiveOrAuthRequired()) {
-    await runLiveSmoke();
-    await assertJsonParity();
-    console.log("CLI smoke passed");
+  const stableLive = createScopedSmokeEnvironment(
+    "githits-cli-live-stable-home-",
+  );
+  try {
+    if (await assertLiveOrAuthRequired(stableLive.env)) {
+      await runLiveSmoke(stableLive.env);
+      await assertJsonParity(stableLive.env);
+    }
+  } finally {
+    stableLive.cleanup();
   }
+
+  const experimentalLive = createScopedSmokeEnvironment(
+    "githits-cli-live-experimental-home-",
+  );
+  try {
+    writeSmokeConfig(experimentalLive.env, "[experimental]\ntools = true\n");
+    if (await assertLiveOrAuthRequired(experimentalLive.env)) {
+      await runExperimentalLiveSmoke(experimentalLive.env);
+    }
+  } finally {
+    experimentalLive.cleanup();
+  }
+  console.log("CLI smoke passed");
+}
+
+function inheritedEnv(): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  );
 }
 
 if (import.meta.main) {

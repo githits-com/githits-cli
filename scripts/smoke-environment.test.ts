@@ -1,6 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { existsSync } from "node:fs";
-import { createIsolatedSmokeEnvironment } from "./smoke-environment.ts";
+import {
+  createIsolatedSmokeEnvironment,
+  createScopedSmokeEnvironment,
+  writeSmokeConfig,
+} from "./smoke-environment.ts";
 
 describe("createIsolatedSmokeEnvironment", () => {
   it("strips credentials and isolates platform config roots", () => {
@@ -39,5 +43,27 @@ describe("createIsolatedSmokeEnvironment", () => {
       isolated.cleanup();
     }
     expect(existsSync(isolated.root)).toBe(false);
+  });
+});
+
+describe("createScopedSmokeEnvironment", () => {
+  it("preserves inherited credentials while isolating config", () => {
+    const scoped = createScopedSmokeEnvironment("githits-scoped-smoke-", {
+      GITHITS_API_TOKEN: "secret",
+      HOME: "/real-home",
+      XDG_CONFIG_HOME: "/real-config",
+    });
+    try {
+      expect(scoped.env.GITHITS_API_TOKEN).toBe("secret");
+      expect(scoped.env.HOME).toBe("/real-home");
+      expect(scoped.env.XDG_CONFIG_HOME).not.toBe("/real-config");
+      const configPath = writeSmokeConfig(
+        scoped.env,
+        "[experimental]\ntools = true\n",
+      );
+      expect(configPath).toContain(scoped.env.XDG_CONFIG_HOME!);
+    } finally {
+      scoped.cleanup();
+    }
   });
 });

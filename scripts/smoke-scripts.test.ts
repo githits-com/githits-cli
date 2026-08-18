@@ -2,15 +2,21 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { EXPECTED_MCP_TOOLS } from "@githits/mcp/smoke-test";
 import {
   assertRootHelpStructure,
   buildMcpParityCommand,
+  EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS,
+  EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
   EXPECTED_TOP_LEVEL_COMMANDS,
   parseCliSmokeArgs,
   parseRootHelpCommands,
 } from "./cli-smoke.ts";
 import { parseMcpCallArgs } from "./mcp-call.ts";
-import { parseMcpSmokeArgs } from "./mcp-smoke.ts";
+import {
+  EXPECTED_EXPERIMENTAL_MCP_TOOLS,
+  parseMcpSmokeArgs,
+} from "./mcp-smoke.ts";
 import { toStdioLaunch } from "./smoke-launch-target.ts";
 
 describe("smoke script options", () => {
@@ -56,6 +62,12 @@ describe("smoke script options", () => {
     expect(toStdioLaunch(options.target, ["mcp", "start"])).toEqual({
       command: "node",
       args: [entry, "mcp", "start"],
+    });
+    expect(
+      toStdioLaunch(options.target, ["mcp", "start", "--experimental-tools"]),
+    ).toEqual({
+      command: "node",
+      args: [entry, "mcp", "start", "--experimental-tools"],
     });
   });
 
@@ -116,6 +128,17 @@ describe("smoke script options", () => {
 });
 
 describe("CLI root help smoke contract", () => {
+  it("keeps stable and experimental command cohorts exact and separate", () => {
+    expect(EXPECTED_TOP_LEVEL_COMMANDS).toEqual(
+      EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
+    );
+    expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("resolve");
+    expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("resolve");
+    expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toHaveLength(
+      EXPECTED_STABLE_TOP_LEVEL_COMMANDS.length + 1,
+    );
+  });
+
   it("accepts the complete product command set and ignores generated help", () => {
     const help = rootHelpFixture(EXPECTED_TOP_LEVEL_COMMANDS);
 
@@ -160,4 +183,14 @@ describe("CLI root help smoke contract", () => {
       "  githits example express",
     ].join("\n");
   }
+});
+
+describe("MCP smoke cohorts", () => {
+  it("keeps experimental inventory local and additive to the stable baseline", () => {
+    expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).toEqual([
+      ...EXPECTED_MCP_TOOLS,
+      "resolve_target",
+      "code_diff",
+    ]);
+  });
 });
