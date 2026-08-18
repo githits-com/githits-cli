@@ -510,12 +510,16 @@ plugin generator, or generated agent asset in this phase.
 
 **Observed outcome and acceptance:** the command, pure request/result/error
 adapters, Git-like text formatter, smoke coverage, durable documentation, and
-release fragment are complete without MCP or agent-facing exposure. The final
-full suite passed 2,888 tests, build, built CLI smoke, format, lint, and public
-package validation. Authenticated source smoke exercised a live package diff.
+release fragment are complete without MCP or agent-facing exposure. The full
+suite passed 2,889 tests, build, built CLI smoke, format, lint, and public
+package validation. Authenticated source smoke exercises a live package diff
+and asserts that text patch headers contain the authoritative file path.
 Preflight, internal runtime review, and the retained external Claude review are
 clean after correcting delimiter enforcement, Git-like stat presentation, glob
-grammar, bounded recovery lists, and CLI-native validation messages.
+grammar, bounded recovery lists, and CLI-native validation messages. Initial
+post-review dogfooding exposed backend `a/file` and `b/file` patch placeholders;
+the text formatter now binds them to the returned path and uses `/dev/null` for
+added or deleted sides.
 
 ## Phase 3: MCP and agent rollout
 

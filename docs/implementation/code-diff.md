@@ -102,7 +102,9 @@ content-safety diagnostics go to stderr. `--verbose` adds exact identity and
 scope diagnostics without changing the primary stream. `--json` emits a lean
 camel-case data envelope whose file objects include only fields relevant to the
 selected view, except that `pathEncoding` is always retained to distinguish
-display-only byte escapes.
+display-only byte escapes. For text patches, the formatter replaces the raw
+content service's `a/file` and `b/file` placeholders with the authoritative
+file path; added and deleted sides use `/dev/null` like Git.
 
 An empty authoritative diff exits 0. `PARTIAL` or `FAILED` post-inventory
 content also exits 0 with explicit diagnostics because the inventory remains

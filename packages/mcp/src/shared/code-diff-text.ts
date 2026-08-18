@@ -132,13 +132,29 @@ function formatPatches(files: LeanCodeDiffFile[]): string {
   for (const file of files) {
     const patchFile = requirePatch(file);
     if (patchFile.patch !== undefined) {
-      output += patchFile.patch;
-      if (!patchFile.patch.endsWith("\n")) output += "\n";
+      const patch = bindPatchHeaders(patchFile);
+      output += patch;
+      if (!patch.endsWith("\n")) output += "\n";
       continue;
     }
     output += `${patchFallback(patchFile)}\n`;
   }
   return output;
+}
+
+const RAW_DIFF_PLACEHOLDER_HEADERS = "--- a/file\n+++ b/file\n";
+
+/** Bind the raw diff service's content-only placeholders to its owning file. */
+function bindPatchHeaders(file: LeanCodeDiffPatchFile): string {
+  const patch = file.patch;
+  if (patch === undefined || !patch.startsWith(RAW_DIFF_PLACEHOLDER_HEADERS)) {
+    return patch ?? "";
+  }
+
+  const path = safe(file.path);
+  const fromPath = file.status === "added" ? "/dev/null" : `a/${path}`;
+  const toPath = file.status === "deleted" ? "/dev/null" : `b/${path}`;
+  return `--- ${fromPath}\n+++ ${toPath}\n${patch.slice(RAW_DIFF_PLACEHOLDER_HEADERS.length)}`;
 }
 
 function patchFallback(file: LeanCodeDiffPatchFile): string {

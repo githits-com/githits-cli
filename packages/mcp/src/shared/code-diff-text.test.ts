@@ -169,7 +169,7 @@ describe("formatCodeDiffTerminal", () => {
     expect(result.stdout.split("\n")[0]).toContain("-");
   });
 
-  it("preserves served patches and renders truthful non-text outcomes", () => {
+  it("binds served patch headers to the authoritative file path", () => {
     const result = formatCodeDiffTerminal(
       envelope({
         files: [
@@ -181,7 +181,31 @@ describe("formatCodeDiffTerminal", () => {
             typeChanged: false,
             additions: 1,
             deletions: 1,
-            patch: "@@ -1 +1 @@\n-old\n+new\n",
+            patch: "--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\n+new\n",
+            contentStatus: "patch",
+            contentSafety: { filtered: false, modifications: [] },
+          },
+          {
+            path: "added file.ts",
+            pathEncoding: "utf8",
+            status: "added",
+            modeChanged: false,
+            typeChanged: false,
+            additions: 1,
+            deletions: 0,
+            patch: "--- a/file\n+++ b/file\n@@ -0,0 +1 @@\n+new\n",
+            contentStatus: "patch",
+            contentSafety: { filtered: false, modifications: [] },
+          },
+          {
+            path: "deleted.ts",
+            pathEncoding: "utf8",
+            status: "deleted",
+            modeChanged: false,
+            typeChanged: false,
+            additions: 0,
+            deletions: 1,
+            patch: "--- a/file\n+++ b/file\n@@ -1 +0,0 @@\n-old\n",
             contentStatus: "patch",
             contentSafety: { filtered: false, modifications: [] },
           },
@@ -219,8 +243,32 @@ describe("formatCodeDiffTerminal", () => {
     );
 
     expect(result.stdout).toBe(
-      "@@ -1 +1 @@\n-old\n+new\nBinary file image.png differs\nMetadata changed: mode.sh\nPatch omitted: large.ts (content_budget)\n",
+      "--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-old\n+new\n--- /dev/null\n+++ b/added file.ts\n@@ -0,0 +1 @@\n+new\n--- a/deleted.ts\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\nBinary file image.png differs\nMetadata changed: mode.sh\nPatch omitted: large.ts (content_budget)\n",
     );
+  });
+
+  it("preserves patches without backend placeholder headers", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({
+        files: [
+          {
+            path: "a.ts",
+            pathEncoding: "utf8",
+            status: "modified",
+            modeChanged: false,
+            typeChanged: false,
+            additions: 1,
+            deletions: 1,
+            patch: "@@ -1 +1 @@\n-old\n+new\n",
+            contentStatus: "patch",
+            contentSafety: { filtered: false, modifications: [] },
+          },
+        ],
+      }),
+      options,
+    );
+
+    expect(result.stdout).toBe("@@ -1 +1 @@\n-old\n+new\n");
   });
 
   it("keeps an empty authoritative diff silent in plain mode", () => {

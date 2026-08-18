@@ -1216,6 +1216,23 @@ async function runLiveSmoke(): Promise<void> {
     "code diff json missing selected view or exact resolutions",
   );
 
+  const codeDiffPatchText = assertTerminalOutput(
+    await runCli([
+      "code",
+      "diff",
+      "npm:express",
+      "5.2.0..5.2.1",
+      "--",
+      "lib/utils.js",
+    ]),
+    "code diff patch",
+  );
+  assert(
+    codeDiffPatchText.startsWith("--- a/lib/utils.js\n+++ b/lib/utils.js\n") &&
+      !codeDiffPatchText.includes("--- a/file\n+++ b/file\n"),
+    "code diff patch should bind headers to the authoritative file path",
+  );
+
   const codeDiffInvalid = await runCli([
     "code",
     "diff",
