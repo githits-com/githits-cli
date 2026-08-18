@@ -129,6 +129,27 @@ Validation, authentication, resolution, and raw-field errors exit 1 through
 the shared CLI error envelope. No `code_diff` MCP tool, instruction, skill, or
 plugin promotion exists during this phase.
 
+## Deferred rollout boundaries
+
+Public MCP and agent exposure remains deferred until post-merge CLI dogfooding
+resolves the MCP view vocabulary, evidence-backed `maxFiles` and
+`maxPatchBytes` defaults, automation semantics for partial or failed content,
+and whether `pathPrefix` or any CLI signature correction is actually needed.
+Before implementation, reverify the merged CLI contract and deployed backend
+rather than carrying these open decisions forward as assumptions.
+
+The next rollout stage is a public `code_diff` tool with mode-minimal fetching,
+CLI/MCP JSON parity, agent-native errors and descriptions, concise generated
+guidance, targeted Claude and Codex evaluation, and the corresponding smoke,
+package, plugin, and release validation. Structural CodeDiff remains unexposed.
+
+Typed changelog steering is a separate later stage, blocked on both a stable
+public CodeDiff invocation and a committed/deployed PkgSeer changelog-action
+contract. Its discriminator, field names, result placement, and fallback
+behavior must come from that future backend contract rather than inferred
+prose. Package range outcomes may then steer to valid CLI and MCP calls;
+repository/latest outcomes and unknown actions must remain unchanged.
+
 ## Key reference files
 
 | File | Responsibility |
