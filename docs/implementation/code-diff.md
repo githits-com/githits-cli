@@ -13,7 +13,7 @@ ergonomics and evidence envelope have been dogfooded.
 
 ## Addressing and modes
 
-`CodeNavigationService.codeDiff` accepts an unversioned package or repository
+`CodeDiffService.codeDiff` accepts an unversioned package or repository
 target plus explicit `from`, `to`, and `mode` values:
 
 | Mode | File fields selected |
@@ -68,12 +68,13 @@ consumer.
 
 ## Public boundary
 
-The service method, CodeDiff request/result types, and `CodeDiffError` are
-re-exported from `@githits/mcp/client`. This is a public TypeScript interface
-change: custom `CodeNavigationService` implementations must add `codeDiff`
-when adopting the package version containing this adapter. The existing test
-factories provide deterministic default results so current tool tests remain
-focused on their own behavior.
+The additive `CodeDiffService` capability, CodeDiff request/result types, and
+`CodeDiffError` are re-exported from `@githits/mcp/client`.
+`CodeNavigationServiceImpl` implements both `CodeNavigationService` and
+`CodeDiffService`, while custom `CodeNavigationService` implementations remain
+source-compatible and do not need to implement the unpromoted diff capability.
+The existing test factories provide deterministic default results so current
+tool tests remain focused on their own behavior.
 
 ## Silent CLI dogfood contract
 

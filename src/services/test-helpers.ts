@@ -3,6 +3,7 @@ import { posix, win32 } from "node:path";
 import type {
   ChangelogReport,
   CodeDiffResult,
+  CodeDiffService,
   CodeNavigationService,
   DependencyReport,
   GitHitsService,
@@ -541,8 +542,8 @@ export const defaultCodeDiffResult: CodeDiffResult = {
  * Creates a mock CodeNavigationService with default implementations.
  */
 export function createMockCodeNavigationService(
-  impl: Partial<CodeNavigationService> = {},
-): CodeNavigationService {
+  impl: Partial<CodeNavigationService & CodeDiffService> = {},
+): CodeNavigationService & CodeDiffService {
   return {
     search: mock(() => Promise.resolve(defaultUnifiedSearchOutcome)),
     searchStatus: mock(() => Promise.resolve(defaultUnifiedSearchOutcome)),
