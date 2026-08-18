@@ -477,6 +477,12 @@ submitted. The local `code_diff` text-v1 patch preview truncation was fixed to
 mark the 320-byte display bound and point to JSON for the full returned patch,
 while preserving backend omission limits.
 
+Targeted post-fix `experimental-code-diff` reruns then succeeded for Claude in
+59.4s and Codex in 42.2s. Both rated usefulness as helped with high confidence;
+each reported zero `toolIssues` and zero `instructionIssues`. This validates
+the bounded-preview and JSON recovery guidance fix. It does not change or claim
+to resolve the external/backend findings above.
+
 ### Likely files and components
 
 - `src/services/` config parser/loader modules and focused tests, refactoring
