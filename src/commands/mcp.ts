@@ -93,33 +93,6 @@ export interface McpCommandStartup {
   onServerCreated: (server: LocalMcpServer) => void;
 }
 
-async function createMcpContainer(
-  options: CreateMcpCommandStartupOptions,
-  agentProvider: () => AgentInfo | undefined,
-) {
-  const previousAuthStorage = process.env.GITHITS_AUTH_STORAGE;
-  if (options.experimentalTools) {
-    // The eval/session override must not let a malformed host TOML document
-    // affect startup. This process-local value only selects the already
-    // supported keychain construction path while createContainer initializes;
-    // it is restored before the caller continues.
-    process.env.GITHITS_AUTH_STORAGE = "keychain";
-  }
-  try {
-    return await createContainer({
-      resolveStoredToken: false,
-      clientName: "githits-cli/mcp",
-      agentProvider,
-    });
-  } finally {
-    if (previousAuthStorage === undefined) {
-      delete process.env.GITHITS_AUTH_STORAGE;
-    } else {
-      process.env.GITHITS_AUTH_STORAGE = previousAuthStorage;
-    }
-  }
-}
-
 export async function createMcpCommandStartup(
   options: CreateMcpCommandStartupOptions = {},
 ): Promise<McpCommandStartup> {
@@ -132,9 +105,11 @@ export async function createMcpCommandStartup(
         }),
       );
   let server: LocalMcpServer | undefined;
-  const services = await createMcpContainer(options, () =>
-    readMcpClientVersion(server),
-  );
+  const services = await createContainer({
+    resolveStoredToken: false,
+    clientName: "githits-cli/mcp",
+    agentProvider: () => readMcpClientVersion(server),
+  });
   return {
     services,
     experimentalPolicy,

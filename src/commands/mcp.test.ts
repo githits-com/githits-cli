@@ -2,7 +2,11 @@ import { describe, expect, it, mock } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AuthenticationError } from "@githits/core-internal";
+import {
+  AuthenticationError,
+  flushTelemetry,
+  resetTelemetryCollectorForTests,
+} from "@githits/core-internal";
 import {
   createMcpServer,
   getMcpToolDescriptors,
@@ -442,7 +446,7 @@ describe("createMcpCommandStartup", () => {
     }
   });
 
-  it("uses the session override without reading or writing malformed host config", async () => {
+  it("keeps malformed shared TOML as an auth startup error under the override", async () => {
     const xdgConfigHome = await mkdtemp(
       join(tmpdir(), "githits-mcp-override-"),
     );
@@ -458,6 +462,48 @@ describe("createMcpCommandStartup", () => {
       delete process.env.GITHITS_API_TOKEN;
       delete process.env.GITHITS_AUTH_STORAGE;
       await withXdgConfigHome(xdgConfigHome, async () => {
+        await expect(
+          createMcpCommandStartup({ experimentalTools: true }),
+        ).rejects.toThrow(`Cannot parse GitHits config at ${configPath}`);
+        expect(await Bun.file(configPath).text()).toBe(originalConfig);
+      });
+    } finally {
+      if (previousToken === undefined) delete process.env.GITHITS_API_TOKEN;
+      else process.env.GITHITS_API_TOKEN = previousToken;
+      if (previousStorage === undefined)
+        delete process.env.GITHITS_AUTH_STORAGE;
+      else process.env.GITHITS_AUTH_STORAGE = previousStorage;
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("bypasses only experimental validation while preserving file auth mode", async () => {
+    const xdgConfigHome = await mkdtemp(
+      join(tmpdir(), "githits-mcp-override-auth-"),
+    );
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    const configPath = join(configDir, "config.toml");
+    await writeFile(
+      configPath,
+      '[experimental]\ntools = "invalid"\n[auth]\nstorage = "file"\n',
+    );
+    const previousToken = process.env.GITHITS_API_TOKEN;
+    const previousStorage = process.env.GITHITS_AUTH_STORAGE;
+
+    try {
+      delete process.env.GITHITS_API_TOKEN;
+      delete process.env.GITHITS_AUTH_STORAGE;
+      const telemetry: string[] = [];
+      resetTelemetryCollectorForTests({
+        env: { GITHITS_TELEMETRY: "1" },
+        now: () => 0,
+        write: (text) => telemetry.push(text),
+      });
+      await withXdgConfigHome(xdgConfigHome, async () => {
+        await expect(createMcpCommandStartup()).rejects.toThrow(
+          `Invalid GitHits config at ${configPath}`,
+        );
         const startup = await createMcpCommandStartup({
           experimentalTools: true,
         });
@@ -465,15 +511,25 @@ describe("createMcpCommandStartup", () => {
           tools: true,
           reportToolIssues: undefined,
         });
-        expect(await Bun.file(configPath).text()).toBe(originalConfig);
+        expect(process.env.GITHITS_AUTH_STORAGE).toBeUndefined();
       });
-      expect(process.env.GITHITS_AUTH_STORAGE).toBeUndefined();
+      flushTelemetry(0);
+      expect(telemetry.join(" ")).toContain("mode=file");
+
+      process.env.GITHITS_AUTH_STORAGE = "invalid";
+      await withXdgConfigHome(xdgConfigHome, async () => {
+        await expect(
+          createMcpCommandStartup({ experimentalTools: true }),
+        ).rejects.toThrow("Invalid GITHITS_AUTH_STORAGE");
+      });
+      expect(process.env.GITHITS_AUTH_STORAGE).toBe("invalid");
     } finally {
       if (previousToken === undefined) delete process.env.GITHITS_API_TOKEN;
       else process.env.GITHITS_API_TOKEN = previousToken;
       if (previousStorage === undefined)
         delete process.env.GITHITS_AUTH_STORAGE;
       else process.env.GITHITS_AUTH_STORAGE = previousStorage;
+      resetTelemetryCollectorForTests({ env: {} });
       await rm(xdgConfigHome, { recursive: true, force: true });
     }
   });

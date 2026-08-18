@@ -109,9 +109,10 @@ Useful options:
 only with `--surface mcp --server local`, appends the hidden
 `githits mcp start --experimental-tools` session flag to every generated local
 MCP launch vector, and forces issue reporting off for that process. The flag
-does not apply to published servers or skills runs, and it never writes or
-reads the host experimental policy from `~/.config/githits/config.toml`;
-host dogfooding uses that `config.toml` instead.
+does not apply to published servers or skills runs, never writes host config,
+and bypasses only the host experimental policy. Valid host auth settings still
+apply; a wholly malformed shared TOML document can still block auth startup.
+Host dogfooding uses the experimental policy in `config.toml` instead.
 
 Normal GitHits backend overrides are passed through when set:
 
