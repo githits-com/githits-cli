@@ -37,6 +37,9 @@ extensions on the stable tool inventory.
 
 ### Fixed
 
+- **Confident target resolution** - Resolve guidance now emits direct canonical
+  next actions only for non-ambiguous exact or high-confidence matches; weaker
+  and empty results require explicit correction or selection.
 - **Repository-wide code diff guidance** - CLI help, legacy-scope diagnostics,
   and public client documentation now explain that package targets resolve
   repository and commit identity while raw diffs remain repository-wide and

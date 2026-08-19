@@ -319,6 +319,28 @@ async function runExperimentalLiveSmoke(
             !resolveTextBody.includes("--"),
           "experimental resolve text should use MCP-native follow-up guidance",
         );
+        const hasDirectResolveAction =
+          /Next: pass the canonical target "[^"]+"/.test(resolveTextBody);
+        if (resolveTextBody.includes("Unconfirmed ranked candidates:")) {
+          assert(
+            !hasDirectResolveAction &&
+              resolveTextBody.includes(
+                "do not pass the best result automatically",
+              ),
+            "experimental unconfirmed resolve text should require an explicit choice",
+          );
+        } else if (resolveTextBody.includes("Ambiguous:")) {
+          assert(
+            !hasDirectResolveAction &&
+              resolveTextBody.includes("do not auto-select a candidate"),
+            "experimental ambiguous resolve text should require an explicit choice",
+          );
+        } else {
+          assert(
+            hasDirectResolveAction,
+            "experimental actionable resolve text should include a canonical next action",
+          );
+        }
 
         const resolveJson = (await trackSmokeStep(
           "mcp resolve_target JSON experimental live",

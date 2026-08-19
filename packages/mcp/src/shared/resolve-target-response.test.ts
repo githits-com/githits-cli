@@ -6,6 +6,7 @@ import type {
 import {
   buildResolveTargetSuccessPayload,
   formatResolveTargetTerminal,
+  isResolveTargetActionable,
 } from "./resolve-target-response.js";
 
 function candidate(
@@ -118,6 +119,44 @@ describe("buildResolveTargetSuccessPayload", () => {
       candidates: [],
       protectedMatches: [],
     });
+  });
+});
+
+describe("isResolveTargetActionable", () => {
+  it("accepts only non-ambiguous EXACT and HIGH best results", () => {
+    for (const confidence of ["EXACT", "HIGH"] as const) {
+      const best = candidate({ confidence });
+      expect(
+        isResolveTargetActionable(
+          result({ best, candidates: [best], protectedMatches: [] }),
+        ),
+      ).toBe(true);
+    }
+
+    for (const confidence of ["MEDIUM", "LOW"] as const) {
+      const best = candidate({ confidence });
+      expect(
+        isResolveTargetActionable(
+          result({ best, candidates: [best], protectedMatches: [] }),
+        ),
+      ).toBe(false);
+    }
+
+    for (const confidence of ["exact", "high", "VERY_HIGH"] as const) {
+      const best = candidate({ confidence });
+      expect(
+        isResolveTargetActionable(
+          result({ best, candidates: [best], protectedMatches: [] }),
+        ),
+      ).toBe(false);
+    }
+
+    expect(isResolveTargetActionable(result({ ambiguous: true }))).toBe(false);
+    expect(
+      isResolveTargetActionable(
+        result({ best: undefined, candidates: [], protectedMatches: [] }),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -250,14 +289,62 @@ describe("formatResolveTargetTerminal", () => {
     }
   });
 
-  it("does not add recommendation wording for a medium result", () => {
-    const medium = candidate({ confidence: "MEDIUM" });
-    expect(
-      formatResolveTargetTerminal(
-        result({ best: medium, candidates: [medium], protectedMatches: [] }),
-        { name: "express", useColors: false },
-      ),
-    ).toContain("Candidates:\n  1. npm:express");
+  it("preserves ambiguous guidance when the best result has LOW confidence", () => {
+    const best = candidate({ confidence: "LOW" });
+    const output = formatResolveTargetTerminal(
+      result({
+        best,
+        candidates: [best],
+        protectedMatches: [],
+        ambiguous: true,
+        ambiguousReason: "LOW_CONFIDENCE",
+      }),
+      { name: "express", useColors: false },
+    );
+
+    expect(output).toContain(
+      "Ambiguous: only low-confidence matches were found",
+    );
+    expect(output).toContain("Candidates:\n  1. npm:express [low]");
+    expect(output).toContain(
+      "Next after choosing: githits search '<query>' --in '<target>'",
+    );
+    expect(output).not.toContain("Unconfirmed ranked candidates:");
+    expect(output).not.toContain("--in 'npm:express'");
+  });
+
+  it("emits direct canonical next actions for EXACT and HIGH results", () => {
+    for (const confidence of ["EXACT", "HIGH"] as const) {
+      const best = candidate({ confidence });
+      const output = formatResolveTargetTerminal(
+        result({ best, candidates: [best], protectedMatches: [] }),
+        { name: "express", query: "middleware", useColors: false },
+      );
+
+      expect(output).toContain("Candidates:\n  1. npm:express");
+      expect(output).toContain(
+        "Next: githits search 'middleware' --in 'npm:express'",
+      );
+      expect(output).not.toContain("Unconfirmed ranked candidates:");
+    }
+  });
+
+  it("requires narrowing or an explicit choice for MEDIUM and LOW results", () => {
+    for (const confidence of ["MEDIUM", "LOW"] as const) {
+      const best = candidate({ confidence });
+      const output = formatResolveTargetTerminal(
+        result({ best, candidates: [best], protectedMatches: [] }),
+        { name: "express", query: "middleware", useColors: false },
+      );
+
+      expect(output).toContain(
+        "Unconfirmed ranked candidates:\n  1. npm:express",
+      );
+      expect(output).toContain("narrow the name or filters");
+      expect(output).toContain("explicitly choose a candidate");
+      expect(output).toContain("--in '<target>'");
+      expect(output).not.toContain("--in 'npm:express'");
+    }
   });
 
   it("normalizes and caps candidate descriptions at 240 characters", () => {
@@ -307,16 +394,23 @@ describe("formatResolveTargetTerminal", () => {
         result({ best: undefined, candidates: [], protectedMatches: [] }),
         { name: "\u001b]0;owned\u0007missing", useColors: false },
       ),
-    ).toBe("No targets found for 'missing'.\n");
+    ).toBe(
+      "No targets found for 'missing'.\nCheck the spelling or adjust --registry filters; --query, --prefer-kind, and --intent-hint only rank existing candidates.\n",
+    );
   });
 
-  it("renders no-result text and optional ANSI colors", () => {
+  it("renders corrected-spelling and filter guidance for empty results", () => {
     expect(
       formatResolveTargetTerminal(
         result({ best: undefined, candidates: [], protectedMatches: [] }),
         { name: "missing", useColors: false },
       ),
-    ).toBe("No targets found for 'missing'.\n");
+    ).toBe(
+      "No targets found for 'missing'.\nCheck the spelling or adjust --registry filters; --query, --prefer-kind, and --intent-hint only rank existing candidates.\n",
+    );
+  });
+
+  it("renders optional ANSI colors", () => {
     expect(
       formatResolveTargetTerminal(result(), {
         name: "express",

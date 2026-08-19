@@ -11,6 +11,7 @@ import { mapPackageIntelligenceError } from "../shared/package-intelligence-erro
 import { buildResolveTargetParams } from "../shared/resolve-target-request.js";
 import {
   buildResolveTargetSuccessPayload,
+  isResolveTargetActionable,
   sanitizeTerminalText,
 } from "../shared/resolve-target-response.js";
 import { mcpMappedErrorResult } from "./shared.js";
@@ -74,7 +75,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  "Experimental tool. Use for fuzzy, ambiguous, misspelled, or human-friendly package and repository names when a canonical target is not known. Do not call for canonical `registry:name` or `github:owner/repo` targets; use those directly with the next MCP tool. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text-v1` (also available as `text`) gives bounded ranked candidates and a precise MCP follow-up; use `json` for the structured result.";
+  "Experimental tool. Use for fuzzy, ambiguous, misspelled, or human-friendly package and repository names when a canonical target is not known. Do not call for canonical `registry:name` or `github:owner/repo` targets; use those directly with the next MCP tool. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text-v1` (also available as `text`) gives bounded ranked candidates; only a non-ambiguous EXACT or HIGH best result gets a direct MCP follow-up, while MEDIUM or LOW requires narrowing or an explicit choice. Use `json` for the structured result.";
 
 export function createResolveTargetTool(
   service: ResolveTargetService,
@@ -123,6 +124,7 @@ export function formatResolveTargetMcpText(
   result: ResolveTargetResult,
   options: FormatResolveTargetMcpTextOptions,
 ): string {
+  const actionable = isResolveTargetActionable(result);
   const protectedKeys = new Set(
     result.protectedMatches.map((target) => targetKey(target)),
   );
@@ -139,16 +141,20 @@ export function formatResolveTargetMcpText(
     lines.push(
       `Ambiguous: ${formatAmbiguousReason(result.ambiguousReason)} Choose a candidate or narrow the name, query, registry, or preferred kind before continuing.`,
     );
-  } else if (result.best) {
+  } else if (actionable && result.best) {
     lines.push(`Best match: ${formatReference(result.best)}.`);
+  } else if (result.best) {
+    lines.push(
+      `Unconfirmed ranked candidates: the best result is ${sanitizeTerminalText(result.best.confidence.toLowerCase())} confidence.`,
+    );
   } else {
     lines.push(
-      `No targets found for "${sanitizeTerminalText(options.name)}". Try a changed name, query, registry filter, or intent hint; include more context if the name is human-friendly.`,
+      `No targets found for "${sanitizeTerminalText(options.name)}". Check the spelling or adjust registry filters; query, preferred kind, and intent hints only rank existing candidates.`,
     );
   }
 
   if (references.length > 0) {
-    lines.push("Candidates:");
+    if (result.ambiguous || actionable) lines.push("Candidates:");
     references.forEach((target, index) => {
       lines.push(
         `  ${index + 1}. ${formatReference(target)}${
@@ -180,13 +186,17 @@ export function formatResolveTargetMcpText(
     lines.push(
       "Next: choose the canonical target that matches the user's intent, then pass that exact target to the next MCP tool; do not auto-select a candidate.",
     );
-  } else if (result.best) {
+  } else if (actionable && result.best) {
     lines.push(
       `Next: pass the canonical target "${sanitizeTerminalText(result.best.canonicalKey)}" to the next MCP tool.`,
     );
+  } else if (result.best) {
+    lines.push(
+      "Next: narrow the name or filters, or explicitly choose a candidate that matches the user's intent; do not pass the best result automatically.",
+    );
   } else {
     lines.push(
-      "Next: revise the name or add narrow context before requesting another resolution; no target was invented.",
+      "Next: correct the spelling or adjust filters before requesting another resolution; no target was invented.",
     );
   }
   return `${lines.join("\n")}\n`;
