@@ -929,6 +929,33 @@ describe("renderUnifiedSearchSuccess", () => {
       'next: call search_status with search_ref="search-ref-docs"',
     );
   });
+
+  it("scopes empty claims to searched evidence when a source was not searched", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "READY",
+                freshness: "CURRENT",
+                resultCount: 0,
+                siteKey: "34150829eb8a7c57",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain("No hits in the searched evidence on this page.");
+    expect(text).not.toContain("No hits for docs");
+    expect(text).not.toContain("shorten or broaden");
+    expect(text).not.toContain("next:");
+  });
 });
 
 describe("renderUnifiedSearchError", () => {

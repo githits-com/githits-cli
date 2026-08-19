@@ -12,6 +12,7 @@ import {
   dim,
   formatProgressTarget,
   formatSuggestedSiteTargetGuidance,
+  hasUnsearchedDocumentationSources,
   highlight,
   highlightMatch,
   highlightRanges,
@@ -516,7 +517,12 @@ function formatUnifiedSearchTerminal(
   }
 
   if (payload.results.length === 0) {
-    lines.push("No results.");
+    lines.push(
+      payload.evidenceNotice ||
+        hasUnsearchedDocumentationSources(payload.sourceStatus)
+        ? "No hits in the searched evidence on this page."
+        : "No results.",
+    );
     if (payload.evidenceNotice) lines.push("Do not repeat immediately.");
     if (emptyResultNotes.length > 0) {
       lines.push("");

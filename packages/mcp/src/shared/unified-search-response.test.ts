@@ -997,12 +997,14 @@ describe("buildUnifiedSearchSuccessPayload", () => {
           {
             source: "DOCS",
             targetLabel: "npm:express@5.1.0",
+            servedTargetLabel: "npm:express@5.1.0",
             targetResolution: {
               freshness: "current",
               availableVersions: [],
               availableRefs: [],
             },
             indexingStatus: "INDEXED",
+            codeIndexState: "CURRENT",
             resultCount: 3,
             appliedFilters: [],
             ignoredFilters: [],
@@ -1112,6 +1114,33 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     if (!statusPayload.completed) throw new Error("expected completed payload");
     expect(statusPayload.result.evidenceNotice).toBe(payload.evidenceNotice);
     expect(statusPayload.result.sourceStatus).toEqual(payload.sourceStatus);
+
+    const emptyOutcome: UnifiedSearchOutcome = {
+      ...outcome,
+      result: {
+        ...outcome.result,
+        results: [],
+        page: { ...outcome.result.page, returned: 0 },
+      },
+    };
+    const emptyPayload = buildUnifiedSearchSuccessPayload(
+      {
+        targets: [{ registry: "NPM", packageName: "express" }],
+        query: "router",
+      },
+      "router",
+      "router",
+      emptyOutcome,
+    );
+    expect(emptyPayload.sourceStatus).toEqual(payload.sourceStatus);
+
+    const emptyStatusPayload = buildUnifiedSearchStatusPayload(emptyOutcome);
+    if (!emptyStatusPayload.completed) {
+      throw new Error("expected completed empty status payload");
+    }
+    expect(emptyStatusPayload.result.sourceStatus).toEqual(
+      payload.sourceStatus,
+    );
   });
 
   it("keeps independently actionable source context beside contributors", () => {

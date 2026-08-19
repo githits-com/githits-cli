@@ -79,6 +79,37 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(text).not.toContain("\n\n\n");
   });
 
+  it("does not overstate empty stored evidence when a source was not searched", () => {
+    const payload: UnifiedSearchStatusCompletedPayload = {
+      completed: true,
+      searchRef: "search-ref-unsearched",
+      result: {
+        hasMore: false,
+        results: [],
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "UNAVAILABLE",
+                resultCount: 0,
+                siteKey: "34150829eb8a7c57",
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const text = renderUnifiedSearchStatusText(payload);
+
+    expect(text).toContain("No hits in the searched evidence on this page.");
+    expect(text).not.toContain("No hits for docs");
+    expect(text).not.toContain("next:");
+  });
+
   it("does not leave a trailing separator after healthy stored results", () => {
     const payload: UnifiedSearchStatusCompletedPayload = {
       completed: true,

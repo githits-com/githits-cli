@@ -390,6 +390,32 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("scopes empty CLI claims to searched evidence when a source was not searched", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const result = createDocumentationSearchResult();
+    result.evidenceNotice = undefined;
+    const outcome: UnifiedSearchOutcome = {
+      state: "completed",
+      completed: true,
+      result,
+    };
+
+    await searchAction(
+      "router",
+      { in: ["npm:express"], source: "docs" },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("No hits in the searched evidence on this page.");
+    expect(output).not.toContain("No results.");
+    consoleSpy.mockRestore();
+  });
+
   it("renders healthy documentation as references only", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const result = createDocumentationSearchResult();

@@ -632,9 +632,12 @@ export function appendEmptySearchGuidance(
   if (options.showQuery && options.query?.raw) {
     lines.push(`query=${quote(options.query.raw)}`);
   }
-  if (options.evidenceNotice) {
+  if (
+    options.evidenceNotice ||
+    hasUnsearchedDocumentationSources(options.sourceStatus)
+  ) {
     lines.push("No hits in the searched evidence on this page.");
-    lines.push("Do not repeat immediately.");
+    if (options.evidenceNotice) lines.push("Do not repeat immediately.");
     return;
   }
   lines.push(formatEmptySearchHeadline(options.sourceStatus));
@@ -664,6 +667,18 @@ export function appendEmptySearchGuidance(
     pivots.push("use code_grep for a known literal or regex");
   }
   lines.push(`next: ${pivots.join("; ")}.`);
+}
+
+export function hasUnsearchedDocumentationSources(
+  sourceStatus: UnifiedSearchCompletedPayload["sourceStatus"],
+): boolean {
+  return Boolean(
+    sourceStatus?.some((entry) =>
+      entry.contributors?.some(
+        (contributor) => contributor.state !== "SEARCHED",
+      ),
+    ),
+  );
 }
 
 function hasIndexingSource(

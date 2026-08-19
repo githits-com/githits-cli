@@ -1066,11 +1066,23 @@ function compactSourceStatusEntry(
     ) {
       payload.freshTarget = freshTarget;
     }
-    if (servedTarget) payload.servedTarget = servedTarget;
-    if (entry.indexingStatus) payload.indexingStatus = entry.indexingStatus;
-    if (entry.codeIndexState) payload.codeIndexState = entry.codeIndexState;
-    if (!contributors && typeof entry.resultCount === "number") {
-      payload.resultCount = entry.resultCount;
+    const contributorIdentityDiverges = Boolean(
+      contributors &&
+        servedTarget &&
+        (canonicalTargetLabel(servedTarget) !==
+          canonicalTargetLabel(payload.targetLabel) ||
+          payload.requestedTarget ||
+          payload.freshTarget),
+    );
+    if (servedTarget && (!contributors || contributorIdentityDiverges)) {
+      payload.servedTarget = servedTarget;
+    }
+    if (!contributors) {
+      if (entry.indexingStatus) payload.indexingStatus = entry.indexingStatus;
+      if (entry.codeIndexState) payload.codeIndexState = entry.codeIndexState;
+      if (typeof entry.resultCount === "number") {
+        payload.resultCount = entry.resultCount;
+      }
     }
     interesting = true;
   }
@@ -1108,8 +1120,7 @@ function compactSourceStatusEntry(
     if (
       !contributors ||
       targetResolutionCarriesNotes ||
-      targetResolutionIsInteresting ||
-      options.includeEmptyResultContext
+      targetResolutionIsInteresting
     ) {
       payload.targetResolution = targetResolution;
     }
