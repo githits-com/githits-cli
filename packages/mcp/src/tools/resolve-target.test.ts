@@ -187,13 +187,40 @@ describe("resolve_target MCP adapter", () => {
         confidence,
       };
       const text = formatResolveTargetMcpText(
-        result({ best, candidates: [], protectedMatches: [] }),
+        result({
+          best,
+          candidates: [
+            {
+              ...best,
+              docsAvailable: false,
+              codeAvailable: false,
+            },
+            {
+              kind: "REPOSITORY",
+              canonicalKey: "github:expressjs/express",
+              confidence,
+              docsAvailable: false,
+              codeAvailable: false,
+            },
+          ],
+          protectedMatches: [
+            {
+              kind: "PACKAGE",
+              canonicalKey: "jsr:@express/core",
+              confidence: "EXACT",
+            },
+          ],
+        }),
         { name: "express" },
       );
 
       expect(text).toContain(
-        `Unconfirmed ranked candidates: the best result is ${confidence.toLowerCase()} confidence.`,
+        `Unconfirmed ranked candidates: the best result is ${confidence.toLowerCase()} confidence.\n  1. npm:express`,
       );
+      expect(text).toContain(
+        "jsr:@express/core [exact; package] · protected exact-name match",
+      );
+      expect(text).not.toContain("\nCandidates:\n");
       expect(text).toContain("narrow the name or filters");
       expect(text).toContain("explicitly choose a candidate");
       expect(text).toContain("do not pass the best result automatically");
@@ -297,7 +324,7 @@ describe("resolve_target MCP adapter", () => {
     expect(response.isError).toBeUndefined();
     expect(response.content[0]?.text).toContain("No targets found");
     expect(response.content[0]?.text).toContain(
-      "Check the spelling or loosen registry filters",
+      "Check the spelling or adjust registry filters",
     );
     expect(response.content[0]?.text).toContain(
       "query, preferred kind, and intent hints only rank existing candidates",

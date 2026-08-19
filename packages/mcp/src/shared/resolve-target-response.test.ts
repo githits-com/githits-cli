@@ -142,6 +142,15 @@ describe("isResolveTargetActionable", () => {
       ).toBe(false);
     }
 
+    for (const confidence of ["exact", "high", "VERY_HIGH"] as const) {
+      const best = candidate({ confidence });
+      expect(
+        isResolveTargetActionable(
+          result({ best, candidates: [best], protectedMatches: [] }),
+        ),
+      ).toBe(false);
+    }
+
     expect(isResolveTargetActionable(result({ ambiguous: true }))).toBe(false);
     expect(
       isResolveTargetActionable(
@@ -386,7 +395,7 @@ describe("formatResolveTargetTerminal", () => {
         { name: "\u001b]0;owned\u0007missing", useColors: false },
       ),
     ).toBe(
-      "No targets found for 'missing'.\nCheck the spelling or loosen --registry filters; --query, --prefer-kind, and --intent-hint only rank existing candidates.\n",
+      "No targets found for 'missing'.\nCheck the spelling or adjust --registry filters; --query, --prefer-kind, and --intent-hint only rank existing candidates.\n",
     );
   });
 
@@ -397,7 +406,7 @@ describe("formatResolveTargetTerminal", () => {
         { name: "missing", useColors: false },
       ),
     ).toBe(
-      "No targets found for 'missing'.\nCheck the spelling or loosen --registry filters; --query, --prefer-kind, and --intent-hint only rank existing candidates.\n",
+      "No targets found for 'missing'.\nCheck the spelling or adjust --registry filters; --query, --prefer-kind, and --intent-hint only rank existing candidates.\n",
     );
   });
 

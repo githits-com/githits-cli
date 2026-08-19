@@ -149,7 +149,7 @@ export function formatResolveTargetMcpText(
     );
   } else {
     lines.push(
-      `No targets found for "${sanitizeTerminalText(options.name)}". Check the spelling or loosen registry filters; query, preferred kind, and intent hints only rank existing candidates.`,
+      `No targets found for "${sanitizeTerminalText(options.name)}". Check the spelling or adjust registry filters; query, preferred kind, and intent hints only rank existing candidates.`,
     );
   }
 

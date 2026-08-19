@@ -493,6 +493,12 @@ as helped with high confidence and reported no tool or instruction issues. The
 retained Opus implementation reviewer then returned a clean verdict on the
 final delta with no actionable findings.
 
+A later consumer-actionability review found that non-ambiguous `MEDIUM` and
+`LOW` best results were still presented as direct next actions. Shared CLI/MCP
+formatter gating now keeps those results unconfirmed and requires narrowing or
+an explicit choice, while preserving direct actions for non-ambiguous `EXACT`
+and `HIGH` results.
+
 ### Likely files and components
 
 - `src/services/` config parser/loader modules and focused tests, refactoring

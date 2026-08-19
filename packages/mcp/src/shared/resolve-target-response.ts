@@ -102,7 +102,8 @@ export interface FormatResolveTargetTerminalOptions {
 
 /**
  * Decide whether consumers may offer the best target as a direct next action.
- * Lower-confidence results remain evidence for an explicit caller choice.
+ * Only canonical uppercase EXACT/HIGH values are actionable; unexpected values
+ * fail closed as evidence for an explicit caller choice.
  */
 export function isResolveTargetActionable(
   result: Pick<ResolveTargetResult, "ambiguous" | "best">,
@@ -120,7 +121,7 @@ export function formatResolveTargetTerminal(
   options: FormatResolveTargetTerminalOptions,
 ): string {
   if (!result.best) {
-    return `No targets found for '${sanitizeTerminalText(options.name)}'.\nCheck the spelling or loosen --registry filters; --query, --prefer-kind, and --intent-hint only rank existing candidates.\n`;
+    return `No targets found for '${sanitizeTerminalText(options.name)}'.\nCheck the spelling or adjust --registry filters; --query, --prefer-kind, and --intent-hint only rank existing candidates.\n`;
   }
   const useColors = options.useColors ?? false;
   const actionable = isResolveTargetActionable(result);
@@ -164,7 +165,7 @@ export function formatResolveTargetTerminal(
   } else {
     lines.push(
       "",
-      `Next: narrow the name or filters, or explicitly choose a candidate before running githits search ${shellQuote(query)} --in ${shellQuote("<target>")}.`,
+      `Next: narrow the name or filters, or explicitly choose a candidate before running githits search ${shellQuote(query)} --in ${shellQuote("<target>")}`,
     );
   }
   return `${lines.join("\n")}\n`;
