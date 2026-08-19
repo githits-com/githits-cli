@@ -96,6 +96,8 @@ describe("codeDiffAction", () => {
     const payload = JSON.parse(log.mock.calls[0]?.[0] as string);
     expect(payload.view).toBe("name-only");
     expect(payload.from.commitSha).toBe("from-sha");
+    expect(payload.to.commitSha).toBe("to-sha");
+    expect(payload.scope).toEqual({ status: "repository" });
     expect(payload.files).toEqual([
       { path: "lib/express.js", pathEncoding: "utf8" },
     ]);
@@ -451,6 +453,13 @@ describe("registerCodeDiffCommand", () => {
       "githits code diff [options] --repo-url <url> <from>..<to> [-- <path-glob>]",
     );
     expect(help).not.toContain("[target-or-range] [range-or-path-glob]");
+    expect(help).toContain(
+      "Compare repository trees resolved from package versions or repository refs",
+    );
+    expect(help).toContain("Diffs are always repository-wide");
+    expect(help).toContain("Sibling package paths");
+    expect(help).toContain("bounded relevance-ranked result may contain no");
+    expect(help).toContain("Maximum relevance-ranked returned files");
     expect(help).toContain("Target examples: `npm:express`");
     expect(help).toContain("suppressed patch output exits 1");
   });

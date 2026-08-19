@@ -27,6 +27,15 @@ Repository requests send only `repoUrl`, `fromRef`, and `toRef`. Raw options are
 omitted when empty. The adapter does not infer refs, synthesize patches,
 detect renames, or fall back to a hosted compare endpoint.
 
+Both addressing forms return repository-wide raw results. Package addressing
+resolves package, repository, version, and exact-commit identity, but does not
+discover or filter to a package subpath. Caller-supplied `pathPrefix` and
+`pathGlob` narrow repository-relative paths without changing
+`scope.status: REPOSITORY` or proving package ownership. Sibling package paths
+may appear, and deterministic repository-relative relevance ranking plus
+`maxFiles` can produce a bounded result with no files from the addressed
+package. That absence does not prove the package is unchanged.
+
 Target selection uses own-key presence: an opposite target key is rejected even
 when its value is `undefined`.
 
@@ -39,11 +48,13 @@ network request.
 ## Response and error contract
 
 Successful responses require a non-null `raw` result. The normalized result
-preserves both exact resolutions, package identity when present, scoped
-summary, scope, content coverage/failure, file identity/status/content status,
-backend content-safety modifications, and `hasMoreFiles`. A non-null raw
-inventory remains successful even when it contains `contentFailure`; that is
-post-inventory partial content, not a transport failure.
+preserves both exact resolutions, package identity when present,
+repository-wide summary and scope, caller filters, content coverage/failure,
+file identity/status/content status, backend content-safety modifications, and
+`hasMoreFiles`. A non-null raw inventory remains successful even when it
+contains `contentFailure`; that is post-inventory partial content, not a
+transport failure. Current successful results use `REPOSITORY`; `PACKAGE` and
+`UNKNOWN` remain accepted only for compatibility with older backends.
 
 Raw field-local GraphQL failures are represented by `CodeDiffError`. Its
 `details` object retains only the bounded backend extension fields needed for
@@ -100,11 +111,16 @@ owns its defaults.
 Plain stdout contains only the selected Git-like projection. Resolution,
 scope, truncation, unprojectable-file, content-coverage, path-encoding, and
 content-safety diagnostics go to stderr. `--verbose` adds exact identity and
-scope diagnostics without changing the primary stream. `--json` emits a lean
-camel-case data envelope whose file objects include only fields relevant to the
-selected view, except that `pathEncoding` is always retained to distinguish
-display-only byte escapes. Text views use reversible Git-style quoting for
-control characters, quotes, and backslashes instead of changing path identity.
+scope diagnostics without changing the primary stream, including
+`scope: repository` for current results. Repository scope is normal and does
+not produce a warning; legacy `UNKNOWN` remains visibly repository-wide.
+`--json` emits a lean camel-case data envelope whose separate package target,
+exact resolutions, effective `scope: {status: "repository"}`, caller filters,
+and completeness fields preserve the contract without presentation prose. File
+objects include only fields relevant to the selected view, except that
+`pathEncoding` is always retained to distinguish display-only byte escapes.
+Text views use reversible Git-style quoting for control characters, quotes, and
+backslashes instead of changing path identity.
 Stat rows measure quoted paths in terminal cells rather than JavaScript string
 length, keeping dividers aligned for wide Unicode and emoji filenames. On an
 interactive color-capable terminal, patch additions/deletions, stat bars, and

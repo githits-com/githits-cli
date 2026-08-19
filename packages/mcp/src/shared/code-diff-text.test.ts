@@ -35,7 +35,7 @@ function envelope(
       inventoryComplete: true,
       unprojectableFiles: 0,
     },
-    scope: { status: "package", fromSubpath: "", toSubpath: "" },
+    scope: { status: "repository" },
     contentCoverage: "complete",
     files: [],
     hasMoreFiles: false,
@@ -652,10 +652,9 @@ describe("formatCodeDiffTerminal", () => {
       options,
     );
 
-    expect(result.stderr).toContain(
-      "Showing changes for the entire repository",
-    );
-    expect(result.stderr).toContain("Unrelated files may be included");
+    expect(result.stderr).toContain("legacy unknown scope metadata");
+    expect(result.stderr).toContain("Treat this diff as repository-wide");
+    expect(result.stderr).toContain("unrelated paths may be included");
     expect(result.stderr).toContain("inventory is incomplete");
     expect(result.stderr).toContain("More matching files");
     expect(result.stderr).toContain("Add a path glob after `--`");
@@ -667,7 +666,7 @@ describe("formatCodeDiffTerminal", () => {
     expect(result.stderr).toContain("modified for content safety");
   });
 
-  it("explains that an unknown package scope applies the glob repository-wide", () => {
+  it("explains that legacy unknown scope applies the glob repository-wide", () => {
     const result = formatCodeDiffTerminal(
       envelope({
         scope: { status: "unknown", pathGlob: "packages/**/*.ts" },
@@ -676,27 +675,45 @@ describe("formatCodeDiffTerminal", () => {
     );
 
     expect(result.stderr).toContain(
-      "the path glob was applied across the entire repository",
+      "the path glob was applied repository-wide",
     );
     expect(result.stderr).toContain(
-      "Matching files from other packages may be included",
+      "Matching paths from anywhere in the repository may be included",
     );
     expect(result.stderr).toContain("narrow the path glob if needed");
-    expect(result.stderr).not.toContain("add a path glob");
+    expect(result.stderr).not.toContain("Add a path glob");
   });
 
-  it("offers a path glob when unknown package scope is otherwise complete", () => {
+  it("offers a path glob when legacy unknown scope is otherwise complete", () => {
     const result = formatCodeDiffTerminal(
       envelope({ scope: { status: "unknown" } }),
       options,
     );
 
-    expect(result.stderr).toContain(
-      "Showing changes for the entire repository",
-    );
+    expect(result.stderr).toContain("Treat this diff as repository-wide");
     expect(result.stderr).toContain(
       "Add a path glob after `--` to narrow the diff",
     );
+  });
+
+  it("keeps normal repository scope quiet for package targets", () => {
+    const result = formatCodeDiffTerminal(
+      envelope({ scope: { status: "repository" } }),
+      options,
+    );
+
+    expect(result.stderr).toBeUndefined();
+  });
+
+  it("reports repository scope in verbose package diagnostics", () => {
+    const result = formatCodeDiffTerminal(envelope(), {
+      useColors: false,
+      verbose: true,
+    });
+
+    expect(result.stderr).toContain("target: npm:example");
+    expect(result.stderr).toContain("scope: repository");
+    expect(result.stderr).not.toContain("legacy unknown scope metadata");
   });
 
   it("adds full exact identity and scope facts only in verbose diagnostics", () => {

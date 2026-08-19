@@ -174,7 +174,7 @@ describe("buildCodeDiffSuccessPayload", () => {
     expect(Object.hasOwn(payload.to, "resolvedVersion")).toBe(false);
   });
 
-  it("preserves summary, root package scope, truncation, and coverage facts", () => {
+  it("preserves summary, legacy package scope, truncation, and coverage facts", () => {
     const payload = buildCodeDiffSuccessPayload(
       makeResult(),
       options(packageTarget, "name-only"),
