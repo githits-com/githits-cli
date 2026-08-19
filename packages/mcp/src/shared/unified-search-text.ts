@@ -539,6 +539,7 @@ function formatDocumentationSiteIdentity(
   if (!value) return undefined;
   try {
     const url = new URL(value);
+    if (!url.host) return undefined;
     const path = url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "");
     return `${url.host}${path}`;
   } catch {

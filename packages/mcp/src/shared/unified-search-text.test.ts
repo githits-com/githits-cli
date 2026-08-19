@@ -684,34 +684,40 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("searched: site expressjs.com");
-    expect(text).not.toContain("expressjs.com/");
+    expect(text.split("\n").find((line) => line.startsWith("searched:"))).toBe(
+      "searched: site expressjs.com",
+    );
   });
 
   it("keeps malformed optional site metadata from failing text output", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([], {
-        sourceStatus: [
-          {
-            source: "docs",
-            targetLabel: "npm:express@5.2.1",
-            contributors: [
-              {
-                kind: "DOCPACK",
-                state: "PENDING",
-                resultCount: 0,
-                siteKey: "34150829eb8a7c57",
-                siteUrl: "expressjs.com/en/guide",
-              },
-            ],
-          },
-        ],
-      }),
-    );
+    for (const siteUrl of [
+      "expressjs.com/en/guide",
+      "file:///opt/docs/index.html",
+    ]) {
+      const text = renderUnifiedSearchSuccess(
+        completed([], {
+          sourceStatus: [
+            {
+              source: "docs",
+              targetLabel: "npm:express@5.2.1",
+              contributors: [
+                {
+                  kind: "DOCPACK",
+                  state: "PENDING",
+                  resultCount: 0,
+                  siteKey: "34150829eb8a7c57",
+                  siteUrl,
+                },
+              ],
+            },
+          ],
+        }),
+      );
 
-    expect(text).toContain(
-      "site documentation - not ready, so it was not searched",
-    );
+      expect(text).toContain(
+        "site documentation - not ready, so it was not searched",
+      );
+    }
   });
 
   it("numbers docpack labels only when their displayed identities collide", () => {
@@ -731,9 +737,18 @@ describe("renderUnifiedSearchSuccess", () => {
               },
               {
                 kind: "DOCPACK",
-                state: "UNAVAILABLE",
+                state: "READY",
+                freshness: "CURRENT",
                 resultCount: 0,
                 siteKey: "2222222222222222",
+                siteUrl: "https://other.example.com",
+                coverage: { coverageState: "COMPLETE" },
+              },
+              {
+                kind: "DOCPACK",
+                state: "UNAVAILABLE",
+                resultCount: 0,
+                siteKey: "3333333333333333",
                 siteUrl: "https://docs.example.com",
               },
             ],
@@ -744,6 +759,9 @@ describe("renderUnifiedSearchSuccess", () => {
 
     expect(text).toContain(
       "site docs.example.com 1 - not ready, so it was not searched",
+    );
+    expect(text).toContain(
+      "site other.example.com - available, but not searched for this response",
     );
     expect(text).toContain(
       "site docs.example.com 2 - unavailable and was not searched",
