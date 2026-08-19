@@ -99,6 +99,19 @@ instruction issues. The resolution/security-holder findings above remained and
 are still classified as external/backend behavior rather than compaction
 regressions.
 
+The 0.10.0 release-readiness rerun on 2026-08-19 repeated all three workloads
+for both agents. All six succeeded and rated GitHits as helpful; Claude reported
+high confidence for all three, while Codex reported medium/high/high. Both
+`code_diff` runs and both stable `express-router` regressions completed without
+tool or instruction findings. The resolution workload reproduced the known
+zero-candidate and opaque security-holder errors. Codex additionally observed
+that the removed `npm:lodahs@0.0.1-security` source coordinate was unavailable
+and symbol search did not find `chunk` even though `code_files`/`code_read`
+located it. These remain package/source backend findings: the client preserves
+the typed evidence and does not invent fuzzy fallbacks, removed-package
+semantics, or symbol matches. Fixing them requires backend ownership and is not
+part of the local experimental-tool release.
+
 `feedback` is mutating, so smoke coverage exercises registration and
 validation/auth paths only. It does not submit fake feedback to the live
 backend.

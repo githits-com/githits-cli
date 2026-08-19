@@ -127,6 +127,31 @@ npx githits@latest docs list npm:express
 npx githits@latest docs read <page-id> --lines 20-80
 ```
 
+## Experimental Tools
+
+GitHits 0.10 adds two opt-in local tools for early dogfooding:
+
+- `resolve_target` / `githits resolve` turns a fuzzy or ambiguous package or
+  repository name into ranked canonical targets.
+- `code_diff` / `githits code diff` compares repository trees resolved from
+  exact package versions or public GitHub refs.
+
+They are hidden and disabled by default. They are available only through the
+local `githits` CLI and local stdio MCP server; the hosted MCP and plugin or
+extension installs keep the stable tool set. Enable them in the GitHits host
+config, then restart the coding agent so it restarts the local MCP server:
+
+```toml
+# macOS/Linux: ~/.config/githits/config.toml
+# Windows: %APPDATA%\githits\config.toml
+[experimental]
+tools = true
+```
+
+See [Experimental tools](docs/experimental-tools.md) for platform-specific
+config discovery, CLI examples, optional issue reporting, limitations, and how
+to disable the tools.
+
 ## Supported Sources
 
 GitHits works with package and repository targets such as:
@@ -350,11 +375,11 @@ githits example          Find real-world implementations from open source
 githits languages        List or filter supported programming languages
 githits feedback         Submit feedback about GitHits results
 githits doctor           Diagnose configuration and auth state
-githits resolve          Resolve a package or GitHub repository name to canonical targets
+githits resolve          Experimental: resolve a fuzzy name to canonical targets
 githits settings         View and update preferences, privacy, and terms
 githits search           Explore repository code, dependencies, docs, and symbols
 githits search-status    Check the status of a previous indexed search
-githits code             List, read, and grep indexed dependency source
+githits code             List, read, grep, or experimentally diff indexed source
 githits pkg              Inspect package metadata, vulnerabilities, deps, and changelogs
 githits docs             Browse and read package documentation
 githits auth             Manage authentication

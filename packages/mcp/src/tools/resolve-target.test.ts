@@ -96,6 +96,7 @@ describe("resolve_target MCP adapter", () => {
       enum: ["text-v1", "text", "json"],
     });
     for (const phrase of [
+      "Experimental",
       "fuzzy",
       "ambiguous",
       "misspelled",

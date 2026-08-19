@@ -75,7 +75,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  "Use for fuzzy, ambiguous, misspelled, or human-friendly package and repository names when a canonical target is not known. Do not call for canonical `registry:name` or `github:owner/repo` targets; use those directly with the next MCP tool. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text-v1` (also available as `text`) gives bounded ranked candidates; only a non-ambiguous EXACT or HIGH best result gets a direct MCP follow-up, while MEDIUM or LOW requires narrowing or an explicit choice. Use `json` for the structured result.";
+  "Experimental tool. Use for fuzzy, ambiguous, misspelled, or human-friendly package and repository names when a canonical target is not known. Do not call for canonical `registry:name` or `github:owner/repo` targets; use those directly with the next MCP tool. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text-v1` (also available as `text`) gives bounded ranked candidates; only a non-ambiguous EXACT or HIGH best result gets a direct MCP follow-up, while MEDIUM or LOW requires narrowing or an explicit choice. Use `json` for the structured result.";
 
 export function createResolveTargetTool(
   service: ResolveTargetService,

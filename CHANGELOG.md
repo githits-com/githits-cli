@@ -5,6 +5,76 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.10.0] - 2026-08-19
+
+Minor release: introduces opt-in local experimental tools for target resolution
+and exact source diffs while keeping the default CLI, hosted MCP, plugins, and
+extensions on the stable tool inventory.
+
+### Added
+
+- **Local experimental tools** - adds config-gated `resolve_target` and
+  `code_diff` to the local stdio MCP server alongside the matching `githits
+  resolve` and `githits code diff` commands. Enable the hidden-by-default suite
+  with `[experimental] tools = true`; hosted MCP, plugins, extensions, and the
+  public MCP API remain unchanged.
+- **Documentation source evidence** - search and search-status now identify the
+  repository and published-site documentation behind results. Healthy sources
+  render as compact references, while stale, incomplete, pending, or unavailable
+  sources explain what was searched and what the published evidence covers.
+
+### Changed
+
+- **Experimental CLI defaults** - `resolve` and `code diff` are hidden and
+  disabled unless the experimental suite is enabled. Optional
+  `report_tool_issues = "experimental"` or `"all"` adds redacted local agent
+  feedback guidance without sending feedback automatically.
+- **Authoritative documentation site identities** - discovery search and status
+  now carry canonical docpack URLs and show their host and path even when no
+  hits are returned.
+- **Human release merge gate** - release preparation now stops at an open PR;
+  merging requires separate explicit human approval after that PR exists.
+
+### Fixed
+
+- **Confident target resolution** - Resolve guidance now emits direct canonical
+  next actions only for non-ambiguous exact or high-confidence matches; weaker
+  and empty results require explicit correction or selection.
+- **Repository-wide code diff guidance** - CLI help, legacy-scope diagnostics,
+  and public client documentation now explain that package targets resolve
+  repository and commit identity while raw diffs remain repository-wide and
+  bounded results may contain only sibling paths.
+- **Diff terminal output** - CodeDiff now aligns wide Unicode paths by terminal
+  cell width and colors patches, stat bars, summary markers, and change statuses
+  when supported; verbose code-file rows use the same alignment.
+
+## [@githits/mcp 0.10.0] - 2026-08-19
+
+Coordinated minor release: aligns the public MCP package with the CLI 0.10 line
+while improving stable documentation-source and code-diff evidence. The
+experimental `resolve_target` and `code_diff` tools remain local to `githits`
+and are not exported by the public MCP server API.
+
+### Added
+
+- **Documentation source evidence** - search and search-status now identify the
+  repository and published-site documentation behind results. Healthy sources
+  render as compact references, while stale, incomplete, pending, or unavailable
+  sources explain what was searched and what the published evidence covers.
+
+### Changed
+
+- **Authoritative documentation site identities** - discovery search and status
+  now carry canonical docpack URLs and show their host and path even when no
+  hits are returned.
+
+### Fixed
+
+- **Repository-wide code diff guidance** - public client documentation now
+  explains that package targets resolve repository and commit identity while
+  raw diffs remain repository-wide and bounded results may contain only sibling
+  paths.
+
 ## [githits 0.9.3] - 2026-08-18
 
 Patch release: adds an unpromoted CodeDiff CLI dogfood surface and improves
