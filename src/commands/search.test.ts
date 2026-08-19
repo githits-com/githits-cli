@@ -61,6 +61,7 @@ function createDocumentationSearchResult(): UnifiedSearchResult {
             freshness: "STALE",
             resultCount: 0,
             siteKey: "34150829eb8a7c57",
+            siteUrl: "https://expressjs.com/en/guide",
             coverage: {
               coverageState: "PARTIAL",
               pagesCrawled: 120,
@@ -380,7 +381,7 @@ describe("searchAction", () => {
       "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
     );
     expect(output).toContain(
-      "site documentation - available, but not searched for this response; the available snapshot is older; published snapshot is partial: 120 pages included",
+      "site expressjs.com/en/guide - available, but not searched for this response; the available snapshot is older; published snapshot is partial: 120 pages included",
     );
     expect(output).not.toContain("hits on this page");
     expect(output).not.toContain("Documentation corpora");
@@ -537,6 +538,7 @@ describe("searchAction", () => {
     contributors[1].freshness = "CURRENT";
     contributors[1].resultCount = 1;
     contributors[1].siteKey = "34150829eb8a7c57";
+    contributors[1].siteUrl = "https://expressjs.com/en/guide";
     contributors[1].coverage = {
       coverageState: "COMPLETE",
       pagesCrawled: 124,
@@ -561,7 +563,7 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain(
-      "1 result | 1 docs page\nSearched: repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567; site expressjs.com",
+      "1 result | 1 docs page\nSearched: repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567; site expressjs.com/en/guide",
     );
     expect(output).not.toContain("Documentation sources");
     expect(output).not.toContain("hits on this page");
@@ -843,7 +845,7 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain("Documentation sources:");
     expect(output).toContain(
-      "site documentation - available, but not searched for this response",
+      "site expressjs.com/en/guide - available, but not searched for this response",
     );
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
     expect(output).toContain("githits search-status search-ref-docs");
@@ -1822,7 +1824,7 @@ describe("searchStatusAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain("Documentation sources:");
     expect(output).toContain(
-      "site documentation - available, but not searched for this response",
+      "site expressjs.com/en/guide - available, but not searched for this response",
     );
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
     expect(output).not.toContain("githits search-status search-ref-docs");

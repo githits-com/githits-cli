@@ -1291,6 +1291,7 @@ describe("CodeNavigationServiceImpl", () => {
                 freshness: "STALE",
                 resultCount: 0,
                 siteKey: "expressjs.com",
+                siteUrl: "https://expressjs.com/en/guide",
                 coverage: {
                   coverageState: "CAPPED",
                   coverageReason: "artifact_size",
@@ -1381,13 +1382,14 @@ describe("CodeNavigationServiceImpl", () => {
         "repositoryUrl",
         "commitSha",
         "siteKey",
+        "siteUrl",
         "artifactOverflowPageCount",
         "evidenceNotice",
       ]) {
         expect(query).toContain(field);
       }
       expect(query).toMatch(
-        /contributors\s*\{\s*kind\s+state\s+freshness\s+resultCount\s+repositoryUrl\s+commitSha\s+siteKey\s+coverage\s*\{\s*coverageState\s+coverageReason\s+pagesCrawled\s+frontierRemaining\s+artifactOverflowPageCount\s+estimatedTotalPages\s+note\s*\}\s*\}/,
+        /contributors\s*\{\s*kind\s+state\s+freshness\s+resultCount\s+repositoryUrl\s+commitSha\s+siteKey\s+siteUrl\s+coverage\s*\{\s*coverageState\s+coverageReason\s+pagesCrawled\s+frontierRemaining\s+artifactOverflowPageCount\s+estimatedTotalPages\s+note\s*\}\s*\}/,
       );
     });
   }

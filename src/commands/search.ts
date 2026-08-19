@@ -795,11 +795,7 @@ function formatSourceStatusNotes(
 
 function formatDocumentationSourcesTerminal(
   sourceStatus: SourceStatusEntry[] | undefined,
-  results: Array<{
-    type: string;
-    target: string;
-    locator: { sourceUrl?: string };
-  }>,
+  results: Array<{ target: string }>,
 ): string[] {
   const lines: string[] = [];
   appendDocumentationSources(lines, sourceStatus, results);

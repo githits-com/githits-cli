@@ -557,7 +557,7 @@ describe("renderUnifiedSearchSuccess", () => {
             target: "npm:express@5.2.1",
             locator: {
               pageId: "express/routing",
-              sourceUrl: "https://expressjs.com/en/guide/routing.html",
+              sourceUrl: "https://wrong.example.net/inferred-from-hit",
               sourceKind: "hosted",
             },
           }),
@@ -574,6 +574,7 @@ describe("renderUnifiedSearchSuccess", () => {
                   freshness: "CURRENT",
                   resultCount: 4,
                   siteKey: "34150829eb8a7c57",
+                  siteUrl: "https://expressjs.com/en/guide/",
                   coverage: {
                     coverageState: "COMPLETE",
                     pagesCrawled: 124,
@@ -605,8 +606,9 @@ describe("renderUnifiedSearchSuccess", () => {
       .split("\n")
       .find((line) => line.startsWith("searched:"));
     expect(searchedLine).toBe(
-      "searched: site expressjs.com; repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
+      "searched: site expressjs.com/en/guide; repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
     );
+    expect(text).not.toContain("wrong.example.net");
     expect(text).toContain(
       "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567\n\n[1]",
     );
@@ -657,6 +659,113 @@ describe("renderUnifiedSearchSuccess", () => {
       "searched:\n  npm:express@5.2.1: repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567\n  npm:koa@3.0.1: repo https://github.com/koajs/koa @ abcdef0123456789abcdef0123456789abcdef01",
     );
     expect(text.indexOf("searched:")).toBeLessThan(text.indexOf("[1]"));
+  });
+
+  it("renders a root docpack URL without a redundant trailing slash", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                freshness: "CURRENT",
+                resultCount: 0,
+                siteKey: "34150829eb8a7c57",
+                siteUrl: "https://expressjs.com/",
+                coverage: { coverageState: "COMPLETE" },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(text.split("\n").find((line) => line.startsWith("searched:"))).toBe(
+      "searched: site expressjs.com",
+    );
+  });
+
+  it("keeps malformed optional site metadata from failing text output", () => {
+    for (const siteUrl of [
+      "expressjs.com/en/guide",
+      "file:///opt/docs/index.html",
+    ]) {
+      const text = renderUnifiedSearchSuccess(
+        completed([], {
+          sourceStatus: [
+            {
+              source: "docs",
+              targetLabel: "npm:express@5.2.1",
+              contributors: [
+                {
+                  kind: "DOCPACK",
+                  state: "PENDING",
+                  resultCount: 0,
+                  siteKey: "34150829eb8a7c57",
+                  siteUrl,
+                },
+              ],
+            },
+          ],
+        }),
+      );
+
+      expect(text).toContain(
+        "site documentation - not ready, so it was not searched",
+      );
+    }
+  });
+
+  it("numbers docpack labels only when their displayed identities collide", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "PENDING",
+                resultCount: 0,
+                siteKey: "1111111111111111",
+                siteUrl: "https://docs.example.com/",
+              },
+              {
+                kind: "DOCPACK",
+                state: "READY",
+                freshness: "CURRENT",
+                resultCount: 0,
+                siteKey: "2222222222222222",
+                siteUrl: "https://other.example.com",
+                coverage: { coverageState: "COMPLETE" },
+              },
+              {
+                kind: "DOCPACK",
+                state: "UNAVAILABLE",
+                resultCount: 0,
+                siteKey: "3333333333333333",
+                siteUrl: "https://docs.example.com",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "site docs.example.com 1 - not ready, so it was not searched",
+    );
+    expect(text).toContain(
+      "site other.example.com - available, but not searched for this response",
+    );
+    expect(text).toContain(
+      "site docs.example.com 2 - unavailable and was not searched",
+    );
   });
 
   it("retains the source target when another response target has no contributors", () => {
@@ -793,7 +902,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567 - searched",
     );
     expect(text).toContain(
-      "site expressjs.com - searched; published coverage details unavailable",
+      "site documentation - searched; published coverage details unavailable",
     );
     expect(text).not.toContain("searched: repo");
   });
@@ -859,6 +968,7 @@ describe("renderUnifiedSearchSuccess", () => {
                 freshness: "STALE",
                 resultCount: 2,
                 siteKey: "34150829eb8a7c57",
+                siteUrl: "https://expressjs.com/en/guide",
                 coverage: {
                   coverageState: "CAPPED",
                   coverageReason: "artifact_size",
@@ -875,6 +985,7 @@ describe("renderUnifiedSearchSuccess", () => {
                 freshness: "CURRENT",
                 resultCount: 0,
                 siteKey: "1111111111111111",
+                siteUrl: "https://koajs.com/docs",
                 coverage: {
                   coverageState: "COMPLETE",
                   pagesCrawled: 75,
@@ -888,6 +999,7 @@ describe("renderUnifiedSearchSuccess", () => {
                 freshness: "STALE",
                 resultCount: 0,
                 siteKey: "2222222222222222",
+                siteUrl: "https://react.dev/reference",
                 coverage: {
                   coverageState: "NONE",
                   pagesCrawled: 69,
@@ -901,12 +1013,14 @@ describe("renderUnifiedSearchSuccess", () => {
                 state: "PENDING",
                 resultCount: 0,
                 siteKey: "3333333333333333",
+                siteUrl: "https://docs.example.com/pending",
               },
               {
                 kind: "DOCPACK",
                 state: "UNAVAILABLE",
                 resultCount: 0,
                 siteKey: "4444444444444444",
+                siteUrl: "https://docs.example.com/unavailable",
               },
               {
                 kind: "DOCPACK",
@@ -914,6 +1028,7 @@ describe("renderUnifiedSearchSuccess", () => {
                 freshness: "CURRENT",
                 resultCount: 0,
                 siteKey: "5555555555555555",
+                siteUrl: "https://docs.example.com/capped",
                 coverage: {
                   coverageState: "CAPPED",
                   coverageReason: "trap_suspected",
@@ -937,23 +1052,23 @@ describe("renderUnifiedSearchSuccess", () => {
       "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567 - searched",
     );
     expect(text).toContain(
-      "site documentation 1 - searched an older snapshot; published snapshot hit its size cap: 480 pages included, 12 pages omitted, about 700 estimated total",
+      "site expressjs.com/en/guide - searched an older snapshot; published snapshot hit its size cap: 480 pages included, 12 pages omitted, about 700 estimated total",
     );
     expect(text).toContain(
-      "site documentation 2 - available, but not searched for this response",
+      "site koajs.com/docs - available, but not searched for this response",
     );
     expect(text).toContain(
-      "site documentation 3 - searched an older snapshot; published coverage was not measured: 69 pages included",
+      "site react.dev/reference - searched an older snapshot; published coverage was not measured: 69 pages included",
     );
     expect(text).not.toContain("Coverage has not been computed");
     expect(text).toContain(
-      "site documentation 4 - not ready, so it was not searched",
+      "site docs.example.com/pending - not ready, so it was not searched",
     );
     expect(text).toContain(
-      "site documentation 5 - unavailable and was not searched",
+      "site docs.example.com/unavailable - unavailable and was not searched",
     );
     expect(text).toContain(
-      "site documentation 6 - searched; published snapshot is capped: 20 pages included, limited by a suspected crawl trap",
+      "site docs.example.com/capped - searched; published snapshot is capped: 20 pages included, limited by a suspected crawl trap",
     );
     expect(text).not.toContain("hits on this page");
     expect(text).not.toContain("documentation corpora");
