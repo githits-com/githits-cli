@@ -26,10 +26,12 @@ import {
 } from "./target-resolution.js";
 import type {
   UnifiedSearchCompletedPayload,
+  UnifiedSearchDocumentationContributorPayload,
   UnifiedSearchErrorPayload,
   UnifiedSearchHitPayload,
   UnifiedSearchIncompletePayload,
   UnifiedSearchQueryEcho,
+  UnifiedSearchSourceStatusPayload,
 } from "./unified-search-response.js";
 
 const SUMMARY_WRAP_WIDTH = 76;
@@ -51,16 +53,22 @@ export function renderUnifiedSearchSuccess(
   if (completedEmpty) {
     appendWarnings(lines, payload.warnings);
     appendSourceStatusNotes(lines, payload.sourceStatus);
+    appendDocumentationSources(lines, payload.sourceStatus, payload.results);
     if (lines[lines.length - 1] !== "") lines.push("");
     appendEmptySearchGuidance(lines, {
       query: payload.query,
       sourceStatus: payload.sourceStatus,
+      evidenceNotice: payload.evidenceNotice,
     });
   } else if (payload.results.length === 0) {
+    appendDocumentationSources(lines, payload.sourceStatus, payload.results);
+    if (lines[lines.length - 1] !== "") lines.push("");
     lines.push(
       noHitsYetMessage("progress" in payload ? payload.progress : undefined),
     );
   } else {
+    appendDocumentationSources(lines, payload.sourceStatus, payload.results);
+    if (lines[lines.length - 1] !== "") lines.push("");
     appendUnifiedSearchHits(lines, payload.results);
   }
 
@@ -251,6 +259,20 @@ function buildTrailer(
     lines.push(`More hits available.${nextOffsetHint}`);
   }
 
+  if (options.includeSourceStatus) {
+    appendSourceStatusNotes(lines, payload.sourceStatus);
+  }
+
+  appendEvidenceNotice(lines, payload.evidenceNotice);
+
+  const progress = "progress" in payload ? payload.progress : undefined;
+  if (progress?.targets?.length) {
+    lines.push("progress targets:");
+    for (const target of progress.targets) {
+      lines.push(`  - ${formatProgressTarget(target)}`);
+    }
+  }
+
   if (!payload.completed && payload.searchRef) {
     const status = payload.progress?.status;
     const action =
@@ -268,21 +290,20 @@ function buildTrailer(
     }
     lines.push(action);
     appendIncompleteSearchNextAction(lines, status, payload.searchRef);
-  }
-
-  if (options.includeSourceStatus) {
-    appendSourceStatusNotes(lines, payload.sourceStatus);
-  }
-
-  const progress = "progress" in payload ? payload.progress : undefined;
-  if (progress?.targets?.length) {
-    lines.push("progress targets:");
-    for (const target of progress.targets) {
-      lines.push(`  - ${formatProgressTarget(target)}`);
-    }
+  } else if (payload.evidenceNotice && payload.searchRef) {
+    appendEvidenceSearchStatusNextAction(lines, payload.searchRef);
   }
 
   return lines;
+}
+
+function appendEvidenceSearchStatusNextAction(
+  lines: string[],
+  searchRef: string,
+): void {
+  lines.push(
+    `next: call search_status with search_ref=${JSON.stringify(searchRef)} and wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}.`,
+  );
 }
 
 export function appendIncompleteSearchNextAction(
@@ -315,13 +336,299 @@ export function appendSourceStatusNotes(
     | UnifiedSearchIncompletePayload["sourceStatus"],
 ): void {
   if (!sourceStatus || sourceStatus.length === 0) return;
+  const noted = sourceStatus.filter(hasSourceStatusNote);
+  if (noted.length === 0) return;
   lines.push("source notes:");
-  for (const entry of sourceStatus) {
+  for (const entry of noted) {
     lines.push(`  - ${formatSourceStatus(entry)}`);
     for (const guidance of formatSuggestedSiteTargetGuidance(entry)) {
       lines.push(`    ${guidance}`);
     }
   }
+}
+
+function hasSourceStatusNote(entry: UnifiedSearchSourceStatusPayload): boolean {
+  return Boolean(
+    entry.requestedTarget ||
+      entry.freshTarget ||
+      entry.servedTarget ||
+      entry.targetResolution ||
+      entry.indexingStatus ||
+      entry.codeIndexState ||
+      typeof entry.resultCount === "number" ||
+      entry.ignoredFilters?.length ||
+      entry.incompatibleFilters?.length ||
+      entry.ignoredQueryFeatures?.length ||
+      entry.incompatibleQueryFeatures?.length ||
+      entry.suggestedSiteTargets?.length ||
+      entry.suggestedSiteTargetsTruncated ||
+      entry.note ||
+      entry.coverage,
+  );
+}
+
+export interface DocumentationSourceResult {
+  type: string;
+  target: string;
+  locator: { sourceUrl?: string };
+}
+
+/** Render compact references for healthy docs and explain only exceptions. */
+export function appendDocumentationSources(
+  lines: string[],
+  sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
+  results: DocumentationSourceResult[] = [],
+): void {
+  const documented =
+    sourceStatus?.filter((entry) => entry.contributors?.length) ?? [];
+  if (documented.length === 0) return;
+  if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
+
+  const entries = documented.map((entry) => {
+    const contributors = entry.contributors ?? [];
+    const sources = contributors.map((contributor) => ({
+      contributor,
+      identity: formatDocumentationContributorIdentity(
+        contributor,
+        entry.targetLabel,
+        results,
+        contributors,
+      ),
+    }));
+    return {
+      entry,
+      sources,
+      healthy: contributors.every(isHealthyDocumentationContributor),
+    };
+  });
+  const healthy = entries.filter((entry) => entry.healthy);
+  const exceptional = entries.filter((entry) => !entry.healthy);
+  const responseTargets = new Set([
+    ...(sourceStatus?.map((entry) => entry.targetLabel) ?? []),
+    ...results.map((result) => result.target),
+  ]);
+  const showTargets = responseTargets.size > 1;
+
+  if (healthy.length > 0) {
+    if (showTargets) {
+      lines.push("searched:");
+      for (const { entry, sources } of healthy) {
+        lines.push(
+          `  ${entry.targetLabel}: ${sources.map(({ identity }) => identity).join("; ")}`,
+        );
+      }
+    } else {
+      lines.push(
+        `searched: ${healthy.flatMap(({ sources }) => sources.map(({ identity }) => identity)).join("; ")}`,
+      );
+    }
+  }
+
+  if (healthy.length > 0 && exceptional.length > 0) lines.push("");
+
+  if (exceptional.length > 0) {
+    lines.push("documentation sources:");
+    for (const { entry, sources } of exceptional) {
+      if (showTargets) lines.push(`  ${entry.targetLabel}:`);
+      const indent = showTargets ? "    " : "  ";
+      for (const { contributor, identity } of sources) {
+        lines.push(
+          `${indent}- ${formatDocumentationContributor(contributor, identity)}`,
+        );
+      }
+    }
+  }
+}
+
+function formatDocumentationContributor(
+  contributor: NonNullable<
+    UnifiedSearchSourceStatusPayload["contributors"]
+  >[number],
+  identity: string,
+): string {
+  if (isHealthyDocumentationContributor(contributor)) {
+    return `${identity} - searched`;
+  }
+
+  const details: string[] = [];
+  if (contributor.state === "SEARCHED") {
+    details.push(
+      contributor.freshness === "STALE"
+        ? "searched an older snapshot"
+        : "searched",
+    );
+  } else {
+    details.push(formatDocumentationContributorState(contributor.state));
+    if (contributor.freshness === "STALE") {
+      details.push("the available snapshot is older");
+    }
+  }
+  const coverage = formatPublishedCoverage(contributor.coverage);
+  if (coverage) {
+    details.push(coverage);
+  } else if (
+    contributor.kind === "DOCPACK" &&
+    contributor.state === "SEARCHED" &&
+    !contributor.coverage
+  ) {
+    details.push("published coverage details unavailable");
+  }
+  return `${identity} - ${details.join("; ")}`;
+}
+
+export function appendEvidenceNotice(
+  lines: string[],
+  evidenceNotice: string | undefined,
+): void {
+  if (evidenceNotice) lines.push(`evidence notice: ${evidenceNotice}`);
+}
+
+function formatDocumentationContributorState(
+  state: UnifiedSearchDocumentationContributorPayload["state"],
+): string {
+  switch (state) {
+    case "SEARCHED":
+      return "searched";
+    case "READY":
+      return "available, but not searched for this response";
+    case "PENDING":
+      return "not ready, so it was not searched";
+    case "UNAVAILABLE":
+      return "unavailable and was not searched";
+  }
+}
+
+function formatDocumentationContributorIdentity(
+  contributor: NonNullable<
+    UnifiedSearchSourceStatusPayload["contributors"]
+  >[number],
+  targetLabel: string,
+  results: DocumentationSourceResult[],
+  contributors: UnifiedSearchDocumentationContributorPayload[],
+): string {
+  if (contributor.kind === "REPOSITORY_DOCS") {
+    const identity = [contributor.repositoryUrl, contributor.commitSha]
+      .filter(Boolean)
+      .join(" @ ");
+    return identity ? `repo ${identity}` : "repository docs";
+  }
+  const targetSite = targetLabel.startsWith("site:")
+    ? targetLabel.slice("site:".length)
+    : undefined;
+  const docpacks = contributors.filter(
+    (candidate) => candidate.kind === "DOCPACK",
+  );
+  const docpackNumber = docpacks.indexOf(contributor) + 1;
+  const numberSuffix = docpacks.length > 1 ? ` ${docpackNumber}` : "";
+  if (targetSite) return `site ${targetSite}${numberSuffix}`;
+
+  if (docpacks.length === 1) {
+    const matchingHosts = new Set(
+      results
+        .filter(
+          (result) =>
+            result.type === "documentation_page" &&
+            result.target === targetLabel &&
+            result.locator.sourceUrl,
+        )
+        .map((result) => hostnameFromUrl(result.locator.sourceUrl))
+        .filter((host): host is string => Boolean(host)),
+    );
+    if (matchingHosts.size === 1) {
+      return `site ${matchingHosts.values().next().value}`;
+    }
+  }
+
+  return `site documentation${numberSuffix}`;
+}
+
+function isHealthyDocumentationContributor(
+  contributor: UnifiedSearchDocumentationContributorPayload,
+): boolean {
+  if (contributor.state !== "SEARCHED" || contributor.freshness !== "CURRENT") {
+    return false;
+  }
+  return (
+    contributor.kind === "REPOSITORY_DOCS" ||
+    contributor.coverage?.coverageState === "COMPLETE"
+  );
+}
+
+function hostnameFromUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    return new URL(value).hostname || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function formatPublishedCoverage(
+  coverage: NonNullable<
+    UnifiedSearchSourceStatusPayload["contributors"]
+  >[number]["coverage"],
+): string | undefined {
+  if (!coverage) return undefined;
+  if (coverage.coverageState === "COMPLETE") return undefined;
+
+  const details: string[] = [];
+  if (typeof coverage.pagesCrawled === "number") {
+    details.push(
+      `${coverage.pagesCrawled} page${coverage.pagesCrawled === 1 ? "" : "s"} included`,
+    );
+  }
+  if (
+    typeof coverage.artifactOverflowPageCount === "number" &&
+    coverage.artifactOverflowPageCount > 0
+  ) {
+    details.push(
+      `${coverage.artifactOverflowPageCount} page${coverage.artifactOverflowPageCount === 1 ? "" : "s"} omitted`,
+    );
+  }
+  if (
+    typeof coverage.frontierRemaining === "number" &&
+    coverage.frontierRemaining > 0
+  ) {
+    details.push(
+      `${coverage.frontierRemaining} discovered page${coverage.frontierRemaining === 1 ? "" : "s"} not included`,
+    );
+  }
+  if (typeof coverage.estimatedTotalPages === "number") {
+    details.push(`about ${coverage.estimatedTotalPages} estimated total`);
+  }
+
+  const reason = coverage.coverageReason
+    ? humanizeCoverageReason(coverage.coverageReason)
+    : undefined;
+  const cappedReasonIsHeadline =
+    coverage.coverageState === "CAPPED" &&
+    (reason === "artifact size" || reason === "max pages");
+  if (reason && !cappedReasonIsHeadline) {
+    details.push(`limited by ${reason}`);
+  }
+
+  const detailText = details.length > 0 ? `: ${details.join(", ")}` : "";
+  switch (coverage.coverageState) {
+    case "PARTIAL":
+      return `published snapshot is partial${detailText}`;
+    case "CAPPED":
+      if (reason === "artifact size") {
+        return `published snapshot hit its size cap${detailText}`;
+      }
+      if (reason === "max pages") {
+        return `published snapshot reached its page limit${detailText}`;
+      }
+      return `published snapshot is capped${detailText}`;
+    case "NONE":
+      return `published coverage was not measured${detailText}`;
+    default:
+      return `published coverage is ${coverage.coverageState.toLowerCase()}${detailText}`;
+  }
+}
+
+function humanizeCoverageReason(reason: string): string {
+  if (reason === "trap_suspected") return "a suspected crawl trap";
+  return reason.replaceAll(/[_-]+/g, " ");
 }
 
 export function appendEmptySearchGuidance(
@@ -330,12 +637,38 @@ export function appendEmptySearchGuidance(
     query?: UnifiedSearchQueryEcho;
     showQuery?: boolean;
     sourceStatus?: UnifiedSearchCompletedPayload["sourceStatus"];
+    evidenceNotice?: string;
+    guidanceStyle?: "mcp" | "cli";
+    fallbackHeadline?: string;
   },
 ): void {
   if (options.showQuery && options.query?.raw) {
     lines.push(`query=${quote(options.query.raw)}`);
   }
-  lines.push(formatEmptySearchHeadline(options.sourceStatus));
+  const hasUnsearchedSources = hasUnsearchedDocumentationSources(
+    options.sourceStatus,
+  );
+  if (options.evidenceNotice) {
+    lines.push("No hits in the searched evidence on this page.");
+    lines.push("Do not repeat immediately.");
+    return;
+  }
+  lines.push(
+    hasUnsearchedSources
+      ? "No hits in the searched evidence on this page."
+      : (options.fallbackHeadline ??
+          formatEmptySearchHeadline(options.sourceStatus)),
+  );
+  if (options.guidanceStyle === "cli") {
+    lines.push(
+      hasIndexingSource(options.sourceStatus)
+        ? "Run again with a larger --wait while indexing finishes."
+        : isStandaloneSiteSearch(options.sourceStatus)
+          ? "Try a shorter or broader query."
+          : "Try a shorter or broader query, or search another source.",
+    );
+    return;
+  }
   lines.push("Do not repeat this search unchanged.");
   if (hasIndexingSource(options.sourceStatus)) {
     const hasAlternatives = options.sourceStatus?.some(
@@ -355,13 +688,26 @@ export function appendEmptySearchGuidance(
   if (hasRestrictiveSearchFilters(options.query)) {
     pivots.push("remove restrictive filters");
   }
-  if (!options.query?.sources?.includes("symbol")) {
+  const standaloneSiteSearch = isStandaloneSiteSearch(options.sourceStatus);
+  if (!standaloneSiteSearch && !options.query?.sources?.includes("symbol")) {
     pivots.push('use source="symbol" for an exact API/entity name');
   }
-  if (!isStandaloneSiteSearch(options.sourceStatus)) {
+  if (!standaloneSiteSearch) {
     pivots.push("use code_grep for a known literal or regex");
   }
   lines.push(`next: ${pivots.join("; ")}.`);
+}
+
+function hasUnsearchedDocumentationSources(
+  sourceStatus: UnifiedSearchCompletedPayload["sourceStatus"],
+): boolean {
+  return Boolean(
+    sourceStatus?.some((entry) =>
+      entry.contributors?.some(
+        (contributor) => contributor.state !== "SEARCHED",
+      ),
+    ),
+  );
 }
 
 function hasIndexingSource(

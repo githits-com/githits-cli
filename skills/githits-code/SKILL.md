@@ -60,7 +60,7 @@ githits docs read <pageId> --lines 20-120
 - Documentation text reads return at most 150 lines per call. Continue with explicit `--lines` windows when more context is needed; pass `--json` when you need `startLine`, `endLine`, or `totalLines` pagination metadata.
 - For multi-step code/docs investigations, keep raw CLI output out of the final answer unless it is the evidence the user needs.
 - If output says it used recent/stale indexed evidence, treat the displayed served target as provenance; if freshness matters, retry with a longer `--wait` or use one of the displayed `queryable now` versions/refs, or inspect JSON `targetResolution` for structured candidates.
-- Treat partial documentation coverage as incomplete evidence and retry later when advised. Capped coverage is terminal for the current crawl, so report the limitation instead of retrying.
+- Partial and capped documentation coverage are usable published evidence. Report the disclosed limit, but infer neither indexing progress nor retryability from coverage; follow only `searchRef` and the evidence notice.
 - If search returns a `searchRef`, continue with `githits search-status <searchRef>` instead of repeating the original search. Its bounded wait defaults to 20 seconds; use `--wait <seconds>` with an integer from 0 to 60 to adjust it.
 - If grep returns no matches, do not repeat it unchanged. Follow the returned guidance by changing the pattern, broadening the file scope, or switching to `githits search` for conceptual discovery.
 - For a missing or ambiguous standalone site, use the returned `suggestedSiteTargets` in order. Do not rewrite the original target or retry automatically; when `suggestedSiteTargetsTruncated` is true, state that additional candidates were omitted.

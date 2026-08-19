@@ -169,13 +169,7 @@ export type CodeIndexState =
   | "MISSING"
   | string;
 
-/**
- * Coverage lifecycle for crawled documentation site data.
- *
- * `PARTIAL` is transient (a crawl is still running, so retrying later can
- * return more); `CAPPED` is terminal (a crawl limit stopped indexing, so
- * retrying will not help). Both mean served evidence may be incomplete.
- */
+/** Coverage state of the selected published documentation corpus. */
 export type DocCoverageState =
   | "NONE"
   | "PARTIAL"
@@ -191,10 +185,10 @@ export interface DocCoverage {
   coverageState: DocCoverageState;
   coverageReason?: string;
   pagesCrawled?: number;
-  frontierRemaining?: number;
+  frontierRemaining?: number | null;
   artifactOverflowPageCount?: number;
   estimatedTotalPages?: number;
-  /** Backend-owned note suitable for CLI/MCP rendering. Preferred over client wording. */
+  /** Backend-owned coverage note retained for structured callers. */
   note?: string;
 }
 
@@ -299,6 +293,31 @@ export interface UnifiedSearchSourceStatus {
   suggestedSiteTargetsTruncated: boolean;
   note?: string;
   coverage?: DocCoverage;
+  contributors?: UnifiedSearchDocumentationContributor[];
+}
+
+export type UnifiedSearchDocumentationContributorKind =
+  | "REPOSITORY_DOCS"
+  | "DOCPACK";
+
+export type UnifiedSearchDocumentationContributorState =
+  | "SEARCHED"
+  | "READY"
+  | "PENDING"
+  | "UNAVAILABLE";
+
+export type UnifiedSearchDocumentationFreshness = "CURRENT" | "STALE";
+
+/** One physical documentation corpus disclosed for a DOCS source row. */
+export interface UnifiedSearchDocumentationContributor {
+  kind: UnifiedSearchDocumentationContributorKind;
+  state: UnifiedSearchDocumentationContributorState;
+  freshness?: UnifiedSearchDocumentationFreshness;
+  resultCount: number;
+  repositoryUrl?: string;
+  commitSha?: string;
+  siteKey?: string;
+  coverage?: DocCoverage;
 }
 
 export interface UnifiedSearchProgressTarget {
@@ -332,6 +351,7 @@ export interface UnifiedSearchResult {
   page: UnifiedSearchPageInfo;
   partialResults: boolean;
   sourceStatus: UnifiedSearchSourceStatus[];
+  evidenceNotice?: string;
 }
 
 export interface UnifiedSearchProgress {
@@ -978,6 +998,18 @@ coverage {
   note
 }`;
 
+const DOCUMENTATION_CONTRIBUTORS_SELECTION = `
+contributors {
+  kind
+  state
+  freshness
+  resultCount
+  repositoryUrl
+  commitSha
+  siteKey
+  ${DOC_COVERAGE_SELECTION}
+}`;
+
 const TARGET_RESOLUTION_SELECTION = `
 targetResolution {
   requested {
@@ -1114,6 +1146,7 @@ query UnifiedSearch(
         hasMore
       }
       partialResults
+      evidenceNotice
       sourceStatus {
         source
         targetLabel
@@ -1134,6 +1167,7 @@ query UnifiedSearch(
         suggestedSiteTargetsTruncated
         note
         ${DOC_COVERAGE_SELECTION}
+        ${DOCUMENTATION_CONTRIBUTORS_SELECTION}
       }
     }
     progress {
@@ -1269,6 +1303,7 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitT
         hasMore
       }
       partialResults
+      evidenceNotice
       sourceStatus {
         source
         targetLabel
@@ -1289,6 +1324,7 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitT
         suggestedSiteTargetsTruncated
         note
         ${DOC_COVERAGE_SELECTION}
+        ${DOCUMENTATION_CONTRIBUTORS_SELECTION}
       }
     }
   }
@@ -1488,6 +1524,17 @@ const docCoverageSchema = z
   .nullable()
   .optional();
 
+const unifiedSearchDocumentationContributorSchema = z.object({
+  kind: z.enum(["REPOSITORY_DOCS", "DOCPACK"]),
+  state: z.enum(["SEARCHED", "READY", "PENDING", "UNAVAILABLE"]),
+  freshness: z.enum(["CURRENT", "STALE"]).nullable().optional(),
+  resultCount: z.number().int().nonnegative(),
+  repositoryUrl: z.string().nullable().optional(),
+  commitSha: z.string().nullable().optional(),
+  siteKey: z.string().nullable().optional(),
+  coverage: docCoverageSchema,
+});
+
 const unifiedSearchSourceStatusSchema = z.object({
   source: unifiedSearchSourceSchema,
   targetLabel: z.string(),
@@ -1508,6 +1555,7 @@ const unifiedSearchSourceStatusSchema = z.object({
   suggestedSiteTargetsTruncated: z.boolean(),
   note: z.string().nullable().optional(),
   coverage: docCoverageSchema,
+  contributors: z.array(unifiedSearchDocumentationContributorSchema),
 });
 
 const unifiedSearchResultSchema = z.object({
@@ -1518,6 +1566,7 @@ const unifiedSearchResultSchema = z.object({
   page: unifiedSearchPageInfoSchema,
   partialResults: z.boolean(),
   sourceStatus: z.array(unifiedSearchSourceStatusSchema),
+  evidenceNotice: z.string().nullable().optional(),
 });
 
 const unifiedSearchSessionStatusSchema = z.enum([
@@ -2916,7 +2965,20 @@ export class CodeNavigationServiceImpl
         suggestedSiteTargetsTruncated: entry.suggestedSiteTargetsTruncated,
         note: entry.note ?? undefined,
         coverage: normaliseDocCoverage(entry.coverage),
+        contributors: entry.contributors.map((contributor) => ({
+          kind: contributor.kind,
+          state: contributor.state,
+          freshness: contributor.freshness ?? undefined,
+          resultCount: contributor.resultCount,
+          repositoryUrl: contributor.repositoryUrl ?? undefined,
+          commitSha: contributor.commitSha ?? undefined,
+          siteKey: contributor.siteKey ?? undefined,
+          coverage: normaliseDocCoverage(contributor.coverage, {
+            preserveNone: true,
+          }),
+        })),
       })),
+      evidenceNotice: result.evidenceNotice ?? undefined,
     };
   }
 
@@ -3953,21 +4015,27 @@ function normaliseTargetResolution(
 }
 
 /**
- * Normalise crawl coverage, dropping the entry entirely when the backend
- * reports no computed coverage. `NONE` carries no actionable signal, so
- * collapsing it here keeps downstream rendering free of empty states.
+ * Normalise crawl coverage. Pair/progress coverage drops `NONE` because it has
+ * no actionable signal; contributor coverage preserves it as part of the
+ * selected published snapshot.
  */
 function normaliseDocCoverage(
   coverage: z.infer<typeof docCoverageSchema>,
+  options: { preserveNone?: boolean } = {},
 ): DocCoverage | undefined {
   if (!coverage) return undefined;
-  if (coverage.coverageState === "NONE") return undefined;
+  if (coverage.coverageState === "NONE" && !options.preserveNone) {
+    return undefined;
+  }
   const out: DocCoverage = { coverageState: coverage.coverageState };
   if (coverage.coverageReason) out.coverageReason = coverage.coverageReason;
   if (typeof coverage.pagesCrawled === "number") {
     out.pagesCrawled = coverage.pagesCrawled;
   }
-  if (typeof coverage.frontierRemaining === "number") {
+  if (
+    typeof coverage.frontierRemaining === "number" ||
+    coverage.frontierRemaining === null
+  ) {
     out.frontierRemaining = coverage.frontierRemaining;
   }
   if (typeof coverage.artifactOverflowPageCount === "number") {

@@ -4,7 +4,9 @@ import type {
   UnifiedSearchStatusResultPayload,
 } from "./unified-search-response.js";
 import {
+  appendDocumentationSources,
   appendEmptySearchGuidance,
+  appendEvidenceNotice,
   appendIncompleteSearchNextAction,
   appendSourceStatusNotes,
   appendUnifiedSearchHits,
@@ -56,12 +58,33 @@ export function renderUnifiedSearchStatusText(payload: StatusPayload): string {
     );
   }
 
+  const trailer: string[] = [];
+  if (result?.hasMore) {
+    const nextOffsetHint =
+      typeof result.nextOffset === "number"
+        ? ` Pass offset=${result.nextOffset} for the next page or limit=N to widen.`
+        : " Pass limit=N to widen.";
+    trailer.push(`More hits available.${nextOffsetHint}`);
+  }
+  if (result?.results.length) {
+    appendSourceStatusNotes(trailer, result.sourceStatus);
+  }
+  if (result) appendEvidenceNotice(trailer, result.evidenceNotice);
   if (!payload.completed) {
     appendIncompleteSearchNextAction(
-      lines,
+      trailer,
       payload.progress?.status,
       payload.searchRef,
     );
+  }
+  if (trailer.length > 0) {
+    if (
+      (result?.results.length || result?.hasMore || result?.evidenceNotice) &&
+      lines[lines.length - 1] !== ""
+    ) {
+      lines.push("");
+    }
+    lines.push(...trailer);
   }
 
   return lines.join("\n");
@@ -91,36 +114,27 @@ function appendResult(
   }
   if (result.results.length === 0) {
     if (completed) {
+      const sourceDetailsStart = lines.length;
       appendSourceStatusNotes(lines, result.sourceStatus);
-      if (result.sourceStatus?.length) lines.push("");
+      appendDocumentationSources(lines, result.sourceStatus, result.results);
+      if (lines.length > sourceDetailsStart) lines.push("");
       appendEmptySearchGuidance(lines, {
         query: result.query,
         showQuery: true,
         sourceStatus: result.sourceStatus,
+        evidenceNotice: result.evidenceNotice,
       });
     } else {
+      const sourceDetailsStart = lines.length;
       appendSourceStatusNotes(lines, result.sourceStatus);
-      if (result.sourceStatus?.length) lines.push("");
+      appendDocumentationSources(lines, result.sourceStatus, result.results);
+      if (lines.length > sourceDetailsStart) lines.push("");
       lines.push(noHitsYetMessage(progress));
     }
   } else {
+    appendDocumentationSources(lines, result.sourceStatus, result.results);
+    if (lines[lines.length - 1] !== "") lines.push("");
     appendUnifiedSearchHits(lines, result.results);
-  }
-  if (result.hasMore) {
-    const nextOffsetHint =
-      typeof result.nextOffset === "number"
-        ? ` Pass offset=${result.nextOffset} for the next page or limit=N to widen.`
-        : " Pass limit=N to widen.";
-    lines.push("");
-    lines.push(`More hits available.${nextOffsetHint}`);
-  }
-  if (
-    result.results.length > 0 &&
-    result.sourceStatus &&
-    result.sourceStatus.length > 0
-  ) {
-    lines.push("");
-    appendSourceStatusNotes(lines, result.sourceStatus);
   }
 }
 

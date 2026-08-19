@@ -8,6 +8,7 @@ import { AuthenticationError } from "@githits/core-internal";
 import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,
+  documentationContributorOutcome,
 } from "../services/test-helpers.js";
 import { createSearchStatusTool } from "./search-status.js";
 
@@ -139,6 +140,38 @@ describe("searchStatusTool", () => {
     expect(payload.searchRef).toBe(defaultUnifiedSearchOutcome.searchRef);
     expect(payload.result.results).toHaveLength(1);
     expect(payload).not.toHaveProperty("query");
+  });
+
+  it("preserves stored documentation contributor metadata in JSON and text", async () => {
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() =>
+          Promise.resolve(documentationContributorOutcome),
+        ),
+      }),
+    );
+
+    const json = await tool.handler(
+      { search_ref: "search-ref-docs", format: "json" },
+      {},
+    );
+    const payload = JSON.parse(json.content[0]?.text ?? "{}");
+    expect(payload.result.sourceStatus[0].contributors).toEqual(
+      documentationContributorOutcome.state === "completed"
+        ? documentationContributorOutcome.result.sourceStatus[0]?.contributors
+        : [],
+    );
+    expect(payload.result.evidenceNotice).toBe(
+      documentationContributorOutcome.state === "completed"
+        ? documentationContributorOutcome.result.evidenceNotice
+        : undefined,
+    );
+
+    const text = await tool.handler({ search_ref: "search-ref-docs" }, {});
+    expect(text.content[0]?.text).toContain("documentation sources:");
+    expect(text.content[0]?.text).toContain(
+      "site documentation - not ready, so it was not searched",
+    );
   });
 
   it("keeps completed empty JSON structured", async () => {
@@ -300,6 +333,7 @@ describe("searchStatusTool", () => {
           incompatibleQueryFeatures: [],
           suggestedSiteTargets: ["site:docs.example.com"],
           suggestedSiteTargetsTruncated: true,
+          contributors: [],
         },
       ],
     };
@@ -350,6 +384,7 @@ describe("searchStatusTool", () => {
           incompatibleQueryFeatures: [],
           suggestedSiteTargets: [],
           suggestedSiteTargetsTruncated: false,
+          contributors: [],
         },
       ],
     };
@@ -442,6 +477,7 @@ describe("searchStatusTool", () => {
                   incompatibleQueryFeatures: [],
                   suggestedSiteTargets: ["site:example.com/docs"],
                   suggestedSiteTargetsTruncated: true,
+                  contributors: [],
                 },
               ],
             },

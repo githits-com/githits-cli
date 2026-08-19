@@ -22,6 +22,7 @@ import {
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
   MalformedCodeNavigationResponseError,
+  type UnifiedSearchDocumentationContributor,
 } from "./code-navigation-service.js";
 import {
   AuthenticationError,
@@ -88,6 +89,7 @@ function buildSuggestedSiteSearchResult(
         incompatibleQueryFeatures: [],
         suggestedSiteTargets: fixture.targets,
         suggestedSiteTargetsTruncated: fixture.truncated,
+        contributors: [],
         note: fixture.note,
       },
     ],
@@ -1248,6 +1250,149 @@ describe("CodeNavigationServiceImpl", () => {
   });
 
   for (const operation of ["search", "searchStatus"] as const) {
+    it(`selects and normalises documentation contributors from ${operation}`, async () => {
+      const result = {
+        query: "router",
+        queryWarnings: [],
+        sources: ["DOCS"],
+        results: [],
+        page: { offset: 0, limit: 20, returned: 0, hasMore: false },
+        partialResults: false,
+        evidenceNotice:
+          "Pending work may change the disclosed documentation evidence.",
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "npm:express@5.1.0",
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            suggestedSiteTargets: [],
+            suggestedSiteTargetsTruncated: false,
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                freshness: "CURRENT",
+                resultCount: 2,
+                repositoryUrl: "https://github.com/expressjs/express",
+                commitSha: "0123456789abcdef0123456789abcdef01234567",
+                coverage: {
+                  coverageState: "NONE",
+                  pagesCrawled: 69,
+                },
+              },
+              {
+                kind: "DOCPACK",
+                state: "READY",
+                freshness: "STALE",
+                resultCount: 0,
+                siteKey: "expressjs.com",
+                coverage: {
+                  coverageState: "CAPPED",
+                  coverageReason: "artifact_size",
+                  pagesCrawled: 480,
+                  frontierRemaining: null,
+                  artifactOverflowPageCount: 12,
+                  estimatedTotalPages: 700,
+                  note: "Published documentation reached the artifact limit.",
+                },
+              },
+            ],
+          },
+        ],
+      };
+      const fn = mockFetch(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data:
+                operation === "search"
+                  ? {
+                      search: {
+                        completed: true,
+                        searchRef: "search-ref-contributors",
+                        result,
+                        progress: null,
+                      },
+                    }
+                  : {
+                      discoverySearchProgress: {
+                        searchRef: "search-ref-contributors",
+                        status: "COMPLETED",
+                        targetsTotal: 1,
+                        targetsReady: 1,
+                        elapsedMs: 10,
+                        query: "router",
+                        queryWarnings: [],
+                        sources: ["DOCS"],
+                        results: result,
+                      },
+                    },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          ),
+        ),
+      );
+      const service = new CodeNavigationServiceImpl(
+        BASE_URL,
+        createMockTokenProvider(),
+        globalThis.fetch,
+      );
+
+      const outcome =
+        operation === "search"
+          ? await service.search({
+              targets: [{ registry: "NPM", packageName: "express" }],
+              sources: ["DOCS"],
+              query: "router",
+            })
+          : await service.searchStatus("search-ref-contributors");
+
+      if (outcome.state !== "completed") {
+        throw new Error("expected completed search outcome");
+      }
+      expect(outcome.result.evidenceNotice).toBe(
+        "Pending work may change the disclosed documentation evidence.",
+      );
+      expect(outcome.result.sourceStatus[0]?.contributors).toEqual(
+        result.sourceStatus[0]
+          ?.contributors as UnifiedSearchDocumentationContributor[],
+      );
+      expect(
+        outcome.result.sourceStatus[0]?.contributors?.[1]?.coverage,
+      ).toMatchObject({
+        frontierRemaining: null,
+        artifactOverflowPageCount: 12,
+      });
+      expect(
+        outcome.result.sourceStatus[0]?.contributors?.[0]?.coverage,
+      ).toEqual({
+        coverageState: "NONE",
+        pagesCrawled: 69,
+      });
+      const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+      const query = JSON.parse(init.body as string).query as string;
+      for (const field of [
+        "contributors",
+        "repositoryUrl",
+        "commitSha",
+        "siteKey",
+        "artifactOverflowPageCount",
+        "evidenceNotice",
+      ]) {
+        expect(query).toContain(field);
+      }
+      expect(query).toMatch(
+        /contributors\s*\{\s*kind\s+state\s+freshness\s+resultCount\s+repositoryUrl\s+commitSha\s+siteKey\s+coverage\s*\{\s*coverageState\s+coverageReason\s+pagesCrawled\s+frontierRemaining\s+artifactOverflowPageCount\s+estimatedTotalPages\s+note\s*\}\s*\}/,
+      );
+    });
+  }
+
+  for (const operation of ["search", "searchStatus"] as const) {
     for (const fixture of suggestedSiteTargetsFixtures) {
       it(`normalises ${fixture.name} site recovery suggestions from ${operation}`, async () => {
         const result = buildSuggestedSiteSearchResult(fixture);
@@ -1340,6 +1485,7 @@ describe("CodeNavigationServiceImpl", () => {
                       incompatibleQueryFeatures: [],
                       suggestedSiteTargets: [],
                       suggestedSiteTargetsTruncated: false,
+                      contributors: [],
                       coverage: {
                         coverageState: "PARTIAL",
                         pagesCrawled: 42,
@@ -1405,6 +1551,7 @@ describe("CodeNavigationServiceImpl", () => {
                       incompatibleQueryFeatures: [],
                       suggestedSiteTargets: [],
                       suggestedSiteTargetsTruncated: false,
+                      contributors: [],
                       coverage: { coverageState: "NONE", pagesCrawled: 0 },
                     },
                   ],

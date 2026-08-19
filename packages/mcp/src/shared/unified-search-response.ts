@@ -142,6 +142,28 @@ export interface UnifiedSearchSourceStatusPayload {
   suggestedSiteTargetsTruncated?: boolean;
   note?: string;
   coverage?: LeanDocCoverage;
+  contributors?: UnifiedSearchDocumentationContributorPayload[];
+}
+
+export interface UnifiedSearchDocumentationContributorCoveragePayload {
+  coverageState: string;
+  coverageReason?: string;
+  pagesCrawled?: number;
+  frontierRemaining?: number | null;
+  artifactOverflowPageCount?: number;
+  estimatedTotalPages?: number;
+  note?: string;
+}
+
+export interface UnifiedSearchDocumentationContributorPayload {
+  kind: "REPOSITORY_DOCS" | "DOCPACK";
+  state: "SEARCHED" | "READY" | "PENDING" | "UNAVAILABLE";
+  freshness?: "CURRENT" | "STALE";
+  resultCount: number;
+  repositoryUrl?: string;
+  commitSha?: string;
+  siteKey?: string;
+  coverage?: UnifiedSearchDocumentationContributorCoveragePayload;
 }
 
 /**
@@ -174,6 +196,7 @@ export interface UnifiedSearchCompletedPayload {
    */
   warnings?: string[];
   sourceStatus?: UnifiedSearchSourceStatusPayload[];
+  evidenceNotice?: string;
 }
 
 export interface UnifiedSearchIncompletePayload {
@@ -186,6 +209,7 @@ export interface UnifiedSearchIncompletePayload {
   progress?: UnifiedSearchProgressPayload;
   warnings?: string[];
   sourceStatus?: UnifiedSearchSourceStatusPayload[];
+  evidenceNotice?: string;
 }
 
 export interface UnifiedSearchErrorPayload {
@@ -203,6 +227,7 @@ export interface UnifiedSearchStatusResultPayload {
   nextOffset?: number;
   results: UnifiedSearchHitPayload[];
   sourceStatus?: UnifiedSearchSourceStatusPayload[];
+  evidenceNotice?: string;
 }
 
 export interface UnifiedSearchStatusCompletedPayload {
@@ -251,6 +276,9 @@ export function buildUnifiedSearchSuccessPayload(
       completed: false,
     });
     if (sourceStatus) payload.sourceStatus = sourceStatus;
+    if (result?.evidenceNotice) {
+      payload.evidenceNotice = result.evidenceNotice;
+    }
     const combinedWarnings = combineWarnings(
       warnings,
       sourceStatus,
@@ -278,6 +306,9 @@ export function buildUnifiedSearchSuccessPayload(
     includeEmptyResultContext: completed.results.length === 0,
   });
   if (sourceStatus) completed.sourceStatus = sourceStatus;
+  if (outcome.result.evidenceNotice) {
+    completed.evidenceNotice = outcome.result.evidenceNotice;
+  }
   const combinedWarnings = combineWarnings(
     warnings,
     sourceStatus,
@@ -388,6 +419,7 @@ function buildUnifiedSearchStatusResultPayload(
     includeEmptyResultContext: options.completed && result.results.length === 0,
   });
   if (sourceStatus) payload.sourceStatus = sourceStatus;
+  if (result.evidenceNotice) payload.evidenceNotice = result.evidenceNotice;
   const combinedWarnings = combineWarnings(
     result.queryWarnings,
     sourceStatus,
@@ -779,27 +811,28 @@ function parsePackageVersionLabel(
 /**
  * Build the human-readable reason for incomplete documentation coverage.
  *
- * The backend note is preferred verbatim when present — the schema
- * documents it as "suitable for CLI/MCP rendering", so phrasing stays
- * backend-owned and can improve without a client release. Client wording
- * is only a fallback, and distinguishes transient `PARTIAL` (retrying can
- * return more) from terminal `CAPPED` (a crawl limit stopped indexing, so
- * retrying will not).
+ * Backend notes remain preferred except for PARTIAL, whose currently deployed
+ * note derives indexing progress from the coverage state. PARTIAL therefore
+ * uses neutral client wording until that backend copy is corrected. Coverage
+ * describes a selected published corpus; it does not imply indexing progress
+ * or retryability.
  */
 function docCoverageWarningReason(
   coverage: LeanDocCoverage | undefined,
 ): string | undefined {
   if (!coverage) return undefined;
   const scale = docCoverageScale(coverage);
-  if (coverage.note) return `${coverage.note}${scale}`;
+  if (coverage.note && coverage.coverageState !== "PARTIAL") {
+    return `${coverage.note}${scale}`;
+  }
   if (coverage.coverageState === "PARTIAL") {
-    return `docs coverage partial — site crawl in progress, evidence may be incomplete${scale}; retry shortly`;
+    return `published docs coverage is partial; evidence may be incomplete${scale}`;
   }
   if (coverage.coverageState === "CAPPED") {
     const reason = coverage.coverageReason
       ? ` (${coverage.coverageReason})`
       : "";
-    return `docs coverage capped by a crawl limit${reason} — evidence may be incomplete${scale}`;
+    return `published docs coverage is capped${reason}; evidence may be incomplete${scale}`;
   }
   return undefined;
 }
@@ -808,10 +841,12 @@ function docCoverageWarningReason(
 function docCoverageScale(coverage: LeanDocCoverage): string {
   const parts: string[] = [];
   if (typeof coverage.pagesCrawled === "number") {
-    parts.push(`${coverage.pagesCrawled} pages indexed`);
+    parts.push(`${coverage.pagesCrawled} published pages`);
   }
   if (typeof coverage.frontierRemaining === "number") {
-    parts.push(`${coverage.frontierRemaining} known URLs unindexed`);
+    parts.push(
+      `${coverage.frontierRemaining} discovered pages outside this snapshot`,
+    );
   } else if (typeof coverage.estimatedTotalPages === "number") {
     parts.push(`~${coverage.estimatedTotalPages} pages estimated`);
   }
@@ -1000,6 +1035,11 @@ function compactSourceStatusEntry(
     targetLabel: formatTargetLabel(entry.targetLabel),
   };
   let interesting = false;
+  const contributors = projectDocumentationContributors(entry.contributors);
+  if (contributors) {
+    payload.contributors = contributors;
+    interesting = true;
+  }
 
   if (options.includeEmptyResultContext) {
     const servedTarget = entry.servedTargetLabel
@@ -1026,11 +1066,23 @@ function compactSourceStatusEntry(
     ) {
       payload.freshTarget = freshTarget;
     }
-    if (servedTarget) payload.servedTarget = servedTarget;
-    if (entry.indexingStatus) payload.indexingStatus = entry.indexingStatus;
-    if (entry.codeIndexState) payload.codeIndexState = entry.codeIndexState;
-    if (typeof entry.resultCount === "number") {
-      payload.resultCount = entry.resultCount;
+    const contributorIdentityDiverges = Boolean(
+      contributors &&
+        servedTarget &&
+        (canonicalTargetLabel(servedTarget) !==
+          canonicalTargetLabel(payload.targetLabel) ||
+          payload.requestedTarget ||
+          payload.freshTarget),
+    );
+    if (servedTarget && (!contributors || contributorIdentityDiverges)) {
+      payload.servedTarget = servedTarget;
+    }
+    if (!contributors) {
+      if (entry.indexingStatus) payload.indexingStatus = entry.indexingStatus;
+      if (entry.codeIndexState) payload.codeIndexState = entry.codeIndexState;
+      if (typeof entry.resultCount === "number") {
+        payload.resultCount = entry.resultCount;
+      }
     }
     interesting = true;
   }
@@ -1055,16 +1107,24 @@ function compactSourceStatusEntry(
 
   const targetResolution = projectTargetResolution(entry.targetResolution);
   if (targetResolution) {
-    payload.targetResolution = targetResolution;
+    const targetResolutionCarriesNotes =
+      buildTargetResolutionNotes(targetResolution).length > 0;
     const hasRetryCandidates = Boolean(
       buildRetryCandidateLine(targetResolution) ??
         buildSuggestedRefsLine(targetResolution),
     );
-    if (
-      (buildTargetResolutionNotes(targetResolution).length > 0 &&
+    const targetResolutionIsInteresting =
+      (targetResolutionCarriesNotes &&
         !(targetResolution.freshness === "indexing" && options.completed)) ||
-      (targetResolution.freshness === "current" && hasRetryCandidates)
+      (targetResolution.freshness === "current" && hasRetryCandidates);
+    if (
+      !contributors ||
+      targetResolutionCarriesNotes ||
+      targetResolutionIsInteresting
     ) {
+      payload.targetResolution = targetResolution;
+    }
+    if (targetResolutionIsInteresting) {
       interesting = true;
     }
   }
@@ -1095,12 +1155,15 @@ function compactSourceStatusEntry(
   // the response looks authoritative, so the caller must still be told.
   // `COMPLETE` carries no actionable signal and stays silent; `NONE` is
   // already dropped upstream.
-  const coverage = projectDocCoverage(entry.coverage);
-  if (coverage) {
-    payload.coverage = coverage;
-    interesting = true;
+  if (!contributors) {
+    const coverage = projectDocCoverage(entry.coverage);
+    if (coverage) {
+      payload.coverage = coverage;
+      interesting = true;
+    }
   }
   if (
+    !contributors &&
     !options.includeEmptyResultContext &&
     typeof entry.resultCount === "number" &&
     entry.resultCount > 0
@@ -1131,12 +1194,74 @@ function compactSourceStatusEntry(
     payload.suggestedSiteTargetsTruncated = entry.suggestedSiteTargetsTruncated;
     interesting = true;
   }
-  if (entry.note) {
+  // Contributors already disclose this exact backend progress state. Keep the
+  // suppression narrow so unrelated pair-level notes remain actionable.
+  const redundantContributorNote =
+    contributors &&
+    entry.source === "DOCS" &&
+    entry.note === "Documentation indexing in progress";
+  if (entry.note && !redundantContributorNote) {
     payload.note = entry.note;
     interesting = true;
   }
 
   return interesting ? payload : undefined;
+}
+
+function projectDocumentationContributors(
+  contributors: UnifiedSearchSourceStatus["contributors"],
+): UnifiedSearchDocumentationContributorPayload[] | undefined {
+  if (!contributors || contributors.length === 0) return undefined;
+  return contributors.map((contributor) => {
+    const payload: UnifiedSearchDocumentationContributorPayload = {
+      kind: contributor.kind,
+      state: contributor.state,
+      resultCount: contributor.resultCount,
+    };
+    if (contributor.freshness) payload.freshness = contributor.freshness;
+    if (contributor.kind === "REPOSITORY_DOCS") {
+      if (contributor.repositoryUrl) {
+        payload.repositoryUrl = contributor.repositoryUrl;
+      }
+      if (contributor.commitSha) payload.commitSha = contributor.commitSha;
+    } else {
+      if (contributor.siteKey) payload.siteKey = contributor.siteKey;
+      const coverage = projectDocumentationContributorCoverage(
+        contributor.coverage,
+      );
+      if (coverage) payload.coverage = coverage;
+    }
+    return payload;
+  });
+}
+
+function projectDocumentationContributorCoverage(
+  coverage: DocCoverage | undefined,
+): UnifiedSearchDocumentationContributorCoveragePayload | undefined {
+  if (!coverage) return undefined;
+  const payload: UnifiedSearchDocumentationContributorCoveragePayload = {
+    coverageState: coverage.coverageState,
+  };
+  if (coverage.coverageReason) {
+    payload.coverageReason = coverage.coverageReason;
+  }
+  if (typeof coverage.pagesCrawled === "number") {
+    payload.pagesCrawled = coverage.pagesCrawled;
+  }
+  if (
+    typeof coverage.frontierRemaining === "number" ||
+    coverage.frontierRemaining === null
+  ) {
+    payload.frontierRemaining = coverage.frontierRemaining;
+  }
+  if (typeof coverage.artifactOverflowPageCount === "number") {
+    payload.artifactOverflowPageCount = coverage.artifactOverflowPageCount;
+  }
+  if (typeof coverage.estimatedTotalPages === "number") {
+    payload.estimatedTotalPages = coverage.estimatedTotalPages;
+  }
+  if (coverage.note) payload.note = coverage.note;
+  return payload;
 }
 
 function assertSearchFollowUpInvariant(hit: UnifiedSearchHit): void {
