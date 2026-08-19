@@ -166,17 +166,10 @@ or plugin guidance during this phase.
 
 ## Deferred rollout boundaries
 
-Public MCP and agent exposure remains deferred until post-merge CLI dogfooding
-resolves the MCP view vocabulary, evidence-backed `maxFiles` and
-`maxPatchBytes` defaults, automation semantics for partial or failed content,
-and whether `pathPrefix` or any CLI signature correction is actually needed.
-Before implementation, reverify the merged CLI contract and deployed backend
-rather than carrying these open decisions forward as assumptions.
-
-The next rollout stage is a public `code_diff` tool with mode-minimal fetching,
-CLI/MCP JSON parity, agent-native errors and descriptions, concise generated
-guidance, targeted Claude and Codex evaluation, and the corresponding smoke,
-package, plugin, and release validation. Structural CodeDiff remains unexposed.
+The local `code_diff` adapter and its experimental instructions remain
+config-gated and workspace-internal. Public/remote MCP descriptors, smoke
+inventories, Agent Skills, and plugin guidance remain stable-only; any future
+promotion requires separate graduation evidence and release review.
 
 Typed changelog steering is a separate later stage, blocked on both a stable
 public CodeDiff invocation and a committed/deployed PkgSeer changelog-action

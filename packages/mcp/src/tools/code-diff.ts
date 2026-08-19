@@ -71,7 +71,9 @@ const schema: ZodRawShape = {
     .min(1)
     .max(300)
     .optional()
-    .describe("Optional returned-file bound from 1 through 300."),
+    .describe(
+      "Optional relevance-ranked returned-file bound from 1 through 300.",
+    ),
   max_patch_bytes: z
     .number()
     .int()
@@ -90,7 +92,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  'Use for exact source changes between two explicit package versions or public GitHub refs after the target is already canonical. Pass one unversioned compact target string or exactly one structured package `{registry, package_name}` / repository `{repo_url}` target, plus separate `from` and `to` endpoints; never embed a version or ref in the target. The default `name-status` view is bounded inventory; use `stat` for magnitude or `patch` for content. In `text-v1`, patch previews are bounded at 320 UTF-8 bytes; use `format: "json"` for the exact full returned patch, still subject to `max_patch_bytes` and backend content coverage. Incomplete, filtered, byte-escaped, omitted, or unavailable patch evidence is not authoritative or safely applicable. Raw diffs never prove compatibility or upgrade safety. Do not include credentials, personal data, private code, or proprietary content in inputs.';
+  'Use for exact source changes between two explicit package versions or public GitHub refs after the target is already canonical. Pass one unversioned compact target string or exactly one structured package `{registry, package_name}` / repository `{repo_url}` target, plus separate `from` and `to` endpoints; never embed a version or ref in the target. Package targets still return repository-wide diffs: sibling paths may appear, and a bounded result with no package paths does not prove the package unchanged. The default `name-status` view is bounded inventory; use `stat` for magnitude or `patch` for content. In `text-v1`, patch previews are bounded at 320 UTF-8 bytes; use `format: "json"` for the exact full returned patch, still subject to `max_patch_bytes` and backend content coverage. Incomplete, filtered, byte-escaped, omitted, or unavailable patch evidence is not authoritative or safely applicable. Raw diffs never prove compatibility or upgrade safety. Do not include credentials, personal data, private code, or proprietary content in inputs.';
 
 export function createCodeDiffTool(
   service: CodeDiffService,

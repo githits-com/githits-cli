@@ -72,6 +72,7 @@ describe("code_diff MCP adapter", () => {
       type: "integer",
       minimum: 1,
       maximum: 300,
+      description: expect.stringContaining("relevance-ranked"),
     });
     expect(schema.properties?.max_patch_bytes).toMatchObject({
       type: "integer",
@@ -110,6 +111,8 @@ describe("code_diff MCP adapter", () => {
     ]);
     for (const phrase of [
       "exact source changes",
+      "repository-wide diffs",
+      "does not prove the package unchanged",
       "package_name",
       "repo_url",
       "from",
@@ -271,13 +274,13 @@ describe("code_diff MCP adapter", () => {
     expect(text).not.toContain("isError");
   });
 
-  it("renders exact resolutions, scope warnings, primary evidence, and MCP-native follow-up", () => {
+  it("renders exact resolutions, scope facts, primary evidence, and MCP-native follow-up", () => {
     const text = formatCodeDiffMcpText(payload());
     expect(text).toContain("Code diff: npm:express");
     expect(text).toContain("Requested endpoints: 4.18.1 -> 4.18.2");
     expect(text).toContain("Resolved endpoints: v4.18.1");
     expect(text).toContain("from-sha");
-    expect(text).toContain("Scope: package");
+    expect(text).toContain("Scope: repository");
     expect(text).not.toContain("roots");
     expect(text).toContain("lib/express.js [status=modified]");
     expect(text).toContain('view "stat"');
@@ -398,7 +401,9 @@ describe("code_diff MCP adapter", () => {
         view: "name-status",
       }),
     );
-    expect(fromOnlyText).toContain("Scope: package, roots packages/old -> ?");
+    expect(fromOnlyText).toContain(
+      "Scope: repository, roots packages/old -> ?",
+    );
 
     const toOnly = structuredClone(defaultCodeDiffResult);
     toOnly.raw.scope.fromSubpath = "";
@@ -409,7 +414,7 @@ describe("code_diff MCP adapter", () => {
         view: "name-status",
       }),
     );
-    expect(toOnlyText).toContain("Scope: package, roots ? -> packages/new");
+    expect(toOnlyText).toContain("Scope: repository, roots ? -> packages/new");
   });
 
   it("frames legacy unknown scope as repository-wide", () => {
