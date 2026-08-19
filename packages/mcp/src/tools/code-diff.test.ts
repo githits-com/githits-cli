@@ -78,6 +78,12 @@ describe("code_diff MCP adapter", () => {
       minimum: 1024,
       maximum: 2_097_152,
     });
+    const pathGlobSchema = schema.properties?.path_glob as {
+      description?: string;
+    };
+    expect(pathGlobSchema.description).toContain(
+      "no braces, character classes, `!`, or Git pathspec magic",
+    );
     const targetSchema = schema.properties?.target as {
       anyOf?: Array<Record<string, unknown>>;
     };

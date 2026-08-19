@@ -146,16 +146,16 @@ export interface BuildLocalMcpInstructionsOptions {
 }
 
 const LOCAL_EXPERIMENTAL_HEADING =
-  "**Local experimental beta tools (public OSS only)**";
+  "**Local experimental tools (public OSS only)**";
 
 const LOCAL_EXPERIMENTAL_PRIVACY =
-  "These beta tools operate only on public open-source package and GitHub evidence. Their names, queries, hints, globs, and targets are sent to GitHits; never include credentials, personal data, private code or repositories, proprietary content, or local-workspace paths, and do not attempt local or private targets.";
+  "Inputs are sent to GitHits. Never send credentials, personal data, private or proprietary content, local paths, or private targets.";
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
-  "- `resolve_target` — use only when a human-friendly, fuzzy, misspelled, or ambiguous name is not yet a canonical `registry:name` or GitHub target. Do not call it for a canonical target. An ambiguous result requires judgment or a narrowing query; never auto-select a candidate. Continue with the exact canonical target returned by the chosen result.";
+  "- `resolve_target` — resolve only fuzzy, misspelled, ambiguous, or otherwise noncanonical names. Skip canonical `registry:name` and `github:owner/repo` targets. If ambiguous, narrow or ask; never guess. Reuse the chosen canonical target directly.";
 
 const LOCAL_CODE_DIFF_GUIDANCE =
-  "- `code_diff` — after the target is canonical, compare exact package versions or public GitHub refs. Start with `pkg_changelog` or `pkg_upgrade_review` when they answer the upgrade question; use the default `name-status` inventory first, `stat` for magnitude, and a scoped `patch` only for needed content. Treat scope, truncation, incomplete content, and safety warnings as limits; text-v1 patch previews are bounded at 320 UTF-8 bytes, so use JSON for the exact returned patch (still subject to max_patch_bytes and backend content coverage). A raw diff does not prove compatibility or upgrade safety.";
+  "- `code_diff` — compare exact package versions or public GitHub refs after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text-v1` unless exact fields or the full returned patch are needed. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";
 
 /**
  * Compose local-only experimental guidance without changing the public
@@ -169,7 +169,6 @@ export function buildLocalMcpInstructions(
 
   const guidance: string[] = [
     LOCAL_EXPERIMENTAL_HEADING,
-    "These are opt-in local beta tools for public-OSS research; they are not a private-code or compatibility guarantee.",
     LOCAL_EXPERIMENTAL_PRIVACY,
   ];
   if (enabled.has("resolve_target")) {
@@ -178,9 +177,6 @@ export function buildLocalMcpInstructions(
   if (enabled.has("code_diff")) {
     guidance.push(LOCAL_CODE_DIFF_GUIDANCE);
   }
-  guidance.push(
-    "Use the cheapest evidence that answers the question: resolve only an unknown target, then use the exact canonical target for source or upgrade evidence; do not repeat resolution once canonical identity is known.",
-  );
   if (options.reportToolIssues !== undefined) {
     guidance.push(buildIssueReportingGuidance(options));
   }
@@ -197,5 +193,5 @@ function buildIssueReportingGuidance(
       : [...new Set(options.enabledExperimentalTools)]
           .map((name) => `\`${name}\``)
           .join(" or ");
-  return `**Opt-in issue reporting (${options.reportToolIssues})** — report only distinct, concrete defects observed in ${scope}. For each distinct issue, make exactly one concise negative \`feedback\` call with \`accepted: false\`, the exact \`tool_name\`, and redacted expected-vs-observed context and/or a stable error code. Do not report valid empty results, expected bounded truncation or safety omissions, or a user judgment. Avoid duplicates; never include credentials, personal data, private/proprietary content, full file bodies, or large outputs. If feedback fails, do not retry and do not report that failure.`;
+  return `**Issue reporting (${options.reportToolIssues})** — for each distinct concrete defect observed in ${scope}, make one \`feedback\` call with \`accepted: false\`, exact \`tool_name\`, and concise redacted expected-vs-observed context or a stable error code. Do not report valid empty results, expected bounds or safety omissions, or user judgment. Never include credentials, personal data, private/proprietary content, file bodies, or large outputs. Do not retry or report a failed feedback call.`;
 }

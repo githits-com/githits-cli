@@ -147,10 +147,9 @@ async function assertExperimentalMcpSession(
       instructions.includes("resolve_target") &&
       instructions.includes("code_diff") &&
       instructions.includes("credentials") &&
-      instructions.includes("compatibility") &&
-      instructions.includes("does not prove compatibility") &&
-      instructions.includes("public-OSS") &&
-      !instructions.includes("Opt-in issue reporting"),
+      instructions.includes("diffs do not prove compatibility") &&
+      instructions.includes("public OSS") &&
+      !instructions.includes("Issue reporting"),
     `${context}: experimental instructions missing routing/privacy guidance or reporting is enabled`,
   );
 }

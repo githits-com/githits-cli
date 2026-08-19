@@ -88,6 +88,17 @@ each reported zero `toolIssues` and zero `instructionIssues`. This validates
 the bounded-preview and JSON recovery guidance fix. It does not change or claim
 to resolve the external/backend findings above.
 
+The final instruction compaction reduced the enabled experimental block from
+1,650 characters / 245 words to 861 characters / 116 words while retaining the
+exact disabled baseline. Claude and Codex then reran both experimental workloads
+and the `express-router` regression; all six succeeded and rated usefulness as
+helped with high confidence. Claude exposed one schema UX gap by trying brace
+expansion in `path_glob`; the field now states the supported single-glob grammar.
+A focused Claude rerun then completed CodeDiff in two calls with zero tool or
+instruction issues. The resolution/security-holder findings above remained and
+are still classified as external/backend behavior rather than compaction
+regressions.
+
 `feedback` is mutating, so smoke coverage exercises registration and
 validation/auth paths only. It does not submit fake feedback to the live
 backend.

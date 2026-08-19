@@ -150,9 +150,12 @@ diff content; the backend does not provide Git index or mode headers.
 Validation, authentication, resolution, and raw-field errors exit 1 through
 the shared CLI error envelope. The local `code_diff` MCP adapter maps the same
 classes of failures into the structured MCP error envelope and uses compact
-MCP-native text by default. Its `text-v1` patch previews are bounded at 320
-UTF-8 bytes; each affected file is labeled `patch preview (truncated)` and one
-aggregate `Next:` recovery directs callers to `format: "json"` for the full
+MCP-native text by default. Its `path_glob` schema states the supported single
+repository-relative `*` / `?` / whole-component `**` grammar and rejects brace
+expansion, character classes, negation, and Git pathspec magic. Its `text-v1`
+patch previews are bounded at 320 UTF-8 bytes; each affected file is
+labeled `patch preview (truncated)` and one aggregate `Next:` recovery directs
+callers to `format: "json"` for the full
 returned patch content. That JSON remains subject to backend limits and content
 coverage, and cannot recover content omitted by the backend. `Content: complete`
 describes backend-returned coverage, not that every returned byte was printed
