@@ -112,6 +112,14 @@ the typed evidence and does not invent fuzzy fallbacks, removed-package
 semantics, or symbol matches. Fixing them requires backend ownership and is not
 part of the local experimental-tool release.
 
+After both tool descriptions were revised to state their experimental maturity
+directly, Claude and Codex reran the resolution and code-diff workloads. All
+four runs succeeded. Both agents preserved the `lodash`/`lodahs` ambiguity and
+independently verified candidate identities instead of treating
+`resolve_target` as authoritative; both `code_diff` runs reported zero tool or
+instruction issues. The known resolver and security-holder backend findings
+remained visible and were not masked by the maturity warning.
+
 `feedback` is mutating, so smoke coverage exercises registration and
 validation/auth paths only. It does not submit fake feedback to the live
 backend.
