@@ -152,7 +152,7 @@ const LOCAL_EXPERIMENTAL_PRIVACY =
   "Inputs are sent to GitHits. Never send credentials, personal data, private or proprietary content, local paths, or private targets.";
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
-  "- `resolve_target` — resolve only fuzzy, misspelled, ambiguous, or otherwise noncanonical names. Skip canonical `registry:name` and `github:owner/repo` targets. If ambiguous, narrow or ask; never guess. Reuse the chosen canonical target directly.";
+  "- `resolve_target` — resolve fuzzy, misspelled, or noncanonical names; skip canonical `registry:name` and `github:owner/repo`. Reuse only a non-ambiguous EXACT/HIGH best target. For MEDIUM/LOW or ambiguity, narrow or explicitly choose; never auto-select.";
 
 const LOCAL_CODE_DIFF_GUIDANCE =
   "- `code_diff` — compare exact package versions or public GitHub refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text-v1` unless exact fields or the full returned patch are needed. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";

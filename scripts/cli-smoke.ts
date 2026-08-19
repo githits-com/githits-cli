@@ -816,10 +816,31 @@ async function runExperimentalLiveSmoke(
     "experimental resolve terminal",
   );
   assert(
-    resolveText.includes("Candidates:") &&
+    (resolveText.includes("Candidates:") ||
+      resolveText.includes("Unconfirmed ranked candidates:")) &&
       /\n\s+\d+\. (?:npm|github):\S+/.test(resolveText),
     "experimental resolve text should include ranked canonical candidates",
   );
+  const hasDirectResolveAction =
+    /Next: githits search .+ --in '(?:npm|github):[^']+'/.test(resolveText);
+  if (resolveText.includes("Unconfirmed ranked candidates:")) {
+    assert(
+      !hasDirectResolveAction &&
+        resolveText.includes("explicitly choose a candidate") &&
+        resolveText.includes("--in '<target>'"),
+      "experimental unconfirmed resolve text should require an explicit choice",
+    );
+  } else if (resolveText.includes("Ambiguous:")) {
+    assert(
+      !hasDirectResolveAction && resolveText.includes("Next after choosing:"),
+      "experimental ambiguous resolve text should require an explicit choice",
+    );
+  } else {
+    assert(
+      hasDirectResolveAction,
+      "experimental actionable resolve text should include a canonical next action",
+    );
+  }
 
   const resolveJson = assertJsonOutput(
     await runCliWithEnv(

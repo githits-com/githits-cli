@@ -246,12 +246,16 @@ does not change.
   deliberately by the shared builder; raw Zod errors do not escape.
 - The service request selects detailed ranking fields only for JSON. Compact
   text shows ranked candidates, ambiguity, protected exact-name matches, cheap
-  evidence, and an MCP-native follow-up. An ambiguous result never tells the
-  agent to select candidate one automatically.
+  evidence, and confidence-appropriate MCP follow-up guidance. Only a
+  non-ambiguous `EXACT` or `HIGH` best result is directly actionable;
+  `MEDIUM`, `LOW`, and ambiguous results require narrowing or an explicit
+  choice.
 - Descriptions state that query and intent hints leave the machine and must not
   contain credentials, personal data, private code, or proprietary content.
-- No-candidate and ambiguous results remain successful evidence envelopes; the
-  text tells the agent whether human judgment or a changed query is required.
+- No-candidate and ambiguous results remain successful evidence envelopes.
+  No-candidate text asks for corrected spelling or adjusted registry filters;
+  query, preferred-kind, and intent hints only rank existing candidates.
+  Ambiguous text preserves human-judgment and narrowing guidance.
   Transport/auth/service failures use the established structured MCP errors.
 
 ### `code_diff` agent contract
@@ -488,6 +492,12 @@ succeeded for Claude in 39.1s and Codex in 47.8s. Both again rated usefulness
 as helped with high confidence and reported no tool or instruction issues. The
 retained Opus implementation reviewer then returned a clean verdict on the
 final delta with no actionable findings.
+
+A later consumer-actionability review found that non-ambiguous `MEDIUM` and
+`LOW` best results were still presented as direct next actions. Shared CLI/MCP
+formatter gating now keeps those results unconfirmed and requires narrowing or
+an explicit choice, while preserving direct actions for non-ambiguous `EXACT`
+and `HIGH` results.
 
 ### Likely files and components
 
