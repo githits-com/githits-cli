@@ -30,7 +30,7 @@ export function formatCodeDiffMcpText(envelope: LeanCodeDiffEnvelope): string {
 function appendWarnings(lines: string[], envelope: LeanCodeDiffEnvelope): void {
   if (envelope.scope.status === "unknown") {
     lines.push(
-      "Warning: package scope was not identified; unrelated repository files may be included.",
+      "Warning: legacy unknown scope metadata; treat this diff as repository-wide, so unrelated paths may be included.",
     );
   }
   if (!envelope.summary.inventoryComplete) {

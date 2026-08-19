@@ -39,6 +39,7 @@ describe("buildLocalMcpInstructions", () => {
     expect(instructions).toContain("canonical `registry:name`");
     expect(instructions).toContain("never guess");
     expect(instructions).toContain("`pkg_upgrade_review`");
+    expect(instructions).toContain("public GitHub refs repository-wide");
     expect(instructions).toContain("name-status");
     expect(instructions).toContain("full returned patch");
     expect(instructions).toContain("diffs do not prove compatibility");

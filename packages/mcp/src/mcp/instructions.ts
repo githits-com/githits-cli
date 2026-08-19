@@ -155,7 +155,7 @@ const LOCAL_RESOLVE_TARGET_GUIDANCE =
   "- `resolve_target` — resolve only fuzzy, misspelled, ambiguous, or otherwise noncanonical names. Skip canonical `registry:name` and `github:owner/repo` targets. If ambiguous, narrow or ask; never guess. Reuse the chosen canonical target directly.";
 
 const LOCAL_CODE_DIFF_GUIDANCE =
-  "- `code_diff` — compare exact package versions or public GitHub refs after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text-v1` unless exact fields or the full returned patch are needed. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";
+  "- `code_diff` — compare exact package versions or public GitHub refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text-v1` unless exact fields or the full returned patch are needed. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";
 
 /**
  * Compose local-only experimental guidance without changing the public

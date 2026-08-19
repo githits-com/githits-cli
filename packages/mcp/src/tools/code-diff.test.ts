@@ -412,6 +412,22 @@ describe("code_diff MCP adapter", () => {
     expect(toOnlyText).toContain("Scope: package, roots ? -> packages/new");
   });
 
+  it("frames legacy unknown scope as repository-wide", () => {
+    const result = structuredClone(defaultCodeDiffResult);
+    result.raw.scope.status = "UNKNOWN";
+    const text = formatCodeDiffMcpText(
+      buildCodeDiffSuccessPayload(result, {
+        target: { registry: "NPM", packageName: "express" },
+        view: "name-status",
+      }),
+    );
+
+    expect(text).toContain("legacy unknown scope metadata");
+    expect(text).toContain("treat this diff as repository-wide");
+    expect(text).toContain("unrelated paths may be included");
+    expect(text).not.toContain("package scope was not identified");
+  });
+
   it("omits empty patch previews and trailing blank lines", () => {
     const emptyPatch = structuredClone(defaultCodeDiffResult);
     emptyPatch.raw.files[0] = {
