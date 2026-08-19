@@ -258,10 +258,10 @@ function buildDiagnostics(
 
   if (envelope.scope.status === "unknown") {
     let message =
-      "Showing changes for the entire repository because GitHits could not identify this package's directory. Unrelated files may be included.";
+      "GitHits returned legacy unknown scope metadata. Treat this diff as repository-wide; unrelated paths may be included.";
     if (envelope.scope.pathGlob) {
       message =
-        "GitHits could not identify this package's directory, so the path glob was applied across the entire repository. Matching files from other packages may be included; narrow the path glob if needed.";
+        "GitHits returned legacy unknown scope metadata, so the path glob was applied repository-wide. Matching paths from anywhere in the repository may be included; narrow the path glob if needed.";
     } else if (!envelope.hasMoreFiles) {
       message += " Add a path glob after `--` to narrow the diff.";
     }

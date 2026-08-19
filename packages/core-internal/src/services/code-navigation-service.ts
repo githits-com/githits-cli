@@ -448,8 +448,10 @@ export interface ReadFileResult {
 }
 
 /**
- * A package target for CodeDiff. Version resolution belongs to the
- * comparison endpoints, so this target intentionally has no version field.
+ * A package-addressing target for a repository-wide CodeDiff. Version
+ * resolution belongs to the comparison endpoints, so this target
+ * intentionally has no version field. Package addressing resolves repository
+ * identity and commits; it does not narrow raw file results to a package path.
  * Target selection uses own-key presence; a `repoUrl` key rejects this shape
  * even when its value is `undefined`.
  */
@@ -491,6 +493,11 @@ export type CodeDiffRefKind = "SHA" | "TAG" | "BRANCH" | "HEAD" | "UNKNOWN";
 
 export type CodeDiffVersionSource = "REGISTRY" | "GIT_HEAD" | "TAG" | "RELEASE";
 
+/**
+ * Effective raw inventory scope. Current successful backends return
+ * `REPOSITORY`; `PACKAGE` and `UNKNOWN` remain accepted for compatibility with
+ * legacy responses.
+ */
 export type RawCodeDiffScopeStatus = "PACKAGE" | "REPOSITORY" | "UNKNOWN";
 
 export type RawCodeDiffFileStatus = "ADDED" | "DELETED" | "MODIFIED";
@@ -545,10 +552,15 @@ export interface RawCodeDiffSummary {
 }
 
 export interface RawCodeDiffScope {
+  /** Scope of returned paths and counts, independent of addressing form. */
   status: RawCodeDiffScopeStatus;
+  /** Legacy package-scope metadata; absent from current repository results. */
   fromSubpath?: string;
+  /** Legacy package-scope metadata; absent from current repository results. */
   toSubpath?: string;
+  /** Caller-supplied repository-relative filter, not verified package scope. */
   pathPrefix?: string;
+  /** Caller-supplied repository-relative filter, not verified package scope. */
   pathGlob?: string;
 }
 

@@ -273,7 +273,13 @@ function formatRecoveryList(
   return omitted > 0 ? `${shown} (+${omitted} more)` : shown;
 }
 
-const CODE_DIFF_DESCRIPTION = `Compare two exact dependency source trees.
+const CODE_DIFF_DESCRIPTION = `Compare repository trees resolved from package versions or repository refs.
+
+Diffs are always repository-wide, subject only to an explicit caller-supplied
+path glob. Package targets resolve repository identity, versions, and exact
+commits; they do not narrow files to a package directory. Sibling package paths
+may appear, and a bounded relevance-ranked result may contain no files from the
+addressed package.
 
 The default output is a bounded patch, matching ordinary \`git diff\` where the
 backend contract permits it. Select --stat, --name-only, or --name-status for
@@ -298,7 +304,7 @@ export function registerCodeDiffCommand(
 ): Command {
   return codeCommand
     .command("diff")
-    .summary("Compare two dependency source trees")
+    .summary("Compare resolved repository trees")
     .description(CODE_DIFF_DESCRIPTION)
     .usage(
       "[options] <target> <from>..<to> [-- <path-glob>]\n       githits code diff [options] --repo-url <url> <from>..<to> [-- <path-glob>]",
@@ -320,7 +326,10 @@ export function registerCodeDiffCommand(
     .option("--stat", "Emit per-file line statistics")
     .option("--name-only", "Emit changed paths only")
     .option("--name-status", "Emit change status and path")
-    .option("--max-files <n>", "Maximum returned files (1-300)")
+    .option(
+      "--max-files <n>",
+      "Maximum relevance-ranked returned files (1-300)",
+    )
     .option(
       "--max-patch-bytes <bytes>",
       "Maximum aggregate patch bytes (1024-2097152; patch view only)",

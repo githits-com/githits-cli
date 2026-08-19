@@ -515,9 +515,7 @@ export const defaultCodeDiffResult: CodeDiffResult = {
       unprojectableFiles: 0,
     },
     scope: {
-      status: "PACKAGE",
-      fromSubpath: "",
-      toSubpath: "",
+      status: "REPOSITORY",
     },
     contentCoverage: "COMPLETE",
     files: [
