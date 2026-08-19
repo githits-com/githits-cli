@@ -465,6 +465,54 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("does not suggest another source for an empty standalone-site search", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        page: {
+          ...defaultUnifiedSearchOutcome.result.page,
+          returned: 0,
+        },
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "site:docs.example.com",
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            suggestedSiteTargets: [],
+            suggestedSiteTargetsTruncated: false,
+            contributors: [],
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router",
+      { in: ["site:docs.example.com"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Try a shorter or broader query.");
+    expect(output).not.toContain("search another source");
+    consoleSpy.mockRestore();
+  });
+
   it("renders healthy documentation as references only", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const result = createDocumentationSearchResult();
@@ -1811,6 +1859,54 @@ describe("searchStatusAction", () => {
     expect(output).toContain(
       "Try a shorter or broader query, or search another source.",
     );
+    consoleSpy.mockRestore();
+  });
+
+  it("keeps stored standalone-site guidance within applicable sources", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        page: {
+          ...defaultUnifiedSearchOutcome.result.page,
+          returned: 0,
+        },
+        sourceStatus: [
+          {
+            source: "DOCS",
+            targetLabel: "site:docs.example.com",
+            appliedFilters: [],
+            ignoredFilters: [],
+            incompatibleFilters: [],
+            appliedQueryFeatures: [],
+            ignoredQueryFeatures: [],
+            incompatibleQueryFeatures: [],
+            suggestedSiteTargets: [],
+            suggestedSiteTargetsTruncated: false,
+            contributors: [],
+          },
+        ],
+      },
+    };
+
+    await searchStatusAction(
+      "search-ref-site",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Try a shorter or broader query.");
+    expect(output).not.toContain("search another source");
     consoleSpy.mockRestore();
   });
 

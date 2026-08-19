@@ -663,7 +663,9 @@ export function appendEmptySearchGuidance(
     lines.push(
       hasIndexingSource(options.sourceStatus)
         ? "Run again with a larger --wait while indexing finishes."
-        : "Try a shorter or broader query, or search another source.",
+        : isStandaloneSiteSearch(options.sourceStatus)
+          ? "Try a shorter or broader query."
+          : "Try a shorter or broader query, or search another source.",
     );
     return;
   }
