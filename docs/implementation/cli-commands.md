@@ -297,7 +297,7 @@ githits resolve "pi agent" --query "coding agent CLI" --json
 
 Resolves a human-provided package or GitHub repository name to ranked canonical
 targets such as `npm:express` or `github:openai/codex`. The default output is a
-compact numbered `Candidates` list with ambiguity guidance when needed and
+compact numbered candidate list with ambiguity guidance when needed and
 protected exact-name matches annotated inline. It does not label any terminal
 candidate as best or top. Ranked candidates include their available normalized
 description, capped at 240 characters, and cheap trust evidence: repository

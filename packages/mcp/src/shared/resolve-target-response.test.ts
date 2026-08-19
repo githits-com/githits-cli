@@ -280,6 +280,30 @@ describe("formatResolveTargetTerminal", () => {
     }
   });
 
+  it("preserves ambiguous guidance when the best result has LOW confidence", () => {
+    const best = candidate({ confidence: "LOW" });
+    const output = formatResolveTargetTerminal(
+      result({
+        best,
+        candidates: [best],
+        protectedMatches: [],
+        ambiguous: true,
+        ambiguousReason: "LOW_CONFIDENCE",
+      }),
+      { name: "express", useColors: false },
+    );
+
+    expect(output).toContain(
+      "Ambiguous: only low-confidence matches were found",
+    );
+    expect(output).toContain("Candidates:\n  1. npm:express [low]");
+    expect(output).toContain(
+      "Next after choosing: githits search '<query>' --in '<target>'",
+    );
+    expect(output).not.toContain("Unconfirmed ranked candidates:");
+    expect(output).not.toContain("--in 'npm:express'");
+  });
+
   it("emits direct canonical next actions for EXACT and HIGH results", () => {
     for (const confidence of ["EXACT", "HIGH"] as const) {
       const best = candidate({ confidence });

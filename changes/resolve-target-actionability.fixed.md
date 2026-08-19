@@ -1,6 +1,6 @@
 ---
 "githits": patch
-"@githits/mcp": patch
+"@githits/mcp": none
 ---
 
 - **Require confident target resolution** - Resolve guidance now emits direct

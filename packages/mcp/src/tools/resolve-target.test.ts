@@ -253,6 +253,34 @@ describe("resolve_target MCP adapter", () => {
     expect(ambiguousText).not.toContain("candidate 1");
   });
 
+  it("preserves ambiguous guidance when the best result has LOW confidence", () => {
+    const best = {
+      kind: "PACKAGE",
+      canonicalKey: "npm:express",
+      confidence: "LOW",
+    };
+    const text = formatResolveTargetMcpText(
+      result({
+        best,
+        candidates: [],
+        protectedMatches: [],
+        ambiguous: true,
+        ambiguousReason: "LOW_CONFIDENCE",
+      }),
+      { name: "express" },
+    );
+
+    expect(text).toContain(
+      "Ambiguous: low confidence; multiple candidates remain.",
+    );
+    expect(text).toContain("Candidates:\n  1. npm:express [low; package]");
+    expect(text).toContain("do not auto-select a candidate");
+    expect(text).not.toContain("Unconfirmed ranked candidates:");
+    expect(text).not.toContain(
+      'pass the canonical target "npm:express" to the next MCP tool',
+    );
+  });
+
   it("corrects spelling or filters for empty resolution without adding ranking context", async () => {
     const tool = createResolveTargetTool(
       createService(() =>

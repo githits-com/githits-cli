@@ -319,6 +319,14 @@ async function runExperimentalLiveSmoke(
             !resolveTextBody.includes("--"),
           "experimental resolve text should use MCP-native follow-up guidance",
         );
+        assert(
+          /Next: pass the canonical target "[^"]+"/.test(resolveTextBody) ||
+            resolveTextBody.includes("do not auto-select a candidate") ||
+            resolveTextBody.includes(
+              "do not pass the best result automatically",
+            ),
+          "experimental resolve text should gate its canonical next action on confidence and ambiguity",
+        );
 
         const resolveJson = (await trackSmokeStep(
           "mcp resolve_target JSON experimental live",

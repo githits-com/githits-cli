@@ -816,9 +816,17 @@ async function runExperimentalLiveSmoke(
     "experimental resolve terminal",
   );
   assert(
-    resolveText.includes("Candidates:") &&
+    (resolveText.includes("Candidates:") ||
+      resolveText.includes("Unconfirmed ranked candidates:")) &&
       /\n\s+\d+\. (?:npm|github):\S+/.test(resolveText),
     "experimental resolve text should include ranked canonical candidates",
+  );
+  assert(
+    /Next: githits search .+ --in '(?:npm|github):[^']+'/.test(resolveText) ||
+      resolveText.includes("Next after choosing:") ||
+      (resolveText.includes("explicitly choose a candidate") &&
+        resolveText.includes("--in '<target>'")),
+    "experimental resolve text should gate its canonical next action on confidence and ambiguity",
   );
 
   const resolveJson = assertJsonOutput(
