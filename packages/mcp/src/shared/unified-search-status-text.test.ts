@@ -179,6 +179,25 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(text.endsWith("\n")).toBe(false);
   });
 
+  it("separates stored evidence metadata from empty-result guidance", () => {
+    const payload: UnifiedSearchStatusCompletedPayload = {
+      completed: true,
+      searchRef: "search-ref-evidence",
+      result: {
+        hasMore: false,
+        evidenceNotice: "Results may change after pending work completes.",
+        results: [],
+      },
+    };
+
+    const text = renderUnifiedSearchStatusText(payload);
+
+    expect(text).toContain(
+      "Do not repeat immediately.\n\nevidence notice: Results may change after pending work completes.",
+    );
+    expect(text.endsWith("\n")).toBe(false);
+  });
+
   it("separates incomplete next actions from returned hits", () => {
     const payload: UnifiedSearchStatusIncompletePayload = {
       completed: false,

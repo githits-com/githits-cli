@@ -159,7 +159,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("remove restrictive filters");
   });
 
-  it("does not suggest code_grep for a standalone docs site", () => {
+  it("keeps standalone docs site pivots within applicable sources", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
         query: { raw: "middleware", sources: ["docs"] },
@@ -181,6 +181,8 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).not.toContain("code_grep");
+    expect(text).not.toContain('source="symbol"');
+    expect(text).toContain("next: shorten or broaden the query.");
   });
 
   it("prefers a failed lifecycle state over a healthy sibling", () => {

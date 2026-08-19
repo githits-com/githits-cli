@@ -79,7 +79,7 @@ export function renderUnifiedSearchStatusText(payload: StatusPayload): string {
   }
   if (trailer.length > 0) {
     if (
-      (result?.results.length || result?.hasMore) &&
+      (result?.results.length || result?.hasMore || result?.evidenceNotice) &&
       lines[lines.length - 1] !== ""
     ) {
       lines.push("");

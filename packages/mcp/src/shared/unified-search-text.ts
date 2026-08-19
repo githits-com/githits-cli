@@ -688,16 +688,17 @@ export function appendEmptySearchGuidance(
   if (hasRestrictiveSearchFilters(options.query)) {
     pivots.push("remove restrictive filters");
   }
-  if (!options.query?.sources?.includes("symbol")) {
+  const standaloneSiteSearch = isStandaloneSiteSearch(options.sourceStatus);
+  if (!standaloneSiteSearch && !options.query?.sources?.includes("symbol")) {
     pivots.push('use source="symbol" for an exact API/entity name');
   }
-  if (!isStandaloneSiteSearch(options.sourceStatus)) {
+  if (!standaloneSiteSearch) {
     pivots.push("use code_grep for a known literal or regex");
   }
   lines.push(`next: ${pivots.join("; ")}.`);
 }
 
-export function hasUnsearchedDocumentationSources(
+function hasUnsearchedDocumentationSources(
   sourceStatus: UnifiedSearchCompletedPayload["sourceStatus"],
 ): boolean {
   return Boolean(
