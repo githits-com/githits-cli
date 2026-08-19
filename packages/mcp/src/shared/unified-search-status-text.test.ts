@@ -107,7 +107,8 @@ describe("renderUnifiedSearchStatusText", () => {
 
     expect(text).toContain("No hits in the searched evidence on this page.");
     expect(text).not.toContain("No hits for docs");
-    expect(text).not.toContain("next:");
+    expect(text).toContain("Do not repeat this search unchanged.");
+    expect(text).toContain("next: shorten or broaden the query");
   });
 
   it("does not leave a trailing separator after healthy stored results", () => {

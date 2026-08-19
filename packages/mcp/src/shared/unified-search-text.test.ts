@@ -746,6 +746,56 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text.match(/documentation sources:/g)).toHaveLength(1);
   });
 
+  it("states searched contributors and missing coverage inside an exception block", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed(
+        [
+          docsHit({
+            target: "npm:express@5.2.1",
+            locator: {
+              pageId: "express/routing",
+              sourceUrl: "https://expressjs.com/en/guide/routing.html",
+            },
+          }),
+        ],
+        {
+          sourceStatus: [
+            {
+              source: "docs",
+              targetLabel: "npm:express@5.2.1",
+              contributors: [
+                {
+                  kind: "REPOSITORY_DOCS",
+                  state: "SEARCHED",
+                  freshness: "CURRENT",
+                  resultCount: 1,
+                  repositoryUrl: "https://github.com/expressjs/express",
+                  commitSha: "0123456789abcdef0123456789abcdef01234567",
+                },
+                {
+                  kind: "DOCPACK",
+                  state: "SEARCHED",
+                  freshness: "CURRENT",
+                  resultCount: 0,
+                  siteKey: "34150829eb8a7c57",
+                },
+              ],
+            },
+          ],
+        },
+      ),
+    );
+
+    expect(text).toContain("documentation sources:");
+    expect(text).toContain(
+      "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567 - searched",
+    );
+    expect(text).toContain(
+      "site expressjs.com - searched; published coverage details unavailable",
+    );
+    expect(text).not.toContain("searched: repo");
+  });
+
   it("explains capped page coverage without repeating the limit reason", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
@@ -882,7 +932,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
     expect(text).not.toContain("source notes:");
     expect(text).toContain(
-      "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
+      "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567 - searched",
     );
     expect(text).toContain(
       "site documentation 1 - searched an older snapshot; published snapshot hit its size cap: 480 pages included, 12 pages omitted, about 700 estimated total",
@@ -953,8 +1003,44 @@ describe("renderUnifiedSearchSuccess", () => {
 
     expect(text).toContain("No hits in the searched evidence on this page.");
     expect(text).not.toContain("No hits for docs");
-    expect(text).not.toContain("shorten or broaden");
-    expect(text).not.toContain("next:");
+    expect(text).toContain("Do not repeat this search unchanged.");
+    expect(text).toContain("next: shorten or broaden the query");
+  });
+
+  it("keeps indexing guidance when documentation contributors were not searched", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "READY",
+                freshness: "CURRENT",
+                resultCount: 0,
+                siteKey: "34150829eb8a7c57",
+              },
+            ],
+          },
+          {
+            source: "code",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [],
+            indexingStatus: "INDEXING",
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain("No hits in the searched evidence on this page.");
+    expect(text).toContain("Do not repeat this search unchanged.");
+    expect(text).toContain("indexState=INDEXING\n\ndocumentation sources:");
+    expect(text).toContain(
+      "next: rerun with a larger wait_timeout_ms to wait for indexing.",
+    );
+    expect(text).not.toContain("shorten or broaden the query");
   });
 });
 

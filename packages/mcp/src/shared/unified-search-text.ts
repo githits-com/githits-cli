@@ -382,6 +382,7 @@ export function appendDocumentationSources(
   const documented =
     sourceStatus?.filter((entry) => entry.contributors?.length) ?? [];
   if (documented.length === 0) return;
+  if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
 
   const entries = documented.map((entry) => {
     const contributors = entry.contributors ?? [];
@@ -445,7 +446,9 @@ function formatDocumentationContributor(
   >[number],
   identity: string,
 ): string {
-  if (isHealthyDocumentationContributor(contributor)) return identity;
+  if (isHealthyDocumentationContributor(contributor)) {
+    return `${identity} - searched`;
+  }
 
   const details: string[] = [];
   if (contributor.state === "SEARCHED") {
@@ -461,7 +464,15 @@ function formatDocumentationContributor(
     }
   }
   const coverage = formatPublishedCoverage(contributor.coverage);
-  if (coverage) details.push(coverage);
+  if (coverage) {
+    details.push(coverage);
+  } else if (
+    contributor.kind === "DOCPACK" &&
+    contributor.state === "SEARCHED" &&
+    !contributor.coverage
+  ) {
+    details.push("published coverage details unavailable");
+  }
   return `${identity} - ${details.join("; ")}`;
 }
 
@@ -632,15 +643,19 @@ export function appendEmptySearchGuidance(
   if (options.showQuery && options.query?.raw) {
     lines.push(`query=${quote(options.query.raw)}`);
   }
-  if (
-    options.evidenceNotice ||
-    hasUnsearchedDocumentationSources(options.sourceStatus)
-  ) {
+  const hasUnsearchedSources = hasUnsearchedDocumentationSources(
+    options.sourceStatus,
+  );
+  if (options.evidenceNotice) {
     lines.push("No hits in the searched evidence on this page.");
-    if (options.evidenceNotice) lines.push("Do not repeat immediately.");
+    lines.push("Do not repeat immediately.");
     return;
   }
-  lines.push(formatEmptySearchHeadline(options.sourceStatus));
+  lines.push(
+    hasUnsearchedSources
+      ? "No hits in the searched evidence on this page."
+      : formatEmptySearchHeadline(options.sourceStatus),
+  );
   lines.push("Do not repeat this search unchanged.");
   if (hasIndexingSource(options.sourceStatus)) {
     const hasAlternatives = options.sourceStatus?.some(
