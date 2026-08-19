@@ -74,7 +74,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  "Experimental, local-only dogfood tool for fuzzy, ambiguous, misspelled, or human-friendly package and repository names when a canonical target is not known. It is not a production-ready or authoritative package/repository lookup. Backend candidate coverage and ranking have known gaps while fixes are in progress: empty results may miss real targets, and ranked candidates may be incomplete or wrong. Treat results as leads, preserve ambiguity, and verify the identity with independent package or repository evidence before relying on it. Do not call for canonical `registry:name` or `github:owner/repo` targets; use those directly with the next MCP tool. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text-v1` (also available as `text`) gives bounded ranked candidates and a precise MCP follow-up; use `json` for the structured result.";
+  "Experimental tool. Use for fuzzy, ambiguous, misspelled, or human-friendly package and repository names when a canonical target is not known. Do not call for canonical `registry:name` or `github:owner/repo` targets; use those directly with the next MCP tool. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text-v1` (also available as `text`) gives bounded ranked candidates and a precise MCP follow-up; use `json` for the structured result.";
 
 export function createResolveTargetTool(
   service: ResolveTargetService,

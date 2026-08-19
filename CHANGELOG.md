@@ -17,9 +17,7 @@ extensions on the stable tool inventory.
   `code_diff` to the local stdio MCP server alongside the matching `githits
   resolve` and `githits code diff` commands. Enable the hidden-by-default suite
   with `[experimental] tools = true`; hosted MCP, plugins, extensions, and the
-  public MCP API remain unchanged. `resolve_target` is not a production-ready
-  authoritative lookup: treat candidates as leads and verify their identity
-  independently while backend coverage and ranking gaps are being fixed.
+  public MCP API remain unchanged.
 - **Documentation source evidence** - search and search-status now identify the
   repository and published-site documentation behind results. Healthy sources
   render as compact references, while stale, incomplete, pending, or unavailable

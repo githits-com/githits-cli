@@ -13,13 +13,6 @@ their contracts may change based on dogfood evidence, and they may be revised or
 removed before stable promotion. It does not weaken the privacy or output-safety
 requirements applied to stable GitHits tools.
 
-`resolve_target` is specifically not a production-ready or authoritative
-package/repository lookup. Its backend candidate coverage and ranking have known
-gaps while fixes are in progress: empty results may miss real targets, and
-ranked candidates may be incomplete or wrong. Treat its output as leads,
-preserve ambiguity, and verify an identity with independent package or
-repository evidence before relying on it.
-
 ## Availability
 
 The experimental tools are available only in the published `githits` CLI and
