@@ -63,7 +63,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Optional single repository-relative glob. Supports literals, `*`, `?`, whole-component `**`, and backslash escapes (for example `lib/**/*.js`); no braces, character classes, `!`, or Git pathspec magic.",
+      "Optional single non-empty repository-relative glob. Supports literals, `*`, `?`, whole-component `**`, and backslash escapes (for example `lib/**/*.js`); no braces, character classes, `!`, or Git pathspec magic.",
     ),
   max_files: z
     .number()

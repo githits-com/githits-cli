@@ -171,12 +171,14 @@ export function buildLocalMcpInstructions(
     LOCAL_EXPERIMENTAL_HEADING,
     LOCAL_EXPERIMENTAL_PRIVACY,
   ];
+  const toolGuidance: string[] = [];
   if (enabled.has("resolve_target")) {
-    guidance.push(LOCAL_RESOLVE_TARGET_GUIDANCE);
+    toolGuidance.push(LOCAL_RESOLVE_TARGET_GUIDANCE);
   }
   if (enabled.has("code_diff")) {
-    guidance.push(LOCAL_CODE_DIFF_GUIDANCE);
+    toolGuidance.push(LOCAL_CODE_DIFF_GUIDANCE);
   }
+  guidance.push(toolGuidance.join("\n"));
   if (options.reportToolIssues !== undefined) {
     guidance.push(buildIssueReportingGuidance(options));
   }
@@ -189,7 +191,7 @@ function buildIssueReportingGuidance(
 ): string {
   const scope =
     options.reportToolIssues === "all"
-      ? "any GitHits tool while the local experimental suite is active"
+      ? "any GitHits tool in this session"
       : [...new Set(options.enabledExperimentalTools)]
           .map((name) => `\`${name}\``)
           .join(" or ");

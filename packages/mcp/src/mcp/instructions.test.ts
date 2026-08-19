@@ -44,6 +44,8 @@ describe("buildLocalMcpInstructions", () => {
     expect(instructions).toContain("diffs do not prove compatibility");
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private or proprietary content");
+    expect(instructions).toContain("targets.\n\n- `resolve_target`");
+    expect(instructions).toContain("directly.\n- `code_diff`");
     expect(instructions.length - buildMcpInstructions().length).toBeLessThan(
       900,
     );
@@ -70,11 +72,10 @@ describe("buildLocalMcpInstructions", () => {
 
     const all = buildLocal(["code_diff"], "all");
     expect(all).toContain("Issue reporting (all)");
-    expect(all).toContain(
-      "any GitHits tool while the local experimental suite is active",
-    );
+    expect(all).toContain("any GitHits tool in this session");
     expect(all).toContain("`code_diff`");
     expect(all).not.toContain("`resolve_target`");
+    expect(all.length - buildLocal(["code_diff"]).length).toBeLessThan(500);
   });
 
   it("composes only the requested experimental subset without phantom guidance", () => {

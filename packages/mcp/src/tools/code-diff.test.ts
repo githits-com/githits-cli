@@ -84,6 +84,7 @@ describe("code_diff MCP adapter", () => {
     expect(pathGlobSchema.description).toContain(
       "no braces, character classes, `!`, or Git pathspec magic",
     );
+    expect(pathGlobSchema.description).toContain("non-empty");
     const targetSchema = schema.properties?.target as {
       anyOf?: Array<Record<string, unknown>>;
     };
