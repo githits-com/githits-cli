@@ -163,6 +163,7 @@ export interface UnifiedSearchDocumentationContributorPayload {
   repositoryUrl?: string;
   commitSha?: string;
   siteKey?: string;
+  siteUrl?: string;
   coverage?: UnifiedSearchDocumentationContributorCoveragePayload;
 }
 
@@ -1226,6 +1227,7 @@ function projectDocumentationContributors(
       if (contributor.commitSha) payload.commitSha = contributor.commitSha;
     } else {
       if (contributor.siteKey) payload.siteKey = contributor.siteKey;
+      if (contributor.siteUrl) payload.siteUrl = contributor.siteUrl;
       const coverage = projectDocumentationContributorCoverage(
         contributor.coverage,
       );

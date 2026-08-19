@@ -84,7 +84,7 @@ describe("searchTool", () => {
     );
     expect(text.content[0]?.text).toContain("documentation sources:");
     expect(text.content[0]?.text).toContain(
-      "site documentation - not ready, so it was not searched",
+      "site expressjs.com/en/guide - not ready, so it was not searched",
     );
   });
 

@@ -368,9 +368,7 @@ function hasSourceStatusNote(entry: UnifiedSearchSourceStatusPayload): boolean {
 }
 
 export interface DocumentationSourceResult {
-  type: string;
   target: string;
-  locator: { sourceUrl?: string };
 }
 
 /** Render compact references for healthy docs and explain only exceptions. */
@@ -390,8 +388,6 @@ export function appendDocumentationSources(
       contributor,
       identity: formatDocumentationContributorIdentity(
         contributor,
-        entry.targetLabel,
-        results,
         contributors,
       ),
     }));
@@ -502,8 +498,6 @@ function formatDocumentationContributorIdentity(
   contributor: NonNullable<
     UnifiedSearchSourceStatusPayload["contributors"]
   >[number],
-  targetLabel: string,
-  results: DocumentationSourceResult[],
   contributors: UnifiedSearchDocumentationContributorPayload[],
 ): string {
   if (contributor.kind === "REPOSITORY_DOCS") {
@@ -512,32 +506,13 @@ function formatDocumentationContributorIdentity(
       .join(" @ ");
     return identity ? `repo ${identity}` : "repository docs";
   }
-  const targetSite = targetLabel.startsWith("site:")
-    ? targetLabel.slice("site:".length)
-    : undefined;
   const docpacks = contributors.filter(
     (candidate) => candidate.kind === "DOCPACK",
   );
   const docpackNumber = docpacks.indexOf(contributor) + 1;
   const numberSuffix = docpacks.length > 1 ? ` ${docpackNumber}` : "";
-  if (targetSite) return `site ${targetSite}${numberSuffix}`;
-
-  if (docpacks.length === 1) {
-    const matchingHosts = new Set(
-      results
-        .filter(
-          (result) =>
-            result.type === "documentation_page" &&
-            result.target === targetLabel &&
-            result.locator.sourceUrl,
-        )
-        .map((result) => hostnameFromUrl(result.locator.sourceUrl))
-        .filter((host): host is string => Boolean(host)),
-    );
-    if (matchingHosts.size === 1) {
-      return `site ${matchingHosts.values().next().value}`;
-    }
-  }
+  const siteIdentity = formatDocumentationSiteIdentity(contributor.siteUrl);
+  if (siteIdentity) return `site ${siteIdentity}${numberSuffix}`;
 
   return `site documentation${numberSuffix}`;
 }
@@ -554,10 +529,14 @@ function isHealthyDocumentationContributor(
   );
 }
 
-function hostnameFromUrl(value: string | undefined): string | undefined {
+function formatDocumentationSiteIdentity(
+  value: string | undefined,
+): string | undefined {
   if (!value) return undefined;
   try {
-    return new URL(value).hostname || undefined;
+    const url = new URL(value);
+    const path = url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "");
+    return `${url.host}${path}`;
   } catch {
     return undefined;
   }

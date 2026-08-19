@@ -170,7 +170,7 @@ describe("searchStatusTool", () => {
     const text = await tool.handler({ search_ref: "search-ref-docs" }, {});
     expect(text.content[0]?.text).toContain("documentation sources:");
     expect(text.content[0]?.text).toContain(
-      "site documentation - not ready, so it was not searched",
+      "site expressjs.com/en/guide - not ready, so it was not searched",
     );
   });
 

@@ -27,6 +27,7 @@ describe("renderUnifiedSearchStatusText", () => {
                 freshness: "CURRENT",
                 resultCount: 0,
                 siteKey: "5555555555555555",
+                siteUrl: "https://docs.example.com/reference/",
                 coverage: {
                   coverageState: "PARTIAL",
                   pagesCrawled: 120,
@@ -44,7 +45,7 @@ describe("renderUnifiedSearchStatusText", () => {
     const text = renderUnifiedSearchStatusText(payload);
 
     expect(text).toContain(
-      "site docs.example.com - searched; published snapshot is partial: 120 pages included",
+      "site docs.example.com/reference - searched; published snapshot is partial: 120 pages included",
     );
     expect(text).toContain("documentation sources:");
     expect(text).not.toContain("hits on this page");

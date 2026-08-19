@@ -557,7 +557,7 @@ describe("renderUnifiedSearchSuccess", () => {
             target: "npm:express@5.2.1",
             locator: {
               pageId: "express/routing",
-              sourceUrl: "https://expressjs.com/en/guide/routing.html",
+              sourceUrl: "https://wrong.example.net/inferred-from-hit",
               sourceKind: "hosted",
             },
           }),
@@ -574,6 +574,7 @@ describe("renderUnifiedSearchSuccess", () => {
                   freshness: "CURRENT",
                   resultCount: 4,
                   siteKey: "34150829eb8a7c57",
+                  siteUrl: "https://expressjs.com/en/guide/",
                   coverage: {
                     coverageState: "COMPLETE",
                     pagesCrawled: 124,
@@ -605,8 +606,9 @@ describe("renderUnifiedSearchSuccess", () => {
       .split("\n")
       .find((line) => line.startsWith("searched:"));
     expect(searchedLine).toBe(
-      "searched: site expressjs.com; repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
+      "searched: site expressjs.com/en/guide; repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
     );
+    expect(text).not.toContain("wrong.example.net");
     expect(text).toContain(
       "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567\n\n[1]",
     );
@@ -793,7 +795,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567 - searched",
     );
     expect(text).toContain(
-      "site expressjs.com - searched; published coverage details unavailable",
+      "site documentation - searched; published coverage details unavailable",
     );
     expect(text).not.toContain("searched: repo");
   });

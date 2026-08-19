@@ -1032,6 +1032,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
                 freshness: "STALE",
                 resultCount: 2,
                 siteKey: "expressjs.com",
+                siteUrl: "https://expressjs.com/en/guide",
                 repositoryUrl: "https://github.com/ignored/docpack",
                 commitSha: "ignored-docpack-sha",
                 coverage: {
@@ -1049,6 +1050,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
                 state: "PENDING",
                 resultCount: 0,
                 siteKey: "api.example.com",
+                siteUrl: "https://api.example.com/reference",
               },
             ],
           },
@@ -1086,6 +1088,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
             freshness: "STALE",
             resultCount: 2,
             siteKey: "expressjs.com",
+            siteUrl: "https://expressjs.com/en/guide",
             coverage: {
               coverageState: "CAPPED",
               coverageReason: "artifact_size",
@@ -1101,6 +1104,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
             state: "PENDING",
             resultCount: 0,
             siteKey: "api.example.com",
+            siteUrl: "https://api.example.com/reference",
           },
         ],
       },

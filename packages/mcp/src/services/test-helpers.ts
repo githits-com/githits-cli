@@ -128,6 +128,7 @@ export const documentationContributorOutcome: UnifiedSearchOutcome = {
             state: "PENDING",
             resultCount: 0,
             siteKey: "34150829eb8a7c57",
+            siteUrl: "https://expressjs.com/en/guide",
           },
         ],
       },

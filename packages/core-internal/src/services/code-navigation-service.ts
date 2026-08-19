@@ -317,6 +317,7 @@ export interface UnifiedSearchDocumentationContributor {
   repositoryUrl?: string;
   commitSha?: string;
   siteKey?: string;
+  siteUrl?: string;
   coverage?: DocCoverage;
 }
 
@@ -1007,6 +1008,7 @@ contributors {
   repositoryUrl
   commitSha
   siteKey
+  siteUrl
   ${DOC_COVERAGE_SELECTION}
 }`;
 
@@ -1532,6 +1534,7 @@ const unifiedSearchDocumentationContributorSchema = z.object({
   repositoryUrl: z.string().nullable().optional(),
   commitSha: z.string().nullable().optional(),
   siteKey: z.string().nullable().optional(),
+  siteUrl: z.string().nullable().optional(),
   coverage: docCoverageSchema,
 });
 
@@ -2973,6 +2976,7 @@ export class CodeNavigationServiceImpl
           repositoryUrl: contributor.repositoryUrl ?? undefined,
           commitSha: contributor.commitSha ?? undefined,
           siteKey: contributor.siteKey ?? undefined,
+          siteUrl: contributor.siteUrl ?? undefined,
           coverage: normaliseDocCoverage(contributor.coverage, {
             preserveNone: true,
           }),
