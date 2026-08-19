@@ -509,9 +509,13 @@ function formatDocumentationContributorIdentity(
   const docpacks = contributors.filter(
     (candidate) => candidate.kind === "DOCPACK",
   );
-  const docpackNumber = docpacks.indexOf(contributor) + 1;
-  const numberSuffix = docpacks.length > 1 ? ` ${docpackNumber}` : "";
   const siteIdentity = formatDocumentationSiteIdentity(contributor.siteUrl);
+  const collidingDocpacks = docpacks.filter(
+    (candidate) =>
+      formatDocumentationSiteIdentity(candidate.siteUrl) === siteIdentity,
+  );
+  const docpackNumber = collidingDocpacks.indexOf(contributor) + 1;
+  const numberSuffix = collidingDocpacks.length > 1 ? ` ${docpackNumber}` : "";
   if (siteIdentity) return `site ${siteIdentity}${numberSuffix}`;
 
   return `site documentation${numberSuffix}`;
@@ -533,13 +537,9 @@ function formatDocumentationSiteIdentity(
   value: string | undefined,
 ): string | undefined {
   if (!value) return undefined;
-  try {
-    const url = new URL(value);
-    const path = url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "");
-    return `${url.host}${path}`;
-  } catch {
-    return undefined;
-  }
+  const url = new URL(value);
+  const path = url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "");
+  return `${url.host}${path}`;
 }
 
 function formatPublishedCoverage(

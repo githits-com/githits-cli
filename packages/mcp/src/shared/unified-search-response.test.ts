@@ -1024,6 +1024,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
                 resultCount: 1,
                 repositoryUrl: "https://github.com/expressjs/express",
                 commitSha: "0123456789abcdef0123456789abcdef01234567",
+                siteUrl: "https://ignored.example.com/repository-docs",
                 coverage: { coverageState: "NONE", pagesCrawled: 69 },
               },
               {
