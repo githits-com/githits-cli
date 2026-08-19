@@ -16,6 +16,7 @@ export interface ResolveTargetRequestInput {
   name: string;
   query?: string;
   registry?: string;
+  registries?: string[];
   preferKind?: string;
   intentHints?: string[];
   limit?: number;
@@ -47,7 +48,7 @@ export function buildResolveTargetParams(
   const query = input.query?.trim();
   if (query) params.query = query;
 
-  const registries = parseRegistries(input.registry);
+  const registries = parseRegistries(input.registries ?? input.registry);
   if (registries.length > 0) params.registries = registries;
 
   const preferredKind = parsePreferredKind(input.preferKind);
@@ -58,10 +59,13 @@ export function buildResolveTargetParams(
   return params;
 }
 
-function parseRegistries(value: string | undefined): PkgseerRegistry[] {
+function parseRegistries(
+  value: string | string[] | undefined,
+): PkgseerRegistry[] {
   if (value === undefined) return [];
   const registries: PkgseerRegistry[] = [];
-  for (const raw of value.split(",")) {
+  const values = Array.isArray(value) ? value : value.split(",");
+  for (const raw of values) {
     const registry = raw.trim().toLowerCase();
     if (!registry) continue;
     if (!isKnownPkgseerRegistryArg(registry)) {
@@ -83,7 +87,7 @@ function parsePreferredKind(
   if (kind === "package") return "PACKAGE";
   if (kind === "repository") return "REPOSITORY";
   throw new InvalidPackageSpecError(
-    `prefer-kind expects package or repository. Got '${value}'.`,
+    `Preferred kind expects package or repository. Got '${value}'.`,
   );
 }
 

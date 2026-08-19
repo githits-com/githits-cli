@@ -39,11 +39,15 @@ export interface McpRequestContext<TExtra = unknown> {
   extra: TExtra | undefined;
 }
 
+export type McpToolServicesProviderFor<
+  TServices extends McpToolServices,
+  TExtra = unknown,
+> =
+  | TServices
+  | ((context: McpRequestContext<TExtra>) => TServices | Promise<TServices>);
+
 export type McpToolServicesProvider<TExtra = unknown> =
-  | McpToolServices
-  | ((
-      context: McpRequestContext<TExtra>,
-    ) => McpToolServices | Promise<McpToolServices>);
+  McpToolServicesProviderFor<McpToolServices, TExtra>;
 
 /** Wraps one public MCP tool call without receiving arguments or auth data. */
 export type McpToolExecutionHook = (
@@ -67,36 +71,45 @@ export interface McpToolDescriptor<TSchema extends ZodRawShape = ZodRawShape> {
   annotations: CompleteToolAnnotations;
 }
 
-type ToolFactory = (services: McpToolServices) => ToolDefinition<unknown>;
+export type McpToolFactory<
+  TServices extends McpToolServices = McpToolServices,
+> = (services: TServices) => ToolDefinition<unknown>;
 
-const TOOL_FACTORIES: ToolFactory[] = [
-  (services) => eraseTool(createGetExampleTool(services.githitsService)),
-  (services) => eraseTool(createSearchLanguageTool(services.githitsService)),
-  (services) => eraseTool(createFeedbackTool(services.githitsService)),
-  (services) => eraseTool(createSearchTool(services.codeNavigationService)),
+export const STABLE_MCP_TOOL_FACTORIES: readonly McpToolFactory[] = [
+  (services) => eraseMcpTool(createGetExampleTool(services.githitsService)),
+  (services) => eraseMcpTool(createSearchLanguageTool(services.githitsService)),
+  (services) => eraseMcpTool(createFeedbackTool(services.githitsService)),
+  (services) => eraseMcpTool(createSearchTool(services.codeNavigationService)),
   (services) =>
-    eraseTool(createSearchStatusTool(services.codeNavigationService)),
-  (services) => eraseTool(createListFilesTool(services.codeNavigationService)),
-  (services) => eraseTool(createReadFileTool(services.codeNavigationService)),
-  (services) => eraseTool(createGrepRepoTool(services.codeNavigationService)),
+    eraseMcpTool(createSearchStatusTool(services.codeNavigationService)),
   (services) =>
-    eraseTool(createListPackageDocsTool(services.packageIntelligenceService)),
+    eraseMcpTool(createListFilesTool(services.codeNavigationService)),
   (services) =>
-    eraseTool(createReadPackageDocTool(services.packageIntelligenceService)),
+    eraseMcpTool(createReadFileTool(services.codeNavigationService)),
   (services) =>
-    eraseTool(createPackageSummaryTool(services.packageIntelligenceService)),
+    eraseMcpTool(createGrepRepoTool(services.codeNavigationService)),
   (services) =>
-    eraseTool(
+    eraseMcpTool(
+      createListPackageDocsTool(services.packageIntelligenceService),
+    ),
+  (services) =>
+    eraseMcpTool(createReadPackageDocTool(services.packageIntelligenceService)),
+  (services) =>
+    eraseMcpTool(createPackageSummaryTool(services.packageIntelligenceService)),
+  (services) =>
+    eraseMcpTool(
       createPackageVulnerabilitiesTool(services.packageIntelligenceService),
     ),
   (services) =>
-    eraseTool(
+    eraseMcpTool(
       createPackageDependenciesTool(services.packageIntelligenceService),
     ),
   (services) =>
-    eraseTool(createPackageChangelogTool(services.packageIntelligenceService)),
+    eraseMcpTool(
+      createPackageChangelogTool(services.packageIntelligenceService),
+    ),
   (services) =>
-    eraseTool(
+    eraseMcpTool(
       createPackageUpgradeReviewTool(services.packageIntelligenceService),
     ),
 ];
@@ -107,7 +120,14 @@ const TOOL_FACTORIES: ToolFactory[] = [
 export function getMcpToolDefinitions(
   services: McpToolServices,
 ): ToolDefinition<unknown>[] {
-  return TOOL_FACTORIES.map((createTool) => createTool(services));
+  return getToolDefinitionsFromFactories(services, STABLE_MCP_TOOL_FACTORIES);
+}
+
+function getToolDefinitionsFromFactories<TServices extends McpToolServices>(
+  services: TServices,
+  toolFactories: readonly McpToolFactory<TServices>[],
+): ToolDefinition<unknown>[] {
+  return toolFactories.map((createTool) => createTool(services));
 }
 
 export function getMcpToolDescriptors(): McpToolDescriptor[] {
@@ -121,7 +141,7 @@ export function getMcpToolDescriptors(): McpToolDescriptor[] {
   );
 }
 
-function eraseTool<TArgs, TSchema extends ZodRawShape>(
+export function eraseMcpTool<TArgs, TSchema extends ZodRawShape>(
   tool: ToolDefinition<TArgs, TSchema>,
 ): ToolDefinition<unknown> {
   return {
@@ -138,8 +158,27 @@ export function registerMcpTools<TExtra = unknown>(
     traceTool?: McpToolExecutionHook;
   },
 ): void {
-  for (const createTool of TOOL_FACTORIES) {
-    const descriptor = createTool(createDescriptorServices());
+  registerMcpToolsWithFactories(server, STABLE_MCP_TOOL_FACTORIES, {
+    ...options,
+    descriptorServices: createDescriptorServices(),
+  });
+}
+
+export function registerMcpToolsWithFactories<
+  TServices extends McpToolServices,
+  TExtra = unknown,
+>(
+  server: McpServer,
+  toolFactories: readonly McpToolFactory<TServices>[],
+  options: {
+    authAction?: McpAuthAction;
+    services: McpToolServicesProviderFor<TServices, TExtra>;
+    traceTool?: McpToolExecutionHook;
+    descriptorServices: TServices;
+  },
+): void {
+  for (const createTool of toolFactories) {
+    const descriptor = createTool(options.descriptorServices);
     server.registerTool(
       descriptor.name,
       {
@@ -175,31 +214,60 @@ export function registerMcpTools<TExtra = unknown>(
 export function createMcpServer<TExtra = unknown>(
   options: CreateMcpServerOptions<TExtra>,
 ): McpServer {
+  return createMcpServerWithFactories({
+    ...options,
+    toolFactories: STABLE_MCP_TOOL_FACTORIES,
+    descriptorServices: createDescriptorServices(),
+  });
+}
+
+export interface CreateMcpServerWithFactoriesOptions<
+  TServices extends McpToolServices,
+  TExtra = unknown,
+> {
+  metadata: McpServerMetadata;
+  services: McpToolServicesProviderFor<TServices, TExtra>;
+  toolFactories: readonly McpToolFactory<TServices>[];
+  descriptorServices: TServices;
+  authAction?: McpAuthAction;
+  instructions?: string;
+  instructionOptions?: Parameters<typeof buildMcpInstructions>[0];
+  traceTool?: McpToolExecutionHook;
+}
+
+export function createMcpServerWithFactories<
+  TServices extends McpToolServices,
+  TExtra = unknown,
+>(options: CreateMcpServerWithFactoriesOptions<TServices, TExtra>): McpServer {
   const server = new McpServer(options.metadata, {
     instructions:
       options.instructions ?? buildMcpInstructions(options.instructionOptions),
   });
 
-  registerMcpTools(server, {
+  registerMcpToolsWithFactories(server, options.toolFactories, {
     authAction: options.authAction,
     services: options.services,
     traceTool: options.traceTool,
+    descriptorServices: options.descriptorServices,
   });
 
   return server;
 }
 
-async function resolveMcpToolServices<TExtra>(
-  provider: McpToolServicesProvider<TExtra>,
+async function resolveMcpToolServices<
+  TServices extends McpToolServices,
+  TExtra,
+>(
+  provider: McpToolServicesProviderFor<TServices, TExtra>,
   context: McpRequestContext<TExtra>,
-): Promise<McpToolServices> {
+): Promise<TServices> {
   if (typeof provider === "function") {
     return provider(context);
   }
   return provider;
 }
 
-function createDescriptorServices(): McpToolServices {
+export function createDescriptorServices(): McpToolServices {
   const fail = () => {
     throw new Error("Descriptor services must not execute tool handlers.");
   };

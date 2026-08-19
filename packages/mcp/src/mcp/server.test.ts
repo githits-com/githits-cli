@@ -1,6 +1,22 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
+import type {
+  CodeDiffService,
+  ResolveTargetService,
+} from "@githits/core-internal";
 import { z } from "zod";
-import { getMcpToolDescriptors } from "./server.js";
+import { createMockCodeNavigationService } from "../services/test-helpers.js";
+import type { McpToolServices } from "../tools/tool-services.js";
+import {
+  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  textResult,
+} from "../tools/types.js";
+import {
+  createDescriptorServices,
+  createMcpServerWithFactories,
+  getMcpToolDescriptors,
+  type McpToolFactory,
+} from "./server.js";
 
 const BOUNDED_NON_DESTRUCTIVE_WRITES = new Set([
   "get_example",
@@ -83,5 +99,59 @@ describe("MCP code_grep schema", () => {
         description: expect.stringContaining("integer 0-10"),
       });
     }
+  });
+});
+
+describe("MCP factory seam", () => {
+  interface ExperimentalServices extends McpToolServices {
+    codeNavigationService: ReturnType<typeof createMockCodeNavigationService> &
+      CodeDiffService;
+    resolveTargetService: ResolveTargetService;
+  }
+
+  it("passes extension services to descriptor construction without runtime providers", () => {
+    const stable = createDescriptorServices();
+    const descriptorServices: ExperimentalServices = {
+      ...stable,
+      codeNavigationService: {
+        ...stable.codeNavigationService,
+        ...createMockCodeNavigationService(),
+      },
+      resolveTargetService: {
+        resolveTarget: mock(() => Promise.reject(new Error("unused"))),
+      },
+    };
+    const experimentalFactory: McpToolFactory<ExperimentalServices> = (
+      services,
+    ): ToolDefinition<unknown> => {
+      expect(services.resolveTargetService).toBeDefined();
+      expect(services.codeNavigationService.codeDiff).toBeDefined();
+      return {
+        name: "experimental_probe",
+        description: "test-only experimental factory",
+        schema: {},
+        annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
+        handler: async () => textResult("ok"),
+      };
+    };
+
+    const server = createMcpServerWithFactories({
+      metadata: { name: "factory-test", version: "0.0.0" },
+      services: () => {
+        throw new Error("runtime provider must not run during registration");
+      },
+      toolFactories: [experimentalFactory],
+      descriptorServices,
+    });
+
+    expect(
+      Object.keys(
+        (
+          server as unknown as {
+            _registeredTools: Record<string, unknown>;
+          }
+        )._registeredTools,
+      ),
+    ).toEqual(["experimental_probe"]);
   });
 });

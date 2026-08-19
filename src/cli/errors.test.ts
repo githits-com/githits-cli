@@ -1,7 +1,30 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { AuthRequiredError } from "@githits/mcp/internal";
+import { AuthConfigError } from "../services/auth-config.js";
+import { ExperimentalToolsDisabledError } from "../services/experimental-cli-policy.js";
+import { ExperimentalConfigError } from "../services/experimental-config.js";
 import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
 import { handleCliError, runCliMain } from "./errors.js";
+
+const configHomeEnvKey =
+  process.platform === "win32" ? "APPDATA" : "XDG_CONFIG_HOME";
+const alternateConfigHomeEnvKey =
+  configHomeEnvKey === "APPDATA" ? "XDG_CONFIG_HOME" : "APPDATA";
+
+function withConfigHomeEnv(
+  env: NodeJS.ProcessEnv,
+  configHome: string,
+): NodeJS.ProcessEnv {
+  const configured = {
+    ...env,
+    [configHomeEnvKey]: configHome,
+  };
+  delete configured[alternateConfigHomeEnvKey];
+  return configured;
+}
 
 describe("handleCliError", () => {
   const originalDebug = process.env.GITHITS_DEBUG;
@@ -64,6 +87,61 @@ describe("handleCliError", () => {
     expect(output).toContain("lock timed out");
     expect(output).not.toContain("AuthStorageLockTimeoutError");
     expect(output).not.toContain("at ");
+  });
+
+  it("prints experimental policy errors as concise user-facing failures", () => {
+    const disabled = captureCliError(
+      new ExperimentalToolsDisabledError("resolve", "/tmp/config.toml"),
+    );
+    expect(disabled.output).toContain("[experimental]\ntools = true");
+    expect(disabled.output).not.toContain("githits doctor");
+
+    const malformed = captureCliError(
+      new ExperimentalConfigError(
+        "Cannot parse GitHits config at /tmp/config.toml: invalid TOML",
+      ),
+    );
+    expect(malformed.output).toContain("/tmp/config.toml");
+    expect(malformed.output).not.toContain("githits doctor");
+  });
+
+  it("renders experimental policy errors as clean JSON when requested", () => {
+    const disabled = captureCliError(
+      new ExperimentalToolsDisabledError("code diff", "/tmp/config.toml"),
+      true,
+    );
+    expect(disabled.output.trim()).toBe(
+      JSON.stringify({
+        error:
+          'Experimental CLI command "code diff" is disabled. Enable it in /tmp/config.toml by adding:\n[experimental]\ntools = true',
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      }),
+    );
+
+    const malformed = captureCliError(
+      new ExperimentalConfigError(
+        "Cannot parse GitHits config at /tmp/config.toml: invalid TOML",
+      ),
+      true,
+    );
+    expect(JSON.parse(malformed.output)).toEqual({
+      error: "Cannot parse GitHits config at /tmp/config.toml: invalid TOML",
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+
+    const authConfig = captureCliError(
+      new AuthConfigError(
+        "Cannot parse GitHits config at /tmp/config.toml: invalid TOML",
+      ),
+      true,
+    );
+    expect(JSON.parse(authConfig.output)).toEqual({
+      error: "Cannot parse GitHits config at /tmp/config.toml: invalid TOML",
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
   });
 
   for (const error of [
@@ -141,39 +219,105 @@ describe("handleCliError", () => {
   });
 
   it("renders unexpected action failures once in a real CLI process", async () => {
+    const xdgConfigHome = mkdtempSync(join(tmpdir(), "githits-cli-errors-"));
+    mkdirSync(join(xdgConfigHome, "githits"), { recursive: true });
+    writeFileSync(
+      join(xdgConfigHome, "githits", "config.toml"),
+      "[experimental]\ntools = false\n",
+    );
     const proc = Bun.spawn(
       ["bun", "run", "src/cli.ts", "languages", "--json"],
       {
         cwd: process.cwd(),
         stdout: "pipe",
         stderr: "pipe",
-        env: {
-          ...process.env,
-          GITHITS_API_TOKEN: "test-token",
-          GITHITS_API_URL: "http://attacker.test",
-          GITHITS_MCP_URL: "https://mcp.githits.com",
-          GITHITS_CODE_NAV_URL: "https://pkgseer.dev",
-          GITHITS_DISABLE_UPDATE_CHECK: "1",
-          GITHITS_DEBUG: "",
-          NO_COLOR: "1",
-        },
+        env: withConfigHomeEnv(
+          {
+            ...process.env,
+            GITHITS_API_TOKEN: "test-token",
+            GITHITS_API_URL: "http://attacker.test",
+            GITHITS_MCP_URL: "https://mcp.githits.com",
+            GITHITS_CODE_NAV_URL: "https://pkgseer.dev",
+            GITHITS_DISABLE_UPDATE_CHECK: "1",
+            GITHITS_DEBUG: "",
+            NO_COLOR: "1",
+          },
+          xdgConfigHome,
+        ),
       },
     );
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ]);
+    try {
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
 
-    expect(exitCode).toBe(1);
-    expect(stdout).toBe("");
-    expect(stderr.match(/Invalid GITHITS_API_URL/g)).toHaveLength(1);
-    expect(stderr).toContain("githits doctor");
-    expect(stderr).not.toContain("\n    at ");
+      expect(exitCode).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr.match(/Invalid GITHITS_API_URL/g)).toHaveLength(1);
+      expect(stderr).toContain("githits doctor");
+      expect(stderr).not.toContain("\n    at ");
+    } finally {
+      rmSync(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("renders malformed auth config as a clean JSON error in a real CLI process", async () => {
+    const xdgConfigHome = mkdtempSync(
+      join(tmpdir(), "githits-cli-auth-config-"),
+    );
+    mkdirSync(join(xdgConfigHome, "githits"), { recursive: true });
+    const configPath = join(xdgConfigHome, "githits", "config.toml");
+    writeFileSync(configPath, "[auth\n");
+    const env = { ...process.env };
+    delete env.GITHITS_API_TOKEN;
+    env.GITHITS_AUTH_STORAGE = "";
+    env.GITHITS_API_URL = "https://api-malformed-auth.invalid";
+    env.GITHITS_MCP_URL = "https://mcp-malformed-auth.invalid";
+    env.GITHITS_CODE_NAV_URL = "https://code-malformed-auth.invalid";
+    env.GITHITS_ACCOUNTS_URL = "https://accounts-malformed-auth.invalid";
+    env.GITHITS_DISABLE_UPDATE_CHECK = "1";
+    env[configHomeEnvKey] = xdgConfigHome;
+    delete env[alternateConfigHomeEnvKey];
+    env.GITHITS_DEBUG = "";
+    env.NO_COLOR = "1";
+    const proc = Bun.spawn(
+      ["bun", "run", "src/cli.ts", "languages", "--json"],
+      {
+        cwd: process.cwd(),
+        stdout: "pipe",
+        stderr: "pipe",
+        env,
+      },
+    );
+    try {
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+
+      expect(exitCode).toBe(1);
+      expect(stdout).toBe("");
+      const payload = JSON.parse(stderr);
+      expect(payload).toMatchObject({
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+      expect(payload.error).toContain(
+        `Cannot parse GitHits config at ${configPath}:`,
+      );
+    } finally {
+      rmSync(xdgConfigHome, { recursive: true, force: true });
+    }
   });
 });
 
-function captureCliError(error: unknown): {
+function captureCliError(
+  error: unknown,
+  json = false,
+): {
   output: string;
   exitCodes: number[];
 } {
@@ -193,6 +337,7 @@ function captureCliError(error: unknown): {
         },
       },
       exit,
+      json,
     }),
   ).toThrow("process.exit:1");
 

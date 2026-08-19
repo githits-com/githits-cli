@@ -24,9 +24,12 @@ strings. These modes remove token variables, select isolated file auth and
 config roots, disable advisory update checks, and point GitHits service URLs at
 reserved `.invalid` hosts. CLI built smoke verifies the exact top-level command
 set from root help plus JSON/terminal auth behavior. MCP built smoke calls only
-`listTools` and requires every name in `EXPECTED_MCP_TOOLS`; it makes no live
-tool calls. One CI step applies a combined two-minute timeout and logs each
-harness timing summary and selected launch vector.
+`listTools` and requires the exact stable `EXPECTED_MCP_TOOLS` cohort plus a
+separate local-only experimental cohort launched with the hidden session
+override. The experimental cohort also checks its local instruction block and
+unauthenticated tool envelopes; it never changes the public smoke constant or
+submits feedback. One CI step applies a combined two-minute timeout and logs
+each harness timing summary and selected launch vector.
 
 The suites intentionally avoid exact-output snapshots because backend ranking
 and release metadata can change. They assert durable UX invariants instead:
@@ -52,6 +55,49 @@ The dual-surface tools today are:
 - `pkg_upgrade_review` ↔ `githits pkg upgrade-review`
 - `docs_list` ↔ `githits docs list`
 - `docs_read` ↔ `githits docs read`
+- `resolve_target` ↔ `githits resolve` *(config-gated, local-only)*
+- `code_diff` ↔ `githits code diff` *(config-gated, local-only)*
+
+The local smoke runners execute these cohorts independently in source and
+built modes. CLI experimental runs use a temporary opt-in config. MCP
+experimental registration and live runs use the hidden session override,
+which forces the local tools on and reporting off without reading host
+experimental policy. Scoped temporary roots preserve inherited environment
+credentials but do not copy host file-auth state; authenticated live
+validation is conditional and skips with `AUTH_REQUIRED` when unavailable.
+Public/remote smoke remains stable-only.
+
+### Phase 3 evaluation record
+
+Claude and Codex each completed the experimental-resolution-follow-up,
+experimental-code-diff, and `express-router` regression workloads successfully.
+All six runs rated the usefulness of the result as helped: Claude rated the
+three workloads high/high/high, and Codex rated them medium/high/high. The
+execution gate is complete with the following findings, not issue-free status:
+both agents received zero fuzzy candidates for `lodahs` from `resolve_target`;
+stable `code_read` indexing retries exceeded the estimate before succeeding
+later; and the removed-package security error was ambiguous. These are
+external/backend findings, with no client-side fuzzy fallback or other client
+claim of resolution. No feedback was submitted. The local `code_diff` text-v1
+patch preview truncation was fixed to mark the 320-byte display bound and point
+to JSON for the full returned patch, while preserving backend omission limits.
+
+Targeted post-fix `experimental-code-diff` reruns then succeeded for Claude in
+59.4s and Codex in 42.2s. Both rated usefulness as helped with high confidence;
+each reported zero `toolIssues` and zero `instructionIssues`. This validates
+the bounded-preview and JSON recovery guidance fix. It does not change or claim
+to resolve the external/backend findings above.
+
+The final instruction compaction reduced the enabled experimental block from
+1,650 characters / 245 words to 861 characters / 116 words while retaining the
+exact disabled baseline. Claude and Codex then reran both experimental workloads
+and the `express-router` regression; all six succeeded and rated usefulness as
+helped with high confidence. Claude exposed one schema UX gap by trying brace
+expansion in `path_glob`; the field now states the supported single-glob grammar.
+A focused Claude rerun then completed CodeDiff in two calls with zero tool or
+instruction issues. The resolution/security-holder findings above remained and
+are still classified as external/backend behavior rather than compaction
+regressions.
 
 `feedback` is mutating, so smoke coverage exercises registration and
 validation/auth paths only. It does not submit fake feedback to the live
@@ -93,6 +139,35 @@ test suite anchors the doc.
   is applied at the shared request builder — not at the surface — so
   both surfaces apply defaults at the same point and under the same
   conditions.
+- The local experimental pair is a deliberate explicit-default exception:
+  CLI `githits code diff` defaults to patch output while MCP `code_diff`
+  defaults to `name-status` inventory. Parity tests select the same explicit
+  view and request JSON on both surfaces before comparing service params or
+  success envelopes. `resolve_target` keeps its shared limit and detailed
+  selection defaults.
+
+### `PARITY-EXPERIMENTAL-LOCAL`
+
+- `resolve_target` and `code_diff` are config-gated local CLI/MCP pairs. They
+  are absent from the public/remote tool definitions, descriptors, smoke
+  inventory, package exports, and Agent Skill surfaces until promotion is
+  separately approved.
+- Equivalent explicit calls must normalize to identical service params. CLI
+  comma-separated registries and MCP registry arrays, CLI repeated intent
+  hints and MCP hint arrays, CLI target/range syntax and MCP target/endpoints,
+  and surface-specific field names are compared after the shared request
+  builders normalize them.
+- Explicit JSON success payloads and mapped service-error envelopes must be
+  deeply equal. Invalid caller input keeps the stable classification and
+  envelope shape; surface-native validation prose is allowed where the CLI
+  names a command/flag and MCP names a tool/argument.
+- Text rendering, agent-specific descriptions, and the deliberate default
+  view divergence are not parity targets. The MCP default is compact
+  `text-v1`; `code_diff` patch previews are bounded at 320 UTF-8 bytes, label
+  each affected file, and emit one aggregate `Next:` recovery, while
+  `format: "json"` returns the full patch returned by the backend subject to
+  backend limits and content coverage. Parity uses `format: "json"`
+  explicitly.
 
 ### `PARITY-REQUEST`
 
@@ -141,10 +216,11 @@ test suite anchors the doc.
   `content[0].text` on error gets the same envelope shape and structured data as
   CLI `--json`. Client-owned validation messages and path-recovery
   `details.action` are deliberately surface-native: MCP names MCP
-  tools/arguments, while CLI JSON names CLI commands/options. The CLI request
-  wrappers translate MCP validation identifiers from the shared builders, normally
-  using their backtick delimiters and explicitly handling raw reversed-range labels;
-  changes to those identifiers must update the CLI mappings and parity tests.
+  tools/arguments, while CLI JSON names CLI commands/options. Shared request
+  builders use natural, surface-neutral prose for semantic validation labels;
+  CLI request adapters translate those phrases to flags and CLI syntax, while
+  MCP preserves the neutral wording. Changes to either adapter or the shared
+  prose must update the corresponding exact assertions and parity tests.
   Cross-surface account actions such as `githits settings terms accept` remain
   identical because they name one shared external remediation.
 - Backend error messages, hints, indexing estimates, available versions/refs,
@@ -186,6 +262,9 @@ When a new tool lands with both MCP and CLI surfaces:
 - [ ] Parity test at `src/tools/<tool>-parity.test.ts` that cites the
   rule IDs it enforces (in a file header comment). Covers at minimum:
   successful query, zero-result, two error codes.
+- [ ] For config-gated local-only pairs, add explicit service-param, JSON
+  success, mapped-error, and invalid-input shape coverage without adding the
+  tool to public or smoke inventories.
 - [ ] MCP tool description mirrored across every shipped MCP surface
   before public release.
 - [ ] Tool name added to `EXPECTED_MCP_TOOLS` in

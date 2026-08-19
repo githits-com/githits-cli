@@ -137,3 +137,63 @@ export function buildMcpInstructions(
     : [CORE_BLOCK, packageSection];
   return sections.join("\n\n");
 }
+
+export type LocalExperimentalToolName = "resolve_target" | "code_diff";
+
+export interface BuildLocalMcpInstructionsOptions {
+  enabledExperimentalTools: readonly LocalExperimentalToolName[];
+  reportToolIssues?: "experimental" | "all";
+}
+
+const LOCAL_EXPERIMENTAL_HEADING =
+  "**Local experimental tools (public OSS only)**";
+
+const LOCAL_EXPERIMENTAL_PRIVACY =
+  "Inputs are sent to GitHits. Never send credentials, personal data, private or proprietary content, local paths, or private targets.";
+
+const LOCAL_RESOLVE_TARGET_GUIDANCE =
+  "- `resolve_target` — resolve only fuzzy, misspelled, ambiguous, or otherwise noncanonical names. Skip canonical `registry:name` and `github:owner/repo` targets. If ambiguous, narrow or ask; never guess. Reuse the chosen canonical target directly.";
+
+const LOCAL_CODE_DIFF_GUIDANCE =
+  "- `code_diff` — compare exact package versions or public GitHub refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text-v1` unless exact fields or the full returned patch are needed. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";
+
+/**
+ * Compose local-only experimental guidance without changing the public
+ * `buildMcpInstructions()` output or public package surface.
+ */
+export function buildLocalMcpInstructions(
+  options: BuildLocalMcpInstructionsOptions,
+): string {
+  const enabled = new Set(options.enabledExperimentalTools);
+  if (enabled.size === 0) return buildMcpInstructions();
+
+  const guidance: string[] = [
+    LOCAL_EXPERIMENTAL_HEADING,
+    LOCAL_EXPERIMENTAL_PRIVACY,
+  ];
+  const toolGuidance: string[] = [];
+  if (enabled.has("resolve_target")) {
+    toolGuidance.push(LOCAL_RESOLVE_TARGET_GUIDANCE);
+  }
+  if (enabled.has("code_diff")) {
+    toolGuidance.push(LOCAL_CODE_DIFF_GUIDANCE);
+  }
+  guidance.push(toolGuidance.join("\n"));
+  if (options.reportToolIssues !== undefined) {
+    guidance.push(buildIssueReportingGuidance(options));
+  }
+
+  return `${buildMcpInstructions()}\n\n${guidance.join("\n\n")}`;
+}
+
+function buildIssueReportingGuidance(
+  options: BuildLocalMcpInstructionsOptions,
+): string {
+  const scope =
+    options.reportToolIssues === "all"
+      ? "any GitHits tool in this session"
+      : [...new Set(options.enabledExperimentalTools)]
+          .map((name) => `\`${name}\``)
+          .join(" or ");
+  return `**Issue reporting (${options.reportToolIssues})** — for each distinct concrete defect observed in ${scope}, make one \`feedback\` call with \`accepted: false\`, exact \`tool_name\`, and concise redacted expected-vs-observed context or a stable error code. Do not report valid empty results, expected bounds or safety omissions, or user judgment. Never include credentials, personal data, private/proprietary content, file bodies, or large outputs. Do not retry or report a failed feedback call.`;
+}

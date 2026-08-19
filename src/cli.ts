@@ -39,6 +39,10 @@ import {
   createContainer,
   loadAutoLoginAuthSessionMetadata,
 } from "./container.js";
+import {
+  resolveExperimentalCliPolicy,
+  shouldRegisterCliCommand,
+} from "./services/experimental-cli-policy.js";
 import { FileSystemServiceImpl } from "./services/filesystem-service.js";
 import { createLazyCliFetch } from "./services/proxy-fetch.js";
 import { NpmRegistryUpdateCheckService } from "./services/update-check-service.js";
@@ -70,6 +74,15 @@ if (isTelemetryEnabled()) {
 }
 
 async function main(): Promise<void> {
+  const experimentalCliPolicy = await resolveExperimentalCliPolicy(
+    new FileSystemServiceImpl(),
+    argv,
+  );
+  const resolveAvailable = shouldRegisterCliCommand(
+    "resolve",
+    experimentalCliPolicy.tools,
+  );
+
   await enforceCachedRequiredUpdateForInvocation({
     args: argv,
     env: process.env,
@@ -106,20 +119,7 @@ async function main(): Promise<void> {
     .hook("postAction", (_thisCommand, actionCommand) => {
       endTelemetrySpan(commandSpans.get(actionCommand));
     })
-    .addHelpText(
-      "after",
-      `
-${colorizeBrand("Getting started:", "primary", useColors, { bold: true })}
-  githits init                         Connect GitHits to your coding agents
-  githits login                        Sign in to your GitHits account
-  githits mcp                          Show MCP setup instructions
-  githits example "query"              Find real-world implementations
-  githits resolve express              Resolve a package or repository name
-
-Learn more at https://githits.com
-Docs: https://docs.githits.com
-Support: support@githits.com`,
-    );
+    .addHelpText("after", buildGettingStartedText(resolveAvailable));
 
   // Setup command
   registerInitCommand(program);
@@ -136,7 +136,9 @@ Support: support@githits.com`,
   registerLanguagesCommand(program);
   registerFeedbackCommand(program);
   registerDoctorCommand(program);
-  registerResolveCommand(program);
+  if (resolveAvailable) {
+    registerResolveCommand(program);
+  }
   registerSettingsCommand(program);
   const registrationArgv = stripRootRegistrationOptions(argv);
   const updateCheckTask = startUpdateCheckTaskForInvocation({
@@ -164,7 +166,9 @@ Support: support@githits.com`,
       }
       if (shouldEagerLoadCommandGroup(registrationArgv, "code")) {
         await withTelemetrySpan("cli.register.code-group", () =>
-          registerCodeCommandGroup(program),
+          registerCodeCommandGroup(program, {
+            experimentalTools: experimentalCliPolicy.tools,
+          }),
         );
       }
       if (shouldEagerLoadCommandGroup(registrationArgv, "pkg")) {
@@ -195,6 +199,7 @@ Support: support@githits.com`,
 await runCliMain(main, {
   stderr: process.stderr,
   exit: process.exit as (code: number) => never,
+  json: argv.includes("--json"),
 });
 
 /**
@@ -241,6 +246,22 @@ function shouldEagerLoadSearchCommands(args: string[]): boolean {
 
 function isSearchHelpTarget(value: string | undefined): boolean {
   return value === "search" || value === "search-status";
+}
+
+function buildGettingStartedText(resolveAvailable: boolean): string {
+  const experimentalResolve = resolveAvailable
+    ? "\n  githits resolve express              Resolve a package or repository name"
+    : "";
+  return `
+${colorizeBrand("Getting started:", "primary", useColors, { bold: true })}
+  githits init                         Connect GitHits to your coding agents
+  githits login                        Sign in to your GitHits account
+  githits mcp                          Show MCP setup instructions
+  githits example "query"              Find real-world implementations${experimentalResolve}
+
+Learn more at https://githits.com
+Docs: https://docs.githits.com
+Support: support@githits.com`;
 }
 
 function getTelemetryCommandName(command: Command): string {

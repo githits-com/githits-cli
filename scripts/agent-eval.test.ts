@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -24,6 +25,8 @@ import {
   isValidAgentReport,
   parseArgs,
   redactText,
+  runAgentEval,
+  runWithTimeout,
   sanitizedEnvSummary,
 } from "./agent-eval.ts";
 import {
@@ -88,6 +91,12 @@ function createRunFixture(status = "success"): string {
 }
 
 describe("agent eval harness", () => {
+  const localOptions = {
+    server: "local" as const,
+    repoRoot: "/repo/githits-cli",
+    publishedPackage: "githits@latest",
+  };
+
   it("builds local MCP config with explicit repo cwd", () => {
     const config = buildMcpConfig(
       {
@@ -102,6 +111,53 @@ describe("agent eval harness", () => {
       command: "bun",
       args: ["run", "--cwd", "/repo/githits-cli", "dev", "mcp", "start"],
     });
+  });
+
+  it("preserves ordinary subprocess completion", async () => {
+    const before = {
+      sigint: process.listenerCount("SIGINT"),
+      sigterm: process.listenerCount("SIGTERM"),
+    };
+    const result = await runWithTimeout(
+      [process.execPath, "-e", "process.stdout.write('complete')"],
+      process.cwd(),
+      {},
+      5,
+    );
+
+    expect(result.timedOut).toBe(false);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("complete");
+    expect(process.listenerCount("SIGINT")).toBe(before.sigint);
+    expect(process.listenerCount("SIGTERM")).toBe(before.sigterm);
+  });
+
+  it("kills a timed-out POSIX subprocess process group", async () => {
+    if (process.platform === "win32") return;
+
+    const root = mkdtempSync(join(tmpdir(), "agent-eval-timeout-"));
+    const scriptPath = join(root, "descendant.sh");
+    const before = {
+      sigint: process.listenerCount("SIGINT"),
+      sigterm: process.listenerCount("SIGTERM"),
+    };
+    writeFileSync(
+      scriptPath,
+      '#!/bin/sh\nprintf "READY\\n"\n( trap "printf \\"DESCENDANT_STOPPED\\\\n\\"; exit 0" TERM INT; while :; do sleep 1; done ) &\ntrap "printf \\"PARENT_STOPPED\\\\n\\"; exit 0" TERM INT\nwhile :; do sleep 1; done\n',
+    );
+
+    try {
+      const result = await runWithTimeout(["sh", scriptPath], root, {}, 0.2);
+
+      expect(result.timedOut).toBe(true);
+      expect(result.stdout).toContain("READY");
+      expect(result.stdout).toContain("DESCENDANT_STOPPED");
+      expect(result.stdout).toContain("PARENT_STOPPED");
+      expect(process.listenerCount("SIGINT")).toBe(before.sigint);
+      expect(process.listenerCount("SIGTERM")).toBe(before.sigterm);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("builds published MCP config with pinned package spec", () => {
@@ -181,6 +237,49 @@ describe("agent eval harness", () => {
         },
       },
     });
+  });
+
+  it("adds the hidden experimental flag to every local MCP launch vector", () => {
+    const options = { ...localOptions, experimentalTools: true };
+    expect(buildMcpConfig(options).mcpServers.githits.args).toEqual([
+      "run",
+      "--cwd",
+      "/repo/githits-cli",
+      "dev",
+      "mcp",
+      "start",
+      "--experimental-tools",
+    ]);
+    expect(buildCodexConfig(options)).toContain(
+      'args = ["run","--cwd","/repo/githits-cli","dev","mcp","start","--experimental-tools"]',
+    );
+    expect(buildCodexConfigArgs(options)).toContain(
+      'mcp_servers.githits.args=["run","--cwd","/repo/githits-cli","dev","mcp","start","--experimental-tools"]',
+    );
+    expect(buildOpenCodeConfig(options).mcp?.githits?.command).toEqual([
+      "bun",
+      "run",
+      "--cwd",
+      "/repo/githits-cli",
+      "dev",
+      "mcp",
+      "start",
+      "--experimental-tools",
+    ]);
+  });
+
+  it("keeps published and unflagged launch vectors unchanged", () => {
+    expect(
+      buildMcpConfig({ ...localOptions, experimentalTools: false }),
+    ).toEqual(buildMcpConfig(localOptions));
+    expect(
+      buildMcpConfig({
+        server: "published",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@0.4.2",
+        experimentalTools: true,
+      }).mcpServers.githits.args,
+    ).toEqual(["-y", "githits@0.4.2", "mcp", "start"]);
   });
 
   it("embeds non-secret backend override env in MCP configs", () => {
@@ -373,12 +472,73 @@ describe("agent eval harness", () => {
     expect(openCodeCommand).toContain("hello");
   });
 
+  it("accepts the experimental flag only for local MCP sessions", () => {
+    const options = parseSessionArgs(
+      ["--experimental-tools", "--dry-run"],
+      "/repo/githits-cli",
+    );
+    expect(options.experimentalTools).toBe(true);
+
+    expect(() =>
+      parseSessionArgs(
+        ["--experimental-tools", "--server", "published"],
+        "/repo/githits-cli",
+      ),
+    ).toThrow("--experimental-tools requires --surface mcp --server local");
+    expect(() =>
+      parseSessionArgs(
+        ["--experimental-tools", "--surface", "skills"],
+        "/repo/githits-cli",
+      ),
+    ).toThrow("--experimental-tools requires --surface mcp --server local");
+  });
+
+  it("persists the enabled flag in interactive session artifacts", () => {
+    for (const agent of ["claude", "codex", "opencode"] as const) {
+      const workspaceDir = mkdtempSync(
+        join(tmpdir(), `agent-session-experimental-${agent}-`),
+      );
+      try {
+        const prepared = prepareAgentSession({
+          agent,
+          surface: "mcp",
+          server: "local",
+          experimentalTools: true,
+          workspaceDir,
+          repoRoot: process.cwd(),
+          publishedPackage: "githits@latest",
+          dryRun: true,
+          bypassPermissions: false,
+        });
+        const session = JSON.parse(
+          readFileSync(
+            join(workspaceDir, ".agent-session", "session.json"),
+            "utf8",
+          ),
+        );
+        expect(session.experimentalTools).toBe(true);
+        expect(session.command).toEqual(prepared.command);
+        expect(readFileSync(prepared.mcpConfigPath, "utf8")).toContain(
+          "--experimental-tools",
+        );
+        if (agent === "opencode") {
+          expect(
+            readFileSync(join(workspaceDir, "opencode.json"), "utf8"),
+          ).toContain("--experimental-tools");
+        }
+      } finally {
+        rmSync(workspaceDir, { recursive: true, force: true });
+      }
+    }
+  });
+
   it("prepares an interactive skills workspace", () => {
     const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
     const prepared = prepareAgentSession({
       agent: "claude",
       surface: "skills",
       server: "local",
+      experimentalTools: false,
       workspaceDir,
       repoRoot: process.cwd(),
       publishedPackage: "githits@latest",
@@ -402,6 +562,7 @@ describe("agent eval harness", () => {
       agent: "opencode",
       surface: "mcp",
       server: "local",
+      experimentalTools: false,
       workspaceDir,
       repoRoot: process.cwd(),
       publishedPackage: "githits@latest",
@@ -424,6 +585,7 @@ describe("agent eval harness", () => {
         agent: "opencode",
         surface: "mcp",
         server: "local",
+        experimentalTools: false,
         workspaceDir,
         repoRoot: process.cwd(),
         publishedPackage: "githits@latest",
@@ -444,6 +606,7 @@ describe("agent eval harness", () => {
       agent: "claude",
       surface: "skills",
       server: "local",
+      experimentalTools: false,
       workspaceDir,
       repoRoot: process.cwd(),
       publishedPackage: "githits@latest",
@@ -524,6 +687,59 @@ describe("agent eval harness", () => {
     expect(options.workloads).toEqual([
       resolve(repoRoot, "eval/agentic/workloads/express-router.md"),
     ]);
+  });
+
+  it("accepts the experimental flag only for local MCP evals", () => {
+    const repoRoot = join(tmpdir(), "githits-cli");
+    const options = parseArgs(["--experimental-tools", "--dry-run"], repoRoot);
+    expect(options.experimentalTools).toBe(true);
+    expect(options.surface).toBe("mcp");
+    expect(options.server).toBe("local");
+
+    expect(() =>
+      parseArgs(["--experimental-tools", "--server", "published"], repoRoot),
+    ).toThrow("--experimental-tools requires --surface mcp --server local");
+    expect(() =>
+      parseArgs(["--experimental-tools", "--surface", "skills"], repoRoot),
+    ).toThrow("--experimental-tools requires --surface mcp --server local");
+  });
+
+  it("persists the enabled flag in dry-run artifacts for every MCP client", async () => {
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-override-"));
+    try {
+      const options = parseArgs(
+        [
+          "--experimental-tools",
+          "--dry-run",
+          "--out",
+          outDir,
+          "--workload",
+          "eval/agentic/workloads/express-router.md",
+        ],
+        process.cwd(),
+      );
+      await runAgentEval(options);
+      const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
+      const workloadDir = join(outDir, "workloads", "express-router");
+      const dryRun = JSON.parse(
+        readFileSync(join(workloadDir, "dry-run.json"), "utf8"),
+      );
+      const mcp = JSON.parse(
+        readFileSync(join(workloadDir, "mcp.json"), "utf8"),
+      );
+      const openCode = JSON.parse(
+        readFileSync(join(workloadDir, "opencode.json"), "utf8"),
+      );
+      expect(run.experimentalTools).toBe(true);
+      expect(dryRun.experimentalTools).toBe(true);
+      expect(mcp.mcpServers.githits.args).toContain("--experimental-tools");
+      expect(
+        readFileSync(join(workloadDir, "codex-config.toml"), "utf8"),
+      ).toContain("--experimental-tools");
+      expect(openCode.mcp.githits.command).toContain("--experimental-tools");
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
   });
 
   it("redacts secret values from persisted text", () => {

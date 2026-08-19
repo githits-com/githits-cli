@@ -7,12 +7,15 @@ import {
   formatAuthRequiredForTerminal,
 } from "@githits/mcp/internal";
 import { AuthConfigError } from "../services/auth-config.js";
+import { ExperimentalToolsDisabledError } from "../services/experimental-cli-policy.js";
+import { ExperimentalConfigError } from "../services/experimental-config.js";
 import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
 import { AuthStoragePolicyError } from "../services/mode-aware-file-auth-storage.js";
 
 export interface CliErrorHandlerDeps {
   stderr: Pick<NodeJS.WriteStream, "write">;
   exit: (code: number) => never;
+  json?: boolean;
 }
 
 export async function runCliMain(
@@ -30,6 +33,17 @@ export function handleCliError(
   error: unknown,
   deps: CliErrorHandlerDeps,
 ): never {
+  if (deps.json && isJsonConfigError(error)) {
+    deps.stderr.write(
+      `${JSON.stringify({
+        error: error.message,
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      })}\n`,
+    );
+    deps.exit(1);
+  }
+
   if (error instanceof AuthRequiredError) {
     deps.stderr.write(`${formatAuthRequiredForTerminal(error)}\n`);
     deps.exit(1);
@@ -57,7 +71,17 @@ export function handleCliError(
 function isUserFacingError(error: unknown): error is Error {
   return (
     error instanceof AuthConfigError ||
+    error instanceof ExperimentalConfigError ||
+    error instanceof ExperimentalToolsDisabledError ||
     error instanceof AuthStorageLockTimeoutError ||
     error instanceof AuthStoragePolicyError
+  );
+}
+
+function isJsonConfigError(error: unknown): error is Error {
+  return (
+    error instanceof AuthConfigError ||
+    error instanceof ExperimentalConfigError ||
+    error instanceof ExperimentalToolsDisabledError
   );
 }

@@ -1,33 +1,75 @@
 import { describe, expect, it, mock } from "bun:test";
-import { AuthenticationError } from "@githits/core-internal";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  AuthenticationError,
+  flushTelemetry,
+  resetTelemetryCollectorForTests,
+} from "@githits/core-internal";
 import {
   createMcpServer,
   getMcpToolDescriptors,
   type McpToolExecutionHook,
-  type McpToolServices,
   registerMcpTools,
 } from "@githits/mcp";
-import { getMcpToolDefinitions, type ToolResult } from "@githits/mcp/internal";
+import {
+  getMcpToolDefinitions,
+  type LocalMcpToolServices,
+  type ToolResult,
+} from "@githits/mcp/internal";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type {
   ServerNotification,
   ServerRequest,
 } from "@modelcontextprotocol/sdk/types.js";
+import { Command } from "commander";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
   createMockPackageIntelligenceService,
+  createMockResolveTargetService,
 } from "../services/test-helpers.js";
-import { startMcpServer } from "./mcp.js";
+import {
+  type CreateMcpCommandStartupOptions,
+  createMcpCommandStartup,
+  type McpCommandRegistrationDependencies,
+  registerMcpCommand,
+  startMcpServer,
+} from "./mcp.js";
+
+async function withConfigHome<T>(
+  configHome: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const configHomeEnvKey =
+    process.platform === "win32" ? "APPDATA" : "XDG_CONFIG_HOME";
+  const alternateConfigHomeEnvKey =
+    configHomeEnvKey === "APPDATA" ? "XDG_CONFIG_HOME" : "APPDATA";
+  const previous = process.env[configHomeEnvKey];
+  const previousAlternate = process.env[alternateConfigHomeEnvKey];
+  process.env[configHomeEnvKey] = configHome;
+  delete process.env[alternateConfigHomeEnvKey];
+  try {
+    return await fn();
+  } finally {
+    if (previous === undefined) delete process.env[configHomeEnvKey];
+    else process.env[configHomeEnvKey] = previous;
+    if (previousAlternate === undefined)
+      delete process.env[alternateConfigHomeEnvKey];
+    else process.env[alternateConfigHomeEnvKey] = previousAlternate;
+  }
+}
 
 function createTestServices(
-  overrides: Partial<McpToolServices> = {},
-): McpToolServices {
+  overrides: Partial<LocalMcpToolServices> = {},
+): LocalMcpToolServices {
   return {
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
     githitsService: createMockGitHitsService(),
+    resolveTargetService: createMockResolveTargetService(),
     ...overrides,
   };
 }
@@ -364,5 +406,282 @@ describe("startMcpServer", () => {
 
     expect(onServerCreated).toHaveBeenCalledTimes(1);
     expect(onServerCreated.mock.calls[0]?.[0]).toBeDefined();
+  });
+});
+
+describe("createMcpCommandStartup", () => {
+  it("maps strict host settings into the neutral local policy", async () => {
+    const xdgConfigHome = await mkdtemp(join(tmpdir(), "githits-mcp-policy-"));
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    await writeFile(
+      join(configDir, "config.toml"),
+      '[experimental]\ntools = true\nreport_tool_issues = "all"\n',
+    );
+    const previousToken = process.env.GITHITS_API_TOKEN;
+
+    try {
+      process.env.GITHITS_API_TOKEN = "test-mcp-startup-token";
+      await withConfigHome(xdgConfigHome, async () => {
+        const startup = await createMcpCommandStartup();
+        expect(startup.experimentalPolicy).toEqual({
+          tools: true,
+          reportToolIssues: "all",
+        });
+        expect(startup.services.resolveTargetService).toBeDefined();
+        expect(startup.services.codeNavigationService.codeDiff).toBeDefined();
+      });
+    } finally {
+      if (previousToken === undefined) delete process.env.GITHITS_API_TOKEN;
+      else process.env.GITHITS_API_TOKEN = previousToken;
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("consumes malformed config strictly only when local startup is created", async () => {
+    const xdgConfigHome = await mkdtemp(join(tmpdir(), "githits-mcp-start-"));
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    await writeFile(join(configDir, "config.toml"), "[experimental\n");
+
+    try {
+      await withConfigHome(xdgConfigHome, async () => {
+        await expect(createMcpCommandStartup()).rejects.toThrow(
+          `Cannot parse GitHits config at ${join(configDir, "config.toml")}`,
+        );
+      });
+    } finally {
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps malformed shared TOML as an auth startup error under the override", async () => {
+    const xdgConfigHome = await mkdtemp(
+      join(tmpdir(), "githits-mcp-override-"),
+    );
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    const configPath = join(configDir, "config.toml");
+    const originalConfig = "[experimental\n";
+    await writeFile(configPath, originalConfig);
+    const previousToken = process.env.GITHITS_API_TOKEN;
+    const previousStorage = process.env.GITHITS_AUTH_STORAGE;
+
+    try {
+      delete process.env.GITHITS_API_TOKEN;
+      delete process.env.GITHITS_AUTH_STORAGE;
+      await withConfigHome(xdgConfigHome, async () => {
+        await expect(
+          createMcpCommandStartup({ experimentalTools: true }),
+        ).rejects.toThrow(`Cannot parse GitHits config at ${configPath}`);
+        expect(await Bun.file(configPath).text()).toBe(originalConfig);
+      });
+    } finally {
+      if (previousToken === undefined) delete process.env.GITHITS_API_TOKEN;
+      else process.env.GITHITS_API_TOKEN = previousToken;
+      if (previousStorage === undefined)
+        delete process.env.GITHITS_AUTH_STORAGE;
+      else process.env.GITHITS_AUTH_STORAGE = previousStorage;
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("bypasses only experimental validation while preserving file auth mode", async () => {
+    const xdgConfigHome = await mkdtemp(
+      join(tmpdir(), "githits-mcp-override-auth-"),
+    );
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    const configPath = join(configDir, "config.toml");
+    await writeFile(
+      configPath,
+      '[experimental]\ntools = "invalid"\n[auth]\nstorage = "file"\n',
+    );
+    const previousToken = process.env.GITHITS_API_TOKEN;
+    const previousStorage = process.env.GITHITS_AUTH_STORAGE;
+
+    try {
+      delete process.env.GITHITS_API_TOKEN;
+      delete process.env.GITHITS_AUTH_STORAGE;
+      const telemetry: string[] = [];
+      resetTelemetryCollectorForTests({
+        env: { GITHITS_TELEMETRY: "1" },
+        now: () => 0,
+        write: (text) => telemetry.push(text),
+      });
+      await withConfigHome(xdgConfigHome, async () => {
+        await expect(createMcpCommandStartup()).rejects.toThrow(
+          `Invalid GitHits config at ${configPath}`,
+        );
+        const startup = await createMcpCommandStartup({
+          experimentalTools: true,
+        });
+        expect(startup.experimentalPolicy).toEqual({
+          tools: true,
+          reportToolIssues: undefined,
+        });
+        expect(process.env.GITHITS_AUTH_STORAGE).toBeUndefined();
+      });
+      flushTelemetry(0);
+      expect(telemetry.join(" ")).toContain("mode=file");
+
+      process.env.GITHITS_AUTH_STORAGE = "invalid";
+      await withConfigHome(xdgConfigHome, async () => {
+        await expect(
+          createMcpCommandStartup({ experimentalTools: true }),
+        ).rejects.toThrow("Invalid GITHITS_AUTH_STORAGE");
+      });
+      expect(process.env.GITHITS_AUTH_STORAGE).toBe("invalid");
+    } finally {
+      if (previousToken === undefined) delete process.env.GITHITS_API_TOKEN;
+      else process.env.GITHITS_API_TOKEN = previousToken;
+      if (previousStorage === undefined)
+        delete process.env.GITHITS_AUTH_STORAGE;
+      else process.env.GITHITS_AUTH_STORAGE = previousStorage;
+      resetTelemetryCollectorForTests({ env: {} });
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("does not inherit a disabled host policy or its reporting mode", async () => {
+    const xdgConfigHome = await mkdtemp(
+      join(tmpdir(), "githits-mcp-override-policy-"),
+    );
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    await writeFile(
+      join(configDir, "config.toml"),
+      '[experimental]\ntools = false\nreport_tool_issues = "all"\n',
+    );
+    const previousToken = process.env.GITHITS_API_TOKEN;
+    const previousStorage = process.env.GITHITS_AUTH_STORAGE;
+
+    try {
+      delete process.env.GITHITS_API_TOKEN;
+      delete process.env.GITHITS_AUTH_STORAGE;
+      await withConfigHome(xdgConfigHome, async () => {
+        const startup = await createMcpCommandStartup({
+          experimentalTools: true,
+        });
+        expect(startup.experimentalPolicy).toEqual({
+          tools: true,
+          reportToolIssues: undefined,
+        });
+      });
+    } finally {
+      if (previousToken === undefined) delete process.env.GITHITS_API_TOKEN;
+      else process.env.GITHITS_API_TOKEN = previousToken;
+      if (previousStorage === undefined)
+        delete process.env.GITHITS_AUTH_STORAGE;
+      else process.env.GITHITS_AUTH_STORAGE = previousStorage;
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("maps the hidden override through mcp start without advertising it", async () => {
+    const startupOptions: Array<CreateMcpCommandStartupOptions | undefined> =
+      [];
+    const dependencies: McpCommandRegistrationDependencies = {
+      createStartup: async (options) => {
+        startupOptions.push(options);
+        return {
+          services: createTestServices(),
+          experimentalPolicy: {
+            tools: options?.experimentalTools === true,
+            reportToolIssues: undefined,
+          },
+          onServerCreated: () => {},
+        };
+      },
+      startServer: async () => {},
+    };
+
+    const explicit = new Command();
+    let explicitHelp = "";
+    explicit.configureOutput({
+      writeOut: (value) => {
+        explicitHelp += value;
+      },
+      writeErr: (value) => {
+        explicitHelp += value;
+      },
+    });
+    explicit.exitOverride();
+    registerMcpCommand(explicit, dependencies);
+    await explicit.parseAsync([
+      "node",
+      "test",
+      "mcp",
+      "start",
+      "--experimental-tools",
+    ]);
+    expect(startupOptions).toEqual([{ experimentalTools: true }]);
+    expect(explicitHelp).not.toContain("experimental-tools");
+
+    const normal = new Command();
+    let normalHelp = "";
+    normal.configureOutput({
+      writeOut: (value) => {
+        normalHelp += value;
+      },
+      writeErr: (value) => {
+        normalHelp += value;
+      },
+    });
+    normal.exitOverride();
+    registerMcpCommand(normal, dependencies);
+    await normal.parseAsync(["node", "test", "mcp", "start"]);
+    expect(startupOptions).toEqual([{ experimentalTools: true }, undefined]);
+    expect(normalHelp).not.toContain("experimental-tools");
+  });
+
+  it("does not advertise the session override in mcp or root help", async () => {
+    for (const args of [
+      ["mcp", "--help"],
+      ["mcp", "start", "--help"],
+      ["--help"],
+    ]) {
+      const program = new Command();
+      let output = "";
+      program.configureOutput({
+        writeOut: (value) => {
+          output += value;
+        },
+        writeErr: (value) => {
+          output += value;
+        },
+      });
+      program.exitOverride();
+      registerMcpCommand(program);
+      await expect(
+        program.parseAsync(["node", "test", ...args]),
+      ).rejects.toMatchObject({ code: "commander.helpDisplayed" });
+      expect(output).not.toContain("experimental-tools");
+    }
+  });
+
+  it("keeps mcp help from creating local startup dependencies", async () => {
+    const xdgConfigHome = await mkdtemp(join(tmpdir(), "githits-mcp-help-"));
+    const configDir = join(xdgConfigHome, "githits");
+    await mkdir(configDir, { recursive: true });
+    await writeFile(join(configDir, "config.toml"), "[experimental\n");
+
+    try {
+      await withConfigHome(xdgConfigHome, async () => {
+        const program = new Command();
+        program.configureOutput({
+          writeOut: () => {},
+          writeErr: () => {},
+        });
+        program.exitOverride();
+        registerMcpCommand(program);
+
+        await expect(
+          program.parseAsync(["node", "test", "mcp", "--help"]),
+        ).rejects.toMatchObject({ code: "commander.helpDisplayed" });
+      });
+    } finally {
+      await rm(xdgConfigHome, { recursive: true, force: true });
+    }
   });
 });

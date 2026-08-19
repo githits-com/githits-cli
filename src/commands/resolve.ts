@@ -6,6 +6,7 @@ import {
   buildResolveTargetParams,
   buildResolveTargetSuccessPayload,
   formatResolveTargetTerminal,
+  InvalidPackageSpecError,
   mapPackageIntelligenceError,
   RESOLVE_TARGET_DEFAULT_LIMIT,
   RESOLVE_TARGET_MAX_LIMIT,
@@ -49,7 +50,7 @@ export async function resolveAction(
   }
 
   try {
-    const params = buildResolveTargetParams({
+    const params = buildCliResolveTargetParams({
       name,
       query: options.query,
       registry: options.registry,
@@ -79,6 +80,22 @@ export async function resolveAction(
     if (!result.best) process.exitCode = 1;
   } catch (error) {
     handleResolveError(error, options.json === true);
+  }
+}
+
+function buildCliResolveTargetParams(
+  input: Parameters<typeof buildResolveTargetParams>[0],
+): ReturnType<typeof buildResolveTargetParams> {
+  try {
+    return buildResolveTargetParams(input);
+  } catch (error) {
+    if (!(error instanceof InvalidPackageSpecError)) throw error;
+    const rewritten = error.message.replace(
+      /^Preferred kind/,
+      "`--prefer-kind`",
+    );
+    if (rewritten === error.message) throw error;
+    throw new InvalidPackageSpecError(rewritten);
   }
 }
 

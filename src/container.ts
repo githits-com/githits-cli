@@ -24,6 +24,7 @@ import {
 } from "@githits/core-internal";
 import { version } from "../package.json";
 import {
+  getAuthConfigPath,
   getAuthFileStorageDir,
   getLegacyAuthStorageDir,
   getLegacyMacAuthFileStorageDir,
@@ -200,6 +201,31 @@ export async function createAuthCommandDependencies(): Promise<AuthCommandDepend
       authDiagnostics: new AuthDiagnosticsStorage(fileSystemService),
       mcpUrl: getMcpStorageKeyUrl(),
       envApiToken: getEnvApiToken(),
+    };
+  });
+}
+
+/**
+ * Create logout dependencies without reading auth configuration.
+ *
+ * Logout clears every backend through MigratingAuthStorage, so it uses the
+ * keychain mode only as the active mode for construction; clearAuthSession is
+ * deliberately mode-independent. This keeps credential cleanup available
+ * when config.toml is malformed or contains an invalid auth.storage value.
+ */
+export async function createLogoutCommandDependencies(): Promise<
+  Pick<AuthCommandDependencies, "authStorage" | "authDiagnostics" | "mcpUrl">
+> {
+  return withTelemetrySpan("container.create-logout-command", async () => {
+    const fileSystemService = new FileSystemServiceImpl();
+    return {
+      authStorage: createAuthStorageForMode(
+        fileSystemService,
+        "keychain",
+        getAuthConfigPath(fileSystemService),
+      ),
+      authDiagnostics: new AuthDiagnosticsStorage(fileSystemService),
+      mcpUrl: getMcpStorageKeyUrl(),
     };
   });
 }

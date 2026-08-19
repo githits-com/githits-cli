@@ -192,10 +192,14 @@ describe("codeDiffAction", () => {
     [{ patch: true, stat: true }, "Choose only one diff view", undefined],
     [
       { stat: true, maxPatchBytes: "2048" },
-      "`--max-patch-bytes` is valid only",
+      "The `--max-patch-bytes` option is valid only when `--patch` is selected.",
       "maxPatchBytes",
     ],
-    [{ maxFiles: "0" }, "--max-files expects", undefined],
+    [
+      { maxFiles: "0" },
+      "--max-files expects an integer between 1 and 300. Got 0.",
+      undefined,
+    ],
   ] as const)(
     "rejects invalid options before network I/O",
     async (options, text, forbidden) => {

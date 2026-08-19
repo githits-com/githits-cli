@@ -1,6 +1,6 @@
 import { withTelemetrySpan } from "@githits/core-internal";
 import type { Command } from "commander";
-import { createAuthCommandDependencies } from "../container.js";
+import { createLogoutCommandDependencies } from "../container.js";
 import type { AuthDiagnosticsStore } from "../services/auth-diagnostics-storage.js";
 import type { AuthStorage } from "../services/auth-storage.js";
 
@@ -46,7 +46,7 @@ export function registerLogoutCommand(program: Command) {
     .summary("Remove stored credentials")
     .description(LOGOUT_DESCRIPTION)
     .action(async () => {
-      const deps = await createAuthCommandDependencies();
+      const deps = await createLogoutCommandDependencies();
       await logoutAction(deps);
     });
 }

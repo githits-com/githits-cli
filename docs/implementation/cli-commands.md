@@ -2,7 +2,46 @@
 
 ## Purpose
 
-The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback`, target `resolve`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
+The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. `resolve` and `code diff` are experimental, host-config-gated commands. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities, but format output for terminal consumption instead of MCP tool results.
+
+## Experimental CLI commands
+
+Enable the experimental CLI surface in the shared host config:
+
+```toml
+[experimental]
+tools = true
+report_tool_issues = "experimental" # optional: "experimental" or "all"
+```
+
+`experimental.tools` is a strict boolean and defaults to `false` when absent.
+`experimental.report_tool_issues` is optional; accepted values are
+`"experimental"` (the local `resolve_target` and `code_diff` tools) and
+`"all"` (any GitHits tool while the experimental suite is active). Omission
+means reporting is off. A reporting value is dormant when `tools = false`, but
+invalid values and types are still rejected by strict config-consuming paths.
+Reporting changes agent guidance only: it never sends feedback automatically;
+when explicitly enabled, an agent may make one concise, redacted negative
+feedback call per distinct observed issue with `accepted: false` and the exact
+tool name. Credentials, personal/private data, proprietary content, full file
+bodies, and large outputs must not be included.
+
+GitHits reads `$XDG_CONFIG_HOME/githits/config.toml` (or
+`~/.config/githits/config.toml` when `XDG_CONFIG_HOME` is unset) on Unix-like
+platforms and `%APPDATA%\githits\config.toml` on Windows. Existing macOS
+installations may also be read from the legacy Application Support path when
+the canonical file is absent.
+
+Without the setting, or with `tools = false`, root and `code` help omit
+`resolve` and `diff`. Direct invocations fail before authentication or network
+startup with the resolved config path and the snippet above. Terminal failures
+retain that exact path/snippet; `--json` failures write only the structured
+`INVALID_ARGUMENT` envelope to stderr and keep stdout empty. Malformed config
+falls back to the stable help/version and recovery surfaces; direct
+experimental invocations report the path-qualified config error using the same
+terminal/JSON split. Stable commands that need authentication likewise render
+malformed auth/config failures as the same stderr-only `INVALID_ARGUMENT` JSON
+envelope when `--json` is requested; terminal output remains human-readable.
 
 ## Commands
 
@@ -17,7 +56,7 @@ The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback [solution_id]` | `--accept` or `--reject` | `-m, --message <text>`, `--tool <name>`, `--json` | Submit solution-tied or generic session feedback |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
-| `resolve <name>` | package or GitHub repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
+| `resolve <name>` *(experimental; config-gated)* | package or GitHub repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
 | `settings` | — | `--json` | Show canonical preferences, privacy and terms, and account limits |
 | `settings show` | — | `--json` | Explicit form of `settings` for showing all account settings |
 | `settings get <key>` | setting key | `--json` | Read one writable setting using its public CLI name |
@@ -32,7 +71,7 @@ The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback
 | `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports facts only. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages for a package. Entries include page IDs for `docs read`; JSON includes exact repo-file follow-up metadata when available. |
 | `docs read <page-id>` | page ID from `docs list` or search results | `--lines`, `--verbose`, `--json` | Read a documentation page by page ID. Default output is content-only; `--lines` fetches a bounded range for long pages. |
-| `code diff <target> <from>..<to>` | unversioned package/repository target and exact range, or `--repo-url` and range | `--patch`, `--stat`, `--name-only`, `--name-status`, `--max-files`, `--max-patch-bytes`, `--verbose`, `--json`, one glob after `--` | Silently dogfood bounded repository-wide tree diffs resolved from package versions or repository refs; not exposed through MCP or agent guidance |
+| `code diff <target> <from>..<to>` *(experimental; config-gated)* | unversioned package/repository target and exact range, or `--repo-url` and range | `--patch`, `--stat`, `--name-only`, `--name-status`, `--max-files`, `--max-patch-bytes`, `--verbose`, `--json`, one glob after `--` | Silently dogfood bounded repository-wide tree diffs resolved from package versions or repository refs; local-only MCP `code_diff` is available when experimental tools are enabled, while public/remote MCP and shared Agent Skill guidance remain unchanged |
 | `code files [spec] [path-prefix]` | package spec OR `--repo-url` with optional `--git-ref`; optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `--file-type`, repeatable `--language`, repeatable `--file-intent`, repeatable `--exclude-intent`, `--exclude-docs`, `--exclude-tests`, `--hidden`, `--limit`, `--wait`, `--verbose`, `--json` | List files in an indexed dependency. Selectors (`[path-prefix]`, `--path`, `--glob`) are OR-ed; the other flags filter that scope down further. Plain output is one path per line; `--verbose` adds language / type / size annotations. Indexing errors include elapsed/expected duration when available plus retry via `--wait` or indexed refs/versions from the error detail. |
 | `code read <spec?> <path>` | package spec OR `--repo-url` with optional `--git-ref`; plus `<path>` | `--lines`, `--start`, `--end`, `--wait`, `--verbose`, `--json` | Read a file's contents. Plain output is the raw file bytes (pipe-friendly); `--verbose` adds a header and a line-number gutter. `--lines 10-40` concise form; `--start`/`--end` equivalent. Binary files show a sentinel line. |
 | `code grep [spec] <pattern> [path-prefix]` | package spec OR `--repo-url` with optional `--git-ref`; plus `<pattern>` and optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, `--regex`, `--case-sensitive`, `-C/-A/-B`, `--exclude-docs`, `--exclude-tests`, `--limit`, `--per-file-limit`, `--cursor`, `--symbol-field`, `--wait`, `--verbose`, `--json` | Deterministic text grep over indexed dependency or repository source. Defaults to whole-target, literal, ASCII case-insensitive matching; non-ASCII letters match case-sensitively. Narrow with `[path-prefix]`, `--path`, `--glob`, or `--ext`. Plain output is `file:line:text`; `--verbose` groups matches by file. |
@@ -296,8 +335,8 @@ detail fields are requested for those lists. Detailed ranking fields are fetched
 only for JSON. Null fields are omitted and enum values are lowercase. Errors use
 the standard JSON envelope on stderr with clean stdout.
 
-The command uses an internal CLI-only service and does not change the public
-`@githits/mcp` service interface. Its GraphQL selection keeps `best` and
+The command and local experimental MCP adapter use an internal service and do
+not change the public `@githits/mcp` service interface. Its GraphQL selection keeps `best` and
 `protectedMatches` to `kind`, `canonicalKey`, and `confidence`; full compact and
 conditional JSON fields are selected only for ranked `candidates`. This keeps
 the operation below production's GraphQL complexity limit while preserving all
@@ -322,20 +361,26 @@ and one explicit family ambiguity were recorded in the backend relevance
 corpus. Those findings do not block landing the CLI dogfood surface. The earlier
 `guava` and `symfony/framework-bundle` mismatches now resolve correctly on dev.
 
-The command ships as a silent CLI-only dogfood surface. Do not promote it
-through Agent Skills or add an MCP tool until the expanded production corpus
-has no known wrong exact-package result, ambiguity wording is accepted, fuzzy
-latency and rate limiting are validated for expected CLI/MCP volume, and
-shipping without linked-repository popularity evidence is explicitly accepted
-or that evidence is exposed cheaply. The reduced query has been validated
-below production's GraphQL complexity limit; roughly 50 dogfood calls completed
-without protocol, schema, complexity, or rate-limit errors, but that is not a
-volume test.
+The command is part of the config-gated experimental CLI surface. When
+`[experimental] tools = true` is enabled in the canonical host config,
+`resolve` and `code diff` are available; otherwise they remain hidden and
+explicit calls are rejected with the config path and enable snippet. The same
+opt-in exposes the local-only MCP `resolve_target` adapter. Its compact text,
+JSON contract, privacy guidance, and structured error mapping reuse the shared
+resolver request/service contracts; local experimental instructions are
+composed only for the enabled local tool inventory. Reporting guidance is
+opt-in and remains dormant when tools are disabled.
 
-After CLI dogfooding, add an MCP `resolve_target` tool using the stable request
-and JSON contracts, promote only the smallest required API through
-`@githits/mcp`, add CLI/MCP parity and smoke coverage, document agent usage, and
-run targeted Claude and Codex agent evaluations.
+Remote/public MCP, generated transports, and Agent Skill promotion remain
+blocked pending dogfood and evaluation evidence: the expanded production
+corpus must have no known wrong exact-package result, ambiguity wording must be
+accepted, fuzzy latency and rate limiting must be validated for expected
+CLI/MCP volume, and shipping without linked-repository popularity evidence must
+be explicitly accepted or exposed cheaply. The reduced query has been
+validated below production's GraphQL complexity limit; roughly 50 dogfood calls
+completed without protocol, schema, complexity, or rate-limit errors, but that
+is not a volume test. Combined MCP instructions, smoke coverage, and Claude and
+Codex evaluations are completed later in this phase.
 
 This increment exceeded its original rough 1,500-line review threshold under an
 explicit 2026-08-10 exception: most of the delta is isolated tests and durable
@@ -564,9 +609,10 @@ metadata-only causes and direct terminal users to stat/name views. Patch output
 is applicable unified-diff content but may omit Git metadata such as index and
 mode headers. Request, auth, resolution, and backend errors also exit 1.
 
-This is a silent dogfood surface. It is normally registered and documented for
-maintainers, but no MCP tool, MCP instruction, Agent Skill, or plugin guidance
-promotes it yet.
+This is a config-gated experimental CLI dogfood surface. The matching
+`code_diff` MCP adapter is local-only and requires the same opt-in; it is not
+promoted through remote/public MCP, MCP instructions, Agent Skills, or plugin
+guidance yet.
 
 ### `githits code files`
 
@@ -705,14 +751,17 @@ All commands support two output modes:
 ## Product Smoke
 
 `bun run smoke:cli` is the local live-capable suite. It launches source through
-`bun run dev`, verifies isolated unauthenticated behavior, and runs the live
-corpus plus CLI/MCP JSON parity when local credentials are available.
+`bun run dev`, verifies separate isolated stable and experimental cohorts, and
+runs the stable live corpus plus CLI/MCP JSON parity when local credentials are
+available. Experimental live probes run only in a temporary opt-in config and
+are skipped with an explicit `AUTH_REQUIRED` message when credentials are not
+available.
 
 `bun run smoke:cli:built` is the secret-free CI product check. After
 `bun run build`, its Bun harness launches `node <absolute dist/cli.js>` and:
 
-- parses the root `Commands:` table and requires the complete top-level product
-  command set;
+- parses the root `Commands:` table and requires the exact stable top-level
+  product command set, then separately checks the experimental opt-in cohort;
 - verifies JSON and terminal authentication failures under isolated file auth;
 - strips inherited credentials and redirects all config roots and GitHits URLs;
 - exits before live probes or parity calls.

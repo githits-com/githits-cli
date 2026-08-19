@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
+  buildCodeDiffMcpParams,
   buildCodeDiffParams,
+  type CodeDiffMcpRequestInput,
   type CodeDiffRequestInput,
   type CodeDiffView,
 } from "./code-diff-request.js";
@@ -137,7 +139,7 @@ describe("buildCodeDiffParams", () => {
     );
     invalid({ target: "   ", range: "1..2" });
     invalid({ repoUrl: "   ", range: "1..2" });
-    invalid({ repoUrl: "npm:express", range: "1..2" }, "repository target");
+    invalid({ repoUrl: "npm:express", range: "1..2" }, "Repository target");
   });
 
   it("gives supported registries without suggesting embedded versions", () => {
@@ -174,6 +176,23 @@ describe("buildCodeDiffParams", () => {
         range: "1..2",
       },
       "must not include a ref",
+    );
+    expect(() =>
+      buildCodeDiffParams({
+        target: "github:expressjs/express#main",
+        range: "1..2",
+      }),
+    ).toThrow(
+      "Repository targets must not include a ref; put both refs in `range`.",
+    );
+    expect(() =>
+      buildCodeDiffMcpParams({
+        target: "github:expressjs/express#main",
+        from: "1",
+        to: "2",
+      }),
+    ).toThrow(
+      "Repository targets must not include a ref; put both refs in the comparison endpoints.",
     );
   });
 
@@ -258,12 +277,15 @@ describe("buildCodeDiffParams", () => {
       Number.NaN,
       Number.POSITIVE_INFINITY,
     ]) {
-      invalid({ target: "npm:express", range: "1..2", maxFiles }, "maxFiles");
+      invalid(
+        { target: "npm:express", range: "1..2", maxFiles },
+        "Maximum files",
+      );
     }
     for (const maxPatchBytes of [1023, 2_097_153, 1.5, Number.NaN]) {
       invalid(
         { target: "npm:express", range: "1..2", maxPatchBytes },
-        "maxPatchBytes",
+        "Maximum patch bytes",
       );
     }
     invalid(
@@ -296,6 +318,123 @@ describe("buildCodeDiffParams", () => {
         },
         "view",
       );
+    }
+  });
+});
+
+describe("buildCodeDiffMcpParams", () => {
+  it.each([
+    ["name-only", "inventory"],
+    ["name-status", "inventory"],
+    ["stat", "stats"],
+    ["patch", "patches"],
+  ] as const)("maps MCP %s view to service mode %s", (view, mode) => {
+    const result = buildCodeDiffMcpParams({
+      target: "npm:express",
+      from: " v1 ",
+      to: " v2 ",
+      view,
+    });
+
+    expect(result.params).toEqual({
+      target: { registry: "NPM", packageName: "express" },
+      from: "v1",
+      to: "v2",
+      mode,
+    });
+    expect(result.view).toBe(view);
+    expect(Object.hasOwn(result.params, "options")).toBe(false);
+  });
+
+  it("accepts MCP package/repository target variants and keeps endpoints separate", () => {
+    expect(
+      buildCodeDiffMcpParams({
+        target: { registry: "npm", package_name: "express" },
+        from: "4.18.1",
+        to: "4.18.2",
+        view: "name-status",
+      }).params,
+    ).toEqual({
+      target: { registry: "NPM", packageName: "express" },
+      from: "4.18.1",
+      to: "4.18.2",
+      mode: "inventory",
+    });
+    expect(
+      buildCodeDiffMcpParams({
+        target: { repo_url: "https://github.com/expressjs/express" },
+        from: "main",
+        to: "release",
+        view: "stat",
+      }).params,
+    ).toEqual({
+      target: { repoUrl: "https://github.com/expressjs/express" },
+      from: "main",
+      to: "release",
+      mode: "stats",
+    });
+  });
+
+  it("forwards only supplied MCP limits and path glob", () => {
+    const result = buildCodeDiffMcpParams({
+      target: "npm:express",
+      from: "1",
+      to: "2",
+      view: "patch",
+      pathGlob: "src/**/*.ts",
+      maxFiles: 12,
+      maxPatchBytes: 4096,
+    });
+    expect(result.params.options).toEqual({
+      pathGlob: "src/**/*.ts",
+      maxFiles: 12,
+      maxPatchBytes: 4096,
+    });
+  });
+
+  it("rejects invalid MCP target shapes, embedded identities, endpoints, and limits", () => {
+    const invalidInputs = [
+      { target: "", from: "1", to: "2" },
+      { target: {}, from: "1", to: "2" },
+      {
+        target: {
+          registry: "npm",
+          package_name: "express",
+          repo_url: "https://github.com/a/b",
+        },
+        from: "1",
+        to: "2",
+      },
+      { target: { registry: "npm" }, from: "1", to: "2" },
+      {
+        target: { registry: "npm", package_name: "express", version: "1" },
+        from: "1",
+        to: "2",
+      },
+      {
+        target: {
+          repo_url: "https://github.com/a/b",
+          git_ref: "main",
+        },
+        from: "1",
+        to: "2",
+      },
+      { target: "npm:express@1.0.0", from: "1", to: "2" },
+      { target: "github:a/b#main", from: "1", to: "2" },
+      { target: "npm:express", from: "", to: "2" },
+      { target: "npm:express", from: "1", to: " " },
+      {
+        target: "npm:express",
+        from: "1",
+        to: "2",
+        view: "stat",
+        maxPatchBytes: 4096,
+      },
+    ] as const;
+    for (const input of invalidInputs) {
+      expect(() =>
+        buildCodeDiffMcpParams(input as CodeDiffMcpRequestInput),
+      ).toThrow(InvalidPackageSpecError);
     }
   });
 });

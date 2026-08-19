@@ -1,4 +1,12 @@
 export * from "./index.js";
+export {
+  type CreateLocalMcpServerOptions,
+  createLocalMcpServer,
+  type LocalExperimentalMcpPolicy,
+  type LocalExperimentalReportToolIssues,
+  type LocalMcpToolServices,
+  type LocalMcpToolServicesProvider,
+} from "./mcp/local-server.js";
 export { getMcpToolDefinitions } from "./mcp/server.js";
 export * from "./shared/code-diff-request.js";
 export * from "./shared/code-diff-response.js";
@@ -70,6 +78,10 @@ export * from "./shared/unified-search-status-text.js";
 export * from "./shared/unified-search-target.js";
 export * from "./shared/unified-search-text.js";
 export {
+  type CodeDiffMcpArgs,
+  createCodeDiffTool,
+} from "./tools/code-diff.js";
+export {
   CODE_GREP_GUARDRAIL,
   CODE_READ_GUARDRAIL,
   DOCS_GUARDRAIL,
@@ -85,6 +97,10 @@ export { DESCRIPTION as PACKAGE_SUMMARY_DESCRIPTION } from "./tools/package-summ
 export { DESCRIPTION as PACKAGE_VULNERABILITIES_DESCRIPTION } from "./tools/package-vulnerabilities.js";
 export { DESCRIPTION as READ_FILE_DESCRIPTION } from "./tools/read-file.js";
 export { DESCRIPTION as READ_PACKAGE_DOC_DESCRIPTION } from "./tools/read-package-doc.js";
+export {
+  createResolveTargetTool,
+  type ResolveTargetMcpArgs,
+} from "./tools/resolve-target.js";
 export type {
   ToolDefinition,
   ToolHandler,

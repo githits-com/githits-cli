@@ -60,6 +60,7 @@ bun run agent:e2e --server local --workload eval/agentic/workloads/express-route
 bun run agent:e2e --server published --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --surface skills --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent opencode --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent claude --model haiku --workload eval/agentic/workloads/package-overview-vulnerabilities.md
 bun run agent:e2e --agent codex --model gpt-5.4-mini --workload eval/agentic/workloads/package-overview-vulnerabilities.md
@@ -75,6 +76,7 @@ bun run agent:session --agent claude --surface skills --server local --model hai
 bun run agent:session --agent codex --surface skills --server local --prompt "Evaluate npm:express"
 bun run agent:session --agent codex --surface mcp --server local --dry-run
 bun run agent:session --agent opencode --surface mcp --server local --prompt "Evaluate npm:express" --dry-run
+bun run agent:session --agent codex --surface mcp --server local --experimental-tools --dry-run
 ```
 
 `agent:session` creates an isolated temp workspace by default and leaves it in
@@ -100,7 +102,17 @@ Useful options:
 --timeout <seconds>             Per-workload timeout, default 300
 --published-package <spec>      Published package spec, default `githits@latest`
 --workload <path>               Repeatable workload path
+--experimental-tools            Enable local experimental MCP tools for this eval/session
 ```
+
+`--experimental-tools` is development/eval infrastructure only. It is valid
+only with `--surface mcp --server local`, appends the hidden
+`githits mcp start --experimental-tools` session flag to every generated local
+MCP launch vector, and forces issue reporting off for that process. The flag
+does not apply to published servers or skills runs, never writes host config,
+and bypasses only the host experimental policy. Valid host auth settings still
+apply; a wholly malformed shared TOML document can still block auth startup.
+Host dogfooding uses the experimental policy in `config.toml` instead.
 
 Normal GitHits backend overrides are passed through when set:
 
@@ -178,6 +190,8 @@ use at least one agent for quick iteration.
 | File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior |
 | Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |
 | Multi-tool code navigation strategy and MCP/skill instructions | `express-router.md` |
+| Experimental target resolution | `experimental-resolution-follow-up.md` |
+| Experimental exact source diff | `experimental-code-diff.md` |
 
 For broad MCP instruction edits, run at least:
 
@@ -198,6 +212,25 @@ bun run agent:e2e --agent opencode --surface skills --server local --workload ev
 For tool-specific edits, add the workload from the table. Compare
 `tool-calls.json` plus the final JSON's `toolIssues`, `instructionIssues`, and
 `githitsUsefulnessReason` across branches or against a published run.
+
+For local experimental tool changes, run both new workloads and the
+`express-router.md` regression cohort with Claude and Codex:
+
+```bash
+bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/experimental-resolution-follow-up.md
+bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/experimental-resolution-follow-up.md
+bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/experimental-code-diff.md
+bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/experimental-code-diff.md
+bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
+```
+
+The eval override forces issue reporting off. Inspect raw `tool-calls.json`
+for the actual tool sequence and arguments, then inspect `final.json` for
+`toolIssues`, `instructionIssues`, usefulness, and confidence. For
+resolution, check that ambiguity is retained when warranted and source
+follow-up uses the selected identity; for source diffs, check exact
+changed-file evidence and bounded summaries without compatibility claims.
 
 ### Current Baseline Observations
 
@@ -243,6 +276,10 @@ Each run writes:
   `stderr.txt`, `tool-calls.json`, and `final.json` when parsing succeeds.
 - MCP runs write a GitHits `mcp.json`, `codex-config.toml`, and `opencode.json`;
   skills runs write an empty `mcp.json` and empty `opencode.json` for isolation.
+- When the local experimental override is enabled, `run.json`, each workload's
+  dry-run metadata, and `.agent-session/session.json` persist
+  `experimentalTools: true`; the Claude, Codex, and OpenCode local launch
+  vectors contain the same `--experimental-tools` flag.
 - Skills runs also write `skill-installation.json` with the copied skill path
   and CLI shim path.
 

@@ -5,11 +5,17 @@
 The transport-neutral adapter exposes PkgSeer's exact-tree `codeDiff` GraphQL
 operation to the public `@githits/mcp/client` runtime. The root package also
 registers `githits code diff` as an intentionally unpromoted CLI dogfood
-surface. Neither layer claims that a patch proves compatibility.
+surface. The local MCP composer also exposes a config-gated `code_diff` adapter
+for the same exact-tree evidence, but the public and remote MCP surfaces remain
+stable and do not include it. Neither layer claims that a patch proves
+compatibility.
 
-The CLI is being exercised before any MCP tool or agent instruction is added.
-This keeps agent-facing signatures out of the public surface until the Git-like
-ergonomics and evidence envelope have been dogfooded.
+The local adapter is enabled only when the host experimental-tools policy is
+enabled. Its MCP-native target union, separate endpoints, bounded projections,
+and structured error envelope are internal to local composition; combined MCP
+instructions are composed only for the local server; remote/public exposure
+and Agent Skill guidance remain later rollout steps after dogfood and
+evaluation.
 
 ## Addressing and modes
 
@@ -142,22 +148,28 @@ binary/metadata-only causes and direct humans to stat/name views while JSON
 retains structured partial evidence. The applicable patch stream is unified
 diff content; the backend does not provide Git index or mode headers.
 Validation, authentication, resolution, and raw-field errors exit 1 through
-the shared CLI error envelope. No `code_diff` MCP tool, instruction, skill, or
-plugin promotion exists during this phase.
+the shared CLI error envelope. The local `code_diff` MCP adapter maps the same
+classes of failures into the structured MCP error envelope and uses compact
+MCP-native text by default. Its `path_glob` schema requires one non-empty
+repository-relative `*` / `?` / whole-component `**` glob and rejects brace
+expansion, character classes, negation, and Git pathspec magic. Its `text-v1`
+patch previews are bounded at 320 UTF-8 bytes; each affected file is
+labeled `patch preview (truncated)` and one aggregate `Next:` recovery directs
+callers to `format: "json"` for the full
+returned patch content. That JSON remains subject to backend limits and content
+coverage, and cannot recover content omitted by the backend. `Content: complete`
+describes backend-returned coverage, not that every returned byte was printed
+in the compact preview.
+It is not included in public/remote descriptors or smoke inventories, and its
+guidance is not promoted through public/remote MCP instructions, Agent Skills,
+or plugin guidance during this phase.
 
 ## Deferred rollout boundaries
 
-Public MCP and agent exposure remains deferred until post-merge CLI dogfooding
-resolves the MCP view vocabulary, evidence-backed `maxFiles` and
-`maxPatchBytes` defaults, automation semantics for partial or failed content,
-and whether `pathPrefix` or any CLI signature correction is actually needed.
-Before implementation, reverify the merged CLI contract and deployed backend
-rather than carrying these open decisions forward as assumptions.
-
-The next rollout stage is a public `code_diff` tool with mode-minimal fetching,
-CLI/MCP JSON parity, agent-native errors and descriptions, concise generated
-guidance, targeted Claude and Codex evaluation, and the corresponding smoke,
-package, plugin, and release validation. Structural CodeDiff remains unexposed.
+The local `code_diff` adapter and its experimental instructions remain
+config-gated and workspace-internal. Public/remote MCP descriptors, smoke
+inventories, Agent Skills, and plugin guidance remain stable-only; any future
+promotion requires separate graduation evidence and release review.
 
 Typed changelog steering is a separate later stage, blocked on both a stable
 public CodeDiff invocation and a committed/deployed PkgSeer changelog-action
@@ -173,6 +185,8 @@ repository/latest outcomes and unknown actions must remain unchanged.
 | `packages/core-internal/src/services/code-navigation-service.ts` | GraphQL query, validation, schemas, normalization, and errors |
 | `packages/core-internal/src/services/code-navigation-service.test.ts` | Wire-selection, variables, normalization, and failure fixtures |
 | `packages/mcp/src/client.ts` | Public client type/value re-exports |
-| `packages/mcp/src/shared/code-diff-{request,response,text}.ts` | CLI-internal normalization, lean projection, and Git-like rendering |
+| `packages/mcp/src/shared/code-diff-{request,response,text,mcp-text}.ts` | CLI normalization, lean projection, Git-like rendering, and local MCP text |
 | `src/commands/code/diff.ts` | Commander syntax, service call, stream routing, and CLI errors |
+| `packages/mcp/src/tools/code-diff.ts` | Local-only MCP schema, handler, and structured error mapping |
 | `scripts/validate-public-packages.ts` | Packed-package runtime and no-network TypeScript consumer checks |
+| `docs/implementation/cli-commands.md` | Config-gated CLI surface and local-only MCP rollout status |
