@@ -688,6 +688,68 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("expressjs.com/");
   });
 
+  it("keeps malformed optional site metadata from failing text output", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "PENDING",
+                resultCount: 0,
+                siteKey: "34150829eb8a7c57",
+                siteUrl: "expressjs.com/en/guide",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "site documentation - not ready, so it was not searched",
+    );
+  });
+
+  it("numbers docpack labels only when their displayed identities collide", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "PENDING",
+                resultCount: 0,
+                siteKey: "1111111111111111",
+                siteUrl: "https://docs.example.com/",
+              },
+              {
+                kind: "DOCPACK",
+                state: "UNAVAILABLE",
+                resultCount: 0,
+                siteKey: "2222222222222222",
+                siteUrl: "https://docs.example.com",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "site docs.example.com 1 - not ready, so it was not searched",
+    );
+    expect(text).toContain(
+      "site docs.example.com 2 - unavailable and was not searched",
+    );
+  });
+
   it("retains the source target when another response target has no contributors", () => {
     const text = renderUnifiedSearchSuccess(
       completed(

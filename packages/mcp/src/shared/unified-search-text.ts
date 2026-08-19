@@ -537,9 +537,13 @@ function formatDocumentationSiteIdentity(
   value: string | undefined,
 ): string | undefined {
   if (!value) return undefined;
-  const url = new URL(value);
-  const path = url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "");
-  return `${url.host}${path}`;
+  try {
+    const url = new URL(value);
+    const path = url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "");
+    return `${url.host}${path}`;
+  } catch {
+    return undefined;
+  }
 }
 
 function formatPublishedCoverage(
