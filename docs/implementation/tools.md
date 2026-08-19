@@ -282,8 +282,11 @@ The MCP server advertises a short, cross-tool orientation via the protocol's ser
 - **Local experimental block** — appended only by the workspace-internal local
   composer when the host policy enables experimental tools. It names only the
   registered local `resolve_target`/`code_diff` subset, routes fuzzy identity
-  before canonical diff evidence, states public-OSS/privacy limits, and adds
-  opt-in negative-feedback guidance only for the configured reporting scope.
+  before canonical diff evidence, and permits direct reuse of a resolved target
+  only for a non-ambiguous `EXACT` or `HIGH` best result. `MEDIUM`, `LOW`, and
+  ambiguous results require narrowing or an explicit choice. The block also
+  states public-OSS/privacy limits and adds opt-in negative-feedback guidance
+  only for the configured reporting scope.
   Disabled or dormant reporting returns the public builder's exact baseline;
   public and remote servers never receive this block.
 

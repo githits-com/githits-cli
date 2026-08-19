@@ -100,15 +100,30 @@ export interface FormatResolveTargetTerminalOptions {
   useColors?: boolean;
 }
 
-/** Render a compact result with explicit confidence and a copyable follow-up. */
+/**
+ * Decide whether consumers may offer the best target as a direct next action.
+ * Lower-confidence results remain evidence for an explicit caller choice.
+ */
+export function isResolveTargetActionable(
+  result: Pick<ResolveTargetResult, "ambiguous" | "best">,
+): boolean {
+  return (
+    !result.ambiguous &&
+    result.best !== undefined &&
+    (result.best.confidence === "EXACT" || result.best.confidence === "HIGH")
+  );
+}
+
+/** Render a compact result with confidence-appropriate follow-up guidance. */
 export function formatResolveTargetTerminal(
   result: ResolveTargetResult,
   options: FormatResolveTargetTerminalOptions,
 ): string {
   if (!result.best) {
-    return `No targets found for '${sanitizeTerminalText(options.name)}'.\n`;
+    return `No targets found for '${sanitizeTerminalText(options.name)}'.\nCheck the spelling or loosen --registry filters; --query, --prefer-kind, and --intent-hint only rank existing candidates.\n`;
   }
   const useColors = options.useColors ?? false;
+  const actionable = isResolveTargetActionable(result);
   const lines: string[] = [];
   if (result.ambiguous) lines.push(ambiguityMessage(result.ambiguousReason));
   const protectedKeys = new Set(
@@ -119,7 +134,11 @@ export function formatResolveTargetTerminal(
     ...result.protectedMatches,
     result.best,
   ]);
-  lines.push("Candidates:");
+  lines.push(
+    !result.ambiguous && !actionable
+      ? "Unconfirmed ranked candidates:"
+      : "Candidates:",
+  );
   lines.push(
     ...candidates.flatMap((candidate, index) =>
       formatCandidateLines(
@@ -132,13 +151,22 @@ export function formatResolveTargetTerminal(
   );
 
   const query = sanitizeTerminalText(options.query?.trim() || "<query>");
-  const target = result.ambiguous
-    ? "<target>"
-    : sanitizeTerminalText(result.best.canonicalKey);
-  lines.push(
-    "",
-    `${result.ambiguous ? "Next after choosing" : "Next"}: githits search ${shellQuote(query)} --in ${shellQuote(target)}`,
-  );
+  if (result.ambiguous) {
+    lines.push(
+      "",
+      `Next after choosing: githits search ${shellQuote(query)} --in ${shellQuote("<target>")}`,
+    );
+  } else if (actionable) {
+    lines.push(
+      "",
+      `Next: githits search ${shellQuote(query)} --in ${shellQuote(sanitizeTerminalText(result.best.canonicalKey))}`,
+    );
+  } else {
+    lines.push(
+      "",
+      `Next: narrow the name or filters, or explicitly choose a candidate before running githits search ${shellQuote(query)} --in ${shellQuote("<target>")}.`,
+    );
+  }
   return `${lines.join("\n")}\n`;
 }
 

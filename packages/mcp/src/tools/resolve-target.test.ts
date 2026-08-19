@@ -108,6 +108,11 @@ describe("resolve_target MCP adapter", () => {
       "proprietary content",
       "text-v1",
       "json",
+      "EXACT",
+      "HIGH",
+      "MEDIUM",
+      "LOW",
+      "explicit choice",
     ]) {
       expect(DESCRIPTION).toContain(phrase);
     }
@@ -152,6 +157,52 @@ describe("resolve_target MCP adapter", () => {
     });
   });
 
+  it("emits direct canonical next actions only for EXACT and HIGH results", () => {
+    for (const confidence of ["EXACT", "HIGH"] as const) {
+      const best = {
+        kind: "PACKAGE",
+        canonicalKey: "npm:express",
+        confidence,
+      };
+      const text = formatResolveTargetMcpText(
+        result({ best, candidates: [], protectedMatches: [] }),
+        { name: "express" },
+      );
+
+      expect(text).toContain(
+        `Best match: npm:express [${confidence.toLowerCase()}; package].`,
+      );
+      expect(text).toContain(
+        'Next: pass the canonical target "npm:express" to the next MCP tool.',
+      );
+      expect(text).not.toContain("Unconfirmed ranked candidates:");
+    }
+  });
+
+  it("requires narrowing or an explicit choice for MEDIUM and LOW results", () => {
+    for (const confidence of ["MEDIUM", "LOW"] as const) {
+      const best = {
+        kind: "PACKAGE",
+        canonicalKey: "npm:express",
+        confidence,
+      };
+      const text = formatResolveTargetMcpText(
+        result({ best, candidates: [], protectedMatches: [] }),
+        { name: "express" },
+      );
+
+      expect(text).toContain(
+        `Unconfirmed ranked candidates: the best result is ${confidence.toLowerCase()} confidence.`,
+      );
+      expect(text).toContain("narrow the name or filters");
+      expect(text).toContain("explicitly choose a candidate");
+      expect(text).toContain("do not pass the best result automatically");
+      expect(text).not.toContain(
+        'pass the canonical target "npm:express" to the next MCP tool',
+      );
+    }
+  });
+
   it("requests detailed fields only for JSON and reuses the stable payload", async () => {
     const service: ResolveTargetService = {
       resolveTarget: mock(() => Promise.resolve(result())),
@@ -170,7 +221,7 @@ describe("resolve_target MCP adapter", () => {
     );
   });
 
-  it("keeps ambiguous and empty resolution successful without guessing", async () => {
+  it("preserves ambiguous resolution guidance without guessing", () => {
     const ambiguous = result({
       best: undefined,
       candidates: [
@@ -200,7 +251,9 @@ describe("resolve_target MCP adapter", () => {
     expect(ambiguousText).toContain("choose the canonical target");
     expect(ambiguousText).not.toContain("Best match:");
     expect(ambiguousText).not.toContain("candidate 1");
+  });
 
+  it("corrects spelling or filters for empty resolution without adding ranking context", async () => {
     const tool = createResolveTargetTool(
       createService(() =>
         Promise.resolve(
@@ -215,6 +268,13 @@ describe("resolve_target MCP adapter", () => {
     const response = await invoke(tool, { name: "missing" });
     expect(response.isError).toBeUndefined();
     expect(response.content[0]?.text).toContain("No targets found");
+    expect(response.content[0]?.text).toContain(
+      "Check the spelling or loosen registry filters",
+    );
+    expect(response.content[0]?.text).toContain(
+      "query, preferred kind, and intent hints only rank existing candidates",
+    );
+    expect(response.content[0]?.text).not.toContain("include more context");
     expect(response.content[0]?.text).toContain("no target was invented");
   });
 

@@ -309,12 +309,18 @@ stars, the terminal shows its linked repository as compact
 `github:owner/repo` when possible and otherwise preserves the repository URL.
 Missing evidence is omitted rather than shown as zero.
 
-The copyable `githits search --in` follow-up uses the resolved target only for
-non-ambiguous results. Ambiguous results use the literal `<target>` placeholder
-so the terminal does not imply that candidate 1 was selected. No candidates is
-a valid JSON/text result but exits 1 because the command did not resolve a
-target. The backend guarantees that `best` is absent only when there are no
-candidates, so the terminal no-result message and exit status key off `best`.
+Terminal and MCP compact text share one actionability rule. A best result is a
+copyable/direct canonical next action only when it is non-ambiguous and has
+`EXACT` or `HIGH` confidence. Non-ambiguous `MEDIUM` and `LOW` results are
+labeled as unconfirmed ranked candidates and require the caller to narrow the
+name or filters, or choose a canonical candidate explicitly. Ambiguous results
+retain their existing choose-or-narrow guidance and literal `<target>`
+placeholder. Empty results ask for corrected spelling or adjusted
+registry filters; query, preferred-kind, and intent hints are ranking-only and
+cannot create candidates. No candidates is a valid JSON/text result but exits 1
+because the command did not resolve a target. The backend guarantees that
+`best` is absent only when there are no candidates, so the terminal no-result
+message and exit status key off `best`.
 
 `--registry` accepts a comma-separated package-registry list and the command
 help enumerates every accepted value; repository candidates remain eligible.
@@ -332,8 +338,9 @@ objects occur once; `best` and `protectedMatches` use canonical-key references.
 Reference-only best/protected targets outside the ranked list produce minimal
 candidate objects with `target`, `kind`, and `confidence`, because no redundant
 detail fields are requested for those lists. Detailed ranking fields are fetched
-only for JSON. Null fields are omitted and enum values are lowercase. Errors use
-the standard JSON envelope on stderr with clean stdout.
+only for JSON. The actionability rule does not add or remove JSON fields. Null
+fields are omitted and enum values are lowercase. Errors use the standard JSON
+envelope on stderr with clean stdout.
 
 The command and local experimental MCP adapter use an internal service and do
 not change the public `@githits/mcp` service interface. Its GraphQL selection keeps `best` and

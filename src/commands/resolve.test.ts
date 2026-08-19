@@ -174,7 +174,7 @@ describe("resolveAction", () => {
     );
 
     expect(String(writeSpy.mock.calls[0]?.[0])).toBe(
-      "No targets found for 'missing'.\n",
+      "No targets found for 'missing'.\nCheck the spelling or loosen --registry filters; --query, --prefer-kind, and --intent-hint only rank existing candidates.\n",
     );
     expect(process.exitCode).toBe(1);
   });

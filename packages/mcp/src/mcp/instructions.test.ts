@@ -37,7 +37,9 @@ describe("buildLocalMcpInstructions", () => {
     expect(instructions).toContain("`resolve_target`");
     expect(instructions).toContain("`code_diff`");
     expect(instructions).toContain("canonical `registry:name`");
-    expect(instructions).toContain("never guess");
+    expect(instructions).toContain("EXACT/HIGH");
+    expect(instructions).toContain("MEDIUM/LOW");
+    expect(instructions).toContain("never auto-select");
     expect(instructions).toContain("`pkg_upgrade_review`");
     expect(instructions).toContain("public GitHub refs repository-wide");
     expect(instructions).toContain("name-status");
@@ -46,7 +48,7 @@ describe("buildLocalMcpInstructions", () => {
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private or proprietary content");
     expect(instructions).toContain("targets.\n\n- `resolve_target`");
-    expect(instructions).toContain("directly.\n- `code_diff`");
+    expect(instructions).toContain("auto-select.\n- `code_diff`");
     expect(instructions.length - buildMcpInstructions().length).toBeLessThan(
       900,
     );
