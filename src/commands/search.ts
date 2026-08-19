@@ -4,6 +4,7 @@ import type {
 } from "@githits/core-internal";
 import {
   appendDocumentationSources,
+  appendEmptySearchGuidance,
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchParams,
   buildUnifiedSearchStatusPayload,
@@ -12,7 +13,6 @@ import {
   dim,
   formatProgressTarget,
   formatSuggestedSiteTargetGuidance,
-  hasUnsearchedDocumentationSources,
   highlight,
   highlightMatch,
   highlightRanges,
@@ -517,13 +517,12 @@ function formatUnifiedSearchTerminal(
   }
 
   if (payload.results.length === 0) {
-    lines.push(
-      payload.evidenceNotice ||
-        hasUnsearchedDocumentationSources(payload.sourceStatus)
-        ? "No hits in the searched evidence on this page."
-        : "No results.",
-    );
-    if (payload.evidenceNotice) lines.push("Do not repeat immediately.");
+    appendEmptySearchGuidance(lines, {
+      sourceStatus: payload.sourceStatus,
+      evidenceNotice: payload.evidenceNotice,
+      guidanceStyle: "cli",
+      fallbackHeadline: "No results.",
+    });
     if (emptyResultNotes.length > 0) {
       lines.push("");
       lines.push(...emptyResultNotes);

@@ -385,6 +385,9 @@ describe("searchAction", () => {
     expect(output).not.toContain("hits on this page");
     expect(output).not.toContain("Documentation corpora");
     expect(output).not.toContain("indexing is still in progress");
+    expect(output).toContain("Do not repeat immediately.");
+    expect(output).not.toContain("Try a shorter or broader query");
+    expect(output).not.toContain("Run again with a larger --wait");
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
     expect(output).toContain("githits search-status search-ref-docs");
     consoleSpy.mockRestore();
@@ -413,6 +416,52 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain("No hits in the searched evidence on this page.");
     expect(output).not.toContain("No results.");
+    expect(output).toContain(
+      "Try a shorter or broader query, or search another source.",
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it("keeps CLI indexing guidance when documentation was not searched", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const result = createDocumentationSearchResult();
+    result.evidenceNotice = undefined;
+    result.sourceStatus.push({
+      source: "CODE",
+      targetLabel: "npm:express@5.1.0",
+      indexingStatus: "INDEXING",
+      appliedFilters: [],
+      ignoredFilters: [],
+      incompatibleFilters: [],
+      appliedQueryFeatures: [],
+      ignoredQueryFeatures: [],
+      incompatibleQueryFeatures: [],
+      suggestedSiteTargets: [],
+      suggestedSiteTargetsTruncated: false,
+      contributors: [],
+    });
+    const outcome: UnifiedSearchOutcome = {
+      state: "completed",
+      completed: true,
+      result,
+    };
+
+    await searchAction(
+      "router",
+      { in: ["npm:express"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("No hits in the searched evidence on this page.");
+    expect(output).toContain(
+      "Run again with a larger --wait while indexing finishes.",
+    );
+    expect(output).not.toContain("Try a shorter or broader query");
     consoleSpy.mockRestore();
   });
 
@@ -1730,6 +1779,38 @@ describe("searchStatusAction", () => {
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
     expect(output).not.toContain("githits search-status search-ref-docs");
     expect(output).not.toContain("re-run with the searchRef");
+    consoleSpy.mockRestore();
+  });
+
+  it("gives stored unavailable documentation results a useful next step", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const result = createDocumentationSearchResult();
+    result.evidenceNotice = undefined;
+    const contributor = result.sourceStatus[0]?.contributors?.[1];
+    if (!contributor) throw new Error("expected documentation contributor");
+    contributor.state = "UNAVAILABLE";
+    const outcome: UnifiedSearchOutcome = {
+      state: "completed",
+      completed: true,
+      searchRef: "search-ref-docs",
+      result,
+    };
+
+    await searchStatusAction(
+      "search-ref-docs",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() => Promise.resolve(outcome)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("No hits in the searched evidence on this page.");
+    expect(output).toContain(
+      "Try a shorter or broader query, or search another source.",
+    );
     consoleSpy.mockRestore();
   });
 

@@ -638,6 +638,8 @@ export function appendEmptySearchGuidance(
     showQuery?: boolean;
     sourceStatus?: UnifiedSearchCompletedPayload["sourceStatus"];
     evidenceNotice?: string;
+    guidanceStyle?: "mcp" | "cli";
+    fallbackHeadline?: string;
   },
 ): void {
   if (options.showQuery && options.query?.raw) {
@@ -654,8 +656,17 @@ export function appendEmptySearchGuidance(
   lines.push(
     hasUnsearchedSources
       ? "No hits in the searched evidence on this page."
-      : formatEmptySearchHeadline(options.sourceStatus),
+      : (options.fallbackHeadline ??
+          formatEmptySearchHeadline(options.sourceStatus)),
   );
+  if (options.guidanceStyle === "cli") {
+    lines.push(
+      hasIndexingSource(options.sourceStatus)
+        ? "Run again with a larger --wait while indexing finishes."
+        : "Try a shorter or broader query, or search another source.",
+    );
+    return;
+  }
   lines.push("Do not repeat this search unchanged.");
   if (hasIndexingSource(options.sourceStatus)) {
     const hasAlternatives = options.sourceStatus?.some(
