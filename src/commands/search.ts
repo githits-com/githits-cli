@@ -184,12 +184,13 @@ ambiguous sites may return advisory site targets to retry explicitly.
 Output uses canonical github:org/repo#ref formatting. Structured flags are
 AND-combined with the query. Complete by default. Active PENDING, INDEXING, or
 SEARCHING progress returns a searchRef. Active progress may include
-stale-but-serveable evidence. Follow that active reference with \`githits
-search-status\` instead of repeating search. Terminal DEFERRED preserves
-disclosed evidence but stops that reference; use it now and run a new search
-later for a fresher snapshot. Missing or ambiguous sites instead provide
-terminal recovery guidance without a searchRef. Use
-\`githits example\` for canonical cross-project examples; \`--source symbol\`
+stale-but-serveable evidence. Follow an explicit \`githits search-status\`
+action emitted for that active reference or for a completed result with an
+evidence notice. DEFERRED, TIMEOUT, and FAILED are terminal; unrecognized
+statuses are not polled. Preserve any disclosed evidence and follow the rendered
+new-search action. Missing or ambiguous sites instead provide
+terminal recovery guidance without a searchRef. Use \`githits example\` for
+canonical cross-project examples; \`--source symbol\`
 here returns symbol-shaped hits.
 
 The query supports implicit AND, uppercase OR, parens, unary -, "phrases",
@@ -206,12 +207,14 @@ Examples:
 
 const SEARCH_STATUS_DESCRIPTION = `Check the status of a unified search started earlier.
 
-Pass the searchRef returned by githits search when the initial request could
-not complete within the wait window. This can return progress, interim hits
-covering every runnable target/source pair while refresh continues, partial
-hits from a serveable subset when the original request used --allow-partial,
-or final results. By default it waits up to 20 seconds for progress before
-returning the latest status.`;
+Pass the searchRef only when githits search explicitly supplies this follow-up,
+including for active PENDING, INDEXING, or SEARCHING progress or a completed
+result with an evidence notice. This can return progress, interim hits covering
+every runnable target/source pair while refresh continues, partial hits from a
+serveable subset when the original request used --allow-partial, or final
+results. DEFERRED, TIMEOUT, and FAILED are terminal; unrecognized statuses are
+not polled; follow the rendered new-search action instead. By default the command
+waits up to 20 seconds for progress before returning the latest status.`;
 
 export function registerSearchCommand(program: Command) {
   program

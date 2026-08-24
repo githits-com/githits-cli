@@ -8,7 +8,16 @@ Package target syntax requires an explicit registry: `registry:name[@version]`, 
 
 Useful filters: `--kind`, `--category`, `--path-prefix`, `--intent`, `--public`, `--name`, `--lang`, `--limit`, `--offset`, `--wait`, `--allow-partial`, `--json`.
 
-If search returns a `searchRef`, do not repeat the original search. Continue with `githits search-status <searchRef> [--wait <seconds>]`; the bounded wait defaults to 20 seconds, and the explicit value must be an integer from 0 to 60.
+If search returns a `searchRef`, continue with `githits search-status <searchRef> [--wait <seconds>]` only when the output explicitly supplies that follow-up, including for active `PENDING`, `INDEXING`, or `SEARCHING` progress or a completed result with an evidence notice. The bounded wait defaults to 20 seconds, and the explicit value must be an integer from 0 to 60. Terminal `DEFERRED`, `TIMEOUT`, or `FAILED` progress, and unrecognized statuses, do not advance: keep any disclosed evidence, do not poll the same reference, and follow the rendered new-search action.
+
+Stale or provisional evidence remains queryable while refresh or indexing
+continues. Treat the displayed served target as exact provenance and follow a
+`searchRef` only when the output renders the continuation.
+
+If discovery returns no useful hits, follow its rendered pivots instead of
+repeating it unchanged. Once the query is an exact identifier or string, use
+`code grep` and then read the focused match; symbol discovery may not include
+re-exports or generated aliases.
 
 If a missing or ambiguous site returns suggested site targets, retry one of those exact labels explicitly. They are advisory, not aliases, and GitHits does not select or retry one automatically. A truncation notice means more valid candidates were omitted.
 

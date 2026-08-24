@@ -5,6 +5,52 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.10.1] - 2026-08-24
+
+Patch release: hardens concurrent CLI authentication and preserves queryable
+search evidence while indexing and backend session statuses evolve.
+
+### Changed
+
+- **Expose provisional search evidence** - Accept and render queryable
+  `PROVISIONAL` repository and documentation freshness while preserving exact
+  served identity, indexing guidance, hits, and `searchRef` continuation only
+  for active sessions.
+
+### Fixed
+
+- **Reliable concurrent CLI authentication** - Preserve live per-user auth
+  locks when process or lock-owner metadata inspection is temporarily
+  unavailable, and serialize stale-owner cleanup so parallel local CLI and MCP
+  processes cannot reuse rotating refresh tokens. Restart long-running local
+  MCP processes after upgrading so every process uses the hardened lock
+  protocol.
+- **Evolving search-session statuses** - CLI search accepts terminal `DEFERRED`
+  and future status values without discarding available evidence. Only known
+  active sessions and explicit completed-result follow-ups direct callers to
+  `search-status`; stopped or unknown sessions preserve current evidence and
+  provide a new-search action without further polling.
+
+## [@githits/mcp 0.10.1] - 2026-08-24
+
+Patch release: preserves queryable search evidence while indexing and keeps
+follow-up guidance aligned as backend session statuses evolve.
+
+### Changed
+
+- **Expose provisional search evidence** - Accept and render queryable
+  `PROVISIONAL` repository and documentation freshness while preserving exact
+  served identity, indexing guidance, hits, and `searchRef` continuation only
+  for active sessions.
+
+### Fixed
+
+- **Evolving search-session statuses** - MCP search accepts terminal `DEFERRED`
+  and future status values without discarding available evidence. Only known
+  active sessions and explicit completed-result follow-ups direct agents to
+  `search_status`; stopped or unknown sessions preserve current evidence and
+  provide a new-search action without further polling.
+
 ## [githits 0.10.0] - 2026-08-19
 
 Minor release: introduces opt-in local experimental tools for target resolution

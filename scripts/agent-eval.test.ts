@@ -704,8 +704,10 @@ describe("agent eval harness", () => {
     ).toThrow("--experimental-tools requires --surface mcp --server local");
   });
 
-  it("persists the enabled flag in dry-run artifacts for every MCP client", async () => {
+  it("persists the enabled flag without probing agent versions during dry runs", async () => {
     const outDir = mkdtempSync(join(tmpdir(), "agent-eval-override-"));
+    let availabilityProbeCalls = 0;
+    let versionProbeCalls = 0;
     try {
       const options = parseArgs(
         [
@@ -718,7 +720,20 @@ describe("agent eval harness", () => {
         ],
         process.cwd(),
       );
-      await runAgentEval(options);
+      await runAgentEval(options, {
+        assertAgentAvailable: () => {
+          availabilityProbeCalls += 1;
+          return Promise.resolve();
+        },
+        collectAgentVersions: () => {
+          versionProbeCalls += 1;
+          return Promise.resolve([
+            "stub-claude-version",
+            "stub-codex-version",
+            "stub-opencode-version",
+          ]);
+        },
+      });
       const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
       const workloadDir = join(outDir, "workloads", "express-router");
       const dryRun = JSON.parse(
@@ -731,12 +746,50 @@ describe("agent eval harness", () => {
         readFileSync(join(workloadDir, "opencode.json"), "utf8"),
       );
       expect(run.experimentalTools).toBe(true);
+      expect(run.claudeVersion).toBeUndefined();
+      expect(run.codexVersion).toBeUndefined();
+      expect(run.opencodeVersion).toBeUndefined();
+      expect(availabilityProbeCalls).toBe(0);
+      expect(versionProbeCalls).toBe(0);
       expect(dryRun.experimentalTools).toBe(true);
       expect(mcp.mcpServers.githits.args).toContain("--experimental-tools");
       expect(
         readFileSync(join(workloadDir, "codex-config.toml"), "utf8"),
       ).toContain("--experimental-tools");
       expect(openCode.mcp.githits.command).toContain("--experimental-tools");
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("uses injected agent probes for live run metadata", async () => {
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-probes-"));
+    const availabilityProbes: string[] = [];
+    let versionProbeCalls = 0;
+    try {
+      const options = parseArgs(["--out", outDir], process.cwd());
+      options.workloads = [];
+      await runAgentEval(options, {
+        assertAgentAvailable: (agent) => {
+          availabilityProbes.push(agent);
+          return Promise.resolve();
+        },
+        collectAgentVersions: () => {
+          versionProbeCalls += 1;
+          return Promise.resolve([
+            "stub-claude-version",
+            "stub-codex-version",
+            "stub-opencode-version",
+          ]);
+        },
+      });
+
+      const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
+      expect(availabilityProbes).toEqual(["claude"]);
+      expect(versionProbeCalls).toBe(1);
+      expect(run.claudeVersion).toBe("stub-claude-version");
+      expect(run.codexVersion).toBe("stub-codex-version");
+      expect(run.opencodeVersion).toBe("stub-opencode-version");
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }

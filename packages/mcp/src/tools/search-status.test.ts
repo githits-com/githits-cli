@@ -131,7 +131,13 @@ describe("searchStatusTool", () => {
     expect(tool.description).toContain("partial hits");
     expect(tool.description).toContain("serveable subset");
     expect(tool.description).toContain("allow_partial_results");
-    expect(tool.description).toContain("instead of repeating `search`");
+    expect(tool.description).toContain("`PENDING`, `INDEXING`, or `SEARCHING`");
+    expect(tool.description).toContain(
+      "completed result with an evidence notice",
+    );
+    expect(tool.description).toContain("`DEFERRED`, `TIMEOUT`, and `FAILED`");
+    expect(tool.description).toContain("unrecognized statuses are not polled");
+    expect(tool.description).toContain("rendered new-search action");
   });
 
   it("waits up to the shared default and forwards explicit wait windows", async () => {
