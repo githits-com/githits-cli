@@ -11,11 +11,14 @@ import {
 import { createSearchTool } from "./search.js";
 
 describe("searchTool", () => {
-  it("directs deferred calls to search_status instead of repeated search", () => {
+  it("distinguishes active continuation from terminal deferred searches", () => {
     const tool = createSearchTool(createMockCodeNavigationService());
 
     expect(tool.description).toContain("do not repeat `search`");
     expect(tool.description).toContain("`search_status`");
+    expect(tool.description).toContain("`PENDING`, `INDEXING`, or `SEARCHING`");
+    expect(tool.description).toContain("Terminal `DEFERRED`");
+    expect(tool.description).toContain("new search later");
     expect(tool.description).toContain("serveable subset");
   });
 

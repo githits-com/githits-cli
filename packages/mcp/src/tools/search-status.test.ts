@@ -337,6 +337,120 @@ describe("searchStatusTool", () => {
     expect(text).not.toContain("next: call search_status");
   });
 
+  it("preserves evidence for a terminal deferred session without polling it", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome("DEFERRED", "ref-deferred", {
+      targetsReady: 1,
+      targetsTotal: 2,
+      elapsedMs: 600_000,
+    });
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      evidenceNotice: "Stored evidence remains usable.",
+    };
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() => Promise.resolve(incomplete)),
+      }),
+    );
+
+    const jsonResult = await tool.handler(
+      { search_ref: "ref-deferred", format: "json" },
+      {},
+    );
+    const payload = JSON.parse(jsonResult.content[0]?.text ?? "{}");
+    expect(payload.completed).toBe(false);
+    expect(payload.progress).toMatchObject({
+      status: "DEFERRED",
+      targetsReady: 1,
+      targetsTotal: 2,
+      next: "rerun search",
+    });
+    expect(payload.result.results).toHaveLength(1);
+    expect(payload.result.evidenceNotice).toBe(
+      "Stored evidence remains usable.",
+    );
+
+    const textResult = await tool.handler({ search_ref: "ref-deferred" }, {});
+    const text = textResult.content[0]?.text ?? "";
+    expect(text).toContain("search_status | deferred | searchRef=ref-deferred");
+    expect(text).toContain(
+      "Background lifecycle work continues outside this search session.",
+    );
+    expect(text).toContain("Stored evidence remains usable.");
+    expect(text).toContain("next: rerun search later for a fresher snapshot.");
+    expect(text).not.toContain("next: call search_status");
+    expect(text).not.toContain("No hits");
+    expect(text).not.toContain("Indexing in progress");
+  });
+
+  it("does not invent hits or indexing for a deferred session without results", async () => {
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() =>
+          Promise.resolve(
+            createIncompleteOutcome("DEFERRED", "ref-deferred-empty"),
+          ),
+        ),
+      }),
+    );
+
+    const result = await tool.handler({ search_ref: "ref-deferred-empty" }, {});
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain(
+      "search_status | deferred | searchRef=ref-deferred-empty",
+    );
+    expect(text).toContain("next: rerun search later for a fresher snapshot.");
+    expect(text).not.toContain("No hits");
+    expect(text).not.toContain("Indexing in progress");
+    expect(text).not.toContain("next: call search_status");
+  });
+
+  it("preserves an unrecognized status and evidence without polling it", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome(
+      "FUTURE_SESSION_STATE",
+      "ref-future",
+    );
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      evidenceNotice: "Stored evidence remains usable.",
+    };
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() => Promise.resolve(incomplete)),
+      }),
+    );
+
+    const jsonResult = await tool.handler(
+      { search_ref: "ref-future", format: "json" },
+      {},
+    );
+    const payload = JSON.parse(jsonResult.content[0]?.text ?? "{}");
+    expect(payload.completed).toBe(false);
+    expect(payload.progress).toMatchObject({
+      status: "FUTURE_SESSION_STATE",
+      next: "rerun search",
+    });
+    expect(payload.result.results).toHaveLength(1);
+
+    const textResult = await tool.handler({ search_ref: "ref-future" }, {});
+    const text = textResult.content[0]?.text ?? "";
+    expect(text).toContain(
+      "search_status | future_session_state | searchRef=ref-future",
+    );
+    expect(text).toContain("This client does not recognize that status.");
+    expect(text).toContain("Stored evidence remains usable.");
+    expect(text).not.toContain("next: call search_status");
+    expect(text).not.toContain("No hits");
+    expect(text).not.toContain("Indexing in progress");
+    expect(text).not.toContain("terminal");
+  });
+
   it.each([
     ["FAILED", "No hits - search failed."],
     ["TIMEOUT", "No hits - search timed out."],
@@ -632,7 +746,7 @@ describe("searchStatusTool", () => {
     expect(() => JSON.parse(text)).toThrow();
   });
 
-  it("renders immediately queryable alternatives while deferred", async () => {
+  it("renders immediately queryable alternatives while incomplete", async () => {
     const tool = createSearchStatusTool(
       createMockCodeNavigationService({
         searchStatus: mock(() =>

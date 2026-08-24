@@ -394,7 +394,115 @@ describe("renderUnifiedSearchSuccess", () => {
     },
   );
 
-  it("labels deferred indexed alternatives as immediately queryable", () => {
+  it("renders terminal deferred evidence without polling or active-state claims", () => {
+    const incomplete: UnifiedSearchIncompletePayload = {
+      query: { raw: "myers" },
+      completed: false,
+      hasMore: false,
+      results: [codeHit()],
+      searchRef: "ref-deferred",
+      evidenceNotice: "Stored evidence remains usable.",
+      progress: {
+        status: "DEFERRED",
+        targetsReady: 1,
+        targetsTotal: 2,
+        elapsedMs: 600_000,
+      },
+    };
+
+    const text = renderUnifiedSearchSuccess(incomplete);
+    expect(text).toContain("Search session deferred.");
+    expect(text).toContain(
+      "Background lifecycle work continues outside this search session.",
+    );
+    expect(text).toContain("Use any disclosed evidence now.");
+    expect(text).toContain("Stored evidence remains usable.");
+    expect(text).toContain("next: rerun search later for a fresher snapshot.");
+    expect(text).not.toContain("next: call search_status");
+    expect(text).not.toContain("No hits");
+    expect(text).not.toContain("Indexing in progress");
+  });
+
+  it("renders a deferred session without stored results as unknown evidence", () => {
+    const incomplete: UnifiedSearchIncompletePayload = {
+      query: { raw: "myers" },
+      completed: false,
+      hasMore: false,
+      results: [],
+      searchRef: "ref-deferred-empty",
+      progress: {
+        status: "DEFERRED",
+        targetsReady: 0,
+        targetsTotal: 1,
+        elapsedMs: 600_000,
+      },
+    };
+
+    const text = renderUnifiedSearchSuccess(incomplete);
+    expect(text).toContain(
+      "No result snapshot is available for this deferred session.",
+    );
+    expect(text).toContain("next: rerun search later for a fresher snapshot.");
+    expect(text).not.toContain("No hits");
+    expect(text).not.toContain("Indexing in progress");
+    expect(text).not.toContain("next: call search_status");
+  });
+
+  it("preserves evidence for an unrecognized status without interpreting it", () => {
+    const incomplete: UnifiedSearchIncompletePayload = {
+      query: { raw: "myers" },
+      completed: false,
+      hasMore: false,
+      results: [codeHit()],
+      searchRef: "ref-future",
+      evidenceNotice: "Stored evidence remains usable.",
+      progress: {
+        status: "FUTURE_SESSION_STATE",
+        targetsReady: 1,
+        targetsTotal: 2,
+        elapsedMs: 600_000,
+      },
+    };
+
+    const text = renderUnifiedSearchSuccess(incomplete);
+    expect(text).toContain("Search returned status FUTURE_SESSION_STATE.");
+    expect(text).toContain("This client does not recognize that status.");
+    expect(text).toContain("Use any disclosed evidence now.");
+    expect(text).toContain("Stored evidence remains usable.");
+    expect(text).toContain("next: rerun search later.");
+    expect(text).not.toContain("next: call search_status");
+    expect(text).not.toContain("No hits");
+    expect(text).not.toContain("Indexing in progress");
+    expect(text).not.toContain("terminal");
+  });
+
+  it("does not invent hits or indexing for an unrecognized status", () => {
+    const incomplete: UnifiedSearchIncompletePayload = {
+      query: { raw: "myers" },
+      completed: false,
+      hasMore: false,
+      results: [],
+      searchRef: "ref-future-empty",
+      progress: {
+        status: "FUTURE_SESSION_STATE",
+        targetsReady: 0,
+        targetsTotal: 1,
+        elapsedMs: 600_000,
+      },
+    };
+
+    const text = renderUnifiedSearchSuccess(incomplete);
+    expect(text).toContain(
+      "No result snapshot is available for search status FUTURE_SESSION_STATE.",
+    );
+    expect(text).toContain("next: rerun search later.");
+    expect(text).not.toContain("No hits");
+    expect(text).not.toContain("indexing");
+    expect(text).not.toContain("next: call search_status");
+    expect(text).not.toContain("terminal");
+  });
+
+  it("labels incomplete indexed alternatives as immediately queryable", () => {
     const incomplete: UnifiedSearchIncompletePayload = {
       query: { raw: "router" },
       completed: false,

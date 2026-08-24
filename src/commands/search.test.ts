@@ -76,6 +76,32 @@ function createDocumentationSearchResult(): UnifiedSearchResult {
   };
 }
 
+function createDivergentIndexingSearchResult(): UnifiedSearchResult {
+  if (defaultUnifiedSearchOutcome.state !== "completed") {
+    throw new Error("expected completed outcome fixture");
+  }
+  return {
+    ...defaultUnifiedSearchOutcome.result,
+    sourceStatus: defaultUnifiedSearchOutcome.result.sourceStatus.map(
+      (entry) => ({
+        ...entry,
+        indexingStatus: "INDEXING",
+        targetResolution: {
+          requested: {
+            registry: "NPM",
+            packageName: "express",
+            version: "4.18.2",
+            commitSha: "abcdef0123456789",
+          },
+          freshness: "current",
+          availableVersions: [],
+          availableRefs: [],
+        },
+      }),
+    ),
+  };
+}
+
 describe("searchAction", () => {
   const mcpUrl = "https://mcp.githits.com";
 
@@ -849,6 +875,75 @@ describe("searchAction", () => {
     );
     expect(output.split(DOCUMENTATION_EVIDENCE_NOTICE)).toHaveLength(2);
     expect(output).toContain("githits search-status search-ref-docs");
+    consoleSpy.mockRestore();
+  });
+
+  it("renders terminal deferred initial evidence without polling it", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const incomplete = createIncompleteOutcome("DEFERRED", "ref-deferred");
+    incomplete.result = {
+      ...createDivergentIndexingSearchResult(),
+      evidenceNotice: "Stored evidence remains usable.",
+    };
+
+    await searchAction(
+      "router",
+      { in: ["npm:express"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(incomplete)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Search deferred.");
+    expect(output).toContain(
+      "Background lifecycle work continues outside this search session.",
+    );
+    expect(output).toContain("Stored evidence remains usable.");
+    expect(output).toContain("1 result");
+    expect(output).not.toContain("githits search-status");
+    expect(output).not.toContain("re-run with the searchRef");
+    expect(output).not.toContain("still indexing");
+    expect(output).not.toContain("No results");
+    expect(output).not.toContain("Indexing/search still in progress");
+    consoleSpy.mockRestore();
+  });
+
+  it("preserves initial evidence for an unrecognized status without polling it", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    const incomplete = createIncompleteOutcome(
+      "FUTURE_SESSION_STATE",
+      "ref-future",
+    );
+    incomplete.result = {
+      ...createDivergentIndexingSearchResult(),
+      evidenceNotice: "Stored evidence remains usable.",
+    };
+
+    await searchAction(
+      "router",
+      { in: ["npm:express"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(incomplete)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Search status is not recognized: FUTURE_SESSION_STATE.",
+    );
+    expect(output).toContain("This client does not recognize that status.");
+    expect(output).toContain("Stored evidence remains usable.");
+    expect(output).toContain("1 result");
+    expect(output).not.toContain("githits search-status");
+    expect(output).not.toContain("re-run with the searchRef");
+    expect(output).not.toContain("still indexing");
+    expect(output).not.toContain("No results");
+    expect(output).not.toContain("terminal");
     consoleSpy.mockRestore();
   });
 
@@ -1818,6 +1913,110 @@ describe("searchStatusAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("renders terminal deferred search-status evidence without polling it", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome("DEFERRED", "ref-deferred", {
+      targetsReady: 1,
+      targetsTotal: 2,
+      elapsedMs: 600_000,
+    });
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      evidenceNotice: "Stored evidence remains usable.",
+    };
+
+    await searchStatusAction(
+      "ref-deferred",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() => Promise.resolve(incomplete)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Search deferred.");
+    expect(output).toContain(
+      "Background lifecycle work continues outside this search session.",
+    );
+    expect(output).toContain("Stored evidence remains usable.");
+    expect(output).toContain("1 result");
+    expect(output).not.toContain("githits search-status");
+    expect(output).not.toContain("No results");
+    expect(output).not.toContain("Indexing/search still in progress");
+    consoleSpy.mockRestore();
+  });
+
+  it("preserves search-status evidence for an unrecognized status", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome(
+      "FUTURE_SESSION_STATE",
+      "ref-future",
+    );
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      evidenceNotice: "Stored evidence remains usable.",
+    };
+
+    await searchStatusAction(
+      "ref-future",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() => Promise.resolve(incomplete)),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain(
+      "Search status is not recognized: FUTURE_SESSION_STATE.",
+    );
+    expect(output).toContain("This client does not recognize that status.");
+    expect(output).toContain("Stored evidence remains usable.");
+    expect(output).toContain("1 result");
+    expect(output).not.toContain("githits search-status");
+    expect(output).not.toContain("No results");
+    expect(output).not.toContain("Indexing/search still in progress");
+    expect(output).not.toContain("terminal");
+    consoleSpy.mockRestore();
+  });
+
+  it("does not invent results or indexing for deferred search-status", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await searchStatusAction(
+      "ref-deferred-empty",
+      {},
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          searchStatus: mock(() =>
+            Promise.resolve(
+              createIncompleteOutcome("DEFERRED", "ref-deferred-empty"),
+            ),
+          ),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("Search deferred.");
+    expect(output).toContain(
+      "Background lifecycle work continues outside this search session.",
+    );
+    expect(output).not.toContain("No results");
+    expect(output).not.toContain("Indexing/search still in progress");
+    expect(output).not.toContain("githits search-status");
+    consoleSpy.mockRestore();
+  });
+
   it("renders FAILED as terminal status instead of in-progress", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
@@ -1842,6 +2041,34 @@ describe("searchStatusAction", () => {
     expect(output).not.toContain("Search still in progress.");
     consoleSpy.mockRestore();
   });
+
+  it.each(["TIMEOUT", "FAILED"] as const)(
+    "does not add active indexing follow-up to terminal %s evidence",
+    async (status) => {
+      const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+      const incomplete = createIncompleteOutcome(
+        status,
+        `search-ref-${status.toLowerCase()}`,
+      );
+      incomplete.result = createDivergentIndexingSearchResult();
+
+      await searchStatusAction(
+        incomplete.searchRef,
+        {},
+        createDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            searchStatus: mock(() => Promise.resolve(incomplete)),
+          }),
+        }),
+      );
+
+      const output = String(consoleSpy.mock.calls[0]?.[0]);
+      expect(output).not.toContain("re-run with the searchRef");
+      expect(output).not.toContain("still indexing");
+      expect(output).not.toContain("githits search-status");
+      consoleSpy.mockRestore();
+    },
+  );
 
   it("outputs final JSON when completed", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});

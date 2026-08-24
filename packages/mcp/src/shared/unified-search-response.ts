@@ -34,6 +34,15 @@ import { DEFAULT_UNIFIED_SEARCH_LIMIT } from "./unified-search-request.js";
 const DEFAULT_LIMIT = DEFAULT_UNIFIED_SEARCH_LIMIT;
 const DEFAULT_OFFSET = 0;
 
+/** Whether the client knows that polling the current search reference is safe. */
+export function isActiveUnifiedSearchSessionStatus(
+  status: string | undefined,
+): boolean {
+  return (
+    status === "PENDING" || status === "INDEXING" || status === "SEARCHING"
+  );
+}
+
 export interface UnifiedSearchQueryEcho {
   raw: string;
   compiled?: string;
@@ -599,10 +608,9 @@ function compactProgress(
     >;
   }
   if (progress.expiresAt) payload.expiresAt = progress.expiresAt;
-  payload.next =
-    progress.status === "FAILED" || progress.status === "TIMEOUT"
-      ? "rerun search"
-      : `search_status search_ref=${JSON.stringify(progress.searchRef)} wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}`;
+  payload.next = isActiveUnifiedSearchSessionStatus(progress.status)
+    ? `search_status search_ref=${JSON.stringify(progress.searchRef)} wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}`
+    : "rerun search";
   return payload;
 }
 

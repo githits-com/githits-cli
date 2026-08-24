@@ -17,6 +17,7 @@ import {
   highlightMatch,
   highlightRanges,
   InvalidArgumentError,
+  isActiveUnifiedSearchSessionStatus,
   knownSymbolCategoryList,
   knownSymbolKindList,
   type LeanTargetResolution,
@@ -180,12 +181,14 @@ for example npm:express[@version]) or repo form (github:org/repo[#ref|@ref],
 github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]),
 or an exact documentation site as site:<host[/path]>. Missing or
 ambiguous sites may return advisory site targets to retry explicitly.
-Output uses canonical github:org/repo#ref formatting. Structured
-flags are AND-combined with the query. Complete by default — if indexing or
-refresh is still running, returns a searchRef; stale-but-serveable evidence
-may accompany it while refresh continues. Follow the reference with
-\`githits search-status\` instead of repeating search. Missing or ambiguous
-sites may instead return terminal recovery guidance without a searchRef. Use
+Output uses canonical github:org/repo#ref formatting. Structured flags are
+AND-combined with the query. Complete by default. Active PENDING, INDEXING, or
+SEARCHING progress returns a searchRef. Active progress may include
+stale-but-serveable evidence. Follow that active reference with \`githits
+search-status\` instead of repeating search. Terminal DEFERRED preserves
+disclosed evidence but stops that reference; use it now and run a new search
+later for a fresher snapshot. Missing or ambiguous sites instead provide
+terminal recovery guidance without a searchRef. Use
 \`githits example\` for canonical cross-project examples; \`--source symbol\`
 here returns symbol-shaped hits.
 
@@ -473,6 +476,7 @@ function formatUnifiedSearchTerminal(
     payload.sourceStatus,
     warnings,
     payload.completed,
+    payload.progress?.status,
   );
   const documentationSourceNotes = formatDocumentationSourcesTerminal(
     payload.sourceStatus,
@@ -626,10 +630,24 @@ function formatSearchStatusTerminal(
     lines.push("This search session is terminal. Start a new search.");
     return lines.join("\n");
   }
+  if (status === "DEFERRED") {
+    lines.push(
+      "Background lifecycle work continues outside this search session.",
+    );
+    lines.push(
+      "Use any disclosed evidence now. Start a new search later for a fresher snapshot.",
+    );
+    return lines.join("\n");
+  }
   if (status === "FAILED") {
     lines.push(
       "Search failed. Start a new search or inspect backend errors if the failure persists.",
     );
+    return lines.join("\n");
+  }
+  if (status !== undefined && !isActiveUnifiedSearchSessionStatus(status)) {
+    lines.push("This client does not recognize that status.");
+    lines.push("Use any disclosed evidence now. Start a new search later.");
     return lines.join("\n");
   }
   lines.push(
@@ -644,12 +662,16 @@ function formatSearchStatusHeadline(status: string | undefined): string {
     case "INDEXING":
     case "SEARCHING":
       return "Indexing/search still in progress.";
+    case "DEFERRED":
+      return "Search deferred.";
     case "TIMEOUT":
       return "Search timed out.";
     case "FAILED":
       return "Search failed.";
     default:
-      return "Search still in progress.";
+      return status
+        ? `Search status is not recognized: ${status}.`
+        : "Search still in progress.";
   }
 }
 
@@ -724,12 +746,17 @@ function formatSourceStatusNotes(
   sourceStatus: SourceStatusEntry[] | undefined,
   warnings: string[] | undefined,
   completed: boolean,
+  sessionStatus: string | undefined,
 ): string[] {
   const useColors = shouldUseColors();
   if (!sourceStatus) {
     return [];
   }
 
+  const nonActiveIncompleteSession =
+    !completed &&
+    sessionStatus !== undefined &&
+    !isActiveUnifiedSearchSessionStatus(sessionStatus);
   const lines: string[] = [];
   for (const entry of sourceStatus) {
     for (const guidance of formatSuggestedSiteTargetGuidance(entry)) {
@@ -775,7 +802,7 @@ function formatSourceStatusNotes(
         ),
       );
     }
-    if (entry.indexingStatus === "INDEXING") {
+    if (entry.indexingStatus === "INDEXING" && !nonActiveIncompleteSession) {
       lines.push(
         dim(
           completed
