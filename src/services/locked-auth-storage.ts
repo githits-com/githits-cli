@@ -326,7 +326,9 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   private async reclaimOldOwnerlessLock(): Promise<void> {
     const createdAtMs = await lockCreatedAtMs(this.lockPath);
     if (Date.now() - createdAtMs < ORPHANED_LOCK_MS) return;
-    await this.fileSystemService.deleteDirIfEmpty(this.lockPath);
+    await this.fileSystemService
+      .deleteDirIfEmpty(this.lockPath)
+      .catch(() => undefined);
   }
 
   private async readOwner(): Promise<LockOwnerReadResult> {

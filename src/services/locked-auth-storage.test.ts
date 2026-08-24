@@ -484,6 +484,37 @@ describe("LockedAuthStorage", () => {
     expect(await fs.exists(join(lockPath, "owner.json"))).toBe(true);
   });
 
+  it("keeps an old ownerless lock when empty-directory removal fails", async () => {
+    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
+    await mkdir(lockPath, { recursive: true, mode: 0o700 });
+    const staleAt = new Date(Date.now() - 10_000);
+    await utimes(lockPath, staleAt, staleAt);
+    fsWithHome.deleteDirIfEmpty = mock(async () => {
+      const error = new Error(
+        "lock directory is busy",
+      ) as NodeJS.ErrnoException;
+      error.code = "EPERM";
+      throw error;
+    });
+    const storage = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      fsWithHome,
+      {
+        lockTimeoutMs: 100,
+        getProcessStartedAt: testProcessStartedAt,
+      },
+    );
+
+    await expect(
+      storage.saveTokens(
+        baseUrl,
+        createValidTokenData({ accessToken: "must-not-save" }),
+      ),
+    ).rejects.toThrow("Timed out waiting for GitHits auth storage lock");
+    expect(fsWithHome.deleteDirIfEmpty).toHaveBeenCalledTimes(1);
+    expect(await fs.exists(lockPath)).toBe(true);
+  });
+
   it("keeps an old live lock when its owner file is temporarily unreadable", async () => {
     const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
     await mkdir(lockPath, { recursive: true, mode: 0o700 });
