@@ -55,7 +55,7 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function writeVersionCommandStub(binDir: string, command: string): void {
+function writeVersionCommandStub(binDir: string, command: string): string {
   mkdirSync(binDir, { recursive: true });
   const isWindows = process.platform === "win32";
   const stubPath = join(binDir, isWindows ? `${command}.cmd` : command);
@@ -63,10 +63,11 @@ function writeVersionCommandStub(binDir: string, command: string): void {
   writeFileSync(
     stubPath,
     isWindows
-      ? `@echo off\r\necho ${version}\r\n`
-      : `#!/bin/sh\nprintf '%s\\n' '${version}'\n`,
+      ? `@echo off\r\n> "%~f0.invoked" echo invoked\r\necho ${version}\r\n`
+      : `#!/bin/sh\n: > "$0.invoked"\nprintf '%s\\n' '${version}'\n`,
   );
   if (!isWindows) chmodSync(stubPath, 0o755);
+  return `${stubPath}.invoked`;
 }
 
 function createRunFixture(status = "success"): string {
@@ -724,9 +725,9 @@ describe("agent eval harness", () => {
     const binDir = join(outDir, "agent-bin");
     const originalPath = process.env.PATH;
     try {
-      for (const command of ["claude", "codex", "opencode"]) {
-        writeVersionCommandStub(binDir, command);
-      }
+      const invocationMarkers = ["claude", "codex", "opencode"].map((command) =>
+        writeVersionCommandStub(binDir, command),
+      );
       process.env.PATH = [binDir, originalPath].filter(Boolean).join(delimiter);
       const options = parseArgs(
         [
@@ -755,6 +756,9 @@ describe("agent eval harness", () => {
       expect(run.claudeVersion).toBeUndefined();
       expect(run.codexVersion).toBeUndefined();
       expect(run.opencodeVersion).toBeUndefined();
+      for (const marker of invocationMarkers) {
+        expect(existsSync(marker)).toBe(false);
+      }
       expect(dryRun.experimentalTools).toBe(true);
       expect(mcp.mcpServers.githits.args).toContain("--experimental-tools");
       expect(
