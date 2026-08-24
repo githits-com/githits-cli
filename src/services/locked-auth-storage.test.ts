@@ -597,7 +597,10 @@ describe("LockedAuthStorage", () => {
     const storage = new LockedAuthStorage(
       new AuthStorageImpl(fs, configDir),
       fsWithHome,
-      { lockTimeoutMs: 100 },
+      {
+        lockTimeoutMs: 100,
+        getProcessStartedAt: testProcessStartedAt,
+      },
     );
     const token = createValidTokenData({ accessToken: "nested" });
 
@@ -614,13 +617,17 @@ describe("LockedAuthStorage", () => {
       "XDG_CONFIG_HOME",
       join(root, "xdg-a"),
       () =>
-        new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome),
+        new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome, {
+          getProcessStartedAt: testProcessStartedAt,
+        }),
     );
     const second = await withTestEnvVar(
       "XDG_CONFIG_HOME",
       join(root, "xdg-b"),
       () =>
-        new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome),
+        new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome, {
+          getProcessStartedAt: testProcessStartedAt,
+        }),
     );
     let active = 0;
     let maxActive = 0;
