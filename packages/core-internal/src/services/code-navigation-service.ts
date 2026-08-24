@@ -152,13 +152,23 @@ export type UnifiedSearchResultType =
   | "REPOSITORY_CODE"
   | "REPOSITORY_DOC";
 
-export type UnifiedSearchSessionStatus =
+export type KnownUnifiedSearchSessionStatus =
   | "PENDING"
   | "INDEXING"
   | "SEARCHING"
   | "COMPLETED"
+  | "DEFERRED"
   | "TIMEOUT"
   | "FAILED";
+
+/**
+ * Backend-owned search-session status. Known values have explicit client
+ * behavior; future values remain readable instead of invalidating the whole
+ * response.
+ */
+export type UnifiedSearchSessionStatus =
+  | KnownUnifiedSearchSessionStatus
+  | (string & {});
 
 export type CodeIndexState =
   | "CURRENT"
@@ -1572,14 +1582,7 @@ const unifiedSearchResultSchema = z.object({
   evidenceNotice: z.string().nullable().optional(),
 });
 
-const unifiedSearchSessionStatusSchema = z.enum([
-  "PENDING",
-  "INDEXING",
-  "SEARCHING",
-  "COMPLETED",
-  "TIMEOUT",
-  "FAILED",
-]);
+const unifiedSearchSessionStatusSchema = z.string().min(1);
 
 const unifiedSearchFiltersSchema = z
   .object({

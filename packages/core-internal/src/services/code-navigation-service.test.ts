@@ -1066,6 +1066,88 @@ describe("CodeNavigationServiceImpl", () => {
     });
   });
 
+  for (const operation of ["search", "searchStatus"] as const) {
+    it.each(["DEFERRED", "FUTURE_SESSION_STATE"])(
+      `accepts %s ${operation} responses with stored results`,
+      async (status) => {
+        const searchRef = `search-ref-deferred-${operation}`;
+        const result = {
+          query: "router",
+          queryWarnings: [],
+          sources: ["CODE"],
+          results: [],
+          page: { offset: 0, limit: 10, returned: 0, hasMore: false },
+          partialResults: false,
+          sourceStatus: [],
+          evidenceNotice: "Stored evidence remains usable.",
+        };
+        const progress = {
+          searchRef,
+          status,
+          targetsTotal: 2,
+          targetsReady: 1,
+          elapsedMs: 600_000,
+          query: "router",
+          queryWarnings: [],
+          sources: ["CODE"],
+        };
+        mockFetch(() =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify(
+                operation === "search"
+                  ? {
+                      data: {
+                        search: {
+                          completed: false,
+                          searchRef,
+                          result,
+                          progress,
+                        },
+                      },
+                    }
+                  : {
+                      data: {
+                        discoverySearchProgress: {
+                          ...progress,
+                          results: result,
+                        },
+                      },
+                    },
+              ),
+              { headers: { "Content-Type": "application/json" } },
+            ),
+          ),
+        );
+        const service = new CodeNavigationServiceImpl(
+          BASE_URL,
+          createMockTokenProvider(),
+          globalThis.fetch,
+        );
+
+        const outcome =
+          operation === "search"
+            ? await service.search({
+                targets: [{ registry: "NPM", packageName: "express" }],
+                query: "router",
+              })
+            : await service.searchStatus(searchRef);
+
+        expect(outcome).toMatchObject({
+          state: "incomplete",
+          completed: false,
+          searchRef,
+          progress: { status, targetsReady: 1, targetsTotal: 2 },
+          result: {
+            query: "router",
+            results: [],
+            evidenceNotice: "Stored evidence remains usable.",
+          },
+        });
+      },
+    );
+  }
+
   it("emits safe debug logging for unified search request shape without query text", async () => {
     process.env.GITHITS_DEBUG = "code-nav";
     const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
