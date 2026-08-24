@@ -20,6 +20,7 @@ const LOCK_OWNER_RECHECK_MS = 1_000;
 const ORPHANED_LOCK_MS = 5_000;
 const OWNER_FILE = "owner.json";
 const RECLAIM_FILE_PREFIX = "reclaim-";
+const MAX_NODE_PROCESS_ID = 0x7fffffff;
 const execFileAsync = promisify(execFile);
 
 interface LockOwner {
@@ -388,6 +389,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
         typeof parsed.pid !== "number" ||
         !Number.isSafeInteger(parsed.pid) ||
         parsed.pid <= 0 ||
+        parsed.pid > MAX_NODE_PROCESS_ID ||
         typeof parsed.createdAt !== "string" ||
         !(
           typeof parsed.processStartedAt === "string" ||

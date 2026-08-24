@@ -17,8 +17,9 @@ reclaimer cannot delete a successor's live lock.
 
 Assumptions:
 
-- `process.kill(pid, 0)` reporting success or `EPERM` is sufficient evidence
-  that a PID is currently occupied.
+- `process.kill(pid, 0)` reporting success means a PID is occupied. `ESRCH` is
+  the only definitive absence result; permission and unexpected inspection
+  errors are unknown evidence and retain the lock.
 - A missing or failed process-start lookup is unknown evidence, not proof that
   the recorded owner died.
 - Waiting up to one second before rechecking stale ownership is acceptable;
@@ -83,6 +84,17 @@ Non-goals:
 - adding dependencies or replacing the directory-lock design;
 - changing public MCP package APIs or hosted remote MCP behavior.
 
+Deferred follow-up:
+
+- POSIX `ps -o lstart=` output has no timezone, so the existing `Date.parse`
+  conversion can produce different process-start identities when a lock owner
+  and contender run with different `TZ` values. That pre-existing POSIX-only
+  mismatch can misclassify a live owner as PID reuse. A follow-up must make the
+  identity zone-independent while treating pre-upgrade stored identities as
+  unknown during transition; a naive format change would itself permit one
+  live-lock steal. Acceptance requires regression coverage with differing
+  writer/reader timezones and a compatibility-safe old-owner transition.
+
 ## Target architecture
 
 The lock remains a per-user atomic directory. Fast acquisition retries continue
@@ -114,11 +126,13 @@ Security and compatibility: fail-closed behavior protects rotating credentials
 at the cost of a bounded timeout when stale ownership cannot be proven. Reclaim
 filenames use fixed-length SHA-256 owner-ID hashes so untrusted owner metadata
 cannot influence paths. No credential values, owner-file formats, public APIs,
-or configuration contracts change. A process crash while holding a reclaim
-claim leaves a fail-closed lock that the existing timeout guidance permits the
-user to remove manually. Long-running local MCP processes must be restarted
-after upgrading because older processes do not honor reclaim claims. Rollback
-is a normal code revert; no migration is required.
+or configuration contracts change. Persistently malformed owner metadata or a
+process crash while holding a reclaim claim leaves a fail-closed lock; each
+attempt times out until the user follows the existing guidance and removes the
+directory after confirming no GitHits process is running. Long-running local
+MCP processes must be restarted after upgrading because older processes do not
+honor reclaim claims. Rollback is a normal code revert; no migration is
+required.
 
 ## Phase 1: Implement and prove the lock invariant
 

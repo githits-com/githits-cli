@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { once } from "node:events";
 import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -142,36 +144,54 @@ describe("LockedAuthStorage", () => {
   });
 
   it("keeps a live owner lock when its process identity lookup fails", async () => {
-    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
-    await mkdir(lockPath, { recursive: true, mode: 0o700 });
-    await writeFile(
-      join(lockPath, "owner.json"),
-      JSON.stringify({
-        id: "live-owner",
-        pid: process.ppid,
-        createdAt: new Date().toISOString(),
-        processStartedAt: "recorded-start-time",
-      }),
+    const liveOwner = spawn(
+      process.execPath,
+      ["-e", "setInterval(() => {}, 1_000)"],
+      { stdio: "ignore" },
     );
-    const storage = new LockedAuthStorage(
-      new AuthStorageImpl(fs, configDir),
-      fsWithHome,
-      {
-        getProcessStartedAt: async (pid) => {
-          if (pid === process.pid) return "contender-start-time";
-          throw new Error("process identity lookup failed");
-        },
-        lockTimeoutMs: 100,
-      },
-    );
+    await once(liveOwner, "spawn");
+    const liveOwnerPid = liveOwner.pid;
+    if (!liveOwnerPid) throw new Error("Failed to start live owner process");
 
-    await expect(
-      storage.saveTokens(
-        baseUrl,
-        createValidTokenData({ accessToken: "must-not-save" }),
-      ),
-    ).rejects.toThrow("Timed out waiting for GitHits auth storage lock");
-    expect(await fs.exists(lockPath)).toBe(true);
+    try {
+      const { fs, fsWithHome, configDir, lockPath } =
+        await createStoragePaths();
+      await mkdir(lockPath, { recursive: true, mode: 0o700 });
+      await writeFile(
+        join(lockPath, "owner.json"),
+        JSON.stringify({
+          id: "live-owner",
+          pid: liveOwnerPid,
+          createdAt: new Date().toISOString(),
+          processStartedAt: "recorded-start-time",
+        }),
+      );
+      const storage = new LockedAuthStorage(
+        new AuthStorageImpl(fs, configDir),
+        fsWithHome,
+        {
+          getProcessStartedAt: async (pid) => {
+            if (pid === process.pid) return "contender-start-time";
+            throw new Error("process identity lookup failed");
+          },
+          lockTimeoutMs: 100,
+        },
+      );
+
+      await expect(
+        storage.saveTokens(
+          baseUrl,
+          createValidTokenData({ accessToken: "must-not-save" }),
+        ),
+      ).rejects.toThrow("Timed out waiting for GitHits auth storage lock");
+      expect(await fs.exists(lockPath)).toBe(true);
+    } finally {
+      if (liveOwner.exitCode === null) {
+        const exited = once(liveOwner, "exit");
+        liveOwner.kill();
+        await exited;
+      }
+    }
   });
 
   it("reclaims a live PID whose start time does not match the owner", async () => {
@@ -547,18 +567,20 @@ describe("LockedAuthStorage", () => {
 
     const delayedOwnerCheckStarted = createDeferred();
     const continueDelayedOwnerCheck = createDeferred();
-    const delayedClaimReleased = createDeferred();
+    const delayedCleanupFinished = createDeferred();
     const successorEntered = createDeferred();
     const releaseSuccessor = createDeferred();
     const deleteFile = fsWithHome.deleteFile.bind(fsWithHome);
+    const deleteDirIfEmpty = fsWithHome.deleteDirIfEmpty.bind(fsWithHome);
     let delayedOwnerDeleteCount = 0;
     const delayedFs = Object.assign(Object.create(fsWithHome), {
       deleteFile: mock(async (path: string) => {
         if (path === ownerPath) delayedOwnerDeleteCount += 1;
         await deleteFile(path);
-        if (path !== ownerPath && path.includes("reclaim-")) {
-          delayedClaimReleased.resolve();
-        }
+      }),
+      deleteDirIfEmpty: mock(async (path: string) => {
+        await deleteDirIfEmpty(path);
+        delayedCleanupFinished.resolve();
       }),
     }) as FileSystemServiceImpl;
     const delayed = new LockedAuthStorage(
@@ -603,7 +625,7 @@ describe("LockedAuthStorage", () => {
     await successorEntered.promise;
 
     continueDelayedOwnerCheck.resolve();
-    await delayedClaimReleased.promise;
+    await delayedCleanupFinished.promise;
 
     const successorOwner = JSON.parse(await fs.readFile(ownerPath)) as {
       id: string;
@@ -784,39 +806,42 @@ describe("LockedAuthStorage", () => {
     expect(await fs.exists(lockPath)).toBe(true);
   });
 
-  it("keeps an old lock whose owner metadata contains an invalid PID", async () => {
-    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
-    await mkdir(lockPath, { recursive: true, mode: 0o700 });
-    await writeFile(
-      join(lockPath, "owner.json"),
-      JSON.stringify({
-        id: "invalid-owner",
-        pid: 1.5,
-        createdAt: new Date().toISOString(),
-        processStartedAt: null,
-      }),
-    );
-    const staleAt = new Date(Date.now() - 10_000);
-    await utimes(lockPath, staleAt, staleAt);
-    const isOwnerAlive = mock(async () => true);
-    const storage = new LockedAuthStorage(
-      new AuthStorageImpl(fs, configDir),
-      fsWithHome,
-      {
-        isOwnerAlive,
-        lockTimeoutMs: 100,
-        getProcessStartedAt: testProcessStartedAt,
-      },
-    );
+  it("keeps old locks whose owner metadata contains an invalid PID", async () => {
+    for (const invalidPid of [1.5, 2_147_483_648]) {
+      const { fs, fsWithHome, configDir, lockPath } =
+        await createStoragePaths();
+      await mkdir(lockPath, { recursive: true, mode: 0o700 });
+      await writeFile(
+        join(lockPath, "owner.json"),
+        JSON.stringify({
+          id: "invalid-owner",
+          pid: invalidPid,
+          createdAt: new Date().toISOString(),
+          processStartedAt: null,
+        }),
+      );
+      const staleAt = new Date(Date.now() - 10_000);
+      await utimes(lockPath, staleAt, staleAt);
+      const isOwnerAlive = mock(async () => true);
+      const storage = new LockedAuthStorage(
+        new AuthStorageImpl(fs, configDir),
+        fsWithHome,
+        {
+          isOwnerAlive,
+          lockTimeoutMs: 100,
+          getProcessStartedAt: testProcessStartedAt,
+        },
+      );
 
-    await expect(
-      storage.saveTokens(
-        baseUrl,
-        createValidTokenData({ accessToken: "must-not-save" }),
-      ),
-    ).rejects.toThrow("Timed out waiting for GitHits auth storage lock");
-    expect(isOwnerAlive).not.toHaveBeenCalled();
-    expect(await fs.exists(lockPath)).toBe(true);
+      await expect(
+        storage.saveTokens(
+          baseUrl,
+          createValidTokenData({ accessToken: "must-not-save" }),
+        ),
+      ).rejects.toThrow("Timed out waiting for GitHits auth storage lock");
+      expect(isOwnerAlive).not.toHaveBeenCalled();
+      expect(await fs.exists(lockPath)).toBe(true);
+    }
   });
 
   it("does not reclaim live locks just because they are old", async () => {
