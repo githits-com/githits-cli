@@ -24,6 +24,13 @@ export interface FileSystemService {
   /** Write string contents to file with optional mode */
   writeFile(path: string, contents: string, mode?: number): Promise<void>;
 
+  /** Create a new file exclusively, failing if the path already exists */
+  writeFileExclusive(
+    path: string,
+    contents: string,
+    mode?: number,
+  ): Promise<void>;
+
   /** Delete file if it exists */
   deleteFile(path: string): Promise<void>;
 
@@ -85,6 +92,14 @@ export class FileSystemServiceImpl implements FileSystemService {
     mode?: number,
   ): Promise<void> {
     await writeFile(path, contents, { mode });
+  }
+
+  async writeFileExclusive(
+    path: string,
+    contents: string,
+    mode?: number,
+  ): Promise<void> {
+    await writeFile(path, contents, { mode, flag: "wx" });
   }
 
   async deleteFile(path: string): Promise<void> {

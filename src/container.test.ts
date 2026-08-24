@@ -53,33 +53,46 @@ async function withEnvVars<T>(
   const originals = new Map<string, string | undefined>();
   for (const [key, value] of Object.entries(values)) {
     originals.set(key, process.env[key]);
-    if (value === undefined) delete process.env[key];
+    if (value === undefined) unsetEnvVar(key);
     else process.env[key] = value;
   }
   try {
     return await fn();
   } finally {
     for (const [key, value] of originals) {
-      if (value === undefined) delete process.env[key];
+      if (value === undefined) unsetEnvVar(key);
       else process.env[key] = value;
     }
   }
 }
 
+function unsetEnvVar(key: string): void {
+  const isWindowsProxyKey =
+    process.platform === "win32" &&
+    ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"].includes(key.toUpperCase());
+  if (isWindowsProxyKey) {
+    // Bun 1.4 on Windows retains the deleted value through a differently-cased
+    // process.env alias. Empty proxy values have the required unset semantics.
+    process.env[key] = "";
+  } else {
+    delete process.env[key];
+  }
+}
+
 async function withoutProxyEnv<T>(fn: () => Promise<T>): Promise<T> {
-  return withEnvVars(
-    {
-      HTTP_PROXY: undefined,
-      HTTPS_PROXY: undefined,
-      NO_PROXY: undefined,
-      http_proxy: undefined,
-      https_proxy: undefined,
-      no_proxy: undefined,
-      NODE_USE_ENV_PROXY: undefined,
-      NODE_OPTIONS: undefined,
-    },
-    fn,
-  );
+  const values: Record<string, string | undefined> = {
+    HTTP_PROXY: undefined,
+    HTTPS_PROXY: undefined,
+    NO_PROXY: undefined,
+    NODE_USE_ENV_PROXY: undefined,
+    NODE_OPTIONS: undefined,
+  };
+  if (process.platform !== "win32") {
+    values.http_proxy = undefined;
+    values.https_proxy = undefined;
+    values.no_proxy = undefined;
+  }
+  return withEnvVars(values, fn);
 }
 
 describe("container auth dependencies", () => {

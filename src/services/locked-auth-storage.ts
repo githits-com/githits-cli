@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { promisify } from "node:util";
 import { DEFAULT_FETCH_TIMEOUT_MS } from "@githits/core-internal";
@@ -16,8 +16,15 @@ import type { FileSystemService } from "./filesystem-service.js";
 const LOCK_DIR = "auth.lock";
 const LOCK_TIMEOUT_MS = DEFAULT_FETCH_TIMEOUT_MS * 2 + 10_000;
 const LOCK_RETRY_MS = 25;
+const LOCK_OWNER_RECHECK_MS = 1_000;
 const ORPHANED_LOCK_MS = 5_000;
 const OWNER_FILE = "owner.json";
+const RECLAIM_FILE_PREFIX = "reclaim-";
+const RECLAIM_OWNER_HASH_PATTERN = /^[0-9a-f]{64}$/;
+const MAX_NODE_PROCESS_ID = 0x7fffffff;
+const PROCESS_IDENTITY_LOOKUP_TIMEOUT_MS = 5_000;
+const RELEASE_OWNER_READ_ATTEMPTS = 3;
+const CLEANUP_FILE_DELETE_ATTEMPTS = 3;
 const execFileAsync = promisify(execFile);
 
 interface LockOwner {
@@ -26,6 +33,24 @@ interface LockOwner {
   createdAt: string;
   processStartedAt: string | null;
 }
+
+interface PresentLockOwner {
+  state: "present";
+  owner: LockOwner;
+}
+
+interface MissingLockOwner {
+  state: "missing";
+}
+
+interface UnknownLockOwner {
+  state: "unknown";
+}
+
+type LockOwnerReadResult =
+  | PresentLockOwner
+  | MissingLockOwner
+  | UnknownLockOwner;
 
 export class AuthStorageLockTimeoutError extends Error {
   constructor(message: string) {
@@ -64,7 +89,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
 
   constructor(
     private readonly storage: AuthStorage,
-    fileSystemService: FileSystemService,
+    private readonly fileSystemService: FileSystemService,
     options: {
       lockTimeoutMs?: number;
       isOwnerAlive?: (
@@ -186,26 +211,26 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       return fn();
     }
 
-    await this.acquireLock();
-    const acquiredOwnerId = this.currentOwner?.id;
+    const acquiredOwner = await this.acquireLock();
     try {
-      return await this.lockContext.run(acquiredOwnerId ?? "", fn);
+      return await this.lockContext.run(acquiredOwner.id, fn);
     } finally {
-      await this.releaseLock();
+      await this.releaseLock(acquiredOwner);
     }
   }
 
-  private async acquireLock(): Promise<void> {
+  private async acquireLock(): Promise<LockOwner> {
     const processStartedAt = await this.getCurrentProcessStartedAt();
     const startedAt = Date.now();
+    let nextOwnerCheckAt = 0;
     await mkdir(dirname(this.lockPath), { recursive: true, mode: 0o700 });
     while (true) {
       try {
         await mkdir(this.lockPath, { recursive: false, mode: 0o700 });
         try {
-          await this.writeOwner(processStartedAt);
+          const owner = await this.writeOwner(processStartedAt);
+          return owner;
         } catch (error) {
-          this.currentOwner = null;
           const code = (error as NodeJS.ErrnoException).code;
           if (code === "EEXIST" || code === "ENOENT") {
             // Another contender may have removed the lock directory between
@@ -216,15 +241,21 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
             await sleep(LOCK_RETRY_MS);
             continue;
           }
-          await rm(this.lockPath, { recursive: true, force: true }).catch(
-            () => undefined,
-          );
+          // An unexpected write result is not proof that this path is still
+          // our empty directory. Never recursively remove a possible
+          // successor lock while propagating the original failure.
+          await this.fileSystemService
+            .deleteDirIfEmpty(this.lockPath)
+            .catch(() => undefined);
           throw error;
         }
-        return;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-        await this.reclaimStaleLock();
+        const now = Date.now();
+        if (now >= nextOwnerCheckAt) {
+          await this.reclaimStaleLock();
+          nextOwnerCheckAt = Date.now() + LOCK_OWNER_RECHECK_MS;
+        }
         if (Date.now() - startedAt >= this.lockTimeoutMs) {
           throw this.createLockTimeoutError();
         }
@@ -235,7 +266,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
 
   private createLockTimeoutError(): AuthStorageLockTimeoutError {
     return new AuthStorageLockTimeoutError(
-      `Timed out waiting for GitHits auth storage lock at ${this.lockPath}. If no githits process is running, remove this directory and retry.`,
+      `Timed out waiting for GitHits auth storage lock at ${this.lockPath}. After stopping all GitHits CLI and MCP processes, remove this directory and retry.`,
     );
   }
 
@@ -262,92 +293,202 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     return this.currentProcessStartedAtPromise;
   }
 
-  private async writeOwner(processStartedAt: string | null): Promise<void> {
+  private async writeOwner(
+    processStartedAt: string | null,
+  ): Promise<LockOwner> {
     const owner: LockOwner = {
       id: randomUUID(),
       pid: process.pid,
       createdAt: new Date().toISOString(),
       processStartedAt,
     };
-    await writeFile(this.ownerPath(), JSON.stringify(owner), {
-      mode: 0o600,
-      flag: "wx",
-    });
+    // Exclusive creation is the lock handoff primitive. The filesystem
+    // dependency must preserve wx semantics rather than overwrite a contender.
+    await this.fileSystemService.writeFileExclusive(
+      this.ownerPath(),
+      JSON.stringify(owner),
+      0o600,
+    );
     this.currentOwner = owner;
+    return owner;
   }
 
   private async reclaimStaleLock(): Promise<void> {
-    const owner = await this.readOwner();
-    if (!owner) {
+    const ownerResult = await this.readOwner();
+    if (ownerResult.state === "missing") {
       await this.reclaimOldOwnerlessLock();
       return;
     }
+    if (ownerResult.state === "unknown") return;
+    const owner = ownerResult.owner;
     const ownerDead = !(await this.isOwnerAlive(
       owner.pid,
       owner.processStartedAt,
     ));
     if (!ownerDead) return;
 
-    const currentOwner = await this.readOwner();
-    if (!currentOwner || currentOwner.id !== owner.id) return;
+    await this.reclaimProvenDeadOwner(owner);
+  }
 
-    await rm(this.lockPath, { recursive: true, force: true }).catch(
-      () => undefined,
-    );
+  private async reclaimProvenDeadOwner(owner: LockOwner): Promise<void> {
+    const claimPath = this.reclaimPath(owner.id);
+    try {
+      // Contenders that proved the same owner dead serialize on one stable,
+      // owner-scoped claim, even if the lock directory is later reused.
+      await this.fileSystemService.writeFileExclusive(claimPath, "", 0o600);
+    } catch {
+      // An existing claim or any uncertain filesystem result must retain the
+      // lock. The normal acquisition loop remains bounded by its timeout.
+      return;
+    }
+
+    const currentOwner = await this.readOwner();
+    if (
+      currentOwner.state === "present" &&
+      currentOwner.owner.id === owner.id
+    ) {
+      // Leave the directory in place if owner removal remains uncertain.
+      await this.deleteFileForCleanup(this.ownerPath());
+    }
+
+    if (!(await this.deleteFileForCleanup(claimPath))) {
+      // A claim that could not be removed keeps reclamation fail-closed. The
+      // lock timeout message explains how to remove an abandoned lock.
+      return;
+    }
+
+    // Empty-only deletion cannot remove a successor's owner file. It also
+    // lets a delayed contender finish cleanup if it briefly blocked the
+    // original claim holder's directory removal.
+    await this.fileSystemService
+      .deleteDirIfEmpty(this.lockPath)
+      .catch(() => undefined);
   }
 
   private async reclaimOldOwnerlessLock(): Promise<void> {
     const createdAtMs = await lockCreatedAtMs(this.lockPath);
     if (Date.now() - createdAtMs < ORPHANED_LOCK_MS) return;
-    await rm(this.lockPath, { recursive: true, force: true }).catch(
-      () => undefined,
-    );
+    let entries: string[];
+    try {
+      entries = await this.fileSystemService.readdir(this.lockPath);
+    } catch {
+      return;
+    }
+    if (entries.some((entry) => !isReclaimFileName(entry))) return;
+    for (const entry of entries) {
+      const claimPath = this.fileSystemService.joinPath(this.lockPath, entry);
+      if (!(await this.deleteFileForCleanup(claimPath))) return;
+    }
+    await this.fileSystemService
+      .deleteDirIfEmpty(this.lockPath)
+      .catch(() => undefined);
   }
 
-  private async readOwner(): Promise<LockOwner | null> {
+  private async readOwner(): Promise<LockOwnerReadResult> {
+    let raw: string;
     try {
-      const raw = await readFile(this.ownerPath(), "utf8");
+      raw = await this.fileSystemService.readFile(this.ownerPath());
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === "ENOENT"
+        ? { state: "missing" }
+        : { state: "unknown" };
+    }
+
+    try {
       const parsed = JSON.parse(raw) as Partial<LockOwner>;
       if (
         typeof parsed.id !== "string" ||
         typeof parsed.pid !== "number" ||
+        !Number.isSafeInteger(parsed.pid) ||
+        parsed.pid <= 0 ||
+        parsed.pid > MAX_NODE_PROCESS_ID ||
         typeof parsed.createdAt !== "string" ||
         !(
           typeof parsed.processStartedAt === "string" ||
           parsed.processStartedAt === null
         )
       ) {
-        return null;
+        return { state: "unknown" };
       }
-      return {
+      const owner: LockOwner = {
         id: parsed.id,
         pid: parsed.pid,
         createdAt: parsed.createdAt,
         processStartedAt: parsed.processStartedAt,
       };
+      return { state: "present", owner };
     } catch {
-      return null;
+      return { state: "unknown" };
     }
   }
 
-  private async releaseLock(): Promise<void> {
-    const owner = this.currentOwner;
-    this.currentOwner = null;
-    if (!owner) return;
-    const currentOwner = await this.readOwner();
-    if (!currentOwner || currentOwner.id !== owner.id) return;
-    await rm(this.lockPath, { recursive: true, force: true }).catch(
-      () => undefined,
-    );
+  private async releaseLock(owner: LockOwner): Promise<void> {
+    if (this.currentOwner?.id === owner.id) this.currentOwner = null;
+    const currentOwner = await this.readOwnerForRelease();
+    if (currentOwner.state !== "present" || currentOwner.owner.id !== owner.id)
+      return;
+    if (!(await this.deleteFileForCleanup(this.ownerPath()))) return;
+    await this.fileSystemService
+      .deleteDirIfEmpty(this.lockPath)
+      .catch(() => undefined);
   }
 
   private ownerPath(): string {
-    return `${this.lockPath}/${OWNER_FILE}`;
+    return this.fileSystemService.joinPath(this.lockPath, OWNER_FILE);
+  }
+
+  private reclaimPath(ownerId: string): string {
+    const ownerHash = createHash("sha256").update(ownerId).digest("hex");
+    return this.fileSystemService.joinPath(
+      this.lockPath,
+      `${RECLAIM_FILE_PREFIX}${ownerHash}`,
+    );
+  }
+
+  private async readOwnerForRelease(): Promise<LockOwnerReadResult> {
+    let result = await this.readOwner();
+    for (
+      let attempt = 1;
+      result.state === "unknown" && attempt < RELEASE_OWNER_READ_ATTEMPTS;
+      attempt += 1
+    ) {
+      await sleep(LOCK_RETRY_MS);
+      result = await this.readOwner();
+    }
+    return result;
+  }
+
+  private async deleteFileForCleanup(path: string): Promise<boolean> {
+    for (
+      let attempt = 1;
+      attempt <= CLEANUP_FILE_DELETE_ATTEMPTS;
+      attempt += 1
+    ) {
+      try {
+        await this.fileSystemService.deleteFile(path);
+        return true;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        const retryable =
+          code === "EACCES" || code === "EBUSY" || code === "EPERM";
+        if (!retryable || attempt === CLEANUP_FILE_DELETE_ATTEMPTS)
+          return false;
+        await sleep(LOCK_RETRY_MS);
+      }
+    }
+    return false;
   }
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isReclaimFileName(entry: string): boolean {
+  return (
+    entry.startsWith(RECLAIM_FILE_PREFIX) &&
+    RECLAIM_OWNER_HASH_PATTERN.test(entry.slice(RECLAIM_FILE_PREFIX.length))
+  );
 }
 
 async function isOriginalProcessAlive(
@@ -357,7 +498,17 @@ async function isOriginalProcessAlive(
 ): Promise<boolean> {
   if (!isProcessAlive(pid)) return false;
   if (!processStartedAt) return true;
-  return (await getStartedAt(pid)) === processStartedAt;
+  let observedStartedAt: string | null;
+  try {
+    observedStartedAt = await getStartedAt(pid);
+  } catch {
+    return true;
+  }
+  // Process identity inspection is advisory PID-reuse protection. An
+  // unavailable lookup is not evidence that the live PID stopped owning the
+  // lock, so retain the lock and let the bounded timeout surface contention.
+  if (!observedStartedAt) return true;
+  return observedStartedAt === processStartedAt;
 }
 
 function isProcessAlive(pid: number): boolean {
@@ -367,7 +518,10 @@ function isProcessAlive(pid: number): boolean {
     return true;
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    return code === "EPERM";
+    // ESRCH is the only definitive absent-process result. Permission and
+    // unexpected inspection failures must fail closed so they cannot admit a
+    // second refresh-token consumer.
+    return code !== "ESRCH";
   }
 }
 
@@ -380,19 +534,29 @@ export async function getProcessStartedAtForTesting(
 async function getProcessStartedAt(pid: number): Promise<string | null> {
   try {
     if (process.platform === "win32") {
-      const { stdout } = await execFileAsync("powershell.exe", [
-        "-NoProfile",
-        "-Command",
-        `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().ToString('o')`,
-      ]);
+      const { stdout } = await execFileAsync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-Command",
+          `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().ToString('o')`,
+        ],
+        {
+          timeout: PROCESS_IDENTITY_LOOKUP_TIMEOUT_MS,
+          killSignal: "SIGKILL",
+          windowsHide: true,
+        },
+      );
       return stdout.trim() || null;
     }
-    const { stdout } = await execFileAsync("ps", [
-      "-p",
-      String(pid),
-      "-o",
-      "lstart=",
-    ]);
+    const { stdout } = await execFileAsync(
+      "ps",
+      ["-p", String(pid), "-o", "lstart="],
+      {
+        timeout: PROCESS_IDENTITY_LOOKUP_TIMEOUT_MS,
+        killSignal: "SIGKILL",
+      },
+    );
     const parsed = Date.parse(stdout.trim());
     return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
   } catch {
