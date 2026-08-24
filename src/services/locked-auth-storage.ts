@@ -21,6 +21,8 @@ const ORPHANED_LOCK_MS = 5_000;
 const OWNER_FILE = "owner.json";
 const RECLAIM_FILE_PREFIX = "reclaim-";
 const MAX_NODE_PROCESS_ID = 0x7fffffff;
+const PROCESS_IDENTITY_LOOKUP_TIMEOUT_MS = 5_000;
+const RELEASE_OWNER_READ_ATTEMPTS = 3;
 const execFileAsync = promisify(execFile);
 
 interface LockOwner {
@@ -227,7 +229,6 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
         try {
           await this.writeOwner(processStartedAt);
         } catch (error) {
-          this.currentOwner = null;
           const code = (error as NodeJS.ErrnoException).code;
           if (code === "EEXIST" || code === "ENOENT") {
             // Another contender may have removed the lock directory between
@@ -414,7 +415,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     const owner = this.currentOwner;
     this.currentOwner = null;
     if (!owner) return;
-    const currentOwner = await this.readOwner();
+    const currentOwner = await this.readOwnerForRelease();
     if (currentOwner.state !== "present" || currentOwner.owner.id !== owner.id)
       return;
     await rm(this.lockPath, { recursive: true, force: true }).catch(
@@ -432,6 +433,19 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       this.lockPath,
       `${RECLAIM_FILE_PREFIX}${ownerHash}`,
     );
+  }
+
+  private async readOwnerForRelease(): Promise<LockOwnerReadResult> {
+    let result = await this.readOwner();
+    for (
+      let attempt = 1;
+      result.state === "unknown" && attempt < RELEASE_OWNER_READ_ATTEMPTS;
+      attempt += 1
+    ) {
+      await sleep(LOCK_RETRY_MS);
+      result = await this.readOwner();
+    }
+    return result;
   }
 }
 
@@ -482,19 +496,29 @@ export async function getProcessStartedAtForTesting(
 async function getProcessStartedAt(pid: number): Promise<string | null> {
   try {
     if (process.platform === "win32") {
-      const { stdout } = await execFileAsync("powershell.exe", [
-        "-NoProfile",
-        "-Command",
-        `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().ToString('o')`,
-      ]);
+      const { stdout } = await execFileAsync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-Command",
+          `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().ToString('o')`,
+        ],
+        {
+          timeout: PROCESS_IDENTITY_LOOKUP_TIMEOUT_MS,
+          killSignal: "SIGKILL",
+          windowsHide: true,
+        },
+      );
       return stdout.trim() || null;
     }
-    const { stdout } = await execFileAsync("ps", [
-      "-p",
-      String(pid),
-      "-o",
-      "lstart=",
-    ]);
+    const { stdout } = await execFileAsync(
+      "ps",
+      ["-p", String(pid), "-o", "lstart="],
+      {
+        timeout: PROCESS_IDENTITY_LOOKUP_TIMEOUT_MS,
+        killSignal: "SIGKILL",
+      },
+    );
     const parsed = Date.parse(stdout.trim());
     return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
   } catch {

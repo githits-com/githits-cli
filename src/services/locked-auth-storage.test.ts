@@ -96,6 +96,33 @@ describe("LockedAuthStorage", () => {
     expect(getProcessStartedAt).toHaveBeenCalledWith(process.pid);
   });
 
+  it("retries transient owner reads while releasing its lock", async () => {
+    const { fs, fsWithHome, lockPath } = await createStoragePaths();
+    const ownerPath = join(lockPath, "owner.json");
+    const readFile = fsWithHome.readFile.bind(fsWithHome);
+    let ownerReadCount = 0;
+    fsWithHome.readFile = mock(async (path: string) => {
+      if (path === ownerPath && ownerReadCount === 0) {
+        ownerReadCount += 1;
+        const error = new Error(
+          "owner file is temporarily busy",
+        ) as NodeJS.ErrnoException;
+        error.code = "EPERM";
+        throw error;
+      }
+      ownerReadCount += 1;
+      return readFile(path);
+    });
+    const storage = new LockedAuthStorage(createMockAuthStorage(), fsWithHome, {
+      getProcessStartedAt: testProcessStartedAt,
+    });
+
+    await storage.withAuthStorageLock(async () => undefined);
+
+    expect(ownerReadCount).toBe(2);
+    expect(await fs.exists(lockPath)).toBe(false);
+  });
+
   it("retries an unavailable current process identity", async () => {
     const { fsWithHome } = await createStoragePaths();
     let lookupCount = 0;
@@ -511,7 +538,7 @@ describe("LockedAuthStorage", () => {
       new AuthStorageImpl(fs, configDir),
       secondFs,
       {
-        lockTimeoutMs: 2_000,
+        lockTimeoutMs: 100,
         getProcessStartedAt: testProcessStartedAt,
         isOwnerAlive: async (pid) => {
           if (pid === deadOwnerPid) secondOwnerChecked.resolve();
@@ -534,7 +561,9 @@ describe("LockedAuthStorage", () => {
     await deletionStarted.promise;
     const secondRun = runLocked(second);
     await secondOwnerChecked.promise;
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await expect(secondRun).rejects.toThrow(
+      "Timed out waiting for GitHits auth storage lock",
+    );
 
     const claimFiles = (await fs.readdir(lockPath)).filter((entry) =>
       entry.startsWith("reclaim-"),
@@ -544,7 +573,8 @@ describe("LockedAuthStorage", () => {
     expect(secondOwnerDeleteCount).toBe(0);
 
     continueDeletion.resolve();
-    await Promise.all([firstRun, secondRun]);
+    await firstRun;
+    await runLocked(second);
 
     expect(maxActive).toBe(1);
   });
@@ -822,6 +852,7 @@ describe("LockedAuthStorage", () => {
       );
       const staleAt = new Date(Date.now() - 10_000);
       await utimes(lockPath, staleAt, staleAt);
+      fsWithHome.deleteDirIfEmpty = mock(async () => undefined);
       const isOwnerAlive = mock(async () => true);
       const storage = new LockedAuthStorage(
         new AuthStorageImpl(fs, configDir),
@@ -840,6 +871,7 @@ describe("LockedAuthStorage", () => {
         ),
       ).rejects.toThrow("Timed out waiting for GitHits auth storage lock");
       expect(isOwnerAlive).not.toHaveBeenCalled();
+      expect(fsWithHome.deleteDirIfEmpty).not.toHaveBeenCalled();
       expect(await fs.exists(lockPath)).toBe(true);
     }
   });

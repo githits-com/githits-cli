@@ -25,6 +25,8 @@ Assumptions:
 - Waiting up to one second before rechecking stale ownership is acceptable;
   normal lock release is still detected by the existing 25 ms lock-acquisition
   retry.
+- PowerShell and `ps` process-identity lookups are independently capped at five
+  seconds so inspection cannot bypass the acquisition loop's bounded failure.
 - Updated CLI and local MCP processes may share the existing `owner.json`
   format, but every concurrently running process must use the owner-scoped
   reclaim protocol for its guarantee to hold.
@@ -92,8 +94,10 @@ Deferred follow-up:
   mismatch can misclassify a live owner as PID reuse. A follow-up must make the
   identity zone-independent while treating pre-upgrade stored identities as
   unknown during transition; a naive format change would itself permit one
-  live-lock steal. Acceptance requires regression coverage with differing
-  writer/reader timezones and a compatibility-safe old-owner transition.
+  live-lock steal. The replacement must also preserve enough precision to
+  distinguish process starts within the same second. Acceptance requires
+  regression coverage with differing writer/reader timezones, sub-second PID
+  reuse, and a compatibility-safe old-owner transition.
 
 ## Target architecture
 
@@ -126,12 +130,13 @@ Security and compatibility: fail-closed behavior protects rotating credentials
 at the cost of a bounded timeout when stale ownership cannot be proven. Reclaim
 filenames use fixed-length SHA-256 owner-ID hashes so untrusted owner metadata
 cannot influence paths. No credential values, owner-file formats, public APIs,
-or configuration contracts change. Persistently malformed owner metadata or a
-process crash while holding a reclaim claim leaves a fail-closed lock; each
-attempt times out until the user follows the existing guidance and removes the
-directory after confirming no GitHits process is running. Long-running local
-MCP processes must be restarted after upgrading because older processes do not
-honor reclaim claims. Rollback is a normal code revert; no migration is
+or configuration contracts change. Release retries transient owner-metadata
+read failures three times. Persistently malformed or unreadable owner metadata,
+or a process crash while holding a reclaim claim, leaves a fail-closed lock;
+each attempt times out until the user follows the existing guidance and removes
+the directory after confirming no GitHits process is running. Long-running
+local MCP processes must be restarted after upgrading because older processes
+do not honor reclaim claims. Rollback is a normal code revert; no migration is
 required.
 
 ## Phase 1: Implement and prove the lock invariant
