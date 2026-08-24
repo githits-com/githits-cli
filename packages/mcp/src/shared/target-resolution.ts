@@ -150,6 +150,7 @@ function formatFreshnessReason(
   switch (reason) {
     case undefined:
     case "exact_current":
+    case "exact_provisional":
       return undefined;
     case "no_current_fallback":
       if (freshness === "fallback_recent") {
