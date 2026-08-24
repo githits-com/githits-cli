@@ -1199,6 +1199,65 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
+  it("keeps completed provisional hits visible with indexing guidance", async () => {
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const outcomeWithProvisionalSourceStatus: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        evidenceNotice:
+          "Results may change while the provisional index continues indexing.",
+        sourceStatus: [
+          {
+            ...defaultUnifiedSearchOutcome.result.sourceStatus[0]!,
+            codeIndexState: "PROVISIONAL",
+            targetResolution: {
+              requested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "main",
+              },
+              served: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "main",
+                commitSha: "abc123789def",
+              },
+              freshness: "provisional",
+              freshnessReason: "exact_provisional",
+              indexingRef: "idx_123",
+              availableVersions: [],
+              availableRefs: [],
+            },
+          },
+        ],
+      },
+    };
+
+    await searchAction(
+      "router middleware",
+      { in: ["github:expressjs/express#main"] },
+      createDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          search: mock(() =>
+            Promise.resolve(outcomeWithProvisionalSourceStatus),
+          ),
+        }),
+      }),
+    );
+
+    const output = String(consoleSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("1 result");
+    expect(output).toContain("provisional (still indexing)");
+    expect(output).toContain("served=github:expressjs/express#main@abc1237");
+    expect(output).toContain("indexingRef=idx_123");
+    expect(output).toContain("search-ref-123");
+    consoleSpy.mockRestore();
+  });
+
   it("explains completed fallback_recent sourceStatus as a recent snapshot", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 

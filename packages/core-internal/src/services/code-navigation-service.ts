@@ -174,6 +174,7 @@ export type CodeIndexState =
   | "CURRENT"
   | "INDEXED"
   | "INDEXING"
+  | "PROVISIONAL"
   | "STALE"
   | "FAILED"
   | "MISSING"
@@ -316,7 +317,12 @@ export type UnifiedSearchDocumentationContributorState =
   | "PENDING"
   | "UNAVAILABLE";
 
-export type UnifiedSearchDocumentationFreshness = "CURRENT" | "STALE";
+// Closed GraphQL producer contract: roll out new freshness values to consumers first;
+// unlike backend-owned session status, unknown freshness values must fail validation.
+export type UnifiedSearchDocumentationFreshness =
+  | "CURRENT"
+  | "PROVISIONAL"
+  | "STALE";
 
 /** One physical documentation corpus disclosed for a DOCS source row. */
 export interface UnifiedSearchDocumentationContributor {
@@ -1539,7 +1545,8 @@ const docCoverageSchema = z
 const unifiedSearchDocumentationContributorSchema = z.object({
   kind: z.enum(["REPOSITORY_DOCS", "DOCPACK"]),
   state: z.enum(["SEARCHED", "READY", "PENDING", "UNAVAILABLE"]),
-  freshness: z.enum(["CURRENT", "STALE"]).nullable().optional(),
+  // Keep this closed GraphQL enum in sync with UnifiedSearchDocumentationFreshness.
+  freshness: z.enum(["CURRENT", "PROVISIONAL", "STALE"]).nullable().optional(),
   resultCount: z.number().int().nonnegative(),
   repositoryUrl: z.string().nullable().optional(),
   commitSha: z.string().nullable().optional(),

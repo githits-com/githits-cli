@@ -138,6 +138,67 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("shorten or broaden the query");
   });
 
+  it("renders provisional evidence as queryable while indexing continues", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "code",
+            targetLabel: "github:foo/bar#main",
+            codeIndexState: "PROVISIONAL",
+            targetResolution: {
+              requested: {
+                repoUrl: "https://github.com/foo/bar",
+                gitRef: "main",
+              },
+              served: {
+                repoUrl: "https://github.com/foo/bar",
+                gitRef: "main",
+                commitSha: "abc123789def",
+              },
+              freshness: "provisional",
+              freshnessReason: "exact_provisional",
+              indexingRef: "idx_123",
+              availableVersions: [],
+              availableRefs: [],
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain("provisional (still indexing)");
+    expect(text).toContain("served=github:foo/bar#main@abc1237");
+    expect(text).toContain("indexingRef=idx_123");
+    expect(text).toContain(
+      "next: rerun with a larger wait_timeout_ms to wait for indexing.",
+    );
+    expect(text).not.toContain("shorten or broaden the query");
+  });
+
+  it("treats target-resolution-only provisional evidence as still indexing", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "code",
+            targetLabel: "github:foo/bar#main",
+            targetResolution: {
+              freshness: "provisional",
+              availableVersions: [],
+              availableRefs: [],
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "next: rerun with a larger wait_timeout_ms to wait for indexing.",
+    );
+    expect(text).not.toContain("shorten or broaden the query");
+  });
+
   it("does not suggest symbol search when already using the symbol source", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
@@ -725,6 +786,40 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("hits on this page");
     expect(text).not.toContain("current");
     expect(text).not.toContain("124");
+  });
+
+  it("labels searched provisional documentation as still indexing", () => {
+    const sourceStatus = [
+      {
+        source: "docs",
+        targetLabel: "npm:express@5.2.1",
+        contributors: [
+          {
+            kind: "REPOSITORY_DOCS" as const,
+            state: "SEARCHED" as const,
+            freshness: "PROVISIONAL" as const,
+            resultCount: 1,
+            repositoryUrl: "https://github.com/expressjs/express",
+            commitSha: "0123456789abcdef0123456789abcdef01234567",
+          },
+        ],
+      },
+    ];
+    const text = renderUnifiedSearchSuccess(
+      completed([docsHit()], { sourceStatus }),
+    );
+
+    expect(text).toContain(
+      "documentation sources:\n  npm:express@5.2.1:\n    - repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567 - searched provisional index; indexing continues",
+    );
+    expect(text).toContain("[1]");
+
+    const emptyText = renderUnifiedSearchSuccess(
+      completed([], { sourceStatus }),
+    );
+    expect(emptyText).toContain(
+      "next: rerun with a larger wait_timeout_ms to wait for indexing.",
+    );
   });
 
   it("labels documentation sources only when multiple targets need disambiguation", () => {

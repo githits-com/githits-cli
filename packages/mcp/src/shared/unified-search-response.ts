@@ -167,7 +167,7 @@ export interface UnifiedSearchDocumentationContributorCoveragePayload {
 export interface UnifiedSearchDocumentationContributorPayload {
   kind: "REPOSITORY_DOCS" | "DOCPACK";
   state: "SEARCHED" | "READY" | "PENDING" | "UNAVAILABLE";
-  freshness?: "CURRENT" | "STALE";
+  freshness?: "CURRENT" | "PROVISIONAL" | "STALE";
   resultCount: number;
   repositoryUrl?: string;
   commitSha?: string;
@@ -926,7 +926,11 @@ function warningForEntry(
       entry.codeIndexState !== "STALE" &&
       !(entry.codeIndexState === "INDEXING" && options.completed)
     ) {
-      reasons.push(`code index state ${entry.codeIndexState}`);
+      reasons.push(
+        entry.codeIndexState === "PROVISIONAL"
+          ? "code index state provisional (still indexing)"
+          : `code index state ${entry.codeIndexState}`,
+      );
     }
   }
   // Source/target prefix anchors the message so an agent reading
@@ -961,7 +965,8 @@ function terminalLifecycleWarningReason(
     (state) =>
       !isHealthySearchLifecycleState(state) &&
       state !== "INDEXING" &&
-      state !== "STALE",
+      state !== "STALE" &&
+      state !== "PROVISIONAL",
   );
   if (terminalStates.length === 0) return undefined;
   const status = terminalStates.join("/");

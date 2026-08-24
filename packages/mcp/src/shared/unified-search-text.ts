@@ -481,11 +481,13 @@ function formatDocumentationContributor(
 
   const details: string[] = [];
   if (contributor.state === "SEARCHED") {
-    details.push(
-      contributor.freshness === "STALE"
-        ? "searched an older snapshot"
-        : "searched",
-    );
+    if (contributor.freshness === "STALE") {
+      details.push("searched an older snapshot");
+    } else if (contributor.freshness === "PROVISIONAL") {
+      details.push("searched provisional index; indexing continues");
+    } else {
+      details.push("searched");
+    }
   } else {
     details.push(formatDocumentationContributorState(contributor.state));
     if (contributor.freshness === "STALE") {
@@ -727,6 +729,8 @@ function hasUnsearchedDocumentationSources(
   );
 }
 
+// Discovery carries provisional readiness through codeIndexState or
+// targetResolution; legacy indexingStatus remains INDEXING.
 function hasIndexingSource(
   sourceStatus: UnifiedSearchCompletedPayload["sourceStatus"],
 ): boolean {
@@ -734,8 +738,13 @@ function hasIndexingSource(
     sourceStatus?.some(
       (entry) =>
         entry.targetResolution?.freshness === "indexing" ||
+        entry.targetResolution?.freshness === "provisional" ||
         entry.indexingStatus === "INDEXING" ||
-        entry.codeIndexState === "INDEXING",
+        entry.codeIndexState === "INDEXING" ||
+        entry.codeIndexState === "PROVISIONAL" ||
+        entry.contributors?.some(
+          (contributor) => contributor.freshness === "PROVISIONAL",
+        ),
     ),
   );
 }
@@ -842,6 +851,8 @@ export function describeFreshness(value: string): string {
       return "pending";
     case "INDEXING":
       return "indexing";
+    case "PROVISIONAL":
+      return "provisional (still indexing)";
     case "STALE":
       return "previous-snapshot";
     case "CURRENT":
@@ -883,7 +894,15 @@ export function formatSourceStatus(entry: {
     parts.push(`results=${entry.resultCount}`);
   }
   if (entry.indexingStatus) parts.push(`indexState=${entry.indexingStatus}`);
-  if (entry.codeIndexState) parts.push(`codeIndex=${entry.codeIndexState}`);
+  if (entry.codeIndexState) {
+    parts.push(
+      `codeIndex=${
+        entry.codeIndexState === "PROVISIONAL"
+          ? describeFreshness(entry.codeIndexState)
+          : entry.codeIndexState
+      }`,
+    );
+  }
   if (entry.ignoredFilters?.length) {
     parts.push(`ignored=${entry.ignoredFilters.join(",")}`);
   }
@@ -934,7 +953,8 @@ function terminalLifecycleReason(entry: {
     (state) =>
       !isHealthySearchLifecycleState(state) &&
       state !== "INDEXING" &&
-      state !== "STALE",
+      state !== "STALE" &&
+      state !== "PROVISIONAL",
   );
   if (terminalStates.length === 0) return undefined;
   const status = terminalStates.join("/");

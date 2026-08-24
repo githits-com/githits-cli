@@ -95,6 +95,17 @@ export function buildTargetResolutionNotes(
       lines.push(parts.join(" | "));
       break;
     }
+    case "provisional": {
+      // A provisional result is queryable, but only its exact served identity
+      // is authoritative. Do not render requested refs as a retry target.
+      const parts = ["provisional (still indexing)"];
+      if (reason) parts.push(reason);
+      if (served) parts.push(`served=${served}`);
+      if (resolution.indexingRef)
+        parts.push(`indexingRef=${resolution.indexingRef}`);
+      lines.push(parts.join(" | "));
+      break;
+    }
     case "unavailable": {
       const parts = [reason ?? "Target unavailable"];
       if (requested) parts.push(`requested=${requested}`);
@@ -139,6 +150,7 @@ function formatFreshnessReason(
   switch (reason) {
     case undefined:
     case "exact_current":
+    case "exact_provisional":
       return undefined;
     case "no_current_fallback":
       if (freshness === "fallback_recent") {
@@ -193,7 +205,12 @@ export function buildResolutionFromRetryCandidates(
     return undefined;
   }
   return {
-    freshness: target.freshness === "CURRENT" ? "current" : target.freshness,
+    freshness:
+      target.freshness === "CURRENT"
+        ? "current"
+        : target.freshness === "PROVISIONAL"
+          ? "provisional"
+          : target.freshness,
     indexingRef: target.indexingRef,
     availableVersions: target.availableVersions ?? [],
     availableRefs: target.availableRefs ?? [],

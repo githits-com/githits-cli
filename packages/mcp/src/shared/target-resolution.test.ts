@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  buildResolutionFromRetryCandidates,
   buildRetryCandidateLine,
   buildTargetResolutionNotes,
   formatTargetResolutionIdentity,
@@ -120,6 +121,36 @@ describe("target-resolution helpers", () => {
     expect(notes[0]).toContain("indexingRef=idx_123");
   });
 
+  it("renders exact provisional identity without falling back to a ref", () => {
+    const notes = buildTargetResolutionNotes({
+      requested: {
+        repoUrl: "https://github.com/foo/bar",
+        gitRef: "main",
+      },
+      resolvedRequested: {
+        repoUrl: "https://github.com/foo/bar",
+        gitRef: "main",
+        commitSha: "def456789abc",
+      },
+      served: {
+        repoUrl: "https://github.com/foo/bar",
+        gitRef: "main",
+        commitSha: "abc123789def",
+      },
+      freshness: "provisional",
+      freshnessReason: "exact_provisional",
+      indexingRef: "idx_123",
+      availableVersions: [],
+      availableRefs: [],
+    });
+
+    expect(notes).toEqual([
+      "provisional (still indexing) | served=github:foo/bar#main@abc1237 | indexingRef=idx_123",
+    ]);
+    expect(notes[0]).not.toContain("requested=");
+    expect(notes[0]).not.toContain("fresh=");
+  });
+
   it("renders indexing retry candidates for versions and refs", () => {
     expect(
       buildRetryCandidateLine({
@@ -129,6 +160,20 @@ describe("target-resolution helpers", () => {
         availableRefs: [{ ref: "main" }],
       }),
     ).toBe("queryable now: versions=1.2.3@v1.2.3 | refs=main");
+  });
+
+  it("maps uppercase provisional retry freshness to lowercase", () => {
+    expect(
+      buildResolutionFromRetryCandidates({
+        freshness: "PROVISIONAL",
+        indexingRef: "idx_123",
+        availableVersions: [],
+        availableRefs: [{ ref: "main" }],
+      }),
+    ).toMatchObject({
+      freshness: "provisional",
+      indexingRef: "idx_123",
+    });
   });
 
   it("renders suggested refs separately from immediate retry candidates", () => {

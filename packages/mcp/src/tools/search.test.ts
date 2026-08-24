@@ -30,7 +30,10 @@ describe("searchTool", () => {
     expect(tool.description).toContain(
       "terminal recovery guidance without a `searchRef`",
     );
-    expect(tool.description).toContain("Stale-but-serveable evidence");
+    expect(tool.description).toContain(
+      "Stale-but-serveable or provisional-but-queryable evidence",
+    );
+    expect(tool.description).toContain("while indexing or refresh continues");
   });
 
   it("returns unified search payload from service", async () => {

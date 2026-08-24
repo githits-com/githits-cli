@@ -536,6 +536,86 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.warnings?.join("\n")).toContain("suggested refs");
   });
 
+  it("keeps provisional hits queryable and visible with their search reference", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome: UnifiedSearchOutcome = {
+      state: "incomplete",
+      completed: false,
+      searchRef: "search-ref-provisional",
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        sourceStatus: [
+          {
+            ...defaultUnifiedSearchOutcome.result.sourceStatus[0]!,
+            codeIndexState: "PROVISIONAL",
+            targetResolution: {
+              requested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "main",
+              },
+              resolvedRequested: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "main",
+                commitSha: "def456789abc",
+              },
+              served: {
+                repoUrl: "https://github.com/expressjs/express",
+                gitRef: "main",
+                commitSha: "abc123789def",
+              },
+              freshness: "provisional",
+              freshnessReason: "exact_provisional",
+              indexingRef: "idx_123",
+              availableVersions: [],
+              availableRefs: [],
+            },
+          },
+        ],
+      },
+      progress: {
+        searchRef: "search-ref-provisional",
+        status: "INDEXING",
+        targetsTotal: 1,
+        targetsReady: 1,
+        elapsedMs: 100,
+        query: "router middleware",
+        queryWarnings: [],
+        sources: ["CODE"],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      outcome,
+    );
+
+    expect(payload).toMatchObject({
+      completed: false,
+      searchRef: "search-ref-provisional",
+      results: [{ type: "repository_code" }],
+      sourceStatus: [
+        {
+          codeIndexState: "PROVISIONAL",
+          targetResolution: {
+            freshness: "provisional",
+            freshnessReason: "exact_provisional",
+            indexingRef: "idx_123",
+            served: {
+              commitSha: "abc123789def",
+            },
+          },
+        },
+      ],
+    });
+    expect(payload.warnings?.join("\n")).toContain(
+      "provisional (still indexing)",
+    );
+  });
+
   it("canonicalizes source-status repository labels", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
@@ -1859,6 +1939,49 @@ describe("buildUnifiedSearchSuccessPayload — sourceStatus warnings on complete
       indexingStatus: "INDEXED",
       codeIndexState: "CURRENT",
       resultCount: 0,
+    });
+  });
+
+  it("warns for bare provisional code state on completed responses", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed fixture");
+    }
+    const sourceStatus = defaultUnifiedSearchOutcome.result.sourceStatus[0];
+    if (!sourceStatus) throw new Error("expected source status fixture");
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        page: {
+          ...defaultUnifiedSearchOutcome.result.page,
+          returned: 0,
+          hasMore: false,
+        },
+        sourceStatus: [
+          {
+            ...sourceStatus,
+            indexingStatus: "INDEXED",
+            codeIndexState: "PROVISIONAL",
+            targetResolution: undefined,
+            resultCount: 0,
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      outcome,
+    );
+
+    expect(payload.warnings?.join("\n")).toContain(
+      "code index state provisional (still indexing)",
+    );
+    expect(payload.sourceStatus?.[0]).toMatchObject({
+      codeIndexState: "PROVISIONAL",
     });
   });
 
