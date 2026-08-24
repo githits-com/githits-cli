@@ -205,7 +205,12 @@ export function buildResolutionFromRetryCandidates(
     return undefined;
   }
   return {
-    freshness: target.freshness === "CURRENT" ? "current" : target.freshness,
+    freshness:
+      target.freshness === "CURRENT"
+        ? "current"
+        : target.freshness === "PROVISIONAL"
+          ? "provisional"
+          : target.freshness,
     indexingRef: target.indexingRef,
     availableVersions: target.availableVersions ?? [],
     availableRefs: target.availableRefs ?? [],

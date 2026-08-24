@@ -1868,6 +1868,49 @@ describe("buildUnifiedSearchSuccessPayload — sourceStatus warnings on complete
     });
   });
 
+  it("warns for bare provisional code state on completed responses", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed fixture");
+    }
+    const sourceStatus = defaultUnifiedSearchOutcome.result.sourceStatus[0];
+    if (!sourceStatus) throw new Error("expected source status fixture");
+    const outcome: UnifiedSearchOutcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        results: [],
+        page: {
+          ...defaultUnifiedSearchOutcome.result.page,
+          returned: 0,
+          hasMore: false,
+        },
+        sourceStatus: [
+          {
+            ...sourceStatus,
+            indexingStatus: "INDEXED",
+            codeIndexState: "PROVISIONAL",
+            targetResolution: undefined,
+            resultCount: 0,
+          },
+        ],
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      outcome,
+    );
+
+    expect(payload.warnings?.join("\n")).toContain(
+      "code index state provisional (still indexing)",
+    );
+    expect(payload.sourceStatus?.[0]).toMatchObject({
+      codeIndexState: "PROVISIONAL",
+    });
+  });
+
   it("omits redundant requested and fresh labels on completed empty results", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed fixture");

@@ -696,6 +696,8 @@ function hasUnsearchedDocumentationSources(
   );
 }
 
+// Discovery carries provisional readiness through codeIndexState or
+// targetResolution; legacy indexingStatus remains INDEXING.
 function hasIndexingSource(
   sourceStatus: UnifiedSearchCompletedPayload["sourceStatus"],
 ): boolean {

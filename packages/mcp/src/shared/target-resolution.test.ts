@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  buildResolutionFromRetryCandidates,
   buildRetryCandidateLine,
   buildTargetResolutionNotes,
   formatTargetResolutionIdentity,
@@ -159,6 +160,20 @@ describe("target-resolution helpers", () => {
         availableRefs: [{ ref: "main" }],
       }),
     ).toBe("queryable now: versions=1.2.3@v1.2.3 | refs=main");
+  });
+
+  it("maps uppercase provisional retry freshness to lowercase", () => {
+    expect(
+      buildResolutionFromRetryCandidates({
+        freshness: "PROVISIONAL",
+        indexingRef: "idx_123",
+        availableVersions: [],
+        availableRefs: [{ ref: "main" }],
+      }),
+    ).toMatchObject({
+      freshness: "provisional",
+      indexingRef: "idx_123",
+    });
   });
 
   it("renders suggested refs separately from immediate retry candidates", () => {
