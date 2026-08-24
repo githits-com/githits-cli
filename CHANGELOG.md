@@ -7,11 +7,24 @@ are historical records and change only to correct blatant factual errors.
 
 ## [githits 0.10.1] - 2026-08-24
 
-Patch release: preserves available search evidence as backend session statuses
-evolve and keeps follow-up guidance from polling stopped or unknown sessions.
+Patch release: hardens concurrent CLI authentication and preserves queryable
+search evidence while indexing and backend session statuses evolve.
+
+### Changed
+
+- **Expose provisional search evidence** - Accept and render queryable
+  `PROVISIONAL` repository and documentation freshness while preserving exact
+  served identity, indexing guidance, hits, and `searchRef` continuation only
+  for active sessions.
 
 ### Fixed
 
+- **Reliable concurrent CLI authentication** - Preserve live per-user auth
+  locks when process or lock-owner metadata inspection is temporarily
+  unavailable, and serialize stale-owner cleanup so parallel local CLI and MCP
+  processes cannot reuse rotating refresh tokens. Restart long-running local
+  MCP processes after upgrading so every process uses the hardened lock
+  protocol.
 - **Evolving search-session statuses** - CLI search accepts terminal `DEFERRED`
   and future status values without discarding available evidence. Only known
   active sessions and explicit completed-result follow-ups direct callers to
@@ -20,8 +33,15 @@ evolve and keeps follow-up guidance from polling stopped or unknown sessions.
 
 ## [@githits/mcp 0.10.1] - 2026-08-24
 
-Patch release: preserves available search evidence as backend session statuses
-evolve and keeps follow-up guidance from polling stopped or unknown sessions.
+Patch release: preserves queryable search evidence while indexing and keeps
+follow-up guidance aligned as backend session statuses evolve.
+
+### Changed
+
+- **Expose provisional search evidence** - Accept and render queryable
+  `PROVISIONAL` repository and documentation freshness while preserving exact
+  served identity, indexing guidance, hits, and `searchRef` continuation only
+  for active sessions.
 
 ### Fixed
 
