@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -10,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, delimiter, join, resolve } from "node:path";
 import {
   buildClaudeCommand,
   buildCodexCommand,
@@ -52,6 +53,20 @@ import {
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function writeVersionCommandStub(binDir: string, command: string): void {
+  mkdirSync(binDir, { recursive: true });
+  const isWindows = process.platform === "win32";
+  const stubPath = join(binDir, isWindows ? `${command}.cmd` : command);
+  const version = `stub-${command}-version`;
+  writeFileSync(
+    stubPath,
+    isWindows
+      ? `@echo off\r\necho ${version}\r\n`
+      : `#!/bin/sh\nprintf '%s\\n' '${version}'\n`,
+  );
+  if (!isWindows) chmodSync(stubPath, 0o755);
 }
 
 function createRunFixture(status = "success"): string {
@@ -704,9 +719,15 @@ describe("agent eval harness", () => {
     ).toThrow("--experimental-tools requires --surface mcp --server local");
   });
 
-  it("persists the enabled flag in dry-run artifacts for every MCP client", async () => {
+  it("persists the enabled flag without probing agent versions during dry runs", async () => {
     const outDir = mkdtempSync(join(tmpdir(), "agent-eval-override-"));
+    const binDir = join(outDir, "agent-bin");
+    const originalPath = process.env.PATH;
     try {
+      for (const command of ["claude", "codex", "opencode"]) {
+        writeVersionCommandStub(binDir, command);
+      }
+      process.env.PATH = [binDir, originalPath].filter(Boolean).join(delimiter);
       const options = parseArgs(
         [
           "--experimental-tools",
@@ -741,6 +762,8 @@ describe("agent eval harness", () => {
       ).toContain("--experimental-tools");
       expect(openCode.mcp.githits.command).toContain("--experimental-tools");
     } finally {
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
       rmSync(outDir, { recursive: true, force: true });
     }
   });
