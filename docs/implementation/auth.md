@@ -161,11 +161,10 @@ All credential types are keyed by normalized MCP base URL (trailing slashes stri
 
 When an owner is proven dead, contenders serialize reclamation with an exclusive file whose name contains a SHA-256 hash of that owner ID. The claim holder re-reads `owner.json`, removes it only if the owner ID still matches, releases its exact claim with bounded sharing-violation retries, and removes only an empty lock directory. This prevents two dead-owner reclaimers from deleting each other's successor lock. A delayed contender that resumes after a successor acquired the directory removes only its own claim. An abandoned valid claim in an old ownerless directory is swept before empty-directory removal; a matching owner-scoped claim abandoned beside its retained dead-owner metadata still requires manual recovery. A release-time owner read or deletion failure retains the lock while the recorded process lives, then becomes reclaimable after that process exits if its metadata can be read. Persistently malformed or unreadable owner metadata, unknown ownerless entries, matching owner-scoped claims abandoned beside their retained dead-owner metadata, cleanup files that cannot be removed after bounded retries, or lock directories that cannot be removed remain fail-closed and surface the existing timeout with manual-removal guidance. Stop all GitHits CLI and MCP processes before removing the reported `auth.lock` directory manually. Because older processes do not honor reclaim claims, restart long-running local MCP processes after upgrading the CLI so every local auth consumer uses the hardened protocol.
 
-Known limitation: POSIX `ps -o lstart=` output has no timezone or sub-second
-precision. Processes for the same user that run with different `TZ` values can
-therefore derive different identities for one live owner and mistake it for PID
-reuse. Correcting this requires a compatibility-safe identity-format migration
-that preserves pre-upgrade locks and distinguishes starts within one second.
+Known limitation: POSIX `ps -o lstart=` identifies process starts only to the
+second. If a PID is reused within that same second, stale-lock recovery
+conservatively retains the lock and reaches the existing timeout/manual-removal
+path; it does not reclaim a live owner's lock.
 
 ## How Auth Flows Through the System
 
