@@ -737,9 +737,19 @@ describe("TokenManager file-backed integration", () => {
     const waiters: Array<{ count: number; resolve: () => void }> = [];
     let callCount = 0;
     let released = false;
+    const notifyWaiters = (): void => {
+      for (let index = waiters.length - 1; index >= 0; index--) {
+        const waiter = waiters[index];
+        if (waiter && callCount >= waiter.count) {
+          waiters.splice(index, 1);
+          waiter.resolve();
+        }
+      }
+    };
     const refreshAccessToken = mock(() => {
       const index = callCount++;
       const response = responses[index];
+      notifyWaiters();
       if (released) {
         return response
           ? Promise.resolve(response)
@@ -747,9 +757,6 @@ describe("TokenManager file-backed integration", () => {
       }
       return new Promise<RefreshTokenResponse>((resolve, reject) => {
         pending.push({ index, resolve, reject });
-        for (const waiter of waiters) {
-          if (callCount >= waiter.count) waiter.resolve();
-        }
       });
     });
     return {
@@ -760,11 +767,17 @@ describe("TokenManager file-backed integration", () => {
           : new Promise((resolve) => waiters.push({ count, resolve })),
       resolveAll: () => {
         released = true;
+        let missingResponseError: Error | undefined;
         for (const { index, resolve, reject } of pending.splice(0)) {
           const response = responses[index];
           if (response) resolve(response);
-          else reject(new Error(`Missing response for call ${index}`));
+          else {
+            const error = new Error(`Missing response for call ${index}`);
+            reject(error);
+            missingResponseError ??= error;
+          }
         }
+        if (missingResponseError) throw missingResponseError;
       },
     };
   }

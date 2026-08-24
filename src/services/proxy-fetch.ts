@@ -157,25 +157,22 @@ function getEnvSelection(
   upperName: string,
 ): ProxyEnvSelection | undefined {
   const lowerName = upperName.toLowerCase();
-  if (hasEnumerableEnvKey(env, lowerName)) {
+  if (hasEnvKey(env, lowerName)) {
     const lowerValue = env[lowerName];
     return lowerValue ? { name: lowerName, value: lowerValue } : undefined;
   }
-  if (hasEnumerableEnvKey(env, upperName)) {
+  if (hasEnvKey(env, upperName)) {
     const upperValue = env[upperName];
     return upperValue ? { name: upperName, value: upperValue } : undefined;
   }
   return undefined;
 }
 
-function hasEnumerableEnvKey(
+function hasEnvKey(
   env: Record<string, string | undefined>,
   key: string,
 ): boolean {
-  // Bun 1.4 on Windows can retain a deleted, differently-cased process.env
-  // alias as a non-enumerable own property. Only enumerable entries represent
-  // the environment that a child process would actually inherit.
-  return Object.prototype.propertyIsEnumerable.call(env, key);
+  return Object.hasOwn(env, key);
 }
 
 function validateProxySelection(
