@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +16,19 @@ import {
   createValidTokenData,
   withTestEnvVar,
 } from "./test-helpers.js";
+
+interface Deferred {
+  promise: Promise<void>;
+  resolve(): void;
+}
+
+function createDeferred(): Deferred {
+  let resolve!: () => void;
+  const promise = new Promise<void>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+  return { promise, resolve };
+}
 
 describe("LockedAuthStorage", () => {
   const baseUrl = "https://mcp.githits.com";
@@ -425,6 +439,221 @@ describe("LockedAuthStorage", () => {
     await storage.saveTokens(baseUrl, token);
 
     expect(await storage.loadTokens(baseUrl)).toEqual(token);
+  });
+
+  it("serializes concurrent reclaimers for the same dead owner", async () => {
+    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
+    const ownerPath = join(lockPath, "owner.json");
+    const deadOwnerPid = 999_999_999;
+    await mkdir(lockPath, { recursive: true, mode: 0o700 });
+    await writeFile(
+      ownerPath,
+      JSON.stringify({
+        id: "../../dead-owner",
+        pid: deadOwnerPid,
+        createdAt: new Date().toISOString(),
+        processStartedAt: null,
+      }),
+    );
+
+    const deletionStarted = createDeferred();
+    const continueDeletion = createDeferred();
+    const secondOwnerChecked = createDeferred();
+    const deleteFile = fsWithHome.deleteFile.bind(fsWithHome);
+    let pauseFirstOwnerDelete = true;
+    const firstFs = Object.assign(Object.create(fsWithHome), {
+      deleteFile: mock(async (path: string) => {
+        if (path === ownerPath && pauseFirstOwnerDelete) {
+          pauseFirstOwnerDelete = false;
+          deletionStarted.resolve();
+          await continueDeletion.promise;
+        }
+        await deleteFile(path);
+      }),
+    }) as FileSystemServiceImpl;
+    let secondOwnerDeleteCount = 0;
+    const secondFs = Object.assign(Object.create(fsWithHome), {
+      deleteFile: mock(async (path: string) => {
+        if (path === ownerPath) secondOwnerDeleteCount += 1;
+        await deleteFile(path);
+      }),
+    }) as FileSystemServiceImpl;
+    const first = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      firstFs,
+      {
+        lockTimeoutMs: 2_000,
+        getProcessStartedAt: testProcessStartedAt,
+        isOwnerAlive: async (pid) => pid !== deadOwnerPid,
+      },
+    );
+    const second = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      secondFs,
+      {
+        lockTimeoutMs: 2_000,
+        getProcessStartedAt: testProcessStartedAt,
+        isOwnerAlive: async (pid) => {
+          if (pid === deadOwnerPid) secondOwnerChecked.resolve();
+          return pid !== deadOwnerPid;
+        },
+      },
+    );
+    let active = 0;
+    let maxActive = 0;
+    const runLocked = async (storage: LockedAuthStorage): Promise<void> => {
+      await storage.withAuthStorageLock(async () => {
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        active -= 1;
+      });
+    };
+
+    const firstRun = runLocked(first);
+    await deletionStarted.promise;
+    const secondRun = runLocked(second);
+    await secondOwnerChecked.promise;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    const claimFiles = (await fs.readdir(lockPath)).filter((entry) =>
+      entry.startsWith("reclaim-"),
+    );
+    expect(claimFiles).toHaveLength(1);
+    expect(claimFiles[0]).toMatch(/^reclaim-[0-9a-f]{64}$/);
+    expect(secondOwnerDeleteCount).toBe(0);
+
+    continueDeletion.resolve();
+    await Promise.all([firstRun, secondRun]);
+
+    expect(maxActive).toBe(1);
+  });
+
+  it("keeps a successor lock when a delayed dead-owner reclaimer resumes", async () => {
+    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
+    const ownerPath = join(lockPath, "owner.json");
+    const deadOwnerId = "dead-owner";
+    const deadOwnerPid = 999_999_999;
+    await mkdir(lockPath, { recursive: true, mode: 0o700 });
+    await writeFile(
+      ownerPath,
+      JSON.stringify({
+        id: deadOwnerId,
+        pid: deadOwnerPid,
+        createdAt: new Date().toISOString(),
+        processStartedAt: null,
+      }),
+    );
+
+    const delayedOwnerCheckStarted = createDeferred();
+    const continueDelayedOwnerCheck = createDeferred();
+    const delayedClaimReleased = createDeferred();
+    const successorEntered = createDeferred();
+    const releaseSuccessor = createDeferred();
+    const deleteFile = fsWithHome.deleteFile.bind(fsWithHome);
+    let delayedOwnerDeleteCount = 0;
+    const delayedFs = Object.assign(Object.create(fsWithHome), {
+      deleteFile: mock(async (path: string) => {
+        if (path === ownerPath) delayedOwnerDeleteCount += 1;
+        await deleteFile(path);
+        if (path !== ownerPath && path.includes("reclaim-")) {
+          delayedClaimReleased.resolve();
+        }
+      }),
+    }) as FileSystemServiceImpl;
+    const delayed = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      delayedFs,
+      {
+        lockTimeoutMs: 2_000,
+        getProcessStartedAt: testProcessStartedAt,
+        isOwnerAlive: async (pid) => {
+          if (pid !== deadOwnerPid) return true;
+          delayedOwnerCheckStarted.resolve();
+          await continueDelayedOwnerCheck.promise;
+          return false;
+        },
+      },
+    );
+    const winner = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      fsWithHome,
+      {
+        lockTimeoutMs: 2_000,
+        getProcessStartedAt: testProcessStartedAt,
+        isOwnerAlive: async (pid) => pid !== deadOwnerPid,
+      },
+    );
+    let active = 0;
+    let maxActive = 0;
+
+    const delayedRun = delayed.withAuthStorageLock(async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      active -= 1;
+    });
+    await delayedOwnerCheckStarted.promise;
+    const winnerRun = winner.withAuthStorageLock(async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      successorEntered.resolve();
+      await releaseSuccessor.promise;
+      active -= 1;
+    });
+    await successorEntered.promise;
+
+    continueDelayedOwnerCheck.resolve();
+    await delayedClaimReleased.promise;
+
+    const successorOwner = JSON.parse(await fs.readFile(ownerPath)) as {
+      id: string;
+    };
+    expect(successorOwner.id).not.toBe(deadOwnerId);
+    expect(delayedOwnerDeleteCount).toBe(0);
+
+    releaseSuccessor.resolve();
+    await Promise.all([delayedRun, winnerRun]);
+
+    expect(maxActive).toBe(1);
+  });
+
+  it("retains a stale owner when its reclaim claim already exists", async () => {
+    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
+    const deadOwnerId = "dead-owner";
+    const ownerPath = join(lockPath, "owner.json");
+    const claimPath = join(
+      lockPath,
+      `reclaim-${createHash("sha256").update(deadOwnerId).digest("hex")}`,
+    );
+    await mkdir(lockPath, { recursive: true, mode: 0o700 });
+    await writeFile(
+      ownerPath,
+      JSON.stringify({
+        id: deadOwnerId,
+        pid: 999_999_999,
+        createdAt: new Date().toISOString(),
+        processStartedAt: null,
+      }),
+    );
+    await writeFile(claimPath, "");
+    const storage = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      fsWithHome,
+      {
+        lockTimeoutMs: 100,
+        getProcessStartedAt: testProcessStartedAt,
+        isOwnerAlive: async () => false,
+      },
+    );
+
+    await expect(
+      storage.saveTokens(
+        baseUrl,
+        createValidTokenData({ accessToken: "must-not-save" }),
+      ),
+    ).rejects.toThrow("Timed out waiting for GitHits auth storage lock");
+    expect(await fs.exists(ownerPath)).toBe(true);
+    expect(await fs.exists(claimPath)).toBe(true);
   });
 
   it("reclaims an old lock directory whose owner file is missing", async () => {

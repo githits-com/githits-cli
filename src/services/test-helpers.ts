@@ -234,7 +234,11 @@ export function createMockFileSystemService(
   impl: Partial<FileSystemService> = {},
 ): FileSystemService {
   return {
-    readFile: mock(() => Promise.reject(new Error("File not found"))),
+    readFile: mock(() => {
+      const error = new Error("File not found") as NodeJS.ErrnoException;
+      error.code = "ENOENT";
+      return Promise.reject(error);
+    }),
     writeFile: mock(() => Promise.resolve()),
     deleteFile: mock(() => Promise.resolve()),
     deleteDirIfEmpty: mock(() => Promise.resolve()),

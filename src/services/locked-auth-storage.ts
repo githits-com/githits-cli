@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { promisify } from "node:util";
@@ -19,6 +19,7 @@ const LOCK_RETRY_MS = 25;
 const LOCK_OWNER_RECHECK_MS = 1_000;
 const ORPHANED_LOCK_MS = 5_000;
 const OWNER_FILE = "owner.json";
+const RECLAIM_FILE_PREFIX = "reclaim-";
 const execFileAsync = promisify(execFile);
 
 interface LockOwner {
@@ -236,9 +237,12 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
             await sleep(LOCK_RETRY_MS);
             continue;
           }
-          await rm(this.lockPath, { recursive: true, force: true }).catch(
-            () => undefined,
-          );
+          // An unexpected write result is not proof that this path is still
+          // our empty directory. Never recursively remove a possible
+          // successor lock while propagating the original failure.
+          await this.fileSystemService
+            .deleteDirIfEmpty(this.lockPath)
+            .catch(() => undefined);
           throw error;
         }
         return;
@@ -293,6 +297,8 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       createdAt: new Date().toISOString(),
       processStartedAt,
     };
+    // Exclusive creation is the lock handoff primitive. Keep this direct
+    // write instead of replacing it with a non-exclusive filesystem helper.
     await writeFile(this.ownerPath(), JSON.stringify(owner), {
       mode: 0o600,
       flag: "wx",
@@ -314,13 +320,47 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     ));
     if (!ownerDead) return;
 
-    const currentOwner = await this.readOwner();
-    if (currentOwner.state !== "present" || currentOwner.owner.id !== owner.id)
-      return;
+    await this.reclaimProvenDeadOwner(owner);
+  }
 
-    await rm(this.lockPath, { recursive: true, force: true }).catch(
-      () => undefined,
-    );
+  private async reclaimProvenDeadOwner(owner: LockOwner): Promise<void> {
+    const claimPath = this.reclaimPath(owner.id);
+    try {
+      // Contenders that proved the same owner dead serialize on one stable,
+      // owner-scoped claim, even if the lock directory is later reused.
+      await writeFile(claimPath, "", { mode: 0o600, flag: "wx" });
+    } catch {
+      // An existing claim or any uncertain filesystem result must retain the
+      // lock. The normal acquisition loop remains bounded by its timeout.
+      return;
+    }
+
+    const currentOwner = await this.readOwner();
+    if (
+      currentOwner.state === "present" &&
+      currentOwner.owner.id === owner.id
+    ) {
+      try {
+        await this.fileSystemService.deleteFile(this.ownerPath());
+      } catch {
+        // Leave the directory in place if owner removal is uncertain.
+      }
+    }
+
+    try {
+      await this.fileSystemService.deleteFile(claimPath);
+    } catch {
+      // A claim that could not be removed keeps reclamation fail-closed. The
+      // lock timeout message explains how to remove an abandoned lock.
+      return;
+    }
+
+    // Empty-only deletion cannot remove a successor's owner file. It also
+    // lets a delayed contender finish cleanup if it briefly blocked the
+    // original claim holder's directory removal.
+    await this.fileSystemService
+      .deleteDirIfEmpty(this.lockPath)
+      .catch(() => undefined);
   }
 
   private async reclaimOldOwnerlessLock(): Promise<void> {
@@ -381,7 +421,15 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   }
 
   private ownerPath(): string {
-    return `${this.lockPath}/${OWNER_FILE}`;
+    return this.fileSystemService.joinPath(this.lockPath, OWNER_FILE);
+  }
+
+  private reclaimPath(ownerId: string): string {
+    const ownerHash = createHash("sha256").update(ownerId).digest("hex");
+    return this.fileSystemService.joinPath(
+      this.lockPath,
+      `${RECLAIM_FILE_PREFIX}${ownerHash}`,
+    );
   }
 }
 

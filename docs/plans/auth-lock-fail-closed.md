@@ -11,7 +11,9 @@ is proven dead or its recorded PID is proven to belong to a different process.
 
 Expected outcome: Windows process-start lookup failures can delay stale-lock
 recovery, but can never cause a live lock to be deleted. Contending processes
-continue to converge on the refresh result persisted by the lock owner.
+continue to converge on the refresh result persisted by the lock owner. When a
+lock owner is proven dead, concurrent reclaimers serialize cleanup so a delayed
+reclaimer cannot delete a successor's live lock.
 
 Assumptions:
 
@@ -22,6 +24,9 @@ Assumptions:
 - Waiting up to one second before rechecking stale ownership is acceptable;
   normal lock release is still detected by the existing 25 ms lock-acquisition
   retry.
+- Updated CLI and local MCP processes may share the existing `owner.json`
+  format, but every concurrently running process must use the owner-scoped
+  reclaim protocol for its guarantee to hold.
 
 Unknowns or product decisions: none. The required behavior follows from the
 existing single-use refresh-token and per-user locking contracts.
@@ -35,6 +40,8 @@ Acceptance criteria:
 - A live PID with an unavailable or failed start-time lookup retains its lock.
 - A definitely dead PID or a PID whose start time differs from the recorded
   owner remains reclaimable.
+- Only one contender can reclaim a specific proven-dead owner, and a delayed
+  contender cannot remove a successor owner's lock.
 - Live-owner process inspection is throttled independently from the fast check
   for ordinary lock release.
 - Concurrent token-manager tests, the full unit suite, build, plugin checks,
@@ -90,6 +97,13 @@ to detect normal owner release. Stale reclamation becomes conservative:
 6. Unreadable, malformed, or invalid owner metadata retains the lock; only a
    genuinely missing owner file may enter age-bounded, empty-directory-only
    ownerless recovery.
+7. After proving an owner dead, a contender exclusively creates a reclaim claim
+   derived from a SHA-256 hash of the owner ID. Only the claim holder may remove
+   the matching `owner.json`, release the claim, and remove the now-empty lock
+   directory.
+8. A delayed contender re-reads `owner.json` while holding its claim. If a
+   successor now owns the directory, it removes only its own claim and leaves
+   the successor intact.
 
 Stale-owner inspection runs immediately on contention and then at a bounded
 interval, avoiding repeated PowerShell or `ps` process creation while an owner
@@ -97,17 +111,23 @@ is performing a network refresh. The existing lock timeout remains the final
 bounded failure mode.
 
 Security and compatibility: fail-closed behavior protects rotating credentials
-at the cost of a bounded timeout when stale ownership cannot be proven. No
-credential values, file formats, public APIs, or configuration contracts
-change. Rollback is a normal code revert; no migration is required.
+at the cost of a bounded timeout when stale ownership cannot be proven. Reclaim
+filenames use fixed-length SHA-256 owner-ID hashes so untrusted owner metadata
+cannot influence paths. No credential values, owner-file formats, public APIs,
+or configuration contracts change. A process crash while holding a reclaim
+claim leaves a fail-closed lock that the existing timeout guidance permits the
+user to remove manually. Long-running local MCP processes must be restarted
+after upgrading because older processes do not honor reclaim claims. Rollback
+is a normal code revert; no migration is required.
 
 ## Phase 1: Implement and prove the lock invariant
 
 Status: complete
 
 Expected outcome: `LockedAuthStorage` cannot reclaim a live lock because of
-unknown process inspection, and waiters do not repeatedly launch heavyweight
-identity probes at the 25 ms acquisition cadence.
+unknown process inspection or a concurrent stale-owner cleanup, and waiters do
+not repeatedly launch heavyweight identity probes at the 25 ms acquisition
+cadence.
 
 Assumptions: the target architecture above is sufficient without changing the
 lock file schema.
@@ -126,6 +146,8 @@ Implementation steps:
    and bounded live-owner inspection.
 4. Re-run the existing concurrent token-manager regression tests.
 5. Update durable auth documentation and add an independent patch fragment.
+6. Serialize proven-dead-owner cleanup with an exclusive hashed claim and cover
+   both same-owner reclaimers and a delayed contender observing a successor.
 
 Edge cases: owner file creation races, ownerless stale directories, PID reuse,
 permission-denied liveness probes, and lock release between failed acquisition
