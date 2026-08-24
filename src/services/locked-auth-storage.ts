@@ -16,6 +16,7 @@ import type { FileSystemService } from "./filesystem-service.js";
 const LOCK_DIR = "auth.lock";
 const LOCK_TIMEOUT_MS = DEFAULT_FETCH_TIMEOUT_MS * 2 + 10_000;
 const LOCK_RETRY_MS = 25;
+const LOCK_OWNER_RECHECK_MS = 1_000;
 const ORPHANED_LOCK_MS = 5_000;
 const OWNER_FILE = "owner.json";
 const execFileAsync = promisify(execFile);
@@ -198,6 +199,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   private async acquireLock(): Promise<void> {
     const processStartedAt = await this.getCurrentProcessStartedAt();
     const startedAt = Date.now();
+    let nextOwnerCheckAt = 0;
     await mkdir(dirname(this.lockPath), { recursive: true, mode: 0o700 });
     while (true) {
       try {
@@ -224,7 +226,11 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
         return;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-        await this.reclaimStaleLock();
+        const now = Date.now();
+        if (now >= nextOwnerCheckAt) {
+          await this.reclaimStaleLock();
+          nextOwnerCheckAt = Date.now() + LOCK_OWNER_RECHECK_MS;
+        }
         if (Date.now() - startedAt >= this.lockTimeoutMs) {
           throw this.createLockTimeoutError();
         }
@@ -357,7 +363,17 @@ async function isOriginalProcessAlive(
 ): Promise<boolean> {
   if (!isProcessAlive(pid)) return false;
   if (!processStartedAt) return true;
-  return (await getStartedAt(pid)) === processStartedAt;
+  let observedStartedAt: string | null;
+  try {
+    observedStartedAt = await getStartedAt(pid);
+  } catch {
+    return true;
+  }
+  // Process identity inspection is advisory PID-reuse protection. An
+  // unavailable lookup is not evidence that the live PID stopped owning the
+  // lock, so retain the lock and let the bounded timeout surface contention.
+  if (!observedStartedAt) return true;
+  return observedStartedAt === processStartedAt;
 }
 
 function isProcessAlive(pid: number): boolean {
@@ -367,7 +383,10 @@ function isProcessAlive(pid: number): boolean {
     return true;
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    return code === "EPERM";
+    // ESRCH is the only definitive absent-process result. Permission and
+    // unexpected inspection failures must fail closed so they cannot admit a
+    // second refresh-token consumer.
+    return code !== "ESRCH";
   }
 }
 
