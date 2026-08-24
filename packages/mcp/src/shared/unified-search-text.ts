@@ -24,14 +24,15 @@ import {
   formatTargetResolutionIdentity,
   type LeanTargetResolution,
 } from "./target-resolution.js";
-import type {
-  UnifiedSearchCompletedPayload,
-  UnifiedSearchDocumentationContributorPayload,
-  UnifiedSearchErrorPayload,
-  UnifiedSearchHitPayload,
-  UnifiedSearchIncompletePayload,
-  UnifiedSearchQueryEcho,
-  UnifiedSearchSourceStatusPayload,
+import {
+  isActiveUnifiedSearchSessionStatus,
+  type UnifiedSearchCompletedPayload,
+  type UnifiedSearchDocumentationContributorPayload,
+  type UnifiedSearchErrorPayload,
+  type UnifiedSearchHitPayload,
+  type UnifiedSearchIncompletePayload,
+  type UnifiedSearchQueryEcho,
+  type UnifiedSearchSourceStatusPayload,
 } from "./unified-search-response.js";
 
 const SUMMARY_WRAP_WIDTH = 76;
@@ -88,10 +89,18 @@ export function noHitsYetMessage(
   progress: { status?: string } | undefined,
 ): string {
   const status = progress?.status;
+  if (status === "DEFERRED") {
+    return "No result snapshot is available for this deferred session.";
+  }
   if (status === "TIMEOUT") return "No hits - search timed out.";
   if (status === "FAILED") return "No hits - search failed.";
   if (status === "SEARCHING") return "No hits yet - searching.";
-  return "No hits yet - indexing.";
+  if (status === "PENDING" || status === "INDEXING") {
+    return "No hits yet - indexing.";
+  }
+  return status
+    ? `No result snapshot is available for search status ${status}.`
+    : "No hits yet - indexing.";
 }
 
 /** Render an error envelope as compact text. */
@@ -276,13 +285,19 @@ function buildTrailer(
   if (!payload.completed && payload.searchRef) {
     const status = payload.progress?.status;
     const action =
-      status === "TIMEOUT"
-        ? "Search timed out before completion."
-        : status === "FAILED"
-          ? "Search failed before completion."
-          : status === "SEARCHING"
-            ? "Search in progress."
-            : "Indexing in progress.";
+      status === "DEFERRED"
+        ? "Search session deferred."
+        : status === "TIMEOUT"
+          ? "Search timed out before completion."
+          : status === "FAILED"
+            ? "Search failed before completion."
+            : status === "SEARCHING"
+              ? "Search in progress."
+              : status === "PENDING" || status === "INDEXING"
+                ? "Indexing in progress."
+                : status
+                  ? `Search returned status ${status}.`
+                  : "Search status is unavailable.";
     if (payload.progress) {
       lines.push(
         `progress: ${payload.progress.targetsReady}/${payload.progress.targetsTotal} targets ready.`,
@@ -311,9 +326,27 @@ export function appendIncompleteSearchNextAction(
   status: string | undefined,
   searchRef: string,
 ): void {
+  if (status === "DEFERRED") {
+    lines.push(
+      "Background lifecycle work continues outside this search session.",
+    );
+    lines.push("Use any disclosed evidence now.");
+    lines.push("Do not call search_status again for this session.");
+    lines.push("next: rerun search later for a fresher snapshot.");
+    return;
+  }
+
   if (status === "FAILED" || status === "TIMEOUT") {
     lines.push("Do not call search_status again for this session.");
     lines.push("next: rerun search.");
+    return;
+  }
+
+  if (status !== undefined && !isActiveUnifiedSearchSessionStatus(status)) {
+    lines.push("This client does not recognize that status.");
+    lines.push("Use any disclosed evidence now.");
+    lines.push("Do not call search_status again for this session.");
+    lines.push("next: rerun search later.");
     return;
   }
 

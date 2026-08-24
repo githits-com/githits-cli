@@ -260,6 +260,80 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.results[0]?.target).toBe("npm:express@4.18.2");
   });
 
+  it("preserves terminal deferred evidence and directs a later new search", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        state: "incomplete",
+        completed: false,
+        searchRef: "search-ref-deferred",
+        result: defaultUnifiedSearchOutcome.result,
+        progress: {
+          searchRef: "search-ref-deferred",
+          status: "DEFERRED",
+          targetsTotal: 2,
+          targetsReady: 1,
+          elapsedMs: 600_000,
+          query: "router middleware",
+          queryWarnings: [],
+          sources: ["CODE"],
+        },
+      },
+    );
+
+    expect(payload.completed).toBe(false);
+    if (payload.completed) throw new Error("expected incomplete payload");
+    expect(payload.results).toHaveLength(1);
+    expect(payload.progress).toMatchObject({
+      status: "DEFERRED",
+      targetsReady: 1,
+      targetsTotal: 2,
+      next: "rerun search",
+    });
+    expect(payload.progress?.next).not.toContain("search_status");
+  });
+
+  it("preserves an unrecognized status without polling it", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        state: "incomplete",
+        completed: false,
+        searchRef: "search-ref-future",
+        result: defaultUnifiedSearchOutcome.result,
+        progress: {
+          searchRef: "search-ref-future",
+          status: "FUTURE_SESSION_STATE",
+          targetsTotal: 2,
+          targetsReady: 1,
+          elapsedMs: 600_000,
+          query: "router middleware",
+          queryWarnings: [],
+          sources: ["CODE"],
+        },
+      },
+    );
+
+    expect(payload.completed).toBe(false);
+    if (payload.completed) throw new Error("expected incomplete payload");
+    expect(payload.results).toHaveLength(1);
+    expect(payload.progress).toMatchObject({
+      status: "FUTURE_SESSION_STATE",
+      next: "rerun search",
+    });
+    expect(payload.progress?.next).not.toContain("search_status");
+  });
+
   it("projects stale hit freshness into compact fields and warnings", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
@@ -2111,7 +2185,7 @@ describe("buildUnifiedSearchStatusPayload", () => {
     });
   });
 
-  it.each(["FAILED", "TIMEOUT"] as const)(
+  it.each(["DEFERRED", "FAILED", "TIMEOUT"] as const)(
     "replaces status polling for a terminal %s session",
     (status) => {
       const payload = buildUnifiedSearchStatusPayload({
