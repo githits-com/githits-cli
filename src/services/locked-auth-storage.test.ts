@@ -231,6 +231,76 @@ describe("LockedAuthStorage", () => {
     expect(await fs.exists(lockPath)).toBe(false);
   });
 
+  it("releases only the owner acquired by an overlapping operation", async () => {
+    const { fs, fsWithHome, lockPath } = await createStoragePaths();
+    const ownerPath = join(lockPath, "owner.json");
+    const firstEntered = createDeferred();
+    const releaseFirst = createDeferred();
+    const secondEntered = createDeferred();
+    const startNestedLock = createDeferred();
+    const nestedLockFinished = createDeferred();
+    const releaseSecond = createDeferred();
+    const storage = new LockedAuthStorage(createMockAuthStorage(), fsWithHome, {
+      lockTimeoutMs: 1_000,
+      getProcessStartedAt: testProcessStartedAt,
+    });
+    let nestedLockError: unknown;
+    let coordinationError: unknown;
+    let secondOwnerIdBefore = "";
+    let secondOwnerIdAfter = "";
+
+    const firstRun = storage.withAuthStorageLock(async () => {
+      firstEntered.resolve();
+      await releaseFirst.promise;
+    });
+    await firstEntered.promise;
+    // Simulate a pre-upgrade peer removing a live lock so a second operation
+    // can acquire on the same storage instance before the first one releases.
+    await rm(lockPath, { recursive: true, force: true });
+    const secondRun = storage.withAuthStorageLock(async () => {
+      secondEntered.resolve();
+      await startNestedLock.promise;
+      try {
+        await storage.withAuthStorageLock(async () => undefined);
+      } catch (error) {
+        nestedLockError = error;
+      } finally {
+        nestedLockFinished.resolve();
+      }
+      await releaseSecond.promise;
+    });
+
+    try {
+      await secondEntered.promise;
+      secondOwnerIdBefore = (
+        JSON.parse(await fs.readFile(ownerPath)) as { id: string }
+      ).id;
+      releaseFirst.resolve();
+      await firstRun;
+      secondOwnerIdAfter = (
+        JSON.parse(await fs.readFile(ownerPath)) as { id: string }
+      ).id;
+      startNestedLock.resolve();
+      await nestedLockFinished.promise;
+    } catch (error) {
+      coordinationError = error;
+    } finally {
+      releaseFirst.resolve();
+      startNestedLock.resolve();
+      releaseSecond.resolve();
+    }
+    const runResults = await Promise.allSettled([firstRun, secondRun]);
+    for (const result of runResults) {
+      if (result.status === "rejected") throw result.reason;
+    }
+    if (coordinationError) throw coordinationError;
+
+    expect(secondOwnerIdBefore).not.toBe("");
+    expect(secondOwnerIdAfter).toBe(secondOwnerIdBefore);
+    expect(nestedLockError).toBeUndefined();
+    expect(await fs.exists(lockPath)).toBe(false);
+  });
+
   it("retries an unavailable current process identity", async () => {
     const { fsWithHome } = await createStoragePaths();
     let lookupCount = 0;
@@ -687,6 +757,56 @@ describe("LockedAuthStorage", () => {
     expect(maxActive).toBe(1);
   });
 
+  it("retries transient reclaim-claim deletion", async () => {
+    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
+    const deadOwnerId = "dead-owner";
+    const ownerPath = join(lockPath, "owner.json");
+    const claimPath = join(
+      lockPath,
+      `reclaim-${createHash("sha256").update(deadOwnerId).digest("hex")}`,
+    );
+    await mkdir(lockPath, { recursive: true, mode: 0o700 });
+    await writeFile(
+      ownerPath,
+      JSON.stringify({
+        id: deadOwnerId,
+        pid: 999_999_999,
+        createdAt: new Date().toISOString(),
+        processStartedAt: null,
+      }),
+    );
+    const deleteFile = fsWithHome.deleteFile.bind(fsWithHome);
+    let claimDeleteCount = 0;
+    fsWithHome.deleteFile = mock(async (path: string) => {
+      if (path === claimPath) {
+        claimDeleteCount += 1;
+        if (claimDeleteCount === 1) {
+          const error = new Error(
+            "claim file is temporarily busy",
+          ) as NodeJS.ErrnoException;
+          error.code = "EPERM";
+          throw error;
+        }
+      }
+      await deleteFile(path);
+    });
+    const storage = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      fsWithHome,
+      {
+        lockTimeoutMs: 1_000,
+        getProcessStartedAt: testProcessStartedAt,
+        isOwnerAlive: async () => false,
+      },
+    );
+    const token = createValidTokenData({ accessToken: "fresh" });
+
+    await storage.saveTokens(baseUrl, token);
+
+    expect(claimDeleteCount).toBe(2);
+    expect(await storage.loadTokens(baseUrl)).toEqual(token);
+  });
+
   it("keeps a successor lock when a delayed dead-owner reclaimer resumes", async () => {
     const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
     const ownerPath = join(lockPath, "owner.json");
@@ -834,6 +954,57 @@ describe("LockedAuthStorage", () => {
     await storage.saveTokens(baseUrl, token);
 
     expect(await storage.loadTokens(baseUrl)).toEqual(token);
+  });
+
+  it("reclaims old ownerless directories containing only claim files", async () => {
+    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
+    const claimPath = join(
+      lockPath,
+      `reclaim-${createHash("sha256").update("abandoned").digest("hex")}`,
+    );
+    await mkdir(lockPath, { recursive: true, mode: 0o700 });
+    await writeFile(claimPath, "");
+    const staleAt = new Date(Date.now() - 10_000);
+    await utimes(lockPath, staleAt, staleAt);
+    const storage = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      fsWithHome,
+      {
+        lockTimeoutMs: 1_000,
+        getProcessStartedAt: testProcessStartedAt,
+      },
+    );
+    const token = createValidTokenData({ accessToken: "fresh" });
+
+    await storage.saveTokens(baseUrl, token);
+
+    expect(await fs.exists(claimPath)).toBe(false);
+    expect(await storage.loadTokens(baseUrl)).toEqual(token);
+  });
+
+  it("keeps old ownerless directories containing unknown entries", async () => {
+    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
+    const unknownPath = join(lockPath, "reclaim-not-a-valid-owner-hash");
+    await mkdir(lockPath, { recursive: true, mode: 0o700 });
+    await writeFile(unknownPath, "");
+    const staleAt = new Date(Date.now() - 10_000);
+    await utimes(lockPath, staleAt, staleAt);
+    const storage = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      fsWithHome,
+      {
+        lockTimeoutMs: 100,
+        getProcessStartedAt: testProcessStartedAt,
+      },
+    );
+
+    await expect(
+      storage.saveTokens(
+        baseUrl,
+        createValidTokenData({ accessToken: "must-not-save" }),
+      ),
+    ).rejects.toThrow("Timed out waiting for GitHits auth storage lock");
+    expect(await fs.exists(unknownPath)).toBe(true);
   });
 
   it("keeps an old ownerless lock when an owner appears before deletion", async () => {

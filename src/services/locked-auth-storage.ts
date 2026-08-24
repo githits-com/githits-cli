@@ -20,10 +20,11 @@ const LOCK_OWNER_RECHECK_MS = 1_000;
 const ORPHANED_LOCK_MS = 5_000;
 const OWNER_FILE = "owner.json";
 const RECLAIM_FILE_PREFIX = "reclaim-";
+const RECLAIM_FILE_PATTERN = /^reclaim-[0-9a-f]{64}$/;
 const MAX_NODE_PROCESS_ID = 0x7fffffff;
 const PROCESS_IDENTITY_LOOKUP_TIMEOUT_MS = 5_000;
 const RELEASE_OWNER_READ_ATTEMPTS = 3;
-const RELEASE_OWNER_DELETE_ATTEMPTS = 3;
+const CLEANUP_FILE_DELETE_ATTEMPTS = 3;
 const execFileAsync = promisify(execFile);
 
 interface LockOwner {
@@ -210,16 +211,15 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       return fn();
     }
 
-    await this.acquireLock();
-    const acquiredOwnerId = this.currentOwner?.id;
+    const acquiredOwner = await this.acquireLock();
     try {
-      return await this.lockContext.run(acquiredOwnerId ?? "", fn);
+      return await this.lockContext.run(acquiredOwner.id, fn);
     } finally {
-      await this.releaseLock();
+      await this.releaseLock(acquiredOwner);
     }
   }
 
-  private async acquireLock(): Promise<void> {
+  private async acquireLock(): Promise<LockOwner> {
     const processStartedAt = await this.getCurrentProcessStartedAt();
     const startedAt = Date.now();
     let nextOwnerCheckAt = 0;
@@ -228,7 +228,8 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       try {
         await mkdir(this.lockPath, { recursive: false, mode: 0o700 });
         try {
-          await this.writeOwner(processStartedAt);
+          const owner = await this.writeOwner(processStartedAt);
+          return owner;
         } catch (error) {
           const code = (error as NodeJS.ErrnoException).code;
           if (code === "EEXIST" || code === "ENOENT") {
@@ -248,7 +249,6 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
             .catch(() => undefined);
           throw error;
         }
-        return;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
         const now = Date.now();
@@ -293,7 +293,9 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     return this.currentProcessStartedAtPromise;
   }
 
-  private async writeOwner(processStartedAt: string | null): Promise<void> {
+  private async writeOwner(
+    processStartedAt: string | null,
+  ): Promise<LockOwner> {
     const owner: LockOwner = {
       id: randomUUID(),
       pid: process.pid,
@@ -308,6 +310,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       0o600,
     );
     this.currentOwner = owner;
+    return owner;
   }
 
   private async reclaimStaleLock(): Promise<void> {
@@ -344,16 +347,11 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       currentOwner.state === "present" &&
       currentOwner.owner.id === owner.id
     ) {
-      try {
-        await this.fileSystemService.deleteFile(this.ownerPath());
-      } catch {
-        // Leave the directory in place if owner removal is uncertain.
-      }
+      // Leave the directory in place if owner removal remains uncertain.
+      await this.deleteFileForCleanup(this.ownerPath());
     }
 
-    try {
-      await this.fileSystemService.deleteFile(claimPath);
-    } catch {
+    if (!(await this.deleteFileForCleanup(claimPath))) {
       // A claim that could not be removed keeps reclamation fail-closed. The
       // lock timeout message explains how to remove an abandoned lock.
       return;
@@ -370,6 +368,17 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   private async reclaimOldOwnerlessLock(): Promise<void> {
     const createdAtMs = await lockCreatedAtMs(this.lockPath);
     if (Date.now() - createdAtMs < ORPHANED_LOCK_MS) return;
+    let entries: string[];
+    try {
+      entries = await this.fileSystemService.readdir(this.lockPath);
+    } catch {
+      return;
+    }
+    if (entries.some((entry) => !RECLAIM_FILE_PATTERN.test(entry))) return;
+    for (const entry of entries) {
+      const claimPath = this.fileSystemService.joinPath(this.lockPath, entry);
+      if (!(await this.deleteFileForCleanup(claimPath))) return;
+    }
     await this.fileSystemService
       .deleteDirIfEmpty(this.lockPath)
       .catch(() => undefined);
@@ -413,14 +422,12 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     }
   }
 
-  private async releaseLock(): Promise<void> {
-    const owner = this.currentOwner;
-    this.currentOwner = null;
-    if (!owner) return;
+  private async releaseLock(owner: LockOwner): Promise<void> {
+    if (this.currentOwner?.id === owner.id) this.currentOwner = null;
     const currentOwner = await this.readOwnerForRelease();
     if (currentOwner.state !== "present" || currentOwner.owner.id !== owner.id)
       return;
-    if (!(await this.deleteOwnerForRelease())) return;
+    if (!(await this.deleteFileForCleanup(this.ownerPath()))) return;
     await this.fileSystemService
       .deleteDirIfEmpty(this.lockPath)
       .catch(() => undefined);
@@ -451,20 +458,20 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     return result;
   }
 
-  private async deleteOwnerForRelease(): Promise<boolean> {
+  private async deleteFileForCleanup(path: string): Promise<boolean> {
     for (
       let attempt = 1;
-      attempt <= RELEASE_OWNER_DELETE_ATTEMPTS;
+      attempt <= CLEANUP_FILE_DELETE_ATTEMPTS;
       attempt += 1
     ) {
       try {
-        await this.fileSystemService.deleteFile(this.ownerPath());
+        await this.fileSystemService.deleteFile(path);
         return true;
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
         const retryable =
           code === "EACCES" || code === "EBUSY" || code === "EPERM";
-        if (!retryable || attempt === RELEASE_OWNER_DELETE_ATTEMPTS)
+        if (!retryable || attempt === CLEANUP_FILE_DELETE_ATTEMPTS)
           return false;
         await sleep(LOCK_RETRY_MS);
       }

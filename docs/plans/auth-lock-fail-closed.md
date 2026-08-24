@@ -120,6 +120,10 @@ to detect normal owner release. Stale reclamation becomes conservative:
 8. A delayed contender re-reads `owner.json` while holding its claim. If a
    successor now owns the directory, it removes only its own claim and leaves
    the successor intact.
+9. An operation releases only the exact owner identity it acquired. Old
+   ownerless directories containing only valid reclaim claims sweep those
+   claims with bounded sharing-violation retries before empty-only removal;
+   unknown entries retain the directory.
 
 Stale-owner inspection runs immediately on contention and then at a bounded
 interval, avoiding repeated PowerShell or `ps` process creation while an owner
@@ -132,11 +136,12 @@ filenames use fixed-length SHA-256 owner-ID hashes so untrusted owner metadata
 cannot influence paths. No credential values, owner-file formats, public APIs,
 or configuration contracts change. Release reads temporarily unavailable owner
 metadata up to three times and retries transient Windows sharing violations
-while removing the owner file. Persistently malformed or unreadable owner
-metadata, an owner file that cannot be removed after bounded release retries,
-or a process crash while holding a reclaim claim leaves a fail-closed lock; each
-attempt times out until the user stops all GitHits CLI and MCP processes and
-removes the directory. Long-running
+while removing cleanup files. A release-time owner read or deletion failure
+retains the lock while that process lives and becomes reclaimable after exit if
+the metadata can be read. Persistently malformed or unreadable owner metadata,
+unknown ownerless entries, or cleanup files that remain unremovable after
+bounded retries leave a fail-closed lock; each attempt times out until the user
+stops all GitHits CLI and MCP processes and removes the directory. Long-running
 local MCP processes must be restarted after upgrading because older processes
 do not honor reclaim claims. Rollback is a normal code revert; no migration is
 required.
@@ -169,14 +174,17 @@ Implementation steps:
 5. Update durable auth documentation and add an independent patch fragment.
 6. Serialize proven-dead-owner cleanup with an exclusive hashed claim and cover
    both same-owner reclaimers and a delayed contender observing a successor.
+7. Bind release to the exact acquired owner and recover aged ownerless
+   directories that contain only valid abandoned claim files.
 
 Edge cases: owner file creation races, ownerless stale directories, PID reuse,
 permission-denied liveness probes, and lock release between failed acquisition
 and stale inspection must preserve their existing safe behavior.
 
 Acceptance criteria: every overall behavioral criterion is covered by focused
-tests and the complete revised lock artifact has no path that converts unknown
-owner evidence into deletion.
+tests, overlapping operations cannot release each other's owners, and the
+complete revised lock artifact has no path that converts unknown owner evidence
+into deletion.
 
 ## Phase 2: Validate, review, and deliver
 
