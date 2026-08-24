@@ -99,6 +99,7 @@ export function buildTargetResolutionNotes(
       // A provisional result is queryable, but only its exact served identity
       // is authoritative. Do not render requested refs as a retry target.
       const parts = ["provisional (still indexing)"];
+      if (reason) parts.push(reason);
       if (served) parts.push(`served=${served}`);
       if (resolution.indexingRef)
         parts.push(`indexingRef=${resolution.indexingRef}`);

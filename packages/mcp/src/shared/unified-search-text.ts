@@ -703,6 +703,7 @@ function hasIndexingSource(
     sourceStatus?.some(
       (entry) =>
         entry.targetResolution?.freshness === "indexing" ||
+        entry.targetResolution?.freshness === "provisional" ||
         entry.indexingStatus === "INDEXING" ||
         entry.codeIndexState === "INDEXING" ||
         entry.codeIndexState === "PROVISIONAL" ||

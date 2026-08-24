@@ -176,6 +176,29 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("shorten or broaden the query");
   });
 
+  it("treats target-resolution-only provisional evidence as still indexing", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          {
+            source: "code",
+            targetLabel: "github:foo/bar#main",
+            targetResolution: {
+              freshness: "provisional",
+              availableVersions: [],
+              availableRefs: [],
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "next: rerun with a larger wait_timeout_ms to wait for indexing.",
+    );
+    expect(text).not.toContain("shorten or broaden the query");
+  });
+
   it("does not suggest symbol search when already using the symbol source", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {

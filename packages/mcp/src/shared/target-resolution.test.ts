@@ -144,7 +144,7 @@ describe("target-resolution helpers", () => {
     });
 
     expect(notes).toEqual([
-      "provisional (still indexing) | served=github:foo/bar#main@abc1237 | indexingRef=idx_123",
+      "provisional (still indexing) | freshnessReason=exact_provisional | served=github:foo/bar#main@abc1237 | indexingRef=idx_123",
     ]);
     expect(notes[0]).not.toContain("requested=");
     expect(notes[0]).not.toContain("fresh=");
