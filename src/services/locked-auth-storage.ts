@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { promisify } from "node:util";
 import { DEFAULT_FETCH_TIMEOUT_MS } from "@githits/core-internal";
@@ -23,6 +23,7 @@ const RECLAIM_FILE_PREFIX = "reclaim-";
 const MAX_NODE_PROCESS_ID = 0x7fffffff;
 const PROCESS_IDENTITY_LOOKUP_TIMEOUT_MS = 5_000;
 const RELEASE_OWNER_READ_ATTEMPTS = 3;
+const RELEASE_OWNER_DELETE_ATTEMPTS = 3;
 const execFileAsync = promisify(execFile);
 
 interface LockOwner {
@@ -265,7 +266,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
 
   private createLockTimeoutError(): AuthStorageLockTimeoutError {
     return new AuthStorageLockTimeoutError(
-      `Timed out waiting for GitHits auth storage lock at ${this.lockPath}. If no githits process is running, remove this directory and retry.`,
+      `Timed out waiting for GitHits auth storage lock at ${this.lockPath}. After stopping all GitHits CLI and MCP processes, remove this directory and retry.`,
     );
   }
 
@@ -419,9 +420,10 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     const currentOwner = await this.readOwnerForRelease();
     if (currentOwner.state !== "present" || currentOwner.owner.id !== owner.id)
       return;
-    await rm(this.lockPath, { recursive: true, force: true }).catch(
-      () => undefined,
-    );
+    if (!(await this.deleteOwnerForRelease())) return;
+    await this.fileSystemService
+      .deleteDirIfEmpty(this.lockPath)
+      .catch(() => undefined);
   }
 
   private ownerPath(): string {
@@ -447,6 +449,27 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       result = await this.readOwner();
     }
     return result;
+  }
+
+  private async deleteOwnerForRelease(): Promise<boolean> {
+    for (
+      let attempt = 1;
+      attempt <= RELEASE_OWNER_DELETE_ATTEMPTS;
+      attempt += 1
+    ) {
+      try {
+        await this.fileSystemService.deleteFile(this.ownerPath());
+        return true;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        const retryable =
+          code === "EACCES" || code === "EBUSY" || code === "EPERM";
+        if (!retryable || attempt === RELEASE_OWNER_DELETE_ATTEMPTS)
+          return false;
+        await sleep(LOCK_RETRY_MS);
+      }
+    }
+    return false;
   }
 }
 

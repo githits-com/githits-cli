@@ -5,7 +5,7 @@ import { once } from "node:events";
 import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getAppConfigDir, getAuthLockDir } from "./app-config-paths.js";
+import { getAuthLockDir } from "./app-config-paths.js";
 import {
   AuthStorageImpl,
   type ClientRegistration,
@@ -44,6 +44,12 @@ describe("LockedAuthStorage", () => {
         .splice(0)
         .map((dir) => rm(dir, { recursive: true, force: true })),
     );
+  });
+
+  it("keeps file-auth fixtures inside the test root", async () => {
+    const { configDir, root } = await createStoragePaths();
+
+    expect(configDir).toBe(join(root, "config", "auth"));
   });
 
   it("serializes conditional token saves across storage instances", async () => {
@@ -123,6 +129,33 @@ describe("LockedAuthStorage", () => {
     expect(await fs.exists(lockPath)).toBe(false);
   });
 
+  it("retries transient owner deletion while releasing its lock", async () => {
+    const { fs, fsWithHome, lockPath } = await createStoragePaths();
+    const ownerPath = join(lockPath, "owner.json");
+    const deleteFile = fsWithHome.deleteFile.bind(fsWithHome);
+    let ownerDeleteCount = 0;
+    fsWithHome.deleteFile = mock(async (path: string) => {
+      if (path === ownerPath && ownerDeleteCount === 0) {
+        ownerDeleteCount += 1;
+        const error = new Error(
+          "owner file is temporarily busy",
+        ) as NodeJS.ErrnoException;
+        error.code = "EPERM";
+        throw error;
+      }
+      ownerDeleteCount += 1;
+      await deleteFile(path);
+    });
+    const storage = new LockedAuthStorage(createMockAuthStorage(), fsWithHome, {
+      getProcessStartedAt: testProcessStartedAt,
+    });
+
+    await storage.withAuthStorageLock(async () => undefined);
+
+    expect(ownerDeleteCount).toBe(2);
+    expect(await fs.exists(lockPath)).toBe(false);
+  });
+
   it("keeps a concurrent holder when another acquisition loses owner creation", async () => {
     const { fs, fsWithHome, lockPath } = await createStoragePaths();
     const ownerPath = join(lockPath, "owner.json");
@@ -182,14 +215,17 @@ describe("LockedAuthStorage", () => {
       await loserObservedHolder.promise;
       startNestedLock.resolve();
       await nestedLockFinished.promise;
-      expect(nestedLockError).toBeUndefined();
     } finally {
       continueFirstOwnerWrite.resolve();
       startNestedLock.resolve();
       releaseHolder.resolve();
     }
-    await Promise.all([firstRun, holderRun]);
+    const runResults = await Promise.allSettled([firstRun, holderRun]);
+    for (const result of runResults) {
+      if (result.status === "rejected") throw result.reason;
+    }
 
+    expect(nestedLockError).toBeUndefined();
     expect(firstEntered).toBe(true);
     expect(ownerWriteCount).toBe(3);
     expect(await fs.exists(lockPath)).toBe(false);
@@ -990,12 +1026,11 @@ describe("LockedAuthStorage", () => {
     const fsWithHome = Object.assign(Object.create(fs), fs, {
       getHomeDir: () => homeDir,
     }) as FileSystemServiceImpl;
-    const appConfigDir = getAppConfigDir(fsWithHome);
     const authLockDir = getAuthLockDir(fsWithHome);
     return {
       fs,
       fsWithHome,
-      configDir: join(appConfigDir, "auth"),
+      configDir: join(root, "config", "auth"),
       lockPath: join(authLockDir, "auth.lock"),
       root,
     };

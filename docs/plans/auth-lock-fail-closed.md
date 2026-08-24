@@ -130,11 +130,13 @@ Security and compatibility: fail-closed behavior protects rotating credentials
 at the cost of a bounded timeout when stale ownership cannot be proven. Reclaim
 filenames use fixed-length SHA-256 owner-ID hashes so untrusted owner metadata
 cannot influence paths. No credential values, owner-file formats, public APIs,
-or configuration contracts change. Release retries transient owner-metadata
-read failures three times. Persistently malformed or unreadable owner metadata,
-or a process crash while holding a reclaim claim, leaves a fail-closed lock;
-each attempt times out until the user follows the existing guidance and removes
-the directory after confirming no GitHits process is running. Long-running
+or configuration contracts change. Release reads temporarily unavailable owner
+metadata up to three times and retries transient Windows sharing violations
+while removing the owner file. Persistently malformed or unreadable owner
+metadata, an owner file that cannot be removed after bounded release retries,
+or a process crash while holding a reclaim claim leaves a fail-closed lock; each
+attempt times out until the user stops all GitHits CLI and MCP processes and
+removes the directory. Long-running
 local MCP processes must be restarted after upgrading because older processes
 do not honor reclaim claims. Rollback is a normal code revert; no migration is
 required.

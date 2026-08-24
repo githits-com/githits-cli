@@ -233,6 +233,7 @@ export function createMockBrowserService(
 export function createMockFileSystemService(
   impl: Partial<FileSystemService> = {},
 ): FileSystemService {
+  const exclusivelyCreatedPaths = new Set<string>();
   return {
     readFile: mock(() => {
       const error = new Error("File not found") as NodeJS.ErrnoException;
@@ -240,8 +241,19 @@ export function createMockFileSystemService(
       return Promise.reject(error);
     }),
     writeFile: mock(() => Promise.resolve()),
-    writeFileExclusive: mock(() => Promise.resolve()),
-    deleteFile: mock(() => Promise.resolve()),
+    writeFileExclusive: mock((path: string) => {
+      if (exclusivelyCreatedPaths.has(path)) {
+        const error = new Error("File exists") as NodeJS.ErrnoException;
+        error.code = "EEXIST";
+        return Promise.reject(error);
+      }
+      exclusivelyCreatedPaths.add(path);
+      return Promise.resolve();
+    }),
+    deleteFile: mock((path: string) => {
+      exclusivelyCreatedPaths.delete(path);
+      return Promise.resolve();
+    }),
     deleteDirIfEmpty: mock(() => Promise.resolve()),
     exists: mock(() => Promise.resolve(false)),
     ensureDir: mock(() => Promise.resolve()),
