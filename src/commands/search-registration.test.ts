@@ -24,21 +24,26 @@ describe("registerUnifiedSearchCommands", () => {
     const searchCommand = program.commands.find(
       (command) => command.name() === "search",
     );
+    const searchHelp =
+      searchCommand?.helpInformation().replace(/\s+/g, " ") ?? "";
 
-    expect(searchCommand?.helpInformation()).toContain("site:<host[/path]>");
-    expect(searchCommand?.helpInformation()).toContain(
+    expect(searchHelp).toContain("site:<host[/path]>");
+    expect(searchHelp).toContain(
       "terminal recovery guidance without a searchRef",
     );
-    expect(searchCommand?.helpInformation()).toContain(
-      "stale-but-serveable evidence",
-    );
-    expect(searchCommand?.helpInformation()).toContain("serveable subset");
+    expect(searchHelp).toContain("stale-but-serveable evidence");
+    expect(searchHelp).toContain("serveable subset");
+    expect(searchHelp).toContain("completed result with an evidence notice");
 
     const statusCommand = program.commands.find(
       (command) => command.name() === "search-status",
     );
-    expect(statusCommand?.helpInformation()).toContain("interim hits");
-    expect(statusCommand?.helpInformation()).toContain("serveable subset");
+    const statusHelp =
+      statusCommand?.helpInformation().replace(/\s+/g, " ") ?? "";
+    expect(statusHelp).toContain("interim hits");
+    expect(statusHelp).toContain("serveable subset");
+    expect(statusHelp).toContain("completed result with an evidence notice");
+    expect(statusHelp).toContain("unrecognized statuses are not polled");
   });
 
   it("rejects repeated --source values instead of changing semantics silently", () => {

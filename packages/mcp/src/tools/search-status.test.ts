@@ -132,7 +132,11 @@ describe("searchStatusTool", () => {
     expect(tool.description).toContain("serveable subset");
     expect(tool.description).toContain("allow_partial_results");
     expect(tool.description).toContain("`PENDING`, `INDEXING`, or `SEARCHING`");
-    expect(tool.description).toContain("Terminal `DEFERRED`");
+    expect(tool.description).toContain(
+      "completed result with an evidence notice",
+    );
+    expect(tool.description).toContain("`DEFERRED`, `TIMEOUT`, and `FAILED`");
+    expect(tool.description).toContain("unrecognized statuses are not polled");
     expect(tool.description).toContain("run a new `search` later");
   });
 
