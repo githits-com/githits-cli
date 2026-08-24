@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getAppConfigDir, getAuthLockDir } from "./app-config-paths.js";
@@ -425,6 +425,101 @@ describe("LockedAuthStorage", () => {
     await storage.saveTokens(baseUrl, token);
 
     expect(await storage.loadTokens(baseUrl)).toEqual(token);
+  });
+
+  it("reclaims an old lock directory whose owner file is missing", async () => {
+    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
+    await mkdir(lockPath, { recursive: true, mode: 0o700 });
+    const staleAt = new Date(Date.now() - 10_000);
+    await utimes(lockPath, staleAt, staleAt);
+    const storage = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      fsWithHome,
+      {
+        lockTimeoutMs: 100,
+        getProcessStartedAt: testProcessStartedAt,
+      },
+    );
+    const token = createValidTokenData({ accessToken: "fresh" });
+
+    await storage.saveTokens(baseUrl, token);
+
+    expect(await storage.loadTokens(baseUrl)).toEqual(token);
+  });
+
+  it("keeps an old live lock when its owner file is temporarily unreadable", async () => {
+    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
+    await mkdir(lockPath, { recursive: true, mode: 0o700 });
+    await writeFile(
+      join(lockPath, "owner.json"),
+      JSON.stringify({
+        id: "live-owner",
+        pid: process.pid,
+        createdAt: new Date().toISOString(),
+        processStartedAt: "test-start-time",
+      }),
+    );
+    const staleAt = new Date(Date.now() - 10_000);
+    await utimes(lockPath, staleAt, staleAt);
+    fsWithHome.readFile = mock(async () => {
+      const error = new Error("owner file is busy") as NodeJS.ErrnoException;
+      error.code = "EPERM";
+      throw error;
+    });
+    const isOwnerAlive = mock(async () => true);
+    const storage = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      fsWithHome,
+      {
+        isOwnerAlive,
+        lockTimeoutMs: 100,
+        getProcessStartedAt: testProcessStartedAt,
+      },
+    );
+
+    await expect(
+      storage.saveTokens(
+        baseUrl,
+        createValidTokenData({ accessToken: "must-not-save" }),
+      ),
+    ).rejects.toThrow("Timed out waiting for GitHits auth storage lock");
+    expect(isOwnerAlive).not.toHaveBeenCalled();
+    expect(await fs.exists(lockPath)).toBe(true);
+  });
+
+  it("keeps an old lock whose owner metadata contains an invalid PID", async () => {
+    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
+    await mkdir(lockPath, { recursive: true, mode: 0o700 });
+    await writeFile(
+      join(lockPath, "owner.json"),
+      JSON.stringify({
+        id: "invalid-owner",
+        pid: 1.5,
+        createdAt: new Date().toISOString(),
+        processStartedAt: null,
+      }),
+    );
+    const staleAt = new Date(Date.now() - 10_000);
+    await utimes(lockPath, staleAt, staleAt);
+    const isOwnerAlive = mock(async () => true);
+    const storage = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      fsWithHome,
+      {
+        isOwnerAlive,
+        lockTimeoutMs: 100,
+        getProcessStartedAt: testProcessStartedAt,
+      },
+    );
+
+    await expect(
+      storage.saveTokens(
+        baseUrl,
+        createValidTokenData({ accessToken: "must-not-save" }),
+      ),
+    ).rejects.toThrow("Timed out waiting for GitHits auth storage lock");
+    expect(isOwnerAlive).not.toHaveBeenCalled();
+    expect(await fs.exists(lockPath)).toBe(true);
   });
 
   it("does not reclaim live locks just because they are old", async () => {

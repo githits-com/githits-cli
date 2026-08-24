@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { promisify } from "node:util";
 import { DEFAULT_FETCH_TIMEOUT_MS } from "@githits/core-internal";
@@ -27,6 +27,24 @@ interface LockOwner {
   createdAt: string;
   processStartedAt: string | null;
 }
+
+interface PresentLockOwner {
+  state: "present";
+  owner: LockOwner;
+}
+
+interface MissingLockOwner {
+  state: "missing";
+}
+
+interface UnknownLockOwner {
+  state: "unknown";
+}
+
+type LockOwnerReadResult =
+  | PresentLockOwner
+  | MissingLockOwner
+  | UnknownLockOwner;
 
 export class AuthStorageLockTimeoutError extends Error {
   constructor(message: string) {
@@ -65,7 +83,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
 
   constructor(
     private readonly storage: AuthStorage,
-    fileSystemService: FileSystemService,
+    private readonly fileSystemService: FileSystemService,
     options: {
       lockTimeoutMs?: number;
       isOwnerAlive?: (
@@ -283,11 +301,13 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   }
 
   private async reclaimStaleLock(): Promise<void> {
-    const owner = await this.readOwner();
-    if (!owner) {
+    const ownerResult = await this.readOwner();
+    if (ownerResult.state === "missing") {
       await this.reclaimOldOwnerlessLock();
       return;
     }
+    if (ownerResult.state === "unknown") return;
+    const owner = ownerResult.owner;
     const ownerDead = !(await this.isOwnerAlive(
       owner.pid,
       owner.processStartedAt,
@@ -295,7 +315,8 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     if (!ownerDead) return;
 
     const currentOwner = await this.readOwner();
-    if (!currentOwner || currentOwner.id !== owner.id) return;
+    if (currentOwner.state !== "present" || currentOwner.owner.id !== owner.id)
+      return;
 
     await rm(this.lockPath, { recursive: true, force: true }).catch(
       () => undefined,
@@ -310,29 +331,40 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     );
   }
 
-  private async readOwner(): Promise<LockOwner | null> {
+  private async readOwner(): Promise<LockOwnerReadResult> {
+    let raw: string;
     try {
-      const raw = await readFile(this.ownerPath(), "utf8");
+      raw = await this.fileSystemService.readFile(this.ownerPath());
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === "ENOENT"
+        ? { state: "missing" }
+        : { state: "unknown" };
+    }
+
+    try {
       const parsed = JSON.parse(raw) as Partial<LockOwner>;
       if (
         typeof parsed.id !== "string" ||
         typeof parsed.pid !== "number" ||
+        !Number.isSafeInteger(parsed.pid) ||
+        parsed.pid <= 0 ||
         typeof parsed.createdAt !== "string" ||
         !(
           typeof parsed.processStartedAt === "string" ||
           parsed.processStartedAt === null
         )
       ) {
-        return null;
+        return { state: "unknown" };
       }
-      return {
+      const owner: LockOwner = {
         id: parsed.id,
         pid: parsed.pid,
         createdAt: parsed.createdAt,
         processStartedAt: parsed.processStartedAt,
       };
+      return { state: "present", owner };
     } catch {
-      return null;
+      return { state: "unknown" };
     }
   }
 
@@ -341,7 +373,8 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     this.currentOwner = null;
     if (!owner) return;
     const currentOwner = await this.readOwner();
-    if (!currentOwner || currentOwner.id !== owner.id) return;
+    if (currentOwner.state !== "present" || currentOwner.owner.id !== owner.id)
+      return;
     await rm(this.lockPath, { recursive: true, force: true }).catch(
       () => undefined,
     );

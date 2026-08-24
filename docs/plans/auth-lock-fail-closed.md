@@ -87,6 +87,8 @@ to detect normal owner release. Stale reclamation becomes conservative:
 4. An occupied PID with a different observed start time permits reclamation as
    PID reuse.
 5. An unavailable or failed start-time observation retains the lock.
+6. Unreadable, malformed, or invalid owner metadata retains the lock; only a
+   genuinely missing owner file may enter age-bounded ownerless recovery.
 
 Stale-owner inspection runs immediately on contention and then at a bounded
 interval, avoiding repeated PowerShell or `ps` process creation while an owner
@@ -164,10 +166,10 @@ with the assumptions above before dispatching review. If review exposes a
 different failure class or a product decision, stop and revise this plan rather
 than broadening the increment implicitly.
 
-## Completion and plan cleanup
+## Completion
 
 The effort is complete when the draft PR is open, CI status is reported, and
 the Claude reviewer is retained for follow-up through merge approval. Durable
-lock behavior must remain in `docs/implementation/auth.md` and release impact in
-`changes/`; after the clean review, this temporary plan can be removed before
-the final delivery commit.
+lock behavior remains in `docs/implementation/auth.md`, release impact remains
+in `changes/`, and this plan records the verified implementation and review
+boundary.
