@@ -187,8 +187,8 @@ SEARCHING progress returns a searchRef. Active progress may include
 stale-but-serveable evidence. Follow an explicit \`githits search-status\`
 action emitted for that active reference or for a completed result with an
 evidence notice. DEFERRED, TIMEOUT, and FAILED are terminal; unrecognized
-statuses are not polled. Preserve any disclosed evidence, then run a new search
-later for a fresher snapshot. Missing or ambiguous sites instead provide
+statuses are not polled. Preserve any disclosed evidence and follow the rendered
+new-search action. Missing or ambiguous sites instead provide
 terminal recovery guidance without a searchRef. Use \`githits example\` for
 canonical cross-project examples; \`--source symbol\`
 here returns symbol-shaped hits.
@@ -213,8 +213,8 @@ result with an evidence notice. This can return progress, interim hits covering
 every runnable target/source pair while refresh continues, partial hits from a
 serveable subset when the original request used --allow-partial, or final
 results. DEFERRED, TIMEOUT, and FAILED are terminal; unrecognized statuses are
-not polled. By default the command waits up to 20 seconds for progress before
-returning the latest status.`;
+not polled; follow the rendered new-search action instead. By default the command
+waits up to 20 seconds for progress before returning the latest status.`;
 
 export function registerSearchCommand(program: Command) {
   program

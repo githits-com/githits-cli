@@ -22,7 +22,7 @@ describe("searchTool", () => {
     );
     expect(tool.description).toContain("`DEFERRED`, `TIMEOUT`, and `FAILED`");
     expect(tool.description).toContain("unrecognized statuses are not polled");
-    expect(tool.description).toContain("new search later");
+    expect(tool.description).toContain("rendered new-search action");
     expect(tool.description).toContain("serveable subset");
   });
 

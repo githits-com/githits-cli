@@ -137,7 +137,7 @@ describe("searchStatusTool", () => {
     );
     expect(tool.description).toContain("`DEFERRED`, `TIMEOUT`, and `FAILED`");
     expect(tool.description).toContain("unrecognized statuses are not polled");
-    expect(tool.description).toContain("run a new `search` later");
+    expect(tool.description).toContain("rendered new-search action");
   });
 
   it("waits up to the shared default and forwards explicit wait windows", async () => {

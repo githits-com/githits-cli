@@ -15,8 +15,8 @@ evolve and keeps follow-up guidance from polling stopped or unknown sessions.
 - **Evolving search-session statuses** - CLI search accepts terminal `DEFERRED`
   and future status values without discarding available evidence. Only known
   active sessions and explicit completed-result follow-ups direct callers to
-  `search-status`; stopped or unknown sessions direct callers to use current
-  evidence and start a later search.
+  `search-status`; stopped or unknown sessions preserve current evidence and
+  provide a new-search action without further polling.
 
 ## [@githits/mcp 0.10.1] - 2026-08-24
 
@@ -28,8 +28,8 @@ evolve and keeps follow-up guidance from polling stopped or unknown sessions.
 - **Evolving search-session statuses** - MCP search accepts terminal `DEFERRED`
   and future status values without discarding available evidence. Only known
   active sessions and explicit completed-result follow-ups direct agents to
-  `search_status`; stopped or unknown sessions direct agents to use current
-  evidence and start a later search.
+  `search_status`; stopped or unknown sessions preserve current evidence and
+  provide a new-search action without further polling.
 
 ## [githits 0.10.0] - 2026-08-19
 
