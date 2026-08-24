@@ -20,7 +20,7 @@ const LOCK_OWNER_RECHECK_MS = 1_000;
 const ORPHANED_LOCK_MS = 5_000;
 const OWNER_FILE = "owner.json";
 const RECLAIM_FILE_PREFIX = "reclaim-";
-const RECLAIM_FILE_PATTERN = /^reclaim-[0-9a-f]{64}$/;
+const RECLAIM_OWNER_HASH_PATTERN = /^[0-9a-f]{64}$/;
 const MAX_NODE_PROCESS_ID = 0x7fffffff;
 const PROCESS_IDENTITY_LOOKUP_TIMEOUT_MS = 5_000;
 const RELEASE_OWNER_READ_ATTEMPTS = 3;
@@ -374,7 +374,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     } catch {
       return;
     }
-    if (entries.some((entry) => !RECLAIM_FILE_PATTERN.test(entry))) return;
+    if (entries.some((entry) => !isReclaimFileName(entry))) return;
     for (const entry of entries) {
       const claimPath = this.fileSystemService.joinPath(this.lockPath, entry);
       if (!(await this.deleteFileForCleanup(claimPath))) return;
@@ -482,6 +482,13 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isReclaimFileName(entry: string): boolean {
+  return (
+    entry.startsWith(RECLAIM_FILE_PREFIX) &&
+    RECLAIM_OWNER_HASH_PATTERN.test(entry.slice(RECLAIM_FILE_PREFIX.length))
+  );
 }
 
 async function isOriginalProcessAlive(

@@ -139,7 +139,8 @@ metadata up to three times and retries transient Windows sharing violations
 while removing cleanup files. A release-time owner read or deletion failure
 retains the lock while that process lives and becomes reclaimable after exit if
 the metadata can be read. Persistently malformed or unreadable owner metadata,
-unknown ownerless entries, or cleanup files that remain unremovable after
+unknown ownerless entries, matching owner-scoped claims abandoned beside their
+retained dead-owner metadata, or cleanup files that remain unremovable after
 bounded retries leave a fail-closed lock; each attempt times out until the user
 stops all GitHits CLI and MCP processes and removes the directory. Long-running
 local MCP processes must be restarted after upgrading because older processes
