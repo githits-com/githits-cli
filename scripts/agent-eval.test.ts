@@ -731,6 +731,9 @@ describe("agent eval harness", () => {
         readFileSync(join(workloadDir, "opencode.json"), "utf8"),
       );
       expect(run.experimentalTools).toBe(true);
+      expect(run.claudeVersion).toBeUndefined();
+      expect(run.codexVersion).toBeUndefined();
+      expect(run.opencodeVersion).toBeUndefined();
       expect(dryRun.experimentalTools).toBe(true);
       expect(mcp.mcpServers.githits.args).toContain("--experimental-tools");
       expect(

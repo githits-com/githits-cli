@@ -5,6 +5,30 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.10.1] - 2026-08-24
+
+Patch release: preserves available search evidence as backend session statuses
+evolve and keeps follow-up guidance from polling stopped or unknown sessions.
+
+### Fixed
+
+- **Evolving search-session statuses** - CLI search accepts terminal `DEFERRED`
+  and future status values without discarding available evidence. Only known
+  active sessions are sent to `search-status`; stopped or unknown sessions
+  direct callers to use current evidence and start a later search.
+
+## [@githits/mcp 0.10.1] - 2026-08-24
+
+Patch release: preserves available search evidence as backend session statuses
+evolve and keeps follow-up guidance from polling stopped or unknown sessions.
+
+### Fixed
+
+- **Evolving search-session statuses** - MCP search accepts terminal `DEFERRED`
+  and future status values without discarding available evidence. Only known
+  active sessions are sent to `search_status`; stopped or unknown sessions
+  direct agents to use current evidence and start a later search.
+
 ## [githits 0.10.0] - 2026-08-19
 
 Minor release: introduces opt-in local experimental tools for target resolution

@@ -1401,11 +1401,14 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
     }
   }
 
-  const [git, claude, codex, opencode] = await Promise.all([
+  const versionsPromise: Promise<
+    [string | undefined, string | undefined, string | undefined]
+  > = options.dryRun
+    ? Promise.resolve([undefined, undefined, undefined])
+    : Promise.all([claudeVersion(), codexVersion(), opencodeVersion()]);
+  const [git, [claude, codex, opencode]] = await Promise.all([
     collectGitMetadata(options.repoRoot),
-    claudeVersion(),
-    codexVersion(),
-    opencodeVersion(),
+    versionsPromise,
   ]);
 
   const workloadResults: WorkloadRunMetadata[] = [];

@@ -50,7 +50,7 @@ const schema: ZodRawShape = {
 
 const DESCRIPTION =
   "Use only after `search` returns a `searchRef`. Check progress, fetch interim hits when every runnable target/source pair is serveable, fetch partial hits from a serveable subset when the original request used `allow_partial_results: true`, or fetch final results. " +
-  "Pass the `searchRef` from that response as `search_ref` here (response field is camelCase; this parameter is snake_case); while it is active, continue with `search_status` instead of repeating `search`. " +
+  "Pass the `searchRef` from that response as `search_ref` here (response field is camelCase; this parameter is snake_case); continue only while status is `PENDING`, `INDEXING`, or `SEARCHING`. Terminal `DEFERRED` and unrecognized statuses preserve disclosed evidence but stop that reference; use the evidence and run a new `search` later. " +
   "The tool waits up to 20 seconds by default; set `wait_timeout_ms` from 0 to 60000 to change that bounded wait.";
 
 export function createSearchStatusTool(

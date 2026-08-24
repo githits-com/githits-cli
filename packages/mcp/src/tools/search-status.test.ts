@@ -131,7 +131,9 @@ describe("searchStatusTool", () => {
     expect(tool.description).toContain("partial hits");
     expect(tool.description).toContain("serveable subset");
     expect(tool.description).toContain("allow_partial_results");
-    expect(tool.description).toContain("instead of repeating `search`");
+    expect(tool.description).toContain("`PENDING`, `INDEXING`, or `SEARCHING`");
+    expect(tool.description).toContain("Terminal `DEFERRED`");
+    expect(tool.description).toContain("run a new `search` later");
   });
 
   it("waits up to the shared default and forwards explicit wait windows", async () => {
