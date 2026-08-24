@@ -120,6 +120,36 @@ describe("target-resolution helpers", () => {
     expect(notes[0]).toContain("indexingRef=idx_123");
   });
 
+  it("renders exact provisional identity without falling back to a ref", () => {
+    const notes = buildTargetResolutionNotes({
+      requested: {
+        repoUrl: "https://github.com/foo/bar",
+        gitRef: "main",
+      },
+      resolvedRequested: {
+        repoUrl: "https://github.com/foo/bar",
+        gitRef: "main",
+        commitSha: "def456789abc",
+      },
+      served: {
+        repoUrl: "https://github.com/foo/bar",
+        gitRef: "main",
+        commitSha: "abc123789def",
+      },
+      freshness: "provisional",
+      freshnessReason: "exact_provisional",
+      indexingRef: "idx_123",
+      availableVersions: [],
+      availableRefs: [],
+    });
+
+    expect(notes).toEqual([
+      "provisional (still indexing) | served=github:foo/bar#main@abc1237 | indexingRef=idx_123",
+    ]);
+    expect(notes[0]).not.toContain("requested=");
+    expect(notes[0]).not.toContain("fresh=");
+  });
+
   it("renders indexing retry candidates for versions and refs", () => {
     expect(
       buildRetryCandidateLine({

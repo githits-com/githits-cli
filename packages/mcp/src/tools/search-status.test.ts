@@ -60,6 +60,70 @@ describe("searchStatusTool", () => {
     });
   });
 
+  it("preserves provisional hits and the search reference for continuation", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const incomplete = createIncompleteOutcome(
+      "INDEXING",
+      "search-ref-provisional",
+      { targetsReady: 1 },
+    );
+    incomplete.result = {
+      ...defaultUnifiedSearchOutcome.result,
+      sourceStatus: [
+        {
+          ...defaultUnifiedSearchOutcome.result.sourceStatus[0]!,
+          codeIndexState: "PROVISIONAL",
+          targetResolution: {
+            served: {
+              repoUrl: "https://github.com/foo/bar",
+              gitRef: "main",
+              commitSha: "abc123789def",
+            },
+            freshness: "provisional",
+            freshnessReason: "exact_provisional",
+            indexingRef: "idx_123",
+            availableVersions: [],
+            availableRefs: [],
+          },
+        },
+      ],
+    };
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() => Promise.resolve(incomplete)),
+      }),
+    );
+
+    const json = await tool.handler(
+      { search_ref: incomplete.searchRef, format: "json" },
+      {},
+    );
+    const payload = JSON.parse(json.content[0]?.text ?? "{}");
+    expect(payload).toMatchObject({
+      completed: false,
+      searchRef: "search-ref-provisional",
+      result: {
+        results: [{ type: "repository_code" }],
+        sourceStatus: [
+          {
+            codeIndexState: "PROVISIONAL",
+            targetResolution: {
+              freshness: "provisional",
+              freshnessReason: "exact_provisional",
+              indexingRef: "idx_123",
+            },
+          },
+        ],
+      },
+    });
+
+    const text = await tool.handler({ search_ref: incomplete.searchRef }, {});
+    expect(text.content[0]?.text).toContain("provisional (still indexing)");
+    expect(text.content[0]?.text).toContain("search-ref-provisional");
+  });
+
   it("describes partial-result follow-up behavior", () => {
     const tool = createSearchStatusTool(createMockCodeNavigationService());
 
