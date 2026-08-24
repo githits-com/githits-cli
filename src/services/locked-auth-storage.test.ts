@@ -1178,7 +1178,11 @@ describe("LockedAuthStorage", () => {
     const storage = new LockedAuthStorage(
       new AuthStorageImpl(fs, configDir),
       fsWithHome,
-      { isOwnerAlive, lockTimeoutMs: 100 },
+      {
+        isOwnerAlive,
+        lockTimeoutMs: 100,
+        getProcessStartedAt: testProcessStartedAt,
+      },
     );
 
     await expect(
