@@ -39,6 +39,13 @@ export interface AgentEvalOptions {
   reportingPath: string;
 }
 
+interface AgentEvalDependencies {
+  assertAgentAvailable(agent: AgentName): Promise<void>;
+  collectAgentVersions(): Promise<
+    [string | undefined, string | undefined, string | undefined]
+  >;
+}
+
 export interface McpServerConfig {
   mcpServers: {
     githits: {
@@ -653,6 +660,27 @@ async function assertOpenCodeAvailable(): Promise<void> {
     "opencode CLI not found or not executable. Install OpenCode before running live agent evals.",
   );
 }
+
+async function assertAgentAvailable(agent: AgentName): Promise<void> {
+  if (agent === "claude") {
+    await assertClaudeAvailable();
+  } else if (agent === "codex") {
+    await assertCodexAvailable();
+  } else {
+    await assertOpenCodeAvailable();
+  }
+}
+
+async function collectAgentVersions(): Promise<
+  [string | undefined, string | undefined, string | undefined]
+> {
+  return Promise.all([claudeVersion(), codexVersion(), opencodeVersion()]);
+}
+
+const DEFAULT_AGENT_EVAL_DEPENDENCIES: AgentEvalDependencies = {
+  assertAgentAvailable,
+  collectAgentVersions,
+};
 
 function extractFinalJson(stdout: string): unknown | undefined {
   const lines = stdout.split("\n").filter((line) => line.trim().length > 0);
@@ -1380,7 +1408,10 @@ async function runWorkload(
   }
 }
 
-export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
+export async function runAgentEval(
+  options: AgentEvalOptions,
+  dependencies: AgentEvalDependencies = DEFAULT_AGENT_EVAL_DEPENDENCIES,
+): Promise<void> {
   assert(
     existsSync(options.schemaPath),
     `Schema not found: ${options.schemaPath}`,
@@ -1392,20 +1423,14 @@ export async function runAgentEval(options: AgentEvalOptions): Promise<void> {
   const mcpConfig = buildMcpConfig(options);
 
   if (!options.dryRun) {
-    if (options.agent === "claude") {
-      await assertClaudeAvailable();
-    } else if (options.agent === "codex") {
-      await assertCodexAvailable();
-    } else {
-      await assertOpenCodeAvailable();
-    }
+    await dependencies.assertAgentAvailable(options.agent);
   }
 
   const versionsPromise: Promise<
     [string | undefined, string | undefined, string | undefined]
   > = options.dryRun
     ? Promise.resolve([undefined, undefined, undefined])
-    : Promise.all([claudeVersion(), codexVersion(), opencodeVersion()]);
+    : dependencies.collectAgentVersions();
   const [git, [claude, codex, opencode]] = await Promise.all([
     collectGitMetadata(options.repoRoot),
     versionsPromise,

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
 import {
-  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -11,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, delimiter, join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import {
   buildClaudeCommand,
   buildCodexCommand,
@@ -53,21 +52,6 @@ import {
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-function writeVersionCommandStub(binDir: string, command: string): string {
-  mkdirSync(binDir, { recursive: true });
-  const isWindows = process.platform === "win32";
-  const stubPath = join(binDir, isWindows ? `${command}.cmd` : command);
-  const version = `stub-${command}-version`;
-  writeFileSync(
-    stubPath,
-    isWindows
-      ? `@echo off\r\n> "%~f0.invoked" echo invoked\r\necho ${version}\r\n`
-      : `#!/bin/sh\n: > "$0.invoked"\nprintf '%s\\n' '${version}'\n`,
-  );
-  if (!isWindows) chmodSync(stubPath, 0o755);
-  return `${stubPath}.invoked`;
 }
 
 function createRunFixture(status = "success"): string {
@@ -722,13 +706,9 @@ describe("agent eval harness", () => {
 
   it("persists the enabled flag without probing agent versions during dry runs", async () => {
     const outDir = mkdtempSync(join(tmpdir(), "agent-eval-override-"));
-    const binDir = join(outDir, "agent-bin");
-    const originalPath = process.env.PATH;
+    let availabilityProbeCalls = 0;
+    let versionProbeCalls = 0;
     try {
-      const invocationMarkers = ["claude", "codex", "opencode"].map((command) =>
-        writeVersionCommandStub(binDir, command),
-      );
-      process.env.PATH = [binDir, originalPath].filter(Boolean).join(delimiter);
       const options = parseArgs(
         [
           "--experimental-tools",
@@ -740,7 +720,20 @@ describe("agent eval harness", () => {
         ],
         process.cwd(),
       );
-      await runAgentEval(options);
+      await runAgentEval(options, {
+        assertAgentAvailable: () => {
+          availabilityProbeCalls += 1;
+          return Promise.resolve();
+        },
+        collectAgentVersions: () => {
+          versionProbeCalls += 1;
+          return Promise.resolve([
+            "stub-claude-version",
+            "stub-codex-version",
+            "stub-opencode-version",
+          ]);
+        },
+      });
       const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
       const workloadDir = join(outDir, "workloads", "express-router");
       const dryRun = JSON.parse(
@@ -756,9 +749,8 @@ describe("agent eval harness", () => {
       expect(run.claudeVersion).toBeUndefined();
       expect(run.codexVersion).toBeUndefined();
       expect(run.opencodeVersion).toBeUndefined();
-      for (const marker of invocationMarkers) {
-        expect(existsSync(marker)).toBe(false);
-      }
+      expect(availabilityProbeCalls).toBe(0);
+      expect(versionProbeCalls).toBe(0);
       expect(dryRun.experimentalTools).toBe(true);
       expect(mcp.mcpServers.githits.args).toContain("--experimental-tools");
       expect(
@@ -766,8 +758,39 @@ describe("agent eval harness", () => {
       ).toContain("--experimental-tools");
       expect(openCode.mcp.githits.command).toContain("--experimental-tools");
     } finally {
-      if (originalPath === undefined) delete process.env.PATH;
-      else process.env.PATH = originalPath;
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("uses injected agent probes for live run metadata", async () => {
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-probes-"));
+    const availabilityProbes: string[] = [];
+    let versionProbeCalls = 0;
+    try {
+      const options = parseArgs(["--out", outDir], process.cwd());
+      options.workloads = [];
+      await runAgentEval(options, {
+        assertAgentAvailable: (agent) => {
+          availabilityProbes.push(agent);
+          return Promise.resolve();
+        },
+        collectAgentVersions: () => {
+          versionProbeCalls += 1;
+          return Promise.resolve([
+            "stub-claude-version",
+            "stub-codex-version",
+            "stub-opencode-version",
+          ]);
+        },
+      });
+
+      const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
+      expect(availabilityProbes).toEqual(["claude"]);
+      expect(versionProbeCalls).toBe(1);
+      expect(run.claudeVersion).toBe("stub-claude-version");
+      expect(run.codexVersion).toBe("stub-codex-version");
+      expect(run.opencodeVersion).toBe("stub-opencode-version");
+    } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
   });
