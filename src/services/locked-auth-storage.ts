@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 import { promisify } from "node:util";
 import { DEFAULT_FETCH_TIMEOUT_MS } from "@githits/core-internal";
@@ -299,12 +299,13 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       createdAt: new Date().toISOString(),
       processStartedAt,
     };
-    // Exclusive creation is the lock handoff primitive. Keep this direct
-    // write instead of replacing it with a non-exclusive filesystem helper.
-    await writeFile(this.ownerPath(), JSON.stringify(owner), {
-      mode: 0o600,
-      flag: "wx",
-    });
+    // Exclusive creation is the lock handoff primitive. The filesystem
+    // dependency must preserve wx semantics rather than overwrite a contender.
+    await this.fileSystemService.writeFileExclusive(
+      this.ownerPath(),
+      JSON.stringify(owner),
+      0o600,
+    );
     this.currentOwner = owner;
   }
 
@@ -330,7 +331,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     try {
       // Contenders that proved the same owner dead serialize on one stable,
       // owner-scoped claim, even if the lock directory is later reused.
-      await writeFile(claimPath, "", { mode: 0o600, flag: "wx" });
+      await this.fileSystemService.writeFileExclusive(claimPath, "", 0o600);
     } catch {
       // An existing claim or any uncertain filesystem result must retain the
       // lock. The normal acquisition loop remains bounded by its timeout.

@@ -123,6 +123,78 @@ describe("LockedAuthStorage", () => {
     expect(await fs.exists(lockPath)).toBe(false);
   });
 
+  it("keeps a concurrent holder when another acquisition loses owner creation", async () => {
+    const { fs, fsWithHome, lockPath } = await createStoragePaths();
+    const ownerPath = join(lockPath, "owner.json");
+    const firstOwnerWriteStarted = createDeferred();
+    const continueFirstOwnerWrite = createDeferred();
+    const holderEntered = createDeferred();
+    const loserObservedHolder = createDeferred();
+    const startNestedLock = createDeferred();
+    const nestedLockFinished = createDeferred();
+    const releaseHolder = createDeferred();
+    const writeFileExclusive = fsWithHome.writeFileExclusive.bind(fsWithHome);
+    let ownerWriteCount = 0;
+    fsWithHome.writeFileExclusive = mock(
+      async (path: string, contents: string, mode?: number) => {
+        if (path === ownerPath) {
+          ownerWriteCount += 1;
+          if (ownerWriteCount === 1) {
+            firstOwnerWriteStarted.resolve();
+            await continueFirstOwnerWrite.promise;
+          }
+        }
+        await writeFileExclusive(path, contents, mode);
+      },
+    );
+    const storage = new LockedAuthStorage(createMockAuthStorage(), fsWithHome, {
+      lockTimeoutMs: 1_000,
+      getProcessStartedAt: testProcessStartedAt,
+      isOwnerAlive: async () => {
+        loserObservedHolder.resolve();
+        return true;
+      },
+    });
+    let firstEntered = false;
+    let nestedLockError: unknown;
+
+    const firstRun = storage.withAuthStorageLock(async () => {
+      firstEntered = true;
+    });
+    await firstOwnerWriteStarted.promise;
+    await fsWithHome.deleteDirIfEmpty(lockPath);
+    const holderRun = storage.withAuthStorageLock(async () => {
+      holderEntered.resolve();
+      await startNestedLock.promise;
+      try {
+        await storage.withAuthStorageLock(async () => undefined);
+      } catch (error) {
+        nestedLockError = error;
+      } finally {
+        nestedLockFinished.resolve();
+      }
+      await releaseHolder.promise;
+    });
+
+    try {
+      await holderEntered.promise;
+      continueFirstOwnerWrite.resolve();
+      await loserObservedHolder.promise;
+      startNestedLock.resolve();
+      await nestedLockFinished.promise;
+      expect(nestedLockError).toBeUndefined();
+    } finally {
+      continueFirstOwnerWrite.resolve();
+      startNestedLock.resolve();
+      releaseHolder.resolve();
+    }
+    await Promise.all([firstRun, holderRun]);
+
+    expect(firstEntered).toBe(true);
+    expect(ownerWriteCount).toBe(3);
+    expect(await fs.exists(lockPath)).toBe(false);
+  });
+
   it("retries an unavailable current process identity", async () => {
     const { fsWithHome } = await createStoragePaths();
     let lookupCount = 0;

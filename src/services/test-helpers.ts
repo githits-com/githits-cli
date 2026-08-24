@@ -240,6 +240,7 @@ export function createMockFileSystemService(
       return Promise.reject(error);
     }),
     writeFile: mock(() => Promise.resolve()),
+    writeFileExclusive: mock(() => Promise.resolve()),
     deleteFile: mock(() => Promise.resolve()),
     deleteDirIfEmpty: mock(() => Promise.resolve()),
     exists: mock(() => Promise.resolve(false)),
