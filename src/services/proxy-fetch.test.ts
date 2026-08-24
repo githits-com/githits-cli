@@ -110,6 +110,16 @@ describe("createCliFetch", () => {
     ).toBeUndefined();
   });
 
+  it("ignores deleted Windows proxy aliases retained by Bun", () => {
+    const env: Record<string, string | undefined> = {};
+    Object.defineProperty(env, "http_proxy", {
+      configurable: true,
+      value: "not a proxy secret",
+    });
+
+    expect(getProxyConfig(env).httpProxy).toBeUndefined();
+  });
+
   it("uses HTTP_PROXY for HTTPS targets when HTTPS_PROXY is absent", () => {
     const proxy = resolveProxyForUrl(new URL("https://api.githits.com"), {
       httpProxy: { name: "HTTP_PROXY", value: "http://proxy.example:8080" },

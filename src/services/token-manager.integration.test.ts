@@ -1,4 +1,11 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import {
+  afterEach,
+  describe,
+  expect,
+  it,
+  mock,
+  setDefaultTimeout,
+} from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,6 +29,10 @@ import { TokenManager } from "./token-manager.js";
 describe("TokenManager file-backed integration", () => {
   const baseUrl = "https://mcp.githits.com";
   const tempDirs: string[] = [];
+
+  // These tests intentionally exercise the production process-identity probe,
+  // which is capped at five seconds per PowerShell invocation.
+  setDefaultTimeout(20_000);
 
   afterEach(async () => {
     await Promise.all(
@@ -370,7 +381,7 @@ describe("TokenManager file-backed integration", () => {
         refreshToken: "refreshed-refresh-token",
       }),
     );
-  }, 20_000);
+  });
 
   it("makes one endpoint refresh for many simultaneous force refresh retries", async () => {
     const storageCount = 12;
@@ -424,7 +435,7 @@ describe("TokenManager file-backed integration", () => {
         refreshToken: "retry-refresh-token",
       }),
     );
-  }, 20_000);
+  });
 
   it("does not overwrite an external login written while refresh is in flight", async () => {
     const { firstStorage, secondStorage } = await createRealStorages();
@@ -716,28 +727,43 @@ describe("TokenManager file-backed integration", () => {
     waitForCalls(count: number): Promise<void>;
     resolveAll(): void;
   } {
-    const pending: Array<(response: RefreshTokenResponse) => void> = [];
+    interface PendingRefresh {
+      index: number;
+      resolve: (response: RefreshTokenResponse) => void;
+      reject: (error: Error) => void;
+    }
+
+    const pending: PendingRefresh[] = [];
     const waiters: Array<{ count: number; resolve: () => void }> = [];
-    const refreshAccessToken = mock(
-      () =>
-        new Promise<RefreshTokenResponse>((resolve) => {
-          pending.push(resolve);
-          for (const waiter of waiters) {
-            if (pending.length >= waiter.count) waiter.resolve();
-          }
-        }),
-    );
+    let callCount = 0;
+    let released = false;
+    const refreshAccessToken = mock(() => {
+      const index = callCount++;
+      const response = responses[index];
+      if (released) {
+        return response
+          ? Promise.resolve(response)
+          : Promise.reject(new Error(`Missing response for call ${index}`));
+      }
+      return new Promise<RefreshTokenResponse>((resolve, reject) => {
+        pending.push({ index, resolve, reject });
+        for (const waiter of waiters) {
+          if (callCount >= waiter.count) waiter.resolve();
+        }
+      });
+    });
     return {
       refreshAccessToken,
       waitForCalls: (count) =>
-        pending.length >= count
+        callCount >= count
           ? Promise.resolve()
           : new Promise((resolve) => waiters.push({ count, resolve })),
       resolveAll: () => {
-        for (const [index, resolve] of pending.entries()) {
+        released = true;
+        for (const { index, resolve, reject } of pending.splice(0)) {
           const response = responses[index];
-          if (!response) throw new Error(`Missing response for call ${index}`);
-          resolve(response);
+          if (response) resolve(response);
+          else reject(new Error(`Missing response for call ${index}`));
         }
       },
     };

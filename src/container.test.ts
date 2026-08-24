@@ -67,19 +67,19 @@ async function withEnvVars<T>(
 }
 
 async function withoutProxyEnv<T>(fn: () => Promise<T>): Promise<T> {
-  return withEnvVars(
-    {
-      HTTP_PROXY: undefined,
-      HTTPS_PROXY: undefined,
-      NO_PROXY: undefined,
-      http_proxy: undefined,
-      https_proxy: undefined,
-      no_proxy: undefined,
-      NODE_USE_ENV_PROXY: undefined,
-      NODE_OPTIONS: undefined,
-    },
-    fn,
-  );
+  const values: Record<string, string | undefined> = {
+    HTTP_PROXY: undefined,
+    HTTPS_PROXY: undefined,
+    NO_PROXY: undefined,
+    NODE_USE_ENV_PROXY: undefined,
+    NODE_OPTIONS: undefined,
+  };
+  if (process.platform !== "win32") {
+    values.http_proxy = undefined;
+    values.https_proxy = undefined;
+    values.no_proxy = undefined;
+  }
+  return withEnvVars(values, fn);
 }
 
 describe("container auth dependencies", () => {
