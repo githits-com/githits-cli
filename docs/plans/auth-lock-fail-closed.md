@@ -111,8 +111,8 @@ to detect normal owner release. Stale reclamation becomes conservative:
    PID reuse.
 5. An unavailable or failed start-time observation retains the lock.
 6. Unreadable, malformed, or invalid owner metadata retains the lock; only a
-   genuinely missing owner file may enter age-bounded, empty-directory-only
-   ownerless recovery.
+   genuinely missing owner file may enter age-bounded ownerless recovery from
+   an empty directory or one containing only valid reclaim claims.
 7. After proving an owner dead, a contender exclusively creates a reclaim claim
    derived from a SHA-256 hash of the owner ID. Only the claim holder may remove
    the matching `owner.json`, release the claim, and remove the now-empty lock
@@ -140,9 +140,10 @@ while removing cleanup files. A release-time owner read or deletion failure
 retains the lock while that process lives and becomes reclaimable after exit if
 the metadata can be read. Persistently malformed or unreadable owner metadata,
 unknown ownerless entries, matching owner-scoped claims abandoned beside their
-retained dead-owner metadata, or cleanup files that remain unremovable after
-bounded retries leave a fail-closed lock; each attempt times out until the user
-stops all GitHits CLI and MCP processes and removes the directory. Long-running
+retained dead-owner metadata, cleanup files that remain unremovable after
+bounded retries, or lock directories that cannot be removed leave a fail-closed
+lock; each attempt times out until the user stops all GitHits CLI and MCP
+processes and removes the directory. Long-running
 local MCP processes must be restarted after upgrading because older processes
 do not honor reclaim claims. Rollback is a normal code revert; no migration is
 required.
