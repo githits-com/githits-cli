@@ -317,6 +317,8 @@ export type UnifiedSearchDocumentationContributorState =
   | "PENDING"
   | "UNAVAILABLE";
 
+// Closed GraphQL producer contract: roll out new freshness values to consumers first;
+// unlike backend-owned session status, unknown freshness values must fail validation.
 export type UnifiedSearchDocumentationFreshness =
   | "CURRENT"
   | "PROVISIONAL"

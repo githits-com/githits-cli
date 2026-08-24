@@ -3,4 +3,4 @@
 "@githits/mcp": patch
 ---
 
-- **Expose provisional search evidence** - Accept and render queryable `PROVISIONAL` repository and documentation freshness while preserving exact served identity, indexing guidance, hits, and `searchRef` continuation.
+- **Expose provisional search evidence** - Accept and render queryable `PROVISIONAL` repository and documentation freshness while preserving exact served identity, indexing guidance, hits, and `searchRef` continuation only for active sessions.
