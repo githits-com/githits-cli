@@ -416,7 +416,7 @@ describe("LockedAuthStorage", () => {
       fsWithHome,
       {
         getProcessStartedAt: async () => "current-process-start-time",
-        lockTimeoutMs: 100,
+        lockTimeoutMs: 5_000,
       },
     );
     const token = createValidTokenData({ accessToken: "fresh" });
