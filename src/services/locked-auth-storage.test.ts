@@ -447,6 +447,43 @@ describe("LockedAuthStorage", () => {
     expect(await storage.loadTokens(baseUrl)).toEqual(token);
   });
 
+  it("keeps an old ownerless lock when an owner appears before deletion", async () => {
+    const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
+    await mkdir(lockPath, { recursive: true, mode: 0o700 });
+    const staleAt = new Date(Date.now() - 10_000);
+    await utimes(lockPath, staleAt, staleAt);
+    const deleteEmptyDir = fsWithHome.deleteDirIfEmpty.bind(fsWithHome);
+    fsWithHome.deleteDirIfEmpty = mock(async (path: string) => {
+      await writeFile(
+        join(lockPath, "owner.json"),
+        JSON.stringify({
+          id: "new-live-owner",
+          pid: process.pid,
+          createdAt: new Date().toISOString(),
+          processStartedAt: "test-start-time",
+        }),
+      );
+      await deleteEmptyDir(path);
+    });
+    const storage = new LockedAuthStorage(
+      new AuthStorageImpl(fs, configDir),
+      fsWithHome,
+      {
+        lockTimeoutMs: 100,
+        getProcessStartedAt: testProcessStartedAt,
+      },
+    );
+
+    await expect(
+      storage.saveTokens(
+        baseUrl,
+        createValidTokenData({ accessToken: "must-not-save" }),
+      ),
+    ).rejects.toThrow("Timed out waiting for GitHits auth storage lock");
+    expect(fsWithHome.deleteDirIfEmpty).toHaveBeenCalledTimes(1);
+    expect(await fs.exists(join(lockPath, "owner.json"))).toBe(true);
+  });
+
   it("keeps an old live lock when its owner file is temporarily unreadable", async () => {
     const { fs, fsWithHome, configDir, lockPath } = await createStoragePaths();
     await mkdir(lockPath, { recursive: true, mode: 0o700 });

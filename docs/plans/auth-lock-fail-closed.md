@@ -88,7 +88,8 @@ to detect normal owner release. Stale reclamation becomes conservative:
    PID reuse.
 5. An unavailable or failed start-time observation retains the lock.
 6. Unreadable, malformed, or invalid owner metadata retains the lock; only a
-   genuinely missing owner file may enter age-bounded ownerless recovery.
+   genuinely missing owner file may enter age-bounded, empty-directory-only
+   ownerless recovery.
 
 Stale-owner inspection runs immediately on contention and then at a bounded
 interval, avoiding repeated PowerShell or `ps` process creation while an owner
