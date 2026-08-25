@@ -1,19 +1,16 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it } from "bun:test";
+import { createPlatformMockFileSystemService } from "../../services/test-helpers.js";
 import {
-  createMockFileSystemService,
-  createPlatformMockFileSystemService,
-} from "../../services/test-helpers.js";
-import {
+  type ClaudeMcpInvocation,
   parseClaudeUserMcpState,
-  readClaudeUserMcpState,
   resolveClaudeUserConfigPath,
 } from "./claude-user-config.js";
 
-const CANONICAL_ENTRY = {
-  type: "stdio",
+const CANONICAL_INVOCATION: ClaudeMcpInvocation = {
   command: "npx",
   args: ["-y", "githits@latest", "mcp", "start"],
 };
+const CANONICAL_ENTRY = { type: "stdio", ...CANONICAL_INVOCATION };
 
 describe("resolves Claude user config paths", () => {
   it("uses the home directory by default", () => {
@@ -58,6 +55,7 @@ describe("classifies Claude user MCP state", () => {
     expect(
       parseClaudeUserMcpState(
         JSON.stringify({ mcpServers: { githits: CANONICAL_ENTRY } }),
+        CANONICAL_INVOCATION,
       ),
     ).toEqual({ status: "configured" });
     expect(
@@ -69,8 +67,36 @@ describe("classifies Claude user MCP state", () => {
             githits: { command: "npx", args: CANONICAL_ENTRY.args },
           },
         }),
+        CANONICAL_INVOCATION,
       ),
     ).toEqual({ status: "configured" });
+  });
+
+  it("honors an alternate injected invocation", () => {
+    const alternateInvocation: ClaudeMcpInvocation = {
+      command: "bun",
+      args: ["run", "githits-mcp"],
+    };
+
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({
+          mcpServers: {
+            githits: {
+              command: alternateInvocation.command,
+              args: alternateInvocation.args,
+            },
+          },
+        }),
+        alternateInvocation,
+      ),
+    ).toEqual({ status: "configured" });
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({ mcpServers: { githits: CANONICAL_ENTRY } }),
+        alternateInvocation,
+      ),
+    ).toEqual({ status: "non_canonical", reason: "non_canonical" });
   });
 
   it("classifies valid but non-canonical entries", () => {
@@ -84,102 +110,70 @@ describe("classifies Claude user MCP state", () => {
       expect(
         parseClaudeUserMcpState(
           JSON.stringify({ mcpServers: { githits: entry } }),
+          CANONICAL_INVOCATION,
         ),
       ).toEqual({ status: "non_canonical", reason: "non_canonical" });
     }
   });
 
   it("classifies absent and invalid shapes", () => {
-    expect(parseClaudeUserMcpState("{}")).toEqual({
+    expect(parseClaudeUserMcpState("{}", CANONICAL_INVOCATION)).toEqual({
       status: "not_configured",
       reason: "missing_mcp_servers",
     });
-    expect(parseClaudeUserMcpState('{"mcpServers":{}}')).toEqual({
+    expect(
+      parseClaudeUserMcpState('{"mcpServers":{}}', CANONICAL_INVOCATION),
+    ).toEqual({
       status: "not_configured",
       reason: "missing_server",
     });
-    expect(parseClaudeUserMcpState("null")).toEqual({
+    expect(parseClaudeUserMcpState("null", CANONICAL_INVOCATION)).toEqual({
       status: "probe_failed",
       reason: "invalid_root",
     });
-    expect(parseClaudeUserMcpState('{"mcpServers":[]}')).toEqual({
+    expect(
+      parseClaudeUserMcpState('{"mcpServers":[]}', CANONICAL_INVOCATION),
+    ).toEqual({
       status: "probe_failed",
       reason: "invalid_mcp_servers",
     });
-    expect(parseClaudeUserMcpState('{"mcpServers":{"githits":null}}')).toEqual({
+    expect(
+      parseClaudeUserMcpState(
+        '{"mcpServers":{"githits":null}}',
+        CANONICAL_INVOCATION,
+      ),
+    ).toEqual({
       status: "probe_failed",
       reason: "invalid_server",
     });
     expect(
       parseClaudeUserMcpState(
         '{"mcpServers":{"githits":{"args":["safe",42]}}}',
+        CANONICAL_INVOCATION,
       ),
     ).toEqual({ status: "probe_failed", reason: "invalid_server" });
-  });
-});
-
-describe("reads Claude user MCP state safely", () => {
-  it("maps a missing file to not configured without exposing input", async () => {
-    const fileSystem = createMockFileSystemService();
-    const result = await readClaudeUserMcpState(fileSystem);
-
-    expect(result).toEqual({
-      status: "not_configured",
-      reason: "missing_file",
-      path: "/home/test/.claude.json",
-    });
-  });
-
-  it("sanitizes IO and parse failures", async () => {
     const secret = "super-secret-credential";
-    const unreadable = new Error(secret) as NodeJS.ErrnoException;
-    unreadable.code = "EACCES";
-    const unreadableFileSystem = createMockFileSystemService({
-      readFile: mock(() => Promise.reject(unreadable)),
-    });
-    const unreadableResult = await readClaudeUserMcpState(unreadableFileSystem);
-    expect(unreadableResult).toEqual({
-      status: "probe_failed",
-      reason: "unreadable",
-      path: "/home/test/.claude.json",
-    });
-    expect(JSON.stringify(unreadableResult)).not.toContain(secret);
-
-    const malformedFileSystem = createMockFileSystemService({
-      readFile: mock(() =>
-        Promise.resolve(`{"mcpServers":{"githits":{"token":"${secret}"`),
-      ),
-    });
-    const malformedResult = await readClaudeUserMcpState(malformedFileSystem);
+    const malformedResult = parseClaudeUserMcpState(
+      `{"mcpServers":{"githits":{"token":"${secret}"`,
+      CANONICAL_INVOCATION,
+    );
     expect(malformedResult).toEqual({
       status: "probe_failed",
       reason: "invalid_json",
-      path: "/home/test/.claude.json",
     });
     expect(JSON.stringify(malformedResult)).not.toContain(secret);
-  });
 
-  it("returns only state and path for a secret-bearing canonical document", async () => {
-    const secret = "super-secret-credential";
-    const fileSystem = createMockFileSystemService({
-      readFile: mock(() =>
-        Promise.resolve(
-          JSON.stringify({
-            sessionToken: secret,
-            mcpServers: {
-              unrelated: { headers: { authorization: secret } },
-              githits: { ...CANONICAL_ENTRY, env: { TOKEN: secret } },
-            },
-          }),
-        ),
-      ),
-    });
-
-    const result = await readClaudeUserMcpState(fileSystem);
-    expect(result).toEqual({
-      status: "configured",
-      path: "/home/test/.claude.json",
-    });
-    expect(JSON.stringify(result)).not.toContain(secret);
+    const validResult = parseClaudeUserMcpState(
+      JSON.stringify({
+        sessionToken: secret,
+        mcpServers: {
+          unrelated: { headers: { authorization: secret } },
+          githits: { ...CANONICAL_ENTRY, env: { TOKEN: secret } },
+        },
+      }),
+      CANONICAL_INVOCATION,
+    );
+    expect(validResult).toEqual({ status: "configured" });
+    expect(JSON.stringify(validResult)).not.toContain(secret);
   });
 });
