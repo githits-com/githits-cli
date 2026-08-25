@@ -340,14 +340,40 @@ objects occur once; `best` and `protectedMatches` use canonical-key references.
 Reference-only best/protected targets outside the ranked list produce minimal
 candidate objects with `target`, `kind`, and `confidence`, because no redundant
 detail fields are requested for those lists. Detailed ranking fields are fetched
-only for JSON. The actionability rule does not add or remove JSON fields. Null
-fields are omitted and enum values are lowercase. Errors use the standard JSON
-envelope on stderr with clean stdout.
+only for JSON. The always-selected non-null
+`latestVersionMaliciousStatus` candidate field is preserved in JSON as lowercase
+`latestVersionMaliciousStatus`. Nullable `latestVersionMaliciousEvidence` is
+preserved for affected and uncertain candidates with exact `osvId` values,
+lowercase `classificationReasons`, `totalCount`, and `truncated`. Null fields are
+omitted and enum values are lowercase. Errors use the standard JSON envelope on
+stderr with clean stdout.
+
+Terminal and local MCP text omit `CLEAR` and `NOT_APPLICABLE` decisions. They
+render concise warnings only for affected, uncertain, unsupported, or blocking
+unavailable evidence; terminal warnings are red. Reference-only entries remain
+non-actionable when they are not backed by a full candidate.
+Affected and uncertain warnings link every returned status-relevant advisory at
+`https://osv.dev/vulnerability/<percent-encoded-osv-id>`. Uncertain warnings also
+summarize the backend classification reasons; truncated evidence reports the
+number of omitted advisories. The warning never restores a normal cross-tool
+handoff.
+`CLEAR` means only that no persisted active MAL evidence affects the displayed
+latest version; it is not a vulnerability-free claim. `AFFECTED` means active
+malicious evidence affects that version. `UNKNOWN` means active malicious
+evidence exists but the displayed version or ranges cannot be classified
+reliably. `NOT_APPLICABLE` is the non-package state. Direct continuation requires
+the existing non-ambiguous `EXACT`/`HIGH` identity decision and a matching full
+candidate whose status is exactly `CLEAR` or `NOT_APPLICABLE`. Affected, unknown,
+missing, and unrecognized future values fail closed and emit no normal cross-tool
+next action. Ranking and filtering remain backend-owned.
 
 The command and local experimental MCP adapter use an internal service and do
 not change the public `@githits/mcp` service interface. Its GraphQL selection keeps `best` and
 `protectedMatches` to `kind`, `canonicalKey`, and `confidence`; full compact and
-conditional JSON fields are selected only for ranked `candidates`. This keeps
+conditional JSON fields are selected only for ranked `candidates`; the
+malicious-content decision is part of the compact candidate fields because every
+text surface consumes it. Its bounded advisory evidence is selected alongside the
+decision for the same reason. This keeps
 the operation below production's GraphQL complexity limit while preserving all
 fields consumed by each output mode. The CLI deliberately does not select
 expensive per-candidate `inspection` metadata. HTTP, transport, GraphQL, auth

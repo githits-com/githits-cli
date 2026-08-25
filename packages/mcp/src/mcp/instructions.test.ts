@@ -38,6 +38,11 @@ describe("buildLocalMcpInstructions", () => {
     expect(instructions).toContain("`code_diff`");
     expect(instructions).toContain("canonical `registry:name`");
     expect(instructions).toContain("EXACT/HIGH");
+    expect(instructions).toContain("CLEAR or NOT_APPLICABLE");
+    expect(instructions).toContain(
+      "Other or missing statuses are non-actionable",
+    );
+    expect(instructions).toContain("CLEAR is not a vulnerability-free claim");
     expect(instructions).toContain("MEDIUM/LOW");
     expect(instructions).toContain("never auto-select");
     expect(instructions).toContain("`pkg_upgrade_review`");
@@ -50,7 +55,7 @@ describe("buildLocalMcpInstructions", () => {
     expect(instructions).toContain("targets.\n\n- `resolve_target`");
     expect(instructions).toContain("auto-select.\n- `code_diff`");
     expect(instructions.length - buildMcpInstructions().length).toBeLessThan(
-      900,
+      1_200,
     );
     expect(instructions).not.toContain("Issue reporting");
     expect(instructions).not.toContain("accepted: false");

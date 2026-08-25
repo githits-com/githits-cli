@@ -8,10 +8,10 @@ The CLI exposes MCP tools that mirror the backend's MCP server. This document ex
 
 GitHits has two MCP server implementations:
 
-- **Backend** (`githits-backend` / PkgSeer MCP) — Python/FastMCP, runs as hosted MCP services. Production exposes both the core example-search workflow (`get_example`, `search_language`, `feedback`) and indexed package/source tooling.
+- **Backend** (`githits-backend`) — Python/FastMCP, runs as hosted MCP services. Production exposes both the core example-search workflow (`get_example`, `search_language`, `feedback`) and indexed package/source tooling.
 - **CLI** (`githits-cli`) — TypeScript/MCP SDK, runs locally via `githits mcp start`. Surfaces the same public tool families, including unified `search`, package intelligence (`pkg_*`), docs (`docs_*`), and code navigation (`code_*`).
 
-The CLI mirrors the production MCP tool contract where equivalent tools exist. Core example-search tool descriptions are kept aligned with GitHits backend wording; indexed package/source tool descriptions are kept aligned with the PkgSeer/GitHits indexed-service contract.
+The CLI mirrors the production MCP tool contract where equivalent tools exist. Core example-search tool descriptions are kept aligned with GitHits backend wording; indexed package/source tool descriptions are kept aligned with the backend contract.
 
 ## Current Tools
 
@@ -283,10 +283,12 @@ The MCP server advertises a short, cross-tool orientation via the protocol's ser
   composer when the host policy enables experimental tools. It names only the
   registered local `resolve_target`/`code_diff` subset, routes fuzzy identity
   before canonical diff evidence, and permits direct reuse of a resolved target
-  only for a non-ambiguous `EXACT` or `HIGH` best result. `MEDIUM`, `LOW`, and
-  ambiguous results require narrowing or an explicit choice. The block also
-  states public-OSS/privacy limits and adds opt-in negative-feedback guidance
-  only for the configured reporting scope.
+  only for a non-ambiguous `EXACT` or `HIGH` best result with `CLEAR` or
+  `NOT_APPLICABLE` malicious-content status. `CLEAR` is not a vulnerability-free
+  claim. Other or missing statuses are non-actionable; `MEDIUM`, `LOW`, and
+  ambiguous results require narrowing or an explicit actionable choice. The
+  block also states public-OSS/privacy limits and adds opt-in negative-feedback
+  guidance only for the configured reporting scope.
   Disabled or dormant reporting returns the public builder's exact baseline;
   public and remote servers never receive this block.
 

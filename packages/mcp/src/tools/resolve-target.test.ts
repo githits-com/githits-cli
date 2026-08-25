@@ -53,6 +53,7 @@ function result(
         registry: "NPM",
         stars: 66_000,
         downloadsLastMonth: 89_000_000,
+        latestVersionMaliciousStatus: "CLEAR",
         docsAvailable: true,
         codeAvailable: true,
       },
@@ -113,6 +114,8 @@ describe("resolve_target MCP adapter", () => {
       "HIGH",
       "MEDIUM",
       "LOW",
+      "missing statuses",
+      "CLEAR is not a vulnerability-free claim",
       "explicit choice",
     ]) {
       expect(DESCRIPTION).toContain(phrase);
@@ -145,6 +148,8 @@ describe("resolve_target MCP adapter", () => {
     expect(text).toContain("66k");
     expect(text).toContain("89M");
     expect(text).toContain("Fast web framework");
+    expect(text).not.toContain("Warning:");
+    expect(text).not.toContain("malicious");
     expect(text).toContain(
       'Next: pass the canonical target "npm:express" to the next MCP tool.',
     );
@@ -165,8 +170,14 @@ describe("resolve_target MCP adapter", () => {
         canonicalKey: "npm:express",
         confidence,
       };
+      const bestCandidate = {
+        ...best,
+        latestVersionMaliciousStatus: "CLEAR",
+        docsAvailable: false,
+        codeAvailable: false,
+      };
       const text = formatResolveTargetMcpText(
-        result({ best, candidates: [], protectedMatches: [] }),
+        result({ best, candidates: [bestCandidate], protectedMatches: [] }),
         { name: "express" },
       );
 
@@ -177,10 +188,98 @@ describe("resolve_target MCP adapter", () => {
         'Next: pass the canonical target "npm:express" to the next MCP tool.',
       );
       expect(text).not.toContain("Unconfirmed ranked candidates:");
+      expect(text).not.toContain("Warning:");
+      expect(text).not.toContain("malicious");
     }
   });
 
-  it("requires narrowing or an explicit choice for MEDIUM and LOW results", () => {
+  it("fails closed for affected, unknown, and future malicious statuses", () => {
+    const expectedEvidence = new Map([
+      [
+        "AFFECTED",
+        "Malicious content affects the latest version. Do not use the latest version. Verify another version against the linked evidence.",
+      ],
+      [
+        "UNKNOWN",
+        "Malicious-content status is uncertain. Verify the advisory details before using this version.",
+      ],
+      [
+        "REVIEW_REQUIRED",
+        "Unrecognized malicious-content status: REVIEW_REQUIRED. Do not use this target.",
+      ],
+    ]);
+
+    for (const [latestVersionMaliciousStatus, evidence] of expectedEvidence) {
+      const best = {
+        kind: "PACKAGE",
+        canonicalKey: "npm:express",
+        confidence: "EXACT",
+      };
+      const text = formatResolveTargetMcpText(
+        result({
+          best,
+          candidates: [
+            {
+              ...best,
+              latestVersionMaliciousStatus,
+              docsAvailable: false,
+              codeAvailable: false,
+            },
+          ],
+          protectedMatches: [],
+        }),
+        { name: "express" },
+      );
+
+      expect(text).toContain(evidence);
+      expect(text).toContain("Warning:");
+      expect(text).toContain("Candidates:\n  1. npm:express");
+      expect(text).not.toContain("Next:");
+      expect(text).not.toContain("pass the canonical target");
+      expect(text).not.toContain("next MCP tool");
+    }
+  });
+
+  it("renders malicious advisory links and unknown reasons without a handoff", () => {
+    const best = {
+      kind: "PACKAGE",
+      canonicalKey: "npm:lookalike",
+      confidence: "EXACT",
+    };
+    const text = formatResolveTargetMcpText(
+      result({
+        best,
+        candidates: [
+          {
+            ...best,
+            latestVersionMaliciousStatus: "UNKNOWN",
+            latestVersionMaliciousEvidence: {
+              advisories: [
+                {
+                  osvId: "MAL-2026-1234",
+                  classificationReasons: ["MISSING_DISPLAYED_VERSION"],
+                },
+              ],
+              totalCount: 1,
+              truncated: false,
+            },
+            docsAvailable: false,
+            codeAvailable: false,
+          },
+        ],
+        protectedMatches: [],
+      }),
+      { name: "lookalike" },
+    );
+
+    expect(text).toContain(
+      "Warning: Malicious-content status is uncertain — MAL-2026-1234 (latest version missing): https://osv.dev/vulnerability/MAL-2026-1234. Verify the advisory details before using this version.",
+    );
+    expect(text).not.toContain("Next:");
+    expect(text).not.toContain("next MCP tool");
+  });
+
+  it("restricts MEDIUM and LOW continuation when reference evidence is unavailable", () => {
     for (const confidence of ["MEDIUM", "LOW"] as const) {
       const best = {
         kind: "PACKAGE",
@@ -193,6 +292,7 @@ describe("resolve_target MCP adapter", () => {
           candidates: [
             {
               ...best,
+              latestVersionMaliciousStatus: "CLEAR",
               docsAvailable: false,
               codeAvailable: false,
             },
@@ -200,6 +300,7 @@ describe("resolve_target MCP adapter", () => {
               kind: "REPOSITORY",
               canonicalKey: "github:expressjs/express",
               confidence,
+              latestVersionMaliciousStatus: "NOT_APPLICABLE",
               docsAvailable: false,
               codeAvailable: false,
             },
@@ -222,12 +323,47 @@ describe("resolve_target MCP adapter", () => {
         "jsr:@express/core [exact; package] · protected exact-name match",
       );
       expect(text).not.toContain("\nCandidates:\n");
-      expect(text).toContain("narrow the name or filters");
-      expect(text).toContain("explicitly choose a candidate");
-      expect(text).toContain("do not pass the best result automatically");
+      expect(text).toContain(
+        "Warning: Some candidates are not actionable. Narrow the result before continuing.",
+      );
+      expect(text.match(/Warning:/g)).toHaveLength(1);
+      expect(text).not.toContain("Next:");
       expect(text).not.toContain(
         'pass the canonical target "npm:express" to the next MCP tool',
       );
+      expect(text).not.toContain("next MCP tool");
+    }
+  });
+
+  it("requires narrowing or an explicit choice for actionable MEDIUM and LOW candidates", () => {
+    for (const confidence of ["MEDIUM", "LOW"] as const) {
+      const best = {
+        kind: "PACKAGE",
+        canonicalKey: "npm:express",
+        confidence,
+      };
+      const text = formatResolveTargetMcpText(
+        result({
+          best,
+          candidates: [
+            {
+              ...best,
+              latestVersionMaliciousStatus: "CLEAR",
+              docsAvailable: false,
+              codeAvailable: false,
+            },
+          ],
+          protectedMatches: [],
+        }),
+        { name: "express" },
+      );
+
+      expect(text).toContain(
+        `Unconfirmed ranked candidates: the best result is ${confidence.toLowerCase()} confidence.`,
+      );
+      expect(text).toContain("Next: narrow the name or filters");
+      expect(text).toContain("explicitly choose a candidate");
+      expect(text).toContain("do not pass the best result automatically");
     }
   });
 
@@ -247,6 +383,14 @@ describe("resolve_target MCP adapter", () => {
     expect(response.content[0]?.text).toBe(
       JSON.stringify(buildResolveTargetSuccessPayload(result())),
     );
+    expect(JSON.parse(response.content[0]?.text ?? "{}")).toMatchObject({
+      candidates: [
+        {
+          target: "npm:express",
+          latestVersionMaliciousStatus: "clear",
+        },
+      ],
+    });
   });
 
   it("preserves ambiguous resolution guidance without guessing", () => {
@@ -257,6 +401,7 @@ describe("resolve_target MCP adapter", () => {
           kind: "PACKAGE",
           canonicalKey: "npm:express",
           confidence: "HIGH",
+          latestVersionMaliciousStatus: "CLEAR",
           docsAvailable: false,
           codeAvailable: false,
         },
@@ -264,6 +409,7 @@ describe("resolve_target MCP adapter", () => {
           kind: "REPOSITORY",
           canonicalKey: "github:expressjs/express",
           confidence: "HIGH",
+          latestVersionMaliciousStatus: "NOT_APPLICABLE",
           docsAvailable: false,
           codeAvailable: false,
         },
@@ -302,7 +448,11 @@ describe("resolve_target MCP adapter", () => {
       "Ambiguous: low confidence; multiple candidates remain.",
     );
     expect(text).toContain("Candidates:\n  1. npm:express [low; package]");
-    expect(text).toContain("do not auto-select a candidate");
+    expect(text).toContain(
+      "Warning: Some candidates are not actionable. Narrow the result before continuing.",
+    );
+    expect(text.match(/Warning:/g)).toHaveLength(1);
+    expect(text).not.toContain("Next:");
     expect(text).not.toContain("Unconfirmed ranked candidates:");
     expect(text).not.toContain(
       'pass the canonical target "npm:express" to the next MCP tool',
@@ -403,6 +553,7 @@ describe("resolve_target MCP adapter", () => {
         kind: "PACKAGE",
         canonicalKey: `npm:library-${index}`,
         confidence: "HIGH",
+        latestVersionMaliciousStatus: "CLEAR",
         docsAvailable: false,
         codeAvailable: false,
       }),
@@ -439,6 +590,7 @@ describe("resolve_target MCP adapter", () => {
           kind: "PACKAGE",
           canonicalKey: "npm:x\u001b[31m",
           confidence: "EXACT",
+          latestVersionMaliciousStatus: "CLEAR",
           description: `first\n${"x".repeat(300)}\u0007`,
           docsAvailable: true,
           codeAvailable: false,

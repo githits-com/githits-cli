@@ -11,6 +11,7 @@ import {
 } from "@githits/mcp/smoke-test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { isResolveDirectTargetUnwarned } from "./resolve-smoke-guidance.ts";
 import {
   createIsolatedSmokeEnvironment,
   createScopedSmokeEnvironment,
@@ -269,6 +270,45 @@ async function runExperimentalRegistrationSmoke(
   }
 }
 
+export function assertExperimentalMcpResolveText(
+  resolveTextBody: string,
+): void {
+  assert(
+    resolveTextBody.includes("npm:express") &&
+      !resolveTextBody.includes("githits ") &&
+      !resolveTextBody.includes("--"),
+    "experimental resolve text should include MCP-native candidate guidance",
+  );
+  const directTarget = resolveTextBody.match(
+    /Next: pass the canonical target "([^"]+)"/,
+  )?.[1];
+  if (directTarget) {
+    assert(
+      isResolveDirectTargetUnwarned(resolveTextBody, directTarget),
+      "experimental direct resolve action should target a listed candidate without a warning",
+    );
+    return;
+  }
+  if (resolveTextBody.includes("Warning:")) {
+    assert(
+      !resolveTextBody.includes("Next:"),
+      "experimental malicious-blocked resolve text should omit the normal next action",
+    );
+  } else if (resolveTextBody.includes("Unconfirmed ranked candidates:")) {
+    assert(
+      resolveTextBody.includes("do not pass the best result automatically"),
+      "experimental unconfirmed resolve text should require an explicit choice",
+    );
+  } else if (resolveTextBody.includes("Ambiguous:")) {
+    assert(
+      resolveTextBody.includes("do not auto-select a candidate"),
+      "experimental ambiguous resolve text should require an explicit choice",
+    );
+  } else {
+    assert(false, "experimental resolve text missing continuation guidance");
+  }
+}
+
 async function runExperimentalLiveSmoke(
   target: CliLaunchTarget,
 ): Promise<void> {
@@ -313,34 +353,7 @@ async function runExperimentalLiveSmoke(
           resolveText,
           "experimental resolve default text",
         );
-        assert(
-          resolveTextBody.includes("npm:express") &&
-            !resolveTextBody.includes("githits ") &&
-            !resolveTextBody.includes("--"),
-          "experimental resolve text should use MCP-native follow-up guidance",
-        );
-        const hasDirectResolveAction =
-          /Next: pass the canonical target "[^"]+"/.test(resolveTextBody);
-        if (resolveTextBody.includes("Unconfirmed ranked candidates:")) {
-          assert(
-            !hasDirectResolveAction &&
-              resolveTextBody.includes(
-                "do not pass the best result automatically",
-              ),
-            "experimental unconfirmed resolve text should require an explicit choice",
-          );
-        } else if (resolveTextBody.includes("Ambiguous:")) {
-          assert(
-            !hasDirectResolveAction &&
-              resolveTextBody.includes("do not auto-select a candidate"),
-            "experimental ambiguous resolve text should require an explicit choice",
-          );
-        } else {
-          assert(
-            hasDirectResolveAction,
-            "experimental actionable resolve text should include a canonical next action",
-          );
-        }
+        assertExperimentalMcpResolveText(resolveTextBody);
 
         const resolveJson = (await trackSmokeStep(
           "mcp resolve_target JSON experimental live",
@@ -357,6 +370,21 @@ async function runExperimentalLiveSmoke(
         assert(
           resolvePayload !== null && typeof resolvePayload === "object",
           "experimental resolve JSON should be an object",
+        );
+        const resolveRecord = resolvePayload as Record<string, unknown>;
+        const resolveCandidates = resolveRecord.candidates;
+        assert(
+          Array.isArray(resolveCandidates) &&
+            resolveCandidates.some(
+              (candidate: unknown) =>
+                candidate !== null &&
+                typeof candidate === "object" &&
+                "target" in candidate &&
+                candidate.target === "npm:express" &&
+                "latestVersionMaliciousStatus" in candidate &&
+                typeof candidate.latestVersionMaliciousStatus === "string",
+            ),
+          "experimental resolve JSON should preserve malicious-content status for the full npm:express candidate",
         );
 
         const diffText = (await trackSmokeStep(

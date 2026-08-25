@@ -19,6 +19,43 @@ import type { TokenProvider } from "./token-provider.js";
 
 export type ResolveTargetKind = "PACKAGE" | "REPOSITORY";
 
+export type KnownLatestVersionMaliciousStatus =
+  | "NOT_APPLICABLE"
+  | "CLEAR"
+  | "AFFECTED"
+  | "UNKNOWN";
+
+/**
+ * Backend-owned malicious-content decision for the displayed latest version.
+ * Future values remain readable and are interpreted conservatively by clients.
+ */
+export type LatestVersionMaliciousStatus =
+  | KnownLatestVersionMaliciousStatus
+  | (string & {});
+
+export type KnownMaliciousAdvisoryClassificationReason =
+  | "AFFECTED_VERSION_RANGE_MATCH"
+  | "MISSING_DISPLAYED_VERSION"
+  | "INVALID_DISPLAYED_VERSION"
+  | "MISSING_AFFECTED_RANGES"
+  | "EMPTY_AFFECTED_RANGES"
+  | "INVALID_AFFECTED_RANGE";
+
+export type MaliciousAdvisoryClassificationReason =
+  | KnownMaliciousAdvisoryClassificationReason
+  | (string & {});
+
+export interface ResolveTargetLatestVersionMaliciousAdvisory {
+  osvId: string;
+  classificationReasons: MaliciousAdvisoryClassificationReason[];
+}
+
+export interface ResolveTargetLatestVersionMaliciousEvidence {
+  advisories: ResolveTargetLatestVersionMaliciousAdvisory[];
+  totalCount: number;
+  truncated: boolean;
+}
+
 export interface ResolveTargetParams {
   name: string;
   query?: string;
@@ -41,6 +78,8 @@ export interface ResolveTargetCandidate extends ResolveTargetReference {
   registry?: string;
   packageName?: string;
   latestVersion?: string;
+  latestVersionMaliciousStatus: LatestVersionMaliciousStatus;
+  latestVersionMaliciousEvidence?: ResolveTargetLatestVersionMaliciousEvidence;
   repositoryUrl?: string;
   repositoryOwner?: string;
   repositoryName?: string;
@@ -68,10 +107,27 @@ export interface ResolveTargetService {
   resolveTarget(params: ResolveTargetParams): Promise<ResolveTargetResult>;
 }
 
+const latestVersionMaliciousEvidenceSchema = z
+  .object({
+    advisories: z
+      .array(
+        z.object({
+          osvId: z.string(),
+          classificationReasons: z.array(z.string()),
+        }),
+      )
+      .max(5),
+    totalCount: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+  })
+  .nullable();
+
 const listCandidateSchema = z.object({
   kind: z.string(),
   canonicalKey: z.string(),
   confidence: z.string(),
+  latestVersionMaliciousStatus: z.string(),
+  latestVersionMaliciousEvidence: latestVersionMaliciousEvidenceSchema,
   description: z.string().nullable().optional(),
   repositoryUrl: z.string().nullable().optional(),
   stars: z.number().int().nullable().optional(),
@@ -169,6 +225,15 @@ fragment ResolveTargetListFields on TargetResolutionCandidate {
   kind
   canonicalKey
   confidence
+  latestVersionMaliciousStatus
+  latestVersionMaliciousEvidence {
+    advisories {
+      osvId
+      classificationReasons
+    }
+    totalCount
+    truncated
+  }
   description
   repositoryUrl
   stars
@@ -313,11 +378,17 @@ function normaliseCandidate(
     kind: candidate.kind,
     canonicalKey: candidate.canonicalKey,
     confidence: candidate.confidence,
+    latestVersionMaliciousStatus: candidate.latestVersionMaliciousStatus,
     docsAvailable: candidate.docsAvailable,
     codeAvailable: candidate.codeAvailable,
   };
 
   assignDefined(result, "description", candidate.description);
+  assignDefined(
+    result,
+    "latestVersionMaliciousEvidence",
+    candidate.latestVersionMaliciousEvidence,
+  );
   assignDefined(result, "repositoryUrl", candidate.repositoryUrl);
   assignDefined(result, "stars", candidate.stars);
   assignDefined(result, "downloadsLastMonth", candidate.downloadsLastMonth);

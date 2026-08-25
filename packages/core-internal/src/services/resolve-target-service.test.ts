@@ -19,6 +19,7 @@ const LIST_CANDIDATE = {
   kind: "PACKAGE",
   canonicalKey: "npm:express",
   confidence: "EXACT",
+  latestVersionMaliciousStatus: "CLEAR",
 };
 
 const COMPACT_CANDIDATE = {
@@ -27,6 +28,7 @@ const COMPACT_CANDIDATE = {
   description: "Fast web framework",
   registry: "NPM",
   latestVersion: "5.1.0",
+  latestVersionMaliciousEvidence: null,
   repositoryUrl: "https://github.com/expressjs/express",
   stars: 66_000,
   downloadsLastMonth: 89_000_000,
@@ -45,6 +47,17 @@ const DETAILED_CANDIDATE = {
   matchTier: 0,
   score: 100,
   reason: "Exact package identity match",
+};
+
+const MALICIOUS_EVIDENCE = {
+  advisories: [
+    {
+      osvId: "MAL-2026-1234",
+      classificationReasons: ["AFFECTED_VERSION_RANGE_MATCH"],
+    },
+  ],
+  totalCount: 1,
+  truncated: false,
 };
 
 function resultBody(candidate: Record<string, unknown>) {
@@ -126,6 +139,7 @@ describe("ResolveTargetServiceImpl", () => {
       "kind",
       "canonicalKey",
       "confidence",
+      "latestVersionMaliciousStatus",
       "description",
       "repositoryUrl",
       "stars",
@@ -156,6 +170,14 @@ describe("ResolveTargetServiceImpl", () => {
     }
     expect(request.query).not.toContain("\n  protected\n");
     expect(request.query).not.toContain("inspection");
+    expect(request.query).toContain(`latestVersionMaliciousEvidence {
+    advisories {
+      osvId
+      classificationReasons
+    }
+    totalCount
+    truncated
+  }`);
     const compactResult = {
       ...LIST_CANDIDATE,
       description: "Fast web framework",
@@ -217,11 +239,65 @@ describe("ResolveTargetServiceImpl", () => {
       canonicalKey: "npm:express",
       confidence: "EXACT",
     });
-    expect(result.candidates[0]).toEqual({
-      ...DETAILED_CANDIDATE,
-      downloadsTotal: undefined,
-    });
+    const {
+      latestVersionMaliciousEvidence: _evidence,
+      downloadsTotal: _downloadsTotal,
+      ...detailedResult
+    } = DETAILED_CANDIDATE;
+    expect(result.candidates[0]).toEqual(detailedResult);
     expect(result.candidates[0]).not.toHaveProperty("downloadsTotal");
+  });
+
+  it("parses bounded malicious advisory evidence in compact mode", async () => {
+    const affected = {
+      ...COMPACT_CANDIDATE,
+      latestVersionMaliciousStatus: "AFFECTED",
+      latestVersionMaliciousEvidence: MALICIOUS_EVIDENCE,
+    };
+    const service = new ResolveTargetServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(
+        mock(() => Promise.resolve(jsonResponse(resultBody(affected)))),
+      ),
+    );
+
+    const result = await service.resolveTarget({
+      name: "express",
+      limit: 8,
+      includeDetailedFields: false,
+    });
+
+    expect(result.candidates[0]?.latestVersionMaliciousEvidence).toEqual(
+      MALICIOUS_EVIDENCE,
+    );
+  });
+
+  it("rejects malformed malicious advisory evidence", async () => {
+    const malformed = {
+      ...COMPACT_CANDIDATE,
+      latestVersionMaliciousStatus: "UNKNOWN",
+      latestVersionMaliciousEvidence: {
+        advisories: [{ osvId: "MAL-2026-1234" }],
+        totalCount: 1,
+        truncated: false,
+      },
+    };
+    const service = new ResolveTargetServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(
+        mock(() => Promise.resolve(jsonResponse(resultBody(malformed)))),
+      ),
+    );
+
+    await expect(
+      service.resolveTarget({
+        name: "express",
+        limit: 8,
+        includeDetailedFields: false,
+      }),
+    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
 
   it("requires detailed non-null fields only in detailed mode", async () => {
@@ -261,22 +337,74 @@ describe("ResolveTargetServiceImpl", () => {
   });
 
   it("rejects compact responses missing always-selected fields", async () => {
-    const { confidence: _confidence, ...malformed } = COMPACT_CANDIDATE;
+    const { confidence: _confidence, ...missingConfidence } = COMPACT_CANDIDATE;
+    const {
+      latestVersionMaliciousEvidence: _evidence,
+      ...missingMaliciousEvidence
+    } = COMPACT_CANDIDATE;
+
+    for (const malformed of [missingConfidence, missingMaliciousEvidence]) {
+      const service = new ResolveTargetServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(
+          mock(() => Promise.resolve(jsonResponse(resultBody(malformed)))),
+        ),
+      );
+
+      await expect(
+        service.resolveTarget({
+          name: "express",
+          limit: 8,
+          includeDetailedFields: false,
+        }),
+      ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+    }
+  });
+
+  it("requires a non-null malicious status and preserves future values", async () => {
+    for (const invalidStatus of [undefined, null]) {
+      const malformed = {
+        ...COMPACT_CANDIDATE,
+        latestVersionMaliciousStatus: invalidStatus,
+      };
+      const service = new ResolveTargetServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(
+          mock(() => Promise.resolve(jsonResponse(resultBody(malformed)))),
+        ),
+      );
+
+      await expect(
+        service.resolveTarget({
+          name: "express",
+          limit: 8,
+          includeDetailedFields: false,
+        }),
+      ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+    }
+
+    const futureStatus = {
+      ...COMPACT_CANDIDATE,
+      latestVersionMaliciousStatus: "REVIEW_REQUIRED",
+    };
     const service = new ResolveTargetServiceImpl(
       ENDPOINT,
       createMockTokenProvider(),
       asFetchFn(
-        mock(() => Promise.resolve(jsonResponse(resultBody(malformed)))),
+        mock(() => Promise.resolve(jsonResponse(resultBody(futureStatus)))),
       ),
     );
 
-    await expect(
-      service.resolveTarget({
-        name: "express",
-        limit: 8,
-        includeDetailedFields: false,
-      }),
-    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+    const result = await service.resolveTarget({
+      name: "express",
+      limit: 8,
+      includeDetailedFields: false,
+    });
+    expect(result.candidates[0]?.latestVersionMaliciousStatus).toBe(
+      "REVIEW_REQUIRED",
+    );
   });
 
   it("refreshes after a GraphQL authentication failure", async () => {
