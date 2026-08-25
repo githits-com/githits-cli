@@ -3,8 +3,8 @@ import type { ExecService } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
 import { traceInit, traceProbeEnd, traceProbeStart } from "./init-trace.js";
 import {
-  type CliCheckCommand,
   getSetupCheckStatus,
+  type SetupCheck,
   type SetupCheckStatus,
 } from "./setup-handlers.js";
 
@@ -28,8 +28,8 @@ export interface CliSetup {
   method: "cli";
   /** One or more commands to execute sequentially */
   commands: CliCommand[];
-  /** Optional read-only command to check if already configured before setup. */
-  checkCommand?: CliCheckCommand;
+  /** Optional read-only check for existing configuration. */
+  check?: SetupCheck;
 }
 
 /**
@@ -628,7 +628,8 @@ const claudeCode: AgentDefinition = {
         ],
       },
     ],
-    checkCommand: {
+    check: {
+      kind: "command",
       command: "claude",
       args: ["mcp", "get", "githits"],
       timeoutMs: CLAUDE_MCP_CHECK_TIMEOUT_MS,
@@ -765,7 +766,8 @@ const codexCli: AgentDefinition = {
         args: ["mcp", "add", "githits", "--", ...GITHITS_MCP_INVOCATION],
       },
     ],
-    checkCommand: {
+    check: {
+      kind: "command",
       command: "codex",
       args: ["mcp", "get", "githits", "--json"],
       timeoutMs: CODEX_MCP_CHECK_TIMEOUT_MS,
@@ -815,7 +817,8 @@ const pi: AgentDefinition = {
               args: ["install", "npm:pi-mcp-adapter"],
             },
           ],
-          checkCommand: {
+          check: {
+            kind: "command",
             command: piCommand,
             args: ["list"],
             configuredPattern: PI_ADAPTER_CONFIGURED_PATTERN,
@@ -880,7 +883,8 @@ const pi: AgentDefinition = {
                 args: ["install", "npm:pi-mcp-adapter"],
               },
             ],
-            checkCommand: {
+            check: {
+              kind: "command",
               command: piCommand,
               args: ["list"],
               configuredPattern: PI_ADAPTER_CONFIGURED_PATTERN,
@@ -988,7 +992,8 @@ const geminiCli: AgentDefinition = {
         ],
       },
     ],
-    checkCommand: {
+    check: {
+      kind: "command",
       command: "gemini",
       args: ["mcp", "list"],
       requireExitCodeZero: true,
@@ -1250,7 +1255,8 @@ const amazonQCli: AgentDefinition = {
           ],
         },
       ],
-      checkCommand: {
+      check: {
+        kind: "command",
         command,
         args: ["mcp", "list"],
         configuredPattern: /githits/i,
@@ -1502,8 +1508,8 @@ async function scanSingleAgent(
 /**
  * Scan all agents: detect availability and check configuration status.
  * Config-file agents get a pre-check via isAlreadyConfigured().
- * CLI agents with a checkCommand retain their detailed setup check result.
- * CLI agents without a checkCommand are treated as needsSetup.
+ * CLI agents with a check retain their detailed setup check result.
+ * CLI agents without a check are treated as needsSetup.
  * Agent probes run in parallel while output order remains definition order.
  */
 export async function scanAgents(

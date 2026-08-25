@@ -731,7 +731,8 @@ describe("getSetupCheckStatus", () => {
         {
           method: "cli",
           commands: [],
-          checkCommand: {
+          check: {
+            kind: "command",
             command: "first",
             args: [],
             evaluateResult: () => "disabled",
@@ -740,7 +741,8 @@ describe("getSetupCheckStatus", () => {
         {
           method: "cli",
           commands: [],
-          checkCommand: {
+          check: {
+            kind: "command",
             command: "second",
             args: [],
             evaluateResult: () => "probe_failed",
@@ -767,7 +769,8 @@ describe("getSetupCheckStatus", () => {
         {
           method: "cli",
           commands: [],
-          checkCommand: {
+          check: {
+            kind: "command",
             command: "first",
             args: [],
             evaluateResult: () => "non_canonical",
@@ -2795,7 +2798,8 @@ describe("executeCompositeSetup", () => {
       {
         method: "cli",
         commands: [{ command: "pi", args: ["install", "npm:pi-mcp-adapter"] }],
-        checkCommand: {
+        check: {
+          kind: "command",
           command: "pi",
           args: ["list"],
           configuredPattern: /pi-mcp-adapter/i,

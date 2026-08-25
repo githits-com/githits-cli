@@ -1134,10 +1134,10 @@ export async function getSetupCheckStatus(
   }
 
   if (config.method === "cli") {
-    if (!config.checkCommand) {
+    if (!config.check) {
       return "not_configured";
     }
-    return getCliCheckStatus(config.checkCommand, execService, fs, trace);
+    return dispatchSetupCheck(config.check, fs, execService, trace);
   }
 
   const statuses: SetupCheckStatus[] = [];

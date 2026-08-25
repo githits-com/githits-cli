@@ -66,6 +66,7 @@ import {
   type UninstallChange,
 } from "./setup-format.js";
 import {
+  dispatchSetupCheck,
   executeCliSetup,
   executeCliUninstall,
   executeCompositeSetup,
@@ -76,7 +77,6 @@ import {
   executeManagedBlockUninstall,
   executeSkillSetup,
   executeSkillUninstall,
-  getCliCheckStatus,
   getConfigUninstallCheckStatus,
   isSetupAlreadyConfigured,
   type SetupResult,
@@ -307,19 +307,23 @@ function getResolvedSetupConfig(
   );
 }
 
-function getCliCheckDetail(config: SetupConfig): string | undefined {
-  if (config.method === "cli" && config.checkCommand) {
-    return `checked via ${formatCliCommand(config.checkCommand)}`;
-  }
-  if (config.method === "composite") {
-    const checkStep = config.steps.find(
-      (step) => step.method === "cli" && step.checkCommand,
-    );
-    return checkStep?.method === "cli" && checkStep.checkCommand
-      ? `checked via ${formatCliCommand(checkStep.checkCommand)}`
+function getSetupCheckDetail(
+  config: SetupConfig,
+  fileSystemService: FileSystemService,
+): string | undefined {
+  const compositeCheckStep =
+    config.method === "composite"
+      ? config.steps.find(
+          (step): step is Extract<SetupStep, { method: "cli" }> =>
+            step.method === "cli" && step.check !== undefined,
+        )
       : undefined;
-  }
-  return undefined;
+  const check =
+    config.method === "cli" ? config.check : compositeCheckStep?.check;
+  if (!check) return undefined;
+  return check.kind === "command"
+    ? `checked via ${formatCliCommand(check)}`
+    : `checked via ${formatConfigPath(check.path, fileSystemService)}`;
 }
 
 function getLegacyProjectSetupStatePath(
@@ -3177,7 +3181,7 @@ async function uninstallSelectedAgents(
       fileSystemService,
       useColors,
       labelWidth,
-      getCliCheckDetail(setupConfig),
+      getSetupCheckDetail(setupConfig, fileSystemService),
     );
   }
 
@@ -3670,7 +3674,7 @@ async function installSelectedAgents(
         changes: describeConfigAsUnchanged(config),
       };
       outcomes.push(outcome);
-      printRows(outcome, getCliCheckDetail(config));
+      printRows(outcome, getSetupCheckDetail(config, fileSystemService));
       continue;
     }
 
@@ -3696,7 +3700,7 @@ async function installSelectedAgents(
       changes: result.changes,
     };
     outcomes.push(outcome);
-    printRows(outcome, getCliCheckDetail(config));
+    printRows(outcome, getSetupCheckDetail(config, fileSystemService));
   }
 
   return outcomes;
@@ -3799,7 +3803,7 @@ function printInstallOutcomeSections(
     return agentOutcomeRows(
       outcome,
       fileSystemService,
-      config ? getCliCheckDetail(config) : undefined,
+      config ? getSetupCheckDetail(config, fileSystemService) : undefined,
     );
   });
   const guidanceTargetLabels = guidance
@@ -3987,16 +3991,16 @@ async function inspectSetupForUninstall(
   }
 
   if (config.method === "cli") {
-    if (!config.checkCommand) {
+    if (!config.check) {
       return {
         status: "failed",
-        message: `${agent.name} does not have a verified uninstall check command.`,
+        message: `${agent.name} does not have a verified uninstall check.`,
       };
     }
-    const checkStatus = await getCliCheckStatus(
-      config.checkCommand,
-      execService,
+    const checkStatus = await dispatchSetupCheck(
+      config.check,
       fileSystemService,
+      execService,
     );
     if (
       checkStatus === "configured" ||
@@ -4006,9 +4010,13 @@ async function inspectSetupForUninstall(
       return "configured";
     }
     if (checkStatus === "not_configured") return "not_configured";
+    const checkDetail =
+      config.check.kind === "command"
+        ? `${config.check.command} ${config.check.args.join(" ")}`
+        : config.check.path;
     return {
       status: "failed",
-      message: `Cannot inspect ${agent.name}: ${config.checkCommand.command} ${config.checkCommand.args.join(" ")} failed.`,
+      message: `Cannot inspect ${agent.name}: ${checkDetail} failed.`,
     };
   }
 

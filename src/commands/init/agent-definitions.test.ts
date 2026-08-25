@@ -814,7 +814,8 @@ describe("getSetupConfig", () => {
           ],
         },
       ]);
-      expect(config.checkCommand).toEqual({
+      expect(config.check).toEqual({
+        kind: "command",
         command: "qchat",
         args: ["mcp", "list"],
         configuredPattern: /githits/i,
@@ -953,8 +954,12 @@ describe("getSetupConfig", () => {
         expect(installStep.commands).toEqual([
           { command: "pi", args: ["install", "npm:pi-mcp-adapter"] },
         ]);
-        expect(installStep.checkCommand).toEqual(
-          expect.objectContaining({ command: "pi", args: ["list"] }),
+        expect(installStep.check).toEqual(
+          expect.objectContaining({
+            kind: "command",
+            command: "pi",
+            args: ["list"],
+          }),
         );
       }
       expect(configStep.method).toBe("config-file");
@@ -2080,7 +2085,10 @@ describe("scanAgents", () => {
         expect(installStep.method).toBe("cli");
         if (installStep.method === "cli") {
           expect(installStep.commands[0]!.command).toBe("/npm-global/bin/pi");
-          expect(installStep.checkCommand?.command).toBe("/npm-global/bin/pi");
+          expect(installStep.check?.kind).toBe("command");
+          if (installStep.check?.kind === "command") {
+            expect(installStep.check.command).toBe("/npm-global/bin/pi");
+          }
         }
       }
     });
