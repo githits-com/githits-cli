@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
   chmod,
+  lstat,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -97,6 +100,34 @@ describe("FileSystemServiceImpl.createTempDir", () => {
         rm(first, { recursive: true, force: true }),
         rm(second, { recursive: true, force: true }),
       ]);
+    }
+  });
+});
+
+describe("FileSystemServiceImpl.deleteDirIfEmpty", () => {
+  it("removes a file through a skill symlink without removing the symlink", async () => {
+    if (process.platform === "win32") return;
+
+    const root = await mkdtemp(join(tmpdir(), "githits-filesystem-"));
+    try {
+      const sharedSkillDir = join(root, ".agents", "skills", "githits-mcp");
+      const claudeSkillsDir = join(root, ".claude", "skills");
+      const claudeSkillDir = join(claudeSkillsDir, "githits-mcp");
+      const skillPath = join(claudeSkillDir, "SKILL.md");
+
+      await mkdir(sharedSkillDir, { recursive: true });
+      await mkdir(claudeSkillsDir, { recursive: true });
+      await writeFile(join(sharedSkillDir, "SKILL.md"), "shared skill");
+      await symlink(sharedSkillDir, claudeSkillDir, "dir");
+
+      const service = new FileSystemServiceImpl();
+      await service.deleteFile(skillPath);
+      await service.deleteDirIfEmpty(claudeSkillDir);
+
+      expect(await service.exists(skillPath)).toBe(false);
+      expect((await lstat(claudeSkillDir)).isSymbolicLink()).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
     }
   });
 });

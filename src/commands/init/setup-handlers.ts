@@ -36,8 +36,8 @@ import {
   type UninstallChange,
 } from "./setup-format.js";
 
-/** A read-only command to check if a CLI agent is already configured. */
-export interface CliCheckCommand {
+/** Shared fields for a read-only command setup check. */
+interface CommandSetupCheckFields {
   /** Command to execute (e.g., "claude") */
   command: string;
   /** Command arguments (e.g., ["plugin", "list"]) */
@@ -61,6 +61,24 @@ export interface CliCheckCommand {
   /** Interpret structured or host-specific command output. */
   evaluateResult?: (result: ExecResult) => SetupCheckStatus;
 }
+
+/** A read-only command setup check. */
+export type CommandSetupCheck = CommandSetupCheckFields & {
+  kind: "command";
+};
+
+/** Compatibility shape for existing command-check callers. */
+export type CliCheckCommand = CommandSetupCheckFields;
+
+/** A read-only file setup check with a pure content evaluator. */
+export interface FileSetupCheck {
+  kind: "file";
+  path: string;
+  evaluateContent: (content: string) => SetupCheckStatus;
+}
+
+/** The two supported setup-check variants. */
+export type SetupCheck = CommandSetupCheck | FileSetupCheck;
 
 export type SetupCheckStatus =
   | "configured"
@@ -1116,10 +1134,10 @@ export async function getSetupCheckStatus(
   }
 
   if (config.method === "cli") {
-    if (!config.checkCommand) {
+    if (!config.check) {
       return "not_configured";
     }
-    return getCliCheckStatus(config.checkCommand, execService, fs, trace);
+    return dispatchSetupCheck(config.check, fs, execService, trace);
   }
 
   const statuses: SetupCheckStatus[] = [];
@@ -1272,6 +1290,82 @@ export async function getCliCheckStatus(
   }
 }
 
+/** Dispatch a discriminated setup check without exposing file details. */
+export async function dispatchSetupCheck(
+  check: SetupCheck,
+  fileSystem: FileSystemService,
+  execService: ExecService,
+  trace?: { agentId: string; phase: string },
+): Promise<SetupCheckStatus> {
+  if (check.kind === "command") {
+    return getCliCheckStatus(check, execService, fileSystem, trace);
+  }
+
+  const startedAt = Date.now();
+  if (trace) {
+    traceProbeStart({
+      agentId: trace.agentId,
+      phase: trace.phase,
+      path: check.path,
+    });
+  }
+
+  let content: string;
+  try {
+    content = await fileSystem.readFile(check.path);
+  } catch (error) {
+    const status = getFileCheckReadStatus(error);
+    if (trace) {
+      traceProbeEnd({
+        agentId: trace.agentId,
+        phase: trace.phase,
+        startedAt,
+        status: status === "not_configured" ? "end" : "error",
+        result: status,
+      });
+    }
+    return status;
+  }
+
+  try {
+    const status = check.evaluateContent(content);
+    if (trace) {
+      traceProbeEnd({
+        agentId: trace.agentId,
+        phase: trace.phase,
+        startedAt,
+        status: "end",
+        result: status,
+      });
+    }
+    return status;
+  } catch {
+    const status = "probe_failed";
+    if (trace) {
+      traceProbeEnd({
+        agentId: trace.agentId,
+        phase: trace.phase,
+        startedAt,
+        status: "error",
+        result: status,
+      });
+    }
+    return status;
+  }
+}
+
+function getFileCheckReadStatus(error: unknown): SetupCheckStatus {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ENOENT"
+  ) {
+    return "not_configured";
+  }
+  return "probe_failed";
+}
+
 /** Patterns in CLI output that indicate the server was already configured */
 const ALREADY_EXISTS_PATTERNS = [
   /already exists/i,
@@ -1282,7 +1376,6 @@ const ALREADY_EXISTS_PATTERNS = [
 
 /** Patterns in CLI output that indicate GitHits was already absent */
 const ALREADY_ABSENT_PATTERNS = [
-  /^\s*No MCP server named ["']githits["'] in user scope\.?\s*$/im,
   /(?:plugin|extension|server|mcp server)\s+["']?githits["']?\s+(?:was\s+)?not\s+found/i,
   /["']?githits["']?\s+(?:plugin|extension|server)?\s*(?:does\s+not\s+exist|is\s+not\s+installed|not\s+installed)/i,
   /(?:package\s+)?["']?pi-mcp-adapter["']?\s+(?:(?:is\s+)?not\s+installed|not\s+found)/i,
@@ -1304,10 +1397,38 @@ function isAlreadyAbsentOutput(output: string): boolean {
  * Execute a single CLI command step.
  * Returns a result object — does not throw on failure.
  */
+async function getCliPreconditionStatus(
+  cmd: CliCommand,
+  fileSystem: FileSystemService,
+  execService: ExecService,
+): Promise<SetupCheckStatus> {
+  if (!cmd.precondition) return "configured";
+  return dispatchSetupCheck(cmd.precondition, fileSystem, execService);
+}
+
 async function executeCliCommand(
   cmd: CliCommand,
+  fileSystem: FileSystemService,
   execService: ExecService,
 ): Promise<SetupResult> {
+  const preconditionStatus = await getCliPreconditionStatus(
+    cmd,
+    fileSystem,
+    execService,
+  );
+  if (preconditionStatus === "not_configured") {
+    return {
+      status: "already_configured",
+      message: "Command skipped because its precondition is not configured",
+    };
+  }
+  if (preconditionStatus !== "configured") {
+    return {
+      status: "failed",
+      message: "Command skipped because its precondition check failed",
+    };
+  }
+
   try {
     const result = await execService.exec(cmd.command, cmd.args);
     const combined = `${result.stdout} ${result.stderr}`;
@@ -1353,8 +1474,27 @@ async function executeCliCommand(
 /** Execute a single CLI uninstall command step. */
 async function executeCliUninstallCommand(
   cmd: CliCommand,
+  fileSystem: FileSystemService,
   execService: ExecService,
 ): Promise<UninstallResult> {
+  const preconditionStatus = await getCliPreconditionStatus(
+    cmd,
+    fileSystem,
+    execService,
+  );
+  if (preconditionStatus === "not_configured") {
+    return {
+      status: "not_configured",
+      message: "Command skipped because its precondition is not configured",
+    };
+  }
+  if (preconditionStatus !== "configured") {
+    return {
+      status: "failed",
+      message: "Command skipped because its precondition check failed",
+    };
+  }
+
   try {
     const result = await execService.exec(cmd.command, cmd.args);
     const combined = `${result.stdout} ${result.stderr}`;
@@ -1400,6 +1540,7 @@ async function executeCliUninstallCommand(
  */
 export async function executeCliSetup(
   setup: CliSetup,
+  fileSystem: FileSystemService,
   execService: ExecService,
 ): Promise<SetupResult> {
   let anyRan = false;
@@ -1408,7 +1549,7 @@ export async function executeCliSetup(
   const changes: SetupChange[] = [];
 
   for (const cmd of setup.commands) {
-    const result = await executeCliCommand(cmd, execService);
+    const result = await executeCliCommand(cmd, fileSystem, execService);
 
     if (result.status === "failed") {
       // Keep the commands that already ran visible on failure.
@@ -1439,6 +1580,7 @@ export async function executeCliSetup(
 /** Execute a CLI-based uninstall with one or more sequential commands. */
 export async function executeCliUninstall(
   uninstall: CliUninstall,
+  fileSystem: FileSystemService,
   execService: ExecService,
 ): Promise<UninstallResult> {
   if (uninstall.commands.length === 0) {
@@ -1454,7 +1596,11 @@ export async function executeCliUninstall(
   const changes: UninstallChange[] = [];
 
   for (const cmd of uninstall.commands) {
-    const result = await executeCliUninstallCommand(cmd, execService);
+    const result = await executeCliUninstallCommand(
+      cmd,
+      fileSystem,
+      execService,
+    );
 
     if (result.status === "failed") {
       if (anyRemoved) {
@@ -1472,10 +1618,6 @@ export async function executeCliUninstall(
       anyRemoved = true;
     }
     if (result.status === "not_configured") {
-      if (anyRemoved) {
-        warnings.push(result.message);
-        continue;
-      }
       anyNotConfigured = true;
     }
   }
@@ -1523,11 +1665,7 @@ export async function executeCompositeUninstall(
     }
 
     if (result.status === "not_configured") {
-      if (anyRemoved) {
-        warnings.push(result.message);
-      } else {
-        anyNotConfigured = true;
-      }
+      anyNotConfigured = true;
       continue;
     }
 
@@ -1568,7 +1706,7 @@ async function executeUninstallStep(
   execService: ExecService,
 ): Promise<UninstallResult> {
   if (step.method === "cli") {
-    return executeCliUninstall(step, execService);
+    return executeCliUninstall(step, fs, execService);
   }
   if (step.method === "config-file") {
     return executeConfigFileUninstall(step, fs);
@@ -1834,7 +1972,7 @@ export async function executeCompositeSetup(
 
     const result =
       step.method === "cli"
-        ? await executeCliSetup(step, execService)
+        ? await executeCliSetup(step, fs, execService)
         : step.method === "config-file"
           ? await executeConfigFileSetup(step, fs)
           : step.method === "skill"

@@ -1,10 +1,15 @@
 import { DEFAULT_MCP_URL } from "@githits/core-internal";
 import type { ExecService } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
+import {
+  parseClaudeUserMcpState,
+  resolveClaudeUserConfigPath,
+} from "./claude-user-config.js";
 import { traceInit, traceProbeEnd, traceProbeStart } from "./init-trace.js";
 import {
-  type CliCheckCommand,
+  type FileSetupCheck,
   getSetupCheckStatus,
+  type SetupCheck,
   type SetupCheckStatus,
 } from "./setup-handlers.js";
 
@@ -14,6 +19,8 @@ export interface CliCommand {
   command: string;
   /** Command arguments */
   args: string[];
+  /** Optional read-only state check evaluated immediately before execution. */
+  precondition?: SetupCheck;
   /** Treat a recognized already-absent result as success during replacement. */
   allowAlreadyAbsent?: boolean;
 }
@@ -28,8 +35,8 @@ export interface CliSetup {
   method: "cli";
   /** One or more commands to execute sequentially */
   commands: CliCommand[];
-  /** Optional read-only command to check if already configured before setup. */
-  checkCommand?: CliCheckCommand;
+  /** Optional read-only check for existing configuration. */
+  check?: SetupCheck;
 }
 
 /**
@@ -133,35 +140,29 @@ const CLAUDE_GITHITS_PLUGIN = "githits";
 const CLAUDE_GITHITS_MARKETPLACE = "githits-plugins";
 const BINARY_LOOKUP_TIMEOUT_MS = 2_000;
 const GLOBAL_BIN_PROBE_TIMEOUT_MS = 3_000;
-const CLAUDE_MCP_CHECK_TIMEOUT_MS = 30_000;
 const CODEX_MCP_CHECK_TIMEOUT_MS = 10_000;
 
-function evaluateClaudeMcpGet(result: {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}): SetupCheckStatus {
-  const output = `${result.stdout}\n${result.stderr}`;
-  const diagnosticLines = output.split(/\r?\n/).map((line) => line.trim());
-  if (result.exitCode !== 0) {
-    if (
-      diagnosticLines.some((line) =>
-        /^No MCP server named ["']githits["'](?:\.| in user scope(?:\.|$)|$)/i.test(
-          line,
-        ),
-      )
-    ) {
-      return "not_configured";
-    }
-    return "probe_failed";
-  }
-  const isStdio = /^\s*Type:\s*stdio\s*$/im.test(output);
-  const usesNpx = /^\s*Command:\s*npx\s*$/im.test(output);
-  const hasCanonicalArgs =
-    /^\s*Args:\s*-y\s+githits@latest\s+mcp\s+start\s*$/im.test(output);
-  return isStdio && usesNpx && hasCanonicalArgs
-    ? "configured"
-    : "non_canonical";
+function getClaudeUserMcpCheck(fs: FileSystemService): FileSetupCheck {
+  return {
+    kind: "file",
+    path: resolveClaudeUserConfigPath(fs),
+    evaluateContent: (contents) =>
+      parseClaudeUserMcpState(contents, {
+        command: GITHITS_MCP_COMMAND,
+        args: GITHITS_MCP_ARGS,
+      }).status,
+  };
+}
+
+function getClaudeUserMcpPresenceCheck(fs: FileSystemService): FileSetupCheck {
+  const check = getClaudeUserMcpCheck(fs);
+  return {
+    ...check,
+    evaluateContent: (contents) => {
+      const status = check.evaluateContent(contents);
+      return status === "non_canonical" ? "configured" : status;
+    },
+  };
 }
 
 function evaluateCodexMcpGet(result: {
@@ -595,7 +596,7 @@ const claudeCode: AgentDefinition = {
   detectionMethod: "binary",
   setupMethod: "cli",
   detectBinary: async (exec) => isExecutableAvailable(exec, "claude"),
-  getSetupConfig: () => ({
+  getSetupConfig: (fs) => ({
     method: "cli",
     commands: [
       {
@@ -611,6 +612,7 @@ const claudeCode: AgentDefinition = {
       {
         command: "claude",
         args: ["mcp", "remove", "githits", "--scope", "user"],
+        precondition: getClaudeUserMcpPresenceCheck(fs),
         allowAlreadyAbsent: true,
       },
       {
@@ -628,20 +630,15 @@ const claudeCode: AgentDefinition = {
         ],
       },
     ],
-    checkCommand: {
-      command: "claude",
-      args: ["mcp", "get", "githits"],
-      timeoutMs: CLAUDE_MCP_CHECK_TIMEOUT_MS,
-      useIsolatedCwd: true,
-      evaluateResult: evaluateClaudeMcpGet,
-    },
+    check: getClaudeUserMcpCheck(fs),
   }),
-  getUninstallConfig: () => ({
+  getUninstallConfig: (fs) => ({
     method: "cli",
     commands: [
       {
         command: "claude",
         args: ["mcp", "remove", "githits", "--scope", "user"],
+        precondition: getClaudeUserMcpPresenceCheck(fs),
       },
       {
         command: "claude",
@@ -765,7 +762,8 @@ const codexCli: AgentDefinition = {
         args: ["mcp", "add", "githits", "--", ...GITHITS_MCP_INVOCATION],
       },
     ],
-    checkCommand: {
+    check: {
+      kind: "command",
       command: "codex",
       args: ["mcp", "get", "githits", "--json"],
       timeoutMs: CODEX_MCP_CHECK_TIMEOUT_MS,
@@ -815,7 +813,8 @@ const pi: AgentDefinition = {
               args: ["install", "npm:pi-mcp-adapter"],
             },
           ],
-          checkCommand: {
+          check: {
+            kind: "command",
             command: piCommand,
             args: ["list"],
             configuredPattern: PI_ADAPTER_CONFIGURED_PATTERN,
@@ -880,7 +879,8 @@ const pi: AgentDefinition = {
                 args: ["install", "npm:pi-mcp-adapter"],
               },
             ],
-            checkCommand: {
+            check: {
+              kind: "command",
               command: piCommand,
               args: ["list"],
               configuredPattern: PI_ADAPTER_CONFIGURED_PATTERN,
@@ -988,7 +988,8 @@ const geminiCli: AgentDefinition = {
         ],
       },
     ],
-    checkCommand: {
+    check: {
+      kind: "command",
       command: "gemini",
       args: ["mcp", "list"],
       requireExitCodeZero: true,
@@ -1250,7 +1251,8 @@ const amazonQCli: AgentDefinition = {
           ],
         },
       ],
-      checkCommand: {
+      check: {
+        kind: "command",
         command,
         args: ["mcp", "list"],
         configuredPattern: /githits/i,
@@ -1502,8 +1504,8 @@ async function scanSingleAgent(
 /**
  * Scan all agents: detect availability and check configuration status.
  * Config-file agents get a pre-check via isAlreadyConfigured().
- * CLI agents with a checkCommand retain their detailed setup check result.
- * CLI agents without a checkCommand are treated as needsSetup.
+ * CLI agents with a check retain their detailed setup check result.
+ * CLI agents without a check are treated as needsSetup.
  * Agent probes run in parallel while output order remains definition order.
  */
 export async function scanAgents(

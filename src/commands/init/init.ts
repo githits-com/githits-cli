@@ -66,6 +66,7 @@ import {
   type UninstallChange,
 } from "./setup-format.js";
 import {
+  dispatchSetupCheck,
   executeCliSetup,
   executeCliUninstall,
   executeCompositeSetup,
@@ -76,7 +77,6 @@ import {
   executeManagedBlockUninstall,
   executeSkillSetup,
   executeSkillUninstall,
-  getCliCheckStatus,
   getConfigUninstallCheckStatus,
   isSetupAlreadyConfigured,
   type SetupResult,
@@ -183,8 +183,13 @@ interface AgentUninstallOutcome {
 interface GuidanceUninstallOutcome {
   status: "removed" | "not_configured" | "failed" | "skipped";
   message?: string;
-  warnings?: string[];
   changes?: UninstallChange[];
+  failures?: GuidanceUninstallFailure[];
+}
+
+interface GuidanceUninstallFailure {
+  path: string;
+  reason: string;
 }
 
 type UninstallInspectionResult =
@@ -307,19 +312,23 @@ function getResolvedSetupConfig(
   );
 }
 
-function getCliCheckDetail(config: SetupConfig): string | undefined {
-  if (config.method === "cli" && config.checkCommand) {
-    return `checked via ${formatCliCommand(config.checkCommand)}`;
-  }
-  if (config.method === "composite") {
-    const checkStep = config.steps.find(
-      (step) => step.method === "cli" && step.checkCommand,
-    );
-    return checkStep?.method === "cli" && checkStep.checkCommand
-      ? `checked via ${formatCliCommand(checkStep.checkCommand)}`
+function getSetupCheckDetail(
+  config: SetupConfig,
+  fileSystemService: FileSystemService,
+): string | undefined {
+  const compositeCheckStep =
+    config.method === "composite"
+      ? config.steps.find(
+          (step): step is Extract<SetupStep, { method: "cli" }> =>
+            step.method === "cli" && step.check !== undefined,
+        )
       : undefined;
-  }
-  return undefined;
+  const check =
+    config.method === "cli" ? config.check : compositeCheckStep?.check;
+  if (!check) return undefined;
+  return check.kind === "command"
+    ? `checked via ${formatCliCommand(check)}`
+    : `checked via ${formatConfigPath(check.path, fileSystemService)}`;
 }
 
 function getLegacyProjectSetupStatePath(
@@ -3129,7 +3138,11 @@ async function uninstallSelectedAgents(
 
     let result =
       uninstallConfig.method === "cli"
-        ? await executeCliUninstall(uninstallConfig, execService)
+        ? await executeCliUninstall(
+            uninstallConfig,
+            fileSystemService,
+            execService,
+          )
         : uninstallConfig.method === "config-file"
           ? await executeConfigFileUninstall(uninstallConfig, fileSystemService)
           : uninstallConfig.method === "skill"
@@ -3177,7 +3190,7 @@ async function uninstallSelectedAgents(
       fileSystemService,
       useColors,
       labelWidth,
-      getCliCheckDetail(setupConfig),
+      getSetupCheckDetail(setupConfig, fileSystemService),
     );
   }
 
@@ -3305,22 +3318,23 @@ async function runUserMcpUninstall(
   }
   console.log();
 
-  const removed =
-    outcomes.filter((o) => o.status === "removed").length +
-    (guidanceOutcome?.status === "removed" ? 1 : 0);
+  const removed = outcomes.filter((o) => o.status === "removed").length;
   const notConfigured =
     outcomes.filter((o) => o.status === "not_configured").length +
-    scan.notConfigured.length +
-    (guidanceOutcome?.status === "not_configured" ? 1 : 0);
-  const failed =
-    outcomes.filter((o) => o.status === "failed").length +
-    (guidanceOutcome?.status === "failed" ? 1 : 0);
+    scan.notConfigured.length;
+  const failed = outcomes.filter((o) => o.status === "failed").length;
+  const guidanceRemoved = guidanceOutcome?.status === "removed";
+  const guidanceNotConfigured = guidanceOutcome?.status === "not_configured";
+  const guidanceFailed = guidanceOutcome?.status === "failed";
 
-  if (failed > 0) {
+  if (failed > 0 || guidanceFailed) {
+    process.exitCode = 1;
     console.log("  Uninstall completed with errors.");
   } else if (removed > 0) {
     console.log("  Done! GitHits MCP configuration was removed.");
-  } else if (notConfigured > 0) {
+  } else if (guidanceRemoved) {
+    console.log("  Done! GitHits guidance was removed.");
+  } else if (notConfigured > 0 || guidanceNotConfigured) {
     console.log(
       "  No GitHits MCP configurations were active. Nothing to uninstall.",
     );
@@ -3346,9 +3360,14 @@ async function runUserMcpUninstall(
         console.log(`      Warning: ${warn}`);
       }
     }
-    if (guidanceOutcome?.status === "failed") {
+  }
+  if (guidanceFailed) {
+    console.log(
+      `    - GitHits guidance: ${guidanceOutcome.message ?? "Unknown error"}`,
+    );
+    for (const failure of guidanceOutcome.failures ?? []) {
       console.log(
-        `    - GitHits guidance: ${guidanceOutcome.message ?? "Unknown error"}`,
+        `      - ${formatConfigPath(failure.path, fileSystemService)}: ${failure.reason}`,
       );
     }
   }
@@ -3416,9 +3435,16 @@ async function executeAgentSetupWithVerification(
       changes: [],
     };
   }
+  if (agent.resolvedSetupCheckStatus === "probe_failed") {
+    return {
+      status: "failed",
+      message: `${agent.name} configuration probe failed. The existing configuration was left unchanged.`,
+      changes: [],
+    };
+  }
   let result =
     config.method === "cli"
-      ? await executeCliSetup(config, execService)
+      ? await executeCliSetup(config, fileSystemService, execService)
       : config.method === "config-file"
         ? await executeConfigFileSetup(config, fileSystemService)
         : config.method === "skill"
@@ -3670,7 +3696,7 @@ async function installSelectedAgents(
         changes: describeConfigAsUnchanged(config),
       };
       outcomes.push(outcome);
-      printRows(outcome, getCliCheckDetail(config));
+      printRows(outcome, getSetupCheckDetail(config, fileSystemService));
       continue;
     }
 
@@ -3696,7 +3722,7 @@ async function installSelectedAgents(
       changes: result.changes,
     };
     outcomes.push(outcome);
-    printRows(outcome, getCliCheckDetail(config));
+    printRows(outcome, getSetupCheckDetail(config, fileSystemService));
   }
 
   return outcomes;
@@ -3799,7 +3825,7 @@ function printInstallOutcomeSections(
     return agentOutcomeRows(
       outcome,
       fileSystemService,
-      config ? getCliCheckDetail(config) : undefined,
+      config ? getSetupCheckDetail(config, fileSystemService) : undefined,
     );
   });
   const guidanceTargetLabels = guidance
@@ -3840,25 +3866,43 @@ function printGuidanceUninstallOutcome(
   useColors: boolean,
 ): void {
   if (outcome.status === "skipped") return;
-  const mapped: AgentUninstallOutcome = {
-    id: "githits-guidance",
-    name: "GitHits guidance",
-    status:
-      outcome.status === "removed"
-        ? "removed"
-        : outcome.status === "failed"
-          ? "failed"
-          : "not_configured",
-    message: outcome.message,
-    warnings: outcome.warnings,
-    changes: outcome.changes,
-  };
-  printUninstallOutcome(
-    mapped,
-    fileSystemService,
+  const rows: ChangeRow[] = [];
+  for (const change of outcome.changes ?? []) {
+    if (
+      (change.kind === "skill" || change.kind === "managed-block") &&
+      change.change === "removed"
+    ) {
+      rows.push(
+        uninstallChangeToRow("GitHits guidance", change, fileSystemService),
+      );
+    }
+  }
+  for (const failure of outcome.failures ?? []) {
+    rows.push({
+      tone: "error",
+      label: "GitHits guidance",
+      verb: "failed",
+      detail: `${formatConfigPath(failure.path, fileSystemService)}: ${failure.reason}`,
+    });
+  }
+  if (rows.length === 0) {
+    rows.push({
+      tone: outcome.status === "failed" ? "error" : "ok",
+      label: "GitHits guidance",
+      verb: outcome.status === "failed" ? "failed" : "unchanged",
+      detail:
+        outcome.status === "failed"
+          ? (outcome.message ?? "Guidance cleanup failed")
+          : "",
+    });
+  }
+  for (const line of renderChangeRows(rows, {
     useColors,
-    "GitHits guidance".length,
-  );
+    labelWidth: "GitHits guidance".length,
+    verbWidth: CHANGE_VERB_WIDTH,
+  })) {
+    console.log(line);
+  }
 }
 
 async function installGuidance(
@@ -3902,6 +3946,7 @@ async function uninstallGuidance(
   let anyRemoved = false;
   let anyNotConfigured = false;
   const changes: UninstallChange[] = [];
+  const failures: GuidanceUninstallFailure[] = [];
   for (const step of steps) {
     const result =
       step.method === "skill"
@@ -3911,18 +3956,26 @@ async function uninstallGuidance(
       changes.push(...result.changes);
     }
     if (result.status === "failed") {
-      return {
-        status: "failed",
-        message: result.message,
-        warnings: result.warnings,
-        changes,
-      };
+      failures.push({
+        path: step.targetPath,
+        reason: "guidance cleanup failed",
+      });
+      continue;
     }
     if (result.status === "removed") {
       anyRemoved = true;
     } else {
       anyNotConfigured = true;
     }
+  }
+
+  if (failures.length > 0) {
+    return {
+      status: "failed",
+      message: "One or more GitHits guidance targets failed to uninstall.",
+      changes,
+      failures,
+    };
   }
 
   if (anyRemoved) {
@@ -3987,16 +4040,16 @@ async function inspectSetupForUninstall(
   }
 
   if (config.method === "cli") {
-    if (!config.checkCommand) {
+    if (!config.check) {
       return {
         status: "failed",
-        message: `${agent.name} does not have a verified uninstall check command.`,
+        message: `${agent.name} does not have a verified uninstall check.`,
       };
     }
-    const checkStatus = await getCliCheckStatus(
-      config.checkCommand,
-      execService,
+    const checkStatus = await dispatchSetupCheck(
+      config.check,
       fileSystemService,
+      execService,
     );
     if (
       checkStatus === "configured" ||
@@ -4006,9 +4059,13 @@ async function inspectSetupForUninstall(
       return "configured";
     }
     if (checkStatus === "not_configured") return "not_configured";
+    const checkDetail =
+      config.check.kind === "command"
+        ? `${config.check.command} ${config.check.args.join(" ")}`
+        : config.check.path;
     return {
       status: "failed",
-      message: `Cannot inspect ${agent.name}: ${config.checkCommand.command} ${config.checkCommand.args.join(" ")} failed.`,
+      message: `Cannot inspect ${agent.name}: ${checkDetail} failed.`,
     };
   }
 

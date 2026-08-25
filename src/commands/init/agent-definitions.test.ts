@@ -544,6 +544,10 @@ describe("getSetupConfig", () => {
         "--scope",
         "user",
       ]);
+      expect(config.commands[2]!.precondition).toMatchObject({
+        kind: "file",
+        path: "/home/test/.claude.json",
+      });
       expect(config.commands[2]!.allowAlreadyAbsent).toBe(true);
       expect(config.commands[3]!.args).toEqual([
         "mcp",
@@ -560,6 +564,10 @@ describe("getSetupConfig", () => {
         "mcp",
         "start",
       ]);
+      expect(config.check).toMatchObject({
+        kind: "file",
+        path: "/home/test/.claude.json",
+      });
     }
   });
 
@@ -569,9 +577,16 @@ describe("getSetupConfig", () => {
     const config = agent.getUninstallConfig?.(fs);
     expect(config?.method).toBe("cli");
     if (config?.method !== "cli") throw new Error("expected cli uninstall");
-    expect(config.commands[0]).toEqual({
-      command: "claude",
-      args: ["mcp", "remove", "githits", "--scope", "user"],
+    expect(config.commands[0]?.args).toEqual([
+      "mcp",
+      "remove",
+      "githits",
+      "--scope",
+      "user",
+    ]);
+    expect(config.commands[0]?.precondition).toMatchObject({
+      kind: "file",
+      path: "/home/test/.claude.json",
     });
     expect(config.commands[2]).toEqual({
       command: "claude",
@@ -814,7 +829,8 @@ describe("getSetupConfig", () => {
           ],
         },
       ]);
-      expect(config.checkCommand).toEqual({
+      expect(config.check).toEqual({
+        kind: "command",
         command: "qchat",
         args: ["mcp", "list"],
         configuredPattern: /githits/i,
@@ -953,8 +969,12 @@ describe("getSetupConfig", () => {
         expect(installStep.commands).toEqual([
           { command: "pi", args: ["install", "npm:pi-mcp-adapter"] },
         ]);
-        expect(installStep.checkCommand).toEqual(
-          expect.objectContaining({ command: "pi", args: ["list"] }),
+        expect(installStep.check).toEqual(
+          expect.objectContaining({
+            kind: "command",
+            command: "pi",
+            args: ["list"],
+          }),
         );
       }
       expect(configStep.method).toBe("config-file");
@@ -1420,6 +1440,14 @@ describe("scanAgents", () => {
     const { fs, execService } = createScanMocks({
       detectedDirs: ["/home/test/.cursor"],
       configFiles: {
+        "/home/test/.claude.json": JSON.stringify({
+          mcpServers: {
+            githits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        }),
         "/home/test/.cursor/mcp.json": JSON.stringify({
           mcpServers: {
             GitHits: {
@@ -1465,19 +1493,22 @@ describe("scanAgents", () => {
   it("categorizes Claude Code as alreadyConfigured for the stdio CLI entry", async () => {
     const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
-      detectedDirs: [],
       execResults: {
         [`${lookupCmd} claude`]: {
           exitCode: 0,
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude mcp get githits": {
-          exitCode: 0,
-          stdout:
-            "githits:\n  Scope: User config\n  Type: stdio\n  Command: npx\n  Args: -y githits@latest mcp start\n  Status: Failed to connect\n",
-          stderr: "",
-        },
+      },
+      configFiles: {
+        "/home/test/.claude.json": JSON.stringify({
+          mcpServers: {
+            githits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        }),
       },
     });
     const result = await scanAgents(agentDefinitions, fs, execService);
@@ -1490,18 +1521,19 @@ describe("scanAgents", () => {
   it("categorizes the remote Claude plugin as needing stdio CLI setup", async () => {
     const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
-      detectedDirs: [],
       execResults: {
         [`${lookupCmd} claude`]: {
           exitCode: 0,
           stdout: "/usr/bin/claude\n",
           stderr: "",
         },
-        "claude mcp get githits": {
-          exitCode: 0,
-          stdout: "plugin:githits:githits: https://mcp.githits.com\n",
-          stderr: "",
-        },
+      },
+      configFiles: {
+        "/home/test/.claude.json": JSON.stringify({
+          mcpServers: {
+            githits: { url: "https://mcp.githits.com" },
+          },
+        }),
       },
     });
 
@@ -1516,7 +1548,7 @@ describe("scanAgents", () => {
     ).toBe("non_canonical");
   });
 
-  it("recognizes Claude get's exact missing-server response", async () => {
+  it("classifies a missing Claude user config as not configured", async () => {
     const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
       execResults: {
@@ -1524,61 +1556,6 @@ describe("scanAgents", () => {
           exitCode: 0,
           stdout: "/usr/bin/claude\n",
           stderr: "",
-        },
-        "claude mcp get githits": {
-          exitCode: 1,
-          stdout: "",
-          stderr:
-            'No MCP server named "githits". Run `claude mcp add` to add one.\n',
-        },
-      },
-    });
-
-    const result = await scanAgents(agentDefinitions, fs, execService);
-    expect(
-      result.needsSetup.find((a) => a.id === "claude-code")
-        ?.resolvedSetupCheckStatus,
-    ).toBe("not_configured");
-  });
-
-  it("accepts a changed Claude recommendation after the stable missing-server sentence", async () => {
-    const lookupCmd = lookupCommandFor();
-    const { fs, execService } = createScanMocks({
-      execResults: {
-        [`${lookupCmd} claude`]: {
-          exitCode: 0,
-          stdout: "/usr/bin/claude\n",
-          stderr: "",
-        },
-        "claude mcp get githits": {
-          exitCode: 1,
-          stdout: "",
-          stderr:
-            'No MCP server named "githits". Use `claude mcp add ...` to configure one.\n',
-        },
-      },
-    });
-
-    const result = await scanAgents(agentDefinitions, fs, execService);
-    expect(
-      result.needsSetup.find((a) => a.id === "claude-code")
-        ?.resolvedSetupCheckStatus,
-    ).toBe("not_configured");
-  });
-
-  it("recognizes Claude's missing-server diagnostic after stdout noise", async () => {
-    const lookupCmd = lookupCommandFor();
-    const { fs, execService } = createScanMocks({
-      execResults: {
-        [`${lookupCmd} claude`]: {
-          exitCode: 0,
-          stdout: "/usr/bin/claude\n",
-          stderr: "",
-        },
-        "claude mcp get githits": {
-          exitCode: 1,
-          stdout: "Update available\n",
-          stderr: 'No MCP server named "githits" in user scope\n',
         },
       },
     });
@@ -1594,15 +1571,15 @@ describe("scanAgents", () => {
     const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
       detectedDirs: [],
+      configFiles: {
+        "/home/test/.claude.json": JSON.stringify({
+          mcpServers: { githits: { url: "https://mcp.githits.com" } },
+        }),
+      },
       execResults: {
         [`${lookupCmd} claude`]: {
           exitCode: 0,
           stdout: "/usr/bin/claude\n",
-          stderr: "",
-        },
-        "claude mcp get githits": {
-          exitCode: 0,
-          stdout: "githits: https://mcp.githits.com\n",
           stderr: "",
         },
       },
@@ -1618,15 +1595,15 @@ describe("scanAgents", () => {
     const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
       detectedDirs: [],
+      configFiles: {
+        "/home/test/.claude.json": JSON.stringify({
+          note: "No githits MCP server installed",
+        }),
+      },
       execResults: {
         [`${lookupCmd} claude`]: {
           exitCode: 0,
           stdout: "/usr/bin/claude\n",
-          stderr: "",
-        },
-        "claude mcp get githits": {
-          exitCode: 0,
-          stdout: "No githits MCP server installed\n",
           stderr: "",
         },
       },
@@ -1667,16 +1644,16 @@ describe("scanAgents", () => {
   it("categorizes CLI agent as needsSetup when check command does not match", async () => {
     const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
+      configFiles: {
+        "/home/test/.claude.json": JSON.stringify({
+          mcpServers: { githits: { url: "https://mcp.githits.com" } },
+        }),
+      },
       detectedDirs: [],
       execResults: {
         [`${lookupCmd} claude`]: {
           exitCode: 0,
           stdout: "/usr/bin/claude\n",
-          stderr: "",
-        },
-        "claude mcp get githits": {
-          exitCode: 0,
-          stdout: "other-plugin\n",
           stderr: "",
         },
       },
@@ -1686,25 +1663,6 @@ describe("scanAgents", () => {
     expect(result.alreadyConfigured.some((a) => a.id === "claude-code")).toBe(
       false,
     );
-  });
-
-  it("categorizes CLI agent as needsSetup when check command fails (ENOENT)", async () => {
-    const lookupCmd = lookupCommandFor();
-    const { fs, execService } = createScanMocks({
-      detectedDirs: [],
-      execResults: {
-        [`${lookupCmd} claude`]: {
-          exitCode: 0,
-          stdout: "/usr/bin/claude\n",
-          stderr: "",
-        },
-        "claude mcp get githits": Object.assign(new Error("spawn ENOENT"), {
-          code: "ENOENT",
-        }),
-      },
-    });
-    const result = await scanAgents(agentDefinitions, fs, execService);
-    expect(result.needsSetup.some((a) => a.id === "claude-code")).toBe(true);
   });
 
   it("detects agent via detectBinary when directory does not exist", async () => {
@@ -2080,7 +2038,10 @@ describe("scanAgents", () => {
         expect(installStep.method).toBe("cli");
         if (installStep.method === "cli") {
           expect(installStep.commands[0]!.command).toBe("/npm-global/bin/pi");
-          expect(installStep.checkCommand?.command).toBe("/npm-global/bin/pi");
+          expect(installStep.check?.kind).toBe("command");
+          if (installStep.check?.kind === "command") {
+            expect(installStep.check.command).toBe("/npm-global/bin/pi");
+          }
         }
       }
     });
@@ -2562,6 +2523,14 @@ describe("scanAgents", () => {
     const { fs, execService } = createScanMocks({
       detectedDirs: ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
       configFiles: {
+        "/home/test/.claude.json": JSON.stringify({
+          mcpServers: {
+            githits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        }),
         "/home/test/.cursor/mcp.json": JSON.stringify({
           mcpServers: {
             GitHits: {
@@ -2574,12 +2543,6 @@ describe("scanAgents", () => {
         [`${lookupCmd} claude`]: {
           exitCode: 0,
           stdout: "/usr/bin/claude\n",
-          stderr: "",
-        },
-        "claude mcp get githits": {
-          exitCode: 0,
-          stdout:
-            "githits:\n  Scope: User config\n  Type: stdio\n  Command: npx\n  Args: -y githits@latest mcp start\n  Status: Failed to connect\n",
           stderr: "",
         },
       },
@@ -2663,6 +2626,14 @@ describe("scanAgents", () => {
 
     // Config files for all config-file agents with GitHits configured
     const allConfiguredFiles: Record<string, string> = {
+      [joinPath(homeDir, ".claude.json")]: JSON.stringify({
+        mcpServers: {
+          githits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
       [joinPath(homeDir, ".cursor", "mcp.json")]: JSON.stringify({
         mcpServers: {
           GitHits: {
@@ -2810,12 +2781,6 @@ describe("scanAgents", () => {
         stdout: "/usr/bin/claude\n",
         stderr: "",
       },
-      "claude mcp get githits": {
-        exitCode: 0,
-        stdout:
-          "githits:\n  Scope: User config\n  Type: stdio\n  Command: npx\n  Args: -y githits@latest mcp start\n  Status: Connected\n",
-        stderr: "",
-      },
       [`${whichCmd} codex`]: {
         exitCode: 0,
         stdout: "/usr/bin/codex\n",
@@ -2922,6 +2887,9 @@ describe("scanAgents", () => {
           )]: JSON.stringify({ mcpServers: {} }),
           [joinPath(claudeDesktopPath, "claude_desktop_config.json")]:
             JSON.stringify({ mcpServers: {} }),
+          [joinPath(homeDir, ".claude.json")]: JSON.stringify({
+            mcpServers: {},
+          }),
           [joinPath(homeDir, ".gemini", "config", "mcp_config.json")]:
             JSON.stringify({ mcpServers: {} }),
           [joinPath(opencodePath, "opencode.json")]: JSON.stringify({
@@ -3033,17 +3001,19 @@ describe("scanAgents", () => {
                   },
                 },
               }),
+            [joinPath(homeDir, ".claude.json")]: JSON.stringify({
+              mcpServers: {
+                githits: {
+                  command: "npx",
+                  args: ["-y", "githits@latest", "mcp", "start"],
+                },
+              },
+            }),
           },
           execResults: {
             [`${whichCmd} claude`]: {
               exitCode: 0,
               stdout: "/usr/bin/claude\n",
-              stderr: "",
-            },
-            "claude mcp get githits": {
-              exitCode: 0,
-              stdout:
-                "githits:\n  Scope: User config\n  Type: stdio\n  Command: npx\n  Args: -y githits@latest mcp start\n  Status: Connected\n",
               stderr: "",
             },
             [`${whichCmd} codex`]: {
@@ -3114,7 +3084,6 @@ describe("scanAgents", () => {
               stdout: "/usr/bin/gemini\n",
               stderr: "",
             },
-            "claude mcp get githits": enoent,
             "codex mcp get githits --json": enoent,
             "gemini mcp list": enoent,
           },

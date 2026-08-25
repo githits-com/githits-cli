@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, mock, spyOn } from "bun:test";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import {
@@ -14,9 +14,15 @@ import type {
   ManagedBlockSetup,
   SkillSetup,
 } from "./agent-definitions.js";
-import type { CliCheckCommand, MergeResult } from "./setup-handlers.js";
+import type {
+  CliCheckCommand,
+  MergeResult,
+  SetupCheck,
+  SetupCheckStatus,
+} from "./setup-handlers.js";
 import {
   detectConfigFormat,
+  dispatchSetupCheck,
   executeCliSetup,
   executeCliUninstall,
   executeCompositeSetup,
@@ -592,6 +598,215 @@ describe("getCliCheckStatus", () => {
   });
 });
 
+describe("dispatches file setup checks", () => {
+  it("passes evaluator statuses through and reads content once", async () => {
+    for (const status of [
+      "configured",
+      "not_configured",
+      "non_canonical",
+      "disabled",
+      "probe_failed",
+    ] as const) {
+      const readFile = mock(() => Promise.resolve("secret file content"));
+      const fileSystem = createMockFileSystemService({ readFile });
+      const check: SetupCheck = {
+        kind: "file",
+        path: "/home/test/.claude.json",
+        evaluateContent: (content) => {
+          expect(content).toBe("secret file content");
+          return status;
+        },
+      };
+
+      expect(
+        await dispatchSetupCheck(check, fileSystem, createMockExecService()),
+      ).toBe(status);
+      expect(readFile).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("maps missing and unreadable files to sanitized probe statuses", async () => {
+    const missing = Object.assign(new Error("missing secret"), {
+      code: "ENOENT",
+    });
+    const missingReadFile = mock(() => Promise.reject(missing));
+    const missingResult = await dispatchSetupCheck(
+      {
+        kind: "file",
+        path: "/home/test/.claude.json",
+        evaluateContent: () => "configured",
+      },
+      createMockFileSystemService({ readFile: missingReadFile }),
+      createMockExecService(),
+    );
+    expect(missingResult).toBe("not_configured");
+    expect(JSON.stringify(missingResult)).not.toContain("missing secret");
+    expect(missingReadFile).toHaveBeenCalledTimes(1);
+
+    const unreadable = Object.assign(new Error("unreadable secret"), {
+      code: "EACCES",
+    });
+    const unreadableReadFile = mock(() => Promise.reject(unreadable));
+    const unreadableResult = await dispatchSetupCheck(
+      {
+        kind: "file",
+        path: "/home/test/.claude.json",
+        evaluateContent: () => "configured",
+      },
+      createMockFileSystemService({ readFile: unreadableReadFile }),
+      createMockExecService(),
+    );
+    expect(unreadableResult).toBe("probe_failed");
+    expect(JSON.stringify(unreadableResult)).not.toContain("unreadable secret");
+    expect(unreadableReadFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps evaluator errors to a sanitized probe failure", async () => {
+    const secret = "evaluator secret";
+    const result = await dispatchSetupCheck(
+      {
+        kind: "file",
+        path: "/home/test/.claude.json",
+        evaluateContent: () => {
+          throw new Error(secret);
+        },
+      },
+      createMockFileSystemService({
+        readFile: mock(() => Promise.resolve(`content containing ${secret}`)),
+      }),
+      createMockExecService(),
+    );
+
+    expect(result).toBe("probe_failed");
+    expect(JSON.stringify(result)).not.toContain(secret);
+  });
+});
+
+describe("traces file setup checks", () => {
+  it("records the path and sanitized status without file details", async () => {
+    const originalTrace = process.env.GITHITS_INIT_TRACE;
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const path = "/home/test/.claude.json";
+    const trace = { agentId: "claude-code", phase: "setup-check" };
+
+    const run = async (
+      readFile: () => Promise<string>,
+      evaluateContent: (content: string) => SetupCheckStatus,
+      expected: SetupCheckStatus,
+      event: "probe:end" | "probe:error",
+      secret: string,
+    ): Promise<void> => {
+      errorSpy.mockClear();
+      const result = await dispatchSetupCheck(
+        { kind: "file", path, evaluateContent },
+        createMockFileSystemService({ readFile: mock(readFile) }),
+        createMockExecService(),
+        trace,
+      );
+
+      expect(result).toBe(expected);
+      const output = (errorSpy.mock.calls as unknown[][])
+        .map(([message]) => String(message))
+        .join("\n");
+      expect(output).toContain(
+        `probe:start agent=claude-code phase=setup-check path=${JSON.stringify(path)}`,
+      );
+      expect(output).toContain(`${event} agent=claude-code`);
+      expect(output).toContain(`result=${expected}`);
+      expect(output).not.toContain(secret);
+    };
+
+    process.env.GITHITS_INIT_TRACE = "1";
+    try {
+      await run(
+        async () => `configured content ${"configured-secret"}`,
+        () => "configured",
+        "configured",
+        "probe:end",
+        "configured-secret",
+      );
+      await run(
+        async () => {
+          throw Object.assign(new Error("missing-secret"), { code: "ENOENT" });
+        },
+        () => "configured",
+        "not_configured",
+        "probe:end",
+        "missing-secret",
+      );
+      await run(
+        async () => {
+          throw Object.assign(new Error("unreadable-secret"), {
+            code: "EACCES",
+          });
+        },
+        () => "configured",
+        "probe_failed",
+        "probe:error",
+        "unreadable-secret",
+      );
+      await run(
+        async () => "evaluator content evaluator-secret",
+        () => {
+          throw new Error("evaluator-secret");
+        },
+        "probe_failed",
+        "probe:error",
+        "evaluator-secret",
+      );
+    } finally {
+      errorSpy.mockRestore();
+      if (originalTrace === undefined) {
+        delete process.env.GITHITS_INIT_TRACE;
+      } else {
+        process.env.GITHITS_INIT_TRACE = originalTrace;
+      }
+    }
+  });
+});
+
+describe("dispatches command setup checks", () => {
+  it("delegates evaluator statuses and command execution options", async () => {
+    const createTempDir = mock(() => Promise.resolve("/tmp/githits-probe"));
+    const deleteDirIfEmpty = mock(() => Promise.resolve());
+    const fileSystem = createMockFileSystemService({
+      createTempDir,
+      deleteDirIfEmpty,
+    });
+    const exec = mock(() =>
+      Promise.resolve({ exitCode: 0, stdout: "ignored", stderr: "" }),
+    );
+    const execService = createMockExecService({ exec });
+
+    for (const status of [
+      "configured",
+      "non_canonical",
+      "disabled",
+      "probe_failed",
+    ] as const) {
+      const check: SetupCheck = {
+        kind: "command",
+        command: "codex",
+        args: ["mcp", "list"],
+        timeoutMs: 12_000,
+        useIsolatedCwd: true,
+        evaluateResult: () => status,
+      };
+
+      expect(await dispatchSetupCheck(check, fileSystem, execService)).toBe(
+        status,
+      );
+    }
+
+    expect(exec).toHaveBeenCalledWith("codex", ["mcp", "list"], {
+      timeoutMs: 12_000,
+      cwd: "/tmp/githits-probe",
+    });
+    expect(createTempDir).toHaveBeenCalledTimes(4);
+    expect(deleteDirIfEmpty).toHaveBeenCalledTimes(4);
+  });
+});
+
 describe("getSetupCheckStatus", () => {
   it("preserves composite probe_failed, disabled, and non-canonical precedence", async () => {
     const config: CompositeSetup = {
@@ -600,7 +815,8 @@ describe("getSetupCheckStatus", () => {
         {
           method: "cli",
           commands: [],
-          checkCommand: {
+          check: {
+            kind: "command",
             command: "first",
             args: [],
             evaluateResult: () => "disabled",
@@ -609,7 +825,8 @@ describe("getSetupCheckStatus", () => {
         {
           method: "cli",
           commands: [],
-          checkCommand: {
+          check: {
+            kind: "command",
             command: "second",
             args: [],
             evaluateResult: () => "probe_failed",
@@ -636,7 +853,8 @@ describe("getSetupCheckStatus", () => {
         {
           method: "cli",
           commands: [],
-          checkCommand: {
+          check: {
+            kind: "command",
             command: "first",
             args: [],
             evaluateResult: () => "non_canonical",
@@ -1614,9 +1832,271 @@ describe("getConfigUninstallCheckStatus", () => {
   });
 });
 
+describe("executes CLI setup preconditions", () => {
+  it("checks immediately before a configured command", async () => {
+    const order: string[] = [];
+    const fileSystem = createMockFileSystemService({
+      readFile: mock(async () => {
+        order.push("check");
+        return "safe content";
+      }),
+    });
+    const execService = createMockExecService({
+      exec: mock(async () => {
+        order.push("command");
+        return { exitCode: 0, stdout: "OK", stderr: "" };
+      }),
+    });
+
+    const result = await executeCliSetup(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["mcp", "add", "githits"],
+            precondition: {
+              kind: "file",
+              path: "/home/test/.claude.json",
+              evaluateContent: () => "configured",
+            },
+          },
+        ],
+      },
+      fileSystem,
+      execService,
+    );
+
+    expect(result.status).toBe("success");
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "claude mcp add githits",
+        change: "ran",
+      },
+    ]);
+    expect(order).toEqual(["check", "command"]);
+  });
+
+  it("skips an absent cleanup command and runs later commands", async () => {
+    const readFile = mock(() => Promise.resolve("absent content"));
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 0, stdout: "Added", stderr: "" }),
+      ),
+    });
+    const result = await executeCliSetup(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["mcp", "remove", "githits"],
+            precondition: {
+              kind: "file",
+              path: "/home/test/.claude.json",
+              evaluateContent: () => "not_configured",
+            },
+          },
+          { command: "claude", args: ["mcp", "add", "githits"] },
+        ],
+      },
+      createMockFileSystemService({ readFile }),
+      execService,
+    );
+
+    expect(result.status).toBe("success");
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "claude mcp remove githits",
+        change: "unchanged",
+      },
+      {
+        kind: "command",
+        command: "claude mcp add githits",
+        change: "ran",
+      },
+    ]);
+    expect(readFile).toHaveBeenCalledTimes(1);
+    expect(execService.exec).toHaveBeenCalledTimes(1);
+    expect(execService.exec).toHaveBeenCalledWith("claude", [
+      "mcp",
+      "add",
+      "githits",
+    ]);
+  });
+
+  it("blocks guarded commands for indeterminate states without leaking data", async () => {
+    const secret = "setup precondition secret";
+    for (const status of [
+      "probe_failed",
+      "disabled",
+      "non_canonical",
+    ] as const) {
+      const execService = createMockExecService();
+      const result = await executeCliSetup(
+        {
+          method: "cli",
+          commands: [
+            {
+              command: "claude",
+              args: ["mcp", "remove", "githits"],
+              precondition: {
+                kind: "file",
+                path: "/home/test/.claude.json",
+                evaluateContent: () => status,
+              },
+            },
+          ],
+        },
+        createMockFileSystemService({
+          readFile: mock(() => Promise.resolve(`content ${secret}`)),
+        }),
+        execService,
+      );
+
+      expect(result.status).toBe("failed");
+      expect(execService.exec).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toContain(secret);
+    }
+
+    const evaluatorSecret = "evaluator setup secret";
+    const evaluatorResult = await executeCliSetup(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["mcp", "remove", "githits"],
+            precondition: {
+              kind: "file",
+              path: "/home/test/.claude.json",
+              evaluateContent: () => {
+                throw new Error(evaluatorSecret);
+              },
+            },
+          },
+        ],
+      },
+      createMockFileSystemService({
+        readFile: mock(() => Promise.resolve(`content ${evaluatorSecret}`)),
+      }),
+      createMockExecService(),
+    );
+    expect(evaluatorResult.status).toBe("failed");
+    expect(JSON.stringify(evaluatorResult)).not.toContain(evaluatorSecret);
+  });
+});
+
+describe("executes CLI uninstall preconditions", () => {
+  it("runs configured commands and records skipped cleanup rows", async () => {
+    const order: string[] = [];
+    const execService = createMockExecService({
+      exec: mock(async () => {
+        order.push("command");
+        return { exitCode: 0, stdout: "Removed", stderr: "" };
+      }),
+    });
+    const configured = await executeCliUninstall(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["mcp", "remove", "githits"],
+            precondition: {
+              kind: "file",
+              path: "/home/test/.claude.json",
+              evaluateContent: () => {
+                order.push("check");
+                return "configured";
+              },
+            },
+          },
+        ],
+      },
+      createMockFileSystemService({
+        readFile: mock(() => Promise.resolve("safe content")),
+      }),
+      execService,
+    );
+    expect(configured.status).toBe("removed");
+    expect(order).toEqual(["check", "command"]);
+
+    const absent = await executeCliUninstall(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["mcp", "remove", "githits"],
+            precondition: {
+              kind: "file",
+              path: "/home/test/.claude.json",
+              evaluateContent: () => "not_configured",
+            },
+          },
+          { command: "claude", args: ["plugin", "uninstall", "githits"] },
+        ],
+      },
+      createMockFileSystemService(),
+      execService,
+    );
+    expect(absent.status).toBe("removed");
+    expect(absent.changes).toEqual([
+      {
+        kind: "command",
+        command: "claude mcp remove githits",
+        change: "unchanged",
+      },
+      {
+        kind: "command",
+        command: "claude plugin uninstall githits",
+        change: "ran",
+      },
+    ]);
+  });
+
+  it("blocks indeterminate guarded commands before execution", async () => {
+    for (const status of [
+      "probe_failed",
+      "disabled",
+      "non_canonical",
+    ] as const) {
+      const execService = createMockExecService();
+      const result = await executeCliUninstall(
+        {
+          method: "cli",
+          commands: [
+            {
+              command: "claude",
+              args: ["mcp", "remove", "githits"],
+              precondition: {
+                kind: "file",
+                path: "/home/test/.claude.json",
+                evaluateContent: () => status,
+              },
+            },
+          ],
+        },
+        createMockFileSystemService({
+          readFile: mock(() => Promise.resolve("content")),
+        }),
+        execService,
+      );
+
+      expect(result.status).toBe("failed");
+      expect(result.changes).toEqual([]);
+      expect(execService.exec).not.toHaveBeenCalled();
+    }
+  });
+});
+
 // -- executeCliSetup --
 
 describe("executeCliSetup", () => {
+  const fileSystem = createMockFileSystemService();
   const singleStepSetup: CliSetup = {
     method: "cli",
     commands: [{ command: "codex", args: ["mcp", "add", "githits"] }],
@@ -1642,7 +2122,11 @@ describe("executeCliSetup", () => {
         Promise.resolve({ exitCode: 0, stdout: "Added.\n", stderr: "" }),
       ),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("success");
     expect(execService.exec).toHaveBeenCalledWith("codex", [
       "mcp",
@@ -1657,7 +2141,11 @@ describe("executeCliSetup", () => {
         Promise.resolve({ exitCode: 0, stdout: "OK\n", stderr: "" }),
       ),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("success");
     expect(execService.exec).toHaveBeenCalledTimes(2);
   });
@@ -1683,38 +2171,12 @@ describe("executeCliSetup", () => {
           },
         ],
       },
+      fileSystem,
       execService,
     );
 
     expect(result.status).toBe("already_configured");
     expect(result.message).toBe("GitHits already configured via claude");
-  });
-
-  it("allows Claude's exact missing-user-scope cleanup response", async () => {
-    const execService = createMockExecService({
-      exec: mock(() =>
-        Promise.resolve({
-          exitCode: 1,
-          stdout: "",
-          stderr: 'No MCP server named "githits" in user scope\n',
-        }),
-      ),
-    });
-    const result = await executeCliSetup(
-      {
-        method: "cli",
-        commands: [
-          {
-            command: "claude",
-            args: ["mcp", "remove", "githits", "--scope", "user"],
-            allowAlreadyAbsent: true,
-          },
-        ],
-      },
-      execService,
-    );
-
-    expect(result.status).toBe("already_configured");
   });
 
   it("does not accept missing responses for another Claude scope or server", async () => {
@@ -1733,6 +2195,7 @@ describe("executeCliSetup", () => {
             },
           ],
         },
+        fileSystem,
         createMockExecService({
           exec: mock(() =>
             Promise.resolve({ exitCode: 1, stdout: "", stderr }),
@@ -1749,7 +2212,11 @@ describe("executeCliSetup", () => {
         Promise.resolve({ exitCode: 0, stdout: "OK\n", stderr: "" }),
       ),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.changes).toEqual([
       {
         kind: "command",
@@ -1774,7 +2241,11 @@ describe("executeCliSetup", () => {
     const execService = createMockExecService({
       exec: mock(() => Promise.resolve(responses[call++]!)),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     // A command ran, so the overall result is success, not already_configured.
     expect(result.status).toBe("success");
     expect(result.changes).toEqual([
@@ -1801,7 +2272,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("already_configured");
     expect(result.changes?.every((c) => c.change === "unchanged")).toBe(true);
   });
@@ -1815,7 +2290,11 @@ describe("executeCliSetup", () => {
     const execService = createMockExecService({
       exec: mock(() => Promise.resolve(responses[call++]!)),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("failed");
     expect(result.changes).toEqual([
       {
@@ -1836,7 +2315,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("failed");
     expect(result.message).toContain("code 1");
     expect(result.message).toContain("Unknown command");
@@ -1849,7 +2332,11 @@ describe("executeCliSetup", () => {
     const execService = createMockExecService({
       exec: mock(() => Promise.reject(enoent)),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("failed");
     expect(result.message).toContain('"codex" not found on PATH');
   });
@@ -1858,7 +2345,11 @@ describe("executeCliSetup", () => {
     const execService = createMockExecService({
       exec: mock(() => Promise.reject(new Error("Unexpected error"))),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("failed");
     expect(result.message).toContain("Unexpected error");
   });
@@ -1873,7 +2364,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("already_configured");
   });
 
@@ -1887,7 +2382,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("already_configured");
   });
 
@@ -1902,7 +2401,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("already_configured");
   });
 
@@ -1916,7 +2419,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("failed");
     // Only the first command should have been attempted
     expect(execService.exec).toHaveBeenCalledTimes(1);
@@ -1941,7 +2448,11 @@ describe("executeCliSetup", () => {
         });
       }),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     // A command ran, so this is success — not already_configured.
     expect(result.status).toBe("success");
     // Both commands should still run
@@ -1950,6 +2461,7 @@ describe("executeCliSetup", () => {
 });
 
 describe("executeCliUninstall", () => {
+  const fileSystem = createMockFileSystemService();
   const uninstall: CliUninstall = {
     method: "cli",
     commands: [{ command: "codex", args: ["mcp", "remove", "githits"] }],
@@ -1962,7 +2474,11 @@ describe("executeCliUninstall", () => {
       ),
     });
 
-    const result = await executeCliUninstall(uninstall, execService);
+    const result = await executeCliUninstall(
+      uninstall,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("removed");
     expect(execService.exec).toHaveBeenCalledWith("codex", [
       "mcp",
@@ -1984,7 +2500,7 @@ describe("executeCliUninstall", () => {
         Promise.resolve({ exitCode: 0, stdout: "Removed\n", stderr: "" }),
       ),
     });
-    const result = await executeCliUninstall(multi, execService);
+    const result = await executeCliUninstall(multi, fileSystem, execService);
     expect(result.changes).toEqual([
       {
         kind: "command",
@@ -2010,32 +2526,11 @@ describe("executeCliUninstall", () => {
       ),
     });
 
-    const result = await executeCliUninstall(uninstall, execService);
-    expect(result.status).toBe("not_configured");
-  });
-
-  it("returns not_configured for Claude's missing user-scope entry", async () => {
     const result = await executeCliUninstall(
-      {
-        method: "cli",
-        commands: [
-          {
-            command: "claude",
-            args: ["mcp", "remove", "githits", "--scope", "user"],
-          },
-        ],
-      },
-      createMockExecService({
-        exec: mock(() =>
-          Promise.resolve({
-            exitCode: 1,
-            stdout: "",
-            stderr: 'No MCP server named "githits" in user scope\n',
-          }),
-        ),
-      }),
+      uninstall,
+      fileSystem,
+      execService,
     );
-
     expect(result.status).toBe("not_configured");
   });
 
@@ -2051,7 +2546,11 @@ describe("executeCliUninstall", () => {
         ),
       });
 
-      const result = await executeCliUninstall(uninstall, execService);
+      const result = await executeCliUninstall(
+        uninstall,
+        fileSystem,
+        execService,
+      );
       expect(result.status).toBe("failed");
     }
   });
@@ -2060,6 +2559,7 @@ describe("executeCliUninstall", () => {
     const execService = createMockExecService();
     const result = await executeCliUninstall(
       { method: "cli", commands: [] } as never,
+      fileSystem,
       execService,
     );
 
@@ -2079,11 +2579,15 @@ describe("executeCliUninstall", () => {
       ),
     });
 
-    const result = await executeCliUninstall(uninstall, execService);
+    const result = await executeCliUninstall(
+      uninstall,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("removed");
   });
 
-  it("treats cleanup not_configured after removal as removed with warning", async () => {
+  it("treats cleanup not_configured after removal as removed without warning", async () => {
     const multi: CliUninstall = {
       method: "cli",
       commands: [
@@ -2113,9 +2617,21 @@ describe("executeCliUninstall", () => {
       }),
     });
 
-    const result = await executeCliUninstall(multi, execService);
+    const result = await executeCliUninstall(multi, fileSystem, execService);
     expect(result.status).toBe("removed");
-    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings).toBeUndefined();
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "claude plugin uninstall githits",
+        change: "ran",
+      },
+      {
+        kind: "command",
+        command: "claude plugin marketplace remove githits-plugins",
+        change: "unchanged",
+      },
+    ]);
   });
 
   it("treats cleanup hard failure after removal as removed with warning", async () => {
@@ -2144,7 +2660,7 @@ describe("executeCliUninstall", () => {
       }),
     });
 
-    const result = await executeCliUninstall(multi, execService);
+    const result = await executeCliUninstall(multi, fileSystem, execService);
     expect(result.status).toBe("removed");
     expect(result.warnings?.[0]).toContain("boom");
   });
@@ -2166,7 +2682,7 @@ describe("executeCliUninstall", () => {
       ),
     });
 
-    const result = await executeCliUninstall(multi, execService);
+    const result = await executeCliUninstall(multi, fileSystem, execService);
     expect(result.status).toBe("failed");
     expect(execService.exec).toHaveBeenCalledTimes(1);
   });
@@ -2664,7 +3180,8 @@ describe("executeCompositeSetup", () => {
       {
         method: "cli",
         commands: [{ command: "pi", args: ["install", "npm:pi-mcp-adapter"] }],
-        checkCommand: {
+        check: {
+          kind: "command",
           command: "pi",
           args: ["list"],
           configuredPattern: /pi-mcp-adapter/i,
@@ -3168,7 +3685,71 @@ describe("executeCompositeUninstall", () => {
       execService,
     );
     expect(result.status).toBe("removed");
-    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings).toBeUndefined();
+    expect(result.changes).toEqual([
+      {
+        kind: "config-file",
+        path: "/home/test/.pi/agent/mcp.json",
+        change: "updated",
+      },
+      {
+        kind: "command",
+        command: "pi remove npm:pi-mcp-adapter",
+        change: "unchanged",
+      },
+    ]);
+  });
+
+  it("does not warn when a best-effort step is already absent after removal", async () => {
+    const bestEffortUninstall: CompositeUninstall = {
+      method: "composite",
+      steps: [
+        { failureMode: "required", step: piConfigUninstall },
+        {
+          failureMode: "best-effort",
+          step: {
+            method: "cli",
+            commands: [
+              { command: "pi", args: ["remove", "npm:pi-mcp-adapter"] },
+            ],
+          },
+        },
+      ],
+    };
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(JSON.stringify({ mcpServers: { GitHits: {} } })),
+      ),
+    });
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "Package pi-mcp-adapter is not installed\n",
+        }),
+      ),
+    });
+
+    const result = await executeCompositeUninstall(
+      bestEffortUninstall,
+      fs,
+      execService,
+    );
+    expect(result.status).toBe("removed");
+    expect(result.warnings).toBeUndefined();
+    expect(result.changes).toEqual([
+      {
+        kind: "config-file",
+        path: "/home/test/.pi/agent/mcp.json",
+        change: "updated",
+      },
+      {
+        kind: "command",
+        command: "pi remove npm:pi-mcp-adapter",
+        change: "unchanged",
+      },
+    ]);
   });
 
   it("returns removed with warning for best-effort failure after removal", async () => {

@@ -118,7 +118,12 @@ export class FileSystemServiceImpl implements FileSystemService {
       await rmdir(path);
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT" && code !== "ENOTEMPTY" && code !== "EEXIST") {
+      if (
+        code !== "ENOENT" &&
+        code !== "ENOTEMPTY" &&
+        code !== "EEXIST" &&
+        code !== "ENOTDIR"
+      ) {
         throw error;
       }
     }
