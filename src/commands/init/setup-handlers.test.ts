@@ -2587,7 +2587,7 @@ describe("executeCliUninstall", () => {
     expect(result.status).toBe("removed");
   });
 
-  it("treats cleanup not_configured after removal as removed with warning", async () => {
+  it("treats cleanup not_configured after removal as removed without warning", async () => {
     const multi: CliUninstall = {
       method: "cli",
       commands: [
@@ -2619,7 +2619,19 @@ describe("executeCliUninstall", () => {
 
     const result = await executeCliUninstall(multi, fileSystem, execService);
     expect(result.status).toBe("removed");
-    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings).toBeUndefined();
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "claude plugin uninstall githits",
+        change: "ran",
+      },
+      {
+        kind: "command",
+        command: "claude plugin marketplace remove githits-plugins",
+        change: "unchanged",
+      },
+    ]);
   });
 
   it("treats cleanup hard failure after removal as removed with warning", async () => {
@@ -3673,7 +3685,71 @@ describe("executeCompositeUninstall", () => {
       execService,
     );
     expect(result.status).toBe("removed");
-    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings).toBeUndefined();
+    expect(result.changes).toEqual([
+      {
+        kind: "config-file",
+        path: "/home/test/.pi/agent/mcp.json",
+        change: "updated",
+      },
+      {
+        kind: "command",
+        command: "pi remove npm:pi-mcp-adapter",
+        change: "unchanged",
+      },
+    ]);
+  });
+
+  it("does not warn when a best-effort step is already absent after removal", async () => {
+    const bestEffortUninstall: CompositeUninstall = {
+      method: "composite",
+      steps: [
+        { failureMode: "required", step: piConfigUninstall },
+        {
+          failureMode: "best-effort",
+          step: {
+            method: "cli",
+            commands: [
+              { command: "pi", args: ["remove", "npm:pi-mcp-adapter"] },
+            ],
+          },
+        },
+      ],
+    };
+    const fs = createMockFileSystemService({
+      readFile: mock(() =>
+        Promise.resolve(JSON.stringify({ mcpServers: { GitHits: {} } })),
+      ),
+    });
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({
+          exitCode: 1,
+          stdout: "",
+          stderr: "Package pi-mcp-adapter is not installed\n",
+        }),
+      ),
+    });
+
+    const result = await executeCompositeUninstall(
+      bestEffortUninstall,
+      fs,
+      execService,
+    );
+    expect(result.status).toBe("removed");
+    expect(result.warnings).toBeUndefined();
+    expect(result.changes).toEqual([
+      {
+        kind: "config-file",
+        path: "/home/test/.pi/agent/mcp.json",
+        change: "updated",
+      },
+      {
+        kind: "command",
+        command: "pi remove npm:pi-mcp-adapter",
+        change: "unchanged",
+      },
+    ]);
   });
 
   it("returns removed with warning for best-effort failure after removal", async () => {

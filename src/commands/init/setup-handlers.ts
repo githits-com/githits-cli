@@ -1618,10 +1618,6 @@ export async function executeCliUninstall(
       anyRemoved = true;
     }
     if (result.status === "not_configured") {
-      if (anyRemoved) {
-        warnings.push(result.message);
-        continue;
-      }
       anyNotConfigured = true;
     }
   }
@@ -1669,11 +1665,7 @@ export async function executeCompositeUninstall(
     }
 
     if (result.status === "not_configured") {
-      if (anyRemoved) {
-        warnings.push(result.message);
-      } else {
-        anyNotConfigured = true;
-      }
+      anyNotConfigured = true;
       continue;
     }
 
