@@ -32,8 +32,23 @@ import {
   registerInitCommand,
 } from "./init.js";
 
-const CLAUDE_CONFIGURED_OUTPUT =
-  "githits:\n  Scope: User config\n  Type: stdio\n  Command: npx\n  Args: -y githits@latest mcp start\n  Status: Failed to connect\n";
+const CLAUDE_USER_CONFIG_PATH = "/home/test/.claude.json";
+const CLAUDE_USER_CONFIG = JSON.stringify({
+  mcpServers: {
+    githits: {
+      command: "npx",
+      args: ["-y", "githits@latest", "mcp", "start"],
+    },
+  },
+});
+const CLAUDE_NON_CANONICAL_USER_CONFIG = JSON.stringify({
+  mcpServers: {
+    githits: {
+      command: "custom",
+      args: ["--pinned"],
+    },
+  },
+});
 const CODEX_CONFIGURED_OUTPUT = JSON.stringify({
   name: "githits",
   enabled: true,
@@ -1673,13 +1688,6 @@ describe("initAction", () => {
         if (key === "pi install npm:pi-mcp-adapter") {
           adapterInstalled = true;
           return { stdout: "installed\n", stderr: "", exitCode: 0 };
-        }
-        if (key === "claude mcp get githits") {
-          return {
-            stdout: CLAUDE_CONFIGURED_OUTPUT,
-            stderr: "",
-            exitCode: 0,
-          };
         }
         return { stdout: "", stderr: "", exitCode: 1 };
       }),
@@ -3504,6 +3512,7 @@ describe("initAction", () => {
     const lookupCmd = lookupCommandFor();
     // Detect Claude Code (CLI) and Cursor (config-file), both configured
     const fs = createFsWithDetection(["/home/test/.cursor"], {
+      [CLAUDE_USER_CONFIG_PATH]: CLAUDE_USER_CONFIG,
       "/home/test/.cursor/mcp.json": JSON.stringify({
         mcpServers: {
           GitHits: {
@@ -3519,13 +3528,6 @@ describe("initAction", () => {
           return Promise.resolve({
             exitCode: 0,
             stdout: "/usr/bin/claude\n",
-            stderr: "",
-          });
-        }
-        if (key === "claude mcp get githits") {
-          return Promise.resolve({
-            exitCode: 0,
-            stdout: CLAUDE_CONFIGURED_OUTPUT,
             stderr: "",
           });
         }
@@ -3566,14 +3568,6 @@ describe("initAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude mcp get githits") {
-          // Check command: no match = needs setup
-          return Promise.resolve({
-            exitCode: 0,
-            stdout: "other-plugin\n",
-            stderr: "",
-          });
-        }
         if (cmd === "claude") {
           // Setup commands
           return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
@@ -3594,13 +3588,161 @@ describe("initAction", () => {
     );
 
     // Includes PATH lookups for all binary-detected agents plus Pi fallback probes.
-    expect(execService.exec).toHaveBeenCalledTimes(24);
+    expect(execService.exec).toHaveBeenCalledTimes(21);
     expect(execService.exec).toHaveBeenCalledWith("claude", expect.any(Array));
+  });
+
+  it("replaces a non-canonical Claude user entry during setup", async () => {
+    const configFiles: Record<string, string> = {
+      [CLAUDE_USER_CONFIG_PATH]: CLAUDE_NON_CANONICAL_USER_CONFIG,
+    };
+    const fs = createFsWithDetection([], configFiles);
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCommandFor()} claude`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/claude\n",
+            stderr: "",
+          });
+        }
+        if (key === "claude mcp remove githits --scope user") {
+          delete configFiles[CLAUDE_USER_CONFIG_PATH];
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
+        }
+        if (
+          key ===
+          "claude mcp add --transport stdio --scope user githits -- npx -y githits@latest mcp start"
+        ) {
+          configFiles[CLAUDE_USER_CONFIG_PATH] = CLAUDE_USER_CONFIG;
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
+        }
+        if (
+          key === "claude plugin uninstall githits" ||
+          key === "claude plugin marketplace remove githits-plugins"
+        ) {
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      { installAgents: "claude-code", json: true, guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.outcomes[0].status).toBe("success");
+    const claudeCommands = (
+      execService.exec as ReturnType<typeof mock>
+    ).mock.calls
+      .filter(([cmd]) => cmd === "claude")
+      .map(([, args]) => (args as string[]).join(" "));
+    expect(
+      claudeCommands.indexOf("mcp remove githits --scope user"),
+    ).toBeLessThan(
+      claudeCommands.indexOf(
+        "mcp add --transport stdio --scope user githits -- npx -y githits@latest mcp start",
+      ),
+    );
+    expect(configFiles[CLAUDE_USER_CONFIG_PATH]).toBe(CLAUDE_USER_CONFIG);
+    expect(claudeCommands.some((command) => command.includes("mcp get"))).toBe(
+      false,
+    );
+  });
+
+  it("blocks Claude setup for malformed user config without mutation", async () => {
+    const secret = "claude-malformed-secret";
+    const fs = createFsWithDetection([], {
+      [CLAUDE_USER_CONFIG_PATH]: `{"mcpServers":{"githits":"${secret}"`,
+    });
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        if (`${cmd} ${args.join(" ")}` === `${lookupCommandFor()} claude`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/claude\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      { installAgents: "claude-code", json: true, guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.outcomes[0].status).toBe("failed");
+    expect(JSON.stringify(payload)).not.toContain(secret);
+    expect(
+      (execService.exec as ReturnType<typeof mock>).mock.calls.some(
+        ([cmd]) => cmd === "claude",
+      ),
+    ).toBe(false);
+  });
+
+  it("blocks Claude setup for unreadable user config without mutation", async () => {
+    const secret = "claude-permission-secret";
+    const fs = createFsWithDetection([]);
+    fs.readFile = mock(async (path: string) => {
+      if (path === CLAUDE_USER_CONFIG_PATH) {
+        throw Object.assign(new Error(secret), { code: "EACCES" });
+      }
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    }) as typeof fs.readFile;
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        if (`${cmd} ${args.join(" ")}` === `${lookupCommandFor()} claude`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/claude\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      { installAgents: "claude-code", json: true, guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.outcomes[0].status).toBe("failed");
+    expect(JSON.stringify(payload)).not.toContain(secret);
+    expect(
+      (execService.exec as ReturnType<typeof mock>).mock.calls.some(
+        ([cmd]) => cmd === "claude",
+      ),
+    ).toBe(false);
   });
 
   it("renders already configured CLI agents with check command details", async () => {
     const lookupCmd = lookupCommandFor();
-    const fs = createFsWithDetection([]);
+    const fs = createFsWithDetection([], {
+      [CLAUDE_USER_CONFIG_PATH]: CLAUDE_USER_CONFIG,
+    });
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -3608,13 +3750,6 @@ describe("initAction", () => {
           return Promise.resolve({
             exitCode: 0,
             stdout: `/usr/bin/${args[0]}\n`,
-            stderr: "",
-          });
-        }
-        if (key === "claude mcp get githits") {
-          return Promise.resolve({
-            exitCode: 0,
-            stdout: CLAUDE_CONFIGURED_OUTPUT,
             stderr: "",
           });
         }
@@ -3644,7 +3779,7 @@ describe("initAction", () => {
     expect(claudeRow).toBeDefined();
     expect(codexRow).toBeDefined();
     expect(claudeRow ?? "").toContain("unchanged");
-    expect(claudeRow ?? "").toContain("checked via claude mcp get githits");
+    expect(claudeRow ?? "").toContain("checked via ~/.claude.json");
     expect(codexRow ?? "").toContain("unchanged");
     expect(codexRow ?? "").toContain(
       "checked via codex mcp get githits --json",
@@ -3677,12 +3812,17 @@ describe("initAction", () => {
       "mcp",
       "start",
     ]);
+    expect(
+      (execService.exec as ReturnType<typeof mock>).mock.calls.some(
+        ([cmd, args]) => cmd === "claude" && (args as string[]).includes("get"),
+      ),
+    ).toBe(false);
   });
 
   it("renders only Claude Code commands that actually ran", async () => {
     const lookupCmd = lookupCommandFor();
-    const fs = createFsWithDetection([]);
-    let mcpListCalls = 0;
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection([], configFiles);
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -3690,15 +3830,6 @@ describe("initAction", () => {
           return Promise.resolve({
             exitCode: 0,
             stdout: "/usr/bin/claude\n",
-            stderr: "",
-          });
-        }
-        if (key === "claude mcp get githits") {
-          mcpListCalls += 1;
-          return Promise.resolve({
-            exitCode: 0,
-            stdout:
-              mcpListCalls === 1 ? "other-server\n" : CLAUDE_CONFIGURED_OUTPUT,
             stderr: "",
           });
         }
@@ -3721,6 +3852,7 @@ describe("initAction", () => {
           key ===
           "claude mcp add --transport stdio --scope user githits -- npx -y githits@latest mcp start"
         ) {
+          configFiles[CLAUDE_USER_CONFIG_PATH] = CLAUDE_USER_CONFIG;
           return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
         }
         return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
@@ -3752,6 +3884,13 @@ describe("initAction", () => {
       "mcp",
       "start",
     ]);
+    expect(execService.exec).not.toHaveBeenCalledWith("claude", [
+      "mcp",
+      "remove",
+      "githits",
+      "--scope",
+      "user",
+    ]);
     const claudeRows = getLogOutput().filter(
       (msg) => msg.includes("Claude Code") && msg.includes("claude mcp"),
     );
@@ -3760,6 +3899,11 @@ describe("initAction", () => {
     expect(claudeRow).toContain(
       "claude mcp add --transport stdio --scope user githits",
     );
+    expect(
+      getLogOutput().some((msg) =>
+        msg.includes('Configured MCP server "githits"'),
+      ),
+    ).toBe(true);
   });
 
   it("does not render cleanup no-ops as unchanged when Claude setup fails", async () => {
@@ -3773,13 +3917,6 @@ describe("initAction", () => {
             exitCode: 0,
             stdout: "/usr/bin/claude\n",
             stderr: "",
-          });
-        }
-        if (key === "claude mcp get githits") {
-          return Promise.resolve({
-            exitCode: 1,
-            stdout: "",
-            stderr: 'No MCP server named "githits"\n',
           });
         }
         if (key === "claude mcp remove githits --scope user") {
@@ -3838,7 +3975,6 @@ describe("initAction", () => {
   it("does not render checked-via detail when a later CLI command runs", async () => {
     const lookupCmd = lookupCommandFor();
     const fs = createFsWithDetection([]);
-    let mcpListCalls = 0;
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -3846,15 +3982,6 @@ describe("initAction", () => {
           return Promise.resolve({
             exitCode: 0,
             stdout: "/usr/bin/claude\n",
-            stderr: "",
-          });
-        }
-        if (key === "claude mcp get githits") {
-          mcpListCalls += 1;
-          return Promise.resolve({
-            exitCode: 0,
-            stdout:
-              mcpListCalls === 1 ? "other-server\n" : CLAUDE_CONFIGURED_OUTPUT,
             stderr: "",
           });
         }
@@ -3899,9 +4026,7 @@ describe("initAction", () => {
 
     const logCalls = getLogOutput();
     expect(
-      logCalls.some((msg) =>
-        msg.includes("checked via claude mcp get githits"),
-      ),
+      logCalls.some((msg) => msg.includes("checked via ~/.claude.json")),
     ).toBe(false);
     expect(
       logCalls.some(
@@ -4173,9 +4298,6 @@ describe("initAction", () => {
             stdout: "/usr/bin/claude\n",
             stderr: "",
           });
-        }
-        if (key === "claude mcp get githits") {
-          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
         }
         // Setup commands: fail
         return Promise.resolve({ exitCode: 1, stdout: "", stderr: "error" });
@@ -6194,9 +6316,10 @@ describe("initUninstallAction", () => {
 
   it("removes non-canonical Claude entries instead of reporting a probe failure", async () => {
     const lookupCmd = lookupCommandFor();
-    const fs = createFsWithDetection([]);
-    let removed = false;
-    let checkCalls = 0;
+    const configFiles: Record<string, string> = {
+      [CLAUDE_USER_CONFIG_PATH]: CLAUDE_NON_CANONICAL_USER_CONFIG,
+    };
+    const fs = createFsWithDetection([], configFiles);
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -6207,26 +6330,8 @@ describe("initUninstallAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude mcp get githits") {
-          checkCalls += 1;
-          return Promise.resolve(
-            removed
-              ? {
-                  exitCode: 1,
-                  stdout: "",
-                  stderr:
-                    'No MCP server named "githits". Run `claude mcp add` to add one.\n',
-                }
-              : {
-                  exitCode: 0,
-                  stdout:
-                    "githits:\n  Scope: User config\n  Type: stdio\n  Command: githits\n  Args: mcp start\n",
-                  stderr: "",
-                },
-          );
-        }
         if (key === "claude mcp remove githits --scope user") {
-          removed = true;
+          delete configFiles[CLAUDE_USER_CONFIG_PATH];
           return Promise.resolve({
             exitCode: 0,
             stdout: "Removed\n",
@@ -6267,10 +6372,52 @@ describe("initUninstallAction", () => {
       "--scope",
       "user",
     ]);
-    expect(checkCalls).toBe(2);
+    expect(configFiles[CLAUDE_USER_CONFIG_PATH]).toBeUndefined();
+    expect(
+      (execService.exec as ReturnType<typeof mock>).mock.calls.some(
+        ([cmd, args]) => cmd === "claude" && (args as string[]).includes("get"),
+      ),
+    ).toBe(false);
     expect(
       getLogOutput().some((msg) => msg.includes("Cannot inspect Claude Code")),
     ).toBe(false);
+  });
+
+  it("skips Claude uninstall when the user config is absent", async () => {
+    const lookupCmd = lookupCommandFor();
+    const fs = createFsWithDetection([]);
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        if (`${cmd} ${args.join(" ")}` === `${lookupCmd} claude`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/claude\n",
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+      },
+    );
+
+    expect(
+      (execService.exec as ReturnType<typeof mock>).mock.calls.some(
+        ([cmd]) => cmd === "claude",
+      ),
+    ).toBe(false);
+    expect(
+      getLogOutput().some(
+        (msg) => msg.includes("Claude Code") && msg.includes("not configured"),
+      ),
+    ).toBe(true);
   });
 
   it("removes Pi config and adapter package", async () => {
@@ -6610,8 +6757,10 @@ describe("initUninstallAction", () => {
 
   it("reports Claude marketplace cleanup failure as warning after plugin removal", async () => {
     const lookupCmd = lookupCommandFor();
-    const fs = createFsWithDetection([]);
-    let mcpInstalled = true;
+    const configFiles: Record<string, string> = {
+      [CLAUDE_USER_CONFIG_PATH]: CLAUDE_USER_CONFIG,
+    };
+    const fs = createFsWithDetection([], configFiles);
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -6622,17 +6771,8 @@ describe("initUninstallAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude mcp get githits") {
-          return Promise.resolve({
-            exitCode: mcpInstalled ? 0 : 1,
-            stdout: mcpInstalled ? CLAUDE_CONFIGURED_OUTPUT : "",
-            stderr: mcpInstalled
-              ? ""
-              : 'No MCP server named "githits". Run `claude mcp add` to add one.\n',
-          });
-        }
         if (key === "claude mcp remove githits --scope user") {
-          mcpInstalled = false;
+          delete configFiles[CLAUDE_USER_CONFIG_PATH];
           return Promise.resolve({
             exitCode: 0,
             stdout: "Removed\n",
@@ -6676,8 +6816,10 @@ describe("initUninstallAction", () => {
 
   it("renders multi-step Claude uninstall commands as continuation rows", async () => {
     const lookupCmd = lookupCommandFor();
-    const fs = createFsWithDetection([]);
-    let mcpInstalled = true;
+    const configFiles: Record<string, string> = {
+      [CLAUDE_USER_CONFIG_PATH]: CLAUDE_USER_CONFIG,
+    };
+    const fs = createFsWithDetection([], configFiles);
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -6688,17 +6830,8 @@ describe("initUninstallAction", () => {
             stderr: "",
           });
         }
-        if (key === "claude mcp get githits") {
-          return Promise.resolve({
-            exitCode: mcpInstalled ? 0 : 1,
-            stdout: mcpInstalled ? CLAUDE_CONFIGURED_OUTPUT : "",
-            stderr: mcpInstalled
-              ? ""
-              : 'No MCP server named "githits". Run `claude mcp add` to add one.\n',
-          });
-        }
         if (key === "claude mcp remove githits --scope user") {
-          mcpInstalled = false;
+          delete configFiles[CLAUDE_USER_CONFIG_PATH];
           return Promise.resolve({
             exitCode: 0,
             stdout: "Removed\n",
@@ -6770,6 +6903,16 @@ describe("initUninstallAction", () => {
     expect(marketplaceRow?.indexOf("claude plugin marketplace")).toBe(
       uninstallRow?.indexOf("claude mcp remove"),
     );
+    expect(
+      getLogOutput().some((msg) =>
+        msg.includes("Uninstall completed with errors"),
+      ),
+    ).toBe(false);
+    expect(
+      getLogOutput().some((msg) =>
+        msg.includes("GitHits MCP configuration was removed"),
+      ),
+    ).toBe(true);
   });
 
   it("reports CLI probe failures as inspection failures without prompting", async () => {
@@ -7008,7 +7151,9 @@ describe("initUninstallAction", () => {
 
   it("preserves warnings when verification fails after removal", async () => {
     const lookupCmd = lookupCommandFor();
-    const fs = createFsWithDetection([]);
+    const fs = createFsWithDetection([], {
+      [CLAUDE_USER_CONFIG_PATH]: CLAUDE_USER_CONFIG,
+    });
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -7016,13 +7161,6 @@ describe("initUninstallAction", () => {
           return Promise.resolve({
             exitCode: 0,
             stdout: "/usr/bin/claude\n",
-            stderr: "",
-          });
-        }
-        if (key === "claude mcp get githits") {
-          return Promise.resolve({
-            exitCode: 0,
-            stdout: CLAUDE_CONFIGURED_OUTPUT,
             stderr: "",
           });
         }
