@@ -6,12 +6,12 @@
   },
   "metadata": {
     "description": "The code context layer for AI coding agents",
-    "version": "0.10.1"
+    "version": "0.10.2"
   },
   "plugins": [
     {
       "name": "githits",
-      "version": "0.10.1",
+      "version": "0.10.2",
       "description": "The code context layer for AI coding agents",
       "author": {
         "name": "GitHits"

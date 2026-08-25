@@ -5,6 +5,25 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.10.2] - 2026-08-25
+
+Patch release: fine-tunes opt-in experimental target resolution for safer
+partial-readiness handling and makes targeted init reliability improvements.
+
+### Fixed
+
+- **Reliable init install and uninstall** - Use structured Claude user MCP
+  inspection and best-effort guidance cleanup so absent state is safe, failures
+  remain visible, and guidance reporting stays separate from agent counts.
+
+### Security
+
+- **Fail closed on malicious package candidates** - The opt-in experimental
+  resolver now preserves latest-version malicious-content decisions and bounded
+  OSV evidence, links affected or uncertain advisories in warnings, and
+  withholds normal CLI/MCP continuation for affected, unknown, or unrecognized
+  states.
+
 ## [githits 0.10.1] - 2026-08-24
 
 Patch release: hardens concurrent CLI authentication and preserves queryable
