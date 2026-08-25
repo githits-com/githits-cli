@@ -3,7 +3,7 @@ import type {
   ResolveTargetReference,
   ResolveTargetResult,
 } from "@githits/core-internal";
-import { dim, highlight } from "./colors.js";
+import { colorize, dim, highlight } from "./colors.js";
 import { formatCompactNumber } from "./format-number.js";
 import { formatRepositoryTarget } from "./repository-target.js";
 import { shellQuote } from "./shell-quote.js";
@@ -17,6 +17,8 @@ export interface ResolveTargetCandidatePayload {
   registry?: string;
   packageName?: string;
   latestVersion?: string;
+  latestVersionMaliciousStatus?: string;
+  latestVersionMaliciousEvidence?: ResolveTargetMaliciousEvidencePayload;
   repositoryUrl?: string;
   repositoryOwner?: string;
   repositoryName?: string;
@@ -30,6 +32,17 @@ export interface ResolveTargetCandidatePayload {
   matchTier?: number;
   score?: number;
   reason?: string;
+}
+
+export interface ResolveTargetMaliciousAdvisoryPayload {
+  osvId: string;
+  classificationReasons: string[];
+}
+
+export interface ResolveTargetMaliciousEvidencePayload {
+  advisories: ResolveTargetMaliciousAdvisoryPayload[];
+  totalCount: number;
+  truncated: boolean;
 }
 
 export interface ResolveTargetPayload {
@@ -78,6 +91,25 @@ function projectTarget(
   assign(payload, "registry", candidate.registry?.toLowerCase());
   assign(payload, "packageName", candidate.packageName);
   assign(payload, "latestVersion", candidate.latestVersion);
+  assign(
+    payload,
+    "latestVersionMaliciousStatus",
+    candidate.latestVersionMaliciousStatus.toLowerCase(),
+  );
+  if (candidate.latestVersionMaliciousEvidence) {
+    payload.latestVersionMaliciousEvidence = {
+      advisories: candidate.latestVersionMaliciousEvidence.advisories.map(
+        (advisory) => ({
+          osvId: advisory.osvId,
+          classificationReasons: advisory.classificationReasons.map((reason) =>
+            reason.toLowerCase(),
+          ),
+        }),
+      ),
+      totalCount: candidate.latestVersionMaliciousEvidence.totalCount,
+      truncated: candidate.latestVersionMaliciousEvidence.truncated,
+    };
+  }
   assign(payload, "repositoryUrl", candidate.repositoryUrl);
   assign(payload, "repositoryOwner", candidate.repositoryOwner);
   assign(payload, "repositoryName", candidate.repositoryName);
@@ -102,16 +134,17 @@ export interface FormatResolveTargetTerminalOptions {
 
 /**
  * Decide whether consumers may offer the best target as a direct next action.
- * Only canonical uppercase EXACT/HIGH values are actionable; unexpected values
- * fail closed as evidence for an explicit caller choice.
+ * Identity must be non-ambiguous uppercase EXACT/HIGH, and the matching full
+ * candidate must carry CLEAR or NOT_APPLICABLE malicious-content evidence.
  */
 export function isResolveTargetActionable(
-  result: Pick<ResolveTargetResult, "ambiguous" | "best">,
+  result: Pick<ResolveTargetResult, "ambiguous" | "best" | "candidates">,
 ): boolean {
   return (
-    !result.ambiguous &&
-    result.best !== undefined &&
-    (result.best.confidence === "EXACT" || result.best.confidence === "HIGH")
+    isResolveTargetIdentityActionable(result) &&
+    isLatestVersionMaliciousStatusActionable(
+      findResolveTargetBestCandidate(result)?.latestVersionMaliciousStatus,
+    )
   );
 }
 
@@ -125,6 +158,9 @@ export function formatResolveTargetTerminal(
   }
   const useColors = options.useColors ?? false;
   const actionable = isResolveTargetActionable(result);
+  const identityActionable = isResolveTargetIdentityActionable(result);
+  const bestCandidate = findResolveTargetBestCandidate(result);
+  const blockedBest = identityActionable && !actionable;
   const lines: string[] = [];
   if (result.ambiguous) lines.push(ambiguityMessage(result.ambiguousReason));
   const protectedKeys = new Set(
@@ -135,8 +171,15 @@ export function formatResolveTargetTerminal(
     ...result.protectedMatches,
     result.best,
   ]);
+  const hasBlockedReference = candidates.some(
+    (candidate) =>
+      !isCandidate(candidate) ||
+      !isLatestVersionMaliciousStatusActionable(
+        candidate.latestVersionMaliciousStatus,
+      ),
+  );
   lines.push(
-    !result.ambiguous && !actionable
+    !result.ambiguous && !identityActionable
       ? "Unconfirmed ranked candidates:"
       : "Candidates:",
   );
@@ -152,7 +195,25 @@ export function formatResolveTargetTerminal(
   );
 
   const query = sanitizeTerminalText(options.query?.trim() || "<query>");
-  if (result.ambiguous) {
+  if (blockedBest) {
+    if (!bestCandidate) {
+      lines.push(
+        "",
+        formatTerminalWarning(
+          "Malicious-content status is unavailable for the best match. Do not use this target.",
+          useColors,
+        ),
+      );
+    }
+  } else if (result.ambiguous && hasBlockedReference) {
+    lines.push(
+      "",
+      formatTerminalWarning(
+        "Some candidates are not actionable. Narrow the result before continuing.",
+        useColors,
+      ),
+    );
+  } else if (result.ambiguous) {
     lines.push(
       "",
       `Next after choosing: githits search ${shellQuote(query)} --in ${shellQuote("<target>")}`,
@@ -161,6 +222,14 @@ export function formatResolveTargetTerminal(
     lines.push(
       "",
       `Next: githits search ${shellQuote(query)} --in ${shellQuote(sanitizeTerminalText(result.best.canonicalKey))}`,
+    );
+  } else if (hasBlockedReference) {
+    lines.push(
+      "",
+      formatTerminalWarning(
+        "Some candidates are not actionable. Narrow the result before continuing.",
+        useColors,
+      ),
     );
   } else {
     lines.push(
@@ -223,7 +292,121 @@ function formatCandidateLines(
     isCandidate(candidate) ? candidate.description : undefined,
   );
   if (description) lines.push(`     ${dim(description, useColors)}`);
+  const maliciousWarning = isCandidate(candidate)
+    ? formatLatestVersionMaliciousStatus(
+        candidate.latestVersionMaliciousStatus,
+        candidate.latestVersionMaliciousEvidence,
+      )
+    : undefined;
+  if (maliciousWarning) {
+    lines.push(`     ${formatTerminalWarning(maliciousWarning, useColors)}`);
+  }
   return lines;
+}
+
+/** Return concise warning copy only for a non-actionable backend decision. */
+export function formatLatestVersionMaliciousStatus(
+  status: string | undefined,
+  evidence?: ResolveTargetCandidate["latestVersionMaliciousEvidence"],
+): string | undefined {
+  switch (status) {
+    case "AFFECTED":
+      return withMaliciousEvidence(
+        "Malicious content affects the latest version",
+        "Do not use the latest version. Verify another version against the linked evidence.",
+        evidence,
+        false,
+      );
+    case "UNKNOWN":
+      return withMaliciousEvidence(
+        "Malicious-content status is uncertain",
+        "Verify the advisory details before using this version.",
+        evidence,
+        true,
+      );
+    case "CLEAR":
+    case "NOT_APPLICABLE":
+    case undefined:
+      return undefined;
+    default:
+      return `Unrecognized malicious-content status: ${sanitizeTerminalText(status)}. Do not use this target.`;
+  }
+}
+
+function withMaliciousEvidence(
+  message: string,
+  guidance: string,
+  evidence: ResolveTargetCandidate["latestVersionMaliciousEvidence"],
+  includeReasons: boolean,
+): string {
+  if (!evidence || evidence.advisories.length === 0) {
+    return `${message}. ${guidance}`;
+  }
+
+  const details = evidence.advisories.map((advisory) => {
+    const id = sanitizeTerminalText(advisory.osvId);
+    const reasons = includeReasons
+      ? formatMaliciousClassificationReasons(advisory.classificationReasons)
+      : undefined;
+    const label = reasons ? `${id} (${reasons})` : id;
+    return `${label}: https://osv.dev/vulnerability/${encodeURIComponent(advisory.osvId)}`;
+  });
+  const omitted = evidence.totalCount - evidence.advisories.length;
+  if (evidence.truncated && omitted > 0) details.push(`+${omitted} more`);
+  return `${message} — ${details.join("; ")}. ${guidance}`;
+}
+
+const MALICIOUS_CLASSIFICATION_REASON_LABELS: Readonly<Record<string, string>> =
+  {
+    AFFECTED_VERSION_RANGE_MATCH: "affected range matched",
+    MISSING_DISPLAYED_VERSION: "latest version missing",
+    INVALID_DISPLAYED_VERSION: "latest version invalid",
+    MISSING_AFFECTED_RANGES: "affected ranges missing",
+    EMPTY_AFFECTED_RANGES: "affected ranges empty",
+    INVALID_AFFECTED_RANGE: "affected range invalid",
+  };
+
+function formatMaliciousClassificationReasons(
+  reasons: readonly string[],
+): string | undefined {
+  if (reasons.length === 0) return undefined;
+  return reasons
+    .map(
+      (reason) =>
+        MALICIOUS_CLASSIFICATION_REASON_LABELS[reason] ??
+        `unrecognized reason ${sanitizeTerminalText(reason)}`,
+    )
+    .join(", ");
+}
+
+function formatTerminalWarning(message: string, useColors: boolean): string {
+  return colorize(`Warning: ${message}`, "red", useColors);
+}
+
+export function isResolveTargetIdentityActionable(
+  result: Pick<ResolveTargetResult, "ambiguous" | "best">,
+): boolean {
+  return (
+    !result.ambiguous &&
+    result.best !== undefined &&
+    (result.best.confidence === "EXACT" || result.best.confidence === "HIGH")
+  );
+}
+
+export function isLatestVersionMaliciousStatusActionable(
+  status: string | undefined,
+): boolean {
+  return status === "CLEAR" || status === "NOT_APPLICABLE";
+}
+
+export function findResolveTargetBestCandidate(
+  result: Pick<ResolveTargetResult, "best" | "candidates">,
+): ResolveTargetCandidate | undefined {
+  if (!result.best) return undefined;
+  const best = result.best;
+  return result.candidates.find(
+    (candidate) => candidateKey(candidate) === candidateKey(best),
+  );
 }
 
 function compactRepositoryUrl(value: string): string {

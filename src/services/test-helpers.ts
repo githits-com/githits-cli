@@ -1070,6 +1070,7 @@ export const defaultResolveTargetResult: ResolveTargetResult = {
       registry: "NPM",
       stars: 66_000,
       downloadsLastMonth: 89_000_000,
+      latestVersionMaliciousStatus: "CLEAR",
       docsAvailable: true,
       codeAvailable: true,
       confidence: "EXACT",

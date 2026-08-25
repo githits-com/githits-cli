@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { isResolveDirectTargetUnwarned } from "./resolve-smoke-guidance.ts";
 import {
   createIsolatedSmokeEnvironment,
   createScopedSmokeEnvironment,
@@ -808,6 +809,45 @@ async function assertLiveOrAuthRequired(
   return false;
 }
 
+export function assertExperimentalCliResolveText(resolveText: string): void {
+  assert(
+    (resolveText.includes("Candidates:") ||
+      resolveText.includes("Unconfirmed ranked candidates:")) &&
+      /\n\s+\d+\. (?:npm|github):\S+/.test(resolveText),
+    "experimental resolve text should include ranked canonical candidates",
+  );
+  const directTarget = resolveText.match(
+    /Next: githits search .+ --in '((?:npm|github):[^']+)'/,
+  )?.[1];
+  if (directTarget) {
+    assert(
+      isResolveDirectTargetUnwarned(resolveText, directTarget),
+      "experimental direct resolve action should target a listed candidate without a warning",
+    );
+    return;
+  }
+  if (resolveText.includes("Warning:")) {
+    assert(
+      !resolveText.includes("Next:") &&
+        !resolveText.includes("Next after choosing:"),
+      "experimental malicious-blocked resolve text should omit the normal next action",
+    );
+  } else if (resolveText.includes("Unconfirmed ranked candidates:")) {
+    assert(
+      resolveText.includes("explicitly choose a candidate") &&
+        resolveText.includes("--in '<target>'"),
+      "experimental unconfirmed resolve text should require an explicit choice",
+    );
+  } else if (resolveText.includes("Ambiguous:")) {
+    assert(
+      resolveText.includes("Next after choosing:"),
+      "experimental ambiguous resolve text should require an explicit choice",
+    );
+  } else {
+    assert(false, "experimental resolve text missing continuation guidance");
+  }
+}
+
 async function runExperimentalLiveSmoke(
   env: Record<string, string>,
 ): Promise<void> {
@@ -815,32 +855,7 @@ async function runExperimentalLiveSmoke(
     await runCliWithEnv(["resolve", "express"], env),
     "experimental resolve terminal",
   );
-  assert(
-    (resolveText.includes("Candidates:") ||
-      resolveText.includes("Unconfirmed ranked candidates:")) &&
-      /\n\s+\d+\. (?:npm|github):\S+/.test(resolveText),
-    "experimental resolve text should include ranked canonical candidates",
-  );
-  const hasDirectResolveAction =
-    /Next: githits search .+ --in '(?:npm|github):[^']+'/.test(resolveText);
-  if (resolveText.includes("Unconfirmed ranked candidates:")) {
-    assert(
-      !hasDirectResolveAction &&
-        resolveText.includes("explicitly choose a candidate") &&
-        resolveText.includes("--in '<target>'"),
-      "experimental unconfirmed resolve text should require an explicit choice",
-    );
-  } else if (resolveText.includes("Ambiguous:")) {
-    assert(
-      !hasDirectResolveAction && resolveText.includes("Next after choosing:"),
-      "experimental ambiguous resolve text should require an explicit choice",
-    );
-  } else {
-    assert(
-      hasDirectResolveAction,
-      "experimental actionable resolve text should include a canonical next action",
-    );
-  }
+  assertExperimentalCliResolveText(resolveText);
 
   const resolveJson = assertJsonOutput(
     await runCliWithEnv(
@@ -868,6 +883,13 @@ async function runExperimentalLiveSmoke(
     typeof resolveJson.best === "string" &&
       resolveJson.best === "npm:express" &&
       Array.isArray(resolveJson.candidates) &&
+      resolveJson.candidates.some(
+        (candidate) =>
+          candidate !== null &&
+          typeof candidate === "object" &&
+          candidate.target === "npm:express" &&
+          typeof candidate.latestVersionMaliciousStatus === "string",
+      ) &&
       Array.isArray(resolveJson.protectedMatches),
     "experimental resolve JSON missing structured candidate facts",
   );

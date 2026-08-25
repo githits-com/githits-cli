@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The transport-neutral adapter exposes PkgSeer's exact-tree `codeDiff` GraphQL
+The transport-neutral adapter exposes the backend's exact-tree `codeDiff` GraphQL
 operation to the public `@githits/mcp/client` runtime. The root package also
 registers `githits code diff` as an intentionally unpromoted CLI dogfood
 surface. The local MCP composer also exposes a config-gated `code_diff` adapter
@@ -45,7 +45,7 @@ package. That absence does not prove the package is unchanged.
 Target selection uses own-key presence: an opposite target key is rejected even
 when its value is `undefined`.
 
-The adapter rejects client values outside PkgSeer's raw bounds instead of
+The adapter rejects client values outside the backend's raw bounds instead of
 silently clamping them: `maxFiles` is `1..300`, `maxPatchBytes` is
 `1024..2097152`, and each path prefix/glob is non-empty and at most 1024 UTF-8
 bytes. Unknown raw option keys are rejected before token acquisition or a
@@ -109,7 +109,7 @@ The default is bounded patch output. `--patch`, `--stat`, `--name-only`, and
 requesting stats or patches. One optional repository-relative glob follows
 `--`. It is the backend's bounded `*`/`?`/exact-`**` grammar, not a Git
 pathspec. A backslash escapes exactly one following non-slash character; this
-mirrors PkgSeer's `CodeDiff.Raw.PathGlob` compiler rather than shell or Git
+mirrors the backend's `CodeDiff.Raw.PathGlob` compiler rather than shell or Git
 escaping. `--max-files` applies to every view and `--max-patch-bytes` applies
 only to patch output. Omitted bounds remain absent on the wire so the backend
 owns its defaults.
@@ -172,7 +172,7 @@ inventories, Agent Skills, and plugin guidance remain stable-only; any future
 promotion requires separate graduation evidence and release review.
 
 Typed changelog steering is a separate later stage, blocked on both a stable
-public CodeDiff invocation and a committed/deployed PkgSeer changelog-action
+public CodeDiff invocation and a committed/deployed backend changelog-action
 contract. Its discriminator, field names, result placement, and fallback
 behavior must come from that future backend contract rather than inferred
 prose. Package range outcomes may then steer to valid CLI and MCP calls;

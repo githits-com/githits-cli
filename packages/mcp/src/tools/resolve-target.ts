@@ -11,7 +11,11 @@ import { mapPackageIntelligenceError } from "../shared/package-intelligence-erro
 import { buildResolveTargetParams } from "../shared/resolve-target-request.js";
 import {
   buildResolveTargetSuccessPayload,
+  findResolveTargetBestCandidate,
+  formatLatestVersionMaliciousStatus,
+  isLatestVersionMaliciousStatusActionable,
   isResolveTargetActionable,
+  isResolveTargetIdentityActionable,
   sanitizeTerminalText,
 } from "../shared/resolve-target-response.js";
 import { mcpMappedErrorResult } from "./shared.js";
@@ -75,7 +79,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  "Experimental tool. Use for fuzzy, ambiguous, misspelled, or human-friendly package and repository names when a canonical target is not known. Do not call for canonical `registry:name` or `github:owner/repo` targets; use those directly with the next MCP tool. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text-v1` (also available as `text`) gives bounded ranked candidates; only a non-ambiguous EXACT or HIGH best result gets a direct MCP follow-up, while MEDIUM or LOW requires narrowing or an explicit choice. Use `json` for the structured result.";
+  "Experimental tool. Use for fuzzy, ambiguous, misspelled, or human-friendly package and repository names when a canonical target is not known. Do not call for canonical `registry:name` or `github:owner/repo` targets; use those directly with the next MCP tool. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text-v1` (also available as `text`) gives bounded ranked candidates. Only a non-ambiguous EXACT or HIGH best result with CLEAR or NOT_APPLICABLE malicious-content status gets a direct follow-up; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. MEDIUM and LOW require narrowing or an explicit choice. Use `json` for the structured result.";
 
 export function createResolveTargetTool(
   service: ResolveTargetService,
@@ -125,6 +129,9 @@ export function formatResolveTargetMcpText(
   options: FormatResolveTargetMcpTextOptions,
 ): string {
   const actionable = isResolveTargetActionable(result);
+  const identityActionable = isResolveTargetIdentityActionable(result);
+  const bestCandidate = findResolveTargetBestCandidate(result);
+  const blockedBest = identityActionable && !actionable;
   const protectedKeys = new Set(
     result.protectedMatches.map((target) => targetKey(target)),
   );
@@ -133,6 +140,13 @@ export function formatResolveTargetMcpText(
     ...result.protectedMatches,
     ...(result.best ? [result.best] : []),
   ]);
+  const hasBlockedReference = allReferences.some(
+    (target) =>
+      !isCandidate(target) ||
+      !isLatestVersionMaliciousStatusActionable(
+        target.latestVersionMaliciousStatus,
+      ),
+  );
   const references = allReferences.slice(0, 24);
   const omittedReferences = allReferences.slice(references.length);
   const lines: string[] = [];
@@ -143,6 +157,8 @@ export function formatResolveTargetMcpText(
     );
   } else if (actionable && result.best) {
     lines.push(`Best match: ${formatReference(result.best)}.`);
+  } else if (blockedBest && result.best) {
+    lines.push(`Best identity match: ${formatReference(result.best)}.`);
   } else if (result.best) {
     lines.push(
       `Unconfirmed ranked candidates: the best result is ${sanitizeTerminalText(result.best.confidence.toLowerCase())} confidence.`,
@@ -154,7 +170,9 @@ export function formatResolveTargetMcpText(
   }
 
   if (references.length > 0) {
-    if (result.ambiguous || actionable) lines.push("Candidates:");
+    if (result.ambiguous || actionable || blockedBest) {
+      lines.push("Candidates:");
+    }
     references.forEach((target, index) => {
       lines.push(
         `  ${index + 1}. ${formatReference(target)}${
@@ -167,6 +185,15 @@ export function formatResolveTargetMcpText(
         ? compactDescription(target.description)
         : undefined;
       if (description) lines.push(`     ${description}`);
+      const maliciousWarning = isCandidate(target)
+        ? formatLatestVersionMaliciousStatus(
+            target.latestVersionMaliciousStatus,
+            target.latestVersionMaliciousEvidence,
+          )
+        : undefined;
+      if (maliciousWarning) {
+        lines.push(`     Warning: ${maliciousWarning}`);
+      }
     });
   }
 
@@ -182,13 +209,27 @@ export function formatResolveTargetMcpText(
     );
   }
 
-  if (result.ambiguous) {
+  if (blockedBest) {
+    if (!bestCandidate) {
+      lines.push(
+        "Warning: Malicious-content status is unavailable for the best match. Do not use this target.",
+      );
+    }
+  } else if (result.ambiguous && hasBlockedReference) {
+    lines.push(
+      "Warning: Some candidates are not actionable. Narrow the result before continuing.",
+    );
+  } else if (result.ambiguous) {
     lines.push(
       "Next: choose the canonical target that matches the user's intent, then pass that exact target to the next MCP tool; do not auto-select a candidate.",
     );
   } else if (actionable && result.best) {
     lines.push(
       `Next: pass the canonical target "${sanitizeTerminalText(result.best.canonicalKey)}" to the next MCP tool.`,
+    );
+  } else if (result.best && hasBlockedReference) {
+    lines.push(
+      "Warning: Some candidates are not actionable. Narrow the result before continuing.",
     );
   } else if (result.best) {
     lines.push(

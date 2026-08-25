@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { EXPECTED_MCP_TOOLS } from "@githits/mcp/smoke-test";
 import {
+  assertExperimentalCliResolveText,
   assertRootHelpStructure,
   buildMcpParityCommand,
   EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS,
@@ -15,6 +16,7 @@ import {
 } from "./cli-smoke.ts";
 import { parseMcpCallArgs } from "./mcp-call.ts";
 import {
+  assertExperimentalMcpResolveText,
   EXPECTED_EXPERIMENTAL_MCP_TOOLS,
   parseMcpSmokeArgs,
   STABLE_MCP_SMOKE_CONFIG,
@@ -198,6 +200,76 @@ describe("MCP smoke cohorts", () => {
 
   it("pins every stable cohort to an explicit disabled experimental config", () => {
     expect(STABLE_MCP_SMOKE_CONFIG).toBe("[experimental]\ntools = false\n");
+  });
+});
+
+describe("resolve smoke guidance", () => {
+  const cliMixed = `Candidates:
+  1. npm:express [exact] · package
+  2. npm:express-lookalike [high] · package
+     Warning: Malicious content affects the latest version. Do not use this target.
+
+Next: githits search '<query>' --in 'npm:express'
+`;
+  const mcpMixed = `Best match: npm:express [exact; package].
+Candidates:
+  1. npm:express [exact; package]
+  2. npm:express-lookalike [high; package]
+     Warning: Malicious content affects the latest version. Do not use this target.
+Next: pass the canonical target "npm:express" to the next MCP tool.
+`;
+
+  it("allows a verified best action when only an alternative is warned", () => {
+    expect(() => assertExperimentalCliResolveText(cliMixed)).not.toThrow();
+    expect(() => assertExperimentalMcpResolveText(mcpMixed)).not.toThrow();
+  });
+
+  it("accepts a warning-only blocked result with no normal action", () => {
+    const cliBlocked = cliMixed.replace(/\nNext: githits search[^\n]+\n/, "\n");
+    const mcpBlocked = mcpMixed.replace(
+      /Next: pass the canonical target[^\n]+\n/,
+      "",
+    );
+
+    expect(() => assertExperimentalCliResolveText(cliBlocked)).not.toThrow();
+    expect(() => assertExperimentalMcpResolveText(mcpBlocked)).not.toThrow();
+  });
+
+  it("rejects a direct action for the warned candidate", () => {
+    const cliWarnedBest = cliMixed.replace(
+      "  1. npm:express [exact] · package\n",
+      "  1. npm:express [exact] · package\n     Warning: Malicious content affects the latest version. Do not use this target.\n",
+    );
+    const mcpWarnedBest = mcpMixed.replace(
+      "  1. npm:express [exact; package]\n",
+      "  1. npm:express [exact; package]\n     Warning: Malicious content affects the latest version. Do not use this target.\n",
+    );
+
+    expect(() => assertExperimentalCliResolveText(cliWarnedBest)).toThrow(
+      "without a warning",
+    );
+    expect(() => assertExperimentalMcpResolveText(mcpWarnedBest)).toThrow(
+      "without a warning",
+    );
+  });
+
+  it("rejects aggregate restrictions and ambiguous actions with warnings", () => {
+    const aggregate =
+      "Warning: Some candidates are not actionable. Narrow the result before continuing.\n";
+    expect(() =>
+      assertExperimentalCliResolveText(`${cliMixed}${aggregate}`),
+    ).toThrow("without a warning");
+    expect(() =>
+      assertExperimentalMcpResolveText(`${mcpMixed}${aggregate}`),
+    ).toThrow("without a warning");
+
+    const cliAmbiguous = `${cliMixed.replace(
+      /\nNext: githits search[^\n]+\n/,
+      "\n",
+    )}Next after choosing: githits search '<query>' --in '<target>'\n`;
+    expect(() => assertExperimentalCliResolveText(cliAmbiguous)).toThrow(
+      "omit the normal next action",
+    );
   });
 });
 

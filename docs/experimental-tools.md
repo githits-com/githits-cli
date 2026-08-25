@@ -78,6 +78,16 @@ githits resolve requests --registry pypi --prefer-kind package --json
 Canonical targets such as `npm:express` or `github:expressjs/express` do not
 need resolution.
 
+Structured output preserves each candidate's latest-version malicious-content
+decision. Text stays silent for `clear` and `not_applicable`; affected, uncertain,
+or unsupported decisions produce a concise warning, red in the terminal.
+Affected and uncertain warnings link the bounded, status-relevant `MAL-*`
+advisories returned by the resolver and explain uncertain classification reasons.
+Ordinary continuation is offered only for a non-ambiguous `EXACT`/`HIGH`
+identity with `clear` or `not_applicable` status. Other or missing decisions are
+non-actionable and suppress the normal next-tool handoff. `clear` is not a
+vulnerability-free claim.
+
 Compare exact package versions or public repository refs:
 
 ```sh

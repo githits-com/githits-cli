@@ -29,6 +29,8 @@ function candidate(
     confidence: "EXACT",
     reason: "Exact package identity match",
     ...overrides,
+    latestVersionMaliciousStatus:
+      overrides.latestVersionMaliciousStatus ?? "CLEAR",
   };
 }
 
@@ -60,6 +62,7 @@ describe("buildResolveTargetSuccessPayload", () => {
           description: "Fast web framework",
           registry: "npm",
           latestVersion: "5.1.0",
+          latestVersionMaliciousStatus: "clear",
           stars: 66_000,
           downloadsLastMonth: 89_000_000,
           matchedAliases: ["express"],
@@ -97,12 +100,56 @@ describe("buildResolveTargetSuccessPayload", () => {
   });
 
   it("uses safe lowercase strings for unknown enum values", () => {
-    const unknown = candidate({ kind: "WORKSPACE", confidence: "VERY_HIGH" });
+    const unknown = candidate({
+      kind: "WORKSPACE",
+      confidence: "VERY_HIGH",
+      latestVersionMaliciousStatus: "REVIEW_REQUIRED",
+    });
     const payload = buildResolveTargetSuccessPayload(
       result({ best: unknown, candidates: [unknown], protectedMatches: [] }),
     );
     expect(payload.candidates[0]?.kind).toBe("workspace");
     expect(payload.candidates[0]?.confidence).toBe("very_high");
+    expect(payload.candidates[0]?.latestVersionMaliciousStatus).toBe(
+      "review_required",
+    );
+  });
+
+  it("preserves bounded malicious advisory evidence in JSON", () => {
+    const affected = candidate({
+      latestVersionMaliciousStatus: "AFFECTED",
+      latestVersionMaliciousEvidence: {
+        advisories: [
+          {
+            osvId: "MAL-2026-1234",
+            classificationReasons: [
+              "AFFECTED_VERSION_RANGE_MATCH",
+              "FUTURE_REASON",
+            ],
+          },
+        ],
+        totalCount: 3,
+        truncated: true,
+      },
+    });
+
+    expect(
+      buildResolveTargetSuccessPayload(
+        result({ best: affected, candidates: [affected] }),
+      ).candidates[0]?.latestVersionMaliciousEvidence,
+    ).toEqual({
+      advisories: [
+        {
+          osvId: "MAL-2026-1234",
+          classificationReasons: [
+            "affected_version_range_match",
+            "future_reason",
+          ],
+        },
+      ],
+      totalCount: 3,
+      truncated: true,
+    });
   });
 
   it("emits the compact empty envelope", () => {
@@ -158,6 +205,40 @@ describe("isResolveTargetActionable", () => {
       ),
     ).toBe(false);
   });
+
+  it("accepts only CLEAR and NOT_APPLICABLE malicious statuses", () => {
+    for (const latestVersionMaliciousStatus of [
+      "CLEAR",
+      "NOT_APPLICABLE",
+    ] as const) {
+      const best = candidate({ latestVersionMaliciousStatus });
+      expect(
+        isResolveTargetActionable(
+          result({ best, candidates: [best], protectedMatches: [] }),
+        ),
+      ).toBe(true);
+    }
+
+    for (const latestVersionMaliciousStatus of [
+      "AFFECTED",
+      "UNKNOWN",
+      "REVIEW_REQUIRED",
+      "clear",
+    ] as const) {
+      const best = candidate({ latestVersionMaliciousStatus });
+      expect(
+        isResolveTargetActionable(
+          result({ best, candidates: [best], protectedMatches: [] }),
+        ),
+      ).toBe(false);
+    }
+
+    expect(
+      isResolveTargetActionable(
+        result({ best: candidate(), candidates: [], protectedMatches: [] }),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("formatResolveTargetTerminal", () => {
@@ -172,6 +253,8 @@ describe("formatResolveTargetTerminal", () => {
       "Candidates:\n  1. npm:express [exact] · package · 66k stars · 89M downloads/mo · docs · code · protected exact-name match",
     );
     expect(output).toContain("     Fast web framework");
+    expect(output).not.toContain("Warning:");
+    expect(output).not.toContain("malicious");
     expect(output).toContain(
       `Next: githits search 'router'"'"'s middleware' --in 'npm:express'`,
     );
@@ -238,6 +321,10 @@ describe("formatResolveTargetTerminal", () => {
     ]);
     expect(output).toContain("2. pypi:express [exact] · package");
     expect(output).toContain("3. github:expressjs/express [high] · repository");
+    expect(output).toContain(
+      "Warning: Malicious-content status is unavailable for the best match. Do not use this target.",
+    );
+    expect(output.match(/Warning:/g)).toHaveLength(1);
   });
 
   it("shows total downloads or a linked repository when monthly downloads are unavailable", () => {
@@ -326,7 +413,192 @@ describe("formatResolveTargetTerminal", () => {
         "Next: githits search 'middleware' --in 'npm:express'",
       );
       expect(output).not.toContain("Unconfirmed ranked candidates:");
+      expect(output).not.toContain("Warning:");
+      expect(output).not.toContain("malicious");
     }
+  });
+
+  it("renders NOT_APPLICABLE repositories as actionable", () => {
+    const repository = candidate({
+      kind: "REPOSITORY",
+      canonicalKey: "github:expressjs/express",
+      latestVersionMaliciousStatus: "NOT_APPLICABLE",
+    });
+    const output = formatResolveTargetTerminal(
+      result({
+        best: repository,
+        candidates: [repository],
+        protectedMatches: [],
+      }),
+      { name: "express", query: "middleware", useColors: false },
+    );
+
+    expect(output).not.toContain("Warning:");
+    expect(output).not.toContain("malicious");
+    expect(output).toContain(
+      "Next: githits search 'middleware' --in 'github:expressjs/express'",
+    );
+  });
+
+  it("fails closed for affected, unknown, and future malicious statuses", () => {
+    const expectedEvidence = new Map([
+      [
+        "AFFECTED",
+        "Malicious content affects the latest version. Do not use the latest version. Verify another version against the linked evidence.",
+      ],
+      [
+        "UNKNOWN",
+        "Malicious-content status is uncertain. Verify the advisory details before using this version.",
+      ],
+      [
+        "REVIEW_REQUIRED",
+        "Unrecognized malicious-content status: REVIEW_REQUIRED. Do not use this target.",
+      ],
+    ]);
+
+    for (const [latestVersionMaliciousStatus, evidence] of expectedEvidence) {
+      const best = candidate({ latestVersionMaliciousStatus });
+      const output = formatResolveTargetTerminal(
+        result({ best, candidates: [best], protectedMatches: [] }),
+        { name: "express", query: "middleware", useColors: false },
+      );
+
+      expect(output).toContain(evidence);
+      expect(output).toContain("Warning:");
+      expect(output).not.toContain("Next:");
+      expect(output).not.toContain("Next after choosing:");
+      expect(output).not.toContain("githits search");
+    }
+  });
+
+  it("renders malicious-content findings as red warnings", () => {
+    const affected = candidate({
+      latestVersionMaliciousStatus: "AFFECTED",
+      latestVersionMaliciousEvidence: {
+        advisories: [
+          {
+            osvId: "MAL-2026-1234",
+            classificationReasons: ["AFFECTED_VERSION_RANGE_MATCH"],
+          },
+        ],
+        totalCount: 1,
+        truncated: false,
+      },
+    });
+    const output = formatResolveTargetTerminal(
+      result({ best: affected, candidates: [affected], protectedMatches: [] }),
+      { name: "express", useColors: true },
+    );
+
+    expect(output).toContain(
+      "\u001b[31mWarning: Malicious content affects the latest version — MAL-2026-1234: https://osv.dev/vulnerability/MAL-2026-1234. Do not use the latest version. Verify another version against the linked evidence.\u001b[0m",
+    );
+  });
+
+  it("explains unknown malicious evidence and reports truncation", () => {
+    const unknown = candidate({
+      latestVersionMaliciousStatus: "UNKNOWN",
+      latestVersionMaliciousEvidence: {
+        advisories: [
+          {
+            osvId: "MAL-2026/unsafe id",
+            classificationReasons: ["INVALID_AFFECTED_RANGE", "FUTURE_REASON"],
+          },
+        ],
+        totalCount: 3,
+        truncated: true,
+      },
+    });
+    const output = formatResolveTargetTerminal(
+      result({ best: unknown, candidates: [unknown], protectedMatches: [] }),
+      { name: "express", useColors: false },
+    );
+
+    expect(output).toContain(
+      "Warning: Malicious-content status is uncertain — MAL-2026/unsafe id (affected range invalid, unrecognized reason FUTURE_REASON): https://osv.dev/vulnerability/MAL-2026%2Funsafe%20id; +2 more. Verify the advisory details before using this version.",
+    );
+    expect(output).not.toContain("Next:");
+  });
+
+  it("explains every known unknown-evidence classification reason", () => {
+    const reasons = new Map([
+      ["MISSING_DISPLAYED_VERSION", "latest version missing"],
+      ["INVALID_DISPLAYED_VERSION", "latest version invalid"],
+      ["MISSING_AFFECTED_RANGES", "affected ranges missing"],
+      ["EMPTY_AFFECTED_RANGES", "affected ranges empty"],
+      ["INVALID_AFFECTED_RANGE", "affected range invalid"],
+    ]);
+
+    for (const [reason, label] of reasons) {
+      const unknown = candidate({
+        latestVersionMaliciousStatus: "UNKNOWN",
+        latestVersionMaliciousEvidence: {
+          advisories: [
+            {
+              osvId: "MAL-2026-1234",
+              classificationReasons: [reason],
+            },
+          ],
+          totalCount: 1,
+          truncated: false,
+        },
+      });
+      const output = formatResolveTargetTerminal(
+        result({ best: unknown, candidates: [unknown], protectedMatches: [] }),
+        { name: "express", useColors: false },
+      );
+
+      expect(output).toContain(`MAL-2026-1234 (${label})`);
+    }
+  });
+
+  it("restricts ambiguous continuation when any candidate is non-actionable", () => {
+    const clear = candidate();
+    const affected = candidate({
+      canonicalKey: "npm:express-lookalike",
+      latestVersionMaliciousStatus: "AFFECTED",
+    });
+    const output = formatResolveTargetTerminal(
+      result({
+        best: clear,
+        candidates: [clear, affected],
+        protectedMatches: [],
+        ambiguous: true,
+        ambiguousReason: "CLOSE_CANDIDATES",
+      }),
+      { name: "express", useColors: false },
+    );
+
+    expect(output).toContain(
+      "Warning: Some candidates are not actionable. Narrow the result before continuing.",
+    );
+    expect(output).not.toContain("Next after choosing:");
+    expect(output).not.toContain("githits search");
+  });
+
+  it("restricts continuation when a displayed reference has no evidence", () => {
+    const best = candidate({ confidence: "MEDIUM" });
+    const output = formatResolveTargetTerminal(
+      result({
+        best,
+        candidates: [best],
+        protectedMatches: [
+          {
+            kind: "PACKAGE",
+            canonicalKey: "jsr:@express/core",
+            confidence: "EXACT",
+          },
+        ],
+      }),
+      { name: "express", query: "middleware", useColors: false },
+    );
+
+    expect(output).toContain(
+      "Warning: Some candidates are not actionable. Narrow the result before continuing.",
+    );
+    expect(output.match(/Warning:/g)).toHaveLength(1);
+    expect(output).not.toContain("Next:");
+    expect(output).not.toContain("githits search");
   });
 
   it("requires narrowing or an explicit choice for MEDIUM and LOW results", () => {

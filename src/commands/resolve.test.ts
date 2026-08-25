@@ -98,12 +98,29 @@ describe("resolveAction", () => {
     expect(String(writeSpy.mock.calls[0]?.[0])).toContain(
       "Candidates:\n  1. npm:express",
     );
+    expect(String(writeSpy.mock.calls[0]?.[0])).not.toContain("Warning:");
+    expect(String(writeSpy.mock.calls[0]?.[0])).not.toContain("malicious");
   });
 
   it("requests detailed data and prints clean JSON", async () => {
-    const resolveTarget = mock(() =>
-      Promise.resolve(defaultResolveTargetResult),
-    );
+    const affected = structuredClone(defaultResolveTargetResult);
+    const candidate = affected.candidates[0];
+    if (!candidate) throw new Error("fixture missing resolve candidate");
+    affected.candidates[0] = {
+      ...candidate,
+      latestVersionMaliciousStatus: "AFFECTED",
+      latestVersionMaliciousEvidence: {
+        advisories: [
+          {
+            osvId: "MAL-2026-1234",
+            classificationReasons: ["AFFECTED_VERSION_RANGE_MATCH"],
+          },
+        ],
+        totalCount: 1,
+        truncated: false,
+      },
+    };
+    const resolveTarget = mock(() => Promise.resolve(affected));
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
 
     await resolveAction(
@@ -122,6 +139,22 @@ describe("resolveAction", () => {
     expect(JSON.parse(String(logSpy.mock.calls[0]?.[0]))).toMatchObject({
       best: "npm:express",
       ambiguous: false,
+      candidates: [
+        {
+          target: "npm:express",
+          latestVersionMaliciousStatus: "affected",
+          latestVersionMaliciousEvidence: {
+            advisories: [
+              {
+                osvId: "MAL-2026-1234",
+                classificationReasons: ["affected_version_range_match"],
+              },
+            ],
+            totalCount: 1,
+            truncated: false,
+          },
+        },
+      ],
     });
   });
 
