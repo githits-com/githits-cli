@@ -5893,14 +5893,17 @@ describe("initUninstallAction", () => {
         other: { command: "other" },
       },
     });
-    const fs = createFsWithDetection(["/home/test/.cursor"], {
+    const configFiles: Record<string, string> = {
       "/home/test/.cursor/mcp.json": currentConfig,
-    });
+      "/home/test/.agents/skills/githits-mcp/SKILL.md": "skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
     (fs.readFile as ReturnType<typeof mock>).mockImplementation(
       async (path: string) => {
         if (path === "/home/test/.cursor/mcp.json") {
           return currentConfig;
         }
+        if (path in configFiles) return configFiles[path]!;
         throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
       },
     );
@@ -5930,6 +5933,17 @@ describe("initUninstallAction", () => {
     expect(parsed.mcpServers.other).toEqual({ command: "other" });
     const logCalls = getLogOutput();
     expect(logCalls.some((msg) => msg.includes("Done!"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("1 agent removed."))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("2 agents removed."))).toBe(
+      false,
+    );
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("GitHits guidance") &&
+          msg.includes("~/.agents/skills/githits-mcp/SKILL.md"),
+      ),
+    ).toBe(true);
   });
 
   it("--yes skips prompts", async () => {
@@ -7460,6 +7474,98 @@ describe("initUninstallAction", () => {
       "/home/test/.cline/skills/githits-mcp/SKILL.md",
     );
     expect(configFiles["/home/test/.codex/AGENTS.md"]).toBe("Existing\n");
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Done! GitHits guidance was removed."),
+      ),
+    ).toBe(true);
+    expect(logCalls.join("\n")).not.toMatch(/\b\d+ agents? removed\./);
+    expect(
+      logCalls.filter(
+        (msg) => msg.includes("GitHits guidance") && msg.includes("unchanged"),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("continues guidance cleanup after multiple target failures", async () => {
+    const firstSkillPath = "/home/test/.claude/skills/githits-mcp/SKILL.md";
+    const sharedSkillPath = "/home/test/.agents/skills/githits-mcp/SKILL.md";
+    const laterSkillPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const managedBlockPath = "/home/test/.claude/CLAUDE.md";
+    const configFiles: Record<string, string> = {
+      [firstSkillPath]: "first skill",
+      [sharedSkillPath]: "shared skill",
+      [laterSkillPath]: "later skill",
+      [managedBlockPath]: [
+        "Existing",
+        "",
+        "<!-- githits -->",
+        "old guidance",
+        "<!-- githits -->",
+        "",
+      ].join("\n"),
+    };
+    const fs = createFsWithDetection([], configFiles);
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      if (path === firstSkillPath || path === sharedSkillPath) {
+        throw new Error("guidance secret failure");
+      }
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(deleteCalls).toContain(firstSkillPath);
+    expect(deleteCalls).toContain(sharedSkillPath);
+    expect(deleteCalls).toContain(laterSkillPath);
+    expect(configFiles[laterSkillPath]).toBeUndefined();
+    expect(configFiles[managedBlockPath]).toBe("Existing\n");
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) => msg.includes("Uninstall completed with errors")),
+    ).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("~/.claude/skills/githits-mcp/SKILL.md") &&
+          msg.includes("guidance cleanup failed"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("~/.agents/skills/githits-mcp/SKILL.md") &&
+          msg.includes("guidance cleanup failed"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("~/.cline/skills/githits-mcp/SKILL.md"),
+      ),
+    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("~/.claude/CLAUDE.md"))).toBe(
+      true,
+    );
+    expect(
+      logCalls.some((msg) => msg.includes("guidance secret failure")),
+    ).toBe(false);
+    expect(logCalls.join("\n")).not.toMatch(
+      /\b\d+ agents? failed to uninstall\./,
+    );
+    expect(process.exitCode).toBe(1);
   });
 
   it("shows nothing to uninstall when no GitHits configs are found", async () => {
@@ -7478,6 +7584,13 @@ describe("initUninstallAction", () => {
     expect(logCalls.some((msg) => msg.includes("Nothing to uninstall"))).toBe(
       true,
     );
+    const guidanceRows = logCalls.filter((msg) =>
+      msg.includes("GitHits guidance"),
+    );
+    expect(guidanceRows).toHaveLength(1);
+    expect(guidanceRows[0]).toContain("unchanged");
+    expect(guidanceRows[0]).not.toContain("SKILL.md");
+    expect(guidanceRows[0]).not.toContain("AGENTS.md");
   });
 });
 

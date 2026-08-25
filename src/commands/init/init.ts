@@ -185,6 +185,12 @@ interface GuidanceUninstallOutcome {
   message?: string;
   warnings?: string[];
   changes?: UninstallChange[];
+  failures?: GuidanceUninstallFailure[];
+}
+
+interface GuidanceUninstallFailure {
+  path: string;
+  reason: string;
 }
 
 type UninstallInspectionResult =
@@ -3313,22 +3319,23 @@ async function runUserMcpUninstall(
   }
   console.log();
 
-  const removed =
-    outcomes.filter((o) => o.status === "removed").length +
-    (guidanceOutcome?.status === "removed" ? 1 : 0);
+  const removed = outcomes.filter((o) => o.status === "removed").length;
   const notConfigured =
     outcomes.filter((o) => o.status === "not_configured").length +
-    scan.notConfigured.length +
-    (guidanceOutcome?.status === "not_configured" ? 1 : 0);
-  const failed =
-    outcomes.filter((o) => o.status === "failed").length +
-    (guidanceOutcome?.status === "failed" ? 1 : 0);
+    scan.notConfigured.length;
+  const failed = outcomes.filter((o) => o.status === "failed").length;
+  const guidanceRemoved = guidanceOutcome?.status === "removed";
+  const guidanceNotConfigured = guidanceOutcome?.status === "not_configured";
+  const guidanceFailed = guidanceOutcome?.status === "failed";
 
-  if (failed > 0) {
+  if (failed > 0 || guidanceFailed) {
+    process.exitCode = 1;
     console.log("  Uninstall completed with errors.");
   } else if (removed > 0) {
     console.log("  Done! GitHits MCP configuration was removed.");
-  } else if (notConfigured > 0) {
+  } else if (guidanceRemoved) {
+    console.log("  Done! GitHits guidance was removed.");
+  } else if (notConfigured > 0 || guidanceNotConfigured) {
     console.log(
       "  No GitHits MCP configurations were active. Nothing to uninstall.",
     );
@@ -3354,9 +3361,14 @@ async function runUserMcpUninstall(
         console.log(`      Warning: ${warn}`);
       }
     }
-    if (guidanceOutcome?.status === "failed") {
+  }
+  if (guidanceFailed) {
+    console.log(
+      `    - GitHits guidance: ${guidanceOutcome.message ?? "Unknown error"}`,
+    );
+    for (const failure of guidanceOutcome.failures ?? []) {
       console.log(
-        `    - GitHits guidance: ${guidanceOutcome.message ?? "Unknown error"}`,
+        `      - ${formatConfigPath(failure.path, fileSystemService)}: ${failure.reason}`,
       );
     }
   }
@@ -3855,25 +3867,50 @@ function printGuidanceUninstallOutcome(
   useColors: boolean,
 ): void {
   if (outcome.status === "skipped") return;
-  const mapped: AgentUninstallOutcome = {
-    id: "githits-guidance",
-    name: "GitHits guidance",
-    status:
-      outcome.status === "removed"
-        ? "removed"
-        : outcome.status === "failed"
-          ? "failed"
-          : "not_configured",
-    message: outcome.message,
-    warnings: outcome.warnings,
-    changes: outcome.changes,
-  };
-  printUninstallOutcome(
-    mapped,
-    fileSystemService,
+  const rows: ChangeRow[] = [];
+  for (const change of outcome.changes ?? []) {
+    if (
+      (change.kind === "skill" || change.kind === "managed-block") &&
+      change.change === "removed"
+    ) {
+      rows.push(
+        uninstallChangeToRow("GitHits guidance", change, fileSystemService),
+      );
+    }
+  }
+  for (const failure of outcome.failures ?? []) {
+    rows.push({
+      tone: "error",
+      label: "GitHits guidance",
+      verb: "failed",
+      detail: `${formatConfigPath(failure.path, fileSystemService)}: ${failure.reason}`,
+    });
+  }
+  if (rows.length === 0) {
+    rows.push({
+      tone: outcome.status === "failed" ? "error" : "ok",
+      label: "GitHits guidance",
+      verb: outcome.status === "failed" ? "failed" : "unchanged",
+      detail:
+        outcome.status === "failed"
+          ? (outcome.message ?? "Guidance cleanup failed")
+          : "",
+    });
+  }
+  for (const line of renderChangeRows(rows, {
     useColors,
-    "GitHits guidance".length,
-  );
+    labelWidth: "GitHits guidance".length,
+    verbWidth: CHANGE_VERB_WIDTH,
+  })) {
+    console.log(line);
+  }
+  for (const warn of outcome.warnings ?? []) {
+    console.log(`    ${warning(`Warning: ${warn}`, useColors)}`);
+  }
+}
+
+function sanitizeGuidanceFailureReason(_message: string | undefined): string {
+  return "guidance cleanup failed";
 }
 
 async function installGuidance(
@@ -3917,6 +3954,8 @@ async function uninstallGuidance(
   let anyRemoved = false;
   let anyNotConfigured = false;
   const changes: UninstallChange[] = [];
+  const failures: GuidanceUninstallFailure[] = [];
+  const warnings: string[] = [];
   for (const step of steps) {
     const result =
       step.method === "skill"
@@ -3926,18 +3965,28 @@ async function uninstallGuidance(
       changes.push(...result.changes);
     }
     if (result.status === "failed") {
-      return {
-        status: "failed",
-        message: result.message,
-        warnings: result.warnings,
-        changes,
-      };
+      failures.push({
+        path: step.targetPath,
+        reason: sanitizeGuidanceFailureReason(result.message),
+      });
+      warnings.push(...(result.warnings ?? []));
+      continue;
     }
     if (result.status === "removed") {
       anyRemoved = true;
     } else {
       anyNotConfigured = true;
     }
+  }
+
+  if (failures.length > 0) {
+    return {
+      status: "failed",
+      message: "One or more GitHits guidance targets failed to uninstall.",
+      warnings: warnings.length > 0 ? warnings : undefined,
+      changes,
+      failures,
+    };
   }
 
   if (anyRemoved) {
