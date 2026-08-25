@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, mock, spyOn } from "bun:test";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import {
@@ -18,6 +18,7 @@ import type {
   CliCheckCommand,
   MergeResult,
   SetupCheck,
+  SetupCheckStatus,
 } from "./setup-handlers.js";
 import {
   detectConfigFormat,
@@ -678,6 +679,89 @@ describe("dispatches file setup checks", () => {
 
     expect(result).toBe("probe_failed");
     expect(JSON.stringify(result)).not.toContain(secret);
+  });
+});
+
+describe("traces file setup checks", () => {
+  it("records the path and sanitized status without file details", async () => {
+    const originalTrace = process.env.GITHITS_INIT_TRACE;
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const path = "/home/test/.claude.json";
+    const trace = { agentId: "claude-code", phase: "setup-check" };
+
+    const run = async (
+      readFile: () => Promise<string>,
+      evaluateContent: (content: string) => SetupCheckStatus,
+      expected: SetupCheckStatus,
+      event: "probe:end" | "probe:error",
+      secret: string,
+    ): Promise<void> => {
+      errorSpy.mockClear();
+      const result = await dispatchSetupCheck(
+        { kind: "file", path, evaluateContent },
+        createMockFileSystemService({ readFile: mock(readFile) }),
+        createMockExecService(),
+        trace,
+      );
+
+      expect(result).toBe(expected);
+      const output = (errorSpy.mock.calls as unknown[][])
+        .map(([message]) => String(message))
+        .join("\n");
+      expect(output).toContain(
+        `probe:start agent=claude-code phase=setup-check path=${JSON.stringify(path)}`,
+      );
+      expect(output).toContain(`${event} agent=claude-code`);
+      expect(output).toContain(`result=${expected}`);
+      expect(output).not.toContain(secret);
+    };
+
+    process.env.GITHITS_INIT_TRACE = "1";
+    try {
+      await run(
+        async () => `configured content ${"configured-secret"}`,
+        () => "configured",
+        "configured",
+        "probe:end",
+        "configured-secret",
+      );
+      await run(
+        async () => {
+          throw Object.assign(new Error("missing-secret"), { code: "ENOENT" });
+        },
+        () => "configured",
+        "not_configured",
+        "probe:end",
+        "missing-secret",
+      );
+      await run(
+        async () => {
+          throw Object.assign(new Error("unreadable-secret"), {
+            code: "EACCES",
+          });
+        },
+        () => "configured",
+        "probe_failed",
+        "probe:error",
+        "unreadable-secret",
+      );
+      await run(
+        async () => "evaluator content evaluator-secret",
+        () => {
+          throw new Error("evaluator-secret");
+        },
+        "probe_failed",
+        "probe:error",
+        "evaluator-secret",
+      );
+    } finally {
+      errorSpy.mockRestore();
+      if (originalTrace === undefined) {
+        delete process.env.GITHITS_INIT_TRACE;
+      } else {
+        process.env.GITHITS_INIT_TRACE = originalTrace;
+      }
+    }
   });
 });
 
@@ -2095,34 +2179,6 @@ describe("executeCliSetup", () => {
     expect(result.message).toBe("GitHits already configured via claude");
   });
 
-  it("allows Claude's exact missing-user-scope cleanup response", async () => {
-    const execService = createMockExecService({
-      exec: mock(() =>
-        Promise.resolve({
-          exitCode: 1,
-          stdout: "",
-          stderr: 'No MCP server named "githits" in user scope\n',
-        }),
-      ),
-    });
-    const result = await executeCliSetup(
-      {
-        method: "cli",
-        commands: [
-          {
-            command: "claude",
-            args: ["mcp", "remove", "githits", "--scope", "user"],
-            allowAlreadyAbsent: true,
-          },
-        ],
-      },
-      fileSystem,
-      execService,
-    );
-
-    expect(result.status).toBe("already_configured");
-  });
-
   it("does not accept missing responses for another Claude scope or server", async () => {
     for (const stderr of [
       'No MCP server named "other" in user scope',
@@ -2475,32 +2531,6 @@ describe("executeCliUninstall", () => {
       fileSystem,
       execService,
     );
-    expect(result.status).toBe("not_configured");
-  });
-
-  it("returns not_configured for Claude's missing user-scope entry", async () => {
-    const result = await executeCliUninstall(
-      {
-        method: "cli",
-        commands: [
-          {
-            command: "claude",
-            args: ["mcp", "remove", "githits", "--scope", "user"],
-          },
-        ],
-      },
-      fileSystem,
-      createMockExecService({
-        exec: mock(() =>
-          Promise.resolve({
-            exitCode: 1,
-            stdout: "",
-            stderr: 'No MCP server named "githits" in user scope\n',
-          }),
-        ),
-      }),
-    );
-
     expect(result.status).toBe("not_configured");
   });
 

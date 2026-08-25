@@ -1301,17 +1301,56 @@ export async function dispatchSetupCheck(
     return getCliCheckStatus(check, execService, fileSystem, trace);
   }
 
+  const startedAt = Date.now();
+  if (trace) {
+    traceProbeStart({
+      agentId: trace.agentId,
+      phase: trace.phase,
+      path: check.path,
+    });
+  }
+
   let content: string;
   try {
     content = await fileSystem.readFile(check.path);
   } catch (error) {
-    return getFileCheckReadStatus(error);
+    const status = getFileCheckReadStatus(error);
+    if (trace) {
+      traceProbeEnd({
+        agentId: trace.agentId,
+        phase: trace.phase,
+        startedAt,
+        status: status === "not_configured" ? "end" : "error",
+        result: status,
+      });
+    }
+    return status;
   }
 
   try {
-    return check.evaluateContent(content);
+    const status = check.evaluateContent(content);
+    if (trace) {
+      traceProbeEnd({
+        agentId: trace.agentId,
+        phase: trace.phase,
+        startedAt,
+        status: "end",
+        result: status,
+      });
+    }
+    return status;
   } catch {
-    return "probe_failed";
+    const status = "probe_failed";
+    if (trace) {
+      traceProbeEnd({
+        agentId: trace.agentId,
+        phase: trace.phase,
+        startedAt,
+        status: "error",
+        result: status,
+      });
+    }
+    return status;
   }
 }
 
@@ -1337,7 +1376,6 @@ const ALREADY_EXISTS_PATTERNS = [
 
 /** Patterns in CLI output that indicate GitHits was already absent */
 const ALREADY_ABSENT_PATTERNS = [
-  /^\s*No MCP server named ["']githits["'] in user scope\.?\s*$/im,
   /(?:plugin|extension|server|mcp server)\s+["']?githits["']?\s+(?:was\s+)?not\s+found/i,
   /["']?githits["']?\s+(?:plugin|extension|server)?\s*(?:does\s+not\s+exist|is\s+not\s+installed|not\s+installed)/i,
   /(?:package\s+)?["']?pi-mcp-adapter["']?\s+(?:(?:is\s+)?not\s+installed|not\s+found)/i,
