@@ -1359,10 +1359,38 @@ function isAlreadyAbsentOutput(output: string): boolean {
  * Execute a single CLI command step.
  * Returns a result object — does not throw on failure.
  */
+async function getCliPreconditionStatus(
+  cmd: CliCommand,
+  fileSystem: FileSystemService,
+  execService: ExecService,
+): Promise<SetupCheckStatus> {
+  if (!cmd.precondition) return "configured";
+  return dispatchSetupCheck(cmd.precondition, fileSystem, execService);
+}
+
 async function executeCliCommand(
   cmd: CliCommand,
+  fileSystem: FileSystemService,
   execService: ExecService,
 ): Promise<SetupResult> {
+  const preconditionStatus = await getCliPreconditionStatus(
+    cmd,
+    fileSystem,
+    execService,
+  );
+  if (preconditionStatus === "not_configured") {
+    return {
+      status: "already_configured",
+      message: "Command skipped because its precondition is not configured",
+    };
+  }
+  if (preconditionStatus !== "configured") {
+    return {
+      status: "failed",
+      message: "Command skipped because its precondition check failed",
+    };
+  }
+
   try {
     const result = await execService.exec(cmd.command, cmd.args);
     const combined = `${result.stdout} ${result.stderr}`;
@@ -1408,8 +1436,27 @@ async function executeCliCommand(
 /** Execute a single CLI uninstall command step. */
 async function executeCliUninstallCommand(
   cmd: CliCommand,
+  fileSystem: FileSystemService,
   execService: ExecService,
 ): Promise<UninstallResult> {
+  const preconditionStatus = await getCliPreconditionStatus(
+    cmd,
+    fileSystem,
+    execService,
+  );
+  if (preconditionStatus === "not_configured") {
+    return {
+      status: "not_configured",
+      message: "Command skipped because its precondition is not configured",
+    };
+  }
+  if (preconditionStatus !== "configured") {
+    return {
+      status: "failed",
+      message: "Command skipped because its precondition check failed",
+    };
+  }
+
   try {
     const result = await execService.exec(cmd.command, cmd.args);
     const combined = `${result.stdout} ${result.stderr}`;
@@ -1455,6 +1502,7 @@ async function executeCliUninstallCommand(
  */
 export async function executeCliSetup(
   setup: CliSetup,
+  fileSystem: FileSystemService,
   execService: ExecService,
 ): Promise<SetupResult> {
   let anyRan = false;
@@ -1463,7 +1511,7 @@ export async function executeCliSetup(
   const changes: SetupChange[] = [];
 
   for (const cmd of setup.commands) {
-    const result = await executeCliCommand(cmd, execService);
+    const result = await executeCliCommand(cmd, fileSystem, execService);
 
     if (result.status === "failed") {
       // Keep the commands that already ran visible on failure.
@@ -1494,6 +1542,7 @@ export async function executeCliSetup(
 /** Execute a CLI-based uninstall with one or more sequential commands. */
 export async function executeCliUninstall(
   uninstall: CliUninstall,
+  fileSystem: FileSystemService,
   execService: ExecService,
 ): Promise<UninstallResult> {
   if (uninstall.commands.length === 0) {
@@ -1509,7 +1558,11 @@ export async function executeCliUninstall(
   const changes: UninstallChange[] = [];
 
   for (const cmd of uninstall.commands) {
-    const result = await executeCliUninstallCommand(cmd, execService);
+    const result = await executeCliUninstallCommand(
+      cmd,
+      fileSystem,
+      execService,
+    );
 
     if (result.status === "failed") {
       if (anyRemoved) {
@@ -1623,7 +1676,7 @@ async function executeUninstallStep(
   execService: ExecService,
 ): Promise<UninstallResult> {
   if (step.method === "cli") {
-    return executeCliUninstall(step, execService);
+    return executeCliUninstall(step, fs, execService);
   }
   if (step.method === "config-file") {
     return executeConfigFileUninstall(step, fs);
@@ -1889,7 +1942,7 @@ export async function executeCompositeSetup(
 
     const result =
       step.method === "cli"
-        ? await executeCliSetup(step, execService)
+        ? await executeCliSetup(step, fs, execService)
         : step.method === "config-file"
           ? await executeConfigFileSetup(step, fs)
           : step.method === "skill"

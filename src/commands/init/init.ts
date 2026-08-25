@@ -3133,7 +3133,11 @@ async function uninstallSelectedAgents(
 
     let result =
       uninstallConfig.method === "cli"
-        ? await executeCliUninstall(uninstallConfig, execService)
+        ? await executeCliUninstall(
+            uninstallConfig,
+            fileSystemService,
+            execService,
+          )
         : uninstallConfig.method === "config-file"
           ? await executeConfigFileUninstall(uninstallConfig, fileSystemService)
           : uninstallConfig.method === "skill"
@@ -3422,7 +3426,7 @@ async function executeAgentSetupWithVerification(
   }
   let result =
     config.method === "cli"
-      ? await executeCliSetup(config, execService)
+      ? await executeCliSetup(config, fileSystemService, execService)
       : config.method === "config-file"
         ? await executeConfigFileSetup(config, fileSystemService)
         : config.method === "skill"

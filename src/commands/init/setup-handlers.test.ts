@@ -1748,9 +1748,271 @@ describe("getConfigUninstallCheckStatus", () => {
   });
 });
 
+describe("executes CLI setup preconditions", () => {
+  it("checks immediately before a configured command", async () => {
+    const order: string[] = [];
+    const fileSystem = createMockFileSystemService({
+      readFile: mock(async () => {
+        order.push("check");
+        return "safe content";
+      }),
+    });
+    const execService = createMockExecService({
+      exec: mock(async () => {
+        order.push("command");
+        return { exitCode: 0, stdout: "OK", stderr: "" };
+      }),
+    });
+
+    const result = await executeCliSetup(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["mcp", "add", "githits"],
+            precondition: {
+              kind: "file",
+              path: "/home/test/.claude.json",
+              evaluateContent: () => "configured",
+            },
+          },
+        ],
+      },
+      fileSystem,
+      execService,
+    );
+
+    expect(result.status).toBe("success");
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "claude mcp add githits",
+        change: "ran",
+      },
+    ]);
+    expect(order).toEqual(["check", "command"]);
+  });
+
+  it("skips an absent cleanup command and runs later commands", async () => {
+    const readFile = mock(() => Promise.resolve("absent content"));
+    const execService = createMockExecService({
+      exec: mock(() =>
+        Promise.resolve({ exitCode: 0, stdout: "Added", stderr: "" }),
+      ),
+    });
+    const result = await executeCliSetup(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["mcp", "remove", "githits"],
+            precondition: {
+              kind: "file",
+              path: "/home/test/.claude.json",
+              evaluateContent: () => "not_configured",
+            },
+          },
+          { command: "claude", args: ["mcp", "add", "githits"] },
+        ],
+      },
+      createMockFileSystemService({ readFile }),
+      execService,
+    );
+
+    expect(result.status).toBe("success");
+    expect(result.changes).toEqual([
+      {
+        kind: "command",
+        command: "claude mcp remove githits",
+        change: "unchanged",
+      },
+      {
+        kind: "command",
+        command: "claude mcp add githits",
+        change: "ran",
+      },
+    ]);
+    expect(readFile).toHaveBeenCalledTimes(1);
+    expect(execService.exec).toHaveBeenCalledTimes(1);
+    expect(execService.exec).toHaveBeenCalledWith("claude", [
+      "mcp",
+      "add",
+      "githits",
+    ]);
+  });
+
+  it("blocks guarded commands for indeterminate states without leaking data", async () => {
+    const secret = "setup precondition secret";
+    for (const status of [
+      "probe_failed",
+      "disabled",
+      "non_canonical",
+    ] as const) {
+      const execService = createMockExecService();
+      const result = await executeCliSetup(
+        {
+          method: "cli",
+          commands: [
+            {
+              command: "claude",
+              args: ["mcp", "remove", "githits"],
+              precondition: {
+                kind: "file",
+                path: "/home/test/.claude.json",
+                evaluateContent: () => status,
+              },
+            },
+          ],
+        },
+        createMockFileSystemService({
+          readFile: mock(() => Promise.resolve(`content ${secret}`)),
+        }),
+        execService,
+      );
+
+      expect(result.status).toBe("failed");
+      expect(execService.exec).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toContain(secret);
+    }
+
+    const evaluatorSecret = "evaluator setup secret";
+    const evaluatorResult = await executeCliSetup(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["mcp", "remove", "githits"],
+            precondition: {
+              kind: "file",
+              path: "/home/test/.claude.json",
+              evaluateContent: () => {
+                throw new Error(evaluatorSecret);
+              },
+            },
+          },
+        ],
+      },
+      createMockFileSystemService({
+        readFile: mock(() => Promise.resolve(`content ${evaluatorSecret}`)),
+      }),
+      createMockExecService(),
+    );
+    expect(evaluatorResult.status).toBe("failed");
+    expect(JSON.stringify(evaluatorResult)).not.toContain(evaluatorSecret);
+  });
+});
+
+describe("executes CLI uninstall preconditions", () => {
+  it("runs configured commands and records skipped cleanup rows", async () => {
+    const order: string[] = [];
+    const execService = createMockExecService({
+      exec: mock(async () => {
+        order.push("command");
+        return { exitCode: 0, stdout: "Removed", stderr: "" };
+      }),
+    });
+    const configured = await executeCliUninstall(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["mcp", "remove", "githits"],
+            precondition: {
+              kind: "file",
+              path: "/home/test/.claude.json",
+              evaluateContent: () => {
+                order.push("check");
+                return "configured";
+              },
+            },
+          },
+        ],
+      },
+      createMockFileSystemService({
+        readFile: mock(() => Promise.resolve("safe content")),
+      }),
+      execService,
+    );
+    expect(configured.status).toBe("removed");
+    expect(order).toEqual(["check", "command"]);
+
+    const absent = await executeCliUninstall(
+      {
+        method: "cli",
+        commands: [
+          {
+            command: "claude",
+            args: ["mcp", "remove", "githits"],
+            precondition: {
+              kind: "file",
+              path: "/home/test/.claude.json",
+              evaluateContent: () => "not_configured",
+            },
+          },
+          { command: "claude", args: ["plugin", "uninstall", "githits"] },
+        ],
+      },
+      createMockFileSystemService(),
+      execService,
+    );
+    expect(absent.status).toBe("removed");
+    expect(absent.changes).toEqual([
+      {
+        kind: "command",
+        command: "claude mcp remove githits",
+        change: "unchanged",
+      },
+      {
+        kind: "command",
+        command: "claude plugin uninstall githits",
+        change: "ran",
+      },
+    ]);
+  });
+
+  it("blocks indeterminate guarded commands before execution", async () => {
+    for (const status of [
+      "probe_failed",
+      "disabled",
+      "non_canonical",
+    ] as const) {
+      const execService = createMockExecService();
+      const result = await executeCliUninstall(
+        {
+          method: "cli",
+          commands: [
+            {
+              command: "claude",
+              args: ["mcp", "remove", "githits"],
+              precondition: {
+                kind: "file",
+                path: "/home/test/.claude.json",
+                evaluateContent: () => status,
+              },
+            },
+          ],
+        },
+        createMockFileSystemService({
+          readFile: mock(() => Promise.resolve("content")),
+        }),
+        execService,
+      );
+
+      expect(result.status).toBe("failed");
+      expect(result.changes).toEqual([]);
+      expect(execService.exec).not.toHaveBeenCalled();
+    }
+  });
+});
+
 // -- executeCliSetup --
 
 describe("executeCliSetup", () => {
+  const fileSystem = createMockFileSystemService();
   const singleStepSetup: CliSetup = {
     method: "cli",
     commands: [{ command: "codex", args: ["mcp", "add", "githits"] }],
@@ -1776,7 +2038,11 @@ describe("executeCliSetup", () => {
         Promise.resolve({ exitCode: 0, stdout: "Added.\n", stderr: "" }),
       ),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("success");
     expect(execService.exec).toHaveBeenCalledWith("codex", [
       "mcp",
@@ -1791,7 +2057,11 @@ describe("executeCliSetup", () => {
         Promise.resolve({ exitCode: 0, stdout: "OK\n", stderr: "" }),
       ),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("success");
     expect(execService.exec).toHaveBeenCalledTimes(2);
   });
@@ -1817,6 +2087,7 @@ describe("executeCliSetup", () => {
           },
         ],
       },
+      fileSystem,
       execService,
     );
 
@@ -1845,6 +2116,7 @@ describe("executeCliSetup", () => {
           },
         ],
       },
+      fileSystem,
       execService,
     );
 
@@ -1867,6 +2139,7 @@ describe("executeCliSetup", () => {
             },
           ],
         },
+        fileSystem,
         createMockExecService({
           exec: mock(() =>
             Promise.resolve({ exitCode: 1, stdout: "", stderr }),
@@ -1883,7 +2156,11 @@ describe("executeCliSetup", () => {
         Promise.resolve({ exitCode: 0, stdout: "OK\n", stderr: "" }),
       ),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.changes).toEqual([
       {
         kind: "command",
@@ -1908,7 +2185,11 @@ describe("executeCliSetup", () => {
     const execService = createMockExecService({
       exec: mock(() => Promise.resolve(responses[call++]!)),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     // A command ran, so the overall result is success, not already_configured.
     expect(result.status).toBe("success");
     expect(result.changes).toEqual([
@@ -1935,7 +2216,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("already_configured");
     expect(result.changes?.every((c) => c.change === "unchanged")).toBe(true);
   });
@@ -1949,7 +2234,11 @@ describe("executeCliSetup", () => {
     const execService = createMockExecService({
       exec: mock(() => Promise.resolve(responses[call++]!)),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("failed");
     expect(result.changes).toEqual([
       {
@@ -1970,7 +2259,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("failed");
     expect(result.message).toContain("code 1");
     expect(result.message).toContain("Unknown command");
@@ -1983,7 +2276,11 @@ describe("executeCliSetup", () => {
     const execService = createMockExecService({
       exec: mock(() => Promise.reject(enoent)),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("failed");
     expect(result.message).toContain('"codex" not found on PATH');
   });
@@ -1992,7 +2289,11 @@ describe("executeCliSetup", () => {
     const execService = createMockExecService({
       exec: mock(() => Promise.reject(new Error("Unexpected error"))),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("failed");
     expect(result.message).toContain("Unexpected error");
   });
@@ -2007,7 +2308,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("already_configured");
   });
 
@@ -2021,7 +2326,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("already_configured");
   });
 
@@ -2036,7 +2345,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(singleStepSetup, execService);
+    const result = await executeCliSetup(
+      singleStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("already_configured");
   });
 
@@ -2050,7 +2363,11 @@ describe("executeCliSetup", () => {
         }),
       ),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("failed");
     // Only the first command should have been attempted
     expect(execService.exec).toHaveBeenCalledTimes(1);
@@ -2075,7 +2392,11 @@ describe("executeCliSetup", () => {
         });
       }),
     });
-    const result = await executeCliSetup(multiStepSetup, execService);
+    const result = await executeCliSetup(
+      multiStepSetup,
+      fileSystem,
+      execService,
+    );
     // A command ran, so this is success — not already_configured.
     expect(result.status).toBe("success");
     // Both commands should still run
@@ -2084,6 +2405,7 @@ describe("executeCliSetup", () => {
 });
 
 describe("executeCliUninstall", () => {
+  const fileSystem = createMockFileSystemService();
   const uninstall: CliUninstall = {
     method: "cli",
     commands: [{ command: "codex", args: ["mcp", "remove", "githits"] }],
@@ -2096,7 +2418,11 @@ describe("executeCliUninstall", () => {
       ),
     });
 
-    const result = await executeCliUninstall(uninstall, execService);
+    const result = await executeCliUninstall(
+      uninstall,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("removed");
     expect(execService.exec).toHaveBeenCalledWith("codex", [
       "mcp",
@@ -2118,7 +2444,7 @@ describe("executeCliUninstall", () => {
         Promise.resolve({ exitCode: 0, stdout: "Removed\n", stderr: "" }),
       ),
     });
-    const result = await executeCliUninstall(multi, execService);
+    const result = await executeCliUninstall(multi, fileSystem, execService);
     expect(result.changes).toEqual([
       {
         kind: "command",
@@ -2144,7 +2470,11 @@ describe("executeCliUninstall", () => {
       ),
     });
 
-    const result = await executeCliUninstall(uninstall, execService);
+    const result = await executeCliUninstall(
+      uninstall,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("not_configured");
   });
 
@@ -2159,6 +2489,7 @@ describe("executeCliUninstall", () => {
           },
         ],
       },
+      fileSystem,
       createMockExecService({
         exec: mock(() =>
           Promise.resolve({
@@ -2185,7 +2516,11 @@ describe("executeCliUninstall", () => {
         ),
       });
 
-      const result = await executeCliUninstall(uninstall, execService);
+      const result = await executeCliUninstall(
+        uninstall,
+        fileSystem,
+        execService,
+      );
       expect(result.status).toBe("failed");
     }
   });
@@ -2194,6 +2529,7 @@ describe("executeCliUninstall", () => {
     const execService = createMockExecService();
     const result = await executeCliUninstall(
       { method: "cli", commands: [] } as never,
+      fileSystem,
       execService,
     );
 
@@ -2213,7 +2549,11 @@ describe("executeCliUninstall", () => {
       ),
     });
 
-    const result = await executeCliUninstall(uninstall, execService);
+    const result = await executeCliUninstall(
+      uninstall,
+      fileSystem,
+      execService,
+    );
     expect(result.status).toBe("removed");
   });
 
@@ -2247,7 +2587,7 @@ describe("executeCliUninstall", () => {
       }),
     });
 
-    const result = await executeCliUninstall(multi, execService);
+    const result = await executeCliUninstall(multi, fileSystem, execService);
     expect(result.status).toBe("removed");
     expect(result.warnings).toHaveLength(1);
   });
@@ -2278,7 +2618,7 @@ describe("executeCliUninstall", () => {
       }),
     });
 
-    const result = await executeCliUninstall(multi, execService);
+    const result = await executeCliUninstall(multi, fileSystem, execService);
     expect(result.status).toBe("removed");
     expect(result.warnings?.[0]).toContain("boom");
   });
@@ -2300,7 +2640,7 @@ describe("executeCliUninstall", () => {
       ),
     });
 
-    const result = await executeCliUninstall(multi, execService);
+    const result = await executeCliUninstall(multi, fileSystem, execService);
     expect(result.status).toBe("failed");
     expect(execService.exec).toHaveBeenCalledTimes(1);
   });

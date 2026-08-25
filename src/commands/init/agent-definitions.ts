@@ -14,6 +14,8 @@ export interface CliCommand {
   command: string;
   /** Command arguments */
   args: string[];
+  /** Optional read-only state check evaluated immediately before execution. */
+  precondition?: SetupCheck;
   /** Treat a recognized already-absent result as success during replacement. */
   allowAlreadyAbsent?: boolean;
 }
