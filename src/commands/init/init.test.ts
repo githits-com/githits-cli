@@ -2235,6 +2235,53 @@ describe("initAction", () => {
     ).toBe(false);
   });
 
+  it("blocks setup after an initial configuration probe failure", async () => {
+    const fs = createFsWithDetection([]);
+    const probeError = "probe-secret-output";
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCommandFor()} codex`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/codex\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp get githits --json") {
+          return Promise.reject(new Error(probeError));
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+
+    await initAction(
+      {
+        installAgents: "codex-cli",
+        json: true,
+        guidance: false,
+      },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.outcomes[0].status).toBe("failed");
+    expect(payload.outcomes[0].message).toContain("configuration probe failed");
+    expect(JSON.stringify(payload)).not.toContain(probeError);
+    expect(
+      (execService.exec as ReturnType<typeof mock>).mock.calls.some(
+        ([cmd, args]) =>
+          cmd === "codex" &&
+          (args as string[]).slice(0, 3).join(" ") === "mcp add githits",
+      ),
+    ).toBe(false);
+  });
+
   it("reports a failed post-setup Codex probe as inconclusive", async () => {
     const fs = createFsWithDetection([]);
     let checkCalls = 0;
@@ -2306,7 +2353,7 @@ describe("initAction", () => {
         }
         if (key === "codex mcp get githits --json") {
           return Promise.resolve({
-            exitCode: 0,
+            exitCode: codexConfigured ? 0 : 1,
             stdout: codexConfigured
               ? CODEX_CONFIGURED_OUTPUT
               : CODEX_MISSING_OUTPUT,

@@ -3424,6 +3424,13 @@ async function executeAgentSetupWithVerification(
       changes: [],
     };
   }
+  if (agent.resolvedSetupCheckStatus === "probe_failed") {
+    return {
+      status: "failed",
+      message: `${agent.name} configuration probe failed. The existing configuration was left unchanged.`,
+      changes: [],
+    };
+  }
   let result =
     config.method === "cli"
       ? await executeCliSetup(config, fileSystemService, execService)
