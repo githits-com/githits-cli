@@ -49,15 +49,22 @@ Install and uninstall share one renderer and read consistently.
     kept) / `unchanged`, one `ran` / `unchanged` change per CLI command,
     composite concatenation. Partial changes and warnings are preserved when a
     later step fails.
+  - The reusable setup-check dispatcher accepts either a command check or a
+    file check. File checks read their resolved path once and pass only the
+    evaluator's status through; missing files are `not_configured`, other read
+    errors and evaluator failures are `probe_failed`.
 
 - `src/commands/init/init.ts` — threads changes onto `AgentOutcome` /
   `AgentUninstallOutcome` (so they also appear in `--install-agents --json`),
   renders them via `renderChangeRows`, and preserves changes through
   verification failure (the written path/command stays visible under a `failed`
-  row). A trailing summary confirms the server: `Configured MCP server "githits"
-  with local command \`npx -y githits@latest mcp start\`` (wording reflects
-  whether anything was actually installed; the command is muted inline so it
-  does not read as something to run).
+  row). Guidance uninstall has its own outcome and renderer: it keeps only
+  changed or failed target paths visible, aggregates sanitized per-target
+  failures, and never contributes to agent counts. A trailing summary confirms
+  the server: `Configured MCP server "githits" with local command \`npx -y
+  githits@latest mcp start\`` (wording reflects whether anything was actually
+  installed; the command is muted inline so it does not read as something to
+  run).
 
 ## Uninstall UX
 
@@ -71,7 +78,18 @@ render with the shared row format — config-file tools show `updated <path>`
 `uninstallSelectedAgents` mirrors `installSelectedAgents`. Every uninstall verb
 uses the ok tone (green ✓): for uninstall the desired end state is "GitHits
 absent", which holds whether we just edited a file, ran a command, or found it
-already gone (`unchanged`).
+already gone (`unchanged`). An already-absent command after an earlier removal
+is still an unchanged no-op, not a warning; later hard failures retain the
+existing warning/failure semantics.
+
+Global guidance cleanup is independent of selected MCP agents unless
+`--keep-guidance` is supplied. It attempts every verified skill and managed
+instruction target even after a failure. A supported skill-directory symlink is
+preserved while its expected `SKILL.md` is removed. Text output shows removed
+and failed guidance paths, collapses an all-absent result to one unchanged
+`GitHits guidance` row, and reports guidance failures separately from agent
+counts. A guidance-only removal has a guidance headline, while a guidance
+failure produces the normal error headline and a nonzero exit status.
 
 Project uninstall (`init uninstall --project`) is file-based (it dedupes config
 paths across project-supported tools) and uses a single confirmation, not the
@@ -87,3 +105,13 @@ on its own rendering path.
   Code and Codex are config-file and do show paths.
 - `format: json` / `--json` carry the structured `changes`; the friendly
   trailing block is text-only.
+
+### Setup-check sources and trace
+
+Setup inspection uses one discriminated check contract. Command checks retain
+their existing timeout, isolated-working-directory, and evaluator behavior;
+file checks carry a resolved path and a pure content evaluator. Human output
+renders a file check as `checked via <collapsed path>`, without showing file
+contents. When `GITHITS_INIT_TRACE=1` is enabled, file probes record the path
+and sanitized result category only. They never record file contents, parsed
+values, or read/evaluator error text.

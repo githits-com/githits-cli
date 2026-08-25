@@ -2,14 +2,15 @@
 
 ## Overall status
 
-Planned. No production changes have been implemented.
+Implementation of Phases 1 and 2 is complete, including durable documentation
+and the release fragment. Full validation, review, and deletion of this
+temporary plan remain pending in Phase 3.
 
 ## Problem
 
-`githits init` and `githits init uninstall` currently infer Claude Code MCP
-state from human-readable CLI output. A Claude wording change from the expected
-`No MCP server named ...` response to `No user-scoped MCP server found with
-name: githits` caused two user-visible failures:
+The original `githits init` and `githits init uninstall` flow inferred Claude
+Code MCP state from human-readable CLI output. A Claude wording change caused
+two user-visible failures:
 
 - guided setup treated an already-absent user MCP entry as a hard cleanup
   failure and stopped before `claude mcp add`;
@@ -19,14 +20,14 @@ name: githits` caused two user-visible failures:
 The same reports exposed independent uninstall defects:
 
 - a legitimate `~/.claude/skills/githits-mcp` symlink to the shared
-  `~/.agents/skills/githits-mcp` directory causes `rmdir` to return `ENOTDIR`
+  `~/.agents/skills/githits-mcp` directory caused `rmdir` to return `ENOTDIR`
   after `SKILL.md` was already removed, turning successful file removal into a
   failure and stopping later guidance cleanup;
-- already-absent cleanup steps become warnings after another step removed
-  something, even though absence is the desired state;
-- global guidance results are counted as agents and all missing guidance paths
-  are printed individually, producing misleading counts and noisy output;
-- guidance cleanup stops at the first failed target instead of attempting the
+- already-absent cleanup steps became warnings after another step removed
+  something, even though absence was the desired state;
+- global guidance results were counted as agents and all missing guidance paths
+  were printed individually, producing misleading counts and noisy output;
+- guidance cleanup stopped at the first failed target instead of attempting the
   remaining independent targets.
 
 ## Expected outcome
@@ -46,9 +47,9 @@ exit status.
 
 ## Verified current state and evidence
 
-1. Claude Code 2.1.245 exposes no `--json` option for `claude mcp get`, `list`,
-   or `remove`. Those commands are explicitly human-readable and health-check
-   configured servers.
+1. Claude's former MCP inspection surface was human-readable and offered no
+   stable machine-readable contract. The implemented flow avoids that surface
+   and reads the documented user configuration instead.
 2. Anthropic documents user-scoped MCP servers in the top-level `mcpServers`
    object of `~/.claude.json`. Local verification showed that a non-empty
    `CLAUDE_CONFIG_DIR` moves the file to
@@ -72,18 +73,21 @@ exit status.
    [truncated output](https://github.com/anthropics/claude-code/issues/67656)).
 6. The reported Claude skill directory is a symlink to the shared Agent Skill
    directory, and its `SKILL.md` content matches the packaged GitHits skill.
-   `deleteDirIfEmpty` ignores missing/non-empty directories but not `ENOTDIR`.
-7. Both `executeCliUninstall` and `executeCompositeUninstall` deliberately turn
-   a later `not_configured` result into a warning after an earlier removal.
-   This contradicts `docs/implementation/init-setup-output.md`, which describes
-   warnings as later failures.
+   Before implementation, `deleteDirIfEmpty` ignored missing/non-empty
+   directories but not `ENOTDIR`; it now treats `ENOTDIR` as the same cleanup
+   no-op class while preserving other errors.
+7. Before implementation, both `executeCliUninstall` and
+   `executeCompositeUninstall` turned a later `not_configured` result into a
+   warning after an earlier removal. The implemented behavior treats desired
+   absence as an unchanged no-op and retains warnings for genuine failures.
 8. User-level guidance cleanup receives all agent definitions by design so it
-   can remove guidance even when no MCP tool is detected. This global cleanup
-   contract is documented and remains in scope; the reporting, counting, and
-   best-effort execution around it are defective.
+   can remove guidance even when no MCP tool is detected. The implemented
+   global cleanup attempts independent targets best-effort, reports failures
+   separately, and excludes guidance from agent counts.
 9. Targeted baseline validation before planning passed 337 tests across
    `filesystem-service.test.ts`, `setup-handlers.test.ts`, and `init.test.ts`.
-   No test covers a symlinked skill directory or Claude's reported MCP wording.
+   Phase implementation added regressions for the symlink layout, structured
+   Claude state, guidance traversal, and compact reporting.
 
 Primary local evidence:
 
@@ -145,7 +149,7 @@ External contract evidence:
 
 ### Claude user-state adapter
 
-Add a focused module under `src/commands/init/` with a deliberately narrow
+The focused module under `src/commands/init/` has a deliberately narrow
 boundary between three owners:
 
 1. The adapter resolves Claude's user config path with injected filesystem path
@@ -270,7 +274,7 @@ still verified from persisted structured state.
 This is not an optimization. Structured file reads replace Claude subprocesses
 and health checks for MCP inspection, so the normal path should do less work.
 No benchmark is required. Tests should assert that Claude MCP inspection no
-longer invokes `claude mcp get`.
+longer invokes a Claude MCP inspection command.
 
 ### Migration and rollback
 
@@ -287,8 +291,10 @@ This changes the published root CLI only:
 "@githits/mcp": none
 ```
 
-Add one independent `changes/<unique-name>.fixed.md` fragment. Do not bump
-package versions or edit `CHANGELOG.md` outside release preparation.
+The root CLI change is recorded in
+`changes/init-uninstall-reliability.fixed.md`; it does not change the MCP
+package. Do not bump package versions or edit `CHANGELOG.md` outside release
+preparation.
 
 ### Implementation workflow
 
@@ -313,29 +319,30 @@ outputs remain unchanged.
 
 ### Overall unknowns or product decisions
 
-None blocking the next two phases. Plugin JSON compatibility remains a later
-evidence question and is explicitly outside this plan.
+No unresolved product decisions block the remaining validation and review.
+Plugin JSON compatibility remains outside this plan.
 
 ## Phase map
 
 | Phase | Status | Expected outcome |
 |---|---|---|
-| 1. Structured Claude MCP lifecycle | Pending | Claude setup, detection, and uninstall no longer depend on MCP prose and fail safely before mutation when structured state is unavailable. |
-| 2. Uninstall cleanup and reporting | Pending | Symlinked guidance removes cleanly, all guidance targets are attempted, absence is not warned, and summaries distinguish agents from guidance. |
-| 3. Completion and durable handoff | Pending | Documentation, release fragment, validation, review evidence, and temporary-plan cleanup are complete. |
+| 1. Structured Claude MCP lifecycle | Complete | Claude setup, detection, and uninstall use structured user state and fail safely before mutation when that state is unavailable. |
+| 2. Uninstall cleanup and reporting | Complete | Symlinked guidance removes cleanly, all guidance targets are attempted, absence is not warned, and summaries distinguish agents from guidance. |
+| 3. Completion and durable handoff | In progress | Durable documentation and release metadata are complete; full validation, review evidence, and temporary-plan cleanup remain. |
 
 ## Phase 1: Structured Claude MCP lifecycle
 
 ### Status
 
-Pending; implementation-ready.
+Complete. Structured Claude inspection, generic file checks, preconditions,
+safe setup blocking, and lifecycle regressions are implemented. Full
+validation and review remain in Phase 3.
 
 ### Expected outcome
 
-The reported Claude setup succeeds because an absent entry is detected before
-cleanup and `claude mcp remove` is skipped. The reported uninstall verifies
-absence structurally. Prose changes from Claude cannot affect MCP state
-classification.
+The implemented Claude setup detects an absent entry before cleanup and skips
+`claude mcp remove`. The implemented uninstall verifies absence structurally,
+and Claude prose changes cannot affect MCP state classification.
 
 ### Assumptions
 
@@ -354,7 +361,7 @@ None.
 - The agent-definition-owned canonical GitHits invocation, injected into the
   pure adapter parser.
 
-### Likely files
+### Implemented files
 
 - new `src/commands/init/claude-user-config.ts`
 - new `src/commands/init/claude-user-config.test.ts`
@@ -364,44 +371,43 @@ None.
 - `src/commands/init/setup-handlers.test.ts`
 - `src/commands/init/init.ts`
 - `src/commands/init/init.test.ts`
-- `src/commands/init/init-trace.ts` and its tests if the unified check dispatcher
-  changes trace formatting
+- Trace coverage is in `src/commands/init/setup-handlers.test.ts` alongside
+  the unified check dispatcher tests.
 
-### Ordered implementation steps
+### Completed implementation steps
 
-1. Add failing pure-parser and path-resolution tests covering default home,
+1. Added pure-parser and path-resolution tests covering default home,
    non-empty `CLAUDE_CONFIG_DIR`, empty-variable fallback, POSIX and Windows
    joining, malformed JSON, invalid root/`mcpServers` shapes, canonical entries,
    omitted stdio type, non-canonical entries, unrelated servers, alternate
    injected invocations, and secret-bearing extra fields. File absence and IO
    classification belong to the generic dispatcher, not these adapter tests.
-2. Implement the narrow Claude user-config adapter. Keep path resolution
-   filesystem-injected but read-free; accept the expected invocation as an
-   explicit parser input and return status and sanitized reason only.
-3. Introduce the discriminated command/file setup-check contract and one
-   dispatcher. Let it own file reads, ENOENT/other IO classification, and the
-   adapter parser call. Migrate existing command checks mechanically without
-   changing their evaluators or output.
-4. Update CLI check-detail rendering, uninstall inspection, and trace metadata
+2. Implemented the narrow Claude user-config adapter. Path resolution remains
+   filesystem-injected but read-free; the expected invocation is an explicit
+   parser input and the adapter returns status and sanitized reason only.
+3. Introduced the discriminated command/file setup-check contract and one
+   dispatcher. It owns file reads, ENOENT/other IO classification, and the
+   adapter parser call. Existing command checks were migrated mechanically
+   without changing their evaluators or output.
+4. Updated CLI check-detail rendering, uninstall inspection, and trace metadata
    to support file checks without content disclosure.
-5. Add the optional command precondition to setup and uninstall execution.
-   Preserve executed/skipped change rows and stop before mutation on an
-   indeterminate precondition.
-6. Replace Claude's `mcp get` check with the structured canonical check and
-   attach the structured presence precondition to both user-scope `mcp remove`
-   commands. Remove the obsolete Claude prose evaluator and Claude-specific
-   probe timeout/temp-cwd behavior. Also remove the Claude-only
-   `No MCP server named ... in user scope` entry from
-   `ALREADY_ABSENT_PATTERNS` and its executor tests; retain the generic patterns
-   still used by plugin, extension, marketplace, Pi, and other cleanup steps.
-7. Make `executeAgentSetupWithVerification` reject an initial `probe_failed`
-   state before running setup commands. Preserve intentional non-canonical
-   migration.
-8. Add orchestration regressions for the exact reported sequence: absent MCP
+5. Added the optional command precondition to setup and uninstall execution.
+   Executed and skipped change rows are preserved, and an indeterminate
+   precondition stops before mutation.
+6. Replaced Claude's prose-based inspection with the structured canonical check and
+   attached the structured presence precondition to both user-scope removal
+   commands. The obsolete Claude prose evaluator and Claude-specific probe
+   timeout/temp-cwd behavior were removed. The Claude-only prose absence pattern
+   was removed from `ALREADY_ABSENT_PATTERNS`; generic plugin, extension,
+   marketplace, Pi, and other cleanup patterns remain.
+7. Made `executeAgentSetupWithVerification` reject an initial `probe_failed`
+   state before running setup commands; intentional non-canonical migration is
+   preserved.
+8. Added orchestration regressions for the exact reported sequence: absent MCP
    state skips remove and reaches add; canonical state is unchanged;
    non-canonical state removes then adds; malformed/unreadable state runs no MCP
    mutation; setup and uninstall post-verification reread structured state; no
-   path invokes `claude mcp get`.
+   path invokes a Claude MCP inspection command.
 9. Re-read all other command-check definitions and call sites to confirm the
    mechanical contract migration did not change Codex, Gemini, Pi, or Amazon Q
    behavior.
@@ -421,9 +427,9 @@ None.
   a lock or fallback in this increment; no such concurrent-write contract is
   documented or observed.
 
-### Test and verification strategy
+### Targeted phase verification
 
-Run during the phase:
+The targeted phase verification was:
 
 ```text
 bun test src/commands/init/claude-user-config.test.ts
@@ -438,12 +444,12 @@ Claude CLI to validate an actual absent -> add -> configured -> uninstall ->
 absent cycle. Print only status, selected non-secret command/argument fields,
 and command exit results; never print the complete config file.
 
-### Documentation updates
+### Completed documentation updates
 
-- Update `docs/implementation/cli-commands.md` to replace Claude's read-only CLI
+- Updated `docs/implementation/cli-commands.md` to replace Claude's read-only CLI
   probe description with structured user-config inspection and clarify that
   Claude still owns mutations.
-- Update `docs/implementation/init-setup-output.md` for file-backed check detail
+- Updated `docs/implementation/init-setup-output.md` for file-backed check detail
   on a CLI-configured agent.
 
 ### Acceptance criteria
@@ -462,14 +468,16 @@ and command exit results; never print the complete config file.
 
 ### Status
 
-Pending; implementation-ready after Phase 1.
+Complete. Symlink-compatible cleanup, absence-vs-failure aggregation,
+best-effort guidance traversal, and guidance-owned reporting are implemented.
+Full validation and review remain in Phase 3.
 
 ### Expected outcome
 
-The reported symlink layout uninstalls without error, one target failure does
-not prevent cleanup of later independent guidance targets, desired absence is
-quiet, and final counts/headlines accurately describe agent and guidance
-outcomes.
+The implemented cleanup handles the reported symlink layout without error;
+one target failure does not prevent later independent guidance cleanup, desired
+absence is quiet, and final counts/headlines accurately describe agent and
+guidance outcomes.
 
 ### Assumptions
 
@@ -486,7 +494,7 @@ None.
 - Phase 1's unified setup/uninstall check and result behavior.
 - Existing guidance target enumeration and `--keep-guidance` semantics.
 
-### Likely files
+### Implemented files
 
 - `src/services/filesystem-service.ts`
 - `src/services/filesystem-service.test.ts`
@@ -497,30 +505,31 @@ None.
 - `docs/implementation/init-setup-output.md`
 - `docs/implementation/init-guidance-and-expanded-agent-support.md`
 
-### Ordered implementation steps
+### Completed implementation steps
 
-1. Add a POSIX-only real-filesystem regression with a skill directory symlink.
-   Guard it on Windows, where creating symlinks may require privileges and
-   `rmdir` path behavior differs. Prove that `SKILL.md` is removed through the
-   symlink, the symlink remains, and optional parent cleanup does not fail.
-2. Update `deleteDirIfEmpty` to treat `ENOTDIR` as the same cleanup no-op class
-   as missing or non-empty paths. Preserve propagation of permission and other
-   IO errors.
-3. Change CLI and composite uninstall aggregation so `not_configured` after a
-   removal remains an unchanged change without a warning. Preserve warnings
-   for genuine later hard failures and preserve required/best-effort behavior.
-   Scan and update Claude and Pi sibling tests for the same invariant.
-4. Make guidance uninstall continue after individual target failures,
+1. Added a POSIX-only real-filesystem regression with a skill directory symlink.
+   It is guarded on Windows, where creating symlinks may require privileges and
+   `rmdir` path behavior differs. The regression proves that `SKILL.md` is
+   removed through the symlink, the symlink remains, and optional parent
+   cleanup does not fail.
+2. Updated `deleteDirIfEmpty` to treat `ENOTDIR` as the same cleanup no-op class
+   as missing or non-empty paths. Permission and other unexpected IO errors
+   still propagate.
+3. Changed CLI and composite uninstall aggregation so `not_configured` after a
+   removal remains an unchanged change without a warning. Warnings for genuine
+   later hard failures and required/best-effort behavior remain unchanged.
+   Claude and Pi sibling tests were scanned and updated for the same invariant.
+4. Made guidance uninstall continue after individual target failures,
    preserving successful/unchanged changes and collecting sanitized failure
    details for the final result and exit status.
-5. Separate MCP agent counts from the guidance outcome. Guidance still affects
+5. Separated MCP agent counts from the guidance outcome. Guidance still affects
    the overall success/error headline and exit status but is never called an
    agent in counts.
-6. Compact text rendering: show changed and failed guidance paths; when every
+6. Compacted text rendering: show changed and failed guidance paths; when every
    target is absent, print one unchanged guidance row rather than every verified
-   path. Preserve the global cleanup attempt set internally.
-7. Add summary matrices for agent-only, guidance-only, mixed, absent, and
-   failure outcomes. Include the two supplied report shapes.
+   path. The global cleanup attempt set remains complete internally.
+7. Added summary matrices for agent-only, guidance-only, mixed, absent, and
+   failure outcomes, including the two supplied report shapes.
 8. Re-read project uninstall output to ensure user-level changes did not alter
    its separate file-based reporting path.
 
@@ -537,9 +546,9 @@ None.
 - When guidance alone fails, the summary must not claim an agent failed.
 - `--keep-guidance` bypasses guidance reads and writes exactly as today.
 
-### Test and verification strategy
+### Targeted phase verification
 
-Run during the phase:
+The targeted phase verification was:
 
 ```text
 bun test src/services/filesystem-service.test.ts
@@ -548,11 +557,11 @@ bun test src/commands/init/init.test.ts
 bun run typecheck
 ```
 
-### Documentation updates
+### Completed documentation updates
 
-- Document absence-vs-failure warning semantics and compact global guidance
+- Documented absence-vs-failure warning semantics and compact global guidance
   reporting in `docs/implementation/init-setup-output.md`.
-- Document symlink-compatible skill cleanup and best-effort target traversal in
+- Documented symlink-compatible skill cleanup and best-effort target traversal in
   `docs/implementation/init-guidance-and-expanded-agent-support.md`.
 
 ### Acceptance criteria
@@ -569,7 +578,8 @@ bun run typecheck
 
 ### Status
 
-Pending; intentionally outcome-level until Phase 2 reorientation.
+In progress. Implementation and durable documentation/release metadata are
+complete; full validation, review, and temporary-plan deletion remain.
 
 ### Expected outcome
 

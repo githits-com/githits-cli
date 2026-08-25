@@ -69,9 +69,25 @@
 - Extend setup types with `skill` and `managed-block` changes alongside existing `config-file` and `command`.
 - Add reusable helpers for managed marker blocks, skill copy/removal, and nonstandard MCP server shapes.
 - Rerun behavior: if MCP exists but guidance is missing, guided init installs only missing guidance; if guidance exists but MCP is missing, guided init installs only missing MCP.
-- Unsupported guidance targets explain that rerunning the same install cannot add guidance. Failed guidance reports the underlying failure and requires it to be resolved before retrying; only intentional `--no-guidance` opt-out recommends a future guided rerun.
-- Cleanup removes GitHits MCP config, managed instruction blocks, and GitHits-owned `githits-mcp/SKILL.md` from every verified target path; delete the skill directory only if empty.
+- Unsupported guidance targets explain that rerunning the same install cannot add guidance. Failed guidance installation reports the underlying failure and requires it to be resolved before retrying; only intentional `--no-guidance` opt-out recommends a future guided rerun.
+- Cleanup removes GitHits MCP config, managed instruction blocks, and GitHits-owned `githits-mcp/SKILL.md` from every verified target path; delete the skill directory only if empty. A supported skill-directory symlink is retained when parent cleanup reports a non-directory path.
 - Remote MCP docs/help should recommend installing `githits-mcp` because server-level instructions are not reliable enough alone.
+
+## Guidance Uninstall Reliability
+
+Global guidance cleanup is independent of which MCP agents are selected. Unless
+`githits init uninstall --keep-guidance` is used, it attempts every verified
+skill and managed-instruction target. A failed target is recorded with its
+collapsed path and a sanitized failure category, then later targets still run;
+already-absent targets are successful no-ops. The expected `SKILL.md` is
+removed through a supported skill-directory symlink while the symlink itself
+remains.
+
+Guidance is reported separately from MCP agents. Changed and failed paths are
+shown, an all-absent result is one unchanged `GitHits guidance` row, and
+guidance-only removal or failure gets its own headline. Guidance affects the
+overall failure status, but never increments the agent removed, not-configured,
+or failed counts.
 
 ## Tests
 

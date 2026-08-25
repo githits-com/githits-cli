@@ -28,6 +28,14 @@ init removes it, replaces any existing user-scoped GitHits MCP entry, and adds
 safe no-ops. Direct Claude marketplace installs remain a separate, remote-MCP
 path.
 
+Claude's user entry is read from `$CLAUDE_CONFIG_DIR/.claude.json` when the
+variable is non-empty or `~/.claude.json` otherwise. Inspection is limited to
+the lowercase `mcpServers.githits` entry and classifies it as canonical,
+non-canonical, absent, or probe-failed. Malformed or unreadable state blocks
+Claude MCP mutation; canonical and non-canonical state remains removable
+through Claude's CLI, and post-mutation verification rereads the structured
+file state.
+
 Gemini detection likewise checks for the user-scoped stdio MCP entry installed
 by the CLI. Direct setup removes a legacy GitHits extension and any existing
 user-scoped GitHits MCP entry before adding `npx -y githits@latest mcp start`.
@@ -95,9 +103,9 @@ Onboarding commands such as `npx -y githits@latest`, detection, login, and setup
 
 ## Detection Probe Reliability
 
-Agent detection may call read-only third-party CLI probes such as the platform binary lookup for Codex, `codex mcp get githits --json`, `claude mcp get githits`, `gemini mcp list`, and Pi package-manager bin lookups. These probes are bounded so one slow or stuck agent CLI cannot prevent `init --detect-agents --json` from returning. Binary lookups use a two-second timeout, package-manager global-bin probes use three seconds, general read-only configuration checks default to five seconds, Codex gets ten seconds, and Claude gets thirty seconds. Timed-out probes are treated as non-fatal probe failures: a failed lookup does not prevent detection when another declared detection path succeeds; configuration-check timeouts retain a distinct failed-probe result and leave an already-detected agent installable instead of blocking the whole detection response. Setup or verification still reports an inconclusive failure when it cannot confirm the resulting configuration.
+Agent detection may call read-only third-party CLI probes such as the platform binary lookup for Codex, Codex MCP inspection, `gemini mcp list`, and Pi package-manager bin lookups. Claude Code is different: its user-scoped MCP state is inspected structurally from `$CLAUDE_CONFIG_DIR/.claude.json` when that variable is non-empty, otherwise `~/.claude.json`; only `mcpServers.githits` is classified. The Claude file check returns `configured`, `non_canonical`, `not_configured`, or `probe_failed` and does not invoke a Claude MCP inspection command. Command probes retain their bounded timeout behavior so one slow or stuck agent CLI cannot prevent `init --detect-agents --json` from returning. File reads map missing state to `not_configured` and unreadable or malformed state to `probe_failed`; setup blocks mutation when the initial state is inconclusive. Setup and verification reread structured state rather than parsing human-readable MCP output.
 
-Set `GITHITS_INIT_TRACE=1` to diagnose detection hangs. Trace mode writes progress to stderr only and keeps JSON stdout parseable. It reports scan start/end, per-agent probe start/end, elapsed time, exit codes, and probe timeouts without logging environment values or secrets.
+Set `GITHITS_INIT_TRACE=1` to diagnose detection hangs. Trace mode writes progress to stderr only and keeps JSON stdout parseable. It reports scan start/end, per-agent probe start/end, elapsed time, exit codes, and probe timeouts without logging environment values or secrets. File probes include only their resolved path and sanitized result category; they never include file contents, parsed values, or read/evaluator error text.
 
 ## Why Fully In-Agent Signup Is Future Work
 
