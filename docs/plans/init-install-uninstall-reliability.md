@@ -2,9 +2,9 @@
 
 ## Overall status
 
-Implementation of Phases 1 and 2 is complete, including durable documentation
-and the release fragment. Full validation, review, and deletion of this
-temporary plan remain pending in Phase 3.
+Implementation of Phases 1 and 2, durable documentation, the release
+fragment, and full validation are complete. External Claude Opus review and
+deletion of this temporary plan remain pending in Phase 3.
 
 ## Problem
 
@@ -319,7 +319,7 @@ outputs remain unchanged.
 
 ### Overall unknowns or product decisions
 
-No unresolved product decisions block the remaining validation and review.
+No unresolved product decisions block the remaining review.
 Plugin JSON compatibility remains outside this plan.
 
 ## Phase map
@@ -328,15 +328,15 @@ Plugin JSON compatibility remains outside this plan.
 |---|---|---|
 | 1. Structured Claude MCP lifecycle | Complete | Claude setup, detection, and uninstall use structured user state and fail safely before mutation when that state is unavailable. |
 | 2. Uninstall cleanup and reporting | Complete | Symlinked guidance removes cleanly, all guidance targets are attempted, absence is not warned, and summaries distinguish agents from guidance. |
-| 3. Completion and durable handoff | In progress | Durable documentation and release metadata are complete; full validation, review evidence, and temporary-plan cleanup remain. |
+| 3. Completion and durable handoff | In progress | Durable documentation, release metadata, and validation evidence are complete; external Claude Opus review and temporary-plan cleanup remain. |
 
 ## Phase 1: Structured Claude MCP lifecycle
 
 ### Status
 
 Complete. Structured Claude inspection, generic file checks, preconditions,
-safe setup blocking, and lifecycle regressions are implemented. Full
-validation and review remain in Phase 3.
+safe setup blocking, and lifecycle regressions are implemented. External review
+remains in Phase 3.
 
 ### Expected outcome
 
@@ -470,7 +470,7 @@ and command exit results; never print the complete config file.
 
 Complete. Symlink-compatible cleanup, absence-vs-failure aggregation,
 best-effort guidance traversal, and guidance-owned reporting are implemented.
-Full validation and review remain in Phase 3.
+External review remains in Phase 3.
 
 ### Expected outcome
 
@@ -578,8 +578,9 @@ bun run typecheck
 
 ### Status
 
-In progress. Implementation and durable documentation/release metadata are
-complete; full validation, review, and temporary-plan deletion remain.
+In progress. Implementation, durable documentation/release metadata, and full
+validation are complete; external Claude Opus review and temporary-plan
+deletion remain.
 
 ### Expected outcome
 
@@ -600,20 +601,50 @@ implemented Phase 2 delta.
 - Phases 1 and 2 accepted and merged into the working increment.
 - Durable implementation documentation accurately reflects final behavior.
 
+### Validation evidence
+
+The required validation passed. `bun run plugins:generate` and
+`bun run plugins:check` were clean, with generated assets unchanged. The full
+test suite passed with 3141 tests passing and 0 failing. `bun run typecheck`,
+`bun run format:check`, `bun run lint`, `bun run build`, and
+`bun run validate:packages` all passed.
+
+The first parallel smoke attempt was invalidated: package validation replaced
+shared `dist` output while concurrent live corpora requests hit
+`RATE_LIMITED`. The smoke suites were then rerun serially and
+`bun run smoke:cli` plus `bun run smoke:mcp` passed. After rebuilding,
+`bun run smoke:cli:built` and `bun run smoke:mcp:built` also passed when run
+sequentially.
+
+The disposable Claude CLI 2.1.245 lifecycle passed with isolated `HOME` and
+`CLAUDE_CONFIG_DIR`: absent state, install, canonical `npx` invocation,
+uninstall, and absent state again. The real config was not read or printed.
+
+The targeted Claude skills `agent:e2e` workload was attempted with disposable
+home/config isolation. It exited 1 before tool execution because Claude was
+unauthenticated (`apiKeySource: none` and no tool calls); isolation was not
+weakened.
+
+### Remaining review and cleanup
+
+- External Claude Opus review remains.
+- Delete this temporary plan after review confirms all durable information is
+  transferred.
+
 ### Acceptance criteria
 
 - One valid `changes/*.fixed.md` fragment records `githits: patch` and
   `@githits/mcp: none`.
 - `bun run plugins:generate` produces only explained output; generated assets
   remain unchanged unless canonical inputs require a change.
-- Required validation and review complete with no unresolved valid findings.
+- Required validation passed; external review remains before final handoff.
 - Durable behavior is captured in `docs/implementation/`.
 - This temporary plan is deleted after implementation review and before final
   handoff, once all durable information has been transferred.
 
-## Full validation horizon
+## Full validation evidence
 
-After both implementation phases and before code review:
+The validation command set was:
 
 ```text
 bun run plugins:generate
@@ -627,12 +658,13 @@ bun run validate:packages
 bun run smoke:cli
 bun run smoke:mcp
 bun run smoke:cli:built
+bun run smoke:mcp:built
 ```
 
-Run the disposable real-Claude lifecycle described in Phase 1 against
-`dist/cli.js`. Also run the targeted Claude onboarding workload only with a
-disposable `CLAUDE_CONFIG_DIR` and inspect `tool-calls.json`, `final.json`,
-`toolIssues`, `instructionIssues`, and approval behavior:
+The disposable real-Claude lifecycle described in Phase 1 was run against
+`dist/cli.js`. The targeted Claude onboarding workload was also attempted only
+with disposable `HOME` and `CLAUDE_CONFIG_DIR`; its unauthenticated limitation
+is recorded above.
 
 ```text
 bun run agent:e2e --agent claude --surface skills --server local \
@@ -663,10 +695,10 @@ the init command owns sequencing and user output.
 
 ## Completion and plan cleanup
 
-The overall effort is complete when the observed install and uninstall reports
-pass as regressions, the disposable current-Claude lifecycle succeeds, all
-required checks pass, implementation documentation is current, and the
-Claude/Codex review loop has no unresolved valid findings.
+The implementation and validation portions are complete. The overall effort
+is complete when the observed install and uninstall reports pass as
+regressions, external Claude Opus review has no unresolved valid findings, and
+this plan is deleted after its durable information is transferred.
 
 Keep this plan through implementation review. Then transfer every durable
 contract and operational detail to `docs/implementation/`, delete this plan,
