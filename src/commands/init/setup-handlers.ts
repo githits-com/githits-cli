@@ -36,8 +36,8 @@ import {
   type UninstallChange,
 } from "./setup-format.js";
 
-/** A read-only command to check if a CLI agent is already configured. */
-export interface CliCheckCommand {
+/** Shared fields for a read-only command setup check. */
+interface CommandSetupCheckFields {
   /** Command to execute (e.g., "claude") */
   command: string;
   /** Command arguments (e.g., ["plugin", "list"]) */
@@ -61,6 +61,24 @@ export interface CliCheckCommand {
   /** Interpret structured or host-specific command output. */
   evaluateResult?: (result: ExecResult) => SetupCheckStatus;
 }
+
+/** A read-only command setup check. */
+export type CommandSetupCheck = CommandSetupCheckFields & {
+  kind: "command";
+};
+
+/** Compatibility shape for existing command-check callers. */
+export type CliCheckCommand = CommandSetupCheckFields;
+
+/** A read-only file setup check with a pure content evaluator. */
+export interface FileSetupCheck {
+  kind: "file";
+  path: string;
+  evaluateContent: (content: string) => SetupCheckStatus;
+}
+
+/** The two supported setup-check variants. */
+export type SetupCheck = CommandSetupCheck | FileSetupCheck;
 
 export type SetupCheckStatus =
   | "configured"
@@ -1270,6 +1288,43 @@ export async function getCliCheckStatus(
       }
     }
   }
+}
+
+/** Dispatch a discriminated setup check without exposing file details. */
+export async function dispatchSetupCheck(
+  check: SetupCheck,
+  fileSystem: FileSystemService,
+  execService: ExecService,
+  trace?: { agentId: string; phase: string },
+): Promise<SetupCheckStatus> {
+  if (check.kind === "command") {
+    return getCliCheckStatus(check, execService, fileSystem, trace);
+  }
+
+  let content: string;
+  try {
+    content = await fileSystem.readFile(check.path);
+  } catch (error) {
+    return getFileCheckReadStatus(error);
+  }
+
+  try {
+    return check.evaluateContent(content);
+  } catch {
+    return "probe_failed";
+  }
+}
+
+function getFileCheckReadStatus(error: unknown): SetupCheckStatus {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ENOENT"
+  ) {
+    return "not_configured";
+  }
+  return "probe_failed";
 }
 
 /** Patterns in CLI output that indicate the server was already configured */

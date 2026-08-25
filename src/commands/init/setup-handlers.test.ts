@@ -14,9 +14,14 @@ import type {
   ManagedBlockSetup,
   SkillSetup,
 } from "./agent-definitions.js";
-import type { CliCheckCommand, MergeResult } from "./setup-handlers.js";
+import type {
+  CliCheckCommand,
+  MergeResult,
+  SetupCheck,
+} from "./setup-handlers.js";
 import {
   detectConfigFormat,
+  dispatchSetupCheck,
   executeCliSetup,
   executeCliUninstall,
   executeCompositeSetup,
@@ -589,6 +594,132 @@ describe("getCliCheckStatus", () => {
         fs,
       ),
     ).toBe("disabled");
+  });
+});
+
+describe("dispatches file setup checks", () => {
+  it("passes evaluator statuses through and reads content once", async () => {
+    for (const status of [
+      "configured",
+      "not_configured",
+      "non_canonical",
+      "disabled",
+      "probe_failed",
+    ] as const) {
+      const readFile = mock(() => Promise.resolve("secret file content"));
+      const fileSystem = createMockFileSystemService({ readFile });
+      const check: SetupCheck = {
+        kind: "file",
+        path: "/home/test/.claude.json",
+        evaluateContent: (content) => {
+          expect(content).toBe("secret file content");
+          return status;
+        },
+      };
+
+      expect(
+        await dispatchSetupCheck(check, fileSystem, createMockExecService()),
+      ).toBe(status);
+      expect(readFile).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("maps missing and unreadable files to sanitized probe statuses", async () => {
+    const missing = Object.assign(new Error("missing secret"), {
+      code: "ENOENT",
+    });
+    const missingReadFile = mock(() => Promise.reject(missing));
+    const missingResult = await dispatchSetupCheck(
+      {
+        kind: "file",
+        path: "/home/test/.claude.json",
+        evaluateContent: () => "configured",
+      },
+      createMockFileSystemService({ readFile: missingReadFile }),
+      createMockExecService(),
+    );
+    expect(missingResult).toBe("not_configured");
+    expect(JSON.stringify(missingResult)).not.toContain("missing secret");
+    expect(missingReadFile).toHaveBeenCalledTimes(1);
+
+    const unreadable = Object.assign(new Error("unreadable secret"), {
+      code: "EACCES",
+    });
+    const unreadableReadFile = mock(() => Promise.reject(unreadable));
+    const unreadableResult = await dispatchSetupCheck(
+      {
+        kind: "file",
+        path: "/home/test/.claude.json",
+        evaluateContent: () => "configured",
+      },
+      createMockFileSystemService({ readFile: unreadableReadFile }),
+      createMockExecService(),
+    );
+    expect(unreadableResult).toBe("probe_failed");
+    expect(JSON.stringify(unreadableResult)).not.toContain("unreadable secret");
+    expect(unreadableReadFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps evaluator errors to a sanitized probe failure", async () => {
+    const secret = "evaluator secret";
+    const result = await dispatchSetupCheck(
+      {
+        kind: "file",
+        path: "/home/test/.claude.json",
+        evaluateContent: () => {
+          throw new Error(secret);
+        },
+      },
+      createMockFileSystemService({
+        readFile: mock(() => Promise.resolve(`content containing ${secret}`)),
+      }),
+      createMockExecService(),
+    );
+
+    expect(result).toBe("probe_failed");
+    expect(JSON.stringify(result)).not.toContain(secret);
+  });
+});
+
+describe("dispatches command setup checks", () => {
+  it("delegates evaluator statuses and command execution options", async () => {
+    const createTempDir = mock(() => Promise.resolve("/tmp/githits-probe"));
+    const deleteDirIfEmpty = mock(() => Promise.resolve());
+    const fileSystem = createMockFileSystemService({
+      createTempDir,
+      deleteDirIfEmpty,
+    });
+    const exec = mock(() =>
+      Promise.resolve({ exitCode: 0, stdout: "ignored", stderr: "" }),
+    );
+    const execService = createMockExecService({ exec });
+
+    for (const status of [
+      "configured",
+      "non_canonical",
+      "disabled",
+      "probe_failed",
+    ] as const) {
+      const check: SetupCheck = {
+        kind: "command",
+        command: "codex",
+        args: ["mcp", "list"],
+        timeoutMs: 12_000,
+        useIsolatedCwd: true,
+        evaluateResult: () => status,
+      };
+
+      expect(await dispatchSetupCheck(check, fileSystem, execService)).toBe(
+        status,
+      );
+    }
+
+    expect(exec).toHaveBeenCalledWith("codex", ["mcp", "list"], {
+      timeoutMs: 12_000,
+      cwd: "/tmp/githits-probe",
+    });
+    expect(createTempDir).toHaveBeenCalledTimes(4);
+    expect(deleteDirIfEmpty).toHaveBeenCalledTimes(4);
   });
 });
 
