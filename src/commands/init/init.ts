@@ -183,7 +183,6 @@ interface AgentUninstallOutcome {
 interface GuidanceUninstallOutcome {
   status: "removed" | "not_configured" | "failed" | "skipped";
   message?: string;
-  warnings?: string[];
   changes?: UninstallChange[];
   failures?: GuidanceUninstallFailure[];
 }
@@ -3904,9 +3903,6 @@ function printGuidanceUninstallOutcome(
   })) {
     console.log(line);
   }
-  for (const warn of outcome.warnings ?? []) {
-    console.log(`    ${warning(`Warning: ${warn}`, useColors)}`);
-  }
 }
 
 async function installGuidance(
@@ -3951,7 +3947,6 @@ async function uninstallGuidance(
   let anyNotConfigured = false;
   const changes: UninstallChange[] = [];
   const failures: GuidanceUninstallFailure[] = [];
-  const warnings: string[] = [];
   for (const step of steps) {
     const result =
       step.method === "skill"
@@ -3965,7 +3960,6 @@ async function uninstallGuidance(
         path: step.targetPath,
         reason: "guidance cleanup failed",
       });
-      warnings.push(...(result.warnings ?? []));
       continue;
     }
     if (result.status === "removed") {
@@ -3979,7 +3973,6 @@ async function uninstallGuidance(
     return {
       status: "failed",
       message: "One or more GitHits guidance targets failed to uninstall.",
-      warnings: warnings.length > 0 ? warnings : undefined,
       changes,
       failures,
     };
