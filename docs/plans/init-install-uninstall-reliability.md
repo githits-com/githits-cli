@@ -170,9 +170,9 @@ the GitHits entry. A structurally valid but non-canonical entry remains
 distinguishable from an absent or malformed entry so the dispatcher can make
 the later replacement decision.
 
-The adapter never returns raw parsed objects, arbitrary values, or parse input.
-Parser diagnostics contain only a bounded reason category such as missing or
-invalid structure; the dispatcher owns any resolved-path context.
+The adapter never returns raw parsed objects, arbitrary values, parse input, or
+diagnostic reasons. It returns only the narrow status; the dispatcher owns any
+resolved-path context and filesystem error classification.
 
 ### Reusable setup-check boundary
 
@@ -384,7 +384,7 @@ None.
    classification belong to the generic dispatcher, not these adapter tests.
 2. Implemented the narrow Claude user-config adapter. Path resolution remains
    filesystem-injected but read-free; the expected invocation is an explicit
-   parser input and the adapter returns status and sanitized reason only.
+   parser input and the adapter returns status only.
 3. Introduced the discriminated command/file setup-check contract and one
    dispatcher. It owns file reads, ENOENT/other IO classification, and the
    adapter parser call. Existing command checks were migrated mechanically

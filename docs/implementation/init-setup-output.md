@@ -6,7 +6,7 @@ configuration. Implements GitHub issue #156 and the uninstall UX unification.
 ## Goal
 
 Make setup auditable: each tool row shows the config file path with a
-created/updated/unchanged verb, or the command(s) run for CLI-configured tools.
+created/updated/unchanged verb, or the command(s) run for command-backed tools.
 Install and uninstall share one renderer and read consistently.
 
 ## Pieces
@@ -98,11 +98,12 @@ on its own rendering path.
 
 ## Conventions
 
-- Config-file tools show a path. CLI-configured tools (Claude Code, Codex,
-  Gemini at user scope) show commands that actually ran, or `checked via
-  <command>` for already-configured rows when a read-only check command proved
-  no setup command was needed — never a fabricated path. In project scope Claude
-  Code and Codex are config-file and do show paths.
+- Config-file tools show a path. Command-backed tools show commands that
+  actually ran, or `checked via <command>` for already-configured rows when a
+  read-only check command proved no setup command was needed — never a
+  fabricated path. Claude Code's user-scope check is file-backed and shows
+  `checked via <collapsed path>`; in project scope Claude Code and Codex are
+  config-file tools and show paths.
 - `format: json` / `--json` carry the structured `changes`; the friendly
   trailing block is text-only.
 

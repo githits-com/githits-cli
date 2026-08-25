@@ -3909,10 +3909,6 @@ function printGuidanceUninstallOutcome(
   }
 }
 
-function sanitizeGuidanceFailureReason(_message: string | undefined): string {
-  return "guidance cleanup failed";
-}
-
 async function installGuidance(
   agents: AgentDefinition[],
   fileSystemService: FileSystemService,
@@ -3967,7 +3963,7 @@ async function uninstallGuidance(
     if (result.status === "failed") {
       failures.push({
         path: step.targetPath,
-        reason: sanitizeGuidanceFailureReason(result.message),
+        reason: "guidance cleanup failed",
       });
       warnings.push(...(result.warnings ?? []));
       continue;

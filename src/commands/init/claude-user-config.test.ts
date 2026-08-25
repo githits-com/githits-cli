@@ -96,7 +96,7 @@ describe("classifies Claude user MCP state", () => {
         JSON.stringify({ mcpServers: { githits: CANONICAL_ENTRY } }),
         alternateInvocation,
       ),
-    ).toEqual({ status: "non_canonical", reason: "non_canonical" });
+    ).toEqual({ status: "non_canonical" });
   });
 
   it("classifies valid but non-canonical entries", () => {
@@ -112,30 +112,26 @@ describe("classifies Claude user MCP state", () => {
           JSON.stringify({ mcpServers: { githits: entry } }),
           CANONICAL_INVOCATION,
         ),
-      ).toEqual({ status: "non_canonical", reason: "non_canonical" });
+      ).toEqual({ status: "non_canonical" });
     }
   });
 
   it("classifies absent and invalid shapes", () => {
     expect(parseClaudeUserMcpState("{}", CANONICAL_INVOCATION)).toEqual({
       status: "not_configured",
-      reason: "missing_mcp_servers",
     });
     expect(
       parseClaudeUserMcpState('{"mcpServers":{}}', CANONICAL_INVOCATION),
     ).toEqual({
       status: "not_configured",
-      reason: "missing_server",
     });
     expect(parseClaudeUserMcpState("null", CANONICAL_INVOCATION)).toEqual({
       status: "probe_failed",
-      reason: "invalid_root",
     });
     expect(
       parseClaudeUserMcpState('{"mcpServers":[]}', CANONICAL_INVOCATION),
     ).toEqual({
       status: "probe_failed",
-      reason: "invalid_mcp_servers",
     });
     expect(
       parseClaudeUserMcpState(
@@ -144,14 +140,13 @@ describe("classifies Claude user MCP state", () => {
       ),
     ).toEqual({
       status: "probe_failed",
-      reason: "invalid_server",
     });
     expect(
       parseClaudeUserMcpState(
         '{"mcpServers":{"githits":{"args":["safe",42]}}}',
         CANONICAL_INVOCATION,
       ),
-    ).toEqual({ status: "probe_failed", reason: "invalid_server" });
+    ).toEqual({ status: "probe_failed" });
     const secret = "super-secret-credential";
     const malformedResult = parseClaudeUserMcpState(
       `{"mcpServers":{"githits":{"token":"${secret}"`,
@@ -159,7 +154,6 @@ describe("classifies Claude user MCP state", () => {
     );
     expect(malformedResult).toEqual({
       status: "probe_failed",
-      reason: "invalid_json",
     });
     expect(JSON.stringify(malformedResult)).not.toContain(secret);
 

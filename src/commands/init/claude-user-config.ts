@@ -14,19 +14,12 @@ export type ClaudeUserMcpParseResult =
     }
   | {
       status: "non_canonical";
-      reason: "non_canonical";
     }
   | {
       status: "not_configured";
-      reason: "missing_mcp_servers" | "missing_server";
     }
   | {
       status: "probe_failed";
-      reason:
-        | "invalid_json"
-        | "invalid_root"
-        | "invalid_mcp_servers"
-        | "invalid_server";
     };
 
 /** Resolve Claude's user-scoped MCP configuration file. */
@@ -52,29 +45,29 @@ export function parseClaudeUserMcpState(
   try {
     document = JSON.parse(contents) as unknown;
   } catch {
-    return { status: "probe_failed", reason: "invalid_json" };
+    return { status: "probe_failed" };
   }
 
   if (!isRecord(document)) {
-    return { status: "probe_failed", reason: "invalid_root" };
+    return { status: "probe_failed" };
   }
 
   if (!("mcpServers" in document)) {
-    return { status: "not_configured", reason: "missing_mcp_servers" };
+    return { status: "not_configured" };
   }
 
   const mcpServers = document.mcpServers;
   if (!isRecord(mcpServers)) {
-    return { status: "probe_failed", reason: "invalid_mcp_servers" };
+    return { status: "probe_failed" };
   }
 
   if (!("githits" in mcpServers)) {
-    return { status: "not_configured", reason: "missing_server" };
+    return { status: "not_configured" };
   }
 
   const githits = mcpServers.githits;
   if (!isRecord(githits) || !isStructurallyValidServerEntry(githits)) {
-    return { status: "probe_failed", reason: "invalid_server" };
+    return { status: "probe_failed" };
   }
 
   const effectiveType = githits.type === undefined ? "stdio" : githits.type;
@@ -83,9 +76,7 @@ export function parseClaudeUserMcpState(
     githits.command === expectedInvocation.command &&
     hasExpectedArgs(githits.args, expectedInvocation.args);
 
-  return isCanonical
-    ? { status: "configured" }
-    : { status: "non_canonical", reason: "non_canonical" };
+  return isCanonical ? { status: "configured" } : { status: "non_canonical" };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
