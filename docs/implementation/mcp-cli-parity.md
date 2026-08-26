@@ -4,7 +4,10 @@
 
 Users and agents should be able to cross the surface boundary without
 learning a new request or error contract. Parameter names can differ per
-surface convention, but request defaults and error behaviour do not.
+surface convention. Shared request defaults and structured error code,
+retryability, and non-remediation details are aligned; documented
+surface-specific defaults plus host-owned recovery prose and actions remain
+surface-native exceptions.
 Human/agent default rendering may differ from JSON envelopes: MCP tools
 default to compact `text-v1` where available, while CLI has human
 terminal output and `--json`. Structured parity is enforced through CLI
@@ -249,8 +252,12 @@ test suite anchors the doc.
   CLI request adapters translate those phrases to flags and CLI syntax, while
   MCP preserves the neutral wording. Changes to either adapter or the shared
   prose must update the corresponding exact assertions and parity tests.
-  Cross-surface account actions such as `githits settings terms accept` remain
-  identical because they name one shared external remediation.
+  Terms acceptance is a deliberate host-owned exception: core mapping retains
+  neutral `code`, `retryable`, `termsUrl`, and `acceptanceUrl` data; local CLI
+  and local stdio MCP add the `githits settings terms accept` command, while
+  hosted MCP and browser callers default to an `acceptanceUrl` action. These
+  host-native recovery fields and prose are tested exceptions; they do not
+  weaken the shared structured envelope.
 - Backend error messages, hints, indexing estimates, available versions/refs,
   and suggested refs are preserved when supplied. Clients do not replace
   specific backend guidance or synthesize target candidates.
@@ -314,7 +321,8 @@ When a new tool lands with both MCP and CLI surfaces:
 | File | Role |
 |---|---|
 | `packages/mcp/src/shared/code-navigation-defaults.ts` | Canonical cross-surface defaults and sentinels. |
-| `packages/mcp/src/shared/code-navigation-error-map.ts` | `mapCodeNavigationError` classifier and `MappedError` union. |
+| `packages/mcp/src/shared/code-navigation-error-map.ts` | `mapCodeNavigationError` classifier and code-navigation taxonomy. |
+| `packages/mcp/src/shared/mapped-error.ts` | Transport-neutral `MappedError`, `MappedErrorCode`, and `MappedErrorDetails` contracts shared by all error mappers. |
 | `packages/core-internal/src/shared/pkgseer-graphql.ts` | Low-level authenticated package/source POST helper shared by the service clients. |
 | `packages/core-internal/src/shared/pkgseer-registry.ts` | Registry taxonomy (registry union type + lowercase↔uppercase converters). |
 | `packages/mcp/src/shared/unified-search-request.ts` | Shared request builder for unified `search`; compiles structured query fields and applies defaulting. |
@@ -336,7 +344,7 @@ When a new tool lands with both MCP and CLI surfaces:
 | `packages/mcp/src/shared/list-package-docs-request.ts` / `list-package-docs-response.ts` | Shared request and envelope for `docs_list`. |
 | `packages/mcp/src/shared/read-package-doc-request.ts` / `read-package-doc-response.ts` | Shared request and envelope for `docs_read`. |
 | `packages/mcp/src/shared/code-navigation-error-map.ts` | Owns the `INDEXING`, target/file-not-found, and exact-path authority codes shared across all code-nav tools. |
-| `packages/mcp/src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier (reuses `MappedError` from the code-nav map). |
+| `packages/mcp/src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier using the shared `MappedError` contract. |
 | `packages/core-internal/src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. |
 | `packages/mcp/src/tools/code-navigation-shared.ts` | `codeTargetSchema` + `resolveCodeTarget` — the addressing primitive used by `code_files`, `code_read`, `code_grep`, and unified `search`. |
 | `packages/mcp/src/tools/search.ts` | MCP tool definition for unified `search`. |
