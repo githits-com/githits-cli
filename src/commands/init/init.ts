@@ -774,18 +774,11 @@ function printSection(index: number, title: string, useColors: boolean): void {
 }
 
 /** Print natural-language init output at the current terminal width. */
-function printStyledInitProse(
-  text: string,
-  style: (line: string, lineIndex: number) => string,
-): void {
-  const columns = process.stdout.columns ?? DEFAULT_INIT_PROSE_WIDTH;
-  for (const [lineIndex, line] of wrapInitProse(text, columns).entries()) {
-    console.log(style(line, lineIndex));
-  }
-}
-
 function printInitProse(text: string): void {
-  printStyledInitProse(text, (line: string) => line);
+  const columns = process.stdout.columns ?? DEFAULT_INIT_PROSE_WIDTH;
+  for (const line of wrapInitProse(text, columns)) {
+    console.log(line);
+  }
 }
 
 /** Print Cursor's human-facing verification guidance with standalone commands. */
