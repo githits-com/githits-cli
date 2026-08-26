@@ -126,7 +126,7 @@ const schema: ZodRawShape = {
     .string()
     .min(1)
     .describe(
-      'Discovery query: use terms such as "how does", "where is", "find", "locate", or "grep the source", plus API names or quoted phrases; optional qualifiers like `path:`, `name:`, `lang:`, `kind:`, and `repo:` are supported for precision.',
+      "Focused discovery terms, API names, behaviors, or quoted phrases. Inline qualifiers such as `path:`, `name:`, `lang:`, `kind:`, and `repo:` are supported; prefer the equivalent structured parameter when available and do not specify the same constraint both ways.",
     ),
   target: searchTargetSchema
     .optional()
@@ -187,7 +187,12 @@ const schema: ZodRawShape = {
     .describe(
       'Optional symbol kind filter. Best for `source:"symbol"` or exact API/entity searches; omit for broad source-code searches because filters combine with AND and can exclude file hits. Ignored for `source:"docs"`.',
     ),
-  path_prefix: z.string().optional(),
+  path_prefix: z
+    .string()
+    .optional()
+    .describe(
+      "Optional target-relative path prefix for code and repository-document results. Prefer this field to an inline `path:` qualifier when the scope is already known.",
+    ),
   file_intent: z
     .enum([
       "production",
@@ -203,9 +208,24 @@ const schema: ZodRawShape = {
     .describe(
       'Optional code file-intent filter. Omit it to search across all intents. Ignored for `source:"docs"` because docs search does not support file intents.',
     ),
-  public_only: z.boolean().optional(),
-  name: z.string().optional(),
-  language: z.string().optional(),
+  public_only: z
+    .boolean()
+    .optional()
+    .describe(
+      'Set true to restrict code and symbol results to public APIs. False is equivalent to omitting it; ignored for `source:"docs"`.',
+    ),
+  name: z
+    .string()
+    .optional()
+    .describe(
+      "Optional exact name qualifier, combined with `query` using AND. Prefer this field to inline `name:` and do not use both.",
+    ),
+  language: z
+    .string()
+    .optional()
+    .describe(
+      "Optional language qualifier, combined with `query` using AND. Prefer this field to inline `lang:` and do not use both.",
+    ),
   allow_partial_results: z
     .boolean()
     .optional()
@@ -219,8 +239,23 @@ const schema: ZodRawShape = {
     .max(100)
     .optional()
     .describe("Maximum results to return (default 10, max 100)."),
-  offset: z.coerce.number().int().min(0).optional(),
-  wait_timeout_ms: z.coerce.number().int().min(0).max(60000).optional(),
+  offset: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe(
+      "Zero-based result offset (default 0). Continue pagination with the response's `nextOffset` when present.",
+    ),
+  wait_timeout_ms: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(60000)
+    .optional()
+    .describe(
+      "Milliseconds to wait for initial indexing or search completion before returning current progress (0-60000; default 20000).",
+    ),
   format: z
     .enum(["text-v1", "text", "json"])
     .default("text-v1")

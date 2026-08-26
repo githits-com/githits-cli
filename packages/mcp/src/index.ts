@@ -1,5 +1,11 @@
-export type { BuildMcpInstructionsOptions } from "./mcp/instructions.js";
-export { buildMcpInstructions } from "./mcp/instructions.js";
+export type {
+  BuildMcpInstructionsOptions,
+  BuildMcpQuickStartOptions,
+} from "./mcp/instructions.js";
+export {
+  buildMcpInstructions,
+  buildMcpQuickStart,
+} from "./mcp/instructions.js";
 export type {
   CreateMcpServerOptions,
   McpAuthAction,

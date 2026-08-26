@@ -2248,10 +2248,10 @@ describe("initAction", () => {
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain("<!-- githits -->");
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
-      "GitHits has been installed to the system",
+      "GitHits is installed for public OSS/package evidence",
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
-      "Prefer default compact text tool output",
+      "call GitHits `quick_start` once",
     );
 
     const logCalls = getLogOutput();

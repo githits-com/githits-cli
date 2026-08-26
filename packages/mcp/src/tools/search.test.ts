@@ -44,6 +44,25 @@ describe("searchTool", () => {
     expect(tool.description).toContain("do not treat suggestions as aliases");
   });
 
+  it("documents every search control without coaching query filler", () => {
+    const tool = createSearchTool(createMockCodeNavigationService());
+
+    for (const field of [
+      "name",
+      "language",
+      "path_prefix",
+      "public_only",
+      "offset",
+      "wait_timeout_ms",
+    ]) {
+      expect(tool.schema[field]?.description, field).toBeTruthy();
+    }
+    expect(tool.schema.query?.description).toContain("Focused discovery terms");
+    expect(tool.schema.query?.description).not.toContain("use terms such as");
+    expect(tool.schema.name?.description).toContain("do not use both");
+    expect(tool.schema.language?.description).toContain("do not use both");
+  });
+
   it("returns unified search payload from service", async () => {
     const tool = createSearchTool(createMockCodeNavigationService());
 

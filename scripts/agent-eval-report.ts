@@ -476,7 +476,7 @@ export function buildRunReportFromMetadata(
   if (
     isolationWarning &&
     metadata.surface === "mcp" &&
-    ["descriptors", "full"].includes(metadata.guidanceProfile ?? "instructions")
+    ["descriptors", "full"].includes(metadata.guidanceProfile ?? "descriptors")
   ) {
     warnings.push(isolationWarning);
   }
@@ -527,7 +527,7 @@ export function formatRunReport(report: AgentEvalReport): string {
   const profile =
     report.surface === "skills"
       ? "n/a"
-      : (report.guidanceProfile ?? "instructions");
+      : (report.guidanceProfile ?? "descriptors");
   const lines = [
     `Agent eval: ${report.status} (${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}) profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""} ${report.runDir}`,
   ];
@@ -615,14 +615,14 @@ function formatRunContext(report: AgentEvalReport): string {
   const profile =
     report.surface === "skills"
       ? "n/a"
-      : (report.guidanceProfile ?? "instructions");
+      : (report.guidanceProfile ?? "descriptors");
   return `profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""}`;
 }
 
 function effectiveGuidanceProfile(report: AgentEvalReport): string | undefined {
   return report.surface === "skills"
     ? undefined
-    : (report.guidanceProfile ?? "instructions");
+    : (report.guidanceProfile ?? "descriptors");
 }
 
 function compareMetadataWarnings(
@@ -655,7 +655,7 @@ function compareMetadataWarnings(
       (report) =>
         report.surface === "mcp" &&
         ["descriptors", "full"].includes(
-          report.guidanceProfile ?? "instructions",
+          report.guidanceProfile ?? "descriptors",
         ),
     )
   ) {

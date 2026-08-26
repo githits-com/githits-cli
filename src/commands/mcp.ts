@@ -4,7 +4,6 @@ import {
   dim,
   highlight,
   type LocalExperimentalMcpPolicy,
-  type LocalMcpInstructionMode,
   type LocalMcpToolServices,
   shouldUseColors,
 } from "@githits/mcp/internal";
@@ -32,15 +31,10 @@ const OVERRIDE_LOCAL_MCP_POLICY: LocalExperimentalMcpPolicy = {
 export interface StartMcpServerOptions {
   onServerCreated?: (server: LocalMcpServer) => void;
   experimentalPolicy?: LocalExperimentalMcpPolicy;
-  instructionMode?: LocalMcpInstructionMode;
 }
 
 export interface CreateMcpCommandStartupOptions {
   experimentalTools?: boolean;
-}
-
-interface McpStartCommandOptions extends CreateMcpCommandStartupOptions {
-  instructionMode?: StartMcpServerOptions["instructionMode"];
 }
 
 /**
@@ -59,7 +53,6 @@ export async function startMcpServer(
     services,
     metadata: LOCAL_MCP_SERVER_METADATA,
     policy: options.experimentalPolicy ?? DISABLED_LOCAL_MCP_POLICY,
-    instructionMode: options.instructionMode,
   });
   const transport = new StdioServerTransport();
 
@@ -206,18 +199,12 @@ This command explicitly starts the server and is intended for use
 in MCP configuration files. Use 'githits mcp' for interactive setup.`,
     )
     .addOption(new Option("--experimental-tools").hideHelp())
-    .addOption(
-      new Option("--instruction-mode <mode>")
-        .choices(["default", "none"])
-        .hideHelp(),
-    )
-    .action(async (options: McpStartCommandOptions) => {
+    .action(async (options: CreateMcpCommandStartupOptions) => {
       const startup = await createStartup(
         options.experimentalTools ? { experimentalTools: true } : undefined,
       );
       await startServer(startup.services, {
         experimentalPolicy: startup.experimentalPolicy,
-        instructionMode: options.instructionMode,
         onServerCreated: startup.onServerCreated,
       });
     });

@@ -11,6 +11,7 @@ import {
   createPackageSummaryTool,
   createPackageUpgradeReviewTool,
   createPackageVulnerabilitiesTool,
+  createQuickStartTool,
   createReadFileTool,
   createReadPackageDocTool,
   createSearchLanguageTool,
@@ -26,7 +27,7 @@ import {
   withMcpErrorOptions,
 } from "../tools/shared.js";
 import type { McpToolServices } from "../tools/tool-services.js";
-import { buildMcpInstructions } from "./instructions.js";
+import { buildMcpQuickStart } from "./instructions.js";
 
 export type { McpAuthAction, McpAuthActionContext } from "../tools/shared.js";
 
@@ -59,8 +60,12 @@ export interface CreateMcpServerOptions<TExtra = unknown> {
   metadata: McpServerMetadata;
   services: McpToolServicesProvider<TExtra>;
   authAction?: McpAuthAction;
+  /** Optional caller-owned MCP instructions. GitHits does not provide defaults. */
   instructions?: string;
-  instructionOptions?: Parameters<typeof buildMcpInstructions>[0];
+  /** Controls the guide returned by `quick_start`. */
+  quickStartOptions?: Parameters<typeof buildMcpQuickStart>[0];
+  /** @deprecated Use `quickStartOptions`. */
+  instructionOptions?: Parameters<typeof buildMcpQuickStart>[0];
   traceTool?: McpToolExecutionHook;
 }
 
@@ -75,7 +80,7 @@ export type McpToolFactory<
   TServices extends McpToolServices = McpToolServices,
 > = (services: TServices) => ToolDefinition<unknown>;
 
-export const STABLE_MCP_TOOL_FACTORIES: readonly McpToolFactory[] = [
+const STABLE_MCP_OPERATION_FACTORIES: readonly McpToolFactory[] = [
   (services) => eraseMcpTool(createGetExampleTool(services.githitsService)),
   (services) => eraseMcpTool(createSearchLanguageTool(services.githitsService)),
   (services) => eraseMcpTool(createFeedbackTool(services.githitsService)),
@@ -113,6 +118,18 @@ export const STABLE_MCP_TOOL_FACTORIES: readonly McpToolFactory[] = [
       createPackageUpgradeReviewTool(services.packageIntelligenceService),
     ),
 ];
+
+export function createStableMcpToolFactories(
+  quickStartGuide: string = buildMcpQuickStart(),
+): readonly McpToolFactory[] {
+  return [
+    () => eraseMcpTool(createQuickStartTool(quickStartGuide)),
+    ...STABLE_MCP_OPERATION_FACTORIES,
+  ];
+}
+
+export const STABLE_MCP_TOOL_FACTORIES: readonly McpToolFactory[] =
+  createStableMcpToolFactories();
 
 /**
  * Returns the MCP tools enabled for the current startup state.
@@ -214,9 +231,12 @@ export function registerMcpToolsWithFactories<
 export function createMcpServer<TExtra = unknown>(
   options: CreateMcpServerOptions<TExtra>,
 ): McpServer {
+  const toolFactories = createStableMcpToolFactories(
+    buildMcpQuickStart(options.quickStartOptions ?? options.instructionOptions),
+  );
   return createMcpServerWithFactories({
     ...options,
-    toolFactories: STABLE_MCP_TOOL_FACTORIES,
+    toolFactories,
     descriptorServices: createDescriptorServices(),
   });
 }
@@ -231,7 +251,6 @@ export interface CreateMcpServerWithFactoriesOptions<
   descriptorServices: TServices;
   authAction?: McpAuthAction;
   instructions?: string;
-  instructionOptions?: Parameters<typeof buildMcpInstructions>[0];
   traceTool?: McpToolExecutionHook;
 }
 
@@ -239,10 +258,12 @@ export function createMcpServerWithFactories<
   TServices extends McpToolServices,
   TExtra = unknown,
 >(options: CreateMcpServerWithFactoriesOptions<TServices, TExtra>): McpServer {
-  const server = new McpServer(options.metadata, {
-    instructions:
-      options.instructions ?? buildMcpInstructions(options.instructionOptions),
-  });
+  const server = new McpServer(
+    options.metadata,
+    options.instructions === undefined
+      ? undefined
+      : { instructions: options.instructions },
+  );
 
   registerMcpToolsWithFactories(server, options.toolFactories, {
     authAction: options.authAction,

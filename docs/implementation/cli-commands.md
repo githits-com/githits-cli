@@ -431,7 +431,7 @@ CLI/MCP volume, and shipping without linked-repository popularity evidence must
 be explicitly accepted or exposed cheaply. The reduced query has been
 validated below production's GraphQL complexity limit; roughly 50 dogfood calls
 completed without protocol, schema, complexity, or rate-limit errors, but that
-is not a volume test. Combined MCP instructions, smoke coverage, and Claude and
+is not a volume test. Combined MCP quick-start guidance, smoke coverage, and Claude and
 Codex evaluations are completed later in this phase.
 
 This increment exceeded its original rough 1,500-line review threshold under an
@@ -663,7 +663,7 @@ mode headers. Request, auth, resolution, and backend errors also exit 1.
 
 This is a config-gated experimental CLI dogfood surface. The matching
 `code_diff` MCP adapter is local-only and requires the same opt-in; it is not
-promoted through remote/public MCP, MCP instructions, Agent Skills, or plugin
+promoted through remote/public MCP `quick_start`, Agent Skills, or plugin
 guidance yet.
 
 ### `githits code files`

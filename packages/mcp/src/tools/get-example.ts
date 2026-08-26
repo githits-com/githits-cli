@@ -34,7 +34,9 @@ const schema: ZodRawShape = {
   license_mode: z
     .enum(["strict", "yolo", "custom"])
     .optional()
-    .describe("License filtering mode: strict (default), yolo, or custom."),
+    .describe(
+      "License filtering: `strict` (default) excludes copyleft or undeclared licenses; `custom` uses your account blocklist; `yolo` disables filtering and may return incompatible licenses.",
+    ),
   format: z
     .enum(["text-v1", "text", "json"])
     .default("text-v1")
@@ -43,7 +45,7 @@ const schema: ZodRawShape = {
     ),
 };
 
-const DESCRIPTION = `Find canonical cross-project examples for unknown-target or global usage patterns. Best for "how do I use X", real-world API snippets, or when package-scoped search was not enough. For a specific known package or repository, use \`search\`, \`docs_read\`, \`code_read\`, or \`code_grep\` instead. Verify version-sensitive examples against the target's docs or source.
+const DESCRIPTION = `Find canonical cross-project examples when no single target is the answer, or target-scoped search came up short. Best for broad usage patterns, real-world API snippets, unfamiliar errors, and multi-library combinations. For a specific known package or repository, use \`search\`, \`docs_read\`, \`code_read\`, or \`code_grep\` instead. Verify version-sensitive examples against the target's docs or source.
 
 Default output is markdown, with source repository provenance and a trailing \`solution_id: ...\` when available. When presenting an example, report source repositories/citations from GitHits' generated references/provenance section; they are core evidence. Pass \`format: "json"\` for \`{result, solution_id?}\`, and pass \`solution_id\` to \`feedback\` after using or rejecting the example. Use \`search_language\` only to resolve a language name for this tool.
 

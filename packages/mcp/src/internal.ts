@@ -4,7 +4,6 @@ export {
   createLocalMcpServer,
   type LocalExperimentalMcpPolicy,
   type LocalExperimentalReportToolIssues,
-  type LocalMcpInstructionMode,
   type LocalMcpToolServices,
   type LocalMcpToolServicesProvider,
 } from "./mcp/local-server.js";
@@ -90,12 +89,14 @@ export {
   GET_EXAMPLE_GUARDRAIL,
   PKG_CHANGELOG_GUARDRAIL,
   PKG_INFO_GUARDRAIL,
+  PKG_UPGRADE_REVIEW_GUARDRAIL,
   PKG_VULNS_GUARDRAIL,
   SEARCH_GUARDRAIL,
 } from "./tools/guardrails.js";
 export { DESCRIPTION as PACKAGE_CHANGELOG_DESCRIPTION } from "./tools/package-changelog.js";
 export { DESCRIPTION as PACKAGE_SUMMARY_DESCRIPTION } from "./tools/package-summary.js";
 export { DESCRIPTION as PACKAGE_VULNERABILITIES_DESCRIPTION } from "./tools/package-vulnerabilities.js";
+export { DESCRIPTION as QUICK_START_DESCRIPTION } from "./tools/quick-start.js";
 export { DESCRIPTION as READ_FILE_DESCRIPTION } from "./tools/read-file.js";
 export { DESCRIPTION as READ_PACKAGE_DOC_DESCRIPTION } from "./tools/read-package-doc.js";
 export {

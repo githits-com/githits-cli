@@ -46,6 +46,7 @@ const FORMAT_SELECTABLE_TOOLS = new Set([
 ]);
 
 const STABLE_MCP_TOOL_NAMES = [
+  "quick_start",
   "get_example",
   "search_language",
   "feedback",
@@ -67,6 +68,16 @@ const DESCRIPTION_ROUTING: Record<
   (typeof STABLE_MCP_TOOL_NAMES)[number],
   { prefix: RegExp; body: string[]; absent?: string[] }
 > = {
+  quick_start: {
+    prefix:
+      /^GitHits tool guide for search, grep, docs, packages, and cross-project examples\.$/,
+    body: [
+      "Call once per session",
+      "before other GitHits tools",
+      "this quick-start guide is already in context",
+      "without querying GitHits evidence",
+    ],
+  },
   get_example: {
     prefix: /^Find canonical cross-project examples/,
     body: [
@@ -168,7 +179,7 @@ describe("MCP tool annotations", () => {
   it("explicitly classifies the potential impact of every public tool", () => {
     const descriptors = getMcpToolDescriptors();
 
-    expect(descriptors).toHaveLength(15);
+    expect(descriptors).toHaveLength(16);
 
     for (const descriptor of descriptors) {
       expect(descriptor.annotations, descriptor.name).toEqual({
@@ -234,9 +245,8 @@ describe("MCP tool description catalog", () => {
     const querySchema = searchSchema.properties?.query;
     const queryDescription =
       (querySchema as { description?: string } | undefined)?.description ?? "";
-    expect(queryDescription).toMatch(
-      /"how does".*"where is".*"grep the source"/,
-    );
+    expect(queryDescription).toContain("Focused discovery terms");
+    expect(queryDescription).not.toContain("use terms such as");
   });
 });
 

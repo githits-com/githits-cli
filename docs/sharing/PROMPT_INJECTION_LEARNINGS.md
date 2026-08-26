@@ -270,8 +270,8 @@ authoritative source (OSV/GHSA page, registry page, the repo at the
 returned git ref) over restating prose.
 ```
 
-This wording is the same one shipping in the CLI's MCP instructions
-block. Per-stage specifiers (analogous to the CLI's per-tool addenda)
+This wording is the same one shipping in the CLI's MCP `quick_start`
+guide. Per-stage specifiers (analogous to the CLI's per-tool addenda)
 should name which fields the stage considers trustworthy versus prose.
 
 ### Specific recommendations per backend stage

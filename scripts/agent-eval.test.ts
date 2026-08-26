@@ -34,6 +34,7 @@ import {
   isValidAgentReport,
   parseArgs,
   prepareFullGuidanceWorkspace,
+  prepareSkillsWorkspace,
   redactText,
   runAgentEval,
   runWithTimeout,
@@ -123,17 +124,9 @@ describe("agent eval harness", () => {
     });
   });
 
-  it("builds each local MCP guidance profile without changing the server", () => {
+  it("keeps MCP server configuration identical across guidance profiles", () => {
     expect(
       buildMcpConfig({ ...localOptions, guidanceProfile: "descriptors" })
-        .mcpServers.githits.args,
-    ).toContain("--instruction-mode");
-    expect(
-      buildMcpConfig({ ...localOptions, guidanceProfile: "descriptors" })
-        .mcpServers.githits.args,
-    ).toContain("none");
-    expect(
-      buildMcpConfig({ ...localOptions, guidanceProfile: "instructions" })
         .mcpServers.githits.args,
     ).not.toContain("--instruction-mode");
     expect(
@@ -146,7 +139,7 @@ describe("agent eval harness", () => {
     const options = parseArgs(["--agent", "codex", "--dry-run"], "/repo");
     expect(options.model).toBe(DEFAULT_CODEX_MODEL);
     expect(options.reasoningEffort).toBe(DEFAULT_CODEX_REASONING_EFFORT);
-    expect(options.guidanceProfile).toBe("instructions");
+    expect(options.guidanceProfile).toBe("descriptors");
   });
 
   it("preserves explicit Codex model and reasoning overrides", () => {
@@ -169,15 +162,12 @@ describe("agent eval harness", () => {
   it("rejects invalid guidance and reasoning combinations before launch", () => {
     expect(() =>
       parseArgs(
-        ["--guidance-profile", "descriptors", "--server", "published"],
+        ["--guidance-profile", "full", "--server", "published"],
         "/repo",
       ),
     ).toThrow("requires --surface mcp --server local");
     expect(() =>
-      parseArgs(
-        ["--surface", "skills", "--guidance-profile", "instructions"],
-        "/repo",
-      ),
+      parseArgs(["--surface", "skills", "--guidance-profile", "full"], "/repo"),
     ).toThrow("cannot be used with --surface skills");
     expect(() => parseArgs(["--reasoning-effort", "high"], "/repo")).toThrow(
       "requires --agent codex",
@@ -541,6 +531,7 @@ describe("agent eval harness", () => {
     const codexCommand = buildCodexSessionCommand(codexOptions);
     expect(codexCommand).toContain("mcp_servers={}");
     expect(codexCommand).toContain('mcp_servers.githits.command="bun"');
+    expect(codexCommand).not.toContain("--ignore-rules");
     expect(codexCommand).toContain(
       "--dangerously-bypass-approvals-and-sandbox",
     );
@@ -582,7 +573,7 @@ describe("agent eval harness", () => {
     );
     expect(() =>
       parseSessionArgs(
-        ["--surface", "skills", "--guidance-profile", "instructions"],
+        ["--surface", "skills", "--guidance-profile", "full"],
         "/repo/githits-cli",
       ),
     ).toThrow("cannot be used with --surface skills");
@@ -615,8 +606,61 @@ describe("agent eval harness", () => {
       expect(installation.skillInstallation.installedDirs).toContain(
         join(workspaceDir, "skills"),
       );
+      expect(
+        existsSync(join(workspaceDir, "skills", "githits-mcp", "SKILL.md")),
+      ).toBe(true);
+      expect(existsSync(join(workspaceDir, "skills", "githits-package"))).toBe(
+        false,
+      );
+      expect(existsSync(join(workspaceDir, "skills", "githits-code"))).toBe(
+        false,
+      );
     } finally {
       rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a missing source skills directory before reading it", () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "agent-missing-skills-"));
+    const repoRoot = join(rootDir, "repo");
+    const workspaceDir = join(rootDir, "workspace");
+    mkdirSync(repoRoot);
+    try {
+      expect(() =>
+        prepareSkillsWorkspace(
+          {
+            server: "local",
+            repoRoot,
+            publishedPackage: "githits@latest",
+          },
+          workspaceDir,
+        ),
+      ).toThrow(`Skills directory not found: ${join(repoRoot, "skills")}`);
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a missing requested skill before copying it", () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "agent-missing-skill-"));
+    const repoRoot = join(rootDir, "repo");
+    const workspaceDir = join(rootDir, "workspace");
+    mkdirSync(join(repoRoot, "skills"), { recursive: true });
+    try {
+      expect(() =>
+        prepareFullGuidanceWorkspace(
+          {
+            server: "local",
+            repoRoot,
+            publishedPackage: "githits@latest",
+          },
+          workspaceDir,
+        ),
+      ).toThrow(
+        `Skill source not found: ${join(repoRoot, "skills", "githits-mcp")}`,
+      );
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
     }
   });
 
@@ -865,12 +909,12 @@ describe("agent eval harness", () => {
     const conflictPath = join(
       workspaceDir,
       "skills",
-      "githits-code",
+      "githits-mcp",
       "SKILL.md",
     );
     const claudeInstructionsPath = join(workspaceDir, "CLAUDE.md");
     const agentsInstructionsPath = join(workspaceDir, "AGENTS.md");
-    mkdirSync(join(workspaceDir, "skills", "githits-code"), {
+    mkdirSync(join(workspaceDir, "skills", "githits-mcp"), {
       recursive: true,
     });
     writeFileSync(conflictPath, "existing GitHits-looking skill");
@@ -1095,7 +1139,7 @@ describe("agent eval harness", () => {
   });
 
   it("writes profile-specific dry-run configs and artifacts", async () => {
-    for (const profile of ["descriptors", "instructions", "full"] as const) {
+    for (const profile of ["descriptors", "full"] as const) {
       const outDir = mkdtempSync(join(tmpdir(), `agent-eval-${profile}-`));
       try {
         const options = parseArgs(
@@ -1125,20 +1169,15 @@ describe("agent eval harness", () => {
           readFileSync(join(workloadDir, "discovery-events.json"), "utf8"),
         ).toContain('"status": "not_observed"');
         if (profile === "descriptors") {
-          expect(mcp.mcpServers.githits.args).toContain("--instruction-mode");
-          expect(existsSync(join(workloadDir, "skill-installation.json"))).toBe(
-            false,
-          );
-          expect(
-            existsSync(join(workloadDir, "guidance-installation.json")),
-          ).toBe(false);
-        } else if (profile === "instructions") {
           expect(mcp.mcpServers.githits.args).not.toContain(
             "--instruction-mode",
           );
           expect(existsSync(join(workloadDir, "skill-installation.json"))).toBe(
             false,
           );
+          expect(
+            existsSync(join(workloadDir, "guidance-installation.json")),
+          ).toBe(false);
         } else {
           expect(mcp.mcpServers.githits.args).not.toContain(
             "--instruction-mode",
@@ -1473,15 +1512,6 @@ describe("agent eval harness", () => {
         status: "started",
         arguments: { command: "githits search opencode" },
       },
-      {
-        agent: "codex",
-        server: "githits",
-        tool: "code_read",
-        status: "completed",
-        arguments: { path: "packages/opencode/src/session/compaction.ts" },
-      },
-    ]);
-    expect(extractToolCalls(stdout, "codex", "mcp", "instructions")).toEqual([
       {
         agent: "codex",
         server: "githits",

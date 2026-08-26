@@ -102,10 +102,8 @@ export function parseSessionArgs(
       case "--guidance-profile": {
         const value = argv[++i];
         assert(
-          value === "descriptors" ||
-            value === "instructions" ||
-            value === "full",
-          "--guidance-profile must be descriptors, instructions, or full",
+          value === "descriptors" || value === "full",
+          "--guidance-profile must be descriptors or full",
         );
         options.guidanceProfile = value;
         guidanceProfileExplicit = true;
@@ -165,7 +163,7 @@ export function parseSessionArgs(
 
   validateExperimentalToolsScope(options);
   if (options.surface === "mcp" && options.guidanceProfile === undefined) {
-    options.guidanceProfile = "instructions";
+    options.guidanceProfile = "descriptors";
   }
   validateGuidanceProfileScope(options, guidanceProfileExplicit);
   assert(
@@ -183,7 +181,7 @@ Options:
   --surface mcp|skills            GitHits surface to wire in (default: mcp)
   --server local|published        Local checkout or published package (default: local)
   --model <name>                  Agent model name or alias
-  --guidance-profile descriptors|instructions|full  MCP guidance profile (default: instructions)
+  --guidance-profile descriptors|full  MCP guidance profile (default: descriptors)
   --reasoning-effort minimal|low|medium|high|xhigh|max|ultra  Codex reasoning effort
   --prompt <text>                 Optional initial prompt
   --workspace <dir>               Workspace to use; defaults to a temp dir
@@ -231,7 +229,6 @@ export function buildCodexSessionCommand(
   const command = ["codex", "-C", options.workspaceDir];
   if (options.surface === "mcp") {
     command.push("-c", "mcp_servers={}", ...buildCodexConfigArgs(options));
-    command.push("--ignore-rules");
   } else {
     command.push("--ignore-user-config", "-c", "mcp_servers={}");
   }
@@ -270,7 +267,7 @@ export function prepareAgentSession(options: AgentSessionOptions): {
   mkdirSync(options.workspaceDir, { recursive: true });
   validateExperimentalToolsScope(options);
   if (options.surface === "mcp" && options.guidanceProfile === undefined) {
-    options.guidanceProfile = "instructions";
+    options.guidanceProfile = "descriptors";
   }
   validateGuidanceProfileScope(options);
   const openCodeConfigPath = join(options.workspaceDir, "opencode.json");

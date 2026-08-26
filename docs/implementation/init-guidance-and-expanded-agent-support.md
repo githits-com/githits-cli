@@ -52,6 +52,13 @@ Codex detection requires both a successful `PATH` lookup and a successful,
 bounded `codex --version` probe; a missing, failing, timed-out, or unlaunchable
 probe means Codex is not detected.
 
+## Supporting MCP guidance
+
+Remote MCP docs and setup help recommend the `githits-mcp` skill. Its managed
+instruction block stays compact, and the skill points agents to the MCP
+`quick_start` tool. `quick_start` owns shared routing, scope, output, and safety
+guidance because clients expose server-level MCP instructions inconsistently.
+
 ## Skill catalog and active roots
 
 Guided setup requires exactly these four packaged skills:

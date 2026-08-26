@@ -75,6 +75,7 @@ function createTestServices(
 }
 
 const EXPECTED_TOOL_NAMES = [
+  "quick_start",
   "get_example",
   "search_language",
   "feedback",
@@ -129,18 +130,48 @@ describe("createMcpServer", () => {
     expect(server).toBeDefined();
   });
 
-  it("creates server with instructions wired", () => {
-    // Exercises the composer through createMcpServer so any breakage
-    // in the instructions pipeline (composer import, SDK options
-    // shape) surfaces here even though the SDK hides `instructions`
-    // behind a private field.
+  it("omits default server instructions", () => {
     const services = createTestServices();
     const server = createMcpServer({
       services,
       metadata: TEST_MCP_SERVER_METADATA,
     });
 
-    expect(server).toBeDefined();
+    expect(
+      (server.server as unknown as { _instructions?: string })._instructions,
+    ).toBeUndefined();
+  });
+
+  it("preserves explicit caller-owned server instructions", () => {
+    const server = createMcpServer({
+      services: createTestServices(),
+      metadata: TEST_MCP_SERVER_METADATA,
+      instructions: "caller guidance",
+    });
+
+    expect(
+      (server.server as unknown as { _instructions?: string })._instructions,
+    ).toBe("caller guidance");
+  });
+
+  it("configures quick_start without publishing server instructions", async () => {
+    const server = createMcpServer({
+      services: createTestServices(),
+      metadata: TEST_MCP_SERVER_METADATA,
+      quickStartOptions: { includeExternalContentPosture: false },
+    });
+
+    const result = await registeredTool(server, "quick_start").handler(
+      {},
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+    expect(result.content[0]?.text).not.toContain("External-content posture");
+    expect(
+      (server.server as unknown as { _instructions?: string })._instructions,
+    ).toBeUndefined();
   });
 
   it("exposes descriptors without concrete services", () => {
@@ -578,10 +609,9 @@ describe("createMcpCommandStartup", () => {
     }
   });
 
-  it("maps the hidden override through mcp start without advertising it", async () => {
+  it("maps the hidden experimental override through mcp start", async () => {
     const startupOptions: Array<CreateMcpCommandStartupOptions | undefined> =
       [];
-    const instructionModes: Array<"default" | "none" | undefined> = [];
     const dependencies: McpCommandRegistrationDependencies = {
       createStartup: async (options) => {
         startupOptions.push(options);
@@ -594,9 +624,7 @@ describe("createMcpCommandStartup", () => {
           onServerCreated: () => {},
         };
       },
-      startServer: async (_services, options) => {
-        instructionModes.push(options?.instructionMode);
-      },
+      startServer: async () => {},
     };
 
     const explicit = new Command();
@@ -617,13 +645,9 @@ describe("createMcpCommandStartup", () => {
       "mcp",
       "start",
       "--experimental-tools",
-      "--instruction-mode",
-      "none",
     ]);
     expect(startupOptions).toEqual([{ experimentalTools: true }]);
-    expect(instructionModes).toEqual(["none"]);
     expect(explicitHelp).not.toContain("experimental-tools");
-    expect(explicitHelp).not.toContain("instruction-mode");
 
     const normal = new Command();
     let normalHelp = "";
@@ -639,9 +663,7 @@ describe("createMcpCommandStartup", () => {
     registerMcpCommand(normal, dependencies);
     await normal.parseAsync(["node", "test", "mcp", "start"]);
     expect(startupOptions).toEqual([{ experimentalTools: true }, undefined]);
-    expect(instructionModes).toEqual(["none", undefined]);
     expect(normalHelp).not.toContain("experimental-tools");
-    expect(normalHelp).not.toContain("instruction-mode");
   });
 
   it("does not advertise the session override in mcp or root help", async () => {

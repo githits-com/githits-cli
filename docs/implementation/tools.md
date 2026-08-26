@@ -23,14 +23,20 @@ loaded definition owns the complete use/avoid boundary, argument constraints,
 and the exact name of each immediate follow-up tool; repeat those handoffs on
 both sides of a workflow so a client can recover when it loads only one tool.
 
+GitHits intentionally omits MCP initialize instructions because clients treat
+them inconsistently: some hide them, some promote them, and some repeat them
+with every tool. The no-argument, read-only `quick_start` tool is the canonical
+shared guide. Its catalog prefix carries broad retrieval nouns; its full
+description asks agents to call it once per session before other GitHits tools
+unless the quick-start guide is already in context. Its result owns public-OSS scope, target syntax, output,
+safety, citations, and cross-tool routing. Individual tool descriptions remain
+self-contained so direct tool selection does not depend on the bootstrap.
+
 Use the tools in these roles:
 
 - **Known-target discovery:** Start with `search` for relevance-ranked,
   open-ended investigation across documentation, specifications, source,
-  symbols, tests, and examples. Questions phrased generically as “how does”,
-  “where is”, “find”, “locate”, or “grep the source” still start with
-  `search`; omit `source` for broad discovery. Its `query` description carries
-  those discovery terms so catalog-driven tool search can route them.
+  symbols, tests, and examples. Omit `source` for broad discovery.
 - **Exact source matching:** Use `code_grep` when the literal, regex,
   identifier, or call-site pattern is already known. It returns deterministic,
   paginated matches. Use `search` for conceptual discovery, `code_read` for a
@@ -60,7 +66,8 @@ Use the tools in these roles:
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples for unknown-target or global patterns. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance and an optional `solution_id` for `feedback`; pass `format: "json"` for `{result, solution_id?}`. |
+| `quick_start` | none | Return the canonical GitHits tool guide without querying GitHits evidence. Call once per session before other GitHits tools unless the quick-start guide is already in context. |
+| `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer or target-scoped search came up short. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance and an optional `solution_id` for `feedback`; pass `format: "json"` for `{result, solution_id?}`. |
 | `search_language` | `query`, `format?` | Resolve a supported language name or alias for `get_example`; do not use it for source search. Defaults to one compact line per match; pass `format: "json"` for structured matches. |
 | `feedback` | `solution_id?`, `accepted`, `feedback_text?`, `tool_name?` | Submit feedback when a GitHits result or the overall experience was helpful, unhelpful, wrong, incomplete, slow, or confusing. Pass `solution_id` to rate an example or `tool_name` to identify a result. |
 | `search` | `query`, `target?`, `targets?`, `source?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Open-ended “how does”, “where is”, “find”, “locate”, or loosely phrased “grep the source” questions start here; omit `source` for broad discovery. A `search` call can return complete results directly; use `search_status` only when the response explicitly supplies a `searchRef` and action. |
@@ -76,7 +83,7 @@ Use the tools in these roles:
 | `code_read` | `target`, `path`, `start_line?`, `end_line?`, `wait_timeout_ms?`, `format?` | Read an exact indexed file or focused line window; use `code_files` to enumerate paths and `code_grep` or `search` to find the right window. MCP reads cap each call at 150 lines. |
 | `code_grep` | `target`, `pattern`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `pattern_type?`, `case_sensitive?`, `exclude_doc_files?`, `exclude_test_files?`, `context_lines?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `max_matches_per_file?`, `cursor?`, `symbol_fields?`, `wait_timeout_ms?`, `format?` | Enumerate matches for a known exact literal, regex, identifier, or call site in indexed source; results are deterministic and paginated. Use `search` for conceptual discovery, `code_read` for matched windows, and `code_files` for path enumeration. |
 
-`search`, `search_status`, `docs_list`, `docs_read`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`, `code_read`, and `code_grep` are registered by default. The package/source service URL defaults to the GitHits-managed endpoint and can be overridden via `GITHITS_CODE_NAV_URL` for local development.
+`quick_start`, `search`, `search_status`, `docs_list`, `docs_read`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`, `code_read`, and `code_grep` are registered by default. The package/source service URL defaults to the GitHits-managed endpoint and can be overridden via `GITHITS_CODE_NAV_URL` for local development.
 
 ## Ecosystem Audit
 
@@ -311,17 +318,33 @@ Empty grep adds scanned/in-scope counts, served target/ref context when known, a
 
 **Errors in text mode.** `search` errors render as text in `text-v1` mode: `search | ERROR | code=<CODE> [| retryable]\n<message>` followed by an indented `details:` block when present. `code_files` and `code_grep` keep errors JSON-formatted in either mode for now — revisit if agent feedback warrants.
 
-## Server instructions
+## Quick-start guide
 
-The MCP server advertises a short, cross-tool orientation via the protocol's server-level `instructions` field. This is distinct from per-tool `description` text: instructions cover rationale, workflow glue, and decisions that span multiple tools, while per-tool descriptions remain the source of truth for arguments, output shape, and tool-specific constraints.
+The MCP server deliberately omits protocol-level `instructions`. Clients have
+handled that field as hidden guidance, privileged guidance, namespace metadata,
+or a prefix repeated on every tool. The `quick_start` tool exposes shared
+guidance once, on demand, while individual descriptions remain the source of
+truth for tool-specific routing, arguments, output, and recovery.
 
-`packages/mcp/src/mcp/instructions.ts` owns the server-level instruction sections:
+The concrete Codex failure was verified in August 2026. Codex PR
+[#21053](https://github.com/openai/codex/pull/21053) intentionally preserved
+plain MCP server instructions as deferred-tool namespace descriptions. In the
+runtime catalog inspected for this work, the 5,691-character local GitHits
+instruction block plus its separator appeared as the same 5,693-character
+prefix on each of 17 tools. Codex issue
+[#29097](https://github.com/openai/codex/issues/29097) separately tracks that
+MCP instructions are not reliably exposed as server-wide agent guidance. The
+portable response is to leave the protocol field absent, not to optimize a
+payload whose privilege, visibility, and repetition vary by host.
+
+`packages/mcp/src/mcp/instructions.ts` owns the `quick_start` guide sections:
 
 - **Core block** — always loaded. Introduces GitHits, defines its public-only scope, expands trigger criteria to include comparative cross-OSS questions and "how does X actually implement this" archaeology, and walks through the `get_example` / `search_language` / `feedback` workflow.
 - **External-content block** — included by default from `packages/mcp/src/tools/guardrails.ts`; tells agents to treat third-party prose as data, not instructions.
-- **Package-tools block** — always appended. Contains a preamble plus one bullet per package/code tool, plus two cross-tool tips:
-  - **Delegate multi-call work**: anticipate 3+ code-navigation calls? Use a sub-agent and ask for a compact synthesis.
-  - **Strategy / reference-first**: source, symbols, tests, and call sites beat docs prose; enumerate paths first, locate symbols or lines, then read focused windows.
+- **Package-tools block** — always appended. Contains a preamble plus one bullet
+  per package/code tool and a reference-first strategy: source, symbols, tests,
+  and call sites beat docs prose; enumerate paths first, locate symbols or
+  lines, then read focused windows.
 - **Local experimental block** — appended only by the workspace-internal local
   composer when the host policy enables experimental tools. It names only the
   registered local `resolve_target`/`code_diff` subset, routes fuzzy identity
@@ -349,7 +372,7 @@ reporting value is dormant while tools are disabled. The hidden
 for one process and forces reporting off without changing host config. The
 stable public and hosted/remote MCP inventories remain unchanged.
 
-When adding a new package tool, extend the composer with a one-line bullet (`\`tool_name\` — one-sentence purpose`) in the same PR that registers the tool. Keep the bullet terse; argument and response detail belong in the tool's `description`. `mcp-instructions.test.ts` enforces both directions of the mention↔registration invariant.
+When adding a new package tool, extend the quick-start composer with a one-line bullet (`\`tool_name\` — one-sentence purpose`) in the same PR that registers the tool. Keep the bullet terse; argument and response detail belong in the tool's `description`. `mcp-instructions.test.ts` enforces both directions of the mention↔registration invariant.
 
 ## Entry Points
 
@@ -452,7 +475,7 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 | `packages/mcp/src/tools/shared.ts` | Shared MCP error/action helpers |
 | `packages/mcp/src/services/test-helpers.ts` | Mock service factories |
 | `packages/mcp/src/mcp/server.ts` | Transport-neutral MCP server construction and tool registration |
-| `packages/mcp/src/mcp/instructions.ts` | Server-level MCP instructions advertised to clients |
+| `packages/mcp/src/mcp/instructions.ts` | Canonical guide returned by `quick_start` |
 | `src/commands/mcp.ts` | CLI stdio startup, request-header mode setup, and TTY setup instructions |
 | `packages/core-internal/src/services/githits-service.ts` | REST API client for example search, languages, and feedback |
 | `packages/core-internal/src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, `code_files`, `code_read`, and `code_grep` |

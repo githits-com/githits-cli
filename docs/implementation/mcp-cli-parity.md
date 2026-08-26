@@ -23,10 +23,11 @@ both public package builds. Their Bun harnesses launch the product as
 strings. These modes remove token variables, select isolated file auth and
 config roots, disable advisory update checks, and point GitHits service URLs at
 reserved `.invalid` hosts. CLI built smoke verifies the exact top-level command
-set from root help plus JSON/terminal auth behavior. MCP built smoke calls only
-`listTools` and requires the exact stable `EXPECTED_MCP_TOOLS` cohort plus a
+set from root help plus JSON/terminal auth behavior. MCP built smoke lists tools,
+exercises the static `quick_start` guide, probes unauthenticated behavior, and
+requires the exact stable `EXPECTED_MCP_TOOLS` cohort plus a
 separate local-only experimental cohort launched with the hidden session
-override. The experimental cohort also checks its local instruction block and
+override. The experimental cohort also checks its local `quick_start` guide and
 unauthenticated tool envelopes; it never changes the public smoke constant or
 submits feedback. One CI step applies a combined two-minute timeout and logs
 each harness timing summary and selected launch vector.

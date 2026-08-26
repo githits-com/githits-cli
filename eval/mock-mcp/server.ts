@@ -2,7 +2,7 @@
 /**
  * Mock MCP server for the eval harness.
  *
- * Mirrors the real `githits` MCP server's instructions and the
+ * Mirrors the real `githits` MCP server's quick-start guide and
  * production tool descriptions so the agent under test sees the same
  * orientation it would see against the real CLI.
  *
@@ -14,7 +14,7 @@
  *   accidental cross-tool calls don't conflate results.
  * - Imports the external-content posture (shared block) and per-tool
  *   addenda from `src/tools/guardrails.ts`. Production wires both
- *   through `buildMcpInstructions` and per-tool `DESCRIPTION`
+ *   through `buildMcpQuickStart` and per-tool `DESCRIPTION`
  *   constants; the mock controls whether they're included per cell
  *   via the `EVAL_MCP_GUARDRAIL` env var so we can measure
  *   guardrail-on vs guardrail-off cleanly.
@@ -25,7 +25,7 @@
 
 import { readFileSync } from "node:fs";
 import {
-  buildMcpInstructions,
+  buildMcpQuickStart,
   READ_FILE_DESCRIPTION as CODE_READ_DESCRIPTION,
   CODE_READ_GUARDRAIL,
   DOCS_GUARDRAIL,
@@ -37,6 +37,7 @@ import {
   PKG_INFO_GUARDRAIL,
   PACKAGE_VULNERABILITIES_DESCRIPTION as PKG_VULNS_DESCRIPTION,
   PKG_VULNS_GUARDRAIL,
+  QUICK_START_DESCRIPTION,
 } from "@githits/mcp/internal";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -53,8 +54,8 @@ if (!STATE_FILE) {
 /**
  * Optional guardrail toggle. When `tool` (or `both`), per-tool
  * descriptions get the production guardrail addendum appended. When
- * `instructions` (or `both`), the shared block lands inside the
- * server instructions. v4 plan validates `--guardrail=both`
+ * legacy `instructions` mode (or `both`), the shared block lands inside the
+ * quick-start guide. v4 plan validates `--guardrail=both`
  * primarily; the earlier `tool`-only mode is preserved for
  * backwards-compatible eval comparisons.
  */
@@ -67,21 +68,18 @@ function withGuardrail(base: string, addendum: string): string {
   return includeToolAddenda ? `${base}\n\n${addendum}` : base;
 }
 
-// Build the production-shaped instructions WITHOUT the shared
+// Build the production-shaped quick-start guide WITHOUT the shared
 // external-content posture so we can control whether it's included
-// per cell. Production always inherits the shared block; the eval
+// per cell. Production `quick_start` always includes the shared block; the eval
 // needs `--guardrail=off` to be a clean baseline.
-const baseInstructions = buildMcpInstructions({
+const baseQuickStart = buildMcpQuickStart({
   includeExternalContentPosture: false,
 });
-const instructions = includeShared
-  ? `${baseInstructions}\n\n${EXTERNAL_CONTENT_POSTURE}`
-  : baseInstructions;
+const quickStartGuide = includeShared
+  ? `${baseQuickStart}\n\n${EXTERNAL_CONTENT_POSTURE}`
+  : baseQuickStart;
 
-const server = new McpServer(
-  { name: "githits", version: "0.4.2-eval" },
-  { instructions },
-);
+const server = new McpServer({ name: "githits", version: "0.4.2-eval" });
 
 interface ToolState {
   content: string;
@@ -104,6 +102,18 @@ function fixtureContentFor(toolName: string): string {
   // analysis can see the cross-tool call happened.
   return `[eval-mock] this cell expected the agent to call \`${state.expectedTool}\`, not \`${toolName}\`. No data returned.`;
 }
+
+server.registerTool(
+  "quick_start",
+  {
+    description: QUICK_START_DESCRIPTION,
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  async () => ({
+    content: [{ type: "text" as const, text: quickStartGuide }],
+  }),
+);
 
 // pkg_vulns ---------------------------------------------------------
 server.registerTool(

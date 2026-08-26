@@ -7,24 +7,22 @@ import { createCodeDiffTool } from "../tools/code-diff.js";
 import { createResolveTargetTool } from "../tools/resolve-target.js";
 import type { McpToolServices } from "../tools/tool-services.js";
 import {
-  buildLocalMcpInstructions,
+  buildLocalMcpQuickStart,
   type LocalExperimentalToolName,
 } from "./instructions.js";
 import {
   createDescriptorServices,
   createMcpServerWithFactories,
+  createStableMcpToolFactories,
   eraseMcpTool,
   type McpAuthAction,
   type McpRequestContext,
   type McpServerMetadata,
   type McpToolExecutionHook,
   type McpToolFactory,
-  STABLE_MCP_TOOL_FACTORIES,
 } from "./server.js";
 
 export type LocalExperimentalReportToolIssues = "experimental" | "all";
-
-export type LocalMcpInstructionMode = "default" | "none";
 
 export interface LocalExperimentalMcpPolicy {
   tools: boolean;
@@ -47,7 +45,6 @@ export interface CreateLocalMcpServerOptions<TExtra = unknown> {
   metadata: McpServerMetadata;
   services: LocalMcpToolServicesProvider<TExtra>;
   policy: LocalExperimentalMcpPolicy;
-  instructionMode?: LocalMcpInstructionMode;
   authAction?: McpAuthAction;
   traceTool?: McpToolExecutionHook;
 }
@@ -60,21 +57,16 @@ export function createLocalMcpServer<TExtra = unknown>(
   const enabledExperimentalTools = options.policy.tools
     ? LOCAL_EXPERIMENTAL_TOOL_DEFINITIONS
     : [];
+  const quickStartGuide = buildLocalMcpQuickStart({
+    enabledExperimentalTools: enabledExperimentalTools.map(({ name }) => name),
+    reportToolIssues: options.policy.tools
+      ? options.policy.reportToolIssues
+      : undefined,
+  });
   const toolFactories: readonly McpToolFactory<LocalMcpToolServices>[] = [
-    ...STABLE_MCP_TOOL_FACTORIES,
+    ...createStableMcpToolFactories(quickStartGuide),
     ...enabledExperimentalTools.map(({ factory }) => factory),
   ];
-  const instructions =
-    options.instructionMode === "none"
-      ? ""
-      : buildLocalMcpInstructions({
-          enabledExperimentalTools: enabledExperimentalTools.map(
-            ({ name }) => name,
-          ),
-          reportToolIssues: options.policy.tools
-            ? options.policy.reportToolIssues
-            : undefined,
-        });
   return createMcpServerWithFactories({
     metadata: options.metadata,
     services: options.services,
@@ -82,7 +74,6 @@ export function createLocalMcpServer<TExtra = unknown>(
     descriptorServices: createLocalDescriptorServices(),
     authAction: options.authAction,
     traceTool: options.traceTool,
-    instructions,
   });
 }
 

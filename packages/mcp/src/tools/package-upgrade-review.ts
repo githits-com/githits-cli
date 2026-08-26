@@ -7,6 +7,7 @@ import {
   buildPackageUpgradeReview,
   formatPackageUpgradeReviewTerminal,
 } from "../shared/package-upgrade-review-response.js";
+import { PKG_UPGRADE_REVIEW_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult } from "./shared.js";
 import {
   READ_ONLY_TOOL_ANNOTATIONS,
@@ -116,7 +117,8 @@ const DESCRIPTION =
   "Use this instead of inferring acceptability from semver, including patch bumps. " +
   "Accepts either one package via registry/package_name/current_version/" +
   "target_version or batch `packages[]`. Batch execution is capped internally " +
-  "to avoid flooding the package-intelligence backend. Use `pkg_info` for latest health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs.";
+  "to avoid flooding the package-intelligence backend. Use `pkg_info` for latest health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs." +
+  `\n\n${PKG_UPGRADE_REVIEW_GUARDRAIL}`;
 
 export function createPackageUpgradeReviewTool(
   service: PackageIntelligenceService,

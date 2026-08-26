@@ -7,9 +7,7 @@ describe("getExampleTool", () => {
   it("tells agents to report source repository provenance", () => {
     const tool = createGetExampleTool(createMockGitHitsService());
 
-    expect(tool.description).toContain(
-      "Find canonical cross-project examples for unknown-target or global usage patterns",
-    );
+    expect(tool.description).toContain("when no single target is the answer");
     expect(tool.description).toContain("source repository provenance");
     expect(tool.description).toContain("source repositories/citations");
     expect(tool.description).toContain(
@@ -17,6 +15,9 @@ describe("getExampleTool", () => {
     );
     expect(tool.schema.format?.description).toContain(
       "source repository provenance",
+    );
+    expect(tool.schema.license_mode?.description).toContain(
+      "`yolo` disables filtering",
     );
   });
 

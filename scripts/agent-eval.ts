@@ -28,7 +28,7 @@ import {
 export type AgentName = "claude" | "codex" | "opencode";
 export type ServerMode = "local" | "published";
 export type EvalSurface = "mcp" | "skills";
-export type GuidanceProfile = "descriptors" | "instructions" | "full";
+export type GuidanceProfile = "descriptors" | "full";
 export type CodexReasoningEffort =
   | "minimal"
   | "low"
@@ -292,10 +292,8 @@ export function parseArgs(
       case "--guidance-profile": {
         const value = argv[++i];
         assert(
-          value === "descriptors" ||
-            value === "instructions" ||
-            value === "full",
-          "--guidance-profile must be descriptors, instructions, or full",
+          value === "descriptors" || value === "full",
+          "--guidance-profile must be descriptors or full",
         );
         options.guidanceProfile = value;
         guidanceProfileExplicit = true;
@@ -375,7 +373,7 @@ export function parseArgs(
   }
   validateExperimentalToolsScope(options);
   if (options.surface === "mcp" && options.guidanceProfile === undefined) {
-    options.guidanceProfile = "instructions";
+    options.guidanceProfile = "descriptors";
   }
   validateGuidanceProfileScope(options, guidanceProfileExplicit);
   if (options.agent === "codex") {
@@ -409,13 +407,13 @@ export function validateGuidanceProfileScope(
   },
   explicit = false,
 ): void {
-  const profile = options.guidanceProfile ?? "instructions";
+  const profile = options.guidanceProfile ?? "descriptors";
   assert(
     options.surface !== "skills" || !explicit,
     "--guidance-profile cannot be used with --surface skills",
   );
   assert(
-    profile === "instructions" ||
+    profile === "descriptors" ||
       (options.surface === "mcp" && options.server === "local"),
     `--guidance-profile ${profile} requires --surface mcp --server local`,
   );
@@ -427,7 +425,7 @@ function printHelp(): void {
 Options:
   --agent claude|codex|opencode   Agent to run (default: claude)
   --model <name>                  Agent model name or alias, e.g. sonnet, haiku, gpt-5.4-mini
-  --guidance-profile descriptors|instructions|full  MCP guidance profile (default: instructions)
+  --guidance-profile descriptors|full  MCP guidance profile (default: descriptors)
   --reasoning-effort minimal|low|medium|high|xhigh|max|ultra  Codex reasoning effort
   --surface mcp|skills            GitHits access surface under test (default: mcp)
   --server local|published        GitHits source mode: local checkout or published package (default: local)
@@ -481,9 +479,6 @@ function buildMcpCommand(
         "dev",
         "mcp",
         "start",
-        ...(options.guidanceProfile === "descriptors"
-          ? ["--instruction-mode", "none"]
-          : []),
         ...(options.experimentalTools ? ["--experimental-tools"] : []),
       ],
       ...(env ? { env } : {}),
@@ -665,10 +660,17 @@ function assertMissing(path: string, description: string): void {
 function planSkillsWorkspace(
   options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
   workspaceDir: string,
+  requestedSourceChildren?: string[],
 ): SkillWorkspacePlan {
   const sourceDir = join(options.repoRoot, "skills");
   assert(existsSync(sourceDir), `Skills directory not found: ${sourceDir}`);
-  const sourceChildren = readdirSync(sourceDir);
+  const sourceChildren = requestedSourceChildren ?? readdirSync(sourceDir);
+  if (requestedSourceChildren) {
+    for (const child of requestedSourceChildren) {
+      const sourcePath = join(sourceDir, child);
+      assert(existsSync(sourcePath), `Skill source not found: ${sourcePath}`);
+    }
+  }
   const installedDirs = [
     join(workspaceDir, "skills"),
     join(workspaceDir, ".opencode", "skills"),
@@ -768,7 +770,7 @@ export function prepareFullGuidanceWorkspace(
   options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
   workspaceDir: string,
 ): GuidanceInstallationMetadata {
-  const skillPlan = planSkillsWorkspace(options, workspaceDir);
+  const skillPlan = planSkillsWorkspace(options, workspaceDir, ["githits-mcp"]);
   const guidancePlan = planProjectGuidance(workspaceDir);
   applyProjectGuidance(guidancePlan);
   return {
@@ -1474,7 +1476,7 @@ export function buildClaudeCommand(
   mcpConfigPath: string | undefined,
   model?: string,
   surface: EvalSurface = "mcp",
-  guidanceProfile: GuidanceProfile = "instructions",
+  guidanceProfile: GuidanceProfile = "descriptors",
 ): string[] {
   const command = [
     "claude",
@@ -1788,7 +1790,7 @@ export async function runAgentEval(
   mkdirSync(options.outDir, { recursive: true });
   assertUniqueWorkloadIds(options.workloads);
   if (options.surface === "mcp" && options.guidanceProfile === undefined) {
-    options.guidanceProfile = "instructions";
+    options.guidanceProfile = "descriptors";
   }
   validateGuidanceProfileScope(options);
   if (options.agent !== "codex") {

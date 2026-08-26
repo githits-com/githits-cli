@@ -94,9 +94,10 @@ describe("MCP smoke-test helpers", () => {
 });
 
 describe("runMcpSmoke", () => {
-  it("can verify tool registration without live tool calls", async () => {
-    const caller = createCaller(async () => {
-      throw new Error("live tool call should not run");
+  it("can verify registration and quick_start without live evidence calls", async () => {
+    const caller = createCaller(async (name) => {
+      if (name === "quick_start") return smokeResponse(name, {});
+      throw new Error("live evidence call should not run");
     });
 
     await expect(
@@ -122,6 +123,7 @@ describe("runMcpSmoke", () => {
   it("skips the live corpus when the auth probe returns AUTH_REQUIRED", async () => {
     const logs: string[] = [];
     const caller = createCaller(async (name) => {
+      if (name === "quick_start") return smokeResponse(name, {});
       expect(name).toBe("search_language");
       return errorResult("AUTH_REQUIRED");
     });
@@ -163,6 +165,10 @@ function smokeResponse(
   if (args.format === "json") return smokeJsonResponse(name, args);
 
   switch (name) {
+    case "quick_start":
+      return textResult(
+        "GitHits provides routing for `search` and `code_grep`",
+      );
     case "search_language":
       return textResult("python (Python)\naliases: py");
     case "get_example":

@@ -161,12 +161,12 @@ coverage, and cannot recover content omitted by the backend. `Content: complete`
 describes backend-returned coverage, not that every returned byte was printed
 in the compact preview.
 It is not included in public/remote descriptors or smoke inventories, and its
-guidance is not promoted through public/remote MCP instructions, Agent Skills,
+guidance is not promoted through the public/remote `quick_start`, Agent Skills,
 or plugin guidance during this phase.
 
 ## Deferred rollout boundaries
 
-The local `code_diff` adapter and its experimental instructions remain
+The local `code_diff` adapter and its experimental quick-start guidance remain
 config-gated and workspace-internal. Public/remote MCP descriptors, smoke
 inventories, Agent Skills, and plugin guidance remain stable-only; any future
 promotion requires separate graduation evidence and release review.
