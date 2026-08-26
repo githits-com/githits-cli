@@ -7,7 +7,11 @@ import {
   type ResolveTargetParams,
   toPkgseerRegistry,
 } from "@githits/core-internal";
-import { InvalidPackageSpecError } from "./package-spec.js";
+import { parseCodeNavigationTargetSpec } from "./code-navigation-target.js";
+import {
+  InvalidArgumentError,
+  InvalidPackageSpecError,
+} from "./package-spec.js";
 
 export const RESOLVE_TARGET_DEFAULT_LIMIT = 8;
 export const RESOLVE_TARGET_MAX_LIMIT = 20;
@@ -28,6 +32,7 @@ export function buildResolveTargetParams(
 ): ResolveTargetParams {
   const name = input.name?.trim() ?? "";
   if (!name) throw new InvalidPackageSpecError("Target name is required.");
+  rejectCanonicalTarget(name);
 
   const limit = input.limit ?? RESOLVE_TARGET_DEFAULT_LIMIT;
   if (
@@ -57,6 +62,19 @@ export function buildResolveTargetParams(
   const intentHints = normaliseStrings(input.intentHints);
   if (intentHints.length > 0) params.intentHints = intentHints;
   return params;
+}
+
+/** Keep fuzzy resolution aligned with the target grammar used downstream. */
+function rejectCanonicalTarget(name: string): void {
+  try {
+    parseCodeNavigationTargetSpec(name);
+  } catch (error) {
+    if (error instanceof InvalidArgumentError) return;
+    throw error;
+  }
+  throw new InvalidArgumentError(
+    `Canonical target ${JSON.stringify(name)} does not need resolution. Pass it directly to the next GitHits tool.`,
+  );
 }
 
 function parseRegistries(

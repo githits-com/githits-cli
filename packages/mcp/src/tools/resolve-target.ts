@@ -46,13 +46,13 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Optional task context used for ranking. Do not include credentials, personal data, private code, or proprietary content.",
+      "Optional task context used to rank retrieved candidates and does not expand candidate retrieval. Do not include credentials, personal data, private code, or proprietary content.",
     ),
   registries: z
     .array(z.string())
     .optional()
     .describe(
-      `Optional registry filter. Accepted registries: ${PKGSEER_REGISTRY_LIST}. An empty list deliberately means no filter.`,
+      `Optional registry filter that constrains package candidates only; repository candidates remain eligible. Accepted registries: ${PKGSEER_REGISTRY_LIST}. An empty list deliberately means no filter.`,
     ),
   preferred_kind: z
     .string()
@@ -64,7 +64,7 @@ const schema: ZodRawShape = {
     .array(z.string())
     .optional()
     .describe(
-      "Optional ranking hints. Empty, blank, and duplicate hints are ignored. Do not include credentials, personal data, private code, or proprietary content.",
+      "Optional hints that rank retrieved candidates and do not expand candidate retrieval. Empty, blank, and duplicate hints are ignored. Do not include credentials, personal data, private code, or proprietary content.",
     ),
   limit: z
     .number()

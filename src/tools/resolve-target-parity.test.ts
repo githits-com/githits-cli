@@ -214,4 +214,77 @@ describe("resolve_target parity", () => {
       Object.keys(mcp as object).sort(),
     );
   });
+
+  it.each(["npm:react", "github:facebook/react"])(
+    "PARITY-ERROR-ENVELOPE: canonical target %s is rejected before service calls",
+    async (name) => {
+      const cliResolveTarget = mock((_params: ResolveTargetParams) =>
+        Promise.resolve(defaultResolveTargetResult),
+      );
+      const mcpResolveTarget = mock((_params: ResolveTargetParams) =>
+        Promise.resolve(defaultResolveTargetResult),
+      );
+      const cli = await cliJson(
+        name,
+        {},
+        cliDeps({
+          resolveTargetService: createMockResolveTargetService({
+            resolveTarget: cliResolveTarget,
+          }),
+        }),
+      );
+      const tool = createParityExperimentalMcpTool("resolve_target", {
+        resolveTargetService: createMockResolveTargetService({
+          resolveTarget: mcpResolveTarget,
+        }),
+      });
+      const mcpResult = await tool.handler({ name, format: "json" }, {});
+      const mcp = JSON.parse(mcpResult.content[0]?.text ?? "{}");
+
+      expect(cliResolveTarget).not.toHaveBeenCalled();
+      expect(mcpResolveTarget).not.toHaveBeenCalled();
+      expect(mcpResult.isError).toBe(true);
+      expect(cli).toEqual(mcp);
+      expect(cli).toEqual({
+        error: `Canonical target ${JSON.stringify(name)} does not need resolution. Pass it directly to the next GitHits tool.`,
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+    },
+  );
+
+  it.each(["@scope/package", "react-native", "owner/repository"])(
+    "PARITY-EXPERIMENTAL-LOCAL: human name %s reaches both services",
+    async (name) => {
+      const cliResolveTarget = mock((_params: ResolveTargetParams) =>
+        Promise.resolve(defaultResolveTargetResult),
+      );
+      const mcpResolveTarget = mock((_params: ResolveTargetParams) =>
+        Promise.resolve(defaultResolveTargetResult),
+      );
+
+      await cliJson(
+        name,
+        {},
+        cliDeps({
+          resolveTargetService: createMockResolveTargetService({
+            resolveTarget: cliResolveTarget,
+          }),
+        }),
+      );
+      const tool = createParityExperimentalMcpTool("resolve_target", {
+        resolveTargetService: createMockResolveTargetService({
+          resolveTarget: mcpResolveTarget,
+        }),
+      });
+      await tool.handler({ name, format: "json" }, {});
+
+      expect(cliResolveTarget).toHaveBeenCalledTimes(1);
+      expect(mcpResolveTarget).toHaveBeenCalledTimes(1);
+      expect(cliResolveTarget.mock.calls[0]?.[0]).toEqual(
+        mcpResolveTarget.mock.calls[0]?.[0],
+      );
+      expect(cliResolveTarget.mock.calls[0]?.[0]).toMatchObject({ name });
+    },
+  );
 });
