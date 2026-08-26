@@ -1911,7 +1911,7 @@ function printInstallValidationFailure(
 
 function failUnknownInitAction(action: string): void {
   failInitArgument(
-    `Unknown init action: ${action}. Use "githits init uninstall" to remove GitHits MCP config.`,
+    `Unknown init action: ${action}. Use "githits uninstall" to remove GitHits MCP config.`,
     false,
   );
 }
@@ -4574,11 +4574,51 @@ confirmation. By default it also removes GitHits-owned guidance files; pass
 \`--keep-guidance\` to leave them in place. Authentication tokens are not
 removed; use \`githits logout\` to remove stored credentials.`;
 
+function registerUninstallCommand(parent: Command): Command {
+  return parent
+    .command("uninstall")
+    .summary("Remove MCP server from coding agents or project config")
+    .description(INIT_UNINSTALL_DESCRIPTION)
+    .option("-y, --yes", "Skip prompts, uninstall user-level config", false)
+    .option(
+      "--project",
+      "Remove project-level MCP from the current directory",
+      false,
+    )
+    .option(
+      "--keep-guidance",
+      "Keep GitHits skill and managed instruction guidance",
+      false,
+    )
+    .action(async (options: InitUninstallOptions, command: Command) => {
+      const parentOptions =
+        command.parent?.name() === "init"
+          ? command.parent.opts<InitOptions>()
+          : {};
+      const resolvedOptions: InitUninstallOptions = {
+        ...options,
+        yes: options.yes || parentOptions.yes,
+        project: options.project || parentOptions.project,
+        keepGuidance: options.keepGuidance,
+      };
+      const fileSystemService = new FileSystemServiceImpl();
+      const promptService = new PromptServiceImpl();
+      const execService = new ExecServiceImpl();
+      await initUninstallAction(resolvedOptions, {
+        fileSystemService,
+        promptService,
+        execService,
+        isInteractive:
+          process.stdin.isTTY === true && process.stdout.isTTY === true,
+      });
+    });
+}
+
 /**
  * Register the init command on the given program.
  * Creates lightweight dependencies for tool setup, plus auth deps for login.
  */
-export function registerInitCommand(program: Command) {
+export function registerInitCommand(program: Command): void {
   const initCommand = program
     .command("init")
     .argument("[action]", "Compatibility action; use uninstall with --project")
@@ -4618,38 +4658,6 @@ export function registerInitCommand(program: Command) {
       });
     });
 
-  initCommand
-    .command("uninstall")
-    .summary("Remove MCP server from coding agents or project config")
-    .description(INIT_UNINSTALL_DESCRIPTION)
-    .option("-y, --yes", "Skip prompts, uninstall user-level config", false)
-    .option(
-      "--project",
-      "Remove project-level MCP from the current directory",
-      false,
-    )
-    .option(
-      "--keep-guidance",
-      "Keep GitHits skill and managed instruction guidance",
-      false,
-    )
-    .action(async (options: InitUninstallOptions, command: Command) => {
-      const parentOptions = command.parent?.opts<InitOptions>() ?? {};
-      const resolvedOptions: InitUninstallOptions = {
-        ...options,
-        yes: options.yes || parentOptions.yes,
-        project: options.project || parentOptions.project,
-        keepGuidance: options.keepGuidance,
-      };
-      const fileSystemService = new FileSystemServiceImpl();
-      const promptService = new PromptServiceImpl();
-      const execService = new ExecServiceImpl();
-      await initUninstallAction(resolvedOptions, {
-        fileSystemService,
-        promptService,
-        execService,
-        isInteractive:
-          process.stdin.isTTY === true && process.stdout.isTTY === true,
-      });
-    });
+  registerUninstallCommand(program);
+  registerUninstallCommand(initCommand);
 }

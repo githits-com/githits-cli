@@ -7636,15 +7636,20 @@ describe("registerInitCommand", () => {
     });
   }
 
-  it("registers init and init uninstall commands", () => {
+  it("registers init, root uninstall, and nested uninstall commands", () => {
     const program = new Command();
     registerInitCommand(program);
 
     const initCommand = program.commands.find((cmd) => cmd.name() === "init");
+    const rootUninstallCommand = program.commands.find(
+      (cmd) => cmd.name() === "uninstall",
+    );
     expect(initCommand).toBeDefined();
+    expect(rootUninstallCommand).toBeDefined();
     expect(
       initCommand?.commands.some((cmd) => cmd.name() === "uninstall"),
     ).toBe(true);
+    expect(program.helpInformation()).toContain("uninstall");
   });
 
   it("registers staged agent-safe init options", () => {
@@ -7664,25 +7669,51 @@ describe("registerInitCommand", () => {
     expect(optionLongNames).toContain("--port");
   });
 
-  it("registers uninstall options as boolean options", () => {
+  it("registers identical root and nested uninstall options", () => {
     const program = new Command();
     registerInitCommand(program);
 
     const initCommand = program.commands.find((cmd) => cmd.name() === "init");
-    const uninstallCommand = initCommand?.commands.find(
+    const nestedUninstallCommand = initCommand?.commands.find(
       (cmd) => cmd.name() === "uninstall",
     );
-    const projectOption = uninstallCommand?.options.find(
-      (option) => option.long === "--project",
+    const rootUninstallCommand = program.commands.find(
+      (cmd) => cmd.name() === "uninstall",
     );
-    const keepGuidanceOption = uninstallCommand?.options.find(
-      (option) => option.long === "--keep-guidance",
+    const describeOptions = (command: Command | undefined) =>
+      command?.options.map((option) => ({
+        flags: option.flags,
+        description: option.description,
+        required: option.required,
+        optional: option.optional,
+        defaultValue: option.defaultValue,
+      }));
+
+    expect(rootUninstallCommand?.summary()).toBe(
+      nestedUninstallCommand?.summary(),
+    );
+    expect(rootUninstallCommand?.description()).toBe(
+      nestedUninstallCommand?.description(),
+    );
+    expect(describeOptions(rootUninstallCommand)).toEqual(
+      describeOptions(nestedUninstallCommand),
+    );
+  });
+
+  it("routes root uninstall --project to project uninstall", async () => {
+    await withNonInteractiveStdio(() =>
+      parseRegisteredInit(["uninstall", "--project", "--yes"]),
     );
 
-    expect(projectOption?.required).toBe(false);
-    expect(projectOption?.optional).toBe(false);
-    expect(keepGuidanceOption?.required).toBe(false);
-    expect(keepGuidanceOption?.optional).toBe(false);
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Remove GitHits from this project's MCP config"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Scanning for configured agents")),
+    ).toBe(false);
   });
 
   it("routes init uninstall --project to project uninstall", async () => {
@@ -7751,9 +7782,16 @@ describe("registerInitCommand", () => {
     expect(
       errorCalls.some((msg) => msg.includes("Unknown init action: foo")),
     ).toBe(true);
-    expect(
-      errorCalls.some((msg) => msg.includes('githits init uninstall"')),
-    ).toBe(true);
+    expect(errorCalls.some((msg) => msg.includes('githits uninstall"'))).toBe(
+      true,
+    );
     expect(errorCalls.some((msg) => msg.includes("--project"))).toBe(false);
+  });
+
+  it("suggests root uninstall for a close root command typo", async () => {
+    await expect(parseRegisteredInit(["uninztall"])).rejects.toMatchObject({
+      code: "commander.unknownCommand",
+      message: expect.stringContaining("Did you mean uninstall?"),
+    });
   });
 });
