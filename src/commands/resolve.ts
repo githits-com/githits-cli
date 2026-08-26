@@ -120,6 +120,9 @@ function collectIntentHint(value: string, previous: string[] = []): string[] {
 
 const DESCRIPTION = `Resolve a human-provided name to ranked package or GitHub repository targets.
 
+Pass canonical registry:name or github:owner/repo targets directly to the next
+GitHits command; resolve rejects them locally.
+
 The optional --query and --intent-hint values are sent to the service as ranking
 context. They rank retrieved candidates and do not expand candidate retrieval.
 Do not include credentials, personal data, private code, or proprietary content

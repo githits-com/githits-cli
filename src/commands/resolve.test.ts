@@ -439,6 +439,9 @@ describe("registerResolveCommand", () => {
     expect(resolveCommand?.description()).toContain(
       "rank retrieved candidates and do not expand candidate retrieval",
     );
+    expect(resolveCommand?.description()).toContain(
+      "Pass canonical registry:name or github:owner/repo targets directly",
+    );
     for (const registry of PKGSEER_REGISTRY_ARGS) {
       expect(help).toContain(registry);
     }
