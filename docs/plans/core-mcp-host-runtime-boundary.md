@@ -44,10 +44,13 @@ can change.
 
 ## Verified remaining ownership issue
 
-Core schema-mismatch recovery prose still names CLI commands and environment
-variables, including `githits update-check` and `GITHITS_DEBUG`. The root
-correction is to move host-specific remediation to host mapping. Phase 1 did
-not change this runtime prose; Phase 2 should address it at that host boundary.
+Core recovery prose still names CLI commands and environment variables. This
+includes the schema-mismatch examples `githits update-check` and
+`GITHITS_DEBUG`, plus the terms-acceptance helper at
+`packages/core-internal/src/shared/terms-acceptance.ts:19`, which names
+`githits settings terms accept`. The root correction is to move host-specific
+remediation to host mapping. Phase 1 did not change this runtime prose; Phase
+2 should address it at that host boundary.
 
 ## Open decisions
 
