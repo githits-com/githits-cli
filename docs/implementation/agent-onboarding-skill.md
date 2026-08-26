@@ -147,6 +147,21 @@ Agentic evals exercise whether real agents discover and follow the skill. The on
 
 Agentic eval results are qualitative. Review `tool-calls.json`, `final.json`, `report.json`, `toolIssues`, and `instructionIssues` rather than treating a live-agent pass/fail as deterministic CI evidence.
 
+## Deferred product feedback
+
+Qualitative onboarding evaluation surfaced three pre-existing policy questions
+that require product feedback:
+
+- When structured choice UI is unavailable, should a single-turn session use a
+  documented fallback flow?
+- Should fully configured and authenticated read-only verification request a
+  fresh data-handling acknowledgment?
+- Should absence of MCP tools in the current session make readiness explicitly
+  incomplete?
+
+This feature branch records the questions only; it does not change the public
+`skills/githits-onboarding/SKILL.md`.
+
 ## Published skill lifecycle
 
 The public `skills/githits-onboarding/SKILL.md` was reviewed with this CLI

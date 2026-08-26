@@ -81,6 +81,7 @@ import {
   executeSkillUninstall,
   getConfigUninstallCheckStatus,
   isSetupAlreadyConfigured,
+  mergeManagedBlock,
   type SetupResult,
 } from "./setup-handlers.js";
 
@@ -224,6 +225,7 @@ interface ProjectUninstallFailure {
 interface ProjectUninstallSummary {
   removed: string[];
   legacyRemoved: string[];
+  guidanceRemoved?: number;
   skipped: string[];
   failed: ProjectUninstallFailure[];
 }
@@ -772,11 +774,18 @@ function printSection(index: number, title: string, useColors: boolean): void {
 }
 
 /** Print natural-language init output at the current terminal width. */
-function printInitProse(text: string): void {
+function printStyledInitProse(
+  text: string,
+  style: (line: string, lineIndex: number) => string,
+): void {
   const columns = process.stdout.columns ?? DEFAULT_INIT_PROSE_WIDTH;
-  for (const line of wrapInitProse(text, columns)) {
-    console.log(line);
+  for (const [lineIndex, line] of wrapInitProse(text, columns).entries()) {
+    console.log(style(line, lineIndex));
   }
+}
+
+function printInitProse(text: string): void {
+  printStyledInitProse(text, (line: string) => line);
 }
 
 /** Print Cursor's human-facing verification guidance with standalone commands. */
@@ -1121,6 +1130,55 @@ async function hasHistoricalGuidanceSkills(
     }
   }
   return false;
+}
+
+async function hasGuidanceToUninstall(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+  execService: ExecService,
+  scope: InitSetupScope,
+): Promise<boolean> {
+  for (const step of getGuidanceUninstallSteps(
+    agents,
+    fileSystemService,
+    scope,
+  )) {
+    try {
+      if (!(await fileSystemService.exists(step.targetPath))) continue;
+    } catch {
+      return true;
+    }
+    if (
+      step.method === "skill" ||
+      (step.method === "managed-block"
+        ? await hasManagedBlockToUninstall(step, fileSystemService)
+        : await isSetupAlreadyConfigured(step, fileSystemService, execService))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function hasManagedBlockToUninstall(
+  setup: ManagedBlockSetup,
+  fileSystemService: FileSystemService,
+): Promise<boolean> {
+  try {
+    const content = await fileSystemService.readFile(setup.targetPath);
+    return (
+      mergeManagedBlock(
+        content,
+        setup.marker,
+        setup.blockContent,
+        setup.fileHeader,
+      ).status === "already_configured"
+    );
+  } catch {
+    // A target that cannot be inspected is actionable so uninstall can report
+    // the failed path instead of silently declaring a clean project.
+    return true;
+  }
 }
 
 function getInstructionTargetPath(
@@ -1751,10 +1809,10 @@ function printAgenticDetectSummary(
   );
   console.log();
   if (scope === "project") {
-    console.log(
+    printInitProse(
       "  Project-level install writes MCP config files into this repo. These files may be committed.",
     );
-    console.log(
+    printInitProse(
       "  Tools without verified project config are shown as unsupported and cannot be installed with --project.",
     );
     console.log();
@@ -1786,7 +1844,7 @@ function printAgenticDetectSummary(
     console.log("No supported AI coding tools detected.");
     console.log();
     console.log("Next step for agents:");
-    console.log(
+    printInitProse(
       "  Tell the user to install a supported coding tool, then run detection again.",
     );
     return;
@@ -1794,7 +1852,7 @@ function printAgenticDetectSummary(
 
   if (actionable.length === 0) {
     if (scope === "project" && unsupported.length > 0) {
-      console.log(
+      printInitProse(
         "No detected tools can be installed with project-level config.",
       );
       console.log();
@@ -1803,11 +1861,11 @@ function printAgenticDetectSummary(
       }
       console.log("Next step for agents:");
       if (configured.length > 0) {
-        console.log(
+        printInitProse(
           "  Tell the user GitHits is already configured for the detected project-configurable tools.",
         );
       }
-      console.log(
+      printInitProse(
         "  Tell the user the other detected tools do not have verified project-level MCP support.",
       );
       console.log(
@@ -1820,11 +1878,11 @@ function printAgenticDetectSummary(
       return;
     }
     printInstallReview(useColors);
-    console.log("No detected tools need MCP or guidance setup.");
+    printInitProse("No detected tools need MCP or guidance setup.");
     console.log();
     console.log("Next step for agents:");
     for (const instruction of buildConfiguredDetectionInstructions(entries)) {
-      console.log(`  ${instruction}`);
+      printInitProse(`  ${instruction}`);
     }
     if (hasConfiguredCursor(entries)) {
       printCursorRemoteVerificationInstructions(useColors);
@@ -1840,7 +1898,7 @@ function printAgenticDetectSummary(
   console.log("Next step for agents:");
   console.log();
   console.log("  Ask the user:");
-  console.log(
+  printInitProse(
     `    "GitHits setup is available for ${actionable.map((entry) => entry.name).join(", ")}. Which should I configure?"`,
   );
   console.log();
@@ -1850,7 +1908,7 @@ function printAgenticDetectSummary(
   );
   if (scope === "project") {
     console.log();
-    console.log(
+    printInitProse(
       "  Before running it, tell the user this writes project-local MCP files into the current repo and only configures tools with verified project support.",
     );
   }
@@ -2762,11 +2820,63 @@ function hasSharedGuidanceOutcome(
   );
   return (outcome.changes ?? []).some(
     (change) =>
-      change.kind === "skill" &&
-      (change.path === sharedRoot ||
-        change.path.startsWith(`${sharedRoot}/`) ||
-        change.path.startsWith(`${sharedRoot}\\`)),
+      change.kind === "skill" && isSharedGuidancePath(change.path, sharedRoot),
   );
+}
+
+function isSharedGuidancePath(path: string, sharedRoot: string): boolean {
+  return (
+    path === sharedRoot ||
+    path.startsWith(`${sharedRoot}/`) ||
+    path.startsWith(`${sharedRoot}\\`)
+  );
+}
+
+function getSharedGuidanceRoot(
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): string {
+  const basePath =
+    scope === "project"
+      ? fileSystemService.getCwd()
+      : fileSystemService.getHomeDir();
+  return fileSystemService.joinPath(basePath, ...SHARED_AGENTS_SKILL_ROOT);
+}
+
+function hasSharedGuidanceRemoval(
+  outcome: GuidanceUninstallOutcome | null,
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): boolean {
+  if (!outcome) return false;
+  const sharedRoot = getSharedGuidanceRoot(fileSystemService, scope);
+  return (outcome.changes ?? []).some(
+    (change) =>
+      change.kind === "skill" &&
+      change.change === "removed" &&
+      isSharedGuidancePath(change.path, sharedRoot),
+  );
+}
+
+function hasSharedGuidanceDetection(
+  detection: StagedDetection,
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): boolean {
+  if (!detection.guidanceRequested) return false;
+  const sharedRoot = getSharedGuidanceRoot(fileSystemService, scope);
+  return detection.entries.some((entry) => {
+    if (entry.guidanceStatus !== "already_configured") return false;
+    const agent = agentDefinitions.find(
+      (candidate) => candidate.id === entry.id,
+    );
+    return (
+      agent !== undefined &&
+      getGuidanceSkillSetups([agent], fileSystemService, scope).some((setup) =>
+        isSharedGuidancePath(setup.targetPath, sharedRoot),
+      )
+    );
+  });
 }
 
 function printSharedGuidanceVisibility(scope: InitSetupScope): void {
@@ -2774,6 +2884,15 @@ function printSharedGuidanceVisibility(scope: InitSetupScope): void {
     scope === "project"
       ? "  GitHits skills in .agents/skills/ are discovered by every compatible agent that reads that directory."
       : "  GitHits skills in ~/.agents/skills/ are discovered by every compatible agent that reads that directory.",
+  );
+  console.log();
+}
+
+function printSharedGuidanceRemovalVisibility(scope: InitSetupScope): void {
+  printInitProse(
+    scope === "project"
+      ? "  GitHits removed shared skills from .agents/skills/; this affects every compatible agent that reads that directory."
+      : "  GitHits removed shared skills from ~/.agents/skills/; this affects every compatible agent that reads that directory.",
   );
   console.log();
 }
@@ -3008,7 +3127,10 @@ async function cleanupLegacyProjectSetupState(
 }
 
 function printProjectUninstallSummary(summary: ProjectUninstallSummary): void {
-  const totalRemoved = summary.removed.length + summary.legacyRemoved.length;
+  const totalRemoved =
+    summary.removed.length +
+    summary.legacyRemoved.length +
+    (summary.guidanceRemoved ?? 0);
   console.log();
   if (summary.failed.length === 0) {
     if (summary.removed.length > 0) {
@@ -3019,6 +3141,8 @@ function printProjectUninstallSummary(summary: ProjectUninstallSummary): void {
       printInitProse(
         "  Done! Removed legacy GitHits project setup marker. No project MCP config entries were found.",
       );
+    } else if ((summary.guidanceRemoved ?? 0) > 0) {
+      printInitProse("  Done! GitHits guidance was removed from this project.");
     } else {
       printInitProse("  No project GitHits MCP configuration found.");
     }
@@ -3066,17 +3190,17 @@ async function runProjectMcpUninstall(
   deps: InitDependencies,
   useColors: boolean,
 ): Promise<void> {
-  const { fileSystemService, promptService } = deps;
+  const { execService, fileSystemService, promptService } = deps;
   const isInteractive = deps.isInteractive ?? true;
   const scope = await resolveProjectSetupScope({}, fileSystemService);
   if (!scope) return;
   const projectPlan = await getProjectUninstallPlan(fileSystemService);
 
   console.log(
-    `\n  ${colorize("Remove GitHits from this project's MCP config.", "bold", useColors)}`,
+    `\n  ${colorize("Remove GitHits from this project's MCP config or guidance.", "bold", useColors)}`,
   );
   console.log(
-    `  ${colorize("Removes GitHits entries from supported project-local MCP files.", "dim", useColors)}\n`,
+    `  ${colorize("Removes GitHits entries from supported project-local MCP files and managed guidance.", "dim", useColors)}\n`,
   );
   console.log(`    Project: ${scope.projectPath}`);
   for (const setup of projectPlan.configRemovals) {
@@ -3125,7 +3249,15 @@ async function runProjectMcpUninstall(
       reason: `Could not inspect legacy project setup marker: ${err instanceof Error ? err.message : String(err)}`,
     });
   }
-  const hasWork = configured.length > 0 || hasLegacyState;
+  const hasGuidance =
+    !options.keepGuidance &&
+    (await hasGuidanceToUninstall(
+      agentDefinitions,
+      fileSystemService,
+      execService,
+      "project",
+    ));
+  const hasWork = configured.length > 0 || hasLegacyState || hasGuidance;
 
   if (
     !hasWork &&
@@ -3163,7 +3295,9 @@ async function runProjectMcpUninstall(
       "  Project uninstall needs confirmation. Because this session is non-interactive, no changes were made.",
     );
     console.log();
-    printInitProse("  To remove GitHits from this project's MCP files, run:");
+    printInitProse(
+      "  To remove GitHits from this project's MCP files and guidance, run:",
+    );
     console.log(
       `    ${formatCommand("githits uninstall --project --yes", useColors)}`,
     );
@@ -3175,7 +3309,7 @@ async function runProjectMcpUninstall(
     let accepted: boolean;
     try {
       accepted = await promptService.confirm(
-        "Remove GitHits MCP config from this project?",
+        "Remove GitHits MCP config and guidance from this project?",
         false,
       );
     } catch (err) {
@@ -3285,6 +3419,14 @@ async function runProjectMcpUninstall(
       fileSystemService,
       useColors,
     );
+    summary.guidanceRemoved = (guidanceOutcome.changes ?? []).filter(
+      (change) => change.change === "removed",
+    ).length;
+    if (
+      hasSharedGuidanceRemoval(guidanceOutcome, fileSystemService, "project")
+    ) {
+      printSharedGuidanceRemovalVisibility("project");
+    }
     if (guidanceOutcome.status === "failed") {
       summary.failed.push({
         path: "GitHits guidance",
@@ -3696,6 +3838,9 @@ async function runUserMcpUninstall(
       fileSystemService,
       useColors,
     );
+    if (hasSharedGuidanceRemoval(guidanceOutcome, fileSystemService, "user")) {
+      printSharedGuidanceRemovalVisibility("user");
+    }
   }
   console.log();
 
@@ -4029,7 +4174,9 @@ function printMcpServerSummary(
     ? 'Configured MCP server "githits"'
     : 'MCP server "githits" already configured';
   const transport = describeMcpTransport(agents);
-  console.log(`  ${success(`${verb}: ${transport}`, useColors)}`);
+  printStyledInitProse(`  ${verb}: ${transport}`, (line: string, lineIndex) =>
+    lineIndex === 0 ? success(line, useColors) : line,
+  );
   console.log();
 }
 
@@ -5014,11 +5161,11 @@ export async function initAction(
     (!cursorConfigured &&
       selection.mcpAgents.length === 0 &&
       selection.guidanceAgents.length === 0);
-  const sharedGuidanceReady = hasSharedGuidanceOutcome(
-    guidanceOutcome,
-    fileSystemService,
-    setupScope,
-  );
+  const sharedGuidanceReady =
+    hasSharedGuidanceOutcome(guidanceOutcome, fileSystemService, setupScope) ||
+    (!guidanceOutcome &&
+      installSupportingGuidance &&
+      hasSharedGuidanceDetection(detection, fileSystemService, setupScope));
   const summaryMcpAgents = noActions
     ? reportingOutcomes
         .map((outcome) =>
