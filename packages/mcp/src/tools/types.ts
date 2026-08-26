@@ -22,6 +22,27 @@ export const BOUNDED_WRITE_TOOL_ANNOTATIONS = {
   destructiveHint: false,
 } as const satisfies CompleteToolAnnotations;
 
+export interface McpAuthActionContext {
+  authSource: unknown;
+  defaultAction: string;
+}
+
+export type McpAuthAction =
+  | string
+  | ((context: McpAuthActionContext) => string);
+
+export interface ToolTermsRemediation {
+  message: string;
+  action: string;
+}
+
+/** Host-provided execution state shared by MCP and direct tool callers. */
+export interface ToolExecutionContext {
+  authAction?: McpAuthAction;
+  termsRemediation?: ToolTermsRemediation;
+  signal?: AbortSignal;
+}
+
 /**
  * Standard result type for all MCP tools
  */
@@ -35,7 +56,7 @@ export type ToolResult = {
  */
 export type ToolHandler<TArgs> = (
   args: TArgs,
-  extra: unknown,
+  context?: ToolExecutionContext,
 ) => Promise<ToolResult>;
 
 /**

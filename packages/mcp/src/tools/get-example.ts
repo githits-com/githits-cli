@@ -59,27 +59,31 @@ export function createGetExampleTool(
     description: DESCRIPTION,
     schema,
     annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
-    handler: async (args) => {
-      return withErrorHandling("get example", async () => {
-        const markdown = await service.search({
-          query: args.query,
-          language: args.language,
-          licenseMode: args.license_mode,
-          includeExplanation: false,
-        });
-        const solutionId = extractSolutionId(markdown);
-        const payload = solutionId
-          ? { result: markdown, solution_id: solutionId }
-          : { result: markdown };
-        if (isTextFormat(args.format)) {
-          return textResult(
-            solutionId
-              ? `${markdown.trimEnd()}\n\nsolution_id: ${solutionId}`
-              : markdown,
-          );
-        }
-        return textResult(JSON.stringify(payload));
-      });
+    handler: async (args, context) => {
+      return withErrorHandling(
+        "get example",
+        async () => {
+          const markdown = await service.search({
+            query: args.query,
+            language: args.language,
+            licenseMode: args.license_mode,
+            includeExplanation: false,
+          });
+          const solutionId = extractSolutionId(markdown);
+          const payload = solutionId
+            ? { result: markdown, solution_id: solutionId }
+            : { result: markdown };
+          if (isTextFormat(args.format)) {
+            return textResult(
+              solutionId
+                ? `${markdown.trimEnd()}\n\nsolution_id: ${solutionId}`
+                : markdown,
+            );
+          }
+          return textResult(JSON.stringify(payload));
+        },
+        context,
+      );
     },
   };
 }

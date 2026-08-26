@@ -7,7 +7,7 @@ import {
   formatPackageVulnerabilitiesTerminal,
 } from "../shared/package-vulnerabilities-response.js";
 import { PKG_VULNS_GUARDRAIL } from "./guardrails.js";
-import { mcpMappedErrorResult } from "./shared.js";
+import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
   READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
@@ -103,7 +103,7 @@ export function createPackageVulnerabilitiesTool(
     description: DESCRIPTION,
     schema,
     annotations: READ_ONLY_TOOL_ANNOTATIONS,
-    handler: async (args) => {
+    handler: async (args, context) => {
       try {
         const { params, filter } = buildPackageVulnerabilitiesParams({
           registry: args.registry,
@@ -131,8 +131,9 @@ export function createPackageVulnerabilitiesTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
+        throwIfCallerCancellation(error, context?.signal);
         const mapped = mapPackageIntelligenceError(error);
-        return mcpMappedErrorResult(mapped);
+        return mcpMappedErrorResult(mapped, context);
       }
     },
   };

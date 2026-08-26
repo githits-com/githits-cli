@@ -2,7 +2,10 @@ import { describe, expect, it, mock } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AuthenticationError } from "@githits/core-internal";
+import {
+  AuthenticationError,
+  TermsAcceptanceRequiredError,
+} from "@githits/core-internal";
 import {
   createMcpServer,
   getMcpToolDescriptors,
@@ -437,6 +440,38 @@ describe("startMcpServer", () => {
 
     expect(onServerCreated).toHaveBeenCalledTimes(1);
     expect(onServerCreated.mock.calls[0]?.[0]).toBeDefined();
+  });
+
+  it("supplies the byte-compatible local terms remediation", async () => {
+    const search = mock(() =>
+      Promise.reject(new TermsAcceptanceRequiredError()),
+    );
+    let server: McpServer | undefined;
+    await startMcpServer(
+      createTestServices({
+        githitsService: createMockGitHitsService({ search }),
+      }),
+      { onServerCreated: (created) => (server = created) },
+    );
+
+    const result = await registeredTool(server!, "get_example").handler(
+      { query: "python" },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
+      error:
+        "Terms acceptance required. Run `githits settings terms accept`, then retry.",
+      code: "TERMS_ACCEPTANCE_REQUIRED",
+      retryable: false,
+      details: {
+        action: "githits settings terms accept",
+        termsUrl: "https://githits.com/legal/terms-of-service/",
+        acceptanceUrl: "https://app.githits.com/settings/privacy",
+      },
+    });
   });
 });
 
