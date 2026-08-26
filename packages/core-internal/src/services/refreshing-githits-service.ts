@@ -64,7 +64,6 @@ export class RefreshingGitHitsService implements GitHitsService {
     operation: (service: GitHitsService) => Promise<T>,
     options?: GitHitsServiceRequestOptions,
   ): Promise<T> {
-    options?.signal?.throwIfAborted();
     return executeWithTokenRefresh({
       getToken: () => {
         options?.signal?.throwIfAborted();
@@ -86,7 +85,6 @@ export class RefreshingGitHitsService implements GitHitsService {
               undefined,
               this.runtime,
             );
-        options?.signal?.throwIfAborted();
         return operation(service);
       },
     });
