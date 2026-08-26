@@ -5,6 +5,52 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.11.0] - 2026-08-26
+
+Minor release: adds portable MCP quick-start guidance, makes onboarding setup
+and removal predictable, and tightens local request validation and changelog
+range semantics.
+
+### Changed
+
+- **Improve remote MCP tool routing** - Make tool catalogs benefit-first with
+  explicit workflow handoffs, replace inconsistently handled server
+  instructions with a one-call `quick_start` guide, compact the Agent Skill to
+  point at that guide, and add MCP-only versus fully guided eval coverage with
+  Luna/high Codex defaults.
+
+### Fixed
+
+- **Make onboarding setup and removal predictable** - `init` now targets
+  selected agents and repairs all packaged guidance with transport-aware
+  readiness output; the canonical `githits uninstall` command removes GitHits
+  setup while retaining the nested compatibility alias.
+- **Correct changelog range semantics** - Document and expose `from` as an
+  exclusive lower bound, so exact-release and range requests use the backend
+  contract consistently.
+- **Reject canonical resolve inputs locally** - `githits resolve` and local
+  `resolve_target` now direct already-canonical package and GitHub repository
+  targets to the next GitHits tool without calling the resolver backend.
+
+## [@githits/mcp 0.11.0] - 2026-08-26
+
+Coordinated minor release: adds portable one-call MCP guidance, improves tool
+routing, and aligns changelog range semantics with the backend contract.
+
+### Changed
+
+- **Improve remote MCP tool routing** - Make tool catalogs benefit-first with
+  explicit workflow handoffs, replace inconsistently handled server
+  instructions with a one-call `quick_start` guide, compact the Agent Skill to
+  point at that guide, and add MCP-only versus fully guided eval coverage with
+  Luna/high Codex defaults.
+
+### Fixed
+
+- **Correct changelog range semantics** - Document and expose `from` as an
+  exclusive lower bound, so exact-release and range requests use the backend
+  contract consistently.
+
 ## [githits 0.10.2] - 2026-08-25
 
 Patch release: fine-tunes opt-in experimental target resolution for safer
