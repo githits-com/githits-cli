@@ -96,6 +96,21 @@ describe("resolve_target MCP adapter", () => {
       default: "text-v1",
       enum: ["text-v1", "text", "json"],
     });
+    expect(schema.properties?.query).toMatchObject({
+      description: expect.stringContaining(
+        "rank retrieved candidates and does not expand candidate retrieval",
+      ),
+    });
+    expect(schema.properties?.registries).toMatchObject({
+      description: expect.stringContaining(
+        "constrains package candidates only",
+      ),
+    });
+    expect(schema.properties?.intent_hints).toMatchObject({
+      description: expect.stringContaining(
+        "rank retrieved candidates and do not expand candidate retrieval",
+      ),
+    });
     for (const phrase of [
       "Experimental",
       "fuzzy",

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { PKGSEER_REGISTRY_ARGS } from "@githits/core-internal";
 import {
   buildResolveTargetParams,
   RESOLVE_TARGET_DEFAULT_LIMIT,
@@ -108,6 +109,38 @@ describe("buildResolveTargetParams", () => {
       registries: ["NPM", "PYPI"],
       preferredKinds: ["REPOSITORY"],
     });
+  });
+
+  it.each([
+    ...PKGSEER_REGISTRY_ARGS.map((registry) => `${registry}:example`),
+    "npm:@types/node",
+    "npm:react@18.2.0",
+    "npm: react state management",
+    "github:facebook/react",
+    "github:facebook/react#main",
+    "github.com/facebook/react",
+    "github.com/facebook/react@main",
+    "https://github.com/facebook/react",
+    "http://github.com/facebook/react#main",
+  ])("rejects already-canonical target %s", (name) => {
+    expect(() =>
+      buildResolveTargetParams({ name, includeDetailedFields: false }),
+    ).toThrow(
+      `Canonical target ${JSON.stringify(name)} does not need resolution. Pass it directly to the next GitHits tool.`,
+    );
+  });
+
+  it.each([
+    "@scope/package",
+    "react-native",
+    "owner/repository",
+    "GitHub Copilot",
+    "npm package react",
+    "acme:widget",
+  ])("preserves nearby human name %s", (name) => {
+    expect(
+      buildResolveTargetParams({ name, includeDetailedFields: false }),
+    ).toMatchObject({ name });
   });
 
   it("rejects invalid MCP registry entries and preserves an empty filter", () => {

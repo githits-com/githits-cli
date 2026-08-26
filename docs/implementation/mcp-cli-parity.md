@@ -174,6 +174,11 @@ test suite anchors the doc.
   deeply equal. Invalid caller input keeps the stable classification and
   envelope shape; surface-native validation prose is allowed where the CLI
   names a command/flag and MCP names a tool/argument.
+- The shared resolve request boundary recognizes already-canonical package and
+  GitHub repository strings through the same compact parser used by downstream
+  tools. Both surfaces return the same `INVALID_ARGUMENT` guidance without a
+  resolver service call; human-friendly names that the parser does not accept
+  continue through normal resolution.
 - Text rendering, agent-specific descriptions, and the deliberate default
   view divergence are not parity targets. The MCP default is compact
   `text-v1`. Both resolve text renderers nevertheless use the same pure
