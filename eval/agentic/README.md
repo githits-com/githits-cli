@@ -325,7 +325,8 @@ Each run writes:
   or `not_observed` when none are present. Other drivers report `not_exposed`.
   An absent Claude event does not prove that the host lacks tool search.
 - MCP runs write a GitHits `mcp.json`, `codex-config.toml`, and `opencode.json`;
-  skills runs write an empty `mcp.json` and empty `opencode.json` for isolation.
+  skills runs write an empty `mcp.json` and an `opencode.json` that denies task
+  delegation for isolation.
 - When the local experimental override is enabled, `run.json`, each workload's
   dry-run metadata, and `.agent-session/session.json` persist
   `experimentalTools: true`; the Claude, Codex, and OpenCode local launch
