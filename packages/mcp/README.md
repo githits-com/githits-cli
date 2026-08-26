@@ -11,7 +11,7 @@ This package exposes transport-neutral helpers for servers that want the GitHits
 - `getMcpToolDescriptors()` returns static tool metadata without requiring concrete services.
 - `buildMcpQuickStart(options?)` builds the guide returned by the read-only `quick_start` tool.
 - `buildMcpInstructions(options?)` is a deprecated compatibility alias for `buildMcpQuickStart()`.
-- `@githits/mcp/client` exports concrete GitHits service implementations, static token providers, URL/config helpers, request-header helpers, the `ServiceDiagnostics` type, and registry helpers for remote MCP servers. Service clients are silent by default; hosts that need operation spans or debug events inject a `ServiceDiagnostics` implementation through their runtime options.
+- `@githits/mcp/client` exports concrete GitHits service implementations, static token providers, URL/config helpers, request-header helpers, the `ServiceDiagnostics` type, and registry helpers for remote MCP servers. Service clients are silent by default; hosts that need operation spans or debug events inject a `ServiceDiagnostics` implementation through their runtime options. Hosts must explicitly opt into sensitive diagnostic areas and own the resulting privacy and retention policy.
 - The former module-global telemetry lifecycle helpers (`startTelemetrySpan`, `endTelemetrySpan`, `flushTelemetry`, and `withTelemetrySpan`) are not exported from `@githits/mcp/client`. Remote hosts own diagnostics lifecycle and destinations through injection.
 - `@githits/mcp/smoke-test` exports reusable smoke assertions and `runMcpSmoke()` for remote MCP server validation.
 

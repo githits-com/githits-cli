@@ -42,6 +42,13 @@ These are verified inventory findings, not a compatibility claim. The Phase 2
 PoC must re-check the resolved graph because dependency versions and imports
 can change.
 
+## Verified remaining ownership issue
+
+Core schema-mismatch recovery prose still names CLI commands and environment
+variables, including `githits update-check` and `GITHITS_DEBUG`. The root
+correction is to move host-specific remediation to host mapping. Phase 1 did
+not change this runtime prose; Phase 2 should address it at that host boundary.
+
 ## Open decisions
 
 - Should browser support use a new public subpath, or should an existing public
