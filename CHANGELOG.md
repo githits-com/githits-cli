@@ -5,6 +5,59 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.11.0] - 2026-08-26
+
+Minor release: adds portable MCP quick-start guidance, makes onboarding setup
+and removal predictable, and tightens local request validation and changelog
+range semantics.
+
+### Changed
+
+- **Improve remote MCP tool routing** - Make tool catalogs benefit-first with
+  explicit workflow handoffs, replace inconsistently surfaced server
+  instructions with a one-call `quick_start` guide, and compact the packaged
+  Agent Skill to point at that guide. Deploy the hosted endpoint with
+  `@githits/mcp` 0.11.0 before relying on `quick_start` from remote plugins and
+  extensions.
+
+### Fixed
+
+- **Make onboarding setup and removal predictable** - `init` now targets
+  selected agents and repairs all packaged guidance with transport-aware
+  readiness output; the canonical `githits uninstall` command removes GitHits
+  setup while retaining the nested compatibility alias.
+- **Correct changelog range semantics** - Document and expose `from` as an
+  exclusive lower bound, so exact-release and range requests use the backend
+  contract consistently. Returned entries preserve backend/source order;
+  consumers must not assume newest-first ordering.
+- **Reject canonical resolve inputs locally** - The opt-in experimental
+  `githits resolve` command and local `resolve_target` tool now direct
+  already-canonical package and GitHub repository targets to the next GitHits
+  tool without calling the resolver backend.
+
+## [@githits/mcp 0.11.0] - 2026-08-26
+
+Coordinated minor release: adds portable one-call MCP guidance, improves tool
+routing, and aligns changelog range semantics with the backend contract.
+
+### Changed
+
+- **Improve remote MCP tool routing** - Make tool catalogs benefit-first with
+  explicit workflow handoffs and replace inconsistently surfaced default
+  server instructions with a one-call `quick_start` guide. `createMcpServer()`
+  now leaves initialize instructions caller-owned; use `quickStartOptions`
+  instead of the deprecated `instructionOptions` to configure the guide.
+  `buildMcpInstructions()` remains a deprecated alias for
+  `buildMcpQuickStart()`, and the public smoke helper now requires and checks
+  `quick_start` in the stable tool inventory.
+
+### Fixed
+
+- **Correct changelog range semantics** - Document and expose `from` as an
+  exclusive lower bound, so exact-release and range requests use the backend
+  contract consistently. Returned entries preserve backend/source order;
+  consumers must not assume newest-first ordering.
+
 ## [githits 0.10.2] - 2026-08-25
 
 Patch release: fine-tunes opt-in experimental target resolution for safer
