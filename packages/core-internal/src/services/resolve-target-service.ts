@@ -6,7 +6,6 @@ import {
 } from "../shared/pkgseer-graphql.js";
 import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
-import { withTelemetrySpan } from "../shared/telemetry.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import { AuthenticationError } from "./githits-service.js";
 import {
@@ -15,6 +14,10 @@ import {
   createPackageIntelligenceTransportError,
   MalformedPackageIntelligenceResponseError,
 } from "./package-intelligence-service.js";
+import {
+  type ServiceDiagnostics,
+  withServiceDiagnostics,
+} from "./runtime-diagnostics.js";
 import type { TokenProvider } from "./token-provider.js";
 
 export type ResolveTargetKind = "PACKAGE" | "REPOSITORY";
@@ -266,19 +269,23 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
       clientHeaders?: ClientHeaderBuilder;
       userAgent?: string;
       clientVersion?: string;
+      diagnostics?: ServiceDiagnostics;
     } = {},
   ) {}
 
   async resolveTarget(
     params: ResolveTargetParams,
   ): Promise<ResolveTargetResult> {
-    return withTelemetrySpan("resolve-target.request", () =>
-      executeWithTokenRefresh({
-        getToken: () => this.tokenProvider.getToken(),
-        forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: (error) => error instanceof AuthenticationError,
-        executeWithToken: (token) => this.executeResolveTarget(token, params),
-      }),
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "resolve-target.request",
+      () =>
+        executeWithTokenRefresh({
+          getToken: () => this.tokenProvider.getToken(),
+          forceRefresh: () => this.tokenProvider.forceRefresh(),
+          shouldRefresh: (error) => error instanceof AuthenticationError,
+          executeWithToken: (token) => this.executeResolveTarget(token, params),
+        }),
     );
   }
 
@@ -296,6 +303,7 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -323,6 +331,7 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
       throw createPackageIntelligenceGraphQLError(
         parsed.data.errors,
         this.runtime.clientVersion,
+        this.runtime.diagnostics,
       );
     }
 

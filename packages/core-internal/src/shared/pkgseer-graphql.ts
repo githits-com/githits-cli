@@ -24,7 +24,7 @@
  */
 
 import { validateServiceUrl } from "../services/config.js";
-import { debugLog } from "./debug-log.js";
+import type { ServiceDiagnostics } from "../services/runtime-diagnostics.js";
 import { DEFAULT_FETCH_TIMEOUT_MS, fetchWithTimeout } from "./fetch-timeout.js";
 import type { ClientHeaderBuilder } from "./request-headers.js";
 import { throwIfTermsAcceptanceRequired } from "./terms-acceptance.js";
@@ -46,6 +46,8 @@ export interface PkgseerGraphqlRequest {
   userAgent?: string;
   /** Optional per-runtime GitHits telemetry headers. */
   clientHeaders?: ClientHeaderBuilder;
+  /** Optional host-supplied diagnostics for transport and debug events. */
+  diagnostics?: ServiceDiagnostics;
 }
 
 export interface PkgseerGraphqlResponse {
@@ -116,11 +118,13 @@ export async function postPkgseerGraphql(
       { fetchFn: request.fetchFn, timeoutMs },
     );
   } catch (cause) {
-    debugLog("pkg-graphql", {
-      event: "transport-error",
-      errorName: cause instanceof Error ? cause.name : typeof cause,
-      hasCause: true,
-    });
+    if (request.diagnostics?.isEnabled("pkg-graphql")) {
+      request.diagnostics.debug("pkg-graphql", {
+        event: "transport-error",
+        errorName: cause instanceof Error ? cause.name : typeof cause,
+        hasCause: true,
+      });
+    }
     throw new PkgseerTransportError(
       "Network request failed before a response was received. Caller should re-wrap with a domain-specific message.",
       { cause },

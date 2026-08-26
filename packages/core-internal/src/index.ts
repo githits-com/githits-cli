@@ -8,6 +8,7 @@ export * from "./services/package-intelligence-service.js";
 export * from "./services/promote-version-not-found.js";
 export * from "./services/refreshing-githits-service.js";
 export * from "./services/resolve-target-service.js";
+export * from "./services/runtime-diagnostics.js";
 export * from "./services/token-provider.js";
 export * from "./shared/debug-log.js";
 export * from "./shared/fetch-timeout.js";

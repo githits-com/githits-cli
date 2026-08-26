@@ -282,6 +282,40 @@ describe("createContainer", () => {
     );
   });
 
+  it("routes container-built service spans through the shared collector", async () => {
+    const writes: string[] = [];
+    resetTelemetryCollectorForTests({
+      env: { GITHITS_TELEMETRY: "1" },
+      now: () => 0,
+      write: (text) => writes.push(text),
+    });
+
+    try {
+      await withoutProxyEnv(async () =>
+        withApiToken("ghi-test", async () => {
+          const originalFetch = globalThis.fetch;
+          globalThis.fetch = mock(() =>
+            Promise.resolve(new Response(JSON.stringify([]))),
+          ) as unknown as typeof fetch;
+
+          try {
+            const deps = await createContainer({ resolveStoredToken: false });
+            await deps.githitsService.getLanguages();
+          } finally {
+            globalThis.fetch = originalFetch;
+          }
+        }),
+      );
+
+      flushTelemetry(0);
+      const report = writes.join("");
+      expect(report).toContain("container.create");
+      expect(report).toContain("githits.languages.request");
+    } finally {
+      resetTelemetryCollectorForTests({ env: {} });
+    }
+  });
+
   describe("recordAuthFingerprint", () => {
     it("records mode and env presence as booleans, never raw values", () => {
       const writes: string[] = [];

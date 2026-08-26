@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  mock,
-  spyOn,
-} from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { FetchTimeoutError } from "../shared/fetch-timeout.js";
 import {
   CodeDiffError,
@@ -28,12 +20,25 @@ import {
   AuthenticationError,
   TermsAcceptanceRequiredError,
 } from "./githits-service.js";
+import type { ServiceDiagnostics } from "./runtime-diagnostics.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
 function mockFetch(impl: () => Promise<Response>) {
   const fn = mock(impl);
   globalThis.fetch = fn as unknown as typeof fetch;
   return fn;
+}
+
+function createDiagnostics(
+  enabledArea: string,
+  events: Array<{ area: string; event: Record<string, unknown> }>,
+): ServiceDiagnostics {
+  return {
+    withOperation: async <T>(_name: string, operation: () => Promise<T>) =>
+      operation(),
+    isEnabled: (area) => area === enabledArea,
+    debug: (area, event) => events.push({ area, event }),
+  };
 }
 
 interface SuggestedSiteTargetsFixture {
@@ -200,7 +205,6 @@ const BYTE_ESCAPED_CODE_DIFF_PATH =
 describe("CodeNavigationServiceImpl", () => {
   const BASE_URL = "https://nav.example.com";
   let originalFetch: typeof globalThis.fetch;
-  const originalDebug = process.env.GITHITS_DEBUG;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -244,8 +248,6 @@ describe("CodeNavigationServiceImpl", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    if (originalDebug === undefined) delete process.env.GITHITS_DEBUG;
-    else process.env.GITHITS_DEBUG = originalDebug;
   });
 
   // ------------------------------------------------------------------
@@ -1149,10 +1151,7 @@ describe("CodeNavigationServiceImpl", () => {
   }
 
   it("emits safe debug logging for unified search request shape without query text", async () => {
-    process.env.GITHITS_DEBUG = "code-nav";
-    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
-      () => true as never,
-    );
+    const events: Array<{ area: string; event: Record<string, unknown> }> = [];
     mockFetch(() =>
       Promise.resolve(
         new Response(
@@ -1188,6 +1187,7 @@ describe("CodeNavigationServiceImpl", () => {
       BASE_URL,
       createMockTokenProvider(),
       globalThis.fetch,
+      { diagnostics: createDiagnostics("code-nav", events) },
     );
 
     await service.search({
@@ -1197,23 +1197,20 @@ describe("CodeNavigationServiceImpl", () => {
       waitTimeoutMs: 20_000,
     });
 
-    const call = stderrSpy.mock.calls[0]?.[0] as string;
-    const parsed = JSON.parse(call.trimEnd());
-    expect(parsed.area).toBe("code-nav");
-    expect(parsed.event).toBe("request");
-    expect(parsed.operation).toBe("search");
-    expect(parsed.fileIntent).toBe("omitted");
-    expect(parsed.hasFilters).toBe(false);
-    expect(parsed.presentVariableKeys).not.toContain("filters");
-    expect(call).not.toContain("router middleware secret text");
-    stderrSpy.mockRestore();
+    const event = events[0];
+    expect(event?.area).toBe("code-nav");
+    expect(event?.event.event).toBe("request");
+    expect(event?.event.operation).toBe("search");
+    expect(event?.event.fileIntent).toBe("omitted");
+    expect(event?.event.hasFilters).toBe(false);
+    expect(event?.event.presentVariableKeys).not.toContain("filters");
+    expect(JSON.stringify(events)).not.toContain(
+      "router middleware secret text",
+    );
   });
 
   it("emits exact GraphQL and serialized variables for unified search under code-nav-wire", async () => {
-    process.env.GITHITS_DEBUG = "code-nav-wire";
-    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
-      () => true as never,
-    );
+    const events: Array<{ area: string; event: Record<string, unknown> }> = [];
     mockFetch(() =>
       Promise.resolve(
         new Response(
@@ -1249,6 +1246,7 @@ describe("CodeNavigationServiceImpl", () => {
       BASE_URL,
       createMockTokenProvider(),
       globalThis.fetch,
+      { diagnostics: createDiagnostics("code-nav-wire", events) },
     );
 
     await service.search({
@@ -1258,29 +1256,27 @@ describe("CodeNavigationServiceImpl", () => {
       waitTimeoutMs: 20_000,
     });
 
-    const call = stderrSpy.mock.calls[0]?.[0] as string;
-    const parsed = JSON.parse(call.trimEnd());
-    expect(parsed.area).toBe("code-nav-wire");
-    expect(parsed.event).toBe("wire-request");
-    expect(parsed.operation).toBe("search");
-    expect(parsed.graphqlQuery).toContain("query UnifiedSearch(");
-    expect(parsed.graphqlQuery).toContain("filters: $filters");
-    expect(parsed.graphqlQuery).toContain("requestedTargetLabel");
-    expect(parsed.graphqlQuery).toContain("freshTargetLabel");
-    expect(parsed.graphqlQuery).toContain("servedTargetLabel");
-    expect(parsed.graphqlQuery).toContain("freshness");
-    expect(parsed.graphqlQuery).toContain("requestedSources");
-    expect(parsed.graphqlQuery).toContain("targetMode");
-    expect(parsed.graphqlQuery).toContain("requestedTargets");
-    expect(parsed.graphqlQuery).toContain("resolvedRequested");
-    expect(parsed.graphqlQuery).toContain("requestedRefKind");
-    expect(parsed.variables).toEqual({
+    const event = events[0]?.event;
+    expect(events[0]?.area).toBe("code-nav-wire");
+    expect(event?.event).toBe("wire-request");
+    expect(event?.operation).toBe("search");
+    expect(event?.graphqlQuery).toContain("query UnifiedSearch(");
+    expect(event?.graphqlQuery).toContain("filters: $filters");
+    expect(event?.graphqlQuery).toContain("requestedTargetLabel");
+    expect(event?.graphqlQuery).toContain("freshTargetLabel");
+    expect(event?.graphqlQuery).toContain("servedTargetLabel");
+    expect(event?.graphqlQuery).toContain("freshness");
+    expect(event?.graphqlQuery).toContain("requestedSources");
+    expect(event?.graphqlQuery).toContain("targetMode");
+    expect(event?.graphqlQuery).toContain("requestedTargets");
+    expect(event?.graphqlQuery).toContain("resolvedRequested");
+    expect(event?.graphqlQuery).toContain("requestedRefKind");
+    expect(event?.variables).toEqual({
       targets: [{ registry: "NPM", name: "express" }],
       query: "router middleware secret text",
       allowPartialResults: false,
       waitTimeoutMs: 20_000,
     });
-    stderrSpy.mockRestore();
   });
 
   it("requests documentation coverage, site fields, and recovery suggestions in the search query", async () => {
@@ -2231,10 +2227,7 @@ describe("CodeNavigationServiceImpl", () => {
   });
 
   it("exposes GraphQL schema mismatch details when code-nav-wire debug is enabled", async () => {
-    process.env.GITHITS_DEBUG = "code-nav-wire";
-    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
-      () => true as never,
-    );
+    const events: Array<{ area: string; event: Record<string, unknown> }> = [];
     mockFetch(() =>
       Promise.resolve(
         new Response(
@@ -2253,6 +2246,8 @@ describe("CodeNavigationServiceImpl", () => {
     const service = new CodeNavigationServiceImpl(
       BASE_URL,
       createMockTokenProvider(),
+      undefined,
+      { diagnostics: createDiagnostics("code-nav-wire", events) },
     );
 
     await expect(
@@ -2264,7 +2259,9 @@ describe("CodeNavigationServiceImpl", () => {
       name: "CodeNavigationBackendError",
       message: 'Cannot query field "search" on type "Query".',
     });
-    stderrSpy.mockRestore();
+    expect(
+      events.some((entry) => entry.event.event === "graphql-schema-mismatch"),
+    ).toBe(false);
   });
 
   it("honors explicit backend CLIENT_UPDATE_REQUIRED errors", async () => {

@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
+import type { ServiceDiagnostics } from "../services/runtime-diagnostics.js";
 import { FetchTimeoutError } from "./fetch-timeout.js";
 import {
   PkgseerTransportError,
@@ -35,21 +36,6 @@ const VALID_JSON = JSON.stringify({
 describe("postPkgseerGraphql", () => {
   const ENDPOINT = "https://pkgseer.dev";
   const TOKEN = "test-token";
-
-  let originalDebug: string | undefined;
-
-  beforeEach(() => {
-    originalDebug = process.env.GITHITS_DEBUG;
-    delete process.env.GITHITS_DEBUG;
-  });
-
-  afterEach(() => {
-    if (originalDebug === undefined) {
-      delete process.env.GITHITS_DEBUG;
-    } else {
-      process.env.GITHITS_DEBUG = originalDebug;
-    }
-  });
 
   it("returns structured response for 200 + valid JSON", async () => {
     const fetchFn = mock(() => Promise.resolve(makeResponse(VALID_JSON)));
@@ -348,42 +334,36 @@ describe("postPkgseerGraphql", () => {
   });
 
   it("emits one pkg-graphql debug line on transport failure (payload PII-safe)", async () => {
-    process.env.GITHITS_DEBUG = "pkg-graphql";
-
-    const stderrLines: string[] = [];
-    const originalWrite = process.stderr.write.bind(process.stderr);
-    // Capture stderr for the duration of the call.
-    process.stderr.write = ((chunk: string | Uint8Array) => {
-      stderrLines.push(
-        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
-      );
-      return true;
-    }) as typeof process.stderr.write;
-
+    const events: Array<{ area: string; event: Record<string, unknown> }> = [];
+    const diagnostics: ServiceDiagnostics = {
+      withOperation: async <T>(_name: string, operation: () => Promise<T>) =>
+        operation(),
+      isEnabled: (area) => area === "pkg-graphql",
+      debug: (area, event) => events.push({ area, event }),
+    };
+    const fetchFn = mock(() => Promise.reject(new Error("ENOTFOUND")));
     try {
-      const fetchFn = mock(() => Promise.reject(new Error("ENOTFOUND")));
-      try {
-        await postPkgseerGraphql({
-          endpointUrl: ENDPOINT,
-          token: TOKEN,
-          query: "query { x }",
-          variables: {},
-          fetchFn: asFetchFn(fetchFn),
-        });
-      } catch {
-        // expected
-      }
-    } finally {
-      process.stderr.write = originalWrite;
+      await postPkgseerGraphql({
+        endpointUrl: ENDPOINT,
+        token: TOKEN,
+        query: "query { x }",
+        variables: {},
+        fetchFn: asFetchFn(fetchFn),
+        diagnostics,
+      });
+    } catch {
+      // expected
     }
 
-    const combined = stderrLines.join("");
-    expect(combined).toContain('"area":"pkg-graphql"');
-    expect(combined).toContain('"event":"transport-error"');
-    expect(combined).toContain('"hasCause":true');
+    expect(events).toEqual([
+      {
+        area: "pkg-graphql",
+        event: { event: "transport-error", errorName: "Error", hasCause: true },
+      },
+    ]);
     // PII guards: no URL, no token, no query text.
-    expect(combined).not.toContain("pkgseer.dev");
-    expect(combined).not.toContain(TOKEN);
-    expect(combined).not.toContain("query { x }");
+    expect(JSON.stringify(events)).not.toContain("pkgseer.dev");
+    expect(JSON.stringify(events)).not.toContain(TOKEN);
+    expect(JSON.stringify(events)).not.toContain("query { x }");
   });
 });

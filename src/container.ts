@@ -5,6 +5,7 @@ import {
   CodeNavigationServiceImpl,
   createClientHeaderBuilder,
   createStaticTokenProvider,
+  debugLog,
   endTelemetrySpan,
   type GitHitsService,
   GitHitsServiceImpl,
@@ -13,11 +14,13 @@ import {
   getEnvApiToken,
   getMcpStorageKeyUrl,
   getMcpUrl,
+  isDebugAreaEnabled,
   type PackageIntelligenceService,
   PackageIntelligenceServiceImpl,
   RefreshingGitHitsService,
   type ResolveTargetService,
   ResolveTargetServiceImpl,
+  type ServiceDiagnostics,
   startTelemetrySpan,
   type TokenProvider,
   withTelemetrySpan,
@@ -313,10 +316,16 @@ export async function createContainer(
       clientVersion: version,
       agentProvider: options.agentProvider,
     });
+    const diagnostics: ServiceDiagnostics = {
+      withOperation: withTelemetrySpan,
+      isEnabled: isDebugAreaEnabled,
+      debug: debugLog,
+    };
     const serviceRuntime = {
       clientHeaders,
       userAgent: USER_AGENT,
       clientVersion: version,
+      diagnostics,
     };
 
     // Check for env API token first
