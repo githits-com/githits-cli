@@ -13,14 +13,19 @@ import { join } from "node:path";
 import { ExitPromptError } from "@inquirer/core";
 import { Command } from "commander";
 import type {
+  ExecOptions,
+  ExecResult,
+  ExecService,
+} from "../../services/exec-service.js";
+import type {
   ConfirmChoice,
   PromptService,
 } from "../../services/prompt-service.js";
 import {
+  createMockExecService as createBaseMockExecService,
   createMockAuthService,
   createMockAuthStorage,
   createMockBrowserService,
-  createMockExecService,
   createMockFileSystemService,
   createMockPromptService,
   createValidTokenData,
@@ -251,6 +256,24 @@ function createSelectAllCheckboxMock(): PromptService["checkbox"] {
 
 function lookupCommandFor(platform: string = process.platform): string {
   return platform === "win32" ? "where" : "which";
+}
+
+function createMockExecService(impl: Partial<ExecService> = {}): ExecService {
+  const service = createBaseMockExecService(impl);
+  const originalExec = service.exec.bind(service);
+  service.exec = mock(
+    async (
+      command: string,
+      args: string[],
+      options?: ExecOptions,
+    ): Promise<ExecResult> => {
+      if (command === "codex" && args.length === 1 && args[0] === "--version") {
+        return { exitCode: 0, stdout: "codex 1.0.0\n", stderr: "" };
+      }
+      return originalExec(command, args, options);
+    },
+  );
+  return service;
 }
 
 describe("initAction", () => {
@@ -4046,6 +4069,7 @@ describe("initAction", () => {
       command: "npx",
       args: ["-y", "githits@latest", "mcp", "start"],
       lifecycle: "eager",
+      directTools: true,
     });
   });
 
@@ -4200,6 +4224,7 @@ describe("initAction", () => {
             command: "npx",
             args: ["-y", "githits@latest", "mcp", "start"],
             lifecycle: "eager",
+            directTools: true,
           },
         },
       }),

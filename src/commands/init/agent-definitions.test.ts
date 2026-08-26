@@ -387,6 +387,79 @@ describe("detection configuration", () => {
     });
     const agent = agentDefinitions.find((a) => a.id === "claude-code")!;
     expect(await agent.detectBinary!(exec)).toBe(true);
+    expect(exec.exec).toHaveBeenCalledWith("which", ["claude"], {
+      timeoutMs: 2_000,
+    });
+    expect(exec.exec).not.toHaveBeenCalledWith("claude", ["--version"], {
+      timeoutMs: 2_000,
+    });
+  });
+
+  it("codex detection verifies that the located binary launches", async () => {
+    const exec = createMockExecService({
+      exec: mock(async (command: string) => {
+        if (command === "which") {
+          return { exitCode: 0, stdout: "/usr/bin/codex\n", stderr: "" };
+        }
+        return { exitCode: 0, stdout: "codex 1.0.0\n", stderr: "" };
+      }),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "codex-cli")!;
+
+    expect(await agent.detectBinary!(exec)).toBe(true);
+    expect(exec.exec).toHaveBeenCalledWith("which", ["codex"], {
+      timeoutMs: 2_000,
+    });
+    expect(exec.exec).toHaveBeenCalledWith("codex", ["--version"], {
+      timeoutMs: 2_000,
+    });
+  });
+
+  it("codex detection rejects a nonzero version probe", async () => {
+    const exec = createMockExecService({
+      exec: mock(async (command: string) =>
+        command === "which"
+          ? { exitCode: 0, stdout: "/usr/bin/codex\n", stderr: "" }
+          : { exitCode: 1, stdout: "", stderr: "broken binary" },
+      ),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "codex-cli")!;
+
+    expect(await agent.detectBinary!(exec)).toBe(false);
+  });
+
+  it("codex detection rejects thrown and timed-out version probes", async () => {
+    const timeout = new Error("timed out");
+    timeout.name = "ExecTimeoutError";
+    for (const failure of [new Error("spawn failed"), timeout]) {
+      const exec = createMockExecService({
+        exec: mock(async (command: string) => {
+          if (command === "which") {
+            return { exitCode: 0, stdout: "/usr/bin/codex\n", stderr: "" };
+          }
+          throw failure;
+        }),
+      });
+      const agent = agentDefinitions.find((a) => a.id === "codex-cli")!;
+
+      expect(await agent.detectBinary!(exec)).toBe(false);
+    }
+  });
+
+  it("codex detection does not launch a missing PATH entry", async () => {
+    const exec = createMockExecService({
+      exec: mock(async (command: string) =>
+        command === "which"
+          ? { exitCode: 1, stdout: "", stderr: "not found" }
+          : { exitCode: 0, stdout: "codex 1.0.0\n", stderr: "" },
+      ),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "codex-cli")!;
+
+    expect(await agent.detectBinary!(exec)).toBe(false);
+    expect(exec.exec).not.toHaveBeenCalledWith("codex", ["--version"], {
+      timeoutMs: 2_000,
+    });
   });
 
   it("binary detectors use correct command and binary name on linux", async () => {
@@ -986,8 +1059,32 @@ describe("getSetupConfig", () => {
           command: "npx",
           args: ["-y", "githits@latest", "mcp", "start"],
           lifecycle: "eager",
+          directTools: true,
         });
       }
+    }
+  });
+
+  it("keeps Pi project MCP config transport-standard without direct tools", () => {
+    const fs = createMockFileSystemService({
+      getCwd: mock(() => "/repo"),
+      joinPath: mock((...segments: string[]) => segments.join("/")),
+    });
+    const agent = agentDefinitions.find((a) => a.id === "pi")!;
+    const config = getAgentSetupConfig(agent, fs, "project");
+    expect(config?.method).toBe("composite");
+    if (config?.method !== "composite") {
+      throw new Error("expected Pi composite project setup");
+    }
+    const configStep = config.steps[1]!;
+    expect(configStep.method).toBe("config-file");
+    if (configStep.method === "config-file") {
+      expect(configStep.serverConfig).toEqual({
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
+      });
+      expect(configStep.serverConfig).not.toHaveProperty("directTools");
+      expect(configStep.serverConfig).not.toHaveProperty("lifecycle");
     }
   });
 
@@ -1400,6 +1497,9 @@ describe("scanAgents", () => {
           const val = opts.execResults[key]!;
           if (val instanceof Error) throw val;
           return val;
+        }
+        if (key === "codex --version") {
+          return { exitCode: 0, stdout: "codex 1.0.0\n", stderr: "" };
         }
         return { exitCode: 1, stdout: "", stderr: "" };
       }),
@@ -2256,6 +2356,7 @@ describe("scanAgents", () => {
               command: "npx",
               args: ["-y", "githits@latest", "mcp", "start"],
               lifecycle: "eager",
+              directTools: true,
             },
           },
         }),
@@ -2265,6 +2366,8 @@ describe("scanAgents", () => {
               GitHits: {
                 command: "npx",
                 args: ["-y", "githits@latest", "mcp", "start"],
+                lifecycle: "eager",
+                directTools: true,
               },
             },
           }),
@@ -2298,6 +2401,7 @@ describe("scanAgents", () => {
               command: "npx",
               args: ["-y", "githits@latest", "mcp", "start"],
               lifecycle: "eager",
+              directTools: true,
             },
           },
         }),
@@ -2689,6 +2793,7 @@ describe("scanAgents", () => {
             command: "npx",
             args: ["-y", "githits@latest", "mcp", "start"],
             lifecycle: "eager",
+            directTools: true,
           },
         },
       }),
