@@ -5143,7 +5143,7 @@ const INIT_DESCRIPTION = `Connect GitHits to your coding agents.
 
 Configures GitHits MCP for supported coding tools, using the remote MCP for
 Cursor and the verified integration for each other tool, or sets up Agent Skills
-instead. Guided MCP setup also installs a small GitHits skill and managed
+instead. Guided MCP setup also installs the packaged GitHits skills and a managed
 instruction block so agents use GitHits for OSS stack context. Detects supported
 coding tools on this machine, signs you in, and configures the tools you select.`;
 
