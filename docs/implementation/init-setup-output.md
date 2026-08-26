@@ -20,8 +20,8 @@ compatibility alias for `githits uninstall`.
 - `wrapInitProse` is pure and used only at the init/uninstall human-prose
   boundary. It wraps natural-language lines at terminal width with an 80-column
   fallback and 40-column minimum, preserving indentation and hanging bullets.
-  JSON, copyable commands, paths/change rows, and raw structured output are not
-  wrapped.
+  JSON, standalone copyable command lines, paths/change rows, and raw
+  structured output are not wrapped; inline commands in prose may wrap.
 
 Setup handlers preserve partial changes and verification failures. Composite
 setups report each executed step and synthesize unchanged rows only for steps

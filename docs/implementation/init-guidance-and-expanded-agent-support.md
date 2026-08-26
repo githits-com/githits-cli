@@ -111,8 +111,9 @@ accurately. Uninstall failure reasons are sanitized while failed target paths
 remain visible; an all-absent guidance cleanup collapses to one unchanged row.
 Configured, already-configured, and failed counts appear in Install and verify
 before Ready/Next Steps. Natural-language init/uninstall prose wraps at the
-terminal width (80-column fallback, 40-column minimum); JSON, commands, paths,
-and change rows remain byte-stable and unwrapped.
+terminal width (80-column fallback, 40-column minimum); JSON, standalone
+copyable command lines, paths, and change rows remain byte-stable and
+unwrapped, while inline commands in prose may wrap.
 
 ## Public skill and release boundary
 

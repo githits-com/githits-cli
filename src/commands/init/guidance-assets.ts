@@ -1,5 +1,7 @@
 export const GITHITS_GUIDANCE_MARKER = "<!-- githits -->";
 
+export const GITHITS_MCP_SKILL_NAME = "githits-mcp";
+
 /** Canonical packaged skills copied by guided setup and removed by uninstall. */
 export const GITHITS_SKILL_CATALOG = [
   {
@@ -7,7 +9,7 @@ export const GITHITS_SKILL_CATALOG = [
     relativePath: ["skills", "githits-code", "SKILL.md"],
   },
   {
-    name: "githits-mcp",
+    name: GITHITS_MCP_SKILL_NAME,
     relativePath: ["skills", "githits-mcp", "SKILL.md"],
   },
   {
@@ -19,10 +21,6 @@ export const GITHITS_SKILL_CATALOG = [
     relativePath: ["skills", "githits-package", "SKILL.md"],
   },
 ] as const;
-
-export const GITHITS_MCP_SKILL_NAME = GITHITS_SKILL_CATALOG[1].name;
-export const GITHITS_MCP_SKILL_RELATIVE_PATH =
-  GITHITS_SKILL_CATALOG[1].relativePath;
 
 export const GITHITS_GUIDANCE_BLOCK =
   "GitHits has been installed to the system. For public OSS/package questions, prefer the installed githits-mcp skill and GitHits MCP tools when external evidence is useful. GitHits does not index local workspaces, private repositories, uncommitted changes, or proprietary code; do not attempt private repository targets. For known public dependencies or repositories, use search/docs_* for docs and code_files/code_grep/code_read for source and call sites. Use get_example for broad cross-OSS scans of vague issues, unfamiliar errors, cross-library patterns, how others solved something, and rare real-world examples that may appear in only one or a few repos. Use pkg_* for package metadata, security, dependencies, changelogs, and upgrades. Prefer default compact text tool output; request JSON only when exact structured fields are necessary. Ground answers in fetched GitHits evidence and cite package, repository, file, docs page, or version facts when available.";

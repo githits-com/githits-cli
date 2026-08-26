@@ -1135,7 +1135,6 @@ async function hasHistoricalGuidanceSkills(
 async function hasGuidanceToUninstall(
   agents: AgentDefinition[],
   fileSystemService: FileSystemService,
-  execService: ExecService,
   scope: InitSetupScope,
 ): Promise<boolean> {
   for (const step of getGuidanceUninstallSteps(
@@ -1150,9 +1149,7 @@ async function hasGuidanceToUninstall(
     }
     if (
       step.method === "skill" ||
-      (step.method === "managed-block"
-        ? await hasManagedBlockToUninstall(step, fileSystemService)
-        : await isSetupAlreadyConfigured(step, fileSystemService, execService))
+      (await hasManagedBlockToUninstall(step, fileSystemService))
     ) {
       return true;
     }
@@ -3189,7 +3186,7 @@ async function runProjectMcpUninstall(
   deps: InitDependencies,
   useColors: boolean,
 ): Promise<void> {
-  const { execService, fileSystemService, promptService } = deps;
+  const { fileSystemService, promptService } = deps;
   const isInteractive = deps.isInteractive ?? true;
   const scope = await resolveProjectSetupScope({}, fileSystemService);
   if (!scope) return;
@@ -3253,7 +3250,6 @@ async function runProjectMcpUninstall(
     (await hasGuidanceToUninstall(
       agentDefinitions,
       fileSystemService,
-      execService,
       "project",
     ));
   const hasWork = configured.length > 0 || hasLegacyState || hasGuidance;
@@ -4175,9 +4171,13 @@ function printMcpServerSummary(
     ? 'Configured MCP server "githits"'
     : 'MCP server "githits" already configured';
   const transport = describeMcpTransport(agents);
-  printStyledInitProse(`  ${verb}: ${transport}`, (line: string, lineIndex) =>
-    lineIndex === 0 ? success(line, useColors) : line,
-  );
+  const columns = process.stdout.columns ?? DEFAULT_INIT_PROSE_WIDTH;
+  // Reserve two columns for the success prefix while keeping continuations
+  // aligned under the first line's text.
+  const lines = wrapInitProse(`    ${verb}: ${transport}`, columns);
+  for (const [lineIndex, line] of lines.entries()) {
+    console.log(lineIndex === 0 ? success(line.slice(2), useColors) : line);
+  }
   console.log();
 }
 

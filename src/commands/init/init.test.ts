@@ -3493,7 +3493,10 @@ describe("initAction", () => {
       );
       const summaryLines = stagedLines.slice(summaryStart, summaryEnd);
       expect(summaryLines.length).toBeGreaterThan(1);
-      expect(summaryLines.every((line) => line.length <= 42)).toBe(true);
+      expect(summaryLines.every((line) => line.length <= 40)).toBe(true);
+      expect(
+        summaryLines.slice(1).every((line) => line.startsWith("    ")),
+      ).toBe(true);
       expect(normalizeHumanOutput(summaryLines)).toContain(
         'Configured MCP server "githits": local stdio MCP command `npx -y githits@latest mcp start` for Cline',
       );
