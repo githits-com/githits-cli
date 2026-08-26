@@ -14,10 +14,9 @@ range semantics.
 ### Changed
 
 - **Improve remote MCP tool routing** - Make tool catalogs benefit-first with
-  explicit workflow handoffs, replace inconsistently handled server
-  instructions with a one-call `quick_start` guide, compact the Agent Skill to
-  point at that guide, and add MCP-only versus fully guided eval coverage with
-  Luna/high Codex defaults.
+  explicit workflow handoffs, replace inconsistently surfaced server
+  instructions with a one-call `quick_start` guide, and compact the packaged
+  Agent Skill to point at that guide.
 
 ### Fixed
 
@@ -40,10 +39,10 @@ routing, and aligns changelog range semantics with the backend contract.
 ### Changed
 
 - **Improve remote MCP tool routing** - Make tool catalogs benefit-first with
-  explicit workflow handoffs, replace inconsistently handled server
-  instructions with a one-call `quick_start` guide, compact the Agent Skill to
-  point at that guide, and add MCP-only versus fully guided eval coverage with
-  Luna/high Codex defaults.
+  explicit workflow handoffs and replace inconsistently surfaced default
+  server instructions with a one-call `quick_start` guide. `createMcpServer()`
+  now leaves initialize instructions caller-owned; use `quickStartOptions`
+  instead of the deprecated `instructionOptions` to configure the guide.
 
 ### Fixed
 
