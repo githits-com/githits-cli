@@ -5145,7 +5145,8 @@ Configures GitHits MCP for supported coding tools, using the remote MCP for
 Cursor and the verified integration for each other tool, or sets up Agent Skills
 instead. Guided MCP setup also installs the packaged GitHits skills and a managed
 instruction block so agents use GitHits for OSS stack context. Detects supported
-coding tools on this machine, signs you in, and configures the tools you select.`;
+coding tools on this machine, shows the authentication steps for the selected
+tools, and configures the tools you select.`;
 
 const INIT_UNINSTALL_DESCRIPTION = `Remove GitHits MCP server configuration from your coding agents.
 

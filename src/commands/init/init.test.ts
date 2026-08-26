@@ -8764,6 +8764,7 @@ describe("registerInitCommand", () => {
     expect(rootUninstallCommand).toBeDefined();
     expect(initCommand?.description()).toContain("packaged GitHits skills");
     expect(initCommand?.description()).not.toContain("a small GitHits skill");
+    expect(initCommand?.description()).not.toContain("signs you in");
     expect(
       initCommand?.commands.some((cmd) => cmd.name() === "uninstall"),
     ).toBe(true);
