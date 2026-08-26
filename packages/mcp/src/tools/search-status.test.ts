@@ -127,13 +127,13 @@ describe("searchStatusTool", () => {
   it("describes partial-result follow-up behavior", () => {
     const tool = createSearchStatusTool(createMockCodeNavigationService());
 
-    expect(tool.description).toContain("interim hits");
+    expect(tool.description).toContain("retrieve interim or partial hits");
     expect(tool.description).toContain("partial hits");
     expect(tool.description).toContain("serveable subset");
     expect(tool.description).toContain("allow_partial_results");
     expect(tool.description).toContain("`PENDING`, `INDEXING`, or `SEARCHING`");
     expect(tool.description).toContain(
-      "completed result with an evidence notice",
+      "a completed result with an evidence notice",
     );
     expect(tool.description).toContain("`DEFERRED`, `TIMEOUT`, and `FAILED`");
     expect(tool.description).toContain("unrecognized statuses are not polled");

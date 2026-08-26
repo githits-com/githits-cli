@@ -72,7 +72,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Start of version range. When set, the response returns every entry between `from_version` and `to_version` (or latest) with no count cap — range mode. Mutually exclusive with `limit`. Tag-style `v`-prefixed inputs are rejected except for Swift.",
+      "Exclusive start of version range. When set, the response returns every entry after `from_version` through `to_version` (or latest) with no count cap — range mode. Mutually exclusive with `limit`. Use latest mode with `to_version` and `limit: 1` to fetch one exact release. Tag-style `v`-prefixed inputs are rejected except for Swift.",
     ),
   to_version: z
     .string()
@@ -119,10 +119,10 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION: string =
-  "Use when the user asks what changed in a package, wants release notes, or needs changelog evidence for a manual upgrade review. Release notes for a package or GitHub repo, newest-first. Default " +
-  "latest mode returns the ten most recent entries (`limit` 1–50). " +
+  "Find release and changelog evidence for a package or GitHub repository. Default " +
+  "latest mode returns up to ten entries (`limit` 1–50); source ordering may interleave maintained release lines. " +
   "With `from_version`, returns every entry in the " +
-  "`[from_version, to_version]` range (range mode, no count cap). " +
+  "`(from_version, to_version]` range (range mode, no count cap); use latest mode with `to_version` and `limit: 1` for one exact release. " +
   "Address via `registry` + `package_name` or `repo_url` (mutually " +
   'exclusive). Response includes optional `source` (`"releases"` / ' +
   '`"changelog_file"` / `"hexdocs"`) when a concrete changelog source ' +
@@ -136,7 +136,7 @@ export const DESCRIPTION: string =
   "Package-version entries without changelog " +
   "text succeed with `source` omitted; no-source plus no entries " +
   "returns `NOT_FOUND`. Supports npm, PyPI, Hex, Crates, NuGet, " +
-  "Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift." +
+  "Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift. Use `pkg_info` for latest package health or `pkg_upgrade_review` for current-vs-target evidence." +
   `\n\n${PKG_CHANGELOG_GUARDRAIL}`;
 
 export function createPackageChangelogTool(

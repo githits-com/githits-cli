@@ -111,7 +111,7 @@ describe("code_diff MCP adapter", () => {
     ]);
     for (const phrase of [
       "Experimental",
-      "exact source changes",
+      "source diff",
       "repository-wide diffs",
       "does not prove the package unchanged",
       "package_name",

@@ -4,6 +4,7 @@ import {
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
 } from "@githits/core-internal";
+import { Command } from "commander";
 import {
   createMockPackageIntelligenceService,
   defaultChangelogReport,
@@ -11,7 +12,19 @@ import {
 import {
   type PkgChangelogCommandDependencies,
   pkgChangelogAction,
+  registerPkgChangelogCommand,
 } from "./changelog.js";
+
+describe("pkg changelog help", () => {
+  it("describes latest mode without promising order and marks --from exclusive", () => {
+    const command = registerPkgChangelogCommand(new Command().command("pkg"));
+    const help = command.helpInformation().replace(/\s+/g, " ");
+
+    expect(help).toContain("up to ten latest-mode entries");
+    expect(help).toContain("Exclusive start of version range");
+    expect(help).not.toContain("ten most recent entries");
+  });
+});
 
 describe("pkgChangelogAction", () => {
   const mcpUrl = "https://mcp.githits.com";

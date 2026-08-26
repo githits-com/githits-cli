@@ -1,6 +1,6 @@
 # Tool-side prompt-injection guardrails
 
-This document is the policy / contract for the MCP-instructions
+This document is the policy / contract for the `quick_start`
 shared block and per-tool addenda that defend agent flows against
 indirect prompt injection delivered via tool results. It was
 empirically validated by the eval harness in `eval/` against
@@ -43,7 +43,7 @@ the source values and relies on JSON escaping rather than terminal sanitization.
 
 One layer, with a second held in reserve:
 
-1. **Shared block** in MCP `instructions` — once, server-level —
+1. **Shared block** in the `quick_start` result — once per session —
    states the external-content posture. Names the harm-pass-through
    categories the agent must discount when consuming any third-party
    prose: shell / install / build / test / "validator" commands
@@ -68,6 +68,15 @@ v4's full-stack (shared + per-tool) measured 2/36 (6%) on the same
 gate. Compact loses ~2 percentage points and saves ~78% of the
 wording (787 words v4 → 171 words compact).
 
+Those measurements validate the wording only when the shared block is in
+context. Delivery now depends on the agent calling `quick_start`; this avoids
+host-dependent server-instruction duplication but leaves sessions that skip the
+guide without the shared posture. Luna-low descriptor-only and full-guidance
+canaries called `quick_start` exactly once in every workload, but that is routing
+evidence, not a prompt-injection re-evaluation. If broader agent evals show the
+bootstrap being skipped, restore focused addenda first on the affected
+high-attacker-control tools and rerun Pass 1.
+
 **Constraint on per-tool addenda**: never reference another MCP tool
 by name in a tool's description. Agent harnesses load detailed tool
 descriptions lazily — only when a tool is actively invoked — so a
@@ -76,21 +85,22 @@ must stand on their own.
 
 ## Tools that surface third-party content
 
-All nine tools that surface free-form maintainer-controlled content
-inherit the shared block automatically:
+The shared guide covers all ten tools that surface free-form
+maintainer-controlled content:
 
 - `pkg_vulns` — OSV/GHSA advisory text (lighter — editorial pipeline)
 - `pkg_info` — registry description / install / usage / topics
 - `pkg_changelog` — release-notes body
+- `pkg_upgrade_review` — release-note excerpts and package deprecation text
 - `docs_read` and `docs_list` — repo READMEs and crawled docs
 - `code_read` and `code_grep` — repo source code (comments + strings)
 - `search` — multi-source search snippets
 - `get_example` — backend-synthesized examples
 
-Other tools (`pkg_deps`, `code_files`, `search_status`,
-`search_language`, `feedback`) have no meaningful prose surface or
-attacker control; they also inherit the shared block but need no
-additional consideration.
+Other tools (`quick_start`, `pkg_deps`, `code_files`, `search_status`,
+`search_language`, `feedback`) have no third-party prose surface or attacker
+control and need no per-tool addendum. The shared posture is available after
+the agent calls `quick_start`; it is not inherited automatically.
 
 ## Where the wording lives
 
@@ -98,7 +108,8 @@ additional consideration.
   - `EXTERNAL_CONTENT_POSTURE` — the shared block (~170 words /
     ~220-250 tokens depending on tokenizer).
   - `PKG_VULNS_GUARDRAIL`, `PKG_INFO_GUARDRAIL`,
-    `PKG_CHANGELOG_GUARDRAIL`, `DOCS_GUARDRAIL`, `CODE_READ_GUARDRAIL`,
+    `PKG_CHANGELOG_GUARDRAIL`, `PKG_UPGRADE_REVIEW_GUARDRAIL`,
+    `DOCS_GUARDRAIL`, `CODE_READ_GUARDRAIL`,
     `CODE_GREP_GUARDRAIL`, `SEARCH_GUARDRAIL`, `GET_EXAMPLE_GUARDRAIL`
     — currently empty strings, reserved for restoration if a tool
     surface regresses.
@@ -118,8 +129,8 @@ maintainer-controlled content:
    (IDs, versions, hashes, paths, dedicated reference URLs) versus
    the prose fields the agent should treat with the external-content
    posture.
-2. Wire the tool into the MCP server normally — the shared block is
-   inherited automatically and is intended to be sufficient.
+2. Add the tool to the `quick_start` guide — the shared block is intended to
+   be sufficient once the guide is loaded.
 3. If a Pass 1 cell on the new tool shows compliance >= 2/3 on any
    attack, add a per-tool addendum to `packages/mcp/src/tools/guardrails.ts`
    naming the trustworthy structured fields and any tool-specific

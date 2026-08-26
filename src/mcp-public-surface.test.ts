@@ -5,7 +5,7 @@ import {
 } from "@githits/core-internal";
 import * as publicMcp from "@githits/mcp";
 import {
-  buildMcpInstructions,
+  buildMcpQuickStart,
   createMcpServer,
   getMcpToolDescriptors,
   type McpToolServices,
@@ -57,6 +57,7 @@ function registeredTool(server: McpServer, name: string): RegisteredTool {
 }
 
 const EXPECTED_DESCRIPTOR_NAMES = [
+  "quick_start",
   "get_example",
   "search_language",
   "feedback",
@@ -75,6 +76,7 @@ const EXPECTED_DESCRIPTOR_NAMES = [
 ] as const;
 
 const EXPECTED_SMOKE_NAMES = [
+  "quick_start",
   "get_example",
   "search_language",
   "pkg_info",
@@ -130,7 +132,7 @@ describe("public MCP package surface", () => {
     const provider: McpToolServicesProvider<RemoteExtra> = () =>
       createServices();
 
-    expect(buildMcpInstructions()).toContain("GitHits provides");
+    expect(buildMcpQuickStart()).toContain("GitHits provides");
     expect(getMcpToolDescriptors().map((tool) => tool.name)).toContain(
       "search",
     );

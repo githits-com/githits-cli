@@ -19,7 +19,14 @@ describe("createGrepRepoTool — metadata", () => {
   it("registers the correct tool name and schema keys", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     expect(tool.name).toBe("code_grep");
-    expect(tool.description).toContain("Deterministic text or regex grep");
+    expect(tool.description).toContain(
+      "Enumerate matches for a known exact literal, regex, identifier, or call site",
+    );
+    expect(tool.description).toContain(
+      "Use `search` for conceptual or open-ended discovery",
+    );
+    expect(tool.description).toContain("`code_read`");
+    expect(tool.description).toContain("`code_files`");
     expect(tool.description).toContain(
       "`FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or `SOURCE_FILE_INVENTORY_UNKNOWN`",
     );

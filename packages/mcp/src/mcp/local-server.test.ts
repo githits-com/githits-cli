@@ -11,10 +11,7 @@ import {
   createMockPackageIntelligenceService,
   defaultCodeDiffResult,
 } from "../services/test-helpers.js";
-import {
-  buildLocalMcpInstructions,
-  buildMcpInstructions,
-} from "./instructions.js";
+import { buildLocalMcpQuickStart, buildMcpQuickStart } from "./instructions.js";
 import {
   createLocalMcpServer,
   type LocalExperimentalMcpPolicy,
@@ -22,6 +19,7 @@ import {
 } from "./local-server.js";
 
 const EXPECTED_STABLE_NAMES = [
+  "quick_start",
   "get_example",
   "search_language",
   "feedback",
@@ -46,6 +44,9 @@ const EXPECTED_EXPERIMENTAL_NAMES = [
 ] as const;
 
 interface TestRegisteredTool {
+  description?: string;
+  inputSchema?: unknown;
+  annotations?: unknown;
   handler: (
     args: unknown,
     extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
@@ -80,6 +81,16 @@ function registeredToolNames(server: ReturnType<typeof createLocalMcpServer>) {
   );
 }
 
+function registeredTools(
+  server: ReturnType<typeof createLocalMcpServer>,
+): Record<string, TestRegisteredTool> {
+  return (
+    server as unknown as {
+      _registeredTools: Record<string, TestRegisteredTool>;
+    }
+  )._registeredTools;
+}
+
 function serverInstructions(
   server: ReturnType<typeof createLocalMcpServer>,
 ): string | undefined {
@@ -97,7 +108,7 @@ describe("createLocalMcpServer", () => {
     { tools: false, reportToolIssues: "all" },
   ];
 
-  it("keeps disabled and dormant policies on the exact stable inventories", () => {
+  it("keeps disabled and dormant policies on the exact stable inventories", async () => {
     for (const policy of disabledPolicies) {
       const server = createLocalMcpServer({
         metadata: { name: "local-githits", version: "0.0.0" },
@@ -106,11 +117,19 @@ describe("createLocalMcpServer", () => {
       });
 
       expect(registeredToolNames(server)).toEqual([...EXPECTED_STABLE_NAMES]);
-      expect(serverInstructions(server)).toBe(buildMcpInstructions());
+      expect(serverInstructions(server)).toBeUndefined();
+      const result = await registeredTools(server).quick_start!.handler(
+        {},
+        undefined as unknown as RequestHandlerExtra<
+          ServerRequest,
+          ServerNotification
+        >,
+      );
+      expect(result.content[0]?.text).toBe(buildMcpQuickStart());
     }
   });
 
-  it("adds both experimental tools only when enabled and preserves baseline instructions", () => {
+  it("adds both experimental tools to the quick-start guide", async () => {
     const server = createLocalMcpServer({
       metadata: { name: "local-githits", version: "0.0.0" },
       services: createServices(),
@@ -120,14 +139,63 @@ describe("createLocalMcpServer", () => {
     expect(registeredToolNames(server)).toEqual([
       ...EXPECTED_EXPERIMENTAL_NAMES,
     ]);
-    expect(registeredToolNames(server)).toHaveLength(17);
-    expect(serverInstructions(server)).toBe(
-      buildLocalMcpInstructions({
+    expect(registeredToolNames(server)).toHaveLength(18);
+    expect(serverInstructions(server)).toBeUndefined();
+    const result = await registeredTools(server).quick_start!.handler(
+      {},
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+    expect(result.content[0]?.text).toBe(
+      buildLocalMcpQuickStart({
         enabledExperimentalTools: ["resolve_target", "code_diff"],
       }),
     );
-    for (const name of EXPECTED_EXPERIMENTAL_NAMES) {
-      expect(serverInstructions(server)).toContain(`\`${name}\``);
+    for (const name of EXPECTED_EXPERIMENTAL_NAMES.filter(
+      (name) => name !== "quick_start",
+    )) {
+      expect(result.content[0]?.text).toContain(`\`${name}\``);
+    }
+  });
+
+  it("omits server instructions without changing stable tool registrations", () => {
+    const options = {
+      metadata: { name: "local-githits", version: "0.0.0" },
+      services: createServices(),
+      policy: { tools: false, reportToolIssues: undefined } as const,
+    };
+    const defaultServer = createLocalMcpServer(options);
+    const descriptorServer = createLocalMcpServer(options);
+
+    expect(serverInstructions(defaultServer)).toBeUndefined();
+    expect(serverInstructions(descriptorServer)).toBeUndefined();
+    expect(registeredToolNames(descriptorServer)).toEqual([
+      ...EXPECTED_STABLE_NAMES,
+    ]);
+
+    const defaultTools = registeredTools(defaultServer);
+    const descriptorTools = registeredTools(descriptorServer);
+    for (const name of EXPECTED_STABLE_NAMES) {
+      expect(descriptorTools[name]?.description).toBe(
+        defaultTools[name]?.description,
+      );
+      expect(
+        JSON.stringify(
+          (descriptorTools[name]?.inputSchema as { def?: unknown } | undefined)
+            ?.def,
+        ),
+      ).toBe(
+        JSON.stringify(
+          (defaultTools[name]?.inputSchema as { def?: unknown } | undefined)
+            ?.def,
+        ),
+      );
+      expect(descriptorTools[name]?.annotations).toEqual(
+        defaultTools[name]?.annotations,
+      );
+      expect(typeof descriptorTools[name]?.handler).toBe("function");
     }
   });
 

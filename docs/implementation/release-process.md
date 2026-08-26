@@ -69,7 +69,7 @@ release impact:
 - Bump `githits` for CLI behavior, local auth or setup, local stdio startup,
   root package APIs, packaged plugin/assistant assets, or root runtime
   dependency changes.
-- Bump `@githits/mcp` only for its public API, tool behavior, MCP instructions,
+- Bump `@githits/mcp` only for its public API, tool behavior, MCP guidance,
   schemas, MCP auth/error behavior, or remote-server-facing public types.
 - A shared implementation change can require both bumps when it changes both
   shipped artifacts. CLI-only use of shared code does not by itself require an

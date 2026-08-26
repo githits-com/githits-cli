@@ -81,7 +81,7 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Use when the user asks what a package depends on, wants dependency groups, or needs a bounded transitive dependency footprint. Analyze a package's dependency graph. Lists direct runtime " +
+  "Map a package's dependency graph, direct groups, and bounded transitive footprint. Lists direct runtime " +
   "dependencies with resolved versions; non-runtime groups are " +
   "omitted by default. Use `lifecycle` with a concrete value for " +
   "matching dependency groups, or `all` for every available group. " +
@@ -90,7 +90,7 @@ const DESCRIPTION =
   "install footprint, conflict detection, and circular-dependency " +
   "flags; layer `include_importers: true` on top when you also need " +
   "per-package provenance. Supports npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, " +
-  "Go, and Swift.";
+  "Go, and Swift. Use `pkg_info` for latest package health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence.";
 
 export function createPackageDependenciesTool(
   service: PackageIntelligenceService,

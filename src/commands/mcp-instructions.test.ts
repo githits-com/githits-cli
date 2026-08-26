@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildMcpInstructions, type McpToolServices } from "@githits/mcp";
+import { buildMcpQuickStart, type McpToolServices } from "@githits/mcp";
 import { getMcpToolDefinitions } from "@githits/mcp/internal";
 import {
   createMockCodeNavigationService,
@@ -50,9 +50,9 @@ function registeredTools(services: McpToolServices): Set<string> {
   return new Set(getMcpToolDefinitions(services).map((tool) => tool.name));
 }
 
-describe("buildMcpInstructions", () => {
+describe("buildMcpQuickStart", () => {
   it("returns core + package/code tools section by default", () => {
-    const instructions = buildMcpInstructions();
+    const instructions = buildMcpQuickStart();
 
     expect(instructions).toContain("GitHits provides verified open-source");
     expect(instructions).toContain("Indexed package/source tools");
@@ -66,7 +66,6 @@ describe("buildMcpInstructions", () => {
     expect(instructions).toContain("`search`");
     expect(instructions).toContain("`search_status`");
     expect(instructions).toContain("reference-first");
-    expect(instructions).toContain("Delegate multi-call work to a sub-agent");
     expect(instructions).toContain("Prefer the default compact `text-v1`");
     expect(instructions).toContain(
       "request JSON only when exact structured fields are necessary",
@@ -74,7 +73,7 @@ describe("buildMcpInstructions", () => {
   });
 
   it("includes the external-content posture by default", () => {
-    const instructions = buildMcpInstructions();
+    const instructions = buildMcpQuickStart();
 
     expect(instructions).toContain("External-content posture");
     expect(instructions).toContain("tool-owned reference/provenance sections");
@@ -84,7 +83,7 @@ describe("buildMcpInstructions", () => {
     // The eval mock MCP server opts out so it can control whether the
     // shared block is included per cell, comparing baseline vs
     // guardrailed cohorts cleanly. Production never opts out.
-    const instructions = buildMcpInstructions({
+    const instructions = buildMcpQuickStart({
       includeExternalContentPosture: false,
     });
 
@@ -95,14 +94,14 @@ describe("buildMcpInstructions", () => {
   });
 
   it("steers file enumeration to code_files instead of directory probes", () => {
-    const instructions = buildMcpInstructions();
+    const instructions = buildMcpQuickStart();
 
     expect(instructions).toContain("Enumerate paths with `code_files`");
     expect(instructions).toContain("never use it to list/probe directories");
   });
 
   it("expands core trigger criteria to cover comparative cross-OSS questions", () => {
-    const instructions = buildMcpInstructions();
+    const instructions = buildMcpQuickStart();
     expect(instructions).toContain("comparative OSS questions");
     expect(instructions).toContain(
       "package-scoped evidence needs broader examples",
@@ -110,7 +109,7 @@ describe("buildMcpInstructions", () => {
   });
 
   it("excludes local and private repository targets", () => {
-    const instructions = buildMcpInstructions();
+    const instructions = buildMcpQuickStart();
     expect(instructions).toContain(
       "not local workspaces, private repositories",
     );
@@ -119,7 +118,7 @@ describe("buildMcpInstructions", () => {
   });
 
   it("makes indexed documentation discovery explicit", () => {
-    const instructions = buildMcpInstructions();
+    const instructions = buildMcpQuickStart();
     expect(instructions).toContain(
       "documentation pages available for a package",
     );
@@ -128,7 +127,7 @@ describe("buildMcpInstructions", () => {
   });
 
   it("keeps the core block first", () => {
-    const instructions = buildMcpInstructions();
+    const instructions = buildMcpQuickStart();
 
     const coreIdx = instructions.indexOf("GitHits provides verified");
     const packageToolsIdx = instructions.indexOf(
@@ -140,7 +139,7 @@ describe("buildMcpInstructions", () => {
 
   it("keeps mentioned package/code tools aligned with registration", () => {
     const services = createTestServices();
-    const mentioned = mentionedTools(buildMcpInstructions());
+    const mentioned = mentionedTools(buildMcpQuickStart());
     const registered = registeredTools(services);
 
     for (const name of mentioned) {
@@ -167,7 +166,7 @@ describe("buildMcpInstructions", () => {
     }
   });
 
-  it("keeps trigger criteria in per-tool descriptions for clients that ignore server instructions", () => {
+  it("front-loads tool benefits for clients that ignore server instructions", () => {
     const descriptions = new Map(
       getMcpToolDefinitions(createTestServices()).map((tool) => [
         tool.name,
@@ -175,18 +174,28 @@ describe("buildMcpInstructions", () => {
       ]),
     );
 
-    expect(descriptions.get("get_example")).toContain("Use when");
-    expect(descriptions.get("search")).toContain("Use when");
-    expect(descriptions.get("code_files")).toContain("First choice");
-    expect(descriptions.get("pkg_info")).toContain("Use for");
-    expect(descriptions.get("pkg_vulns")).toContain("Use when");
-    expect(descriptions.get("pkg_deps")).toContain("Use when");
-    expect(descriptions.get("pkg_changelog")).toContain("Use when");
-    expect(descriptions.get("pkg_upgrade_review")).toContain("Use when");
+    for (const [name, description] of descriptions) {
+      expect(description, name).not.toMatch(
+        /^(?:Use when|Use for|Use after|Use before|First choice)/,
+      );
+    }
+
+    expect(descriptions.get("get_example")).toStartWith(
+      "Find canonical cross-project examples",
+    );
+    expect(descriptions.get("search")).toStartWith(
+      "Discover relevant evidence in a known target before exact grep",
+    );
+    expect(descriptions.get("code_grep")).toStartWith(
+      "Enumerate matches for a known exact literal",
+    );
+    expect(descriptions.get("pkg_vulns")).toStartWith(
+      "Find known package vulnerabilities, CVEs, advisories",
+    );
   });
 
   it("ships a decision tree mentioning all three workflow tools in the core block", () => {
-    const instructions = buildMcpInstructions();
+    const instructions = buildMcpQuickStart();
     const coreEnd = instructions.indexOf("Indexed package/source tools");
     const coreSection = instructions.slice(0, coreEnd);
 
@@ -197,7 +206,7 @@ describe("buildMcpInstructions", () => {
   });
 
   it("tells agents to report get_example source repositories", () => {
-    const instructions = buildMcpInstructions();
+    const instructions = buildMcpQuickStart();
 
     expect(instructions).toContain("source repository provenance/citations");
     expect(instructions).toContain(
@@ -206,7 +215,7 @@ describe("buildMcpInstructions", () => {
   });
 
   it("orders package-section bullets by agent decision flow", () => {
-    const instructions = buildMcpInstructions();
+    const instructions = buildMcpQuickStart();
 
     const positions = {
       search: instructions.indexOf("- `search` —"),
@@ -243,17 +252,12 @@ describe("buildMcpInstructions", () => {
     expect(positions.pkgChangelog).toBeLessThan(positions.pkgUpgradeReview);
   });
 
-  it("places the strategy tip after the bullets and the delegation tip before them", () => {
-    const instructions = buildMcpInstructions();
+  it("places the strategy tip after the bullets", () => {
+    const instructions = buildMcpQuickStart();
 
-    const delegationIdx = instructions.indexOf(
-      "Delegate multi-call work to a sub-agent",
-    );
-    const firstBulletIdx = instructions.indexOf("- `search` —");
     const lastBulletIdx = instructions.indexOf("- `pkg_changelog`");
     const strategyIdx = instructions.indexOf("Strategy — reference-first");
 
-    expect(delegationIdx).toBeLessThan(firstBulletIdx);
     expect(strategyIdx).toBeGreaterThan(lastBulletIdx);
   });
 });

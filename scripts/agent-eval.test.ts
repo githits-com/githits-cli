@@ -12,6 +12,10 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import {
+  GITHITS_GUIDANCE_BLOCK,
+  GITHITS_GUIDANCE_MARKER,
+} from "../src/commands/init/guidance-assets.ts";
+import {
   buildClaudeCommand,
   buildCodexCommand,
   buildCodexConfig,
@@ -20,10 +24,17 @@ import {
   buildMcpConfig,
   buildOpenCodeCommand,
   buildOpenCodeConfig,
+  buildOpenCodeSkillsConfig,
   collectSecretValues,
+  DEFAULT_CODEX_MODEL,
+  DEFAULT_CODEX_REASONING_EFFORT,
+  extractDiscoveryEvents,
   extractToolCalls,
+  isolateOpenCodeSkills,
   isValidAgentReport,
   parseArgs,
+  prepareFullGuidanceWorkspace,
+  prepareSkillsWorkspace,
   redactText,
   runAgentEval,
   runWithTimeout,
@@ -111,6 +122,69 @@ describe("agent eval harness", () => {
       command: "bun",
       args: ["run", "--cwd", "/repo/githits-cli", "dev", "mcp", "start"],
     });
+  });
+
+  it("keeps MCP server configuration identical across guidance profiles", () => {
+    expect(
+      buildMcpConfig({ ...localOptions, guidanceProfile: "descriptors" })
+        .mcpServers.githits.args,
+    ).not.toContain("--instruction-mode");
+    expect(
+      buildMcpConfig({ ...localOptions, guidanceProfile: "full" }).mcpServers
+        .githits.args,
+    ).not.toContain("--instruction-mode");
+  });
+
+  it("defaults automated Codex evals to Luna with high reasoning", () => {
+    const options = parseArgs(["--agent", "codex", "--dry-run"], "/repo");
+    expect(options.model).toBe(DEFAULT_CODEX_MODEL);
+    expect(options.reasoningEffort).toBe(DEFAULT_CODEX_REASONING_EFFORT);
+    expect(options.guidanceProfile).toBe("descriptors");
+  });
+
+  it("preserves explicit Codex model and reasoning overrides", () => {
+    const options = parseArgs(
+      [
+        "--agent",
+        "codex",
+        "--model",
+        "gpt-custom",
+        "--reasoning-effort",
+        "ultra",
+        "--dry-run",
+      ],
+      "/repo",
+    );
+    expect(options.model).toBe("gpt-custom");
+    expect(options.reasoningEffort).toBe("ultra");
+  });
+
+  it("rejects invalid guidance and reasoning combinations before launch", () => {
+    expect(() =>
+      parseArgs(
+        ["--guidance-profile", "full", "--server", "published"],
+        "/repo",
+      ),
+    ).toThrow("requires --surface mcp --server local");
+    expect(() =>
+      parseArgs(["--surface", "skills", "--guidance-profile", "full"], "/repo"),
+    ).toThrow("cannot be used with --surface skills");
+    expect(() => parseArgs(["--reasoning-effort", "high"], "/repo")).toThrow(
+      "requires --agent codex",
+    );
+  });
+
+  it("adds the Codex reasoning effort as a TOML override", () => {
+    const options = {
+      ...localOptions,
+      reasoningEffort: "high" as const,
+    };
+    expect(buildCodexConfig(options)).toContain(
+      'model_reasoning_effort = "high"',
+    );
+    expect(buildCodexConfigArgs(options)).toContain(
+      'model_reasoning_effort="high"',
+    );
   });
 
   it("preserves ordinary subprocess completion", async () => {
@@ -220,6 +294,9 @@ describe("agent eval harness", () => {
         {},
       ),
     ).toEqual({
+      permission: {
+        task: "deny",
+      },
       mcp: {
         githits: {
           type: "local",
@@ -235,6 +312,14 @@ describe("agent eval harness", () => {
           enabled: true,
           timeout: 90_000,
         },
+      },
+    });
+  });
+
+  it("denies OpenCode task delegation in skills mode", () => {
+    expect(buildOpenCodeSkillsConfig()).toEqual({
+      permission: {
+        task: "deny",
       },
     });
   });
@@ -371,7 +456,7 @@ describe("agent eval harness", () => {
     expect(command).toContain("/tmp/work");
   });
 
-  it("isolates Codex MCP evals from user config and global skills", () => {
+  it("excludes Codex user config, rules, and plugin skills", () => {
     const command = buildCodexCommand(
       "prompt",
       "/tmp/work",
@@ -387,6 +472,7 @@ describe("agent eval harness", () => {
 
     expect(command).toContain("--ignore-user-config");
     expect(command).toContain("--ignore-rules");
+    expect(command.filter((arg) => arg === "--ignore-rules")).toHaveLength(1);
     expect(command).toContain('mcp_servers.githits.command="bun"');
   });
 
@@ -413,11 +499,13 @@ describe("agent eval harness", () => {
         surface: "skills",
         repoRoot: "/repo/githits-cli",
         publishedPackage: "githits@latest",
+        reasoningEffort: "high",
       },
     );
     expect(codex).not.toContain("mcp_servers.githits.command");
     expect(codex).not.toContain("--ignore-rules");
     expect(codex).toContain("--ignore-user-config");
+    expect(codex).toContain('model_reasoning_effort="high"');
   });
 
   it("builds interactive Claude, Codex, and OpenCode session commands", () => {
@@ -443,6 +531,7 @@ describe("agent eval harness", () => {
     const codexCommand = buildCodexSessionCommand(codexOptions);
     expect(codexCommand).toContain("mcp_servers={}");
     expect(codexCommand).toContain('mcp_servers.githits.command="bun"');
+    expect(codexCommand).not.toContain("--ignore-rules");
     expect(codexCommand).toContain(
       "--dangerously-bypass-approvals-and-sandbox",
     );
@@ -470,6 +559,145 @@ describe("agent eval harness", () => {
     expect(openCodeCommand).toContain("opencode");
     expect(openCodeCommand).toContain("--dangerously-skip-permissions");
     expect(openCodeCommand).toContain("hello");
+  });
+
+  it("keeps guidance profiles out of skills sessions and preserves explicit session effort", () => {
+    const skillsOptions = parseSessionArgs(
+      ["--agent", "codex", "--surface", "skills", "--reasoning-effort", "low"],
+      "/repo/githits-cli",
+    );
+    expect(skillsOptions.guidanceProfile).toBeUndefined();
+    expect(skillsOptions.reasoningEffort).toBe("low");
+    expect(buildCodexSessionCommand(skillsOptions)).toContain(
+      'model_reasoning_effort="low"',
+    );
+    expect(() =>
+      parseSessionArgs(
+        ["--surface", "skills", "--guidance-profile", "full"],
+        "/repo/githits-cli",
+      ),
+    ).toThrow("cannot be used with --surface skills");
+  });
+
+  it("prepares full guidance with canonical text and preserves existing files", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-full-guidance-"));
+    const existing = "Project instructions\n\n";
+    writeFileSync(join(workspaceDir, "CLAUDE.md"), existing);
+    writeFileSync(join(workspaceDir, "AGENTS.md"), existing);
+    try {
+      const installation = prepareFullGuidanceWorkspace(
+        {
+          server: "local",
+          repoRoot: process.cwd(),
+          publishedPackage: "githits@latest",
+        },
+        workspaceDir,
+      );
+      expect(installation.instructionPaths).toEqual([
+        join(workspaceDir, "CLAUDE.md"),
+        join(workspaceDir, "AGENTS.md"),
+      ]);
+      for (const instructionPath of installation.instructionPaths) {
+        const content = readFileSync(instructionPath, "utf8");
+        expect(content).toContain("Project instructions");
+        expect(content).toContain(GITHITS_GUIDANCE_MARKER);
+        expect(content).toContain(GITHITS_GUIDANCE_BLOCK);
+      }
+      expect(installation.skillInstallation.installedDirs).toContain(
+        join(workspaceDir, "skills"),
+      );
+      expect(
+        existsSync(join(workspaceDir, "skills", "githits-mcp", "SKILL.md")),
+      ).toBe(true);
+      expect(existsSync(join(workspaceDir, "skills", "githits-package"))).toBe(
+        false,
+      );
+      expect(existsSync(join(workspaceDir, "skills", "githits-code"))).toBe(
+        false,
+      );
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a missing source skills directory before reading it", () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "agent-missing-skills-"));
+    const repoRoot = join(rootDir, "repo");
+    const workspaceDir = join(rootDir, "workspace");
+    mkdirSync(repoRoot);
+    try {
+      expect(() =>
+        prepareSkillsWorkspace(
+          {
+            server: "local",
+            repoRoot,
+            publishedPackage: "githits@latest",
+          },
+          workspaceDir,
+        ),
+      ).toThrow(`Skills directory not found: ${join(repoRoot, "skills")}`);
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a missing requested skill before copying it", () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "agent-missing-skill-"));
+    const repoRoot = join(rootDir, "repo");
+    const workspaceDir = join(rootDir, "workspace");
+    mkdirSync(join(repoRoot, "skills"), { recursive: true });
+    try {
+      expect(() =>
+        prepareFullGuidanceWorkspace(
+          {
+            server: "local",
+            repoRoot,
+            publishedPackage: "githits@latest",
+          },
+          workspaceDir,
+        ),
+      ).toThrow(
+        `Skill source not found: ${join(repoRoot, "skills", "githits-mcp")}`,
+      );
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it("prepares a full Claude session with project guidance and strict MCP", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-full-"));
+    try {
+      const options = parseSessionArgs(
+        [
+          "--guidance-profile",
+          "full",
+          "--workspace",
+          workspaceDir,
+          "--dry-run",
+        ],
+        process.cwd(),
+      );
+      const prepared = prepareAgentSession(options);
+      expect(prepared.command).toContain("--strict-mcp-config");
+      expect(prepared.command).toContain("--setting-sources");
+      expect(prepared.command).toContain("project");
+      expect(prepared.command).not.toContain("--disable-slash-commands");
+      expect(prepared.guidanceInstallation?.instructionPaths).toContain(
+        join(workspaceDir, "CLAUDE.md"),
+      );
+      const session = JSON.parse(
+        readFileSync(
+          join(workspaceDir, ".agent-session", "session.json"),
+          "utf8",
+        ),
+      );
+      expect(session.guidanceProfile).toBe("full");
+      expect(session.guidanceInstallation.instructionPaths).toContain(
+        join(workspaceDir, "AGENTS.md"),
+      );
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
   });
 
   it("accepts the experimental flag only for local MCP sessions", () => {
@@ -573,18 +801,56 @@ describe("agent eval harness", () => {
     expect(readFileSync(join(workspaceDir, "opencode.json"), "utf8")).toContain(
       '"timeout": 90000',
     );
+    expect(readFileSync(join(workspaceDir, "opencode.json"), "utf8")).toContain(
+      '"task": "deny"',
+    );
+  });
+
+  it("denies task delegation for OpenCode skills sessions", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
+    try {
+      prepareAgentSession({
+        agent: "opencode",
+        surface: "skills",
+        server: "local",
+        experimentalTools: false,
+        workspaceDir,
+        repoRoot: process.cwd(),
+        publishedPackage: "githits@latest",
+        dryRun: true,
+        bypassPermissions: false,
+      });
+
+      expect(
+        JSON.parse(readFileSync(join(workspaceDir, "opencode.json"), "utf8")),
+      ).toEqual({
+        permission: {
+          task: "deny",
+        },
+      });
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
   });
 
   it("refuses to overwrite existing OpenCode project config", () => {
     const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
     const openCodeConfigPath = join(workspaceDir, "opencode.json");
+    const claudeInstructionsPath = join(workspaceDir, "CLAUDE.md");
+    const agentsInstructionsPath = join(workspaceDir, "AGENTS.md");
+    const skillSentinelPath = join(workspaceDir, "skills", "sentinel.txt");
     writeFileSync(openCodeConfigPath, "existing config\n");
+    writeFileSync(claudeInstructionsPath, "existing Claude guidance\n");
+    writeFileSync(agentsInstructionsPath, "existing agent guidance\n");
+    mkdirSync(join(workspaceDir, "skills"), { recursive: true });
+    writeFileSync(skillSentinelPath, "existing skill\n");
 
     expect(() =>
       prepareAgentSession({
         agent: "opencode",
         surface: "mcp",
         server: "local",
+        guidanceProfile: "full",
         experimentalTools: false,
         workspaceDir,
         repoRoot: process.cwd(),
@@ -594,30 +860,130 @@ describe("agent eval harness", () => {
       }),
     ).toThrow("Refusing to overwrite existing OpenCode config");
     expect(readFileSync(openCodeConfigPath, "utf8")).toBe("existing config\n");
+    expect(readFileSync(claudeInstructionsPath, "utf8")).toBe(
+      "existing Claude guidance\n",
+    );
+    expect(readFileSync(agentsInstructionsPath, "utf8")).toBe(
+      "existing agent guidance\n",
+    );
+    expect(readFileSync(skillSentinelPath, "utf8")).toBe("existing skill\n");
+    expect(existsSync(join(workspaceDir, ".agent-session"))).toBe(false);
   });
 
-  it("removes stale skills when preparing a reused workspace", () => {
+  it("preserves unrelated skills when preparing a reused workspace", () => {
     const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
-    const staleSkillDir = join(workspaceDir, "skills", "search");
-    mkdirSync(staleSkillDir, { recursive: true });
-    writeFileSync(join(staleSkillDir, "SKILL.md"), "stale");
-
-    prepareAgentSession({
-      agent: "claude",
-      surface: "skills",
-      server: "local",
-      experimentalTools: false,
+    const unrelatedSkillPath = join(
       workspaceDir,
-      repoRoot: process.cwd(),
-      publishedPackage: "githits@latest",
-      dryRun: true,
-      bypassPermissions: false,
+      "skills",
+      "unrelated",
+      "SKILL.md",
+    );
+    mkdirSync(join(workspaceDir, "skills", "unrelated"), {
+      recursive: true,
     });
+    writeFileSync(unrelatedSkillPath, "unrelated skill");
+    try {
+      prepareAgentSession({
+        agent: "claude",
+        surface: "skills",
+        server: "local",
+        experimentalTools: false,
+        workspaceDir,
+        repoRoot: process.cwd(),
+        publishedPackage: "githits@latest",
+        dryRun: true,
+        bypassPermissions: false,
+      });
 
-    expect(existsSync(join(staleSkillDir, "SKILL.md"))).toBe(false);
-    expect(
-      existsSync(join(workspaceDir, "skills", "githits-code", "SKILL.md")),
-    ).toBe(true);
+      expect(readFileSync(unrelatedSkillPath, "utf8")).toBe("unrelated skill");
+      expect(
+        existsSync(join(workspaceDir, "skills", "githits-code", "SKILL.md")),
+      ).toBe(true);
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses full guidance skill conflicts before mutating the session workspace", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
+    const conflictPath = join(
+      workspaceDir,
+      "skills",
+      "githits-mcp",
+      "SKILL.md",
+    );
+    const claudeInstructionsPath = join(workspaceDir, "CLAUDE.md");
+    const agentsInstructionsPath = join(workspaceDir, "AGENTS.md");
+    mkdirSync(join(workspaceDir, "skills", "githits-mcp"), {
+      recursive: true,
+    });
+    writeFileSync(conflictPath, "existing GitHits-looking skill");
+    writeFileSync(claudeInstructionsPath, "existing Claude guidance\n");
+    writeFileSync(agentsInstructionsPath, "existing agent guidance\n");
+    try {
+      expect(() =>
+        prepareAgentSession({
+          agent: "claude",
+          surface: "mcp",
+          server: "local",
+          guidanceProfile: "full",
+          experimentalTools: false,
+          workspaceDir,
+          repoRoot: process.cwd(),
+          publishedPackage: "githits@latest",
+          dryRun: true,
+          bypassPermissions: false,
+        }),
+      ).toThrow("existing GitHits skill path");
+      expect(readFileSync(conflictPath, "utf8")).toBe(
+        "existing GitHits-looking skill",
+      );
+      expect(readFileSync(claudeInstructionsPath, "utf8")).toBe(
+        "existing Claude guidance\n",
+      );
+      expect(readFileSync(agentsInstructionsPath, "utf8")).toBe(
+        "existing agent guidance\n",
+      );
+      expect(existsSync(join(workspaceDir, ".agent-session"))).toBe(false);
+      expect(existsSync(join(workspaceDir, ".agent-eval-bin"))).toBe(false);
+      expect(existsSync(join(workspaceDir, ".opencode"))).toBe(false);
+      expect(existsSync(join(workspaceDir, ".agents"))).toBe(false);
+      expect(existsSync(join(workspaceDir, ".claude"))).toBe(false);
+      expect(existsSync(join(workspaceDir, ".codex"))).toBe(false);
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses an existing CLI shim before mutating skill roots", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
+    const shimPath = join(
+      workspaceDir,
+      ".agent-eval-bin",
+      process.platform === "win32" ? "githits.cmd" : "githits",
+    );
+    mkdirSync(join(workspaceDir, ".agent-eval-bin"), { recursive: true });
+    writeFileSync(shimPath, "existing shim\n");
+    try {
+      expect(() =>
+        prepareAgentSession({
+          agent: "claude",
+          surface: "skills",
+          server: "local",
+          experimentalTools: false,
+          workspaceDir,
+          repoRoot: process.cwd(),
+          publishedPackage: "githits@latest",
+          dryRun: true,
+          bypassPermissions: false,
+        }),
+      ).toThrow("existing GitHits CLI shim");
+      expect(readFileSync(shimPath, "utf8")).toBe("existing shim\n");
+      expect(existsSync(join(workspaceDir, "skills"))).toBe(false);
+      expect(existsSync(join(workspaceDir, ".agent-session"))).toBe(false);
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
   });
 
   it("preserves normal Claude and GitHits auth environment while filtering unrelated vars", () => {
@@ -635,6 +1001,16 @@ describe("agent eval harness", () => {
     expect(env.GITHITS_API_TOKEN).toBe("secret-token");
     expect(env.GITHITS_CODE_NAV_URL).toBe("http://localhost:7070");
     expect(env.RANDOM_SECRET).toBeUndefined();
+  });
+
+  it("isolates OpenCode from external and Claude Code skills", () => {
+    const env = buildEvalEnv({
+      OPENCODE_DISABLE_EXTERNAL_SKILLS: "0",
+      OPENCODE_DISABLE_CLAUDE_CODE_SKILLS: "0",
+    });
+    isolateOpenCodeSkills(env);
+    expect(env.OPENCODE_DISABLE_EXTERNAL_SKILLS).toBe("1");
+    expect(env.OPENCODE_DISABLE_CLAUDE_CODE_SKILLS).toBe("1");
   });
 
   it("redacts secret values from environment summary", () => {
@@ -762,6 +1138,67 @@ describe("agent eval harness", () => {
     }
   });
 
+  it("writes profile-specific dry-run configs and artifacts", async () => {
+    for (const profile of ["descriptors", "full"] as const) {
+      const outDir = mkdtempSync(join(tmpdir(), `agent-eval-${profile}-`));
+      try {
+        const options = parseArgs(
+          [
+            "--guidance-profile",
+            profile,
+            "--dry-run",
+            "--out",
+            outDir,
+            "--workload",
+            "eval/agentic/workloads/express-router.md",
+          ],
+          process.cwd(),
+        );
+        await runAgentEval(options);
+        const workloadDir = join(outDir, "workloads", "express-router");
+        const mcp = JSON.parse(
+          readFileSync(join(workloadDir, "mcp.json"), "utf8"),
+        );
+        const dryRun = JSON.parse(
+          readFileSync(join(workloadDir, "dry-run.json"), "utf8"),
+        );
+        const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
+        expect(run.guidanceProfile).toBe(profile);
+        expect(dryRun.guidanceProfile).toBe(profile);
+        expect(
+          readFileSync(join(workloadDir, "discovery-events.json"), "utf8"),
+        ).toContain('"status": "not_observed"');
+        if (profile === "descriptors") {
+          expect(mcp.mcpServers.githits.args).not.toContain(
+            "--instruction-mode",
+          );
+          expect(existsSync(join(workloadDir, "skill-installation.json"))).toBe(
+            false,
+          );
+          expect(
+            existsSync(join(workloadDir, "guidance-installation.json")),
+          ).toBe(false);
+        } else {
+          expect(mcp.mcpServers.githits.args).not.toContain(
+            "--instruction-mode",
+          );
+          const guidance = JSON.parse(
+            readFileSync(
+              join(workloadDir, "guidance-installation.json"),
+              "utf8",
+            ),
+          );
+          expect(guidance.instructionPaths).toHaveLength(2);
+          expect(existsSync(join(workloadDir, "skill-installation.json"))).toBe(
+            true,
+          );
+        }
+      } finally {
+        rmSync(outDir, { recursive: true, force: true });
+      }
+    }
+  });
+
   it("uses injected agent probes for live run metadata", async () => {
     const outDir = mkdtempSync(join(tmpdir(), "agent-eval-probes-"));
     const availabilityProbes: string[] = [];
@@ -884,6 +1321,65 @@ describe("agent eval harness", () => {
     ]);
   });
 
+  it("extracts Claude ToolSearch events separately from MCP calls", () => {
+    const stdout = [
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "ToolSearch",
+              id: "search-1",
+              input: { query: "package vulnerabilities" },
+            },
+          ],
+        },
+      }),
+      JSON.stringify({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "search-1",
+              content: "GitHits:pkg_vulns",
+            },
+          ],
+        },
+      }),
+    ].join("\n");
+    expect(extractToolCalls(stdout, "claude")).toEqual([]);
+    expect(extractDiscoveryEvents(stdout, "claude")).toEqual({
+      status: "observed",
+      events: [
+        {
+          type: "request",
+          tool: "ToolSearch",
+          toolUseId: "search-1",
+          query: { query: "package vulnerabilities" },
+        },
+        {
+          type: "result",
+          tool: "ToolSearch",
+          toolUseId: "search-1",
+          result: "GitHits:pkg_vulns",
+        },
+      ],
+    });
+    expect(extractDiscoveryEvents(stdout, "codex")).toEqual({
+      status: "not_exposed",
+      events: [],
+    });
+  });
+
+  it("marks Claude discovery as not observed when ToolSearch is absent", () => {
+    expect(extractDiscoveryEvents("", "claude")).toEqual({
+      status: "not_observed",
+      events: [],
+    });
+  });
+
   it("extracts OpenCode MCP tool calls from JSON events", () => {
     const calls = extractToolCalls(
       `${JSON.stringify({
@@ -990,6 +1486,51 @@ describe("agent eval harness", () => {
     expect(calls[0]?.server).toBe("githits-cli");
   });
 
+  it("extracts CLI fallback from full MCP Codex runs only", () => {
+    const stdout = [
+      JSON.stringify({
+        item: {
+          type: "command_execution",
+          command: "githits search opencode",
+        },
+      }),
+      JSON.stringify({
+        item: {
+          type: "mcp_tool_call",
+          server: "githits",
+          tool: "code_read",
+          status: "completed",
+          arguments: { path: "packages/opencode/src/session/compaction.ts" },
+        },
+      }),
+    ].join("\n");
+    expect(extractToolCalls(stdout, "codex", "mcp", "full")).toEqual([
+      {
+        agent: "codex",
+        server: "githits-cli",
+        tool: "search",
+        status: "started",
+        arguments: { command: "githits search opencode" },
+      },
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "code_read",
+        status: "completed",
+        arguments: { path: "packages/opencode/src/session/compaction.ts" },
+      },
+    ]);
+    expect(extractToolCalls(stdout, "codex", "mcp", "descriptors")).toEqual([
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "code_read",
+        status: "completed",
+        arguments: { path: "packages/opencode/src/session/compaction.ts" },
+      },
+    ]);
+  });
+
   it("ignores non-MCP Claude tool calls", () => {
     const calls = extractToolCalls(
       `${JSON.stringify({
@@ -1086,6 +1627,110 @@ describe("agent eval harness", () => {
     expect(formatted).toContain(
       "Inspect raw calls: workloads/pkg-vulns/tool-calls.json",
     );
+  });
+
+  it("warns when a full MCP run uses CLI fallback", () => {
+    const runDir = mkdtempSync(join(tmpdir(), "agent-eval-cli-fallback-"));
+    const workloadDir = join(runDir, "workloads", "fallback");
+    mkdirSync(workloadDir, { recursive: true });
+    writeJson(join(workloadDir, "tool-calls.json"), [
+      {
+        agent: "codex",
+        server: "githits-cli",
+        tool: "search",
+        status: "started",
+      },
+    ]);
+    writeFileSync(join(workloadDir, "stderr.txt"), "");
+    const report = buildRunReportFromMetadata(runDir, {
+      agent: "codex",
+      surface: "mcp",
+      guidanceProfile: "full",
+      workloads: [{ id: "fallback", status: "failed", workloadDir }],
+    });
+    expect(report.workloads[0]?.warnings).toContain(
+      "MCP full guidance run used GitHits CLI fallback: search",
+    );
+    expect(formatRunReport(report)).toContain("CLI fallback");
+  });
+
+  it("reports discovery status and artifact path", () => {
+    const runDir = mkdtempSync(join(tmpdir(), "agent-eval-discovery-report-"));
+    const workloadDir = join(runDir, "workloads", "discovery");
+    mkdirSync(workloadDir, { recursive: true });
+    writeJson(join(workloadDir, "tool-calls.json"), []);
+    writeJson(join(workloadDir, "discovery-events.json"), {
+      status: "not_observed",
+      events: [],
+    });
+    writeFileSync(join(workloadDir, "stderr.txt"), "");
+    const report = buildRunReportFromMetadata(runDir, {
+      agent: "claude",
+      surface: "mcp",
+      guidanceProfile: "descriptors",
+      workloads: [{ id: "discovery", status: "success", workloadDir }],
+    });
+    expect(report.workloads[0]?.discovery).toEqual({
+      status: "not_observed",
+      eventCount: 0,
+    });
+    expect(report.workloads[0]?.artifacts.discoveryEvents).toBe(
+      "workloads/discovery/discovery-events.json",
+    );
+    expect(formatRunReport(report)).toContain("discovery=not_observed");
+    expect(report.warnings).toContain(
+      "Claude subscription runs may auto-discover global CLAUDE.md; descriptors/full profile evidence is diagnostic, not instruction-isolated",
+    );
+  });
+
+  it("warns that Claude guidance-profile comparisons are diagnostic", () => {
+    const before = buildRunReportFromMetadata("/before", {
+      agent: "claude",
+      surface: "mcp",
+      guidanceProfile: "descriptors",
+      workloads: [],
+    });
+    const after = buildRunReportFromMetadata("/after", {
+      agent: "claude",
+      surface: "mcp",
+      guidanceProfile: "descriptors",
+      workloads: [],
+    });
+
+    expect(compareReports(before, after).warnings).toContain(
+      "Claude subscription runs may auto-discover global CLAUDE.md; descriptors/full profile evidence is diagnostic, not instruction-isolated",
+    );
+  });
+
+  it("warns that Codex guidance-profile runs and comparisons are diagnostic", () => {
+    const before = buildRunReportFromMetadata("/before", {
+      agent: "codex",
+      surface: "mcp",
+      guidanceProfile: "descriptors",
+      workloads: [],
+    });
+    const after = buildRunReportFromMetadata("/after", {
+      agent: "codex",
+      surface: "mcp",
+      guidanceProfile: "descriptors",
+      workloads: [],
+    });
+    const warning =
+      "Codex loads global $CODEX_HOME/AGENTS.md when present; descriptors/full profile evidence is diagnostic, not instruction-isolated";
+
+    expect(before.warnings).toContain(warning);
+    expect(compareReports(before, after).warnings).toContain(warning);
+  });
+
+  it("reports no MCP guidance profile for skills runs", () => {
+    const report = buildRunReportFromMetadata("/skills", {
+      agent: "codex",
+      model: "gpt-5.6-luna",
+      surface: "skills",
+      workloads: [],
+    });
+    expect(report.guidanceProfile).toBeUndefined();
+    expect(formatRunReport(report)).toContain("profile=n/a");
   });
 
   it("reports missing artifacts for dry-run workloads without crashing", () => {
@@ -1250,6 +1895,38 @@ describe("agent eval harness", () => {
     expect(formatted).toContain("pkg-vulns status unchanged success");
     expect(formatted).toContain("raw events 0 -> 2");
     expect(formatted).toContain("+pkg_vulns");
+  });
+
+  it("warns when same-agent comparison metadata differs", () => {
+    const before = buildRunReportFromMetadata("/before", {
+      agent: "codex",
+      model: "gpt-5.6-luna",
+      reasoningEffort: "high",
+      surface: "mcp",
+      guidanceProfile: "descriptors",
+      workloads: [],
+    });
+    const after = buildRunReportFromMetadata("/after", {
+      agent: "codex",
+      model: "gpt-custom",
+      reasoningEffort: "low",
+      surface: "mcp",
+      guidanceProfile: "full",
+      workloads: [],
+    });
+    const comparison = compareReports(before, after);
+    expect(comparison.warnings).toEqual([
+      "guidance profile differs: descriptors -> full",
+      "model differs: gpt-5.6-luna -> gpt-custom",
+      "reasoning effort differs: high -> low",
+      "Codex loads global $CODEX_HOME/AGENTS.md when present; descriptors/full profile evidence is diagnostic, not instruction-isolated",
+    ]);
+    expect(formatCompareReport(comparison)).toContain(
+      "profile=descriptors effort=high",
+    );
+    expect(formatCompareReport(comparison)).toContain(
+      "profile=full effort=low",
+    );
   });
 
   it("degrades cross-agent comparisons to tool-name presence", () => {

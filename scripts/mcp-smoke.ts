@@ -1,4 +1,3 @@
-import { buildMcpInstructions } from "@githits/mcp";
 import {
   assertCleanErrorEnvelope,
   assertDefaultText,
@@ -132,8 +131,19 @@ async function assertStableMcpSession(
   await assertMcpSession(client, EXPECTED_MCP_TOOLS, context);
   const instructions = await client.getInstructions();
   assert(
-    instructions === buildMcpInstructions(),
-    `${context}: stable instructions changed from public baseline`,
+    instructions === undefined,
+    `${context}: GitHits must not publish MCP server instructions`,
+  );
+  const quickStart = assertDefaultText(
+    (await client.callTool({
+      name: "quick_start",
+      arguments: {},
+    })) as McpSmokeToolResult,
+    `${context}: quick_start`,
+  );
+  assert(
+    quickStart.includes("`search`") && quickStart.includes("`code_grep`"),
+    `${context}: quick_start missing stable routing guidance`,
   );
 }
 
@@ -144,14 +154,24 @@ async function assertExperimentalMcpSession(
   await assertMcpSession(client, EXPECTED_EXPERIMENTAL_MCP_TOOLS, context);
   const instructions = await client.getInstructions();
   assert(
-    typeof instructions === "string" &&
-      instructions.includes("resolve_target") &&
-      instructions.includes("code_diff") &&
-      instructions.includes("credentials") &&
-      instructions.includes("diffs do not prove compatibility") &&
-      instructions.includes("public OSS") &&
-      !instructions.includes("Issue reporting"),
-    `${context}: experimental instructions missing routing/privacy guidance or reporting is enabled`,
+    instructions === undefined,
+    `${context}: GitHits must not publish MCP server instructions`,
+  );
+  const quickStart = assertDefaultText(
+    (await client.callTool({
+      name: "quick_start",
+      arguments: {},
+    })) as McpSmokeToolResult,
+    `${context}: quick_start`,
+  );
+  assert(
+    quickStart.includes("resolve_target") &&
+      quickStart.includes("code_diff") &&
+      quickStart.includes("credentials") &&
+      quickStart.includes("diffs do not prove compatibility") &&
+      quickStart.includes("public OSS") &&
+      !quickStart.includes("Issue reporting"),
+    `${context}: experimental quick_start missing routing/privacy guidance or reporting is enabled`,
   );
 }
 

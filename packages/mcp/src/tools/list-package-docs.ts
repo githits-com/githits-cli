@@ -48,10 +48,10 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "List mixed package documentation pages from hosted docs and repository-backed docs. " +
-  'This browses available pages; for topic search, use `search` with `source: "docs"` and pass the returned `pageId` to `docs_read`. ' +
+  "List package documentation pages and hand off to `docs_read`; use `search` for topic discovery. " +
+  'This browses hosted and repository-backed pages. For topic search, use `search` with `source: "docs"`. ' +
   "Every entry includes a stable `pageId`, `sourceKind` (`crawled` or `repo`), and source URL; repo-backed entries also expose `repoUrl` / `gitRef` / `filePath` for exact file reads. " +
-  "Pass a returned `pageId` to `docs_read`. Use this to browse before reading a full page." +
+  "Pass a returned `pageId` to `docs_read`, or repo-backed file metadata to `code_read`." +
   `\n\n${DOCS_GUARDRAIL}`;
 
 export function createListPackageDocsTool(

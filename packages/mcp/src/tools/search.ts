@@ -126,7 +126,7 @@ const schema: ZodRawShape = {
     .string()
     .min(1)
     .describe(
-      "What to find in the target. Use natural terms, API names, or quoted phrases; optional qualifiers like `path:`, `name:`, `lang:`, `kind:`, and `repo:` are supported for precision.",
+      "Focused discovery terms, API names, behaviors, or quoted phrases. Inline qualifiers such as `path:`, `name:`, `lang:`, `kind:`, and `repo:` are supported; prefer the equivalent structured parameter when available and do not specify the same constraint both ways.",
     ),
   target: searchTargetSchema
     .optional()
@@ -187,7 +187,12 @@ const schema: ZodRawShape = {
     .describe(
       'Optional symbol kind filter. Best for `source:"symbol"` or exact API/entity searches; omit for broad source-code searches because filters combine with AND and can exclude file hits. Ignored for `source:"docs"`.',
     ),
-  path_prefix: z.string().optional(),
+  path_prefix: z
+    .string()
+    .optional()
+    .describe(
+      "Optional target-relative path prefix for code and repository-document results. Prefer this field to an inline `path:` qualifier when the scope is already known.",
+    ),
   file_intent: z
     .enum([
       "production",
@@ -203,9 +208,24 @@ const schema: ZodRawShape = {
     .describe(
       'Optional code file-intent filter. Omit it to search across all intents. Ignored for `source:"docs"` because docs search does not support file intents.',
     ),
-  public_only: z.boolean().optional(),
-  name: z.string().optional(),
-  language: z.string().optional(),
+  public_only: z
+    .boolean()
+    .optional()
+    .describe(
+      'Set true to restrict code and symbol results to public APIs. False is equivalent to omitting it; ignored for `source:"docs"`.',
+    ),
+  name: z
+    .string()
+    .optional()
+    .describe(
+      "Optional exact name qualifier, combined with `query` using AND. Prefer this field to inline `name:` and do not use both.",
+    ),
+  language: z
+    .string()
+    .optional()
+    .describe(
+      "Optional language qualifier, combined with `query` using AND. Prefer this field to inline `lang:` and do not use both.",
+    ),
   allow_partial_results: z
     .boolean()
     .optional()
@@ -219,8 +239,23 @@ const schema: ZodRawShape = {
     .max(100)
     .optional()
     .describe("Maximum results to return (default 10, max 100)."),
-  offset: z.coerce.number().int().min(0).optional(),
-  wait_timeout_ms: z.coerce.number().int().min(0).max(60000).optional(),
+  offset: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe(
+      "Zero-based result offset (default 0). Continue pagination with the response's `nextOffset` when present.",
+    ),
+  wait_timeout_ms: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(60000)
+    .optional()
+    .describe(
+      "Milliseconds to wait for initial indexing or search completion before returning current progress (0-60000; default 20000).",
+    ),
   format: z
     .enum(["text-v1", "text", "json"])
     .default("text-v1")
@@ -230,13 +265,14 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Use when investigating a known package, repository, or exact documentation site and you need to discover relevant docs, source files, examples, tests, or APIs before reading exact files. Search indexed dependency and repository code, docs, explicit symbols, or standalone docs with `site:<host[/path]>`. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
+  'Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Start here for open-ended "how does", "where is", "find", "locate", or loosely phrased "grep the source" questions. ' +
   "Required: `query` plus either `target` or `targets`; pass `target` or `targets`, not both. " +
   "Omit `source` to let GitHits select the best sources; set it only to restrict results to docs, code, or symbols. " +
+  "Target indexed dependencies and repositories, or standalone docs with `site:<host[/path]>`. " +
   'Structured parameters combine with the `query` using AND semantics. For `source:"docs"`, code/symbol-only filters (`category`, `kind`, `file_intent`, `public_only`) are ignored because docs search does not support them. ' +
-  "Complete by default — follow an explicit `search_status` action instead of repeating `search`; ordinary cases are active `PENDING`, `INDEXING`, or `SEARCHING` progress and a completed result with an evidence notice. Stale-but-serveable or provisional-but-queryable evidence can accompany an active reference while indexing or refresh continues. Provisional evidence remains visibly marked as still indexing and retains exact served identity. `DEFERRED`, `TIMEOUT`, and `FAILED` are terminal; unrecognized statuses are not polled. Preserve any disclosed evidence from those stopped references and follow the rendered new-search action. A missing or ambiguous site can instead return terminal recovery guidance without a `searchRef`; follow any `suggestedSiteTargets` explicitly rather than calling `search_status`. " +
+  "A `search` call can return complete results directly. Only when its response supplies both a `searchRef` and a `search_status` action, follow that action with `search_status`; never repeat `search` to poll. Terminal or unrecognized statuses are not polled; follow the response's recovery guidance instead. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
   "Set `allow_partial_results: true` to permit a serveable subset of target/source pairs while others remain unavailable. " +
-  "Each hit's `type` tells you the follow-up tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present)." +
+  "After discovery, use `code_grep` when you know an exact pattern and need deterministic paginated occurrences. Each hit's `type` tells you the reading tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present)." +
   `\n\n${SEARCH_GUARDRAIL}`;
 
 export function createSearchTool(

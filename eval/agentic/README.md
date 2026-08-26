@@ -8,7 +8,7 @@ It is not a smoke test. Smoke tests exercise CLI and MCP contracts directly.
 Agentic evals exercise agent behavior end-to-end.
 
 This harness is intentionally human/agent-driven, not CI. Use it to understand
-how MCP instruction, tool-description, or skill changes affect real agent
+how MCP tool-description, quick-start, or skill changes affect real agent
 behavior. Do not treat a live agent pass/fail result as a deterministic
 regression test: model behavior, backend indexing state, auth state, network
 conditions, and package data can all change. The useful output is the artifact set, especially
@@ -26,7 +26,17 @@ agent's usefulness assessment.
   `.codex/skills`, creates a `githits` CLI shim on `PATH`, and runs Claude with
   an empty strict MCP config so global/plugin MCP servers do not contaminate the
   run.
-- To evaluate MCP instruction changes, change branch/source and run local mode.
+- MCP runs use the `descriptors` guidance profile by default. It exposes the
+  MCP tools, including `quick_start`, with no MCP server instructions and no
+  installed skills or project pointer. This approximates a remote connector
+  that exposes tool definitions only. OpenCode can isolate this profile
+  locally; Codex and Claude runs retain the diagnostic limitations documented
+  below. The `full` profile uses the same MCP server and additionally installs
+  only the `githits-mcp` skill plus project `CLAUDE.md`/`AGENTS.md` guidance.
+  `full` requires
+  `--server local`; `descriptors` also supports published MCP runs.
+- To evaluate `quick_start` or MCP description changes, change branch/source
+  and run local mode.
 - To evaluate skill instruction changes, use `--surface skills --server local`.
 
 Smoke tests are the right fit for CI gating. Agentic evals are the right fit for
@@ -34,17 +44,35 @@ qualitative review before/after instruction, tool-description, and agent-facing
 UX changes.
 
 The harness must not add GitHits usage guidance through agent system prompts,
-append prompts, alternate MCP instruction files, project instructions, or plugin
-commands. In skills mode, the copied skills are the only GitHits guidance added
-to the workspace. Workload prompts may ask the agent to report what happened,
-but must not tell the agent how to use GitHits.
+append prompts, or plugin commands. The `descriptors` profile does not install
+project guidance; `full` deliberately exercises the same
+canonical project guidance and skills that a guided local installation provides.
+Workload prompts may ask the agent to report what happened, but must not tell
+the agent how to use GitHits.
 
 ## Isolation
 
 Runs execute agents from an empty temporary workspace so repository-local files
 such as `AGENTS.md`, `.mcp.json`, commands, skills, and plugin payloads do not
-contaminate results. The harness keeps the user's normal Claude/GitHits auth
-environment so human-driven keychain/OAuth sessions continue to work.
+contaminate results. The harness keeps normal agent and GitHits authentication
+so human-driven keychain/OAuth sessions continue to work. OpenCode can exclude
+user guidance under that constraint. Codex always reads global
+`$CODEX_HOME/AGENTS.md` when present; `--ignore-user-config` excludes
+`config.toml`, not agent guidance. Claude Code's `--bare` mode suppresses global
+`CLAUDE.md` auto-discovery but disables subscription/OAuth in favor of
+API-key-style auth. Therefore local Codex and Claude descriptor/full runs may
+observe user-level guidance and are diagnostic only, not causal evidence for a
+guidance-profile comparison. Use an authenticated remote connector or another
+verified instruction-isolated host for acceptance; do not treat a local Codex
+or Claude profile label as proof of instruction isolation.
+
+OpenCode eval and session processes set `OPENCODE_DISABLE_EXTERNAL_SKILLS=1`
+and `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` to exclude global and
+Claude-compatible skills. Full MCP runs retain the intended local
+`.opencode/skills` installation. Generated OpenCode config denies task
+delegation (`permission.task: "deny"`) so GitHits calls stay in the observable
+session. Full MCP reports identify any GitHits CLI fallback rather than
+counting it as equivalent MCP usage.
 
 GitHits authentication follows normal local behavior. Keychain-backed human
 login should work by default. Automation can use `GITHITS_API_TOKEN`.
@@ -60,6 +88,8 @@ bun run agent:e2e --server local --workload eval/agentic/workloads/express-route
 bun run agent:e2e --server published --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --surface skills --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent claude --server local --guidance-profile full --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent opencode --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent claude --model haiku --workload eval/agentic/workloads/package-overview-vulnerabilities.md
@@ -75,6 +105,7 @@ bun run agent:session --agent claude --surface mcp --server local
 bun run agent:session --agent claude --surface skills --server local --model haiku
 bun run agent:session --agent codex --surface skills --server local --prompt "Evaluate npm:express"
 bun run agent:session --agent codex --surface mcp --server local --dry-run
+bun run agent:session --agent claude --surface mcp --server local --guidance-profile full --dry-run
 bun run agent:session --agent opencode --surface mcp --server local --prompt "Evaluate npm:express" --dry-run
 bun run agent:session --agent codex --surface mcp --server local --experimental-tools --dry-run
 ```
@@ -87,9 +118,10 @@ the same local/published GitHits MCP config used by the eval harness. Claude get
 an explicit `mcp.json`, Codex gets inline config overrides plus a persisted
 `codex-config.toml` artifact, and OpenCode gets a project `opencode.json` with a
 local MCP server entry. Use `--workspace <dir>` when you want a stable workspace
-path, and `--dry-run` to print the command without launching the agent. OpenCode
-session setup refuses to overwrite an existing project `opencode.json`; use an
-empty or temporary workspace for OpenCode sessions.
+path, and `--dry-run` to print the command without launching the agent. Skills
+and full-guidance setup preserves unrelated skills but refuses existing GitHits
+skill destinations or its CLI shim, so use a new path for those modes. OpenCode
+session setup also refuses to overwrite an existing project `opencode.json`.
 
 Useful options:
 
@@ -97,6 +129,10 @@ Useful options:
 --agent <claude|codex|opencode> Agent to run, default `claude`
 --model <name>                  Agent model name or alias, passed through to the agent CLI
 --surface <mcp|skills>          GitHits access surface under test, default `mcp`
+--guidance-profile <descriptors|full>
+                                MCP guidance profile; MCP defaults to `descriptors`
+--reasoning-effort <minimal|low|medium|high|xhigh|max|ultra>
+                                Codex reasoning effort; automated Codex defaults to `high`
 --dry-run                       Generate artifacts without invoking the agent
 --out <dir>                     Output directory, default `.agent-eval/runs/<timestamp>`
 --timeout <seconds>             Per-workload timeout, default 300
@@ -114,6 +150,12 @@ and bypasses only the host experimental policy. Valid host auth settings still
 apply; a wholly malformed shared TOML document can still block auth startup.
 Host dogfooding uses the experimental policy in `config.toml` instead.
 
+`--guidance-profile` applies to MCP runs. `descriptors` installs no skills or
+project guidance. `full` installs the canonical `githits-mcp` skill and project guidance in
+the isolated workspace and therefore requires local MCP. Both profiles use the
+same MCP server, which publishes no initialize instructions. Skills-surface
+runs do not accept an explicitly supplied MCP guidance profile.
+
 Normal GitHits backend overrides are passed through when set:
 
 - `GITHITS_API_URL`
@@ -125,11 +167,12 @@ Normal GitHits backend overrides are passed through when set:
 
 Secret-like values are redacted in run metadata.
 
-Use `--model` to evaluate smaller or cheaper models against the same workload.
-Claude accepts aliases such as `sonnet` and `haiku`; Codex accepts model IDs such
-as `gpt-5.4-mini` or `gpt-5.4-nano` when available. The harness
-stores the selected model in `run.json` and `report.json`, and includes it in the
-console summary.
+Automated Codex runs default to `gpt-5.6-luna` with `high` reasoning. Use
+`--model` and `--reasoning-effort` to evaluate another Codex configuration;
+explicit values always win. Claude accepts aliases such as `sonnet` and
+`haiku`; explicit Codex examples include `gpt-5.4-mini` or `gpt-5.4-nano` when
+available. The harness stores the effective model and reasoning effort in
+`run.json` and `report.json`, and includes them in the console summary.
 
 After each run, the harness prints a concise summary with the run directory,
 per-workload status, unique GitHits tool count, raw tool event count,
@@ -152,9 +195,11 @@ bun run agent:e2e --server local --out .agent-eval/runs/local-change --workload 
 bun run agent:e2e:report --compare .agent-eval/runs/published-baseline .agent-eval/runs/local-change
 ```
 
-Same-agent comparisons include normalized aggregate status counts. Cross-agent
-comparisons intentionally degrade to tool-name presence with a warning because
-Claude and Codex expose different tool-call status events.
+Same-agent comparisons include normalized aggregate status counts and label the
+guidance profile, model, and reasoning effort. They warn when any of those
+comparison dimensions differ. Cross-agent comparisons intentionally degrade to
+tool-name presence with a warning because Claude and Codex expose different
+tool-call status events.
 
 ## Workloads
 
@@ -180,7 +225,7 @@ use at least one agent for quick iteration.
 |---|---|
 | Agent-driven GitHits onboarding and setup UX | `githits-onboarding.md` |
 | Core global examples, `get_example`, `search_language`, `feedback` | `global-example.md` |
-| Unified `search` / `search_status` behavior | `unified-search-investigation.md`; use `search-source-ergonomics.md` when changing `search` source-selection arguments or minimal-call guidance |
+| Unified `search` / `search_status` behavior | `unified-search-investigation.md`; use `search-source-ergonomics.md` when changing `search` source-selection arguments or minimal-call guidance; use `opencode-compaction.md` for the remote-MCP routing regression |
 | Explicit standalone site targets in unified `search` | `site-search-explicit.md` |
 | Package overview or vulnerability UX, `pkg_info`, `pkg_vulns` | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior; use `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior |
 | Dependency graph UX, `pkg_deps` | `package-dependencies.md` |
@@ -189,16 +234,16 @@ use at least one agent for quick iteration.
 | Documentation browsing, `docs_list`, `docs_read` | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery |
 | File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior |
 | Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |
-| Multi-tool code navigation strategy and MCP/skill instructions | `express-router.md` |
+| Multi-tool code navigation strategy and MCP/skill guidance | `express-router.md`; `opencode-compaction.md` is the remote-MCP routing regression derived from the connector transcript |
 | Experimental target resolution | `experimental-resolution-follow-up.md` |
 | Experimental exact source diff | `experimental-code-diff.md` |
 
-For broad MCP instruction edits, run at least:
+For broad MCP quick-start or description edits, start with the cheap Luna-low
+canary in both guidance profiles:
 
 ```bash
-bun run agent:e2e --agent claude --server local --workload eval/agentic/workloads/express-router.md
-bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
-bun run agent:e2e --agent opencode --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile full --workload eval/agentic/workloads/express-router.md
 ```
 
 For broad skill edits, run at least:
@@ -274,26 +319,39 @@ Each run writes:
   artifact paths, and warnings for missing artifacts or self-report drift.
 - One workload directory per workload with `prompt.md`, `stdout.json`,
   `stderr.txt`, `tool-calls.json`, and `final.json` when parsing succeeds.
+- Each live or dry-run workload also records `discovery-events.json`. For Claude
+  it reports `observed` when verbose JSON contains `ToolSearch` requests/results
+  or `not_observed` when none are present. Other drivers report `not_exposed`.
+  An absent Claude event does not prove that the host lacks tool search.
 - MCP runs write a GitHits `mcp.json`, `codex-config.toml`, and `opencode.json`;
-  skills runs write an empty `mcp.json` and empty `opencode.json` for isolation.
+  skills runs write an empty `mcp.json` and an `opencode.json` that denies task
+  delegation for isolation.
 - When the local experimental override is enabled, `run.json`, each workload's
   dry-run metadata, and `.agent-session/session.json` persist
   `experimentalTools: true`; the Claude, Codex, and OpenCode local launch
   vectors contain the same `--experimental-tools` flag.
 - Skills runs also write `skill-installation.json` with the copied skill path
   and CLI shim path.
+- Full MCP runs additionally write `guidance-installation.json` with the
+  canonical project instruction paths and copied skill metadata. Paths are
+  persisted for inspection; credentials are never persisted.
 
 Claude is launched with `--permission-mode bypassPermissions` so non-interactive
-evals can exercise GitHits without a human approval prompt. MCP runs add
-`--disable-slash-commands` to reduce plugin/skill contamination. Skills runs do
-not use that flag because Claude Code treats it as disabling all skills; they
-instead use project-only settings plus an empty strict MCP config. Codex MCP runs
-use per-run `-c` MCP config overrides and `--ignore-rules`; skills runs omit
-both and use `--ignore-user-config` so project skills can be discovered without
-user-configured MCP servers. Codex always uses
+evals can exercise GitHits without a human approval prompt. Non-full MCP runs
+add `--disable-slash-commands` to disable skills, but this does not disable
+global `CLAUDE.md` discovery; the isolation limitation above still applies.
+Skills runs do not use that flag because Claude Code treats it as disabling all
+skills; they instead use project-only settings plus an empty strict MCP config.
+Codex MCP runs use per-run `-c` MCP config overrides, `--ignore-rules`, and
+`--ignore-user-config`; these exclude user config, execution-policy rules, and
+configured MCP/plugin skills, but not global `$CODEX_HOME/AGENTS.md`. Skills
+runs omit the MCP and rule overrides while retaining `--ignore-user-config` so
+project skills can be discovered without user-configured MCP servers. Codex always uses
 `--dangerously-bypass-approvals-and-sandbox` so non-interactive GitHits calls are
 not cancelled by the approval layer. Keep workloads controlled and run them from
-the harness's empty temporary workspace.
+the harness's empty temporary workspace. These isolation flags belong to
+non-interactive `codex exec`; interactive `agent:session` launches must not pass
+the exec-only `--ignore-rules` flag.
 
 Malformed final JSON, schema mismatches, Claude failures, and timeouts are
 harness failures. Raw stdout and stderr are preserved for diagnosis with known

@@ -607,8 +607,8 @@ export interface PackageChangelogParams {
   /** Branch or tag for CHANGELOG.md fetching. Ignored for GH Releases. */
   gitRef?: string;
   /**
-   * Start of version range. When set, the backend returns every entry
-   * between `fromVersion` and `toVersion` (or latest); `limit` is
+   * Exclusive start of version range. When set, the backend returns every
+   * entry after `fromVersion` through `toVersion` (or latest); `limit` is
    * rejected client-side in this mode.
    */
   fromVersion?: string;
@@ -648,7 +648,7 @@ export interface ChangelogReport {
   package?: ChangelogPackageInfo;
   /** `"releases"` | `"changelog_file"` | `"hexdocs"` when resolved; absent for package versions with no changelog entry. */
   source?: string;
-  /** Entries, newest-first. Empty array = resolved source but nothing in range. */
+  /** Entries in backend/source order. Empty array = resolved source but nothing in range. */
   entries: ChangelogEntryDetail[];
 }
 

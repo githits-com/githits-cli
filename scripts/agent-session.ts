@@ -7,20 +7,28 @@ import {
   buildEvalEnv,
   buildMcpConfig,
   buildOpenCodeConfig,
+  buildOpenCodeSkillsConfig,
+  type CodexReasoningEffort,
   type EvalSurface,
-  emptyOpenCodeConfig,
+  type GuidanceInstallationMetadata,
+  type GuidanceProfile,
+  isolateOpenCodeSkills,
+  prepareFullGuidanceWorkspace,
   prepareSkillsWorkspace,
   type ServerMode,
   type SkillInstallationMetadata,
   validateExperimentalToolsScope,
+  validateGuidanceProfileScope,
 } from "./agent-eval.ts";
 
 export interface AgentSessionOptions {
   agent: AgentName;
   surface: EvalSurface;
   server: ServerMode;
+  guidanceProfile?: GuidanceProfile;
   experimentalTools: boolean;
   model?: string;
+  reasoningEffort?: CodexReasoningEffort;
   prompt?: string;
   workspaceDir: string;
   repoRoot: string;
@@ -45,6 +53,7 @@ export function parseSessionArgs(
     agent: "claude",
     surface: "mcp",
     server: "local",
+    guidanceProfile: undefined,
     experimentalTools: false,
     workspaceDir: defaultWorkspaceDir(),
     repoRoot,
@@ -53,6 +62,7 @@ export function parseSessionArgs(
     bypassPermissions: false,
   };
 
+  let guidanceProfileExplicit = false;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     switch (arg) {
@@ -87,6 +97,31 @@ export function parseSessionArgs(
         const value = argv[++i];
         assert(value, "--model requires a model name");
         options.model = value;
+        break;
+      }
+      case "--guidance-profile": {
+        const value = argv[++i];
+        assert(
+          value === "descriptors" || value === "full",
+          "--guidance-profile must be descriptors or full",
+        );
+        options.guidanceProfile = value;
+        guidanceProfileExplicit = true;
+        break;
+      }
+      case "--reasoning-effort": {
+        const value = argv[++i];
+        assert(
+          value === "minimal" ||
+            value === "low" ||
+            value === "medium" ||
+            value === "high" ||
+            value === "xhigh" ||
+            value === "max" ||
+            value === "ultra",
+          "--reasoning-effort must be minimal, low, medium, high, xhigh, max, or ultra",
+        );
+        options.reasoningEffort = value;
         break;
       }
       case "--prompt": {
@@ -127,6 +162,14 @@ export function parseSessionArgs(
   }
 
   validateExperimentalToolsScope(options);
+  if (options.surface === "mcp" && options.guidanceProfile === undefined) {
+    options.guidanceProfile = "descriptors";
+  }
+  validateGuidanceProfileScope(options, guidanceProfileExplicit);
+  assert(
+    options.agent === "codex" || options.reasoningEffort === undefined,
+    "--reasoning-effort requires --agent codex",
+  );
   return options;
 }
 
@@ -138,6 +181,8 @@ Options:
   --surface mcp|skills            GitHits surface to wire in (default: mcp)
   --server local|published        Local checkout or published package (default: local)
   --model <name>                  Agent model name or alias
+  --guidance-profile descriptors|full  MCP guidance profile (default: descriptors)
+  --reasoning-effort minimal|low|medium|high|xhigh|max|ultra  Codex reasoning effort
   --prompt <text>                 Optional initial prompt
   --workspace <dir>               Workspace to use; defaults to a temp dir
   --published-package <spec>      Package for published mode (default: githits@latest)
@@ -162,7 +207,11 @@ export function buildClaudeSessionCommand(
     "--strict-mcp-config",
   ];
   if (options.surface === "mcp") {
-    command.push("--disable-slash-commands");
+    if (options.guidanceProfile === "full") {
+      command.push("--setting-sources", "project");
+    } else {
+      command.push("--disable-slash-commands");
+    }
   } else {
     command.push("--setting-sources", "project");
   }
@@ -186,6 +235,12 @@ export function buildCodexSessionCommand(
   if (options.bypassPermissions) {
     command.push("--dangerously-bypass-approvals-and-sandbox");
   }
+  if (options.surface === "skills" && options.reasoningEffort) {
+    command.push(
+      "-c",
+      `model_reasoning_effort=${JSON.stringify(options.reasoningEffort)}`,
+    );
+  }
   if (options.model) command.push("-m", options.model);
   if (options.prompt) command.push(options.prompt);
   return command;
@@ -207,33 +262,42 @@ export function prepareAgentSession(options: AgentSessionOptions): {
   command: string[];
   mcpConfigPath: string;
   skillInstallation?: SkillInstallationMetadata;
+  guidanceInstallation?: GuidanceInstallationMetadata;
 } {
   mkdirSync(options.workspaceDir, { recursive: true });
   validateExperimentalToolsScope(options);
-  const sessionDir = join(options.workspaceDir, ".agent-session");
-  mkdirSync(sessionDir, { recursive: true });
-  const mcpConfigPath = join(sessionDir, "mcp.json");
+  if (options.surface === "mcp" && options.guidanceProfile === undefined) {
+    options.guidanceProfile = "descriptors";
+  }
+  validateGuidanceProfileScope(options);
   const openCodeConfigPath = join(options.workspaceDir, "opencode.json");
+  if (options.agent === "opencode" && existsSync(openCodeConfigPath)) {
+    throw new Error(
+      `Refusing to overwrite existing OpenCode config: ${openCodeConfigPath}`,
+    );
+  }
+  const sessionDir = join(options.workspaceDir, ".agent-session");
+  const mcpConfigPath = join(sessionDir, "mcp.json");
+  const guidanceInstallation =
+    options.guidanceProfile === "full"
+      ? prepareFullGuidanceWorkspace(options, options.workspaceDir)
+      : undefined;
   const skillInstallation =
     options.surface === "skills"
       ? prepareSkillsWorkspace(options, options.workspaceDir)
-      : undefined;
+      : guidanceInstallation?.skillInstallation;
+  mkdirSync(sessionDir, { recursive: true });
 
   writeJson(
     mcpConfigPath,
     options.surface === "mcp" ? buildMcpConfig(options) : { mcpServers: {} },
   );
   if (options.agent === "opencode") {
-    if (existsSync(openCodeConfigPath)) {
-      throw new Error(
-        `Refusing to overwrite existing OpenCode config: ${openCodeConfigPath}`,
-      );
-    }
     writeJson(
       openCodeConfigPath,
       options.surface === "mcp"
         ? buildOpenCodeConfig(options)
-        : emptyOpenCodeConfig(),
+        : buildOpenCodeSkillsConfig(),
     );
   }
 
@@ -250,14 +314,22 @@ export function prepareAgentSession(options: AgentSessionOptions): {
     server: options.server,
     experimentalTools: options.experimentalTools,
     model: options.model,
+    reasoningEffort: options.reasoningEffort,
+    guidanceProfile: options.guidanceProfile,
     workspaceDir: options.workspaceDir,
     mcpConfigPath,
     openCodeConfigPath,
     command,
     skillInstallation,
+    guidanceInstallation,
   });
 
-  return { command, mcpConfigPath, skillInstallation };
+  return {
+    command,
+    mcpConfigPath,
+    skillInstallation,
+    guidanceInstallation,
+  };
 }
 
 export async function runAgentSession(
@@ -269,6 +341,9 @@ export async function runAgentSession(
   );
   const prepared = prepareAgentSession(options);
   const env = buildEvalEnv(process.env);
+  if (options.agent === "opencode") {
+    isolateOpenCodeSkills(env);
+  }
   if (prepared.skillInstallation) {
     env.PATH = `${dirname(prepared.skillInstallation.cliShim)}${env.PATH ? `${delimiter}${env.PATH}` : ""}`;
   }

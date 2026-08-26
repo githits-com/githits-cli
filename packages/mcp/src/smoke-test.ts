@@ -36,6 +36,7 @@ interface TextContent {
 }
 
 export const EXPECTED_MCP_TOOLS = [
+  "quick_start",
   "get_example",
   "search_language",
   "pkg_info",
@@ -807,6 +808,17 @@ export async function runMcpSmoke(
   const toolNames = new Set(toolsResponse.tools.map((tool) => tool.name));
   for (const expected of EXPECTED_MCP_TOOLS) {
     assert(toolNames.has(expected), `listTools missing ${expected}`);
+  }
+
+  const quickStart = assertDefaultText(
+    await callTool(caller, "quick_start", {}),
+    "quick_start default",
+  );
+  for (const expected of ["GitHits provides", "`search`", "`code_grep`"]) {
+    assert(
+      quickStart.includes(expected),
+      `quick_start default missing ${expected}`,
+    );
   }
 
   if (!includeLiveTools) return;

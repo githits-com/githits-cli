@@ -1,7 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import {
   buildLocalMcpInstructions,
+  buildLocalMcpQuickStart,
   buildMcpInstructions,
+  buildMcpQuickStart,
   type LocalExperimentalToolName,
 } from "./instructions.js";
 
@@ -11,15 +13,30 @@ function buildLocal(
   enabledExperimentalTools: readonly LocalExperimentalToolName[],
   reportToolIssues?: "experimental" | "all",
 ): string {
-  return buildLocalMcpInstructions({
+  return buildLocalMcpQuickStart({
     enabledExperimentalTools,
     reportToolIssues,
   });
 }
 
-describe("buildLocalMcpInstructions", () => {
-  it("keeps disabled and dormant policies byte-for-byte equal to public instructions", () => {
-    const baseline = buildMcpInstructions();
+describe("buildLocalMcpQuickStart", () => {
+  it("keeps deprecated instruction builders as exact compatibility aliases", () => {
+    expect(buildMcpInstructions()).toBe(buildMcpQuickStart());
+    expect(
+      buildLocalMcpInstructions({
+        enabledExperimentalTools: EXPERIMENTAL_TOOLS,
+        reportToolIssues: "experimental",
+      }),
+    ).toBe(
+      buildLocalMcpQuickStart({
+        enabledExperimentalTools: EXPERIMENTAL_TOOLS,
+        reportToolIssues: "experimental",
+      }),
+    );
+  });
+
+  it("keeps disabled and dormant policies byte-for-byte equal to the public guide", () => {
+    const baseline = buildMcpQuickStart();
     for (const reportToolIssues of [
       undefined,
       "experimental",
@@ -54,7 +71,7 @@ describe("buildLocalMcpInstructions", () => {
     expect(instructions).toContain("private or proprietary content");
     expect(instructions).toContain("targets.\n\n- `resolve_target`");
     expect(instructions).toContain("auto-select.\n- `code_diff`");
-    expect(instructions.length - buildMcpInstructions().length).toBeLessThan(
+    expect(instructions.length - buildMcpQuickStart().length).toBeLessThan(
       1_200,
     );
     expect(instructions).not.toContain("Issue reporting");

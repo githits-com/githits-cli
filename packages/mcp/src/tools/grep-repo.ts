@@ -128,9 +128,9 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Deterministic text or regex grep over indexed dependency and repository source files. " +
+  "Enumerate matches for a known exact literal, regex, identifier, or call site in indexed source; results are deterministic and paginated. " +
   'Use this when you know the pattern (literal by default; pass `pattern_type: "regex"` for RE2). ' +
-  "Use `search` for discovery instead. " +
+  "Use `search` for conceptual or open-ended discovery; use `code_read` to inspect a matched file window and `code_files` to enumerate paths. " +
   "Whole-target grep is the default — narrow with `path`, `path_prefix`, `globs`, or `extensions` to keep responses small. " +
   "Each match's `filePath` (or text file heading) chains into `code_read.path`; pick a window around `match.line` for `code_read.start_line` / `end_line`. " +
   "When an exact path returns `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or `SOURCE_FILE_INVENTORY_UNKNOWN`, follow `details.action` to inspect paths available through `code_files`. " +

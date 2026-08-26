@@ -94,7 +94,10 @@ export function registerExampleCommand(program: Command) {
       "Optional programming language; omitted values are inferred by GitHits",
     )
     .addOption(
-      new Option("--license <mode>", "License filter mode")
+      new Option(
+        "--license <mode>",
+        "License filter: strict (default), custom (account blocklist), or yolo (unfiltered)",
+      )
         .choices(["strict", "yolo", "custom"])
         .default(undefined),
     )

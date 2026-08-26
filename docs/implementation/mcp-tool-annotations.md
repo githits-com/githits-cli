@@ -20,6 +20,7 @@ irreversible public action.
 
 | Tool | `readOnlyHint` | `openWorldHint` | `destructiveHint` | Justification |
 | --- | --- | --- | --- | --- |
+| `quick_start` | `true` | `false` | `false` | Returns static GitHits-authored routing and safety guidance without inspecting or changing external evidence. |
 | `get_example` | `false` | `false` | `false` | Generates a new result and may create service-side state associated with that result, so it is not strictly read-only. The effect is additive and cannot publish, modify external systems, or delete/overwrite user data. |
 | `search_language` | `true` | `false` | `false` | Looks up supported language names and aliases and returns matches without creating or modifying application state. The other two hints are explicitly false because the tool performs no write. |
 | `feedback` | `false` | `false` | `false` | Submits feedback and therefore creates an additive service-side entry. It cannot publish, modify external systems, delete/overwrite user data, or perform a destructive action. |
@@ -36,7 +37,7 @@ irreversible public action.
 | `pkg_changelog` | `true` | `false` | `false` | Retrieves and filters changelog/release-note information from package or repository sources. It cannot create releases or modify upstream content; the other two hints are explicitly false because there is no write. |
 | `pkg_upgrade_review` | `true` | `false` | `false` | Computes an evidence-only comparison between current and target versions using package, vulnerability, dependency, and changelog data. It does not install, update, publish, or otherwise modify a dependency; the other two hints are explicitly false because there is no write. |
 
-The descriptor type requires all three booleans, and the server-level regression
+The descriptor type requires all three booleans, and the catalog regression
 test enumerates the full public tool surface so a future tool cannot silently
 omit marketplace-required annotations.
 

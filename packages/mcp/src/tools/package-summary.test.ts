@@ -19,7 +19,9 @@ describe("createPackageSummaryTool — metadata", () => {
       createMockPackageIntelligenceService(),
     );
     expect(tool.name).toBe("pkg_info");
-    expect(tool.description).toContain("package overview");
+    expect(tool.description).toContain(
+      "Summarize latest package health and adoption signals",
+    );
     expect(tool.description).toContain("for example `npm` + `express`");
     expect(tool.description).toContain("[ARCHIVED]");
     expect(tool.description).toContain("verbose: true");

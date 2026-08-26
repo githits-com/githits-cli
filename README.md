@@ -70,6 +70,7 @@ broader open-source ecosystem, not just model memory or local repo context:
 
 | Capability | MCP tools | CLI commands |
 |---|---|---|
+| Tool orientation | `quick_start` | — |
 | Code examples | `get_example`, `search_language` | `githits example`, `githits languages` |
 | Code navigation | `search`, `search_status`, `code_files`, `code_read`, `code_grep` | `githits search`, `githits search-status`, `githits code ...` |
 | Documentation access | `docs_list`, `docs_read` | `githits docs ...` |
