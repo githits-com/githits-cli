@@ -303,6 +303,9 @@ describe("agent eval harness", () => {
         {},
       ),
     ).toEqual({
+      permission: {
+        task: "deny",
+      },
       mcp: {
         githits: {
           type: "local",
@@ -744,6 +747,9 @@ describe("agent eval harness", () => {
 
     expect(readFileSync(join(workspaceDir, "opencode.json"), "utf8")).toContain(
       '"timeout": 90000',
+    );
+    expect(readFileSync(join(workspaceDir, "opencode.json"), "utf8")).toContain(
+      '"task": "deny"',
     );
   });
 

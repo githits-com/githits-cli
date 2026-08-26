@@ -75,6 +75,9 @@ export interface McpServerConfig {
 }
 
 export interface OpenCodeConfig {
+  permission?: {
+    task: "deny";
+  };
   mcp?: {
     githits?: {
       type: "local";
@@ -574,6 +577,9 @@ export function buildOpenCodeConfig(
 ): OpenCodeConfig {
   const command = buildMcpCommand(options, baseEnv);
   return {
+    permission: {
+      task: "deny",
+    },
     mcp: {
       githits: {
         type: "local",
