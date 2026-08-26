@@ -2,7 +2,7 @@ import {
   ApiRateLimitError,
   AuthenticationError,
   FetchTimeoutError,
-} from "@githits/core-internal";
+} from "@githits/core-internal/browser";
 import type { MappedError } from "./mapped-error.js";
 import { mapTermsAcceptanceError } from "./terms-acceptance-error-map.js";
 

@@ -1,4 +1,4 @@
-import { TermsAcceptanceRequiredError } from "@githits/core-internal";
+import { TermsAcceptanceRequiredError } from "@githits/core-internal/browser";
 import type { MappedError } from "./mapped-error.js";
 
 /** Map the transport-neutral terms gate into the shared error envelope. */

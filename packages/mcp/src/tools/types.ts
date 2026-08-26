@@ -1,9 +1,10 @@
-import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { z } from "zod";
 
 /** Annotation fields required by OpenAI's MCP marketplace validation. */
-export interface CompleteToolAnnotations extends ToolAnnotations {
+export interface CompleteToolAnnotations {
+  title?: string;
   readOnlyHint: boolean;
+  idempotentHint?: boolean;
   openWorldHint: boolean;
   destructiveHint: boolean;
 }
