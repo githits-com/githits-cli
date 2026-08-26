@@ -34,6 +34,7 @@ import {
   type UnifiedSearchStatusResultPayload,
 } from "@githits/mcp/internal";
 import { type Command, Option } from "commander";
+import { recordCliErrorClassification } from "../shared/cli-error-diagnostics.js";
 import { parseIntCliOption } from "../shared/cli-options.js";
 import { startSpinner } from "../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
@@ -389,6 +390,7 @@ function handleSearchError(
   context: "search" | "status" = "search",
 ): never {
   const payload = buildUnifiedSearchErrorPayload(error);
+  recordCliErrorClassification("code-nav", error, payload);
 
   if (json) {
     console.error(JSON.stringify(payload));

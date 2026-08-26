@@ -10,6 +10,7 @@ import type {
 import {
   AuthenticationError,
   CodeNavigationIndexingError,
+  CodeNavigationTargetNotFoundError,
 } from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import {
@@ -161,6 +162,66 @@ describe("searchAction", () => {
     );
     errorSpy.mockRestore();
     exitSpy.mockRestore();
+  });
+
+  it("emits the PII-safe classification event for search errors", async () => {
+    const previous = process.env.GITHITS_DEBUG;
+    process.env.GITHITS_DEBUG = "code-nav";
+    const debugSpy = spyOn(process.stderr, "write").mockImplementation(
+      () => true,
+    );
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      const error = new CodeNavigationTargetNotFoundError(
+        "search caller query content",
+        [],
+        "https://github.com/example/repo",
+        "main",
+      );
+      await expect(
+        searchAction(
+          "router middleware",
+          { in: ["npm:express"], json: true },
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              search: mock(() => Promise.reject(error)),
+            }),
+          }),
+        ),
+      ).rejects.toThrow("process.exit");
+
+      expect(debugSpy).toHaveBeenCalledTimes(1);
+      const debugLine = String(debugSpy.mock.calls[0]?.[0]);
+      expect(JSON.parse(debugLine)).toMatchObject({
+        area: "code-nav",
+        event: "error-classified",
+        code: "NOT_FOUND",
+        errorName: "CodeNavigationTargetNotFoundError",
+        detailKeys: ["repoUrl", "requestedRef"],
+      });
+      expect(debugLine).not.toContain("search caller query content");
+      expect(errorSpy).toHaveBeenCalledWith(
+        JSON.stringify({
+          error: "search caller query content",
+          code: "NOT_FOUND",
+          retryable: false,
+          details: {
+            repoUrl: "https://github.com/example/repo",
+            requestedRef: "main",
+          },
+        }),
+      );
+    } finally {
+      debugSpy.mockRestore();
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+      if (previous === undefined) delete process.env.GITHITS_DEBUG;
+      else process.env.GITHITS_DEBUG = previous;
+    }
   });
 
   it("renders indexing wait guidance and structured details in human output", async () => {

@@ -669,7 +669,7 @@ describe("mapCodeNavigationError", () => {
   });
 });
 
-describe("mapCodeNavigationError debug instrumentation", () => {
+describe("mapCodeNavigationError host effects", () => {
   const originalEnv = process.env.GITHITS_DEBUG;
   let stderrSpy: ReturnType<typeof spyOn>;
 
@@ -685,57 +685,14 @@ describe("mapCodeNavigationError debug instrumentation", () => {
     else process.env.GITHITS_DEBUG = originalEnv;
   });
 
-  it("emits exactly one stderr line per classification when GITHITS_DEBUG=code-nav", () => {
-    process.env.GITHITS_DEBUG = "code-nav";
-    mapCodeNavigationError(
-      new CodeNavigationTargetNotFoundError("Package not found"),
-    );
-    expect(stderrSpy).toHaveBeenCalledTimes(1);
-    const line = stderrSpy.mock.calls[0]?.[0] as string;
-    const parsed = JSON.parse(line);
-    expect(parsed.area).toBe("code-nav");
-    expect(parsed.code).toBe("NOT_FOUND");
-    expect(parsed.errorName).toBe("CodeNavigationTargetNotFoundError");
-    expect(parsed.event).toBe("error-classified");
-    // PII policy: no message text in debug payload.
-    expect(parsed.message).toBeUndefined();
-  });
-
-  it("emits zero stderr lines when GITHITS_DEBUG is unset", () => {
-    delete process.env.GITHITS_DEBUG;
-    mapCodeNavigationError(new AuthenticationError("Login required"));
-    mapCodeNavigationError(new CodeNavigationAccessError("Denied"));
+  it("does not write to stderr even when GITHITS_DEBUG is enabled", () => {
+    process.env.GITHITS_DEBUG = "*";
+    mapCodeNavigationError(new CodeNavigationTargetNotFoundError("x"));
     expect(stderrSpy).not.toHaveBeenCalled();
   });
+});
 
-  it("emits one line per error classification across every branch", () => {
-    process.env.GITHITS_DEBUG = "*";
-    const errors: unknown[] = [
-      new CodeNavigationTargetNotFoundError("x"),
-      new CodeDiffError("x", { code: "RAW_DIFF_UNAVAILABLE" }),
-      new CodeNavigationFileNotFoundError("x", "some/path"),
-      new CodeNavigationIndexingError("x"),
-      new CodeNavigationRefNotFoundError(
-        "x",
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-      ),
-      new CodeNavigationUnresolvableError("x"),
-      new CodeNavigationAccessError("x"),
-      new AuthenticationError("x"),
-      new CodeNavigationNetworkError("x"),
-      new CodeNavigationBackendError("x", 500),
-      new CodeNavigationGraphQLError("x"),
-      new MalformedCodeNavigationResponseError("x"),
-      new InvalidPackageSpecError("x"),
-      new Error("x"),
-    ];
-    for (const err of errors) mapCodeNavigationError(err);
-    expect(stderrSpy).toHaveBeenCalledTimes(errors.length);
-  });
-
+describe("mapCodeNavigationError file details", () => {
   it("classifies CodeNavigationFileNotFoundError as FILE_NOT_FOUND with filePath detail", () => {
     const err = new CodeNavigationFileNotFoundError(
       "File not found: src/missing.js",

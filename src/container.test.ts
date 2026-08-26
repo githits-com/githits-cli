@@ -2,11 +2,7 @@ import { describe, expect, it, mock } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  flushTelemetry,
-  ResolveTargetServiceImpl,
-  resetTelemetryCollectorForTests,
-} from "@githits/core-internal";
+import { ResolveTargetServiceImpl } from "@githits/core-internal";
 import {
   createAuthCommandDependencies,
   createAuthStatusDependencies,
@@ -15,6 +11,10 @@ import {
   recordAuthFingerprint,
 } from "./container.js";
 import { AuthConfigError } from "./services/auth-config.js";
+import {
+  flushTelemetry,
+  resetTelemetryCollectorForTests,
+} from "./shared/telemetry.js";
 
 async function withAuthStorageEnv<T>(
   value: string | undefined,

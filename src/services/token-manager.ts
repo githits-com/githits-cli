@@ -1,8 +1,8 @@
 import {
   AuthenticationError,
   type TokenProvider,
-  withTelemetrySpan,
 } from "@githits/core-internal";
+import { withTelemetrySpan } from "../shared/telemetry.js";
 import type { AuthDiagnosticsStore } from "./auth-diagnostics-storage.js";
 import {
   type AuthService,

@@ -4,13 +4,13 @@ import {
   buildReadPackageDocSuccessPayload,
   formatReadPackageDocTerminal,
   InvalidPackageSpecError,
-  mapPackageIntelligenceError,
   parseLinesOption,
   requireAuth,
   shouldUseColors,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
+import { mapPackageIntelligenceErrorForCli } from "../../shared/cli-error-diagnostics.js";
 import { startSpinner } from "../../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../../shared/spinner-messages.js";
 import {
@@ -80,7 +80,7 @@ export async function docsReadAction(
 }
 
 function handleDocsReadError(error: unknown, json: boolean): never {
-  const mapped = mapPackageIntelligenceError(error);
+  const mapped = mapPackageIntelligenceErrorForCli(error);
 
   if (json) {
     console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));

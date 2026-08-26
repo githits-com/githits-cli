@@ -5,8 +5,6 @@ import {
   CodeNavigationServiceImpl,
   createClientHeaderBuilder,
   createStaticTokenProvider,
-  debugLog,
-  endTelemetrySpan,
   type GitHitsService,
   GitHitsServiceImpl,
   getApiUrl,
@@ -14,16 +12,13 @@ import {
   getEnvApiToken,
   getMcpStorageKeyUrl,
   getMcpUrl,
-  isDebugAreaEnabled,
   type PackageIntelligenceService,
   PackageIntelligenceServiceImpl,
   RefreshingGitHitsService,
   type ResolveTargetService,
   ResolveTargetServiceImpl,
   type ServiceDiagnostics,
-  startTelemetrySpan,
   type TokenProvider,
-  withTelemetrySpan,
 } from "@githits/core-internal";
 import { version } from "../package.json";
 import {
@@ -68,6 +63,12 @@ import { MigratingAuthStorage } from "./services/migrating-auth-storage.js";
 import { ModeAwareFileAuthStorage } from "./services/mode-aware-file-auth-storage.js";
 import { createCliFetch, createLazyCliFetch } from "./services/proxy-fetch.js";
 import { TokenManager } from "./services/token-manager.js";
+import { debugLog, isDebugAreaEnabled } from "./shared/debug-log.js";
+import {
+  endTelemetrySpan,
+  startTelemetrySpan,
+  withTelemetrySpan,
+} from "./shared/telemetry.js";
 
 const BASE_CLIENT_NAME = "githits-cli";
 const USER_AGENT = `${BASE_CLIENT_NAME}/${version}`;

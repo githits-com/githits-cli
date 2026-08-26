@@ -1,25 +1,14 @@
 export {
   DEFAULT_FETCH_TIMEOUT_MS,
-  debugLog,
-  endTelemetrySpan,
   FetchTimeoutError,
   fetchWithTimeout,
-  flushTelemetry,
   isFetchTimeoutError,
   isKnownPkgseerRegistryArg,
-  isTelemetryEnabled,
   knownPkgseerRegistryArgs,
   type PkgseerRegistry,
   type PkgseerRegistryArg,
-  resetTelemetryCollectorForTests,
-  startTelemetrySpan,
-  type TelemetryAttributes,
-  TelemetryCollector,
-  type TelemetrySpanHandle,
   toPkgseerRegistry,
   toPkgseerRegistryLowercase,
-  withTelemetrySpan,
-  withTelemetrySpanSync,
 } from "@githits/core-internal";
 export {
   AuthRequiredError,
@@ -196,7 +185,17 @@ export {
   vulnSeverityLabel,
   warning,
 } from "@githits/mcp/internal";
+export {
+  type CliErrorDiagnosticsArea,
+  mapCodeNavigationErrorForCli,
+  mapPackageIntelligenceErrorForCli,
+  recordCliErrorClassification,
+} from "./cli-error-diagnostics.js";
 export { parseIntCliOption } from "./cli-options.js";
+export {
+  debugLog,
+  isDebugAreaEnabled,
+} from "./debug-log.js";
 export {
   InvalidKeywordsError,
   normaliseKeywords,
@@ -207,3 +206,14 @@ export {
 } from "./root-cli-pre-action.js";
 export { type Spinner, startSpinner } from "./spinner.js";
 export { SPINNER_MESSAGES } from "./spinner-messages.js";
+export {
+  endTelemetrySpan,
+  flushTelemetry,
+  isTelemetryEnabled,
+  resetTelemetryCollectorForTests,
+  startTelemetrySpan,
+  type TelemetryAttributes,
+  TelemetryCollector,
+  type TelemetrySpanHandle,
+  withTelemetrySpan,
+} from "./telemetry.js";

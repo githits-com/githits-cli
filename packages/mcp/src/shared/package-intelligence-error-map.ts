@@ -4,14 +4,12 @@
  * subclass maps to a specific `MappedErrorCode`; shared cases
  * (`AuthenticationError`, name-prefixed `Invalid*` / `Unsupported*`)
  * reuse the same mapping rules as
- * {@link mapCodeNavigationError}. Every classified error emits a
- * single debug line under the `pkg-intel` area.
+ * {@link mapCodeNavigationError}.
  */
 
 import {
   AuthenticationError,
   ClientUpdateRequiredError,
-  debugLog,
   MalformedPackageIntelligenceResponseError,
   PackageIntelligenceAccessError,
   PackageIntelligenceBackendError,
@@ -46,14 +44,7 @@ export type { MappedError, MappedErrorCode, MappedErrorDetails };
  * through.
  */
 export function mapPackageIntelligenceError(error: unknown): MappedError {
-  const mapped = classify(error);
-  debugLog("pkg-intel", {
-    event: "error-classified",
-    code: mapped.code,
-    errorName: error instanceof Error ? error.name : typeof error,
-    detailKeys: mapped.details ? Object.keys(mapped.details) : [],
-  });
-  return mapped;
+  return classify(error);
 }
 
 function classify(error: unknown): MappedError {

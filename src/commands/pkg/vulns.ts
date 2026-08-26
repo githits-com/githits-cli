@@ -5,13 +5,13 @@ import {
   formatPackageVulnerabilitiesTerminal,
   InvalidPackageSpecError,
   type MappedError,
-  mapPackageIntelligenceError,
   parsePackageSpec,
   requireAuth,
   shouldUseColors,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
+import { mapPackageIntelligenceErrorForCli } from "../../shared/cli-error-diagnostics.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
@@ -93,7 +93,7 @@ export async function pkgVulnsAction(
 }
 
 function handlePkgVulnsCommandError(error: unknown, json: boolean): never {
-  const mapped = mapPackageIntelligenceError(error);
+  const mapped = mapPackageIntelligenceErrorForCli(error);
 
   if (json) {
     console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));

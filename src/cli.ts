@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-import {
-  endTelemetrySpan,
-  flushTelemetry,
-  isTelemetryEnabled,
-  startTelemetrySpan,
-  withTelemetrySpan,
-} from "@githits/core-internal";
 import { colorizeBrand, shouldUseColors } from "@githits/mcp/internal";
 import { Command } from "commander";
 import { description as productDescription, version } from "../package.json";
@@ -47,6 +40,13 @@ import { FileSystemServiceImpl } from "./services/filesystem-service.js";
 import { createLazyCliFetch } from "./services/proxy-fetch.js";
 import { NpmRegistryUpdateCheckService } from "./services/update-check-service.js";
 import { createRootCliPreAction } from "./shared/root-cli-pre-action.js";
+import {
+  endTelemetrySpan,
+  flushTelemetry,
+  isTelemetryEnabled,
+  startTelemetrySpan,
+  withTelemetrySpan,
+} from "./shared/telemetry.js";
 
 const program = new Command();
 const argv = process.argv.slice(2);
