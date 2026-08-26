@@ -35,18 +35,19 @@ definition, and adapt it to a plain callable object:
 import {
   createGetExampleTool,
   toCallableTool,
+  type GetExampleRequestOptions,
+  type GetExampleSearchParams,
   type GetExampleService,
 } from "@githits/mcp/tools";
 
+// Supplied by the application; it owns transport, authentication, and CORS.
+declare function searchExamples(
+  params: GetExampleSearchParams,
+  options?: GetExampleRequestOptions,
+): Promise<string>;
+
 const service: GetExampleService = {
-  search: async ({ query, language, licenseMode }, options) => {
-    const response = await fetch("/api/githits/search", {
-      method: "POST",
-      body: JSON.stringify({ query, language, license_mode: licenseMode }),
-      signal: options?.signal,
-    });
-    return response.text();
-  },
+  search: (params, options) => searchExamples(params, options),
 };
 
 const tool = toCallableTool(createGetExampleTool(service));
@@ -78,8 +79,8 @@ document.modelContext.registerTool({
 
 The frontend owns `document.modelContext`, authentication and login UI,
 request transport, CORS policy, and any user-facing recovery. The injected
-service decides how `/api/githits/search` (or another backend boundary) is
-authenticated and reached.
+service decides how the app-owned backend boundary is authenticated and
+reached.
 
 The package expects callers to provide service implementations through `McpToolServices` or a request-scoped `McpToolServicesProvider`. GitHits does not populate MCP initialize instructions because hosts expose them inconsistently; `quick_start` owns shared guidance instead. Callers may still pass their own `instructions` explicitly. Use `quickStartOptions` to configure the guide. Servers can pass `traceTool` to `createMcpServer()` or `registerMcpTools()` to wrap public tool execution for instrumentation without receiving arguments or auth data.
 
