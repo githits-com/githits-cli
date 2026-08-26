@@ -31,9 +31,9 @@ agent's usefulness assessment.
   instruction string and no installed skills or project pointer, approximating
   a remote connector that exposes only tool definitions. The `full` profile
   keeps MCP instructions and additionally installs the skills plus isolated
-  `CLAUDE.md`/`AGENTS.md` project guidance. These profiles require
-  `--server local`; published MCP runs expose only the published server's own
-  guidance.
+  `CLAUDE.md`/`AGENTS.md` project guidance. `descriptors` and `full` require
+  `--server local`; published MCP runs use the published server's own
+  instructions under the `instructions` profile.
 - To evaluate MCP instruction changes, change branch/source and run local mode.
 - To evaluate skill instruction changes, use `--surface skills --server local`.
 
