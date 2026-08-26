@@ -76,7 +76,9 @@ githits resolve requests --registry pypi --prefer-kind package --json
 ```
 
 Canonical targets such as `npm:express` or `github:expressjs/express` do not
-need resolution.
+need resolution. Passing a package or GitHub repository target already accepted
+by downstream tools is rejected locally with `INVALID_ARGUMENT`; pass that
+target directly to the next GitHits tool instead.
 
 Structured output preserves each candidate's latest-version malicious-content
 decision. Text stays silent for `clear` and `not_applicable`; affected, uncertain,

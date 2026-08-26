@@ -120,9 +120,13 @@ function collectIntentHint(value: string, previous: string[] = []): string[] {
 
 const DESCRIPTION = `Resolve a human-provided name to ranked package or GitHub repository targets.
 
+Pass canonical registry:name or github:owner/repo targets directly to the next
+GitHits command; resolve rejects them locally.
+
 The optional --query and --intent-hint values are sent to the service as ranking
-context. Do not include credentials, personal data, private code, or proprietary
-content in either option.`;
+context. They rank retrieved candidates and do not expand candidate retrieval.
+Do not include credentials, personal data, private code, or proprietary content
+in either option.`;
 
 export function registerResolveCommand(program: Command): Command {
   return program
@@ -133,7 +137,7 @@ export function registerResolveCommand(program: Command): Command {
     .option("-q, --query <text>", "Task context used as a soft ranking hint")
     .option(
       "--registry <list>",
-      `Comma-separated package registries: ${PKGSEER_REGISTRY_LIST}`,
+      `Comma-separated filter that constrains package candidates only: ${PKGSEER_REGISTRY_LIST}`,
     )
     .option("--prefer-kind <kind>", "Soft preference: package or repository")
     .option(

@@ -436,13 +436,21 @@ describe("registerResolveCommand", () => {
     expect(resolveCommand?.description()).toContain(
       "include credentials, personal data, private code",
     );
+    expect(resolveCommand?.description()).toContain(
+      "rank retrieved candidates and do not expand candidate retrieval",
+    );
+    expect(resolveCommand?.description()).toContain(
+      "Pass canonical registry:name or github:owner/repo targets directly",
+    );
     for (const registry of PKGSEER_REGISTRY_ARGS) {
       expect(help).toContain(registry);
     }
     expect(
       resolveCommand?.options.find((option) => option.long === "--registry")
         ?.description,
-    ).toBe(`Comma-separated package registries: ${PKGSEER_REGISTRY_LIST}`);
+    ).toBe(
+      `Comma-separated filter that constrains package candidates only: ${PKGSEER_REGISTRY_LIST}`,
+    );
   });
 
   it("collects repeated intent hints in command-line order", () => {

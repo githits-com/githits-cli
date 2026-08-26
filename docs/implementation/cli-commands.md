@@ -317,6 +317,15 @@ stars, the terminal shows its linked repository as compact
 `github:owner/repo` when possible and otherwise preserves the repository URL.
 Missing evidence is omitted rather than shown as zero.
 
+The shared CLI/local-MCP request boundary rejects an already-canonical package
+or GitHub repository target before the resolver service is called. Recognition
+reuses the compact parser used by downstream code-navigation tools, including
+registry-prefixed package targets and supported GitHub shorthand, host, URL,
+and ref forms. The mapped `INVALID_ARGUMENT` guidance tells the caller to pass
+that target directly to the next GitHits tool. Unprefixed human names such as
+`@types/node`, punctuated names, and slash-separated names remain resolver
+input.
+
 Terminal and MCP compact text share one actionability rule. A best result is a
 copyable/direct canonical next action only when it is non-ambiguous and has
 `EXACT` or `HIGH` confidence. Non-ambiguous `MEDIUM` and `LOW` results are
@@ -330,12 +339,14 @@ because the command did not resolve a target. The backend guarantees that
 `best` is absent only when there are no candidates, so the terminal no-result
 message and exit status key off `best`.
 
-`--registry` accepts a comma-separated package-registry list and the command
-help enumerates every accepted value; repository candidates remain eligible.
+`--registry` accepts a comma-separated package-registry list, constrains package
+candidates only, and leaves repository candidates eligible. The command help
+enumerates every accepted value.
 `--prefer-kind package|repository` is a soft preference, not a filter.
 `--intent-hint` is repeatable. `--limit` controls the ranked list from 1-20
 (default 8); protected exact-name matches can be additional. `--query` and
-`--intent-hint` are sent to the service as ranking context and must not contain
+`--intent-hint` are sent to the service as ranking context. They rank retrieved
+candidates and do not expand candidate retrieval, and must not contain
 credentials, personal data, private code, or proprietary content. Terminal
 errors sanitize untrusted service and option text while JSON errors preserve
 the structured value through JSON escaping.
