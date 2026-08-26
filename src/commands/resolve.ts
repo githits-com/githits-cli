@@ -7,7 +7,6 @@ import {
   buildResolveTargetSuccessPayload,
   formatResolveTargetTerminal,
   InvalidPackageSpecError,
-  mapPackageIntelligenceError,
   RESOLVE_TARGET_DEFAULT_LIMIT,
   RESOLVE_TARGET_MAX_LIMIT,
   requireAuth,
@@ -16,6 +15,7 @@ import {
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
+import { mapPackageIntelligenceErrorForCli } from "../shared/cli-error-diagnostics.js";
 import { parseIntCliOption } from "../shared/cli-options.js";
 import {
   buildCliMappedErrorPayload,
@@ -100,7 +100,7 @@ function buildCliResolveTargetParams(
 }
 
 function handleResolveError(error: unknown, json: boolean): never {
-  const mapped = mapPackageIntelligenceError(error);
+  const mapped = mapPackageIntelligenceErrorForCli(error);
   // Package-intelligence mappings never set `details.hint`, and their update
   // command is local. Sanitize any new terminal-visible mapped text here too.
   console.error(

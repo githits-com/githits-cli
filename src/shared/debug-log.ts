@@ -2,9 +2,8 @@
  * Diagnostic logging gated by `GITHITS_DEBUG`.
  *
  * Emits a single line of JSON to stderr when the caller's `area`
- * matches the env-var scope. This is the shared diagnostics path for
- * service integrations that need low-friction field debugging without
- * inventing per-feature flags.
+ * matches the env-var scope. This is owned by the CLI host; core service
+ * clients receive diagnostics through the transport-neutral interface.
  *
  * **PII policy.** Most debug payloads carry error codes, parsed spec
  * shape, and request parameter *names* — never the user's query

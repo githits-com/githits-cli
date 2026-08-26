@@ -7,12 +7,15 @@ import {
 } from "../shared/fetch-timeout.js";
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
-import { withTelemetrySpan } from "../shared/telemetry.js";
 import {
   TermsAcceptanceRequiredError,
   throwIfTermsAcceptanceRequired,
 } from "../shared/terms-acceptance.js";
 import { validateServiceUrl } from "./config.js";
+import {
+  type ServiceDiagnostics,
+  withServiceDiagnostics,
+} from "./runtime-diagnostics.js";
 
 export {
   createTermsAcceptanceError,
@@ -175,6 +178,7 @@ export interface GitHitsServiceRuntimeOptions {
   clientHeaders?: ClientHeaderBuilder;
   userAgent?: string;
   exampleRequestTimeoutMs?: number;
+  diagnostics?: ServiceDiagnostics;
 }
 
 const LANGUAGE_SCHEMA = z.object({
@@ -216,92 +220,108 @@ export class GitHitsServiceImpl implements GitHitsService {
   ) {}
 
   async search(params: SearchParams): Promise<string> {
-    return withTelemetrySpan("githits.search.request", async () => {
-      const response = await this.request(
-        "/search",
-        {
-          method: "POST",
-          headers: this.headers(),
-          body: JSON.stringify({
-            query: params.query,
-            language: params.language,
-            license_mode: params.licenseMode ?? "strict",
-            include_explanation: params.includeExplanation ?? false,
-          }),
-        },
-        this.runtime.exampleRequestTimeoutMs ??
-          DEFAULT_EXAMPLE_REQUEST_TIMEOUT_MS,
-      );
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "githits.search.request",
+      async () => {
+        const response = await this.request(
+          "/search",
+          {
+            method: "POST",
+            headers: this.headers(),
+            body: JSON.stringify({
+              query: params.query,
+              language: params.language,
+              license_mode: params.licenseMode ?? "strict",
+              include_explanation: params.includeExplanation ?? false,
+            }),
+          },
+          this.runtime.exampleRequestTimeoutMs ??
+            DEFAULT_EXAMPLE_REQUEST_TIMEOUT_MS,
+        );
 
-      if (!response.ok) {
-        throw await this.createError(response);
-      }
+        if (!response.ok) {
+          throw await this.createError(response);
+        }
 
-      return response.text();
-    });
+        return response.text();
+      },
+    );
   }
 
   async getLanguages(): Promise<Language[]> {
-    return withTelemetrySpan("githits.languages.request", async () => {
-      const response = await this.request("/languages", {
-        headers: this.headers(),
-      });
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "githits.languages.request",
+      async () => {
+        const response = await this.request("/languages", {
+          headers: this.headers(),
+        });
 
-      if (!response.ok) {
-        throw await this.createError(response);
-      }
+        if (!response.ok) {
+          throw await this.createError(response);
+        }
 
-      return this.parseLanguages(response);
-    });
+        return this.parseLanguages(response);
+      },
+    );
   }
 
   async searchLanguages(query: string, limit: number = 5): Promise<Language[]> {
-    return withTelemetrySpan("githits.languages.search.request", async () => {
-      const params = new URLSearchParams({
-        query,
-        limit: String(limit),
-      });
-      const response = await this.request(`/languages?${params.toString()}`, {
-        headers: this.headers(),
-      });
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "githits.languages.search.request",
+      async () => {
+        const params = new URLSearchParams({
+          query,
+          limit: String(limit),
+        });
+        const response = await this.request(`/languages?${params.toString()}`, {
+          headers: this.headers(),
+        });
 
-      if (!response.ok) {
-        throw await this.createError(response);
-      }
+        if (!response.ok) {
+          throw await this.createError(response);
+        }
 
-      return this.parseLanguages(response);
-    });
+        return this.parseLanguages(response);
+      },
+    );
   }
 
   async submitFeedback(params: FeedbackParams): Promise<FeedbackResult> {
-    return withTelemetrySpan("githits.feedback.request", async () => {
-      // For generic feedback, omit body targets entirely. The backend
-      // then uses the valid x-githits-session-id header emitted by
-      // the injected client headers as the feedback target.
-      const response = await this.request("/feedbacks", {
-        method: "POST",
-        headers: this.headers(),
-        body: JSON.stringify({
-          ...(params.exampleId !== undefined && {
-            example_id: params.exampleId,
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "githits.feedback.request",
+      async () => {
+        // For generic feedback, omit body targets entirely. The backend
+        // then uses the valid x-githits-session-id header emitted by
+        // the injected client headers as the feedback target.
+        const response = await this.request("/feedbacks", {
+          method: "POST",
+          headers: this.headers(),
+          body: JSON.stringify({
+            ...(params.exampleId !== undefined && {
+              example_id: params.exampleId,
+            }),
+            ...(params.solutionId !== undefined && {
+              solution_id: params.solutionId,
+            }),
+            accepted: params.accepted,
+            feedback_text: params.feedbackText ?? null,
+            ...(params.toolName !== undefined && {
+              tool_name: params.toolName,
+            }),
           }),
-          ...(params.solutionId !== undefined && {
-            solution_id: params.solutionId,
-          }),
-          accepted: params.accepted,
-          feedback_text: params.feedbackText ?? null,
-          ...(params.toolName !== undefined && {
-            tool_name: params.toolName,
-          }),
-        }),
-      });
+        });
 
-      if (!response.ok) {
-        throw await this.createError(response);
-      }
+        if (!response.ok) {
+          throw await this.createError(response);
+        }
 
-      return { success: true, message: "Feedback submitted successfully" };
-    });
+        return { success: true, message: "Feedback submitted successfully" };
+      },
+    );
   }
 
   private headers(): Record<string, string> {

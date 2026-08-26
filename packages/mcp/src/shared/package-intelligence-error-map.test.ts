@@ -228,14 +228,14 @@ describe("mapPackageIntelligenceError", () => {
   });
 });
 
-describe("mapPackageIntelligenceError — debug emissions", () => {
+describe("mapPackageIntelligenceError host effects", () => {
   let originalDebug: string | undefined;
   let stderrLines: string[];
   let originalWrite: typeof process.stderr.write;
 
   beforeEach(() => {
     originalDebug = process.env.GITHITS_DEBUG;
-    process.env.GITHITS_DEBUG = "pkg-intel";
+    process.env.GITHITS_DEBUG = "*";
     stderrLines = [];
     originalWrite = process.stderr.write.bind(process.stderr);
     process.stderr.write = ((chunk: string | Uint8Array) => {
@@ -255,19 +255,10 @@ describe("mapPackageIntelligenceError — debug emissions", () => {
     }
   });
 
-  it("emits a single pkg-intel line with only PII-safe keys", () => {
+  it("does not write to stderr even when GITHITS_DEBUG is enabled", () => {
     mapPackageIntelligenceError(
       new PackageIntelligenceTargetNotFoundError("Package not found"),
     );
-
-    const combined = stderrLines.join("");
-    expect(combined).toContain('"area":"pkg-intel"');
-    expect(combined).toContain('"event":"error-classified"');
-    expect(combined).toContain('"code":"NOT_FOUND"');
-    expect(combined).toContain(
-      '"errorName":"PackageIntelligenceTargetNotFoundError"',
-    );
-    // Must not carry message text
-    expect(combined).not.toContain("Package not found");
+    expect(stderrLines).toHaveLength(0);
   });
 });

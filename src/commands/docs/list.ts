@@ -4,13 +4,13 @@ import {
   buildListPackageDocsSuccessPayload,
   formatListPackageDocsTerminal,
   InvalidPackageSpecError,
-  mapPackageIntelligenceError,
   parsePackageSpec,
   requireAuth,
   shouldUseColors,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
+import { mapPackageIntelligenceErrorForCli } from "../../shared/cli-error-diagnostics.js";
 import { startSpinner } from "../../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../../shared/spinner-messages.js";
 import {
@@ -99,7 +99,7 @@ function parseLimitOption(value: string | undefined): number | undefined {
 }
 
 function handleDocsListError(error: unknown, json: boolean): never {
-  const mapped = mapPackageIntelligenceError(error);
+  const mapped = mapPackageIntelligenceErrorForCli(error);
 
   if (json) {
     console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));

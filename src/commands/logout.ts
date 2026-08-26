@@ -1,8 +1,8 @@
-import { withTelemetrySpan } from "@githits/core-internal";
 import type { Command } from "commander";
 import { createLogoutCommandDependencies } from "../container.js";
 import type { AuthDiagnosticsStore } from "../services/auth-diagnostics-storage.js";
 import type { AuthStorage } from "../services/auth-storage.js";
+import { withTelemetrySpan } from "../shared/telemetry.js";
 
 export interface LogoutDependencies {
   authStorage: AuthStorage;

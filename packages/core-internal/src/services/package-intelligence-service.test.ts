@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  mock,
-  spyOn,
-} from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { FetchTimeoutError } from "../shared/fetch-timeout.js";
 import {
   AuthenticationError,
@@ -24,6 +16,7 @@ import {
   PackageIntelligenceValidationError,
   PackageIntelligenceVersionNotFoundError,
 } from "./package-intelligence-service.js";
+import type { ServiceDiagnostics } from "./runtime-diagnostics.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
 function asFetchFn<T extends (...args: never[]) => unknown>(
@@ -37,6 +30,18 @@ function jsonResponse(body: unknown, status = 200): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function createDiagnostics(
+  enabledArea: string,
+  events: Array<{ area: string; event: Record<string, unknown> }>,
+): ServiceDiagnostics {
+  return {
+    withOperation: async <T>(_name: string, operation: () => Promise<T>) =>
+      operation(),
+    isEnabled: (area) => area === enabledArea,
+    debug: (area, event) => events.push({ area, event }),
+  };
 }
 
 const HAPPY_BODY = {
@@ -90,7 +95,6 @@ describe("PackageIntelligenceServiceImpl", () => {
   const ENDPOINT = "https://pkgseer.dev";
 
   let originalFetch: typeof globalThis.fetch;
-  const originalDebug = process.env.GITHITS_DEBUG;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -98,8 +102,6 @@ describe("PackageIntelligenceServiceImpl", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    if (originalDebug === undefined) delete process.env.GITHITS_DEBUG;
-    else process.env.GITHITS_DEBUG = originalDebug;
   });
 
   it("maps a happy-path response to PackageSummary", async () => {
@@ -560,10 +562,7 @@ describe("PackageIntelligenceServiceImpl", () => {
   });
 
   it("exposes GraphQL schema mismatch details when pkg-graphql debug is enabled", async () => {
-    process.env.GITHITS_DEBUG = "pkg-graphql";
-    const stderrSpy = spyOn(process.stderr, "write").mockImplementation(
-      () => true as never,
-    );
+    const events: Array<{ area: string; event: Record<string, unknown> }> = [];
     const fetchFn = mock(() =>
       Promise.resolve(
         jsonResponse({
@@ -580,6 +579,9 @@ describe("PackageIntelligenceServiceImpl", () => {
       ENDPOINT,
       createMockTokenProvider(),
       asFetchFn(fetchFn),
+      {
+        diagnostics: createDiagnostics("pkg-graphql", events),
+      },
     );
 
     await expect(
@@ -588,7 +590,16 @@ describe("PackageIntelligenceServiceImpl", () => {
       name: "PackageIntelligenceBackendError",
       message: 'Cannot query field "packageSummary" on type "Query".',
     });
-    stderrSpy.mockRestore();
+    expect(events).toEqual([
+      {
+        area: "pkg-graphql",
+        event: {
+          event: "graphql-schema-mismatch",
+          code: "GRAPHQL_VALIDATION_FAILED",
+          message: 'Cannot query field "packageSummary" on type "Query".',
+        },
+      },
+    ]);
   });
 
   it("honors explicit backend CLIENT_UPDATE_REQUIRED errors", async () => {

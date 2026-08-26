@@ -19,9 +19,9 @@ import {
   isExactPathAuthorityError,
   looksLikeMissingFileMessage,
   type MappedError,
-  mapCodeNavigationError,
   parseCodeNavigationTargetSpec,
 } from "@githits/mcp/internal";
+import { mapCodeNavigationErrorForCli } from "../../shared/cli-error-diagnostics.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
@@ -319,7 +319,7 @@ export function handleCodeNavCommandError(
   exitCode = 1,
   mapMappedError: (mapped: MappedError) => MappedError = (mapped) => mapped,
 ): never {
-  const mapped = mapMappedError(mapCodeNavigationError(error));
+  const mapped = mapMappedError(mapCodeNavigationErrorForCli(error));
   if (json) {
     // eslint-disable-next-line no-console
     console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));

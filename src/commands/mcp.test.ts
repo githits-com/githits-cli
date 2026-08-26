@@ -2,11 +2,7 @@ import { describe, expect, it, mock } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  AuthenticationError,
-  flushTelemetry,
-  resetTelemetryCollectorForTests,
-} from "@githits/core-internal";
+import { AuthenticationError } from "@githits/core-internal";
 import {
   createMcpServer,
   getMcpToolDescriptors,
@@ -31,6 +27,10 @@ import {
   createMockPackageIntelligenceService,
   createMockResolveTargetService,
 } from "../services/test-helpers.js";
+import {
+  flushTelemetry,
+  resetTelemetryCollectorForTests,
+} from "../shared/telemetry.js";
 import {
   type CreateMcpCommandStartupOptions,
   createMcpCommandStartup,

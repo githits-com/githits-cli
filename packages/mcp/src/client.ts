@@ -30,6 +30,7 @@ export type {
   RawCodeDiffScope,
   RawCodeDiffScopeStatus,
   RawCodeDiffSummary,
+  ServiceDiagnostics,
   TokenProvider,
 } from "@githits/core-internal";
 
@@ -41,8 +42,6 @@ export {
   DEFAULT_API_URL,
   DEFAULT_CODE_NAV_URL,
   DEFAULT_MCP_URL,
-  endTelemetrySpan,
-  flushTelemetry,
   GitHitsServiceImpl,
   getApiUrl,
   getCodeNavigationUrl,
@@ -51,8 +50,6 @@ export {
   PackageIntelligenceServiceImpl,
   PKGSEER_REGISTRY_LIST,
   RefreshingGitHitsService,
-  startTelemetrySpan,
   toPkgseerRegistry,
   toPkgseerRegistryLowercase,
-  withTelemetrySpan,
 } from "@githits/core-internal";

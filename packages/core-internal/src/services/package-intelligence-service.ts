@@ -17,7 +17,6 @@
  */
 
 import { z } from "zod";
-import { debugLog, isDebugAreaEnabled } from "../shared/debug-log.js";
 import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
 import {
   type PkgseerGraphqlResponse,
@@ -26,7 +25,6 @@ import {
 } from "../shared/pkgseer-graphql.js";
 import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
-import { withTelemetrySpan } from "../shared/telemetry.js";
 import {
   ClientUpdateRequiredError,
   isClientUpdateRequiredGraphQLError,
@@ -39,6 +37,10 @@ import {
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
 import { promoteGenericVersionNotFound } from "./promote-version-not-found.js";
+import {
+  type ServiceDiagnostics,
+  withServiceDiagnostics,
+} from "./runtime-diagnostics.js";
 import type { TokenProvider } from "./token-provider.js";
 
 export interface PackageSummaryParams {
@@ -2285,17 +2287,22 @@ export class PackageIntelligenceServiceImpl
       clientHeaders?: ClientHeaderBuilder;
       userAgent?: string;
       clientVersion?: string;
+      diagnostics?: ServiceDiagnostics;
     } = {},
   ) {}
 
   async packageSummary(params: PackageSummaryParams): Promise<PackageSummary> {
-    return withTelemetrySpan("pkg-intel.summary.request", () =>
-      executeWithTokenRefresh({
-        getToken: () => this.tokenProvider.getToken(),
-        forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: isTokenRefreshableError,
-        executeWithToken: (token) => this.executePackageSummary(token, params),
-      }),
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "pkg-intel.summary.request",
+      () =>
+        executeWithTokenRefresh({
+          getToken: () => this.tokenProvider.getToken(),
+          forceRefresh: () => this.tokenProvider.forceRefresh(),
+          shouldRefresh: isTokenRefreshableError,
+          executeWithToken: (token) =>
+            this.executePackageSummary(token, params),
+        }),
     );
   }
 
@@ -2317,6 +2324,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2364,6 +2372,7 @@ export class PackageIntelligenceServiceImpl
     return createPackageIntelligenceGraphQLError(
       errors,
       this.runtime.clientVersion,
+      this.runtime.diagnostics,
     );
   }
 
@@ -2437,14 +2446,17 @@ export class PackageIntelligenceServiceImpl
   async packageVulnerabilities(
     params: PackageVulnerabilitiesParams,
   ): Promise<VulnerabilityReport> {
-    return withTelemetrySpan("pkg-intel.vulnerabilities.request", () =>
-      executeWithTokenRefresh({
-        getToken: () => this.tokenProvider.getToken(),
-        forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: isTokenRefreshableError,
-        executeWithToken: (token) =>
-          this.executePackageVulnerabilities(token, params),
-      }),
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "pkg-intel.vulnerabilities.request",
+      () =>
+        executeWithTokenRefresh({
+          getToken: () => this.tokenProvider.getToken(),
+          forceRefresh: () => this.tokenProvider.forceRefresh(),
+          shouldRefresh: isTokenRefreshableError,
+          executeWithToken: (token) =>
+            this.executePackageVulnerabilities(token, params),
+        }),
     );
   }
 
@@ -2547,6 +2559,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2644,42 +2657,51 @@ export class PackageIntelligenceServiceImpl
   async packageDependencies(
     params: PackageDependenciesParams,
   ): Promise<DependencyReport> {
-    return withTelemetrySpan("pkg-intel.dependencies.request", () =>
-      executeWithTokenRefresh({
-        getToken: () => this.tokenProvider.getToken(),
-        forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: isTokenRefreshableError,
-        executeWithToken: (token) =>
-          this.executePackageDependencies(token, params),
-      }),
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "pkg-intel.dependencies.request",
+      () =>
+        executeWithTokenRefresh({
+          getToken: () => this.tokenProvider.getToken(),
+          forceRefresh: () => this.tokenProvider.forceRefresh(),
+          shouldRefresh: isTokenRefreshableError,
+          executeWithToken: (token) =>
+            this.executePackageDependencies(token, params),
+        }),
     );
   }
 
   async packageUpgradeDependencyProbe(
     params: PackageUpgradeDependencyProbeParams,
   ): Promise<DependencyReport> {
-    return withTelemetrySpan("pkg-intel.upgrade-dependency-probe.request", () =>
-      executeWithTokenRefresh({
-        getToken: () => this.tokenProvider.getToken(),
-        forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: isTokenRefreshableError,
-        executeWithToken: (token) =>
-          this.executePackageUpgradeDependencyProbe(token, params),
-      }),
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "pkg-intel.upgrade-dependency-probe.request",
+      () =>
+        executeWithTokenRefresh({
+          getToken: () => this.tokenProvider.getToken(),
+          forceRefresh: () => this.tokenProvider.forceRefresh(),
+          shouldRefresh: isTokenRefreshableError,
+          executeWithToken: (token) =>
+            this.executePackageUpgradeDependencyProbe(token, params),
+        }),
     );
   }
 
   async packageUpgradeReview(
     params: PackageUpgradeReviewParams,
   ): Promise<PackageUpgradeReviewResponse> {
-    return withTelemetrySpan("pkg-intel.upgrade-review.request", () =>
-      executeWithTokenRefresh({
-        getToken: () => this.tokenProvider.getToken(),
-        forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: isTokenRefreshableError,
-        executeWithToken: (token) =>
-          this.executePackageUpgradeReview(token, params),
-      }),
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "pkg-intel.upgrade-review.request",
+      () =>
+        executeWithTokenRefresh({
+          getToken: () => this.tokenProvider.getToken(),
+          forceRefresh: () => this.tokenProvider.forceRefresh(),
+          shouldRefresh: isTokenRefreshableError,
+          executeWithToken: (token) =>
+            this.executePackageUpgradeReview(token, params),
+        }),
     );
   }
 
@@ -2703,6 +2725,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2767,6 +2790,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2832,6 +2856,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -3116,14 +3141,17 @@ export class PackageIntelligenceServiceImpl
   async packageChangelog(
     params: PackageChangelogParams,
   ): Promise<ChangelogReport> {
-    return withTelemetrySpan("pkg-intel.changelog.request", () =>
-      executeWithTokenRefresh({
-        getToken: () => this.tokenProvider.getToken(),
-        forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: isTokenRefreshableError,
-        executeWithToken: (token) =>
-          this.executePackageChangelog(token, params),
-      }),
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "pkg-intel.changelog.request",
+      () =>
+        executeWithTokenRefresh({
+          getToken: () => this.tokenProvider.getToken(),
+          forceRefresh: () => this.tokenProvider.forceRefresh(),
+          shouldRefresh: isTokenRefreshableError,
+          executeWithToken: (token) =>
+            this.executePackageChangelog(token, params),
+        }),
     );
   }
 
@@ -3150,6 +3178,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -3237,13 +3266,17 @@ export class PackageIntelligenceServiceImpl
   async listPackageDocs(
     params: ListPackageDocsParams,
   ): Promise<PackageDocsList> {
-    return withTelemetrySpan("pkg-intel.docs.list", () =>
-      executeWithTokenRefresh({
-        getToken: () => this.tokenProvider.getToken(),
-        forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: isTokenRefreshableError,
-        executeWithToken: (token) => this.executeListPackageDocs(token, params),
-      }),
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "pkg-intel.docs.list",
+      () =>
+        executeWithTokenRefresh({
+          getToken: () => this.tokenProvider.getToken(),
+          forceRefresh: () => this.tokenProvider.forceRefresh(),
+          shouldRefresh: isTokenRefreshableError,
+          executeWithToken: (token) =>
+            this.executeListPackageDocs(token, params),
+        }),
     );
   }
 
@@ -3267,6 +3300,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -3341,13 +3375,17 @@ export class PackageIntelligenceServiceImpl
   async readPackageDoc(
     params: ReadPackageDocParams,
   ): Promise<PackageDocResult> {
-    return withTelemetrySpan("pkg-intel.docs.read", () =>
-      executeWithTokenRefresh({
-        getToken: () => this.tokenProvider.getToken(),
-        forceRefresh: () => this.tokenProvider.forceRefresh(),
-        shouldRefresh: isTokenRefreshableError,
-        executeWithToken: (token) => this.executeReadPackageDoc(token, params),
-      }),
+    return withServiceDiagnostics(
+      this.runtime.diagnostics,
+      "pkg-intel.docs.read",
+      () =>
+        executeWithTokenRefresh({
+          getToken: () => this.tokenProvider.getToken(),
+          forceRefresh: () => this.tokenProvider.forceRefresh(),
+          shouldRefresh: isTokenRefreshableError,
+          executeWithToken: (token) =>
+            this.executeReadPackageDoc(token, params),
+        }),
     );
   }
 
@@ -3367,6 +3405,7 @@ export class PackageIntelligenceServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -3507,6 +3546,7 @@ export function createPackageIntelligenceTransportError(
 export function createPackageIntelligenceGraphQLError(
   errors: PackageIntelligenceGraphQLResponseError[],
   clientVersion?: string,
+  diagnostics?: ServiceDiagnostics,
 ): Error {
   const message = errors.map((error) => error.message).join(", ");
   const extensions = getPrimaryExtensions(errors);
@@ -3524,13 +3564,15 @@ export function createPackageIntelligenceGraphQLError(
   if (isGraphQLSchemaMismatchError({ message, code })) {
     const sanitized =
       "Backend protocol mismatch. Your CLI may be newer than the server, or the server may require a newer CLI. Run `githits update-check` to verify your installed version. Set GITHITS_DEBUG=pkg-graphql to inspect GraphQL details during local development.";
-    debugLog("pkg-graphql", {
-      event: "graphql-schema-mismatch",
-      code: code ?? "omitted",
-      message,
-    });
+    if (diagnostics?.isEnabled("pkg-graphql")) {
+      diagnostics.debug("pkg-graphql", {
+        event: "graphql-schema-mismatch",
+        code: code ?? "omitted",
+        message,
+      });
+    }
     return new PackageIntelligenceBackendError(
-      isDebugAreaEnabled("pkg-graphql") ? message : sanitized,
+      diagnostics?.isEnabled("pkg-graphql") ? message : sanitized,
       undefined,
       code,
       retryable,

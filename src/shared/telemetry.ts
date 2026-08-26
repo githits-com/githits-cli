@@ -123,22 +123,6 @@ export async function withTelemetrySpan<T>(
   }
 }
 
-export function withTelemetrySpanSync<T>(
-  name: string,
-  operation: () => T,
-  attributes?: TelemetryAttributes,
-): T {
-  const handle = telemetryCollector.startSpan(name, attributes);
-  try {
-    const result = operation();
-    telemetryCollector.endSpan(handle);
-    return result;
-  } catch (error) {
-    telemetryCollector.endSpan(handle, { error: true });
-    throw error;
-  }
-}
-
 export function startTelemetrySpan(
   name: string,
   attributes?: TelemetryAttributes,

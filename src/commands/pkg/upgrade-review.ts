@@ -4,13 +4,13 @@ import {
   buildPackageUpgradeReviewRequest,
   formatPackageUpgradeReviewTerminal,
   InvalidPackageSpecError,
-  mapPackageIntelligenceError,
   parsePackageSpec,
   requireAuth,
   shouldUseColors,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
+import { mapPackageIntelligenceErrorForCli } from "../../shared/cli-error-diagnostics.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
@@ -84,7 +84,7 @@ function handlePkgUpgradeReviewCommandError(
   error: unknown,
   json: boolean,
 ): never {
-  const mapped = mapPackageIntelligenceError(error);
+  const mapped = mapPackageIntelligenceErrorForCli(error);
   if (json) {
     console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
   } else {

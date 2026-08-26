@@ -5,13 +5,13 @@ import {
   buildPackageSummarySuccessPayload,
   formatPackageSummaryTerminal,
   InvalidPackageSpecError,
-  mapPackageIntelligenceError,
   parsePackageSpec,
   requireAuth,
   shouldUseColors,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
+import { mapPackageIntelligenceErrorForCli } from "../../shared/cli-error-diagnostics.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
@@ -86,7 +86,7 @@ export async function pkgInfoAction(
 }
 
 function handlePkgInfoCommandError(error: unknown, json: boolean): never {
-  const mapped = mapPackageIntelligenceError(error);
+  const mapped = mapPackageIntelligenceErrorForCli(error);
 
   if (json) {
     console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));

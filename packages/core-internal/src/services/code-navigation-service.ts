@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { debugLog, isDebugAreaEnabled } from "../shared/debug-log.js";
 import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
 import {
   type PkgseerGraphqlResponse,
@@ -22,6 +21,7 @@ import {
   isTokenRefreshableError,
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
+import type { ServiceDiagnostics } from "./runtime-diagnostics.js";
 import type { TokenProvider } from "./token-provider.js";
 
 const INDEXING_WAIT_HINT =
@@ -1348,21 +1348,24 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitT
   }
 }`;
 
-function debugUnifiedSearchRequest(variables: {
-  targets: Array<Record<string, unknown>>;
-  query: string;
-  sources?: UnifiedSearchSource[];
-  filters?: UnifiedSearchFilters;
-  allowPartialResults: boolean;
-  limit?: number;
-  offset?: number;
-  waitTimeoutMs?: number;
-}): void {
-  if (!isDebugAreaEnabled("code-nav")) return;
+function debugUnifiedSearchRequest(
+  variables: {
+    targets: Array<Record<string, unknown>>;
+    query: string;
+    sources?: UnifiedSearchSource[];
+    filters?: UnifiedSearchFilters;
+    allowPartialResults: boolean;
+    limit?: number;
+    offset?: number;
+    waitTimeoutMs?: number;
+  },
+  diagnostics?: ServiceDiagnostics,
+): void {
+  if (!diagnostics?.isEnabled("code-nav")) return;
   const serialised = serialiseForDebug(variables);
   const filters = asRecord(serialised.filters);
 
-  debugLog("code-nav", {
+  diagnostics.debug("code-nav", {
     event: "request",
     operation: "search",
     targetCount: Array.isArray(serialised.targets)
@@ -1390,9 +1393,10 @@ function debugGraphqlWireRequest(
   operation: "search" | "codeDiff",
   graphqlQuery: string,
   variables: Record<string, unknown>,
+  diagnostics?: ServiceDiagnostics,
 ): void {
-  if (!isDebugAreaEnabled("code-nav-wire")) return;
-  debugLog("code-nav-wire", {
+  if (!diagnostics?.isEnabled("code-nav-wire")) return;
+  diagnostics.debug("code-nav-wire", {
     event: "wire-request",
     operation,
     graphqlQuery,
@@ -2301,6 +2305,7 @@ export class CodeNavigationServiceImpl
       clientHeaders?: ClientHeaderBuilder;
       userAgent?: string;
       clientVersion?: string;
+      diagnostics?: ServiceDiagnostics;
     } = {},
   ) {}
 
@@ -2317,6 +2322,7 @@ export class CodeNavigationServiceImpl
       fetchFn: this.fetchFn,
       clientHeaders: this.runtime.clientHeaders,
       userAgent: this.runtime.userAgent,
+      diagnostics: this.runtime.diagnostics,
     });
     if (response.status < 200 || response.status >= 300) return response;
     if (!hasSchemaMismatchErrors(response.parsedBody)) return response;
@@ -2324,9 +2330,11 @@ export class CodeNavigationServiceImpl
     for (const fallbackQuery of buildTargetResolutionFallbackQueries(
       input.query,
     )) {
-      debugLog("code-nav", {
-        event: "target-resolution-query-fallback",
-      });
+      if (this.runtime.diagnostics?.isEnabled("code-nav")) {
+        this.runtime.diagnostics.debug("code-nav", {
+          event: "target-resolution-query-fallback",
+        });
+      }
       const fallbackResponse = await postPkgseerGraphql({
         endpointUrl: this.codeNavigationUrl,
         token: input.token,
@@ -2335,6 +2343,7 @@ export class CodeNavigationServiceImpl
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
       });
       if (!hasSchemaMismatchErrors(fallbackResponse.parsedBody)) {
         return fallbackResponse;
@@ -2382,7 +2391,12 @@ export class CodeNavigationServiceImpl
   ): Promise<CodeDiffResult> {
     const query = buildCodeDiffQuery(params.mode);
     const variables = buildCodeDiffVariables(params);
-    debugGraphqlWireRequest("codeDiff", query, variables);
+    debugGraphqlWireRequest(
+      "codeDiff",
+      query,
+      variables,
+      this.runtime.diagnostics,
+    );
 
     let response: PkgseerGraphqlResponse;
     try {
@@ -2494,8 +2508,13 @@ export class CodeNavigationServiceImpl
       offset: params.offset,
       waitTimeoutMs: params.waitTimeoutMs,
     };
-    debugUnifiedSearchRequest(variables);
-    debugGraphqlWireRequest("search", UNIFIED_SEARCH_QUERY, variables);
+    debugUnifiedSearchRequest(variables, this.runtime.diagnostics);
+    debugGraphqlWireRequest(
+      "search",
+      UNIFIED_SEARCH_QUERY,
+      variables,
+      this.runtime.diagnostics,
+    );
     try {
       response = await this.postGraphqlWithTargetResolutionFallback({
         token,
@@ -2683,13 +2702,17 @@ export class CodeNavigationServiceImpl
     if (isGraphQLSchemaMismatchError({ message, code })) {
       const sanitized =
         "Backend protocol mismatch. Your CLI may be newer than the server, or the server may require a newer CLI. Run `githits update-check` to verify your installed version. Set GITHITS_DEBUG=code-nav-wire to inspect GraphQL details during local development.";
-      debugLog("code-nav", {
-        event: "graphql-schema-mismatch",
-        code: code ?? "omitted",
-        message,
-      });
+      if (this.runtime.diagnostics?.isEnabled("code-nav")) {
+        this.runtime.diagnostics.debug("code-nav", {
+          event: "graphql-schema-mismatch",
+          code: code ?? "omitted",
+          message,
+        });
+      }
       return new CodeNavigationBackendError(
-        isDebugAreaEnabled("code-nav-wire") ? message : sanitized,
+        this.runtime.diagnostics?.isEnabled("code-nav-wire")
+          ? message
+          : sanitized,
         undefined,
         code,
         retryable,

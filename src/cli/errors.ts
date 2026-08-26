@@ -1,7 +1,4 @@
-import {
-  isDebugAreaEnabled,
-  normalizeSingleLineText,
-} from "@githits/core-internal";
+import { normalizeSingleLineText } from "@githits/core-internal";
 import {
   AuthRequiredError,
   formatAuthRequiredForTerminal,
@@ -11,6 +8,7 @@ import { ExperimentalToolsDisabledError } from "../services/experimental-cli-pol
 import { ExperimentalConfigError } from "../services/experimental-config.js";
 import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
 import { AuthStoragePolicyError } from "../services/mode-aware-file-auth-storage.js";
+import { isDebugAreaEnabled } from "../shared/debug-log.js";
 
 export interface CliErrorHandlerDeps {
   stderr: Pick<NodeJS.WriteStream, "write">;

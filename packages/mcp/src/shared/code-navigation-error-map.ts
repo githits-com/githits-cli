@@ -21,7 +21,6 @@ import {
   CodeNavigationUnresolvableError,
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
-  debugLog,
   type IndexingDurationEstimate,
   MalformedCodeNavigationResponseError,
   type SuggestedRef,
@@ -143,19 +142,7 @@ export interface MappedError {
  * table test in `code-navigation-error-map.test.ts` guards that.
  */
 export function mapCodeNavigationError(error: unknown): MappedError {
-  const mapped = classify(error);
-  // Emit a single debug line per classification when GITHITS_DEBUG is
-  // scoped to "code-nav" (or "*"). PII policy: carry the `code`,
-  // error constructor name, and detail *keys* — never the message
-  // text (which can echo user-supplied query content on some
-  // backend error paths) and never response bodies.
-  debugLog("code-nav", {
-    event: "error-classified",
-    code: mapped.code,
-    errorName: error instanceof Error ? error.name : typeof error,
-    detailKeys: mapped.details ? Object.keys(mapped.details) : [],
-  });
-  return mapped;
+  return classify(error);
 }
 
 export function mapTermsAcceptanceError(
