@@ -29,6 +29,7 @@ import {
   toFileIntent,
   toSymbolCategory,
   toSymbolKind,
+  type UnifiedSearchErrorPayload,
   type UnifiedSearchSourceStatusPayload,
   type UnifiedSearchStatusIncompletePayload,
   type UnifiedSearchStatusResultPayload,
@@ -39,7 +40,10 @@ import { parseIntCliOption } from "../shared/cli-options.js";
 import { startSpinner } from "../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
 import { formatIndexingError } from "./code/code-nav-cli-helpers.js";
-import { formatMappedErrorForTerminal } from "./format-mapped-error.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "./format-mapped-error.js";
 
 export interface SearchCommandOptions {
   in?: string[];
@@ -389,7 +393,9 @@ function handleSearchError(
   json: boolean,
   context: "search" | "status" = "search",
 ): never {
-  const payload = buildUnifiedSearchErrorPayload(error);
+  const payload = applyCliTermsRemediation(
+    buildUnifiedSearchErrorPayload(error),
+  );
   recordCliErrorClassification("code-nav", error, payload);
 
   if (json) {
@@ -400,21 +406,33 @@ function handleSearchError(
   process.exit(1);
 }
 
-function formatSearchErrorTerminal(
-  payload: {
-    error: string;
-    code: string;
-    retryable?: boolean;
-    details?: Record<string, unknown>;
-  },
-  context: "search" | "status",
-): string {
-  const mapped: MappedError = {
+function applyCliTermsRemediation(
+  payload: UnifiedSearchErrorPayload,
+): UnifiedSearchErrorPayload {
+  if (payload.code !== "TERMS_ACCEPTANCE_REQUIRED") return payload;
+  const formatted = buildCliMappedErrorPayload(toMappedError(payload));
+  return {
+    error: formatted.error,
+    code: formatted.code,
+    retryable: formatted.retryable,
+    details: formatted.details as Record<string, unknown> | undefined,
+  };
+}
+
+function toMappedError(payload: UnifiedSearchErrorPayload): MappedError {
+  return {
     code: payload.code as MappedError["code"],
     message: payload.error,
     retryable: payload.retryable,
     details: payload.details as MappedError["details"],
   };
+}
+
+function formatSearchErrorTerminal(
+  payload: UnifiedSearchErrorPayload,
+  context: "search" | "status",
+): string {
+  const mapped = toMappedError(payload);
   if (payload.code === "AUTH_REQUIRED") {
     return formatMappedErrorForTerminal(mapped);
   }
