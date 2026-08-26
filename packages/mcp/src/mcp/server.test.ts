@@ -105,11 +105,11 @@ const DESCRIPTION_ROUTING: Record<
     ],
   },
   code_files: {
-    prefix: /^List indexed source files and paths/,
+    prefix: /^List indexed files and paths/,
     body: ["`code_read`", "`code_grep`"],
   },
   code_read: {
-    prefix: /^Read an exact indexed source file or focused line window/,
+    prefix: /^Read an exact indexed file or focused line window/,
     body: ["`code_files`", "`code_grep`", "`search`", "150 lines per call"],
   },
   code_grep: {
@@ -123,7 +123,7 @@ const DESCRIPTION_ROUTING: Record<
   },
   docs_list: {
     prefix: /^List package documentation pages/,
-    body: ["`docs_read`", "`search`"],
+    body: ["`docs_read`", "`search`", "`code_read`"],
   },
   docs_read: {
     prefix: /^Read a package documentation page by ID/,
@@ -150,7 +150,7 @@ const DESCRIPTION_ROUTING: Record<
   pkg_changelog: {
     prefix: /^Find release and changelog evidence/,
     body: ["`pkg_info`", "`pkg_upgrade_review`"],
-    absent: ["newest-first"],
+    absent: ["newest-first", "most recent"],
   },
   pkg_upgrade_review: {
     prefix:

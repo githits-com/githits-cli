@@ -18,7 +18,7 @@ describe("createListFilesTool — metadata", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     expect(tool.name).toBe("code_files");
     expect(tool.description).toContain(
-      "List indexed source files and paths for enumeration",
+      "List indexed files and paths for enumeration",
     );
     expect(tool.description).toContain("`code_read` or `code_grep`");
     expect(tool.description).toContain(

@@ -78,7 +78,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION: string =
-  "Read an exact indexed source file or focused line window; use `code_files` " +
+  "Read an exact indexed file or focused line window; use `code_files` " +
   "to enumerate paths and `code_grep` or `search` to find the right window. " +
   "It does not list directories. Use `code_files` with `path_prefix` for file/path " +
   "enumeration. **MCP cap: " +
