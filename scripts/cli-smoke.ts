@@ -68,6 +68,7 @@ let cliLaunchTarget = SOURCE_CLI_LAUNCH_TARGET;
 
 export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
   "init",
+  "uninstall",
   "login",
   "logout",
   "mcp",

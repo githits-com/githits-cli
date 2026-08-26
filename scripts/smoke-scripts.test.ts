@@ -136,6 +136,7 @@ describe("CLI root help smoke contract", () => {
     expect(EXPECTED_TOP_LEVEL_COMMANDS).toEqual(
       EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
     );
+    expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).toContain("uninstall");
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("resolve");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("resolve");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toHaveLength(
