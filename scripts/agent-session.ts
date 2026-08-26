@@ -7,9 +7,9 @@ import {
   buildEvalEnv,
   buildMcpConfig,
   buildOpenCodeConfig,
+  buildOpenCodeSkillsConfig,
   type CodexReasoningEffort,
   type EvalSurface,
-  emptyOpenCodeConfig,
   type GuidanceInstallationMetadata,
   type GuidanceProfile,
   isolateOpenCodeSkills,
@@ -300,7 +300,7 @@ export function prepareAgentSession(options: AgentSessionOptions): {
       openCodeConfigPath,
       options.surface === "mcp"
         ? buildOpenCodeConfig(options)
-        : emptyOpenCodeConfig(),
+        : buildOpenCodeSkillsConfig(),
     );
   }
 

@@ -185,7 +185,7 @@ function formatChangelogTerminalError(mapped: MappedError): string {
 }
 
 const PKG_CHANGELOG_DESCRIPTION = `Fetch recent release notes or changelog entries for a package or
-repository. By default shows the ten most recent entries with the
+repository. By default shows up to ten latest-mode entries with the
 first 10 lines of each entry's body. Use --from for a full version
 range, --limit to change the latest-mode count (1-50), --verbose to
 uncap the body preview, and --no-body to drop bodies entirely.
@@ -213,7 +213,7 @@ export function registerPkgChangelogCommand(pkgCommand: Command): Command {
     )
     .option(
       "--from <version>",
-      "Start of version range (enables range mode; disables --limit)",
+      "Exclusive start of version range (enables range mode; disables --limit)",
     )
     .option("--to <version>", "End of range / latest-mode cap")
     .option("--limit <n>", "Latest-mode entry count (1-50, default 10)")

@@ -116,9 +116,10 @@ the same local/published GitHits MCP config used by the eval harness. Claude get
 an explicit `mcp.json`, Codex gets inline config overrides plus a persisted
 `codex-config.toml` artifact, and OpenCode gets a project `opencode.json` with a
 local MCP server entry. Use `--workspace <dir>` when you want a stable workspace
-path, and `--dry-run` to print the command without launching the agent. OpenCode
-session setup refuses to overwrite an existing project `opencode.json`; use an
-empty or temporary workspace for OpenCode sessions.
+path, and `--dry-run` to print the command without launching the agent. Skills
+and full-guidance setup preserves unrelated skills but refuses existing GitHits
+skill destinations or its CLI shim, so use a new path for those modes. OpenCode
+session setup also refuses to overwrite an existing project `opencode.json`.
 
 Useful options:
 

@@ -603,8 +603,12 @@ export function buildOpenCodeConfig(
   };
 }
 
-export function emptyOpenCodeConfig(): OpenCodeConfig {
-  return {};
+export function buildOpenCodeSkillsConfig(): OpenCodeConfig {
+  return {
+    permission: {
+      task: "deny",
+    },
+  };
 }
 
 function shQuote(value: string): string {
@@ -1639,7 +1643,7 @@ async function runWorkload(
     writeJson(workspaceOpenCodeConfigPath, openCodeConfig);
   } else {
     writeJson(mcpConfigPath, { mcpServers: {} });
-    const openCodeConfig = emptyOpenCodeConfig();
+    const openCodeConfig = buildOpenCodeSkillsConfig();
     writeJson(openCodeConfigPath, openCodeConfig);
     writeJson(workspaceOpenCodeConfigPath, openCodeConfig);
   }

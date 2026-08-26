@@ -24,6 +24,7 @@ import {
   buildMcpConfig,
   buildOpenCodeCommand,
   buildOpenCodeConfig,
+  buildOpenCodeSkillsConfig,
   collectSecretValues,
   DEFAULT_CODEX_MODEL,
   DEFAULT_CODEX_REASONING_EFFORT,
@@ -321,6 +322,14 @@ describe("agent eval harness", () => {
           enabled: true,
           timeout: 90_000,
         },
+      },
+    });
+  });
+
+  it("denies OpenCode task delegation in skills mode", () => {
+    expect(buildOpenCodeSkillsConfig()).toEqual({
+      permission: {
+        task: "deny",
       },
     });
   });
@@ -751,6 +760,33 @@ describe("agent eval harness", () => {
     expect(readFileSync(join(workspaceDir, "opencode.json"), "utf8")).toContain(
       '"task": "deny"',
     );
+  });
+
+  it("denies task delegation for OpenCode skills sessions", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
+    try {
+      prepareAgentSession({
+        agent: "opencode",
+        surface: "skills",
+        server: "local",
+        experimentalTools: false,
+        workspaceDir,
+        repoRoot: process.cwd(),
+        publishedPackage: "githits@latest",
+        dryRun: true,
+        bypassPermissions: false,
+      });
+
+      expect(
+        JSON.parse(readFileSync(join(workspaceDir, "opencode.json"), "utf8")),
+      ).toEqual({
+        permission: {
+          task: "deny",
+        },
+      });
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
   });
 
   it("refuses to overwrite existing OpenCode project config", () => {
