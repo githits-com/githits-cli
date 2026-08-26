@@ -1612,6 +1612,28 @@ describe("agent eval harness", () => {
       "workloads/discovery/discovery-events.json",
     );
     expect(formatRunReport(report)).toContain("discovery=not_observed");
+    expect(report.warnings).toContain(
+      "Claude subscription runs may auto-discover global CLAUDE.md; descriptors/full profile evidence is diagnostic, not instruction-isolated",
+    );
+  });
+
+  it("warns that Claude guidance-profile comparisons are diagnostic", () => {
+    const before = buildRunReportFromMetadata("/before", {
+      agent: "claude",
+      surface: "mcp",
+      guidanceProfile: "descriptors",
+      workloads: [],
+    });
+    const after = buildRunReportFromMetadata("/after", {
+      agent: "claude",
+      surface: "mcp",
+      guidanceProfile: "descriptors",
+      workloads: [],
+    });
+
+    expect(compareReports(before, after).warnings).toContain(
+      "Claude subscription runs may auto-discover global CLAUDE.md; descriptors/full profile evidence is diagnostic, not instruction-isolated",
+    );
   });
 
   it("reports no MCP guidance profile for skills runs", () => {

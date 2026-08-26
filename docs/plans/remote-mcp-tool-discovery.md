@@ -27,8 +27,10 @@ boundary.
 
 - Overall: IN PROGRESS — Phase 1 implementation and local verification are
   complete; implementation review and hosted deployment remain
-- Phase 1 — the eval harness isolates guidance profiles, and description-only
-  changes are covered by attributable before/after regressions: REVIEW
+- Phase 1 — the eval harness isolates Codex/OpenCode guidance profiles and
+  description changes are covered by attributable local regressions; Claude
+  subscription runs remain diagnostic because global guidance cannot be
+  suppressed: REVIEW
 - Phase 2 — decide from Phase 1 evidence whether an optional `quick_start` tool
   is still justified; if approved, implement and evaluate it independently:
   COMPLETE — no tool added; the observed miss occurred after all relevant
@@ -206,11 +208,12 @@ boundary.
 20. The harness preserves raw agent stdout but intentionally filters Claude
     `ToolSearch` calls out of `tool-calls.json`; this behavior has an explicit
     “ignores non-MCP Claude tool calls” test. Therefore current reports cannot
-    say whether Claude Code used deferred tool discovery. With only GitHits in
-    strict MCP config, absence of `ToolSearch` would remain inconclusive because
-    the host may eagerly load the small catalog. Discovery events must be
-    recorded separately from GitHits calls and interpreted as host-specific
-    evidence, not as proof of Claude Desktop/connector parity.
+    say whether Claude Code used deferred tool discovery. Strict MCP config
+    isolates MCP servers but not global `CLAUDE.md`; absence of `ToolSearch`
+    would also remain inconclusive because the host may eagerly load the small
+    catalog. Discovery events must be recorded separately from GitHits calls and
+    interpreted as host-specific diagnostic evidence, not as proof of Claude
+    Desktop/connector parity or descriptor-only instruction isolation.
 21. Codex model selection is pass-through only: `--model` is optional, no
     reasoning-effort option is recorded, and examples still name
     `gpt-5.4-mini`/`nano`. The installed Codex CLI accepts model and TOML config
@@ -258,7 +261,13 @@ boundary.
     the remaining eight were rejected before inference with zero tokens and
     zero tool calls after the Claude account reached its seven-day usage limit.
     Those cells are external-capacity gaps, not descriptor regressions, and
-    were not rerun or reclassified as passes.
+    were not rerun or reclassified as passes. A later implementation review
+    found that all local Claude runs preserve subscription/OAuth by avoiding
+    `--bare`; consequently Claude Code can still auto-discover global
+    `CLAUDE.md`. `--disable-slash-commands` disables skills only. These retained
+    cells are therefore diagnostic host/tool-call evidence, not attributable
+    descriptor-only/full-profile comparisons. Codex and OpenCode evidence is
+    unaffected.
 27. The accepted sequential OpenCode after-state is retained under
     `.agent-eval/runs/remote-mcp-after-opencode-{descriptors,full}-direct`.
     All four bounded cells completed with useful, high-confidence evidence and
@@ -268,7 +277,9 @@ boundary.
     OpenCode began the descriptor-only compaction investigation with `search`,
     while Claude's completed after-cell began with `code_grep` even though its
     baseline began with `search`. Claude's `ToolSearch` event shows it explicitly
-    loaded both full definitions, so this was not a retrieval miss. The
+    loaded both full definitions, so the observed choice was not a retrieval
+    miss, although global Claude guidance means it is not attributable to the
+    profile. The
     `code_grep` known-pattern precondition was therefore moved from sentence two
     into its catalog prefix. A focused Luna-high boundary run then began the
     open-ended compaction workload with `search` and the exact-pattern control
@@ -486,7 +497,7 @@ booleans:
 
 | Profile | Local MCP server instructions | Installed skills and canonical pointer | Purpose |
 |---|---|---|---|
-| `descriptors` | Empty | No | Closest controllable remote-connector approximation: tool names, descriptions, schemas, and results only. |
+| `descriptors` | Empty | No | Closest controllable remote-connector approximation for Codex/OpenCode: tool names, descriptions, schemas, and results only. Local Claude subscription runs may still auto-discover global `CLAUDE.md` and are diagnostic only. |
 | `instructions` | Current `buildLocalMcpInstructions()` | No | Existing harness behavior and diagnostic middle cell. |
 | `full` | Current `buildLocalMcpInstructions()` | Yes | Regression protection for enriched installations created by plugins or `githits init`. |
 
@@ -506,7 +517,11 @@ The `full` profile reuses `prepareSkillsWorkspace` and the canonical
 `GITHITS_GUIDANCE_BLOCK`, installing the same skills, CLI fallback, and
 host-readable project instruction file(s) in the isolated workspace while
 retaining the MCP configuration. Agent launch isolation must still exclude
-unrelated global MCP servers, skills, and instructions.
+unrelated global MCP servers, skills, and instructions where the driver supports
+that under normal authentication. Claude's `--bare` mode would exclude global
+instructions but also disables subscription/OAuth; no API-key path is added in
+this increment, so local Claude profiles cannot satisfy this isolation claim and
+remain diagnostic.
 
 Preserve GitHits MCP/CLI calls in `tool-calls.json`. Add a separate
 `discovery-events.json` for host discovery mechanisms, initially recognizing
@@ -515,9 +530,10 @@ it. Reports state whether discovery was observed, not observed, or not exposed
 by that driver. “Not observed” is never interpreted as “the host does not use
 tool search.”
 
-Use this before/after cohort for both Claude and Codex under `descriptors` and
+Use this attributable before/after cohort for Codex under `descriptors` and
 `full`, keeping the same explicit or recorded model selection within each
-comparison:
+comparison. Run the same Claude cells as diagnostic host/tool-search evidence
+when subscription capacity permits, but do not use them for profile attribution:
 
 - `opencode-compaction.md` and `express-router.md` for open-ended multi-tool
   discovery and exact follow-ups
@@ -579,8 +595,10 @@ and is not authorized by this plan without an explicit product decision.
    stop and resolve ownership rather than adding a network dependency to a
    static guide.
 8. An empty local MCP `instructions` string is the closest controllable match
-   for the connector's missing-guidance behavior. It does not reproduce the
-   connector's tool-ranking implementation, catalog size, or UI.
+   for the connector's missing-guidance behavior in Codex/OpenCode. It does not
+   reproduce the connector's tool-ranking implementation, catalog size, or UI.
+   Claude subscription runs additionally cannot suppress global `CLAUDE.md`
+   without `--bare`, which disables subscription/OAuth.
 9. Phase 1 can establish the effect of description changes only if the stable
    tool inventory remains unchanged. `quick_start` therefore cannot enter that
    before/after cohort.
@@ -638,10 +656,12 @@ and is not authorized by this plan without an explicit product decision.
 
 ### Status
 
-REVIEW — implementation, matched local evals, durable documentation, release
-fragment, and deterministic verification complete. Eight after-state Claude
-cells and a final Claude rerun remain unavailable because the account exhausted
-its seven-day usage allowance; this evidence gap is recorded rather than hidden.
+REVIEW — implementation, attributable Codex/OpenCode local evals, durable
+documentation, release fragment, and deterministic verification complete.
+Local Claude runs are diagnostic rather than profile-isolated, and eight
+after-state cells plus a final Claude rerun remain unavailable because the
+account exhausted its seven-day usage allowance; both evidence gaps are
+recorded rather than hidden.
 
 ### Expected outcome
 
@@ -726,8 +746,10 @@ None for this phase.
    emitted, add an observed/not-observed/not-exposed summary to reports, and
    test that MCP calls and discovery events remain separate. Never infer host
    behavior from an absent event.
-5. Before changing any descriptor, run and retain the
-   baseline cohort under `descriptors` and `full` with fixed agent/model choices.
+5. Before changing any descriptor, run and retain the baseline cohort under
+   `descriptors` and `full` with fixed agent/model choices. Treat Codex/OpenCode
+   as attributable profile evidence and Claude as diagnostic only because its
+   subscription-authenticated CLI cannot suppress global `CLAUDE.md`.
    Inspect raw discovery, tool-call, and final artifacts; do not treat aggregate
    harness success alone as the baseline.
 6. Re-read all 15 current stable descriptors and schema argument descriptions as
@@ -842,10 +864,12 @@ bun run smoke:cli:built
 bun run smoke:mcp:built
 ```
 
-Before descriptor changes, run the named cohort with Claude and
-Codex under both `descriptors` and `full`, plus the bounded OpenCode cells.
-Retain those artifacts as the baseline. After the changes, rerun the same
-agent/model/profile/workload cells. Inspect `tool-calls.json` for the first
+Before descriptor changes, run the named Codex cohort under both `descriptors`
+and `full`, plus the bounded OpenCode cells. Retain those artifacts as the
+attributable baseline. Run matching Claude cells when practical and label them
+diagnostic rather than profile-isolated. After the changes, rerun the same
+agent/model/profile/workload cells where capacity permits. Inspect
+`tool-calls.json` for the first
 GitHits call, complete call sequence, source selection, and focused reads;
 inspect `discovery-events.json` for any host-exposed `ToolSearch` activity; and
 inspect `final.json` for `toolIssues`, `instructionIssues`, usefulness, and
@@ -880,10 +904,12 @@ presence or absence; they do not prove Claude connector behavior.
   `tool-calls.json`. Reports distinguish observed, not observed, and not exposed;
   no pass/fail criterion assumes Claude Code or the connector must emit the
   event.
-- A retained pre-change baseline exists for every mandatory cohort cell before
-  descriptor edits. The after-state is compared only with the
-  matching agent/model/profile/workload cell; failed or surprising runs are
-  investigated from raw artifacts rather than retried until they pass.
+- A retained pre-change baseline exists for every mandatory Codex/OpenCode
+  cohort cell before descriptor edits. The after-state is compared only with
+  the matching agent/model/profile/workload cell; failed or surprising runs are
+  investigated from raw artifacts rather than retried until they pass. Claude
+  artifacts remain diagnostic until a driver can suppress global guidance under
+  approved authentication.
 - The selection matrix is true from each individual descriptor without relying
   on server instructions.
 - Every stable tool's first 80 characters communicate its main benefit with
@@ -905,13 +931,13 @@ presence or absence; they do not prove Claude connector behavior.
   Phase 3.
 - Unit tests cover every changed positive/negative routing boundary without
   freezing incidental prose.
-- Across the mandatory `descriptors` cohort, each workload reaches its expected
+- Across the mandatory Codex/OpenCode `descriptors` cohort, each workload reaches its expected
   tool family, reports no new descriptor-caused `toolIssues` or
   `instructionIssues`, and does not materially reduce evidence usefulness or
   confidence relative to its matching baseline. Because the tool inventory is
   unchanged, observed selection differences are attributable to descriptor or
   argument-description changes rather than a bootstrap tool.
-- Across the mandatory `full` cohort, enriched installations retain their
+- Across the mandatory Codex/OpenCode `full` cohort, enriched installations retain their
   baseline tool accessibility and evidence quality.
 - The bounded OpenCode runs record call sequences and evidence quality under
   both mandatory profiles. No local result is treated as connector proof.

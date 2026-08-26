@@ -29,9 +29,10 @@ agent's usefulness assessment.
 - MCP runs use the `instructions` guidance profile by default. The
   `descriptors` profile runs the local MCP server with an explicit empty server
   instruction string and no installed skills or project pointer, approximating
-  a remote connector that exposes only tool definitions. The `full` profile
-  keeps MCP instructions and additionally installs the skills plus isolated
-  `CLAUDE.md`/`AGENTS.md` project guidance. `descriptors` and `full` require
+  a remote connector that exposes only tool definitions for drivers that can
+  suppress user guidance. The `full` profile keeps MCP instructions and
+  additionally installs the skills plus project `CLAUDE.md`/`AGENTS.md`
+  guidance. `descriptors` and `full` require
   `--server local`; published MCP runs use the published server's own
   instructions under the `instructions` profile.
 - To evaluate MCP instruction changes, change branch/source and run local mode.
@@ -53,7 +54,15 @@ the agent how to use GitHits.
 Runs execute agents from an empty temporary workspace so repository-local files
 such as `AGENTS.md`, `.mcp.json`, commands, skills, and plugin payloads do not
 contaminate results. The harness keeps the user's normal Claude/GitHits auth
-environment so human-driven keychain/OAuth sessions continue to work.
+environment so human-driven keychain/OAuth sessions continue to work. Codex and
+OpenCode can exclude user guidance under that constraint. Claude Code cannot:
+its `--bare` mode is the only supported way to suppress global `CLAUDE.md`
+auto-discovery, and that mode disables subscription/OAuth authentication in
+favor of API-key-style auth. Therefore local Claude descriptor/full runs may
+observe user-level guidance and are diagnostic only, not causal evidence for a
+guidance-profile comparison. Use the authenticated remote connector for Claude
+acceptance; do not treat a local Claude profile label as proof of instruction
+isolation.
 
 OpenCode eval and session processes set `OPENCODE_DISABLE_EXTERNAL_SKILLS=1`
 and `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` to exclude global and
@@ -327,10 +336,12 @@ Each run writes:
   persisted for inspection; credentials are never persisted.
 
 Claude is launched with `--permission-mode bypassPermissions` so non-interactive
-evals can exercise GitHits without a human approval prompt. MCP runs add
-`--disable-slash-commands` to reduce plugin/skill contamination. Skills runs do
-not use that flag because Claude Code treats it as disabling all skills; they
-instead use project-only settings plus an empty strict MCP config. Codex MCP runs
+evals can exercise GitHits without a human approval prompt. Non-full MCP runs
+add `--disable-slash-commands` to disable skills, but this does not disable
+global `CLAUDE.md` discovery; the isolation limitation above still applies.
+Skills runs do not use that flag because Claude Code treats it as disabling all
+skills; they instead use project-only settings plus an empty strict MCP config.
+Codex MCP runs
 use per-run `-c` MCP config overrides and `--ignore-rules`; skills runs omit
 both and use `--ignore-user-config` so project skills can be discovered without
 user-configured MCP servers. Codex always uses

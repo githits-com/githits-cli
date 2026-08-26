@@ -2,6 +2,9 @@ import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
 export type AgentEvalReportMode = "report" | "json" | "compare";
+
+const CLAUDE_PROFILE_ISOLATION_WARNING =
+  "Claude subscription runs may auto-discover global CLAUDE.md; descriptors/full profile evidence is diagnostic, not instruction-isolated";
 export type NormalizedToolStatus =
   | "started"
   | "completed"
@@ -459,6 +462,13 @@ export function buildRunReportFromMetadata(
       warnings.push(`duplicate workload id in run metadata: ${workload.id}`);
     ids.add(workload.id);
   }
+  if (
+    metadata.agent === "claude" &&
+    metadata.surface === "mcp" &&
+    ["descriptors", "full"].includes(metadata.guidanceProfile ?? "instructions")
+  ) {
+    warnings.push(CLAUDE_PROFILE_ISOLATION_WARNING);
+  }
   const reports = workloads.map((workload) =>
     buildWorkloadReport(
       runDir,
@@ -626,6 +636,18 @@ function compareMetadataWarnings(
     warnings.push(
       `reasoning effort differs: ${before.reasoningEffort ?? "unspecified"} -> ${after.reasoningEffort ?? "unspecified"}`,
     );
+  }
+  if (
+    before.agent === "claude" &&
+    [before, after].some(
+      (report) =>
+        report.surface === "mcp" &&
+        ["descriptors", "full"].includes(
+          report.guidanceProfile ?? "instructions",
+        ),
+    )
+  ) {
+    warnings.push(CLAUDE_PROFILE_ISOLATION_WARNING);
   }
   return warnings;
 }
