@@ -2,8 +2,6 @@ import { mapGitHitsServiceError } from "../shared/githits-service-error-map.js";
 import type { MappedError } from "../shared/mapped-error.js";
 import {
   errorResult,
-  type McpAuthAction,
-  type McpAuthActionContext,
   type ToolExecutionContext,
   type ToolResult,
 } from "./types.js";

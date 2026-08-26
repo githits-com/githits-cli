@@ -15,7 +15,6 @@ import { validateServiceUrl } from "./config.js";
 import {
   ApiRateLimitError,
   AuthenticationError,
-  LOCAL_AUTHENTICATION_MISSING_MESSAGE,
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service-errors.js";
 import {
