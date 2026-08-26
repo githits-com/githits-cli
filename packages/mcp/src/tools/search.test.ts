@@ -14,11 +14,12 @@ describe("searchTool", () => {
   it("distinguishes active continuation from terminal deferred searches", () => {
     const tool = createSearchTool(createMockCodeNavigationService());
 
-    expect(tool.description).toContain("instead of repeating `search`");
+    expect(tool.description).toContain("The initial call can complete");
+    expect(tool.description).toContain("never repeat `search` to poll");
     expect(tool.description).toContain("`search_status`");
     expect(tool.description).toContain("`PENDING`, `INDEXING`, or `SEARCHING`");
     expect(tool.description).toContain(
-      "completed result with an evidence notice",
+      "a completed result carries an evidence notice",
     );
     expect(tool.description).toContain("`DEFERRED`, `TIMEOUT`, and `FAILED`");
     expect(tool.description).toContain("unrecognized statuses are not polled");

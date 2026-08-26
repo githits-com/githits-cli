@@ -52,14 +52,14 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION: string =
-  "Use for a quick latest-version package adoption or health check: license, description, repository health, downloads, publish age, and latest vulnerability status. Latest-version package overview for dependency triage. Provide " +
+  "Summarize latest package health and adoption signals: license, repository, downloads, publish age, and vulnerabilities. Provide " +
   "`registry` and `package_name` (for example `npm` + `express`). " +
   "Default text returns license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
   "publish age, and vulnerability status. Set `verbose: true` for " +
   "GitHub language/topics/last-pushed, recent advisories, and recent " +
   'changes. Pass `format: "json"` for structured fields. Use ' +
-  "`pkg_vulns` for version-specific vulnerability details." +
+  "`pkg_vulns` for version-specific vulnerability details, `pkg_deps` for the dependency graph, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison." +
   `\n\n${PKG_INFO_GUARDRAIL}`;
 
 export function createPackageSummaryTool(

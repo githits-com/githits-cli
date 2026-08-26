@@ -114,7 +114,8 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "List files in an indexed dependency. First choice for file/path " +
+  "List indexed source files and paths for enumeration, then hand off to " +
+  "`code_read` or `code_grep`. First choice for file/path " +
   "enumeration tasks such as files under a directory; use " +
   "`path_prefix` for directory prefixes (e.g. `lib/`) and optional " +
   "`extensions` for language filtering. Use this to discover paths " +

@@ -78,8 +78,9 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION: string =
-  "Read one exact file from an indexed dependency; it does not list " +
-  "directories. Use `code_files` with `path_prefix` for file/path " +
+  "Read an exact indexed source file or focused line window; use `code_files` " +
+  "to enumerate paths and `code_grep` or `search` to find the right window. " +
+  "It does not list directories. Use `code_files` with `path_prefix` for file/path " +
   "enumeration. **MCP cap: " +
   `${MCP_READ_MAX_SPAN} lines per call** — broader requests (or no ` +
   `range) silently truncate to the first ${MCP_READ_MAX_SPAN} lines ` +

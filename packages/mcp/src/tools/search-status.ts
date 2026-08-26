@@ -49,8 +49,8 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Use only after `search` returns a `searchRef`. Check progress, fetch interim hits when every runnable target/source pair is serveable, fetch partial hits from a serveable subset when the original request used `allow_partial_results: true`, or fetch final results. " +
-  "Pass the `searchRef` from that response as `search_ref` here (response field is camelCase; this parameter is snake_case) only when `search` explicitly supplies this follow-up, including for active `PENDING`, `INDEXING`, or `SEARCHING` progress or a completed result with an evidence notice. `DEFERRED`, `TIMEOUT`, and `FAILED` are terminal; unrecognized statuses are not polled. Preserve any disclosed evidence from those stopped references and follow the rendered new-search action. " +
+  "Continue an explicit `search` reference: inspect progress, retrieve interim or partial hits, or fetch final results. Call this only after a prior `search` response explicitly supplies both a `searchRef` and a `search_status` action; otherwise the initial `search` result is complete or has its own recovery guidance. " +
+  "Pass that response's `searchRef` as `search_ref` here (response field is camelCase; this parameter is snake_case), including for active `PENDING`, `INDEXING`, or `SEARCHING` progress or a completed result with an evidence notice. Fetch partial hits from a serveable subset only when the original request used `allow_partial_results: true`. `DEFERRED`, `TIMEOUT`, and `FAILED` are terminal; unrecognized statuses are not polled. Preserve any disclosed evidence from those stopped references and follow the rendered new-search action. " +
   "The tool waits up to 20 seconds by default; set `wait_timeout_ms` from 0 to 60000 to change that bounded wait.";
 
 export function createSearchStatusTool(

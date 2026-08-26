@@ -49,8 +49,8 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION: string =
-  "Read a documentation page by page ID. Works for both hosted/crawled docs and repository-backed docs. " +
-  "Pass `start_line` / `end_line` to fetch a slice when a page is too long. Text output is capped at 150 lines per call, including explicit larger ranges; the response carries the returned range and `totalLines` so you can target the next slice. " +
+  "Read a package documentation page by ID; use `docs_list` to browse and `search` to find topics. " +
+  "Works for both hosted/crawled docs and repository-backed docs. Pass `start_line` / `end_line` to fetch a slice when a page is too long. Text output is capped at 150 lines per call, including explicit larger ranges; the response carries the returned range and `totalLines` so you can target the next slice. " +
   "Repo-backed results additionally include exact file follow-up metadata for `code_read`." +
   `\n\n${DOCS_GUARDRAIL}`;
 

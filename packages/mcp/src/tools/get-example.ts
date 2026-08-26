@@ -43,9 +43,9 @@ const schema: ZodRawShape = {
     ),
 };
 
-const DESCRIPTION = `Use when the user needs a canonical open-source example, usage pattern, or API snippet that is not tied to one already-known dependency/repository. Best for "how do I use X", cross-project patterns, up-to-date examples, or when package-scoped search was not enough. For inspecting a specific known package or repository, use \`search\`, \`code_*\`, or \`docs_*\` instead.
+const DESCRIPTION = `Find canonical cross-project examples for unknown-target or global usage patterns. Best for "how do I use X", open-ended API snippets, up-to-date examples, or when package-scoped search was not enough. For inspecting a specific known package or repository, use \`search\`, \`code_*\`, or \`docs_*\` instead. Version-sensitive examples should be verified against the target's docs or source.
 
-Default output is markdown, with source repository provenance when available and a trailing \`solution_id: ...\` line when available. When presenting an example to a user, report the source repositories/citations from GitHits' generated references/provenance section whenever present; they are core evidence, not optional metadata. Pass \`format: "json"\` for \`{result, solution_id?}\`. Pass \`solution_id\` to \`feedback\` after using or rejecting the example. For searching indexed dependency and repository code/docs, use the unified \`search\` tool instead.
+Default output is markdown, with source repository provenance when available and a trailing \`solution_id: ...\` line when available. When presenting an example to a user, report the source repositories/citations from GitHits' generated references/provenance section whenever present; they are core evidence, not optional metadata. Pass \`format: "json"\` for \`{result, solution_id?}\`. Pass \`solution_id\` to \`feedback\` after using or rejecting the example. For a known package or repository, use the unified \`search\` tool, \`docs_read\`, \`code_read\`, or \`code_grep\` instead; use \`search_language\` only to resolve a language name for this tool.
 
 ${GET_EXAMPLE_GUARDRAIL}`;
 

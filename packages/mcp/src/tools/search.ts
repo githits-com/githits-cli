@@ -126,7 +126,7 @@ const schema: ZodRawShape = {
     .string()
     .min(1)
     .describe(
-      "What to find in the target. Use natural terms, API names, or quoted phrases; optional qualifiers like `path:`, `name:`, `lang:`, `kind:`, and `repo:` are supported for precision.",
+      'Discovery query: use terms such as "how does", "where is", "find", "locate", or "grep the source", plus API names or quoted phrases; optional qualifiers like `path:`, `name:`, `lang:`, `kind:`, and `repo:` are supported for precision.',
     ),
   target: searchTargetSchema
     .optional()
@@ -230,11 +230,11 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Use when investigating a known package, repository, or exact documentation site and you need to discover relevant docs, source files, examples, tests, or APIs before reading exact files. Search indexed dependency and repository code, docs, explicit symbols, or standalone docs with `site:<host[/path]>`. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
+  "Relevance-ranked discovery across docs, specs, code, symbols, tests, and examples for a known target. Start here for open-ended ‘how does’, ‘where is’, ‘find’, ‘locate’, or ‘grep the source’ questions, even when `grep` is a generic verb. Search indexed dependency and repository code, docs, explicit symbols, or standalone docs with `site:<host[/path]>`. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
   "Required: `query` plus either `target` or `targets`; pass `target` or `targets`, not both. " +
   "Omit `source` to let GitHits select the best sources; set it only to restrict results to docs, code, or symbols. " +
   'Structured parameters combine with the `query` using AND semantics. For `source:"docs"`, code/symbol-only filters (`category`, `kind`, `file_intent`, `public_only`) are ignored because docs search does not support them. ' +
-  "Complete by default — follow an explicit `search_status` action instead of repeating `search`; ordinary cases are active `PENDING`, `INDEXING`, or `SEARCHING` progress and a completed result with an evidence notice. Stale-but-serveable or provisional-but-queryable evidence can accompany an active reference while indexing or refresh continues. Provisional evidence remains visibly marked as still indexing and retains exact served identity. `DEFERRED`, `TIMEOUT`, and `FAILED` are terminal; unrecognized statuses are not polled. Preserve any disclosed evidence from those stopped references and follow the rendered new-search action. A missing or ambiguous site can instead return terminal recovery guidance without a `searchRef`; follow any `suggestedSiteTargets` explicitly rather than calling `search_status`. " +
+  "The initial call can complete. If its response explicitly supplies a `searchRef` and `search_status` action, follow that action with `search_status`; never repeat `search` to poll. Active progress is reported as `PENDING`, `INDEXING`, or `SEARCHING`, and a completed result carries an evidence notice. Stale-but-serveable or provisional-but-queryable evidence can accompany an active reference while indexing or refresh continues. Provisional evidence remains visibly marked as still indexing and retains exact served identity. `DEFERRED`, `TIMEOUT`, and `FAILED` are terminal; unrecognized statuses are not polled. Preserve any disclosed evidence from those stopped references and follow the rendered new-search action. A missing or ambiguous site can instead return terminal recovery guidance without a `searchRef`; follow any `suggestedSiteTargets` explicitly rather than calling `search_status`. " +
   "Set `allow_partial_results: true` to permit a serveable subset of target/source pairs while others remain unavailable. " +
   "Each hit's `type` tells you the follow-up tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present)." +
   `\n\n${SEARCH_GUARDRAIL}`;

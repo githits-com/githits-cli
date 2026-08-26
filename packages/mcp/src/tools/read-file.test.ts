@@ -20,7 +20,7 @@ describe("createReadFileTool — metadata", () => {
     const tool = createReadFileTool(createMockCodeNavigationService());
     expect(tool.name).toBe("code_read");
     expect(tool.description).toContain(
-      "Read one exact file from an indexed dependency",
+      "Read an exact indexed source file or focused line window",
     );
     expect(tool.description).toContain("does not list directories");
     expect(tool.description).toContain(
