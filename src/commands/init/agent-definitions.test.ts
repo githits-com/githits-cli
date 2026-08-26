@@ -22,6 +22,10 @@ function createWindowsFileSystemService(
   return createPlatformMockFileSystemService("win32", impl);
 }
 
+function lookupCommandFor(platform: string = process.platform): string {
+  return platform === "win32" ? "where" : "which";
+}
+
 describe("agentDefinitions", () => {
   it("defines 19 agents", () => {
     expect(agentDefinitions).toHaveLength(19);
@@ -378,6 +382,7 @@ describe("detection configuration", () => {
   });
 
   it("claude-code detectBinary returns true when binary found", async () => {
+    const lookupCommand = lookupCommandFor();
     const exec = createMockExecService({
       exec: mock(async () => ({
         exitCode: 0,
@@ -387,7 +392,7 @@ describe("detection configuration", () => {
     });
     const agent = agentDefinitions.find((a) => a.id === "claude-code")!;
     expect(await agent.detectBinary!(exec)).toBe(true);
-    expect(exec.exec).toHaveBeenCalledWith("which", ["claude"], {
+    expect(exec.exec).toHaveBeenCalledWith(lookupCommand, ["claude"], {
       timeoutMs: 2_000,
     });
     expect(exec.exec).not.toHaveBeenCalledWith("claude", ["--version"], {
@@ -396,9 +401,10 @@ describe("detection configuration", () => {
   });
 
   it("codex detection verifies that the located binary launches", async () => {
+    const lookupCommand = lookupCommandFor();
     const exec = createMockExecService({
-      exec: mock(async (command: string) => {
-        if (command === "which") {
+      exec: mock(async (command: string, args: string[]) => {
+        if (command === lookupCommand && args[0] === "codex") {
           return { exitCode: 0, stdout: "/usr/bin/codex\n", stderr: "" };
         }
         return { exitCode: 0, stdout: "codex 1.0.0\n", stderr: "" };
@@ -407,7 +413,7 @@ describe("detection configuration", () => {
     const agent = agentDefinitions.find((a) => a.id === "codex-cli")!;
 
     expect(await agent.detectBinary!(exec)).toBe(true);
-    expect(exec.exec).toHaveBeenCalledWith("which", ["codex"], {
+    expect(exec.exec).toHaveBeenCalledWith(lookupCommand, ["codex"], {
       timeoutMs: 2_000,
     });
     expect(exec.exec).toHaveBeenCalledWith("codex", ["--version"], {
@@ -416,9 +422,10 @@ describe("detection configuration", () => {
   });
 
   it("codex detection rejects a nonzero version probe", async () => {
+    const lookupCommand = lookupCommandFor();
     const exec = createMockExecService({
-      exec: mock(async (command: string) =>
-        command === "which"
+      exec: mock(async (command: string, args: string[]) =>
+        command === lookupCommand && args[0] === "codex"
           ? { exitCode: 0, stdout: "/usr/bin/codex\n", stderr: "" }
           : { exitCode: 1, stdout: "", stderr: "broken binary" },
       ),
@@ -429,12 +436,13 @@ describe("detection configuration", () => {
   });
 
   it("codex detection rejects thrown and timed-out version probes", async () => {
+    const lookupCommand = lookupCommandFor();
     const timeout = new Error("timed out");
     timeout.name = "ExecTimeoutError";
     for (const failure of [new Error("spawn failed"), timeout]) {
       const exec = createMockExecService({
-        exec: mock(async (command: string) => {
-          if (command === "which") {
+        exec: mock(async (command: string, args: string[]) => {
+          if (command === lookupCommand && args[0] === "codex") {
             return { exitCode: 0, stdout: "/usr/bin/codex\n", stderr: "" };
           }
           throw failure;
@@ -447,9 +455,10 @@ describe("detection configuration", () => {
   });
 
   it("codex detection does not launch a missing PATH entry", async () => {
+    const lookupCommand = lookupCommandFor();
     const exec = createMockExecService({
-      exec: mock(async (command: string) =>
-        command === "which"
+      exec: mock(async (command: string, args: string[]) =>
+        command === lookupCommand && args[0] === "codex"
           ? { exitCode: 1, stdout: "", stderr: "not found" }
           : { exitCode: 0, stdout: "codex 1.0.0\n", stderr: "" },
       ),
@@ -1442,10 +1451,6 @@ describe("detectAgents", () => {
 });
 
 describe("scanAgents", () => {
-  function lookupCommandFor(platform: string = process.platform): string {
-    return platform === "win32" ? "where" : "which";
-  }
-
   function createPathOnlyAgent(id: string): AgentDefinition {
     return {
       id,
