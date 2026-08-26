@@ -255,9 +255,11 @@ test suite anchors the doc.
   Terms acceptance is a deliberate host-owned exception: core mapping retains
   neutral `code`, `retryable`, `termsUrl`, and `acceptanceUrl` data; local CLI
   and local stdio MCP add the `githits settings terms accept` command, while
-  hosted MCP and browser callers default to an `acceptanceUrl` action. These
-  host-native recovery fields and prose are tested exceptions; they do not
-  weaken the shared structured envelope.
+  hosted MCP defaults to an `acceptanceUrl` action. Browser services that
+  throw the exported `TermsAcceptanceRequiredError` get the same canonical URL
+  remediation, while an arbitrary `Error` remains `UNKNOWN` at that boundary.
+  These host-native recovery fields and prose are tested exceptions; they do
+  not weaken the shared structured envelope.
 - Backend error messages, hints, indexing estimates, available versions/refs,
   and suggested refs are preserved when supplied. Clients do not replace
   specific backend guidance or synthesize target candidates.

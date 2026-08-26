@@ -46,8 +46,14 @@ manifest move is complete.
   dependency. Only this resolved `/tools` graph is browser-safe; installing
   `@githits/mcp` still brings the package's MCP SDK and Node-oriented
   dependency tree, while the root and `/client` entries remain Node entries.
-  The `/tools` entry supplies no filesystem, auth, environment, or config
-  discovery behavior.
+  The `/tools` entry supplies no filesystem access, authentication
+  implementation or storage, environment/config discovery, or other host
+  behavior.
+  Runtime-graph isolation is sufficient for the current browser-callable proof
+  of concept; it is not a claim of install-time dependency-tree purity. If
+  install-time purity becomes a requirement, the callable contract should move
+  to a separate public browser SDK/package. That remains an open
+  package/release-boundary decision, not an approved plan.
 - `@githits/mcp/client` is the public runtime/client entry for remote MCP server
   composition. It re-exports bundled service implementations, token/header
   helpers, URL/config helpers, the injectable `ServiceDiagnostics` type, and

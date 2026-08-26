@@ -8,8 +8,8 @@ This package exposes transport-neutral helpers for servers that want the GitHits
 > graph is browser-safe. Installing `@githits/mcp` still installs its MCP SDK
 > and other Node-oriented dependencies; the package root and
 > `@githits/mcp/client` remain Node entries. The `/tools` entry does not provide
-> filesystem access, authentication, configuration discovery, or any other
-> host behavior.
+> filesystem access, authentication implementation or storage, configuration
+> discovery, or any other host behavior.
 
 ## API
 
@@ -23,7 +23,10 @@ This package exposes transport-neutral helpers for servers that want the GitHits
 - `@githits/mcp/smoke-test` exports reusable smoke assertions and `runMcpSmoke()` for remote MCP server validation.
 - `@githits/mcp/tools` exports the browser-callable `get_example` factory and
   its structural service contract, plus `toCallableTool()` and the stable
-  callable result/schema types.
+  callable result/schema types. It also exports the neutral
+  `AuthenticationError`, `ApiRateLimitError`, `FetchTimeoutError`, and
+  `TermsAcceptanceRequiredError` constructors used by the callable error
+  boundary.
 
 ## Browser-callable `@githits/mcp/tools`
 
@@ -62,6 +65,14 @@ shape. If the caller supplies an `AbortSignal`, it is forwarded unchanged to
 the service; caller cancellation rejects the execution rather than becoming an
 error result.
 
+An injected browser service should throw one of the exported neutral error
+constructors when it wants `get_example` to return a structured
+`AUTH_REQUIRED`, `RATE_LIMITED`, `TIMEOUT`, or `TERMS_ACCEPTANCE_REQUIRED`
+`ToolResult`. This is an explicit thrown-error contract, not automatic HTTP
+response classification. Callable authentication remediation is host-neutral:
+`Authenticate with GitHits, then retry.` Terms errors use the canonical
+`acceptanceUrl` action. Other errors remain `UNKNOWN`.
+
 A frontend can add a small registration adapter for its WebMCP host API. The
 adapter owns the host-specific registration call and passes its signal through;
 the callable surface is not a generic protocol-conversion layer:
@@ -77,10 +88,10 @@ document.modelContext.registerTool({
 });
 ```
 
-The frontend owns `document.modelContext`, authentication and login UI,
-request transport, CORS policy, and any user-facing recovery. The injected
-service decides how the app-owned backend boundary is authenticated and
-reached.
+The frontend owns `document.modelContext`, authentication and login UI, its
+response-to-error conversion, request transport, CORS policy, and any
+user-facing recovery. The injected service decides how the app-owned backend
+boundary is authenticated and reached.
 
 The package expects callers to provide service implementations through `McpToolServices` or a request-scoped `McpToolServicesProvider`. GitHits does not populate MCP initialize instructions because hosts expose them inconsistently; `quick_start` owns shared guidance instead. Callers may still pass their own `instructions` explicitly. Use `quickStartOptions` to configure the guide. Servers can pass `traceTool` to `createMcpServer()` or `registerMcpTools()` to wrap public tool execution for instrumentation without receiving arguments or auth data.
 
