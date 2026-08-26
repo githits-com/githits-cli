@@ -1,105 +1,132 @@
 # GitHits Init Guided MCP Setup
 
-## Summary
+## Purpose
 
-- Add guided MCP setup as the recommended onboarding path: "Install GitHits MCP + supporting instructions".
-- Keep plain MCP and standalone Agent Skills as explicit alternatives.
-- Add a single `githits-mcp` skill and a short managed instruction block to strengthen tool selection without bloating agent context.
+`githits init` configures MCP and, by default, the supporting GitHits Agent
+Skills for the agents selected by the user. This document records the shipped
+selection model, skill placement, migration behavior, and human-readable
+output contract.
 
-## Key Changes
+## Setup and selection
 
-- Update first `githits init` prompt to:
-  - `Install GitHits MCP + supporting instructions (Recommended)`
-  - `Install plain GitHits MCP`
-  - `Install Agent Skills instead`
-  - `Exit`
-- Add CLI flags:
-  - `--guidance` to install supporting skill/instruction files.
-  - `--no-guidance` to install plain MCP only.
-  - `githits init uninstall --keep-guidance` to remove MCP config but keep guidance files.
-- Defaults:
-  - Interactive setup defaults to guided MCP.
-  - `--yes` accepts guided MCP unless `--no-guidance` is passed.
-  - Staged `--install-agents` accepts guided MCP unless `--no-guidance` is passed.
-- Before authentication or installation, show a numbered review step stating that GitHits queries and public package, repository, and documentation targets are sent to GitHits services, feedback submission is an outbound write, installation itself does not upload the local workspace, and a new coding-agent session is needed to load changed MCP configuration or supporting instructions. The terminal and machine do not need to be restarted.
-- Cursor uses the remote MCP URL `https://mcp.githits.com` for user and project setup. Legacy local stdio Cursor entries are actionable migrations. Cursor-managed OAuth and tool discovery must be verified separately from local CLI auth, using Cursor MCP status/tool checks and a new Agent chat.
-- Interactive setup shows the selected scope, tools, and guidance choice, then requires `Continue with GitHits setup?` confirmation. Declining or interrupting confirmation exits before authentication, config writes, guidance writes, or setup commands. Interactive `--yes` prints the same review and acts as acknowledgment without another prompt.
-- Agent-assisted staged setup must present the review before asking which detected tools to configure. A new session means opening or restarting the coding-agent session, not restarting the terminal or machine.
-- Staged detection keeps `installableIds` MCP-only for compatibility and adds per-agent `guidanceStatus`, top-level `guidanceRequested`, and `actionableIds` for the ordered union of MCP setup and requested guidance repair. This keeps guidance-only reruns reachable when MCP is already configured.
-- Every non-null generated `suggestedCommand` includes `--json` for stable agent-readable install results. Suggested install and verification commands preserve the detection/install guidance intent. Plain-MCP staged and non-interactive fallback flows include `--no-guidance` throughout so setup does not re-offer or install guidance.
-- Staged install instructions distinguish intentional opt-out, installed, already configured, unsupported/skipped, and failed guidance outcomes. They retain guidance remediation when MCP setup fails, while continuing to suppress authentication and verification steps until MCP errors are fixed.
-- Interactive review guidance targets include only agents with a verified skill or managed-instruction destination; unsupported guidance surfaces are shown as `None` rather than implying a write.
+Interactive setup and staged `--install-agents` setup use the same per-agent
+status model. A selected agent can need MCP setup, guidance repair, or both;
+an already-configured but unselected agent is reporting-only and is never
+retargeted. Guidance-only and stale-skill cleanup selections do not mutate MCP
+configuration or authenticate. An empty selection prints `Nothing selected, no
+changes made` and returns before review, authentication, or writes.
 
-## Guidance Install
+The first prompt offers guided MCP, plain MCP, standalone Agent Skills, or an
+exit. Guided MCP is the default. `--no-guidance` selects plain MCP and performs
+no skill migration. A project guidance consent decline recomputes the selected
+actions and exits before review, authentication, or writes when only guidance
+repair remains.
 
-- Add `skills/githits-mcp/SKILL.md` and package it with npm and Claude plugin assets.
-- Install/copy the skill per selected tool and scope:
-  - Use `.agents/skills/githits-mcp/SKILL.md` where the selected tool explicitly loads shared Agent Skills.
-  - Use the tool-native skills folder where shared `.agents/skills` support is not verified, for example `.claude/skills`, `.cline/skills`, `.kiro/skills`, `.junie/skills`, `.hermes/skills`, or `.factory/skills`.
-  - Skip skill copying for tools that do not have a verified filesystem Agent Skills loader.
-  - Project skill installation remains default checked with an opt-out prompt.
-- Add/update the `GITHITS_GUIDANCE_BLOCK` from `src/commands/init/guidance-assets.ts` in supported instruction files, replacing only content between identical `<!-- githits -->` markers.
+Staged detection preserves the machine-readable `installableIds` MCP-only
+contract. `guidanceStatus`, `guidanceRequested`, and `actionableIds` expose
+guidance repair without changing the meaning of existing fields. Staged JSON
+is authoritative for the selected IDs and distinguishes success,
+`already_configured`, unsupported, skipped, and failed outcomes.
 
-- Instruction file targets:
-  - Codex/OpenCode/Zed: user-level `AGENTS.md` style paths.
-  - Cursor, VS Code / Copilot, Windsurf/Cascade, and Kiro: project-level root `AGENTS.md`.
-  - Claude Code: `CLAUDE.md`.
-  - Gemini CLI: `GEMINI.md`.
-  - VS Code / Copilot: user-level `~/.copilot/instructions/githits.instructions.md` with `applyTo: "**"`.
-  - Windsurf/Cascade: user-level `~/.codeium/windsurf/memories/global_rules.md`.
-  - Kiro: user-level `~/.kiro/steering/AGENTS.md`.
-  - `.agents/skills` is shared skill storage only; do not create a universal `~/.agents/AGENTS.md` unless a tool explicitly documents that file as loaded instructions.
-  - Cursor user rules are global, but the documented surface is the Cursor UI, not a stable file path; do not edit an inferred Cursor user-rules file.
-  - Do not write override files or unrelated rule systems.
+## MCP transport and authentication
 
-## Expanded Current MCP Targets
+Before selection, intent copy is transport-neutral. After selection, review and
+final summaries describe the actual targets:
 
-- Add only current, docs-backed, non-legacy targets:
-  - Zed: user `~/.config/zed/settings.json`, project `.zed/settings.json`, key `context_servers`.
-  - Junie: user `~/.junie/mcp/mcp.json`, project `.junie/mcp/mcp.json`, key `mcpServers`.
-  - Qwen Code: user `~/.qwen/settings.json`, project `.qwen/settings.json`, key `mcpServers`.
-  - Kiro: user `~/.kiro/settings/mcp.json`, project `.kiro/settings/mcp.json`, key `mcpServers`.
-  - Kilo Code: user `~/.config/kilo/kilo.jsonc`, project `.kilo/kilo.jsonc`, key `mcp`, local command shape.
-  - Factory Droid: user `~/.factory/mcp.json`, project `.factory/mcp.json`, key `mcpServers`.
-  - Amazon Q CLI: command-driven user install only, using detected `q mcp`/`qchat mcp`; no direct file editing.
-- Do not add Firebase Studio, Aider, Roo Code, legacy Amazon Q `mcp.json`, or any sunset/legacy-only client.
+- all non-Cursor targets use the local stdio command
+  `npx -y githits@latest mcp start`;
+- Cursor-only targets use the hosted remote MCP at
+  `https://mcp.githits.com`;
+- mixed selections name both the local target group and Cursor's remote target.
 
-## Implementation Details
+Cursor authentication is separate from local GitHits CLI authentication. A
+Cursor setup requires one Authenticate action in Cursor's MCP panel, or
+`cursor-agent mcp login GitHits`, followed by tool discovery in a new Cursor
+Agent chat. Cursor-only setup skips local CLI login. Mixed setup authenticates
+only the non-Cursor integrations locally and labels that status accordingly.
 
-- Extend setup types with `skill` and `managed-block` changes alongside existing `config-file` and `command`.
-- Add reusable helpers for managed marker blocks, skill copy/removal, and nonstandard MCP server shapes.
-- Rerun behavior: if MCP exists but guidance is missing, guided init installs only missing guidance; if guidance exists but MCP is missing, guided init installs only missing MCP.
-- Unsupported guidance targets explain that rerunning the same install cannot add guidance. Failed guidance installation reports the underlying failure and requires it to be resolved before retrying; only intentional `--no-guidance` opt-out recommends a future guided rerun.
-- Cleanup removes GitHits MCP config, managed instruction blocks, and GitHits-owned `githits-mcp/SKILL.md` from every verified target path; delete the skill directory only if empty. A supported skill-directory symlink is retained when parent cleanup reports a non-directory path.
-- Remote MCP docs/help should recommend installing `githits-mcp` because server-level instructions are not reliable enough alone.
+Pi user setup writes `directTools: true` alongside its eager lifecycle in the
+Pi-owned `~/.pi/agent/mcp.json` entry. Project `.mcp.json` keeps the standard
+shared MCP shape and does not receive Pi's user-only `directTools` setting.
+Codex detection requires both a successful `PATH` lookup and a successful,
+bounded `codex --version` probe; a missing, failing, timed-out, or unlaunchable
+probe means Codex is not detected.
 
-## Guidance Uninstall Reliability
+## Skill catalog and active roots
 
-Global guidance cleanup is independent of which MCP agents are selected. Unless
-`githits init uninstall --keep-guidance` is used, it attempts every verified
-skill and managed-instruction target. A failed target is recorded with its
-collapsed path and a sanitized failure category, then later targets still run;
-already-absent targets are successful no-ops. The expected `SKILL.md` is
-removed through a supported skill-directory symlink while the symlink itself
-remains.
+Guided setup requires exactly these four packaged skills:
 
-Guidance is reported separately from MCP agents. Changed and failed paths are
-shown, an all-absent result is one unchanged `GitHits guidance` row, and
-guidance-only removal or failure gets its own headline. Guidance affects the
-overall failure status, but never increments the agent removed, not-configured,
-or failed counts.
+- `githits-code`
+- `githits-mcp`
+- `githits-onboarding`
+- `githits-package`
 
-## Tests
+The runtime catalog is defined in `src/commands/init/guidance-assets.ts` and
+is checked for parity with plugin packaging. Missing files are repaired;
+complete files are unchanged. Shared roots are deduplicated when multiple
+selected agents use the same directory.
 
-- Unit test new prompt choices, `--guidance`, `--no-guidance`, and `--keep-guidance`.
-- Test that the install review and new-session instruction appear before interactive and agent-assisted approval, including confirmation cancellation and the interactive `--yes` path.
-- Add fake-FS tests for marker insert/replace/remove and idempotent reruns.
-- Add setup/uninstall tests for each new MCP target shape.
-- Add packaging tests for `skills/githits-mcp/SKILL.md` and Claude plugin skill inclusion.
-- Run `bun test`, `bun run smoke:cli`, and targeted `bun run agent:e2e` for Codex/Claude guidance behavior where practical.
+| Agent group | User scope | Project scope |
+|---|---|---|
+| Cursor, Windsurf, VS Code/Copilot, Codex CLI, Pi, Gemini CLI, OpenCode, Zed, Junie, Qwen Code, Kilo Code, Cline | `~/.agents/skills/` | `.agents/skills/` |
+| Claude Code | `~/.claude/skills/` | `.claude/skills/` |
+| Kiro | `~/.kiro/skills/` | `.kiro/skills/` |
+| Factory Droid | `~/.factory/skills/` | `.factory/skills/` |
+| Google Antigravity | `~/.gemini/config/skills/` | `.agents/skills/` |
+| Hermes Agent | `~/.hermes/skills/` | not supported |
 
-## Assumptions
+The shared root is intentionally visible to every compatible agent that reads
+it. The Ready/Next Steps output says this explicitly for successful or already
+configured shared-root guidance. Agent-specific managed instruction blocks
+remain separate targets and are written only for selected agents.
 
-- Guidance is intentionally one paragraph; the skill carries the detailed behavior.
-- GitHits should be the default OSS context layer across the full software development lifecycle: discovery, planning, research, implementation, debugging, and maintenance, including package docs and source evidence.
-- Existing MCP setup behavior remains backward-compatible unless the user explicitly chooses guided setup.
+## Cline and Junie migration
+
+Cline and Junie now use the shared `.agents/skills` root. Historical cleanup
+targets are only the exact CLI-owned files
+`<scope>/.cline/skills/githits-mcp/SKILL.md` and
+`<scope>/.junie/skills/githits-mcp/SKILL.md`; unrelated skills, directories,
+plugin payloads, and managed instruction blocks are preserved.
+
+Guided setup writes and verifies all four active skill files before removing a
+historical file. If active installation or verification fails, the historical
+file remains. If cleanup fails, the active set remains usable and the exact
+failed historical path is reported with a generic reason. Missing historical
+files are successful no-ops. `--no-guidance` leaves historical files untouched.
+After successful cleanup, another guided run is a no-op for that migration.
+
+## Uninstall and reporting
+
+The canonical command is `githits uninstall`; `githits init uninstall` remains
+a compatibility alias with identical `--yes`, `--project`, and
+`--keep-guidance` behavior. Without `--keep-guidance`, uninstall independently
+and best-effort removes all four active skill files and the exact historical
+Cline/Junie files for the chosen scope, while preserving unrelated files and
+directories. Removing a shared root can affect every compatible agent that
+reads that directory; the result reports the shared guidance target. The
+`--keep-guidance` option preserves active and historical guidance.
+
+Human output lists created, updated, unchanged, removed, and failed skill files
+accurately. Uninstall failure reasons are sanitized while failed target paths
+remain visible; an all-absent guidance cleanup collapses to one unchanged row.
+Configured, already-configured, and failed counts appear in Install and verify
+before Ready/Next Steps. Natural-language init/uninstall prose wraps at the
+terminal width (80-column fallback, 40-column minimum); JSON, commands, paths,
+and change rows remain byte-stable and unwrapped.
+
+## Public skill and release boundary
+
+The public `skills/githits-onboarding/SKILL.md` was reviewed in this feature
+branch: it contains no `init uninstall` reference and its existing description
+is host-neutral. It is intentionally not edited here. Behavior-dependent
+changes to the published onboarding skill are made on the release branch only
+after the corresponding CLI behavior is included, so `skills.sh` does not
+advertise unreleased behavior.
+
+## Key references
+
+- `src/commands/init/init.ts` — selection, transport, authentication, output,
+  migration, and uninstall orchestration.
+- `src/commands/init/guidance-assets.ts` — four-skill runtime catalog.
+- `src/commands/init/agent-definitions.ts` — Pi and Codex host behavior.
+- `src/commands/init/setup-format.ts` — human prose wrapping and change rows.

@@ -78,6 +78,15 @@ release impact:
   Skills are also read from `main`; when their packaged behavior changes, state
   explicitly whether the next `githits` artifact must carry the same update.
 
+### Public Agent Skill lifecycle
+
+Behavior-dependent changes to `skills/githits-onboarding/SKILL.md` are made on
+the release branch only after the corresponding CLI behavior is included. This
+keeps the published `skills.sh` surface from advertising behavior that is not
+yet in the released CLI. A feature branch may review the public skill for stale
+or contradictory claims, but should leave it unchanged until that release
+boundary is reached.
+
 Before assigning `none`, compare the delta against every public consumer and
 package export. A fragment's impact records the conclusion; it does not replace
 that review.

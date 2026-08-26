@@ -294,11 +294,13 @@ is required.
 To remove configuration written by `init`:
 
 ```sh
-npx githits@latest init uninstall
+npx githits@latest uninstall
 ```
 
-This removes GitHits MCP configuration and preserves stored credentials. Run
-`npx githits@latest logout` separately to remove credentials.
+This removes GitHits MCP configuration and guidance written by `init`, while
+preserving stored credentials. Run `npx githits@latest logout` separately to
+remove credentials. The compatibility form `npx githits@latest init uninstall`
+accepts the same `--yes`, `--project`, and `--keep-guidance` options.
 
 ## Project Setup
 
@@ -317,7 +319,7 @@ Agent-safe non-interactive setup uses staged discovery and explicit install:
 
 ```sh
 npx githits@latest init --detect-agents --json
-npx githits@latest init --install-agents cursor,codex
+npx githits@latest init --install-agents cursor,codex-cli
 ```
 
 ## Plugin and Extension Packaging
@@ -349,6 +351,14 @@ Antigravity plugin through `plugin.json`, `mcp_config.json`, and the shared
 `skills/` tree. Generated manifests are refreshed with `bun run plugins:generate`
 and validated with `bun run plugins:check`.
 
+Guided `init` installs the four canonical skills (`githits-code`, `githits-mcp`,
+`githits-onboarding`, and `githits-package`) only for selected agents. Shared
+skill-capable agents use `~/.agents/skills/` at user scope or `.agents/skills/`
+at project scope; native-only agents use their verified native skill directory.
+Compatible agents reading a shared root can discover those skills. A later
+guided run repairs missing skills, and migration removes only the historical
+Cline or Junie `githits-mcp/SKILL.md` after the complete shared set is verified.
+
 For Claude Code marketplace installs:
 
 ```sh
@@ -366,7 +376,8 @@ gemini extensions install https://github.com/githits-com/githits-cli
 
 ```text
 githits init             Connect GitHits to your coding agents
-githits init uninstall   Remove GitHits MCP configuration
+githits uninstall        Remove GitHits MCP configuration and guidance
+githits init uninstall   Compatibility alias for `githits uninstall`
 githits login            Sign in to your GitHits account
 githits logout           Remove stored credentials
 githits mcp              Show setup instructions or start the local MCP server
