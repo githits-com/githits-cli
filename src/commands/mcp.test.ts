@@ -581,6 +581,7 @@ describe("createMcpCommandStartup", () => {
   it("maps the hidden override through mcp start without advertising it", async () => {
     const startupOptions: Array<CreateMcpCommandStartupOptions | undefined> =
       [];
+    const instructionModes: Array<"default" | "none" | undefined> = [];
     const dependencies: McpCommandRegistrationDependencies = {
       createStartup: async (options) => {
         startupOptions.push(options);
@@ -593,7 +594,9 @@ describe("createMcpCommandStartup", () => {
           onServerCreated: () => {},
         };
       },
-      startServer: async () => {},
+      startServer: async (_services, options) => {
+        instructionModes.push(options?.instructionMode);
+      },
     };
 
     const explicit = new Command();
@@ -614,9 +617,13 @@ describe("createMcpCommandStartup", () => {
       "mcp",
       "start",
       "--experimental-tools",
+      "--instruction-mode",
+      "none",
     ]);
     expect(startupOptions).toEqual([{ experimentalTools: true }]);
+    expect(instructionModes).toEqual(["none"]);
     expect(explicitHelp).not.toContain("experimental-tools");
+    expect(explicitHelp).not.toContain("instruction-mode");
 
     const normal = new Command();
     let normalHelp = "";
@@ -632,7 +639,9 @@ describe("createMcpCommandStartup", () => {
     registerMcpCommand(normal, dependencies);
     await normal.parseAsync(["node", "test", "mcp", "start"]);
     expect(startupOptions).toEqual([{ experimentalTools: true }, undefined]);
+    expect(instructionModes).toEqual(["none", undefined]);
     expect(normalHelp).not.toContain("experimental-tools");
+    expect(normalHelp).not.toContain("instruction-mode");
   });
 
   it("does not advertise the session override in mcp or root help", async () => {

@@ -46,6 +46,9 @@ const EXPECTED_EXPERIMENTAL_NAMES = [
 ] as const;
 
 interface TestRegisteredTool {
+  description?: string;
+  inputSchema?: unknown;
+  annotations?: unknown;
   handler: (
     args: unknown,
     extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
@@ -78,6 +81,16 @@ function registeredToolNames(server: ReturnType<typeof createLocalMcpServer>) {
       }
     )._registeredTools,
   );
+}
+
+function registeredTools(
+  server: ReturnType<typeof createLocalMcpServer>,
+): Record<string, TestRegisteredTool> {
+  return (
+    server as unknown as {
+      _registeredTools: Record<string, TestRegisteredTool>;
+    }
+  )._registeredTools;
 }
 
 function serverInstructions(
@@ -128,6 +141,48 @@ describe("createLocalMcpServer", () => {
     );
     for (const name of EXPECTED_EXPERIMENTAL_NAMES) {
       expect(serverInstructions(server)).toContain(`\`${name}\``);
+    }
+  });
+
+  it("suppresses instructions without changing the stable tool registrations", () => {
+    const options = {
+      metadata: { name: "local-githits", version: "0.0.0" },
+      services: createServices(),
+      policy: { tools: false, reportToolIssues: undefined } as const,
+    };
+    const defaultServer = createLocalMcpServer(options);
+    const descriptorServer = createLocalMcpServer({
+      ...options,
+      instructionMode: "none",
+    });
+
+    expect(serverInstructions(defaultServer)).toBe(buildMcpInstructions());
+    expect(serverInstructions(descriptorServer)).toBe("");
+    expect(registeredToolNames(descriptorServer)).toEqual([
+      ...EXPECTED_STABLE_NAMES,
+    ]);
+
+    const defaultTools = registeredTools(defaultServer);
+    const descriptorTools = registeredTools(descriptorServer);
+    for (const name of EXPECTED_STABLE_NAMES) {
+      expect(descriptorTools[name]?.description).toBe(
+        defaultTools[name]?.description,
+      );
+      expect(
+        JSON.stringify(
+          (descriptorTools[name]?.inputSchema as { def?: unknown } | undefined)
+            ?.def,
+        ),
+      ).toBe(
+        JSON.stringify(
+          (defaultTools[name]?.inputSchema as { def?: unknown } | undefined)
+            ?.def,
+        ),
+      );
+      expect(descriptorTools[name]?.annotations).toEqual(
+        defaultTools[name]?.annotations,
+      );
+      expect(typeof descriptorTools[name]?.handler).toBe("function");
     }
   });
 

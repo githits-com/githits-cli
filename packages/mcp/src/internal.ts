@@ -4,6 +4,7 @@ export {
   createLocalMcpServer,
   type LocalExperimentalMcpPolicy,
   type LocalExperimentalReportToolIssues,
+  type LocalMcpInstructionMode,
   type LocalMcpToolServices,
   type LocalMcpToolServicesProvider,
 } from "./mcp/local-server.js";
