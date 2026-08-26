@@ -469,6 +469,7 @@ describe("agent eval harness", () => {
 
     expect(command).toContain("--ignore-user-config");
     expect(command).toContain("--ignore-rules");
+    expect(command.filter((arg) => arg === "--ignore-rules")).toHaveLength(1);
     expect(command).toContain('mcp_servers.githits.command="bun"');
   });
 
@@ -748,13 +749,21 @@ describe("agent eval harness", () => {
   it("refuses to overwrite existing OpenCode project config", () => {
     const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
     const openCodeConfigPath = join(workspaceDir, "opencode.json");
+    const claudeInstructionsPath = join(workspaceDir, "CLAUDE.md");
+    const agentsInstructionsPath = join(workspaceDir, "AGENTS.md");
+    const skillSentinelPath = join(workspaceDir, "skills", "sentinel.txt");
     writeFileSync(openCodeConfigPath, "existing config\n");
+    writeFileSync(claudeInstructionsPath, "existing Claude guidance\n");
+    writeFileSync(agentsInstructionsPath, "existing agent guidance\n");
+    mkdirSync(join(workspaceDir, "skills"), { recursive: true });
+    writeFileSync(skillSentinelPath, "existing skill\n");
 
     expect(() =>
       prepareAgentSession({
         agent: "opencode",
         surface: "mcp",
         server: "local",
+        guidanceProfile: "full",
         experimentalTools: false,
         workspaceDir,
         repoRoot: process.cwd(),
@@ -764,6 +773,14 @@ describe("agent eval harness", () => {
       }),
     ).toThrow("Refusing to overwrite existing OpenCode config");
     expect(readFileSync(openCodeConfigPath, "utf8")).toBe("existing config\n");
+    expect(readFileSync(claudeInstructionsPath, "utf8")).toBe(
+      "existing Claude guidance\n",
+    );
+    expect(readFileSync(agentsInstructionsPath, "utf8")).toBe(
+      "existing agent guidance\n",
+    );
+    expect(readFileSync(skillSentinelPath, "utf8")).toBe("existing skill\n");
+    expect(existsSync(join(workspaceDir, ".agent-session"))).toBe(false);
   });
 
   it("removes stale skills when preparing a reused workspace", () => {

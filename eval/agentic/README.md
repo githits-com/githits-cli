@@ -130,12 +130,14 @@ and bypasses only the host experimental policy. Valid host auth settings still
 apply; a wholly malformed shared TOML document can still block auth startup.
 Host dogfooding uses the experimental policy in `config.toml` instead.
 
-`--guidance-profile` is valid only for local MCP runs. `descriptors` suppresses
-server-level instructions with the hidden local launch mode and installs no
-skills or project guidance. `instructions` preserves the ordinary local MCP
-run. `full` retains server instructions and installs the canonical skills and
-project guidance in the isolated workspace. Skills-surface runs do not accept
-an explicitly supplied MCP guidance profile.
+`--guidance-profile` applies to MCP runs. `descriptors` and `full` require local
+MCP: `descriptors` suppresses server-level instructions with the hidden local
+launch mode and installs no skills or project guidance, while `full` retains
+server instructions and installs the canonical skills and project guidance in
+the isolated workspace. `instructions` preserves the ordinary local MCP run
+and is also the label for published MCP runs, which use the published server's
+own instructions. Skills-surface runs do not accept an explicitly supplied MCP
+guidance profile.
 
 Normal GitHits backend overrides are passed through when set:
 

@@ -272,10 +272,15 @@ export function prepareAgentSession(options: AgentSessionOptions): {
     options.guidanceProfile = "instructions";
   }
   validateGuidanceProfileScope(options);
+  const openCodeConfigPath = join(options.workspaceDir, "opencode.json");
+  if (options.agent === "opencode" && existsSync(openCodeConfigPath)) {
+    throw new Error(
+      `Refusing to overwrite existing OpenCode config: ${openCodeConfigPath}`,
+    );
+  }
   const sessionDir = join(options.workspaceDir, ".agent-session");
   mkdirSync(sessionDir, { recursive: true });
   const mcpConfigPath = join(sessionDir, "mcp.json");
-  const openCodeConfigPath = join(options.workspaceDir, "opencode.json");
   const guidanceInstallation =
     options.guidanceProfile === "full"
       ? prepareFullGuidanceWorkspace(options, options.workspaceDir)
@@ -290,11 +295,6 @@ export function prepareAgentSession(options: AgentSessionOptions): {
     options.surface === "mcp" ? buildMcpConfig(options) : { mcpServers: {} },
   );
   if (options.agent === "opencode") {
-    if (existsSync(openCodeConfigPath)) {
-      throw new Error(
-        `Refusing to overwrite existing OpenCode config: ${openCodeConfigPath}`,
-      );
-    }
     writeJson(
       openCodeConfigPath,
       options.surface === "mcp"

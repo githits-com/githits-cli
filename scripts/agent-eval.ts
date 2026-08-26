@@ -1413,7 +1413,12 @@ export function buildCodexCommand(
   schemaPath: string,
   options: Pick<
     AgentEvalOptions,
-    "server" | "repoRoot" | "publishedPackage" | "model" | "reasoningEffort"
+    | "server"
+    | "repoRoot"
+    | "publishedPackage"
+    | "model"
+    | "reasoningEffort"
+    | "guidanceProfile"
   > & { surface?: EvalSurface },
 ): string[] {
   const command = [
