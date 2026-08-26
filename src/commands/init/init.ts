@@ -1166,14 +1166,13 @@ async function hasManagedBlockToUninstall(
 ): Promise<boolean> {
   try {
     const content = await fileSystemService.readFile(setup.targetPath);
-    return (
-      mergeManagedBlock(
-        content,
-        setup.marker,
-        setup.blockContent,
-        setup.fileHeader,
-      ).status === "already_configured"
-    );
+    const status = mergeManagedBlock(
+      content,
+      setup.marker,
+      setup.blockContent,
+      setup.fileHeader,
+    ).status;
+    return status === "already_configured" || status === "updated";
   } catch {
     // A target that cannot be inspected is actionable so uninstall can report
     // the failed path instead of silently declaring a clean project.
@@ -3285,7 +3284,9 @@ async function runProjectMcpUninstall(
         }))
         .concat(legacyProbeFailures),
     };
-    process.exitCode = 1;
+    if (summary.failed.length > 0) {
+      process.exitCode = 1;
+    }
     printProjectUninstallSummary(summary);
     return;
   }

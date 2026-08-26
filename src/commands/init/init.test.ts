@@ -6212,6 +6212,7 @@ describe("initUninstallAction", () => {
     expect(promptService.confirm).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     expect(fs.deleteFile).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(0);
   });
 
   it("removes project guidance when no MCP config exists", async () => {
@@ -6319,6 +6320,42 @@ describe("initUninstallAction", () => {
     expect(output).toContain("AGENTS.md");
     expect(output).toContain("guidance cleanup failed");
     expect(output).not.toContain("guidance secret failure");
+  });
+
+  it("removes stale project guidance when no MCP config exists", async () => {
+    const configFiles: Record<string, string> = {
+      "/repo/AGENTS.md": [
+        "Existing",
+        "",
+        GITHITS_GUIDANCE_MARKER,
+        "old guidance",
+        GITHITS_GUIDANCE_MARKER,
+        "",
+      ].join("\n"),
+    };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(configFiles["/repo/AGENTS.md"]).toBe("Existing\n");
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/AGENTS.md",
+      "Existing\n",
+    );
+    expect(normalizeHumanOutput()).toContain(
+      "Done! GitHits guidance was removed from this project.",
+    );
   });
 
   it("leaves malformed project .mcp.json unchanged during uninstall", async () => {
