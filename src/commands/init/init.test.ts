@@ -7150,6 +7150,12 @@ describe("initUninstallAction", () => {
     expect(parsed.mcpServers.GitHits).toBeUndefined();
     expect(parsed.mcpServers.other).toEqual({ command: "other" });
     const logCalls = getLogOutput();
+    expect(logCalls).toContain(
+      "  Removes GitHits MCP configuration and supporting guidance.\n",
+    );
+    expect(logCalls.join("\n")).not.toContain(
+      "Removes the local GitHits MCP configuration",
+    );
     expect(logCalls.some((msg) => msg.includes("Done!"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("1 agent removed."))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("2 agents removed."))).toBe(

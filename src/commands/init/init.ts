@@ -3721,7 +3721,7 @@ async function runUserMcpUninstall(
     `\n  ${colorize("Disconnect GitHits from your coding agents.", "bold", useColors)}`,
   );
   console.log(
-    `  ${colorize("Removes the local GitHits MCP configuration.", "dim", useColors)}\n`,
+    `  ${colorize("Removes GitHits MCP configuration and supporting guidance.", "dim", useColors)}\n`,
   );
 
   console.log("  Scanning for configured agents...\n");
