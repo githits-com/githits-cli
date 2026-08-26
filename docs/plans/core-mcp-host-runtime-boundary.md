@@ -155,8 +155,8 @@ runtime fix.
 
 - A browser-neutral callable-tool contract and JSON Schema conversion.
 - Public package access to the `get_example` callable tool.
-- Explicit auth-action and abort-signal execution context across the existing
-  MCP tool adapter.
+- Explicit auth/terms remediation and abort-signal execution context across the
+  existing MCP tool adapter.
 - A narrow private-core export for browser-reachable service types and neutral
   error classes.
 - Source, built, packed-package, browser-graph, and Node MCP regression tests.
@@ -325,7 +325,8 @@ None for Phase 2.
 
 - Existing `GitHitsService`/`RefreshingGitHitsService` implementations and
   `get_example` tool tests.
-- Existing MCP server auth-action public contract and execution hook behavior.
+- Existing MCP server auth-action public contract, terms-error behavior, and
+  execution hooks.
 - Existing public-package validator and Bun browser build metafiles.
 
 ### Affected components and likely files
