@@ -648,7 +648,7 @@ export interface ChangelogReport {
   package?: ChangelogPackageInfo;
   /** `"releases"` | `"changelog_file"` | `"hexdocs"` when resolved; absent for package versions with no changelog entry. */
   source?: string;
-  /** Entries, newest-first. Empty array = resolved source but nothing in range. */
+  /** Entries in backend/source order. Empty array = resolved source but nothing in range. */
   entries: ChangelogEntryDetail[];
 }
 

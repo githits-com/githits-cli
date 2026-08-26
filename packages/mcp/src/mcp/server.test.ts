@@ -92,6 +92,7 @@ const DESCRIPTION_ROUTING: Record<
       "Start here for open-ended",
       "Omit `source` to let GitHits select the best sources",
       "`search_status`",
+      "`code_grep`",
       "`docs_read`",
       "`code_read`",
     ],

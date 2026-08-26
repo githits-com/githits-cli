@@ -215,8 +215,8 @@ const DEFAULT_BODY_PREVIEW_LINES = 10;
  * Edge cases:
  * - Empty entries: summary header + "No entries in this range.".
  * - Missing `publishedAt`: `-` in the date column.
- * - Missing `version`: `(unversioned)`; backend newest-first order
- *   preserved (we don't re-sort).
+ * - Missing `version`: `(unversioned)`; backend/source order is preserved
+ *   (we don't re-sort).
  * - Empty-string body: rendered with a neutral `(empty release
  *   notes)` sentinel so agents can tell it apart from
  *   `--no-body` / bodies-absent.
