@@ -29,6 +29,12 @@
         "default": "./dist/smoke-test.js"
       }
     },
+    "./tools": {
+      "import": {
+        "types": "./dist/tools.d.ts",
+        "default": "./dist/tools.js"
+      }
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

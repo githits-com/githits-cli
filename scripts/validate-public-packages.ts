@@ -7,6 +7,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
+import { builtinModules } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,8 +25,13 @@ interface MetafileInput {
   imports?: unknown;
 }
 
+interface MetafileOutput {
+  imports?: unknown;
+}
+
 export interface BundleMetafile {
   inputs?: Record<string, MetafileInput>;
+  outputs?: Record<string, MetafileOutput>;
 }
 
 interface PublicPackage {
@@ -77,6 +83,21 @@ const forbiddenFilesystemSpecifiers = new Set([
   "fs/promises",
   "node:fs/promises",
 ]);
+
+const forbiddenBrowserNodeBuiltins = new Set(
+  builtinModules.flatMap((specifier) =>
+    specifier.startsWith("node:")
+      ? [specifier, specifier.slice("node:".length)]
+      : [specifier, `node:${specifier}`],
+  ),
+);
+
+const forbiddenBrowserPolyfillMarkers = [
+  "@esbuild-plugins/node-globals-polyfill",
+  "@esbuild-plugins/node-modules-polyfill",
+  "node-stdlib-browser",
+  "rollup-plugin-node-polyfills",
+];
 
 /** Match only the Node filesystem module specifiers prohibited in MCP/core. */
 export function isForbiddenFilesystemSpecifier(specifier: string): boolean {
@@ -131,6 +152,79 @@ export function findForbiddenFilesystemSpecifiersInMetafile(
   return [...found];
 }
 
+function isForbiddenBrowserSpecifier(specifier: string): boolean {
+  if (specifier.startsWith("node:")) return true;
+  if (forbiddenBrowserNodeBuiltins.has(specifier)) return true;
+  if (
+    specifier === "@modelcontextprotocol/sdk" ||
+    specifier.startsWith("@modelcontextprotocol/sdk/")
+  ) {
+    return true;
+  }
+  if (
+    specifier === "@githits/core-internal" ||
+    specifier.startsWith("@githits/core-internal/") ||
+    specifier === "@githits/mcp/internal" ||
+    specifier.startsWith("@githits/mcp/internal/") ||
+    specifier.startsWith("workspace:")
+  ) {
+    return true;
+  }
+  return forbiddenBrowserPolyfillMarkers.some((marker) =>
+    specifier.includes(marker),
+  );
+}
+
+function metafileImportSpecifiers(metafile: BundleMetafile): string[] {
+  const specifiers: string[] = [];
+  const collect = (imports: unknown): void => {
+    if (!Array.isArray(imports)) return;
+    for (const item of imports) {
+      if (!isRecord(item)) continue;
+      for (const value of [item.original, item.path]) {
+        if (typeof value === "string") specifiers.push(value);
+      }
+    }
+  };
+
+  for (const input of Object.values(metafile.inputs ?? {})) {
+    collect(input.imports);
+  }
+  for (const output of Object.values(metafile.outputs ?? {})) {
+    collect(output.imports);
+  }
+  return specifiers;
+}
+
+/** Find module edges that cannot be present in a browser-target tools bundle. */
+export function findForbiddenBrowserBundleSpecifiers(
+  metafile: BundleMetafile,
+): string[] {
+  return [
+    ...new Set(
+      metafileImportSpecifiers(metafile).filter(isForbiddenBrowserSpecifier),
+    ),
+  ].sort();
+}
+
+const forbiddenBrowserOutputPatterns: ReadonlyArray<[string, RegExp]> = [
+  ["node: import", /node:/],
+  ["MCP SDK runtime", /@modelcontextprotocol\/sdk/],
+  ["broad core entry", /@githits\/core-internal/],
+  ["MCP internal entry", /@githits\/mcp\/internal/],
+  ["workspace dependency", /workspace:/],
+  ["process global", /\bprocess\s*(?:\.|\[)/],
+  ["Buffer global", /\bBuffer\s*(?:\.|\[|\()/],
+  ["AsyncLocalStorage", /\bAsyncLocalStorage\b/],
+];
+
+/** Find forbidden imports and Node globals in a browser bundle or declaration. */
+export function findForbiddenBrowserOutputMarkers(source: string): string[] {
+  return forbiddenBrowserOutputPatterns
+    .filter(([, pattern]) => pattern.test(source))
+    .map(([label]) => label);
+}
+
 export async function buildNodeTargetProbe(
   entrypoint: string,
   outdir: string,
@@ -154,6 +248,34 @@ export async function buildNodeTargetProbe(
   if (!metafile) {
     throw new Error(
       `Node-target probe did not produce a metafile: ${entrypoint}`,
+    );
+  }
+  return metafile;
+}
+
+export async function buildBrowserTargetProbe(
+  entrypoint: string,
+  outdir: string,
+): Promise<BundleMetafile> {
+  const build = await Bun.build({
+    entrypoints: [entrypoint],
+    metafile: true,
+    outdir,
+    packages: "bundle",
+    target: "browser",
+    format: "esm",
+  });
+  if (!build.success) {
+    throw new Error(
+      `Browser-target probe failed for ${entrypoint}\n${build.logs
+        .map((log) => String(log))
+        .join("\n")}`,
+    );
+  }
+  const metafile = build.metafile as BundleMetafile | undefined;
+  if (!metafile) {
+    throw new Error(
+      `Browser-target probe did not produce a metafile: ${entrypoint}`,
     );
   }
   return metafile;
@@ -470,6 +592,119 @@ async function verifyRootConsumer(
   }
 }
 
+async function verifyMcpToolsArtifacts(appDirectory: string): Promise<void> {
+  const distDirectory = join(
+    appDirectory,
+    "node_modules",
+    "@githits",
+    "mcp",
+    "dist",
+  );
+  for (const filename of ["tools.js", "tools.d.ts"]) {
+    const filePath = join(distDirectory, filename);
+    const source = await readFile(filePath, "utf8");
+    const importSpecifiers = findStaticModuleSpecifiers(source).filter(
+      isForbiddenBrowserSpecifier,
+    );
+    const outputMarkers = findForbiddenBrowserOutputMarkers(source);
+    if (importSpecifiers.length > 0 || outputMarkers.length > 0) {
+      throw new Error(
+        `packed @githits/mcp/tools ${filename} contains forbidden browser dependencies: ${[
+          ...importSpecifiers,
+          ...outputMarkers,
+        ].join(", ")}`,
+      );
+    }
+  }
+}
+
+async function verifyMcpToolsRuntime(appDirectory: string): Promise<void> {
+  const runtimeCheckPath = join(appDirectory, "tools-runtime-check.mjs");
+  await writeFile(
+    runtimeCheckPath,
+    `import { createGetExampleTool, toCallableTool } from "@githits/mcp/tools";
+const signal = new AbortController().signal;
+const service = {
+  search: async (params, options) => {
+    if (params.query !== "packed callable") throw new Error("unexpected query");
+    if (options?.signal !== signal) throw new Error("signal was not forwarded");
+    return "packed result";
+  },
+};
+const callable = toCallableTool(createGetExampleTool(service));
+const result = await callable.execute({ query: "packed callable" }, { signal });
+if (result.isError === true) throw new Error("packed callable returned an error");
+if (result.content?.[0]?.text !== "packed result") throw new Error("packed callable result was incorrect");
+const controller = new AbortController();
+const reason = new Error("packed caller cancelled");
+const cancellingService = {
+  search: async (_params, options) => {
+    if (options?.signal !== controller.signal) throw new Error("cancellation signal was not forwarded");
+    controller.abort(reason);
+    throw reason;
+  },
+};
+const cancellingCallable = toCallableTool(createGetExampleTool(cancellingService));
+try {
+  await cancellingCallable.execute({ query: "packed cancellation" }, { signal: controller.signal });
+  throw new Error("packed cancellation resolved");
+} catch (error) {
+  if (error !== reason) throw new Error("packed cancellation reason was not preserved");
+}
+`,
+  );
+  await runCommand(
+    "node",
+    [runtimeCheckPath],
+    appDirectory,
+    "runtime import packed mcp tools",
+  );
+}
+
+async function verifyMcpToolsBrowserConsumer(
+  appDirectory: string,
+): Promise<void> {
+  const probeDirectory = join(appDirectory, "tools-browser-probe");
+  const outputDirectory = join(probeDirectory, "out");
+  const entrypoint = join(probeDirectory, "browser-check.ts");
+  await mkdir(probeDirectory, { recursive: true });
+  await writeFile(
+    entrypoint,
+    `import { createGetExampleTool, toCallableTool, type GetExampleService } from "@githits/mcp/tools";
+const service: GetExampleService = { search: async ({ query }) => query };
+const callable = toCallableTool(createGetExampleTool(service));
+export const browserProbe = { name: callable.name, schema: callable.inputSchema };
+`,
+  );
+
+  const metafile = await buildBrowserTargetProbe(entrypoint, outputDirectory);
+  const forbiddenSpecifiers = findForbiddenBrowserBundleSpecifiers(metafile);
+  if (forbiddenSpecifiers.length > 0) {
+    throw new Error(
+      `packed @githits/mcp/tools browser bundle resolves forbidden dependencies: ${forbiddenSpecifiers.join(", ")}`,
+    );
+  }
+
+  const outputFiles = (await collectFiles(outputDirectory)).filter((filePath) =>
+    [".js", ".mjs"].some((extension) => filePath.endsWith(extension)),
+  );
+  if (outputFiles.length === 0) {
+    throw new Error(
+      "packed @githits/mcp/tools browser bundle emitted no JavaScript",
+    );
+  }
+  for (const filePath of outputFiles) {
+    const markers = findForbiddenBrowserOutputMarkers(
+      await readFile(filePath, "utf8"),
+    );
+    if (markers.length > 0) {
+      throw new Error(
+        `packed @githits/mcp/tools browser output contains forbidden dependencies (${markers.join(", ")}): ${relative(root, filePath)}`,
+      );
+    }
+  }
+}
+
 async function verifyMcpConsumer(
   tarballPath: string,
   tempRoot: string,
@@ -483,6 +718,8 @@ async function verifyMcpConsumer(
     appDirectory,
     "install packed mcp package",
   );
+  await verifyMcpToolsArtifacts(appDirectory);
+  await verifyMcpToolsRuntime(appDirectory);
 
   await writeFile(
     join(appDirectory, "runtime-check.mjs"),
@@ -494,6 +731,7 @@ async function verifyMcpConsumer(
     appDirectory,
     "runtime import packed mcp package",
   );
+  await verifyMcpToolsBrowserConsumer(appDirectory);
   await verifyMcpBundleProbes(appDirectory);
 
   await writeFile(
@@ -512,11 +750,23 @@ async function verifyMcpConsumer(
           skipLibCheck: true,
           noEmit: true,
         },
-        include: ["check.ts", "code-diff-check.ts"],
+        include: ["check.ts", "code-diff-check.ts", "tools-check.ts"],
       },
       null,
       2,
     ),
+  );
+  await writeFile(
+    join(appDirectory, "tools-check.ts"),
+    `import { createGetExampleTool, toCallableTool, type CallableTool, type CallableToolExecutionOptions, type GetExampleInput, type GetExampleRequestOptions, type GetExampleSearchParams, type GetExampleService } from "@githits/mcp/tools";
+const searchOnlyService: GetExampleService = {
+  search: async (_params: GetExampleSearchParams, _options?: GetExampleRequestOptions) => "ok",
+};
+const callableTool: CallableTool = toCallableTool(createGetExampleTool(searchOnlyService));
+const callableInput: GetExampleInput = { query: "packed tools" };
+const callableOptions: CallableToolExecutionOptions = { signal: new AbortController().signal };
+void callableTool.execute(callableInput, callableOptions);
+`,
   );
   await writeFile(
     join(appDirectory, "code-diff-check.ts"),
