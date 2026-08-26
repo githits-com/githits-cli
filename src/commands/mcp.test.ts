@@ -666,6 +666,7 @@ describe("createMcpCommandStartup", () => {
         program.parseAsync(["node", "test", ...args]),
       ).rejects.toMatchObject({ code: "commander.helpDisplayed" });
       expect(output).not.toContain("experimental-tools");
+      expect(output).not.toContain("instruction-mode");
     }
   });
 
