@@ -5,6 +5,16 @@ export type AgentEvalReportMode = "report" | "json" | "compare";
 
 const CLAUDE_PROFILE_ISOLATION_WARNING =
   "Claude subscription runs may auto-discover global CLAUDE.md; descriptors/full profile evidence is diagnostic, not instruction-isolated";
+const CODEX_PROFILE_ISOLATION_WARNING =
+  "Codex loads global $CODEX_HOME/AGENTS.md when present; descriptors/full profile evidence is diagnostic, not instruction-isolated";
+
+function profileIsolationWarning(
+  agent: string | undefined,
+): string | undefined {
+  if (agent === "claude") return CLAUDE_PROFILE_ISOLATION_WARNING;
+  if (agent === "codex") return CODEX_PROFILE_ISOLATION_WARNING;
+  return undefined;
+}
 export type NormalizedToolStatus =
   | "started"
   | "completed"
@@ -462,12 +472,13 @@ export function buildRunReportFromMetadata(
       warnings.push(`duplicate workload id in run metadata: ${workload.id}`);
     ids.add(workload.id);
   }
+  const isolationWarning = profileIsolationWarning(metadata.agent);
   if (
-    metadata.agent === "claude" &&
+    isolationWarning &&
     metadata.surface === "mcp" &&
     ["descriptors", "full"].includes(metadata.guidanceProfile ?? "instructions")
   ) {
-    warnings.push(CLAUDE_PROFILE_ISOLATION_WARNING);
+    warnings.push(isolationWarning);
   }
   const reports = workloads.map((workload) =>
     buildWorkloadReport(
@@ -637,8 +648,9 @@ function compareMetadataWarnings(
       `reasoning effort differs: ${before.reasoningEffort ?? "unspecified"} -> ${after.reasoningEffort ?? "unspecified"}`,
     );
   }
+  const isolationWarning = profileIsolationWarning(before.agent);
   if (
-    before.agent === "claude" &&
+    isolationWarning &&
     [before, after].some(
       (report) =>
         report.surface === "mcp" &&
@@ -647,7 +659,7 @@ function compareMetadataWarnings(
         ),
     )
   ) {
-    warnings.push(CLAUDE_PROFILE_ISOLATION_WARNING);
+    warnings.push(isolationWarning);
   }
   return warnings;
 }

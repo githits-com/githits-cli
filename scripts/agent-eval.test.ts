@@ -466,7 +466,7 @@ describe("agent eval harness", () => {
     expect(command).toContain("/tmp/work");
   });
 
-  it("isolates Codex MCP evals from user config and global skills", () => {
+  it("excludes Codex user config, rules, and plugin skills", () => {
     const command = buildCodexCommand(
       "prompt",
       "/tmp/work",
@@ -1672,6 +1672,26 @@ describe("agent eval harness", () => {
     );
   });
 
+  it("warns that Codex guidance-profile runs and comparisons are diagnostic", () => {
+    const before = buildRunReportFromMetadata("/before", {
+      agent: "codex",
+      surface: "mcp",
+      guidanceProfile: "descriptors",
+      workloads: [],
+    });
+    const after = buildRunReportFromMetadata("/after", {
+      agent: "codex",
+      surface: "mcp",
+      guidanceProfile: "descriptors",
+      workloads: [],
+    });
+    const warning =
+      "Codex loads global $CODEX_HOME/AGENTS.md when present; descriptors/full profile evidence is diagnostic, not instruction-isolated";
+
+    expect(before.warnings).toContain(warning);
+    expect(compareReports(before, after).warnings).toContain(warning);
+  });
+
   it("reports no MCP guidance profile for skills runs", () => {
     const report = buildRunReportFromMetadata("/skills", {
       agent: "codex",
@@ -1869,6 +1889,7 @@ describe("agent eval harness", () => {
       "guidance profile differs: descriptors -> full",
       "model differs: gpt-5.6-luna -> gpt-custom",
       "reasoning effort differs: high -> low",
+      "Codex loads global $CODEX_HOME/AGENTS.md when present; descriptors/full profile evidence is diagnostic, not instruction-isolated",
     ]);
     expect(formatCompareReport(comparison)).toContain(
       "profile=descriptors effort=high",

@@ -307,7 +307,7 @@ function buildSummaryLine(
 function rangeLabel(envelope: LeanChangelogEnvelope): string {
   const from = envelope.filter?.fromVersion ?? "earliest";
   const to = envelope.filter?.toVersion ?? "latest";
-  return `range ${from} -> ${to}`;
+  return `range (${from}, ${to}]`;
 }
 
 function latestLabel(envelope: LeanChangelogEnvelope): string {

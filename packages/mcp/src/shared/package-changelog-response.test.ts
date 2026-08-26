@@ -424,7 +424,7 @@ describe("formatPackageChangelogTerminal", () => {
     expect(output).toContain("No entries in this range.");
   });
 
-  it("labels range mode with from -> to in the summary", () => {
+  it("labels range mode with its exclusive lower bound in the summary", () => {
     const envelope = buildPackageChangelogSuccessPayload(baseReport, {
       ...baseOptions,
       mode: "range",
@@ -436,7 +436,7 @@ describe("formatPackageChangelogTerminal", () => {
       verbose: false,
       useColors: false,
     });
-    expect(output).toContain("range 4.0.0 -> 5.0.0");
+    expect(output).toContain("range (4.0.0, 5.0.0]");
   });
 
   it("renders printable ASCII punctuation", () => {

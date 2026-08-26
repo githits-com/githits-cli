@@ -9,7 +9,8 @@ Extend the existing agentic harness with controlled guidance profiles so the
 same descriptor change is evaluated both with tools/descriptions alone and with
 the instructions and skills existing installations receive.
 Change and evaluate the existing descriptions first, without adding a tool, so
-any improvement or regression is attributable to descriptor wording. Treat an
+hosts that suppress unrelated guidance can attribute any improvement or
+regression to descriptor wording. Treat an
 optional `quick_start` bootstrap as a separate, evidence-gated follow-up only if
 the descriptor-only results still show a cross-tool routing gap.
 Open-ended investigations of a known public package or repository should begin
@@ -27,10 +28,10 @@ boundary.
 
 - Overall: IN PROGRESS — Phase 1 and Phase 2 are complete; hosted deployment
   and connector acceptance remain
-- Phase 1 — the eval harness isolates Codex/OpenCode guidance profiles and
-  description changes are covered by attributable local regressions; Claude
-  subscription runs remain diagnostic because global guidance cannot be
-  suppressed: COMPLETE
+- Phase 1 — the eval harness isolates OpenCode guidance profiles and records
+  Codex/Claude runs as diagnostic because their normal authenticated modes load
+  global guidance; description changes retain bounded attributable OpenCode
+  regressions: COMPLETE
 - Phase 2 — decide from Phase 1 evidence whether an optional `quick_start` tool
   is still justified; if approved, implement and evaluate it independently:
   COMPLETE — no tool added; the observed miss occurred after all relevant
@@ -266,8 +267,8 @@ boundary.
     `--bare`; consequently Claude Code can still auto-discover global
     `CLAUDE.md`. `--disable-slash-commands` disables skills only. These retained
     cells are therefore diagnostic host/tool-call evidence, not attributable
-    descriptor-only/full-profile comparisons. Codex and OpenCode evidence is
-    unaffected.
+    descriptor-only/full-profile comparisons. A later audit found the same
+    limitation in Codex; OpenCode evidence is unaffected.
 27. The accepted sequential OpenCode after-state is retained under
     `.agent-eval/runs/remote-mcp-after-opencode-{descriptors,full}-direct`.
     All four bounded cells completed with useful, high-confidence evidence and
@@ -295,12 +296,21 @@ boundary.
     start/end range. The descriptor, schema help, service contract comment, and
     durable documentation now state `(from_version, to_version]` and direct a
     one-release lookup to latest mode with `to_version` plus `limit: 1`.
-31. Final local verification passes 3,179 unit tests, typecheck, format, lint,
+31. Final local verification passes 3,186 unit tests, typecheck, format, lint,
     root and MCP builds, public-package validation, plugin generation/checks,
     source CLI/MCP smokes, and built CLI/MCP smokes. The first live MCP smoke
     encountered an explicit retryable backend `RATE_LIMITED` envelope on the
     second back-to-back example call; after the reported four-second window,
     both source smoke suites passed without a product-code workaround.
+32. A post-review isolation audit found that Codex loads global
+    `$CODEX_HOME/AGENTS.md` even with `--ignore-user-config` and
+    `--ignore-rules`; those flags cover `config.toml` and execution-policy rules,
+    not agent guidance. The installed global file contains GitHits routing, and
+    a bounded Luna check from an empty workspace confirmed that both the global
+    instructions and routing guidance were present. Retained Codex profile runs
+    are therefore useful diagnostic/current-state evidence but not attributable
+    descriptor-only/full-profile comparisons. Reports now warn automatically;
+    OpenCode remains the instruction-isolated local cohort.
 
 ## Scope
 
@@ -497,7 +507,7 @@ booleans:
 
 | Profile | Local MCP server instructions | Installed skills and canonical pointer | Purpose |
 |---|---|---|---|
-| `descriptors` | Empty | No | Closest controllable remote-connector approximation for Codex/OpenCode: tool names, descriptions, schemas, and results only. Local Claude subscription runs may still auto-discover global `CLAUDE.md` and are diagnostic only. |
+| `descriptors` | Empty | No | Closest controllable remote-connector approximation: tool names, descriptions, schemas, and results only. OpenCode can isolate it locally; Codex and Claude runs remain diagnostic because normal authenticated modes load global guidance. |
 | `instructions` | Current `buildLocalMcpInstructions()` | No | Existing harness behavior and diagnostic middle cell. |
 | `full` | Current `buildLocalMcpInstructions()` | Yes | Regression protection for enriched installations created by plugins or `githits init`. |
 
@@ -519,9 +529,10 @@ host-readable project instruction file(s) in the isolated workspace while
 retaining the MCP configuration. Agent launch isolation must still exclude
 unrelated global MCP servers, skills, and instructions where the driver supports
 that under normal authentication. Claude's `--bare` mode would exclude global
-instructions but also disables subscription/OAuth; no API-key path is added in
-this increment, so local Claude profiles cannot satisfy this isolation claim and
-remain diagnostic.
+instructions but also disables subscription/OAuth. Codex has no selective flag
+that suppresses global `$CODEX_HOME/AGENTS.md`; using a separate Codex home would
+require a separately approved authentication path. No alternate-auth path is
+added in this increment, so local Codex and Claude profiles remain diagnostic.
 
 Preserve GitHits MCP/CLI calls in `tool-calls.json`. Add a separate
 `discovery-events.json` for host discovery mechanisms, initially recognizing
@@ -530,10 +541,10 @@ it. Reports state whether discovery was observed, not observed, or not exposed
 by that driver. “Not observed” is never interpreted as “the host does not use
 tool search.”
 
-Use this attributable before/after cohort for Codex under `descriptors` and
-`full`, keeping the same explicit or recorded model selection within each
-comparison. Run the same Claude cells as diagnostic host/tool-search evidence
-when subscription capacity permits, but do not use them for profile attribution:
+Use the Codex and Claude cells as diagnostic current-state and host/tool-search
+evidence, keeping the same explicit or recorded model selection within each
+comparison. Use the bounded OpenCode cells as attributable local profile
+evidence; do not use Codex or Claude for profile attribution:
 
 - `opencode-compaction.md` and `express-router.md` for open-ended multi-tool
   discovery and exact follow-ups
@@ -595,10 +606,11 @@ and is not authorized by this plan without an explicit product decision.
    stop and resolve ownership rather than adding a network dependency to a
    static guide.
 8. An empty local MCP `instructions` string is the closest controllable match
-   for the connector's missing-guidance behavior in Codex/OpenCode. It does not
-   reproduce the connector's tool-ranking implementation, catalog size, or UI.
-   Claude subscription runs additionally cannot suppress global `CLAUDE.md`
-   without `--bare`, which disables subscription/OAuth.
+   for the connector's missing-guidance behavior. It does not reproduce the
+   connector's tool-ranking implementation, catalog size, or UI. OpenCode can
+   isolate user guidance locally. Codex loads global `$CODEX_HOME/AGENTS.md`;
+   Claude subscription runs cannot suppress global `CLAUDE.md` without
+   `--bare`, which disables subscription/OAuth.
 9. Phase 1 can establish the effect of description changes only if the stable
    tool inventory remains unchanged. `quick_start` therefore cannot enter that
    before/after cohort.
@@ -656,12 +668,14 @@ and is not authorized by this plan without an explicit product decision.
 
 ### Status
 
-COMPLETE — implementation, attributable Codex/OpenCode local evals, durable
-documentation, release fragments, deterministic verification, and internal plus
-external review are complete. Local Claude runs are diagnostic rather than
-profile-isolated, and eight after-state cells plus a final Claude rerun remain
-unavailable because the account exhausted its seven-day usage allowance; both
-evidence gaps are recorded rather than hidden.
+COMPLETE — implementation, bounded attributable OpenCode local evals,
+diagnostic Codex/Claude evals, durable documentation, release fragments,
+deterministic verification, internal review, and the three-round external review
+plus its post-completion addendum closure are complete.
+Codex and Claude runs are diagnostic rather than profile-isolated, and eight
+after-state Claude cells plus a final Claude rerun remain unavailable because
+the account exhausted its seven-day usage allowance; both evidence limits are
+recorded rather than hidden.
 
 ### Expected outcome
 
@@ -671,8 +685,10 @@ definition carries a discriminating catalog prefix and enough
 positive and negative routing context to stand alone when a host discovers only
 that tool. The catalog distinguishes navigation, examples, package intelligence,
 feedback, and continuation roles. The before/after comparison changes only
-descriptions and argument descriptions, preserving the 15-tool inventory so its
-result is attributable. Actual connector retrieval remains a Phase 3 gate.
+descriptions and argument descriptions, preserving the 15-tool inventory.
+Attribution applies only to the instruction-isolated OpenCode cells; Codex and
+Claude comparisons remain diagnostic. Actual connector retrieval remains a
+Phase 3 gate.
 
 ### Assumptions
 
@@ -738,18 +754,20 @@ None for this phase.
    registering the same tool names, schemas, annotations, and handlers.
 3. Make `full` reuse the existing skills-workspace preparation and canonical
    `GITHITS_GUIDANCE_BLOCK` while retaining local MCP configuration. Configure
-   Claude, Codex, and OpenCode to read only the isolated project guidance and
-   skills plus the explicit GitHits MCP; keep unrelated user/global surfaces
-   disabled. Persist installed skill and instruction paths for inspection.
+   OpenCode to read only the isolated project guidance and skills plus the
+   explicit GitHits MCP. Preserve normal authentication for Codex and Claude,
+   record their unavoidable global-guidance exposure, and treat those runs as
+   diagnostic. Persist installed skill and instruction paths for inspection.
 4. Extend artifact extraction without changing `tool-calls.json`: write
    `discovery-events.json` for Claude `ToolSearch` request/result events when
    emitted, add an observed/not-observed/not-exposed summary to reports, and
    test that MCP calls and discovery events remain separate. Never infer host
    behavior from an absent event.
 5. Before changing any descriptor, run and retain the baseline cohort under
-   `descriptors` and `full` with fixed agent/model choices. Treat Codex/OpenCode
-   as attributable profile evidence and Claude as diagnostic only because its
-   subscription-authenticated CLI cannot suppress global `CLAUDE.md`.
+   `descriptors` and `full` with fixed agent/model choices. Treat OpenCode as
+   attributable local profile evidence. Treat Codex and Claude as diagnostic:
+   Codex loads global `$CODEX_HOME/AGENTS.md`, while subscription-authenticated
+   Claude cannot suppress global `CLAUDE.md`.
    Inspect raw discovery, tool-call, and final artifacts; do not treat aggregate
    harness success alone as the baseline.
 6. Re-read all 15 current stable descriptors and schema argument descriptions as
@@ -865,9 +883,10 @@ bun run smoke:mcp:built
 ```
 
 Before descriptor changes, run the named Codex cohort under both `descriptors`
-and `full`, plus the bounded OpenCode cells. Retain those artifacts as the
-attributable baseline. Run matching Claude cells when practical and label them
-diagnostic rather than profile-isolated. After the changes, rerun the same
+and `full`, plus the bounded OpenCode cells. Retain Codex artifacts as
+diagnostic and the OpenCode cells as the attributable local baseline. Run
+matching Claude cells when practical and label them diagnostic rather than
+profile-isolated. After the changes, rerun the same
 agent/model/profile/workload cells where capacity permits. Inspect
 `tool-calls.json` for the first
 GitHits call, complete call sequence, source selection, and focused reads;
@@ -907,9 +926,9 @@ presence or absence; they do not prove Claude connector behavior.
 - A retained pre-change baseline exists for every mandatory Codex/OpenCode
   cohort cell before descriptor edits. The after-state is compared only with
   the matching agent/model/profile/workload cell; failed or surprising runs are
-  investigated from raw artifacts rather than retried until they pass. Claude
-  artifacts remain diagnostic until a driver can suppress global guidance under
-  approved authentication.
+  investigated from raw artifacts rather than retried until they pass. Codex and
+  Claude artifacts remain diagnostic until a driver can suppress global guidance
+  under approved authentication; OpenCode provides local profile attribution.
 - The selection matrix is true from each individual descriptor without relying
   on server instructions.
 - Every stable tool's first 80 characters communicate its main benefit with
@@ -934,11 +953,12 @@ presence or absence; they do not prove Claude connector behavior.
 - Across the mandatory Codex/OpenCode `descriptors` cohort, each workload reaches its expected
   tool family, reports no new descriptor-caused `toolIssues` or
   `instructionIssues`, and does not materially reduce evidence usefulness or
-  confidence relative to its matching baseline. Because the tool inventory is
-  unchanged, observed selection differences are attributable to descriptor or
-  argument-description changes rather than a bootstrap tool.
-- Across the mandatory Codex/OpenCode `full` cohort, enriched installations retain their
-  baseline tool accessibility and evidence quality.
+  confidence relative to its matching baseline. Only the isolated OpenCode
+  selection differences are attributable to descriptor or argument-description
+  changes; Codex results are diagnostic current-state evidence.
+- Across the mandatory Codex/OpenCode `full` cohort, enriched installations
+  retain their baseline tool accessibility and evidence quality. Only OpenCode
+  satisfies local profile isolation; Codex remains diagnostic.
 - The bounded OpenCode runs record call sequences and evidence quality under
   both mandatory profiles. No local result is treated as connector proof.
 - Exact grep, file listing, focused read, and docs follow-up workloads retain

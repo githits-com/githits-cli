@@ -24,7 +24,7 @@ Use `--depth` to request transitive output capped to that traversal depth. Omit 
 
 ## Changelog
 
-`githits pkg changelog <registry:name>` returns recent release notes, newest first. `--limit` works in latest mode. `--from` switches to range mode, optionally capped by `--to`.
+`githits pkg changelog <registry:name>` returns recent release notes. `--limit` caps latest mode. `--from` is the exclusive lower bound for range mode, which returns entries after `--from` through `--to` (or latest).
 
 Flags: `--repo-url <url>`, `--from <version>`, `--to <version>`, `--limit 1-50`, `--git-ref <ref>`, `--verbose`, `--no-body`, `--json`.
 

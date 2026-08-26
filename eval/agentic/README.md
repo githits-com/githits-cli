@@ -29,8 +29,9 @@ agent's usefulness assessment.
 - MCP runs use the `instructions` guidance profile by default. The
   `descriptors` profile runs the local MCP server with an explicit empty server
   instruction string and no installed skills or project pointer, approximating
-  a remote connector that exposes only tool definitions for drivers that can
-  suppress user guidance. The `full` profile keeps MCP instructions and
+  a remote connector that exposes only tool definitions. OpenCode can isolate
+  this profile locally; Codex and Claude runs retain the diagnostic limitations
+  documented below. The `full` profile keeps MCP instructions and
   additionally installs the skills plus project `CLAUDE.md`/`AGENTS.md`
   guidance. `descriptors` and `full` require
   `--server local`; published MCP runs use the published server's own
@@ -53,16 +54,17 @@ the agent how to use GitHits.
 
 Runs execute agents from an empty temporary workspace so repository-local files
 such as `AGENTS.md`, `.mcp.json`, commands, skills, and plugin payloads do not
-contaminate results. The harness keeps the user's normal Claude/GitHits auth
-environment so human-driven keychain/OAuth sessions continue to work. Codex and
-OpenCode can exclude user guidance under that constraint. Claude Code cannot:
-its `--bare` mode is the only supported way to suppress global `CLAUDE.md`
-auto-discovery, and that mode disables subscription/OAuth authentication in
-favor of API-key-style auth. Therefore local Claude descriptor/full runs may
+contaminate results. The harness keeps normal agent and GitHits authentication
+so human-driven keychain/OAuth sessions continue to work. OpenCode can exclude
+user guidance under that constraint. Codex always reads global
+`$CODEX_HOME/AGENTS.md` when present; `--ignore-user-config` excludes
+`config.toml`, not agent guidance. Claude Code's `--bare` mode suppresses global
+`CLAUDE.md` auto-discovery but disables subscription/OAuth in favor of
+API-key-style auth. Therefore local Codex and Claude descriptor/full runs may
 observe user-level guidance and are diagnostic only, not causal evidence for a
-guidance-profile comparison. Use the authenticated remote connector for Claude
-acceptance; do not treat a local Claude profile label as proof of instruction
-isolation.
+guidance-profile comparison. Use an authenticated remote connector or another
+verified instruction-isolated host for acceptance; do not treat a local Codex
+or Claude profile label as proof of instruction isolation.
 
 OpenCode eval and session processes set `OPENCODE_DISABLE_EXTERNAL_SKILLS=1`
 and `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` to exclude global and
@@ -343,10 +345,11 @@ add `--disable-slash-commands` to disable skills, but this does not disable
 global `CLAUDE.md` discovery; the isolation limitation above still applies.
 Skills runs do not use that flag because Claude Code treats it as disabling all
 skills; they instead use project-only settings plus an empty strict MCP config.
-Codex MCP runs
-use per-run `-c` MCP config overrides and `--ignore-rules`; skills runs omit
-both and use `--ignore-user-config` so project skills can be discovered without
-user-configured MCP servers. Codex always uses
+Codex MCP runs use per-run `-c` MCP config overrides, `--ignore-rules`, and
+`--ignore-user-config`; these exclude user config, execution-policy rules, and
+configured MCP/plugin skills, but not global `$CODEX_HOME/AGENTS.md`. Skills
+runs omit the MCP and rule overrides while retaining `--ignore-user-config` so
+project skills can be discovered without user-configured MCP servers. Codex always uses
 `--dangerously-bypass-approvals-and-sandbox` so non-interactive GitHits calls are
 not cancelled by the approval layer. Keep workloads controlled and run them from
 the harness's empty temporary workspace.
