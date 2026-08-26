@@ -25,12 +25,12 @@ boundary.
 
 ## Status
 
-- Overall: IN PROGRESS — Phase 1 implementation and local verification are
-  complete; implementation review and hosted deployment remain
+- Overall: IN PROGRESS — Phase 1 and Phase 2 are complete; hosted deployment
+  and connector acceptance remain
 - Phase 1 — the eval harness isolates Codex/OpenCode guidance profiles and
   description changes are covered by attributable local regressions; Claude
   subscription runs remain diagnostic because global guidance cannot be
-  suppressed: REVIEW
+  suppressed: COMPLETE
 - Phase 2 — decide from Phase 1 evidence whether an optional `quick_start` tool
   is still justified; if approved, implement and evaluate it independently:
   COMPLETE — no tool added; the observed miss occurred after all relevant
@@ -656,12 +656,12 @@ and is not authorized by this plan without an explicit product decision.
 
 ### Status
 
-REVIEW — implementation, attributable Codex/OpenCode local evals, durable
-documentation, release fragment, and deterministic verification complete.
-Local Claude runs are diagnostic rather than profile-isolated, and eight
-after-state cells plus a final Claude rerun remain unavailable because the
-account exhausted its seven-day usage allowance; both evidence gaps are
-recorded rather than hidden.
+COMPLETE — implementation, attributable Codex/OpenCode local evals, durable
+documentation, release fragments, deterministic verification, and internal plus
+external review are complete. Local Claude runs are diagnostic rather than
+profile-isolated, and eight after-state cells plus a final Claude rerun remain
+unavailable because the account exhausted its seven-day usage allowance; both
+evidence gaps are recorded rather than hidden.
 
 ### Expected outcome
 
