@@ -55,6 +55,14 @@ such as `AGENTS.md`, `.mcp.json`, commands, skills, and plugin payloads do not
 contaminate results. The harness keeps the user's normal Claude/GitHits auth
 environment so human-driven keychain/OAuth sessions continue to work.
 
+OpenCode eval and session processes set `OPENCODE_DISABLE_EXTERNAL_SKILLS=1`
+and `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` to exclude global and
+Claude-compatible skills. Full MCP runs retain the intended local
+`.opencode/skills` installation. Generated OpenCode config denies task
+delegation (`permission.task: "deny"`) so GitHits calls stay in the observable
+session. Full MCP reports identify any GitHits CLI fallback rather than
+counting it as equivalent MCP usage.
+
 GitHits authentication follows normal local behavior. Keychain-backed human
 login should work by default. Automation can use `GITHITS_API_TOKEN`.
 For skills-surface evals, the agent executes the GitHits CLI through its shell;
