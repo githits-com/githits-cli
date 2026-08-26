@@ -31,6 +31,7 @@ export type McpAuthAction =
   | string
   | ((context: McpAuthActionContext) => string);
 
+/** Host-selected message and action for terms-acceptance failures. */
 export interface ToolTermsRemediation {
   message: string;
   action: string;
@@ -51,9 +52,7 @@ export type ToolResult = {
   isError?: boolean;
 };
 
-/**
- * Tool handler function signature (matches MCP SDK callback)
- */
+/** Transport-neutral callable tool handler receiving optional execution context. */
 export type ToolHandler<TArgs> = (
   args: TArgs,
   context?: ToolExecutionContext,

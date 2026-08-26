@@ -150,6 +150,11 @@ export interface SearchParams {
   includeExplanation?: boolean;
 }
 
+/** Optional browser-standard controls for a GitHits service request. */
+export interface GitHitsServiceRequestOptions {
+  signal?: AbortSignal;
+}
+
 /**
  * Parameters for feedback API call.
  *
@@ -195,7 +200,10 @@ const LANGUAGES_SCHEMA = z.array(LANGUAGE_SCHEMA);
  */
 export interface GitHitsService {
   /** Search for code examples. Returns markdown-formatted result. */
-  search(params: SearchParams): Promise<string>;
+  search(
+    params: SearchParams,
+    options?: GitHitsServiceRequestOptions,
+  ): Promise<string>;
 
   /** Get all supported languages. */
   getLanguages(): Promise<Language[]>;
@@ -219,7 +227,11 @@ export class GitHitsServiceImpl implements GitHitsService {
     private readonly runtime: GitHitsServiceRuntimeOptions = {},
   ) {}
 
-  async search(params: SearchParams): Promise<string> {
+  async search(
+    params: SearchParams,
+    options?: GitHitsServiceRequestOptions,
+  ): Promise<string> {
+    options?.signal?.throwIfAborted();
     return withServiceDiagnostics(
       this.runtime.diagnostics,
       "githits.search.request",
@@ -235,6 +247,7 @@ export class GitHitsServiceImpl implements GitHitsService {
               license_mode: params.licenseMode ?? "strict",
               include_explanation: params.includeExplanation ?? false,
             }),
+            ...(options?.signal ? { signal: options.signal } : {}),
           },
           this.runtime.exampleRequestTimeoutMs ??
             DEFAULT_EXAMPLE_REQUEST_TIMEOUT_MS,
@@ -357,6 +370,7 @@ export class GitHitsServiceImpl implements GitHitsService {
         fetchOptions,
       );
     } catch (cause) {
+      if (isCallerAbort(cause, init.signal)) throw cause;
       if (isFetchTimeoutError(cause) || isAbortError(cause)) {
         throw new GitHitsRequestTimeoutError(fetchOptions.timeoutMs, cause);
       }
@@ -437,4 +451,13 @@ class GitHitsRequestTimeoutError extends FetchTimeoutError {
 
 function isAbortError(error: unknown): error is DOMException {
   return error instanceof Error && error.name === "AbortError";
+}
+
+function isCallerAbort(
+  error: unknown,
+  signal: AbortSignal | null | undefined,
+): boolean {
+  return Boolean(
+    signal?.aborted && (error === signal.reason || isAbortError(error)),
+  );
 }

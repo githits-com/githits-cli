@@ -63,12 +63,15 @@ export function createGetExampleTool(
       return withErrorHandling(
         "get example",
         async () => {
-          const markdown = await service.search({
+          const searchParams = {
             query: args.query,
             language: args.language,
             licenseMode: args.license_mode,
             includeExplanation: false,
-          });
+          };
+          const markdown = context?.signal
+            ? await service.search(searchParams, { signal: context.signal })
+            : await service.search(searchParams);
           const solutionId = extractSolutionId(markdown);
           const payload = solutionId
             ? { result: markdown, solution_id: solutionId }

@@ -82,6 +82,25 @@ describe("getExampleTool", () => {
     });
   });
 
+  it("forwards the execution signal as the service request signal", async () => {
+    const searchFn = mock(() => Promise.resolve("result"));
+    const service = createMockGitHitsService({ search: searchFn });
+    const tool = createGetExampleTool(service);
+    const signal = new AbortController().signal;
+
+    await tool.handler({ query: "test" }, { signal });
+
+    expect(searchFn).toHaveBeenCalledWith(
+      {
+        query: "test",
+        language: undefined,
+        licenseMode: undefined,
+        includeExplanation: false,
+      },
+      { signal },
+    );
+  });
+
   it("returns error result on service failure", async () => {
     const service = createMockGitHitsService({
       search: mock(() => Promise.reject(new Error("Network error"))),
