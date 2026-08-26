@@ -12,6 +12,66 @@ import { colorize, type colors } from "@githits/mcp/internal";
 import type { FileSystemService } from "../../services/filesystem-service.js";
 import type { CliCommand, SetupConfig } from "./agent-definitions.js";
 
+/** Width used when stdout does not expose a terminal size. */
+export const DEFAULT_INIT_PROSE_WIDTH = 80;
+
+/** Avoid unreadably narrow prose when a terminal reports a tiny width. */
+export const MIN_INIT_PROSE_WIDTH = 40;
+
+/**
+ * Wrap ordinary init prose without splitting words.
+ *
+ * Explicit line breaks are preserved. Bullet continuations use a hanging
+ * indent, while ordinary lines retain their initial indentation. The helper
+ * is pure; the init command supplies `process.stdout.columns` at its boundary.
+ */
+export function wrapInitProse(text: string, columns?: number): string[] {
+  const width = normalizeInitProseWidth(columns);
+  return text.split(/\r?\n/).flatMap((line) => wrapInitProseLine(line, width));
+}
+
+function normalizeInitProseWidth(columns: number | undefined): number {
+  if (columns === undefined || !Number.isFinite(columns)) {
+    return DEFAULT_INIT_PROSE_WIDTH;
+  }
+  return Math.max(MIN_INIT_PROSE_WIDTH, Math.floor(columns));
+}
+
+function wrapInitProseLine(line: string, width: number): string[] {
+  if (line.trim().length === 0) return [line];
+
+  const bullet = line.match(/^(\s*)((?:[-*•]|\d+[.)])\s+)(.*)$/);
+  const initialIndent = bullet?.[1] ?? line.match(/^\s*/)?.[0] ?? "";
+  const marker = bullet?.[2] ?? "";
+  const content = bullet?.[3] ?? line.slice(initialIndent.length);
+  const firstPrefix = `${initialIndent}${marker}`;
+  const continuationPrefix = marker
+    ? `${initialIndent}${" ".repeat(marker.length)}`
+    : initialIndent;
+  const lines: string[] = [];
+  let prefix = firstPrefix;
+  let current = "";
+
+  for (const word of content.trim().split(/\s+/)) {
+    if (current.length === 0) {
+      current = word;
+      continue;
+    }
+    if (prefix.length + current.length + 1 + word.length <= width) {
+      current += ` ${word}`;
+      continue;
+    }
+    lines.push(`${prefix}${current}`);
+    prefix = continuationPrefix;
+    current = word;
+  }
+
+  if (current.length > 0) {
+    lines.push(`${prefix}${current}`);
+  }
+  return lines;
+}
+
 /**
  * A single structured change produced by a setup operation, for display and
  * `--json` auditing. Verbs are set correctly by construction at each executor,
@@ -31,7 +91,7 @@ export type SetupChange =
   | {
       kind: "skill" | "managed-block";
       path: string;
-      change: "created" | "updated" | "unchanged";
+      change: "created" | "updated" | "unchanged" | "removed";
     };
 
 /**

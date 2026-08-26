@@ -500,6 +500,24 @@ async function isExecutableAvailable(
   }
 }
 
+async function isCodexExecutableAvailable(exec: ExecService): Promise<boolean> {
+  try {
+    const lookupCommand = process.platform === "win32" ? "where" : "which";
+    const lookupResult = await exec.exec(lookupCommand, ["codex"], {
+      timeoutMs: BINARY_LOOKUP_TIMEOUT_MS,
+    });
+    if (lookupResult.exitCode !== 0) {
+      return false;
+    }
+    const versionResult = await exec.exec("codex", ["--version"], {
+      timeoutMs: BINARY_LOOKUP_TIMEOUT_MS,
+    });
+    return versionResult.exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveExecutableFromPath(
   exec: ExecService,
   executable: string,
@@ -753,7 +771,7 @@ const codexCli: AgentDefinition = {
   id: "codex-cli",
   detectionMethod: "binary",
   setupMethod: "cli",
-  detectBinary: async (exec) => isExecutableAvailable(exec, "codex"),
+  detectBinary: isCodexExecutableAvailable,
   getSetupConfig: () => ({
     method: "cli",
     commands: [
@@ -828,6 +846,7 @@ const pi: AgentDefinition = {
           serverConfig: {
             ...getStandardMcpServerConfig(),
             lifecycle: "eager",
+            directTools: true,
           },
         },
       ],

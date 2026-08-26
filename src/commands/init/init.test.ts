@@ -13,19 +13,29 @@ import { join } from "node:path";
 import { ExitPromptError } from "@inquirer/core";
 import { Command } from "commander";
 import type {
+  ExecOptions,
+  ExecResult,
+  ExecService,
+} from "../../services/exec-service.js";
+import type {
   ConfirmChoice,
   PromptService,
 } from "../../services/prompt-service.js";
 import {
+  createMockExecService as createBaseMockExecService,
   createMockAuthService,
   createMockAuthStorage,
   createMockBrowserService,
-  createMockExecService,
   createMockFileSystemService,
   createMockPromptService,
   createValidTokenData,
 } from "../../services/test-helpers.js";
 import type { LoginDependencies } from "../login.js";
+import {
+  GITHITS_GUIDANCE_BLOCK,
+  GITHITS_GUIDANCE_MARKER,
+  GITHITS_SKILL_CATALOG,
+} from "./guidance-assets.js";
 import {
   initAction,
   initUninstallAction,
@@ -120,11 +130,27 @@ function createUnauthLoginDeps(): () => Promise<
   );
 }
 
-function readGithitsMcpSkillContent(): string {
-  return readFileSync(
-    join(process.cwd(), "skills", "githits-mcp", "SKILL.md"),
-    "utf8",
+function readCanonicalSkillFiles(skillRoot: string): Record<string, string> {
+  return Object.fromEntries(
+    GITHITS_SKILL_CATALOG.map((skill) => [
+      `${skillRoot}/${skill.name}/SKILL.md`,
+      readFileSync(join(process.cwd(), ...skill.relativePath), "utf8"),
+    ]),
   );
+}
+
+function createProjectGuidanceOnlyFiles(): Record<string, string> {
+  return {
+    ...readCanonicalSkillFiles("/repo/.agents/skills"),
+    "/repo/AGENTS.md": [
+      "Existing",
+      "",
+      GITHITS_GUIDANCE_MARKER,
+      GITHITS_GUIDANCE_BLOCK,
+      GITHITS_GUIDANCE_MARKER,
+      "",
+    ].join("\n"),
+  };
 }
 
 /**
@@ -135,13 +161,15 @@ function createFsWithDetection(
   detectedDirs: string[],
   configFiles: Record<string, string> = {},
 ) {
-  const githitsMcpSkillContent = readGithitsMcpSkillContent();
-  const githitsMcpSkillSourcePath = join(
-    process.cwd(),
-    "skills",
-    "githits-mcp",
-    "SKILL.md",
-  ).replaceAll("\\", "/");
+  const skillSourceContents = new Map(
+    GITHITS_SKILL_CATALOG.map((skill) => {
+      const sourcePath = join(process.cwd(), ...skill.relativePath).replaceAll(
+        "\\",
+        "/",
+      );
+      return [sourcePath, readFileSync(sourcePath, "utf8")];
+    }),
+  );
   return createMockFileSystemService({
     getHomeDir: mock(() => "/home/test"),
     joinPath: mock((...segments: string[]) => segments.join("/")),
@@ -152,8 +180,9 @@ function createFsWithDetection(
     ensureDir: mock(() => Promise.resolve()),
     readFile: mock(async (path: string) => {
       const normalizedPath = path.replaceAll("\\", "/");
-      if (normalizedPath === githitsMcpSkillSourcePath) {
-        return githitsMcpSkillContent;
+      const skillSource = skillSourceContents.get(normalizedPath);
+      if (skillSource !== undefined) {
+        return skillSource;
       }
       if (path in configFiles) {
         return configFiles[path]!;
@@ -161,7 +190,9 @@ function createFsWithDetection(
       throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     }),
     exists: mock(async (path: string) => path in configFiles),
-    atomicWriteFile: mock(() => Promise.resolve()),
+    atomicWriteFile: mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }),
   });
 }
 
@@ -174,18 +205,39 @@ function getErrorOutput(): string[] {
   return (errorSpy.mock.calls as unknown[][]).map((c) => String(c[0] ?? ""));
 }
 
+function normalizeHumanOutput(logCalls: string[] = getLogOutput()): string {
+  return logCalls.join("\n").replace(/\s+/g, " ");
+}
+
 function expectCursorRemoteNextSteps(logCalls: string[]): void {
+  const output = normalizeHumanOutput(logCalls);
   expect(logCalls.some((msg) => msg.includes("6. Next Steps"))).toBe(true);
   expect(logCalls.some((msg) => msg.includes("GitHits is now connected"))).toBe(
     false,
   );
+  expect(output).toContain("Cursor is ready only after its separate OAuth");
+  expect(output).toContain(
+    "open the MCP panel and click Authenticate once for GitHits",
+  );
+  expect(output).toContain("cursor-agent mcp login GitHits");
+  expect(output).toContain("separately from local GitHits CLI authentication");
   expect(
-    logCalls.some((msg) =>
-      msg.includes("Cursor is ready only after its separate OAuth"),
+    logCalls.some(
+      (msg) =>
+        msg.trim() !== "cursor-agent mcp login GitHits" &&
+        msg.includes("cursor-agent mcp login GitHits"),
     ),
-  ).toBe(true);
+  ).toBe(false);
   expect(
-    logCalls.some((msg) => msg.includes("cursor-agent mcp list-tools GitHits")),
+    logCalls.some((msg) => msg.trim() === "cursor-agent mcp login GitHits"),
+  ).toBe(true);
+  expect(logCalls.some((msg) => msg.trim() === "cursor-agent mcp list")).toBe(
+    true,
+  );
+  expect(
+    logCalls.some(
+      (msg) => msg.trim() === "cursor-agent mcp list-tools GitHits",
+    ),
   ).toBe(true);
 }
 
@@ -210,32 +262,11 @@ function expectProjectAuthNotCheckedNextSteps(logCalls: string[]): void {
     true,
   );
   expect(logCalls.some((msg) => msg.includes("npx githits@latest login"))).toBe(
-    true,
+    false,
   );
   expect(
     logCalls.some((msg) =>
       msg.includes("GitHits MCP is configured. Sign-in was not checked."),
-    ),
-  ).toBe(false);
-}
-
-function expectProjectAuthRequiredNextSteps(logCalls: string[]): void {
-  expect(
-    logCalls.some((msg) =>
-      msg.includes(
-        "GitHits MCP is configured for this project, but sign-in is still needed.",
-      ),
-    ),
-  ).toBe(true);
-  expect(logCalls.some((msg) => msg.includes("loads the project config"))).toBe(
-    true,
-  );
-  expect(logCalls.some((msg) => msg.includes("npx githits@latest login"))).toBe(
-    true,
-  );
-  expect(
-    logCalls.some((msg) =>
-      msg.includes("GitHits MCP is configured, but sign-in is still needed."),
     ),
   ).toBe(false);
 }
@@ -260,6 +291,24 @@ function createSelectAllCheckboxMock(): PromptService["checkbox"] {
 
 function lookupCommandFor(platform: string = process.platform): string {
   return platform === "win32" ? "where" : "which";
+}
+
+function createMockExecService(impl: Partial<ExecService> = {}): ExecService {
+  const service = createBaseMockExecService(impl);
+  const originalExec = service.exec.bind(service);
+  service.exec = mock(
+    async (
+      command: string,
+      args: string[],
+      options?: ExecOptions,
+    ): Promise<ExecResult> => {
+      if (command === "codex" && args.length === 1 && args[0] === "--version") {
+        return { exitCode: 0, stdout: "codex 1.0.0\n", stderr: "" };
+      }
+      return originalExec(command, args, options);
+    },
+  );
+  return service;
 }
 
 describe("initAction", () => {
@@ -581,6 +630,31 @@ describe("initAction", () => {
     );
   });
 
+  it("does not emit Cursor OAuth guidance while staged targets await selection", async () => {
+    const fs = createFsWithDetection([
+      "/home/test/.cursor",
+      "/home/test/.codeium/windsurf",
+    ]);
+
+    await initAction(
+      { detectAgents: true, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.actionableIds).toContain("cursor");
+    expect(JSON.stringify(payload.instructions)).not.toContain(
+      "Cursor uses the remote GitHits MCP",
+    );
+    expect(JSON.stringify(payload.instructions)).not.toContain(
+      "cursor-agent mcp",
+    );
+  });
+
   it("reports guidance-only repair as actionable without changing installableIds", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"], {
       "/home/test/.cursor/mcp.json": JSON.stringify({
@@ -624,8 +698,13 @@ describe("initAction", () => {
           },
         },
       }),
-      "/home/test/.agents/skills/githits-mcp/SKILL.md":
-        readGithitsMcpSkillContent(),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      ...readCanonicalSkillFiles("/home/test/.claude/skills"),
+      "/home/test/.claude/CLAUDE.md": [
+        GITHITS_GUIDANCE_MARKER,
+        GITHITS_GUIDANCE_BLOCK,
+        GITHITS_GUIDANCE_MARKER,
+      ].join("\n"),
     });
 
     await initAction(
@@ -690,13 +769,12 @@ describe("initAction", () => {
         },
       },
     });
-    const sharedSkillPath = "/home/test/.agents/skills/githits-mcp/SKILL.md";
     const fs = createFsWithDetection(
       ["/home/test/.cursor", "/home/test/.qwen"],
       {
         "/home/test/.cursor/mcp.json": cursorMcpConfig,
         "/home/test/.qwen/settings.json": qwenMcpConfig,
-        [sharedSkillPath]: readGithitsMcpSkillContent(),
+        ...readCanonicalSkillFiles("/home/test/.agents/skills"),
       },
     );
 
@@ -709,10 +787,13 @@ describe("initAction", () => {
       },
     );
 
-    const targetReads = (
-      fs.readFile as ReturnType<typeof mock>
-    ).mock.calls.filter(([path]) => path === sharedSkillPath);
-    expect(targetReads).toHaveLength(1);
+    const targetReads = (fs.readFile as ReturnType<typeof mock>).mock.calls;
+    for (const skill of GITHITS_SKILL_CATALOG) {
+      const targetPath = `/home/test/.agents/skills/${skill.name}/SKILL.md`;
+      expect(targetReads.filter(([path]) => path === targetPath)).toHaveLength(
+        1,
+      );
+    }
   });
 
   it("does not make missing guidance actionable with --no-guidance", async () => {
@@ -1028,6 +1109,7 @@ describe("initAction", () => {
     );
 
     const logCalls = getLogOutput();
+    const normalizedOutput = normalizeHumanOutput(logCalls);
     const reviewIndex = logCalls.findIndex((msg) =>
       msg.includes("Install review"),
     );
@@ -1036,23 +1118,23 @@ describe("initAction", () => {
     );
     expect(reviewIndex).toBeGreaterThanOrEqual(0);
     expect(nextStepIndex).toBeGreaterThan(reviewIndex);
-    expect(logCalls).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining("GitHits queries and public package"),
-        expect.stringContaining("Feedback submission is an outbound write"),
-        expect.stringContaining(
-          "Installing GitHits MCP does not itself upload the local workspace",
-        ),
-        expect.stringContaining("terminal or machine"),
-        expect.stringContaining(
-          "GitHits is already configured for the detected project-configurable tools",
-        ),
-        expect.stringContaining(
-          "other detected tools do not have verified project-level MCP support",
-        ),
-        expect.stringContaining("Offer user-level install"),
-      ]),
+    expect(normalizedOutput).toContain(
+      "GitHits queries and public package, repository, and documentation targets",
     );
+    expect(normalizedOutput).toContain(
+      "Feedback submission is an outbound write",
+    );
+    expect(normalizedOutput).toContain(
+      "Installing GitHits MCP does not itself upload the local workspace",
+    );
+    expect(normalizedOutput).toContain("terminal or machine");
+    expect(normalizedOutput).toContain(
+      "GitHits is already configured for the detected project-configurable tools",
+    );
+    expect(normalizedOutput).toContain(
+      "other detected tools do not have verified project-level MCP support",
+    );
+    expect(normalizedOutput).toContain("Offer user-level install");
   });
 
   it("does not tell agents unsupported-only project detection is already configured", async () => {
@@ -1264,13 +1346,9 @@ describe("initAction", () => {
     expect(
       logCalls.filter((msg) => msg.includes("5. Install and verify")),
     ).toHaveLength(1);
-    expect(
-      logCalls.some((msg) =>
-        msg.includes(
-          "loads the project config and any supporting instructions",
-        ),
-      ),
-    ).toBe(true);
+    expect(normalizeHumanOutput(logCalls)).toContain(
+      "loads the project config and any supporting instructions",
+    );
     expect(JSON.parse(configFiles["/repo/.cursor/mcp.json"] ?? "{}")).toEqual({
       mcpServers: {
         GitHits: {
@@ -1387,7 +1465,7 @@ describe("initAction", () => {
       logCalls.some((msg) =>
         msg.includes("GitHits MCP is configured for this project."),
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("loads .mcp.json"))).toBe(false);
     expect(fs.atomicWriteFile).toHaveBeenCalledWith(
       "/repo/.cursor/mcp.json",
@@ -1395,7 +1473,7 @@ describe("initAction", () => {
     );
   });
 
-  it("prints project-specific next steps when project auth fails and user continues", async () => {
+  it("uses Cursor-specific project next steps without local auth", async () => {
     const configFiles: Record<string, string> = {};
     const fs = createFsWithDetection(
       ["/repo", "/home/test/.cursor"],
@@ -1406,36 +1484,10 @@ describe("initAction", () => {
       configFiles[path] = content;
     }) as typeof fs.atomicWriteFile;
     const promptService = createMockPromptService({
-      select: mock(
-        async <T>(
-          _message: string,
-          choices: Array<{ value: T }>,
-        ): Promise<T> => {
-          if (choices.some((choice) => choice.value === "project")) {
-            return "project" as T;
-          }
-          if (
-            choices.some((choice) => choice.value === "continue_without_auth")
-          ) {
-            return "continue_without_auth" as T;
-          }
-          return choices[0]!.value;
-        },
-      ) as PromptService["select"],
+      select: createProjectScopeSelectMock(),
       checkbox: createSelectAllCheckboxMock(),
     });
-    const createLoginDeps = mock(() =>
-      Promise.resolve({
-        authService: createMockAuthService({
-          discoverEndpoints: mock(() =>
-            Promise.reject(new Error("Network error")),
-          ),
-        }),
-        authStorage: createMockAuthStorage(),
-        browserService: createMockBrowserService(),
-        mcpUrl: "https://mcp.githits.com",
-      }),
-    );
+    const createLoginDeps = createUnauthLoginDeps();
 
     await initAction(
       { guidance: false },
@@ -1447,7 +1499,8 @@ describe("initAction", () => {
       },
     );
 
-    expectProjectAuthRequiredNextSteps(getLogOutput());
+    expectCursorRemoteNextSteps(getLogOutput());
+    expect(createLoginDeps).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).toHaveBeenCalledWith(
       "/repo/.cursor/mcp.json",
       expect.any(String),
@@ -1771,6 +1824,47 @@ describe("initAction", () => {
     expect(JSON.stringify(payload)).not.toContain("githits@latest login");
   });
 
+  it("bases staged mixed auth on MCP targets, not guidance-only repairs", async () => {
+    const configFiles: Record<string, string> = {
+      "/home/test/.config/opencode/opencode.json": JSON.stringify({
+        mcp: {
+          GitHits: {
+            type: "local",
+            command: ["npx", "-y", "githits@latest", "mcp", "start"],
+            enabled: true,
+          },
+        },
+      }),
+    };
+    const fs = createFsWithDetection(
+      ["/home/test/.cursor", "/home/test/.config/opencode"],
+      configFiles,
+    );
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+
+    await initAction(
+      { installAgents: "cursor,opencode", json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(payload.auth.status).toBe("managed_by_cursor");
+    expect(payload.auth.loginCommand).toBe("cursor-agent mcp login GitHits");
+    expect(payload.instructions).toContain(
+      "Cursor uses the remote GitHits MCP at https://mcp.githits.com and manages its OAuth separately from local GitHits CLI authentication.",
+    );
+    expect(JSON.stringify(payload)).not.toContain("githits@latest login");
+  });
+
   it("treats already configured staged install targets as idempotent", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"], {
       "/home/test/.cursor/mcp.json": JSON.stringify({
@@ -1894,8 +1988,7 @@ describe("initAction", () => {
           },
         },
       }),
-      "/home/test/.agents/skills/githits-mcp/SKILL.md":
-        readGithitsMcpSkillContent(),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
     });
 
     await initAction(
@@ -2066,15 +2159,14 @@ describe("initAction", () => {
     expect(
       logCalls.some((msg) => msg.includes("configured and verified")),
     ).toBe(false);
-    // Trailing MCP server confirmation on the human text path: states that the
-    // server was configured and shows the launch command inline.
-    expect(
-      logCalls.some(
-        (msg) =>
-          msg.includes('Configured MCP server "githits"') &&
-          msg.includes("npx -y githits@latest mcp start"),
-      ),
-    ).toBe(true);
+    // Trailing MCP server confirmation on the human text path names Cursor's
+    // remote transport rather than the local stdio command.
+    expect(normalizeHumanOutput(logCalls)).toContain(
+      'Configured MCP server "githits": remote MCP at https://mcp.githits.com for Cursor',
+    );
+    expect(normalizeHumanOutput(logCalls)).toContain(
+      "open the MCP panel and click Authenticate once for GitHits",
+    );
   });
 
   it("includes structured changes in --install-agents --json output", async () => {
@@ -2398,7 +2490,7 @@ describe("initAction", () => {
     ).toBe(true);
   });
 
-  it("staged guided install uses a native skill path when .agents is not supported", async () => {
+  it("staged guided install uses the shared skill path for Cline", async () => {
     const configFiles: Record<string, string> = {};
     const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
     const writes: Record<string, string> = {};
@@ -2417,19 +2509,467 @@ describe("initAction", () => {
       },
     );
 
-    expect(writes["/home/test/.cline/skills/githits-mcp/SKILL.md"]).toContain(
-      "name: githits-mcp",
-    );
-    expect(writes["/home/test/.agents/skills/githits-mcp/SKILL.md"]).toBe(
+    for (const skill of GITHITS_SKILL_CATALOG) {
+      expect(
+        writes[`/home/test/.agents/skills/${skill.name}/SKILL.md`],
+      ).toContain(`name: ${skill.name}`);
+    }
+    expect(writes["/home/test/.cline/skills/githits-mcp/SKILL.md"]).toBe(
       undefined,
     );
     expect(
       getLogOutput().some(
         (msg) =>
           msg.includes("Cline skill") &&
-          msg.includes("~/.cline/skills/githits-mcp/SKILL.md"),
+          msg.includes("~/.agents/skills/githits-mcp/SKILL.md"),
       ),
     ).toBe(true);
+    expect(getLogOutput().join("\n")).toContain(
+      "GitHits skills in ~/.agents/skills/ are discovered by every compatible agent",
+    );
+    expect(normalizeHumanOutput()).toContain(
+      'Configured MCP server "githits": local stdio MCP command `npx -y githits@latest mcp start` for Cline',
+    );
+  });
+
+  it("names local and remote transports for mixed staged MCP setup", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(
+      ["/home/test/.cursor", "/home/test/.cline"],
+      configFiles,
+    );
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+
+    await initAction(
+      { installAgents: "cursor,cline", guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const output = normalizeHumanOutput();
+    expect(output).toContain(
+      'Configured MCP server "githits": local stdio MCP command `npx -y githits@latest mcp start` for Cline; remote MCP at https://mcp.githits.com for Cursor',
+    );
+  });
+
+  it("repairs a missing subset of shared skills without MCP or auth", async () => {
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      "/home/test/.agents/skills/githits-mcp/SKILL.md": readCanonicalSkillFiles(
+        "/home/test/.agents/skills",
+      )["/home/test/.agents/skills/githits-mcp/SKILL.md"]!,
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    const writes: string[] = [];
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      writes.push(path);
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+
+    await initAction(
+      { installAgents: "cline", guidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(writes).toEqual(
+      expect.arrayContaining([
+        "/home/test/.agents/skills/githits-code/SKILL.md",
+        "/home/test/.agents/skills/githits-onboarding/SKILL.md",
+        "/home/test/.agents/skills/githits-package/SKILL.md",
+      ]),
+    );
+    expect(writes).not.toContain(
+      "/home/test/.cline/data/settings/cline_mcp_settings.json",
+    );
+  });
+
+  it("keeps historical skills untouched when guidance is disabled", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      [legacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+
+    await initAction(
+      { detectAgents: true, guidance: false, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const detection = JSON.parse(getLogOutput()[0] ?? "{}");
+    const cline = detection.agents.find(
+      (entry: { id: string }) => entry.id === "cline",
+    );
+    expect(cline.status).toBe("already_configured");
+    expect(cline.guidanceStatus).toBe("not_requested");
+    expect(detection.actionableIds).toEqual([]);
+
+    logSpy.mockClear();
+    await initAction(
+      { installAgents: "cline", guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(deleteCalls).toEqual([]);
+    expect(configFiles[legacyPath]).toBe("legacy Cline skill");
+  });
+
+  it("treats a historical skill probe failure as actionable", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    fs.exists = mock(async (path: string) => {
+      if (path === legacyPath) throw new Error("legacy probe failure");
+      return path in configFiles;
+    }) as typeof fs.exists;
+
+    await initAction(
+      { detectAgents: true, guidance: true, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const detection = JSON.parse(getLogOutput()[0] ?? "{}");
+    const cline = detection.agents.find(
+      (entry: { id: string }) => entry.id === "cline",
+    );
+    expect(cline.status).toBe("already_configured");
+    expect(cline.guidanceStatus).toBe("needs_setup");
+    expect(detection.actionableIds).toEqual(["cline"]);
+  });
+
+  it("migrates a complete Cline guidance set before removing its legacy skill", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      [legacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+
+    await initAction(
+      { installAgents: "cline", guidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(deleteCalls).toEqual([legacyPath]);
+    expect(configFiles[legacyPath]).toBeUndefined();
+    for (const skill of GITHITS_SKILL_CATALOG) {
+      expect(
+        configFiles[`/home/test/.agents/skills/${skill.name}/SKILL.md`],
+      ).toBe(
+        readCanonicalSkillFiles("/home/test/.agents/skills")[
+          `/home/test/.agents/skills/${skill.name}/SKILL.md`
+        ],
+      );
+    }
+    expect(
+      getLogOutput().some(
+        (msg) =>
+          msg.includes("~/.cline/skills/githits-mcp/SKILL.md") &&
+          msg.includes("removed"),
+      ),
+    ).toBe(true);
+  });
+
+  it("offers a Cline legacy cleanup as an interactive guidance repair", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      [legacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(deleteCalls).toEqual([legacyPath]);
+    expect(getLogOutput().join("\n")).toContain("Guidance targets: Cline");
+    expect(getLogOutput().join("\n")).toContain("removed");
+  });
+
+  it("preserves a Cline legacy skill when active guidance installation fails", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      [legacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      if (path === "/home/test/.agents/skills/githits-code/SKILL.md") {
+        throw new Error("active guidance write failed");
+      }
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+
+    await initAction(
+      { installAgents: "cline", guidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(configFiles[legacyPath]).toBe("legacy Cline skill");
+    expect(deleteCalls).toEqual([]);
+    expect(process.exitCode).toBe(1);
+    expect(getLogOutput().join("\n")).toContain("active guidance write failed");
+  });
+
+  it("keeps active guidance and reports a failed Cline legacy cleanup", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      [legacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    fs.deleteFile = mock(async (path: string) => {
+      if (path === legacyPath) throw new Error("legacy cleanup secret failure");
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+
+    await initAction(
+      { installAgents: "cline", guidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(configFiles[legacyPath]).toBe("legacy Cline skill");
+    for (const skill of GITHITS_SKILL_CATALOG) {
+      expect(
+        configFiles[`/home/test/.agents/skills/${skill.name}/SKILL.md`],
+      ).toBe(
+        readCanonicalSkillFiles("/home/test/.agents/skills")[
+          `/home/test/.agents/skills/${skill.name}/SKILL.md`
+        ],
+      );
+    }
+    expect(process.exitCode).toBe(1);
+    expect(getLogOutput().join("\n")).toContain(legacyPath);
+    expect(getLogOutput().join("\n")).toContain("guidance cleanup failed");
+    expect(getLogOutput().join("\n")).not.toContain(
+      "legacy cleanup secret failure",
+    );
+  });
+
+  it("converges a Cline cleanup-only migration to a no-op on rerun", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      [legacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    const dependencies = {
+      fileSystemService: fs,
+      promptService: createMockPromptService(),
+      execService: createMockExecService(),
+      createLoginDeps: createAlreadyAuthLoginDeps(),
+    };
+
+    await initAction({ installAgents: "cline", guidance: true }, dependencies);
+    expect(deleteCalls).toEqual([legacyPath]);
+    const firstOutput = getLogOutput().join("\n");
+    expect(firstOutput).toContain("removed");
+
+    logSpy.mockClear();
+    await initAction({ installAgents: "cline", guidance: true }, dependencies);
+
+    expect(deleteCalls).toEqual([legacyPath]);
+    expect(getLogOutput().join("\n")).toContain("already configured");
+  });
+
+  it("migrates Junie project guidance without removing another legacy root", async () => {
+    const junieLegacyPath = "/repo/.junie/skills/githits-mcp/SKILL.md";
+    const clineLegacyPath = "/repo/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/repo/.junie/mcp/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      ...readCanonicalSkillFiles("/repo/.agents/skills"),
+      [junieLegacyPath]: "legacy Junie skill",
+      [clineLegacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.junie"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+
+    await initAction(
+      { project: true, installAgents: "junie", guidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(deleteCalls).toEqual([junieLegacyPath]);
+    expect(configFiles[junieLegacyPath]).toBeUndefined();
+    expect(configFiles[clineLegacyPath]).toBe("legacy Cline skill");
   });
 
   it("staged guided install writes tool-native user guidance targets", async () => {
@@ -2472,6 +3012,14 @@ describe("initAction", () => {
     expect(writes["/home/test/.kiro/steering/AGENTS.md"]).toContain(
       "<!-- githits -->",
     );
+    for (const skill of GITHITS_SKILL_CATALOG) {
+      expect(
+        writes[`/home/test/.agents/skills/${skill.name}/SKILL.md`],
+      ).toContain(`name: ${skill.name}`);
+      expect(
+        writes[`/home/test/.kiro/skills/${skill.name}/SKILL.md`],
+      ).toContain(`name: ${skill.name}`);
+    }
 
     const logCalls = getLogOutput();
     expect(
@@ -2531,6 +3079,31 @@ describe("initAction", () => {
           msg.includes("Shared agent guidance") && msg.includes("./AGENTS.md"),
       ),
     ).toBe(true);
+    expect(getLogOutput().join("\n")).toContain(
+      "GitHits skills in .agents/skills/ are discovered by every compatible agent",
+    );
+  });
+
+  it("does not claim shared skill visibility for a native-only guidance root", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(["/home/test/.kiro"], configFiles);
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+
+    await initAction(
+      { installAgents: "kiro", guidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(getLogOutput().join("\n")).not.toContain(
+      "GitHits skills in ~/.agents/skills/",
+    );
   });
 
   it("staged guided install shows the Zed global AGENTS.md target", async () => {
@@ -2833,10 +3406,16 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("3. Review and confirm"))).toBe(
       true,
     );
-    expect(logCalls.some((msg) => msg.includes("4. Sign in"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("4. Sign in"))).toBe(false);
     expect(logCalls.some((msg) => msg.includes("5. Install and verify"))).toBe(
       true,
     );
+    const output = logCalls.join("\n");
+    const installSectionIndex = output.indexOf("5. Install and verify");
+    const configuredCountIndex = output.indexOf("1 tool configured.");
+    const nextStepsIndex = output.indexOf("6. Next Steps");
+    expect(configuredCountIndex).toBeGreaterThan(installSectionIndex);
+    expect(nextStepsIndex).toBeGreaterThan(configuredCountIndex);
     const mcpSectionIndex = logCalls.findIndex((msg) => msg.trim() === "MCP");
     const cursorRowIndex = logCalls.findIndex(
       (msg) =>
@@ -2847,13 +3426,110 @@ describe("initAction", () => {
     expect(mcpSectionIndex).toBeGreaterThanOrEqual(0);
     expect(logCalls.some((msg) => msg.trim() === "Skills")).toBe(false);
     expect(cursorRowIndex).toBeGreaterThan(mcpSectionIndex);
-    expect(
-      logCalls.some((msg) =>
-        msg.includes(
-          "reloads MCP configuration and any supporting instructions",
+    expect(normalizeHumanOutput(logCalls)).toContain(
+      "reloads MCP configuration and any supporting instructions",
+    );
+  });
+
+  it("wraps narrow-terminal prose without changing commands or paths", async () => {
+    const originalColumns = process.stdout.columns;
+    Object.defineProperty(process.stdout, "columns", {
+      configurable: true,
+      value: 40,
+    });
+
+    try {
+      const configFiles: Record<string, string> = {};
+      const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+      const deps = {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      };
+
+      await initAction({ guidance: false }, { ...deps, isInteractive: false });
+      const introLines = getLogOutput();
+      expect(introLines).toContain("  Your agent can only read your local");
+      expect(introLines).toContain("  codebase.");
+      expect(introLines).not.toContain("  codebas e.");
+
+      logSpy.mockClear();
+      await initAction(
+        { detectAgents: true, guidance: false },
+        {
+          fileSystemService: createFsWithDetection(["/home/test/.cline"]),
+          promptService: createMockPromptService(),
+          execService: createMockExecService(),
+        },
+      );
+      const detectionLines = getLogOutput();
+      const detectionProseLines = detectionLines.filter(
+        (line) =>
+          line.includes("GitHits setup is available") ||
+          line.includes("Which should I configure?") ||
+          line.includes("No detected tools need MCP"),
+      );
+      expect(detectionProseLines.length).toBeGreaterThan(1);
+      expect(detectionProseLines.every((line) => line.length <= 40)).toBe(true);
+
+      logSpy.mockClear();
+      await initAction({ installAgents: "cline", guidance: false }, deps);
+      const stagedLines = getLogOutput();
+      expect(
+        stagedLines.some((line) =>
+          line.includes("~/.cline/data/settings/cline_mcp_settings.json"),
         ),
-      ),
-    ).toBe(true);
+      ).toBe(true);
+      expect(stagedLines).toContain(
+        "  After a successful --install-agents run, verify with npx -y githits@latest init --detect-agents --no-guidance --json instead of running init again.",
+      );
+      const summaryStart = stagedLines.findIndex((line) =>
+        line.includes('Configured MCP server "githits"'),
+      );
+      expect(summaryStart).toBeGreaterThanOrEqual(0);
+      const summaryEnd = stagedLines.findIndex(
+        (line, index) => index > summaryStart && line.trim() === "",
+      );
+      const summaryLines = stagedLines.slice(summaryStart, summaryEnd);
+      expect(summaryLines.length).toBeGreaterThan(1);
+      expect(summaryLines.every((line) => line.length <= 40)).toBe(true);
+      expect(
+        summaryLines.slice(1).every((line) => line.startsWith("    ")),
+      ).toBe(true);
+      expect(normalizeHumanOutput(summaryLines)).toContain(
+        'Configured MCP server "githits": local stdio MCP command `npx -y githits@latest mcp start` for Cline',
+      );
+
+      logSpy.mockClear();
+      const cursorFs = createFsWithDetection(["/home/test/.cursor"]);
+      await initAction(
+        { guidance: false },
+        {
+          fileSystemService: cursorFs,
+          promptService: createMockPromptService(),
+          execService: createMockExecService(),
+          createLoginDeps: createAlreadyAuthLoginDeps(),
+        },
+      );
+      const cursorLines = getLogOutput();
+      const cursorProseLines = cursorLines.filter(
+        (line) =>
+          line.includes("Cursor uses") ||
+          line.includes("manages") ||
+          line.includes("OAuth"),
+      );
+      expect(cursorProseLines.length).toBeGreaterThan(1);
+      expect(cursorProseLines.every((line) => line.length <= 40)).toBe(true);
+      expect(cursorLines).toContain("    cursor-agent mcp login GitHits");
+      expect(cursorLines).toContain("    cursor-agent mcp list");
+      expect(cursorLines).toContain("    cursor-agent mcp list-tools GitHits");
+    } finally {
+      Object.defineProperty(process.stdout, "columns", {
+        configurable: true,
+        value: originalColumns,
+      });
+    }
   });
 
   it("shows the install review before interactive setup confirmation", async () => {
@@ -2865,39 +3541,30 @@ describe("initAction", () => {
       if (!message.includes("Continue with GitHits setup")) {
         return Promise.resolve(true);
       }
-      const logCalls = getLogOutput();
+      const output = getLogOutput().join("\n");
+      const normalizedOutput = output.replace(/\s+/g, " ");
       expect(
-        logCalls.some((msg) =>
-          msg.includes("GitHits queries and public package"),
-        ),
+        normalizedOutput.includes("GitHits queries and public package"),
       ).toBe(true);
-      expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
+      expect(normalizedOutput.includes("is an outbound write")).toBe(true);
+      expect(
+        normalizedOutput.includes("does not itself upload the local workspace"),
+      ).toBe(true);
+      expect(normalizedOutput.includes("open a new coding agent session")).toBe(
         true,
       );
       expect(
-        logCalls.some((msg) =>
-          msg.includes("does not itself upload the local workspace"),
+        normalizedOutput.includes(
+          "do not need to restart the terminal or machine",
         ),
       ).toBe(true);
+      expect(normalizedOutput.includes("Scope: User")).toBe(true);
+      expect(normalizedOutput.includes("MCP tools to configure: Cursor")).toBe(
+        true,
+      );
+      expect(normalizedOutput.includes("Guidance targets: None")).toBe(true);
       expect(
-        logCalls.some((msg) => msg.includes("open a new coding agent session")),
-      ).toBe(true);
-      expect(
-        logCalls.some((msg) =>
-          msg.includes("do not need to restart the terminal or machine"),
-        ),
-      ).toBe(true);
-      expect(logCalls.some((msg) => msg.includes("Scope: User"))).toBe(true);
-      expect(
-        logCalls.some((msg) => msg.includes("MCP tools to configure: Cursor")),
-      ).toBe(true);
-      expect(
-        logCalls.some((msg) => msg.includes("Guidance targets: None")),
-      ).toBe(true);
-      expect(
-        logCalls.some((msg) =>
-          msg.includes("Supporting instructions: Do not install"),
-        ),
+        normalizedOutput.includes("Supporting instructions: Do not install"),
       ).toBe(true);
       return Promise.resolve(true);
     }) as PromptService["confirm"];
@@ -2914,6 +3581,39 @@ describe("initAction", () => {
 
     expect(checkbox).toHaveBeenCalledTimes(1);
     expect(confirm).toHaveBeenCalledWith("Continue with GitHits setup?", true);
+  });
+
+  it("shows only selected MCP transports in a mixed install review", async () => {
+    const fs = createFsWithDetection([
+      "/home/test/.cursor",
+      "/home/test/.cline",
+    ]);
+    const checkbox = mock(
+      (_message: string, choices: Array<{ value: string }>) =>
+        Promise.resolve(choices.slice(0, 2).map((choice) => choice.value)),
+    ) as PromptService["checkbox"];
+    const confirm = mock((message: string) => {
+      if (message.includes("Continue with GitHits setup")) {
+        const output = getLogOutput().join("\n");
+        expect(output).toContain(
+          "MCP transport: local stdio MCP command `npx -y githits@latest mcp start` for Cline; remote MCP at https://mcp.githits.com for Cursor",
+        );
+        return Promise.resolve(false);
+      }
+      return Promise.resolve(true);
+    }) as PromptService["confirm"];
+
+    await initAction(
+      { guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService({ checkbox, confirm }),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
 
   it("shows no guidance target for a tool without a verified guidance surface", async () => {
@@ -3165,6 +3865,277 @@ describe("initAction", () => {
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
 
+  it("repairs selected guidance without MCP setup or authentication", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+    });
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+    const promptService = createMockPromptService({
+      checkbox: mock(
+        async <T>(
+          _message: string,
+          choices: Array<{
+            name: string;
+            value: T;
+            checked?: boolean;
+            disabled?: boolean | string;
+          }>,
+        ) => {
+          const repairChoice = choices.find((choice) =>
+            String(choice.name).includes("guidance repair"),
+          );
+          expect(repairChoice?.checked).toBe(true);
+          return [repairChoice!.value];
+        },
+      ) as PromptService["checkbox"],
+      confirm: mock(() => Promise.resolve(true)),
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalledWith(
+      "/home/test/.cursor/mcp.json",
+      expect.any(String),
+    );
+    const output = getLogOutput().join("\n");
+    expect(output).toContain("MCP tools to configure: None");
+    expect(output).toContain("Guidance targets: Cursor");
+    expect(output).toContain("Cursor skill");
+  });
+
+  it("does not suggest local login after user-level guidance-only repair", async () => {
+    const configFiles: Record<string, string> = {
+      "/home/test/.config/opencode/opencode.json": JSON.stringify({
+        mcp: {
+          GitHits: {
+            type: "local",
+            command: ["npx", "-y", "githits@latest", "mcp", "start"],
+            enabled: true,
+          },
+        },
+      }),
+    };
+    const fs = createFsWithDetection(
+      ["/home/test/.config/opencode"],
+      configFiles,
+    );
+    const writes: Record<string, string> = {};
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      writes[path] = content;
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    const output = getLogOutput().join("\n");
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(writes["/home/test/.config/opencode/AGENTS.md"]).toContain(
+      "<!-- githits -->",
+    );
+    expect(output).toContain(
+      "GitHits MCP was unchanged; supporting guidance was repaired.",
+    );
+    expect(output).toContain("Open a new coding agent session");
+    expect(output).not.toContain("npx githits@latest login");
+  });
+
+  it("does not suggest local login after project-level guidance-only repair", async () => {
+    const configFiles: Record<string, string> = {
+      "/repo/opencode.json": JSON.stringify({
+        mcp: {
+          GitHits: {
+            type: "local",
+            command: ["npx", "-y", "githits@latest", "mcp", "start"],
+            enabled: true,
+          },
+        },
+      }),
+    };
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.config/opencode"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const writes: Record<string, string> = {};
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      writes[path] = content;
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+    const promptService = createMockPromptService({
+      select: mock(
+        async <T>(
+          message: string,
+          choices: Array<{ value: T }>,
+          defaultValue?: T,
+        ) => {
+          if (message.includes("Where should")) return "project" as T;
+          return (defaultValue ?? choices[0]!.value) as T;
+        },
+      ) as PromptService["select"],
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    const output = getLogOutput().join("\n");
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(writes["/repo/AGENTS.md"]).toContain("<!-- githits -->");
+    expect(output).toContain(
+      "GitHits MCP was unchanged for this project; supporting guidance was repaired.",
+    );
+    expect(output).toContain("loads the project config");
+    expect(output).not.toContain("npx githits@latest login");
+  });
+
+  it("does not retarget unselected guidance or Cursor during OpenCode setup", async () => {
+    const configFiles: Record<string, string> = {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+    };
+    const fs = createFsWithDetection(
+      ["/home/test/.cursor", "/home/test/.config/opencode"],
+      configFiles,
+    );
+    const writes: Record<string, string> = {};
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      writes[path] = content;
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCommandFor()} codex`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/codex\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp get githits --json") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: CODEX_CONFIGURED_OUTPUT,
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+    const promptService = createMockPromptService({
+      checkbox: mock(
+        async <T>(
+          _message: string,
+          choices: Array<{ name: string; value: T }>,
+        ) =>
+          choices
+            .filter((choice) => String(choice.value) === "opencode")
+            .map((choice) => choice.value),
+      ) as PromptService["checkbox"],
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const output = getLogOutput().join("\n");
+    expect(output).toContain("MCP tools to configure: OpenCode");
+    expect(output).toContain("OpenCode guidance");
+    expect(writes["/home/test/.config/opencode/AGENTS.md"]).toContain(
+      "<!-- githits -->",
+    );
+    expect(writes["/home/test/.codex/AGENTS.md"]).toBeUndefined();
+    expect(output).not.toContain("Codex CLI guidance");
+    expect(output).not.toContain("cursor-agent mcp");
+  });
+
+  it("recomputes selection when project guidance repair is declined", async () => {
+    const fs = createFsWithDetection(["/repo", "/home/test/.cursor"], {
+      "/repo/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+    });
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+    const promptService = createMockPromptService({
+      select: mock(
+        async <T>(
+          message: string,
+          choices: Array<{ value: T }>,
+          defaultValue?: T,
+        ) => {
+          if (message.includes("Where should")) return "project" as T;
+          return (defaultValue ?? choices[0]!.value) as T;
+        },
+      ) as PromptService["select"],
+      confirm: mock(
+        async (message: string) => !message.includes("Add project-level"),
+      ),
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(getLogOutput().join("\n")).toContain(
+      "Nothing selected, no changes made",
+    );
+  });
+
   it("shows already-configured rows when no new tools are selected", async () => {
     const fs = createFsWithDetection(
       ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
@@ -3194,7 +4165,9 @@ describe("initAction", () => {
 
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     const logCalls = getLogOutput();
-    expect(logCalls.some((msg) => msg.includes("Setup skipped"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Nothing selected, no changes made")),
+    ).toBe(true);
     expect(
       logCalls.some(
         (msg) =>
@@ -3208,7 +4181,9 @@ describe("initAction", () => {
         (msg) => msg.includes("Windsurf") && msg.includes("created"),
       ),
     ).toBe(false);
-    expectCursorRemoteNextSteps(logCalls);
+    expect(logCalls.some((msg) => msg.includes("cursor-agent mcp"))).toBe(
+      false,
+    );
   });
 
   it("configures only the agents selected in the checkbox", async () => {
@@ -3309,6 +4284,7 @@ describe("initAction", () => {
       command: "npx",
       args: ["-y", "githits@latest", "mcp", "start"],
       lifecycle: "eager",
+      directTools: true,
     });
   });
 
@@ -3463,6 +4439,7 @@ describe("initAction", () => {
             command: "npx",
             args: ["-y", "githits@latest", "mcp", "start"],
             lifecycle: "eager",
+            directTools: true,
           },
         },
       }),
@@ -3520,6 +4497,13 @@ describe("initAction", () => {
           },
         },
       }),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      ...readCanonicalSkillFiles("/home/test/.claude/skills"),
+      "/home/test/.claude/CLAUDE.md": [
+        GITHITS_GUIDANCE_MARKER,
+        GITHITS_GUIDANCE_BLOCK,
+        GITHITS_GUIDANCE_MARKER,
+      ].join("\n"),
     });
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
@@ -3550,6 +4534,58 @@ describe("initAction", () => {
     expect(promptService.confirm3).not.toHaveBeenCalled();
     const logCalls = getLogOutput();
     expectCursorRemoteNextSteps(logCalls);
+    expect(normalizeHumanOutput(logCalls)).toContain(
+      "GitHits skills in ~/.agents/skills/ are discovered by every compatible agent",
+    );
+  });
+
+  it("shows project shared-skill visibility on a configured no-op rerun", async () => {
+    const configFiles: Record<string, string> = {
+      "/repo/opencode.json": JSON.stringify({
+        mcp: {
+          GitHits: {
+            type: "local",
+            command: ["npx", "-y", "githits@latest", "mcp", "start"],
+            enabled: true,
+          },
+        },
+      }),
+      ...readCanonicalSkillFiles("/repo/.agents/skills"),
+      "/repo/AGENTS.md": [
+        GITHITS_GUIDANCE_MARKER,
+        GITHITS_GUIDANCE_BLOCK,
+        GITHITS_GUIDANCE_MARKER,
+      ].join("\n"),
+    };
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.config/opencode"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const select = mock(
+      async <T>(
+        message: string,
+        choices: Array<{ value: T }>,
+        defaultValue?: T,
+      ): Promise<T> => {
+        if (message.includes("Where should")) return "project" as T;
+        return (defaultValue ?? choices[0]!.value) as T;
+      },
+    ) as PromptService["select"];
+
+    await initAction(
+      { yes: true, project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService({ select }),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(normalizeHumanOutput()).toContain(
+      "GitHits skills in .agents/skills/ are discovered by every compatible agent",
+    );
   });
 
   it("sets up CLI agents that are not yet configured", async () => {
@@ -4575,12 +5611,17 @@ describe("initAction", () => {
     );
 
     const logCalls = getLogOutput();
-    expect(logCalls.some((msg) => msg.includes("Setup skipped"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Nothing selected, no changes made")),
+    ).toBe(true);
   });
 
   describe("login integration", () => {
     it("runs login flow and proceeds when already authenticated", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
@@ -4599,11 +5640,19 @@ describe("initAction", () => {
       expect(logCalls.some((msg) => msg.includes("Already signed in"))).toBe(
         true,
       );
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("Already signed in (local CLI auth only)"),
+        ),
+      ).toBe(true);
       expect(fs.atomicWriteFile).toHaveBeenCalled();
     });
 
     it("skips browser login when token resolution already refreshed auth", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
@@ -4651,7 +5700,10 @@ describe("initAction", () => {
     });
 
     it("clears stale client before init login when token resolution found no token", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
@@ -4690,7 +5742,10 @@ describe("initAction", () => {
     });
 
     it("runs login flow and proceeds on success", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
@@ -4721,7 +5776,10 @@ describe("initAction", () => {
     });
 
     it("prints login URL instead of opening browser with --no-browser", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const browserService = createMockBrowserService();
       const authService = createMockAuthService();
       const promptService = createMockPromptService({
@@ -4772,7 +5830,10 @@ describe("initAction", () => {
     });
 
     it("prompts to continue when login fails", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         select: mock((message, choices, defaultValue) => {
           if (String(message).includes("Authentication failed")) {
@@ -4816,7 +5877,10 @@ describe("initAction", () => {
 
     it("does not claim GitHits is ready after continuing without auth", async () => {
       const configFiles: Record<string, string> = {};
-      const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+      const fs = createFsWithDetection(
+        ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
+        configFiles,
+      );
       fs.atomicWriteFile = mock((path: string, content: string) => {
         configFiles[path] = content;
         return Promise.resolve();
@@ -4862,7 +5926,10 @@ describe("initAction", () => {
     });
 
     it("cancels setup when login fails and user declines to continue", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         select: mock((message, choices, defaultValue) => {
           if (String(message).includes("Authentication failed")) {
@@ -4902,7 +5969,10 @@ describe("initAction", () => {
     });
 
     it("--skip-login skips authentication step", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
@@ -4925,7 +5995,10 @@ describe("initAction", () => {
     });
 
     it("--yes mode continues on login failure without prompting", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService();
       const createLoginDeps = mock(() =>
         Promise.resolve({
@@ -4956,7 +6029,10 @@ describe("initAction", () => {
 
     it("skips login when createLoginDeps is not provided", async () => {
       const configFiles: Record<string, string> = {};
-      const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+      const fs = createFsWithDetection(
+        ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
+        configFiles,
+      );
       fs.atomicWriteFile = mock((path: string, content: string) => {
         configFiles[path] = content;
         return Promise.resolve();
@@ -5033,7 +6109,7 @@ describe("initUninstallAction", () => {
 
     expect(promptService.confirm).toHaveBeenCalledTimes(1);
     expect(promptService.confirm).toHaveBeenCalledWith(
-      "Remove GitHits MCP config from this project?",
+      "Remove GitHits MCP config and guidance from this project?",
       false,
     );
     expect(promptService.confirm3).not.toHaveBeenCalled();
@@ -5139,6 +6215,150 @@ describe("initUninstallAction", () => {
     expect(promptService.confirm).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     expect(fs.deleteFile).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(0);
+  });
+
+  it("removes project guidance when no MCP config exists", async () => {
+    const configFiles = createProjectGuidanceOnlyFiles();
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.deleteFile = mock(async (path: string) => {
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    for (const skill of GITHITS_SKILL_CATALOG) {
+      expect(
+        configFiles[`/repo/.agents/skills/${skill.name}/SKILL.md`],
+      ).toBeUndefined();
+    }
+    expect(configFiles["/repo/AGENTS.md"]).toBe("Existing\n");
+    const output = normalizeHumanOutput();
+    expect(output).toContain(
+      "Done! GitHits guidance was removed from this project.",
+    );
+    expect(output).toContain(
+      "GitHits removed shared skills from .agents/skills/; this affects every compatible agent",
+    );
+  });
+
+  it("preserves project guidance-only state with --keep-guidance", async () => {
+    const configFiles = createProjectGuidanceOnlyFiles();
+    const original = { ...configFiles };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+
+    await initUninstallAction(
+      { project: true, yes: true, keepGuidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(configFiles).toEqual(original);
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(fs.deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("does not remove project guidance-only state without non-interactive --yes", async () => {
+    const configFiles = createProjectGuidanceOnlyFiles();
+    const original = { ...configFiles };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+
+    await initUninstallAction(
+      { project: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        isInteractive: false,
+      },
+    );
+
+    expect(configFiles).toEqual(original);
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(fs.deleteFile).not.toHaveBeenCalled();
+    expect(normalizeHumanOutput()).toContain("no changes were made");
+  });
+
+  it("treats an unreadable project guidance target as actionable", async () => {
+    const fs = createFsWithDetection(["/repo"]);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.exists = mock(
+      async (path: string) => path === "/repo/AGENTS.md",
+    ) as typeof fs.exists;
+    const readFile = fs.readFile;
+    fs.readFile = mock(async (path: string) => {
+      if (path === "/repo/AGENTS.md") {
+        throw new Error("guidance secret failure");
+      }
+      return readFile(path);
+    }) as typeof fs.readFile;
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const output = normalizeHumanOutput();
+    expect(process.exitCode).toBe(1);
+    expect(output).toContain("AGENTS.md");
+    expect(output).toContain("guidance cleanup failed");
+    expect(output).not.toContain("guidance secret failure");
+  });
+
+  it("removes stale project guidance when no MCP config exists", async () => {
+    const configFiles: Record<string, string> = {
+      "/repo/AGENTS.md": [
+        "Existing",
+        "",
+        GITHITS_GUIDANCE_MARKER,
+        "old guidance",
+        GITHITS_GUIDANCE_MARKER,
+        "",
+      ].join("\n"),
+    };
+    const fs = createFsWithDetection(["/repo"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(configFiles["/repo/AGENTS.md"]).toBe("Existing\n");
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+      "/repo/AGENTS.md",
+      "Existing\n",
+    );
+    expect(normalizeHumanOutput()).toContain(
+      "Done! GitHits guidance was removed from this project.",
+    );
   });
 
   it("leaves malformed project .mcp.json unchanged during uninstall", async () => {
@@ -5190,7 +6410,7 @@ describe("initUninstallAction", () => {
     expect(fs.deleteFile).not.toHaveBeenCalled();
     expect(
       getLogOutput().some((msg) =>
-        msg.includes("githits init uninstall --project --yes"),
+        msg.includes("githits uninstall --project --yes"),
       ),
     ).toBe(true);
   });
@@ -5874,12 +7094,10 @@ describe("initUninstallAction", () => {
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     const logCalls = getLogOutput();
     expect(
-      logCalls.some((msg) => msg.includes("githits init uninstall --yes")),
+      logCalls.some((msg) => msg.includes("githits uninstall --yes")),
     ).toBe(true);
     expect(
-      logCalls.some((msg) =>
-        msg.includes("githits init uninstall --project --yes"),
-      ),
+      logCalls.some((msg) => msg.includes("githits uninstall --project --yes")),
     ).toBe(true);
   });
 
@@ -5932,6 +7150,12 @@ describe("initUninstallAction", () => {
     expect(parsed.mcpServers.GitHits).toBeUndefined();
     expect(parsed.mcpServers.other).toEqual({ command: "other" });
     const logCalls = getLogOutput();
+    expect(logCalls).toContain(
+      "  Removes GitHits MCP configuration and supporting guidance.\n",
+    );
+    expect(logCalls.join("\n")).not.toContain(
+      "Removes the local GitHits MCP configuration",
+    );
     expect(logCalls.some((msg) => msg.includes("Done!"))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("1 agent removed."))).toBe(true);
     expect(logCalls.some((msg) => msg.includes("2 agents removed."))).toBe(
@@ -7444,9 +8668,17 @@ describe("initUninstallAction", () => {
       "",
     ].join("\n");
     const configFiles: Record<string, string> = {
+      "/home/test/.agents/skills/githits-code/SKILL.md":
+        "---\nname: githits-code\n---\n",
       "/home/test/.agents/skills/githits-mcp/SKILL.md":
         "---\nname: githits-mcp\n---\n",
+      "/home/test/.agents/skills/githits-onboarding/SKILL.md":
+        "---\nname: githits-onboarding\n---\n",
+      "/home/test/.agents/skills/githits-package/SKILL.md":
+        "---\nname: githits-package\n---\n",
       "/home/test/.cline/skills/githits-mcp/SKILL.md":
+        "---\nname: githits-mcp\n---\n",
+      "/home/test/.junie/skills/githits-mcp/SKILL.md":
         "---\nname: githits-mcp\n---\n",
       "/home/test/.codex/AGENTS.md": block,
     };
@@ -7468,10 +8700,22 @@ describe("initUninstallAction", () => {
     );
 
     expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/home/test/.agents/skills/githits-code/SKILL.md",
+    );
+    expect(fs.deleteFile).toHaveBeenCalledWith(
       "/home/test/.agents/skills/githits-mcp/SKILL.md",
     );
     expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/home/test/.agents/skills/githits-onboarding/SKILL.md",
+    );
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/home/test/.agents/skills/githits-package/SKILL.md",
+    );
+    expect(fs.deleteFile).toHaveBeenCalledWith(
       "/home/test/.cline/skills/githits-mcp/SKILL.md",
+    );
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/home/test/.junie/skills/githits-mcp/SKILL.md",
     );
     expect(configFiles["/home/test/.codex/AGENTS.md"]).toBe("Existing\n");
     const logCalls = getLogOutput();
@@ -7481,11 +8725,137 @@ describe("initUninstallAction", () => {
       ),
     ).toBe(true);
     expect(logCalls.join("\n")).not.toMatch(/\b\d+ agents? removed\./);
+    expect(normalizeHumanOutput(logCalls)).toContain(
+      "GitHits removed shared skills from ~/.agents/skills/; this affects every compatible agent",
+    );
     expect(
-      logCalls.filter(
-        (msg) => msg.includes("GitHits guidance") && msg.includes("unchanged"),
+      logCalls.some(
+        (msg) =>
+          msg.includes("~/.claude/skills/githits-code/SKILL.md") &&
+          msg.includes("unchanged"),
       ),
-    ).toHaveLength(0);
+    ).toBe(true);
+  });
+
+  it("preserves active and historical user guidance with --keep-guidance", async () => {
+    const guidanceFiles = {
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      "/home/test/.cline/skills/githits-mcp/SKILL.md": "legacy Cline skill",
+      "/home/test/.junie/skills/githits-mcp/SKILL.md": "legacy Junie skill",
+    };
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...guidanceFiles,
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+
+    await initUninstallAction(
+      { yes: true, keepGuidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    for (const [path, content] of Object.entries(guidanceFiles)) {
+      expect(configFiles[path]).toBe(content);
+    }
+    expect(getLogOutput().some((msg) => msg.includes("GitHits guidance"))).toBe(
+      false,
+    );
+  });
+
+  it("preserves active and historical project guidance with --keep-guidance", async () => {
+    const guidanceFiles = {
+      ...readCanonicalSkillFiles("/repo/.agents/skills"),
+      "/repo/.cline/skills/githits-mcp/SKILL.md": "legacy Cline skill",
+      "/repo/.junie/skills/githits-mcp/SKILL.md": "legacy Junie skill",
+    };
+    const configFiles: Record<string, string> = {
+      "/repo/.junie/mcp/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      ...guidanceFiles,
+    };
+    const fs = createFsWithDetection(["/home/test/.junie"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+
+    await initUninstallAction(
+      { project: true, yes: true, keepGuidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    for (const [path, content] of Object.entries(guidanceFiles)) {
+      expect(configFiles[path]).toBe(content);
+    }
+    expect(getLogOutput().some((msg) => msg.includes("GitHits guidance"))).toBe(
+      false,
+    );
+  });
+
+  it("removes both historical project skill roots during project uninstall", async () => {
+    const clineLegacyPath = "/repo/.cline/skills/githits-mcp/SKILL.md";
+    const junieLegacyPath = "/repo/.junie/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/repo/.junie/mcp/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      ...readCanonicalSkillFiles("/repo/.agents/skills"),
+      [clineLegacyPath]: "legacy Cline skill",
+      [junieLegacyPath]: "legacy Junie skill",
+    };
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.junie"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(deleteCalls).toEqual(
+      expect.arrayContaining([clineLegacyPath, junieLegacyPath]),
+    );
+    expect(configFiles[clineLegacyPath]).toBeUndefined();
+    expect(configFiles[junieLegacyPath]).toBeUndefined();
+    expect(normalizeHumanOutput()).toContain(
+      "GitHits removed shared skills from .agents/skills/; this affects every compatible agent",
+    );
   });
 
   it("continues guidance cleanup after multiple target failures", async () => {
@@ -7562,6 +8932,9 @@ describe("initUninstallAction", () => {
     expect(
       logCalls.some((msg) => msg.includes("guidance secret failure")),
     ).toBe(false);
+    expect(normalizeHumanOutput(logCalls)).not.toContain(
+      "GitHits removed shared skills from ~/.agents/skills/",
+    );
     expect(logCalls.join("\n")).not.toMatch(
       /\b\d+ agents? failed to uninstall\./,
     );
@@ -7591,6 +8964,9 @@ describe("initUninstallAction", () => {
     expect(guidanceRows[0]).toContain("unchanged");
     expect(guidanceRows[0]).not.toContain("SKILL.md");
     expect(guidanceRows[0]).not.toContain("AGENTS.md");
+    expect(normalizeHumanOutput(logCalls)).not.toContain(
+      "GitHits removed shared skills from",
+    );
   });
 });
 
@@ -7636,15 +9012,23 @@ describe("registerInitCommand", () => {
     });
   }
 
-  it("registers init and init uninstall commands", () => {
+  it("registers init, root uninstall, and nested uninstall commands", () => {
     const program = new Command();
     registerInitCommand(program);
 
     const initCommand = program.commands.find((cmd) => cmd.name() === "init");
+    const rootUninstallCommand = program.commands.find(
+      (cmd) => cmd.name() === "uninstall",
+    );
     expect(initCommand).toBeDefined();
+    expect(rootUninstallCommand).toBeDefined();
+    expect(initCommand?.description()).toContain("packaged GitHits skills");
+    expect(initCommand?.description()).not.toContain("a small GitHits skill");
+    expect(initCommand?.description()).not.toContain("signs you in");
     expect(
       initCommand?.commands.some((cmd) => cmd.name() === "uninstall"),
     ).toBe(true);
+    expect(program.helpInformation()).toContain("uninstall");
   });
 
   it("registers staged agent-safe init options", () => {
@@ -7664,25 +9048,51 @@ describe("registerInitCommand", () => {
     expect(optionLongNames).toContain("--port");
   });
 
-  it("registers uninstall options as boolean options", () => {
+  it("registers identical root and nested uninstall options", () => {
     const program = new Command();
     registerInitCommand(program);
 
     const initCommand = program.commands.find((cmd) => cmd.name() === "init");
-    const uninstallCommand = initCommand?.commands.find(
+    const nestedUninstallCommand = initCommand?.commands.find(
       (cmd) => cmd.name() === "uninstall",
     );
-    const projectOption = uninstallCommand?.options.find(
-      (option) => option.long === "--project",
+    const rootUninstallCommand = program.commands.find(
+      (cmd) => cmd.name() === "uninstall",
     );
-    const keepGuidanceOption = uninstallCommand?.options.find(
-      (option) => option.long === "--keep-guidance",
+    const describeOptions = (command: Command | undefined) =>
+      command?.options.map((option) => ({
+        flags: option.flags,
+        description: option.description,
+        required: option.required,
+        optional: option.optional,
+        defaultValue: option.defaultValue,
+      }));
+
+    expect(rootUninstallCommand?.summary()).toBe(
+      nestedUninstallCommand?.summary(),
+    );
+    expect(rootUninstallCommand?.description()).toBe(
+      nestedUninstallCommand?.description(),
+    );
+    expect(describeOptions(rootUninstallCommand)).toEqual(
+      describeOptions(nestedUninstallCommand),
+    );
+  });
+
+  it("routes root uninstall --project to project uninstall", async () => {
+    await withNonInteractiveStdio(() =>
+      parseRegisteredInit(["uninstall", "--project", "--yes"]),
     );
 
-    expect(projectOption?.required).toBe(false);
-    expect(projectOption?.optional).toBe(false);
-    expect(keepGuidanceOption?.required).toBe(false);
-    expect(keepGuidanceOption?.optional).toBe(false);
+    const logCalls = getLogOutput();
+    expect(
+      logCalls.some((msg) =>
+        msg.includes("Remove GitHits from this project's MCP config"),
+      ),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Scanning for configured agents")),
+    ).toBe(false);
   });
 
   it("routes init uninstall --project to project uninstall", async () => {
@@ -7751,9 +9161,16 @@ describe("registerInitCommand", () => {
     expect(
       errorCalls.some((msg) => msg.includes("Unknown init action: foo")),
     ).toBe(true);
-    expect(
-      errorCalls.some((msg) => msg.includes('githits init uninstall"')),
-    ).toBe(true);
+    expect(errorCalls.some((msg) => msg.includes('githits uninstall"'))).toBe(
+      true,
+    );
     expect(errorCalls.some((msg) => msg.includes("--project"))).toBe(false);
+  });
+
+  it("suggests root uninstall for a close root command typo", async () => {
+    await expect(parseRegisteredInit(["uninztall"])).rejects.toMatchObject({
+      code: "commander.unknownCommand",
+      message: expect.stringContaining("Did you mean uninstall?"),
+    });
   });
 });

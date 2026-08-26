@@ -2,10 +2,10 @@
 
 ## Purpose
 
-GitHits publishes one canonical skill and guidance surface from this repository
-as a portable Agent Plugin and through native adapters for Claude Code, Codex,
-Cursor, Gemini CLI, Google Antigravity, and VS Code/GitHub Copilot OpenPlugin
-hosts.
+GitHits publishes one canonical set of four skills and guidance surfaces from
+this repository as a portable Agent Plugin and through native adapters for
+Claude Code, Codex, Cursor, Gemini CLI, Google Antigravity, and VS Code/GitHub
+Copilot OpenPlugin hosts.
 
 Root `skills/` and `AGENTS.md` are authored inputs. Portable and host manifests
 and MCP configuration are deterministic generated artifacts.
@@ -51,16 +51,32 @@ outputs instead of creating or deleting them.
 
 ## Skill Contract
 
-All hosts discover the same root skill directories:
+Every plugin and guided CLI setup uses the same four canonical skill
+directories:
 
-- `githits-onboarding`
-- `githits-mcp`
 - `githits-code`
+- `githits-mcp`
+- `githits-onboarding`
 - `githits-package`
+
+Generated plugin assets package these root skills directly. Direct `githits
+init` setup places the same files at each selected host's verified active root;
+shared hosts use `.agents/skills`, while Claude Code, Kiro, Factory Droid,
+Antigravity user scope, and Hermes user scope use their native roots. Cline and
+Junie use the shared root; their historical native `githits-mcp/SKILL.md` files
+are migration-only targets.
 
 There are no authored host-specific skill copies. If a host later requires a
 self-contained copy, the generator may create it, but tests must enforce exact
 content and reference parity with the root source.
+
+## Description ownership
+
+Canonical and generated plugin descriptions are host-neutral. The reported
+Claude-specific onboarding text (`Set up GitHits from Claude Code`) is not
+present in repository source or generated manifests; it remains an external
+registry/marketplace metadata ownership check. Do not add a speculative
+manifest override in this repository.
 
 Plugin Markdown commands are intentionally absent. User-facing CLI commands are
 implemented under `src/commands/**` and are not plugin slash commands.

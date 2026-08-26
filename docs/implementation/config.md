@@ -184,7 +184,10 @@ Commands receive the full `Dependencies` object. Services receive only what they
 
 ### Init config parsing behavior
 
-`githits init` and `githits init uninstall` accept both strict JSON and JSONC-style config files when reading agent MCP config files (for example files containing comments or trailing commas).
+`githits init` and the canonical `githits uninstall` command accept both strict
+JSON and JSONC-style config files when reading agent MCP config files (for
+example files containing comments or trailing commas). `githits init uninstall`
+remains a compatibility alias for `githits uninstall`.
 
 - Parsing flow first attempts strict JSON, then falls back to JSONC parsing.
 - If parsing still fails, setup reports a parse error and leaves the file unchanged.

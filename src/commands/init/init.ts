@@ -52,18 +52,20 @@ import {
   GITHITS_GUIDANCE_BLOCK,
   GITHITS_GUIDANCE_MARKER,
   GITHITS_MCP_SKILL_NAME,
-  GITHITS_MCP_SKILL_RELATIVE_PATH,
+  GITHITS_SKILL_CATALOG,
 } from "./guidance-assets.js";
 import {
   CHANGE_VERB_WIDTH,
   type ChangeRow,
   changeRowColumnWidths,
+  DEFAULT_INIT_PROSE_WIDTH,
   describeConfigAsUnchanged,
   formatCliCommand,
   formatConfigPath,
   renderChangeRows,
   type SetupChange,
   type UninstallChange,
+  wrapInitProse,
 } from "./setup-format.js";
 import {
   dispatchSetupCheck,
@@ -79,6 +81,7 @@ import {
   executeSkillUninstall,
   getConfigUninstallCheckStatus,
   isSetupAlreadyConfigured,
+  mergeManagedBlock,
   type SetupResult,
 } from "./setup-handlers.js";
 
@@ -222,6 +225,7 @@ interface ProjectUninstallFailure {
 interface ProjectUninstallSummary {
   removed: string[];
   legacyRemoved: string[];
+  guidanceRemoved?: number;
   skipped: string[];
   failed: ProjectUninstallFailure[];
 }
@@ -260,7 +264,7 @@ const INSTALL_REVIEW_ITEMS = [
 const CURSOR_REMOTE_MCP_URL = "https://mcp.githits.com";
 const CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS = [
   `Cursor uses the remote GitHits MCP at ${CURSOR_REMOTE_MCP_URL} and manages its OAuth separately from local GitHits CLI authentication.`,
-  "After Cursor setup, open a new Cursor Agent chat, complete GitHits OAuth if prompted, and verify that GitHits tools are available.",
+  "In Cursor, open the MCP panel and click Authenticate once for GitHits, or run `cursor-agent mcp login GitHits`; then open a new Cursor Agent chat and verify that GitHits tools are available.",
   "If cursor-agent is available, verify with `cursor-agent mcp list` and `cursor-agent mcp list-tools GitHits`; run `cursor-agent mcp login GitHits` if authentication is required.",
 ] as const;
 
@@ -277,19 +281,31 @@ interface InstallTaskReporter {
   start(label: string): () => void;
 }
 
-const GITHITS_MCP_SKILL_PACKAGE_PATH =
-  GITHITS_MCP_SKILL_RELATIVE_PATH.join("/");
-const GITHITS_MCP_SKILL_SOURCE_PATH = fileURLToPath(
-  new URL(`../../../${GITHITS_MCP_SKILL_PACKAGE_PATH}`, import.meta.url),
-);
-const GITHITS_MCP_SKILL_SOURCE_PATH_CANDIDATES = [
-  fileURLToPath(
-    new URL(`../${GITHITS_MCP_SKILL_PACKAGE_PATH}`, import.meta.url),
-  ),
-  fileURLToPath(
-    new URL(`../../${GITHITS_MCP_SKILL_PACKAGE_PATH}`, import.meta.url),
-  ),
-];
+type GithitsSkillName = (typeof GITHITS_SKILL_CATALOG)[number]["name"];
+
+const GITHITS_SKILL_SOURCE_PATHS: Record<
+  GithitsSkillName,
+  { sourcePath: string; sourcePathCandidates: string[] }
+> = Object.fromEntries(
+  GITHITS_SKILL_CATALOG.map((skill) => {
+    const packagePath = skill.relativePath.join("/");
+    return [
+      skill.name,
+      {
+        sourcePath: fileURLToPath(
+          new URL(`../../../${packagePath}`, import.meta.url),
+        ),
+        sourcePathCandidates: [
+          fileURLToPath(new URL(`../${packagePath}`, import.meta.url)),
+          fileURLToPath(new URL(`../../${packagePath}`, import.meta.url)),
+        ],
+      },
+    ];
+  }),
+) as Record<
+  GithitsSkillName,
+  { sourcePath: string; sourcePathCandidates: string[] }
+>;
 
 function createInitLoginOutput(): LoginOutput {
   return {
@@ -419,95 +435,95 @@ function formatInstallCommand(
 }
 
 function printReadyNextSteps(): void {
-  console.log("  GitHits is now connected to your coding agents.");
+  printInitProse("  GitHits is now connected to your coding agents.");
   console.log();
-  console.log(
+  printInitProse(
     "  Here are some examples of the new abilities that your agent just got:",
   );
   console.log();
-  console.log("  • Find usage examples");
-  console.log(
+  printInitProse("  • Find usage examples");
+  printInitProse(
     "      -> “Find an example of using Azure Speech SDK TranscribeDefinition”",
   );
   console.log();
-  console.log(
+  printInitProse(
     "  • Search, grep, list files, and read exact lines in any repo or package to gather information",
   );
-  console.log(
+  printInitProse(
     "      -> “How does Next.js implement route prefetching internally?”",
   );
   console.log();
-  console.log(
+  printInitProse(
     "  • Inspect dependency versions, changelogs, and upgrade changes",
   );
-  console.log("      -> “What changed between pydantic-ai 1.95 and 1.99?”");
+  printInitProse("      -> “What changed between pydantic-ai 1.95 and 1.99?”");
   console.log();
-  console.log(
+  printInitProse(
     '  In your normal workflow, your agent will call GitHits automatically depending on the task, but you can prompt it to use GitHits explicitly by adding "use GitHits".',
   );
   console.log();
-  console.log(
+  printInitProse(
     "  See docs for more use cases and trigger guides: https://docs.githits.com",
   );
 }
 
 function printAuthRequiredNextSteps(useColors: boolean): void {
-  console.log("  GitHits MCP is configured, but sign-in is still needed.");
+  printInitProse("  GitHits MCP is configured, but sign-in is still needed.");
   console.log();
-  console.log("  Sign in when you're ready:");
+  printInitProse("  Sign in when you're ready:");
   console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
 }
 
 function printAuthNotCheckedNextSteps(useColors: boolean): void {
-  console.log("  GitHits MCP is configured. Sign-in was not checked.");
+  printInitProse("  GitHits MCP is configured. Sign-in was not checked.");
   console.log();
-  console.log("  If your agent asks you to sign in, run:");
+  printInitProse("  If your agent asks you to sign in, run:");
   console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
 }
 
 function printProjectAuthRequiredNextSteps(useColors: boolean): void {
-  console.log(
+  printInitProse(
     "  GitHits MCP is configured for this project, but sign-in is still needed.",
   );
   console.log();
-  console.log("  Sign in when you're ready:");
+  printInitProse("  Sign in when you're ready:");
   console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
 }
 
 function printProjectAuthNotCheckedNextSteps(useColors: boolean): void {
-  console.log(
+  printInitProse(
     "  GitHits MCP is configured for this project. Sign-in was not checked.",
   );
   console.log();
-  console.log("  If your agent asks you to sign in, run:");
+  printInitProse("  If your agent asks you to sign in, run:");
   console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
 }
 
 function printAgenticLoginInstructions(useColors: boolean): void {
-  console.log(
+  printInitProse(
     "  Authentication is still required before agents can use GitHits.",
   );
   console.log();
-  console.log("  Agent instruction:");
+  printInitProse("  Agent instruction:");
   console.log();
-  console.log("  Ask the user:");
-  console.log(
+  printInitProse("  Ask the user:");
+  printInitProse(
     `    "GitHits needs to open a browser sign-in page. The sign-in happens in your browser, not in this chat or terminal. I will not see or handle your credentials. Should I run \`${AGENT_LOGIN_COMMAND}\` now?"`,
   );
   console.log();
-  console.log("  If the user approves, run:");
+  printInitProse("  If the user approves, run:");
   console.log(`    ${formatCommand(AGENT_LOGIN_COMMAND, useColors)}`);
   console.log();
-  console.log("  If the browser cannot open, run:");
+  printInitProse("  If the browser cannot open, run:");
   console.log(
     `    ${formatCommand(AGENT_LOGIN_NO_BROWSER_COMMAND, useColors)}`,
   );
 }
 
 function printAgenticAuthNotChecked(useColors: boolean): void {
-  console.log("  GitHits MCP is installed. Sign-in status was not checked.");
+  printInitProse("  GitHits MCP is installed. Sign-in status was not checked.");
   console.log();
-  console.log("  If the user is not already signed in, ask before running:");
+  printInitProse("  If the user is not already signed in, ask before running:");
   console.log(`    ${formatCommand(AGENT_LOGIN_COMMAND, useColors)}`);
 }
 
@@ -515,42 +531,42 @@ function printNonInteractiveInitGuidance(
   useColors: boolean,
   commandOptions: StagedCommandOptions,
 ): void {
-  console.log(
+  printInitProse(
     "  This setup is interactive. Because this session is non-interactive, no changes were made.",
   );
   console.log();
-  console.log(
+  printInitProse(
     "  If you are an AI coding agent helping a user install GitHits:",
   );
   console.log();
-  console.log("  1. Ask the user whether GitHits should be installed for:");
-  console.log("     - this user account on this machine, or");
-  console.log("     - only this project/repo via project-local MCP files.");
+  printInitProse("  1. Ask the user whether GitHits should be installed for:");
+  printInitProse("     - this user account on this machine, or");
+  printInitProse("     - only this project/repo via project-local MCP files.");
   console.log();
-  console.log("  2. For user-level install, run:");
+  printInitProse("  2. For user-level install, run:");
   console.log(
     `     ${formatCommand(getAgentDetectCommand("user", commandOptions), useColors)}`,
   );
   console.log();
-  console.log("     For project-level install, run:");
+  printInitProse("     For project-level install, run:");
   console.log(
     `     ${formatCommand(getAgentDetectCommand("project", commandOptions), useColors)}`,
   );
   console.log();
-  console.log("  3. Show the detected tools to the user.");
+  printInitProse("  3. Show the detected tools to the user.");
   console.log();
-  console.log("  4. Show this install review to the user:");
+  printInitProse("  4. Show this install review to the user:");
   for (const item of INSTALL_REVIEW_ITEMS) {
-    console.log(`     - ${item}`);
+    printInitProse(`     - ${item}`);
   }
   console.log();
-  console.log("  5. Ask which tools should receive the GitHits MCP server.");
+  printInitProse("  5. Ask which tools should receive the GitHits MCP server.");
   console.log();
-  console.log(
+  printInitProse(
     "     For project-level install, explain that config files are written into this repo and may be committed.",
   );
   console.log();
-  console.log("  6. Only after approval, run the matching install command:");
+  printInitProse("  6. Only after approval, run the matching install command:");
   console.log(
     `     ${formatCommand(`${getAgentInstallCommand("user")} <ids>${guidanceCommandSuffix(commandOptions)}`, useColors)}`,
   );
@@ -558,7 +574,7 @@ function printNonInteractiveInitGuidance(
     `     ${formatCommand(`${getAgentInstallCommand("project")} <ids>${guidanceCommandSuffix(commandOptions)}`, useColors)}`,
   );
   console.log();
-  console.log(
+  printInitProse(
     commandOptions.guidanceRequested
       ? "     Supporting GitHits skill and instruction guidance is installed by default; add --no-guidance only if the user asks for plain MCP."
       : "     Plain MCP was requested, so every staged command preserves --no-guidance.",
@@ -679,18 +695,17 @@ const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
     name: "Install GitHits MCP + supporting instructions (Recommended)",
     value: "mcp-guided",
     description:
-      "Install the local GitHits MCP server, one GitHits MCP skill, and a small managed instruction block.",
+      "Install GitHits MCP and supporting GitHits instructions for your selected tools.",
   },
   {
     name: "Install plain GitHits MCP",
     value: "mcp",
-    description:
-      "Install only the local GitHits MCP server for your coding agents.",
+    description: "Install only GitHits MCP for your selected coding agents.",
   },
   {
     name: "Use Agent Skills instead",
     value: "skills",
-    description: "Use Skills instead of the local MCP server.",
+    description: "Use GitHits Agent Skills instead of MCP.",
   },
   {
     name: "Exit",
@@ -758,6 +773,36 @@ function printSection(index: number, title: string, useColors: boolean): void {
   console.log(`  ${colorize("-".repeat(title.length + 3), "dim", useColors)}`);
 }
 
+/** Print natural-language init output at the current terminal width. */
+function printInitProse(text: string): void {
+  const columns = process.stdout.columns ?? DEFAULT_INIT_PROSE_WIDTH;
+  for (const line of wrapInitProse(text, columns)) {
+    console.log(line);
+  }
+}
+
+/** Print Cursor's human-facing verification guidance with standalone commands. */
+function printCursorRemoteVerificationInstructions(useColors: boolean): void {
+  printInitProse(`  ${CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS[0]}`);
+  printInitProse(
+    "  In Cursor, open the MCP panel and click Authenticate once for GitHits, or run:",
+  );
+  console.log(
+    `    ${formatCommand("cursor-agent mcp login GitHits", useColors)}`,
+  );
+  printInitProse(
+    "  Then open a new Cursor Agent chat and verify that GitHits tools are available.",
+  );
+  printInitProse("  If cursor-agent is available, verify with:");
+  console.log(`    ${formatCommand("cursor-agent mcp list", useColors)}`);
+  console.log(
+    `    ${formatCommand("cursor-agent mcp list-tools GitHits", useColors)}`,
+  );
+  printInitProse(
+    "  Use the login command above if authentication is required.",
+  );
+}
+
 function printTask(
   status: "success" | "warning" | "skipped" | "failed",
   label: string,
@@ -778,35 +823,35 @@ function printTask(
 
 function printInitIntro(useColors: boolean): void {
   console.log(colorizeLogo(GITHITS_ASCII_LOGO, useColors));
-  console.log("  Your agent can only read your local codebase.");
+  printInitProse("  Your agent can only read your local codebase.");
   console.log();
-  console.log(
+  printInitProse(
     "  GitHits lets it navigate the open-source code your app depends on.",
   );
   console.log();
   console.log(
     `  ${colorizeBrand("With GitHits, your agent can:", "primary", useColors)}`,
   );
-  console.log(
+  printInitProse(
     "  • Find implementation examples from open-source code, issues, discussions, and pull requests",
   );
-  console.log(
+  printInitProse(
     "  • Search, grep, list files, and read exact lines in any repo or package",
   );
-  console.log(
+  printInitProse(
     "  • Inspect dependency internals, versions, changelogs, and upgrade changes",
   );
-  console.log("  • Access package documentation");
+  printInitProse("  • Access package documentation");
   console.log();
-  console.log(
+  printInitProse(
     "  No cloning or local indexing required. GitHits handles everything automatically.",
   );
   console.log();
-  console.log(
+  printInitProse(
     "  Works with Cursor, Claude Code, Codex, OpenCode, Pi, VS Code, Windsurf, and more.",
   );
   console.log();
-  console.log("  More info: https://docs.githits.com");
+  printInitProse("  More info: https://docs.githits.com");
   console.log();
 }
 
@@ -817,6 +862,7 @@ function printInstallReview(
   guidanceAgents?: AgentDefinition[],
   installSupportingGuidance?: boolean,
   printTitle: boolean = true,
+  unchangedAgents: AgentDefinition[] = [],
 ): void {
   if (printTitle) {
     console.log(`  ${colorizeBrand("Install review", "primary", useColors)}`);
@@ -828,10 +874,18 @@ function printInstallReview(
     console.log(
       `    MCP tools to configure: ${mcpAgents.length > 0 ? mcpAgents.map((agent) => agent.name).join(", ") : "None"}`,
     );
+    if (mcpAgents.length > 0) {
+      console.log(`    MCP transport: ${describeMcpTransport(mcpAgents)}`);
+    }
   }
   if (guidanceAgents) {
     console.log(
       `    Guidance targets: ${guidanceAgents.length > 0 ? guidanceAgents.map((agent) => agent.name).join(", ") : "None"}`,
+    );
+  }
+  if (unchangedAgents.length > 0) {
+    console.log(
+      `    Already configured: ${unchangedAgents.map((agent) => agent.name).join(", ")}`,
     );
   }
   if (installSupportingGuidance !== undefined) {
@@ -848,7 +902,7 @@ function printInstallReview(
     console.log();
   }
   for (const item of INSTALL_REVIEW_ITEMS) {
-    console.log(`    • ${item}`);
+    printInitProse(`    • ${item}`);
   }
   console.log();
 }
@@ -873,12 +927,7 @@ function printSkillsInstructions(useColors: boolean): void {
   console.log();
 }
 
-const SHARED_AGENTS_SKILL_PATH = [
-  ".agents",
-  "skills",
-  GITHITS_MCP_SKILL_NAME,
-  "SKILL.md",
-] as const;
+const SHARED_AGENTS_SKILL_ROOT = [".agents", "skills"] as const;
 
 const GITHITS_VSCODE_INSTRUCTIONS_HEADER = `---
 name: GitHits
@@ -894,71 +943,88 @@ const GUIDANCE_SKILL_TARGETS: Record<
   }
 > = {
   "claude-code": {
-    user: [[".claude", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
-    project: [[".claude", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
+    user: [[".claude", "skills"]],
+    project: [[".claude", "skills"]],
   },
   cursor: {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   windsurf: {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   vscode: {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   cline: {
-    user: [[".cline", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
-    project: [[".cline", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   "codex-cli": {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   pi: {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   "gemini-cli": {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   "google-antigravity": {
-    user: [[".gemini", "config", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [[".gemini", "config", "skills"]],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   opencode: {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   "hermes-agent": {
-    user: [[".hermes", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
+    user: [[".hermes", "skills"]],
   },
   zed: {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   junie: {
-    user: [[".junie", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
-    project: [[".junie", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   "qwen-code": {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   kiro: {
-    user: [[".kiro", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
-    project: [[".kiro", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
+    user: [[".kiro", "skills"]],
+    project: [[".kiro", "skills"]],
   },
   "kilo-code": {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   "factory-droid": {
-    user: [[".factory", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
-    project: [[".factory", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
+    user: [[".factory", "skills"]],
+    project: [[".factory", "skills"]],
+  },
+};
+
+const HISTORICAL_GUIDANCE_SKILL_TARGETS: Record<
+  string,
+  {
+    user?: readonly (readonly string[])[];
+    project?: readonly (readonly string[])[];
+  }
+> = {
+  cline: {
+    user: [[".cline", "skills"]],
+    project: [[".cline", "skills"]],
+  },
+  junie: {
+    user: [[".junie", "skills"]],
+    project: [[".junie", "skills"]],
   },
 };
 
@@ -977,23 +1043,131 @@ function getGuidanceSkillSetups(
   for (const agent of agents) {
     const relativeTargets = GUIDANCE_SKILL_TARGETS[agent.id]?.[scope] ?? [];
     for (const relativeTarget of relativeTargets) {
+      for (const skill of GITHITS_SKILL_CATALOG) {
+        const targetPath = fileSystemService.joinPath(
+          basePath,
+          ...relativeTarget,
+          skill.name,
+          "SKILL.md",
+        );
+        if (seen.has(targetPath)) continue;
+        seen.add(targetPath);
+        const source = GITHITS_SKILL_SOURCE_PATHS[skill.name];
+        setups.push({
+          method: "skill",
+          skillName: skill.name,
+          sourcePath: source.sourcePath,
+          sourcePathCandidates: source.sourcePathCandidates,
+          targetPath,
+        });
+      }
+    }
+  }
+
+  return setups;
+}
+
+function getHistoricalGuidanceSkillSetups(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): SkillSetup[] {
+  const basePath =
+    scope === "project"
+      ? fileSystemService.getCwd()
+      : fileSystemService.getHomeDir();
+  const seen = new Set<string>();
+  const setups: SkillSetup[] = [];
+  for (const agent of agents) {
+    const relativeTargets =
+      HISTORICAL_GUIDANCE_SKILL_TARGETS[agent.id]?.[scope] ?? [];
+    for (const relativeTarget of relativeTargets) {
       const targetPath = fileSystemService.joinPath(
         basePath,
         ...relativeTarget,
+        GITHITS_MCP_SKILL_NAME,
+        "SKILL.md",
       );
       if (seen.has(targetPath)) continue;
       seen.add(targetPath);
       setups.push({
         method: "skill",
         skillName: GITHITS_MCP_SKILL_NAME,
-        sourcePath: GITHITS_MCP_SKILL_SOURCE_PATH,
-        sourcePathCandidates: GITHITS_MCP_SKILL_SOURCE_PATH_CANDIDATES,
+        sourcePath:
+          GITHITS_SKILL_SOURCE_PATHS[GITHITS_MCP_SKILL_NAME].sourcePath,
+        sourcePathCandidates:
+          GITHITS_SKILL_SOURCE_PATHS[GITHITS_MCP_SKILL_NAME]
+            .sourcePathCandidates,
         targetPath,
       });
     }
   }
-
   return setups;
+}
+
+async function hasHistoricalGuidanceSkills(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): Promise<boolean> {
+  for (const setup of getHistoricalGuidanceSkillSetups(
+    agents,
+    fileSystemService,
+    scope,
+  )) {
+    try {
+      if (await fileSystemService.exists(setup.targetPath)) return true;
+    } catch {
+      // A failed probe is actionable so the selected cleanup can report it.
+      return true;
+    }
+  }
+  return false;
+}
+
+async function hasGuidanceToUninstall(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): Promise<boolean> {
+  for (const step of getGuidanceUninstallSteps(
+    agents,
+    fileSystemService,
+    scope,
+  )) {
+    try {
+      if (!(await fileSystemService.exists(step.targetPath))) continue;
+    } catch {
+      return true;
+    }
+    if (
+      step.method === "skill" ||
+      (await hasManagedBlockToUninstall(step, fileSystemService))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function hasManagedBlockToUninstall(
+  setup: ManagedBlockSetup,
+  fileSystemService: FileSystemService,
+): Promise<boolean> {
+  try {
+    const content = await fileSystemService.readFile(setup.targetPath);
+    const status = mergeManagedBlock(
+      content,
+      setup.marker,
+      setup.blockContent,
+      setup.fileHeader,
+    ).status;
+    return status === "already_configured" || status === "updated";
+  } catch {
+    // A target that cannot be inspected is actionable so uninstall can report
+    // the failed path instead of silently declaring a clean project.
+    return true;
+  }
 }
 
 function getInstructionTargetPath(
@@ -1157,12 +1331,17 @@ function getGuidanceUninstallSteps(
 ): Array<SkillSetup | ManagedBlockSetup> {
   if (agents.length === 0) return [];
   const setup = buildGuidanceSetupConfig(agents, fileSystemService, scope);
-  return setup?.method === "composite"
-    ? setup.steps.filter(
-        (step): step is SkillSetup | ManagedBlockSetup =>
-          step.method === "skill" || step.method === "managed-block",
-      )
-    : [];
+  const activeSteps =
+    setup?.method === "composite"
+      ? setup.steps.filter(
+          (step): step is SkillSetup | ManagedBlockSetup =>
+            step.method === "skill" || step.method === "managed-block",
+        )
+      : [];
+  return [
+    ...activeSteps,
+    ...getHistoricalGuidanceSkillSetups(agents, fileSystemService, scope),
+  ];
 }
 
 function shouldInstallGuidanceForStaged(options: InitOptions): boolean {
@@ -1270,47 +1449,116 @@ function formatAgentNames(agents: AgentDefinition[]): string {
   return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
-function buildInitAgentChoices(
-  scan: ScanResult,
-): CheckboxChoice<AgentDefinition>[] {
-  return [
-    ...scan.needsSetup.map((agent) => ({
-      name: `${agent.name} (detected)`,
-      value: agent,
-      checked: true,
-    })),
-    ...scan.alreadyConfigured.map((agent) => ({
-      name: `${agent.name} (already configured)`,
-      value: agent,
-      disabled: "already configured",
-    })),
-  ];
+function describeMcpTransport(agents: AgentDefinition[]): string {
+  const cursorAgents = agents.filter((agent) => agent.id === "cursor");
+  const stdioAgents = agents.filter((agent) => agent.id !== "cursor");
+  const local = `local stdio MCP command \`${GITHITS_MCP_INVOCATION.join(" ")}\``;
+  const remote = `remote MCP at ${CURSOR_REMOTE_MCP_URL}`;
+
+  if (cursorAgents.length === 0) {
+    return `${local} for ${formatAgentNames(stdioAgents)}`;
+  }
+  if (stdioAgents.length === 0) {
+    return `${remote} for Cursor`;
+  }
+  return `${local} for ${formatAgentNames(stdioAgents)}; ${remote} for Cursor`;
 }
 
-function getInstallSummaryAgents(
+function buildInitAgentChoices(
+  detection: StagedDetection,
+): CheckboxChoice<string>[] {
+  return detection.entries
+    .filter((entry) => entry.status !== "not_detected")
+    .map((entry) => {
+      if (entry.status === "unsupported_project_config") {
+        return {
+          name: `${entry.name} (unsupported)`,
+          value: entry.id,
+          disabled: entry.reason ?? "unsupported project configuration",
+        };
+      }
+      if (entry.status === "needs_setup") {
+        const action =
+          entry.guidanceStatus === "needs_setup"
+            ? "MCP + supporting instructions"
+            : "MCP only";
+        return {
+          name: `${entry.name} (${action})`,
+          value: entry.id,
+          checked: true,
+        };
+      }
+      if (entry.guidanceStatus === "needs_setup") {
+        return {
+          name: `${entry.name} (guidance repair)`,
+          value: entry.id,
+          checked: true,
+        };
+      }
+      return {
+        name: `${entry.name} (already configured)`,
+        value: entry.id,
+        disabled: "already configured",
+      };
+    });
+}
+
+interface InteractiveInitSelection {
+  selectedEntries: StagedAgentEntry[];
+  mcpAgents: AgentDefinition[];
+  guidanceAgents: AgentDefinition[];
+  unchangedAgents: AgentDefinition[];
+}
+
+function getInteractiveInitSelection(
+  detection: StagedDetection,
   scan: ScanResult,
-  selectedForSetup: AgentDefinition[],
-): AgentDefinition[] {
-  const selectedIds = new Set(selectedForSetup.map((agent) => agent.id));
-  const included = new Map<string, AgentDefinition>();
-
-  for (const agent of scan.alreadyConfigured) {
-    included.set(agent.id, agent);
-  }
-  for (const agent of scan.needsSetup) {
-    if (selectedIds.has(agent.id)) {
-      included.set(agent.id, agent);
-    }
-  }
-
-  const agentOrder = new Map(
-    agentDefinitions.map((agent, index) => [agent.id, index]),
+  selectedIds: string[],
+  installSupportingGuidance: boolean,
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): InteractiveInitSelection {
+  const selectedIdSet = new Set(selectedIds);
+  const scannedAgents = [
+    ...scan.needsSetup,
+    ...scan.alreadyConfigured,
+    ...scan.unsupported.map(({ agent }) => agent),
+  ];
+  const findAgent = (id: string): AgentDefinition | undefined =>
+    scannedAgents.find((agent) => agent.id === id) ??
+    agentDefinitions.find((agent) => agent.id === id);
+  const selectedEntries = detection.entries.filter(
+    (entry) =>
+      selectedIdSet.has(entry.id) &&
+      entry.status !== "unsupported_project_config" &&
+      entry.status !== "not_detected",
   );
-  return [...included.values()].sort(
-    (a, b) =>
-      (agentOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
-      (agentOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER),
-  );
+  const selectedAgents = selectedEntries
+    .map((entry) => findAgent(entry.id))
+    .filter((agent): agent is AgentDefinition => Boolean(agent));
+  const mcpAgents = selectedEntries
+    .filter((entry) => entry.status === "needs_setup")
+    .map((entry) => findAgent(entry.id))
+    .filter((agent): agent is AgentDefinition => Boolean(agent));
+  const guidanceAgents = installSupportingGuidance
+    ? getGuidanceTargetAgents(selectedAgents, fileSystemService, scope)
+    : [];
+  const selectedAgentIds = new Set(selectedIds);
+  const unchangedAgents = detection.entries
+    .filter(
+      (entry) =>
+        entry.status === "already_configured" &&
+        !selectedAgentIds.has(entry.id),
+    )
+    .map((entry) => findAgent(entry.id))
+    .filter((agent): agent is AgentDefinition => Boolean(agent));
+
+  return {
+    selectedEntries,
+    mcpAgents,
+    guidanceAgents,
+    unchangedAgents,
+  };
 }
 
 function printScanSummary(
@@ -1425,7 +1673,15 @@ async function buildStagedDetection(
             execService,
             checkCache,
           );
-          guidanceStatus = configured ? "already_configured" : "needs_setup";
+          const historicalSkills = await hasHistoricalGuidanceSkills(
+            [agent],
+            fileSystemService,
+            scope,
+          );
+          guidanceStatus =
+            configured && !historicalSkills
+              ? "already_configured"
+              : "needs_setup";
         }
       }
       return {
@@ -1510,9 +1766,9 @@ function buildConfiguredDetectionInstructions(
   return instructions;
 }
 
-function hasDetectedCursor(entries: StagedAgentEntry[]): boolean {
+function hasConfiguredCursor(entries: StagedAgentEntry[]): boolean {
   return entries.some(
-    (entry) => entry.id === "cursor" && entry.status !== "not_detected",
+    (entry) => entry.id === "cursor" && entry.status === "already_configured",
   );
 }
 
@@ -1542,10 +1798,10 @@ function printAgenticDetectSummary(
   );
   console.log();
   if (scope === "project") {
-    console.log(
+    printInitProse(
       "  Project-level install writes MCP config files into this repo. These files may be committed.",
     );
-    console.log(
+    printInitProse(
       "  Tools without verified project config are shown as unsupported and cannot be installed with --project.",
     );
     console.log();
@@ -1577,7 +1833,7 @@ function printAgenticDetectSummary(
     console.log("No supported AI coding tools detected.");
     console.log();
     console.log("Next step for agents:");
-    console.log(
+    printInitProse(
       "  Tell the user to install a supported coding tool, then run detection again.",
     );
     return;
@@ -1585,7 +1841,7 @@ function printAgenticDetectSummary(
 
   if (actionable.length === 0) {
     if (scope === "project" && unsupported.length > 0) {
-      console.log(
+      printInitProse(
         "No detected tools can be installed with project-level config.",
       );
       console.log();
@@ -1594,11 +1850,11 @@ function printAgenticDetectSummary(
       }
       console.log("Next step for agents:");
       if (configured.length > 0) {
-        console.log(
+        printInitProse(
           "  Tell the user GitHits is already configured for the detected project-configurable tools.",
         );
       }
-      console.log(
+      printInitProse(
         "  Tell the user the other detected tools do not have verified project-level MCP support.",
       );
       console.log(
@@ -1611,16 +1867,14 @@ function printAgenticDetectSummary(
       return;
     }
     printInstallReview(useColors);
-    console.log("No detected tools need MCP or guidance setup.");
+    printInitProse("No detected tools need MCP or guidance setup.");
     console.log();
     console.log("Next step for agents:");
     for (const instruction of buildConfiguredDetectionInstructions(entries)) {
-      console.log(`  ${instruction}`);
+      printInitProse(`  ${instruction}`);
     }
-    if (hasDetectedCursor(entries)) {
-      for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
-        console.log(`  ${instruction}`);
-      }
+    if (hasConfiguredCursor(entries)) {
+      printCursorRemoteVerificationInstructions(useColors);
     }
     console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
     console.log(
@@ -1633,7 +1887,7 @@ function printAgenticDetectSummary(
   console.log("Next step for agents:");
   console.log();
   console.log("  Ask the user:");
-  console.log(
+  printInitProse(
     `    "GitHits setup is available for ${actionable.map((entry) => entry.name).join(", ")}. Which should I configure?"`,
   );
   console.log();
@@ -1643,18 +1897,13 @@ function printAgenticDetectSummary(
   );
   if (scope === "project") {
     console.log();
-    console.log(
+    printInitProse(
       "  Before running it, tell the user this writes project-local MCP files into the current repo and only configures tools with verified project support.",
     );
   }
   console.log();
   console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
   console.log(`  ${getAgenticVerifyInstruction(scope, commandOptions)}`);
-  if (hasDetectedCursor(actionable)) {
-    for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
-      console.log(`  ${instruction}`);
-    }
-  }
 }
 
 function printAgenticDetectJson(
@@ -1719,9 +1968,6 @@ function buildAgenticDetectJsonInstructions(input: {
   const detectedCount = entries.filter(
     (entry) => entry.status !== "not_detected",
   ).length;
-  const cursorInstructions = hasDetectedCursor(entries)
-    ? [...CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS]
-    : [];
   const commandOptions = { guidanceRequested };
   if (detectedCount === 0) {
     return [
@@ -1754,7 +2000,9 @@ function buildAgenticDetectJsonInstructions(input: {
       "Before authentication, show the user this install review:",
       ...INSTALL_REVIEW_ITEMS,
       ...buildConfiguredDetectionInstructions(entries),
-      ...cursorInstructions,
+      ...(hasConfiguredCursor(entries)
+        ? [...CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS]
+        : []),
       "Do not ask the user to choose actionable IDs.",
       AGENTIC_INIT_YES_WARNING,
       getAgenticJsonVerifyInstruction(scope, commandOptions),
@@ -1772,7 +2020,6 @@ function buildAgenticDetectJsonInstructions(input: {
     ...INSTALL_REVIEW_ITEMS,
     "Ask which actionable tools should receive GitHits MCP setup or guidance repair.",
     "Only run --install-agents with user-approved IDs.",
-    ...cursorInstructions,
     AGENTIC_INIT_YES_WARNING,
     getAgenticJsonVerifyInstruction(scope, commandOptions),
   ];
@@ -1911,7 +2158,7 @@ function printInstallValidationFailure(
 
 function failUnknownInitAction(action: string): void {
   failInitArgument(
-    `Unknown init action: ${action}. Use "githits init uninstall" to remove GitHits MCP config.`,
+    `Unknown init action: ${action}. Use "githits uninstall" to remove GitHits MCP config.`,
     false,
   );
 }
@@ -2087,8 +2334,16 @@ function printAgenticInstallJson(
   scope: InitSetupScope,
   guidanceRequested: boolean,
   cursorOnly: boolean,
+  mcpSetupRequested: boolean,
+  mcpTargetIds: string[],
 ): void {
-  const canAuthenticate = hasUsableInstallOutcome(outcomes);
+  const mcpOutcomes = outcomes.filter((outcome) =>
+    mcpTargetIds.includes(outcome.id),
+  );
+  const canAuthenticate =
+    (cursorOnly &&
+      (!mcpSetupRequested || hasUsableInstallOutcome(mcpOutcomes))) ||
+    (mcpSetupRequested && !cursorOnly && hasUsableInstallOutcome(mcpOutcomes));
   const changesMade =
     outcomes.some((outcome) => outcome.status === "success") ||
     guidance?.status === "success";
@@ -2109,7 +2364,9 @@ function printAgenticInstallJson(
           : {
               required: false,
               status: "not_applicable",
-              reason: "Fix installation errors before starting sign-in.",
+              reason: mcpSetupRequested
+                ? "Fix installation errors before starting sign-in."
+                : "No MCP changes were needed; sign-in was not checked.",
             },
         instructions: canAuthenticate
           ? buildAgenticInstallInstructions(
@@ -2126,8 +2383,17 @@ function printAgenticInstallJson(
               ...(cursorConfigured
                 ? [...CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS]
                 : []),
-              "Fix installation errors before asking the user to sign in.",
+              mcpSetupRequested
+                ? "Fix installation errors before asking the user to sign in."
+                : "No MCP changes were needed; sign-in was not checked.",
               buildAgenticGuidanceInstruction(guidanceRequested, guidance),
+              ...(mcpSetupRequested
+                ? []
+                : [
+                    getAgenticJsonVerifyInstruction(scope, {
+                      guidanceRequested,
+                    }),
+                  ]),
             ],
       },
       null,
@@ -2188,6 +2454,11 @@ async function runInstallAgentsMode(
   }
 
   const agents = findAgentsByIds(scan, requestedIds);
+  const mcpTargets = agents.filter((agent) =>
+    scan.needsSetup.some((candidate) => candidate.id === agent.id),
+  );
+  const mcpTargetIds = new Set(mcpTargets.map((agent) => agent.id));
+  const mcpSetupRequested = mcpTargets.length > 0;
   if (!options.json) {
     console.log("Installing GitHits MCP:");
     console.log();
@@ -2205,6 +2476,9 @@ async function runInstallAgentsMode(
   const guidance = guidanceRequested
     ? await installGuidance(agents, fileSystemService, execService, scope)
     : null;
+  const mcpOutcomes = outcomes.filter((outcome) =>
+    mcpTargetIds.has(outcome.id),
+  );
   if (!options.json) {
     printInstallOutcomeSections(
       outcomes,
@@ -2226,11 +2500,15 @@ async function runInstallAgentsMode(
       changes: guidance.changes,
     });
   }
-  const canAuthenticate = hasUsableInstallOutcome(outcomes);
-  const cursorOnly =
-    agents.length > 0 && agents.every((agent) => agent.id === "cursor");
+  const cursorOnly = mcpSetupRequested
+    ? mcpTargets.every((agent) => agent.id === "cursor")
+    : agents.length > 0 && agents.every((agent) => agent.id === "cursor");
+  const canAuthenticate =
+    (cursorOnly &&
+      (!mcpSetupRequested || hasUsableInstallOutcome(mcpOutcomes))) ||
+    (mcpSetupRequested && !cursorOnly && hasUsableInstallOutcome(mcpOutcomes));
   const authStatus =
-    canAuthenticate && !cursorOnly
+    canAuthenticate && mcpSetupRequested && !cursorOnly
       ? await getStagedInstallAuthStatus(createLoginDeps)
       : "not_checked";
   if (failed.length > 0) {
@@ -2245,6 +2523,8 @@ async function runInstallAgentsMode(
       scope,
       guidanceRequested,
       cursorOnly,
+      mcpSetupRequested,
+      [...mcpTargetIds],
     );
     return;
   }
@@ -2259,7 +2539,23 @@ async function runInstallAgentsMode(
         : "GitHits MCP was already configured.",
     );
     console.log();
-    printMcpServerSummary(useColors, installedAny);
+    const configuredMcpAgents = mcpSetupRequested
+      ? mcpOutcomes
+          .filter(
+            (outcome) =>
+              outcome.status === "success" ||
+              outcome.status === "already_configured",
+          )
+          .map((outcome) => mcpTargets.find((agent) => agent.id === outcome.id))
+          .filter((agent): agent is AgentDefinition => Boolean(agent))
+      : agents.filter((agent) =>
+          scan.alreadyConfigured.some(
+            (configured) => configured.id === agent.id,
+          ),
+        );
+    if (configuredMcpAgents.length > 0) {
+      printMcpServerSummary(useColors, installedAny, configuredMcpAgents);
+    }
   } else {
     console.log("GitHits MCP installation completed with errors.");
     for (const outcome of failed) {
@@ -2267,15 +2563,21 @@ async function runInstallAgentsMode(
     }
   }
   console.log();
+  const sharedGuidanceReady = hasSharedGuidanceOutcome(
+    guidance,
+    fileSystemService,
+    scope,
+  );
+  if (sharedGuidanceReady) {
+    printSharedGuidanceVisibility(scope);
+  }
   if (changesMade) {
     console.log(`  ${getAgenticReloadInstruction(scope)}`);
     console.log();
   }
-  if (canAuthenticate) {
+  if (canAuthenticate && mcpSetupRequested) {
     if (cursorOnly) {
-      for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
-        console.log(`  ${instruction}`);
-      }
+      printCursorRemoteVerificationInstructions(useColors);
     } else if (authStatus === "authenticated") {
       if (scope === "project") {
         console.log(
@@ -2293,7 +2595,22 @@ async function runInstallAgentsMode(
     }
     console.log(`  ${getAgenticVerifyInstruction(scope, commandOptions)}`);
   } else {
-    console.log("Fix installation errors before starting sign-in.");
+    if (mcpSetupRequested) {
+      console.log("Fix installation errors before starting sign-in.");
+    } else {
+      if (
+        outcomes.some(
+          (outcome) =>
+            outcome.id === "cursor" &&
+            (outcome.status === "success" ||
+              outcome.status === "already_configured"),
+        )
+      ) {
+        printCursorRemoteVerificationInstructions(useColors);
+      }
+      console.log("No MCP changes were needed; sign-in was not checked.");
+      console.log(`  ${getAgenticVerifyInstruction(scope, commandOptions)}`);
+    }
   }
   console.log();
 }
@@ -2321,6 +2638,7 @@ async function runInitAuthentication(
   promptService: PromptService,
   createLoginDeps: InitDependencies["createLoginDeps"],
   useColors: boolean,
+  hasCursorTarget: boolean,
 ): Promise<InitAuthStatus> {
   if (options.skipLogin) {
     console.log("  Skipping authentication (--skip-login).\n");
@@ -2341,7 +2659,14 @@ async function runInitAuthentication(
     try {
       const loginDeps = await createLoginDeps();
       if (loginDeps.hasValidToken) {
-        printTask("success", "Already signed in", undefined, useColors);
+        printTask(
+          "success",
+          hasCursorTarget
+            ? "Already signed in (local CLI auth only)"
+            : "Already signed in",
+          undefined,
+          useColors,
+        );
         return "authenticated";
       }
 
@@ -2396,11 +2721,25 @@ async function runInitAuthentication(
     }
 
     if (loginResult.status === "already_authenticated") {
-      printTask("success", "Already signed in", undefined, useColors);
+      printTask(
+        "success",
+        hasCursorTarget
+          ? "Already signed in (local CLI auth only)"
+          : "Already signed in",
+        undefined,
+        useColors,
+      );
       return "authenticated";
     }
     if (loginResult.status === "success") {
-      printTask("success", "Signed in successfully", undefined, useColors);
+      printTask(
+        "success",
+        hasCursorTarget
+          ? "Signed in successfully (local CLI auth only)"
+          : "Signed in successfully",
+        undefined,
+        useColors,
+      );
       return "authenticated";
     }
 
@@ -2449,29 +2788,146 @@ function shouldPrintReady(authStatus: InitAuthStatus): boolean {
   return authStatus === "authenticated";
 }
 
+function hasSharedGuidanceOutcome(
+  outcome: GuidanceOutcome | null,
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): boolean {
+  if (
+    !outcome ||
+    (outcome.status !== "success" && outcome.status !== "already_configured")
+  ) {
+    return false;
+  }
+  const basePath =
+    scope === "project"
+      ? fileSystemService.getCwd()
+      : fileSystemService.getHomeDir();
+  const sharedRoot = fileSystemService.joinPath(
+    basePath,
+    ...SHARED_AGENTS_SKILL_ROOT,
+  );
+  return (outcome.changes ?? []).some(
+    (change) =>
+      change.kind === "skill" && isSharedGuidancePath(change.path, sharedRoot),
+  );
+}
+
+function isSharedGuidancePath(path: string, sharedRoot: string): boolean {
+  return (
+    path === sharedRoot ||
+    path.startsWith(`${sharedRoot}/`) ||
+    path.startsWith(`${sharedRoot}\\`)
+  );
+}
+
+function getSharedGuidanceRoot(
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): string {
+  const basePath =
+    scope === "project"
+      ? fileSystemService.getCwd()
+      : fileSystemService.getHomeDir();
+  return fileSystemService.joinPath(basePath, ...SHARED_AGENTS_SKILL_ROOT);
+}
+
+function hasSharedGuidanceRemoval(
+  outcome: GuidanceUninstallOutcome | null,
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): boolean {
+  if (!outcome) return false;
+  const sharedRoot = getSharedGuidanceRoot(fileSystemService, scope);
+  return (outcome.changes ?? []).some(
+    (change) =>
+      change.kind === "skill" &&
+      change.change === "removed" &&
+      isSharedGuidancePath(change.path, sharedRoot),
+  );
+}
+
+function hasSharedGuidanceDetection(
+  detection: StagedDetection,
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): boolean {
+  if (!detection.guidanceRequested) return false;
+  const sharedRoot = getSharedGuidanceRoot(fileSystemService, scope);
+  return detection.entries.some((entry) => {
+    if (entry.guidanceStatus !== "already_configured") return false;
+    const agent = agentDefinitions.find(
+      (candidate) => candidate.id === entry.id,
+    );
+    return (
+      agent !== undefined &&
+      getGuidanceSkillSetups([agent], fileSystemService, scope).some((setup) =>
+        isSharedGuidancePath(setup.targetPath, sharedRoot),
+      )
+    );
+  });
+}
+
+function printSharedGuidanceVisibility(scope: InitSetupScope): void {
+  printInitProse(
+    scope === "project"
+      ? "  GitHits skills in .agents/skills/ are discovered by every compatible agent that reads that directory."
+      : "  GitHits skills in ~/.agents/skills/ are discovered by every compatible agent that reads that directory.",
+  );
+  console.log();
+}
+
+function printSharedGuidanceRemovalVisibility(scope: InitSetupScope): void {
+  printInitProse(
+    scope === "project"
+      ? "  GitHits removed shared skills from .agents/skills/; this affects every compatible agent that reads that directory."
+      : "  GitHits removed shared skills from ~/.agents/skills/; this affects every compatible agent that reads that directory.",
+  );
+  console.log();
+}
+
 function printPostSetupNextSteps(
   authStatus: InitAuthStatus,
   useColors: boolean,
   changesMade: boolean,
   cursorConfigured: boolean,
+  localAuthApplicable: boolean,
+  sharedGuidanceReady: boolean,
 ): void {
   const ready = shouldPrintReady(authStatus) && !cursorConfigured;
   printSection(6, ready ? "Ready" : "Next Steps", useColors);
   if (changesMade) {
-    console.log(
+    printInitProse(
       "  Open a new coding agent session so it reloads MCP configuration and any supporting instructions.",
     );
     console.log();
   }
+  if (sharedGuidanceReady) {
+    printSharedGuidanceVisibility("user");
+  }
   if (cursorConfigured) {
-    for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
-      console.log(`  ${instruction}`);
-    }
+    printCursorRemoteVerificationInstructions(useColors);
     console.log();
   }
   if (cursorConfigured && shouldPrintReady(authStatus)) {
-    console.log(
-      "  Local GitHits CLI authentication is active. Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
+    printInitProse(
+      "  Local GitHits CLI authentication is active for non-Cursor integrations only. Cursor still requires its separate OAuth and tool-discovery checks.",
+    );
+  } else if (cursorConfigured && authStatus === "failed_continue") {
+    printInitProse(
+      "  Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
+    );
+    printAuthRequiredNextSteps(useColors);
+  } else if (cursorConfigured) {
+    printInitProse(
+      "  Sign-in was not checked. Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
+    );
+    if (localAuthApplicable) {
+      printAuthNotCheckedNextSteps(useColors);
+    }
+  } else if (!localAuthApplicable) {
+    printInitProse(
+      "  GitHits MCP was unchanged; supporting guidance was repaired.",
     );
   } else if (ready) {
     printReadyNextSteps();
@@ -2487,24 +2943,43 @@ function printProjectNextSteps(
   useColors: boolean,
   changesMade: boolean,
   cursorConfigured: boolean,
-) {
+  localAuthApplicable: boolean,
+  sharedGuidanceReady: boolean,
+): void {
   const ready = shouldPrintReady(authStatus) && !cursorConfigured;
   printSection(6, ready ? "Ready" : "Next Steps", useColors);
   if (changesMade) {
-    console.log(
+    printInitProse(
       "  Open a new coding agent session in this project so it loads the project config and any supporting instructions.",
     );
     console.log();
   }
+  if (sharedGuidanceReady) {
+    printSharedGuidanceVisibility("project");
+  }
   if (cursorConfigured) {
-    for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
-      console.log(`  ${instruction}`);
-    }
+    printCursorRemoteVerificationInstructions(useColors);
     console.log();
   }
   if (cursorConfigured && shouldPrintReady(authStatus)) {
-    console.log(
-      "  Local GitHits CLI authentication is active. Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
+    printInitProse(
+      "  Local GitHits CLI authentication is active for non-Cursor integrations only. Cursor still requires its separate OAuth and tool-discovery checks.",
+    );
+  } else if (cursorConfigured && authStatus === "failed_continue") {
+    printInitProse(
+      "  Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
+    );
+    printProjectAuthRequiredNextSteps(useColors);
+  } else if (cursorConfigured) {
+    printInitProse(
+      "  GitHits MCP is configured for this project. Sign-in was not checked. Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
+    );
+    if (localAuthApplicable) {
+      printProjectAuthNotCheckedNextSteps(useColors);
+    }
+  } else if (!localAuthApplicable) {
+    printInitProse(
+      "  GitHits MCP was unchanged for this project; supporting guidance was repaired.",
     );
   } else if (ready) {
     printReadyNextSteps();
@@ -2521,12 +2996,28 @@ function printScopedNextSteps(
   useColors: boolean,
   changesMade: boolean,
   cursorConfigured: boolean,
+  localAuthApplicable: boolean,
+  sharedGuidanceReady: boolean,
 ): void {
   if (scope === "project") {
-    printProjectNextSteps(authStatus, useColors, changesMade, cursorConfigured);
+    printProjectNextSteps(
+      authStatus,
+      useColors,
+      changesMade,
+      cursorConfigured,
+      localAuthApplicable,
+      sharedGuidanceReady,
+    );
     return;
   }
-  printPostSetupNextSteps(authStatus, useColors, changesMade, cursorConfigured);
+  printPostSetupNextSteps(
+    authStatus,
+    useColors,
+    changesMade,
+    cursorConfigured,
+    localAuthApplicable,
+    sharedGuidanceReady,
+  );
 }
 
 function getConfigFileSetups(setup: SetupConfig): ConfigFileSetup[] {
@@ -2625,28 +3116,33 @@ async function cleanupLegacyProjectSetupState(
 }
 
 function printProjectUninstallSummary(summary: ProjectUninstallSummary): void {
-  const totalRemoved = summary.removed.length + summary.legacyRemoved.length;
+  const totalRemoved =
+    summary.removed.length +
+    summary.legacyRemoved.length +
+    (summary.guidanceRemoved ?? 0);
   console.log();
   if (summary.failed.length === 0) {
     if (summary.removed.length > 0) {
-      console.log(
+      printInitProse(
         "  Done! GitHits MCP configuration was removed from this project.",
       );
     } else if (summary.legacyRemoved.length > 0) {
-      console.log(
+      printInitProse(
         "  Done! Removed legacy GitHits project setup marker. No project MCP config entries were found.",
       );
+    } else if ((summary.guidanceRemoved ?? 0) > 0) {
+      printInitProse("  Done! GitHits guidance was removed from this project.");
     } else {
-      console.log("  No project GitHits MCP configuration found.");
+      printInitProse("  No project GitHits MCP configuration found.");
     }
   } else {
-    console.log("  Project uninstall completed with errors.");
+    printInitProse("  Project uninstall completed with errors.");
   }
-  console.log(
+  printInitProse(
     `  Removed ${totalRemoved} item${totalRemoved !== 1 ? "s" : ""}. Skipped ${summary.skipped.length} config path${summary.skipped.length !== 1 ? "s" : ""} without GitHits.`,
   );
   if (summary.failed.length > 0) {
-    console.log(
+    printInitProse(
       `  Failed to remove ${summary.failed.length} item${summary.failed.length !== 1 ? "s" : ""}:`,
     );
     for (const failure of summary.failed) {
@@ -2690,10 +3186,10 @@ async function runProjectMcpUninstall(
   const projectPlan = await getProjectUninstallPlan(fileSystemService);
 
   console.log(
-    `\n  ${colorize("Remove GitHits from this project's MCP config.", "bold", useColors)}`,
+    `\n  ${colorize("Remove GitHits from this project's MCP config or guidance.", "bold", useColors)}`,
   );
   console.log(
-    `  ${colorize("Removes GitHits entries from supported project-local MCP files.", "dim", useColors)}\n`,
+    `  ${colorize("Removes GitHits entries from supported project-local MCP files and managed guidance.", "dim", useColors)}\n`,
   );
   console.log(`    Project: ${scope.projectPath}`);
   for (const setup of projectPlan.configRemovals) {
@@ -2742,7 +3238,14 @@ async function runProjectMcpUninstall(
       reason: `Could not inspect legacy project setup marker: ${err instanceof Error ? err.message : String(err)}`,
     });
   }
-  const hasWork = configured.length > 0 || hasLegacyState;
+  const hasGuidance =
+    !options.keepGuidance &&
+    (await hasGuidanceToUninstall(
+      agentDefinitions,
+      fileSystemService,
+      "project",
+    ));
+  const hasWork = configured.length > 0 || hasLegacyState || hasGuidance;
 
   if (
     !hasWork &&
@@ -2770,19 +3273,23 @@ async function runProjectMcpUninstall(
         }))
         .concat(legacyProbeFailures),
     };
-    process.exitCode = 1;
+    if (summary.failed.length > 0) {
+      process.exitCode = 1;
+    }
     printProjectUninstallSummary(summary);
     return;
   }
 
   if (!isInteractive && !options.yes) {
-    console.log(
+    printInitProse(
       "  Project uninstall needs confirmation. Because this session is non-interactive, no changes were made.",
     );
     console.log();
-    console.log("  To remove GitHits from this project's MCP files, run:");
+    printInitProse(
+      "  To remove GitHits from this project's MCP files and guidance, run:",
+    );
     console.log(
-      `    ${formatCommand("githits init uninstall --project --yes", useColors)}`,
+      `    ${formatCommand("githits uninstall --project --yes", useColors)}`,
     );
     console.log();
     return;
@@ -2792,12 +3299,12 @@ async function runProjectMcpUninstall(
     let accepted: boolean;
     try {
       accepted = await promptService.confirm(
-        "Remove GitHits MCP config from this project?",
+        "Remove GitHits MCP config and guidance from this project?",
         false,
       );
     } catch (err) {
       if (err instanceof ExitPromptError) {
-        console.log("\n  Uninstall cancelled. No changes made.\n");
+        printInitProse("\n  Uninstall cancelled. No changes made.\n");
         return;
       }
       throw err;
@@ -2902,6 +3409,14 @@ async function runProjectMcpUninstall(
       fileSystemService,
       useColors,
     );
+    summary.guidanceRemoved = (guidanceOutcome.changes ?? []).filter(
+      (change) => change.change === "removed",
+    ).length;
+    if (
+      hasSharedGuidanceRemoval(guidanceOutcome, fileSystemService, "project")
+    ) {
+      printSharedGuidanceRemovalVisibility("project");
+    }
     if (guidanceOutcome.status === "failed") {
       summary.failed.push({
         path: "GitHits guidance",
@@ -2917,18 +3432,16 @@ async function runProjectMcpUninstall(
 }
 
 function printNonInteractiveUninstallGuidance(useColors: boolean): void {
-  console.log(
+  printInitProse(
     "  Uninstall is interactive. Because this session is non-interactive, no changes were made.",
   );
   console.log();
-  console.log("  To remove user-level GitHits MCP config, run:");
-  console.log(
-    `    ${formatCommand("githits init uninstall --yes", useColors)}`,
-  );
+  printInitProse("  To remove user-level GitHits MCP config, run:");
+  console.log(`    ${formatCommand("githits uninstall --yes", useColors)}`);
   console.log();
-  console.log("  To remove project-level GitHits MCP config, run:");
+  printInitProse("  To remove project-level GitHits MCP config, run:");
   console.log(
-    `    ${formatCommand("githits init uninstall --project --yes", useColors)}`,
+    `    ${formatCommand("githits uninstall --project --yes", useColors)}`,
   );
   console.log();
 }
@@ -3208,7 +3721,7 @@ async function runUserMcpUninstall(
     `\n  ${colorize("Disconnect GitHits from your coding agents.", "bold", useColors)}`,
   );
   console.log(
-    `  ${colorize("Removes the local GitHits MCP configuration.", "dim", useColors)}\n`,
+    `  ${colorize("Removes GitHits MCP configuration and supporting guidance.", "dim", useColors)}\n`,
   );
 
   console.log("  Scanning for configured agents...\n");
@@ -3239,7 +3752,7 @@ async function runUserMcpUninstall(
     scan.failed.length === 0 &&
     options.keepGuidance
   ) {
-    console.log(
+    printInitProse(
       "  No GitHits MCP configurations found. Nothing to uninstall.\n",
     );
     return;
@@ -3315,6 +3828,9 @@ async function runUserMcpUninstall(
       fileSystemService,
       useColors,
     );
+    if (hasSharedGuidanceRemoval(guidanceOutcome, fileSystemService, "user")) {
+      printSharedGuidanceRemovalVisibility("user");
+    }
   }
   console.log();
 
@@ -3553,12 +4069,19 @@ function buildGuidanceTargetLabels(
     const relativeSkillTargets =
       GUIDANCE_SKILL_TARGETS[agent.id]?.[scope] ?? [];
     for (const relativeTarget of relativeSkillTargets) {
-      addGuidanceTargetLabel(
-        labelsByTarget,
-        "skill",
-        fileSystemService.joinPath(basePath, ...relativeTarget),
-        agent,
-      );
+      for (const skill of GITHITS_SKILL_CATALOG) {
+        addGuidanceTargetLabel(
+          labelsByTarget,
+          "skill",
+          fileSystemService.joinPath(
+            basePath,
+            ...relativeTarget,
+            skill.name,
+            "SKILL.md",
+          ),
+          agent,
+        );
+      }
     }
 
     const instructionTarget = getInstructionTargetPath(
@@ -3625,25 +4148,29 @@ function agentOutcomeRows(
 }
 
 /**
- * Confirm the MCP server and its launch command. The wording reflects whether
- * anything was actually installed this run versus already being configured, so
- * we never claim to have installed when nothing changed. The command is shown
- * as a muted inline value (the agent runs it, not the user), so it does not
- * read as something to copy-paste. Callers provide the leading separator; a
- * trailing blank line separates it from what follows.
+ * Confirm the MCP server and its configured transport. The wording reflects
+ * whether anything was actually installed this run versus already being
+ * configured, so we never claim to have installed when nothing changed. Local
+ * stdio commands are shown inline (the agent runs them, not the user), so they
+ * do not read as copy-paste instructions. Callers provide the leading
+ * separator; a trailing blank line separates it from what follows.
  */
-function printMcpServerSummary(useColors: boolean, installed: boolean): void {
+function printMcpServerSummary(
+  useColors: boolean,
+  installed: boolean,
+  agents: AgentDefinition[],
+): void {
   const verb = installed
     ? 'Configured MCP server "githits"'
     : 'MCP server "githits" already configured';
-  const command = colorize(
-    `\`${GITHITS_MCP_INVOCATION.join(" ")}\``,
-    "dim",
-    useColors,
-  );
-  console.log(
-    `  ${success(`${verb} with local command ${command}`, useColors)}`,
-  );
+  const transport = describeMcpTransport(agents);
+  const columns = process.stdout.columns ?? DEFAULT_INIT_PROSE_WIDTH;
+  // Reserve two columns for the success prefix while keeping continuations
+  // aligned under the first line's text.
+  const lines = wrapInitProse(`    ${verb}: ${transport}`, columns);
+  for (const [lineIndex, line] of lines.entries()) {
+    console.log(lineIndex === 0 ? success(line.slice(2), useColors) : line);
+  }
   console.log();
 }
 
@@ -3789,6 +4316,21 @@ function guidanceStatusRows(
   return [];
 }
 
+function describeAlreadyConfiguredAgents(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+): AgentOutcome[] {
+  return agents.map((agent) => {
+    const config = getResolvedSetupConfig(agent, fileSystemService);
+    return {
+      id: agent.id,
+      name: agent.name,
+      status: "already_configured",
+      changes: describeConfigAsUnchanged(config),
+    };
+  });
+}
+
 function printChangeRowsSection(
   title: string,
   rows: ChangeRow[],
@@ -3815,6 +4357,7 @@ function printInstallOutcomeSections(
   fileSystemService: FileSystemService,
   useColors: boolean,
   scope: InitSetupScope,
+  guidanceAgents: AgentDefinition[] = agents,
 ): void {
   const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
   const mcpRows = outcomes.flatMap((outcome) => {
@@ -3829,7 +4372,7 @@ function printInstallOutcomeSections(
     );
   });
   const guidanceTargetLabels = guidance
-    ? buildGuidanceTargetLabels(agents, fileSystemService, scope)
+    ? buildGuidanceTargetLabels(guidanceAgents, fileSystemService, scope)
     : new Map<string, string>();
   const skillRows = guidance
     ? guidanceRowsForKind(
@@ -3867,14 +4410,17 @@ function printGuidanceUninstallOutcome(
 ): void {
   if (outcome.status === "skipped") return;
   const rows: ChangeRow[] = [];
-  for (const change of outcome.changes ?? []) {
-    if (
-      (change.kind === "skill" || change.kind === "managed-block") &&
-      change.change === "removed"
-    ) {
-      rows.push(
-        uninstallChangeToRow("GitHits guidance", change, fileSystemService),
-      );
+  const changes = outcome.changes ?? [];
+  const hasRemovedChange = changes.some(
+    (change) => change.change === "removed",
+  );
+  if (hasRemovedChange || (outcome.failures?.length ?? 0) > 0) {
+    for (const change of changes) {
+      if (change.kind === "skill" || change.kind === "managed-block") {
+        rows.push(
+          uninstallChangeToRow("GitHits guidance", change, fileSystemService),
+        );
+      }
     }
   }
   for (const failure of outcome.failures ?? []) {
@@ -3923,11 +4469,71 @@ async function installGuidance(
     fileSystemService,
     execService,
   );
+  if (result.status === "failed") {
+    return {
+      status: "failed",
+      message: result.message,
+      changes: result.changes,
+    };
+  }
+  if (
+    !(await isSetupAlreadyConfigured(config, fileSystemService, execService))
+  ) {
+    return {
+      status: "failed",
+      message:
+        "Guidance verification failed; historical skill files were left unchanged.",
+      changes: result.changes,
+    };
+  }
+
+  const migration = await removeHistoricalGuidanceSkills(
+    agents,
+    fileSystemService,
+    scope,
+  );
+  const changes = [...(result.changes ?? []), ...migration.changes];
+  if (migration.failures.length > 0) {
+    return {
+      status: "failed",
+      message: `Active guidance is ready, but historical skill cleanup failed: ${migration.failures.join(", ")}`,
+      changes,
+    };
+  }
+  const changed = changes.some((change) => change.change !== "unchanged");
   return {
-    status: result.status,
-    message: result.status === "failed" ? result.message : undefined,
-    changes: result.changes,
+    status: changed ? "success" : "already_configured",
+    message: changed
+      ? "Guidance installed successfully"
+      : "GitHits guidance already configured",
+    changes,
   };
+}
+
+async function removeHistoricalGuidanceSkills(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): Promise<{ changes: SetupChange[]; failures: string[] }> {
+  const changes: SetupChange[] = [];
+  const failures: string[] = [];
+  for (const setup of getHistoricalGuidanceSkillSetups(
+    agents,
+    fileSystemService,
+    scope,
+  )) {
+    const result = await executeSkillUninstall(setup, fileSystemService);
+    if (result.status === "failed") {
+      failures.push(`${setup.targetPath}: guidance cleanup failed`);
+      continue;
+    }
+    changes.push({
+      kind: "skill",
+      path: setup.targetPath,
+      change: result.status === "removed" ? "removed" : "unchanged",
+    });
+  }
+  return { changes, failures };
 }
 
 async function uninstallGuidance(
@@ -4322,13 +4928,20 @@ export async function initAction(
     return;
   }
 
-  let toSetup = scan.needsSetup;
+  const detection = await buildStagedDetection(
+    scan,
+    installSupportingGuidance,
+    fileSystemService,
+    execService,
+    setupScope,
+  );
+  let selectedIds = options.yes ? detection.actionableIds : [];
   printSection(2, "Choose tools", useColors);
-  if (!options.yes && scan.needsSetup.length > 0) {
+  if (!options.yes && detection.actionableIds.length > 0) {
     try {
-      toSetup = await promptService.checkbox(
+      selectedIds = await promptService.checkbox(
         "  Select which tools should use GitHits:",
-        buildInitAgentChoices(scan),
+        buildInitAgentChoices(detection),
       );
     } catch (err) {
       if (err instanceof ExitPromptError) {
@@ -4337,23 +4950,45 @@ export async function initAction(
       }
       throw err;
     }
-  } else if (scan.needsSetup.length === 0) {
+  } else if (detection.actionableIds.length === 0) {
     printTask(
       "success",
       "No tool changes needed",
-      "all detected tools already have GitHits MCP",
+      "all detected tools are configured",
       useColors,
     );
   } else {
     printTask("success", "Selected all detected tools", "--yes", useColors);
   }
 
-  if (toSetup.length === 0 && scan.needsSetup.length > 0) {
-    printTask("skipped", "Setup skipped", "no tools selected", useColors);
+  let selection = getInteractiveInitSelection(
+    detection,
+    scan,
+    selectedIds,
+    installSupportingGuidance,
+    fileSystemService,
+    setupScope,
+  );
+  if (
+    detection.actionableIds.length > 0 &&
+    selection.mcpAgents.length === 0 &&
+    selection.guidanceAgents.length === 0
+  ) {
+    console.log("  Nothing selected, no changes made.");
+    const unchangedOutcomes = describeAlreadyConfiguredAgents(
+      scan.alreadyConfigured,
+      fileSystemService,
+    );
+    printInstallOutcomeSections(
+      unchangedOutcomes,
+      scan.alreadyConfigured,
+      null,
+      fileSystemService,
+      useColors,
+      setupScope,
+    );
     console.log();
-    if (scan.alreadyConfigured.length === 0) {
-      return;
-    }
+    return;
   }
 
   if (installSupportingGuidance && setupScope === "project" && !options.yes) {
@@ -4369,26 +5004,47 @@ export async function initAction(
       }
       throw err;
     }
+    selection = getInteractiveInitSelection(
+      detection,
+      scan,
+      selectedIds,
+      installSupportingGuidance,
+      fileSystemService,
+      setupScope,
+    );
+    if (
+      selection.mcpAgents.length === 0 &&
+      selection.guidanceAgents.length === 0
+    ) {
+      console.log("  Nothing selected, no changes made.");
+      console.log();
+      return;
+    }
   }
 
-  if (toSetup.length > 0) {
-    await printTomlRewriteWarnings(toSetup, fileSystemService, useColors);
+  if (selection.mcpAgents.length > 0) {
+    await printTomlRewriteWarnings(
+      selection.mcpAgents,
+      fileSystemService,
+      useColors,
+    );
   }
 
-  const summaryAgents = getInstallSummaryAgents(scan, toSetup);
-  const guidanceTargetAgents = installSupportingGuidance
-    ? getGuidanceTargetAgents(summaryAgents, fileSystemService, setupScope)
-    : [];
   printSection(3, "Review and confirm", useColors);
   printInstallReview(
     useColors,
     setupScope,
-    toSetup,
-    guidanceTargetAgents,
+    selection.mcpAgents,
+    selection.guidanceAgents,
     installSupportingGuidance,
     false,
+    selection.unchangedAgents,
   );
-  if (options.yes) {
+  const noActions =
+    selection.mcpAgents.length === 0 && selection.guidanceAgents.length === 0;
+  if (noActions) {
+    printTask("success", "Nothing to change", "verification only", useColors);
+  } else if (options.yes) {
     printTask("success", "Setup acknowledged", "--yes", useColors);
   } else {
     let accepted: boolean;
@@ -4410,70 +5066,118 @@ export async function initAction(
     }
   }
 
-  printSection(4, "Sign in", useColors);
-  const authStatus = await runInitAuthentication(
-    options,
-    promptService,
-    createLoginDeps,
-    useColors,
-  );
-  if (authStatus === "cancelled") {
-    return;
+  let authStatus: InitAuthStatus = "unavailable";
+  const cursorOnly =
+    selection.mcpAgents.length > 0 &&
+    selection.mcpAgents.every((agent) => agent.id === "cursor");
+  if (selection.mcpAgents.length > 0 && !cursorOnly) {
+    printSection(4, "Sign in", useColors);
+    authStatus = await runInitAuthentication(
+      options,
+      promptService,
+      createLoginDeps,
+      useColors,
+      selection.mcpAgents.some((agent) => agent.id === "cursor"),
+    );
+    if (authStatus === "cancelled") {
+      return;
+    }
   }
 
   printSection(5, "Install and verify", useColors);
-  const outcomes = await installSelectedAgents(
-    summaryAgents,
-    scan,
-    fileSystemService,
-    execService,
-    useColors,
-    false,
-    setupScope,
-  );
-  const guidanceOutcome = installSupportingGuidance
-    ? await installGuidance(
-        summaryAgents,
+  const mcpOutcomes = noActions
+    ? []
+    : await installSelectedAgents(
+        selection.mcpAgents,
+        scan,
         fileSystemService,
         execService,
+        useColors,
+        false,
         setupScope,
-      )
-    : null;
+      );
+  const reportingOutcomes = describeAlreadyConfiguredAgents(
+    selection.unchangedAgents,
+    fileSystemService,
+  );
+  const outcomes = [...mcpOutcomes, ...reportingOutcomes];
+  const guidanceOutcome =
+    !noActions && installSupportingGuidance
+      ? await installGuidance(
+          selection.guidanceAgents,
+          fileSystemService,
+          execService,
+          setupScope,
+        )
+      : null;
   printInstallOutcomeSections(
     outcomes,
-    summaryAgents,
+    [...selection.mcpAgents, ...selection.unchangedAgents],
     guidanceOutcome,
     fileSystemService,
     useColors,
     setupScope,
+    selection.guidanceAgents,
   );
 
-  const configured = outcomes.filter((o) => o.status === "success").length;
-  const alreadyDone = outcomes.filter(
+  const configured = mcpOutcomes.filter((o) => o.status === "success").length;
+  const alreadyDone = mcpOutcomes.filter(
     (o) => o.status === "already_configured",
   ).length;
+  const reportingAlreadyDone = reportingOutcomes.length;
   const failed =
     outcomes.filter((o) => o.status === "failed").length +
     (guidanceOutcome?.status === "failed" ? 1 : 0);
 
-  if (failed > 0) {
-    console.log("  Setup completed with errors.");
-  } else if (configured > 0 || alreadyDone > 0) {
-    printMcpServerSummary(useColors, configured > 0);
-    printScopedNextSteps(
-      setupScope,
-      authStatus,
-      useColors,
-      configured > 0 || guidanceOutcome?.status === "success",
-      outcomes.some(
+  const configuredMcpAgents = mcpOutcomes
+    .filter(
+      (outcome) =>
+        outcome.status === "success" || outcome.status === "already_configured",
+    )
+    .map((outcome) =>
+      selection.mcpAgents.find((agent) => agent.id === outcome.id),
+    )
+    .filter((agent): agent is AgentDefinition => Boolean(agent));
+  const cursorConfigured =
+    configuredMcpAgents.some((agent) => agent.id === "cursor") ||
+    (noActions &&
+      reportingOutcomes.some(
         (outcome) =>
           outcome.id === "cursor" &&
           (outcome.status === "success" ||
             outcome.status === "already_configured"),
-      ),
+      )) ||
+    selection.selectedEntries.some(
+      (entry) => entry.id === "cursor" && entry.status === "already_configured",
+    );
+  const localAuthApplicable =
+    selection.mcpAgents.some((agent) => agent.id !== "cursor") ||
+    (!cursorConfigured &&
+      selection.mcpAgents.length === 0 &&
+      selection.guidanceAgents.length === 0);
+  const sharedGuidanceReady =
+    hasSharedGuidanceOutcome(guidanceOutcome, fileSystemService, setupScope) ||
+    (!guidanceOutcome &&
+      installSupportingGuidance &&
+      hasSharedGuidanceDetection(detection, fileSystemService, setupScope));
+  const summaryMcpAgents = noActions
+    ? reportingOutcomes
+        .map((outcome) =>
+          selection.unchangedAgents.find((agent) => agent.id === outcome.id),
+        )
+        .filter((agent): agent is AgentDefinition => Boolean(agent))
+    : configuredMcpAgents;
+
+  if (configured > 0) {
+    console.log(
+      `  ${configured} tool${configured !== 1 ? "s" : ""} configured.`,
     );
   }
-
+  if (alreadyDone + reportingAlreadyDone > 0) {
+    console.log(
+      `  ${alreadyDone + reportingAlreadyDone} tool${alreadyDone + reportingAlreadyDone !== 1 ? "s" : ""} already configured.`,
+    );
+  }
   if (failed > 0) {
     console.log(
       `  ${failed} tool${failed !== 1 ? "s" : ""} failed to configure.`,
@@ -4489,9 +5193,27 @@ export async function initAction(
       );
     }
   }
-  if (alreadyDone > 0) {
-    console.log(
-      `  ${alreadyDone} tool${alreadyDone !== 1 ? "s" : ""} already configured.`,
+
+  if (failed > 0) {
+    console.log("  Setup completed with errors.");
+  } else if (
+    configured > 0 ||
+    alreadyDone > 0 ||
+    reportingAlreadyDone > 0 ||
+    guidanceOutcome?.status === "success" ||
+    guidanceOutcome?.status === "already_configured"
+  ) {
+    if (summaryMcpAgents.length > 0) {
+      printMcpServerSummary(useColors, configured > 0, summaryMcpAgents);
+    }
+    printScopedNextSteps(
+      setupScope,
+      authStatus,
+      useColors,
+      configured > 0 || guidanceOutcome?.status === "success",
+      cursorConfigured,
+      localAuthApplicable,
+      sharedGuidanceReady,
     );
   }
 
@@ -4562,9 +5284,10 @@ const INIT_DESCRIPTION = `Connect GitHits to your coding agents.
 
 Configures GitHits MCP for supported coding tools, using the remote MCP for
 Cursor and the verified integration for each other tool, or sets up Agent Skills
-instead. Guided MCP setup also installs a small GitHits skill and managed
+instead. Guided MCP setup also installs the packaged GitHits skills and a managed
 instruction block so agents use GitHits for OSS stack context. Detects supported
-coding tools on this machine, signs you in, and configures the tools you select.`;
+coding tools on this machine, shows the authentication steps for the selected
+tools, and configures the tools you select.`;
 
 const INIT_UNINSTALL_DESCRIPTION = `Remove GitHits MCP server configuration from your coding agents.
 
@@ -4574,11 +5297,51 @@ confirmation. By default it also removes GitHits-owned guidance files; pass
 \`--keep-guidance\` to leave them in place. Authentication tokens are not
 removed; use \`githits logout\` to remove stored credentials.`;
 
+function registerUninstallCommand(parent: Command): Command {
+  return parent
+    .command("uninstall")
+    .summary("Remove MCP server from coding agents or project config")
+    .description(INIT_UNINSTALL_DESCRIPTION)
+    .option("-y, --yes", "Skip prompts, uninstall user-level config", false)
+    .option(
+      "--project",
+      "Remove project-level MCP from the current directory",
+      false,
+    )
+    .option(
+      "--keep-guidance",
+      "Keep GitHits skill and managed instruction guidance",
+      false,
+    )
+    .action(async (options: InitUninstallOptions, command: Command) => {
+      const parentOptions =
+        command.parent?.name() === "init"
+          ? command.parent.opts<InitOptions>()
+          : {};
+      const resolvedOptions: InitUninstallOptions = {
+        ...options,
+        yes: options.yes || parentOptions.yes,
+        project: options.project || parentOptions.project,
+        keepGuidance: options.keepGuidance,
+      };
+      const fileSystemService = new FileSystemServiceImpl();
+      const promptService = new PromptServiceImpl();
+      const execService = new ExecServiceImpl();
+      await initUninstallAction(resolvedOptions, {
+        fileSystemService,
+        promptService,
+        execService,
+        isInteractive:
+          process.stdin.isTTY === true && process.stdout.isTTY === true,
+      });
+    });
+}
+
 /**
  * Register the init command on the given program.
  * Creates lightweight dependencies for tool setup, plus auth deps for login.
  */
-export function registerInitCommand(program: Command) {
+export function registerInitCommand(program: Command): void {
   const initCommand = program
     .command("init")
     .argument("[action]", "Compatibility action; use uninstall with --project")
@@ -4618,38 +5381,6 @@ export function registerInitCommand(program: Command) {
       });
     });
 
-  initCommand
-    .command("uninstall")
-    .summary("Remove MCP server from coding agents or project config")
-    .description(INIT_UNINSTALL_DESCRIPTION)
-    .option("-y, --yes", "Skip prompts, uninstall user-level config", false)
-    .option(
-      "--project",
-      "Remove project-level MCP from the current directory",
-      false,
-    )
-    .option(
-      "--keep-guidance",
-      "Keep GitHits skill and managed instruction guidance",
-      false,
-    )
-    .action(async (options: InitUninstallOptions, command: Command) => {
-      const parentOptions = command.parent?.opts<InitOptions>() ?? {};
-      const resolvedOptions: InitUninstallOptions = {
-        ...options,
-        yes: options.yes || parentOptions.yes,
-        project: options.project || parentOptions.project,
-        keepGuidance: options.keepGuidance,
-      };
-      const fileSystemService = new FileSystemServiceImpl();
-      const promptService = new PromptServiceImpl();
-      const execService = new ExecServiceImpl();
-      await initUninstallAction(resolvedOptions, {
-        fileSystemService,
-        promptService,
-        execService,
-        isInteractive:
-          process.stdin.isTTY === true && process.stdout.isTTY === true,
-      });
-    });
+  registerUninstallCommand(program);
+  registerUninstallCommand(initCommand);
 }

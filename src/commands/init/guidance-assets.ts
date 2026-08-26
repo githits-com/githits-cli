@@ -1,9 +1,25 @@
 export const GITHITS_GUIDANCE_MARKER = "<!-- githits -->";
+
 export const GITHITS_MCP_SKILL_NAME = "githits-mcp";
-export const GITHITS_MCP_SKILL_RELATIVE_PATH = [
-  "skills",
-  GITHITS_MCP_SKILL_NAME,
-  "SKILL.md",
+
+/** Canonical packaged skills copied by guided setup and removed by uninstall. */
+export const GITHITS_SKILL_CATALOG = [
+  {
+    name: "githits-code",
+    relativePath: ["skills", "githits-code", "SKILL.md"],
+  },
+  {
+    name: GITHITS_MCP_SKILL_NAME,
+    relativePath: ["skills", "githits-mcp", "SKILL.md"],
+  },
+  {
+    name: "githits-onboarding",
+    relativePath: ["skills", "githits-onboarding", "SKILL.md"],
+  },
+  {
+    name: "githits-package",
+    relativePath: ["skills", "githits-package", "SKILL.md"],
+  },
 ] as const;
 
 export const GITHITS_GUIDANCE_BLOCK =

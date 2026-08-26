@@ -4,9 +4,11 @@
 
 The `githits-onboarding` skill lets an agent guide a user from discovery to a usable GitHits setup with the current CLI surface. The skill orchestrates detection, MCP installation, sign-in/signup startup, verification, and recovery guidance.
 
-The root `skills/githits-onboarding` directory is the only authored onboarding
-skill. Claude, Cursor, Gemini, and generic/Codex packaging expose this same
-content; host-specific onboarding forks are not supported.
+The root `skills/` tree contains four canonical packaged skills:
+`githits-code`, `githits-mcp`, `githits-onboarding`, and `githits-package`.
+`githits-onboarding` is the workflow skill; all four are installed together by
+guided `init`. Claude, Cursor, Gemini, and generic/Codex packaging expose the
+same canonical content; host-specific onboarding forks are not supported.
 
 ## Current Flow
 
@@ -71,7 +73,7 @@ The preferred setup path is:
 7. Start local CLI sign-in/signup for selected non-Cursor integrations, skipping login when `auth status` already reports an active session. Cursor-only setup defers authentication to Cursor-managed OAuth.
 8. Verify local auth, MCP configuration, supporting guidance, and Cursor-managed OAuth/tool discovery when Cursor is selected.
 
-The skill classifies staged detection before review or authentication: no detected tools stop with installation guidance, unsupported-only project results offer user-level detection, and already-configured supported tools may continue to review and auth. For configure-all, the emitted `suggestedCommand` is authoritative and always includes `--json`, allowing the skill to read structured `outcomes`, `guidance`, `auth`, and `instructions`; selective setup and verification preserve `guidanceRequested`, including `--no-guidance` for plain MCP. Structured install instructions distinguish intentional guidance opt-out, installed, already configured, unsupported/skipped, and failed outcomes. The skill still requires review acknowledgment before writing MCP config or launching browser OAuth. The review states that GitHits queries and public package, repository, and documentation targets are sent to GitHits services, explains outbound feedback and local-workspace behavior, and says that only a new coding-agent session is needed after changes; the terminal and machine do not need restarting. It should not present "configure none" as a normal onboarding choice. Local login is not offered as a Cursor readiness check because Cursor owns the remote MCP OAuth session.
+The skill classifies staged detection before review or authentication: no detected tools stop with installation guidance, unsupported-only project results offer user-level detection, and already-configured supported tools may continue to review and auth. For configure-all, the emitted `suggestedCommand` is authoritative and always includes `--json`, allowing the skill to read structured `outcomes`, `guidance`, `auth`, and `instructions`; selective setup and verification preserve `guidanceRequested`, including `--no-guidance` for plain MCP. Structured install instructions distinguish intentional guidance opt-out, installed, already configured, unsupported/skipped, and failed outcomes. The selection model keeps MCP targets, guidance-repair targets, and reporting-only configured agents separate, so unselected agents are never retargeted. Guidance-only or historical-skill cleanup changes no MCP configuration and does not authenticate; an empty selection is a no-op. The skill still requires review acknowledgment before writing MCP config or launching browser OAuth. The review states that GitHits queries and public package, repository, and documentation targets are sent to GitHits services, explains outbound feedback and local-workspace behavior, and says that only a new coding-agent session is needed after changes; the terminal and machine do not need restarting. Local login is not offered as a Cursor readiness check because Cursor owns the remote MCP OAuth session.
 
 ## Project And User Setup Scope
 
@@ -95,6 +97,16 @@ User-level setup should be offered first and marked recommended for onboarding b
 
 Agents should use structured choice UI for both setup scope and tool selection whenever available. The desired scope choices are `My user account (Recommended)` and `This project only`. The desired tool choices are `Configure all detected tools (Recommended)` followed by individual installable tools. Agents should not ask users to type comma-separated tool IDs unless no structured choice mechanism is available.
 
+Guided setup writes all four skills to the selected agent's verified root. The
+shared `.agents/skills` root is used at `~/.agents/skills/` for user scope and
+`.agents/skills/` for project scope by Cursor, Windsurf, VS Code/Copilot, Cline,
+Codex CLI, Pi, Gemini CLI, OpenCode, Zed, Junie, Qwen Code, and Kilo Code.
+Claude Code, Kiro, Factory Droid, Antigravity user scope, and Hermes user scope
+use their verified native roots. Antigravity project scope uses the shared root;
+Hermes project scope is not supported. A shared root may be discovered by every
+compatible agent that reads it, but agent-specific instruction files are
+changed only for selected agents.
+
 ## Codex Execution Guardrails
 
 Codex has been observed delegating onboarding shell commands to subagents or background tasks. The skill requires inline execution because setup commands need sequential user approval and visible failure handling.
@@ -103,7 +115,7 @@ Onboarding commands such as `npx -y githits@latest`, detection, login, and setup
 
 ## Detection Probe Reliability
 
-Agent detection may call read-only third-party CLI probes such as the platform binary lookup for Codex, Codex MCP inspection, `gemini mcp list`, and Pi package-manager bin lookups. Claude Code is different: its user-scoped MCP state is inspected structurally from `$CLAUDE_CONFIG_DIR/.claude.json` when that variable is non-empty, otherwise `~/.claude.json`; only `mcpServers.githits` is classified. The Claude file check returns `configured`, `non_canonical`, `not_configured`, or `probe_failed` and does not invoke a Claude MCP inspection command. Command probes retain their bounded timeout behavior so one slow or stuck agent CLI cannot prevent `init --detect-agents --json` from returning. File reads map missing state to `not_configured` and unreadable or malformed state to `probe_failed`; setup blocks mutation when the initial state is inconclusive. Setup and verification reread structured state rather than parsing human-readable MCP output.
+Agent detection may call read-only third-party CLI probes such as the platform binary lookup and bounded `codex --version` probe for Codex, Codex MCP inspection, `gemini mcp list`, and Pi package-manager bin lookups. A missing, failing, timed-out, or unlaunchable Codex version probe means Codex is not detected. Claude Code is different: its user-scoped MCP state is inspected structurally from `$CLAUDE_CONFIG_DIR/.claude.json` when that variable is non-empty, otherwise `~/.claude.json`; only `mcpServers.githits` is classified. The Claude file check returns `configured`, `non_canonical`, `not_configured`, or `probe_failed` and does not invoke a Claude MCP inspection command. Command probes retain their bounded timeout behavior so one slow or stuck agent CLI cannot prevent `init --detect-agents --json` from returning. File reads map missing state to `not_configured` and unreadable or malformed state to `probe_failed`; setup blocks mutation when the initial state is inconclusive. Setup and verification reread structured state rather than parsing human-readable MCP output.
 
 Set `GITHITS_INIT_TRACE=1` to diagnose detection hangs. Trace mode writes progress to stderr only and keeps JSON stdout parseable. It reports scan start/end, per-agent probe start/end, elapsed time, exit codes, and probe timeouts without logging environment values or secrets. File probes include only their resolved path and sanitized result category; they never include file contents, parsed values, or read/evaluator error text.
 
@@ -134,3 +146,27 @@ Static tests protect the skill contract by checking that onboarding files exist,
 Agentic evals exercise whether real agents discover and follow the skill. The onboarding workload asks the agent to set up GitHits without giving command instructions, so command choice should come from the skill itself.
 
 Agentic eval results are qualitative. Review `tool-calls.json`, `final.json`, `report.json`, `toolIssues`, and `instructionIssues` rather than treating a live-agent pass/fail as deterministic CI evidence.
+
+## Deferred product feedback
+
+Qualitative onboarding evaluation surfaced three pre-existing policy questions
+that require product feedback:
+
+- When structured choice UI is unavailable, should a single-turn session use a
+  documented fallback flow?
+- Should fully configured and authenticated read-only verification request a
+  fresh data-handling acknowledgment?
+- Should absence of MCP tools in the current session make readiness explicitly
+  incomplete?
+
+This feature branch records the questions only; it does not change the public
+`skills/githits-onboarding/SKILL.md`.
+
+## Published skill lifecycle
+
+The public `skills/githits-onboarding/SKILL.md` was reviewed with this CLI
+increment. It contains no `init uninstall` reference and its existing
+description is host-neutral; it is not edited in this feature branch.
+Behavior-dependent public skill changes are made on the release branch only
+after the corresponding CLI behavior is included, so published skill indexes do
+not advertise unreleased behavior.
