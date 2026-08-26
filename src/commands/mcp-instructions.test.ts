@@ -167,7 +167,7 @@ describe("buildMcpInstructions", () => {
     }
   });
 
-  it("keeps trigger criteria in per-tool descriptions for clients that ignore server instructions", () => {
+  it("front-loads tool benefits for clients that ignore server instructions", () => {
     const descriptions = new Map(
       getMcpToolDefinitions(createTestServices()).map((tool) => [
         tool.name,
@@ -175,14 +175,20 @@ describe("buildMcpInstructions", () => {
       ]),
     );
 
-    expect(descriptions.get("get_example")).toContain("Use when");
-    expect(descriptions.get("search")).toContain("Use when");
-    expect(descriptions.get("code_files")).toContain("First choice");
-    expect(descriptions.get("pkg_info")).toContain("Use for");
-    expect(descriptions.get("pkg_vulns")).toContain("Use when");
-    expect(descriptions.get("pkg_deps")).toContain("Use when");
-    expect(descriptions.get("pkg_changelog")).toContain("Use when");
-    expect(descriptions.get("pkg_upgrade_review")).toContain("Use when");
+    for (const [name, description] of descriptions) {
+      expect(description, name).not.toMatch(
+        /^(?:Use when|Use for|Use after|Use before|First choice)/,
+      );
+    }
+
+    expect(descriptions.get("get_example")).toStartWith(
+      "Find canonical cross-project examples",
+    );
+    expect(descriptions.get("search")).toStartWith(
+      "Relevance-ranked discovery",
+    );
+    expect(descriptions.get("code_grep")).toStartWith("Find exact literal");
+    expect(descriptions.get("pkg_vulns")).toStartWith("Find package CVEs");
   });
 
   it("ships a decision tree mentioning all three workflow tools in the core block", () => {
