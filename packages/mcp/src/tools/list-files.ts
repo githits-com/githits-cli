@@ -114,14 +114,13 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "List indexed files and paths for enumeration, then hand off to " +
-  "`code_read` or `code_grep`. First choice for file/path " +
-  "enumeration tasks such as files under a directory; use " +
+  "List indexed files and paths, then hand off to `code_read` or " +
+  "`code_grep`. Use this for enumeration tasks such as files under a directory; use " +
   "`path_prefix` for directory prefixes (e.g. `lib/`) and optional " +
-  "`extensions` for language filtering. Use this to discover paths " +
-  "before `code_read` (when you don't yet know the path, or it returns " +
+  "`extensions` for language filtering. Discover paths before `code_read` " +
+  "when you don't yet know the path, or when it returns " +
   "`FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or " +
-  "`SOURCE_FILE_INVENTORY_UNKNOWN`) and to scope `code_grep`. Address " +
+  "`SOURCE_FILE_INVENTORY_UNKNOWN`. Also use it to scope `code_grep`. Address " +
   "via `target.registry` + `target.package_name` (package scope) or " +
   "`target.repo_url` + optional `target.git_ref` (repo scope), mutually " +
   "exclusive. Narrow with `path`, `path_prefix`, `globs`, " +

@@ -185,12 +185,14 @@ describe("buildMcpInstructions", () => {
       "Find canonical cross-project examples",
     );
     expect(descriptions.get("search")).toStartWith(
-      "Relevance-ranked discovery",
+      "Discover relevant evidence in a known target before exact grep",
     );
     expect(descriptions.get("code_grep")).toStartWith(
       "Enumerate matches for a known exact literal",
     );
-    expect(descriptions.get("pkg_vulns")).toStartWith("Find package CVEs");
+    expect(descriptions.get("pkg_vulns")).toStartWith(
+      "Find known package vulnerabilities, CVEs, advisories",
+    );
   });
 
   it("ships a decision tree mentioning all three workflow tools in the core block", () => {

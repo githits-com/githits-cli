@@ -43,7 +43,7 @@ const schema: ZodRawShape = {
     ),
 };
 
-const DESCRIPTION = `Submit bounded feedback after a GitHits result or about the GitHits experience. Use this after a result was helpful, unhelpful, wrong, incomplete, slow, or confusing.
+const DESCRIPTION = `Submit feedback when a GitHits result or the overall experience was helpful, unhelpful, wrong, incomplete, slow, or confusing.
 
 Two modes:
 1. **Solution-tied** — pass the \`solution_id\` from a prior \`get_example\` response to rate that specific result.

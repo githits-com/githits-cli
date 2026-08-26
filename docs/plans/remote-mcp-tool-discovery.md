@@ -311,6 +311,24 @@ boundary.
     are therefore useful diagnostic/current-state evidence but not attributable
     descriptor-only/full-profile comparisons. Reports now warn automatically;
     OpenCode remains the instruction-isolated local cohort.
+33. A user-authorized fourth external review focused on copywriting, token
+    efficiency, and general UX. It confirmed the catalog routing structure and
+    moved the detailed asynchronous lifecycle out of `search` while retaining
+    it in `search_status` and response-owned guidance. A bounded sibling pass
+    removed repeated capability prose, made `search` verb-first, synchronized
+    the durable tool table, and added description-size regression guards. The
+    stable descriptor catalog is below 15,000 characters and every individual
+    description is below 2,000 characters.
+34. The post-review instruction-isolated OpenCode descriptor cohort completed
+    the compaction, file-navigation, and upgrade-review workloads with
+    high-confidence `helped` ratings and no instruction issues. Two compaction
+    runs still placed exact grep before discovery, so the first 80 characters
+    of `search` were tightened to state discovery-before-exact-grep explicitly.
+    The final replay used `code_files` -> `search` -> `code_grep`, reported no
+    unexpected tool use, and retained high-confidence usefulness. Remaining
+    issues were backend context-pool limits, broad-grep noise, unavailable
+    package refs, or sparse upstream changelog evidence rather than descriptor
+    misunderstandings.
 
 ## Scope
 
@@ -670,8 +688,9 @@ and is not authorized by this plan without an explicit product decision.
 
 COMPLETE — implementation, bounded attributable OpenCode local evals,
 diagnostic Codex/Claude evals, durable documentation, release fragments,
-deterministic verification, internal review, and the three-round external review
-plus its post-completion addendum closure are complete.
+deterministic verification, internal review, the three-round external review
+plus its post-completion addendum closure, and the user-authorized fourth
+copywriting/UX review are complete.
 Codex and Claude runs are diagnostic rather than profile-isolated, and eight
 after-state Claude cells plus a final Claude rerun remain unavailable because
 the account exhausted its seven-day usage allowance; both evidence limits are

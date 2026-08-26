@@ -82,12 +82,11 @@ const DESCRIPTION_ROUTING: Record<
     body: ["`get_example`", "Do not use this for source search"],
   },
   feedback: {
-    prefix: /^Submit bounded feedback after a GitHits result/,
+    prefix: /^Submit feedback when a GitHits result/,
     body: ["`solution_id`", "`tool_name`"],
   },
   search: {
-    prefix:
-      /^Relevance-ranked discovery across docs, specs, code, symbols, tests/,
+    prefix: /^Discover relevant evidence in a known target before exact grep/,
     body: [
       "Start here for open-ended",
       "Omit `source` to let GitHits select the best sources",
@@ -141,8 +140,7 @@ const DESCRIPTION_ROUTING: Record<
     ],
   },
   pkg_vulns: {
-    prefix:
-      /^Find package CVEs, advisories, affected ranges, and fixed versions/,
+    prefix: /^Find known package vulnerabilities, CVEs, advisories/,
     body: ["`pkg_info`", "`pkg_upgrade_review`"],
   },
   pkg_deps: {
@@ -161,7 +159,7 @@ const DESCRIPTION_ROUTING: Record<
   },
   pkg_upgrade_review: {
     prefix:
-      /^Compare current and target package versions with upgrade evidence/,
+      /^Compare current and target package versions and report upgrade evidence/,
     body: ["`pkg_info`", "`pkg_changelog`", "`pkg_vulns`", "`pkg_deps`"],
   },
 };
@@ -205,6 +203,10 @@ describe("MCP tool description catalog", () => {
       expect(catalogPrefix, descriptor.name).not.toMatch(
         /^Use (when|after|before|for|only)\b/i,
       );
+      expect(
+        descriptor.description.length,
+        `${descriptor.name}: description characters`,
+      ).toBeLessThan(2000);
       for (const phrase of routing.body) {
         expect(
           descriptor.description,
@@ -218,6 +220,13 @@ describe("MCP tool description catalog", () => {
         ).not.toContain(phrase);
       }
     }
+
+    expect(
+      descriptors.reduce(
+        (total, descriptor) => total + descriptor.description.length,
+        0,
+      ),
+    ).toBeLessThan(15_000);
 
     const searchSchema = z.toJSONSchema(
       z.object(descriptors.find(({ name }) => name === "search")?.schema ?? {}),

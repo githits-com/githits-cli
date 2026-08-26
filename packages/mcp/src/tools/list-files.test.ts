@@ -17,13 +17,9 @@ describe("createListFilesTool — metadata", () => {
   it("registers the correct tool name, description, and schema keys", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     expect(tool.name).toBe("code_files");
-    expect(tool.description).toContain(
-      "List indexed files and paths for enumeration",
-    );
+    expect(tool.description).toContain("List indexed files and paths");
     expect(tool.description).toContain("`code_read` or `code_grep`");
-    expect(tool.description).toContain(
-      "First choice for file/path enumeration",
-    );
+    expect(tool.description).toMatch(/\benumerat(?:e|ion)\b/i);
     expect(tool.description).toContain("`path_prefix` for directory prefixes");
     expect(tool.description).toContain("`FILE_PATH_EXCLUDED`");
     expect(tool.description).toContain("`SOURCE_FILE_INVENTORY_UNKNOWN`");

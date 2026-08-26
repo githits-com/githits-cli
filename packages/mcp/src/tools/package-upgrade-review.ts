@@ -110,8 +110,7 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Compare current and target package versions with upgrade evidence. Report package-upgrade evidence with " +
-  "direct vulnerability checks, changelog range evidence, target deprecation " +
+  "Compare current and target package versions and report upgrade evidence: direct vulnerability checks, changelog ranges, target deprecation " +
   "metadata, peer dependency changes, and optional transitive evidence diffs. " +
   "The tool reports facts only and does not assign risk or decide whether to accept an upgrade. " +
   "Use this instead of inferring acceptability from semver, including patch bumps. " +

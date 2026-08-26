@@ -11,20 +11,28 @@ import {
 import { createSearchTool } from "./search.js";
 
 describe("searchTool", () => {
-  it("distinguishes active continuation from terminal deferred searches", () => {
+  it("keeps the common path simple and delegates continuation details", () => {
     const tool = createSearchTool(createMockCodeNavigationService());
 
-    expect(tool.description).toContain("The initial call can complete");
+    expect(tool.description).toContain(
+      "A `search` call can return complete results directly",
+    );
+    expect(tool.description).toContain(
+      "Only when its response supplies both a `searchRef` and a `search_status` action",
+    );
     expect(tool.description).toContain("never repeat `search` to poll");
     expect(tool.description).toContain("`search_status`");
-    expect(tool.description).toContain("`PENDING`, `INDEXING`, or `SEARCHING`");
     expect(tool.description).toContain(
-      "a completed result carries an evidence notice",
+      "Terminal or unrecognized statuses are not polled",
     );
-    expect(tool.description).toContain("`DEFERRED`, `TIMEOUT`, and `FAILED`");
-    expect(tool.description).toContain("unrecognized statuses are not polled");
-    expect(tool.description).toContain("rendered new-search action");
     expect(tool.description).toContain("serveable subset");
+    expect(tool.description).not.toContain(
+      "`PENDING`, `INDEXING`, or `SEARCHING`",
+    );
+    expect(tool.description).not.toContain("Stale-but-serveable");
+    expect(tool.description).not.toContain(
+      "`DEFERRED`, `TIMEOUT`, and `FAILED`",
+    );
   });
 
   it("documents explicit site search and advisory retry targets", () => {
@@ -32,13 +40,8 @@ describe("searchTool", () => {
 
     expect(tool.description).toContain("site:<host[/path]>");
     expect(tool.description).toContain("suggestedSiteTargets");
-    expect(tool.description).toContain(
-      "terminal recovery guidance without a `searchRef`",
-    );
-    expect(tool.description).toContain(
-      "Stale-but-serveable or provisional-but-queryable evidence",
-    );
-    expect(tool.description).toContain("while indexing or refresh continues");
+    expect(tool.description).toContain("retry one explicitly");
+    expect(tool.description).toContain("do not treat suggestions as aliases");
   });
 
   it("returns unified search payload from service", async () => {

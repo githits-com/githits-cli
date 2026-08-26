@@ -78,7 +78,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION: string =
-  "Find package CVEs, advisories, affected ranges, and fixed versions for a package or release. Check known vulnerabilities for a package on npm, PyPI, Hex, " +
+  "Find known package vulnerabilities, CVEs, advisories, affected ranges, and fixed versions across npm, PyPI, Hex, " +
   "Crates, NuGet, Maven, Packagist, RubyGems, Go, or Swift (vcpkg and Zig " +
   "are not supported for vulnerability data). Returns a count summary, each advisory with OSV ID, " +
   "severity, affected ranges, and fix versions. Malicious-package " +
