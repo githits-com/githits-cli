@@ -12,6 +12,10 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import {
+  GITHITS_GUIDANCE_BLOCK,
+  GITHITS_GUIDANCE_MARKER,
+} from "../src/commands/init/guidance-assets.ts";
+import {
   buildClaudeCommand,
   buildCodexCommand,
   buildCodexConfig,
@@ -21,9 +25,13 @@ import {
   buildOpenCodeCommand,
   buildOpenCodeConfig,
   collectSecretValues,
+  DEFAULT_CODEX_MODEL,
+  DEFAULT_CODEX_REASONING_EFFORT,
+  extractDiscoveryEvents,
   extractToolCalls,
   isValidAgentReport,
   parseArgs,
+  prepareFullGuidanceWorkspace,
   redactText,
   runAgentEval,
   runWithTimeout,
@@ -111,6 +119,80 @@ describe("agent eval harness", () => {
       command: "bun",
       args: ["run", "--cwd", "/repo/githits-cli", "dev", "mcp", "start"],
     });
+  });
+
+  it("builds each local MCP guidance profile without changing the server", () => {
+    expect(
+      buildMcpConfig({ ...localOptions, guidanceProfile: "descriptors" })
+        .mcpServers.githits.args,
+    ).toContain("--instruction-mode");
+    expect(
+      buildMcpConfig({ ...localOptions, guidanceProfile: "descriptors" })
+        .mcpServers.githits.args,
+    ).toContain("none");
+    expect(
+      buildMcpConfig({ ...localOptions, guidanceProfile: "instructions" })
+        .mcpServers.githits.args,
+    ).not.toContain("--instruction-mode");
+    expect(
+      buildMcpConfig({ ...localOptions, guidanceProfile: "full" }).mcpServers
+        .githits.args,
+    ).not.toContain("--instruction-mode");
+  });
+
+  it("defaults automated Codex evals to Luna with high reasoning", () => {
+    const options = parseArgs(["--agent", "codex", "--dry-run"], "/repo");
+    expect(options.model).toBe(DEFAULT_CODEX_MODEL);
+    expect(options.reasoningEffort).toBe(DEFAULT_CODEX_REASONING_EFFORT);
+    expect(options.guidanceProfile).toBe("instructions");
+  });
+
+  it("preserves explicit Codex model and reasoning overrides", () => {
+    const options = parseArgs(
+      [
+        "--agent",
+        "codex",
+        "--model",
+        "gpt-custom",
+        "--reasoning-effort",
+        "ultra",
+        "--dry-run",
+      ],
+      "/repo",
+    );
+    expect(options.model).toBe("gpt-custom");
+    expect(options.reasoningEffort).toBe("ultra");
+  });
+
+  it("rejects invalid guidance and reasoning combinations before launch", () => {
+    expect(() =>
+      parseArgs(
+        ["--guidance-profile", "descriptors", "--server", "published"],
+        "/repo",
+      ),
+    ).toThrow("requires --surface mcp --server local");
+    expect(() =>
+      parseArgs(
+        ["--surface", "skills", "--guidance-profile", "instructions"],
+        "/repo",
+      ),
+    ).toThrow("cannot be used with --surface skills");
+    expect(() => parseArgs(["--reasoning-effort", "high"], "/repo")).toThrow(
+      "requires --agent codex",
+    );
+  });
+
+  it("adds the Codex reasoning effort as a TOML override", () => {
+    const options = {
+      ...localOptions,
+      reasoningEffort: "high" as const,
+    };
+    expect(buildCodexConfig(options)).toContain(
+      'model_reasoning_effort = "high"',
+    );
+    expect(buildCodexConfigArgs(options)).toContain(
+      'model_reasoning_effort="high"',
+    );
   });
 
   it("preserves ordinary subprocess completion", async () => {
@@ -413,11 +495,13 @@ describe("agent eval harness", () => {
         surface: "skills",
         repoRoot: "/repo/githits-cli",
         publishedPackage: "githits@latest",
+        reasoningEffort: "high",
       },
     );
     expect(codex).not.toContain("mcp_servers.githits.command");
     expect(codex).not.toContain("--ignore-rules");
     expect(codex).toContain("--ignore-user-config");
+    expect(codex).toContain('model_reasoning_effort="high"');
   });
 
   it("builds interactive Claude, Codex, and OpenCode session commands", () => {
@@ -470,6 +554,92 @@ describe("agent eval harness", () => {
     expect(openCodeCommand).toContain("opencode");
     expect(openCodeCommand).toContain("--dangerously-skip-permissions");
     expect(openCodeCommand).toContain("hello");
+  });
+
+  it("keeps guidance profiles out of skills sessions and preserves explicit session effort", () => {
+    const skillsOptions = parseSessionArgs(
+      ["--agent", "codex", "--surface", "skills", "--reasoning-effort", "low"],
+      "/repo/githits-cli",
+    );
+    expect(skillsOptions.guidanceProfile).toBeUndefined();
+    expect(skillsOptions.reasoningEffort).toBe("low");
+    expect(buildCodexSessionCommand(skillsOptions)).toContain(
+      'model_reasoning_effort="low"',
+    );
+    expect(() =>
+      parseSessionArgs(
+        ["--surface", "skills", "--guidance-profile", "instructions"],
+        "/repo/githits-cli",
+      ),
+    ).toThrow("cannot be used with --surface skills");
+  });
+
+  it("prepares full guidance with canonical text and preserves existing files", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-full-guidance-"));
+    const existing = "Project instructions\n\n";
+    writeFileSync(join(workspaceDir, "CLAUDE.md"), existing);
+    writeFileSync(join(workspaceDir, "AGENTS.md"), existing);
+    try {
+      const installation = prepareFullGuidanceWorkspace(
+        {
+          server: "local",
+          repoRoot: process.cwd(),
+          publishedPackage: "githits@latest",
+        },
+        workspaceDir,
+      );
+      expect(installation.instructionPaths).toEqual([
+        join(workspaceDir, "CLAUDE.md"),
+        join(workspaceDir, "AGENTS.md"),
+      ]);
+      for (const instructionPath of installation.instructionPaths) {
+        const content = readFileSync(instructionPath, "utf8");
+        expect(content).toContain("Project instructions");
+        expect(content).toContain(GITHITS_GUIDANCE_MARKER);
+        expect(content).toContain(GITHITS_GUIDANCE_BLOCK);
+      }
+      expect(installation.skillInstallation.installedDirs).toContain(
+        join(workspaceDir, "skills"),
+      );
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("prepares a full Claude session with project guidance and strict MCP", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-full-"));
+    try {
+      const options = parseSessionArgs(
+        [
+          "--guidance-profile",
+          "full",
+          "--workspace",
+          workspaceDir,
+          "--dry-run",
+        ],
+        process.cwd(),
+      );
+      const prepared = prepareAgentSession(options);
+      expect(prepared.command).toContain("--strict-mcp-config");
+      expect(prepared.command).toContain("--setting-sources");
+      expect(prepared.command).toContain("project");
+      expect(prepared.command).not.toContain("--disable-slash-commands");
+      expect(prepared.guidanceInstallation?.instructionPaths).toContain(
+        join(workspaceDir, "CLAUDE.md"),
+      );
+      const session = JSON.parse(
+        readFileSync(
+          join(workspaceDir, ".agent-session", "session.json"),
+          "utf8",
+        ),
+      );
+      expect(session.guidanceProfile).toBe("full");
+      expect(session.guidanceInstallation.instructionPaths).toContain(
+        join(workspaceDir, "AGENTS.md"),
+      );
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
   });
 
   it("accepts the experimental flag only for local MCP sessions", () => {
@@ -762,6 +932,72 @@ describe("agent eval harness", () => {
     }
   });
 
+  it("writes profile-specific dry-run configs and artifacts", async () => {
+    for (const profile of ["descriptors", "instructions", "full"] as const) {
+      const outDir = mkdtempSync(join(tmpdir(), `agent-eval-${profile}-`));
+      try {
+        const options = parseArgs(
+          [
+            "--guidance-profile",
+            profile,
+            "--dry-run",
+            "--out",
+            outDir,
+            "--workload",
+            "eval/agentic/workloads/express-router.md",
+          ],
+          process.cwd(),
+        );
+        await runAgentEval(options);
+        const workloadDir = join(outDir, "workloads", "express-router");
+        const mcp = JSON.parse(
+          readFileSync(join(workloadDir, "mcp.json"), "utf8"),
+        );
+        const dryRun = JSON.parse(
+          readFileSync(join(workloadDir, "dry-run.json"), "utf8"),
+        );
+        const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
+        expect(run.guidanceProfile).toBe(profile);
+        expect(dryRun.guidanceProfile).toBe(profile);
+        expect(
+          readFileSync(join(workloadDir, "discovery-events.json"), "utf8"),
+        ).toContain('"status": "not_observed"');
+        if (profile === "descriptors") {
+          expect(mcp.mcpServers.githits.args).toContain("--instruction-mode");
+          expect(existsSync(join(workloadDir, "skill-installation.json"))).toBe(
+            false,
+          );
+          expect(
+            existsSync(join(workloadDir, "guidance-installation.json")),
+          ).toBe(false);
+        } else if (profile === "instructions") {
+          expect(mcp.mcpServers.githits.args).not.toContain(
+            "--instruction-mode",
+          );
+          expect(existsSync(join(workloadDir, "skill-installation.json"))).toBe(
+            false,
+          );
+        } else {
+          expect(mcp.mcpServers.githits.args).not.toContain(
+            "--instruction-mode",
+          );
+          const guidance = JSON.parse(
+            readFileSync(
+              join(workloadDir, "guidance-installation.json"),
+              "utf8",
+            ),
+          );
+          expect(guidance.instructionPaths).toHaveLength(2);
+          expect(existsSync(join(workloadDir, "skill-installation.json"))).toBe(
+            true,
+          );
+        }
+      } finally {
+        rmSync(outDir, { recursive: true, force: true });
+      }
+    }
+  });
+
   it("uses injected agent probes for live run metadata", async () => {
     const outDir = mkdtempSync(join(tmpdir(), "agent-eval-probes-"));
     const availabilityProbes: string[] = [];
@@ -882,6 +1118,65 @@ describe("agent eval harness", () => {
         arguments: { registry: "npm", package_name: "express" },
       },
     ]);
+  });
+
+  it("extracts Claude ToolSearch events separately from MCP calls", () => {
+    const stdout = [
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "ToolSearch",
+              id: "search-1",
+              input: { query: "package vulnerabilities" },
+            },
+          ],
+        },
+      }),
+      JSON.stringify({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "search-1",
+              content: "GitHits:pkg_vulns",
+            },
+          ],
+        },
+      }),
+    ].join("\n");
+    expect(extractToolCalls(stdout, "claude")).toEqual([]);
+    expect(extractDiscoveryEvents(stdout, "claude")).toEqual({
+      status: "observed",
+      events: [
+        {
+          type: "request",
+          tool: "ToolSearch",
+          toolUseId: "search-1",
+          query: { query: "package vulnerabilities" },
+        },
+        {
+          type: "result",
+          tool: "ToolSearch",
+          toolUseId: "search-1",
+          result: "GitHits:pkg_vulns",
+        },
+      ],
+    });
+    expect(extractDiscoveryEvents(stdout, "codex")).toEqual({
+      status: "not_exposed",
+      events: [],
+    });
+  });
+
+  it("marks Claude discovery as not observed when ToolSearch is absent", () => {
+    expect(extractDiscoveryEvents("", "claude")).toEqual({
+      status: "not_observed",
+      events: [],
+    });
   });
 
   it("extracts OpenCode MCP tool calls from JSON events", () => {
@@ -1088,6 +1383,43 @@ describe("agent eval harness", () => {
     );
   });
 
+  it("reports discovery status and artifact path", () => {
+    const runDir = mkdtempSync(join(tmpdir(), "agent-eval-discovery-report-"));
+    const workloadDir = join(runDir, "workloads", "discovery");
+    mkdirSync(workloadDir, { recursive: true });
+    writeJson(join(workloadDir, "tool-calls.json"), []);
+    writeJson(join(workloadDir, "discovery-events.json"), {
+      status: "not_observed",
+      events: [],
+    });
+    writeFileSync(join(workloadDir, "stderr.txt"), "");
+    const report = buildRunReportFromMetadata(runDir, {
+      agent: "claude",
+      surface: "mcp",
+      guidanceProfile: "descriptors",
+      workloads: [{ id: "discovery", status: "success", workloadDir }],
+    });
+    expect(report.workloads[0]?.discovery).toEqual({
+      status: "not_observed",
+      eventCount: 0,
+    });
+    expect(report.workloads[0]?.artifacts.discoveryEvents).toBe(
+      "workloads/discovery/discovery-events.json",
+    );
+    expect(formatRunReport(report)).toContain("discovery=not_observed");
+  });
+
+  it("reports no MCP guidance profile for skills runs", () => {
+    const report = buildRunReportFromMetadata("/skills", {
+      agent: "codex",
+      model: "gpt-5.6-luna",
+      surface: "skills",
+      workloads: [],
+    });
+    expect(report.guidanceProfile).toBeUndefined();
+    expect(formatRunReport(report)).toContain("profile=n/a");
+  });
+
   it("reports missing artifacts for dry-run workloads without crashing", () => {
     const runDir = mkdtempSync(join(tmpdir(), "agent-eval-dry-run-test-"));
     const report = buildRunReportFromMetadata(runDir, {
@@ -1250,6 +1582,37 @@ describe("agent eval harness", () => {
     expect(formatted).toContain("pkg-vulns status unchanged success");
     expect(formatted).toContain("raw events 0 -> 2");
     expect(formatted).toContain("+pkg_vulns");
+  });
+
+  it("warns when same-agent comparison metadata differs", () => {
+    const before = buildRunReportFromMetadata("/before", {
+      agent: "codex",
+      model: "gpt-5.6-luna",
+      reasoningEffort: "high",
+      surface: "mcp",
+      guidanceProfile: "descriptors",
+      workloads: [],
+    });
+    const after = buildRunReportFromMetadata("/after", {
+      agent: "codex",
+      model: "gpt-custom",
+      reasoningEffort: "low",
+      surface: "mcp",
+      guidanceProfile: "full",
+      workloads: [],
+    });
+    const comparison = compareReports(before, after);
+    expect(comparison.warnings).toEqual([
+      "guidance profile differs: descriptors -> full",
+      "model differs: gpt-5.6-luna -> gpt-custom",
+      "reasoning effort differs: high -> low",
+    ]);
+    expect(formatCompareReport(comparison)).toContain(
+      "profile=descriptors effort=high",
+    );
+    expect(formatCompareReport(comparison)).toContain(
+      "profile=full effort=low",
+    );
   });
 
   it("degrades cross-agent comparisons to tool-name presence", () => {

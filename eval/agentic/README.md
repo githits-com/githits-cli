@@ -26,6 +26,14 @@ agent's usefulness assessment.
   `.codex/skills`, creates a `githits` CLI shim on `PATH`, and runs Claude with
   an empty strict MCP config so global/plugin MCP servers do not contaminate the
   run.
+- MCP runs use the `instructions` guidance profile by default. The
+  `descriptors` profile runs the local MCP server with an explicit empty server
+  instruction string and no installed skills or project pointer, approximating
+  a remote connector that exposes only tool definitions. The `full` profile
+  keeps MCP instructions and additionally installs the skills plus isolated
+  `CLAUDE.md`/`AGENTS.md` project guidance. These profiles require
+  `--server local`; published MCP runs expose only the published server's own
+  guidance.
 - To evaluate MCP instruction changes, change branch/source and run local mode.
 - To evaluate skill instruction changes, use `--surface skills --server local`.
 
@@ -34,10 +42,11 @@ qualitative review before/after instruction, tool-description, and agent-facing
 UX changes.
 
 The harness must not add GitHits usage guidance through agent system prompts,
-append prompts, alternate MCP instruction files, project instructions, or plugin
-commands. In skills mode, the copied skills are the only GitHits guidance added
-to the workspace. Workload prompts may ask the agent to report what happened,
-but must not tell the agent how to use GitHits.
+append prompts, or plugin commands. `descriptors` and `instructions` profiles
+do not install project guidance; `full` deliberately exercises the same
+canonical project guidance and skills that a guided local installation provides.
+Workload prompts may ask the agent to report what happened, but must not tell
+the agent how to use GitHits.
 
 ## Isolation
 
@@ -60,6 +69,8 @@ bun run agent:e2e --server local --workload eval/agentic/workloads/express-route
 bun run agent:e2e --server published --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --surface skills --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent claude --server local --guidance-profile full --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent opencode --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent claude --model haiku --workload eval/agentic/workloads/package-overview-vulnerabilities.md
@@ -75,6 +86,7 @@ bun run agent:session --agent claude --surface mcp --server local
 bun run agent:session --agent claude --surface skills --server local --model haiku
 bun run agent:session --agent codex --surface skills --server local --prompt "Evaluate npm:express"
 bun run agent:session --agent codex --surface mcp --server local --dry-run
+bun run agent:session --agent claude --surface mcp --server local --guidance-profile full --dry-run
 bun run agent:session --agent opencode --surface mcp --server local --prompt "Evaluate npm:express" --dry-run
 bun run agent:session --agent codex --surface mcp --server local --experimental-tools --dry-run
 ```
@@ -97,6 +109,10 @@ Useful options:
 --agent <claude|codex|opencode> Agent to run, default `claude`
 --model <name>                  Agent model name or alias, passed through to the agent CLI
 --surface <mcp|skills>          GitHits access surface under test, default `mcp`
+--guidance-profile <descriptors|instructions|full>
+                                MCP-only guidance profile; MCP defaults to `instructions`
+--reasoning-effort <minimal|low|medium|high|xhigh|max|ultra>
+                                Codex reasoning effort; automated Codex defaults to `high`
 --dry-run                       Generate artifacts without invoking the agent
 --out <dir>                     Output directory, default `.agent-eval/runs/<timestamp>`
 --timeout <seconds>             Per-workload timeout, default 300
@@ -114,6 +130,13 @@ and bypasses only the host experimental policy. Valid host auth settings still
 apply; a wholly malformed shared TOML document can still block auth startup.
 Host dogfooding uses the experimental policy in `config.toml` instead.
 
+`--guidance-profile` is valid only for local MCP runs. `descriptors` suppresses
+server-level instructions with the hidden local launch mode and installs no
+skills or project guidance. `instructions` preserves the ordinary local MCP
+run. `full` retains server instructions and installs the canonical skills and
+project guidance in the isolated workspace. Skills-surface runs do not accept
+an explicitly supplied MCP guidance profile.
+
 Normal GitHits backend overrides are passed through when set:
 
 - `GITHITS_API_URL`
@@ -125,11 +148,12 @@ Normal GitHits backend overrides are passed through when set:
 
 Secret-like values are redacted in run metadata.
 
-Use `--model` to evaluate smaller or cheaper models against the same workload.
-Claude accepts aliases such as `sonnet` and `haiku`; Codex accepts model IDs such
-as `gpt-5.4-mini` or `gpt-5.4-nano` when available. The harness
-stores the selected model in `run.json` and `report.json`, and includes it in the
-console summary.
+Automated Codex runs default to `gpt-5.6-luna` with `high` reasoning. Use
+`--model` and `--reasoning-effort` to evaluate another Codex configuration;
+explicit values always win. Claude accepts aliases such as `sonnet` and
+`haiku`; explicit Codex examples include `gpt-5.4-mini` or `gpt-5.4-nano` when
+available. The harness stores the effective model and reasoning effort in
+`run.json` and `report.json`, and includes them in the console summary.
 
 After each run, the harness prints a concise summary with the run directory,
 per-workload status, unique GitHits tool count, raw tool event count,
@@ -152,9 +176,11 @@ bun run agent:e2e --server local --out .agent-eval/runs/local-change --workload 
 bun run agent:e2e:report --compare .agent-eval/runs/published-baseline .agent-eval/runs/local-change
 ```
 
-Same-agent comparisons include normalized aggregate status counts. Cross-agent
-comparisons intentionally degrade to tool-name presence with a warning because
-Claude and Codex expose different tool-call status events.
+Same-agent comparisons include normalized aggregate status counts and label the
+guidance profile, model, and reasoning effort. They warn when any of those
+comparison dimensions differ. Cross-agent comparisons intentionally degrade to
+tool-name presence with a warning because Claude and Codex expose different
+tool-call status events.
 
 ## Workloads
 
@@ -274,6 +300,10 @@ Each run writes:
   artifact paths, and warnings for missing artifacts or self-report drift.
 - One workload directory per workload with `prompt.md`, `stdout.json`,
   `stderr.txt`, `tool-calls.json`, and `final.json` when parsing succeeds.
+- Each live or dry-run workload also records `discovery-events.json`. For Claude
+  it reports `observed` when verbose JSON contains `ToolSearch` requests/results
+  or `not_observed` when none are present. Other drivers report `not_exposed`.
+  An absent Claude event does not prove that the host lacks tool search.
 - MCP runs write a GitHits `mcp.json`, `codex-config.toml`, and `opencode.json`;
   skills runs write an empty `mcp.json` and empty `opencode.json` for isolation.
 - When the local experimental override is enabled, `run.json`, each workload's
@@ -282,6 +312,9 @@ Each run writes:
   vectors contain the same `--experimental-tools` flag.
 - Skills runs also write `skill-installation.json` with the copied skill path
   and CLI shim path.
+- Full MCP runs additionally write `guidance-installation.json` with the
+  canonical project instruction paths and copied skill metadata. Paths are
+  persisted for inspection; credentials are never persisted.
 
 Claude is launched with `--permission-mode bypassPermissions` so non-interactive
 evals can exercise GitHits without a human approval prompt. MCP runs add

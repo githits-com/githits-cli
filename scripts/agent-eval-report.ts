@@ -7,6 +7,7 @@ export type NormalizedToolStatus =
   | "completed"
   | "failed"
   | "unknown";
+export type DiscoveryObservation = "observed" | "not_observed" | "not_exposed";
 
 export interface AgentEvalReportOptions {
   mode: AgentEvalReportMode;
@@ -18,8 +19,10 @@ export interface AgentEvalReportOptions {
 export interface AgentEvalRunMetadata {
   agent?: string;
   model?: string;
+  reasoningEffort?: string;
   surface?: string;
   server?: string;
+  guidanceProfile?: string;
   dryRun?: boolean;
   git?: Record<string, string | undefined>;
   workloads?: WorkloadRunMetadata[];
@@ -47,6 +50,11 @@ export interface ToolCallSummary {
   errors: string[];
 }
 
+export interface DiscoverySummary {
+  status: DiscoveryObservation;
+  eventCount: number;
+}
+
 export interface FinalReportSummary {
   status: string;
   usefulness: string;
@@ -67,6 +75,7 @@ export interface WorkloadReport {
   artifacts: Record<string, string>;
   missingArtifacts: string[];
   toolCalls: ToolCallSummary;
+  discovery?: DiscoverySummary;
   finalReport?: FinalReportSummary;
   warnings: string[];
 }
@@ -76,8 +85,10 @@ export interface AgentEvalReport {
   status: string;
   agent?: string;
   model?: string;
+  reasoningEffort?: string;
   surface?: string;
   server?: string;
+  guidanceProfile?: string;
   dryRun?: boolean;
   git?: Record<string, string | undefined>;
   runDir: string;
@@ -319,6 +330,23 @@ function readToolCalls(path: string): ExtractedToolCallForReport[] | undefined {
   });
 }
 
+function readDiscovery(path: string): DiscoverySummary | undefined {
+  const record = asRecord(readJson(path));
+  if (!record) return undefined;
+  const status = record.status;
+  if (
+    status !== "observed" &&
+    status !== "not_observed" &&
+    status !== "not_exposed"
+  ) {
+    return undefined;
+  }
+  return {
+    status,
+    eventCount: Array.isArray(record.events) ? record.events.length : 0,
+  };
+}
+
 function buildWorkloadReport(
   runDir: string,
   workload: WorkloadRunMetadata,
@@ -330,6 +358,8 @@ function buildWorkloadReport(
     invalidFinal: join(workloadDir, "invalid-final.json"),
     stderr: join(workloadDir, "stderr.txt"),
     skillInstallation: join(workloadDir, "skill-installation.json"),
+    guidanceInstallation: join(workloadDir, "guidance-installation.json"),
+    discoveryEvents: join(workloadDir, "discovery-events.json"),
   };
   const artifacts: Record<string, string> = {};
   const missingArtifacts: string[] = [];
@@ -355,6 +385,9 @@ function buildWorkloadReport(
   const finalReport = summarizeFinalReport(
     safePaths.final ? readJson(safePaths.final) : undefined,
   );
+  const discovery = safePaths.discoveryEvents
+    ? readDiscovery(safePaths.discoveryEvents)
+    : undefined;
   const warnings: string[] = [];
   if (!isSafeWorkloadId(workload.id)) {
     warnings.push(
@@ -390,6 +423,7 @@ function buildWorkloadReport(
     artifacts,
     missingArtifacts,
     toolCalls,
+    discovery,
     finalReport,
     warnings,
   };
@@ -422,8 +456,10 @@ export function buildRunReportFromMetadata(
     status,
     agent: metadata.agent,
     model: metadata.model,
+    reasoningEffort: metadata.reasoningEffort,
     surface: metadata.surface,
     server: metadata.server,
+    guidanceProfile: metadata.guidanceProfile,
     dryRun: metadata.dryRun,
     git: metadata.git,
     runDir,
@@ -445,8 +481,12 @@ function formatDuration(ms: number | undefined): string {
 }
 
 export function formatRunReport(report: AgentEvalReport): string {
+  const profile =
+    report.surface === "skills"
+      ? "n/a"
+      : (report.guidanceProfile ?? "instructions");
   const lines = [
-    `Agent eval: ${report.status} (${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}) ${report.runDir}`,
+    `Agent eval: ${report.status} (${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}) profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""} ${report.runDir}`,
   ];
   for (const workload of report.workloads) {
     const final = workload.finalReport;
@@ -454,13 +494,15 @@ export function formatRunReport(report: AgentEvalReport): string {
       ? ` usefulness=${final.usefulness} confidence=${final.confidence}`
       : "";
     lines.push(
-      `${workload.id} ${workload.status} ${formatDuration(workload.durationMs)} uniqueTools=${workload.toolCalls.uniqueTools.length} rawEvents=${workload.toolCalls.rawCount}${details}`,
+      `${workload.id} ${workload.status} ${formatDuration(workload.durationMs)} uniqueTools=${workload.toolCalls.uniqueTools.length} rawEvents=${workload.toolCalls.rawCount}${workload.discovery ? ` discovery=${workload.discovery.status}` : ""}${details}`,
     );
     const artifacts = [
       workload.artifacts.toolCalls,
       workload.artifacts.final ?? workload.artifacts.invalidFinal,
       workload.artifacts.stderr,
       workload.artifacts.skillInstallation,
+      workload.artifacts.guidanceInstallation,
+      workload.artifacts.discoveryEvents,
     ].filter(Boolean);
     if (artifacts.length > 0)
       lines.push(`  artifacts: ${artifacts.join(", ")}`);
@@ -513,9 +555,57 @@ function formatStatusCounts(summary: ToolCallSummary): string {
 }
 
 function formatRunLabel(
-  report: Pick<AgentEvalReport, "agent" | "model" | "surface" | "server">,
+  report: Pick<
+    AgentEvalReport,
+    | "agent"
+    | "model"
+    | "surface"
+    | "server"
+    | "guidanceProfile"
+    | "reasoningEffort"
+  >,
 ): string {
   return `${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}`;
+}
+
+function formatRunContext(report: AgentEvalReport): string {
+  const profile =
+    report.surface === "skills"
+      ? "n/a"
+      : (report.guidanceProfile ?? "instructions");
+  return `profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""}`;
+}
+
+function effectiveGuidanceProfile(report: AgentEvalReport): string | undefined {
+  return report.surface === "skills"
+    ? undefined
+    : (report.guidanceProfile ?? "instructions");
+}
+
+function compareMetadataWarnings(
+  before: AgentEvalReport,
+  after: AgentEvalReport,
+): string[] {
+  if (before.agent !== after.agent) return [];
+  const warnings: string[] = [];
+  const beforeProfile = effectiveGuidanceProfile(before);
+  const afterProfile = effectiveGuidanceProfile(after);
+  if (beforeProfile !== afterProfile) {
+    warnings.push(
+      `guidance profile differs: ${beforeProfile ?? "n/a"} -> ${afterProfile ?? "n/a"}`,
+    );
+  }
+  if (before.model !== after.model) {
+    warnings.push(
+      `model differs: ${before.model ?? "unspecified"} -> ${after.model ?? "unspecified"}`,
+    );
+  }
+  if (before.reasoningEffort !== after.reasoningEffort) {
+    warnings.push(
+      `reasoning effort differs: ${before.reasoningEffort ?? "unspecified"} -> ${after.reasoningEffort ?? "unspecified"}`,
+    );
+  }
+  return warnings;
 }
 
 export function compareReports(
@@ -531,12 +621,12 @@ export function compareReports(
   const ids = [...new Set([...beforeMap.keys(), ...afterMap.keys()])].sort();
   const sameAgent = before.agent === after.agent;
   const warnings = sameAgent
-    ? []
+    ? compareMetadataWarnings(before, after)
     : [
         "cross-agent comparison: status/event counts are not comparable; showing tool-name presence only",
       ];
   const lines = [
-    `Agent eval compare: before=${before.runDir} (${formatRunLabel(before)}) after=${after.runDir} (${formatRunLabel(after)})`,
+    `Agent eval compare: before=${before.runDir} (${formatRunLabel(before)}) ${formatRunContext(before)} after=${after.runDir} (${formatRunLabel(after)}) ${formatRunContext(after)}`,
     ...warnings.map((warning) => `Warning: ${warning}`),
   ];
   for (const id of ids) {
