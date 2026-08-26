@@ -46,9 +46,10 @@ export function toCallableTool<TArgs, TSchema extends ZodRawShape>(
     annotations: definition.annotations,
     execute: async (value, options) => {
       const args = input.parse(value);
-      const context: ToolExecutionContext | undefined = options?.signal
-        ? { signal: options.signal }
-        : undefined;
+      const context: ToolExecutionContext = {
+        authAction: "Authenticate with GitHits, then retry.",
+        ...(options?.signal ? { signal: options.signal } : {}),
+      };
       return definition.handler(args as TArgs, context);
     },
   };

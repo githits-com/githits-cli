@@ -1,6 +1,12 @@
 import { describe, expect, it, mock } from "bun:test";
 import type { GitHitsService } from "@githits/core-internal";
 import { z } from "zod";
+import {
+  ApiRateLimitError,
+  AuthenticationError,
+  FetchTimeoutError,
+  TermsAcceptanceRequiredError,
+} from "../tools.js";
 import { toCallableTool } from "./callable.js";
 import { createGetExampleTool, type GetExampleService } from "./get-example.js";
 import {
@@ -81,7 +87,81 @@ describe("toCallableTool", () => {
     await expect(callable.execute({})).resolves.toEqual({
       content: [{ type: "text", text: "text-v1" }],
     });
-    expect(handler).toHaveBeenCalledWith({ format: "text-v1" }, undefined);
+    expect(handler).toHaveBeenCalledWith(
+      { format: "text-v1" },
+      { authAction: "Authenticate with GitHits, then retry." },
+    );
+  });
+
+  it("maps public service errors with host-neutral callable remediation", async () => {
+    const errorCases = [
+      {
+        error: new AuthenticationError(),
+        payload: {
+          error: "Authentication required.",
+          code: "AUTH_REQUIRED",
+          retryable: false,
+          details: {
+            authSource: "local",
+            action: "Authenticate with GitHits, then retry.",
+          },
+        },
+      },
+      {
+        error: new ApiRateLimitError("Request rate limited.", 17),
+        payload: {
+          error: "Request rate limited.",
+          code: "RATE_LIMITED",
+          retryable: true,
+          details: { status: 429, retryAfterSeconds: 17 },
+        },
+      },
+      {
+        error: new FetchTimeoutError(2_500),
+        payload: {
+          error: "Failed to get example: Request timed out after 2500ms.",
+          code: "TIMEOUT",
+          retryable: true,
+          details: { timeoutMs: 2_500 },
+        },
+      },
+      {
+        error: new TermsAcceptanceRequiredError(),
+        payload: {
+          error:
+            "Terms acceptance required. Review and accept the current terms at https://app.githits.com/settings/privacy, then retry.",
+          code: "TERMS_ACCEPTANCE_REQUIRED",
+          retryable: false,
+          details: {
+            action: "https://app.githits.com/settings/privacy",
+            termsUrl: "https://githits.com/legal/terms-of-service/",
+            acceptanceUrl: "https://app.githits.com/settings/privacy",
+          },
+        },
+      },
+    ] as const;
+
+    for (const { error, payload } of errorCases) {
+      const service: GetExampleService = {
+        search: async () => {
+          throw error;
+        },
+      };
+      const result = await toCallableTool(
+        createGetExampleTool(service),
+      ).execute({ query: "hello" });
+
+      expect(result).toEqual({
+        content: [{ type: "text", text: JSON.stringify(payload) }],
+        isError: true,
+      });
+    }
+
+    const authPayload = errorCases[0]?.payload;
+    expect(JSON.stringify(authPayload)).not.toContain("githits login");
+    expect(JSON.stringify(authPayload)).not.toContain("GITHITS_API_TOKEN");
+    const termsPayload = errorCases[3]?.payload;
+    expect(JSON.stringify(termsPayload)).not.toContain("settings terms accept");
   });
 
   it("keeps success and structured error results parity with direct tools", async () => {

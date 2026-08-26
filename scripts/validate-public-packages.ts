@@ -622,7 +622,10 @@ async function verifyMcpToolsRuntime(appDirectory: string): Promise<void> {
   const runtimeCheckPath = join(appDirectory, "tools-runtime-check.mjs");
   await writeFile(
     runtimeCheckPath,
-    `import { createGetExampleTool, toCallableTool } from "@githits/mcp/tools";
+    `import { ApiRateLimitError, AuthenticationError, FetchTimeoutError, TermsAcceptanceRequiredError, createGetExampleTool, toCallableTool } from "@githits/mcp/tools";
+for (const [name, value] of Object.entries({ ApiRateLimitError, AuthenticationError, FetchTimeoutError, TermsAcceptanceRequiredError })) {
+  if (typeof value !== "function") throw new Error("missing packed public error constructor: " + name);
+}
 const signal = new AbortController().signal;
 const service = {
   search: async (params, options) => {
@@ -635,6 +638,32 @@ const callable = toCallableTool(createGetExampleTool(service));
 const result = await callable.execute({ query: "packed callable" }, { signal });
 if (result.isError === true) throw new Error("packed callable returned an error");
 if (result.content?.[0]?.text !== "packed result") throw new Error("packed callable result was incorrect");
+const authService = {
+  search: async () => {
+    throw new AuthenticationError();
+  },
+};
+const authCallable = toCallableTool(createGetExampleTool(authService));
+const authResult = await authCallable.execute({ query: "packed auth" });
+if (authResult.isError !== true) throw new Error("packed auth result was not an error");
+const authPayload = JSON.parse(authResult.content?.[0]?.text ?? "{}");
+if (authPayload.code !== "AUTH_REQUIRED") throw new Error("packed auth code was " + String(authPayload.code));
+if (authPayload.details?.action !== "Authenticate with GitHits, then retry.") throw new Error("packed auth action was not host-neutral");
+if (JSON.stringify(authPayload).includes("githits login") || JSON.stringify(authPayload).includes("GITHITS_API_TOKEN")) throw new Error("packed auth payload contained CLI or environment guidance");
+const termsService = {
+  search: async () => {
+    throw new TermsAcceptanceRequiredError();
+  },
+};
+const termsCallable = toCallableTool(createGetExampleTool(termsService));
+const termsResult = await termsCallable.execute({ query: "packed terms" });
+if (termsResult.isError !== true) throw new Error("packed terms result was not an error");
+const termsPayload = JSON.parse(termsResult.content?.[0]?.text ?? "{}");
+if (termsPayload.code !== "TERMS_ACCEPTANCE_REQUIRED") throw new Error("packed terms code was " + String(termsPayload.code));
+if (termsPayload.details?.action !== "https://app.githits.com/settings/privacy") throw new Error("packed terms action was not the acceptance URL");
+if (termsPayload.details?.termsUrl !== "https://githits.com/legal/terms-of-service/") throw new Error("packed terms URL was missing");
+if (termsPayload.details?.acceptanceUrl !== "https://app.githits.com/settings/privacy") throw new Error("packed acceptance URL was missing");
+if (JSON.stringify(termsPayload).includes("settings terms accept")) throw new Error("packed terms payload contained local CLI guidance");
 const controller = new AbortController();
 const reason = new Error("packed caller cancelled");
 const cancellingService = {
@@ -758,14 +787,16 @@ async function verifyMcpConsumer(
   );
   await writeFile(
     join(appDirectory, "tools-check.ts"),
-    `import { createGetExampleTool, toCallableTool, type CallableTool, type CallableToolExecutionOptions, type GetExampleInput, type GetExampleRequestOptions, type GetExampleSearchParams, type GetExampleService } from "@githits/mcp/tools";
+    `import { ApiRateLimitError, AuthenticationError, FetchTimeoutError, TermsAcceptanceRequiredError, createGetExampleTool, toCallableTool, type CallableTool, type CallableToolExecutionOptions, type GetExampleInput, type GetExampleRequestOptions, type GetExampleSearchParams, type GetExampleService } from "@githits/mcp/tools";
 const searchOnlyService: GetExampleService = {
   search: async (_params: GetExampleSearchParams, _options?: GetExampleRequestOptions) => "ok",
 };
 const callableTool: CallableTool = toCallableTool(createGetExampleTool(searchOnlyService));
 const callableInput: GetExampleInput = { query: "packed tools" };
 const callableOptions: CallableToolExecutionOptions = { signal: new AbortController().signal };
+const publicErrors: Error[] = [new AuthenticationError(), new ApiRateLimitError(), new FetchTimeoutError(1_000), new TermsAcceptanceRequiredError()];
 void callableTool.execute(callableInput, callableOptions);
+void publicErrors;
 `,
   );
   await writeFile(
