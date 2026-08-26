@@ -607,8 +607,8 @@ export interface PackageChangelogParams {
   /** Branch or tag for CHANGELOG.md fetching. Ignored for GH Releases. */
   gitRef?: string;
   /**
-   * Start of version range. When set, the backend returns every entry
-   * between `fromVersion` and `toVersion` (or latest); `limit` is
+   * Exclusive start of version range. When set, the backend returns every
+   * entry after `fromVersion` through `toVersion` (or latest); `limit` is
    * rejected client-side in this mode.
    */
   fromVersion?: string;

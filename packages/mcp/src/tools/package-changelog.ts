@@ -72,7 +72,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Start of version range. When set, the response returns every entry between `from_version` and `to_version` (or latest) with no count cap — range mode. Mutually exclusive with `limit`. Tag-style `v`-prefixed inputs are rejected except for Swift.",
+      "Exclusive start of version range. When set, the response returns every entry after `from_version` through `to_version` (or latest) with no count cap — range mode. Mutually exclusive with `limit`. Use latest mode with `to_version` and `limit: 1` to fetch one exact release. Tag-style `v`-prefixed inputs are rejected except for Swift.",
     ),
   to_version: z
     .string()
@@ -122,7 +122,7 @@ export const DESCRIPTION: string =
   "Find release and changelog evidence for a package or GitHub repository. Default " +
   "latest mode returns up to ten entries (`limit` 1–50); source ordering may interleave maintained release lines. " +
   "With `from_version`, returns every entry in the " +
-  "`[from_version, to_version]` range (range mode, no count cap). " +
+  "`(from_version, to_version]` range (range mode, no count cap); use latest mode with `to_version` and `limit: 1` for one exact release. " +
   "Address via `registry` + `package_name` or `repo_url` (mutually " +
   'exclusive). Response includes optional `source` (`"releases"` / ' +
   '`"changelog_file"` / `"hexdocs"`) when a concrete changelog source ' +

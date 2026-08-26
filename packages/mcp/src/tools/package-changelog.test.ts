@@ -21,6 +21,8 @@ describe("createPackageChangelogTool — metadata", () => {
     expect(tool.name).toBe("pkg_changelog");
     expect(tool.description).toContain("latest mode");
     expect(tool.description).toContain("range mode");
+    expect(tool.description).toContain("`(from_version, to_version]`");
+    expect(tool.description).toContain("one exact release");
     expect(tool.description).toContain("markdown body previews");
     expect(tool.description).toContain("body_lines");
     expect(tool.description).toContain('format: "json"');

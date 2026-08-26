@@ -149,7 +149,12 @@ const DESCRIPTION_ROUTING: Record<
   },
   pkg_changelog: {
     prefix: /^Find release and changelog evidence/,
-    body: ["`pkg_info`", "`pkg_upgrade_review`"],
+    body: [
+      "`(from_version, to_version]`",
+      "one exact release",
+      "`pkg_info`",
+      "`pkg_upgrade_review`",
+    ],
     absent: ["newest-first", "most recent"],
   },
   pkg_upgrade_review: {
