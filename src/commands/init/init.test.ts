@@ -191,18 +191,39 @@ function getErrorOutput(): string[] {
   return (errorSpy.mock.calls as unknown[][]).map((c) => String(c[0] ?? ""));
 }
 
+function normalizeHumanOutput(logCalls: string[] = getLogOutput()): string {
+  return logCalls.join("\n").replace(/\s+/g, " ");
+}
+
 function expectCursorRemoteNextSteps(logCalls: string[]): void {
+  const output = normalizeHumanOutput(logCalls);
   expect(logCalls.some((msg) => msg.includes("6. Next Steps"))).toBe(true);
   expect(logCalls.some((msg) => msg.includes("GitHits is now connected"))).toBe(
     false,
   );
+  expect(output).toContain("Cursor is ready only after its separate OAuth");
+  expect(output).toContain(
+    "open the MCP panel and click Authenticate once for GitHits",
+  );
+  expect(output).toContain("cursor-agent mcp login GitHits");
+  expect(output).toContain("separately from local GitHits CLI authentication");
   expect(
-    logCalls.some((msg) =>
-      msg.includes("Cursor is ready only after its separate OAuth"),
+    logCalls.some(
+      (msg) =>
+        msg.trim() !== "cursor-agent mcp login GitHits" &&
+        msg.includes("cursor-agent mcp login GitHits"),
     ),
-  ).toBe(true);
+  ).toBe(false);
   expect(
-    logCalls.some((msg) => msg.includes("cursor-agent mcp list-tools GitHits")),
+    logCalls.some((msg) => msg.trim() === "cursor-agent mcp login GitHits"),
+  ).toBe(true);
+  expect(logCalls.some((msg) => msg.trim() === "cursor-agent mcp list")).toBe(
+    true,
+  );
+  expect(
+    logCalls.some(
+      (msg) => msg.trim() === "cursor-agent mcp list-tools GitHits",
+    ),
   ).toBe(true);
 }
 
@@ -1310,13 +1331,9 @@ describe("initAction", () => {
     expect(
       logCalls.filter((msg) => msg.includes("5. Install and verify")),
     ).toHaveLength(1);
-    expect(
-      logCalls.some((msg) =>
-        msg.includes(
-          "loads the project config and any supporting instructions",
-        ),
-      ),
-    ).toBe(true);
+    expect(normalizeHumanOutput(logCalls)).toContain(
+      "loads the project config and any supporting instructions",
+    );
     expect(JSON.parse(configFiles["/repo/.cursor/mcp.json"] ?? "{}")).toEqual({
       mcpServers: {
         GitHits: {
@@ -2127,15 +2144,18 @@ describe("initAction", () => {
     expect(
       logCalls.some((msg) => msg.includes("configured and verified")),
     ).toBe(false);
-    // Trailing MCP server confirmation on the human text path: states that the
-    // server was configured and shows the launch command inline.
+    // Trailing MCP server confirmation on the human text path names Cursor's
+    // remote transport rather than the local stdio command.
     expect(
       logCalls.some(
         (msg) =>
           msg.includes('Configured MCP server "githits"') &&
-          msg.includes("npx -y githits@latest mcp start"),
+          msg.includes("remote MCP at https://mcp.githits.com for Cursor"),
       ),
     ).toBe(true);
+    expect(normalizeHumanOutput(logCalls)).toContain(
+      "open the MCP panel and click Authenticate once for GitHits",
+    );
   });
 
   it("includes structured changes in --install-agents --json output", async () => {
@@ -2493,6 +2513,38 @@ describe("initAction", () => {
           msg.includes("~/.agents/skills/githits-mcp/SKILL.md"),
       ),
     ).toBe(true);
+    expect(getLogOutput().join("\n")).toContain(
+      "GitHits skills in ~/.agents/skills/ are discovered by every compatible agent",
+    );
+    expect(getLogOutput().join("\n")).toContain(
+      'Configured MCP server "githits": local stdio MCP command `npx -y githits@latest mcp start` for Cline',
+    );
+  });
+
+  it("names local and remote transports for mixed staged MCP setup", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(
+      ["/home/test/.cursor", "/home/test/.cline"],
+      configFiles,
+    );
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+
+    await initAction(
+      { installAgents: "cursor,cline", guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const output = getLogOutput().join("\n");
+    expect(output).toContain(
+      'Configured MCP server "githits": local stdio MCP command `npx -y githits@latest mcp start` for Cline; remote MCP at https://mcp.githits.com for Cursor',
+    );
   });
 
   it("repairs a missing subset of shared skills without MCP or auth", async () => {
@@ -3016,6 +3068,31 @@ describe("initAction", () => {
           msg.includes("Shared agent guidance") && msg.includes("./AGENTS.md"),
       ),
     ).toBe(true);
+    expect(getLogOutput().join("\n")).toContain(
+      "GitHits skills in .agents/skills/ are discovered by every compatible agent",
+    );
+  });
+
+  it("does not claim shared skill visibility for a native-only guidance root", async () => {
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection(["/home/test/.kiro"], configFiles);
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+
+    await initAction(
+      { installAgents: "kiro", guidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(getLogOutput().join("\n")).not.toContain(
+      "GitHits skills in ~/.agents/skills/",
+    );
   });
 
   it("staged guided install shows the Zed global AGENTS.md target", async () => {
@@ -3322,6 +3399,12 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("5. Install and verify"))).toBe(
       true,
     );
+    const output = logCalls.join("\n");
+    const installSectionIndex = output.indexOf("5. Install and verify");
+    const configuredCountIndex = output.indexOf("1 tool configured.");
+    const nextStepsIndex = output.indexOf("6. Next Steps");
+    expect(configuredCountIndex).toBeGreaterThan(installSectionIndex);
+    expect(nextStepsIndex).toBeGreaterThan(configuredCountIndex);
     const mcpSectionIndex = logCalls.findIndex((msg) => msg.trim() === "MCP");
     const cursorRowIndex = logCalls.findIndex(
       (msg) =>
@@ -3332,13 +3415,75 @@ describe("initAction", () => {
     expect(mcpSectionIndex).toBeGreaterThanOrEqual(0);
     expect(logCalls.some((msg) => msg.trim() === "Skills")).toBe(false);
     expect(cursorRowIndex).toBeGreaterThan(mcpSectionIndex);
-    expect(
-      logCalls.some((msg) =>
-        msg.includes(
-          "reloads MCP configuration and any supporting instructions",
+    expect(normalizeHumanOutput(logCalls)).toContain(
+      "reloads MCP configuration and any supporting instructions",
+    );
+  });
+
+  it("wraps narrow-terminal prose without changing commands or paths", async () => {
+    const originalColumns = process.stdout.columns;
+    Object.defineProperty(process.stdout, "columns", {
+      configurable: true,
+      value: 40,
+    });
+
+    try {
+      const configFiles: Record<string, string> = {};
+      const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+      const deps = {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      };
+
+      await initAction({ guidance: false }, { ...deps, isInteractive: false });
+      const introLines = getLogOutput();
+      expect(introLines).toContain("  Your agent can only read your local");
+      expect(introLines).toContain("  codebase.");
+      expect(introLines).not.toContain("  codebas e.");
+
+      logSpy.mockClear();
+      await initAction({ installAgents: "cline", guidance: false }, deps);
+      const stagedLines = getLogOutput();
+      expect(
+        stagedLines.some((line) =>
+          line.includes("~/.cline/data/settings/cline_mcp_settings.json"),
         ),
-      ),
-    ).toBe(true);
+      ).toBe(true);
+      expect(stagedLines).toContain(
+        "  After a successful --install-agents run, verify with npx -y githits@latest init --detect-agents --no-guidance --json instead of running init again.",
+      );
+
+      logSpy.mockClear();
+      const cursorFs = createFsWithDetection(["/home/test/.cursor"]);
+      await initAction(
+        { guidance: false },
+        {
+          fileSystemService: cursorFs,
+          promptService: createMockPromptService(),
+          execService: createMockExecService(),
+          createLoginDeps: createAlreadyAuthLoginDeps(),
+        },
+      );
+      const cursorLines = getLogOutput();
+      const cursorProseLines = cursorLines.filter(
+        (line) =>
+          line.includes("Cursor uses") ||
+          line.includes("manages") ||
+          line.includes("OAuth"),
+      );
+      expect(cursorProseLines.length).toBeGreaterThan(1);
+      expect(cursorProseLines.every((line) => line.length <= 40)).toBe(true);
+      expect(cursorLines).toContain("    cursor-agent mcp login GitHits");
+      expect(cursorLines).toContain("    cursor-agent mcp list");
+      expect(cursorLines).toContain("    cursor-agent mcp list-tools GitHits");
+    } finally {
+      Object.defineProperty(process.stdout, "columns", {
+        configurable: true,
+        value: originalColumns,
+      });
+    }
   });
 
   it("shows the install review before interactive setup confirmation", async () => {
@@ -3350,39 +3495,30 @@ describe("initAction", () => {
       if (!message.includes("Continue with GitHits setup")) {
         return Promise.resolve(true);
       }
-      const logCalls = getLogOutput();
+      const output = getLogOutput().join("\n");
+      const normalizedOutput = output.replace(/\s+/g, " ");
       expect(
-        logCalls.some((msg) =>
-          msg.includes("GitHits queries and public package"),
-        ),
+        normalizedOutput.includes("GitHits queries and public package"),
       ).toBe(true);
-      expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
+      expect(normalizedOutput.includes("is an outbound write")).toBe(true);
+      expect(
+        normalizedOutput.includes("does not itself upload the local workspace"),
+      ).toBe(true);
+      expect(normalizedOutput.includes("open a new coding agent session")).toBe(
         true,
       );
       expect(
-        logCalls.some((msg) =>
-          msg.includes("does not itself upload the local workspace"),
+        normalizedOutput.includes(
+          "do not need to restart the terminal or machine",
         ),
       ).toBe(true);
+      expect(normalizedOutput.includes("Scope: User")).toBe(true);
+      expect(normalizedOutput.includes("MCP tools to configure: Cursor")).toBe(
+        true,
+      );
+      expect(normalizedOutput.includes("Guidance targets: None")).toBe(true);
       expect(
-        logCalls.some((msg) => msg.includes("open a new coding agent session")),
-      ).toBe(true);
-      expect(
-        logCalls.some((msg) =>
-          msg.includes("do not need to restart the terminal or machine"),
-        ),
-      ).toBe(true);
-      expect(logCalls.some((msg) => msg.includes("Scope: User"))).toBe(true);
-      expect(
-        logCalls.some((msg) => msg.includes("MCP tools to configure: Cursor")),
-      ).toBe(true);
-      expect(
-        logCalls.some((msg) => msg.includes("Guidance targets: None")),
-      ).toBe(true);
-      expect(
-        logCalls.some((msg) =>
-          msg.includes("Supporting instructions: Do not install"),
-        ),
+        normalizedOutput.includes("Supporting instructions: Do not install"),
       ).toBe(true);
       return Promise.resolve(true);
     }) as PromptService["confirm"];
@@ -3399,6 +3535,39 @@ describe("initAction", () => {
 
     expect(checkbox).toHaveBeenCalledTimes(1);
     expect(confirm).toHaveBeenCalledWith("Continue with GitHits setup?", true);
+  });
+
+  it("shows only selected MCP transports in a mixed install review", async () => {
+    const fs = createFsWithDetection([
+      "/home/test/.cursor",
+      "/home/test/.cline",
+    ]);
+    const checkbox = mock(
+      (_message: string, choices: Array<{ value: string }>) =>
+        Promise.resolve(choices.slice(0, 2).map((choice) => choice.value)),
+    ) as PromptService["checkbox"];
+    const confirm = mock((message: string) => {
+      if (message.includes("Continue with GitHits setup")) {
+        const output = getLogOutput().join("\n");
+        expect(output).toContain(
+          "MCP transport: local stdio MCP command `npx -y githits@latest mcp start` for Cline; remote MCP at https://mcp.githits.com for Cursor",
+        );
+        return Promise.resolve(false);
+      }
+      return Promise.resolve(true);
+    }) as PromptService["confirm"];
+
+    await initAction(
+      { guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService({ checkbox, confirm }),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
 
   it("shows no guidance target for a tool without a verified guidance surface", async () => {
@@ -5373,6 +5542,11 @@ describe("initAction", () => {
       expect(logCalls.some((msg) => msg.includes("Already signed in"))).toBe(
         true,
       );
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("Already signed in (local CLI auth only)"),
+        ),
+      ).toBe(true);
       expect(fs.atomicWriteFile).toHaveBeenCalled();
     });
 
@@ -5994,7 +6168,7 @@ describe("initUninstallAction", () => {
     expect(fs.deleteFile).not.toHaveBeenCalled();
     expect(
       getLogOutput().some((msg) =>
-        msg.includes("githits init uninstall --project --yes"),
+        msg.includes("githits uninstall --project --yes"),
       ),
     ).toBe(true);
   });
@@ -6678,12 +6852,10 @@ describe("initUninstallAction", () => {
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     const logCalls = getLogOutput();
     expect(
-      logCalls.some((msg) => msg.includes("githits init uninstall --yes")),
+      logCalls.some((msg) => msg.includes("githits uninstall --yes")),
     ).toBe(true);
     expect(
-      logCalls.some((msg) =>
-        msg.includes("githits init uninstall --project --yes"),
-      ),
+      logCalls.some((msg) => msg.includes("githits uninstall --project --yes")),
     ).toBe(true);
   });
 

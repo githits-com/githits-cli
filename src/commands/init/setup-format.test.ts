@@ -13,6 +13,7 @@ import {
   formatCliCommand,
   formatConfigPath,
   renderChangeRows,
+  wrapInitProse,
 } from "./setup-format.js";
 
 function fsWith(home: string, cwd: string) {
@@ -94,6 +95,49 @@ describe("formatCliCommand", () => {
 
   it("returns the bare command when there are no args", () => {
     expect(formatCliCommand({ command: "claude", args: [] })).toBe("claude");
+  });
+});
+
+describe("wrapInitProse", () => {
+  it("wraps at word boundaries while preserving ordinary indentation", () => {
+    const lines = wrapInitProse(
+      "  GitHits configures your selected coding agents with the MCP server.",
+      44,
+    );
+
+    expect(lines).toEqual([
+      "  GitHits configures your selected coding",
+      "  agents with the MCP server.",
+    ]);
+    expect(lines.every((line) => line.length <= 44)).toBe(true);
+    expect(lines.join(" ")).not.toContain("codin g");
+  });
+
+  it("preserves bullet indentation with a hanging continuation", () => {
+    expect(
+      wrapInitProse(
+        "  • Search package documentation and inspect implementation details.",
+        42,
+      ),
+    ).toEqual([
+      "  • Search package documentation and",
+      "    inspect implementation details.",
+    ]);
+  });
+
+  it("uses the fallback width when columns are absent", () => {
+    const text = `  ${"word ".repeat(20)}`.trimEnd();
+    const lines = wrapInitProse(text);
+
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.every((line) => line.length <= 80)).toBe(true);
+  });
+
+  it("uses the conservative minimum for narrow terminals", () => {
+    const lines = wrapInitProse(`  ${"word ".repeat(12)}`, 10);
+
+    expect(lines.every((line) => line.length <= 40)).toBe(true);
+    expect(lines[0]).toBe("  word word word word word word word");
   });
 });
 
