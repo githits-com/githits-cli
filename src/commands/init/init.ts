@@ -188,6 +188,8 @@ interface GuidanceUninstallOutcome {
   message?: string;
   changes?: UninstallChange[];
   failures?: GuidanceUninstallFailure[];
+  /** Selected target paths skipped because tools may still need them. */
+  protectedCount?: number;
 }
 
 interface GuidanceUninstallFailure {
@@ -3819,9 +3821,33 @@ async function runUserMcpUninstall(
       labelWidth,
     )),
   ];
+  // Interactive checkbox consent scopes guidance cleanup too. Scope-wide
+  // modes still clean orphaned guidance, while retained/failed agents protect
+  // any guidance path they share with a selected agent.
+  const cleanupAllGuidance =
+    Boolean(options.yes) || scan.configured.length === 0;
+  const selectedIds = new Set(toRemove.map((agent) => agent.id));
+  const protectedGuidanceIds = new Set([
+    ...scan.configured
+      .filter((agent) => !selectedIds.has(agent.id))
+      .map((agent) => agent.id),
+    ...scan.notConfigured.map((agent) => agent.id),
+    ...outcomes
+      .filter((outcome) => outcome.status === "failed")
+      .map((outcome) => outcome.id),
+  ]);
   const guidanceOutcome = options.keepGuidance
     ? null
-    : await uninstallGuidance(agentDefinitions, fileSystemService, "user");
+    : await uninstallGuidance(
+        cleanupAllGuidance ? agentDefinitions : toRemove,
+        fileSystemService,
+        "user",
+        cleanupAllGuidance
+          ? []
+          : agentDefinitions.filter((agent) =>
+              protectedGuidanceIds.has(agent.id),
+            ),
+      );
   if (guidanceOutcome) {
     printGuidanceUninstallOutcome(
       guidanceOutcome,
@@ -4408,7 +4434,7 @@ function printGuidanceUninstallOutcome(
   fileSystemService: FileSystemService,
   useColors: boolean,
 ): void {
-  if (outcome.status === "skipped") return;
+  if (outcome.status === "skipped" && !outcome.protectedCount) return;
   const rows: ChangeRow[] = [];
   const changes = outcome.changes ?? [];
   const hasRemovedChange = changes.some(
@@ -4429,6 +4455,14 @@ function printGuidanceUninstallOutcome(
       label: "GitHits guidance",
       verb: "failed",
       detail: `${formatConfigPath(failure.path, fileSystemService)}: ${failure.reason}`,
+    });
+  }
+  if (outcome.protectedCount) {
+    rows.push({
+      tone: "ok",
+      label: "GitHits guidance",
+      verb: "unchanged",
+      detail: `${outcome.protectedCount} guidance target${outcome.protectedCount === 1 ? "" : "s"} skipped because tools may still use them`,
     });
   }
   if (rows.length === 0) {
@@ -4536,16 +4570,38 @@ async function removeHistoricalGuidanceSkills(
   return { changes, failures };
 }
 
+/**
+ * Remove guidance for the requested agents while retaining any target path
+ * also owned by a protected agent. Protection is path-based because multiple
+ * agents can share one skill root or managed instruction file.
+ */
 async function uninstallGuidance(
   agents: AgentDefinition[],
   fileSystemService: FileSystemService,
   scope: InitSetupScope,
+  protectedAgents: AgentDefinition[] = [],
 ): Promise<GuidanceUninstallOutcome> {
-  const steps = getGuidanceUninstallSteps(agents, fileSystemService, scope);
+  const protectedPaths = new Set(
+    getGuidanceUninstallSteps(protectedAgents, fileSystemService, scope).map(
+      (step) => step.targetPath,
+    ),
+  );
+  const selectedSteps = getGuidanceUninstallSteps(
+    agents,
+    fileSystemService,
+    scope,
+  );
+  const protectedCount = selectedSteps.filter((step) =>
+    protectedPaths.has(step.targetPath),
+  ).length;
+  const steps = selectedSteps.filter(
+    (step) => !protectedPaths.has(step.targetPath),
+  );
   if (steps.length === 0) {
     return {
       status: "skipped",
       message: "no guidance targets",
+      ...(protectedCount > 0 ? { protectedCount } : {}),
     };
   }
 
@@ -4581,6 +4637,7 @@ async function uninstallGuidance(
       message: "One or more GitHits guidance targets failed to uninstall.",
       changes,
       failures,
+      ...(protectedCount > 0 ? { protectedCount } : {}),
     };
   }
 
@@ -4589,12 +4646,14 @@ async function uninstallGuidance(
       status: "removed",
       message: "Guidance removed successfully",
       changes,
+      ...(protectedCount > 0 ? { protectedCount } : {}),
     };
   }
   return {
     status: anyNotConfigured ? "not_configured" : "skipped",
     message: "GitHits guidance not configured",
     changes,
+    ...(protectedCount > 0 ? { protectedCount } : {}),
   };
 }
 
@@ -5293,9 +5352,11 @@ const INIT_UNINSTALL_DESCRIPTION = `Remove GitHits MCP server configuration from
 
 In interactive mode, asks whether to remove user-level coding-agent config or
 project-level MCP config. Removes only GitHits MCP/plugin entries with your
-confirmation. By default it also removes GitHits-owned guidance files; pass
-\`--keep-guidance\` to leave them in place. Authentication tokens are not
-removed; use \`githits logout\` to remove stored credentials.`;
+confirmation. Interactive user guidance cleanup follows the tool selection and
+retains shared guidance usable by detected tools you keep; \`--yes\` and project
+cleanup are scope-wide. Pass \`--keep-guidance\` to leave all guidance in place.
+Authentication tokens are not removed; use \`githits logout\` to remove stored
+credentials.`;
 
 function registerUninstallCommand(parent: Command): Command {
   return parent

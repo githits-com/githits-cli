@@ -64,13 +64,20 @@ preselected, the user deselects tools to retain, and the selection is the
 consent. `--yes` removes all configured user-level MCP targets. Project
 uninstall deduplicates project config paths and uses one confirmation.
 
-Without `--keep-guidance`, uninstall independently and best-effort removes all
-four active skill files at verified roots plus only the historical CLI-owned
-files `<scope>/.cline/skills/githits-mcp/SKILL.md` and
-`<scope>/.junie/skills/githits-mcp/SKILL.md`. It preserves unrelated skills,
-directories, plugin payloads, and credentials. Removing a shared root can
-affect every compatible agent that reads that directory. `--keep-guidance`
-preserves both active and historical guidance.
+Without `--keep-guidance`, interactive user uninstall best-effort removes the
+active and historical guidance targets owned by the selected tools. Guidance
+usable by any unselected detected tool is retained, including a shared skill or
+managed-block target also used by a selected tool. A selected tool also retains
+its guidance when its MCP removal fails. Non-interactive `--yes`,
+project uninstall, and user uninstall with no configured MCP targets continue
+to clean every verified guidance target in their chosen scope. Cleanup removes
+all four active skill files plus only the historical CLI-owned files
+`<scope>/.cline/skills/githits-mcp/SKILL.md` and
+`<scope>/.junie/skills/githits-mcp/SKILL.md`; it preserves unrelated skills,
+directories, plugin payloads, and credentials. `--keep-guidance` preserves both
+active and historical guidance. When cleanup removes a shared skill
+root, the output warns that every compatible agent reading that root is
+affected.
 
 Missing files are successful no-ops. A historical Cline or Junie file is
 removed only after a complete active shared skill set has been written and
