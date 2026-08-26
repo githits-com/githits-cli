@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { MappedError } from "../shared/code-navigation-error-map.js";
 import { mapGitHitsServiceError } from "../shared/githits-service-error-map.js";
+import type { MappedError } from "../shared/mapped-error.js";
 import { errorResult, type ToolResult } from "./types.js";
 
 const LOCAL_MCP_AUTH_ACTION =
