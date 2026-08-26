@@ -817,6 +817,7 @@ function printInstallReview(
   guidanceAgents?: AgentDefinition[],
   installSupportingGuidance?: boolean,
   printTitle: boolean = true,
+  unchangedAgents: AgentDefinition[] = [],
 ): void {
   if (printTitle) {
     console.log(`  ${colorizeBrand("Install review", "primary", useColors)}`);
@@ -832,6 +833,11 @@ function printInstallReview(
   if (guidanceAgents) {
     console.log(
       `    Guidance targets: ${guidanceAgents.length > 0 ? guidanceAgents.map((agent) => agent.name).join(", ") : "None"}`,
+    );
+  }
+  if (unchangedAgents.length > 0) {
+    console.log(
+      `    Already configured: ${unchangedAgents.map((agent) => agent.name).join(", ")}`,
     );
   }
   if (installSupportingGuidance !== undefined) {
@@ -1271,46 +1277,100 @@ function formatAgentNames(agents: AgentDefinition[]): string {
 }
 
 function buildInitAgentChoices(
-  scan: ScanResult,
-): CheckboxChoice<AgentDefinition>[] {
-  return [
-    ...scan.needsSetup.map((agent) => ({
-      name: `${agent.name} (detected)`,
-      value: agent,
-      checked: true,
-    })),
-    ...scan.alreadyConfigured.map((agent) => ({
-      name: `${agent.name} (already configured)`,
-      value: agent,
-      disabled: "already configured",
-    })),
-  ];
+  detection: StagedDetection,
+): CheckboxChoice<string>[] {
+  return detection.entries
+    .filter((entry) => entry.status !== "not_detected")
+    .map((entry) => {
+      if (entry.status === "unsupported_project_config") {
+        return {
+          name: `${entry.name} (unsupported)`,
+          value: entry.id,
+          disabled: entry.reason ?? "unsupported project configuration",
+        };
+      }
+      if (entry.status === "needs_setup") {
+        const action =
+          entry.guidanceStatus === "needs_setup"
+            ? "MCP + supporting instructions"
+            : "MCP only";
+        return {
+          name: `${entry.name} (${action})`,
+          value: entry.id,
+          checked: true,
+        };
+      }
+      if (entry.guidanceStatus === "needs_setup") {
+        return {
+          name: `${entry.name} (guidance repair)`,
+          value: entry.id,
+          checked: true,
+        };
+      }
+      return {
+        name: `${entry.name} (already configured)`,
+        value: entry.id,
+        disabled: "already configured",
+      };
+    });
 }
 
-function getInstallSummaryAgents(
+interface InteractiveInitSelection {
+  selectedEntries: StagedAgentEntry[];
+  mcpAgents: AgentDefinition[];
+  guidanceAgents: AgentDefinition[];
+  unchangedAgents: AgentDefinition[];
+}
+
+function getInteractiveInitSelection(
+  detection: StagedDetection,
   scan: ScanResult,
-  selectedForSetup: AgentDefinition[],
-): AgentDefinition[] {
-  const selectedIds = new Set(selectedForSetup.map((agent) => agent.id));
-  const included = new Map<string, AgentDefinition>();
-
-  for (const agent of scan.alreadyConfigured) {
-    included.set(agent.id, agent);
-  }
-  for (const agent of scan.needsSetup) {
-    if (selectedIds.has(agent.id)) {
-      included.set(agent.id, agent);
-    }
-  }
-
-  const agentOrder = new Map(
-    agentDefinitions.map((agent, index) => [agent.id, index]),
+  selectedIds: string[],
+  installSupportingGuidance: boolean,
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): InteractiveInitSelection {
+  const selectedIdSet = new Set(selectedIds);
+  const scannedAgents = [
+    ...scan.needsSetup,
+    ...scan.alreadyConfigured,
+    ...scan.unsupported.map(({ agent }) => agent),
+  ];
+  const findAgent = (id: string): AgentDefinition | undefined =>
+    scannedAgents.find((agent) => agent.id === id) ??
+    agentDefinitions.find((agent) => agent.id === id);
+  const selectedEntries = detection.entries.filter(
+    (entry) =>
+      selectedIdSet.has(entry.id) &&
+      entry.status !== "unsupported_project_config" &&
+      entry.status !== "not_detected",
   );
-  return [...included.values()].sort(
-    (a, b) =>
-      (agentOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
-      (agentOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER),
-  );
+  const selectedAgents = selectedEntries
+    .map((entry) => findAgent(entry.id))
+    .filter((agent): agent is AgentDefinition => Boolean(agent));
+  const mcpAgents = selectedEntries
+    .filter((entry) => entry.status === "needs_setup")
+    .map((entry) => findAgent(entry.id))
+    .filter((agent): agent is AgentDefinition => Boolean(agent));
+  const guidanceAgents = installSupportingGuidance
+    ? getGuidanceTargetAgents(selectedAgents, fileSystemService, scope)
+    : [];
+  const selectedAgentIds = new Set(selectedIds);
+  const unchangedAgents = detection.entries
+    .filter(
+      (entry) =>
+        entry.status === "already_configured" &&
+        !selectedAgentIds.has(entry.id),
+    )
+    .map((entry) => findAgent(entry.id))
+    .filter((agent): agent is AgentDefinition => Boolean(agent));
+
+  return {
+    selectedEntries,
+    mcpAgents,
+    guidanceAgents,
+    unchangedAgents,
+  };
 }
 
 function printScanSummary(
@@ -1510,9 +1570,9 @@ function buildConfiguredDetectionInstructions(
   return instructions;
 }
 
-function hasDetectedCursor(entries: StagedAgentEntry[]): boolean {
+function hasConfiguredCursor(entries: StagedAgentEntry[]): boolean {
   return entries.some(
-    (entry) => entry.id === "cursor" && entry.status !== "not_detected",
+    (entry) => entry.id === "cursor" && entry.status === "already_configured",
   );
 }
 
@@ -1617,7 +1677,7 @@ function printAgenticDetectSummary(
     for (const instruction of buildConfiguredDetectionInstructions(entries)) {
       console.log(`  ${instruction}`);
     }
-    if (hasDetectedCursor(entries)) {
+    if (hasConfiguredCursor(entries)) {
       for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
         console.log(`  ${instruction}`);
       }
@@ -1650,11 +1710,6 @@ function printAgenticDetectSummary(
   console.log();
   console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
   console.log(`  ${getAgenticVerifyInstruction(scope, commandOptions)}`);
-  if (hasDetectedCursor(actionable)) {
-    for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
-      console.log(`  ${instruction}`);
-    }
-  }
 }
 
 function printAgenticDetectJson(
@@ -1719,9 +1774,6 @@ function buildAgenticDetectJsonInstructions(input: {
   const detectedCount = entries.filter(
     (entry) => entry.status !== "not_detected",
   ).length;
-  const cursorInstructions = hasDetectedCursor(entries)
-    ? [...CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS]
-    : [];
   const commandOptions = { guidanceRequested };
   if (detectedCount === 0) {
     return [
@@ -1754,7 +1806,9 @@ function buildAgenticDetectJsonInstructions(input: {
       "Before authentication, show the user this install review:",
       ...INSTALL_REVIEW_ITEMS,
       ...buildConfiguredDetectionInstructions(entries),
-      ...cursorInstructions,
+      ...(hasConfiguredCursor(entries)
+        ? [...CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS]
+        : []),
       "Do not ask the user to choose actionable IDs.",
       AGENTIC_INIT_YES_WARNING,
       getAgenticJsonVerifyInstruction(scope, commandOptions),
@@ -1772,7 +1826,6 @@ function buildAgenticDetectJsonInstructions(input: {
     ...INSTALL_REVIEW_ITEMS,
     "Ask which actionable tools should receive GitHits MCP setup or guidance repair.",
     "Only run --install-agents with user-approved IDs.",
-    ...cursorInstructions,
     AGENTIC_INIT_YES_WARNING,
     getAgenticJsonVerifyInstruction(scope, commandOptions),
   ];
@@ -2087,8 +2140,16 @@ function printAgenticInstallJson(
   scope: InitSetupScope,
   guidanceRequested: boolean,
   cursorOnly: boolean,
+  mcpSetupRequested: boolean,
+  mcpTargetIds: string[],
 ): void {
-  const canAuthenticate = hasUsableInstallOutcome(outcomes);
+  const mcpOutcomes = outcomes.filter((outcome) =>
+    mcpTargetIds.includes(outcome.id),
+  );
+  const canAuthenticate =
+    (cursorOnly &&
+      (!mcpSetupRequested || hasUsableInstallOutcome(mcpOutcomes))) ||
+    (mcpSetupRequested && !cursorOnly && hasUsableInstallOutcome(mcpOutcomes));
   const changesMade =
     outcomes.some((outcome) => outcome.status === "success") ||
     guidance?.status === "success";
@@ -2109,7 +2170,9 @@ function printAgenticInstallJson(
           : {
               required: false,
               status: "not_applicable",
-              reason: "Fix installation errors before starting sign-in.",
+              reason: mcpSetupRequested
+                ? "Fix installation errors before starting sign-in."
+                : "No MCP changes were needed; sign-in was not checked.",
             },
         instructions: canAuthenticate
           ? buildAgenticInstallInstructions(
@@ -2126,8 +2189,17 @@ function printAgenticInstallJson(
               ...(cursorConfigured
                 ? [...CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS]
                 : []),
-              "Fix installation errors before asking the user to sign in.",
+              mcpSetupRequested
+                ? "Fix installation errors before asking the user to sign in."
+                : "No MCP changes were needed; sign-in was not checked.",
               buildAgenticGuidanceInstruction(guidanceRequested, guidance),
+              ...(mcpSetupRequested
+                ? []
+                : [
+                    getAgenticJsonVerifyInstruction(scope, {
+                      guidanceRequested,
+                    }),
+                  ]),
             ],
       },
       null,
@@ -2188,6 +2260,11 @@ async function runInstallAgentsMode(
   }
 
   const agents = findAgentsByIds(scan, requestedIds);
+  const mcpTargets = agents.filter((agent) =>
+    scan.needsSetup.some((candidate) => candidate.id === agent.id),
+  );
+  const mcpTargetIds = new Set(mcpTargets.map((agent) => agent.id));
+  const mcpSetupRequested = mcpTargets.length > 0;
   if (!options.json) {
     console.log("Installing GitHits MCP:");
     console.log();
@@ -2226,11 +2303,18 @@ async function runInstallAgentsMode(
       changes: guidance.changes,
     });
   }
-  const canAuthenticate = hasUsableInstallOutcome(outcomes);
-  const cursorOnly =
-    agents.length > 0 && agents.every((agent) => agent.id === "cursor");
+  const cursorOnly = mcpSetupRequested
+    ? mcpTargets.every((agent) => agent.id === "cursor")
+    : agents.length > 0 && agents.every((agent) => agent.id === "cursor");
+  const mcpOutcomes = outcomes.filter((outcome) =>
+    mcpTargetIds.has(outcome.id),
+  );
+  const canAuthenticate =
+    (cursorOnly &&
+      (!mcpSetupRequested || hasUsableInstallOutcome(mcpOutcomes))) ||
+    (mcpSetupRequested && !cursorOnly && hasUsableInstallOutcome(mcpOutcomes));
   const authStatus =
-    canAuthenticate && !cursorOnly
+    canAuthenticate && mcpSetupRequested && !cursorOnly
       ? await getStagedInstallAuthStatus(createLoginDeps)
       : "not_checked";
   if (failed.length > 0) {
@@ -2245,6 +2329,8 @@ async function runInstallAgentsMode(
       scope,
       guidanceRequested,
       cursorOnly,
+      mcpSetupRequested,
+      [...mcpTargetIds],
     );
     return;
   }
@@ -2271,7 +2357,7 @@ async function runInstallAgentsMode(
     console.log(`  ${getAgenticReloadInstruction(scope)}`);
     console.log();
   }
-  if (canAuthenticate) {
+  if (canAuthenticate && mcpSetupRequested) {
     if (cursorOnly) {
       for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
         console.log(`  ${instruction}`);
@@ -2293,7 +2379,24 @@ async function runInstallAgentsMode(
     }
     console.log(`  ${getAgenticVerifyInstruction(scope, commandOptions)}`);
   } else {
-    console.log("Fix installation errors before starting sign-in.");
+    if (mcpSetupRequested) {
+      console.log("Fix installation errors before starting sign-in.");
+    } else {
+      if (
+        outcomes.some(
+          (outcome) =>
+            outcome.id === "cursor" &&
+            (outcome.status === "success" ||
+              outcome.status === "already_configured"),
+        )
+      ) {
+        for (const instruction of CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS) {
+          console.log(`  ${instruction}`);
+        }
+      }
+      console.log("No MCP changes were needed; sign-in was not checked.");
+      console.log(`  ${getAgenticVerifyInstruction(scope, commandOptions)}`);
+    }
   }
   console.log();
 }
@@ -2454,6 +2557,7 @@ function printPostSetupNextSteps(
   useColors: boolean,
   changesMade: boolean,
   cursorConfigured: boolean,
+  localAuthApplicable: boolean,
 ): void {
   const ready = shouldPrintReady(authStatus) && !cursorConfigured;
   printSection(6, ready ? "Ready" : "Next Steps", useColors);
@@ -2473,6 +2577,22 @@ function printPostSetupNextSteps(
     console.log(
       "  Local GitHits CLI authentication is active. Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
     );
+  } else if (cursorConfigured && authStatus === "failed_continue") {
+    console.log(
+      "  Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
+    );
+    printAuthRequiredNextSteps(useColors);
+  } else if (cursorConfigured) {
+    console.log(
+      "  Sign-in was not checked. Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
+    );
+    if (localAuthApplicable) {
+      printAuthNotCheckedNextSteps(useColors);
+    }
+  } else if (!localAuthApplicable) {
+    console.log(
+      "  GitHits MCP was unchanged; supporting guidance was repaired.",
+    );
   } else if (ready) {
     printReadyNextSteps();
   } else if (authStatus === "failed_continue") {
@@ -2487,6 +2607,7 @@ function printProjectNextSteps(
   useColors: boolean,
   changesMade: boolean,
   cursorConfigured: boolean,
+  localAuthApplicable: boolean,
 ) {
   const ready = shouldPrintReady(authStatus) && !cursorConfigured;
   printSection(6, ready ? "Ready" : "Next Steps", useColors);
@@ -2506,6 +2627,22 @@ function printProjectNextSteps(
     console.log(
       "  Local GitHits CLI authentication is active. Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
     );
+  } else if (cursorConfigured && authStatus === "failed_continue") {
+    console.log(
+      "  Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
+    );
+    printProjectAuthRequiredNextSteps(useColors);
+  } else if (cursorConfigured) {
+    console.log(
+      "  GitHits MCP is configured for this project. Sign-in was not checked. Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
+    );
+    if (localAuthApplicable) {
+      printProjectAuthNotCheckedNextSteps(useColors);
+    }
+  } else if (!localAuthApplicable) {
+    console.log(
+      "  GitHits MCP was unchanged for this project; supporting guidance was repaired.",
+    );
   } else if (ready) {
     printReadyNextSteps();
   } else if (authStatus === "failed_continue") {
@@ -2521,12 +2658,25 @@ function printScopedNextSteps(
   useColors: boolean,
   changesMade: boolean,
   cursorConfigured: boolean,
+  localAuthApplicable: boolean,
 ): void {
   if (scope === "project") {
-    printProjectNextSteps(authStatus, useColors, changesMade, cursorConfigured);
+    printProjectNextSteps(
+      authStatus,
+      useColors,
+      changesMade,
+      cursorConfigured,
+      localAuthApplicable,
+    );
     return;
   }
-  printPostSetupNextSteps(authStatus, useColors, changesMade, cursorConfigured);
+  printPostSetupNextSteps(
+    authStatus,
+    useColors,
+    changesMade,
+    cursorConfigured,
+    localAuthApplicable,
+  );
 }
 
 function getConfigFileSetups(setup: SetupConfig): ConfigFileSetup[] {
@@ -3789,6 +3939,21 @@ function guidanceStatusRows(
   return [];
 }
 
+function describeAlreadyConfiguredAgents(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+): AgentOutcome[] {
+  return agents.map((agent) => {
+    const config = getResolvedSetupConfig(agent, fileSystemService);
+    return {
+      id: agent.id,
+      name: agent.name,
+      status: "already_configured",
+      changes: describeConfigAsUnchanged(config),
+    };
+  });
+}
+
 function printChangeRowsSection(
   title: string,
   rows: ChangeRow[],
@@ -3815,6 +3980,7 @@ function printInstallOutcomeSections(
   fileSystemService: FileSystemService,
   useColors: boolean,
   scope: InitSetupScope,
+  guidanceAgents: AgentDefinition[] = agents,
 ): void {
   const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
   const mcpRows = outcomes.flatMap((outcome) => {
@@ -3829,7 +3995,7 @@ function printInstallOutcomeSections(
     );
   });
   const guidanceTargetLabels = guidance
-    ? buildGuidanceTargetLabels(agents, fileSystemService, scope)
+    ? buildGuidanceTargetLabels(guidanceAgents, fileSystemService, scope)
     : new Map<string, string>();
   const skillRows = guidance
     ? guidanceRowsForKind(
@@ -4322,13 +4488,20 @@ export async function initAction(
     return;
   }
 
-  let toSetup = scan.needsSetup;
+  const detection = await buildStagedDetection(
+    scan,
+    installSupportingGuidance,
+    fileSystemService,
+    execService,
+    setupScope,
+  );
+  let selectedIds = options.yes ? detection.actionableIds : [];
   printSection(2, "Choose tools", useColors);
-  if (!options.yes && scan.needsSetup.length > 0) {
+  if (!options.yes && detection.actionableIds.length > 0) {
     try {
-      toSetup = await promptService.checkbox(
+      selectedIds = await promptService.checkbox(
         "  Select which tools should use GitHits:",
-        buildInitAgentChoices(scan),
+        buildInitAgentChoices(detection),
       );
     } catch (err) {
       if (err instanceof ExitPromptError) {
@@ -4337,23 +4510,45 @@ export async function initAction(
       }
       throw err;
     }
-  } else if (scan.needsSetup.length === 0) {
+  } else if (detection.actionableIds.length === 0) {
     printTask(
       "success",
       "No tool changes needed",
-      "all detected tools already have GitHits MCP",
+      "all detected tools are configured",
       useColors,
     );
   } else {
     printTask("success", "Selected all detected tools", "--yes", useColors);
   }
 
-  if (toSetup.length === 0 && scan.needsSetup.length > 0) {
-    printTask("skipped", "Setup skipped", "no tools selected", useColors);
+  let selection = getInteractiveInitSelection(
+    detection,
+    scan,
+    selectedIds,
+    installSupportingGuidance,
+    fileSystemService,
+    setupScope,
+  );
+  if (
+    detection.actionableIds.length > 0 &&
+    selection.mcpAgents.length === 0 &&
+    selection.guidanceAgents.length === 0
+  ) {
+    console.log("  Nothing selected, no changes made.");
+    const unchangedOutcomes = describeAlreadyConfiguredAgents(
+      scan.alreadyConfigured,
+      fileSystemService,
+    );
+    printInstallOutcomeSections(
+      unchangedOutcomes,
+      scan.alreadyConfigured,
+      null,
+      fileSystemService,
+      useColors,
+      setupScope,
+    );
     console.log();
-    if (scan.alreadyConfigured.length === 0) {
-      return;
-    }
+    return;
   }
 
   if (installSupportingGuidance && setupScope === "project" && !options.yes) {
@@ -4369,26 +4564,47 @@ export async function initAction(
       }
       throw err;
     }
+    selection = getInteractiveInitSelection(
+      detection,
+      scan,
+      selectedIds,
+      installSupportingGuidance,
+      fileSystemService,
+      setupScope,
+    );
+    if (
+      selection.mcpAgents.length === 0 &&
+      selection.guidanceAgents.length === 0
+    ) {
+      console.log("  Nothing selected, no changes made.");
+      console.log();
+      return;
+    }
   }
 
-  if (toSetup.length > 0) {
-    await printTomlRewriteWarnings(toSetup, fileSystemService, useColors);
+  if (selection.mcpAgents.length > 0) {
+    await printTomlRewriteWarnings(
+      selection.mcpAgents,
+      fileSystemService,
+      useColors,
+    );
   }
 
-  const summaryAgents = getInstallSummaryAgents(scan, toSetup);
-  const guidanceTargetAgents = installSupportingGuidance
-    ? getGuidanceTargetAgents(summaryAgents, fileSystemService, setupScope)
-    : [];
   printSection(3, "Review and confirm", useColors);
   printInstallReview(
     useColors,
     setupScope,
-    toSetup,
-    guidanceTargetAgents,
+    selection.mcpAgents,
+    selection.guidanceAgents,
     installSupportingGuidance,
     false,
+    selection.unchangedAgents,
   );
-  if (options.yes) {
+  const noActions =
+    selection.mcpAgents.length === 0 && selection.guidanceAgents.length === 0;
+  if (noActions) {
+    printTask("success", "Nothing to change", "verification only", useColors);
+  } else if (options.yes) {
     printTask("success", "Setup acknowledged", "--yes", useColors);
   } else {
     let accepted: boolean;
@@ -4410,67 +4626,105 @@ export async function initAction(
     }
   }
 
-  printSection(4, "Sign in", useColors);
-  const authStatus = await runInitAuthentication(
-    options,
-    promptService,
-    createLoginDeps,
-    useColors,
-  );
-  if (authStatus === "cancelled") {
-    return;
+  let authStatus: InitAuthStatus = "unavailable";
+  const cursorOnly =
+    selection.mcpAgents.length > 0 &&
+    selection.mcpAgents.every((agent) => agent.id === "cursor");
+  if (selection.mcpAgents.length > 0 && !cursorOnly) {
+    printSection(4, "Sign in", useColors);
+    authStatus = await runInitAuthentication(
+      options,
+      promptService,
+      createLoginDeps,
+      useColors,
+    );
+    if (authStatus === "cancelled") {
+      return;
+    }
   }
 
   printSection(5, "Install and verify", useColors);
-  const outcomes = await installSelectedAgents(
-    summaryAgents,
-    scan,
-    fileSystemService,
-    execService,
-    useColors,
-    false,
-    setupScope,
-  );
-  const guidanceOutcome = installSupportingGuidance
-    ? await installGuidance(
-        summaryAgents,
+  const mcpOutcomes = noActions
+    ? []
+    : await installSelectedAgents(
+        selection.mcpAgents,
+        scan,
         fileSystemService,
         execService,
+        useColors,
+        false,
         setupScope,
-      )
-    : null;
+      );
+  const reportingOutcomes = describeAlreadyConfiguredAgents(
+    selection.unchangedAgents,
+    fileSystemService,
+  );
+  const outcomes = [...mcpOutcomes, ...reportingOutcomes];
+  const guidanceOutcome =
+    !noActions && installSupportingGuidance
+      ? await installGuidance(
+          selection.guidanceAgents,
+          fileSystemService,
+          execService,
+          setupScope,
+        )
+      : null;
   printInstallOutcomeSections(
     outcomes,
-    summaryAgents,
+    [...selection.mcpAgents, ...selection.unchangedAgents],
     guidanceOutcome,
     fileSystemService,
     useColors,
     setupScope,
+    selection.guidanceAgents,
   );
 
-  const configured = outcomes.filter((o) => o.status === "success").length;
-  const alreadyDone = outcomes.filter(
+  const configured = mcpOutcomes.filter((o) => o.status === "success").length;
+  const alreadyDone = mcpOutcomes.filter(
     (o) => o.status === "already_configured",
   ).length;
+  const reportingAlreadyDone = reportingOutcomes.length;
   const failed =
     outcomes.filter((o) => o.status === "failed").length +
     (guidanceOutcome?.status === "failed" ? 1 : 0);
 
   if (failed > 0) {
     console.log("  Setup completed with errors.");
-  } else if (configured > 0 || alreadyDone > 0) {
-    printMcpServerSummary(useColors, configured > 0);
+  } else if (
+    configured > 0 ||
+    alreadyDone > 0 ||
+    reportingAlreadyDone > 0 ||
+    guidanceOutcome?.status === "success" ||
+    guidanceOutcome?.status === "already_configured"
+  ) {
+    if (configured > 0 || alreadyDone > 0 || reportingAlreadyDone > 0) {
+      printMcpServerSummary(useColors, configured > 0);
+    }
     printScopedNextSteps(
       setupScope,
       authStatus,
       useColors,
       configured > 0 || guidanceOutcome?.status === "success",
-      outcomes.some(
+      mcpOutcomes.some(
         (outcome) =>
           outcome.id === "cursor" &&
           (outcome.status === "success" ||
             outcome.status === "already_configured"),
-      ),
+      ) ||
+        (noActions &&
+          reportingOutcomes.some(
+            (outcome) =>
+              outcome.id === "cursor" &&
+              (outcome.status === "success" ||
+                outcome.status === "already_configured"),
+          )) ||
+        selection.selectedEntries.some(
+          (entry) =>
+            entry.id === "cursor" && entry.status === "already_configured",
+        ),
+      selection.mcpAgents.length > 0
+        ? selection.mcpAgents.some((agent) => agent.id !== "cursor")
+        : selection.guidanceAgents.length === 0,
     );
   }
 
@@ -4489,9 +4743,9 @@ export async function initAction(
       );
     }
   }
-  if (alreadyDone > 0) {
+  if (alreadyDone + reportingAlreadyDone > 0) {
     console.log(
-      `  ${alreadyDone} tool${alreadyDone !== 1 ? "s" : ""} already configured.`,
+      `  ${alreadyDone + reportingAlreadyDone} tool${alreadyDone + reportingAlreadyDone !== 1 ? "s" : ""} already configured.`,
     );
   }
 

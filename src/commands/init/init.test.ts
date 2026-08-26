@@ -210,32 +210,11 @@ function expectProjectAuthNotCheckedNextSteps(logCalls: string[]): void {
     true,
   );
   expect(logCalls.some((msg) => msg.includes("npx githits@latest login"))).toBe(
-    true,
+    false,
   );
   expect(
     logCalls.some((msg) =>
       msg.includes("GitHits MCP is configured. Sign-in was not checked."),
-    ),
-  ).toBe(false);
-}
-
-function expectProjectAuthRequiredNextSteps(logCalls: string[]): void {
-  expect(
-    logCalls.some((msg) =>
-      msg.includes(
-        "GitHits MCP is configured for this project, but sign-in is still needed.",
-      ),
-    ),
-  ).toBe(true);
-  expect(logCalls.some((msg) => msg.includes("loads the project config"))).toBe(
-    true,
-  );
-  expect(logCalls.some((msg) => msg.includes("npx githits@latest login"))).toBe(
-    true,
-  );
-  expect(
-    logCalls.some((msg) =>
-      msg.includes("GitHits MCP is configured, but sign-in is still needed."),
     ),
   ).toBe(false);
 }
@@ -578,6 +557,31 @@ describe("initAction", () => {
     );
     expect(payload.instructions).toContain(
       "Do not run init again after a successful --install-agents run; verify with npx -y githits@latest init --detect-agents --no-guidance --json instead.",
+    );
+  });
+
+  it("does not emit Cursor OAuth guidance while staged targets await selection", async () => {
+    const fs = createFsWithDetection([
+      "/home/test/.cursor",
+      "/home/test/.codeium/windsurf",
+    ]);
+
+    await initAction(
+      { detectAgents: true, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(payload.actionableIds).toContain("cursor");
+    expect(JSON.stringify(payload.instructions)).not.toContain(
+      "Cursor uses the remote GitHits MCP",
+    );
+    expect(JSON.stringify(payload.instructions)).not.toContain(
+      "cursor-agent mcp",
     );
   });
 
@@ -1387,7 +1391,7 @@ describe("initAction", () => {
       logCalls.some((msg) =>
         msg.includes("GitHits MCP is configured for this project."),
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("loads .mcp.json"))).toBe(false);
     expect(fs.atomicWriteFile).toHaveBeenCalledWith(
       "/repo/.cursor/mcp.json",
@@ -1395,7 +1399,7 @@ describe("initAction", () => {
     );
   });
 
-  it("prints project-specific next steps when project auth fails and user continues", async () => {
+  it("uses Cursor-specific project next steps without local auth", async () => {
     const configFiles: Record<string, string> = {};
     const fs = createFsWithDetection(
       ["/repo", "/home/test/.cursor"],
@@ -1406,36 +1410,10 @@ describe("initAction", () => {
       configFiles[path] = content;
     }) as typeof fs.atomicWriteFile;
     const promptService = createMockPromptService({
-      select: mock(
-        async <T>(
-          _message: string,
-          choices: Array<{ value: T }>,
-        ): Promise<T> => {
-          if (choices.some((choice) => choice.value === "project")) {
-            return "project" as T;
-          }
-          if (
-            choices.some((choice) => choice.value === "continue_without_auth")
-          ) {
-            return "continue_without_auth" as T;
-          }
-          return choices[0]!.value;
-        },
-      ) as PromptService["select"],
+      select: createProjectScopeSelectMock(),
       checkbox: createSelectAllCheckboxMock(),
     });
-    const createLoginDeps = mock(() =>
-      Promise.resolve({
-        authService: createMockAuthService({
-          discoverEndpoints: mock(() =>
-            Promise.reject(new Error("Network error")),
-          ),
-        }),
-        authStorage: createMockAuthStorage(),
-        browserService: createMockBrowserService(),
-        mcpUrl: "https://mcp.githits.com",
-      }),
-    );
+    const createLoginDeps = createUnauthLoginDeps();
 
     await initAction(
       { guidance: false },
@@ -1447,7 +1425,8 @@ describe("initAction", () => {
       },
     );
 
-    expectProjectAuthRequiredNextSteps(getLogOutput());
+    expectCursorRemoteNextSteps(getLogOutput());
+    expect(createLoginDeps).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).toHaveBeenCalledWith(
       "/repo/.cursor/mcp.json",
       expect.any(String),
@@ -1768,6 +1747,47 @@ describe("initAction", () => {
       "cursor-agent mcp list-tools GitHits",
     );
     expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(JSON.stringify(payload)).not.toContain("githits@latest login");
+  });
+
+  it("bases staged mixed auth on MCP targets, not guidance-only repairs", async () => {
+    const configFiles: Record<string, string> = {
+      "/home/test/.config/opencode/opencode.json": JSON.stringify({
+        mcp: {
+          GitHits: {
+            type: "local",
+            command: ["npx", "-y", "githits@latest", "mcp", "start"],
+            enabled: true,
+          },
+        },
+      }),
+    };
+    const fs = createFsWithDetection(
+      ["/home/test/.cursor", "/home/test/.config/opencode"],
+      configFiles,
+    );
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+
+    await initAction(
+      { installAgents: "cursor,opencode", json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(payload.auth.status).toBe("managed_by_cursor");
+    expect(payload.auth.loginCommand).toBe("cursor-agent mcp login GitHits");
+    expect(payload.instructions).toContain(
+      "Cursor uses the remote GitHits MCP at https://mcp.githits.com and manages its OAuth separately from local GitHits CLI authentication.",
+    );
     expect(JSON.stringify(payload)).not.toContain("githits@latest login");
   });
 
@@ -2833,7 +2853,7 @@ describe("initAction", () => {
     expect(logCalls.some((msg) => msg.includes("3. Review and confirm"))).toBe(
       true,
     );
-    expect(logCalls.some((msg) => msg.includes("4. Sign in"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("4. Sign in"))).toBe(false);
     expect(logCalls.some((msg) => msg.includes("5. Install and verify"))).toBe(
       true,
     );
@@ -3165,6 +3185,277 @@ describe("initAction", () => {
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
 
+  it("repairs selected guidance without MCP setup or authentication", async () => {
+    const fs = createFsWithDetection(["/home/test/.cursor"], {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+    });
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+    const promptService = createMockPromptService({
+      checkbox: mock(
+        async <T>(
+          _message: string,
+          choices: Array<{
+            name: string;
+            value: T;
+            checked?: boolean;
+            disabled?: boolean | string;
+          }>,
+        ) => {
+          const repairChoice = choices.find((choice) =>
+            String(choice.name).includes("guidance repair"),
+          );
+          expect(repairChoice?.checked).toBe(true);
+          return [repairChoice!.value];
+        },
+      ) as PromptService["checkbox"],
+      confirm: mock(() => Promise.resolve(true)),
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalledWith(
+      "/home/test/.cursor/mcp.json",
+      expect.any(String),
+    );
+    const output = getLogOutput().join("\n");
+    expect(output).toContain("MCP tools to configure: None");
+    expect(output).toContain("Guidance targets: Cursor");
+    expect(output).toContain("Cursor skill");
+  });
+
+  it("does not suggest local login after user-level guidance-only repair", async () => {
+    const configFiles: Record<string, string> = {
+      "/home/test/.config/opencode/opencode.json": JSON.stringify({
+        mcp: {
+          GitHits: {
+            type: "local",
+            command: ["npx", "-y", "githits@latest", "mcp", "start"],
+            enabled: true,
+          },
+        },
+      }),
+    };
+    const fs = createFsWithDetection(
+      ["/home/test/.config/opencode"],
+      configFiles,
+    );
+    const writes: Record<string, string> = {};
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      writes[path] = content;
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    const output = getLogOutput().join("\n");
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(writes["/home/test/.config/opencode/AGENTS.md"]).toContain(
+      "<!-- githits -->",
+    );
+    expect(output).toContain(
+      "GitHits MCP was unchanged; supporting guidance was repaired.",
+    );
+    expect(output).toContain("Open a new coding agent session");
+    expect(output).not.toContain("npx githits@latest login");
+  });
+
+  it("does not suggest local login after project-level guidance-only repair", async () => {
+    const configFiles: Record<string, string> = {
+      "/repo/opencode.json": JSON.stringify({
+        mcp: {
+          GitHits: {
+            type: "local",
+            command: ["npx", "-y", "githits@latest", "mcp", "start"],
+            enabled: true,
+          },
+        },
+      }),
+    };
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.config/opencode"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const writes: Record<string, string> = {};
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      writes[path] = content;
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+    const promptService = createMockPromptService({
+      select: mock(
+        async <T>(
+          message: string,
+          choices: Array<{ value: T }>,
+          defaultValue?: T,
+        ) => {
+          if (message.includes("Where should")) return "project" as T;
+          return (defaultValue ?? choices[0]!.value) as T;
+        },
+      ) as PromptService["select"],
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    const output = getLogOutput().join("\n");
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(writes["/repo/AGENTS.md"]).toContain("<!-- githits -->");
+    expect(output).toContain(
+      "GitHits MCP was unchanged for this project; supporting guidance was repaired.",
+    );
+    expect(output).toContain("loads the project config");
+    expect(output).not.toContain("npx githits@latest login");
+  });
+
+  it("does not retarget unselected guidance or Cursor during OpenCode setup", async () => {
+    const configFiles: Record<string, string> = {
+      "/home/test/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+    };
+    const fs = createFsWithDetection(
+      ["/home/test/.cursor", "/home/test/.config/opencode"],
+      configFiles,
+    );
+    const writes: Record<string, string> = {};
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      writes[path] = content;
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const execService = createMockExecService({
+      exec: mock((cmd: string, args: string[]) => {
+        const key = `${cmd} ${args.join(" ")}`;
+        if (key === `${lookupCommandFor()} codex`) {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: "/usr/bin/codex\n",
+            stderr: "",
+          });
+        }
+        if (key === "codex mcp get githits --json") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: CODEX_CONFIGURED_OUTPUT,
+            stderr: "",
+          });
+        }
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
+      }),
+    });
+    const promptService = createMockPromptService({
+      checkbox: mock(
+        async <T>(
+          _message: string,
+          choices: Array<{ name: string; value: T }>,
+        ) =>
+          choices
+            .filter((choice) => String(choice.value) === "opencode")
+            .map((choice) => choice.value),
+      ) as PromptService["checkbox"],
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService,
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    const output = getLogOutput().join("\n");
+    expect(output).toContain("MCP tools to configure: OpenCode");
+    expect(output).toContain("OpenCode guidance");
+    expect(writes["/home/test/.config/opencode/AGENTS.md"]).toContain(
+      "<!-- githits -->",
+    );
+    expect(writes["/home/test/.codex/AGENTS.md"]).toBeUndefined();
+    expect(output).not.toContain("Codex CLI guidance");
+    expect(output).not.toContain("cursor-agent mcp");
+  });
+
+  it("recomputes selection when project guidance repair is declined", async () => {
+    const fs = createFsWithDetection(["/repo", "/home/test/.cursor"], {
+      "/repo/.cursor/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+    });
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+    const promptService = createMockPromptService({
+      select: mock(
+        async <T>(
+          message: string,
+          choices: Array<{ value: T }>,
+          defaultValue?: T,
+        ) => {
+          if (message.includes("Where should")) return "project" as T;
+          return (defaultValue ?? choices[0]!.value) as T;
+        },
+      ) as PromptService["select"],
+      confirm: mock(
+        async (message: string) => !message.includes("Add project-level"),
+      ),
+    });
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(getLogOutput().join("\n")).toContain(
+      "Nothing selected, no changes made",
+    );
+  });
+
   it("shows already-configured rows when no new tools are selected", async () => {
     const fs = createFsWithDetection(
       ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
@@ -3194,7 +3485,9 @@ describe("initAction", () => {
 
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     const logCalls = getLogOutput();
-    expect(logCalls.some((msg) => msg.includes("Setup skipped"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Nothing selected, no changes made")),
+    ).toBe(true);
     expect(
       logCalls.some(
         (msg) =>
@@ -3208,7 +3501,9 @@ describe("initAction", () => {
         (msg) => msg.includes("Windsurf") && msg.includes("created"),
       ),
     ).toBe(false);
-    expectCursorRemoteNextSteps(logCalls);
+    expect(logCalls.some((msg) => msg.includes("cursor-agent mcp"))).toBe(
+      false,
+    );
   });
 
   it("configures only the agents selected in the checkbox", async () => {
@@ -4575,12 +4870,17 @@ describe("initAction", () => {
     );
 
     const logCalls = getLogOutput();
-    expect(logCalls.some((msg) => msg.includes("Setup skipped"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("Nothing selected, no changes made")),
+    ).toBe(true);
   });
 
   describe("login integration", () => {
     it("runs login flow and proceeds when already authenticated", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
@@ -4603,7 +4903,10 @@ describe("initAction", () => {
     });
 
     it("skips browser login when token resolution already refreshed auth", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
@@ -4651,7 +4954,10 @@ describe("initAction", () => {
     });
 
     it("clears stale client before init login when token resolution found no token", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
@@ -4690,7 +4996,10 @@ describe("initAction", () => {
     });
 
     it("runs login flow and proceeds on success", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
@@ -4721,7 +5030,10 @@ describe("initAction", () => {
     });
 
     it("prints login URL instead of opening browser with --no-browser", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const browserService = createMockBrowserService();
       const authService = createMockAuthService();
       const promptService = createMockPromptService({
@@ -4772,7 +5084,10 @@ describe("initAction", () => {
     });
 
     it("prompts to continue when login fails", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         select: mock((message, choices, defaultValue) => {
           if (String(message).includes("Authentication failed")) {
@@ -4816,7 +5131,10 @@ describe("initAction", () => {
 
     it("does not claim GitHits is ready after continuing without auth", async () => {
       const configFiles: Record<string, string> = {};
-      const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+      const fs = createFsWithDetection(
+        ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
+        configFiles,
+      );
       fs.atomicWriteFile = mock((path: string, content: string) => {
         configFiles[path] = content;
         return Promise.resolve();
@@ -4862,7 +5180,10 @@ describe("initAction", () => {
     });
 
     it("cancels setup when login fails and user declines to continue", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         select: mock((message, choices, defaultValue) => {
           if (String(message).includes("Authentication failed")) {
@@ -4902,7 +5223,10 @@ describe("initAction", () => {
     });
 
     it("--skip-login skips authentication step", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
@@ -4925,7 +5249,10 @@ describe("initAction", () => {
     });
 
     it("--yes mode continues on login failure without prompting", async () => {
-      const fs = createFsWithDetection(["/home/test/.cursor"]);
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
       const promptService = createMockPromptService();
       const createLoginDeps = mock(() =>
         Promise.resolve({
@@ -4956,7 +5283,10 @@ describe("initAction", () => {
 
     it("skips login when createLoginDeps is not provided", async () => {
       const configFiles: Record<string, string> = {};
-      const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+      const fs = createFsWithDetection(
+        ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
+        configFiles,
+      );
       fs.atomicWriteFile = mock((path: string, content: string) => {
         configFiles[path] = content;
         return Promise.resolve();
