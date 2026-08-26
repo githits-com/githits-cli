@@ -27,6 +27,11 @@ import {
 } from "../../services/test-helpers.js";
 import type { LoginDependencies } from "../login.js";
 import {
+  GITHITS_GUIDANCE_BLOCK,
+  GITHITS_GUIDANCE_MARKER,
+  GITHITS_SKILL_CATALOG,
+} from "./guidance-assets.js";
+import {
   initAction,
   initUninstallAction,
   registerInitCommand,
@@ -120,10 +125,12 @@ function createUnauthLoginDeps(): () => Promise<
   );
 }
 
-function readGithitsMcpSkillContent(): string {
-  return readFileSync(
-    join(process.cwd(), "skills", "githits-mcp", "SKILL.md"),
-    "utf8",
+function readCanonicalSkillFiles(skillRoot: string): Record<string, string> {
+  return Object.fromEntries(
+    GITHITS_SKILL_CATALOG.map((skill) => [
+      `${skillRoot}/${skill.name}/SKILL.md`,
+      readFileSync(join(process.cwd(), ...skill.relativePath), "utf8"),
+    ]),
   );
 }
 
@@ -135,13 +142,15 @@ function createFsWithDetection(
   detectedDirs: string[],
   configFiles: Record<string, string> = {},
 ) {
-  const githitsMcpSkillContent = readGithitsMcpSkillContent();
-  const githitsMcpSkillSourcePath = join(
-    process.cwd(),
-    "skills",
-    "githits-mcp",
-    "SKILL.md",
-  ).replaceAll("\\", "/");
+  const skillSourceContents = new Map(
+    GITHITS_SKILL_CATALOG.map((skill) => {
+      const sourcePath = join(process.cwd(), ...skill.relativePath).replaceAll(
+        "\\",
+        "/",
+      );
+      return [sourcePath, readFileSync(sourcePath, "utf8")];
+    }),
+  );
   return createMockFileSystemService({
     getHomeDir: mock(() => "/home/test"),
     joinPath: mock((...segments: string[]) => segments.join("/")),
@@ -152,8 +161,9 @@ function createFsWithDetection(
     ensureDir: mock(() => Promise.resolve()),
     readFile: mock(async (path: string) => {
       const normalizedPath = path.replaceAll("\\", "/");
-      if (normalizedPath === githitsMcpSkillSourcePath) {
-        return githitsMcpSkillContent;
+      const skillSource = skillSourceContents.get(normalizedPath);
+      if (skillSource !== undefined) {
+        return skillSource;
       }
       if (path in configFiles) {
         return configFiles[path]!;
@@ -161,7 +171,9 @@ function createFsWithDetection(
       throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     }),
     exists: mock(async (path: string) => path in configFiles),
-    atomicWriteFile: mock(() => Promise.resolve()),
+    atomicWriteFile: mock(async (path: string, content: string) => {
+      configFiles[path] = content;
+    }),
   });
 }
 
@@ -628,8 +640,13 @@ describe("initAction", () => {
           },
         },
       }),
-      "/home/test/.agents/skills/githits-mcp/SKILL.md":
-        readGithitsMcpSkillContent(),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      ...readCanonicalSkillFiles("/home/test/.claude/skills"),
+      "/home/test/.claude/CLAUDE.md": [
+        GITHITS_GUIDANCE_MARKER,
+        GITHITS_GUIDANCE_BLOCK,
+        GITHITS_GUIDANCE_MARKER,
+      ].join("\n"),
     });
 
     await initAction(
@@ -694,13 +711,12 @@ describe("initAction", () => {
         },
       },
     });
-    const sharedSkillPath = "/home/test/.agents/skills/githits-mcp/SKILL.md";
     const fs = createFsWithDetection(
       ["/home/test/.cursor", "/home/test/.qwen"],
       {
         "/home/test/.cursor/mcp.json": cursorMcpConfig,
         "/home/test/.qwen/settings.json": qwenMcpConfig,
-        [sharedSkillPath]: readGithitsMcpSkillContent(),
+        ...readCanonicalSkillFiles("/home/test/.agents/skills"),
       },
     );
 
@@ -713,10 +729,13 @@ describe("initAction", () => {
       },
     );
 
-    const targetReads = (
-      fs.readFile as ReturnType<typeof mock>
-    ).mock.calls.filter(([path]) => path === sharedSkillPath);
-    expect(targetReads).toHaveLength(1);
+    const targetReads = (fs.readFile as ReturnType<typeof mock>).mock.calls;
+    for (const skill of GITHITS_SKILL_CATALOG) {
+      const targetPath = `/home/test/.agents/skills/${skill.name}/SKILL.md`;
+      expect(targetReads.filter(([path]) => path === targetPath)).toHaveLength(
+        1,
+      );
+    }
   });
 
   it("does not make missing guidance actionable with --no-guidance", async () => {
@@ -1914,8 +1933,7 @@ describe("initAction", () => {
           },
         },
       }),
-      "/home/test/.agents/skills/githits-mcp/SKILL.md":
-        readGithitsMcpSkillContent(),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
     });
 
     await initAction(
@@ -2418,7 +2436,7 @@ describe("initAction", () => {
     ).toBe(true);
   });
 
-  it("staged guided install uses a native skill path when .agents is not supported", async () => {
+  it("staged guided install uses the shared skill path for Cline", async () => {
     const configFiles: Record<string, string> = {};
     const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
     const writes: Record<string, string> = {};
@@ -2437,19 +2455,435 @@ describe("initAction", () => {
       },
     );
 
-    expect(writes["/home/test/.cline/skills/githits-mcp/SKILL.md"]).toContain(
-      "name: githits-mcp",
-    );
-    expect(writes["/home/test/.agents/skills/githits-mcp/SKILL.md"]).toBe(
+    for (const skill of GITHITS_SKILL_CATALOG) {
+      expect(
+        writes[`/home/test/.agents/skills/${skill.name}/SKILL.md`],
+      ).toContain(`name: ${skill.name}`);
+    }
+    expect(writes["/home/test/.cline/skills/githits-mcp/SKILL.md"]).toBe(
       undefined,
     );
     expect(
       getLogOutput().some(
         (msg) =>
           msg.includes("Cline skill") &&
-          msg.includes("~/.cline/skills/githits-mcp/SKILL.md"),
+          msg.includes("~/.agents/skills/githits-mcp/SKILL.md"),
       ),
     ).toBe(true);
+  });
+
+  it("repairs a missing subset of shared skills without MCP or auth", async () => {
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      "/home/test/.agents/skills/githits-mcp/SKILL.md": readCanonicalSkillFiles(
+        "/home/test/.agents/skills",
+      )["/home/test/.agents/skills/githits-mcp/SKILL.md"]!,
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    const writes: string[] = [];
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      writes.push(path);
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+
+    await initAction(
+      { installAgents: "cline", guidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(writes).toEqual(
+      expect.arrayContaining([
+        "/home/test/.agents/skills/githits-code/SKILL.md",
+        "/home/test/.agents/skills/githits-onboarding/SKILL.md",
+        "/home/test/.agents/skills/githits-package/SKILL.md",
+      ]),
+    );
+    expect(writes).not.toContain(
+      "/home/test/.cline/data/settings/cline_mcp_settings.json",
+    );
+  });
+
+  it("keeps historical skills untouched when guidance is disabled", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      [legacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+
+    await initAction(
+      { detectAgents: true, guidance: false, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const detection = JSON.parse(getLogOutput()[0] ?? "{}");
+    const cline = detection.agents.find(
+      (entry: { id: string }) => entry.id === "cline",
+    );
+    expect(cline.status).toBe("already_configured");
+    expect(cline.guidanceStatus).toBe("not_requested");
+    expect(detection.actionableIds).toEqual([]);
+
+    logSpy.mockClear();
+    await initAction(
+      { installAgents: "cline", guidance: false },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(deleteCalls).toEqual([]);
+    expect(configFiles[legacyPath]).toBe("legacy Cline skill");
+  });
+
+  it("treats a historical skill probe failure as actionable", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    fs.exists = mock(async (path: string) => {
+      if (path === legacyPath) throw new Error("legacy probe failure");
+      return path in configFiles;
+    }) as typeof fs.exists;
+
+    await initAction(
+      { detectAgents: true, guidance: true, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    const detection = JSON.parse(getLogOutput()[0] ?? "{}");
+    const cline = detection.agents.find(
+      (entry: { id: string }) => entry.id === "cline",
+    );
+    expect(cline.status).toBe("already_configured");
+    expect(cline.guidanceStatus).toBe("needs_setup");
+    expect(detection.actionableIds).toEqual(["cline"]);
+  });
+
+  it("migrates a complete Cline guidance set before removing its legacy skill", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      [legacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+
+    await initAction(
+      { installAgents: "cline", guidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(deleteCalls).toEqual([legacyPath]);
+    expect(configFiles[legacyPath]).toBeUndefined();
+    for (const skill of GITHITS_SKILL_CATALOG) {
+      expect(
+        configFiles[`/home/test/.agents/skills/${skill.name}/SKILL.md`],
+      ).toBe(
+        readCanonicalSkillFiles("/home/test/.agents/skills")[
+          `/home/test/.agents/skills/${skill.name}/SKILL.md`
+        ],
+      );
+    }
+    expect(
+      getLogOutput().some(
+        (msg) =>
+          msg.includes("~/.cline/skills/githits-mcp/SKILL.md") &&
+          msg.includes("removed"),
+      ),
+    ).toBe(true);
+  });
+
+  it("offers a Cline legacy cleanup as an interactive guidance repair", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      [legacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+
+    await initAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(deleteCalls).toEqual([legacyPath]);
+    expect(getLogOutput().join("\n")).toContain("Guidance targets: Cline");
+    expect(getLogOutput().join("\n")).toContain("removed");
+  });
+
+  it("preserves a Cline legacy skill when active guidance installation fails", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      [legacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    fs.atomicWriteFile = mock(async (path: string, content: string) => {
+      if (path === "/home/test/.agents/skills/githits-code/SKILL.md") {
+        throw new Error("active guidance write failed");
+      }
+      configFiles[path] = content;
+    }) as typeof fs.atomicWriteFile;
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+
+    await initAction(
+      { installAgents: "cline", guidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(configFiles[legacyPath]).toBe("legacy Cline skill");
+    expect(deleteCalls).toEqual([]);
+    expect(process.exitCode).toBe(1);
+    expect(getLogOutput().join("\n")).toContain("active guidance write failed");
+  });
+
+  it("keeps active guidance and reports a failed Cline legacy cleanup", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      [legacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    fs.deleteFile = mock(async (path: string) => {
+      if (path === legacyPath) throw new Error("legacy cleanup secret failure");
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+
+    await initAction(
+      { installAgents: "cline", guidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps: createAlreadyAuthLoginDeps(),
+      },
+    );
+
+    expect(configFiles[legacyPath]).toBe("legacy Cline skill");
+    for (const skill of GITHITS_SKILL_CATALOG) {
+      expect(
+        configFiles[`/home/test/.agents/skills/${skill.name}/SKILL.md`],
+      ).toBe(
+        readCanonicalSkillFiles("/home/test/.agents/skills")[
+          `/home/test/.agents/skills/${skill.name}/SKILL.md`
+        ],
+      );
+    }
+    expect(process.exitCode).toBe(1);
+    expect(getLogOutput().join("\n")).toContain(legacyPath);
+    expect(getLogOutput().join("\n")).toContain("guidance cleanup failed");
+    expect(getLogOutput().join("\n")).not.toContain(
+      "legacy cleanup secret failure",
+    );
+  });
+
+  it("converges a Cline cleanup-only migration to a no-op on rerun", async () => {
+    const legacyPath = "/home/test/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      [legacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    const dependencies = {
+      fileSystemService: fs,
+      promptService: createMockPromptService(),
+      execService: createMockExecService(),
+      createLoginDeps: createAlreadyAuthLoginDeps(),
+    };
+
+    await initAction({ installAgents: "cline", guidance: true }, dependencies);
+    expect(deleteCalls).toEqual([legacyPath]);
+    const firstOutput = getLogOutput().join("\n");
+    expect(firstOutput).toContain("removed");
+
+    logSpy.mockClear();
+    await initAction({ installAgents: "cline", guidance: true }, dependencies);
+
+    expect(deleteCalls).toEqual([legacyPath]);
+    expect(getLogOutput().join("\n")).toContain("already configured");
+  });
+
+  it("migrates Junie project guidance without removing another legacy root", async () => {
+    const junieLegacyPath = "/repo/.junie/skills/githits-mcp/SKILL.md";
+    const clineLegacyPath = "/repo/.cline/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/repo/.junie/mcp/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      ...readCanonicalSkillFiles("/repo/.agents/skills"),
+      [junieLegacyPath]: "legacy Junie skill",
+      [clineLegacyPath]: "legacy Cline skill",
+    };
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.junie"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    const createLoginDeps = createAlreadyAuthLoginDeps();
+
+    await initAction(
+      { project: true, installAgents: "junie", guidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    expect(createLoginDeps).not.toHaveBeenCalled();
+    expect(deleteCalls).toEqual([junieLegacyPath]);
+    expect(configFiles[junieLegacyPath]).toBeUndefined();
+    expect(configFiles[clineLegacyPath]).toBe("legacy Cline skill");
   });
 
   it("staged guided install writes tool-native user guidance targets", async () => {
@@ -2492,6 +2926,14 @@ describe("initAction", () => {
     expect(writes["/home/test/.kiro/steering/AGENTS.md"]).toContain(
       "<!-- githits -->",
     );
+    for (const skill of GITHITS_SKILL_CATALOG) {
+      expect(
+        writes[`/home/test/.agents/skills/${skill.name}/SKILL.md`],
+      ).toContain(`name: ${skill.name}`);
+      expect(
+        writes[`/home/test/.kiro/skills/${skill.name}/SKILL.md`],
+      ).toContain(`name: ${skill.name}`);
+    }
 
     const logCalls = getLogOutput();
     expect(
@@ -3815,6 +4257,13 @@ describe("initAction", () => {
           },
         },
       }),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      ...readCanonicalSkillFiles("/home/test/.claude/skills"),
+      "/home/test/.claude/CLAUDE.md": [
+        GITHITS_GUIDANCE_MARKER,
+        GITHITS_GUIDANCE_BLOCK,
+        GITHITS_GUIDANCE_MARKER,
+      ].join("\n"),
     });
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
@@ -7774,9 +8223,17 @@ describe("initUninstallAction", () => {
       "",
     ].join("\n");
     const configFiles: Record<string, string> = {
+      "/home/test/.agents/skills/githits-code/SKILL.md":
+        "---\nname: githits-code\n---\n",
       "/home/test/.agents/skills/githits-mcp/SKILL.md":
         "---\nname: githits-mcp\n---\n",
+      "/home/test/.agents/skills/githits-onboarding/SKILL.md":
+        "---\nname: githits-onboarding\n---\n",
+      "/home/test/.agents/skills/githits-package/SKILL.md":
+        "---\nname: githits-package\n---\n",
       "/home/test/.cline/skills/githits-mcp/SKILL.md":
+        "---\nname: githits-mcp\n---\n",
+      "/home/test/.junie/skills/githits-mcp/SKILL.md":
         "---\nname: githits-mcp\n---\n",
       "/home/test/.codex/AGENTS.md": block,
     };
@@ -7798,10 +8255,22 @@ describe("initUninstallAction", () => {
     );
 
     expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/home/test/.agents/skills/githits-code/SKILL.md",
+    );
+    expect(fs.deleteFile).toHaveBeenCalledWith(
       "/home/test/.agents/skills/githits-mcp/SKILL.md",
     );
     expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/home/test/.agents/skills/githits-onboarding/SKILL.md",
+    );
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/home/test/.agents/skills/githits-package/SKILL.md",
+    );
+    expect(fs.deleteFile).toHaveBeenCalledWith(
       "/home/test/.cline/skills/githits-mcp/SKILL.md",
+    );
+    expect(fs.deleteFile).toHaveBeenCalledWith(
+      "/home/test/.junie/skills/githits-mcp/SKILL.md",
     );
     expect(configFiles["/home/test/.codex/AGENTS.md"]).toBe("Existing\n");
     const logCalls = getLogOutput();
@@ -7812,10 +8281,130 @@ describe("initUninstallAction", () => {
     ).toBe(true);
     expect(logCalls.join("\n")).not.toMatch(/\b\d+ agents? removed\./);
     expect(
-      logCalls.filter(
-        (msg) => msg.includes("GitHits guidance") && msg.includes("unchanged"),
+      logCalls.some(
+        (msg) =>
+          msg.includes("~/.claude/skills/githits-code/SKILL.md") &&
+          msg.includes("unchanged"),
       ),
-    ).toHaveLength(0);
+    ).toBe(true);
+  });
+
+  it("preserves active and historical user guidance with --keep-guidance", async () => {
+    const guidanceFiles = {
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      "/home/test/.cline/skills/githits-mcp/SKILL.md": "legacy Cline skill",
+      "/home/test/.junie/skills/githits-mcp/SKILL.md": "legacy Junie skill",
+    };
+    const configFiles: Record<string, string> = {
+      "/home/test/.cline/data/settings/cline_mcp_settings.json": JSON.stringify(
+        {
+          mcpServers: {
+            GitHits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        },
+      ),
+      ...guidanceFiles,
+    };
+    const fs = createFsWithDetection(["/home/test/.cline"], configFiles);
+
+    await initUninstallAction(
+      { yes: true, keepGuidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    for (const [path, content] of Object.entries(guidanceFiles)) {
+      expect(configFiles[path]).toBe(content);
+    }
+    expect(getLogOutput().some((msg) => msg.includes("GitHits guidance"))).toBe(
+      false,
+    );
+  });
+
+  it("preserves active and historical project guidance with --keep-guidance", async () => {
+    const guidanceFiles = {
+      ...readCanonicalSkillFiles("/repo/.agents/skills"),
+      "/repo/.cline/skills/githits-mcp/SKILL.md": "legacy Cline skill",
+      "/repo/.junie/skills/githits-mcp/SKILL.md": "legacy Junie skill",
+    };
+    const configFiles: Record<string, string> = {
+      "/repo/.junie/mcp/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      ...guidanceFiles,
+    };
+    const fs = createFsWithDetection(["/home/test/.junie"], configFiles);
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+
+    await initUninstallAction(
+      { project: true, yes: true, keepGuidance: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    for (const [path, content] of Object.entries(guidanceFiles)) {
+      expect(configFiles[path]).toBe(content);
+    }
+    expect(getLogOutput().some((msg) => msg.includes("GitHits guidance"))).toBe(
+      false,
+    );
+  });
+
+  it("removes both historical project skill roots during project uninstall", async () => {
+    const clineLegacyPath = "/repo/.cline/skills/githits-mcp/SKILL.md";
+    const junieLegacyPath = "/repo/.junie/skills/githits-mcp/SKILL.md";
+    const configFiles: Record<string, string> = {
+      "/repo/.junie/mcp/mcp.json": JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      ...readCanonicalSkillFiles("/repo/.agents/skills"),
+      [clineLegacyPath]: "legacy Cline skill",
+      [junieLegacyPath]: "legacy Junie skill",
+    };
+    const fs = createFsWithDetection(
+      ["/repo", "/home/test/.junie"],
+      configFiles,
+    );
+    fs.getCwd = mock(() => "/repo") as typeof fs.getCwd;
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+
+    await initUninstallAction(
+      { project: true, yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(deleteCalls).toEqual(
+      expect.arrayContaining([clineLegacyPath, junieLegacyPath]),
+    );
+    expect(configFiles[clineLegacyPath]).toBeUndefined();
+    expect(configFiles[junieLegacyPath]).toBeUndefined();
   });
 
   it("continues guidance cleanup after multiple target failures", async () => {

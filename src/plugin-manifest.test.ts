@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { lstat, readdir, readFile, readlink } from "node:fs/promises";
 import { join } from "node:path";
+import { GITHITS_SKILL_CATALOG } from "./commands/init/guidance-assets.js";
 
 describe("plugin manifest wiring", () => {
   const root = join(import.meta.dir, "..");
@@ -136,6 +137,26 @@ describe("plugin manifest wiring", () => {
         expect((error as NodeJS.ErrnoException).code).toBe("ENOENT");
       }
     }
+  });
+
+  it("keeps the runtime guidance catalog in parity with packaged skills", async () => {
+    const packagedSkills = (
+      await readdir(join(root, "skills"), { withFileTypes: true })
+    )
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+    const runtimeSkills: string[] = GITHITS_SKILL_CATALOG.map(
+      (skill) => skill.name,
+    ).sort();
+
+    expect(runtimeSkills).toEqual(packagedSkills);
+    expect(runtimeSkills).toEqual([
+      "githits-code",
+      "githits-mcp",
+      "githits-onboarding",
+      "githits-package",
+    ]);
   });
 
   it("shares repository guidance through host symlinks", async () => {

@@ -52,7 +52,7 @@ import {
   GITHITS_GUIDANCE_BLOCK,
   GITHITS_GUIDANCE_MARKER,
   GITHITS_MCP_SKILL_NAME,
-  GITHITS_MCP_SKILL_RELATIVE_PATH,
+  GITHITS_SKILL_CATALOG,
 } from "./guidance-assets.js";
 import {
   CHANGE_VERB_WIDTH,
@@ -277,19 +277,31 @@ interface InstallTaskReporter {
   start(label: string): () => void;
 }
 
-const GITHITS_MCP_SKILL_PACKAGE_PATH =
-  GITHITS_MCP_SKILL_RELATIVE_PATH.join("/");
-const GITHITS_MCP_SKILL_SOURCE_PATH = fileURLToPath(
-  new URL(`../../../${GITHITS_MCP_SKILL_PACKAGE_PATH}`, import.meta.url),
-);
-const GITHITS_MCP_SKILL_SOURCE_PATH_CANDIDATES = [
-  fileURLToPath(
-    new URL(`../${GITHITS_MCP_SKILL_PACKAGE_PATH}`, import.meta.url),
-  ),
-  fileURLToPath(
-    new URL(`../../${GITHITS_MCP_SKILL_PACKAGE_PATH}`, import.meta.url),
-  ),
-];
+type GithitsSkillName = (typeof GITHITS_SKILL_CATALOG)[number]["name"];
+
+const GITHITS_SKILL_SOURCE_PATHS: Record<
+  GithitsSkillName,
+  { sourcePath: string; sourcePathCandidates: string[] }
+> = Object.fromEntries(
+  GITHITS_SKILL_CATALOG.map((skill) => {
+    const packagePath = skill.relativePath.join("/");
+    return [
+      skill.name,
+      {
+        sourcePath: fileURLToPath(
+          new URL(`../../../${packagePath}`, import.meta.url),
+        ),
+        sourcePathCandidates: [
+          fileURLToPath(new URL(`../${packagePath}`, import.meta.url)),
+          fileURLToPath(new URL(`../../${packagePath}`, import.meta.url)),
+        ],
+      },
+    ];
+  }),
+) as Record<
+  GithitsSkillName,
+  { sourcePath: string; sourcePathCandidates: string[] }
+>;
 
 function createInitLoginOutput(): LoginOutput {
   return {
@@ -879,12 +891,7 @@ function printSkillsInstructions(useColors: boolean): void {
   console.log();
 }
 
-const SHARED_AGENTS_SKILL_PATH = [
-  ".agents",
-  "skills",
-  GITHITS_MCP_SKILL_NAME,
-  "SKILL.md",
-] as const;
+const SHARED_AGENTS_SKILL_ROOT = [".agents", "skills"] as const;
 
 const GITHITS_VSCODE_INSTRUCTIONS_HEADER = `---
 name: GitHits
@@ -900,71 +907,88 @@ const GUIDANCE_SKILL_TARGETS: Record<
   }
 > = {
   "claude-code": {
-    user: [[".claude", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
-    project: [[".claude", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
+    user: [[".claude", "skills"]],
+    project: [[".claude", "skills"]],
   },
   cursor: {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   windsurf: {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   vscode: {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   cline: {
-    user: [[".cline", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
-    project: [[".cline", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   "codex-cli": {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   pi: {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   "gemini-cli": {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   "google-antigravity": {
-    user: [[".gemini", "config", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [[".gemini", "config", "skills"]],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   opencode: {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   "hermes-agent": {
-    user: [[".hermes", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
+    user: [[".hermes", "skills"]],
   },
   zed: {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   junie: {
-    user: [[".junie", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
-    project: [[".junie", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   "qwen-code": {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   kiro: {
-    user: [[".kiro", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
-    project: [[".kiro", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
+    user: [[".kiro", "skills"]],
+    project: [[".kiro", "skills"]],
   },
   "kilo-code": {
-    user: [SHARED_AGENTS_SKILL_PATH],
-    project: [SHARED_AGENTS_SKILL_PATH],
+    user: [SHARED_AGENTS_SKILL_ROOT],
+    project: [SHARED_AGENTS_SKILL_ROOT],
   },
   "factory-droid": {
-    user: [[".factory", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
-    project: [[".factory", "skills", GITHITS_MCP_SKILL_NAME, "SKILL.md"]],
+    user: [[".factory", "skills"]],
+    project: [[".factory", "skills"]],
+  },
+};
+
+const HISTORICAL_GUIDANCE_SKILL_TARGETS: Record<
+  string,
+  {
+    user?: readonly (readonly string[])[];
+    project?: readonly (readonly string[])[];
+  }
+> = {
+  cline: {
+    user: [[".cline", "skills"]],
+    project: [[".cline", "skills"]],
+  },
+  junie: {
+    user: [[".junie", "skills"]],
+    project: [[".junie", "skills"]],
   },
 };
 
@@ -983,23 +1007,86 @@ function getGuidanceSkillSetups(
   for (const agent of agents) {
     const relativeTargets = GUIDANCE_SKILL_TARGETS[agent.id]?.[scope] ?? [];
     for (const relativeTarget of relativeTargets) {
+      for (const skill of GITHITS_SKILL_CATALOG) {
+        const targetPath = fileSystemService.joinPath(
+          basePath,
+          ...relativeTarget,
+          skill.name,
+          "SKILL.md",
+        );
+        if (seen.has(targetPath)) continue;
+        seen.add(targetPath);
+        const source = GITHITS_SKILL_SOURCE_PATHS[skill.name];
+        setups.push({
+          method: "skill",
+          skillName: skill.name,
+          sourcePath: source.sourcePath,
+          sourcePathCandidates: source.sourcePathCandidates,
+          targetPath,
+        });
+      }
+    }
+  }
+
+  return setups;
+}
+
+function getHistoricalGuidanceSkillSetups(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): SkillSetup[] {
+  const basePath =
+    scope === "project"
+      ? fileSystemService.getCwd()
+      : fileSystemService.getHomeDir();
+  const seen = new Set<string>();
+  const setups: SkillSetup[] = [];
+  for (const agent of agents) {
+    const relativeTargets =
+      HISTORICAL_GUIDANCE_SKILL_TARGETS[agent.id]?.[scope] ?? [];
+    for (const relativeTarget of relativeTargets) {
       const targetPath = fileSystemService.joinPath(
         basePath,
         ...relativeTarget,
+        GITHITS_MCP_SKILL_NAME,
+        "SKILL.md",
       );
       if (seen.has(targetPath)) continue;
       seen.add(targetPath);
       setups.push({
         method: "skill",
         skillName: GITHITS_MCP_SKILL_NAME,
-        sourcePath: GITHITS_MCP_SKILL_SOURCE_PATH,
-        sourcePathCandidates: GITHITS_MCP_SKILL_SOURCE_PATH_CANDIDATES,
+        sourcePath:
+          GITHITS_SKILL_SOURCE_PATHS[GITHITS_MCP_SKILL_NAME].sourcePath,
+        sourcePathCandidates:
+          GITHITS_SKILL_SOURCE_PATHS[GITHITS_MCP_SKILL_NAME]
+            .sourcePathCandidates,
         targetPath,
       });
     }
   }
-
   return setups;
+}
+
+async function hasHistoricalGuidanceSkills(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): Promise<boolean> {
+  for (const setup of getHistoricalGuidanceSkillSetups(
+    agents,
+    fileSystemService,
+    scope,
+  )) {
+    try {
+      if (await fileSystemService.exists(setup.targetPath)) return true;
+    } catch {
+      // A failed probe is actionable so the selected cleanup can report it.
+      return true;
+    }
+  }
+  return false;
 }
 
 function getInstructionTargetPath(
@@ -1163,12 +1250,17 @@ function getGuidanceUninstallSteps(
 ): Array<SkillSetup | ManagedBlockSetup> {
   if (agents.length === 0) return [];
   const setup = buildGuidanceSetupConfig(agents, fileSystemService, scope);
-  return setup?.method === "composite"
-    ? setup.steps.filter(
-        (step): step is SkillSetup | ManagedBlockSetup =>
-          step.method === "skill" || step.method === "managed-block",
-      )
-    : [];
+  const activeSteps =
+    setup?.method === "composite"
+      ? setup.steps.filter(
+          (step): step is SkillSetup | ManagedBlockSetup =>
+            step.method === "skill" || step.method === "managed-block",
+        )
+      : [];
+  return [
+    ...activeSteps,
+    ...getHistoricalGuidanceSkillSetups(agents, fileSystemService, scope),
+  ];
 }
 
 function shouldInstallGuidanceForStaged(options: InitOptions): boolean {
@@ -1485,7 +1577,15 @@ async function buildStagedDetection(
             execService,
             checkCache,
           );
-          guidanceStatus = configured ? "already_configured" : "needs_setup";
+          const historicalSkills = await hasHistoricalGuidanceSkills(
+            [agent],
+            fileSystemService,
+            scope,
+          );
+          guidanceStatus =
+            configured && !historicalSkills
+              ? "already_configured"
+              : "needs_setup";
         }
       }
       return {
@@ -3703,12 +3803,19 @@ function buildGuidanceTargetLabels(
     const relativeSkillTargets =
       GUIDANCE_SKILL_TARGETS[agent.id]?.[scope] ?? [];
     for (const relativeTarget of relativeSkillTargets) {
-      addGuidanceTargetLabel(
-        labelsByTarget,
-        "skill",
-        fileSystemService.joinPath(basePath, ...relativeTarget),
-        agent,
-      );
+      for (const skill of GITHITS_SKILL_CATALOG) {
+        addGuidanceTargetLabel(
+          labelsByTarget,
+          "skill",
+          fileSystemService.joinPath(
+            basePath,
+            ...relativeTarget,
+            skill.name,
+            "SKILL.md",
+          ),
+          agent,
+        );
+      }
     }
 
     const instructionTarget = getInstructionTargetPath(
@@ -4033,14 +4140,17 @@ function printGuidanceUninstallOutcome(
 ): void {
   if (outcome.status === "skipped") return;
   const rows: ChangeRow[] = [];
-  for (const change of outcome.changes ?? []) {
-    if (
-      (change.kind === "skill" || change.kind === "managed-block") &&
-      change.change === "removed"
-    ) {
-      rows.push(
-        uninstallChangeToRow("GitHits guidance", change, fileSystemService),
-      );
+  const changes = outcome.changes ?? [];
+  const hasRemovedChange = changes.some(
+    (change) => change.change === "removed",
+  );
+  if (hasRemovedChange || (outcome.failures?.length ?? 0) > 0) {
+    for (const change of changes) {
+      if (change.kind === "skill" || change.kind === "managed-block") {
+        rows.push(
+          uninstallChangeToRow("GitHits guidance", change, fileSystemService),
+        );
+      }
     }
   }
   for (const failure of outcome.failures ?? []) {
@@ -4089,11 +4199,71 @@ async function installGuidance(
     fileSystemService,
     execService,
   );
+  if (result.status === "failed") {
+    return {
+      status: "failed",
+      message: result.message,
+      changes: result.changes,
+    };
+  }
+  if (
+    !(await isSetupAlreadyConfigured(config, fileSystemService, execService))
+  ) {
+    return {
+      status: "failed",
+      message:
+        "Guidance verification failed; historical skill files were left unchanged.",
+      changes: result.changes,
+    };
+  }
+
+  const migration = await removeHistoricalGuidanceSkills(
+    agents,
+    fileSystemService,
+    scope,
+  );
+  const changes = [...(result.changes ?? []), ...migration.changes];
+  if (migration.failures.length > 0) {
+    return {
+      status: "failed",
+      message: `Active guidance is ready, but historical skill cleanup failed: ${migration.failures.join(", ")}`,
+      changes,
+    };
+  }
+  const changed = changes.some((change) => change.change !== "unchanged");
   return {
-    status: result.status,
-    message: result.status === "failed" ? result.message : undefined,
-    changes: result.changes,
+    status: changed ? "success" : "already_configured",
+    message: changed
+      ? "Guidance installed successfully"
+      : "GitHits guidance already configured",
+    changes,
   };
+}
+
+async function removeHistoricalGuidanceSkills(
+  agents: AgentDefinition[],
+  fileSystemService: FileSystemService,
+  scope: InitSetupScope,
+): Promise<{ changes: SetupChange[]; failures: string[] }> {
+  const changes: SetupChange[] = [];
+  const failures: string[] = [];
+  for (const setup of getHistoricalGuidanceSkillSetups(
+    agents,
+    fileSystemService,
+    scope,
+  )) {
+    const result = await executeSkillUninstall(setup, fileSystemService);
+    if (result.status === "failed") {
+      failures.push(`${setup.targetPath}: guidance cleanup failed`);
+      continue;
+    }
+    changes.push({
+      kind: "skill",
+      path: setup.targetPath,
+      change: result.status === "removed" ? "removed" : "unchanged",
+    });
+  }
+  return { changes, failures };
 }
 
 async function uninstallGuidance(

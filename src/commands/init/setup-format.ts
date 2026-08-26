@@ -31,7 +31,7 @@ export type SetupChange =
   | {
       kind: "skill" | "managed-block";
       path: string;
-      change: "created" | "updated" | "unchanged";
+      change: "created" | "updated" | "unchanged" | "removed";
     };
 
 /**
