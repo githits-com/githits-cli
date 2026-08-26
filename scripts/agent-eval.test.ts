@@ -790,28 +790,120 @@ describe("agent eval harness", () => {
     expect(existsSync(join(workspaceDir, ".agent-session"))).toBe(false);
   });
 
-  it("removes stale skills when preparing a reused workspace", () => {
+  it("preserves unrelated skills when preparing a reused workspace", () => {
     const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
-    const staleSkillDir = join(workspaceDir, "skills", "search");
-    mkdirSync(staleSkillDir, { recursive: true });
-    writeFileSync(join(staleSkillDir, "SKILL.md"), "stale");
-
-    prepareAgentSession({
-      agent: "claude",
-      surface: "skills",
-      server: "local",
-      experimentalTools: false,
+    const unrelatedSkillPath = join(
       workspaceDir,
-      repoRoot: process.cwd(),
-      publishedPackage: "githits@latest",
-      dryRun: true,
-      bypassPermissions: false,
+      "skills",
+      "unrelated",
+      "SKILL.md",
+    );
+    mkdirSync(join(workspaceDir, "skills", "unrelated"), {
+      recursive: true,
     });
+    writeFileSync(unrelatedSkillPath, "unrelated skill");
+    try {
+      prepareAgentSession({
+        agent: "claude",
+        surface: "skills",
+        server: "local",
+        experimentalTools: false,
+        workspaceDir,
+        repoRoot: process.cwd(),
+        publishedPackage: "githits@latest",
+        dryRun: true,
+        bypassPermissions: false,
+      });
 
-    expect(existsSync(join(staleSkillDir, "SKILL.md"))).toBe(false);
-    expect(
-      existsSync(join(workspaceDir, "skills", "githits-code", "SKILL.md")),
-    ).toBe(true);
+      expect(readFileSync(unrelatedSkillPath, "utf8")).toBe("unrelated skill");
+      expect(
+        existsSync(join(workspaceDir, "skills", "githits-code", "SKILL.md")),
+      ).toBe(true);
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses full guidance skill conflicts before mutating the session workspace", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
+    const conflictPath = join(
+      workspaceDir,
+      "skills",
+      "githits-code",
+      "SKILL.md",
+    );
+    const claudeInstructionsPath = join(workspaceDir, "CLAUDE.md");
+    const agentsInstructionsPath = join(workspaceDir, "AGENTS.md");
+    mkdirSync(join(workspaceDir, "skills", "githits-code"), {
+      recursive: true,
+    });
+    writeFileSync(conflictPath, "existing GitHits-looking skill");
+    writeFileSync(claudeInstructionsPath, "existing Claude guidance\n");
+    writeFileSync(agentsInstructionsPath, "existing agent guidance\n");
+    try {
+      expect(() =>
+        prepareAgentSession({
+          agent: "claude",
+          surface: "mcp",
+          server: "local",
+          guidanceProfile: "full",
+          experimentalTools: false,
+          workspaceDir,
+          repoRoot: process.cwd(),
+          publishedPackage: "githits@latest",
+          dryRun: true,
+          bypassPermissions: false,
+        }),
+      ).toThrow("existing GitHits skill path");
+      expect(readFileSync(conflictPath, "utf8")).toBe(
+        "existing GitHits-looking skill",
+      );
+      expect(readFileSync(claudeInstructionsPath, "utf8")).toBe(
+        "existing Claude guidance\n",
+      );
+      expect(readFileSync(agentsInstructionsPath, "utf8")).toBe(
+        "existing agent guidance\n",
+      );
+      expect(existsSync(join(workspaceDir, ".agent-session"))).toBe(false);
+      expect(existsSync(join(workspaceDir, ".agent-eval-bin"))).toBe(false);
+      expect(existsSync(join(workspaceDir, ".opencode"))).toBe(false);
+      expect(existsSync(join(workspaceDir, ".agents"))).toBe(false);
+      expect(existsSync(join(workspaceDir, ".claude"))).toBe(false);
+      expect(existsSync(join(workspaceDir, ".codex"))).toBe(false);
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses an existing CLI shim before mutating skill roots", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
+    const shimPath = join(
+      workspaceDir,
+      ".agent-eval-bin",
+      process.platform === "win32" ? "githits.cmd" : "githits",
+    );
+    mkdirSync(join(workspaceDir, ".agent-eval-bin"), { recursive: true });
+    writeFileSync(shimPath, "existing shim\n");
+    try {
+      expect(() =>
+        prepareAgentSession({
+          agent: "claude",
+          surface: "skills",
+          server: "local",
+          experimentalTools: false,
+          workspaceDir,
+          repoRoot: process.cwd(),
+          publishedPackage: "githits@latest",
+          dryRun: true,
+          bypassPermissions: false,
+        }),
+      ).toThrow("existing GitHits CLI shim");
+      expect(readFileSync(shimPath, "utf8")).toBe("existing shim\n");
+      expect(existsSync(join(workspaceDir, "skills"))).toBe(false);
+      expect(existsSync(join(workspaceDir, ".agent-session"))).toBe(false);
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
   });
 
   it("preserves normal Claude and GitHits auth environment while filtering unrelated vars", () => {

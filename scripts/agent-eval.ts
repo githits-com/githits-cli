@@ -2,8 +2,10 @@ import {
   chmodSync,
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -147,6 +149,15 @@ export interface SkillInstallationMetadata {
 export interface GuidanceInstallationMetadata {
   instructionPaths: string[];
   skillInstallation: SkillInstallationMetadata;
+}
+
+interface SkillWorkspacePlan extends SkillInstallationMetadata {
+  sourceChildren: string[];
+}
+
+interface ProjectGuidancePlan {
+  instructionPaths: string[];
+  writes: Array<{ path: string; content: string }>;
 }
 
 const PASSTHROUGH_ENV_KEYS = [
@@ -624,12 +635,36 @@ function writeGitHitsShim(
   return shimPath;
 }
 
-export function prepareSkillsWorkspace(
+function pathExists(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+function assertDirectoryOrAbsent(path: string, description: string): void {
+  if (!pathExists(path)) return;
+  if (!lstatSync(path).isDirectory()) {
+    throw new Error(`Refusing to overwrite ${description}: ${path}`);
+  }
+}
+
+function assertMissing(path: string, description: string): void {
+  if (pathExists(path)) {
+    throw new Error(`Refusing to overwrite ${description}: ${path}`);
+  }
+}
+
+function planSkillsWorkspace(
   options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
   workspaceDir: string,
-): SkillInstallationMetadata {
+): SkillWorkspacePlan {
   const sourceDir = join(options.repoRoot, "skills");
   assert(existsSync(sourceDir), `Skills directory not found: ${sourceDir}`);
+  const sourceChildren = readdirSync(sourceDir);
   const installedDirs = [
     join(workspaceDir, "skills"),
     join(workspaceDir, ".opencode", "skills"),
@@ -637,30 +672,74 @@ export function prepareSkillsWorkspace(
     join(workspaceDir, ".claude", "skills"),
     join(workspaceDir, ".codex", "skills"),
   ];
+  assertDirectoryOrAbsent(workspaceDir, "skill workspace");
   for (const installedDir of installedDirs) {
-    rmSync(installedDir, { recursive: true, force: true });
-    mkdirSync(dirname(installedDir), { recursive: true });
-    cpSync(sourceDir, installedDir, { recursive: true });
+    assertDirectoryOrAbsent(dirname(installedDir), "skill directory parent");
+    assertDirectoryOrAbsent(installedDir, "skill directory");
+    for (const child of sourceChildren) {
+      assertMissing(join(installedDir, child), "existing GitHits skill path");
+    }
   }
-  const cliShim = writeGitHitsShim(
-    options,
-    join(workspaceDir, ".agent-eval-bin"),
+  const cliShim = join(
+    workspaceDir,
+    ".agent-eval-bin",
+    process.platform === "win32" ? "githits.cmd" : "githits",
   );
+  assertDirectoryOrAbsent(dirname(cliShim), "CLI shim directory");
+  assertMissing(cliShim, "existing GitHits CLI shim");
   return {
     sourceDir,
     installedDirs,
     cliShim,
     cliMode: options.server,
+    sourceChildren,
   };
 }
 
-function writeProjectGuidance(workspaceDir: string): string[] {
+function applySkillWorkspacePlan(
+  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  plan: SkillWorkspacePlan,
+): SkillInstallationMetadata {
+  for (const installedDir of plan.installedDirs) {
+    mkdirSync(installedDir, { recursive: true });
+    for (const child of plan.sourceChildren) {
+      cpSync(join(plan.sourceDir, child), join(installedDir, child), {
+        recursive: true,
+      });
+    }
+  }
+  const cliShim = writeGitHitsShim(options, dirname(plan.cliShim));
+  return {
+    sourceDir: plan.sourceDir,
+    installedDirs: plan.installedDirs,
+    cliShim,
+    cliMode: plan.cliMode,
+  };
+}
+
+export function prepareSkillsWorkspace(
+  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  workspaceDir: string,
+): SkillInstallationMetadata {
+  return applySkillWorkspacePlan(
+    options,
+    planSkillsWorkspace(options, workspaceDir),
+  );
+}
+
+function planProjectGuidance(workspaceDir: string): ProjectGuidancePlan {
   const instructionPaths = [
     join(workspaceDir, "CLAUDE.md"),
     join(workspaceDir, "AGENTS.md"),
   ];
+  const writes: Array<{ path: string; content: string }> = [];
   for (const instructionPath of instructionPaths) {
-    const existing = existsSync(instructionPath)
+    if (pathExists(instructionPath) && !lstatSync(instructionPath).isFile()) {
+      throw new Error(
+        `Refusing to overwrite existing project guidance path: ${instructionPath}`,
+      );
+    }
+    const existing = pathExists(instructionPath)
       ? readFileSync(instructionPath, "utf8")
       : "";
     const merged = mergeManagedBlock(
@@ -669,19 +748,28 @@ function writeProjectGuidance(workspaceDir: string): string[] {
       GITHITS_GUIDANCE_BLOCK,
     );
     if (merged.status !== "already_configured") {
-      writeFileSync(instructionPath, merged.content);
+      writes.push({ path: instructionPath, content: merged.content });
     }
   }
-  return instructionPaths;
+  return { instructionPaths, writes };
+}
+
+function applyProjectGuidance(plan: ProjectGuidancePlan): void {
+  for (const write of plan.writes) {
+    writeFileSync(write.path, write.content);
+  }
 }
 
 export function prepareFullGuidanceWorkspace(
   options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
   workspaceDir: string,
 ): GuidanceInstallationMetadata {
+  const skillPlan = planSkillsWorkspace(options, workspaceDir);
+  const guidancePlan = planProjectGuidance(workspaceDir);
+  applyProjectGuidance(guidancePlan);
   return {
-    instructionPaths: writeProjectGuidance(workspaceDir),
-    skillInstallation: prepareSkillsWorkspace(options, workspaceDir),
+    instructionPaths: guidancePlan.instructionPaths,
+    skillInstallation: applySkillWorkspacePlan(options, skillPlan),
   };
 }
 

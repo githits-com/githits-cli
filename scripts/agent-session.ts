@@ -280,7 +280,6 @@ export function prepareAgentSession(options: AgentSessionOptions): {
     );
   }
   const sessionDir = join(options.workspaceDir, ".agent-session");
-  mkdirSync(sessionDir, { recursive: true });
   const mcpConfigPath = join(sessionDir, "mcp.json");
   const guidanceInstallation =
     options.guidanceProfile === "full"
@@ -290,6 +289,7 @@ export function prepareAgentSession(options: AgentSessionOptions): {
     options.surface === "skills"
       ? prepareSkillsWorkspace(options, options.workspaceDir)
       : guidanceInstallation?.skillInstallation;
+  mkdirSync(sessionDir, { recursive: true });
 
   writeJson(
     mcpConfigPath,
