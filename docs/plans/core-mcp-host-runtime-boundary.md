@@ -2,12 +2,20 @@
 
 ## Status
 
-Phase 1 is complete. Core service clients now accept optional host-supplied
-`ServiceDiagnostics`; core and MCP have no diagnostics output implementation;
-the CLI owns telemetry/debug lifecycle; MCP error mapping is pure; and public
-MCP artifacts are checked for the removed filesystem edge. The implementation
-was verified with targeted service, mapper, CLI, container, MCP, and typecheck
-suites.
+Phase 1 is complete and merged through PR #311 at
+`9c3b613f7c5ddae2cedb5ec2e8273d5fbe7115b5` on 2026-08-26. Core service
+clients now accept optional host-supplied `ServiceDiagnostics`; core and MCP
+have no diagnostics output implementation; the CLI owns telemetry/debug
+lifecycle; MCP error mapping is pure; and public MCP artifacts are checked for
+the removed filesystem edge.
+
+The merged implementation passed 3,277 tests, typecheck, formatting, lint,
+plugin generation/checks, root and MCP builds, public package validation, and
+source and built unauthenticated CLI/MCP smoke suites. The post-merge Main run
+also passed on Ubuntu, Windows, Bun, and Node 20/22/24/26. Deployment to `main`
+is complete; package publication of the Phase 1 changes is pending because the
+source manifests remain at `0.11.0` and its two release fragments remain
+unconsumed.
 
 This document is now only the forward-looking Phase 2 plan. It intentionally
 does not claim browser or WebMCP compatibility.
