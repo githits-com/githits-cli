@@ -20,7 +20,7 @@ describe("createGrepRepoTool — metadata", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     expect(tool.name).toBe("code_grep");
     expect(tool.description).toContain(
-      "Find exact literal, regex, identifier, or call-site matches",
+      "Enumerate matches for a known exact literal, regex, identifier, or call site",
     );
     expect(tool.description).toContain(
       "Use `search` for conceptual or open-ended discovery",

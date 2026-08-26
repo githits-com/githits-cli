@@ -187,7 +187,9 @@ describe("buildMcpInstructions", () => {
     expect(descriptions.get("search")).toStartWith(
       "Relevance-ranked discovery",
     );
-    expect(descriptions.get("code_grep")).toStartWith("Find exact literal");
+    expect(descriptions.get("code_grep")).toStartWith(
+      "Enumerate matches for a known exact literal",
+    );
     expect(descriptions.get("pkg_vulns")).toStartWith("Find package CVEs");
   });
 

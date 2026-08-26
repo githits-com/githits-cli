@@ -113,7 +113,8 @@ const DESCRIPTION_ROUTING: Record<
     body: ["`code_files`", "`code_grep`", "`search`", "150 lines per call"],
   },
   code_grep: {
-    prefix: /^Find exact literal, regex, identifier, or call-site matches/,
+    prefix:
+      /^Enumerate matches for a known exact literal, regex, identifier, or call site/,
     body: [
       "deterministic and paginated",
       "`search`",
