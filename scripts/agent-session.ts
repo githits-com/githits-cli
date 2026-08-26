@@ -12,6 +12,7 @@ import {
   emptyOpenCodeConfig,
   type GuidanceInstallationMetadata,
   type GuidanceProfile,
+  isolateOpenCodeSkills,
   prepareFullGuidanceWorkspace,
   prepareSkillsWorkspace,
   type ServerMode,
@@ -343,6 +344,9 @@ export async function runAgentSession(
   );
   const prepared = prepareAgentSession(options);
   const env = buildEvalEnv(process.env);
+  if (options.agent === "opencode") {
+    isolateOpenCodeSkills(env);
+  }
   if (prepared.skillInstallation) {
     env.PATH = `${dirname(prepared.skillInstallation.cliShim)}${env.PATH ? `${delimiter}${env.PATH}` : ""}`;
   }

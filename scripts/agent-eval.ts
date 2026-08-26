@@ -695,6 +695,11 @@ export function buildEvalEnv(
   return env;
 }
 
+export function isolateOpenCodeSkills(env: Record<string, string>): void {
+  env.OPENCODE_DISABLE_EXTERNAL_SKILLS = "1";
+  env.OPENCODE_DISABLE_CLAUDE_CODE_SKILLS = "1";
+}
+
 export function collectSecretValues(env: Record<string, string>): string[] {
   const values = new Set<string>();
   for (const [key, value] of Object.entries(env)) {
@@ -1090,37 +1095,32 @@ export function extractToolCalls(
   stdout: string,
   agent: AgentName,
   surface: EvalSurface = "mcp",
+  guidanceProfile?: GuidanceProfile,
 ): ExtractedToolCall[] {
   const calls: ExtractedToolCall[] = [];
+  const includeCliCalls =
+    surface === "skills" || (surface === "mcp" && guidanceProfile === "full");
   for (const line of stdout.split("\n")) {
     if (line.trim().length === 0) continue;
     try {
       const event = JSON.parse(line) as Record<string, unknown>;
       if (agent === "claude") {
-        if (surface === "skills") {
+        if (includeCliCalls) {
           calls.push(...extractCliToolCalls(event, agent));
-          calls.push(...extractClaudeToolCalls(event));
-        } else {
-          calls.push(...extractClaudeToolCalls(event));
         }
+        calls.push(...extractClaudeToolCalls(event));
       } else if (agent === "codex") {
-        if (surface === "skills") {
+        if (includeCliCalls) {
           calls.push(...extractCliToolCalls(event, agent));
-          const call = extractCodexToolCall(event);
-          if (call) calls.push(call);
-        } else {
-          const call = extractCodexToolCall(event);
-          if (call) calls.push(call);
         }
+        const call = extractCodexToolCall(event);
+        if (call) calls.push(call);
       } else {
-        if (surface === "skills") {
+        if (includeCliCalls) {
           calls.push(...extractCliToolCalls(event, agent));
-          const call = extractOpenCodeToolCall(event);
-          if (call) calls.push(call);
-        } else {
-          const call = extractOpenCodeToolCall(event);
-          if (call) calls.push(call);
         }
+        const call = extractOpenCodeToolCall(event);
+        if (call) calls.push(call);
       }
     } catch {
       // Ignore non-JSON lines.
@@ -1567,6 +1567,9 @@ async function runWorkload(
     codexFinalPath,
   );
   const workloadEnv = { ...env };
+  if (options.agent === "opencode") {
+    isolateOpenCodeSkills(workloadEnv);
+  }
   if (skillInstallation) {
     workloadEnv.PATH = `${dirname(skillInstallation.cliShim)}${workloadEnv.PATH ? `${delimiter}${workloadEnv.PATH}` : ""}`;
   }
@@ -1616,6 +1619,7 @@ async function runWorkload(
       result.stdout,
       options.agent,
       options.surface,
+      options.guidanceProfile,
     );
     writeJson(
       join(workloadDir, "tool-calls.json"),

@@ -29,6 +29,7 @@ import {
   DEFAULT_CODEX_REASONING_EFFORT,
   extractDiscoveryEvents,
   extractToolCalls,
+  isolateOpenCodeSkills,
   isValidAgentReport,
   parseArgs,
   prepareFullGuidanceWorkspace,
@@ -824,6 +825,16 @@ describe("agent eval harness", () => {
     expect(env.RANDOM_SECRET).toBeUndefined();
   });
 
+  it("isolates OpenCode from external and Claude Code skills", () => {
+    const env = buildEvalEnv({
+      OPENCODE_DISABLE_EXTERNAL_SKILLS: "0",
+      OPENCODE_DISABLE_CLAUDE_CODE_SKILLS: "0",
+    });
+    isolateOpenCodeSkills(env);
+    expect(env.OPENCODE_DISABLE_EXTERNAL_SKILLS).toBe("1");
+    expect(env.OPENCODE_DISABLE_CLAUDE_CODE_SKILLS).toBe("1");
+  });
+
   it("redacts secret values from environment summary", () => {
     const summary = sanitizedEnvSummary({
       HOME: "/tmp/eval-home",
@@ -1302,6 +1313,60 @@ describe("agent eval harness", () => {
     expect(calls[0]?.server).toBe("githits-cli");
   });
 
+  it("extracts CLI fallback from full MCP Codex runs only", () => {
+    const stdout = [
+      JSON.stringify({
+        item: {
+          type: "command_execution",
+          command: "githits search opencode",
+        },
+      }),
+      JSON.stringify({
+        item: {
+          type: "mcp_tool_call",
+          server: "githits",
+          tool: "code_read",
+          status: "completed",
+          arguments: { path: "packages/opencode/src/session/compaction.ts" },
+        },
+      }),
+    ].join("\n");
+    expect(extractToolCalls(stdout, "codex", "mcp", "full")).toEqual([
+      {
+        agent: "codex",
+        server: "githits-cli",
+        tool: "search",
+        status: "started",
+        arguments: { command: "githits search opencode" },
+      },
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "code_read",
+        status: "completed",
+        arguments: { path: "packages/opencode/src/session/compaction.ts" },
+      },
+    ]);
+    expect(extractToolCalls(stdout, "codex", "mcp", "instructions")).toEqual([
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "code_read",
+        status: "completed",
+        arguments: { path: "packages/opencode/src/session/compaction.ts" },
+      },
+    ]);
+    expect(extractToolCalls(stdout, "codex", "mcp", "descriptors")).toEqual([
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "code_read",
+        status: "completed",
+        arguments: { path: "packages/opencode/src/session/compaction.ts" },
+      },
+    ]);
+  });
+
   it("ignores non-MCP Claude tool calls", () => {
     const calls = extractToolCalls(
       `${JSON.stringify({
@@ -1398,6 +1463,31 @@ describe("agent eval harness", () => {
     expect(formatted).toContain(
       "Inspect raw calls: workloads/pkg-vulns/tool-calls.json",
     );
+  });
+
+  it("warns when a full MCP run uses CLI fallback", () => {
+    const runDir = mkdtempSync(join(tmpdir(), "agent-eval-cli-fallback-"));
+    const workloadDir = join(runDir, "workloads", "fallback");
+    mkdirSync(workloadDir, { recursive: true });
+    writeJson(join(workloadDir, "tool-calls.json"), [
+      {
+        agent: "codex",
+        server: "githits-cli",
+        tool: "search",
+        status: "started",
+      },
+    ]);
+    writeFileSync(join(workloadDir, "stderr.txt"), "");
+    const report = buildRunReportFromMetadata(runDir, {
+      agent: "codex",
+      surface: "mcp",
+      guidanceProfile: "full",
+      workloads: [{ id: "fallback", status: "failed", workloadDir }],
+    });
+    expect(report.workloads[0]?.warnings).toContain(
+      "MCP full guidance run used GitHits CLI fallback: search",
+    );
+    expect(formatRunReport(report)).toContain("CLI fallback");
   });
 
   it("reports discovery status and artifact path", () => {

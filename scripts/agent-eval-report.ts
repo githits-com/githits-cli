@@ -39,6 +39,7 @@ export interface WorkloadRunMetadata {
 
 export interface ExtractedToolCallForReport {
   tool: string;
+  server?: string;
   status?: string;
   error?: unknown;
 }
@@ -323,6 +324,7 @@ function readToolCalls(path: string): ExtractedToolCallForReport[] | undefined {
     return [
       {
         tool: record.tool,
+        server: typeof record.server === "string" ? record.server : undefined,
         status: typeof record.status === "string" ? record.status : undefined,
         error: record.error,
       },
@@ -350,6 +352,7 @@ function readDiscovery(path: string): DiscoverySummary | undefined {
 function buildWorkloadReport(
   runDir: string,
   workload: WorkloadRunMetadata,
+  warnOnCliFallback: boolean,
 ): WorkloadReport {
   const workloadDir = workloadDirFor(runDir, workload);
   const paths = {
@@ -379,9 +382,10 @@ function buildWorkloadReport(
     missingArtifacts.push("final.json");
   if (!artifacts.stderr) missingArtifacts.push("stderr.txt");
 
-  const toolCalls = summarizeToolCalls(
-    safePaths.toolCalls ? (readToolCalls(safePaths.toolCalls) ?? []) : [],
-  );
+  const persistedToolCalls = safePaths.toolCalls
+    ? (readToolCalls(safePaths.toolCalls) ?? [])
+    : [];
+  const toolCalls = summarizeToolCalls(persistedToolCalls);
   const finalReport = summarizeFinalReport(
     safePaths.final ? readJson(safePaths.final) : undefined,
   );
@@ -401,6 +405,20 @@ function buildWorkloadReport(
     warnings.push(
       `success workload is missing artifacts: ${missingArtifacts.join(", ")}`,
     );
+  }
+  if (warnOnCliFallback) {
+    const cliFallbackTools = [
+      ...new Set(
+        persistedToolCalls
+          .filter((call) => call.server === "githits-cli")
+          .map((call) => normalizeToolName(call.tool)),
+      ),
+    ].sort();
+    if (cliFallbackTools.length > 0) {
+      warnings.push(
+        `MCP full guidance run used GitHits CLI fallback: ${cliFallbackTools.join(", ")}`,
+      );
+    }
   }
   if (finalReport) {
     const rawTools = new Set(toolCalls.uniqueTools);
@@ -442,7 +460,11 @@ export function buildRunReportFromMetadata(
     ids.add(workload.id);
   }
   const reports = workloads.map((workload) =>
-    buildWorkloadReport(runDir, workload),
+    buildWorkloadReport(
+      runDir,
+      workload,
+      metadata.surface === "mcp" && metadata.guidanceProfile === "full",
+    ),
   );
   const status = reports.some((workload) =>
     ["failed", "timeout"].includes(workload.status),
