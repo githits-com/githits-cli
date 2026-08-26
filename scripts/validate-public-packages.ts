@@ -20,6 +20,14 @@ interface PackResult {
   files?: PackFile[];
 }
 
+interface MetafileInput {
+  imports?: unknown;
+}
+
+export interface BundleMetafile {
+  inputs?: Record<string, MetafileInput>;
+}
+
 interface PublicPackage {
   id: string;
   packageName: string;
@@ -63,18 +71,119 @@ const strictScanExtensions = new Set([
 
 const textDecoder = new TextDecoder();
 
+const forbiddenFilesystemSpecifiers = new Set([
+  "fs",
+  "node:fs",
+  "fs/promises",
+  "node:fs/promises",
+]);
+
+/** Match only the Node filesystem module specifiers prohibited in MCP/core. */
+export function isForbiddenFilesystemSpecifier(specifier: string): boolean {
+  return forbiddenFilesystemSpecifiers.has(specifier);
+}
+
+/**
+ * Extract string-literal module specifiers from static import/export-from,
+ * dynamic import(), and require() expressions. This deliberately does not
+ * inspect arbitrary text containing `fs`; computed module names are outside
+ * this statically resolved boundary check.
+ */
+export function findStaticModuleSpecifiers(source: string): string[] {
+  return new Bun.Transpiler({ loader: "tsx" })
+    .scanImports(source)
+    .map(({ path }) => path);
+}
+
+export function findForbiddenStaticFilesystemSpecifiers(
+  source: string,
+): string[] {
+  return findStaticModuleSpecifiers(source).filter(
+    isForbiddenFilesystemSpecifier,
+  );
+}
+
+export function findDirectProcessOutputAccess(source: string): string[] {
+  return Array.from(
+    source.matchAll(/\bprocess\s*\.\s*(stderr|stdout)\b/g),
+    (match) => `process.${match[1]}`,
+  );
+}
+
+export function findForbiddenFilesystemSpecifiersInMetafile(
+  metafile: BundleMetafile,
+): string[] {
+  const found = new Set<string>();
+  for (const input of Object.values(metafile.inputs ?? {})) {
+    if (!Array.isArray(input.imports)) continue;
+    for (const item of input.imports) {
+      if (!isRecord(item)) continue;
+      for (const value of [item.original, item.path]) {
+        if (
+          typeof value === "string" &&
+          isForbiddenFilesystemSpecifier(value)
+        ) {
+          found.add(value);
+        }
+      }
+    }
+  }
+  return [...found];
+}
+
+export async function buildNodeTargetProbe(
+  entrypoint: string,
+  outdir: string,
+): Promise<BundleMetafile> {
+  const build = await Bun.build({
+    entrypoints: [entrypoint],
+    metafile: true,
+    outdir,
+    packages: "bundle",
+    target: "node",
+    format: "esm",
+  });
+  if (!build.success) {
+    throw new Error(
+      `Node-target probe failed for ${entrypoint}\n${build.logs
+        .map((log) => String(log))
+        .join("\n")}`,
+    );
+  }
+  const metafile = build.metafile as BundleMetafile | undefined;
+  if (!metafile) {
+    throw new Error(
+      `Node-target probe did not produce a metafile: ${entrypoint}`,
+    );
+  }
+  return metafile;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
+
 async function main(): Promise<void> {
   const tempRoot = await mkdtemp(join(tmpdir(), "githits-public-packages-"));
   try {
     await buildPublicPackageArtifacts();
+    await assertCoreSourceBoundary();
     await assertPublicManifestBoundaries();
 
     for (const packageInfo of publicPackages) {
-      await scanDirectory(packageInfo.distDirectory, `${packageInfo.id} dist`);
+      await scanDirectory(
+        packageInfo.distDirectory,
+        `${packageInfo.id} dist`,
+        packageInfo.id === "mcp",
+      );
       const tarballPath = await packPackage(packageInfo, tempRoot);
       const extractedPackageDir = await extractPackage(tarballPath, tempRoot);
       await scanPackFileList(packageInfo, tarballPath, tempRoot);
-      await scanDirectory(extractedPackageDir, `${packageInfo.id} tarball`);
+      await scanDirectory(
+        extractedPackageDir,
+        `${packageInfo.id} tarball`,
+        packageInfo.id === "mcp",
+      );
 
       if (packageInfo.id === "root") {
         await verifyRootConsumer(tarballPath, tempRoot);
@@ -120,6 +229,27 @@ async function buildPublicPackageArtifacts(): Promise<void> {
     join(root, "packages", "mcp"),
     "build mcp package",
   );
+}
+
+async function assertCoreSourceBoundary(): Promise<void> {
+  const sourceDirectory = join(root, "packages", "core-internal", "src");
+  for (const filePath of await collectFiles(sourceDirectory)) {
+    if (!filePath.endsWith(".ts") || filePath.endsWith(".test.ts")) continue;
+    const source = await readFile(filePath, "utf8");
+    const filesystemSpecifiers =
+      findForbiddenStaticFilesystemSpecifiers(source);
+    if (filesystemSpecifiers.length > 0) {
+      throw new Error(
+        `core source imports forbidden filesystem specifier(s) ${filesystemSpecifiers.join(", ")} in ${relative(root, filePath)}`,
+      );
+    }
+    const outputAccess = findDirectProcessOutputAccess(source);
+    if (outputAccess.length > 0) {
+      throw new Error(
+        `core source accesses process output ${outputAccess.join(", ")} in ${relative(root, filePath)}`,
+      );
+    }
+  }
 }
 
 async function assertPublicManifestBoundaries(): Promise<void> {
@@ -257,7 +387,11 @@ async function scanPackFileList(
   }
 }
 
-async function scanDirectory(directory: string, label: string): Promise<void> {
+async function scanDirectory(
+  directory: string,
+  label: string,
+  scanFilesystemSpecifiers = false,
+): Promise<void> {
   const entries = await collectFiles(directory);
   for (const filePath of entries) {
     if (!shouldScanStrictly(filePath)) continue;
@@ -269,7 +403,22 @@ async function scanDirectory(directory: string, label: string): Promise<void> {
         );
       }
     }
+    if (scanFilesystemSpecifiers && shouldScanModuleSpecifiers(filePath)) {
+      const filesystemSpecifiers =
+        findForbiddenStaticFilesystemSpecifiers(contents);
+      if (filesystemSpecifiers.length > 0) {
+        throw new Error(
+          `${label} contains forbidden filesystem specifier(s) ${filesystemSpecifiers.join(", ")} in ${relative(root, filePath)}`,
+        );
+      }
+    }
   }
+}
+
+function shouldScanModuleSpecifiers(filePath: string): boolean {
+  return [".cjs", ".d.ts", ".js", ".mjs", ".ts"].some((extension) =>
+    filePath.endsWith(extension),
+  );
 }
 
 function shouldScanStrictly(filePath: string): boolean {
@@ -337,7 +486,7 @@ async function verifyMcpConsumer(
 
   await writeFile(
     join(appDirectory, "runtime-check.mjs"),
-    `import { createMcpServer, getMcpToolDescriptors } from "@githits/mcp";\nimport { CodeNavigationServiceImpl, PackageIntelligenceServiceImpl, GitHitsServiceImpl, createClientHeaderBuilder, createStaticTokenProvider, getApiUrl } from "@githits/mcp/client";\nimport { EXPECTED_MCP_TOOLS, runMcpSmoke } from "@githits/mcp/smoke-test";\nimport { Client } from "@modelcontextprotocol/sdk/client/index.js";\nimport { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";\nif (typeof createMcpServer !== "function") throw new Error("missing createMcpServer");\nif (typeof CodeNavigationServiceImpl !== "function") throw new Error("missing CodeNavigationServiceImpl");\nif (typeof PackageIntelligenceServiceImpl !== "function") throw new Error("missing PackageIntelligenceServiceImpl");\nif (typeof GitHitsServiceImpl !== "function") throw new Error("missing GitHitsServiceImpl");\nif (typeof createStaticTokenProvider !== "function") throw new Error("missing createStaticTokenProvider");\nif (typeof createClientHeaderBuilder !== "function") throw new Error("missing createClientHeaderBuilder");\nif (typeof getApiUrl !== "function") throw new Error("missing getApiUrl");\nif (typeof runMcpSmoke !== "function") throw new Error("missing runMcpSmoke");\nif (EXPECTED_MCP_TOOLS.length === 0) throw new Error("missing expected smoke tools");\nif (getMcpToolDescriptors().length === 0) throw new Error("missing descriptors");\nconst rateLimitedFetch = async () => new Response(null, { status: 429, headers: { "Retry-After": "17" } });\nconst rateLimitedService = new GitHitsServiceImpl("https://example.invalid", "test-token", rateLimitedFetch);\nconst rateLimitedServer = createMcpServer({\n  metadata: { name: "packed-consumer", version: "0.0.0" },\n  services: {\n    githitsService: rateLimitedService,\n    codeNavigationService: {},\n    packageIntelligenceService: {},\n  },\n});\nconst rateLimitedClient = new Client({ name: "packed-consumer", version: "0.0.0" });\nconst [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();\nawait rateLimitedServer.connect(serverTransport);\nawait rateLimitedClient.connect(clientTransport);\nconst rateLimitedResult = await rateLimitedClient.callTool({ name: "get_example", arguments: { query: "package boundary check" } });\nconst rateLimitedText = rateLimitedResult.content?.[0]?.text;\nif (typeof rateLimitedText !== "string") throw new Error("missing packed rate-limit payload");\nconst rateLimitedPayload = JSON.parse(rateLimitedText);\nif (rateLimitedResult.isError !== true) throw new Error("packed rate-limit result was not an error");\nif (rateLimitedPayload.code !== "RATE_LIMITED") throw new Error(\`packed rate-limit code was \${String(rateLimitedPayload.code)}\`);\nif (rateLimitedPayload.retryable !== true) throw new Error("packed rate-limit result was not retryable");\nif (rateLimitedPayload.details?.status !== 429) throw new Error("packed rate-limit status metadata was missing");\nif (rateLimitedPayload.details?.retryAfterSeconds !== 17) throw new Error("packed retry timing metadata was missing");\nawait rateLimitedClient.close();\nawait rateLimitedServer.close();\ntry {\n  await import("@githits/mcp/internal");\n  throw new Error("internal export resolved");\n} catch (error) {\n  if (error instanceof Error && error.message === "internal export resolved") throw error;\n}\n`,
+    `import { createMcpServer, getMcpToolDescriptors } from "@githits/mcp";\nimport * as clientEntry from "@githits/mcp/client";\nimport { CodeNavigationServiceImpl, PackageIntelligenceServiceImpl, GitHitsServiceImpl, createClientHeaderBuilder, createStaticTokenProvider, getApiUrl } from "@githits/mcp/client";\nimport { EXPECTED_MCP_TOOLS, runMcpSmoke } from "@githits/mcp/smoke-test";\nimport { Client } from "@modelcontextprotocol/sdk/client/index.js";\nimport { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";\nfor (const removed of ["startTelemetrySpan", "endTelemetrySpan", "flushTelemetry", "withTelemetrySpan"]) {\n  if (removed in clientEntry) throw new Error(\`removed client export was present: \${removed}\`);\n}\nif (typeof createMcpServer !== "function") throw new Error("missing createMcpServer");\nif (typeof CodeNavigationServiceImpl !== "function") throw new Error("missing CodeNavigationServiceImpl");\nif (typeof PackageIntelligenceServiceImpl !== "function") throw new Error("missing PackageIntelligenceServiceImpl");\nif (typeof GitHitsServiceImpl !== "function") throw new Error("missing GitHitsServiceImpl");\nif (typeof createStaticTokenProvider !== "function") throw new Error("missing createStaticTokenProvider");\nif (typeof createClientHeaderBuilder !== "function") throw new Error("missing createClientHeaderBuilder");\nif (typeof getApiUrl !== "function") throw new Error("missing getApiUrl");\nif (typeof runMcpSmoke !== "function") throw new Error("missing runMcpSmoke");\nif (EXPECTED_MCP_TOOLS.length === 0) throw new Error("missing expected smoke tools");\nif (getMcpToolDescriptors().length === 0) throw new Error("missing descriptors");\nconst rateLimitedFetch = async () => new Response(null, { status: 429, headers: { "Retry-After": "17" } });\nconst rateLimitedService = new GitHitsServiceImpl("https://example.invalid", "test-token", rateLimitedFetch);\nconst rateLimitedServer = createMcpServer({\n  metadata: { name: "packed-consumer", version: "0.0.0" },\n  services: {\n    githitsService: rateLimitedService,\n    codeNavigationService: {},\n    packageIntelligenceService: {},\n  },\n});\nconst rateLimitedClient = new Client({ name: "packed-consumer", version: "0.0.0" });\nconst [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();\nawait rateLimitedServer.connect(serverTransport);\nawait rateLimitedClient.connect(clientTransport);\nconst rateLimitedResult = await rateLimitedClient.callTool({ name: "get_example", arguments: { query: "package boundary check" } });\nconst rateLimitedText = rateLimitedResult.content?.[0]?.text;\nif (typeof rateLimitedText !== "string") throw new Error("missing packed rate-limit payload");\nconst rateLimitedPayload = JSON.parse(rateLimitedText);\nif (rateLimitedResult.isError !== true) throw new Error("packed rate-limit result was not an error");\nif (rateLimitedPayload.code !== "RATE_LIMITED") throw new Error(\`packed rate-limit code was \${String(rateLimitedPayload.code)}\`);\nif (rateLimitedPayload.retryable !== true) throw new Error("packed rate-limit result was not retryable");\nif (rateLimitedPayload.details?.status !== 429) throw new Error("packed rate-limit status metadata was missing");\nif (rateLimitedPayload.details?.retryAfterSeconds !== 17) throw new Error("packed retry timing metadata was missing");\nawait rateLimitedClient.close();\nawait rateLimitedServer.close();\ntry {\n  await import("@githits/mcp/internal");\n  throw new Error("internal export resolved");\n} catch (error) {\n  if (error instanceof Error && error.message === "internal export resolved") throw error;\n}\n`,
   );
   await runCommand(
     "node",
@@ -345,10 +494,11 @@ async function verifyMcpConsumer(
     appDirectory,
     "runtime import packed mcp package",
   );
+  await verifyMcpBundleProbes(appDirectory);
 
   await writeFile(
     join(appDirectory, "check.ts"),
-    `import { buildMcpQuickStart, createMcpServer, getMcpToolDescriptors, type CreateMcpServerOptions, type McpToolServicesProvider } from "@githits/mcp";\nimport { CodeNavigationServiceImpl, GitHitsServiceImpl, PackageIntelligenceServiceImpl, createClientHeaderBuilder, createStaticTokenProvider, getApiUrl, getCodeNavigationUrl, type GitHitsService, type TokenProvider } from "@githits/mcp/client";\nimport { EXPECTED_MCP_TOOLS, runMcpSmoke, type McpSmokeCaller } from "@githits/mcp/smoke-test";\nconst provider: McpToolServicesProvider = () => { throw new Error("unused"); };\nconst options: CreateMcpServerOptions = { authAction: "Authenticate with the hosted GitHits MCP server.", metadata: { name: "consumer", version: "0.0.0" }, services: provider };\nconst tokenProvider: TokenProvider = createStaticTokenProvider("token");\nconst headers = createClientHeaderBuilder({ clientName: "remote-mcp", clientVersion: "0.0.0" });\nconst gitHitsService: GitHitsService = new GitHitsServiceImpl(getApiUrl(), "token", undefined, undefined, { clientHeaders: headers, userAgent: "remote-mcp/0.0.0" });\nconst caller: McpSmokeCaller = { listTools: async () => ({ tools: EXPECTED_MCP_TOOLS.map((name) => ({ name })) }), callTool: async (name) => ({ content: [{ type: "text", text: name === "quick_start" ? buildMcpQuickStart() : "ok" }] }) };\nvoid new CodeNavigationServiceImpl(getCodeNavigationUrl(), tokenProvider, globalThis.fetch, { clientHeaders: headers, userAgent: "remote-mcp/0.0.0" });\nvoid new PackageIntelligenceServiceImpl(getCodeNavigationUrl(), tokenProvider, globalThis.fetch, { clientHeaders: headers, userAgent: "remote-mcp/0.0.0" });\nvoid gitHitsService;\nvoid createMcpServer(options);\nvoid buildMcpQuickStart();\nvoid runMcpSmoke(caller, { includeLiveTools: false });\nif (getMcpToolDescriptors().length === 0) throw new Error("expected descriptors");\n`,
+    `import { buildMcpQuickStart, createMcpServer, getMcpToolDescriptors, type CreateMcpServerOptions, type McpToolServicesProvider } from "@githits/mcp";\nimport { CodeNavigationServiceImpl, GitHitsServiceImpl, PackageIntelligenceServiceImpl, createClientHeaderBuilder, createStaticTokenProvider, getApiUrl, getCodeNavigationUrl, type GitHitsService, type ServiceDiagnostics, type TokenProvider } from "@githits/mcp/client";\nimport { EXPECTED_MCP_TOOLS, runMcpSmoke, type McpSmokeCaller } from "@githits/mcp/smoke-test";\n// These negative imports guard the packed declaration surface if old globals reappear.\n// @ts-expect-error telemetry lifecycle was removed from the client entry\nimport { startTelemetrySpan } from "@githits/mcp/client";\n// @ts-expect-error telemetry lifecycle was removed from the client entry\nimport { endTelemetrySpan } from "@githits/mcp/client";\n// @ts-expect-error telemetry lifecycle was removed from the client entry\nimport { flushTelemetry } from "@githits/mcp/client";\n// @ts-expect-error telemetry lifecycle was removed from the client entry\nimport { withTelemetrySpan } from "@githits/mcp/client";\nconst provider: McpToolServicesProvider = () => { throw new Error("unused"); };\nconst options: CreateMcpServerOptions = { authAction: "Authenticate with the hosted GitHits MCP server.", metadata: { name: "consumer", version: "0.0.0" }, services: provider };\nconst tokenProvider: TokenProvider = createStaticTokenProvider("token");\nconst headers = createClientHeaderBuilder({ clientName: "remote-mcp", clientVersion: "0.0.0" });\nconst diagnostics: ServiceDiagnostics = { withOperation: async (_name, operation) => operation(), isEnabled: () => false, debug: () => {} };\nconst gitHitsService: GitHitsService = new GitHitsServiceImpl(getApiUrl(), "token", undefined, undefined, { clientHeaders: headers, userAgent: "remote-mcp/0.0.0", diagnostics });\nconst caller: McpSmokeCaller = { listTools: async () => ({ tools: EXPECTED_MCP_TOOLS.map((name) => ({ name })) }), callTool: async (name) => ({ content: [{ type: "text", text: name === "quick_start" ? buildMcpQuickStart() : "ok" }] }) };\nvoid new CodeNavigationServiceImpl(getCodeNavigationUrl(), tokenProvider, globalThis.fetch, { clientHeaders: headers, userAgent: "remote-mcp/0.0.0", diagnostics });\nvoid new PackageIntelligenceServiceImpl(getCodeNavigationUrl(), tokenProvider, globalThis.fetch, { clientHeaders: headers, userAgent: "remote-mcp/0.0.0", diagnostics });\nvoid gitHitsService;\nvoid createMcpServer(options);\nvoid buildMcpQuickStart();\nvoid runMcpSmoke(caller, { includeLiveTools: false });\nif (getMcpToolDescriptors().length === 0) throw new Error("expected descriptors");\n`,
   );
   await writeFile(
     join(appDirectory, "tsconfig.json"),
@@ -396,6 +546,31 @@ void CodeDiffError;
   );
 }
 
+async function verifyMcpBundleProbes(appDirectory: string): Promise<void> {
+  const probeDirectory = join(appDirectory, "bundle-probes");
+  const outputDirectory = join(probeDirectory, "out");
+  await mkdir(probeDirectory, { recursive: true });
+
+  for (const [index, specifier] of [
+    "@githits/mcp",
+    "@githits/mcp/client",
+    "@githits/mcp/smoke-test",
+  ].entries()) {
+    const entrypoint = join(probeDirectory, `probe-${index}.mjs`);
+    await writeFile(
+      entrypoint,
+      `import * as entry from ${JSON.stringify(specifier)};\nif (Object.keys(entry).length === 0) throw new Error("empty ${specifier} probe");\n`,
+    );
+    const metafile = await buildNodeTargetProbe(entrypoint, outputDirectory);
+    const forbidden = findForbiddenFilesystemSpecifiersInMetafile(metafile);
+    if (forbidden.length > 0) {
+      throw new Error(
+        `${specifier} Node-target bundle resolves forbidden filesystem specifier(s): ${forbidden.join(", ")}`,
+      );
+    }
+  }
+}
+
 async function writePackageJson(directory: string): Promise<void> {
   await writeFile(
     join(directory, "package.json"),
@@ -429,4 +604,6 @@ async function runCommand(
   return stdoutText;
 }
 
-await main();
+if (import.meta.main) {
+  await main();
+}

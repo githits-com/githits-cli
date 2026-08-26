@@ -7,8 +7,10 @@ manifest move is complete.
 ## Current Layout
 
 - `packages/core-internal` is private and source-exported. It owns the
-  transport-neutral API clients, shared request/header/telemetry primitives,
-  neutral service errors, PKCE helpers, and `TokenProvider` contract.
+  transport-neutral API clients, shared request/header primitives, the
+  host-supplied `ServiceDiagnostics` contract, neutral service errors, PKCE
+  helpers, and `TokenProvider` contract. It does not own diagnostics environment
+  discovery, process lifecycle, or output destinations.
 - `packages/mcp` is the public `@githits/mcp` package boundary. Its public root
   export is intentionally small: transport-neutral MCP server factory, tool
   registration, static tool descriptors, instructions, and MCP-facing types. It
@@ -38,8 +40,11 @@ manifest move is complete.
   `@githits/mcp/smoke-test`, and `@githits/mcp/package.json`.
 - `@githits/mcp/client` is the public runtime/client entry for remote MCP server
   composition. It re-exports bundled service implementations, token/header
-  helpers, URL/config helpers, telemetry helpers, and registry helpers without
-  publishing `@githits/core-internal`.
+  helpers, URL/config helpers, the injectable `ServiceDiagnostics` type, and
+  registry helpers without publishing `@githits/core-internal`. Clients are
+  silent by default; hosts own diagnostics implementations and destinations.
+  The removed module-global telemetry lifecycle helpers are not part of this
+  entry.
 - `@githits/mcp/smoke-test` is the public validation-helper entry for remote MCP
   servers. It re-exports the shared smoke runner and assertions used by the
   local CLI smoke script without requiring local stdio startup.
@@ -112,6 +117,13 @@ manifest move is complete.
   workspace imports, `workspace:*`, and internal aliases.
 - Keep artifact scans strict for code, declaration files, and manifests. README
   or docs may mention internal paths only as approved boundary warnings.
+- The public-package validator separately scans non-test core TypeScript source
+  for static filesystem imports and direct `process.stderr`/`process.stdout`
+  access, then scans built and packed MCP code for static filesystem imports.
+  It also bundles the packed MCP root, client, and smoke-test entries with a
+  Node target and inspects each resolved import graph. This is a static
+  string-literal/import-graph guardrail, not a browser-compatibility claim and
+  not a ban on the root CLI's host-only filesystem code.
 - The MCP package build settings live in `packages/mcp/bunup.config.ts`. Its
   runtime externals are the MCP SDK and Zod; `@githits/core-internal` is resolved
   and bundled into JS/declaration output so the packed public package does not
