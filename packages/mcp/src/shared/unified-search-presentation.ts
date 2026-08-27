@@ -1,4 +1,5 @@
 import type {
+  LeanDocCoverage,
   UnifiedSearchCompletedPayload,
   UnifiedSearchHitPayload,
   UnifiedSearchIncompletePayload,
@@ -58,6 +59,20 @@ export interface UnifiedSearchSourceEntry {
   siteKey?: string;
   siteUrl?: string;
 }
+
+type SourceIdentity = Pick<
+  UnifiedSearchSourceEntry,
+  | "target"
+  | "contextTarget"
+  | "repositoryUrl"
+  | "commitSha"
+  | "siteKey"
+  | "siteUrl"
+>;
+
+type Coverage = Omit<LeanDocCoverage, "frontierRemaining"> & {
+  frontierRemaining?: number | null;
+};
 
 export interface UnifiedSearchSourceGroup {
   kind: UnifiedSearchSourceKind;
@@ -218,12 +233,13 @@ export function projectUnifiedSearchPresentation(
     snapshot?.query ?? ("query" in payload ? payload.query : undefined);
   const warnings = projectWarnings(query, sourceStatus);
   const alternatives = projectAlternatives(progress, sourceStatus);
+  const searchRef = "searchRef" in payload ? payload.searchRef : undefined;
 
   return {
     availability,
     lifecycle,
     query,
-    searchRef: extractSearchRef(payload),
+    searchRef,
     progress: projectProgress(progress),
     targets: projectTargets(progress),
     hasMore: snapshot?.hasMore ?? false,
@@ -233,7 +249,7 @@ export function projectUnifiedSearchPresentation(
     warnings,
     alternatives,
     action: projectAction({
-      payload,
+      searchRef,
       snapshot,
       lifecycle,
       availability,
@@ -248,33 +264,17 @@ function extractSnapshot(
   payload: UnifiedSearchPresentationInput,
 ): SnapshotFacts | undefined {
   if ("result" in payload) return payload.result;
-  if (payload.completed) {
-    return {
-      query: payload.query,
-      partialResults: payload.partialResults,
-      hasMore: payload.hasMore,
-      results: payload.results,
-      sourceStatus: payload.sourceStatus,
-      evidenceNotice: payload.evidenceNotice,
-    };
+  if (!("partialResults" in payload) || payload.partialResults === undefined) {
+    return undefined;
   }
-  if ("partialResults" in payload && payload.partialResults !== undefined) {
-    return {
-      query: payload.query,
-      partialResults: payload.partialResults,
-      hasMore: payload.hasMore,
-      results: payload.results,
-      sourceStatus: payload.sourceStatus,
-      evidenceNotice: payload.evidenceNotice,
-    };
-  }
-  return undefined;
-}
-
-function extractSearchRef(
-  payload: UnifiedSearchPresentationInput,
-): string | undefined {
-  return "searchRef" in payload ? payload.searchRef : undefined;
+  return {
+    query: "query" in payload ? payload.query : undefined,
+    partialResults: payload.partialResults,
+    hasMore: payload.hasMore,
+    results: payload.results,
+    sourceStatus: payload.sourceStatus,
+    evidenceNotice: payload.evidenceNotice,
+  };
 }
 
 function projectProgress(
@@ -334,17 +334,15 @@ function projectAvailability(
     return { kind: "no_snapshot", hasSnapshot: false, resultCount: 0 };
   }
   const resultCount = snapshot.results.length;
-  if (resultCount === 0) {
-    return { kind: "empty", hasSnapshot: true, resultCount };
-  }
-  if (snapshot.partialResults) {
-    return { kind: "partial", hasSnapshot: true, resultCount };
-  }
-  return {
-    kind: lifecycle.kind === "active" ? "interim" : "final",
-    hasSnapshot: true,
-    resultCount,
-  };
+  const kind =
+    resultCount === 0
+      ? "empty"
+      : snapshot.partialResults
+        ? "partial"
+        : lifecycle.kind === "active"
+          ? "interim"
+          : "final";
+  return { kind, hasSnapshot: true, resultCount };
 }
 
 function projectSources(
@@ -417,15 +415,7 @@ function contributorIdentity(
   contributor: NonNullable<
     UnifiedSearchSourceStatusPayload["contributors"]
   >[number],
-): Pick<
-  UnifiedSearchSourceEntry,
-  | "target"
-  | "contextTarget"
-  | "repositoryUrl"
-  | "commitSha"
-  | "siteKey"
-  | "siteUrl"
-> {
+): SourceIdentity {
   const contextTarget = sourceTarget(entry);
   const target =
     contributor.kind === "REPOSITORY_DOCS"
@@ -446,15 +436,7 @@ function contributorIdentity(
 function sourceIdentity(
   entry: UnifiedSearchSourceStatusPayload,
   kind: UnifiedSearchSourceKind,
-): Pick<
-  UnifiedSearchSourceEntry,
-  | "target"
-  | "contextTarget"
-  | "repositoryUrl"
-  | "commitSha"
-  | "siteKey"
-  | "siteUrl"
-> {
+): SourceIdentity {
   const target = sourceTarget(entry);
   const contextTarget = entry.requestedTarget ?? entry.freshTarget;
   const context =
@@ -483,16 +465,12 @@ function sourceState(
     (state): state is string => Boolean(state),
   );
   if (states.length === 0) return "searched";
-  if (states.some((state) => state === "INDEXING" || state === "PENDING")) {
+  if (states.some((state) => ["INDEXING", "PENDING"].includes(state))) {
     return "waiting";
   }
-  const searchableStates = new Set([
-    "CURRENT",
-    "INDEXED",
-    "PROVISIONAL",
-    "STALE",
-  ]);
-  return states.every((state) => searchableStates.has(state))
+  return states.every((state) =>
+    ["CURRENT", "INDEXED", "PROVISIONAL", "STALE"].includes(state),
+  )
     ? "searched"
     : "unavailable";
 }
@@ -500,16 +478,12 @@ function sourceState(
 function contributorState(
   state: "SEARCHED" | "READY" | "PENDING" | "UNAVAILABLE",
 ): UnifiedSearchSourceReadiness {
-  switch (state) {
-    case "SEARCHED":
-      return "searched";
-    case "READY":
-      return "available_not_searched";
-    case "PENDING":
-      return "waiting";
-    case "UNAVAILABLE":
-      return "unavailable";
-  }
+  return {
+    SEARCHED: "searched",
+    READY: "available_not_searched",
+    PENDING: "waiting",
+    UNAVAILABLE: "unavailable",
+  }[state] as UnifiedSearchSourceReadiness;
 }
 
 function projectTrustLimits(
@@ -517,25 +491,20 @@ function projectTrustLimits(
   sources: UnifiedSearchSourceGroup[],
   sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
 ): UnifiedSearchTrustLimit[] {
-  const limits: UnifiedSearchTrustLimit[] = [];
-  const seen = new Map<string, number>();
+  const limits = new Map<string, UnifiedSearchTrustLimit>();
   const add = (limit: UnifiedSearchTrustLimit): void => {
     const key =
       limit.kind === "stale"
         ? `stale:${limit.servedTarget ?? limit.target ?? ""}`
         : JSON.stringify(limit);
-    const existingIndex = seen.get(key);
-    const existing =
-      existingIndex === undefined ? undefined : limits[existingIndex];
-    if (existingIndex === undefined) {
-      seen.set(key, limits.length);
-      limits.push(limit);
-    } else if (
-      limit.kind === "stale" &&
-      existing?.kind === "stale" &&
-      staleSpecificity(limit) > staleSpecificity(existing)
+    const existing = limits.get(key);
+    if (
+      existing === undefined ||
+      (limit.kind === "stale" &&
+        existing.kind === "stale" &&
+        staleSpecificity(limit) > staleSpecificity(existing))
     ) {
-      limits[existingIndex] = limit;
+      limits.set(key, limit);
     }
   };
 
@@ -605,7 +574,7 @@ function projectTrustLimits(
   if (snapshot?.evidenceNotice !== undefined) {
     add({ kind: "mutable_evidence" });
   }
-  return limits;
+  return [...limits.values()];
 }
 
 function staleSpecificity(
@@ -620,20 +589,9 @@ function addCoverage(
   add: (limit: UnifiedSearchTrustLimit) => void,
   source: UnifiedSearchSourceKind,
   target: string,
-  coverage:
-    | {
-        coverageState: string;
-        pagesCrawled?: number;
-        frontierRemaining?: number | null;
-        estimatedTotalPages?: number;
-      }
-    | undefined,
+  coverage: Coverage | undefined,
 ): void {
-  if (!coverage) return;
-  if (
-    coverage.coverageState !== "PARTIAL" &&
-    coverage.coverageState !== "CAPPED"
-  ) {
+  if (!coverage || !["PARTIAL", "CAPPED"].includes(coverage.coverageState)) {
     return;
   }
   add({
@@ -655,19 +613,21 @@ function addConstraints(
   entry: UnifiedSearchSourceStatusPayload,
 ): void {
   const target = entry.targetLabel;
-  const constraints: Array<
-    [UnifiedSearchConstraintKind, string[] | undefined]
-  > = [
+  for (const [constraint, values] of sourceConstraints(entry)) {
+    if (values?.length)
+      add({ kind: "constraint", constraint, source: target, values });
+  }
+}
+
+function sourceConstraints(
+  entry: UnifiedSearchSourceStatusPayload,
+): Array<[UnifiedSearchConstraintKind, string[] | undefined]> {
+  return [
     ["ignored_filter", entry.ignoredFilters],
     ["incompatible_filter", entry.incompatibleFilters],
     ["ignored_query_feature", entry.ignoredQueryFeatures],
     ["incompatible_query_feature", entry.incompatibleQueryFeatures],
   ];
-  for (const [constraint, values] of constraints) {
-    if (values && values.length > 0) {
-      add({ kind: "constraint", constraint, source: target, values });
-    }
-  }
 }
 
 function projectWarnings(
@@ -680,16 +640,8 @@ function projectWarnings(
   }
   for (const entry of sourceStatus ?? []) {
     const source = entry.targetLabel;
-    const constraints: Array<
-      [UnifiedSearchConstraintKind, string[] | undefined]
-    > = [
-      ["ignored_filter", entry.ignoredFilters],
-      ["incompatible_filter", entry.incompatibleFilters],
-      ["ignored_query_feature", entry.ignoredQueryFeatures],
-      ["incompatible_query_feature", entry.incompatibleQueryFeatures],
-    ];
-    for (const [kind, values] of constraints) {
-      if (values && values.length > 0) warnings.push({ kind, source, values });
+    for (const [kind, values] of sourceConstraints(entry)) {
+      if (values?.length) warnings.push({ kind, source, values });
     }
   }
   return warnings;
@@ -699,9 +651,8 @@ function projectAlternatives(
   progress: UnifiedSearchProgressPayload | undefined,
   sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
 ): UnifiedSearchAlternativeFacts[] {
-  const candidates: CandidateSet[] = [];
-  for (const target of progress?.targets ?? []) {
-    candidates.push({
+  const candidates: CandidateSet[] = [
+    ...(progress?.targets ?? []).map((target) => ({
       target: target.requested,
       versions:
         target.targetResolution?.availableVersions ??
@@ -711,18 +662,21 @@ function projectAlternatives(
         target.targetResolution?.availableRefs ?? target.availableRefs ?? [],
       suggestedRefs:
         target.targetResolution?.suggestedRefs ?? target.suggestedRefs ?? [],
-    });
-  }
-  for (const entry of sourceStatus ?? []) {
-    const resolution = entry.targetResolution;
-    if (!resolution) continue;
-    candidates.push({
-      target: sourceTarget(entry),
-      versions: resolution.availableVersions,
-      refs: resolution.availableRefs,
-      suggestedRefs: resolution.suggestedRefs ?? [],
-    });
-  }
+    })),
+    ...(sourceStatus ?? []).flatMap((entry) => {
+      const resolution = entry.targetResolution;
+      return resolution
+        ? [
+            {
+              target: sourceTarget(entry),
+              versions: resolution.availableVersions,
+              refs: resolution.availableRefs,
+              suggestedRefs: resolution.suggestedRefs ?? [],
+            },
+          ]
+        : [];
+    }),
+  ];
   return mergeAlternativeCandidates(candidates)
     .filter(
       (candidate) =>
@@ -802,7 +756,7 @@ function boundedAlternatives(
 }
 
 interface ActionInput {
-  payload: UnifiedSearchPresentationInput;
+  searchRef?: string;
   snapshot: SnapshotFacts | undefined;
   lifecycle: UnifiedSearchLifecycle;
   availability: UnifiedSearchAvailability;
@@ -813,28 +767,26 @@ interface ActionInput {
 
 function projectAction(input: ActionInput): UnifiedSearchAction {
   if (input.lifecycle.kind === "active") {
-    const searchRef = extractSearchRef(input.payload);
-    return searchRef ? { kind: "poll", searchRef } : { kind: "none" };
+    return input.searchRef
+      ? { kind: "poll", searchRef: input.searchRef }
+      : { kind: "none" };
   }
   if (
     input.lifecycle.kind === "terminal" ||
     input.lifecycle.kind === "unknown"
   ) {
-    if (input.siteSuggestions.length > 0) {
-      return { kind: "site_retry" };
-    }
-    return { kind: "new_search" };
+    return input.siteSuggestions.length > 0
+      ? { kind: "site_retry" }
+      : { kind: "new_search" };
   }
   if (
     input.lifecycle.kind === "completed" &&
     input.snapshot?.evidenceNotice !== undefined
   ) {
-    const searchRef = extractSearchRef(input.payload);
-    if (searchRef) return { kind: "status", searchRef };
+    if (input.searchRef) return { kind: "status", searchRef: input.searchRef };
   }
-  if (!input.snapshot || input.availability.kind !== "empty") {
+  if (!input.snapshot || input.availability.kind !== "empty")
     return { kind: "none" };
-  }
 
   const hasIndexing = hasIndexingTrustSignal(input.snapshot.sourceStatus);
   if (hasIndexing) {
@@ -857,7 +809,12 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
     return { kind: "none" };
   }
 
-  if (isStandaloneSiteSearch(input.snapshot.sourceStatus)) {
+  if (
+    input.snapshot.sourceStatus?.length &&
+    input.snapshot.sourceStatus.every((entry) =>
+      isSiteTarget(entry.targetLabel, entry),
+    )
+  ) {
     return {
       kind: "query_rewrite",
       rewrites: ["site_shorter_or_broader"],
@@ -930,15 +887,6 @@ function hasRestrictiveFilters(
       filters?.publicOnly === true ||
       (query?.raw &&
         /(?:^|\s)(?:kind|category|path|lang|name|intent):/i.test(query.raw)),
-  );
-}
-
-function isStandaloneSiteSearch(
-  sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
-): boolean {
-  return Boolean(
-    sourceStatus?.length &&
-      sourceStatus.every((entry) => isSiteTarget(entry.targetLabel, entry)),
   );
 }
 
