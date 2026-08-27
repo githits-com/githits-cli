@@ -88,8 +88,11 @@ export function buildTargetResolutionNotes(
     }
     case "indexing": {
       const parts = [reason ?? "Fresh target is being indexed"];
+      if (served) parts.push(`served=${served}`);
       if (requested) parts.push(`requested=${requested}`);
-      if (fresh) parts.push(`fresh=${fresh}`);
+      if (fresh && identitiesMateriallyDiffer(fresh, served)) {
+        parts.push(`fresh=${fresh}`);
+      }
       if (resolution.indexingRef)
         parts.push(`indexingRef=${resolution.indexingRef}`);
       lines.push(parts.join(" | "));

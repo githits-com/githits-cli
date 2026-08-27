@@ -44,7 +44,7 @@ When grep returns no matches, do not repeat it unchanged. Change or shorten the 
 
 `githits docs list <spec>` browses available documentation pages. It is not topic search.
 
-`githits docs read <pageId>` reads a page. Text output returns at most 150 lines per call, including larger explicit ranges; continue with explicit `--lines` windows when more context is needed. Use `--json` when extracting `startLine`, `endLine`, `totalLines`, or source metadata.
+`githits docs read <pageId>` reads a page. Text output honors the requested range; use explicit `--lines` windows to keep only needed context. Use `--json` when extracting `startLine`, `endLine`, `totalLines`, or source metadata.
 
 For topic search, use `githits search "<topic>" --source docs --in <target>`, then pass the returned page ID to `docs read`.
 

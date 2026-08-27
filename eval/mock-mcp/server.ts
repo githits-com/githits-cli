@@ -18,30 +18,30 @@
  *   constants; the mock controls whether they're included per cell
  *   via the `EVAL_MCP_GUARDRAIL` env var so we can measure
  *   guardrail-on vs guardrail-off cleanly.
- * - Imports each tool's `DESCRIPTION` constant from `src/tools/*.ts`
- *   so the mock matches production verbatim modulo the guardrail
- *   addenda we're appending here.
+ * - Imports each tool's guardrail-free base description so the mock matches
+ *   production verbatim after composing the selected addenda here.
  */
 
 import { readFileSync } from "node:fs";
 import {
   buildMcpQuickStart,
-  READ_FILE_DESCRIPTION as CODE_READ_DESCRIPTION,
+  READ_FILE_DESCRIPTION_BASE as CODE_READ_DESCRIPTION,
   CODE_READ_GUARDRAIL,
   DOCS_GUARDRAIL,
-  READ_PACKAGE_DOC_DESCRIPTION as DOCS_READ_DESCRIPTION,
+  READ_PACKAGE_DOC_DESCRIPTION_BASE as DOCS_READ_DESCRIPTION,
   EXTERNAL_CONTENT_POSTURE,
-  PACKAGE_CHANGELOG_DESCRIPTION as PKG_CHANGELOG_DESCRIPTION,
+  PACKAGE_CHANGELOG_DESCRIPTION_BASE as PKG_CHANGELOG_DESCRIPTION,
   PKG_CHANGELOG_GUARDRAIL,
-  PACKAGE_SUMMARY_DESCRIPTION as PKG_INFO_DESCRIPTION,
+  PACKAGE_SUMMARY_DESCRIPTION_BASE as PKG_INFO_DESCRIPTION,
   PKG_INFO_GUARDRAIL,
-  PACKAGE_VULNERABILITIES_DESCRIPTION as PKG_VULNS_DESCRIPTION,
+  PACKAGE_VULNERABILITIES_DESCRIPTION_BASE as PKG_VULNS_DESCRIPTION,
   PKG_VULNS_GUARDRAIL,
   QUICK_START_DESCRIPTION,
 } from "@githits/mcp/internal";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import type { EvalMcpFixtureToolName } from "./state.js";
 
 const STATE_FILE = process.env.EVAL_MCP_STATE_FILE;
 if (!STATE_FILE) {
@@ -91,7 +91,7 @@ function readState(): ToolState {
   return JSON.parse(raw) as ToolState;
 }
 
-function fixtureContentFor(toolName: string): string {
+function fixtureContentFor(toolName: EvalMcpFixtureToolName): string {
   const state = readState();
   if (state.expectedTool === toolName) {
     return state.content;

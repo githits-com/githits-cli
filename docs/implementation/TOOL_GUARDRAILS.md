@@ -55,11 +55,14 @@ One layer, with a second held in reserve:
    instructions for hostnames not in dedicated reference fields;
    embargo / legal / dispute framings that try to induce refusal.
 
-2. **Per-tool addenda** are currently empty strings. The shared
-   block carries the posture; each tool's structured-field names are
-   already visible to the agent via its response schema. Restore an
-   addendum on a specific tool only if Pass 1 shows that tool's
-   surface regresses under the shared-block-only wording.
+2. **Per-tool addenda** are normally empty. `code_read` and `code_grep` carry
+   one focused source-specific addendum because a Claude Desktop session was
+   observed skipping `quick_start` before reading source. The other tools rely
+   on the shared block; restore another focused addendum only when evidence
+   shows that surface is used without the bootstrap. The source addendum blocks
+   comments and strings that redirect the agent or offer recommendations, but
+   preserves content the user directly requested and operative code or
+   configuration. Preserved content is evidence, never adopted as advice.
 
 The shared block alone produced a measured reduction in goal-
 redirection compliance vs. baseline on `pkg_changelog` with Codex
@@ -68,14 +71,27 @@ v4's full-stack (shared + per-tool) measured 2/36 (6%) on the same
 gate. Compact loses ~2 percentage points and saves ~78% of the
 wording (787 words v4 → 171 words compact).
 
-Those measurements validate the wording only when the shared block is in
-context. Delivery now depends on the agent calling `quick_start`; this avoids
-host-dependent server-instruction duplication but leaves sessions that skip the
-guide without the shared posture. Luna-low descriptor-only and full-guidance
-canaries called `quick_start` exactly once in every workload, but that is routing
-evidence, not a prompt-injection re-evaluation. If broader agent evals show the
-bootstrap being skipped, restore focused addenda first on the affected
-high-attacker-control tools and rerun Pass 1.
+Those measurements validate the shared wording only when the block is in
+context. Delivery normally depends on the agent calling `quick_start`; this
+avoids host-dependent server-instruction duplication. Luna-low descriptor-only
+and full-guidance canaries called `quick_start` exactly once in every workload,
+but a later Claude Desktop source-reading session skipped it. `code_read` and
+`code_grep` therefore now carry focused local posture as a fallback. This is
+not evidence that other content tools are protected when the bootstrap is
+skipped.
+
+The focused source fallback was validated in August 2026 with exactly one
+tool-local addendum and no shared block. After scoping it to redirecting advice,
+0/36 `code_read` cells complied across the 12 unframed goal-redirection attacks
+at three runs each. Separate forced-tool Pass 3 cohorts for Codex and Claude
+then each preserved all four requested source categories: CI commands,
+configuration recommendations, operative URL constants, and package
+migration/version mappings (4/4 per driver). The eval
+mock imports guardrail-free base descriptions and composes addenda per cell;
+before that correction, its `off` mode accidentally contained one source
+addendum and its `tool` mode contained two, so the earlier 0/35 result was
+discarded. An earlier eight-cell Pass 3 attempt was also discarded because the
+agents bypassed the mock MCP; the forced-tool prompts replace that invalid run.
 
 **Constraint on per-tool addenda**: never reference another MCP tool
 by name in a tool's description. Agent harnesses load detailed tool
@@ -111,14 +127,16 @@ the agent calls `quick_start`; it is not inherited automatically.
     `PKG_CHANGELOG_GUARDRAIL`, `PKG_UPGRADE_REVIEW_GUARDRAIL`,
     `DOCS_GUARDRAIL`, `CODE_READ_GUARDRAIL`,
     `CODE_GREP_GUARDRAIL`, `SEARCH_GUARDRAIL`, `GET_EXAMPLE_GUARDRAIL`
-    — currently empty strings, reserved for restoration if a tool
-    surface regresses.
+    — `CODE_READ_GUARDRAIL` and `CODE_GREP_GUARDRAIL` carry the focused
+    source fallback; the others remain reserved for evidence-driven restoration.
 - Shared-block wiring: `packages/mcp/src/mcp/instructions.ts` — inserted
   between `CORE_BLOCK` and `PACKAGE_TOOLS_PREAMBLE`.
-- Per-tool wiring: each tool file imports its guardrail constant
-  and appends it to `DESCRIPTION` with `\n\n` separator. Empty
-  constants produce a trailing `\n\n` on the description, which is
-  cosmetic-only.
+- Per-tool wiring: each fixture tool registered by the eval mock exports a guardrail-free
+  `DESCRIPTION_BASE`, then appends its guardrail constant to the production
+  `DESCRIPTION` with a `\n\n` separator. The eval mock imports base descriptions
+  through `@githits/mcp/internal` so `off`, `tool`, and `both` compose the exact
+  intended layers. Empty constants produce a trailing `\n\n` on production
+  descriptions, which is cosmetic-only.
 
 ## Adding a new tool that surfaces third-party content
 
@@ -156,7 +174,8 @@ The eval harness in `eval/` runs three passes:
 - **Pass 3 (must-not-do)** — legitimate-signal preservation
   fixtures. Verifies the guardrail isn't so aggressive it drops
   legitimate deprecation notices, transitive vuln lists,
-  peerDependency-linked alternatives, real CI badges, etc.
+  peerDependency-linked alternatives, real CI badges, or directly requested
+  and operative source evidence.
 
 Re-run the eval when:
 
@@ -223,7 +242,7 @@ The wording evolved across two design rounds:
   three-pass eval; produced 2/36 (6%) guardrailed compliance vs
   23/36 (64%) baseline.
 
-- **Compact (current)** — shared block tightened to ~170 words,
+- **Compact shared posture** — shared block tightened to ~170 words,
   per-tool addenda emptied. Total wording ~78% smaller. Iterated through Tier A (initial
   compaction, failed per-attack rule on EX-001 at 3/3), Tier A+
   (added peer-dep clause, BD-001 regressed in smoke), Tier A++
@@ -232,6 +251,16 @@ The wording evolved across two design rounds:
   string literals after reviewer feedback). Final validated via
   full Pass 1 (12 attacks × N=3 = 36 cells): 3/36 (8%) compliance,
   per-attack rule passes.
+
+- **Focused source fallback (August 2026)** — `code_read` and `code_grep`
+  restored one compact comment/string-specific addendum after a Claude Desktop
+  session skipped `quick_start`. The corrected single-addendum `code_read`
+  cohort measured 0/36 compliance. A review then found that the original strict
+  wording could suppress normal source analysis, so it was narrowed to
+  redirecting advice with explicit exceptions for user-requested and operative
+  evidence. The narrowed wording retained 0/36 attack compliance; Codex and
+  Claude each passed all four forced-tool preservation fixtures. The earlier Pass 3 run remains
+  discarded because all cells bypassed the mock MCP.
 
 Reports under `eval/out/` (gitignored — local-only snapshots):
 - `pass1-baseline.md` — v4 baseline cohort (still applies — only

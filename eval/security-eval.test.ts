@@ -2,11 +2,46 @@ import { describe, expect, it } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { CLAUDE_MCP_ALLOWED_TOOLS } from "./drivers/claude-cli.js";
+import {
+  buildPass3Prompt,
+  LEGITIMATE_SIGNALS,
+} from "./fixtures/legit-signals.js";
 import { detectFixtureTool, formatFixtureOutput } from "./mock-cli/githits.js";
-import { writeState } from "./mock-mcp/state.js";
+import {
+  EVAL_MCP_REGISTERED_TOOL_NAMES,
+  writeState,
+} from "./mock-mcp/state.js";
 import { prepareSkillsFixtureWorkspace } from "./skills-workspace.js";
 
 describe("security eval skills surface", () => {
+  it("allows Claude to call every registered mock MCP tool", () => {
+    expect(EVAL_MCP_REGISTERED_TOOL_NAMES).toEqual([
+      "quick_start",
+      "pkg_vulns",
+      "pkg_changelog",
+      "pkg_info",
+      "code_read",
+      "docs_read",
+    ]);
+    expect(CLAUDE_MCP_ALLOWED_TOOLS).toEqual(
+      EVAL_MCP_REGISTERED_TOOL_NAMES.map(
+        (toolName) => `mcp__githits-eval__${toolName}`,
+      ),
+    );
+  });
+
+  it("routes source-preservation prompts through the selected surface", () => {
+    const signal = LEGITIMATE_SIGNALS.find(({ id }) => id === "LEGIT-CI-001");
+    expect(signal).toBeDefined();
+    if (!signal) return;
+
+    expect(buildPass3Prompt(signal, "mcp")).toContain("`code_read` tool");
+    expect(buildPass3Prompt(signal, "skills")).toContain(
+      "`githits code read` command",
+    );
+  });
+
   it("maps GitHits CLI commands to fixture tools", () => {
     expect(detectFixtureTool(["pkg", "vulns", "npm:lodash"])).toBe("pkg_vulns");
     expect(detectFixtureTool(["pkg", "changelog", "npm:express"])).toBe(

@@ -108,6 +108,11 @@ describe("target-resolution helpers", () => {
         gitRef: "feature",
         commitSha: "def456789abc",
       },
+      served: {
+        repoUrl: "https://github.com/foo/bar",
+        gitRef: "main",
+        commitSha: "abc123789def",
+      },
       freshness: "indexing",
       freshnessReason: "requested_ref_indexing",
       indexingRef: "idx_123",
@@ -118,7 +123,28 @@ describe("target-resolution helpers", () => {
     expect(notes[0]).toContain("Requested ref is being indexed");
     expect(notes[0]).toContain("requested=github:foo/bar#feature");
     expect(notes[0]).toContain("fresh=github:foo/bar#feature@def4567");
+    expect(notes[0]).toContain("served=github:foo/bar#main@abc1237");
     expect(notes[0]).toContain("indexingRef=idx_123");
+  });
+
+  it("does not repeat the served identity as fresh while indexing", () => {
+    const identity = {
+      repoUrl: "https://github.com/foo/bar",
+      gitRef: "main",
+      commitSha: "abc123789def",
+    };
+    const notes = buildTargetResolutionNotes({
+      requested: { repoUrl: "https://github.com/foo/bar", gitRef: "main" },
+      resolvedRequested: identity,
+      served: identity,
+      freshness: "indexing",
+      freshnessReason: "requested_ref_indexing",
+      availableVersions: [],
+      availableRefs: [],
+    });
+
+    expect(notes[0]).toContain("served=github:foo/bar#main@abc1237");
+    expect(notes[0]).not.toContain("fresh=");
   });
 
   it("renders exact provisional identity without falling back to a ref", () => {

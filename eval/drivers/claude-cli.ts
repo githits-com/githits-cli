@@ -3,8 +3,8 @@
  *
  *   claude -p --tools "" --model <id> --output-format json "<prompt>"
  *
- * - `--tools ""` disables all tool use (no Bash, Read, Edit, etc.) so
- *   the response is pure chat completion.
+ * - Chat-only calls use `--tools ""`. MCP eval calls instead use a strict
+ *   temporary config and allow only the tools registered by the mock server.
  * - `--output-format json` returns `{ result, session_id, usage, total_cost_usd }`
  *   from which we pull `result`.
  * - Subscription auth works automatically when the user has run
@@ -27,6 +27,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { EVAL_MCP_REGISTERED_TOOL_NAMES } from "../mock-mcp/state.js";
 import { isCommandAvailable, runProcess } from "../run-process.js";
 import type { AgentDriver, DriverResponse, SendOptions } from "./types.js";
 
@@ -41,7 +42,9 @@ const PER_CALL_TIMEOUT_MS = 120_000;
  * suspenders.
  */
 const MCP_SERVER_NAME = "githits-eval";
-const MCP_TOOL_FQN = `mcp__${MCP_SERVER_NAME}__pkg_vulns`;
+export const CLAUDE_MCP_ALLOWED_TOOLS = EVAL_MCP_REGISTERED_TOOL_NAMES.map(
+  (toolName) => `mcp__${MCP_SERVER_NAME}__${toolName}`,
+);
 
 export interface ClaudeCliDriverOptions {
   model?: string;
@@ -92,7 +95,7 @@ export function createClaudeCliDriver(
           mcpConfigPath,
           "--strict-mcp-config",
           "--allowedTools",
-          MCP_TOOL_FQN,
+          CLAUDE_MCP_ALLOWED_TOOLS.join(","),
           "--permission-mode",
           "bypassPermissions",
         );

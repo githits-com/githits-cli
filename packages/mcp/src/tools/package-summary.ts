@@ -51,7 +51,7 @@ const schema: ZodRawShape = {
     ),
 };
 
-export const DESCRIPTION: string =
+export const DESCRIPTION_BASE: string =
   "Assess latest package health and adoption: license, downloads, and activity. Provide " +
   "`registry` and `package_name` (for example `npm` + `express`). " +
   "Default text returns license, description, repository popularity " +
@@ -59,8 +59,9 @@ export const DESCRIPTION: string =
   "publish age, and vulnerability status. Set `verbose: true` for " +
   "GitHub language/topics/last-pushed, recent advisories, and recent " +
   'changes. Pass `format: "json"` for structured fields. Use ' +
-  "`pkg_vulns` for version-specific vulnerability details, `pkg_deps` for the dependency graph, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison." +
-  `\n\n${PKG_INFO_GUARDRAIL}`;
+  "`pkg_vulns` for version-specific vulnerability details, `pkg_deps` for the dependency graph, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison.";
+
+export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_INFO_GUARDRAIL}`;
 
 export function createPackageSummaryTool(
   service: PackageIntelligenceService,
