@@ -73,11 +73,11 @@ When this work is complete:
 
 ### Final integrated Phase 1 evidence
 
-- `bun test`: 3,371 tests passed, 0 failed, 10,871 expects across 184 files.
+- `bun test`: 3,380 tests passed, 0 failed, 10,869 expects across 184 files.
 - `bun run typecheck`: clean; format and lint checked 437 files clean.
 - Root and `packages/mcp` builds passed on merged `origin/main`.
 - `bun run validate:packages` and `bun run validate:packages:mcp-publish` passed;
-  the publish dry-run was skipped because `@githits/mcp@0.11.0` is already
+  the publish dry-run was skipped because `@githits/mcp@0.11.1` is already
   published.
 - Source `bun run smoke:cli` and `bun run smoke:mcp` passed sequentially on the
   final formatter state: 89 CLI steps and 46 MCP steps. An earlier parallel attempt
@@ -88,15 +88,16 @@ When this work is complete:
   bug was fixed.
 - The final focused shared/status/tool/CLI cohort passed 149 tests with 0 failures
   and 584 assertions before the smoke-contract unit cases were added.
-- Production/shared-smoke delta across the seven counted source files is 1,679
-  additions and 1,753 deletions (net -74). The single-formatter correction crossed
-  the addition-only caution threshold but deleted 818 lines from the CLI command and
-  removed the obsolete shared helper block instead of retaining two apparent
-  implementations. The user explicitly authorized the root-cause correction even if
-  it grew this PR.
-- `origin/main` at `739ec4e` was merged cleanly with no conflicts. Overlapping
-  permanent documentation auto-merged, and integrated full-test, build, package,
-  and source-smoke verification passed.
+- Production delta across the six runtime source files is 1,656 additions and 1,742
+  deletions (net -86); the two source smoke harnesses add 81 lines and delete 10.
+  The single-formatter correction crossed the addition-only caution threshold but
+  deleted 818 lines from the CLI command and removed the obsolete shared helper
+  block instead of retaining two apparent implementations. The user explicitly
+  authorized the root-cause correction even if it grew this PR.
+- `origin/main` at `7981d07` was integrated. One textual conflict in the permanent
+  tools document was resolved by retaining both the new code-navigation context-cap
+  guidance and this increment's unified-search contract. Integrated full-test,
+  build, package, and source-smoke verification passed.
 - Built smoke suites were not required: smoke launch and CI product-validation
   behavior did not change.
 
