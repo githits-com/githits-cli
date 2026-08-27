@@ -260,6 +260,7 @@ describe("projectUnifiedSearchPresentation", () => {
       elapsedMs: 200,
       requestedSources: ["code"],
     });
+    expect(presentation.targets).toEqual([]);
     expect(presentation.action.kind).toBe("poll");
   });
 
@@ -506,6 +507,12 @@ describe("projectUnifiedSearchPresentation", () => {
 
     expect(presentation.sources).toEqual([]);
     expect(presentation.trustLimits).toEqual([]);
+    expect(presentation.targets).toEqual([
+      {
+        requested: "npm:n8n@2.36.7",
+        freshness: "INDEXING",
+      },
+    ]);
     expect(presentation.alternatives).toEqual([
       {
         target: "npm:n8n@2.36.7",
@@ -554,6 +561,56 @@ describe("projectUnifiedSearchPresentation", () => {
         refs: [{ ref: "main" }],
       }),
     ]);
+    expect(presentation.targets).toEqual([
+      { requested: "npm:express latest" },
+      { requested: "github:expressjs/express#main" },
+    ]);
+  });
+
+  it("retains progress target identities without diagnostics or alternatives", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      incomplete({
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 200,
+          targets: [
+            {
+              requested: "npm:express latest",
+              resolvedRequested: "npm:express@5.2.1",
+              served: "npm:express@5.1.0",
+              freshness: "STALE",
+              indexingRef: "idx-hidden",
+              requestedRefKind: "OMITTED_VERSION",
+              targetResolution: {
+                freshness: "fallback_recent",
+                freshnessReason: "latest_version_indexing",
+                indexingRef: "idx-hidden",
+                availableVersions: [],
+                availableRefs: [],
+              },
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(presentation.targets).toEqual([
+      {
+        requested: "npm:express latest",
+        fresh: "npm:express@5.2.1",
+        served: "npm:express@5.1.0",
+        freshness: "STALE",
+      },
+    ]);
+    expect(JSON.stringify(presentation.targets)).not.toContain("indexingRef");
+    expect(JSON.stringify(presentation.targets)).not.toContain(
+      "OMITTED_VERSION",
+    );
+    expect(JSON.stringify(presentation.targets)).not.toContain(
+      "latest_version_indexing",
+    );
   });
 
   it("projects the supplied n8n active empty snapshot without raw diagnostics", () => {

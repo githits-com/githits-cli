@@ -68,6 +68,13 @@ export interface UnifiedSearchProgressPresentation {
   requestedSources?: string[];
 }
 
+export interface UnifiedSearchTargetPresentation {
+  requested?: string;
+  fresh?: string;
+  served?: string;
+  freshness?: string;
+}
+
 export interface UnifiedSearchAlternative {
   version?: string;
   ref: string;
@@ -159,6 +166,7 @@ export interface UnifiedSearchPresentation {
   query?: UnifiedSearchQueryEcho;
   searchRef?: string;
   progress?: UnifiedSearchProgressPresentation;
+  targets: UnifiedSearchTargetPresentation[];
   hasMore: boolean;
   sources: UnifiedSearchSourceGroup[];
   trustLimits: UnifiedSearchTrustLimit[];
@@ -209,6 +217,7 @@ export function projectUnifiedSearchPresentation(
     query: snapshot?.query ?? extractQuery(payload),
     searchRef: extractSearchRef(payload),
     progress: projectProgress(progress.progress),
+    targets: projectTargets(progress.progress),
     hasMore: snapshot?.hasMore ?? false,
     sources,
     trustLimits,
@@ -289,6 +298,17 @@ function projectProgress(
         }
       : {}),
   };
+}
+
+function projectTargets(
+  progress: UnifiedSearchProgressPayload | undefined,
+): UnifiedSearchTargetPresentation[] {
+  return (progress?.targets ?? []).map((target) => ({
+    ...(target.requested ? { requested: target.requested } : {}),
+    ...(target.resolvedRequested ? { fresh: target.resolvedRequested } : {}),
+    ...(target.served ? { served: target.served } : {}),
+    ...(target.freshness ? { freshness: target.freshness } : {}),
+  }));
 }
 
 function projectLifecycle(
