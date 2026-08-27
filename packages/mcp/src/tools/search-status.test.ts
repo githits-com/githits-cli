@@ -521,7 +521,7 @@ describe("searchStatusTool", () => {
     },
   );
 
-  it("renders the site outcome without stale recovery prose", async () => {
+  it("renders site suggestions without selecting one during active recovery", async () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
     }
@@ -556,11 +556,13 @@ describe("searchStatusTool", () => {
     expect(text).toContain(
       "Indexing site:example.com - no results returned yet",
     );
-    expect(text).toContain("Searched: site docs");
+    expect(text).toContain("Searched: site docs (site:example.com)");
+    expect(text).toContain("Suggested site targets: site:docs.example.com");
+    expect(text).toContain("Additional site targets were omitted.");
     expect(text).toContain(
       'Next: search_status search_ref="ref-site-recovery" wait_timeout_ms=20000',
     );
-    expect(text).not.toContain("Suggested site targets");
+    expect(text).not.toContain("Next: retry one suggested site target");
   });
 
   it("surfaces progress freshness warnings", async () => {
@@ -665,7 +667,7 @@ describe("searchStatusTool", () => {
     expect(text).not.toContain("ref_resolution_deferred");
   });
 
-  it("renders completed site emptiness without stale recovery prose", async () => {
+  it("renders completed site suggestions as explicit recovery guidance", async () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
     }
@@ -702,8 +704,11 @@ describe("searchStatusTool", () => {
     const result = await tool.handler({ search_ref: "search-ref-123" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("No results returned from site:example.com");
-    expect(text).toContain("Next: shorten or broaden site query.");
-    expect(text).not.toContain("Suggested site targets");
+    expect(text).toContain("Searched: site docs (site:example.com)");
+    expect(text).toContain("Suggested site targets: site:example.com/docs");
+    expect(text).toContain("Additional site targets were omitted.");
+    expect(text).toContain("Next: retry one suggested site target explicitly.");
+    expect(text).not.toContain("Next: shorten or broaden site query.");
   });
 
   it("renders terminal source status compactly in completed text", async () => {

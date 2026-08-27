@@ -27,7 +27,7 @@ import {
 import {
   projectUnifiedSearchPresentation,
   type UnifiedSearchAction,
-  type UnifiedSearchAlternativeFacts,
+  type UnifiedSearchLifecycle,
   type UnifiedSearchPresentation,
   type UnifiedSearchSourceEntry,
   type UnifiedSearchSourceGroup,
@@ -93,6 +93,7 @@ export function renderUnifiedSearchPresentationText(
   }
 
   appendPresentationAlternatives(lines, presentation);
+  appendPresentationSiteSuggestions(lines, presentation);
   appendPresentationAction(lines, presentation);
   return lines.join("\n");
 }
@@ -107,7 +108,7 @@ function formatPresentationOutcome(
   const countLabel = `${count} result${count === 1 ? "" : "s"}`;
 
   if (presentation.lifecycle.kind === "active") {
-    const label = capitalize(presentation.lifecycleHeadline ?? "active");
+    const label = activeLifecycleLabel(presentation.lifecycle);
     if (presentation.availability.kind === "no_snapshot") {
       return `${label}${targetSuffix} - no result snapshot returned yet`;
     }
@@ -131,6 +132,19 @@ function formatPresentationOutcome(
     return `${status} - no result snapshot returned`;
   }
   return `${status} - no results returned`;
+}
+
+function activeLifecycleLabel(
+  lifecycle: Extract<UnifiedSearchLifecycle, { kind: "active" }>,
+): string {
+  switch (lifecycle.status) {
+    case "PENDING":
+      return "Preparing";
+    case "INDEXING":
+      return "Indexing";
+    case "SEARCHING":
+      return "Searching";
+  }
 }
 
 function presentationTarget(
@@ -194,6 +208,13 @@ function appendPresentationSources(
     { state: "available_not_searched", label: "Available but not searched" },
     { state: "unavailable", label: "Unavailable" },
   ];
+  const contextTargets = new Set(
+    groups.flatMap((group) =>
+      group.entries.map((entry) => entry.contextTarget ?? entry.target),
+    ),
+  );
+  const showTargetContext =
+    contextTargets.size > 1 || groups.some((group) => group.entries.length > 1);
   for (const { state, label } of states) {
     const entries = groups.flatMap((group) =>
       group.entries
@@ -202,7 +223,13 @@ function appendPresentationSources(
     );
     if (entries.length === 0) continue;
     const values = entries.map(({ group, entry }) =>
-      formatSourceReadiness(group, entry, state, trustLimits),
+      formatSourceReadiness(
+        group,
+        entry,
+        state,
+        trustLimits,
+        showTargetContext,
+      ),
     );
     const unique = [...new Set(values)];
     lines.push(`${label}: ${unique.join(", ")}`);
@@ -214,9 +241,16 @@ function formatSourceReadiness(
   entry: UnifiedSearchSourceEntry,
   state: UnifiedSearchSourceEntry["state"],
   trustLimits: UnifiedSearchTrustLimit[],
+  showTargetContext: boolean,
 ): string {
   const sourceLabel = sourceGroupLabel(group.kind);
-  if (state === "unavailable") return `${sourceLabel} (${entry.target})`;
+  const contextTarget = showTargetContext
+    ? (entry.contextTarget ?? entry.target)
+    : undefined;
+  const contextSuffix = contextTarget ? ` for ${contextTarget}` : "";
+  if (state === "unavailable") {
+    return `${sourceLabel} (${entry.target})${contextSuffix}`;
+  }
   const coverage = trustLimits.find(
     (limit): limit is Extract<UnifiedSearchTrustLimit, { kind: "coverage" }> =>
       limit.kind === "coverage" &&
@@ -225,16 +259,37 @@ function formatSourceReadiness(
   );
   const coverageDetails = coverage ? formatCoverageLimit(coverage) : undefined;
   if (state === "searched") {
-    return coverageDetails
-      ? `${sourceLabel} (${coverageDetails})`
-      : sourceLabel;
+    const identity =
+      group.kind === "code"
+        ? undefined
+        : formatDocumentationSourceIdentity(group, entry);
+    const details = [identity, coverageDetails].filter(
+      (value): value is string => Boolean(value),
+    );
+    return `${sourceLabel}${details.length > 0 ? ` (${details.join("; ")})` : ""}${contextSuffix}`;
   }
-  if (state === "waiting") return sourceLabel;
+  if (state === "waiting") {
+    const identity =
+      showTargetContext && group.kind !== "code"
+        ? formatDocumentationSourceIdentity(group, entry)
+        : undefined;
+    return `${sourceLabel}${identity ? ` (${identity})` : ""}${contextSuffix}`;
+  }
   const identity =
     group.kind === "site_docs"
       ? `${entry.siteKey ?? entry.siteUrl ?? entry.target} docs`
       : `${sourceLabel} (${entry.target})`;
-  return coverageDetails ? `${identity} (${coverageDetails})` : identity;
+  return `${identity}${coverageDetails ? ` (${coverageDetails})` : ""}${contextSuffix}`;
+}
+
+function formatDocumentationSourceIdentity(
+  group: UnifiedSearchSourceGroup,
+  entry: UnifiedSearchSourceEntry,
+): string {
+  if (group.kind === "repository_docs") {
+    return `${entry.repositoryUrl ?? entry.target}${entry.commitSha ? ` @ ${entry.commitSha}` : ""}`;
+  }
+  return entry.siteKey ?? entry.siteUrl ?? entry.target;
 }
 
 function sourceGroupLabel(kind: UnifiedSearchSourceGroup["kind"]): string {
@@ -306,7 +361,7 @@ function appendPresentationAlternatives(
   lines: string[],
   presentation: UnifiedSearchPresentation,
 ): void {
-  const alternatives = mergePresentationAlternatives(presentation.alternatives);
+  const alternatives = presentation.alternatives;
   for (const alternative of alternatives) {
     const categories: string[] = [];
     if (alternative.versions.length > 0) {
@@ -332,85 +387,26 @@ function appendPresentationAlternatives(
   }
 }
 
-interface DisplayAlternativeFacts {
-  target?: string;
-  versions: UnifiedSearchPresentation["alternatives"][number]["versions"];
-  versionsRemaining: number;
-  refs: UnifiedSearchPresentation["alternatives"][number]["refs"];
-  refsRemaining: number;
-  suggestedRefs: UnifiedSearchPresentation["alternatives"][number]["suggestedRefs"];
-  suggestedRefsRemaining: number;
-}
-
-function mergePresentationAlternatives(
-  alternatives: UnifiedSearchPresentation["alternatives"],
-): DisplayAlternativeFacts[] {
-  const merged: DisplayAlternativeFacts[] = [];
-  for (const alternative of alternatives) {
-    const key = alternative.target
-      ? alternative.target.replace(/@[^/@]+$/, "")
-      : "";
-    let display = merged.find(
-      (candidate) =>
-        (candidate.target ? candidate.target.replace(/@[^/@]+$/, "") : "") ===
-        key,
-    );
-    if (!display) {
-      display = {
-        target: alternative.target,
-        versions: [],
-        versionsRemaining: 0,
-        refs: [],
-        refsRemaining: 0,
-        suggestedRefs: [],
-        suggestedRefsRemaining: 0,
-      };
-      merged.push(display);
-    }
-    appendBoundedAlternatives(
-      display.versions,
-      alternative.versions,
-      (remaining) => (display.versionsRemaining += remaining),
-    );
-    display.versionsRemaining = Math.max(
-      display.versionsRemaining,
-      alternative.versionsRemaining,
-    );
-    appendBoundedAlternatives(
-      display.refs,
-      alternative.refs,
-      (remaining) => (display.refsRemaining += remaining),
-    );
-    display.refsRemaining = Math.max(
-      display.refsRemaining,
-      alternative.refsRemaining,
-    );
-    appendBoundedAlternatives(
-      display.suggestedRefs,
-      alternative.suggestedRefs,
-      (remaining) => (display.suggestedRefsRemaining += remaining),
-    );
-    display.suggestedRefsRemaining = Math.max(
-      display.suggestedRefsRemaining,
-      alternative.suggestedRefsRemaining,
+function appendPresentationSiteSuggestions(
+  lines: string[],
+  presentation: UnifiedSearchPresentation,
+): void {
+  const seen = new Set<string>();
+  for (const facts of presentation.siteSuggestions) {
+    const suggestions = facts.suggestions.filter((suggestion) => {
+      if (seen.has(suggestion)) return false;
+      seen.add(suggestion);
+      return true;
+    });
+    if (suggestions.length === 0) continue;
+    const targetSuffix =
+      presentation.siteSuggestions.length > 1 ? ` for ${facts.target}` : "";
+    lines.push(
+      `Suggested site targets${targetSuffix}: ${suggestions.join(", ")}`,
     );
   }
-  return merged;
-}
-
-function appendBoundedAlternatives(
-  target: UnifiedSearchAlternativeFacts["versions"],
-  values: UnifiedSearchAlternativeFacts["versions"],
-  addRemaining: (remaining: number) => void,
-): void {
-  for (const value of values) {
-    const duplicate = target.some(
-      (candidate) =>
-        candidate.version === value.version && candidate.ref === value.ref,
-    );
-    if (duplicate) continue;
-    if (target.length < 3) target.push(value);
-    else addRemaining(1);
+  if (presentation.siteSuggestions.some((facts) => facts.truncated)) {
+    lines.push("Additional site targets were omitted.");
   }
 }
 
@@ -463,6 +459,16 @@ function appendPresentationAction(
     lines.push(
       `Next: search indexed ${action.category} ${action.value}${action.target ? ` for ${action.target}` : ""}.`,
     );
+    return;
+  }
+  if (action.kind === "site_retry") {
+    lines.push(
+      presentation.lifecycle.kind === "terminal" ||
+        presentation.lifecycle.kind === "unknown"
+        ? "Do not call search_status again for this session."
+        : "Do not repeat immediately.",
+    );
+    lines.push("Next: retry one suggested site target explicitly.");
     return;
   }
   if (action.kind === "query_rewrite") {

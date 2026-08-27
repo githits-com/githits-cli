@@ -270,6 +270,144 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("Do not repeat search.\nNext:");
   });
 
+  it("renders site suggestions once without selecting them during active polling", () => {
+    const sourceStatus = [
+      source({
+        source: "docs",
+        targetLabel: "site:example.com",
+        suggestedSiteTargets: ["site:docs.example.com", "site:api.example.com"],
+        suggestedSiteTargetsTruncated: true,
+      }),
+    ];
+    const text = renderUnifiedSearchSuccess(
+      incomplete({ partialResults: false, sourceStatus }),
+    );
+
+    expect(text).toContain(
+      "Suggested site targets: site:docs.example.com, site:api.example.com",
+    );
+    expect(text).toContain("Additional site targets were omitted.");
+    expect(text).toContain("Do not repeat search.\nNext: search_status");
+    expect(text).not.toContain("Next: retry one suggested site target");
+    expect(text.match(/Suggested site targets:/g)).toHaveLength(1);
+    expect(text.match(/Additional site targets were omitted\./g)).toHaveLength(
+      1,
+    );
+  });
+
+  it("renders site retry guidance for completed and terminal site recovery", () => {
+    const sourceStatus = [
+      source({
+        source: "docs",
+        targetLabel: "site:example.com",
+        suggestedSiteTargets: ["site:docs.example.com"],
+        suggestedSiteTargetsTruncated: false,
+      }),
+    ];
+    const completedText = renderUnifiedSearchSuccess(
+      completed([], { sourceStatus }),
+    );
+    expect(completedText).toContain(
+      "Suggested site targets: site:docs.example.com",
+    );
+    expect(completedText).toContain(
+      "Next: retry one suggested site target explicitly.",
+    );
+    expect(completedText).not.toContain("search_status");
+
+    const terminalText = renderUnifiedSearchSuccess(
+      incomplete({
+        partialResults: false,
+        sourceStatus,
+        progress: {
+          status: "DEFERRED",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 60_000,
+        },
+      }),
+    );
+    expect(terminalText).toContain(
+      "Suggested site targets: site:docs.example.com",
+    );
+    expect(terminalText).toContain(
+      "Next: retry one suggested site target explicitly.",
+    );
+    expect(terminalText).toContain(
+      "Do not call search_status again for this session.",
+    );
+    expect(terminalText).not.toContain("Next: search_status");
+  });
+
+  it("disambiguates multi-target readiness and preserves docs provenance", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            source: "code",
+            targetLabel: "npm:one@1.0.0",
+            codeIndexState: "INDEXING",
+          }),
+          source({
+            source: "code",
+            targetLabel: "npm:two@2.0.0",
+            codeIndexState: "INDEXING",
+          }),
+          source({
+            source: "docs",
+            targetLabel: "npm:one@1.0.0",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/one/repo",
+                commitSha: "commit-one",
+              },
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                resultCount: 1,
+                siteKey: "docs.one.example",
+              },
+            ],
+          }),
+          source({
+            source: "docs",
+            targetLabel: "npm:two@2.0.0",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/two/repo",
+                commitSha: "commit-two",
+              },
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                resultCount: 1,
+                siteKey: "docs.two.example",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "Waiting: code for npm:one@1.0.0, code for npm:two@2.0.0",
+    );
+    expect(text).toContain(
+      "repository docs (https://github.com/one/repo @ commit-one) for npm:one@1.0.0",
+    );
+    expect(text).toContain(
+      "repository docs (https://github.com/two/repo @ commit-two) for npm:two@2.0.0",
+    );
+    expect(text).toContain("site docs (docs.one.example) for npm:one@1.0.0");
+    expect(text).toContain("site docs (docs.two.example) for npm:two@2.0.0");
+  });
+
   it.each([
     ["PENDING", "Preparing"],
     ["INDEXING", "Indexing"],
@@ -565,7 +703,9 @@ describe("renderUnifiedSearchSuccess", () => {
         ],
       }),
     );
-    expect(text).toContain("Searched: site docs (120 pages; partial)");
+    expect(text).toContain(
+      "Searched: site docs (docs.example.com; 120 pages; partial)",
+    );
     expect(text.match(/120 pages/g)).toHaveLength(1);
   });
 

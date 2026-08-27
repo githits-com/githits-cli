@@ -90,6 +90,12 @@ export interface UnifiedSearchAlternativeFacts {
   suggestedRefsRemaining: number;
 }
 
+export interface UnifiedSearchSiteSuggestionFacts {
+  target: string;
+  suggestions: string[];
+  truncated: boolean;
+}
+
 export type UnifiedSearchConstraintKind =
   | "ignored_filter"
   | "incompatible_filter"
@@ -140,6 +146,7 @@ export type UnifiedSearchAction =
   | { kind: "poll"; searchRef: string }
   | { kind: "status"; searchRef: string }
   | { kind: "new_search" }
+  | { kind: "site_retry" }
   | {
       kind: "indexed_alternative";
       target?: string;
@@ -162,13 +169,13 @@ export type UnifiedSearchRewriteKind =
 export interface UnifiedSearchPresentation {
   availability: UnifiedSearchAvailability;
   lifecycle: UnifiedSearchLifecycle;
-  lifecycleHeadline: "preparing" | "indexing" | "searching" | undefined;
   query?: UnifiedSearchQueryEcho;
   searchRef?: string;
   progress?: UnifiedSearchProgressPresentation;
   targets: UnifiedSearchTargetPresentation[];
   hasMore: boolean;
   sources: UnifiedSearchSourceGroup[];
+  siteSuggestions: UnifiedSearchSiteSuggestionFacts[];
   trustLimits: UnifiedSearchTrustLimit[];
   warnings: UnifiedSearchWarning[];
   alternatives: UnifiedSearchAlternativeFacts[];
@@ -184,10 +191,6 @@ interface SnapshotFacts {
   evidenceNotice?: string;
 }
 
-interface ProgressFacts {
-  progress?: UnifiedSearchProgressPayload;
-}
-
 interface CandidateSet {
   target?: string;
   versions: UnifiedSearchAlternative[];
@@ -201,35 +204,35 @@ export function projectUnifiedSearchPresentation(
   payload: UnifiedSearchPresentationInput,
 ): UnifiedSearchPresentation {
   const snapshot = extractSnapshot(payload);
-  const progress = extractProgress(payload);
-  const lifecycle = projectLifecycle(payload, progress.progress);
+  const progress = "progress" in payload ? payload.progress : undefined;
+  const lifecycle = projectLifecycle(payload, progress);
   const availability = projectAvailability(snapshot, lifecycle);
   const sourceStatus = snapshot?.sourceStatus;
   const sources = projectSources(sourceStatus);
+  const siteSuggestions = projectSiteSuggestions(sourceStatus);
   const trustLimits = projectTrustLimits(snapshot, sources, sourceStatus);
   const warnings = projectWarnings(snapshot?.query, sourceStatus);
-  const alternatives = projectAlternatives(progress.progress, sourceStatus);
+  const alternatives = projectAlternatives(progress, sourceStatus);
 
   return {
     availability,
     lifecycle,
-    lifecycleHeadline: lifecycleHeadline(lifecycle),
     query: snapshot?.query ?? extractQuery(payload),
     searchRef: extractSearchRef(payload),
-    progress: projectProgress(progress.progress),
-    targets: projectTargets(progress.progress),
+    progress: projectProgress(progress),
+    targets: projectTargets(progress),
     hasMore: snapshot?.hasMore ?? false,
     sources,
+    siteSuggestions,
     trustLimits,
     warnings,
     alternatives,
     action: projectAction({
       payload,
       snapshot,
-      progress: progress.progress,
       lifecycle,
       availability,
-      sources,
+      siteSuggestions,
       trustLimits,
       alternatives,
     }),
@@ -261,12 +264,6 @@ function extractSnapshot(
     };
   }
   return undefined;
-}
-
-function extractProgress(
-  payload: UnifiedSearchPresentationInput,
-): ProgressFacts {
-  return "progress" in payload ? { progress: payload.progress } : {};
 }
 
 function extractQuery(
@@ -331,20 +328,6 @@ function projectLifecycle(
   }
 }
 
-function lifecycleHeadline(
-  lifecycle: UnifiedSearchLifecycle,
-): "preparing" | "indexing" | "searching" | undefined {
-  if (lifecycle.kind !== "active") return undefined;
-  switch (lifecycle.status) {
-    case "PENDING":
-      return "preparing";
-    case "INDEXING":
-      return "indexing";
-    case "SEARCHING":
-      return "searching";
-  }
-}
-
 function projectAvailability(
   snapshot: SnapshotFacts | undefined,
   lifecycle: UnifiedSearchLifecycle,
@@ -389,11 +372,27 @@ function projectSources(
     const kind = sourceKind(entry);
     appendSourceEntry(groups, kind, {
       state: sourceState(entry),
-      target: sourceTarget(entry),
+      ...sourceIdentity(entry, kind),
       resultCount: entry.resultCount,
     });
   }
   return groups;
+}
+
+function projectSiteSuggestions(
+  sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
+): UnifiedSearchSiteSuggestionFacts[] {
+  return (sourceStatus ?? [])
+    .filter(
+      (entry) =>
+        Boolean(entry.suggestedSiteTargets?.length) ||
+        entry.suggestedSiteTargetsTruncated === true,
+    )
+    .map((entry) => ({
+      target: sourceTarget(entry),
+      suggestions: [...(entry.suggestedSiteTargets ?? [])],
+      truncated: entry.suggestedSiteTargetsTruncated === true,
+    }));
 }
 
 function appendSourceEntry(
@@ -444,6 +443,35 @@ function contributorIdentity(
     ...(contributor.siteKey ? { siteKey: contributor.siteKey } : {}),
     ...(contributor.siteUrl ? { siteUrl: contributor.siteUrl } : {}),
   };
+}
+
+function sourceIdentity(
+  entry: UnifiedSearchSourceStatusPayload,
+  kind: UnifiedSearchSourceKind,
+): Pick<
+  UnifiedSearchSourceEntry,
+  | "target"
+  | "contextTarget"
+  | "repositoryUrl"
+  | "commitSha"
+  | "siteKey"
+  | "siteUrl"
+> {
+  const target = sourceTarget(entry);
+  const contextTarget = entry.requestedTarget ?? entry.freshTarget;
+  const context =
+    contextTarget && contextTarget !== target ? { contextTarget } : {};
+  const served = entry.targetResolution?.served;
+  const identity =
+    kind === "repository_docs"
+      ? {
+          ...(served?.repoUrl ? { repositoryUrl: served.repoUrl } : {}),
+          ...(served?.commitSha ? { commitSha: served.commitSha } : {}),
+        }
+      : kind === "site_docs" && served?.site
+        ? { siteKey: served.site }
+        : {};
+  return { target, ...context, ...identity };
 }
 
 function sourceTarget(entry: UnifiedSearchSourceStatusPayload): string {
@@ -507,7 +535,6 @@ function projectTrustLimits(
   }
 
   for (const hit of snapshot?.results ?? []) {
-    if (!isHitPayload(hit)) continue;
     if (hit.freshness === "STALE") {
       add({
         kind: "stale",
@@ -670,7 +697,7 @@ function projectAlternatives(
       suggestedRefs: resolution.suggestedRefs ?? [],
     });
   }
-  return candidates
+  return mergeAlternativeCandidates(candidates)
     .filter(
       (candidate) =>
         candidate.versions.length > 0 ||
@@ -687,31 +714,73 @@ function projectAlternatives(
     }));
 }
 
+function mergeAlternativeCandidates(
+  candidates: CandidateSet[],
+): CandidateSet[] {
+  const merged: CandidateSet[] = [];
+  for (const candidate of candidates) {
+    const key = candidate.target?.replace(/@[^/@]+$/, "") ?? "";
+    const existing = merged.find(
+      (value) => (value.target?.replace(/@[^/@]+$/, "") ?? "") === key,
+    );
+    if (existing) {
+      existing.versions.push(...candidate.versions);
+      existing.refs.push(...candidate.refs);
+      existing.suggestedRefs.push(...candidate.suggestedRefs);
+    } else {
+      merged.push({
+        target: candidate.target,
+        versions: [...candidate.versions],
+        refs: [...candidate.refs],
+        suggestedRefs: [...candidate.suggestedRefs],
+      });
+    }
+  }
+  return merged;
+}
+
 function boundedAlternatives(
   versions: UnifiedSearchAlternative[],
   refs: UnifiedSearchAlternative[],
   suggestedRefs: UnifiedSearchAlternative[],
 ): Omit<UnifiedSearchAlternativeFacts, "target"> {
+  const bounded = (
+    values: UnifiedSearchAlternative[],
+  ): {
+    values: UnifiedSearchAlternative[];
+    remaining: number;
+  } => {
+    const seen = new Set<string>();
+    const display: UnifiedSearchAlternative[] = [];
+    let remaining = 0;
+    for (const value of values) {
+      const key = `${value.version ?? ""}\u0000${value.ref}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (display.length < MAX_ALTERNATIVES) display.push(value);
+      else remaining++;
+    }
+    return { values: display, remaining };
+  };
+  const versionFacts = bounded(versions);
+  const refFacts = bounded(refs);
+  const suggestedRefFacts = bounded(suggestedRefs);
   return {
-    versions: versions.slice(0, MAX_ALTERNATIVES),
-    versionsRemaining: Math.max(0, versions.length - MAX_ALTERNATIVES),
-    refs: refs.slice(0, MAX_ALTERNATIVES),
-    refsRemaining: Math.max(0, refs.length - MAX_ALTERNATIVES),
-    suggestedRefs: suggestedRefs.slice(0, MAX_ALTERNATIVES),
-    suggestedRefsRemaining: Math.max(
-      0,
-      suggestedRefs.length - MAX_ALTERNATIVES,
-    ),
+    versions: versionFacts.values,
+    versionsRemaining: versionFacts.remaining,
+    refs: refFacts.values,
+    refsRemaining: refFacts.remaining,
+    suggestedRefs: suggestedRefFacts.values,
+    suggestedRefsRemaining: suggestedRefFacts.remaining,
   };
 }
 
 interface ActionInput {
   payload: UnifiedSearchPresentationInput;
   snapshot: SnapshotFacts | undefined;
-  progress: UnifiedSearchProgressPayload | undefined;
   lifecycle: UnifiedSearchLifecycle;
   availability: UnifiedSearchAvailability;
-  sources: UnifiedSearchSourceGroup[];
+  siteSuggestions: UnifiedSearchSiteSuggestionFacts[];
   trustLimits: UnifiedSearchTrustLimit[];
   alternatives: UnifiedSearchAlternativeFacts[];
 }
@@ -725,6 +794,9 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
     input.lifecycle.kind === "terminal" ||
     input.lifecycle.kind === "unknown"
   ) {
+    if (input.siteSuggestions.length > 0) {
+      return { kind: "site_retry" };
+    }
     return { kind: "new_search" };
   }
   if (
@@ -743,6 +815,9 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
     const alternative = firstAlternative(input.alternatives);
     if (alternative) return alternative;
     return { kind: "new_search" };
+  }
+  if (input.siteSuggestions.length > 0) {
+    return { kind: "site_retry" };
   }
   if (
     input.trustLimits.some(
@@ -851,14 +926,4 @@ function isSiteTarget(
       entry.targetResolution?.resolvedRequested?.site ||
       entry.targetResolution?.served?.site,
   );
-}
-
-function isHitPayload(value: unknown): value is {
-  target: string;
-  requestedTarget?: string;
-  freshTarget?: string;
-  servedTarget?: string;
-  freshness?: string;
-} {
-  return Boolean(value && typeof value === "object" && "target" in value);
 }

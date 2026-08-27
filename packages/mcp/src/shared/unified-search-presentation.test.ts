@@ -94,34 +94,32 @@ function source(
 }
 
 describe("projectUnifiedSearchPresentation", () => {
-  it.each([
-    ["PENDING", "preparing"],
-    ["INDEXING", "indexing"],
-    ["SEARCHING", "searching"],
-  ] as const)("keeps active lifecycle %s distinct", (status, kind) => {
-    const presentation = projectUnifiedSearchPresentation(
-      incomplete({
-        progress: {
-          status,
-          targetsReady: 0,
-          targetsTotal: 1,
-          elapsedMs: 200,
-        },
-      }),
-    );
+  it.each(["PENDING", "INDEXING", "SEARCHING"] as const)(
+    "keeps active lifecycle %s distinct",
+    (status) => {
+      const presentation = projectUnifiedSearchPresentation(
+        incomplete({
+          progress: {
+            status,
+            targetsReady: 0,
+            targetsTotal: 1,
+            elapsedMs: 200,
+          },
+        }),
+      );
 
-    expect(presentation.lifecycle).toEqual({ kind: "active", status });
-    expect(presentation.lifecycleHeadline).toBe(kind);
-    expect(presentation.progress).toEqual({
-      targetsReady: 0,
-      targetsTotal: 1,
-      elapsedMs: 200,
-    });
-    expect(presentation.action).toEqual({
-      kind: "poll",
-      searchRef: "search-ref-1",
-    });
-  });
+      expect(presentation.lifecycle).toEqual({ kind: "active", status });
+      expect(presentation.progress).toEqual({
+        targetsReady: 0,
+        targetsTotal: 1,
+        elapsedMs: 200,
+      });
+      expect(presentation.action).toEqual({
+        kind: "poll",
+        searchRef: "search-ref-1",
+      });
+    },
+  );
 
   it.each(["DEFERRED", "TIMEOUT", "FAILED"] as const)(
     "keeps terminal lifecycle %s distinct and non-polling",
@@ -781,6 +779,58 @@ describe("projectUnifiedSearchPresentation", () => {
         }),
       ]),
     );
+  });
+
+  it("retains site suggestions while keeping active and terminal actions safe", () => {
+    const siteStatus = source({
+      source: "docs",
+      targetLabel: "site:example.com",
+      suggestedSiteTargets: ["site:docs.example.com", "site:api.example.com"],
+      suggestedSiteTargetsTruncated: true,
+    });
+    const expectedSuggestions = [
+      {
+        target: "site:example.com",
+        suggestions: ["site:docs.example.com", "site:api.example.com"],
+        truncated: true,
+      },
+    ];
+
+    const active = projectUnifiedSearchPresentation(
+      incomplete({ partialResults: false, sourceStatus: [siteStatus] }),
+    );
+    expect(active.siteSuggestions).toEqual(expectedSuggestions);
+    expect(active.action).toEqual({
+      kind: "poll",
+      searchRef: "search-ref-1",
+    });
+
+    const completedPresentation = projectUnifiedSearchPresentation(
+      completed({ results: [], sourceStatus: [siteStatus] }),
+    );
+    expect(completedPresentation.siteSuggestions).toEqual(expectedSuggestions);
+    expect(completedPresentation.action).toEqual({
+      kind: "site_retry",
+    });
+
+    for (const status of ["DEFERRED", "FUTURE_SESSION_STATE"] as const) {
+      const terminal = projectUnifiedSearchPresentation(
+        incomplete({
+          partialResults: false,
+          sourceStatus: [siteStatus],
+          progress: {
+            status,
+            targetsReady: 0,
+            targetsTotal: 1,
+            elapsedMs: 60_000,
+          },
+        }),
+      );
+      expect(terminal.action).toEqual({
+        kind: "site_retry",
+      });
+      expect(terminal.action).not.toHaveProperty("searchRef");
+    }
   });
 
   it("classifies coverage and structured query constraints without promoted warnings", () => {
