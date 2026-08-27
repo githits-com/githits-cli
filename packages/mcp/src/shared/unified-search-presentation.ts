@@ -698,16 +698,18 @@ function projectAlternatives(
 function mergeAlternativeCandidates(
   candidates: CandidateSet[],
 ): CandidateSet[] {
-  const merged = new Map<string, CandidateSet>();
+  const merged: CandidateSet[] = [];
   for (const candidate of candidates) {
     const key = candidate.target?.replace(/@[^/@]+$/, "") ?? "";
-    const existing = merged.get(key);
+    const existing = merged.find(
+      (value) => (value.target?.replace(/@[^/@]+$/, "") ?? "") === key,
+    );
     if (existing) {
       existing.versions.push(...candidate.versions);
       existing.refs.push(...candidate.refs);
       existing.suggestedRefs.push(...candidate.suggestedRefs);
     } else {
-      merged.set(key, {
+      merged.push({
         target: candidate.target,
         versions: [...candidate.versions],
         refs: [...candidate.refs],
@@ -715,7 +717,7 @@ function mergeAlternativeCandidates(
       });
     }
   }
-  return [...merged.values()];
+  return merged;
 }
 
 function boundedAlternatives(
