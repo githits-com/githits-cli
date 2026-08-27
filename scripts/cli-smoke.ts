@@ -364,6 +364,42 @@ function assertTerminalOutput(result: CommandResult, context: string): string {
   return text;
 }
 
+function assertSearchTerminalText(text: string, context: string): void {
+  const lines = text.split("\n");
+  const firstLine = lines[0]?.trim() ?? "";
+  assert(firstLine.length > 0, `${context}: missing outcome first line`);
+  assert(
+    !firstLine.startsWith("Warning:") &&
+      !firstLine.startsWith("search |") &&
+      !firstLine.startsWith("search_status |"),
+    `${context}: non-outcome text precedes search outcome`,
+  );
+  assert(
+    !lines.some((line) => /^status\s*:/i.test(line.trim())),
+    `${context}: duplicated lifecycle status line`,
+  );
+  assert(!text.includes("searchRef:"), `${context}: leaked searchRef detail`);
+  assert(!text.includes("indexingRef"), `${context}: leaked indexingRef`);
+  assert(
+    !text.includes("freshnessReason"),
+    `${context}: leaked freshnessReason`,
+  );
+
+  const statusActions = lines.filter((line) =>
+    line.startsWith("Next: githits search-status "),
+  );
+  assert(
+    statusActions.length <= 1,
+    `${context}: expected at most one search-status action`,
+  );
+  assert(
+    text.includes("githits code read") ||
+      text.includes("githits docs read") ||
+      statusActions.length === 1,
+    `${context}: missing CLI-native result or status follow-up`,
+  );
+}
+
 function assertJsonOutput(result: CommandResult, context: string): unknown {
   assert(
     result.exitCode === 0,
@@ -1409,10 +1445,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     ]),
     "search terminal",
   );
-  assert(
-    searchText.includes("search") || searchText.includes("result"),
-    "search terminal missing result context",
-  );
+  assertSearchTerminalText(searchText, "search terminal");
 
   const searchJson = assertJsonOutput(
     await runCli([
