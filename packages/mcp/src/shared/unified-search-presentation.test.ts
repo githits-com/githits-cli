@@ -261,6 +261,63 @@ describe("projectUnifiedSearchPresentation", () => {
     ]);
   });
 
+  it.each(["MISSING", "UNRESOLVABLE", "FUTURE_STATE"] as const)(
+    "treats source state %s as unavailable and suppresses pivots",
+    (state) => {
+      const presentation = projectUnifiedSearchPresentation(
+        completed({
+          results: [],
+          sourceStatus: [
+            source({
+              source: "code",
+              codeIndexState: state,
+              resultCount: 0,
+            }),
+          ],
+        }),
+      );
+
+      expect(presentation.sources).toEqual([
+        {
+          kind: "code",
+          entries: [
+            {
+              state: "unavailable",
+              target: "npm:express@4.18.2",
+              resultCount: 0,
+            },
+          ],
+        },
+      ]);
+      expect(presentation.action).toEqual({ kind: "none" });
+    },
+  );
+
+  it.each(["docs", "auto"] as const)(
+    "uses neutral docs provenance for contributor-less %s sources",
+    (sourceName) => {
+      const presentation = projectUnifiedSearchPresentation(
+        completed({
+          results: [],
+          sourceStatus: [source({ source: sourceName, resultCount: 0 })],
+        }),
+      );
+
+      expect(presentation.sources).toEqual([
+        {
+          kind: "docs",
+          entries: [
+            {
+              state: "searched",
+              target: "npm:express@4.18.2",
+              resultCount: 0,
+            },
+          ],
+        },
+      ]);
+    },
+  );
+
   it.each([
     ["PENDING", "no_snapshot"],
     ["INDEXING", "no_snapshot"],

@@ -761,7 +761,8 @@ describe("searchStatusTool", () => {
     expect(text).toContain(
       "No results returned from github:githits-com/no-such-repo",
     );
-    expect(text).toContain("Searched: code");
+    expect(text).toContain("Unavailable: code");
+    expect(text).not.toContain("Searched: code");
     expect(text).not.toContain("Repository ref cannot be resolved");
     expect(text).not.toContain("state=indexing");
   });

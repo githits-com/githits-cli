@@ -35,15 +35,14 @@ import {
   type UnifiedSearchTrustLimit,
   type UnifiedSearchWarning,
 } from "./unified-search-presentation.js";
-import {
-  isActiveUnifiedSearchSessionStatus,
-  type UnifiedSearchCompletedPayload,
-  type UnifiedSearchDocumentationContributorPayload,
-  type UnifiedSearchErrorPayload,
-  type UnifiedSearchHitPayload,
-  type UnifiedSearchIncompletePayload,
-  type UnifiedSearchQueryEcho,
-  type UnifiedSearchSourceStatusPayload,
+import type {
+  UnifiedSearchCompletedPayload,
+  UnifiedSearchDocumentationContributorPayload,
+  UnifiedSearchErrorPayload,
+  UnifiedSearchHitPayload,
+  UnifiedSearchIncompletePayload,
+  UnifiedSearchQueryEcho,
+  UnifiedSearchSourceStatusPayload,
 } from "./unified-search-response.js";
 
 const SUMMARY_WRAP_WIDTH = 76;
@@ -81,6 +80,19 @@ export function renderUnifiedSearchPresentationText(
   if (result.results.length > 0) {
     lines.push("");
     appendUnifiedSearchHits(lines, result.results);
+  }
+
+  const hasPostResultBlock =
+    presentation.hasMore ||
+    presentation.alternatives.length > 0 ||
+    presentation.siteSuggestions.length > 0 ||
+    presentation.action.kind !== "none";
+  if (
+    result.results.length > 0 &&
+    hasPostResultBlock &&
+    lines[lines.length - 1] !== ""
+  ) {
+    lines.push("");
   }
 
   if (presentation.hasMore) {
@@ -151,6 +163,13 @@ function presentationTarget(
   presentation: UnifiedSearchPresentation,
   results: UnifiedSearchHitPayload[],
 ): string | undefined {
+  const targetIdentities = new Set([
+    ...results.map((result) => result.target),
+    ...presentation.sources.flatMap((group) =>
+      group.entries.map((entry) => entry.contextTarget ?? entry.target),
+    ),
+  ]);
+  if (targetIdentities.size > 1) return undefined;
   const hitTarget = results[0]?.target;
   if (hitTarget) return hitTarget;
   const target = presentation.targets[0];
@@ -213,8 +232,7 @@ function appendPresentationSources(
       group.entries.map((entry) => entry.contextTarget ?? entry.target),
     ),
   );
-  const showTargetContext =
-    contextTargets.size > 1 || groups.some((group) => group.entries.length > 1);
+  const showTargetContext = contextTargets.size > 1;
   for (const { state, label } of states) {
     const entries = groups.flatMap((group) =>
       group.entries
@@ -289,12 +307,15 @@ function formatDocumentationSourceIdentity(
   if (group.kind === "repository_docs") {
     return `${entry.repositoryUrl ?? entry.target}${entry.commitSha ? ` @ ${entry.commitSha}` : ""}`;
   }
+  if (group.kind === "docs") return entry.target;
   const siteIdentity = formatDocumentationSiteIdentity(entry.siteUrl);
   return siteIdentity ?? entry.siteKey ?? entry.target;
 }
 
 function sourceGroupLabel(kind: UnifiedSearchSourceGroup["kind"]): string {
   switch (kind) {
+    case "docs":
+      return "docs";
     case "repository_docs":
       return "repository docs";
     case "site_docs":
@@ -521,24 +542,6 @@ function capitalize(value: string): string {
     : value;
 }
 
-export function noHitsYetMessage(
-  progress: { status?: string } | undefined,
-): string {
-  const status = progress?.status;
-  if (status === "DEFERRED") {
-    return "No result snapshot is available for this deferred session.";
-  }
-  if (status === "TIMEOUT") return "No hits - search timed out.";
-  if (status === "FAILED") return "No hits - search failed.";
-  if (status === "SEARCHING") return "No hits yet - searching.";
-  if (status === "PENDING" || status === "INDEXING") {
-    return "No hits yet - indexing.";
-  }
-  return status
-    ? `No result snapshot is available for search status ${status}.`
-    : "No hits yet - indexing.";
-}
-
 /** Render an error envelope as compact text. */
 export function renderUnifiedSearchError(
   payload: UnifiedSearchErrorPayload,
@@ -675,79 +678,6 @@ function formatLineRange(start?: number, end?: number): string {
   return `:${start}-${end}`;
 }
 
-export function appendIncompleteSearchNextAction(
-  lines: string[],
-  status: string | undefined,
-  searchRef: string,
-): void {
-  if (status === "DEFERRED") {
-    lines.push(
-      "Background lifecycle work continues outside this search session.",
-    );
-    lines.push("Use any disclosed evidence now.");
-    lines.push("Do not call search_status again for this session.");
-    lines.push("next: rerun search later for a fresher snapshot.");
-    return;
-  }
-
-  if (status === "FAILED" || status === "TIMEOUT") {
-    lines.push("Do not call search_status again for this session.");
-    lines.push("next: rerun search.");
-    return;
-  }
-
-  if (status !== undefined && !isActiveUnifiedSearchSessionStatus(status)) {
-    lines.push("This client does not recognize that status.");
-    lines.push("Use any disclosed evidence now.");
-    lines.push("Do not call search_status again for this session.");
-    lines.push("next: rerun search later.");
-    return;
-  }
-
-  lines.push("Do not repeat search.");
-  lines.push(
-    `next: call search_status with search_ref=${JSON.stringify(searchRef)} and wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}.`,
-  );
-}
-
-export function appendSourceStatusNotes(
-  lines: string[],
-  sourceStatus:
-    | UnifiedSearchCompletedPayload["sourceStatus"]
-    | UnifiedSearchIncompletePayload["sourceStatus"],
-): void {
-  if (!sourceStatus || sourceStatus.length === 0) return;
-  const noted = sourceStatus.filter(hasSourceStatusNote);
-  if (noted.length === 0) return;
-  lines.push("source notes:");
-  for (const entry of noted) {
-    lines.push(`  - ${formatSourceStatus(entry)}`);
-    for (const guidance of formatSuggestedSiteTargetGuidance(entry)) {
-      lines.push(`    ${guidance}`);
-    }
-  }
-}
-
-function hasSourceStatusNote(entry: UnifiedSearchSourceStatusPayload): boolean {
-  return Boolean(
-    entry.requestedTarget ||
-      entry.freshTarget ||
-      entry.servedTarget ||
-      entry.targetResolution ||
-      entry.indexingStatus ||
-      entry.codeIndexState ||
-      typeof entry.resultCount === "number" ||
-      entry.ignoredFilters?.length ||
-      entry.incompatibleFilters?.length ||
-      entry.ignoredQueryFeatures?.length ||
-      entry.incompatibleQueryFeatures?.length ||
-      entry.suggestedSiteTargets?.length ||
-      entry.suggestedSiteTargetsTruncated ||
-      entry.note ||
-      entry.coverage,
-  );
-}
-
 export interface DocumentationSourceResult {
   target: string;
 }
@@ -853,13 +783,6 @@ function formatDocumentationContributor(
     details.push("published coverage details unavailable");
   }
   return `${identity} - ${details.join("; ")}`;
-}
-
-export function appendEvidenceNotice(
-  lines: string[],
-  evidenceNotice: string | undefined,
-): void {
-  if (evidenceNotice) lines.push(`evidence notice: ${evidenceNotice}`);
 }
 
 function formatDocumentationContributorState(
@@ -1211,67 +1134,6 @@ export function describeFreshness(value: string): string {
   }
 }
 
-export function formatSourceStatus(entry: {
-  source: string;
-  targetLabel: string;
-  requestedTarget?: string;
-  freshTarget?: string;
-  servedTarget?: string;
-  targetResolution?: LeanTargetResolution;
-  indexingStatus?: string;
-  codeIndexState?: string;
-  resultCount?: number;
-  ignoredFilters?: string[];
-  incompatibleFilters?: string[];
-  ignoredQueryFeatures?: string[];
-  incompatibleQueryFeatures?: string[];
-  note?: string;
-}): string {
-  const terminalReason = terminalLifecycleReason(entry);
-  if (terminalReason) {
-    return `${entry.source} (${entry.targetLabel})${SEP}${terminalReason}`;
-  }
-
-  const parts: string[] = [`${entry.source} (${entry.targetLabel})`];
-  if (entry.requestedTarget) parts.push(`requested=${entry.requestedTarget}`);
-  if (entry.freshTarget) parts.push(`fresh=${entry.freshTarget}`);
-  if (entry.servedTarget && entry.servedTarget !== entry.targetLabel) {
-    parts.push(`served=${entry.servedTarget}`);
-  }
-  if (typeof entry.resultCount === "number") {
-    parts.push(`results=${entry.resultCount}`);
-  }
-  if (entry.indexingStatus) parts.push(`indexState=${entry.indexingStatus}`);
-  if (entry.codeIndexState) {
-    parts.push(
-      `codeIndex=${
-        entry.codeIndexState === "PROVISIONAL"
-          ? describeFreshness(entry.codeIndexState)
-          : entry.codeIndexState
-      }`,
-    );
-  }
-  if (entry.ignoredFilters?.length) {
-    parts.push(`ignored=${entry.ignoredFilters.join(",")}`);
-  }
-  if (entry.incompatibleFilters?.length) {
-    parts.push(`incompatible=${entry.incompatibleFilters.join(",")}`);
-  }
-  if (entry.ignoredQueryFeatures?.length) {
-    parts.push(`ignoredQuery=${entry.ignoredQueryFeatures.join(",")}`);
-  }
-  if (entry.incompatibleQueryFeatures?.length) {
-    parts.push(
-      `incompatibleQuery=${entry.incompatibleQueryFeatures.join(",")}`,
-    );
-  }
-  if (entry.note) parts.push(entry.note);
-  for (const note of buildTargetResolutionNotes(entry.targetResolution)) {
-    parts.push(note);
-  }
-  return parts.join(SEP);
-}
-
 /** Render replayable standalone-site recovery guidance from structured fields. */
 export function formatSuggestedSiteTargetGuidance(entry: {
   suggestedSiteTargets?: string[];
@@ -1287,26 +1149,6 @@ export function formatSuggestedSiteTargetGuidance(entry: {
     lines.push("Additional site targets were omitted.");
   }
   return lines;
-}
-
-function terminalLifecycleReason(entry: {
-  indexingStatus?: string;
-  codeIndexState?: string;
-  note?: string;
-}): string | undefined {
-  const states = Array.from(
-    new Set([entry.indexingStatus, entry.codeIndexState].filter(Boolean)),
-  ) as string[];
-  const terminalStates = states.filter(
-    (state) =>
-      !isHealthySearchLifecycleState(state) &&
-      state !== "INDEXING" &&
-      state !== "STALE" &&
-      state !== "PROVISIONAL",
-  );
-  if (terminalStates.length === 0) return undefined;
-  const status = terminalStates.join("/");
-  return entry.note ? `${entry.note} (${status})` : `status ${status}`;
 }
 
 function quote(value: string): string {

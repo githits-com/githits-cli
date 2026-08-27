@@ -234,6 +234,20 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("repository docs");
   });
 
+  it.each(["docs", "auto"] as const)(
+    "uses a neutral docs label for contributor-less %s sources",
+    (sourceName) => {
+      const text = renderUnifiedSearchSuccess(
+        completed([], {
+          sourceStatus: [source({ source: sourceName, resultCount: 0 })],
+        }),
+      );
+
+      expect(text).toContain("Searched: docs (npm:express@4.18.2)");
+      expect(text).not.toContain("repository docs");
+    },
+  );
+
   it("renders the supplied n8n active empty snapshot with one concise readiness block", () => {
     const text = renderUnifiedSearchSuccess(n8nActiveEmpty());
     const lines = text.split("\n");
@@ -331,12 +345,11 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain(
-      "Searched: site docs (example.com/reference) for npm:example@1.0.0",
-    );
+    expect(text).toContain("Searched: site docs (example.com/reference)");
     expect(text).toContain(
       "Available but not searched: example.com/guide docs",
     );
+    expect(text).not.toContain("for npm:example@1.0.0");
   });
 
   it("renders site suggestions once without selecting them during active polling", () => {
@@ -464,6 +477,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
+    expect(firstLine(text)).toBe("No results returned");
     expect(text).toContain(
       "Waiting: code for npm:one@1.0.0, code for npm:two@2.0.0",
     );
@@ -479,6 +493,18 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toMatch(
       /site docs\n\(docs\.two\.example\) for npm:two@2\.0\.0/,
     );
+  });
+
+  it("omits a singular outcome target when hits span multiple targets", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({ target: "npm:one@1.0.0" }),
+        codeHit({ target: "npm:two@2.0.0" }),
+      ]),
+    );
+
+    expect(firstLine(text)).toBe("2 results");
+    expect(firstLine(text)).not.toContain(" from ");
   });
 
   it.each([
@@ -596,6 +622,38 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("shorten or broaden query");
   });
 
+  it("deduplicates stale evidence for the same served target", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed(
+        [
+          codeHit({
+            target: "npm:express@5.1.0",
+            requestedTarget: "npm:express latest",
+            freshTarget: "npm:express@5.2.1",
+            servedTarget: "npm:express@5.1.0",
+            freshness: "STALE",
+          }),
+        ],
+        {
+          sourceStatus: [
+            source({
+              targetLabel: "npm:express@5.1.0",
+              requestedTarget: "npm:express latest",
+              freshTarget: "npm:express@5.2.1",
+              servedTarget: "npm:express@5.1.0",
+              codeIndexState: "STALE",
+            }),
+          ],
+        },
+      ),
+    );
+
+    expect(text.match(/Evidence:/g)).toHaveLength(1);
+    expect(text).toContain(
+      "requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.",
+    );
+  });
+
   it("turns an evidence notice into one concise mutable-evidence action", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
@@ -626,6 +684,10 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain(
       'Next: search_status search_ref="search-ref-results" wait_timeout_ms=20000',
     );
+    const lines = text.split("\n");
+    const actionLine = lines.indexOf("Do not repeat immediately.");
+    expect(actionLine).toBeGreaterThan(0);
+    expect(lines[actionLine - 1]).toBe("");
   });
 
   it("prints query and structured constraint warnings once below the outcome", () => {

@@ -37,7 +37,11 @@ export type UnifiedSearchLifecycle =
   | { kind: "terminal"; status: UnifiedSearchTerminalStatus }
   | { kind: "unknown"; status?: string };
 
-export type UnifiedSearchSourceKind = "code" | "repository_docs" | "site_docs";
+export type UnifiedSearchSourceKind =
+  | "code"
+  | "docs"
+  | "repository_docs"
+  | "site_docs";
 export type UnifiedSearchSourceReadiness =
   | "searched"
   | "waiting"
@@ -404,9 +408,8 @@ function sourceKind(
 ): UnifiedSearchSourceKind {
   const source = entry.source.toLowerCase();
   if (source === "code" || source === "symbol") return "code";
-  return isSiteTarget(entry.targetLabel, entry)
-    ? "site_docs"
-    : "repository_docs";
+  if (isSiteTarget(entry.targetLabel, entry)) return "site_docs";
+  return entry.targetResolution?.served?.repoUrl ? "repository_docs" : "docs";
 }
 
 function contributorIdentity(
@@ -476,14 +479,22 @@ function sourceTarget(entry: UnifiedSearchSourceStatusPayload): string {
 function sourceState(
   entry: UnifiedSearchSourceStatusPayload,
 ): UnifiedSearchSourceReadiness {
-  const states = [entry.indexingStatus, entry.codeIndexState];
+  const states = [entry.indexingStatus, entry.codeIndexState].filter(
+    (state): state is string => Boolean(state),
+  );
+  if (states.length === 0) return "searched";
   if (states.some((state) => state === "INDEXING" || state === "PENDING")) {
     return "waiting";
   }
-  if (states.some((state) => state === "FAILED" || state === "UNAVAILABLE")) {
-    return "unavailable";
-  }
-  return "searched";
+  const searchableStates = new Set([
+    "CURRENT",
+    "INDEXED",
+    "PROVISIONAL",
+    "STALE",
+  ]);
+  return states.every((state) => searchableStates.has(state))
+    ? "searched"
+    : "unavailable";
 }
 
 function contributorState(
@@ -507,12 +518,24 @@ function projectTrustLimits(
   sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
 ): UnifiedSearchTrustLimit[] {
   const limits: UnifiedSearchTrustLimit[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, number>();
   const add = (limit: UnifiedSearchTrustLimit): void => {
-    const key = JSON.stringify(limit);
-    if (!seen.has(key)) {
-      seen.add(key);
+    const key =
+      limit.kind === "stale"
+        ? `stale:${limit.servedTarget ?? limit.target ?? ""}`
+        : JSON.stringify(limit);
+    const existingIndex = seen.get(key);
+    const existing =
+      existingIndex === undefined ? undefined : limits[existingIndex];
+    if (existingIndex === undefined) {
+      seen.set(key, limits.length);
       limits.push(limit);
+    } else if (
+      limit.kind === "stale" &&
+      existing?.kind === "stale" &&
+      staleSpecificity(limit) > staleSpecificity(existing)
+    ) {
+      limits[existingIndex] = limit;
     }
   };
 
@@ -583,6 +606,14 @@ function projectTrustLimits(
     add({ kind: "mutable_evidence" });
   }
   return limits;
+}
+
+function staleSpecificity(
+  limit: Extract<UnifiedSearchTrustLimit, { kind: "stale" }>,
+): number {
+  return [limit.requestedTarget, limit.freshTarget, limit.servedTarget].filter(
+    Boolean,
+  ).length;
 }
 
 function addCoverage(
