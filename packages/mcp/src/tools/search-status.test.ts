@@ -613,7 +613,7 @@ describe("searchStatusTool", () => {
     const warning =
       "requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.";
     expect(text).toContain("Target: requested npm:express latest");
-    expect(text).toContain("Evidence: " + warning);
+    expect(text).toContain(`Evidence: ${warning}`);
     expect(text).toContain(warning);
     expect(text.split(warning)).toHaveLength(2);
   });

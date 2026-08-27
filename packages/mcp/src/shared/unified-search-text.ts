@@ -675,75 +675,6 @@ function formatLineRange(start?: number, end?: number): string {
   return `:${start}-${end}`;
 }
 
-function buildTrailer(
-  payload: SearchSuccessPayload,
-  options: { includeWarnings: boolean; includeSourceStatus: boolean },
-): string[] {
-  const lines: string[] = [];
-
-  if (options.includeWarnings) appendWarnings(lines, payload.warnings);
-
-  if (payload.hasMore) {
-    const nextOffsetHint =
-      typeof payload.nextOffset === "number"
-        ? ` Pass offset=${payload.nextOffset} for the next page or limit=N to widen.`
-        : " Pass limit=N to widen.";
-    lines.push(`More hits available.${nextOffsetHint}`);
-  }
-
-  if (options.includeSourceStatus) {
-    appendSourceStatusNotes(lines, payload.sourceStatus);
-  }
-
-  appendEvidenceNotice(lines, payload.evidenceNotice);
-
-  const progress = "progress" in payload ? payload.progress : undefined;
-  if (progress?.targets?.length) {
-    lines.push("progress targets:");
-    for (const target of progress.targets) {
-      lines.push(`  - ${formatProgressTarget(target)}`);
-    }
-  }
-
-  if (!payload.completed && payload.searchRef) {
-    const status = payload.progress?.status;
-    const action =
-      status === "DEFERRED"
-        ? "Search session deferred."
-        : status === "TIMEOUT"
-          ? "Search timed out before completion."
-          : status === "FAILED"
-            ? "Search failed before completion."
-            : status === "SEARCHING"
-              ? "Search in progress."
-              : status === "PENDING" || status === "INDEXING"
-                ? "Indexing in progress."
-                : status
-                  ? `Search returned status ${status}.`
-                  : "Search status is unavailable.";
-    if (payload.progress) {
-      lines.push(
-        `progress: ${payload.progress.targetsReady}/${payload.progress.targetsTotal} targets ready.`,
-      );
-    }
-    lines.push(action);
-    appendIncompleteSearchNextAction(lines, status, payload.searchRef);
-  } else if (payload.evidenceNotice && payload.searchRef) {
-    appendEvidenceSearchStatusNextAction(lines, payload.searchRef);
-  }
-
-  return lines;
-}
-
-function appendEvidenceSearchStatusNextAction(
-  lines: string[],
-  searchRef: string,
-): void {
-  lines.push(
-    `next: call search_status with search_ref=${JSON.stringify(searchRef)} and wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}.`,
-  );
-}
-
 export function appendIncompleteSearchNextAction(
   lines: string[],
   status: string | undefined,
@@ -777,12 +708,6 @@ export function appendIncompleteSearchNextAction(
   lines.push(
     `next: call search_status with search_ref=${JSON.stringify(searchRef)} and wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}.`,
   );
-}
-
-function appendWarnings(lines: string[], warnings: string[] | undefined): void {
-  if (!warnings || warnings.length === 0) return;
-  lines.push("warnings:");
-  for (const warning of warnings) lines.push(`  - ${warning}`);
 }
 
 export function appendSourceStatusNotes(

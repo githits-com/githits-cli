@@ -7,7 +7,6 @@ import type {
   UnifiedSearchSourceStatusPayload,
   UnifiedSearchStatusCompletedPayload,
   UnifiedSearchStatusIncompletePayload,
-  UnifiedSearchStatusResultPayload,
 } from "./unified-search-response.js";
 
 export type UnifiedSearchPresentationInput =
