@@ -216,6 +216,24 @@ describe("renderUnifiedSearchSuccess", () => {
     );
   });
 
+  it("renders symbol source readiness as code", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        query: { raw: "router", sources: ["symbol"] },
+        sourceStatus: [
+          source({
+            source: "symbol",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain("Searched: code");
+    expect(text).not.toContain("repository docs");
+  });
+
   it("renders the supplied n8n active empty snapshot with one concise readiness block", () => {
     const text = renderUnifiedSearchSuccess(n8nActiveEmpty());
     const lines = text.split("\n");

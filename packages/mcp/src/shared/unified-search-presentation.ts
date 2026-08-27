@@ -402,7 +402,8 @@ function appendSourceEntry(
 function sourceKind(
   entry: UnifiedSearchSourceStatusPayload,
 ): UnifiedSearchSourceKind {
-  if (entry.source.toLowerCase() === "code") return "code";
+  const source = entry.source.toLowerCase();
+  if (source === "code" || source === "symbol") return "code";
   return isSiteTarget(entry.targetLabel, entry)
     ? "site_docs"
     : "repository_docs";

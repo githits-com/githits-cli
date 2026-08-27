@@ -232,6 +232,35 @@ describe("projectUnifiedSearchPresentation", () => {
     });
   });
 
+  it("groups symbol source readiness with code", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        query: { raw: "router", sources: ["symbol"] },
+        results: [],
+        sourceStatus: [
+          source({
+            source: "symbol",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.sources).toEqual([
+      {
+        kind: "code",
+        entries: [
+          {
+            state: "searched",
+            target: "npm:express@4.18.2",
+            resultCount: 0,
+          },
+        ],
+      },
+    ]);
+  });
+
   it.each([
     ["PENDING", "no_snapshot"],
     ["INDEXING", "no_snapshot"],
