@@ -106,8 +106,16 @@ const schema: ZodRawShape = {
     .describe(
       `Context lines after each match (integer ${GREP_REPO_CONTEXT_MIN}-${GREP_REPO_CONTEXT_MAX}). Overrides \`context_lines\` for the after side.`,
     ),
-  max_matches: z.number().optional(),
-  max_matches_per_file: z.number().optional(),
+  max_matches: z
+    .number()
+    .optional()
+    .describe("Maximum total result limit for this page (1-1000, default 50)."),
+  max_matches_per_file: z
+    .number()
+    .optional()
+    .describe(
+      "Maximum matches from one file on this page (0-1000, 0 = unlimited). Defaults to max_matches, replacing the backend's smaller hidden default; set a lower value when result diversity across files matters.",
+    ),
   cursor: z.string().optional(),
   symbol_fields: z
     .array(z.enum(GREP_REPO_SYMBOL_FIELDS))
@@ -128,7 +136,7 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Enumerate matches for a known exact literal, regex, identifier, or call site in indexed source; results are deterministic and paginated. " +
+  "Enumerate text, regex, or identifier matches in any public GitHub repo/package. Results cover known exact literals, regexes, identifiers, and call sites; they are deterministic and paginated. " +
   'Use this when you know the pattern (literal by default; pass `pattern_type: "regex"` for RE2). ' +
   "Use `search` for conceptual or open-ended discovery; use `code_read` to inspect a matched file window and `code_files` to enumerate paths. " +
   "Whole-target grep is the default — narrow with `path`, `path_prefix`, `globs`, or `extensions` to keep responses small. " +

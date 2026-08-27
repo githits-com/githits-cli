@@ -21,8 +21,20 @@ describe("buildGrepRepoParams", () => {
     expect(params.contextLinesBefore).toBe(0);
     expect(params.contextLinesAfter).toBe(0);
     expect(params.maxMatches).toBe(50);
+    expect(params.maxMatchesPerFile).toBe(50);
     expect(params.waitTimeoutMs).toBe(20000);
     expect(params.symbolFields).toBeUndefined();
+  });
+
+  it("defaults the per-file limit to the requested total limit", () => {
+    const { params } = buildGrepRepoParams({
+      target,
+      pattern: "middleware",
+      maxMatches: 60,
+    });
+
+    expect(params.maxMatches).toBe(60);
+    expect(params.maxMatchesPerFile).toBe(60);
   });
 
   it("compiles path, pathPrefix, and globs into pathSelectors", () => {

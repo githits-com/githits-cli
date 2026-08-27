@@ -20,16 +20,77 @@ describe("createReadPackageDocTool", () => {
       "end_line",
       "format",
     ]);
-    expect(tool.description).toContain("capped at 150 lines per call");
-    expect(tool.schema.start_line?.description).toContain(
-      "at most 150 lines per call",
-    );
+    expect(tool.description).toContain("150 lines by default");
+    expect(tool.description).toContain("up to 300 lines");
+    expect(tool.schema.start_line?.description).toContain("at most 150 lines");
+    expect(tool.schema.end_line?.description).toContain("up to 300 lines");
     expect(tool.schema.end_line?.description).toContain(
-      "In text mode, omitting it returns at most 150 lines",
+      "In JSON mode, omitting it reads to the end",
     );
-    expect(tool.schema.end_line?.description).toContain(
-      "in JSON mode, omitting it reads to the end",
+  });
+
+  it("honors an explicit text range up to 300 lines", async () => {
+    const readPackageDoc = mock(() =>
+      Promise.resolve({
+        page: {
+          id: "abc",
+          content: "line\n".repeat(400),
+        },
+      }),
     );
+    const tool = createReadPackageDocTool(
+      createMockPackageIntelligenceService({ readPackageDoc }),
+    );
+
+    const result = await tool.handler(
+      { page_id: "abc", start_line: 1, end_line: 248 },
+      {},
+    );
+    expect(result.content[0]?.text).toContain("lines 1-248/400");
+  });
+
+  it("reports when the explicit text range ceiling truncates available content", async () => {
+    const readPackageDoc = mock(() =>
+      Promise.resolve({
+        page: {
+          id: "abc",
+          content: "line\n".repeat(400),
+        },
+      }),
+    );
+    const tool = createReadPackageDocTool(
+      createMockPackageIntelligenceService({ readPackageDoc }),
+    );
+
+    const result = await tool.handler(
+      { page_id: "abc", start_line: 1, end_line: 600 },
+      {},
+    );
+    expect(result.content[0]?.text).toContain("lines 1-300/400");
+    expect(result.content[0]?.text).toContain(
+      "MCP explicit-range ceiling: 300 lines",
+    );
+  });
+
+  it("does not report truncation when a clamped range reaches end of page", async () => {
+    const readPackageDoc = mock(() =>
+      Promise.resolve({
+        page: {
+          id: "abc",
+          content: "line\n".repeat(248),
+        },
+      }),
+    );
+    const tool = createReadPackageDocTool(
+      createMockPackageIntelligenceService({ readPackageDoc }),
+    );
+
+    const result = await tool.handler(
+      { page_id: "abc", start_line: 1, end_line: 600 },
+      {},
+    );
+    expect(result.content[0]?.text).toContain("lines 1-248/248");
+    expect(result.content[0]?.text).not.toContain("MCP explicit-range ceiling");
   });
 
   it("calls service.readPackageDoc with the page ID", async () => {
@@ -57,7 +118,16 @@ describe("createReadPackageDocTool", () => {
 
   it("defaults to bounded text output", async () => {
     const tool = createReadPackageDocTool(
-      createMockPackageIntelligenceService(),
+      createMockPackageIntelligenceService({
+        readPackageDoc: mock(() =>
+          Promise.resolve({
+            page: {
+              id: "github:expressjs/express@abc123/README.md",
+              content: "line\n".repeat(400),
+            },
+          }),
+        ),
+      }),
     );
     const result = await tool.handler(
       { page_id: "github:expressjs/express@abc123/README.md" },
@@ -67,7 +137,7 @@ describe("createReadPackageDocTool", () => {
     expect(text).toContain(
       "docs_read | github:expressjs/express@abc123/README.md",
     );
-    expect(text).toContain("lines 1-");
+    expect(text).toContain("lines 1-150/400");
     expect(() => JSON.parse(text)).toThrow();
   });
 

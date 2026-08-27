@@ -75,7 +75,7 @@ const DESCRIPTION_ROUTING: Record<
 > = {
   quick_start: {
     prefix:
-      /^GitHits tool guide for search, grep, docs, packages, and cross-project examples\.$/,
+      /^GitHits guide for public GitHub\/package search, grep, code, docs, and examples\./,
     body: [
       "Call once per session",
       "before other GitHits tools",
@@ -121,16 +121,23 @@ const DESCRIPTION_ROUTING: Record<
     ],
   },
   code_files: {
-    prefix: /^List indexed files and paths/,
+    prefix: /^List indexed files and paths in any public GitHub repo\/package;/,
     body: ["`code_read`", "`code_grep`"],
   },
   code_read: {
-    prefix: /^Read an exact indexed file or focused line window/,
-    body: ["`code_files`", "`code_grep`", "`search`", "150 lines per call"],
+    prefix:
+      /^Read an exact indexed file or focused window in any public GitHub repo\/package;/,
+    body: [
+      "`code_files`",
+      "`code_grep`",
+      "`search`",
+      "150 lines by default",
+      "up to 300 lines",
+    ],
   },
   code_grep: {
     prefix:
-      /^Enumerate matches for a known exact literal, regex, identifier, or call site/,
+      /^Enumerate text, regex, or identifier matches in any public GitHub repo\/package\./,
     body: [
       "deterministic and paginated",
       "`search`",
@@ -144,7 +151,13 @@ const DESCRIPTION_ROUTING: Record<
   },
   docs_read: {
     prefix: /^Read a package documentation page by ID/,
-    body: ["`docs_list`", "`search`", "`code_read`", "150 lines per call"],
+    body: [
+      "`docs_list`",
+      "`search`",
+      "`code_read`",
+      "150 lines by default",
+      "up to 300 lines",
+    ],
   },
   pkg_info: {
     prefix: /^Assess latest package health and adoption/,

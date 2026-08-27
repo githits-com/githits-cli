@@ -12,10 +12,11 @@ describe("quickStartTool", () => {
       openWorldHint: false,
       destructiveHint: false,
     });
-    expect(tool.description.slice(0, 80)).toBe(
-      "GitHits tool guide for search, grep, docs, packages, and cross-project examples.",
+    expect(tool.description).toStartWith(
+      "GitHits guide for public GitHub/package search, grep, code, docs, and examples.",
     );
     expect(tool.description).toContain("Call once per session");
+    expect(tool.description).toContain("Tools execute without this guide");
 
     await expect(tool.handler({}, {})).resolves.toEqual({
       content: [{ type: "text", text: "session guide" }],

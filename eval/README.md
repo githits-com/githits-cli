@@ -37,6 +37,7 @@ Pass 3 legitimate-signal preservation supports the same surface flag:
 
 ```sh
 bun run eval/run-pass3.ts --surface=skills
+bun run eval/run-pass3.ts --driver=codex --only=LEGIT-CI-001,LEGIT-CONF-001,LEGIT-URL-001,LEGIT-MIGRATE-001
 ```
 
 ## What gets measured

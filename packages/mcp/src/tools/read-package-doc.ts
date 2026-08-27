@@ -20,7 +20,8 @@ export interface ReadPackageDocArgs {
   format?: "json" | "text" | "text-v1";
 }
 
-const MCP_DOC_READ_MAX_SPAN = 150;
+const MCP_DOC_READ_DEFAULT_SPAN = 150;
+const MCP_DOC_READ_MAX_SPAN = 300;
 
 const schema: ZodRawShape = {
   page_id: z
@@ -32,27 +33,28 @@ const schema: ZodRawShape = {
     .number()
     .optional()
     .describe(
-      "Starting line (1-indexed). Omit to start at line 1. Text output returns at most 150 lines per call even when a larger explicit range is requested.",
+      `Starting line (1-indexed). Omit to start at line 1. Without \`end_line\`, text output returns at most ${MCP_DOC_READ_DEFAULT_SPAN} lines.`,
     ),
   end_line: z
     .number()
     .optional()
     .describe(
-      "Ending line (inclusive). In text mode, omitting it returns at most 150 lines from `start_line`; in JSON mode, omitting it reads to the end of the page. Must be ≥ `start_line` when both are set. Text output clamps larger ranges and reports the returned range.",
+      `Ending line (inclusive). In text mode, omitting it returns at most ${MCP_DOC_READ_DEFAULT_SPAN} lines from \`start_line\`; an explicit range may request up to ${MCP_DOC_READ_MAX_SPAN} lines. In JSON mode, omitting it reads to the end of the page. Must be ≥ \`start_line\` when both are set.`,
     ),
   format: z
     .enum(["text-v1", "text", "json"])
     .default("text-v1")
     .describe(
-      'Response format. Default `text-v1` — raw markdown content capped to 150 lines by default. Pass `format: "json"` for the structured envelope; explicit ranges still slice JSON content.',
+      `Response format. Default \`text-v1\` — raw markdown content capped to ${MCP_DOC_READ_DEFAULT_SPAN} lines by default. Pass \`format: "json"\` for the structured envelope; explicit ranges still slice JSON content.`,
     ),
 };
 
-export const DESCRIPTION: string =
+export const DESCRIPTION_BASE: string =
   "Read a package documentation page by ID; use `docs_list` to browse and `search` to find topics. " +
-  "Works for both hosted/crawled docs and repository-backed docs. Pass `start_line` / `end_line` to fetch a slice when a page is too long. Text output is capped at 150 lines per call, including explicit larger ranges; the response carries the returned range and `totalLines` so you can target the next slice. " +
-  "Repo-backed results additionally include exact file follow-up metadata for `code_read`." +
-  `\n\n${DOCS_GUARDRAIL}`;
+  `Works for both hosted/crawled docs and repository-backed docs. Text reads return ${MCP_DOC_READ_DEFAULT_SPAN} lines by default; pass an explicit \`start_line\` / \`end_line\` range for only the lines needed, up to ${MCP_DOC_READ_MAX_SPAN} lines. Broader ranges truncate and report the returned range and \`totalLines\`. ` +
+  "Repo-backed results additionally include exact file follow-up metadata for `code_read`.";
+
+export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${DOCS_GUARDRAIL}`;
 
 export function createReadPackageDocTool(
   service: PackageIntelligenceService,
@@ -73,7 +75,12 @@ export function createReadPackageDocTool(
           build.params.pageId,
           range?.range,
         );
-        if (range?.hint && payload.endLine !== undefined) {
+        if (
+          range?.hint &&
+          payload.endLine !== undefined &&
+          (payload.totalLines === undefined ||
+            payload.endLine < payload.totalLines)
+        ) {
           payload.hint = range.hint(payload);
         }
         if (textMode) return textResult(renderReadPackageDocText(payload));
@@ -106,17 +113,18 @@ function buildRange(
   | undefined {
   if (textMode) {
     const startLine = args.start_line ?? 1;
-    const requestedEnd = args.end_line ?? startLine + MCP_DOC_READ_MAX_SPAN - 1;
-    const endLine = Math.min(
-      requestedEnd,
-      startLine + MCP_DOC_READ_MAX_SPAN - 1,
-    );
+    const spanLimit =
+      args.end_line === undefined
+        ? MCP_DOC_READ_DEFAULT_SPAN
+        : MCP_DOC_READ_MAX_SPAN;
+    const requestedEnd = args.end_line ?? startLine + spanLimit - 1;
+    const endLine = Math.min(requestedEnd, startLine + spanLimit - 1);
     const wasClamped = requestedEnd > endLine;
     return {
       range: { startLine, endLine },
       hint: wasClamped
         ? (payload) =>
-            `Returned lines ${payload.startLine}-${payload.endLine}${payload.totalLines !== undefined ? `/${payload.totalLines}` : ""} (MCP text cap: ${MCP_DOC_READ_MAX_SPAN} lines per call; you requested lines ${startLine}-${requestedEnd}).`
+            `Returned lines ${payload.startLine}-${payload.endLine}${payload.totalLines !== undefined ? `/${payload.totalLines}` : ""} (MCP explicit-range ceiling: ${MCP_DOC_READ_MAX_SPAN} lines; you requested lines ${startLine}-${requestedEnd}).`
         : undefined,
     };
   }

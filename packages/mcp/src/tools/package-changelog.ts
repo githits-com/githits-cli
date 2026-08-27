@@ -118,7 +118,7 @@ const schema: ZodRawShape = {
     ),
 };
 
-export const DESCRIPTION: string =
+export const DESCRIPTION_BASE: string =
   "Find release notes and changelog history for a package or public GitHub repo. Default " +
   "latest mode returns up to ten entries (`limit` 1–50); source ordering may interleave maintained release lines. " +
   "With `from_version`, returns every entry in the " +
@@ -136,8 +136,9 @@ export const DESCRIPTION: string =
   "Package-version entries without changelog " +
   "text succeed with `source` omitted; no-source plus no entries " +
   "returns `NOT_FOUND`. Supports npm, PyPI, Hex, Crates, NuGet, " +
-  "Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift. Use `pkg_info` for latest package health or `pkg_upgrade_review` for current-vs-target evidence." +
-  `\n\n${PKG_CHANGELOG_GUARDRAIL}`;
+  "Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift. Use `pkg_info` for latest package health or `pkg_upgrade_review` for current-vs-target evidence.";
+
+export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_CHANGELOG_GUARDRAIL}`;
 
 export function createPackageChangelogTool(
   service: PackageIntelligenceService,

@@ -229,8 +229,9 @@ describe("agent skills packaging", () => {
     const content = await read(githitsCodeSkillPath);
 
     expectContainsAll(content, [
-      "Continue with explicit `--lines` windows",
-      "pass `--json` when you need `startLine`, `endLine`, or `totalLines` pagination metadata",
+      "Documentation text reads honor the requested range",
+      "Use explicit `--lines` windows to keep only needed context",
+      "pass `--json` when you need `startLine`, `endLine`, or `totalLines` metadata",
     ]);
   });
 

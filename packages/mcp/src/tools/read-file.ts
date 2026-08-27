@@ -24,16 +24,18 @@ import {
 } from "./types.js";
 
 /**
- * Maximum line span the MCP `code_read` tool will return in one call.
+ * Default line span for an MCP `code_read` call without an explicit end.
  *
  * Real session traces showed agents requesting 300-600 line windows
  * (and occasionally unbounded full-file reads) which dominated
- * context cost. The cap forces agents to pick a focused window —
- * typical 80-150 lines around a known symbol from `search` or
- * `code_grep` results. CLI command `githits code read` bypasses this
- * cap so humans piping a whole file to disk still work.
+ * context cost. Omitted end ranges therefore remain focused. A caller that
+ * knows the required bounds can deliberately request a larger window up to
+ * `MCP_READ_MAX_SPAN`, avoiding pagination overhead for modest whole files.
+ * CLI command `githits code read` bypasses both bounds so humans piping a
+ * whole file to disk still work.
  */
-export const MCP_READ_MAX_SPAN = 150;
+export const MCP_READ_DEFAULT_SPAN = 150;
+export const MCP_READ_MAX_SPAN = 300;
 
 export interface ReadFileArgs {
   target: CodeTargetArg;
@@ -55,13 +57,13 @@ const schema: ZodRawShape = {
     .number()
     .optional()
     .describe(
-      `Starting line (1-indexed). Omit to start at line 1. The MCP surface caps any single read at ${MCP_READ_MAX_SPAN} lines — pick a focused window from your prior \`search\` / \`code_grep\` hit.`,
+      `Starting line (1-indexed). Omit to start at line 1. Without \`end_line\`, the MCP surface returns at most ${MCP_READ_DEFAULT_SPAN} lines. Read only the lines needed from a prior \`search\` / \`code_grep\` hit.`,
     ),
   end_line: z
     .number()
     .optional()
     .describe(
-      `Ending line (inclusive). Must be ≥ \`start_line\` when both are set. Omitting it implies \`start_line + ${MCP_READ_MAX_SPAN - 1}\` because the MCP surface caps each read at ${MCP_READ_MAX_SPAN} lines.`,
+      `Ending line (inclusive). Must be ≥ \`start_line\` when both are set. Omitting it returns ${MCP_READ_DEFAULT_SPAN} lines from \`start_line\`; an explicit range may request up to ${MCP_READ_MAX_SPAN} lines.`,
     ),
   wait_timeout_ms: z
     .number()
@@ -77,20 +79,14 @@ const schema: ZodRawShape = {
     ),
 };
 
-export const DESCRIPTION: string =
-  "Read an exact indexed file or focused line window; use `code_files` " +
+export const DESCRIPTION_BASE: string =
+  "Read an exact indexed file or focused window in any public GitHub repo/package; use `code_files` " +
   "to enumerate paths and `code_grep` or `search` to find the right window. " +
-  "It does not list directories. **MCP cap: " +
-  `${MCP_READ_MAX_SPAN} lines per call** — broader requests (or no ` +
-  `range) silently truncate to the first ${MCP_READ_MAX_SPAN} lines ` +
-  "from your start, with a `hint` describing what was returned vs. " +
-  "requested. Pick a focused window from a `search` / `code_grep` " +
-  "match. Response: `{path, language, totalLines, startLine, endLine, " +
-  "content, isBinary, hint?}`. Binary files set `isBinary: true` and " +
-  "omit `content`. Pass the same `path` emitted by `code_files`. " +
-  "Address via `target.registry` + `target.package_name` (package " +
-  "scope) or `target.repo_url` + optional `target.git_ref` (repo scope), " +
-  "mutually exclusive. When fresh data is not ready within the wait " +
+  `It does not list directories. Reads return ${MCP_READ_DEFAULT_SPAN} lines by default; pass an explicit ` +
+  `\`start_line\` / \`end_line\` range for only the lines needed, up to ${MCP_READ_MAX_SPAN} lines. ` +
+  "Broader ranges truncate with a `hint` describing what was returned vs. " +
+  "requested. Pick the window from a `search` / `code_grep` " +
+  "match. Binary files omit `content`. When fresh data is not ready within the wait " +
   "window, responses may include `targetResolution` provenance, " +
   "`indexingEstimate`, and " +
   "immediately-queryable alternatives. `availableVersions` and " +
@@ -101,24 +97,24 @@ export const DESCRIPTION: string =
   "On `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, " +
   "`SOURCE_FILE_INVENTORY_UNKNOWN`, or a legacy `NOT_FOUND` that " +
   "specifically describes a missing file path, follow `details.action` " +
-  "to inspect paths available through `code_files`." +
-  `\n\n${CODE_READ_GUARDRAIL}`;
+  "to inspect paths available through `code_files`.";
+
+export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${CODE_READ_GUARDRAIL}`;
 
 interface BoundedRange {
   startLine: number;
   endLine: number;
   capped: boolean;
+  spanLimit: number;
 }
 
 /**
  * Compute the effective `(startLine, endLine)` for the backend call,
  * enforcing the MCP per-call span cap.
  *
- * - No range supplied: `1..MCP_READ_MAX_SPAN`.
- * - `start_line` only: `start..start + MCP_READ_MAX_SPAN - 1`.
- * - `end_line` only: treat start as 1; if span > cap, clamp.
- * - Both supplied with span ≤ cap: untouched.
- * - Both supplied with span > cap: clamp to `start..start + cap - 1`.
+ * - No explicit end: return `MCP_READ_DEFAULT_SPAN` lines.
+ * - Explicit end with span ≤ `MCP_READ_MAX_SPAN`: untouched.
+ * - Explicit end with a wider span: clamp to `MCP_READ_MAX_SPAN`.
  *
  * The cap is enforced before the backend call so the service does not
  * have to transfer bytes that will be discarded.
@@ -132,8 +128,9 @@ export function deriveBoundedRange(
   if (endLine === undefined) {
     return {
       startLine: start,
-      endLine: start + MCP_READ_MAX_SPAN - 1,
+      endLine: start + MCP_READ_DEFAULT_SPAN - 1,
       capped: true,
+      spanLimit: MCP_READ_DEFAULT_SPAN,
     };
   }
 
@@ -143,10 +140,16 @@ export function deriveBoundedRange(
       startLine: start,
       endLine: start + MCP_READ_MAX_SPAN - 1,
       capped: true,
+      spanLimit: MCP_READ_MAX_SPAN,
     };
   }
 
-  return { startLine: start, endLine, capped: false };
+  return {
+    startLine: start,
+    endLine,
+    capped: false,
+    spanLimit: MCP_READ_MAX_SPAN,
+  };
 }
 
 export function createReadFileTool(
@@ -189,6 +192,7 @@ export function createReadFileTool(
             payload,
             args.start_line,
             args.end_line,
+            bounded.spanLimit,
           );
         }
 
@@ -242,6 +246,7 @@ function buildCappedHint(
   payload: LeanReadFileEnvelope,
   originalStart: number | undefined,
   originalEnd: number | undefined,
+  spanLimit: number,
 ): string {
   const requested = describeRequest(originalStart, originalEnd);
   // Suppress the bare end-line if `endLine` is missing — exhaustive
@@ -253,9 +258,9 @@ function buildCappedHint(
       : "";
   return (
     `Returned lines ${payload.startLine}-${payload.endLine}/${payload.totalLines} ` +
-    `(MCP cap: ${MCP_READ_MAX_SPAN} lines per call; you requested ${requested}).` +
+    `(${originalEnd === undefined ? "default span" : "explicit-range ceiling"}: ${spanLimit} lines; you requested ${requested}).` +
     `${continuation} ` +
-    `Pick a focused start_line/end_line window — typical 80-150 lines around a search/code_grep match. ` +
+    `Use start_line/end_line to read only the lines needed around a search/code_grep match. ` +
     `Each retry also costs context, so aim for one well-sized read.`
   );
 }

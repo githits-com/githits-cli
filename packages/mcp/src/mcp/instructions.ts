@@ -22,7 +22,7 @@ const CODE_GREP_BULLET =
   "- `code_grep` — deterministic text/regex grep when you already know the pattern; use matches as `code_read` follow-ups.";
 
 const CODE_READ_BULLET =
-  "- `code_read` — read one exact file path; never use it to list/probe directories. MCP reads are capped at 150 lines per call.";
+  "- `code_read` — read one exact file path; never use it to list/probe directories. Read only the needed lines: 150 lines by default, or up to 300 with an explicit range.";
 
 const CODE_FILES_BULLET =
   "- `code_files` — list/discover file paths; first choice for directory enumeration before `code_read` or scoped `code_grep`.";
@@ -31,7 +31,7 @@ const DOCS_LIST_BULLET =
   '- `docs_list` — browse documentation pages available for a package; for a docs topic, use `search` with `source:"docs"`, then pass its `pageId` to `docs_read`.';
 
 const DOCS_READ_BULLET =
-  "- `docs_read` — read a documentation page by pageId from `docs_list` or docs `search` results; text reads are capped at 150 lines per call.";
+  "- `docs_read` — read a documentation page by pageId from `docs_list` or docs `search` results; text reads return 150 lines by default or up to 300 with an explicit range.";
 
 const PKG_INFO_BULLET =
   "- `pkg_info` — latest package health/adoption overview: license, repo health, downloads, publish age, latest vulnerability status.";
@@ -57,7 +57,7 @@ const PKG_UPGRADE_REVIEW_BULLET =
  * habits and the test invariant continue to anchor here.
  */
 const STRATEGY_TIP =
-  "Strategy — reference-first. Source, symbols, tests, and call sites beat docs prose. Enumerate paths with `code_files`; locate symbols/lines with `search` or `code_grep`; read focused windows with `code_read`.";
+  "Strategy — reference-first. Source, symbols, tests, and call sites beat docs prose. Enumerate paths with `code_files`; locate symbols/lines with `search` or `code_grep`; use explicit ranges to read only the needed lines with `code_read`.";
 
 /**
  * Build the detailed guide returned by `quick_start`.

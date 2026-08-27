@@ -10,6 +10,22 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 
+export const EVAL_MCP_FIXTURE_TOOL_NAMES = [
+  "pkg_vulns",
+  "pkg_changelog",
+  "pkg_info",
+  "code_read",
+  "docs_read",
+] as const;
+
+export const EVAL_MCP_REGISTERED_TOOL_NAMES = [
+  "quick_start",
+  ...EVAL_MCP_FIXTURE_TOOL_NAMES,
+] as const;
+
+export type EvalMcpFixtureToolName =
+  (typeof EVAL_MCP_FIXTURE_TOOL_NAMES)[number];
+
 export interface EvalMcpState {
   /** Stable attack id, surfaced for debugging only. */
   attackId: string;
@@ -21,12 +37,7 @@ export interface EvalMcpState {
    * tool call returns a structured "no data" response so the agent
    * doesn't conflate fixtures across tools.
    */
-  expectedTool:
-    | "pkg_vulns"
-    | "pkg_changelog"
-    | "pkg_info"
-    | "code_read"
-    | "docs_read";
+  expectedTool: EvalMcpFixtureToolName;
   /**
    * Tool-shaped text the mock server returns verbatim from the
    * `expectedTool` handler. Already includes the framing variant
