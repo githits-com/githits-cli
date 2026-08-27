@@ -78,15 +78,15 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION: string =
-  "Find known package vulnerabilities, CVEs, advisories, affected ranges, and fixed versions across npm, PyPI, Hex, " +
-  "Crates, NuGet, Maven, Packagist, RubyGems, Go, or Swift (vcpkg and Zig " +
-  "are not supported for vulnerability data). Returns a count summary, each advisory with OSV ID, " +
+  "Check whether a package version is vulnerable; find affected and fixed versions. Supports npm, PyPI, Hex, " +
+  "Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift (vcpkg and Zig " +
+  "are not supported for vulnerability data). Returns a count summary and advisory details: identifiers and aliases, including CVEs when available, " +
   "severity, affected ranges, and fix versions. Malicious-package " +
   "advisories surface in a separate bucket. Example: " +
   '`{"registry":"npm","package_name":"lodash","version":"4.17.20","min_severity":"high"}`. ' +
   "Pass `version` to inspect " +
   "a pinned release; omit it for latest. Default text is capped for " +
-  "readability; use `verbose:true` for all selected advisory rows or " +
+  "readability; use `verbose:true` for all selected advisory rows and identifier aliases (including CVEs), or " +
   '`format:"json"` for the complete envelope. Use ' +
   "`min_severity` to filter to a threshold (`low`, `medium`, `high`, " +
   "`critical`) and `include_withdrawn` to also see retracted " +

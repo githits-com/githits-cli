@@ -51,7 +51,9 @@ describe("createPackageDependenciesTool — metadata", () => {
     expect(tool.description).toContain(
       "npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, Go, and Swift",
     );
-    expect(tool.description).toContain("dependency graph");
+    expect(tool.description).toContain(
+      "Inspect what a package depends on, directly or transitively",
+    );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "format",
       "include_importers",

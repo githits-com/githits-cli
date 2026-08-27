@@ -66,7 +66,12 @@ const STABLE_MCP_TOOL_NAMES = [
 
 const DESCRIPTION_ROUTING: Record<
   (typeof STABLE_MCP_TOOL_NAMES)[number],
-  { prefix: RegExp; body: string[]; absent?: string[] }
+  {
+    prefix: RegExp;
+    exactPrefix?: string;
+    body: string[];
+    absent?: string[];
+  }
 > = {
   quick_start: {
     prefix:
@@ -142,7 +147,9 @@ const DESCRIPTION_ROUTING: Record<
     body: ["`docs_list`", "`search`", "`code_read`", "150 lines per call"],
   },
   pkg_info: {
-    prefix: /^Summarize latest package health and adoption signals/,
+    prefix: /^Assess latest package health and adoption/,
+    exactPrefix:
+      "Assess latest package health and adoption: license, downloads, and activity. Pro",
     body: [
       "`pkg_vulns`",
       "`pkg_deps`",
@@ -151,15 +158,26 @@ const DESCRIPTION_ROUTING: Record<
     ],
   },
   pkg_vulns: {
-    prefix: /^Find known package vulnerabilities, CVEs, advisories/,
-    body: ["`pkg_info`", "`pkg_upgrade_review`"],
+    prefix: /^Check whether a package version is vulnerable/,
+    exactPrefix:
+      "Check whether a package version is vulnerable; find affected and fixed versions.",
+    body: [
+      "identifiers and aliases, including CVEs when available",
+      "identifier aliases (including CVEs)",
+      "`pkg_info`",
+      "`pkg_upgrade_review`",
+    ],
   },
   pkg_deps: {
-    prefix: /^Map a package's dependency graph/,
+    prefix: /^Inspect what a package depends on, directly or transitively/,
+    exactPrefix:
+      "Inspect what a package depends on, directly or transitively. Lists direct runtim",
     body: ["`pkg_info`", "`pkg_vulns`", "`pkg_upgrade_review`"],
   },
   pkg_changelog: {
-    prefix: /^Find release and changelog evidence/,
+    prefix: /^Find release notes and changelog history/,
+    exactPrefix:
+      "Find release notes and changelog history for a package or public GitHub repo. De",
     body: [
       "`(from_version, to_version]`",
       "one exact release",
@@ -169,8 +187,9 @@ const DESCRIPTION_ROUTING: Record<
     absent: ["newest-first", "most recent"],
   },
   pkg_upgrade_review: {
-    prefix:
-      /^Compare current and target package versions and report upgrade evidence/,
+    prefix: /^Review a package upgrade/,
+    exactPrefix:
+      "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. ",
     body: ["`pkg_info`", "`pkg_changelog`", "`pkg_vulns`", "`pkg_deps`"],
   },
 };
@@ -198,6 +217,10 @@ describe("MCP tool description catalog", () => {
     expect(descriptors.map(({ name }) => name)).toEqual([
       ...STABLE_MCP_TOOL_NAMES,
     ]);
+    const catalogPrefixes = descriptors.map(({ description }) =>
+      description.slice(0, 80),
+    );
+    expect(new Set(catalogPrefixes).size).toBe(descriptors.length);
     expect(Object.keys(DESCRIPTION_ROUTING).sort()).toEqual(
       [...STABLE_MCP_TOOL_NAMES].sort(),
     );
@@ -211,6 +234,9 @@ describe("MCP tool description catalog", () => {
 
       const catalogPrefix = descriptor.description.slice(0, 80);
       expect(catalogPrefix, descriptor.name).toMatch(routing.prefix);
+      if (routing.exactPrefix !== undefined) {
+        expect(catalogPrefix, descriptor.name).toBe(routing.exactPrefix);
+      }
       expect(catalogPrefix, descriptor.name).not.toMatch(
         /^Use (when|after|before|for|only)\b/i,
       );

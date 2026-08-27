@@ -190,7 +190,7 @@ describe("buildMcpQuickStart", () => {
       "Enumerate matches for a known exact literal",
     );
     expect(descriptions.get("pkg_vulns")).toStartWith(
-      "Find known package vulnerabilities, CVEs, advisories",
+      "Check whether a package version is vulnerable",
     );
   });
 

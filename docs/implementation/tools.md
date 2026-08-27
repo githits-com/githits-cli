@@ -19,9 +19,36 @@ MCP clients may receive only a truncated catalog before loading a tool
 definition. Every tool description therefore starts with a compact,
 benefit-specific verb/object phrase. Do not spend that prefix on generic
 phrasing such as “Use when the user asks” or “Use when the user needs”. The
+first 80 characters prioritize the user's likely question and the tool's
+distinct role; treat that boundary as a ceiling, not a target. Keep registry
+counts and enumerations in the loaded definition because they crowd out trigger
+language and can imply incomplete or inconsistent catalog boundaries. The
 loaded definition owns the complete use/avoid boundary, argument constraints,
 and the exact name of each immediate follow-up tool; repeat those handoffs on
 both sides of a workflow so a client can recover when it loads only one tool.
+
+The 80-character boundary comes from an August 2026 Claude Desktop connector
+session with no GitHits memories or user instruction to use GitHits. Its
+unguided selection context contained the tool name and first 80 description
+characters; the connector description and MCP server instructions were absent.
+That observation is host-specific rather than an MCP protocol guarantee, but it
+defines the minimum catalog surface GitHits designs and tests. Other clients
+may expose different amounts or kinds of discovery context; 80 characters is
+GitHits' verified Claude Desktop design target, not a cross-client guarantee.
+
+Write the prefix as the answer to “why would an agent choose this tool now?”:
+
+- Match natural questions such as “is this version vulnerable?” or “what does
+  this package depend on?”, rather than catalog taxonomy or implementation
+  mechanics.
+- Distinguish sibling tools before adding shared corpus terms. For example,
+  package health, advisory detail, dependency graphs, changelog history, and
+  upgrade review need visibly different openings.
+- Make every prefix stand alone. Do not assume ordering, adjacency, a shared
+  connector description, `quick_start`, or server instructions supply context.
+- Keep exhaustive registry coverage, schemas, limits, handoffs, and safety
+  detail in the remainder of the loaded definition. Do not fill unused prefix
+  characters merely because the client permits 80.
 
 GitHits intentionally omits MCP initialize instructions because clients treat
 them inconsistently: some hide them, some promote them, and some repeat them
@@ -74,11 +101,11 @@ Use the tools in these roles:
 | `search_status` | `search_ref`, `wait_timeout_ms?`, `format?` | Continue an explicit `search` reference only after that response supplies a `searchRef` and `search_status` action. Inspect progress or retrieve interim, partial, or final hits; terminal and unrecognized statuses are not polled again. |
 | `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation pages and hand off to `docs_read`; use `search` for topic discovery. Repo-backed entries include exact source metadata for `code_read` when available. |
 | `docs_read` | `page_id`, `start_line?`, `end_line?`, `format?` | Read a package documentation page by ID; use `docs_list` to browse and `search` to find topics. Text output is capped at 150 lines per call; repo-backed pages include exact `code_read` metadata. |
-| `pkg_info` | `registry`, `package_name`, `verbose?`, `format?` | Summarize latest package health and adoption signals. Use `pkg_vulns` for advisory detail, `pkg_deps` for dependency graphs, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison. |
-| `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `verbose?`, `format?` | Find known package vulnerabilities, CVEs, advisories, affected ranges, and fixed versions. Use `pkg_info` for a latest health overview or `pkg_upgrade_review` for current-vs-target evidence. |
-| `pkg_deps` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_importers?`, `max_depth?`, `format?` | Map a package's dependency graph, direct groups, and bounded transitive footprint. Use `pkg_info` for health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence. |
-| `pkg_changelog` | `registry?`, `package_name?`, `repo_url?`, `from_version?`, `to_version?`, `limit?`, `git_ref?`, `omit_bodies?`, `verbose?`, `body_lines?`, `format?` | Find release and changelog evidence for a package or GitHub repository. Latest mode returns recent entries without promising date order; range mode covers `(from_version, to_version]`. Use latest mode with `to_version` and `limit: 1` for one exact release. Use `pkg_info` for a quick health view or `pkg_upgrade_review` for upgrade evidence. |
-| `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Compare current and target package versions and report upgrade evidence. Use `pkg_info` for health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs. |
+| `pkg_info` | `registry`, `package_name`, `verbose?`, `format?` | Assess latest package health and adoption through license, downloads, and activity. Use `pkg_vulns` for advisory detail, `pkg_deps` for dependency graphs, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison. |
+| `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `verbose?`, `format?` | Check whether a package version is vulnerable and find affected and fixed versions. Use `pkg_info` for a latest health overview or `pkg_upgrade_review` for current-vs-target evidence. |
+| `pkg_deps` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_importers?`, `max_depth?`, `format?` | Inspect what a package depends on, directly or transitively. Use `pkg_info` for health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence. |
+| `pkg_changelog` | `registry?`, `package_name?`, `repo_url?`, `from_version?`, `to_version?`, `limit?`, `git_ref?`, `omit_bodies?`, `verbose?`, `body_lines?`, `format?` | Find release notes and changelog history for a package or public GitHub repository. Latest mode returns recent entries without promising date order; range mode covers `(from_version, to_version]`. Use latest mode with `to_version` and `limit: 1` for one exact release. Use `pkg_info` for a quick health view or `pkg_upgrade_review` for upgrade evidence. |
+| `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Review a package upgrade using vulnerability, release, peer, and dependency-change evidence. Use `pkg_info` for health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs. |
 | `code_files` | `target`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `file_types?`, `languages?`, `file_intent?`, `file_intents?`, `exclude_file_intents?`, `exclude_doc_files?`, `exclude_test_files?`, `include_hidden?`, `limit?`, `wait_timeout_ms?`, `format?` | List indexed files and paths, then hand off to `code_read` or `code_grep`. Selectors narrow the listing; `INDEXING` errors expose available retry candidates when known. |
 | `code_read` | `target`, `path`, `start_line?`, `end_line?`, `wait_timeout_ms?`, `format?` | Read an exact indexed file or focused line window; use `code_files` to enumerate paths and `code_grep` or `search` to find the right window. MCP reads cap each call at 150 lines. |
 | `code_grep` | `target`, `pattern`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `pattern_type?`, `case_sensitive?`, `exclude_doc_files?`, `exclude_test_files?`, `context_lines?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `max_matches_per_file?`, `cursor?`, `symbol_fields?`, `wait_timeout_ms?`, `format?` | Enumerate matches for a known exact literal, regex, identifier, or call site in indexed source; results are deterministic and paginated. Use `search` for conceptual discovery, `code_read` for matched windows, and `code_files` for path enumeration. |
@@ -416,11 +443,13 @@ Each tool follows the same structure. See `packages/mcp/src/tools/search.ts` for
 
 1. Define an `Args` interface for the handler input
 2. Define a `schema` object with Zod validators (these become the MCP tool's input schema)
-3. Define a `DESCRIPTION` constant (must match the backend's tool description)
+3. Define a `DESCRIPTION` constant whose first 80 characters satisfy the
+   standalone selection contract above and whose complete text matches the
+   backend tool description
 4. Export a `createXxxTool(service)` factory function returning a `ToolDefinition`
 5. The handler calls the service and wraps the result with `textResult()` or lets `withErrorHandling()` catch errors
 
-> **Descriptions are kept in sync with the backend MCP server.** Changes happen through coordinated PRs — the frontend may lead wording, but the backend mirrors before public release. The description is what LLM clients see when deciding whether to use a tool; even small wording differences could change tool selection behaviour.
+> **Descriptions are kept in sync with the backend MCP server.** Changes happen through coordinated PRs — the frontend may lead wording, but the backend mirrors before public release. Add an exact first-80 catalog test in `packages/mcp/src/mcp/server.test.ts`, then use descriptor-only agent evals to inspect discovery and actual calls. Even small wording differences can change tool selection behaviour.
 
 ## Adding a New Tool
 
