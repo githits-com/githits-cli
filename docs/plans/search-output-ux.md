@@ -5,7 +5,7 @@
 - Overall: **IN PROGRESS**
 - Phase 1a: **COMPLETE**
 - Phase 1b: **COMPLETE** (implemented in the same draft PR after the formatter
-  ownership correction; final integrated verification/review pending)
+  ownership correction)
 - Phase 2: **PENDING**
 
 ## Problem and expected outcome
@@ -73,22 +73,27 @@ When this work is complete:
 
 ### Final integrated Phase 1 evidence
 
-- `bun test`: 3,364 tests passed, 0 failed, 10,825 expects across 184 files.
+- `bun test`: 3,371 tests passed, 0 failed, 10,871 expects across 184 files.
 - `bun run typecheck`: clean; format and lint checked 437 files clean.
 - Root and `packages/mcp` builds passed on merged `origin/main`.
 - `bun run validate:packages` and `bun run validate:packages:mcp-publish` passed;
   the publish dry-run was skipped because `@githits/mcp@0.11.0` is already
   published.
-- Source `bun run smoke:cli` and `bun run smoke:mcp` passed on merged `origin/main`.
+- Source `bun run smoke:cli` and `bun run smoke:mcp` passed sequentially on the
+  final formatter state: 89 CLI steps and 46 MCP steps. An earlier parallel attempt
+  hit the backend rate limit in the unrelated `get_example` step; its evidence was
+  preserved and both suites passed after the rate window cleared.
 - Targeted `unified-search-investigation` agent E2E succeeded with both Claude
   and Codex; usefulness was helped/high confidence. The discovered symbol-label
   bug was fixed.
-- The final focused shared/status/tool cohort passed 123 tests with 0 failures.
-- Production/shared-smoke delta across the seven counted source files is 1,683
-  additions and 1,276 deletions (net +407). The single-formatter correction crossed
+- The final focused shared/status/tool/CLI cohort passed 149 tests with 0 failures
+  and 584 assertions before the smoke-contract unit cases were added.
+- Production/shared-smoke delta across the seven counted source files is 1,679
+  additions and 1,753 deletions (net -74). The single-formatter correction crossed
   the addition-only caution threshold but deleted 818 lines from the CLI command and
-  removed the duplicated formatter instead of adding another layer. The user
-  explicitly authorized the root-cause correction even if it grew this PR.
+  removed the obsolete shared helper block instead of retaining two apparent
+  implementations. The user explicitly authorized the root-cause correction even if
+  it grew this PR.
 - `origin/main` at `739ec4e` was merged cleanly with no conflicts. Overlapping
   permanent documentation auto-merged, and integrated full-test, build, package,
   and source-smoke verification passed.
@@ -445,13 +450,13 @@ text changes.
 
 ### Phase 1b — CLI search output gains the same hierarchy and useful color
 
-- Status: **COMPLETE** (final integrated verification/review pending)
+- Status: **COMPLETE**
 - Delivered: CLI search/search-status invoke the same shared formatter as MCP;
   callers vary only ANSI and command dialect. The reported active-empty case is
   concise, CLI actions are directly executable, and 780 lines of duplicated private
   CLI formatting were deleted.
-- Verification: targeted CLI/shared/status tests, ANSI-stripped parity, typecheck,
-  lint, and format checks pass. Full gates and follow-up review remain below.
+- Verification: targeted CLI/shared/status tests, ANSI-stripped parity, full tests,
+  builds, package validation, source smoke, and retained Opus review all pass.
 
 ### Phase 2 — Proven terminal hierarchy becomes consistent across commands
 
@@ -549,8 +554,8 @@ CLI search/status formatter and its duplicate hit/provenance helpers were delete
 
 ### Phase 1a and 1b acceptance criteria
 
-Implementation criteria below are verified by targeted tests. Full integrated gates,
-CLI smoke, and follow-up review remain pending at this checkpoint.
+Implementation criteria below are verified by targeted and integrated tests, both
+source smoke suites, and the completed follow-up review.
 
 - The n8n-shaped active empty-snapshot CLI fixture starts with indexing, contains one
   readiness summary, distinguishes waiting from available-but-unsearched evidence,
@@ -639,8 +644,12 @@ after Phase 1b rather than retaining a stale future-work artifact.
   fixed. The initial Opus loop findings were also fixed; that loop exposed the
   overloaded source-target identity later corrected by the explicit `searchTarget`
   boundary.
-- The user selected that root-cause boundary correction. A fresh follow-up Opus loop
-  ended clean with no findings and nothing deferred.
+- The user selected that root-cause boundary correction. Retained follow-up Opus
+  rounds found and closed the CLI pagination dialect leak, obsolete formatter helper
+  block, missing smoke-predicate unit coverage, and stale parity wording. The final
+  round was clean. Its two non-blocking observations were also fixed inline: the
+  smoke predicate now accepts legitimate completed-empty and terminal actions, and
+  the parity wording states the exact syntax exceptions.
 - Repository policy prevented a second internal `code_reviewer`: this session had
   already used its one allowed reviewer for the technical plan.
 - Rejected remedy: do not issue a fresh live search to capture transient JSON. The
