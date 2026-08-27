@@ -79,7 +79,40 @@ describe("searchTool", () => {
     const payload = JSON.parse(result.content[0]?.text ?? "{}");
     expect(payload.completed).toBe(true);
     expect(payload.results[0].target).toBe("npm:express@4.18.2");
+    expect(payload.partialResults).toBe(false);
   });
+
+  it.each([false, true] as const)(
+    "preserves partialResults=%s in initial JSON",
+    async (partialResults) => {
+      if (defaultUnifiedSearchOutcome.state !== "completed") {
+        throw new Error("expected completed outcome fixture");
+      }
+      const outcome: UnifiedSearchOutcome = {
+        ...defaultUnifiedSearchOutcome,
+        result: {
+          ...defaultUnifiedSearchOutcome.result,
+          partialResults,
+        },
+      };
+      const tool = createSearchTool(
+        createMockCodeNavigationService({
+          search: mock(() => Promise.resolve(outcome)),
+        }),
+      );
+
+      const result = await tool.handler(
+        {
+          query: "router",
+          target: { registry: "npm", package_name: "express" },
+          format: "json",
+        },
+        {},
+      );
+      const payload = JSON.parse(result.content[0]?.text ?? "{}");
+      expect(payload.partialResults).toBe(partialResults);
+    },
+  );
 
   it("returns documentation contributors and evidence metadata in JSON and text", async () => {
     const tool = createSearchTool(
@@ -115,10 +148,8 @@ describe("searchTool", () => {
       },
       {},
     );
-    expect(text.content[0]?.text).toContain("documentation sources:");
-    expect(text.content[0]?.text).toContain(
-      "site expressjs.com/en/guide - not ready, so it was not searched",
-    );
+    expect(text.content[0]?.text).toContain("Waiting: site docs");
+    expect(text.content[0]?.text).toContain("Searched: repository docs");
   });
 
   it("passes compiled request through to code navigation service", async () => {
@@ -572,7 +603,7 @@ describe("searchTool", () => {
     );
     expect(result.isError).toBeUndefined();
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("search | ");
+    expect(text.split("\n")[0]).not.toContain("search | ");
     expect(() => JSON.parse(text)).toThrow();
   });
 
@@ -588,8 +619,8 @@ describe("searchTool", () => {
     );
     expect(result.isError).toBeUndefined();
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("search | ");
-    expect(text).toContain('query="router middleware"');
+    expect(text.split("\n")[0]).not.toContain("search | ");
+    expect(text.split("\n")[0]).toContain("1 result");
     // Confirm the text payload is not valid JSON.
     expect(() => JSON.parse(text)).toThrow();
   });
@@ -605,7 +636,7 @@ describe("searchTool", () => {
       {},
     );
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("search | ");
+    expect(text.split("\n")[0]).not.toContain("search | ");
   });
 
   it("keeps the JSON envelope when format=json (explicit)", async () => {

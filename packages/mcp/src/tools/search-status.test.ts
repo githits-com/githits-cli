@@ -58,6 +58,9 @@ describe("searchStatusTool", () => {
       searchRef: "search-ref-123",
       progress: expect.objectContaining({ status: "SEARCHING" }),
     });
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).not.toHaveProperty(
+      "partialResults",
+    );
   });
 
   it("preserves provisional hits and the search reference for continuation", async () => {
@@ -106,6 +109,7 @@ describe("searchStatusTool", () => {
       searchRef: "search-ref-provisional",
       result: {
         results: [{ type: "repository_code" }],
+        partialResults: false,
         sourceStatus: [
           {
             codeIndexState: "PROVISIONAL",
@@ -120,8 +124,11 @@ describe("searchStatusTool", () => {
     });
 
     const text = await tool.handler({ search_ref: incomplete.searchRef }, {});
-    expect(text.content[0]?.text).toContain("provisional (still indexing)");
-    expect(text.content[0]?.text).toContain("search-ref-provisional");
+    expect(text.content[0]?.text).toContain("Evidence: provisional snapshot");
+    expect(text.content[0]?.text).toContain(
+      'Next: search_status search_ref="search-ref-provisional" wait_timeout_ms=20000',
+    );
+    expect(text.content[0]?.text).not.toContain("indexingRef");
   });
 
   it("describes partial-result follow-up behavior", () => {
@@ -209,7 +216,30 @@ describe("searchStatusTool", () => {
     expect(payload.completed).toBe(true);
     expect(payload.searchRef).toBe(defaultUnifiedSearchOutcome.searchRef);
     expect(payload.result.results).toHaveLength(1);
+    expect(payload.result.partialResults).toBe(false);
     expect(payload).not.toHaveProperty("query");
+  });
+
+  it("preserves partialResults=true in a stored status result", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const outcome = {
+      ...defaultUnifiedSearchOutcome,
+      result: { ...defaultUnifiedSearchOutcome.result, partialResults: true },
+    };
+    const tool = createSearchStatusTool(
+      createMockCodeNavigationService({
+        searchStatus: mock(() => Promise.resolve(outcome)),
+      }),
+    );
+
+    const result = await tool.handler(
+      { search_ref: "search-ref-123", format: "json" },
+      {},
+    );
+    const payload = JSON.parse(result.content[0]?.text ?? "{}");
+    expect(payload.result.partialResults).toBe(true);
   });
 
   it("preserves stored documentation contributor metadata in JSON and text", async () => {
@@ -238,10 +268,8 @@ describe("searchStatusTool", () => {
     );
 
     const text = await tool.handler({ search_ref: "search-ref-docs" }, {});
-    expect(text.content[0]?.text).toContain("documentation sources:");
-    expect(text.content[0]?.text).toContain(
-      "site expressjs.com/en/guide - not ready, so it was not searched",
-    );
+    expect(text.content[0]?.text).toContain("Waiting: site docs");
+    expect(text.content[0]?.text).toContain("Searched: repository docs");
   });
 
   it("keeps completed empty JSON structured", async () => {
@@ -320,11 +348,11 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-timeout" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("search_status | timeout | searchRef=ref-timeout");
-    expect(text).not.toContain("search_status | indexing");
+    expect(text).toContain("TIMEOUT - no result snapshot returned");
+    expect(text).not.toContain("search_status |");
     expect(text).toContain("Do not call search_status again for this session.");
-    expect(text).toContain("next: rerun search.");
-    expect(text).not.toContain("next: call search_status");
+    expect(text).toContain("Next: rerun search later.");
+    expect(text).not.toContain("search_ref=");
   });
 
   it("stops polling a failed search session", async () => {
@@ -338,9 +366,10 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-failed" }, {});
     const text = result.content[0]?.text ?? "";
+    expect(text).toContain("FAILED - no result snapshot returned");
     expect(text).toContain("Do not call search_status again for this session.");
-    expect(text).toContain("next: rerun search.");
-    expect(text).not.toContain("next: call search_status");
+    expect(text).toContain("Next: rerun search later.");
+    expect(text).not.toContain("search_ref=");
   });
 
   it("preserves evidence for a terminal deferred session without polling it", async () => {
@@ -381,13 +410,11 @@ describe("searchStatusTool", () => {
 
     const textResult = await tool.handler({ search_ref: "ref-deferred" }, {});
     const text = textResult.content[0]?.text ?? "";
-    expect(text).toContain("search_status | deferred | searchRef=ref-deferred");
-    expect(text).toContain(
-      "Background lifecycle work continues outside this search session.",
-    );
-    expect(text).toContain("Stored evidence remains usable.");
-    expect(text).toContain("next: rerun search later for a fresher snapshot.");
-    expect(text).not.toContain("next: call search_status");
+    expect(text).toContain("DEFERRED - 1 result returned");
+    expect(text).toContain("Evidence may change.");
+    expect(text).toContain("Do not call search_status again for this session.");
+    expect(text).toContain("Next: rerun search later.");
+    expect(text).not.toContain("search_ref=");
     expect(text).not.toContain("No hits");
     expect(text).not.toContain("Indexing in progress");
   });
@@ -405,13 +432,11 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-deferred-empty" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain(
-      "search_status | deferred | searchRef=ref-deferred-empty",
-    );
-    expect(text).toContain("next: rerun search later for a fresher snapshot.");
+    expect(text).toContain("DEFERRED - no result snapshot returned");
+    expect(text).toContain("Next: rerun search later.");
     expect(text).not.toContain("No hits");
     expect(text).not.toContain("Indexing in progress");
-    expect(text).not.toContain("next: call search_status");
+    expect(text).not.toContain("search_ref=");
   });
 
   it("preserves an unrecognized status and evidence without polling it", async () => {
@@ -446,20 +471,19 @@ describe("searchStatusTool", () => {
 
     const textResult = await tool.handler({ search_ref: "ref-future" }, {});
     const text = textResult.content[0]?.text ?? "";
-    expect(text).toContain(
-      "search_status | future_session_state | searchRef=ref-future",
-    );
-    expect(text).toContain("This client does not recognize that status.");
-    expect(text).toContain("Stored evidence remains usable.");
-    expect(text).not.toContain("next: call search_status");
+    expect(text).toContain("FUTURE_SESSION_STATE - 1 result returned");
+    expect(text).toContain("Evidence may change.");
+    expect(text).toContain("Do not call search_status again for this session.");
+    expect(text).toContain("Next: rerun search later.");
+    expect(text).not.toContain("search_ref=");
     expect(text).not.toContain("No hits");
     expect(text).not.toContain("Indexing in progress");
-    expect(text).not.toContain("terminal");
+    expect(text).not.toContain("status:");
   });
 
   it.each([
-    ["FAILED", "No hits - search failed."],
-    ["TIMEOUT", "No hits - search timed out."],
+    ["FAILED", "FAILED - no results returned"],
+    ["TIMEOUT", "TIMEOUT - no results returned"],
   ] as const)(
     "does not promise future hits for a terminal %s partial result",
     async (status, expectedMessage) => {
@@ -497,7 +521,7 @@ describe("searchStatusTool", () => {
     },
   );
 
-  it("renders site recovery guidance for incomplete results without hits", async () => {
+  it("renders the site outcome without stale recovery prose", async () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
     }
@@ -529,10 +553,14 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: incomplete.searchRef }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("No hits yet");
-    expect(text).toContain("source notes:");
-    expect(text).toContain("Suggested site targets: site:docs.example.com");
-    expect(text).toContain("Additional site targets were omitted.");
+    expect(text).toContain(
+      "Indexing site:example.com - no results returned yet",
+    );
+    expect(text).toContain("Searched: site docs");
+    expect(text).toContain(
+      'Next: search_status search_ref="ref-site-recovery" wait_timeout_ms=20000',
+    );
+    expect(text).not.toContain("Suggested site targets");
   });
 
   it("surfaces progress freshness warnings", async () => {
@@ -580,9 +608,10 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-stale" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("warnings:");
     const warning =
       "requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.";
+    expect(text).toContain("Target: requested npm:express latest");
+    expect(text).toContain("Evidence: " + warning);
     expect(text).toContain(warning);
     expect(text.split(warning)).toHaveLength(2);
   });
@@ -629,14 +658,14 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "search-ref-123" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("source notes:");
     expect(text).toContain(
-      "Using recent indexed snapshot while branch resolution is deferred",
+      "Evidence: served older snapshot npm:express@4.18.2.",
     );
-    expect(text).toContain("queryable now: versions=4.18.2@v4.18.2");
+    expect(text).toContain("Indexed alternatives: versions 4.18.2");
+    expect(text).not.toContain("ref_resolution_deferred");
   });
 
-  it("renders structured site recovery guidance in completed text", async () => {
+  it("renders completed site emptiness without stale recovery prose", async () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
     }
@@ -672,8 +701,9 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "search-ref-123" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("Suggested site targets: site:example.com/docs");
-    expect(text).toContain("Additional site targets were omitted.");
+    expect(text).toContain("No results returned from site:example.com");
+    expect(text).toContain("Next: shorten or broaden site query.");
+    expect(text).not.toContain("Suggested site targets");
   });
 
   it("renders terminal source status compactly in completed text", async () => {
@@ -724,8 +754,10 @@ describe("searchStatusTool", () => {
     );
     const text = result.content[0]?.text ?? "";
     expect(text).toContain(
-      "code (github:githits-com/no-such-repo) | Repository ref cannot be resolved (UNRESOLVABLE)",
+      "No results returned from github:githits-com/no-such-repo",
     );
+    expect(text).toContain("Searched: code");
+    expect(text).not.toContain("Repository ref cannot be resolved");
     expect(text).not.toContain("state=indexing");
   });
 
@@ -742,13 +774,14 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
 
     expect(result.isError).toBeUndefined();
-    expect(text).toContain("search_status | searching | searchRef=ref-text");
-    expect(text).toContain("progress: SEARCHING, 0/1 targets ready");
+    expect(text).toContain("Searching - no result snapshot returned yet");
+    expect(text).toContain("Ready: 0/1 targets");
     expect(text).toContain("Do not repeat search.");
     expect(text).toContain(
-      'next: call search_status with search_ref="ref-text" and wait_timeout_ms=20000.',
+      'Next: search_status search_ref="ref-text" wait_timeout_ms=20000',
     );
-    expect(text).not.toContain("searchRef=ref-text to follow up");
+    expect(text).not.toContain("search_status |");
+    expect(text).not.toContain("searchRef=");
     expect(() => JSON.parse(text)).toThrow();
   });
 
@@ -774,8 +807,9 @@ describe("searchStatusTool", () => {
     const result = await tool.handler({ search_ref: "ref-alternatives" }, {});
     const text = result.content[0]?.text ?? "";
 
+    expect(text).toContain("Indexed alternatives: versions 4.18.2; refs main");
     expect(text).toContain(
-      "queryable now: versions=4.18.2@v4.18.2 | refs=main",
+      'Next: search_status search_ref="ref-alternatives" wait_timeout_ms=20000',
     );
     expect(text).toContain("Do not repeat search.");
     expect(text).not.toContain("allow_partial_results: true");

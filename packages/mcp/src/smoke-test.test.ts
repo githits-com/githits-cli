@@ -156,6 +156,21 @@ describe("runMcpSmoke", () => {
       args: { solution_id: "", accepted: true },
     });
   });
+
+  it("rejects search action references outside a Next line", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          'Indexing - no result snapshot returned yet\nNext: search_status search_ref="smoke-ref" wait_timeout_ms=20000\nsearch_ref=leaked',
+        );
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).rejects.toThrow(
+      "search default: search_ref= must appear at most once",
+    );
+  });
 });
 
 function smokeResponse(
@@ -210,7 +225,9 @@ function smokeResponse(
     case "code_grep":
       return textResult("package.json: express");
     case "search":
-      return textResult("code_read target=express path=package.json");
+      return textResult(
+        'Indexing - no result snapshot returned yet\nReady: 0/1 targets\nDo not repeat search.\nNext: search_status search_ref="smoke-ref" wait_timeout_ms=20000',
+      );
     case "search_status":
       return errorResult("NOT_FOUND");
     case "feedback":
@@ -259,7 +276,11 @@ function smokeJsonResponse(
     case "code_grep":
       return jsonResult({ matches: [] });
     case "search":
-      return jsonResult({ hits: [] });
+      return jsonResult({
+        completed: false,
+        searchRef: "smoke-ref",
+        progress: { status: "INDEXING", targetsReady: 0, targetsTotal: 1 },
+      });
     case "search_status":
       return jsonResult({ completed: true });
     default:

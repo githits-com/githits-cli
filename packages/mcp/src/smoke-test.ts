@@ -180,6 +180,42 @@ export function assertDefaultText(
   return text;
 }
 
+function assertSearchDefaultText(text: string, context: string): void {
+  const lines = text.split("\n");
+  const firstLine = lines[0]?.trim() ?? "";
+  assert(firstLine.length > 0, `${context}: missing outcome first line`);
+  assert(
+    !firstLine.startsWith("search | ") &&
+      !firstLine.startsWith("search_status | "),
+    `${context}: legacy header precedes outcome`,
+  );
+  assert(
+    !lines.some((line) => /^status\s*:/i.test(line.trim())),
+    `${context}: duplicated lifecycle status line`,
+  );
+  assert(!text.includes("searchRef="), `${context}: leaked searchRef=`);
+  assert(!text.includes("indexingRef"), `${context}: leaked indexingRef`);
+
+  const searchRefOccurrences = text.match(/search_ref=/g)?.length ?? 0;
+  assert(
+    searchRefOccurrences <= 1,
+    `${context}: search_ref= must appear at most once`,
+  );
+  if (searchRefOccurrences === 1) {
+    const refLine = lines.find((line) => line.includes("search_ref="));
+    assert(
+      refLine?.trimStart().startsWith("Next:"),
+      `${context}: search_ref= must appear only on a Next line`,
+    );
+  }
+  assert(
+    text.includes("code_read") ||
+      text.includes("docs_read") ||
+      text.includes("search_status"),
+    `${context}: missing ready-to-call result or status follow-up`,
+  );
+}
+
 export function assertJsonResult(
   result: McpSmokeToolResult,
   context: string,
@@ -740,12 +776,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     }),
     "search default",
   );
-  assert(
-    searchText.includes("code_read") ||
-      searchText.includes("docs_read") ||
-      searchText.includes("search_status"),
-    "search default missing ready-to-call follow-up",
-  );
+  assertSearchDefaultText(searchText, "search default");
 
   const searchJson = assertJsonResult(
     await callTool(caller, "search", {
