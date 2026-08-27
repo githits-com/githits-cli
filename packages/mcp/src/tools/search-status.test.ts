@@ -350,7 +350,7 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("TIMEOUT - no result snapshot returned");
     expect(text).not.toContain("search_status |");
-    expect(text).toContain("Do not call search_status again for this session.");
+    expect(text).toContain("Do not poll this session again.");
     expect(text).toContain("Next: rerun search later.");
     expect(text).not.toContain("search_ref=");
   });
@@ -367,7 +367,7 @@ describe("searchStatusTool", () => {
     const result = await tool.handler({ search_ref: "ref-failed" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("FAILED - no result snapshot returned");
-    expect(text).toContain("Do not call search_status again for this session.");
+    expect(text).toContain("Do not poll this session again.");
     expect(text).toContain("Next: rerun search later.");
     expect(text).not.toContain("search_ref=");
   });
@@ -412,7 +412,7 @@ describe("searchStatusTool", () => {
     const text = textResult.content[0]?.text ?? "";
     expect(text).toContain("DEFERRED - 1 result returned");
     expect(text).toContain("Evidence may change.");
-    expect(text).toContain("Do not call search_status again for this session.");
+    expect(text).toContain("Do not poll this session again.");
     expect(text).toContain("Next: rerun search later.");
     expect(text).not.toContain("search_ref=");
     expect(text).not.toContain("No hits");
@@ -473,7 +473,7 @@ describe("searchStatusTool", () => {
     const text = textResult.content[0]?.text ?? "";
     expect(text).toContain("FUTURE_SESSION_STATE - 1 result returned");
     expect(text).toContain("Evidence may change.");
-    expect(text).toContain("Do not call search_status again for this session.");
+    expect(text).toContain("Do not poll this session again.");
     expect(text).toContain("Next: rerun search later.");
     expect(text).not.toContain("search_ref=");
     expect(text).not.toContain("No hits");

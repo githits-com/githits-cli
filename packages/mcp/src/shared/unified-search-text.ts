@@ -17,6 +17,7 @@
  */
 
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
+import { colors, dim, highlight, highlightRanges } from "./colors.js";
 import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
 import { isHealthySearchLifecycleState } from "./search-lifecycle.js";
 import {
@@ -55,11 +56,20 @@ type SearchSuccessPayload =
 /** Render a successful unified-search payload as line-oriented text. */
 export function renderUnifiedSearchSuccess(
   payload: SearchSuccessPayload,
+  options: UnifiedSearchTextOptions = {},
 ): string {
   return renderUnifiedSearchPresentationText(
     projectUnifiedSearchPresentation(payload),
     payload,
+    options,
   );
+}
+
+export interface UnifiedSearchTextOptions {
+  /** Apply terminal emphasis; false keeps the MCP/CLI wording plain. */
+  useColors?: boolean;
+  /** Surface-native syntax for the continuation action. */
+  actionSyntax?: "mcp" | "cli";
 }
 
 export interface UnifiedSearchTextResult {
@@ -71,15 +81,17 @@ export interface UnifiedSearchTextResult {
 export function renderUnifiedSearchPresentationText(
   presentation: UnifiedSearchPresentation,
   result: UnifiedSearchTextResult,
+  options: UnifiedSearchTextOptions = {},
 ): string {
+  const settings = normalizeTextOptions(options);
   const lines: string[] = [
-    formatPresentationOutcome(presentation, result.results),
+    formatPresentationOutcome(presentation, result.results, settings),
   ];
-  appendPresentationContext(lines, presentation);
+  appendPresentationContext(lines, presentation, settings);
 
   if (result.results.length > 0) {
     lines.push("");
-    appendUnifiedSearchHits(lines, result.results);
+    appendUnifiedSearchHits(lines, result.results, settings);
   }
 
   const hasPostResultBlock =
@@ -104,15 +116,30 @@ export function renderUnifiedSearchPresentationText(
     lines.push(nextOffsetHint);
   }
 
-  appendPresentationAlternatives(lines, presentation);
-  appendPresentationSiteSuggestions(lines, presentation);
-  appendPresentationAction(lines, presentation);
+  appendPresentationAlternatives(lines, presentation, settings);
+  appendPresentationSiteSuggestions(lines, presentation, settings);
+  appendPresentationAction(lines, presentation, settings);
   return lines.join("\n");
+}
+
+interface NormalizedTextOptions {
+  useColors: boolean;
+  actionSyntax: "mcp" | "cli";
+}
+
+function normalizeTextOptions(
+  options: UnifiedSearchTextOptions,
+): NormalizedTextOptions {
+  return {
+    useColors: options.useColors ?? false,
+    actionSyntax: options.actionSyntax ?? "mcp",
+  };
 }
 
 function formatPresentationOutcome(
   presentation: UnifiedSearchPresentation,
   results: UnifiedSearchHitPayload[],
+  options: NormalizedTextOptions,
 ): string {
   const target = presentationTarget(presentation, results);
   const targetSuffix = target ? ` ${target}` : "";
@@ -122,28 +149,79 @@ function formatPresentationOutcome(
   if (presentation.lifecycle.kind === "active") {
     const label = activeLifecycleLabel(presentation.lifecycle);
     if (presentation.availability.kind === "no_snapshot") {
-      return `${label}${targetSuffix} - no result snapshot returned yet`;
+      return styleOutcome(
+        `${label}${targetSuffix} - no result snapshot returned yet`,
+        presentation,
+        options.useColors,
+      );
     }
     if (presentation.availability.kind === "empty") {
-      return `${label}${targetSuffix} - no results returned yet`;
+      return styleOutcome(
+        `${label}${targetSuffix} - no results returned yet`,
+        presentation,
+        options.useColors,
+      );
     }
     const resultKind =
       presentation.availability.kind === "partial" ? "partial" : "interim";
-    return `${label} continues - ${countLabel.replace("result", `${resultKind} result`)} returned`;
+    return styleOutcome(
+      `${label} continues - ${countLabel.replace("result", `${resultKind} result`)} returned`,
+      presentation,
+      options.useColors,
+    );
   }
 
   if (presentation.lifecycle.kind === "completed") {
-    return count > 0
-      ? `${countLabel}${target ? ` from ${target}` : ""}`
-      : `No results returned${target ? ` from ${target}` : ""}`;
+    return styleOutcome(
+      count > 0
+        ? `${countLabel}${target ? ` from ${target}` : ""}`
+        : `No results returned${target ? ` from ${target}` : ""}`,
+      presentation,
+      options.useColors,
+    );
   }
 
   const status = presentation.lifecycle.status ?? "UNKNOWN";
-  if (count > 0) return `${status} - ${countLabel} returned`;
+  if (count > 0)
+    return styleOutcome(
+      `${status} - ${countLabel} returned`,
+      presentation,
+      options.useColors,
+    );
   if (presentation.availability.kind === "no_snapshot") {
-    return `${status} - no result snapshot returned`;
+    return styleOutcome(
+      `${status} - no result snapshot returned`,
+      presentation,
+      options.useColors,
+    );
   }
-  return `${status} - no results returned`;
+  return styleOutcome(
+    `${status} - no results returned`,
+    presentation,
+    options.useColors,
+  );
+}
+
+function styleOutcome(
+  value: string,
+  presentation: UnifiedSearchPresentation,
+  useColors: boolean,
+): string {
+  if (!useColors) return value;
+  if (
+    presentation.lifecycle.kind === "active" ||
+    (presentation.lifecycle.kind === "terminal" &&
+      presentation.lifecycle.status !== "FAILED")
+  ) {
+    return `${colors.bold}${colors.yellow}${value}${colors.reset}`;
+  }
+  if (
+    presentation.lifecycle.kind === "terminal" &&
+    presentation.lifecycle.status === "FAILED"
+  ) {
+    return `${colors.bold}${colors.red}${value}${colors.reset}`;
+  }
+  return `${colors.bold}${value}${colors.reset}`;
 }
 
 function activeLifecycleLabel(
@@ -190,6 +268,7 @@ function presentationTarget(
 function appendPresentationContext(
   lines: string[],
   presentation: UnifiedSearchPresentation,
+  options: NormalizedTextOptions,
 ): void {
   if (presentation.progress) {
     lines.push(
@@ -202,8 +281,8 @@ function appendPresentationContext(
     presentation.sources,
     presentation.trustLimits,
   );
-  appendPresentationTrust(lines, presentation.trustLimits);
-  appendPresentationWarnings(lines, presentation.warnings);
+  appendPresentationTrust(lines, presentation.trustLimits, options);
+  appendPresentationWarnings(lines, presentation.warnings, options);
 }
 
 function appendPresentationTargetDivergence(
@@ -343,24 +422,33 @@ function formatCoverageLimit(
 function appendPresentationTrust(
   lines: string[],
   trustLimits: UnifiedSearchTrustLimit[],
+  options: NormalizedTextOptions,
 ): void {
   const trust = trustLimits.filter((limit) => limit.kind !== "source");
   for (const limit of trust) {
     switch (limit.kind) {
       case "stale":
         lines.push(
-          `Evidence: ${limit.requestedTarget ? `requested ${limit.requestedTarget}; ` : ""}served older snapshot ${limit.servedTarget ?? limit.target ?? "unknown target"}${limit.freshTarget ? ` while ${limit.freshTarget} indexes` : ""}.`,
+          dim(
+            `Evidence: ${limit.requestedTarget ? `requested ${limit.requestedTarget}; ` : ""}served older snapshot ${limit.servedTarget ?? limit.target ?? "unknown target"}${limit.freshTarget ? ` while ${limit.freshTarget} indexes` : ""}.`,
+            options.useColors,
+          ),
         );
         break;
       case "provisional":
-        lines.push("Evidence: provisional snapshot; indexing continues.");
+        lines.push(
+          dim(
+            "Evidence: provisional snapshot; indexing continues.",
+            options.useColors,
+          ),
+        );
         break;
       case "coverage":
         break;
       case "constraint":
       case "mutable_evidence":
         if (limit.kind === "mutable_evidence")
-          lines.push("Evidence may change.");
+          lines.push(dim("Evidence may change.", options.useColors));
         break;
     }
   }
@@ -369,16 +457,27 @@ function appendPresentationTrust(
 function appendPresentationWarnings(
   lines: string[],
   warnings: UnifiedSearchWarning[],
+  options: NormalizedTextOptions,
 ): void {
   if (warnings.length === 0) return;
-  lines.push("Warnings:");
+  lines.push(
+    options.useColors
+      ? `${colors.bold}${colors.yellow}Warnings:${colors.reset}`
+      : "Warnings:",
+  );
   for (const warning of warnings) {
-    if (warning.kind === "query") lines.push(`  - ${warning.message}`);
+    if (warning.kind === "query")
+      lines.push(
+        options.useColors
+          ? `  - ${colors.yellow}${warning.message}${colors.reset}`
+          : `  - ${warning.message}`,
+      );
     else {
       const label = warning.kind.replaceAll("_", " ");
       const source = warning.source ? ` (${warning.source})` : "";
+      const value = `  - ${capitalize(label)}${source}: ${warning.values.join(", ")}`;
       lines.push(
-        `  - ${capitalize(label)}${source}: ${warning.values.join(", ")}`,
+        options.useColors ? `${colors.yellow}${value}${colors.reset}` : value,
       );
     }
   }
@@ -387,6 +486,7 @@ function appendPresentationWarnings(
 function appendPresentationAlternatives(
   lines: string[],
   presentation: UnifiedSearchPresentation,
+  options: NormalizedTextOptions,
 ): void {
   for (const alternative of presentation.alternatives) {
     const categories: string[] = [];
@@ -409,7 +509,8 @@ function appendPresentationAlternatives(
       lines.push(
         ...wrapText(
           `Indexed alternatives${presentation.alternatives.length > 1 && alternative.target ? ` for ${alternative.target}` : ""}: ${categories.join("; ")}`,
-        ),
+          SUMMARY_WRAP_WIDTH,
+        ).map((line) => dim(line, options.useColors)),
       );
     }
   }
@@ -418,6 +519,7 @@ function appendPresentationAlternatives(
 function appendPresentationSiteSuggestions(
   lines: string[],
   presentation: UnifiedSearchPresentation,
+  options: NormalizedTextOptions,
 ): void {
   const seen = new Set<string>();
   const rendered = presentation.siteSuggestions.flatMap((facts) => {
@@ -433,11 +535,12 @@ function appendPresentationSiteSuggestions(
     lines.push(
       ...wrapText(
         `Suggested site targets${targetSuffix}: ${suggestions.join(", ")}`,
-      ),
+        SUMMARY_WRAP_WIDTH,
+      ).map((line) => dim(line, options.useColors)),
     );
   }
   if (presentation.siteSuggestions.some((facts) => facts.truncated)) {
-    lines.push("Additional site targets were omitted.");
+    lines.push(dim("Additional site targets were omitted.", options.useColors));
   }
 }
 
@@ -448,6 +551,7 @@ function formatRemaining(count: number): string {
 function appendPresentationAction(
   lines: string[],
   presentation: UnifiedSearchPresentation,
+  options: NormalizedTextOptions,
 ): void {
   const action = presentation.action;
   if (action.kind === "none") {
@@ -466,9 +570,11 @@ function appendPresentationAction(
         ? "Do not repeat immediately."
         : "Do not repeat search.",
     );
-    lines.push(
-      `Next: search_status search_ref=${JSON.stringify(action.searchRef)} wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}`,
-    );
+    const next =
+      options.actionSyntax === "cli"
+        ? `Next: githits search-status ${action.searchRef} --wait ${DEFAULT_WAIT_TIMEOUT_MS / 1000}`
+        : `Next: search_status search_ref=${JSON.stringify(action.searchRef)} wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}`;
+    lines.push(highlight(next, options.useColors));
     return;
   }
   if (action.kind === "new_search") {
@@ -476,7 +582,7 @@ function appendPresentationAction(
       presentation.lifecycle.kind === "terminal" ||
       presentation.lifecycle.kind === "unknown"
     ) {
-      lines.push("Do not call search_status again for this session.");
+      lines.push("Do not poll this session again.");
     } else if (presentation.availability.kind === "empty") {
       lines.push("Do not repeat immediately.");
     }
@@ -496,7 +602,7 @@ function appendPresentationAction(
     lines.push(
       presentation.lifecycle.kind === "terminal" ||
         presentation.lifecycle.kind === "unknown"
-        ? "Do not call search_status again for this session."
+        ? "Do not poll this session again."
         : "Do not repeat immediately.",
     );
     lines.push("Next: retry one suggested site target explicitly.");
@@ -508,7 +614,11 @@ function appendPresentationAction(
         ? "Do not repeat immediately."
         : "Do not repeat this search unchanged.",
     );
-    lines.push(`Next: ${action.rewrites.map(formatRewrite).join("; ")}.`);
+    lines.push(
+      `Next: ${action.rewrites
+        .map((rewrite) => formatRewrite(rewrite, options.actionSyntax))
+        .join("; ")}.`,
+    );
   }
 }
 
@@ -527,6 +637,7 @@ function formatRewrite(
   rewrite: NonNullable<
     Extract<UnifiedSearchAction, { kind: "query_rewrite" }>
   >["rewrites"][number],
+  syntax: "mcp" | "cli",
 ): string {
   switch (rewrite) {
     case "shorter_or_broader":
@@ -534,9 +645,9 @@ function formatRewrite(
     case "remove_filters":
       return "remove restrictive filters";
     case "symbol":
-      return 'use source="symbol"';
+      return syntax === "cli" ? "use --source symbol" : 'use source="symbol"';
     case "code_grep":
-      return "use code_grep";
+      return syntax === "cli" ? "use githits code grep" : "use code_grep";
     case "site_shorter_or_broader":
       return "shorten or broaden site query";
   }
@@ -572,10 +683,11 @@ export function renderUnifiedSearchError(
 function appendUnifiedSearchHits(
   lines: string[],
   hits: UnifiedSearchHitPayload[],
+  options: NormalizedTextOptions,
 ): void {
   hits.forEach((hit, idx) => {
     if (idx > 0) lines.push("");
-    appendHit(lines, idx + 1, hit);
+    appendHit(lines, idx + 1, hit, options);
   });
 }
 
@@ -583,25 +695,58 @@ function appendHit(
   lines: string[],
   index: number,
   hit: UnifiedSearchHitPayload,
+  options: NormalizedTextOptions,
 ): void {
-  const headerParts: string[] = [formatHitPrimary(hit), shortType(hit.type)];
+  const headerParts: string[] = [
+    highlight(formatHitPrimary(hit), options.useColors),
+    shortType(hit.type),
+  ];
   lines.push(`[${index}] ${headerParts.join("  ")}`);
 
-  const locator = buildLocatorLine(hit);
+  const locator = buildLocatorLine(hit, options.actionSyntax);
   if (locator) lines.push(`    ${locator}`);
 
   // Title is suppressed when it's literally the locator we just
   // printed; the response builder already drops `qualifiedPath` when
   // it equals `title`, so we don't double-check that here.
   if (hit.title && hit.title !== hit.locator.filePath) {
-    lines.push(`    ${hit.title}`);
+    lines.push(
+      `    ${highlightRanges(hit.title, hit.highlights?.title, options.useColors)}`,
+    );
   }
 
   if (hit.summary) {
-    for (const wrapped of wrapText(hit.summary, SUMMARY_WRAP_WIDTH)) {
+    for (const wrapped of wrapHighlightedText(
+      hit.summary,
+      hit.highlights?.summary,
+      SUMMARY_WRAP_WIDTH,
+      options.useColors,
+    )) {
       lines.push(`    ${wrapped}`);
     }
   }
+}
+
+function wrapHighlightedText(
+  text: string,
+  ranges: ReadonlyArray<readonly [number, number]> | undefined,
+  width: number,
+  useColors: boolean,
+): string[] {
+  const wrapped = wrapText(text, width);
+  if (!useColors || !ranges || ranges.length === 0) return wrapped;
+  const highlighted: string[] = [];
+  let cursor = 0;
+  for (const line of wrapped) {
+    const start = text.indexOf(line, cursor);
+    const offset = start >= 0 ? start : cursor;
+    const localRanges = ranges.map(
+      ([from, to]) => [from - offset, to - offset] as const,
+    );
+    highlighted.push(highlightRanges(line, localRanges, true));
+    cursor = offset + line.length;
+  }
+  return highlighted;
 }
 
 function formatHitPrimary(hit: UnifiedSearchHitPayload): string {
@@ -656,9 +801,12 @@ function shortType(type: string): string {
   }
 }
 
-function buildLocatorLine(hit: UnifiedSearchHitPayload): string {
+function buildLocatorLine(
+  hit: UnifiedSearchHitPayload,
+  actionSyntax: "mcp" | "cli",
+): string {
   const loc = hit.locator;
-  const followUp = buildSearchHitFollowUpCommand(hit);
+  const followUp = buildSearchHitFollowUpCommand(hit, actionSyntax);
   if (followUp) {
     const tail: string[] = [];
     if (loc.qualifiedPath) tail.push(loc.qualifiedPath);

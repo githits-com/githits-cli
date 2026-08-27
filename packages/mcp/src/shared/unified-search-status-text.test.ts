@@ -163,9 +163,7 @@ describe("renderUnifiedSearchStatusText", () => {
         }),
       );
       expect(firstLine(text)).toStartWith(status);
-      expect(text).toContain(
-        "Do not call search_status again for this session.",
-      );
+      expect(text).toContain("Do not poll this session again.");
       expect(text).not.toContain("Next: search_status");
     },
   );
@@ -184,7 +182,7 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(firstLine(text)).toBe(
       "FUTURE_SESSION_STATE - no result snapshot returned",
     );
-    expect(text).toContain("Do not call search_status again for this session.");
+    expect(text).toContain("Do not poll this session again.");
     expect(text).not.toContain("Next: search_status");
   });
 });

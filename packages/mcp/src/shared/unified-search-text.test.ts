@@ -273,6 +273,71 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text.match(/Next:/g)).toHaveLength(1);
   });
 
+  it("keeps one layout while rendering surface-native commands", () => {
+    const payload = n8nActiveEmpty();
+    const mcp = renderUnifiedSearchSuccess(payload);
+    const cli = renderUnifiedSearchSuccess(payload, { actionSyntax: "cli" });
+
+    expect(cli).toContain(
+      "Next: githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 20",
+    );
+    expect(cli).not.toContain("search_status search_ref=");
+    expect(
+      cli.replace(
+        "Next: githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 20",
+        "Next: <status-action>",
+      ),
+    ).toBe(
+      mcp.replace(
+        'Next: search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=20000',
+        "Next: <status-action>",
+      ),
+    );
+
+    const code = renderUnifiedSearchSuccess(completed([codeHit()]), {
+      actionSyntax: "cli",
+    });
+    expect(code).toContain(
+      "githits code read 'npm:cline@v3.4.2' 'src/integrations/diff/strategies/multi-search-replace.ts' --lines 142-156",
+    );
+
+    const repositoryCode = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          target: "github:cline/cline#main",
+          locator: {
+            repoUrl: "https://github.com/cline/cline",
+            gitRef: "main",
+            filePath: "src/index.ts",
+            startLine: 10,
+            endLine: 20,
+          },
+        }),
+      ]),
+      { actionSyntax: "cli" },
+    );
+    expect(repositoryCode).toContain(
+      "githits code read --repo-url 'https://github.com/cline/cline' --git-ref 'main' 'src/index.ts' --lines 10-20",
+    );
+
+    const docs = renderUnifiedSearchSuccess(completed([docsHit()]), {
+      actionSyntax: "cli",
+    });
+    expect(docs).toContain("githits docs read 'aider/edit-formats'");
+
+    const empty = renderUnifiedSearchSuccess(
+      completed([], {
+        query: { raw: "router", filters: { kind: "function" } },
+        sourceStatus: [source({ codeIndexState: "CURRENT", resultCount: 0 })],
+      }),
+      { actionSyntax: "cli" },
+    );
+    expect(empty).toContain("use --source symbol");
+    expect(empty).toContain("use githits code grep");
+    expect(empty).not.toContain('source="symbol"');
+    expect(empty).not.toContain("code_grep");
+  });
+
   it("omits a singular target for multiple active progress targets", () => {
     const text = renderUnifiedSearchSuccess(
       incomplete({
@@ -456,9 +521,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(terminalText).toContain(
       "Next: retry one suggested site target explicitly.",
     );
-    expect(terminalText).toContain(
-      "Do not call search_status again for this session.",
-    );
+    expect(terminalText).toContain("Do not poll this session again.");
     expect(terminalText).not.toContain("Next: search_status");
   });
 
@@ -678,9 +741,7 @@ describe("renderUnifiedSearchSuccess", () => {
         }),
       );
       expect(firstLine(text)).toStartWith(status);
-      expect(text).toContain(
-        "Do not call search_status again for this session.",
-      );
+      expect(text).toContain("Do not poll this session again.");
       expect(text).not.toContain("Next: search_status");
     },
   );
@@ -699,7 +760,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(firstLine(text)).toBe(
       "FUTURE_SESSION_STATE - no result snapshot returned",
     );
-    expect(text).toContain("Do not call search_status again for this session.");
+    expect(text).toContain("Do not poll this session again.");
     expect(text).not.toContain("Next: search_status");
     expect(text).not.toContain("indexing");
   });
