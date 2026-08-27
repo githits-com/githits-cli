@@ -478,12 +478,13 @@ function sourceState(
 function contributorState(
   state: "SEARCHED" | "READY" | "PENDING" | "UNAVAILABLE",
 ): UnifiedSearchSourceReadiness {
-  return {
+  const readiness = {
     SEARCHED: "searched",
     READY: "available_not_searched",
     PENDING: "waiting",
     UNAVAILABLE: "unavailable",
-  }[state] as UnifiedSearchSourceReadiness;
+  } satisfies Record<typeof state, UnifiedSearchSourceReadiness>;
+  return readiness[state];
 }
 
 function projectTrustLimits(
@@ -697,18 +698,16 @@ function projectAlternatives(
 function mergeAlternativeCandidates(
   candidates: CandidateSet[],
 ): CandidateSet[] {
-  const merged: CandidateSet[] = [];
+  const merged = new Map<string, CandidateSet>();
   for (const candidate of candidates) {
     const key = candidate.target?.replace(/@[^/@]+$/, "") ?? "";
-    const existing = merged.find(
-      (value) => (value.target?.replace(/@[^/@]+$/, "") ?? "") === key,
-    );
+    const existing = merged.get(key);
     if (existing) {
       existing.versions.push(...candidate.versions);
       existing.refs.push(...candidate.refs);
       existing.suggestedRefs.push(...candidate.suggestedRefs);
     } else {
-      merged.push({
+      merged.set(key, {
         target: candidate.target,
         versions: [...candidate.versions],
         refs: [...candidate.refs],
@@ -716,7 +715,7 @@ function mergeAlternativeCandidates(
       });
     }
   }
-  return merged;
+  return [...merged.values()];
 }
 
 function boundedAlternatives(

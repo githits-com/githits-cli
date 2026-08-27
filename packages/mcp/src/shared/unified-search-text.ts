@@ -163,18 +163,21 @@ function presentationTarget(
   presentation: UnifiedSearchPresentation,
   results: UnifiedSearchHitPayload[],
 ): string | undefined {
-  const targetIdentities = new Set([
+  if (!results.length && presentation.targets[0]) {
+    const target = presentation.targets[0];
+    return target.served ?? target.fresh ?? target.requested;
+  }
+  const sourceTargets = presentation.sources.flatMap((group) =>
+    group.entries.map((entry) => entry.target),
+  );
+  const identities = [
     ...results.map((result) => result.target),
-    ...presentation.sources.flatMap((group) =>
-      group.entries.map((entry) => entry.contextTarget ?? entry.target),
-    ),
-  ]);
-  if (targetIdentities.size > 1) return undefined;
-  const hitTarget = results[0]?.target;
-  if (hitTarget) return hitTarget;
-  const target = presentation.targets[0];
-  if (target) return target.served ?? target.fresh ?? target.requested;
-  return presentation.sources[0]?.entries[0]?.target;
+    ...sourceTargets,
+  ].filter((value): value is string => Boolean(value));
+  if (new Set(identities).size > 1) return undefined;
+  if (results[0]) return results[0].target;
+  const source = presentation.sources[0]?.entries[0];
+  return source?.contextTarget ?? source?.target;
 }
 
 function appendPresentationContext(
@@ -241,13 +244,7 @@ function appendPresentationSources(
     );
     if (entries.length === 0) continue;
     const values = entries.map(({ group, entry }) =>
-      formatSourceReadiness(
-        group,
-        entry,
-        state,
-        trustLimits,
-        showTargetContext,
-      ),
+      formatSourceReadiness(group, entry, trustLimits, showTargetContext),
     );
     const unique = [...new Set(values)];
     lines.push(...wrapText(`${label}: ${unique.join(", ")}`));
@@ -257,7 +254,6 @@ function appendPresentationSources(
 function formatSourceReadiness(
   group: UnifiedSearchSourceGroup,
   entry: UnifiedSearchSourceEntry,
-  state: UnifiedSearchSourceEntry["state"],
   trustLimits: UnifiedSearchTrustLimit[],
   showTargetContext: boolean,
 ): string {
@@ -266,7 +262,7 @@ function formatSourceReadiness(
     ? (entry.contextTarget ?? entry.target)
     : undefined;
   const contextSuffix = contextTarget ? ` for ${contextTarget}` : "";
-  if (state === "unavailable") {
+  if (entry.state === "unavailable") {
     return `${sourceLabel} (${entry.target})${contextSuffix}`;
   }
   const coverage = trustLimits.find(
@@ -276,7 +272,7 @@ function formatSourceReadiness(
       limit.target === entry.target,
   );
   const coverageDetails = coverage ? formatCoverageLimit(coverage) : undefined;
-  if (state === "searched") {
+  if (entry.state === "searched") {
     const identity =
       group.kind === "code"
         ? undefined
@@ -286,7 +282,7 @@ function formatSourceReadiness(
     );
     return `${sourceLabel}${details.length > 0 ? ` (${details.join("; ")})` : ""}${contextSuffix}`;
   }
-  if (state === "waiting") {
+  if (entry.state === "waiting") {
     const identity =
       showTargetContext && group.kind !== "code"
         ? formatDocumentationSourceIdentity(group, entry)
@@ -415,15 +411,16 @@ function appendPresentationSiteSuggestions(
   presentation: UnifiedSearchPresentation,
 ): void {
   const seen = new Set<string>();
-  for (const facts of presentation.siteSuggestions) {
+  const rendered = presentation.siteSuggestions.flatMap((facts) => {
     const suggestions = facts.suggestions.filter((suggestion) => {
       if (seen.has(suggestion)) return false;
       seen.add(suggestion);
       return true;
     });
-    if (suggestions.length === 0) continue;
-    const targetSuffix =
-      presentation.siteSuggestions.length > 1 ? ` for ${facts.target}` : "";
+    return suggestions.length > 0 ? [{ facts, suggestions }] : [];
+  });
+  for (const { facts, suggestions } of rendered) {
+    const targetSuffix = rendered.length > 1 ? ` for ${facts.target}` : "";
     lines.push(
       ...wrapText(
         `Suggested site targets${targetSuffix}: ${suggestions.join(", ")}`,
@@ -563,7 +560,7 @@ export function renderUnifiedSearchError(
   return lines.join("\n");
 }
 
-export function appendUnifiedSearchHits(
+function appendUnifiedSearchHits(
   lines: string[],
   hits: UnifiedSearchHitPayload[],
 ): void {
@@ -1116,7 +1113,7 @@ export function formatProgressTarget(target: {
   return parts.length > 0 ? parts.join(SEP) : "target progress unavailable";
 }
 
-export function describeFreshness(value: string): string {
+function describeFreshness(value: string): string {
   switch (value) {
     case "PENDING":
       return "pending";

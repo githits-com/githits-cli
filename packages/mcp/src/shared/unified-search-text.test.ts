@@ -377,6 +377,27 @@ describe("renderUnifiedSearchSuccess", () => {
     );
   });
 
+  it("does not suffix deduplicated site suggestions with a target", () => {
+    const sourceStatus = [
+      source({
+        source: "docs",
+        targetLabel: "site:example.com",
+        suggestedSiteTargets: ["site:docs.example.com"],
+      }),
+      source({
+        source: "docs",
+        targetLabel: "site:example.com",
+        suggestedSiteTargets: ["site:docs.example.com"],
+      }),
+    ];
+    const text = renderUnifiedSearchSuccess(
+      incomplete({ partialResults: false, sourceStatus }),
+    );
+
+    expect(text).toContain("Suggested site targets: site:docs.example.com");
+    expect(text).not.toContain("Suggested site targets for site:example.com:");
+  });
+
   it("renders site retry guidance for completed and terminal site recovery", () => {
     const sourceStatus = [
       source({
@@ -648,10 +669,35 @@ describe("renderUnifiedSearchSuccess", () => {
       ),
     );
 
+    expect(firstLine(text)).toBe("1 result from npm:express@5.1.0");
     expect(text.match(/Evidence:/g)).toHaveLength(1);
     expect(text).toContain(
       "requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.",
     );
+  });
+
+  it("uses the searched package context for a lone docpack outcome", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                resultCount: 0,
+                siteKey: "expressjs.com",
+                siteUrl: "https://expressjs.com/docs",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(firstLine(text)).toBe("No results returned from npm:express@5.2.1");
   });
 
   it("turns an evidence notice into one concise mutable-evidence action", () => {
