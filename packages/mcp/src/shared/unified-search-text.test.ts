@@ -382,7 +382,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
   });
 
-  it("gives a requested-only active target a current-state detail", () => {
+  it("does not invent a target state when progress omits freshness", () => {
     const text = renderUnifiedSearchSuccess(
       incomplete({
         progress: {
@@ -395,8 +395,35 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("- npm:express\n  Status: indexing");
+    expect(text).toContain("- npm:express");
+    expect(text).not.toContain("Status:");
   });
+
+  it.each([
+    ["CURRENT", "Status: ready"],
+    ["INDEXED", "Status: ready"],
+    ["PENDING", "Status: pending"],
+    ["INDEXING", "Status: indexing"],
+    ["PROVISIONAL", "Status: provisional"],
+  ] as const)(
+    "renders explicit target freshness %s accurately",
+    (freshness, detail) => {
+      const text = renderUnifiedSearchSuccess(
+        incomplete({
+          progress: {
+            status: "SEARCHING",
+            targetsReady:
+              freshness === "CURRENT" || freshness === "INDEXED" ? 1 : 0,
+            targetsTotal: 1,
+            elapsedMs: 100,
+            targets: [{ requested: "npm:express@5.2.1", freshness }],
+          },
+        }),
+      );
+
+      expect(text).toContain(detail);
+    },
+  );
 
   it("keeps shared served snapshots in distinct requested target blocks", () => {
     const text = renderUnifiedSearchSuccess(

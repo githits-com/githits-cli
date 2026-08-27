@@ -841,7 +841,6 @@ describe("projectUnifiedSearchPresentation", () => {
           fresh: "npm:n8n@2.36.7",
           freshness: "INDEXING",
         },
-        inProgress: true,
         sources: [
           {
             kind: "code",
@@ -1186,9 +1185,6 @@ describe("projectUnifiedSearchPresentation", () => {
         sourceStatus: [
           source({
             targetLabel: "npm:express@5.1.0",
-            requestedTarget: "npm:express@5.1.0",
-            freshTarget: "npm:express@5.1.0",
-            servedTarget: "npm:express@5.1.0",
             codeIndexState: "CURRENT",
           }),
           source({
@@ -1224,7 +1220,7 @@ describe("projectUnifiedSearchPresentation", () => {
         requested: "npm:express@5.1.0",
         fresh: "npm:express@5.1.0",
         served: "npm:express@5.1.0",
-        sourceRequested: ["npm:express@5.1.0"],
+        sourceRequested: [undefined],
         versions: ["5.0.0"],
         staleLimits: 0,
         coverageLimits: 0,
@@ -1241,12 +1237,91 @@ describe("projectUnifiedSearchPresentation", () => {
     ]);
   });
 
+  it("keeps contributor limits with their target when parent aliases diverge", () => {
+    const repositoryUrl = "https://github.com/example/one";
+    const presentation = projectUnifiedSearchPresentation(
+      incomplete({
+        partialResults: false,
+        progress: {
+          status: "INDEXING",
+          targetsReady: 1,
+          targetsTotal: 2,
+          elapsedMs: 200,
+          targets: [
+            {
+              requested: "npm:one@1.0.0",
+              resolvedRequested: "npm:one@1.1.0",
+              served: "npm:one@1.0.0",
+              freshness: "INDEXING",
+            },
+            {
+              requested: "npm:two@2.0.0",
+              resolvedRequested: "npm:two@2.0.0",
+              freshness: "CURRENT",
+            },
+          ],
+        },
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "npm:one@1.0.0",
+            freshTarget: "npm:one@1.1.0",
+            servedTarget: "npm:one@1.0.0",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                freshness: "STALE",
+                resultCount: 0,
+                repositoryUrl,
+                coverage: { coverageState: "PARTIAL", pagesCrawled: 5 },
+              },
+            ],
+          }),
+          source({
+            targetLabel: "npm:two@2.0.0",
+            codeIndexState: "CURRENT",
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.targetGroups).toHaveLength(2);
+    const first = presentation.targetGroups.find(
+      (group) => group.identity.requested === "npm:one@1.0.0",
+    );
+    expect(first?.sources).toEqual([
+      {
+        kind: "repository_docs",
+        entries: [
+          expect.objectContaining({
+            target: repositoryUrl,
+            searchTarget: "npm:one@1.0.0",
+          }),
+        ],
+      },
+    ]);
+    expect(first?.trustLimits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "stale", target: repositoryUrl }),
+        expect.objectContaining({ kind: "coverage", target: repositoryUrl }),
+      ]),
+    );
+    expect(
+      presentation.targetGroups.some(
+        (group) => group.identity.requested === repositoryUrl,
+      ),
+    ).toBe(false);
+  });
+
   it("normalizes target freshness once in the presentation layer", () => {
     expect(classifyTargetFreshness("STALE")).toBe("stale");
     expect(classifyTargetFreshness("fallback_recent")).toBe("stale");
-    expect(classifyTargetFreshness("PENDING")).toBe("indexing");
+    expect(classifyTargetFreshness("PENDING")).toBe("pending");
+    expect(classifyTargetFreshness("CURRENT")).toBe("current");
+    expect(classifyTargetFreshness("INDEXED")).toBe("current");
     expect(classifyTargetFreshness("PROVISIONAL")).toBe("provisional");
-    expect(classifyTargetFreshness("CURRENT")).toBeUndefined();
+    expect(classifyTargetFreshness("FUTURE_STATE")).toBeUndefined();
   });
 
   it("classifies stale, fallback, and provisional trust limits", () => {

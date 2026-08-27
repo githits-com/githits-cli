@@ -144,11 +144,13 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Documentation sources.** DOCS `sourceStatus` rows retain bounded physical
 `contributors` and coverage in JSON. Text places the user-meaningful readiness
-state under its target, using `Indexing`, `Searched`, `Ready now`, or
-`Unavailable` details as applicable. Site identity, stale/provisional qualifiers,
-and partial or capped coverage remain attached to that target; internal reason
-codes and indexing references stay in JSON. Partial/capped coverage is published
-evidence, not a progress or retry signal.
+state under its target, using `Indexing`, `Searched`, `Ready now`, `Unavailable`,
+`Using`, or `Status` details as applicable. `Status` appears only when the
+backend supplies an explicit current, pending, indexing, provisional, or stale
+target state; session activity alone does not invent target state. Site identity,
+stale/provisional qualifiers, and partial or capped coverage remain attached to
+that target; internal reason codes and indexing references stay in JSON.
+Partial/capped coverage is published evidence, not a progress or retry signal.
 
 `evidenceNotice` is carried once on initial and stored result envelopes. JSON
 retains that exact backend-owned notice; default text does not render it or replace
@@ -368,10 +370,11 @@ CLI uses `--offset N` / `--limit N`.
 **Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title while returning only its page ID. Without a line anchor, `docs_read` must start at the beginning of the page. Carrying section ranges through search results requires backend/search-location support and is outside the CLI response-formatting slice.
 
 Completed empty search uses the model's applicable action: generic query pivots are
-suppressed for evidence-limited or unsearched sources, indexing/provisional
-evidence prefers waiting or an indexed alternative, standalone site searches
-expose only a shorter/broader site query, and filter removal or symbol/code-grep
-pivots appear only when applicable. Surface-native pivots name
+suppressed for evidence-limited or unsearched sources, which instead direct the
+caller to rerun the search later. Indexing/provisional evidence prefers waiting
+or an indexed alternative, standalone site searches expose only a
+shorter/broader site query, and filter removal or symbol/code-grep pivots appear
+only when applicable. Surface-native pivots name
 `source="symbol"` / `code_grep` in MCP and `--source symbol` /
 `githits code grep` in CLI. A result with both an evidence notice and
 `searchRef` emits one status continuation. Terminal `DEFERRED`, `FAILED`, and

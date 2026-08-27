@@ -49,7 +49,12 @@ export type UnifiedSearchSourceReadiness =
   | "available_not_searched"
   | "unavailable";
 
-export type UnifiedSearchFreshnessKind = "stale" | "indexing" | "provisional";
+export type UnifiedSearchFreshnessKind =
+  | "current"
+  | "stale"
+  | "indexing"
+  | "pending"
+  | "provisional";
 
 export interface UnifiedSearchSourceEntry {
   state: UnifiedSearchSourceReadiness;
@@ -123,7 +128,6 @@ export interface UnifiedSearchSiteSuggestionFacts {
 export interface UnifiedSearchTargetGroup {
   identity: UnifiedSearchTargetPresentation;
   freshnessKind?: UnifiedSearchFreshnessKind;
-  inProgress?: boolean;
   sources: UnifiedSearchSourceGroup[];
   alternatives?: UnifiedSearchAlternativeFacts;
   siteSuggestions: UnifiedSearchSiteSuggestionFacts[];
@@ -262,7 +266,6 @@ export function projectUnifiedSearchPresentation(
     alternatives,
     siteSuggestions,
     trustLimits,
-    lifecycle,
   });
 
   return {
@@ -784,7 +787,6 @@ interface TargetGroupInput {
   alternatives: UnifiedSearchAlternativeFacts[];
   siteSuggestions: UnifiedSearchSiteSuggestionFacts[];
   trustLimits: UnifiedSearchTrustLimit[];
-  lifecycle: UnifiedSearchLifecycle;
 }
 
 function projectTargetGroups(
@@ -801,13 +803,11 @@ function projectTargetGroups(
       existing.identity.served ??= identity.served;
       existing.identity.freshness ??= identity.freshness;
       existing.freshnessKind ??= classifyTargetFreshness(identity.freshness);
-      existing.inProgress ||= input.lifecycle.kind === "active";
       continue;
     }
     groups.push({
       identity: { ...identity },
       freshnessKind: classifyTargetFreshness(identity.freshness),
-      inProgress: input.lifecycle.kind === "active",
       sources: [],
       siteSuggestions: [],
       trustLimits: [],
@@ -832,7 +832,6 @@ function projectTargetGroups(
         requestedTarget || target
           ? { requested: requestedTarget ?? target }
           : {},
-      inProgress: input.lifecycle.kind === "active",
       sources: [],
       siteSuggestions: [],
       trustLimits: [],
@@ -951,7 +950,7 @@ function targetGroupMatchesAliases(
     ) ||
     group.sources.some((source) =>
       source.entries.some((entry) =>
-        (entry.targetAliases ?? [entry.target, entry.searchTarget]).some(
+        [...(entry.targetAliases ?? []), entry.target, entry.searchTarget].some(
           (value) => value !== undefined && aliases.includes(value),
         ),
       ),
@@ -970,6 +969,12 @@ function findMatchingTargetGroup(
     );
     if (requestedMatch) return requestedMatch;
   }
+  const directRequestedMatches = groups.filter(
+    (group) =>
+      group.identity.requested !== undefined &&
+      aliases.includes(group.identity.requested),
+  );
+  if (directRequestedMatches.length === 1) return directRequestedMatches[0];
   const matches = groups.filter((group) =>
     targetGroupMatchesAliases(group, aliases),
   );
@@ -1013,12 +1018,16 @@ export function classifyTargetFreshness(
   freshness: string | undefined,
 ): UnifiedSearchFreshnessKind | undefined {
   switch (freshness?.toLowerCase()) {
+    case "current":
+    case "indexed":
+      return "current";
     case "stale":
     case "fallback_recent":
       return "stale";
     case "indexing":
-    case "pending":
       return "indexing";
+    case "pending":
+      return "pending";
     case "provisional":
       return "provisional";
     default:

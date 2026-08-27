@@ -346,17 +346,8 @@ function appendPresentationTargetGroup(
     details.push(`${label}: ${[...new Set(values)].join(", ")}`);
   }
 
-  if (
-    details.length === 0 &&
-    (group.inProgress || group.freshnessKind !== undefined)
-  ) {
-    details.push(
-      group.freshnessKind === "provisional"
-        ? "Status: provisional"
-        : group.freshnessKind === "stale"
-          ? "Status: older snapshot"
-          : "Status: indexing",
-    );
+  if (details.length === 0 && group.freshnessKind !== undefined) {
+    details.push(`Status: ${formatTargetStatus(group.freshnessKind)}`);
   }
 
   const ready = formatTargetAlternatives(group.alternatives);
@@ -381,6 +372,23 @@ function appendPresentationTargetGroup(
 
   if (details.length > 0) {
     lines.push(...wrapHangingText(details.join(" | "), "  "));
+  }
+}
+
+function formatTargetStatus(
+  freshness: NonNullable<UnifiedSearchTargetGroup["freshnessKind"]>,
+): string {
+  switch (freshness) {
+    case "current":
+      return "ready";
+    case "pending":
+      return "pending";
+    case "provisional":
+      return "provisional";
+    case "stale":
+      return "older snapshot";
+    case "indexing":
+      return "indexing";
   }
 }
 
