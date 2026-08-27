@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { projectUnifiedSearchPresentation } from "./unified-search-presentation.js";
+import {
+  projectUnifiedSearchPresentation,
+  targetDisplayFamilyKey,
+} from "./unified-search-presentation.js";
 import type {
   UnifiedSearchCompletedPayload,
   UnifiedSearchIncompletePayload,
@@ -672,6 +675,39 @@ describe("projectUnifiedSearchPresentation", () => {
     ]);
   });
 
+  it.each([
+    ["resolvedRequested", "npm:express@5.2.1"],
+    ["served", "npm:express@5.1.0"],
+  ] as const)(
+    "anchors %s-only progress alternatives to the target group",
+    (identityKey, identity) => {
+      const presentation = projectUnifiedSearchPresentation(
+        incomplete({
+          progress: {
+            status: "INDEXING",
+            targetsReady: 0,
+            targetsTotal: 1,
+            elapsedMs: 200,
+            targets: [
+              {
+                [identityKey]: identity,
+                availableVersions: [{ version: "4.18.2", ref: "v4.18.2" }],
+              },
+            ],
+          },
+        }),
+      );
+
+      expect(presentation.alternatives).toEqual([
+        expect.objectContaining({ target: identity }),
+      ]);
+      expect(presentation.targetGroups).toHaveLength(1);
+      expect(presentation.targetGroups[0]?.alternatives).toEqual(
+        expect.objectContaining({ target: identity }),
+      );
+    },
+  );
+
   it("retains progress target identities without diagnostics or alternatives", () => {
     const presentation = projectUnifiedSearchPresentation(
       incomplete({
@@ -723,6 +759,26 @@ describe("projectUnifiedSearchPresentation", () => {
       incomplete({
         partialResults: false,
         results: [],
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 8200,
+          targets: [
+            {
+              requested: "npm:n8n",
+              resolvedRequested: "npm:n8n@2.36.7",
+              freshness: "INDEXING",
+              availableVersions: [
+                { version: "2.26.9", ref: "v2.26.9" },
+                { version: "2.26.5", ref: "v2.26.5" },
+                { version: "2.23.2", ref: "v2.23.2" },
+                { version: "2.22.6", ref: "v2.22.6" },
+              ],
+              availableRefs: [{ ref: "HEAD" }, { ref: "master" }],
+            },
+          ],
+        },
         sourceStatus: [
           source({
             source: "code",
@@ -776,6 +832,99 @@ describe("projectUnifiedSearchPresentation", () => {
       kind: "active",
       status: "INDEXING",
     });
+    expect(presentation.targetGroups).toEqual([
+      {
+        identity: {
+          requested: "npm:n8n",
+          fresh: "npm:n8n@2.36.7",
+          freshness: "INDEXING",
+        },
+        sources: [
+          {
+            kind: "code",
+            entries: [
+              {
+                state: "waiting",
+                target: "npm:n8n@2.36.7",
+                searchTarget: "npm:n8n@2.36.7",
+                resultCount: 0,
+              },
+            ],
+          },
+          {
+            kind: "site_docs",
+            entries: [
+              {
+                state: "available_not_searched",
+                target: "https://n8n.io",
+                searchTarget: "npm:n8n@2.36.7",
+                resultCount: 0,
+                siteKey: "n8n.io",
+                siteUrl: "https://n8n.io",
+              },
+            ],
+          },
+          {
+            kind: "repository_docs",
+            entries: [
+              {
+                state: "waiting",
+                target: "https://github.com/n8n-io/n8n",
+                searchTarget: "npm:n8n@2.36.7",
+                resultCount: 0,
+                repositoryUrl: "https://github.com/n8n-io/n8n",
+              },
+            ],
+          },
+        ],
+        alternatives: {
+          target: "npm:n8n",
+          versions: [
+            { version: "2.26.9", ref: "v2.26.9" },
+            { version: "2.26.5", ref: "v2.26.5" },
+            { version: "2.23.2", ref: "v2.23.2" },
+          ],
+          versionsRemaining: 1,
+          refs: [{ ref: "HEAD" }, { ref: "master" }],
+          refsRemaining: 0,
+          suggestedRefs: [],
+          suggestedRefsRemaining: 0,
+        },
+        siteSuggestions: [],
+        trustLimits: [
+          {
+            kind: "source",
+            source: "code",
+            state: "waiting",
+            target: "npm:n8n@2.36.7",
+          },
+          {
+            kind: "source",
+            source: "site_docs",
+            state: "available_not_searched",
+            target: "https://n8n.io",
+          },
+          {
+            kind: "source",
+            source: "repository_docs",
+            state: "waiting",
+            target: "https://github.com/n8n-io/n8n",
+          },
+          {
+            kind: "coverage",
+            source: "site_docs",
+            state: "capped",
+            target: "https://n8n.io",
+            pagesCrawled: 1480,
+            frontierRemaining: undefined,
+            estimatedTotalPages: undefined,
+          },
+        ],
+      },
+    ]);
+    expect(
+      presentation.targetGroups.flatMap((group) => group.trustLimits),
+    ).not.toContainEqual({ kind: "mutable_evidence" });
     expect(presentation.sources).toEqual([
       {
         kind: "code",
@@ -839,6 +988,171 @@ describe("projectUnifiedSearchPresentation", () => {
       kind: "poll",
       searchRef: "search-ref-1",
     });
+  });
+
+  it("groups resolved and served target labels without mutating flat identities", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      incomplete({
+        partialResults: false,
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 2,
+          elapsedMs: 200,
+          targets: [
+            {
+              requested: "npm:express latest",
+              resolvedRequested: "npm:express@5.2.1",
+              freshness: "INDEXING",
+              availableVersions: [{ version: "5.0.0", ref: "v5.0.0" }],
+            },
+            {
+              requested: "npm:koa@3.0.0",
+              resolvedRequested: "npm:koa@3.0.0",
+              freshness: "INDEXING",
+            },
+          ],
+        },
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@5.2.1",
+            requestedTarget: "npm:express latest",
+            freshTarget: "npm:express@5.2.1",
+            servedTarget: "npm:express@5.1.0",
+            codeIndexState: "STALE",
+          }),
+          source({
+            targetLabel: "npm:koa@3.0.0",
+            codeIndexState: "CURRENT",
+          }),
+        ],
+      }),
+    );
+
+    expect(targetDisplayFamilyKey("npm:express")).toBe(
+      targetDisplayFamilyKey("npm:express latest"),
+    );
+    expect(targetDisplayFamilyKey("npm:express latest")).toBe(
+      targetDisplayFamilyKey("npm:express@5.2.1"),
+    );
+    expect(targetDisplayFamilyKey("github:expressjs/express#main")).toBe(
+      targetDisplayFamilyKey("github:expressjs/express#refs/heads/main"),
+    );
+    expect(
+      targetDisplayFamilyKey("github:expressjs/express@refs/heads/main"),
+    ).toBe(targetDisplayFamilyKey("github:expressjs/express"));
+
+    expect(presentation.targetGroups).toHaveLength(2);
+    const expressGroup = presentation.targetGroups.find(
+      (group) => group.identity.requested === "npm:express latest",
+    );
+    expect(expressGroup).toEqual(
+      expect.objectContaining({
+        identity: expect.objectContaining({
+          requested: "npm:express latest",
+          fresh: "npm:express@5.2.1",
+          served: "npm:express@5.1.0",
+        }),
+        alternatives: expect.objectContaining({
+          target: "npm:express latest",
+        }),
+      }),
+    );
+    expect(expressGroup?.sources).toEqual([
+      {
+        kind: "code",
+        entries: [
+          expect.objectContaining({
+            target: "npm:express@5.1.0",
+            searchTarget: "npm:express@5.1.0",
+          }),
+        ],
+      },
+    ]);
+    expect(expressGroup?.trustLimits).toEqual([
+      expect.objectContaining({
+        kind: "stale",
+        servedTarget: "npm:express@5.1.0",
+      }),
+    ]);
+    expect(presentation.targets).toEqual([
+      {
+        requested: "npm:express latest",
+        fresh: "npm:express@5.2.1",
+        freshness: "INDEXING",
+      },
+      {
+        requested: "npm:koa@3.0.0",
+        fresh: "npm:koa@3.0.0",
+        freshness: "INDEXING",
+      },
+    ]);
+  });
+
+  it("keeps explicit package versions in separate target groups", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      incomplete({
+        partialResults: false,
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 2,
+          elapsedMs: 200,
+          targets: [
+            {
+              requested: "npm:express@4.18.2",
+              resolvedRequested: "npm:express@4.18.2",
+              availableVersions: [{ version: "4.18.1", ref: "v4.18.1" }],
+            },
+            {
+              requested: "npm:express@5.2.1",
+              resolvedRequested: "npm:express@5.2.1",
+              availableVersions: [{ version: "5.2.0", ref: "v5.2.0" }],
+            },
+          ],
+        },
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            targetResolution: {
+              availableVersions: [],
+              availableRefs: [],
+            },
+          }),
+          source({
+            targetLabel: "npm:express@5.2.1",
+            targetResolution: {
+              availableVersions: [],
+              availableRefs: [],
+            },
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.targetGroups).toHaveLength(2);
+    expect(
+      presentation.targetGroups.map((group) => ({
+        target: group.identity.requested,
+        sourceTargets: group.sources.flatMap((sourceGroup) =>
+          sourceGroup.entries.map((entry) => entry.target),
+        ),
+        alternatives: group.alternatives?.versions.map(
+          (alternative) => alternative.version,
+        ),
+      })),
+    ).toEqual([
+      {
+        target: "npm:express@4.18.2",
+        sourceTargets: ["npm:express@4.18.2"],
+        alternatives: ["4.18.1"],
+      },
+      {
+        target: "npm:express@5.2.1",
+        sourceTargets: ["npm:express@5.2.1"],
+        alternatives: ["5.2.0"],
+      },
+    ]);
   });
 
   it("classifies stale, fallback, and provisional trust limits", () => {

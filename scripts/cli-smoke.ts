@@ -366,6 +366,8 @@ function assertTerminalOutput(result: CommandResult, context: string): string {
 
 export function assertSearchTerminalText(text: string, context: string): void {
   const lines = text.split("\n");
+  const formatterLines = lines.filter((line) => !line.startsWith("    "));
+  const formatterText = formatterLines.join("\n");
   const firstLine = lines[0]?.trim() ?? "";
   assert(firstLine.length > 0, `${context}: missing outcome first line`);
   assert(
@@ -375,36 +377,156 @@ export function assertSearchTerminalText(text: string, context: string): void {
     `${context}: non-outcome text precedes search outcome`,
   );
   assert(
-    !lines.some((line) => /^status\s*:/i.test(line.trim())),
+    /^(?:Preparing|Indexing|Searching)\b|^No results returned\b|^\d+ results?\b|^[A-Z_]+ - /.test(
+      firstLine,
+    ),
+    `${context}: missing outcome headline`,
+  );
+  assert(
+    !formatterLines.some((line) => /^status\s*:/i.test(line.trim())),
     `${context}: duplicated lifecycle status line`,
   );
-  assert(!text.includes("searchRef:"), `${context}: leaked searchRef detail`);
-  assert(!text.includes("indexingRef"), `${context}: leaked indexingRef`);
+  const lifecycleOutcomeLines = formatterLines.filter((line) =>
+    /^(?:Preparing|Indexing|Searching)\b/.test(line),
+  );
   assert(
-    !text.includes("freshnessReason"),
+    lifecycleOutcomeLines.length <= 1,
+    `${context}: duplicate lifecycle outcome lines`,
+  );
+  assert(
+    !formatterText.includes("searchRef:") &&
+      !formatterText.includes("searchRef="),
+    `${context}: leaked searchRef detail`,
+  );
+  assert(
+    !formatterText.includes("indexingRef"),
+    `${context}: leaked indexingRef`,
+  );
+  assert(
+    !formatterText.includes("freshnessReason"),
     `${context}: leaked freshnessReason`,
   );
 
-  const statusActions = lines.filter((line) =>
+  const forbiddenSections = [
+    "Ready:",
+    "Waiting:",
+    "Available but not searched:",
+    "Indexed alternatives:",
+  ];
+  for (const section of forbiddenSections) {
+    assert(
+      !formatterLines.some((line) => line.startsWith(section)),
+      `${context}: legacy flat section ${section}`,
+    );
+  }
+  assert(
+    !formatterLines.some((line) => line === "Evidence may change."),
+    `${context}: vague evidence policy prose`,
+  );
+  assert(
+    !formatterLines.some((line) => line.startsWith("Do not repeat")),
+    `${context}: repeat policy prose`,
+  );
+  assert(
+    !formatterLines.some((line) => line.startsWith("Do not poll")),
+    `${context}: poll policy prose`,
+  );
+
+  const hasReadinessText = formatterLines.some((line) =>
+    /^ {2}(?:Indexing|Searched|Ready now|Unavailable):/.test(line),
+  );
+  if (hasReadinessText) {
+    assert(
+      formatterLines.some((line) => /^-\s+\S/.test(line)),
+      `${context}: readiness details must be grouped under a target`,
+    );
+  }
+
+  const nextLines = formatterLines.filter((line) => line.startsWith("Next:"));
+  assert(
+    nextLines.length <= 1,
+    `${context}: multiple Next actions are not allowed`,
+  );
+  const statusActions = nextLines.filter((line) =>
     line.startsWith("Next: githits search-status "),
   );
   assert(
     statusActions.length <= 1,
     `${context}: expected at most one search-status action`,
   );
-  const paginationLines = lines.filter((line) =>
+  const paginationLines = formatterLines.filter((line) =>
     line.startsWith("More hits available."),
   );
   assert(
     !paginationLines.some((line) => /\b(?:offset|limit)=/.test(line)),
     `${context}: MCP pagination syntax leaked into CLI output`,
   );
+  const summaryLines = formatterLines.filter((line) =>
+    /^Search\s+\S+\s+\|/.test(line),
+  );
   assert(
-    text.includes("githits code read") ||
-      text.includes("githits docs read") ||
-      lines.some((line) => line.startsWith("Next: ")),
+    summaryLines.length <= 1,
+    `${context}: expected at most one Search <ref> session summary`,
+  );
+  if (statusActions.length > 0) {
+    assert(
+      summaryLines.length === 1,
+      `${context}: expected one Search <ref> session summary`,
+    );
+  }
+  if (statusActions.length === 1) {
+    const searchRef = statusActions[0]?.match(
+      /^Next: githits search-status (\S+) /,
+    )?.[1];
+    assert(
+      searchRef !== undefined &&
+        summaryLines[0]?.startsWith(`Search ${searchRef} |`),
+      `${context}: session summary does not match search-status action`,
+    );
+  }
+  assert(
+    !formatterText.includes("search_ref="),
+    `${context}: MCP search_ref syntax leaked into CLI output`,
+  );
+  assert(
+    hasSearchHitLocator(lines, isCliCodeReadLocator) ||
+      hasSearchHitLocator(lines, isCliDocsReadLocator) ||
+      nextLines.length > 0,
     `${context}: missing result follow-up or next action`,
   );
+}
+
+function hasSearchHitLocator(
+  lines: string[],
+  isLocator: (line: string) => boolean,
+): boolean {
+  return lines.some(
+    (line, index) =>
+      /^\[\d+\]\s/.test(line) && isLocator(lines[index + 1] ?? ""),
+  );
+}
+
+const CLI_SHELL_ARGUMENT = String.raw`(?:'[^']+'|"[^"]+"|[^\s'"]+)`;
+const CLI_POSITIONAL_ARGUMENT = String.raw`(?:'[^']+'|"[^"]+"|(?!-)[^\s'"]+)`;
+const CLI_PACKAGE_CODE_READ_LOCATOR = new RegExp(
+  String.raw`^ {4}githits code read\s+(?!--repo-url\b)${CLI_POSITIONAL_ARGUMENT}\s+${CLI_POSITIONAL_ARGUMENT}(?:\s|$)`,
+);
+const CLI_REPOSITORY_CODE_READ_LOCATOR = new RegExp(
+  String.raw`^ {4}githits code read\s+--repo-url\s+${CLI_SHELL_ARGUMENT}(?:\s+--git-ref\s+${CLI_SHELL_ARGUMENT})?\s+${CLI_POSITIONAL_ARGUMENT}(?:\s|$)`,
+);
+const CLI_DOCS_READ_LOCATOR = new RegExp(
+  String.raw`^ {4}githits docs read\s+${CLI_POSITIONAL_ARGUMENT}(?:\s|$)`,
+);
+
+function isCliCodeReadLocator(line: string): boolean {
+  return (
+    CLI_PACKAGE_CODE_READ_LOCATOR.test(line) ||
+    CLI_REPOSITORY_CODE_READ_LOCATOR.test(line)
+  );
+}
+
+function isCliDocsReadLocator(line: string): boolean {
+  return CLI_DOCS_READ_LOCATOR.test(line);
 }
 
 function assertJsonOutput(result: CommandResult, context: string): unknown {

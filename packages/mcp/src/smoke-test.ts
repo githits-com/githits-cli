@@ -182,37 +182,151 @@ export function assertDefaultText(
 
 function assertSearchDefaultText(text: string, context: string): void {
   const lines = text.split("\n");
+  const formatterLines = lines.filter((line) => !line.startsWith("    "));
+  const formatterText = formatterLines.join("\n");
   const firstLine = lines[0]?.trim() ?? "";
   assert(firstLine.length > 0, `${context}: missing outcome first line`);
+  assert(
+    /^(?:Preparing|Indexing|Searching)\b|^No results returned\b|^\d+ results?\b|^[A-Z_]+ - /.test(
+      firstLine,
+    ),
+    `${context}: missing outcome headline`,
+  );
   assert(
     !firstLine.startsWith("search |") &&
       !firstLine.startsWith("search_status |"),
     `${context}: legacy header precedes outcome`,
   );
   assert(
-    !lines.some((line) => /^status\s*:/i.test(line.trim())),
+    !formatterLines.some((line) => /^status\s*:/i.test(line.trim())),
     `${context}: duplicated lifecycle status line`,
   );
-  assert(!text.includes("searchRef="), `${context}: leaked searchRef=`);
-  assert(!text.includes("indexingRef"), `${context}: leaked indexingRef`);
+  const lifecycleOutcomeLines = lines.filter((line) =>
+    /^(?:Preparing|Indexing|Searching)\b/.test(line),
+  );
+  assert(
+    lifecycleOutcomeLines.length <= 1,
+    `${context}: duplicate lifecycle outcome lines`,
+  );
+  assert(
+    !formatterText.includes("searchRef="),
+    `${context}: leaked searchRef=`,
+  );
+  assert(
+    !formatterText.includes("indexingRef"),
+    `${context}: leaked indexingRef`,
+  );
 
-  const searchRefOccurrences = text.match(/search_ref=/g)?.length ?? 0;
+  const forbiddenSections = [
+    "Ready:",
+    "Waiting:",
+    "Available but not searched:",
+    "Indexed alternatives:",
+  ];
+  for (const section of forbiddenSections) {
+    assert(
+      !lines.some((line) => line.startsWith(section)),
+      `${context}: legacy flat section ${section}`,
+    );
+  }
+  assert(
+    !lines.some((line) => line === "Evidence may change."),
+    `${context}: vague evidence policy prose`,
+  );
+  assert(
+    !lines.some((line) => line.startsWith("Do not repeat")),
+    `${context}: repeat policy prose`,
+  );
+  assert(
+    !lines.some((line) => line.startsWith("Do not poll")),
+    `${context}: poll policy prose`,
+  );
+
+  const hasReadinessText = lines.some((line) =>
+    /^ {2}(?:Indexing|Searched|Ready now|Unavailable):/.test(line),
+  );
+  if (hasReadinessText) {
+    assert(
+      lines.some((line) => /^-\s+\S/.test(line)),
+      `${context}: readiness details must be grouped under a target`,
+    );
+  }
+
+  const nextLines = lines.filter((line) => line.startsWith("Next:"));
+  assert(
+    nextLines.length <= 1,
+    `${context}: multiple Next actions are not allowed`,
+  );
+
+  const searchRefOccurrences = formatterText.match(/search_ref=/g)?.length ?? 0;
   assert(
     searchRefOccurrences <= 1,
     `${context}: search_ref= must appear at most once`,
   );
   if (searchRefOccurrences === 1) {
-    const refLine = lines.find((line) => line.includes("search_ref="));
+    const refLine = formatterLines.find((line) => line.includes("search_ref="));
     assert(
       refLine?.trimStart().startsWith("Next:"),
       `${context}: search_ref= must appear only on a Next line`,
     );
+    assert(
+      refLine?.startsWith("Next: search_status "),
+      `${context}: search_ref= must use the MCP search_status action`,
+    );
+    assert(
+      refLine !== undefined,
+      `${context}: search_ref= must appear only on a Next line`,
+    );
+    const match = refLine.match(/search_ref=(?:"([^"]+)"|(\S+))/);
+    const searchRef = match?.[1] ?? match?.[2];
+    const summaryLines = lines.filter((line) =>
+      /^Search\s+\S+\s+\|/.test(line),
+    );
+    assert(
+      summaryLines.length === 1,
+      `${context}: expected one Search <ref> session summary`,
+    );
+    assert(
+      searchRef !== undefined &&
+        summaryLines[0]?.startsWith(`Search ${searchRef} |`),
+      `${context}: session summary does not match search_ref action`,
+    );
   }
   assert(
-    text.includes("code_read") ||
-      text.includes("docs_read") ||
-      text.includes("search_status"),
+    hasHitLocator(lines, isMcpCodeReadLocator) ||
+      hasHitLocator(lines, isMcpDocsReadLocator) ||
+      lines.some((line) => line.startsWith("Next:")),
     `${context}: missing ready-to-call result or status follow-up`,
+  );
+}
+
+function hasHitLocator(
+  lines: string[],
+  isLocator: (line: string) => boolean,
+): boolean {
+  return lines.some(
+    (line, index) =>
+      /^\[\d+\]\s/.test(line) && isLocator(lines[index + 1] ?? ""),
+  );
+}
+
+function hasNonEmptyMcpArgument(line: string, argument: string): boolean {
+  return new RegExp(
+    `(?:^|\\s)${argument}=(?:"[^"]+"|'[^']+'|[^\\s"']+)(?=\\s|$)`,
+  ).test(line);
+}
+
+function isMcpCodeReadLocator(line: string): boolean {
+  return (
+    /^ {4}code_read\b/.test(line) &&
+    hasNonEmptyMcpArgument(line, "target") &&
+    hasNonEmptyMcpArgument(line, "path")
+  );
+}
+
+function isMcpDocsReadLocator(line: string): boolean {
+  return (
+    /^ {4}docs_read\b/.test(line) && hasNonEmptyMcpArgument(line, "page_id")
   );
 }
 

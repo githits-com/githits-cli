@@ -148,7 +148,9 @@ describe("searchTool", () => {
       },
       {},
     );
-    expect(text.content[0]?.text).toContain("Waiting: site docs");
+    expect(text.content[0]?.text).toContain(
+      "Indexing: expressjs.com/en/guide docs",
+    );
     expect(text.content[0]?.text).toContain("Searched: repository docs");
   });
 

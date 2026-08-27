@@ -114,6 +114,14 @@ export interface UnifiedSearchSiteSuggestionFacts {
   truncated: boolean;
 }
 
+export interface UnifiedSearchTargetGroup {
+  identity: UnifiedSearchTargetPresentation;
+  sources: UnifiedSearchSourceGroup[];
+  alternatives?: UnifiedSearchAlternativeFacts;
+  siteSuggestions: UnifiedSearchSiteSuggestionFacts[];
+  trustLimits: UnifiedSearchTrustLimit[];
+}
+
 export type UnifiedSearchConstraintKind =
   | "ignored_filter"
   | "incompatible_filter"
@@ -191,6 +199,7 @@ export interface UnifiedSearchPresentation {
   searchRef?: string;
   progress?: UnifiedSearchProgressPresentation;
   targets: UnifiedSearchTargetPresentation[];
+  targetGroups: UnifiedSearchTargetGroup[];
   hasMore: boolean;
   sources: UnifiedSearchSourceGroup[];
   siteSuggestions: UnifiedSearchSiteSuggestionFacts[];
@@ -211,6 +220,7 @@ interface SnapshotFacts {
 
 interface CandidateSet {
   target?: string;
+  aliases: string[];
   versions: UnifiedSearchAlternative[];
   refs: UnifiedSearchAlternative[];
   suggestedRefs: UnifiedSearchAlternative[];
@@ -234,6 +244,14 @@ export function projectUnifiedSearchPresentation(
   const warnings = projectWarnings(query, sourceStatus);
   const alternatives = projectAlternatives(progress, sourceStatus);
   const searchRef = "searchRef" in payload ? payload.searchRef : undefined;
+  const targets = projectTargets(progress);
+  const targetGroups = projectTargetGroups({
+    targets,
+    sources,
+    alternatives,
+    siteSuggestions,
+    trustLimits,
+  });
 
   return {
     availability,
@@ -241,7 +259,8 @@ export function projectUnifiedSearchPresentation(
     query,
     searchRef,
     progress: projectProgress(progress),
-    targets: projectTargets(progress),
+    targets,
+    targetGroups,
     hasMore: snapshot?.hasMore ?? false,
     sources,
     siteSuggestions,
@@ -651,7 +670,12 @@ function projectAlternatives(
 ): UnifiedSearchAlternativeFacts[] {
   const candidates: CandidateSet[] = [
     ...(progress?.targets ?? []).map((target) => ({
-      target: target.requested,
+      target: target.requested ?? target.resolvedRequested ?? target.served,
+      aliases: uniqueAliases([
+        target.requested,
+        target.resolvedRequested,
+        target.served,
+      ]),
       versions:
         target.targetResolution?.availableVersions ??
         target.availableVersions ??
@@ -667,6 +691,13 @@ function projectAlternatives(
         ? [
             {
               target: sourceTarget(entry),
+              aliases: uniqueAliases([
+                sourceTarget(entry),
+                entry.targetLabel,
+                entry.requestedTarget,
+                entry.freshTarget,
+                entry.servedTarget,
+              ]),
               versions: resolution.availableVersions,
               refs: resolution.availableRefs,
               suggestedRefs: resolution.suggestedRefs ?? [],
@@ -692,22 +723,189 @@ function projectAlternatives(
     }));
 }
 
+interface TargetGroupInput {
+  targets: UnifiedSearchTargetPresentation[];
+  sources: UnifiedSearchSourceGroup[];
+  alternatives: UnifiedSearchAlternativeFacts[];
+  siteSuggestions: UnifiedSearchSiteSuggestionFacts[];
+  trustLimits: UnifiedSearchTrustLimit[];
+}
+
+function projectTargetGroups(
+  input: TargetGroupInput,
+): UnifiedSearchTargetGroup[] {
+  const groups: UnifiedSearchTargetGroup[] = [];
+  for (const identity of input.targets) {
+    const existing = groups.find((group) =>
+      targetIdentityValues(identity).some((target) =>
+        targetIdentityValues(group.identity).includes(target),
+      ),
+    );
+    if (existing) {
+      existing.identity.requested ??= identity.requested;
+      existing.identity.fresh ??= identity.fresh;
+      existing.identity.served ??= identity.served;
+      existing.identity.freshness ??= identity.freshness;
+      continue;
+    }
+    groups.push({
+      identity: { ...identity },
+      sources: [],
+      siteSuggestions: [],
+      trustLimits: [],
+    });
+  }
+
+  const findOrCreate = (
+    target: string | undefined,
+  ): UnifiedSearchTargetGroup => {
+    return findOrCreateForAliases(target ? [target] : [], target);
+  };
+
+  const findOrCreateForAliases = (
+    aliases: string[],
+    target: string | undefined,
+  ): UnifiedSearchTargetGroup => {
+    const existing = groups.find((group) =>
+      aliases.some((alias) => targetGroupMatches(group, alias)),
+    );
+    if (existing) return existing;
+    const created: UnifiedSearchTargetGroup = {
+      identity: target ? { requested: target } : {},
+      sources: [],
+      siteSuggestions: [],
+      trustLimits: [],
+    };
+    groups.push(created);
+    return created;
+  };
+
+  for (const limit of input.trustLimits) {
+    if (
+      limit.kind !== "stale" ||
+      (!limit.requestedTarget && !limit.freshTarget && !limit.servedTarget)
+    ) {
+      continue;
+    }
+    const aliases = uniqueAliases([
+      limit.requestedTarget,
+      limit.freshTarget,
+      limit.servedTarget,
+      limit.target,
+    ]);
+    const group = findOrCreateForAliases(aliases, aliases[0]);
+    if (limit.requestedTarget) group.identity.requested = limit.requestedTarget;
+    if (limit.freshTarget) group.identity.fresh = limit.freshTarget;
+    if (limit.servedTarget) group.identity.served = limit.servedTarget;
+  }
+
+  for (const sourceGroup of input.sources) {
+    for (const entry of sourceGroup.entries) {
+      const group = findOrCreate(entry.searchTarget);
+      const existingSource = group.sources.find(
+        (candidate) => candidate.kind === sourceGroup.kind,
+      );
+      if (existingSource) existingSource.entries.push(entry);
+      else group.sources.push({ kind: sourceGroup.kind, entries: [entry] });
+    }
+  }
+
+  for (const alternatives of input.alternatives) {
+    findOrCreate(alternatives.target).alternatives = alternatives;
+  }
+  for (const suggestion of input.siteSuggestions) {
+    findOrCreate(suggestion.target).siteSuggestions.push(suggestion);
+  }
+  for (const limit of input.trustLimits) {
+    if (limit.kind === "constraint" || limit.kind === "mutable_evidence") {
+      continue;
+    }
+    const target = "target" in limit ? limit.target : undefined;
+    const sourceGroup = groups.find((group) =>
+      targetGroupMatches(group, target),
+    );
+    const group =
+      sourceGroup ??
+      (groups.length === 1 ? groups[0] : undefined) ??
+      findOrCreate(target);
+    if (limit.kind === "stale") {
+      if (limit.requestedTarget)
+        group.identity.requested = limit.requestedTarget;
+      if (limit.freshTarget) group.identity.fresh = limit.freshTarget;
+      if (limit.servedTarget) group.identity.served = limit.servedTarget;
+    }
+    group.trustLimits.push(limit);
+  }
+  return groups.filter(
+    (group) =>
+      targetIdentityValues(group.identity).length > 0 ||
+      group.sources.length > 0 ||
+      group.alternatives !== undefined ||
+      group.siteSuggestions.length > 0 ||
+      group.trustLimits.length > 0,
+  );
+}
+
+function targetIdentityValues(
+  identity: UnifiedSearchTargetPresentation,
+): string[] {
+  return [identity.requested, identity.fresh, identity.served].filter(
+    (value): value is string => Boolean(value),
+  );
+}
+
+function targetGroupMatches(
+  group: UnifiedSearchTargetGroup,
+  target: string | undefined,
+): boolean {
+  if (!target) return false;
+  return (
+    targetIdentityValues(group.identity).includes(target) ||
+    group.sources.some((source) =>
+      source.entries.some(
+        (entry) => entry.target === target || entry.searchTarget === target,
+      ),
+    )
+  );
+}
+
+function uniqueAliases(values: Array<string | undefined>): string[] {
+  return [
+    ...new Set(values.filter((value): value is string => Boolean(value))),
+  ];
+}
+
+export function targetDisplayFamilyKey(target: string | undefined): string {
+  if (!target) return "";
+  const normalized = target
+    .trim()
+    .replace(/\s+latest$/, "")
+    .replace(/#[^#]+$/, "");
+  return normalized.startsWith("npm:")
+    ? normalized.replace(/@[^/@]+$/, "")
+    : normalized.replace(/@[^#]+$/, "");
+}
+
 function mergeAlternativeCandidates(
   candidates: CandidateSet[],
 ): CandidateSet[] {
   const merged: CandidateSet[] = [];
   for (const candidate of candidates) {
-    const key = candidate.target?.replace(/@[^/@]+$/, "") ?? "";
-    const existing = merged.find(
-      (value) => (value.target?.replace(/@[^/@]+$/, "") ?? "") === key,
+    const existing = merged.find((value) =>
+      candidate.aliases.some((alias) => value.aliases.includes(alias)),
     );
     if (existing) {
+      existing.aliases = uniqueAliases([
+        ...existing.aliases,
+        ...candidate.aliases,
+      ]);
       existing.versions.push(...candidate.versions);
       existing.refs.push(...candidate.refs);
       existing.suggestedRefs.push(...candidate.suggestedRefs);
     } else {
       merged.push({
         target: candidate.target,
+        aliases: [...candidate.aliases],
         versions: [...candidate.versions],
         refs: [...candidate.refs],
         suggestedRefs: [...candidate.suggestedRefs],
