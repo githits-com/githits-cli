@@ -620,6 +620,13 @@ describe("projectUnifiedSearchPresentation", () => {
         results: [],
         sourceStatus: [
           source({
+            source: "code",
+            targetLabel: "npm:n8n@2.36.7",
+            indexingStatus: "INDEXING",
+            codeIndexState: "PENDING",
+            resultCount: 0,
+          }),
+          source({
             source: "docs",
             targetLabel: "npm:n8n@2.36.7",
             targetResolution: {
@@ -664,6 +671,43 @@ describe("projectUnifiedSearchPresentation", () => {
       kind: "active",
       status: "INDEXING",
     });
+    expect(presentation.sources).toEqual([
+      {
+        kind: "code",
+        entries: [
+          {
+            state: "waiting",
+            target: "npm:n8n@2.36.7",
+            resultCount: 0,
+          },
+        ],
+      },
+      {
+        kind: "site_docs",
+        entries: [
+          {
+            state: "available_not_searched",
+            target: "https://n8n.io",
+            contextTarget: "npm:n8n@2.36.7",
+            resultCount: 0,
+            siteKey: "n8n.io",
+            siteUrl: "https://n8n.io",
+          },
+        ],
+      },
+      {
+        kind: "repository_docs",
+        entries: [
+          {
+            state: "waiting",
+            target: "https://github.com/n8n-io/n8n",
+            contextTarget: "npm:n8n@2.36.7",
+            resultCount: 0,
+            repositoryUrl: "https://github.com/n8n-io/n8n",
+          },
+        ],
+      },
+    ]);
     expect(presentation.alternatives[0]?.versions).toHaveLength(3);
     expect(presentation.alternatives[0]?.versionsRemaining).toBe(1);
     expect(presentation.alternatives[0]?.refs).toEqual([
