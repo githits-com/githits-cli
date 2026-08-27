@@ -52,7 +52,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION: string =
-  "Summarize latest package health and adoption signals: license, repository, downloads, publish age, and vulnerabilities. Provide " +
+  "Assess latest package health and adoption: license, downloads, and activity. Provide " +
   "`registry` and `package_name` (for example `npm` + `express`). " +
   "Default text returns license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +

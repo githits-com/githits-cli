@@ -81,7 +81,7 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Map a package's dependency graph, direct groups, and bounded transitive footprint. Lists direct runtime " +
+  "Inspect what a package depends on, directly or transitively. Lists direct runtime " +
   "dependencies with resolved versions; non-runtime groups are " +
   "omitted by default. Use `lifecycle` with a concrete value for " +
   "matching dependency groups, or `all` for every available group. " +

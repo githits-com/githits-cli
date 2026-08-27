@@ -20,7 +20,7 @@ describe("createPackageSummaryTool — metadata", () => {
     );
     expect(tool.name).toBe("pkg_info");
     expect(tool.description).toContain(
-      "Summarize latest package health and adoption signals",
+      "Assess latest package health and adoption",
     );
     expect(tool.description).toContain("for example `npm` + `express`");
     expect(tool.description).toContain("[ARCHIVED]");

@@ -227,7 +227,7 @@ use at least one agent for quick iteration.
 | Core global examples, `get_example`, `search_language`, `feedback` | `global-example.md` |
 | Unified `search` / `search_status` behavior | `unified-search-investigation.md`; use `search-source-ergonomics.md` when changing `search` source-selection arguments or minimal-call guidance; use `opencode-compaction.md` for the remote-MCP routing regression |
 | Explicit standalone site targets in unified `search` | `site-search-explicit.md` |
-| Package overview or vulnerability UX, `pkg_info`, `pkg_vulns` | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior; use `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior |
+| Package overview or vulnerability UX, `pkg_info`, `pkg_vulns` | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior, `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior, and `package-vulnerability-rubygems.md` for non-npm descriptor routing |
 | Dependency graph UX, `pkg_deps` | `package-dependencies.md` |
 | Release notes UX, `pkg_changelog` | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior |
 | Upgrade evidence UX, `pkg_upgrade_review` | `package-upgrade-safety.md` |
@@ -294,6 +294,17 @@ Notable findings to keep in mind when evaluating future changes:
 - Codex sometimes reports a tool as unavailable until it performs additional
   tool discovery. Use `tool-calls.json` to distinguish actual unavailable tools
   from delayed discovery.
+- The August 2026 package-description run used compact user-question prefixes
+  without registry counts or prefix enumerations. Luna-low routed all four npm
+  workloads to the intended package tools. Haiku selected the intended tools in
+  ToolSearch for all four, then incorrectly treated the discovered deferred
+  tools as uncallable in two runs; keep discovery selection separate from
+  post-selection invocation failures.
+- `package-vulnerability-rubygems.md` guards non-npm routing without naming
+  RubyGems in the `pkg_vulns` prefix. Haiku called the intended package tools;
+  Luna-low browsed instead on one run but called `pkg_vulns` and
+  `pkg_upgrade_review` on an identical rerun. Treat an isolated miss as model
+  variance, not evidence to crowd every prefix with registry names.
 - `code-read-window.md` should show focused bounded reads when the prompt already
   names a source file and line area. Claude Haiku does this directly; Codex mini
   has been observed doing package/search preflight before the eventual bounded

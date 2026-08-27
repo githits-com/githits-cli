@@ -119,7 +119,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION: string =
-  "Find release and changelog evidence for a package or GitHub repository. Default " +
+  "Find release notes and changelog history for a package or public GitHub repo. Default " +
   "latest mode returns up to ten entries (`limit` 1–50); source ordering may interleave maintained release lines. " +
   "With `from_version`, returns every entry in the " +
   "`(from_version, to_version]` range (range mode, no count cap); use latest mode with `to_version` and `limit: 1` for one exact release. " +
