@@ -235,8 +235,9 @@ test suite anchors the doc.
 
 ### Search output parity
 
-MCP `search` and `search_status` default `text-v1` evolve in place.
-The MCP text contract is outcome-first: one outcome line, one concise readiness
+CLI human `search` / `search-status` and MCP `search` / `search_status` default
+`text-v1` use one shared formatter that evolves in place. The text contract is
+outcome-first: one outcome line, one concise readiness
 and trust summary, result blocks, bounded alternatives or provenance, and one
 action. `PENDING`, `INDEXING`, and `SEARCHING` remain distinct; active
 no-snapshot output says that no result snapshot was returned, while active empty
@@ -248,23 +249,31 @@ guidance; they are never selected automatically. Parser/query and structured
 constraint facts appear once below the outcome, while promoted lifecycle warning
 prose and opaque evidence text stay out of default MCP text.
 
-The three MCP anti-repeat directives are part of this text behavior:
+The three anti-repeat directives are part of this text behavior:
 `Do not repeat search.` for active polling, `Do not repeat this search unchanged.`
 for an ordinary completed empty result, and `Do not repeat immediately.` for
 evidence-limited or status-continuation actions. A rendered `searchRef` appears
-only in the exact `Next: search_status search_ref=... wait_timeout_ms=...`
-action; terminal and unknown responses instead give an explicit no-poll
-instruction.
+only in the exact continuation action. MCP renders
+`Next: search_status search_ref=... wait_timeout_ms=...`; CLI renders
+`Next: githits search-status ... --wait ...`. Terminal and unknown responses
+instead give an explicit transport-neutral no-poll instruction.
 
-The CLI human renderer remains unchanged. Its `--json` output and MCP
-`format: "json"` output remain the structured parity boundary: every
+CLI supplies ANSI enablement and CLI-native follow-up commands to the shared
+formatter; MCP supplies no color and MCP-native tool-call syntax. Hierarchy,
+wording, wrapping, and fact selection are otherwise identical. Search-result
+follow-ups likewise render as `githits code read` / `githits docs read` in CLI
+and `code_read` / `docs_read` in MCP. ANSI-stripped CLI output is structurally
+identical to no-color output.
+
+CLI `--json` output and MCP `format: "json"` output remain the structured parity
+boundary: every
 result-bearing initial payload and stored `search_status.result` carries the
 backend's exact `partialResults: boolean`, including both `false` and `true`;
 payloads with no result snapshot omit that field. Full `warnings[]`, source
 diagnostics, evidence notices, reason codes, references, and alternative lists
 remain available in JSON even when MCP text classifies or bounds them for
 readability. The shared JSON parity tests compare these envelopes deeply; only
-surface-native text and follow-up syntax differ.
+surface-native follow-up syntax and ANSI differ.
 
 ### `PARITY-ERROR-ENVELOPE`
 

@@ -3,9 +3,9 @@
 ## Status
 
 - Overall: **IN PROGRESS**
-- Phase 1a: **COMPLETE** (implemented, verified, and clean-reviewed; awaiting
-  draft PR/merge)
-- Phase 1b: **PENDING ON PHASE 1A**
+- Phase 1a: **COMPLETE**
+- Phase 1b: **COMPLETE** (implemented in the same draft PR after the formatter
+  ownership correction; final integrated verification/review pending)
 - Phase 2: **PENDING**
 
 ## Problem and expected outcome
@@ -61,16 +61,17 @@ When this work is complete:
    explicitly decided that it is not a compatibility boundary for this redesign.
    `text-v1` will be improved in place; no `text-v2` or legacy renderer is needed.
 8. Phase 1a is implemented: the additive `partialResults` JSON field, one shared
-   presentation projection, outcome-first MCP `text-v1` rendering, tool/parity
-   assertions, and MCP smoke invariants are complete. The model's source-entry
+   presentation projection, outcome-first text rendering, tool/parity assertions,
+   and MCP smoke invariants are complete. The model's source-entry
    boundary now uses required `searchTarget` for the searched package context;
    the overloaded `contextTarget` is gone. Requested/fresh/served divergence is
    retained only in progress and trust facts.
-9. The final repository evidence is recorded below. Phase 1a did not change CLI
-   human/color rendering; the reported screenshot/color problem remains Phase 1b
-   by design.
+9. The original phase boundary was corrected after the user clarified that CLI is
+   the inspectable fidelity harness for MCP text and agents use both surfaces.
+   Phase 1b now routes CLI search/search-status through the same formatter, adds
+   ANSI and CLI-command inputs, and deletes the duplicated private CLI formatter.
 
-### Final integrated Phase 1a evidence
+### Final integrated Phase 1 evidence
 
 - `bun test`: 3,364 tests passed, 0 failed, 10,825 expects across 184 files.
 - `bun run typecheck`: clean; format and lint checked 437 files clean.
@@ -83,11 +84,11 @@ When this work is complete:
   and Codex; usefulness was helped/high confidence. The discovered symbol-label
   bug was fixed.
 - The final focused shared/status/tool cohort passed 123 tests with 0 failures.
-- Production/shared-smoke delta across the five counted source files is 1,456
-  additions and 449 deletions. The original 1,450-line Phase 1a plan ceiling
-  was intentionally exceeded by six lines with explicit user authorization for
-  the root-cause boundary correction, remaining below the repository's 1.5k
-  implementation-code caution threshold.
+- Production/shared-smoke delta across the seven counted source files is 1,683
+  additions and 1,276 deletions (net +407). The single-formatter correction crossed
+  the addition-only caution threshold but deleted 818 lines from the CLI command and
+  removed the duplicated formatter instead of adding another layer. The user
+  explicitly authorized the root-cause correction even if it grew this PR.
 - `origin/main` at `739ec4e` was merged cleanly with no conflicts. Overlapping
   permanent documentation auto-merged, and integrated full-test, build, package,
   and source-smoke verification passed.
@@ -136,8 +137,10 @@ When this work is complete:
 ### Ownership
 
 The shared search presentation layer owns the meaning and priority of response
-facts. The response builder continues to own lossless structured projection. The
-CLI and MCP renderers own syntax, color, and surface-native actions only.
+facts. The response builder continues to own lossless structured projection. One
+shared text formatter owns hierarchy, wording, wrapping, hit anatomy, and semantic
+color roles. CLI and MCP callers supply only ANSI enablement and surface-native
+action syntax.
 
 ```text
 Core UnifiedSearchOutcome
@@ -147,14 +150,17 @@ shared JSON payload builder  ---->  CLI --json / MCP format=json
         |
         v
 shared search presentation model
+        |
+        v
+shared search text formatter
         |                         |
         v                         v
-CLI terminal renderer        MCP text-v1 renderer
+CLI: ANSI + CLI actions       MCP: no ANSI + MCP actions
 ```
 
-This corrects the current ownership friction: CLI and MCP both need to know whether
-evidence is absent, interim, partial, final, stale, or provisional, but neither
-renderer should rediscover that from warning strings.
+This corrects both ownership problems: neither surface rediscovers semantic state
+from warning strings, and wording/layout cannot drift between duplicated renderers.
+CLI output remains a directly inspectable proxy for MCP token and output quality.
 
 ### Presentation model
 
@@ -177,7 +183,7 @@ query/filter/source problems not already represented by the lifecycle and trust
 dimensions.
 
 The model contains display facts, not finished sentences or ANSI codes. It retains
-the exact target/source identities and continuation reference needed by renderers,
+the exact target/source identities and continuation reference needed by the formatter,
 but omits internal-only `freshnessReason`, `requestedRefKind`, and `indexingRef` from
 default text unless one becomes a verified user action. Those values remain in JSON.
 
@@ -233,12 +239,11 @@ Rules:
 - Keep each status/provenance line bounded and independently wrappable. Never join
   the complete target diagnostic record with ` | `.
 - Query/filter incompatibilities remain visible once, below the outcome headline.
-- MCP active responses retain `Do not repeat search.` before the exact status action.
+- Active responses retain `Do not repeat search.` before the exact status action.
   Completed empty responses retain `Do not repeat this search unchanged.`, and
   evidence-limited responses retain `Do not repeat immediately.` Terminal responses
-  retain the existing prohibition on polling a stopped reference. The CLI drops the
-  anti-repeat directives it currently inherits from shared empty-search guidance;
-  those guardrails are agent-specific and remain in MCP text only.
+  retain a transport-neutral prohibition on polling a stopped reference. These
+  guardrails remain on both surfaces because agents can invoke either one.
 
 The action dimension also preserves the existing empty-result pivot rules:
 
@@ -250,15 +255,18 @@ The action dimension also preserves the existing empty-result pivot rules:
 4. removing filters or switching to symbol search is suggested only when those pivots
    apply to the actual request.
 
-### Phase 1b target: CLI shape for the reported active empty snapshot
+### Implemented CLI shape for the reported active empty snapshot
 
 ```text
-Indexing npm:n8n@2.36.7 — no results returned yet
+Indexing npm:n8n@2.36.7 - no results returned yet
 Ready: 0/1 targets
+Target: requested npm:n8n; fresh npm:n8n@2.36.7
 Waiting: code, repository docs
 Available but not searched: n8n.io docs (1,480 pages; capped)
-Indexed alternatives: versions 2.26.9, 2.26.5, 2.23.2 +2; refs HEAD, master
-
+Evidence may change.
+Indexed alternatives: versions 2.26.9, 2.26.5, 2.23.2 +2 more; refs HEAD,
+master
+Do not repeat search.
 Next: githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 20
 ```
 
@@ -266,18 +274,15 @@ The supplied text proves this response contains an empty result snapshot with
 `sourceStatus` and documentation contributors: contributor identity, readiness, and
 page counts cannot come from progress alone. The regression fixture will encode the
 disclosed structured facts from the supplied output; it will not depend on reproducing
-the transient production indexing state with a fresh network call.
-
-This remains a Phase 1b target. Phase 1a did not change CLI human/color rendering;
-the exact copy may tighten during Phase 1b implementation tests, but the section
-order, single-statement rules, disclosed evidence distinctions, and bounded
-alternatives are acceptance constraints.
+the transient production indexing state with a fresh network call. The regression
+now passes through the same formatter as MCP; only the final command dialect and
+ANSI option differ.
 
 A true progress-only CLI response has no `sourceStatus` or documentation contributors
 and therefore renders only derivable facts:
 
 ```text
-Indexing npm:n8n@2.36.7 — no result snapshot returned yet
+Indexing npm:n8n@2.36.7 - no result snapshot returned yet
 Ready: 0/1 targets
 Indexed alternatives: versions 2.26.9, 2.26.5, 2.23.2 +2; refs HEAD, master
 
@@ -289,8 +294,8 @@ It must not synthesize per-source waiting state, site identity, or page coverage
 ### Other response shapes
 
 ```text
-Indexing continues — 4 interim results returned
-Ready: 1/2 targets · results and ranking may change
+Indexing continues - 4 interim results returned
+Ready: 1/2 targets
 
 <results>
 
@@ -298,8 +303,8 @@ Next: githits search-status <ref> --wait 20
 ```
 
 ```text
-Indexing continues — 4 partial results returned
-Ready: 1/2 targets · some requested sources are not represented
+Indexing continues - 4 partial results returned
+Ready: 1/2 targets
 
 <results>
 
@@ -339,10 +344,9 @@ they are identifiers.
 
 ### Overall assumptions
 
-1. Search/search-status is split into two independently reviewable increments. Phase
-   1a completed shared/MCP output and structured truth; Phase 1b completes the
-   reported CLI production fix after Phase 1a merges. Splitting delivery does not
-   shrink the overall goal.
+1. Phases 1a and 1b ship in one PR. The earlier merge boundary was removed after the
+   user clarified that CLI must be the directly inspectable fidelity harness for MCP
+   text and both humans and agents invoke it.
 2. `text-v1` may change in place, per the user's explicit decision on 2026-08-26.
 3. JSON is the correct place for full diagnostic identities, reason codes,
    indexing references, and unbounded alternatives.
@@ -401,18 +405,17 @@ backend collections; preserve backend order and cap only display projection.
 
 ### Release boundary
 
-Phase 1a changed MCP default text and added `partialResults` to both MCP JSON and
-root CLI `--json`. Its independent fragment uses `githits: patch` and
+Phase 1 changes shared MCP/CLI text and adds `partialResults` to both MCP JSON and
+root CLI `--json`. Its single cohesive fragment uses `githits: patch` and
 `@githits/mcp: patch`. Patch is appropriate because this corrects
 misleading/duplicated output within the current minor and adds one structured truth
 field without removing or redefining existing fields. The 0.11.0 precedent is not
 comparable: it added public `quick_start`/configuration APIs and a deprecation path;
 the closer 0.6.4 agent-facing search/recovery change was a patch. Retain patch/patch.
 
-Phase 1b changes CLI terminal presentation only, so add a separate fragment with
-`githits: patch` and `@githits/mcp: none` unless implementation evidence shows it also
-changes MCP package behavior. Do not edit `CHANGELOG.md` or package versions outside
-release preparation.
+The formatter ownership correction is part of that same user-visible search-output
+fix, so it does not add a second fragment. Do not edit `CHANGELOG.md` or package
+versions outside release preparation.
 
 Phase 2 will add its own fragment. Expected impact is `githits: patch` and
 `@githits/mcp: none` if it changes only CLI ANSI styling; re-evaluate if shared MCP
@@ -432,26 +435,23 @@ text changes.
 
 ### Phase 1a — Shared semantics and MCP text become outcome-first
 
-- Status: **COMPLETE** (implemented, verified, and clean-reviewed; awaiting draft
-  PR/merge)
+- Status: **COMPLETE**
 - Delivered: structured search payloads preserve actual partialness, one pure model
   owns lifecycle/availability/trust/action decisions, and MCP `text-v1` clearly
   states what was returned without duplicate lifecycle prose. Source provenance
   keeps explicit searched-target context separate from served/contributor identity.
-- Verification: see `Final Phase 1a evidence` above. No major Phase 1a item is
+- Verification: see `Final integrated Phase 1 evidence` above. No major Phase 1a item is
   deferred and no Phase 1a TODO remains.
-- Next dependency: Phase 1b starts after this phase merges and reorientation checks
-  the shared model against current `origin/main`.
 
 ### Phase 1b — CLI search output gains the same hierarchy and useful color
 
-- Status: **PENDING ON PHASE 1A**
-- Expected outcome: the reported CLI case fits in one short screenful, full/interim/
-  partial states use the shared decisions, and color emphasizes status and action.
-- Assumptions: Phase 1a's model is sufficient without CLI-only semantic fields.
-- Unknowns or product decisions: none.
-- Dependencies: Phase 1a merged and reorientation confirms the shared model contract.
-- Acceptance criteria: the CLI portions of the detailed criteria below.
+- Status: **COMPLETE** (final integrated verification/review pending)
+- Delivered: CLI search/search-status invoke the same shared formatter as MCP;
+  callers vary only ANSI and command dialect. The reported active-empty case is
+  concise, CLI actions are directly executable, and 780 lines of duplicated private
+  CLI formatting were deleted.
+- Verification: targeted CLI/shared/status tests, ANSI-stripped parity, typecheck,
+  lint, and format checks pass. Full gates and follow-up review remain below.
 
 ### Phase 2 — Proven terminal hierarchy becomes consistent across commands
 
@@ -474,11 +474,11 @@ text changes.
 
 ### Expected outcome
 
-Phase 1a delivered correct, compact MCP text and structured JSON. Phase 1b remains
-responsible for making the reported CLI case fit in one short screenful. Interim,
-actual partial, completed, stale/provisional, terminal, and unknown cases use the
-same hierarchy. CLI and MCP text cannot independently reintroduce duplicate
-lifecycle prose because they consume one shared semantic projection.
+Phase 1 delivers correct structured truth plus one shared compact formatter for CLI
+and MCP. Interim, actual partial, completed, stale/provisional, terminal, and unknown
+cases use the same hierarchy. The surfaces cannot independently reintroduce duplicate
+lifecycle prose because both presentation decisions and final text layout have one
+owner.
 
 ### Likely affected components
 
@@ -490,10 +490,8 @@ lifecycle prose because they consume one shared semantic projection.
   from current prose helpers
 - `packages/mcp/src/internal.ts`
 - `src/commands/search.ts`
-- likely new `src/commands/search-terminal.ts`
-- search-specific semantic color wrappers in `src/commands/search-terminal.ts`; keep
-  CLI-only roles out of the MCP package and touch `packages/mcp/src/shared/colors.ts`
-  only if an existing primitive is genuinely missing
+- `packages/mcp/src/shared/follow-up-command-text.ts` for surface-native commands
+- existing shared color primitives; no CLI-only renderer or new framework
 - colocated response, presentation, renderer, tool, command, parity, smoke, and color
   tests
 - implementation documentation and the phase-specific changes fragments
@@ -511,31 +509,14 @@ boundary uses `searchTarget` for searched package context, keeps `target` as ser
 contributor identity, and retains requested/fresh/served divergence only in progress
 and trust facts. No further Phase 1a execution is pending.
 
-#### Phase 1b — CLI renderer and color hierarchy
+#### Phase 1b — shared CLI/MCP formatter and color hierarchy (complete)
 
-1. Extract the CLI terminal formatter from command orchestration so tests can pass an
-   explicit color mode and terminal width without mocking I/O. Render the same model
-   with CLI-native commands and the defined color hierarchy. Keep `searchAction()` and
-   `searchStatusAction()` responsible only for request orchestration, JSON selection,
-   and printing.
-2. Add structural CLI tests for section order, single occurrence of each state fact,
-   bounded alternatives, no-result versus no-snapshot wording, terminal handling,
-   color roles, `NO_COLOR`, and narrow terminals. Avoid broad brittle snapshots.
-3. Add one table-driven decision-parity test that feeds the same state fixtures through
-   both renderer adapters, asserting agreement on availability, exact lifecycle,
-   trust-limit set, and action kind/reference while allowing surface-native prose and
-   command syntax.
-4. Strengthen CLI smoke with structural assertions that cannot pass merely because the
-   output contains `search`: the first non-spinner line is an outcome headline, a
-   lifecycle headline is not followed by a duplicate `status:` line, and any
-   `searchRef` appears only in the `Next:` action.
-5. Update permanent CLI documentation and add the Phase 1b release fragment. Do not
-   edit versions, generated plugin assets, or changelogs.
-6. Run the verification suite and inspect the actual color/no-color output for the
-    supplied regression fixture at representative narrow and wide terminal widths.
-7. Run targeted agent evaluation for search lifecycle workloads and inspect
-    `tool-calls.json` and `final.json` for continuation accuracy, duplicate guidance,
-    token use, `toolIssues`, and `instructionIssues`.
+The CLI now passes its payload to `renderUnifiedSearchSuccess()` or
+`renderUnifiedSearchStatusText()` with `useColors` and `actionSyntax: "cli"`.
+MCP uses the same functions with no color and MCP action syntax. Shared tests prove
+the same layout with substituted continuation commands; CLI tests prove initial and
+status equality for the n8n regression plus ANSI-stripped text parity. The private
+CLI search/status formatter and its duplicate hit/provenance helpers were deleted.
 
 ### Edge cases and failure behavior
 
@@ -568,8 +549,8 @@ and trust facts. No further Phase 1a execution is pending.
 
 ### Phase 1a and 1b acceptance criteria
 
-The MCP/JSON criteria below are verified by Phase 1a. Criteria explicitly naming
-CLI terminal output, color, or CLI smoke remain pending Phase 1b.
+Implementation criteria below are verified by targeted tests. Full integrated gates,
+CLI smoke, and follow-up review remain pending at this checkpoint.
 
 - The n8n-shaped active empty-snapshot CLI fixture starts with indexing, contains one
   readiness summary, distinguishes waiting from available-but-unsearched evidence,
@@ -587,24 +568,25 @@ CLI terminal output, color, or CLI smoke remain pending Phase 1b.
   or an atomic interim snapshot partial.
 - No-snapshot states never claim zero hits; completed empty snapshots never imply
   sources were searched when they were not.
-- CLI and MCP text share the same availability/lifecycle/trust/action decisions and
-  differ only in human styling, result anatomy, and command syntax.
-- One table-driven dual-renderer test enforces those shared decisions for every state
-  fixture rather than relying only on separate renderer suites.
+- CLI and MCP invoke the same formatter and differ only in ANSI enablement and
+  surface-native command syntax.
+- Shared-renderer parity tests substitute the surface action and assert the remaining
+  text is identical; CLI tests assert search/status equality for the n8n fixture.
 - `--json` and `format: "json"` remain equal and add the exact `partialResults` Boolean;
   full diagnostic fields and alternative lists remain available.
 - Active states have one continuation action; terminal/unknown states obey existing
   conservative no-polling rules.
-- MCP text retains the three documented anti-repeat directives and all four conditional
+- Shared text retains the three documented anti-repeat directives and all four conditional
   empty-result pivot-suppression rules.
-- CLI status hierarchy remains readable with colors disabled and at narrow width.
+- CLI status hierarchy remains readable with colors disabled, and ANSI-stripped color
+  output is identical to no-color output.
 - Explicit tests cover all listed states and the existing targeted baseline remains
   green after updated expectations.
 - Required unit, parity, smoke, build, package-validation, and qualitative agent checks
   pass or any environment-only limitation is reported with exact evidence.
 - CLI smoke structurally verifies the outcome-first headline, absence of duplicate
   `status:` prose, and single action-contained `searchRef` when continuation exists.
-- Permanent docs and each increment's independent changes fragment match implemented
+- Permanent docs and the cohesive Phase 1 changes fragment match implemented
   behavior.
 
 ### Verification
@@ -633,10 +615,7 @@ proportionate gates.
 
 ## Phase-boundary reorientation
 
-After Phase 1a merges, re-check current `origin/main` and reorient Phase 1b. Confirm
-the shared presentation contract requires no CLI-only semantic additions; export the
-presentation model through `@githits/mcp/internal` only if the CLI renderer needs it.
-After Phase 1b merges, run `$next-steps` before detailing Phase 2. Record observed color/no-color
+After Phase 1 merges, run `$next-steps` before detailing Phase 2. Record observed color/no-color
 output, accepted/rejected UX rules, test/eval evidence, and any command-specific
 exceptions. Then inventory the remaining formatter call sites using those proven rules,
 select the smallest coherent command cohort, and add exact files and test tactics for
