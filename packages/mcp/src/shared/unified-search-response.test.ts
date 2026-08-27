@@ -85,6 +85,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
 
     expect(payload.completed).toBe(true);
+    expect(payload.partialResults).toBe(false);
     expect(payload.results.length).toBe(1);
     expect(payload.results[0]).toMatchObject({
       type: "repository_code",
@@ -222,6 +223,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
         next: 'search_status search_ref="search-ref-123" wait_timeout_ms=20000',
       },
     });
+    expect(payload).not.toHaveProperty("partialResults");
   });
 
   it("normalises incomplete outcomes with opt-in partial results", () => {
@@ -256,8 +258,66 @@ describe("buildUnifiedSearchSuccessPayload", () => {
 
     expect(payload.completed).toBe(false);
     expect(payload.query.allowPartialResults).toBe(true);
+    expect(payload.partialResults).toBe(true);
     expect(payload.results.length).toBe(1);
     expect(payload.results[0]?.target).toBe("npm:express@4.18.2");
+  });
+
+  it("preserves false on an incomplete result snapshot", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        state: "incomplete",
+        completed: false,
+        searchRef: "search-ref-interim",
+        result: {
+          ...defaultUnifiedSearchOutcome.result,
+          partialResults: false,
+        },
+        progress: {
+          searchRef: "search-ref-interim",
+          status: "INDEXING",
+          targetsTotal: 1,
+          targetsReady: 1,
+          elapsedMs: 200,
+          query: "router middleware",
+          queryWarnings: [],
+          sources: ["CODE"],
+        },
+      },
+    );
+
+    expect(payload.completed).toBe(false);
+    if (payload.completed) throw new Error("expected incomplete payload");
+    expect(payload.partialResults).toBe(false);
+  });
+
+  it("preserves true on a completed initial result", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        ...defaultUnifiedSearchOutcome,
+        result: {
+          ...defaultUnifiedSearchOutcome.result,
+          partialResults: true,
+        },
+      },
+    );
+
+    expect(payload.completed).toBe(true);
+    expect(payload.partialResults).toBe(true);
   });
 
   it("preserves terminal deferred evidence and directs a later new search", () => {
@@ -2276,6 +2336,7 @@ describe("buildUnifiedSearchStatusPayload", () => {
         next: 'search_status search_ref="search-ref-123" wait_timeout_ms=20000',
       },
     });
+    expect(payload).not.toHaveProperty("partialResults");
   });
 
   it("builds a completed status payload without fabricating the original request", () => {
@@ -2298,6 +2359,7 @@ describe("buildUnifiedSearchStatusPayload", () => {
         sources: ["code"],
       },
       sources: ["code"],
+      partialResults: false,
       hasMore: false,
       results: [
         expect.objectContaining({
@@ -2306,6 +2368,84 @@ describe("buildUnifiedSearchStatusPayload", () => {
         }),
       ],
     });
+  });
+
+  it("preserves false on an incomplete status result", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const payload = buildUnifiedSearchStatusPayload({
+      state: "incomplete",
+      completed: false,
+      searchRef: "search-ref-interim",
+      progress: {
+        searchRef: "search-ref-interim",
+        status: "INDEXING",
+        targetsTotal: 1,
+        targetsReady: 1,
+        elapsedMs: 200,
+        query: "router middleware",
+        queryWarnings: [],
+        sources: ["CODE"],
+      },
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        partialResults: false,
+      },
+    });
+
+    expect(payload.completed).toBe(false);
+    if (payload.completed) throw new Error("expected incomplete payload");
+    expect(payload.result?.partialResults).toBe(false);
+  });
+
+  it("preserves true on a completed status result", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const payload = buildUnifiedSearchStatusPayload({
+      ...defaultUnifiedSearchOutcome,
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        partialResults: true,
+      },
+    });
+
+    expect(payload.completed).toBe(true);
+    if (!payload.completed) throw new Error("expected completed payload");
+    expect(payload.result.partialResults).toBe(true);
+  });
+
+  it("preserves partial results on incomplete status payloads", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+
+    const payload = buildUnifiedSearchStatusPayload({
+      state: "incomplete",
+      completed: false,
+      searchRef: "search-ref-partial",
+      progress: {
+        searchRef: "search-ref-partial",
+        status: "INDEXING",
+        targetsTotal: 1,
+        targetsReady: 1,
+        elapsedMs: 200,
+        query: "router middleware",
+        queryWarnings: [],
+        sources: ["CODE"],
+      },
+      result: {
+        ...defaultUnifiedSearchOutcome.result,
+        partialResults: true,
+      },
+    });
+
+    expect(payload.completed).toBe(false);
+    if (payload.completed) throw new Error("expected incomplete payload");
+    expect(payload.result?.partialResults).toBe(true);
   });
 
   it.each(["DEFERRED", "FAILED", "TIMEOUT"] as const)(

@@ -13,6 +13,7 @@ describe("renderUnifiedSearchStatusText", () => {
       completed: true,
       searchRef: "search-ref-docs",
       result: {
+        partialResults: false,
         hasMore: false,
         results: [],
         evidenceNotice: notice,
@@ -62,6 +63,7 @@ describe("renderUnifiedSearchStatusText", () => {
       completed: true,
       searchRef: "search-ref-healthy",
       result: {
+        partialResults: false,
         hasMore: false,
         results: [],
         sourceStatus: [
@@ -85,6 +87,7 @@ describe("renderUnifiedSearchStatusText", () => {
       completed: true,
       searchRef: "search-ref-unsearched",
       result: {
+        partialResults: false,
         hasMore: false,
         results: [],
         sourceStatus: [
@@ -117,6 +120,7 @@ describe("renderUnifiedSearchStatusText", () => {
       completed: true,
       searchRef: "search-ref-healthy",
       result: {
+        partialResults: false,
         hasMore: false,
         results: [
           {
@@ -159,6 +163,7 @@ describe("renderUnifiedSearchStatusText", () => {
       completed: true,
       searchRef: "search-ref-evidence",
       result: {
+        partialResults: false,
         hasMore: false,
         evidenceNotice: "Results may change after pending work completes.",
         results: [
@@ -185,6 +190,7 @@ describe("renderUnifiedSearchStatusText", () => {
       completed: true,
       searchRef: "search-ref-evidence",
       result: {
+        partialResults: false,
         hasMore: false,
         evidenceNotice: "Results may change after pending work completes.",
         results: [],
@@ -204,6 +210,7 @@ describe("renderUnifiedSearchStatusText", () => {
       completed: false,
       searchRef: "search-ref-incomplete",
       result: {
+        partialResults: false,
         hasMore: false,
         results: [
           {

@@ -74,6 +74,7 @@ function completed(
   return {
     query: { raw: "diff myers" },
     completed: true,
+    partialResults: false,
     hasMore: false,
     results,
     ...overrides,
