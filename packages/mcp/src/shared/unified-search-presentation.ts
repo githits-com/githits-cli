@@ -48,7 +48,12 @@ export type UnifiedSearchSourceReadiness =
 export interface UnifiedSearchSourceEntry {
   state: UnifiedSearchSourceReadiness;
   target: string;
+  contextTarget?: string;
   resultCount?: number;
+  repositoryUrl?: string;
+  commitSha?: string;
+  siteKey?: string;
+  siteUrl?: string;
 }
 
 export interface UnifiedSearchSourceGroup {
@@ -126,6 +131,7 @@ export type UnifiedSearchWarning =
 
 export type UnifiedSearchAction =
   | { kind: "poll"; searchRef: string }
+  | { kind: "status"; searchRef: string }
   | { kind: "new_search" }
   | {
       kind: "indexed_alternative";
@@ -135,13 +141,16 @@ export type UnifiedSearchAction =
     }
   | {
       kind: "query_rewrite";
-      rewrite:
-        | "shorter_or_broader"
-        | "remove_filters"
-        | "symbol"
-        | "site_shorter_or_broader";
+      rewrites: UnifiedSearchRewriteKind[];
     }
   | { kind: "none" };
+
+export type UnifiedSearchRewriteKind =
+  | "shorter_or_broader"
+  | "remove_filters"
+  | "symbol"
+  | "code_grep"
+  | "site_shorter_or_broader";
 
 export interface UnifiedSearchPresentation {
   availability: UnifiedSearchAvailability;
@@ -347,13 +356,10 @@ function projectSources(
       for (const contributor of entry.contributors) {
         const kind =
           contributor.kind === "DOCPACK" ? "site_docs" : "repository_docs";
+        const identity = contributorIdentity(entry, contributor);
         appendSourceEntry(groups, kind, {
           state: contributorState(contributor.state),
-          target: contributorTarget(
-            entry,
-            contributor.kind,
-            contributor.siteUrl,
-          ),
+          ...identity,
           resultCount: contributor.resultCount,
         });
       }
@@ -389,13 +395,35 @@ function sourceKind(
     : "repository_docs";
 }
 
-function contributorTarget(
+function contributorIdentity(
   entry: UnifiedSearchSourceStatusPayload,
-  kind: "REPOSITORY_DOCS" | "DOCPACK",
-  siteUrl: string | undefined,
-): string {
-  if (kind === "DOCPACK" && siteUrl) return siteUrl;
-  return sourceTarget(entry);
+  contributor: NonNullable<
+    UnifiedSearchSourceStatusPayload["contributors"]
+  >[number],
+): Pick<
+  UnifiedSearchSourceEntry,
+  | "target"
+  | "contextTarget"
+  | "repositoryUrl"
+  | "commitSha"
+  | "siteKey"
+  | "siteUrl"
+> {
+  const contextTarget = sourceTarget(entry);
+  const target =
+    contributor.kind === "REPOSITORY_DOCS"
+      ? (contributor.repositoryUrl ?? contextTarget)
+      : (contributor.siteUrl ?? contributor.siteKey ?? contextTarget);
+  return {
+    target,
+    ...(target !== contextTarget ? { contextTarget } : {}),
+    ...(contributor.repositoryUrl
+      ? { repositoryUrl: contributor.repositoryUrl }
+      : {}),
+    ...(contributor.commitSha ? { commitSha: contributor.commitSha } : {}),
+    ...(contributor.siteKey ? { siteKey: contributor.siteKey } : {}),
+    ...(contributor.siteUrl ? { siteUrl: contributor.siteUrl } : {}),
+  };
 }
 
 function sourceTarget(entry: UnifiedSearchSourceStatusPayload): string {
@@ -495,18 +523,14 @@ function projectTrustLimits(
     const kind = sourceKind(entry);
     addCoverage(add, kind, target, entry.coverage);
     for (const contributor of entry.contributors ?? []) {
-      const contributorTargetValue = contributorTarget(
-        entry,
-        contributor.kind,
-        contributor.siteUrl,
-      );
+      const contributorTargetValue = contributorIdentity(entry, contributor);
       if (contributor.freshness === "STALE") {
-        add({ kind: "stale", target: contributorTargetValue });
+        add({ kind: "stale", target: contributorTargetValue.target });
       }
       addCoverage(
         add,
         contributor.kind === "DOCPACK" ? "site_docs" : "repository_docs",
-        contributorTargetValue,
+        contributorTargetValue.target,
         contributor.coverage,
       );
     }
@@ -683,6 +707,13 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
   ) {
     return { kind: "new_search" };
   }
+  if (
+    input.lifecycle.kind === "completed" &&
+    input.snapshot?.evidenceNotice !== undefined
+  ) {
+    const searchRef = extractSearchRef(input.payload);
+    if (searchRef) return { kind: "status", searchRef };
+  }
   if (!input.snapshot || input.availability.kind !== "empty") {
     return { kind: "none" };
   }
@@ -708,17 +739,18 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
   if (isStandaloneSiteSearch(input.snapshot.sourceStatus)) {
     return {
       kind: "query_rewrite",
-      rewrite: "site_shorter_or_broader",
+      rewrites: ["site_shorter_or_broader"],
     };
   }
   const query = input.snapshot.query;
-  if (hasRestrictiveFilters(query)) {
-    return { kind: "query_rewrite", rewrite: "remove_filters" };
-  }
-  if (!query?.sources?.includes("symbol")) {
-    return { kind: "query_rewrite", rewrite: "shorter_or_broader" };
-  }
-  return { kind: "query_rewrite", rewrite: "shorter_or_broader" };
+  const rewrites: UnifiedSearchRewriteKind[] = ["shorter_or_broader"];
+  if (hasRestrictiveFilters(query)) rewrites.push("remove_filters");
+  const symbolSource = query?.sources?.some(
+    (source) => source.toLowerCase() === "symbol",
+  );
+  if (!symbolSource) rewrites.push("symbol");
+  rewrites.push("code_grep");
+  return { kind: "query_rewrite", rewrites };
 }
 
 function firstAlternative(

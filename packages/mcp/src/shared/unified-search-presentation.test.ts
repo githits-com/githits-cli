@@ -176,6 +176,36 @@ describe("projectUnifiedSearchPresentation", () => {
     expect(presentation.action).toEqual({ kind: "none" });
   });
 
+  it("continues completed mutable evidence through the exact initial reference", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        searchRef: "search-ref-initial",
+        evidenceNotice: "opaque notice",
+      }),
+    );
+
+    expect(presentation.action).toEqual({
+      kind: "status",
+      searchRef: "search-ref-initial",
+    });
+  });
+
+  it("continues completed mutable evidence through the exact status reference", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      statusCompleted(
+        statusResult({
+          results: [hit],
+          evidenceNotice: "opaque notice",
+        }),
+      ),
+    );
+
+    expect(presentation.action).toEqual({
+      kind: "status",
+      searchRef: "search-ref-1",
+    });
+  });
+
   it("classifies an empty searched snapshot and eligible pivots", () => {
     const presentation = projectUnifiedSearchPresentation(
       completed({ results: [], sourceStatus: [source({ resultCount: 0 })] }),
@@ -200,7 +230,7 @@ describe("projectUnifiedSearchPresentation", () => {
     ]);
     expect(presentation.action).toEqual({
       kind: "query_rewrite",
-      rewrite: "shorter_or_broader",
+      rewrites: ["shorter_or_broader", "symbol", "code_grep"],
     });
   });
 
@@ -333,19 +363,30 @@ describe("projectUnifiedSearchPresentation", () => {
         entries: [
           {
             state: "searched",
-            target: "npm:express@5.1.0",
+            target: "https://github.com/expressjs/express",
+            contextTarget: "npm:express@5.1.0",
             resultCount: 1,
+            repositoryUrl: "https://github.com/expressjs/express",
           },
         ],
       },
       {
         kind: "site_docs",
         entries: [
-          { state: "waiting", target: "npm:express@5.1.0", resultCount: 0 },
+          {
+            state: "waiting",
+            target: "expressjs.com",
+            contextTarget: "npm:express@5.1.0",
+            resultCount: 0,
+            siteKey: "expressjs.com",
+          },
           {
             state: "available_not_searched",
             target: "https://api.example.com/reference",
+            contextTarget: "npm:express@5.1.0",
             resultCount: 0,
+            siteKey: "api.example.com",
+            siteUrl: "https://api.example.com/reference",
           },
         ],
       },
@@ -357,7 +398,7 @@ describe("projectUnifiedSearchPresentation", () => {
         kind: "source",
         state: "waiting",
         source: "site_docs",
-        target: "npm:express@5.1.0",
+        target: "expressjs.com",
       },
       {
         kind: "source",
@@ -366,6 +407,77 @@ describe("projectUnifiedSearchPresentation", () => {
         target: "https://api.example.com/reference",
       },
     ]);
+  });
+
+  it("retains repository and site contributor identities", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "npm:express@5.1.0",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/expressjs/express",
+                commitSha: "0123456789abcdef",
+              },
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                freshness: "STALE",
+                resultCount: 1,
+                siteKey: "expressjs.com",
+                coverage: { coverageState: "PARTIAL", pagesCrawled: 120 },
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.sources).toEqual([
+      {
+        kind: "repository_docs",
+        entries: [
+          {
+            state: "searched",
+            target: "https://github.com/expressjs/express",
+            contextTarget: "npm:express@5.1.0",
+            resultCount: 1,
+            repositoryUrl: "https://github.com/expressjs/express",
+            commitSha: "0123456789abcdef",
+          },
+        ],
+      },
+      {
+        kind: "site_docs",
+        entries: [
+          {
+            state: "searched",
+            target: "expressjs.com",
+            contextTarget: "npm:express@5.1.0",
+            resultCount: 1,
+            siteKey: "expressjs.com",
+          },
+        ],
+      },
+    ]);
+    expect(presentation.trustLimits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "stale",
+          target: "expressjs.com",
+        }),
+        expect.objectContaining({
+          kind: "coverage",
+          source: "site_docs",
+          target: "expressjs.com",
+        }),
+      ]),
+    );
   });
 
   it("keeps progress-only source status empty while projecting target readiness", () => {
@@ -659,7 +771,7 @@ describe("projectUnifiedSearchPresentation", () => {
 
     expect(presentation.action).toEqual({
       kind: "query_rewrite",
-      rewrite: "site_shorter_or_broader",
+      rewrites: ["site_shorter_or_broader"],
     });
   });
 
@@ -679,11 +791,11 @@ describe("projectUnifiedSearchPresentation", () => {
 
     expect(filtered.action).toEqual({
       kind: "query_rewrite",
-      rewrite: "remove_filters",
+      rewrites: ["shorter_or_broader", "remove_filters", "symbol", "code_grep"],
     });
     expect(symbol.action).toEqual({
       kind: "query_rewrite",
-      rewrite: "shorter_or_broader",
+      rewrites: ["shorter_or_broader", "code_grep"],
     });
   });
 
