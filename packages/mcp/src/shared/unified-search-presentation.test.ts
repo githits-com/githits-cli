@@ -221,6 +221,7 @@ describe("projectUnifiedSearchPresentation", () => {
           {
             state: "searched",
             target: "npm:express@4.18.2",
+            searchTarget: "npm:express@4.18.2",
             resultCount: 0,
           },
         ],
@@ -254,6 +255,7 @@ describe("projectUnifiedSearchPresentation", () => {
           {
             state: "searched",
             target: "npm:express@4.18.2",
+            searchTarget: "npm:express@4.18.2",
             resultCount: 0,
           },
         ],
@@ -284,6 +286,7 @@ describe("projectUnifiedSearchPresentation", () => {
             {
               state: "unavailable",
               target: "npm:express@4.18.2",
+              searchTarget: "npm:express@4.18.2",
               resultCount: 0,
             },
           ],
@@ -310,6 +313,7 @@ describe("projectUnifiedSearchPresentation", () => {
             {
               state: "searched",
               target: "npm:express@4.18.2",
+              searchTarget: "npm:express@4.18.2",
               resultCount: 0,
             },
           ],
@@ -466,7 +470,7 @@ describe("projectUnifiedSearchPresentation", () => {
           {
             state: "searched",
             target: "https://github.com/expressjs/express",
-            contextTarget: "npm:express@5.1.0",
+            searchTarget: "npm:express@5.1.0",
             resultCount: 1,
             repositoryUrl: "https://github.com/expressjs/express",
           },
@@ -478,14 +482,14 @@ describe("projectUnifiedSearchPresentation", () => {
           {
             state: "waiting",
             target: "expressjs.com",
-            contextTarget: "npm:express@5.1.0",
+            searchTarget: "npm:express@5.1.0",
             resultCount: 0,
             siteKey: "expressjs.com",
           },
           {
             state: "available_not_searched",
             target: "https://api.example.com/reference",
-            contextTarget: "npm:express@5.1.0",
+            searchTarget: "npm:express@5.1.0",
             resultCount: 0,
             siteKey: "api.example.com",
             siteUrl: "https://api.example.com/reference",
@@ -547,7 +551,7 @@ describe("projectUnifiedSearchPresentation", () => {
           {
             state: "searched",
             target: "https://github.com/expressjs/express",
-            contextTarget: "npm:express@5.1.0",
+            searchTarget: "npm:express@5.1.0",
             resultCount: 1,
             repositoryUrl: "https://github.com/expressjs/express",
             commitSha: "0123456789abcdef",
@@ -560,7 +564,7 @@ describe("projectUnifiedSearchPresentation", () => {
           {
             state: "searched",
             target: "expressjs.com",
-            contextTarget: "npm:express@5.1.0",
+            searchTarget: "npm:express@5.1.0",
             resultCount: 1,
             siteKey: "expressjs.com",
           },
@@ -779,6 +783,7 @@ describe("projectUnifiedSearchPresentation", () => {
           {
             state: "waiting",
             target: "npm:n8n@2.36.7",
+            searchTarget: "npm:n8n@2.36.7",
             resultCount: 0,
           },
         ],
@@ -789,7 +794,7 @@ describe("projectUnifiedSearchPresentation", () => {
           {
             state: "available_not_searched",
             target: "https://n8n.io",
-            contextTarget: "npm:n8n@2.36.7",
+            searchTarget: "npm:n8n@2.36.7",
             resultCount: 0,
             siteKey: "n8n.io",
             siteUrl: "https://n8n.io",
@@ -802,7 +807,7 @@ describe("projectUnifiedSearchPresentation", () => {
           {
             state: "waiting",
             target: "https://github.com/n8n-io/n8n",
-            contextTarget: "npm:n8n@2.36.7",
+            searchTarget: "npm:n8n@2.36.7",
             resultCount: 0,
             repositoryUrl: "https://github.com/n8n-io/n8n",
           },

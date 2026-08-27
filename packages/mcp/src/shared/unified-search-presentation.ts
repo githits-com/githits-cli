@@ -52,7 +52,7 @@ export type UnifiedSearchSourceReadiness =
 export interface UnifiedSearchSourceEntry {
   state: UnifiedSearchSourceReadiness;
   target: string;
-  contextTarget?: string;
+  searchTarget: string;
   resultCount?: number;
   repositoryUrl?: string;
   commitSha?: string;
@@ -63,7 +63,7 @@ export interface UnifiedSearchSourceEntry {
 type SourceIdentity = Pick<
   UnifiedSearchSourceEntry,
   | "target"
-  | "contextTarget"
+  | "searchTarget"
   | "repositoryUrl"
   | "commitSha"
   | "siteKey"
@@ -416,14 +416,14 @@ function contributorIdentity(
     UnifiedSearchSourceStatusPayload["contributors"]
   >[number],
 ): SourceIdentity {
-  const contextTarget = sourceTarget(entry);
+  const searchTarget = sourceTarget(entry);
   const target =
     contributor.kind === "REPOSITORY_DOCS"
-      ? (contributor.repositoryUrl ?? contextTarget)
-      : (contributor.siteUrl ?? contributor.siteKey ?? contextTarget);
+      ? (contributor.repositoryUrl ?? searchTarget)
+      : (contributor.siteUrl ?? contributor.siteKey ?? searchTarget);
   return {
     target,
-    ...(target !== contextTarget ? { contextTarget } : {}),
+    searchTarget,
     ...(contributor.repositoryUrl
       ? { repositoryUrl: contributor.repositoryUrl }
       : {}),
@@ -438,9 +438,6 @@ function sourceIdentity(
   kind: UnifiedSearchSourceKind,
 ): SourceIdentity {
   const target = sourceTarget(entry);
-  const contextTarget = entry.requestedTarget ?? entry.freshTarget;
-  const context =
-    contextTarget && contextTarget !== target ? { contextTarget } : {};
   const served = entry.targetResolution?.served;
   const identity =
     kind === "repository_docs"
@@ -451,7 +448,7 @@ function sourceIdentity(
       : kind === "site_docs" && served?.site
         ? { siteKey: served.site }
         : {};
-  return { target, ...context, ...identity };
+  return { target, searchTarget: target, ...identity };
 }
 
 function sourceTarget(entry: UnifiedSearchSourceStatusPayload): string {

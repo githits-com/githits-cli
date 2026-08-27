@@ -163,21 +163,28 @@ function presentationTarget(
   presentation: UnifiedSearchPresentation,
   results: UnifiedSearchHitPayload[],
 ): string | undefined {
-  if (!results.length && presentation.targets[0]) {
+  if (presentation.targets.length > 1) return undefined;
+  if (results.length > 0) {
+    const sourceTargets = presentation.sources.flatMap((group) =>
+      group.entries.map((entry) => entry.searchTarget),
+    );
+    const identities = [
+      ...results.map((result) => result.target),
+      ...sourceTargets,
+    ];
+    if (new Set(identities).size > 1) return undefined;
+    return results[0]?.target;
+  }
+  if (presentation.targets.length === 1) {
     const target = presentation.targets[0];
-    return target.served ?? target.fresh ?? target.requested;
+    return target?.served ?? target?.fresh ?? target?.requested;
   }
   const sourceTargets = presentation.sources.flatMap((group) =>
-    group.entries.map((entry) => entry.target),
+    group.entries.map((entry) => entry.searchTarget),
   );
-  const identities = [
-    ...results.map((result) => result.target),
-    ...sourceTargets,
-  ].filter((value): value is string => Boolean(value));
-  if (new Set(identities).size > 1) return undefined;
-  if (results[0]) return results[0].target;
+  if (new Set(sourceTargets).size > 1) return undefined;
   const source = presentation.sources[0]?.entries[0];
-  return source?.contextTarget ?? source?.target;
+  return source?.searchTarget ?? source?.target;
 }
 
 function appendPresentationContext(
@@ -231,9 +238,7 @@ function appendPresentationSources(
     { state: "unavailable", label: "Unavailable" },
   ];
   const contextTargets = new Set(
-    groups.flatMap((group) =>
-      group.entries.map((entry) => entry.contextTarget ?? entry.target),
-    ),
+    groups.flatMap((group) => group.entries.map((entry) => entry.searchTarget)),
   );
   const showTargetContext = contextTargets.size > 1;
   for (const { state, label } of states) {
@@ -258,10 +263,8 @@ function formatSourceReadiness(
   showTargetContext: boolean,
 ): string {
   const sourceLabel = sourceGroupLabel(group.kind);
-  const contextTarget = showTargetContext
-    ? (entry.contextTarget ?? entry.target)
-    : undefined;
-  const contextSuffix = contextTarget ? ` for ${contextTarget}` : "";
+  const searchTarget = showTargetContext ? entry.searchTarget : undefined;
+  const contextSuffix = searchTarget ? ` for ${searchTarget}` : "";
   if (entry.state === "unavailable") {
     return `${sourceLabel} (${entry.target})${contextSuffix}`;
   }

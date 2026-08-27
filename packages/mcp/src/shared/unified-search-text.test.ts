@@ -273,6 +273,26 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text.match(/Next:/g)).toHaveLength(1);
   });
 
+  it("omits a singular target for multiple active progress targets", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 2,
+          elapsedMs: 100,
+          targets: [
+            { requested: "npm:one@1.0.0", freshness: "INDEXING" },
+            { requested: "npm:two@2.0.0", freshness: "INDEXING" },
+          ],
+        },
+      }),
+    );
+
+    expect(firstLine(text)).toBe("Indexing - no result snapshot returned yet");
+    expect(text).toContain("Ready: 0/2 targets");
+  });
+
   it("does not invent source details for a true progress-only response", () => {
     const text = renderUnifiedSearchSuccess(
       incomplete({
@@ -699,6 +719,44 @@ describe("renderUnifiedSearchSuccess", () => {
 
     expect(firstLine(text)).toBe("No results returned from npm:express@5.2.1");
   });
+
+  it.each([
+    [
+      "github:expressjs/express#main",
+      "github:expressjs/express#main",
+      "npm:express@5.2.1",
+      "npm:express@5.1.0",
+    ],
+    [
+      "npm:express@5.2.1",
+      "npm:express latest",
+      "npm:express@5.2.1",
+      "npm:express@5.1.0",
+    ],
+  ] as const)(
+    "uses the served package for a requested %s source",
+    (targetLabel, requestedTarget, freshTarget, servedTarget) => {
+      const text = renderUnifiedSearchSuccess(
+        completed([], {
+          sourceStatus: [
+            source({
+              targetLabel,
+              requestedTarget,
+              freshTarget,
+              servedTarget,
+              codeIndexState: "INDEXING",
+            }),
+          ],
+        }),
+      );
+
+      expect(firstLine(text)).toBe(
+        "No results returned from npm:express@5.1.0",
+      );
+      expect(firstLine(text)).not.toContain(targetLabel);
+      expect(firstLine(text)).not.toContain(freshTarget);
+    },
+  );
 
   it("turns an evidence notice into one concise mutable-evidence action", () => {
     const text = renderUnifiedSearchSuccess(
