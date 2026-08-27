@@ -70,13 +70,15 @@ When this work is complete:
    human/color rendering; the reported screenshot/color problem remains Phase 1b
    by design.
 
-### Final Phase 1a evidence
+### Final integrated Phase 1a evidence
 
-- `bun test`: 3,329 tests passed, 0 failed, 10,684 expects across 182 files.
-- `bun run typecheck`, `bun run format:check`, and `bun run lint`: clean.
-- Root and `packages/mcp` builds passed.
-- `bun run validate:packages` and `bun run validate:packages:mcp-publish` passed.
-- Source `bun run smoke:cli` and `bun run smoke:mcp` passed.
+- `bun test`: 3,364 tests passed, 0 failed, 10,825 expects across 184 files.
+- `bun run typecheck`: clean; format and lint checked 437 files clean.
+- Root and `packages/mcp` builds passed on merged `origin/main`.
+- `bun run validate:packages` and `bun run validate:packages:mcp-publish` passed;
+  the publish dry-run was skipped because `@githits/mcp@0.11.0` is already
+  published.
+- Source `bun run smoke:cli` and `bun run smoke:mcp` passed on merged `origin/main`.
 - Targeted `unified-search-investigation` agent E2E succeeded with both Claude
   and Codex; usefulness was helped/high confidence. The discovered symbol-label
   bug was fixed.
@@ -86,6 +88,9 @@ When this work is complete:
   was intentionally exceeded by six lines with explicit user authorization for
   the root-cause boundary correction, remaining below the repository's 1.5k
   implementation-code caution threshold.
+- `origin/main` at `739ec4e` was merged cleanly with no conflicts. Overlapping
+  permanent documentation auto-merged, and integrated full-test, build, package,
+  and source-smoke verification passed.
 - Built smoke suites were not required: smoke launch and CI product-validation
   behavior did not change.
 
