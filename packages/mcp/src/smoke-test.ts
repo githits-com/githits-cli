@@ -185,8 +185,8 @@ function assertSearchDefaultText(text: string, context: string): void {
   const firstLine = lines[0]?.trim() ?? "";
   assert(firstLine.length > 0, `${context}: missing outcome first line`);
   assert(
-    !firstLine.startsWith("search | ") &&
-      !firstLine.startsWith("search_status | "),
+    !firstLine.startsWith("search |") &&
+      !firstLine.startsWith("search_status |"),
     `${context}: legacy header precedes outcome`,
   );
   assert(
