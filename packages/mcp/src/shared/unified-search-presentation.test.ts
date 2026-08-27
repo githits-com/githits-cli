@@ -320,6 +320,23 @@ describe("projectUnifiedSearchPresentation", () => {
       resultCount: 0,
     });
     expect(presentation.sources).toEqual([]);
+    expect(presentation.warnings).toEqual([]);
+  });
+
+  it("retains parser warnings from an initial progress-only query", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      incomplete({
+        query: { raw: "router", warnings: ["unknown qualifier"] },
+      }),
+    );
+
+    expect(presentation.query).toEqual({
+      raw: "router",
+      warnings: ["unknown qualifier"],
+    });
+    expect(presentation.warnings).toEqual([
+      { kind: "query", message: "unknown qualifier" },
+    ]);
   });
 
   it("groups searched, waiting, and available documentation contributors", () => {

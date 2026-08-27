@@ -232,7 +232,7 @@ test suite anchors the doc.
 
 ### Search output parity
 
-Phase 1a changes MCP `search` and `search_status` default `text-v1` in place.
+MCP `search` and `search_status` default `text-v1` evolve in place.
 The MCP text contract is outcome-first: one outcome line, one concise readiness
 and trust summary, result blocks, bounded alternatives or provenance, and one
 action. `PENDING`, `INDEXING`, and `SEARCHING` remain distinct; active
@@ -253,7 +253,7 @@ only in the exact `Next: search_status search_ref=... wait_timeout_ms=...`
 action; terminal and unknown responses instead give an explicit no-poll
 instruction.
 
-The CLI human renderer is unchanged in Phase 1a. Its `--json` output and MCP
+The CLI human renderer remains unchanged. Its `--json` output and MCP
 `format: "json"` output remain the structured parity boundary: every
 result-bearing initial payload and stored `search_status.result` carries the
 backend's exact `partialResults: boolean`, including both `false` and `true`;

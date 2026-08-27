@@ -272,6 +272,55 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("Do not repeat search.\nNext:");
   });
 
+  it("renders an initial progress-only parser warning once below the outcome", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        query: { raw: "router", warnings: ["unknown qualifier"] },
+      }),
+    );
+
+    expect(firstLine(text)).toBe("Indexing - no result snapshot returned yet");
+    expect(text).toContain("Warnings:\n  - unknown qualifier");
+    expect(text.match(/unknown qualifier/g)).toHaveLength(1);
+    expect(text.indexOf("Warnings:")).toBeGreaterThan(0);
+  });
+
+  it("uses the scoped site URL before the site key for searched and available docs", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "npm:example@1.0.0",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                resultCount: 0,
+                siteKey: "example.com",
+                siteUrl: "https://example.com/reference",
+              },
+              {
+                kind: "DOCPACK",
+                state: "READY",
+                resultCount: 0,
+                siteKey: "example.com",
+                siteUrl: "https://example.com/guide",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "Searched: site docs (example.com/reference) for npm:example@1.0.0",
+    );
+    expect(text).toContain(
+      "Available but not searched: example.com/guide docs",
+    );
+  });
+
   it("renders site suggestions once without selecting them during active polling", () => {
     const sourceStatus = [
       source({

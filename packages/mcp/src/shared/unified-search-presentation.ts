@@ -211,13 +211,15 @@ export function projectUnifiedSearchPresentation(
   const sources = projectSources(sourceStatus);
   const siteSuggestions = projectSiteSuggestions(sourceStatus);
   const trustLimits = projectTrustLimits(snapshot, sources, sourceStatus);
-  const warnings = projectWarnings(snapshot?.query, sourceStatus);
+  const query =
+    snapshot?.query ?? ("query" in payload ? payload.query : undefined);
+  const warnings = projectWarnings(query, sourceStatus);
   const alternatives = projectAlternatives(progress, sourceStatus);
 
   return {
     availability,
     lifecycle,
-    query: snapshot?.query ?? extractQuery(payload),
+    query,
     searchRef: extractSearchRef(payload),
     progress: projectProgress(progress),
     targets: projectTargets(progress),
@@ -263,13 +265,6 @@ function extractSnapshot(
       evidenceNotice: payload.evidenceNotice,
     };
   }
-  return undefined;
-}
-
-function extractQuery(
-  payload: UnifiedSearchPresentationInput,
-): UnifiedSearchQueryEcho | undefined {
-  if ("query" in payload) return payload.query;
   return undefined;
 }
 

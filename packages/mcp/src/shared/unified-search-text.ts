@@ -277,7 +277,7 @@ function formatSourceReadiness(
   }
   const identity =
     group.kind === "site_docs"
-      ? `${entry.siteKey ?? entry.siteUrl ?? entry.target} docs`
+      ? `${formatDocumentationSourceIdentity(group, entry)} docs`
       : `${sourceLabel} (${entry.target})`;
   return `${identity}${coverageDetails ? ` (${coverageDetails})` : ""}${contextSuffix}`;
 }
@@ -289,7 +289,8 @@ function formatDocumentationSourceIdentity(
   if (group.kind === "repository_docs") {
     return `${entry.repositoryUrl ?? entry.target}${entry.commitSha ? ` @ ${entry.commitSha}` : ""}`;
   }
-  return entry.siteKey ?? entry.siteUrl ?? entry.target;
+  const siteIdentity = formatDocumentationSiteIdentity(entry.siteUrl);
+  return siteIdentity ?? entry.siteKey ?? entry.target;
 }
 
 function sourceGroupLabel(kind: UnifiedSearchSourceGroup["kind"]): string {
