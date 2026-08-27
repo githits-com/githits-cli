@@ -25,6 +25,16 @@ import {
   type LeanTargetResolution,
 } from "./target-resolution.js";
 import {
+  projectUnifiedSearchPresentation,
+  type UnifiedSearchAction,
+  type UnifiedSearchAlternativeFacts,
+  type UnifiedSearchPresentation,
+  type UnifiedSearchSourceEntry,
+  type UnifiedSearchSourceGroup,
+  type UnifiedSearchTrustLimit,
+  type UnifiedSearchWarning,
+} from "./unified-search-presentation.js";
+import {
   isActiveUnifiedSearchSessionStatus,
   type UnifiedSearchCompletedPayload,
   type UnifiedSearchDocumentationContributorPayload,
@@ -46,43 +56,459 @@ type SearchSuccessPayload =
 export function renderUnifiedSearchSuccess(
   payload: SearchSuccessPayload,
 ): string {
-  const lines: string[] = [];
-  lines.push(buildHeader(payload));
-  lines.push("");
+  return renderUnifiedSearchPresentationText(
+    projectUnifiedSearchPresentation(payload),
+    payload,
+  );
+}
 
-  const completedEmpty = payload.completed && payload.results.length === 0;
-  if (completedEmpty) {
-    appendWarnings(lines, payload.warnings);
-    appendSourceStatusNotes(lines, payload.sourceStatus);
-    appendDocumentationSources(lines, payload.sourceStatus, payload.results);
-    if (lines[lines.length - 1] !== "") lines.push("");
-    appendEmptySearchGuidance(lines, {
-      query: payload.query,
-      sourceStatus: payload.sourceStatus,
-      evidenceNotice: payload.evidenceNotice,
-    });
-  } else if (payload.results.length === 0) {
-    appendDocumentationSources(lines, payload.sourceStatus, payload.results);
-    if (lines[lines.length - 1] !== "") lines.push("");
-    lines.push(
-      noHitsYetMessage("progress" in payload ? payload.progress : undefined),
-    );
-  } else {
-    appendDocumentationSources(lines, payload.sourceStatus, payload.results);
-    if (lines[lines.length - 1] !== "") lines.push("");
-    appendUnifiedSearchHits(lines, payload.results);
-  }
+export interface UnifiedSearchTextResult {
+  results: UnifiedSearchHitPayload[];
+  hasMore: boolean;
+  nextOffset?: number;
+}
 
-  const trailer = buildTrailer(payload, {
-    includeWarnings: !completedEmpty,
-    includeSourceStatus: !completedEmpty,
-  });
-  if (trailer.length > 0) {
+/** Render the shared semantic projection while callers supply only result anatomy. */
+export function renderUnifiedSearchPresentationText(
+  presentation: UnifiedSearchPresentation,
+  result: UnifiedSearchTextResult,
+): string {
+  const lines: string[] = [
+    formatPresentationOutcome(presentation, result.results),
+  ];
+  appendPresentationContext(lines, presentation);
+
+  if (result.results.length > 0) {
     lines.push("");
-    for (const line of trailer) lines.push(line);
+    appendUnifiedSearchHits(lines, result.results);
   }
 
+  if (result.hasMore) {
+    if (lines[lines.length - 1] !== "") lines.push("");
+    const nextOffsetHint =
+      typeof result.nextOffset === "number"
+        ? `More hits available. Pass offset=${result.nextOffset} or limit=N to widen.`
+        : "More hits available. Pass limit=N to widen.";
+    lines.push(nextOffsetHint);
+  }
+
+  appendPresentationAlternatives(lines, presentation);
+  appendPresentationAction(lines, presentation);
   return lines.join("\n");
+}
+
+function formatPresentationOutcome(
+  presentation: UnifiedSearchPresentation,
+  results: UnifiedSearchHitPayload[],
+): string {
+  const target = presentationTarget(presentation, results);
+  const targetSuffix = target ? ` ${target}` : "";
+  const count = presentation.availability.resultCount;
+  const countLabel = `${count} result${count === 1 ? "" : "s"}`;
+
+  if (presentation.lifecycle.kind === "active") {
+    const label = capitalize(presentation.lifecycleHeadline ?? "active");
+    if (presentation.availability.kind === "no_snapshot") {
+      return `${label}${targetSuffix} - no result snapshot returned yet`;
+    }
+    if (presentation.availability.kind === "empty") {
+      return `${label}${targetSuffix} - no results returned yet`;
+    }
+    const resultKind =
+      presentation.availability.kind === "partial" ? "partial" : "interim";
+    return `${label} continues - ${countLabel.replace("result", `${resultKind} result`)} returned`;
+  }
+
+  if (presentation.lifecycle.kind === "completed") {
+    return count > 0
+      ? `${countLabel}${target ? ` from ${target}` : ""}`
+      : `No results returned${target ? ` from ${target}` : ""}`;
+  }
+
+  const status = presentation.lifecycle.status ?? "UNKNOWN";
+  if (count > 0) return `${status} - ${countLabel} returned`;
+  if (presentation.availability.kind === "no_snapshot") {
+    return `${status} - no result snapshot returned`;
+  }
+  return `${status} - no results returned`;
+}
+
+function presentationTarget(
+  presentation: UnifiedSearchPresentation,
+  results: UnifiedSearchHitPayload[],
+): string | undefined {
+  const hitTarget = results[0]?.target;
+  if (hitTarget) return hitTarget;
+  const target = presentation.targets[0];
+  if (target) return target.served ?? target.fresh ?? target.requested;
+  return presentation.sources[0]?.entries[0]?.target;
+}
+
+function appendPresentationContext(
+  lines: string[],
+  presentation: UnifiedSearchPresentation,
+): void {
+  if (presentation.progress) {
+    lines.push(
+      `Ready: ${presentation.progress.targetsReady}/${presentation.progress.targetsTotal} targets`,
+    );
+  }
+  appendPresentationTargetDivergence(lines, presentation);
+  appendPresentationSources(
+    lines,
+    presentation.sources,
+    presentation.trustLimits,
+  );
+  appendPresentationTrust(lines, presentation.trustLimits);
+  appendPresentationWarnings(lines, presentation.warnings);
+}
+
+function appendPresentationTargetDivergence(
+  lines: string[],
+  presentation: UnifiedSearchPresentation,
+): void {
+  for (const target of presentation.targets) {
+    const identities = [target.requested, target.fresh, target.served].filter(
+      (value): value is string => Boolean(value),
+    );
+    if (new Set(identities).size < 2) continue;
+    const parts: string[] = [];
+    if (target.requested) parts.push(`requested ${target.requested}`);
+    if (target.fresh) parts.push(`fresh ${target.fresh}`);
+    if (target.served) parts.push(`served ${target.served}`);
+    if (parts.length > 0) lines.push(`Target: ${parts.join("; ")}`);
+  }
+}
+
+function appendPresentationSources(
+  lines: string[],
+  groups: UnifiedSearchSourceGroup[],
+  trustLimits: UnifiedSearchTrustLimit[],
+): void {
+  const states: Array<{
+    state: UnifiedSearchSourceEntry["state"];
+    label: string;
+  }> = [
+    { state: "waiting", label: "Waiting" },
+    { state: "searched", label: "Searched" },
+    { state: "available_not_searched", label: "Available but not searched" },
+    { state: "unavailable", label: "Unavailable" },
+  ];
+  for (const { state, label } of states) {
+    const entries = groups.flatMap((group) =>
+      group.entries
+        .filter((entry) => entry.state === state)
+        .map((entry) => ({ group, entry })),
+    );
+    if (entries.length === 0) continue;
+    const values = entries.map(({ group, entry }) =>
+      formatSourceReadiness(group, entry, state, trustLimits),
+    );
+    const unique = [...new Set(values)];
+    lines.push(`${label}: ${unique.join(", ")}`);
+  }
+}
+
+function formatSourceReadiness(
+  group: UnifiedSearchSourceGroup,
+  entry: UnifiedSearchSourceEntry,
+  state: UnifiedSearchSourceEntry["state"],
+  trustLimits: UnifiedSearchTrustLimit[],
+): string {
+  const sourceLabel = sourceGroupLabel(group.kind);
+  if (state === "unavailable") return `${sourceLabel} (${entry.target})`;
+  const coverage = trustLimits.find(
+    (limit): limit is Extract<UnifiedSearchTrustLimit, { kind: "coverage" }> =>
+      limit.kind === "coverage" &&
+      limit.source === group.kind &&
+      limit.target === entry.target,
+  );
+  const coverageDetails = coverage ? formatCoverageLimit(coverage) : undefined;
+  if (state === "searched") {
+    return coverageDetails
+      ? `${sourceLabel} (${coverageDetails})`
+      : sourceLabel;
+  }
+  if (state === "waiting") return sourceLabel;
+  const identity =
+    group.kind === "site_docs"
+      ? `${entry.siteKey ?? entry.siteUrl ?? entry.target} docs`
+      : `${sourceLabel} (${entry.target})`;
+  return coverageDetails ? `${identity} (${coverageDetails})` : identity;
+}
+
+function sourceGroupLabel(kind: UnifiedSearchSourceGroup["kind"]): string {
+  switch (kind) {
+    case "repository_docs":
+      return "repository docs";
+    case "site_docs":
+      return "site docs";
+    case "code":
+      return "code";
+  }
+}
+
+function formatCoverageLimit(
+  limit: Extract<UnifiedSearchTrustLimit, { kind: "coverage" }>,
+): string {
+  const details: string[] = [limit.state];
+  if (typeof limit.pagesCrawled === "number") {
+    details.unshift(`${limit.pagesCrawled.toLocaleString("en-US")} pages`);
+  }
+  return details.join("; ");
+}
+
+function appendPresentationTrust(
+  lines: string[],
+  trustLimits: UnifiedSearchTrustLimit[],
+): void {
+  const trust = trustLimits.filter((limit) => limit.kind !== "source");
+  for (const limit of trust) {
+    switch (limit.kind) {
+      case "stale":
+        lines.push(
+          `Evidence: ${limit.requestedTarget ? `requested ${limit.requestedTarget}; ` : ""}served older snapshot ${limit.servedTarget ?? limit.target ?? "unknown target"}${limit.freshTarget ? ` while ${limit.freshTarget} indexes` : ""}.`,
+        );
+        break;
+      case "provisional":
+        lines.push("Evidence: provisional snapshot; indexing continues.");
+        break;
+      case "coverage":
+        break;
+      case "constraint":
+      case "mutable_evidence":
+        if (limit.kind === "mutable_evidence")
+          lines.push("Evidence may change.");
+        break;
+    }
+  }
+}
+
+function appendPresentationWarnings(
+  lines: string[],
+  warnings: UnifiedSearchWarning[],
+): void {
+  if (warnings.length === 0) return;
+  lines.push("Warnings:");
+  for (const warning of warnings) {
+    if (warning.kind === "query") lines.push(`  - ${warning.message}`);
+    else {
+      const label = warning.kind.replaceAll("_", " ");
+      const source = warning.source ? ` (${warning.source})` : "";
+      lines.push(
+        `  - ${capitalize(label)}${source}: ${warning.values.join(", ")}`,
+      );
+    }
+  }
+}
+
+function appendPresentationAlternatives(
+  lines: string[],
+  presentation: UnifiedSearchPresentation,
+): void {
+  const alternatives = mergePresentationAlternatives(presentation.alternatives);
+  for (const alternative of alternatives) {
+    const categories: string[] = [];
+    if (alternative.versions.length > 0) {
+      categories.push(
+        `versions ${alternative.versions.map((entry) => entry.version ?? entry.ref).join(", ")}${formatRemaining(alternative.versionsRemaining)}`,
+      );
+    }
+    if (alternative.refs.length > 0) {
+      categories.push(
+        `refs ${alternative.refs.map((entry) => entry.ref).join(", ")}${formatRemaining(alternative.refsRemaining)}`,
+      );
+    }
+    if (alternative.suggestedRefs.length > 0) {
+      categories.push(
+        `suggested refs ${alternative.suggestedRefs.map((entry) => entry.ref).join(", ")}${formatRemaining(alternative.suggestedRefsRemaining)}`,
+      );
+    }
+    if (categories.length > 0) {
+      lines.push(
+        `Indexed alternatives${alternatives.length > 1 && alternative.target ? ` for ${alternative.target}` : ""}: ${categories.join("; ")}`,
+      );
+    }
+  }
+}
+
+interface DisplayAlternativeFacts {
+  target?: string;
+  versions: UnifiedSearchPresentation["alternatives"][number]["versions"];
+  versionsRemaining: number;
+  refs: UnifiedSearchPresentation["alternatives"][number]["refs"];
+  refsRemaining: number;
+  suggestedRefs: UnifiedSearchPresentation["alternatives"][number]["suggestedRefs"];
+  suggestedRefsRemaining: number;
+}
+
+function mergePresentationAlternatives(
+  alternatives: UnifiedSearchPresentation["alternatives"],
+): DisplayAlternativeFacts[] {
+  const merged: DisplayAlternativeFacts[] = [];
+  for (const alternative of alternatives) {
+    const key = alternative.target
+      ? alternative.target.replace(/@[^/@]+$/, "")
+      : "";
+    let display = merged.find(
+      (candidate) =>
+        (candidate.target ? candidate.target.replace(/@[^/@]+$/, "") : "") ===
+        key,
+    );
+    if (!display) {
+      display = {
+        target: alternative.target,
+        versions: [],
+        versionsRemaining: 0,
+        refs: [],
+        refsRemaining: 0,
+        suggestedRefs: [],
+        suggestedRefsRemaining: 0,
+      };
+      merged.push(display);
+    }
+    appendBoundedAlternatives(
+      display.versions,
+      alternative.versions,
+      (remaining) => (display.versionsRemaining += remaining),
+    );
+    display.versionsRemaining = Math.max(
+      display.versionsRemaining,
+      alternative.versionsRemaining,
+    );
+    appendBoundedAlternatives(
+      display.refs,
+      alternative.refs,
+      (remaining) => (display.refsRemaining += remaining),
+    );
+    display.refsRemaining = Math.max(
+      display.refsRemaining,
+      alternative.refsRemaining,
+    );
+    appendBoundedAlternatives(
+      display.suggestedRefs,
+      alternative.suggestedRefs,
+      (remaining) => (display.suggestedRefsRemaining += remaining),
+    );
+    display.suggestedRefsRemaining = Math.max(
+      display.suggestedRefsRemaining,
+      alternative.suggestedRefsRemaining,
+    );
+  }
+  return merged;
+}
+
+function appendBoundedAlternatives(
+  target: UnifiedSearchAlternativeFacts["versions"],
+  values: UnifiedSearchAlternativeFacts["versions"],
+  addRemaining: (remaining: number) => void,
+): void {
+  for (const value of values) {
+    const duplicate = target.some(
+      (candidate) =>
+        candidate.version === value.version && candidate.ref === value.ref,
+    );
+    if (duplicate) continue;
+    if (target.length < 3) target.push(value);
+    else addRemaining(1);
+  }
+}
+
+function formatRemaining(count: number): string {
+  return count > 0 ? ` +${count} more` : "";
+}
+
+function appendPresentationAction(
+  lines: string[],
+  presentation: UnifiedSearchPresentation,
+): void {
+  const action = presentation.action;
+  if (action.kind === "none") {
+    if (presentation.availability.kind === "empty") {
+      lines.push(
+        hasEvidenceLimit(presentation.trustLimits)
+          ? "Do not repeat immediately."
+          : "Do not repeat this search unchanged.",
+      );
+    }
+    return;
+  }
+  if (action.kind === "poll" || action.kind === "status") {
+    lines.push(
+      action.kind === "status"
+        ? "Do not repeat immediately."
+        : "Do not repeat search.",
+    );
+    lines.push(
+      `Next: search_status search_ref=${JSON.stringify(action.searchRef)} wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}`,
+    );
+    return;
+  }
+  if (action.kind === "new_search") {
+    if (
+      presentation.lifecycle.kind === "terminal" ||
+      presentation.lifecycle.kind === "unknown"
+    ) {
+      lines.push("Do not call search_status again for this session.");
+    } else if (presentation.availability.kind === "empty") {
+      lines.push("Do not repeat immediately.");
+    }
+    lines.push("Next: rerun search later.");
+    return;
+  }
+  if (action.kind === "indexed_alternative") {
+    if (presentation.availability.kind === "empty") {
+      lines.push("Do not repeat immediately.");
+    }
+    lines.push(
+      `Next: search indexed ${action.category} ${action.value}${action.target ? ` for ${action.target}` : ""}.`,
+    );
+    return;
+  }
+  if (action.kind === "query_rewrite") {
+    lines.push(
+      hasEvidenceLimit(presentation.trustLimits)
+        ? "Do not repeat immediately."
+        : "Do not repeat this search unchanged.",
+    );
+    lines.push(`Next: ${action.rewrites.map(formatRewrite).join("; ")}.`);
+  }
+}
+
+function hasEvidenceLimit(trustLimits: UnifiedSearchTrustLimit[]): boolean {
+  return trustLimits.some(
+    (limit) =>
+      limit.kind === "mutable_evidence" ||
+      limit.kind === "stale" ||
+      limit.kind === "provisional" ||
+      limit.kind === "coverage" ||
+      limit.kind === "source",
+  );
+}
+
+function formatRewrite(
+  rewrite: NonNullable<
+    Extract<UnifiedSearchAction, { kind: "query_rewrite" }>
+  >["rewrites"][number],
+): string {
+  switch (rewrite) {
+    case "shorter_or_broader":
+      return "shorten or broaden query";
+    case "remove_filters":
+      return "remove restrictive filters";
+    case "symbol":
+      return 'use source="symbol"';
+    case "code_grep":
+      return "use code_grep";
+    case "site_shorter_or_broader":
+      return "shorten or broaden site query";
+  }
+}
+
+function capitalize(value: string): string {
+  return value.length > 0
+    ? `${value[0]?.toUpperCase()}${value.slice(1)}`
+    : value;
 }
 
 export function noHitsYetMessage(
@@ -122,19 +548,6 @@ export function renderUnifiedSearchError(
     }
   }
   return lines.join("\n");
-}
-
-function buildHeader(payload: SearchSuccessPayload): string {
-  const count = payload.results.length;
-  const status = payload.completed
-    ? `${count} hit${count === 1 ? "" : "s"}`
-    : `${count} partial`;
-  const parts = [`search${SEP}${status}`];
-  parts.push(`query=${quote(payload.query.raw)}`);
-  if (!payload.completed) {
-    parts.push(`searchRef=${payload.searchRef}`);
-  }
-  return parts.join(SEP);
 }
 
 export function appendUnifiedSearchHits(
