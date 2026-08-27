@@ -263,10 +263,13 @@ function formatSourceReadiness(
   showTargetContext: boolean,
 ): string {
   const sourceLabel = sourceGroupLabel(group.kind);
-  const searchTarget = showTargetContext ? entry.searchTarget : undefined;
-  const contextSuffix = searchTarget ? ` for ${searchTarget}` : "";
+  const contextSuffix = (identity?: string): string =>
+    showTargetContext &&
+    (group.kind === "code" || identity !== entry.searchTarget)
+      ? ` for ${entry.searchTarget}`
+      : "";
   if (entry.state === "unavailable") {
-    return `${sourceLabel} (${entry.target})${contextSuffix}`;
+    return `${sourceLabel} (${entry.target})${contextSuffix(entry.target)}`;
   }
   const coverage = trustLimits.find(
     (limit): limit is Extract<UnifiedSearchTrustLimit, { kind: "coverage" }> =>
@@ -283,20 +286,20 @@ function formatSourceReadiness(
     const details = [identity, coverageDetails].filter(
       (value): value is string => Boolean(value),
     );
-    return `${sourceLabel}${details.length > 0 ? ` (${details.join("; ")})` : ""}${contextSuffix}`;
+    return `${sourceLabel}${details.length > 0 ? ` (${details.join("; ")})` : ""}${contextSuffix(identity)}`;
   }
   if (entry.state === "waiting") {
     const identity =
       showTargetContext && group.kind !== "code"
         ? formatDocumentationSourceIdentity(group, entry)
         : undefined;
-    return `${sourceLabel}${identity ? ` (${identity})` : ""}${contextSuffix}`;
+    return `${sourceLabel}${identity ? ` (${identity})` : ""}${contextSuffix(identity)}`;
   }
   const identity =
     group.kind === "site_docs"
       ? `${formatDocumentationSourceIdentity(group, entry)} docs`
       : `${sourceLabel} (${entry.target})`;
-  return `${identity}${coverageDetails ? ` (${coverageDetails})` : ""}${contextSuffix}`;
+  return `${identity}${coverageDetails ? ` (${coverageDetails})` : ""}${contextSuffix(identity)}`;
 }
 
 function formatDocumentationSourceIdentity(

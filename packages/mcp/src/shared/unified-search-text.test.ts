@@ -536,6 +536,35 @@ describe("renderUnifiedSearchSuccess", () => {
     );
   });
 
+  it("does not repeat a standalone site target in its readiness identity", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            source: "code",
+            targetLabel: "npm:one@1.0.0",
+            codeIndexState: "INDEXING",
+          }),
+          source({
+            source: "docs",
+            targetLabel: "site:docs.one.example",
+            targetResolution: {
+              requested: { site: "site:docs.one.example" },
+              served: { site: "site:docs.one.example" },
+              freshness: "current",
+              availableVersions: [],
+              availableRefs: [],
+            },
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain("Waiting: code for npm:one@1.0.0");
+    expect(text).toContain("Searched: site docs (site:docs.one.example)");
+    expect(text).not.toContain("site docs (site:docs.one.example) for site:");
+  });
+
   it("omits a singular outcome target when hits span multiple targets", () => {
     const text = renderUnifiedSearchSuccess(
       completed([
@@ -687,6 +716,26 @@ describe("renderUnifiedSearchSuccess", () => {
           ],
         },
       ),
+    );
+
+    expect(firstLine(text)).toBe("1 result from npm:express@5.1.0");
+    expect(text.match(/Evidence:/g)).toHaveLength(1);
+    expect(text).toContain(
+      "requested npm:express latest; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.",
+    );
+  });
+
+  it("treats indexing hit freshness as stale served evidence", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          target: "npm:express@5.1.0",
+          requestedTarget: "npm:express latest",
+          freshTarget: "npm:express@5.2.1",
+          servedTarget: "npm:express@5.1.0",
+          freshness: "INDEXING",
+        }),
+      ]),
     );
 
     expect(firstLine(text)).toBe("1 result from npm:express@5.1.0");

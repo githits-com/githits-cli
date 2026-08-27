@@ -520,7 +520,7 @@ function projectTrustLimits(
   }
 
   for (const hit of snapshot?.results ?? []) {
-    if (hit.freshness === "STALE") {
+    if (hit.freshness === "STALE" || hit.freshness === "INDEXING") {
       add({
         kind: "stale",
         target: hit.servedTarget ?? hit.target,
