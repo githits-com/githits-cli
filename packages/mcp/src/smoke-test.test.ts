@@ -194,6 +194,46 @@ describe("runMcpSmoke", () => {
   );
 
   it.each([
+    "Next: githits search-status smoke-ref --wait 20",
+    "Next: githits code read npm:express index.js",
+    "Next: githits docs read page-1 --offset 10",
+  ])("rejects CLI syntax leaked into MCP search text: %s", async (action) => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          smokeSearchText().replace(
+            'Next: search_status search_ref="smoke-ref" wait_timeout_ms=20000',
+            action,
+          ),
+        );
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).rejects.toThrow(
+      "search default: CLI command syntax leaked into MCP output",
+    );
+  });
+
+  it("requires Using details to remain grouped under a target", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          smokeSearchText().replace(
+            "- npm:express@5.2.1\n  Indexing: code | Ready now: versions 5.2.1",
+            "  Using: 5.1.0 while 5.2.1 indexes",
+          ),
+        );
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).rejects.toThrow(
+      "search default: readiness details must be grouped under a target",
+    );
+  });
+
+  it.each([
     ["Ready:", "legacy flat section Ready:"],
     ["Waiting:", "legacy flat section Waiting:"],
     [

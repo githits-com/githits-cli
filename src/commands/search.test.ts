@@ -2171,7 +2171,7 @@ describe("searchStatusAction", () => {
     expect(output).toContain(
       "- github:expressjs/express#refs/heads/master -> master",
     );
-    expect(output).toContain("Indexing | Ready now: refs master");
+    expect(output).toContain("Status: indexing | Ready now: refs master");
     expect(output).toContain("Search search-ref-123 | 0/1 target ready");
     expect(output).toContain(
       "Next: githits search-status search-ref-123 --wait 20",

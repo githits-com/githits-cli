@@ -243,7 +243,9 @@ function assertSearchDefaultText(text: string, context: string): void {
   );
 
   const hasReadinessText = lines.some((line) =>
-    /^ {2}(?:Indexing|Searched|Ready now|Unavailable):/.test(line),
+    /^ {2}(?! {2}).*(?:Indexing|Searched|Ready now|Unavailable|Using|Status):/.test(
+      line,
+    ),
   );
   if (hasReadinessText) {
     assert(
@@ -292,6 +294,14 @@ function assertSearchDefaultText(text: string, context: string): void {
       `${context}: session summary does not match search_ref action`,
     );
   }
+  assert(
+    !formatterText.includes("githits search-status ") &&
+      !formatterText.includes("githits code read ") &&
+      !formatterText.includes("githits docs read ") &&
+      !formatterText.includes(" --wait ") &&
+      !formatterText.includes(" --offset "),
+    `${context}: CLI command syntax leaked into MCP output`,
+  );
   assert(
     hasHitLocator(lines, isMcpCodeReadLocator) ||
       hasHitLocator(lines, isMcpDocsReadLocator) ||

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  classifyTargetFreshness,
   projectUnifiedSearchPresentation,
   targetDisplayFamilyKey,
 } from "./unified-search-presentation.js";
@@ -295,7 +296,7 @@ describe("projectUnifiedSearchPresentation", () => {
           ],
         },
       ]);
-      expect(presentation.action).toEqual({ kind: "none" });
+      expect(presentation.action).toEqual({ kind: "new_search" });
     },
   );
 
@@ -834,11 +835,13 @@ describe("projectUnifiedSearchPresentation", () => {
     });
     expect(presentation.targetGroups).toEqual([
       {
+        freshnessKind: "indexing",
         identity: {
           requested: "npm:n8n",
           fresh: "npm:n8n@2.36.7",
           freshness: "INDEXING",
         },
+        inProgress: true,
         sources: [
           {
             kind: "code",
@@ -1155,6 +1158,97 @@ describe("projectUnifiedSearchPresentation", () => {
     ]);
   });
 
+  it("keeps distinct requested targets separate when they share a served snapshot", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      incomplete({
+        partialResults: false,
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 2,
+          elapsedMs: 200,
+          targets: [
+            {
+              requested: "npm:express@5.1.0",
+              resolvedRequested: "npm:express@5.1.0",
+              served: "npm:express@5.1.0",
+              availableVersions: [{ version: "5.0.0", ref: "v5.0.0" }],
+            },
+            {
+              requested: "npm:express",
+              resolvedRequested: "npm:express@5.2.1",
+              served: "npm:express@5.1.0",
+              freshness: "INDEXING",
+              availableVersions: [{ version: "5.2.0", ref: "v5.2.0" }],
+            },
+          ],
+        },
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@5.1.0",
+            requestedTarget: "npm:express@5.1.0",
+            freshTarget: "npm:express@5.1.0",
+            servedTarget: "npm:express@5.1.0",
+            codeIndexState: "CURRENT",
+          }),
+          source({
+            targetLabel: "npm:express@5.1.0",
+            requestedTarget: "npm:express",
+            freshTarget: "npm:express@5.2.1",
+            servedTarget: "npm:express@5.1.0",
+            codeIndexState: "STALE",
+            coverage: { coverageState: "PARTIAL", pagesCrawled: 5 },
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.targetGroups).toHaveLength(2);
+    expect(
+      presentation.targetGroups.map((group) => ({
+        requested: group.identity.requested,
+        fresh: group.identity.fresh,
+        served: group.identity.served,
+        sourceRequested: group.sources.flatMap((sourceGroup) =>
+          sourceGroup.entries.map((entry) => entry.requestedTarget),
+        ),
+        versions: group.alternatives?.versions.map((entry) => entry.version),
+        staleLimits: group.trustLimits.filter((limit) => limit.kind === "stale")
+          .length,
+        coverageLimits: group.trustLimits.filter(
+          (limit) => limit.kind === "coverage",
+        ).length,
+      })),
+    ).toEqual([
+      {
+        requested: "npm:express@5.1.0",
+        fresh: "npm:express@5.1.0",
+        served: "npm:express@5.1.0",
+        sourceRequested: ["npm:express@5.1.0"],
+        versions: ["5.0.0"],
+        staleLimits: 0,
+        coverageLimits: 0,
+      },
+      {
+        requested: "npm:express",
+        fresh: "npm:express@5.2.1",
+        served: "npm:express@5.1.0",
+        sourceRequested: ["npm:express"],
+        versions: ["5.2.0"],
+        staleLimits: 1,
+        coverageLimits: 1,
+      },
+    ]);
+  });
+
+  it("normalizes target freshness once in the presentation layer", () => {
+    expect(classifyTargetFreshness("STALE")).toBe("stale");
+    expect(classifyTargetFreshness("fallback_recent")).toBe("stale");
+    expect(classifyTargetFreshness("PENDING")).toBe("indexing");
+    expect(classifyTargetFreshness("PROVISIONAL")).toBe("provisional");
+    expect(classifyTargetFreshness("CURRENT")).toBeUndefined();
+  });
+
   it("classifies stale, fallback, and provisional trust limits", () => {
     const presentation = projectUnifiedSearchPresentation(
       completed({
@@ -1298,7 +1392,7 @@ describe("projectUnifiedSearchPresentation", () => {
     expect(JSON.stringify(presentation)).not.toContain(
       "Source 'code' is indexing",
     );
-    expect(presentation.action).toEqual({ kind: "none" });
+    expect(presentation.action).toEqual({ kind: "new_search" });
   });
 
   it("suppresses generic pivots for evidence limits and prefers indexed alternatives", () => {

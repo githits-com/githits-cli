@@ -113,6 +113,18 @@ More hits available. Pass --offset 10 or --limit N to widen.`;
     ).not.toThrow();
   });
 
+  it("requires Using details to remain grouped under a target", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        valid.replace(
+          "- npm:n8n -> 2.36.7\n  Indexing: code, repository docs | Ready now: n8n.io docs (not searched; 1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master",
+          "  Using: 2.26.9 while 2.36.7 indexes",
+        ),
+        "search",
+      ),
+    ).toThrow("readiness details must be grouped under a target");
+  });
+
   it("rejects duplicate search session summaries", () => {
     expect(() =>
       assertSearchTerminalText(

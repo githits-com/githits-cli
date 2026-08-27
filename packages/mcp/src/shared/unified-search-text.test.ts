@@ -239,7 +239,7 @@ describe("renderUnifiedSearchSuccess", () => {
         }),
       );
 
-      expect(text).toContain("Searched: docs (npm:express@4.18.2)");
+      expect(text).toContain("- npm:express@4.18.2\n  Searched: docs");
       expect(text).not.toContain("repository docs");
     },
   );
@@ -375,10 +375,58 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("Waiting:");
     expect(text).not.toContain("Searched:");
     expect(text).not.toContain("n8n.io");
+    expect(text).toContain("Status: indexing | Ready now: versions 2.26.9");
     expect(text).toContain("versions 2.26.9");
     expect(text).toContain(
       'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=20000',
     );
+  });
+
+  it("gives a requested-only active target a current-state detail", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 100,
+          targets: [{ requested: "npm:express" }],
+        },
+      }),
+    );
+
+    expect(text).toContain("- npm:express\n  Status: indexing");
+  });
+
+  it("keeps shared served snapshots in distinct requested target blocks", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 2,
+          elapsedMs: 100,
+          targets: [
+            {
+              requested: "npm:express@5.1.0",
+              resolvedRequested: "npm:express@5.1.0",
+              served: "npm:express@5.1.0",
+            },
+            {
+              requested: "npm:express",
+              resolvedRequested: "npm:express@5.2.1",
+              served: "npm:express@5.1.0",
+              freshness: "INDEXING",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(text).toContain("- npm:express@5.1.0");
+    expect(text).toContain("- npm:express -> 5.2.1");
+    expect(text.match(/^- npm:express/gm)).toHaveLength(2);
+    expect(text).toContain("Search ref_abc-123 | 0/2 targets ready");
   });
 
   it("renders an initial progress-only parser warning once below the outcome", () => {

@@ -310,9 +310,7 @@ function appendPresentationTargetGroup(
   const identityIsStale =
     !stale &&
     Boolean(group.identity.served) &&
-    ["STALE", "INDEXING", "stale", "indexing", "fallback_recent"].includes(
-      group.identity.freshness ?? "",
-    ) &&
+    (group.freshnessKind === "stale" || group.freshnessKind === "indexing") &&
     group.identity.served !==
       (group.identity.fresh ?? group.identity.requested);
   if (stale || identityIsStale) {
@@ -350,11 +348,15 @@ function appendPresentationTargetGroup(
 
   if (
     details.length === 0 &&
-    ["INDEXING", "PENDING", "PROVISIONAL", "indexing", "provisional"].includes(
-      group.identity.freshness ?? "",
-    )
+    (group.inProgress || group.freshnessKind !== undefined)
   ) {
-    details.push("Indexing");
+    details.push(
+      group.freshnessKind === "provisional"
+        ? "Status: provisional"
+        : group.freshnessKind === "stale"
+          ? "Status: older snapshot"
+          : "Status: indexing",
+    );
   }
 
   const ready = formatTargetAlternatives(group.alternatives);
@@ -401,7 +403,7 @@ function formatGroupedSource(
         ? "repository docs"
         : source.kind === "site_docs"
           ? `${formatDocumentationSourceIdentity(source, entry)} docs`
-          : `docs (${entry.target})`;
+          : "docs";
   const qualifiers: string[] = [];
   if (entry.state === "available_not_searched") qualifiers.push("not searched");
   if (coverageDetails) qualifiers.push(coverageDetails);
@@ -435,9 +437,8 @@ function formatTargetGroupIdentity(group: UnifiedSearchTargetGroup): string {
   const primary = requested ?? fresh ?? served ?? "target";
   const staleLike =
     group.trustLimits.some((limit) => limit.kind === "stale") ||
-    ["STALE", "INDEXING", "stale", "indexing", "fallback_recent"].includes(
-      group.identity.freshness ?? "",
-    );
+    group.freshnessKind === "stale" ||
+    group.freshnessKind === "indexing";
   const resolved = fresh ?? (staleLike ? undefined : served);
   const resolution =
     resolved && resolved !== primary

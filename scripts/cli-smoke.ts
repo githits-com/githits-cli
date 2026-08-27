@@ -433,7 +433,9 @@ export function assertSearchTerminalText(text: string, context: string): void {
   );
 
   const hasReadinessText = formatterLines.some((line) =>
-    /^ {2}(?:Indexing|Searched|Ready now|Unavailable):/.test(line),
+    /^ {2}(?! {2}).*(?:Indexing|Searched|Ready now|Unavailable|Using|Status):/.test(
+      line,
+    ),
   );
   if (hasReadinessText) {
     assert(
