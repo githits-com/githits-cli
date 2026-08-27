@@ -1,4 +1,3 @@
-import type { MappedError } from "./code-navigation-error-map.js";
 import {
   buildContainingPathPrefix,
   buildPathPrefixSuggestion,
@@ -6,6 +5,7 @@ import {
   looksLikeMissingFileMessage,
   withExactPathAuthorityRecovery,
 } from "./file-path-recovery.js";
+import type { MappedError } from "./mapped-error.js";
 
 export function withReadFileRecovery(
   mapped: MappedError,

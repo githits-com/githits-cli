@@ -1,9 +1,10 @@
-import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { z } from "zod";
 
 /** Annotation fields required by OpenAI's MCP marketplace validation. */
-export interface CompleteToolAnnotations extends ToolAnnotations {
+export interface CompleteToolAnnotations {
+  title?: string;
   readOnlyHint: boolean;
+  idempotentHint?: boolean;
   openWorldHint: boolean;
   destructiveHint: boolean;
 }
@@ -22,6 +23,28 @@ export const BOUNDED_WRITE_TOOL_ANNOTATIONS = {
   destructiveHint: false,
 } as const satisfies CompleteToolAnnotations;
 
+export interface McpAuthActionContext {
+  authSource: unknown;
+  defaultAction: string;
+}
+
+export type McpAuthAction =
+  | string
+  | ((context: McpAuthActionContext) => string);
+
+/** Host-selected message and action for terms-acceptance failures. */
+export interface ToolTermsRemediation {
+  message: string;
+  action: string;
+}
+
+/** Host-provided execution state shared by MCP and direct tool callers. */
+export interface ToolExecutionContext {
+  authAction?: McpAuthAction;
+  termsRemediation?: ToolTermsRemediation;
+  signal?: AbortSignal;
+}
+
 /**
  * Standard result type for all MCP tools
  */
@@ -30,12 +53,10 @@ export type ToolResult = {
   isError?: boolean;
 };
 
-/**
- * Tool handler function signature (matches MCP SDK callback)
- */
+/** Transport-neutral callable tool handler receiving optional execution context. */
 export type ToolHandler<TArgs> = (
   args: TArgs,
-  extra: unknown,
+  context?: ToolExecutionContext,
 ) => Promise<ToolResult>;
 
 /**

@@ -410,6 +410,58 @@ The layering is intentional:
 
 This separation means tool logic can be tested without HTTP calls, and service logic can be tested without MCP SDK dependencies.
 
+## Browser-callable surface
+
+`@githits/mcp/tools` is a deliberately narrow public entry for a frontend
+proof of concept. It currently exports the `get_example` factory, its
+search-only `GetExampleService` contract, `toCallableTool()`, and the callable
+metadata/result types. The service seam is structural: callers provide only
+`search(params, options?)`, so a browser service can use its own backend
+endpoint without importing `@githits/core-internal` or the MCP server.
+
+`toCallableTool()` creates a plain callable object with `name`, `description`,
+`annotations`, input-mode JSON Schema, and `execute(input, options?)`. It wraps
+the tool's Zod shape in `z.object()`, emits the schema with
+`z.toJSONSchema(..., { io: "input" })`, and parses input before invoking the
+handler. This means required fields, optional fields, enum values, and Zod
+defaults are reflected in the schema and enforced before the service call.
+The handler returns the existing serializable `ToolResult` envelope; successful
+text and structured error results therefore remain the same as the MCP tool
+path. The initial callable surface is not a second tool protocol or a generic
+protocol-conversion layer.
+
+The callable execution options carry only a browser-standard `AbortSignal`.
+When present, the signal is forwarded unchanged to `GetExampleService.search`.
+Caller cancellation rejects the execution with its cancellation reason rather
+than being converted to a `ToolResult`; service deadlines and ordinary service
+errors retain their existing mapping behavior.
+
+The public `/tools` entry exports the neutral `AuthenticationError`,
+`ApiRateLimitError`, `FetchTimeoutError`, and `TermsAcceptanceRequiredError`
+constructors. An injected browser service should throw one of these exact
+constructors when it wants `get_example` to produce the corresponding
+structured `AUTH_REQUIRED`, `RATE_LIMITED`, `TIMEOUT`, or
+`TERMS_ACCEPTANCE_REQUIRED` `ToolResult`. This is an explicit service-error
+contract, not automatic HTTP response classification. Callable execution
+supplies the host-neutral authentication action `Authenticate with GitHits,
+then retry.`; terms errors use their canonical `acceptanceUrl` action, and
+arbitrary errors remain `UNKNOWN`.
+
+MCP execution has a different boundary. The MCP SDK callback receives raw
+callback state (`extra`) in the server adapter. The adapter extracts only the
+explicit `ToolExecutionContext` fields (`authAction`, paired
+`termsRemediation`, and `signal`) before invoking a tool handler. Tool
+definitions never read raw MCP callback state, so direct callers can omit the
+context and concurrent requests do not share ambient state.
+
+The frontend owns the WebMCP host integration: registration through
+`document.modelContext`, authentication and login UI, request transport, CORS
+policy, and user-facing recovery. The `/tools` entry provides no filesystem,
+environment/config discovery, auth storage, or Node service implementation.
+Only its selected resolved runtime graph is browser-safe; installing the full
+`@githits/mcp` package still includes the MCP SDK and Node-oriented dependency
+tree, and the root and `/client` entries remain Node-oriented.
+
 ## Tool Definition Pattern
 
 Each tool follows the same structure. See `packages/mcp/src/tools/search.ts` for the canonical example:

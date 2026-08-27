@@ -34,6 +34,25 @@ describe("RefreshingGitHitsService", () => {
       });
     });
 
+    it("forwards the same request options to the initial call", async () => {
+      const innerService = createMockGitHitsService();
+      const tokenProvider = createMockTokenProvider();
+      const factory = mock((_url: string, _token: string) => innerService);
+      const options = { signal: new AbortController().signal };
+      const service = new RefreshingGitHitsService(
+        API_URL,
+        tokenProvider,
+        factory,
+      );
+
+      await service.search({ query: "test" }, options);
+
+      expect(innerService.search).toHaveBeenCalledWith(
+        { query: "test" },
+        options,
+      );
+    });
+
     it("retries with refreshed token on AuthenticationError", async () => {
       const failingService = createMockGitHitsService({
         search: mock(() =>
@@ -63,6 +82,87 @@ describe("RefreshingGitHitsService", () => {
       expect(tokenProvider.forceRefresh).toHaveBeenCalledTimes(1);
       expect(factory).toHaveBeenCalledTimes(2);
       expect(factory).toHaveBeenCalledWith(API_URL, "mock-refreshed-token");
+    });
+
+    it("forwards the same request options to the refreshed call", async () => {
+      const options = { signal: new AbortController().signal };
+      const failingService = createMockGitHitsService({
+        search: mock(() =>
+          Promise.reject(new AuthenticationError("Authentication required.")),
+        ),
+      });
+      const successService = createMockGitHitsService({
+        search: mock(() => Promise.resolve("result after refresh")),
+      });
+      let callCount = 0;
+      const factory = mock((_url: string, _token: string) => {
+        callCount++;
+        return callCount === 1 ? failingService : successService;
+      });
+      const service = new RefreshingGitHitsService(
+        API_URL,
+        createMockTokenProvider(),
+        factory,
+      );
+
+      await service.search({ query: "test" }, options);
+
+      expect(failingService.search).toHaveBeenCalledWith(
+        { query: "test" },
+        options,
+      );
+      expect(successService.search).toHaveBeenCalledWith(
+        { query: "test" },
+        options,
+      );
+    });
+
+    it("does not refresh when the caller aborts after the initial failure", async () => {
+      const controller = new AbortController();
+      const reason = new Error("caller aborted");
+      const failingService = createMockGitHitsService({
+        search: mock(() => {
+          controller.abort(reason);
+          return Promise.reject(new AuthenticationError());
+        }),
+      });
+      const forceRefresh = mock(() => Promise.resolve("unexpected-token"));
+      const tokenProvider = createMockTokenProvider({ forceRefresh });
+      const service = new RefreshingGitHitsService(
+        API_URL,
+        tokenProvider,
+        mock(() => failingService),
+      );
+
+      await expect(
+        service.search({ query: "test" }, { signal: controller.signal }),
+      ).rejects.toBe(reason);
+      expect(forceRefresh).not.toHaveBeenCalled();
+    });
+
+    it("does not retry when the caller aborts during token refresh", async () => {
+      const controller = new AbortController();
+      const reason = new Error("caller aborted during refresh");
+      const failingService = createMockGitHitsService({
+        search: mock(() => Promise.reject(new AuthenticationError())),
+      });
+      const forceRefresh = mock(async () => {
+        controller.abort(reason);
+        return "unexpected-token";
+      });
+      const tokenProvider = createMockTokenProvider({ forceRefresh });
+      const factory = mock(() => failingService);
+      const service = new RefreshingGitHitsService(
+        API_URL,
+        tokenProvider,
+        factory,
+      );
+
+      await expect(
+        service.search({ query: "test" }, { signal: controller.signal }),
+      ).rejects.toBe(reason);
+      expect(forceRefresh).toHaveBeenCalledTimes(1);
+      expect(factory).toHaveBeenCalledTimes(1);
     });
 
     it("re-throws AuthenticationError when forceRefresh returns undefined", async () => {
@@ -198,6 +298,20 @@ describe("RefreshingGitHitsService", () => {
   });
 
   describe("no token available", () => {
+    it("does not look up a token when the caller is already aborted", async () => {
+      const controller = new AbortController();
+      const reason = new Error("already cancelled");
+      controller.abort(reason);
+      const getToken = mock(() => Promise.resolve("unexpected-token"));
+      const tokenProvider = createMockTokenProvider({ getToken });
+      const service = new RefreshingGitHitsService(API_URL, tokenProvider);
+
+      await expect(
+        service.search({ query: "test" }, { signal: controller.signal }),
+      ).rejects.toBe(reason);
+      expect(getToken).not.toHaveBeenCalled();
+    });
+
     it("throws AuthenticationError when getToken returns undefined", async () => {
       const tokenProvider = createMockTokenProvider({
         getToken: mock(() => Promise.resolve(undefined)),

@@ -15,7 +15,7 @@ import {
   resolveCodeTarget,
 } from "./code-navigation-shared.js";
 import { CODE_READ_GUARDRAIL } from "./guardrails.js";
-import { mcpMappedErrorResult } from "./shared.js";
+import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
   BOUNDED_WRITE_TOOL_ANNOTATIONS,
   type ToolDefinition,
@@ -157,7 +157,7 @@ export function createReadFileTool(
     description: DESCRIPTION,
     schema,
     annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
-    handler: async (args) => {
+    handler: async (args, context) => {
       const target = resolveCodeTarget(args.target);
       if ("content" in target) return target;
 
@@ -197,11 +197,12 @@ export function createReadFileTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
+        throwIfCallerCancellation(error, context?.signal);
         const mapped = withReadFileRecovery(
           mapCodeNavigationError(error),
           args.path,
         );
-        return mcpMappedErrorResult(mapped);
+        return mcpMappedErrorResult(mapped, context);
       }
     },
   };

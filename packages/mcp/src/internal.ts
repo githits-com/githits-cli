@@ -105,7 +105,9 @@ export {
 } from "./tools/resolve-target.js";
 export type {
   ToolDefinition,
+  ToolExecutionContext,
   ToolHandler,
   ToolResult,
+  ToolTermsRemediation,
   ZodRawShape,
 } from "./tools/types.js";

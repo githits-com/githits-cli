@@ -6,6 +6,9 @@ const CLI_LOCAL_AUTH_REMEDIATION =
   "Run `githits login` to authenticate or set GITHITS_API_TOKEN.";
 const CLI_SERVER_AUTH_REMEDIATION =
   "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set. If this persists, contact support@githits.com.";
+const CLI_TERMS_ERROR_MESSAGE =
+  "Terms acceptance required. Run `githits settings terms accept`, then retry.";
+const CLI_TERMS_ACTION = "githits settings terms accept";
 
 interface CliErrorPayload {
   error: string;
@@ -15,6 +18,9 @@ interface CliErrorPayload {
 }
 
 export function formatMappedErrorForTerminal(mapped: MappedError): string {
+  if (mapped.code === "TERMS_ACCEPTANCE_REQUIRED") {
+    return CLI_TERMS_ERROR_MESSAGE;
+  }
   if (mapped.code === "AUTH_REQUIRED") {
     if (
       mapped.message === "Authentication required." &&
@@ -79,11 +85,18 @@ function authRemediation(mapped: MappedError): string {
 export function buildCliMappedErrorPayload(
   mapped: MappedError,
 ): CliErrorPayload {
+  const details =
+    mapped.code === "TERMS_ACCEPTANCE_REQUIRED"
+      ? { action: CLI_TERMS_ACTION, ...(mapped.details ?? {}) }
+      : mapped.details;
   return {
-    error: mapped.message,
+    error:
+      mapped.code === "TERMS_ACCEPTANCE_REQUIRED"
+        ? CLI_TERMS_ERROR_MESSAGE
+        : mapped.message,
     code: mapped.code,
     retryable: mapped.retryable ?? false,
-    ...(mapped.details ? { details: mapped.details } : {}),
+    ...(details ? { details } : {}),
   };
 }
 

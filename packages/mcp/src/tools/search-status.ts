@@ -9,7 +9,7 @@ import {
   buildUnifiedSearchStatusPayload,
 } from "../shared/unified-search-response.js";
 import { renderUnifiedSearchStatusText } from "../shared/unified-search-status-text.js";
-import { addLocalMcpAuthAction } from "./shared.js";
+import { addLocalMcpAuthAction, throwIfCallerCancellation } from "./shared.js";
 import {
   errorResult,
   READ_ONLY_TOOL_ANNOTATIONS,
@@ -61,7 +61,7 @@ export function createSearchStatusTool(
     description: DESCRIPTION,
     schema,
     annotations: READ_ONLY_TOOL_ANNOTATIONS,
-    handler: async (args) => {
+    handler: async (args, context) => {
       try {
         const outcome = await service.searchStatus(
           args.search_ref,
@@ -73,9 +73,13 @@ export function createSearchStatusTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
+        throwIfCallerCancellation(error, context?.signal);
         return errorResult(
           JSON.stringify(
-            addLocalMcpAuthAction(buildUnifiedSearchErrorPayload(error)),
+            addLocalMcpAuthAction(
+              buildUnifiedSearchErrorPayload(error),
+              context,
+            ),
           ),
         );
       }

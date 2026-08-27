@@ -6,7 +6,7 @@ import { buildListPackageDocsSuccessPayload } from "../shared/list-package-docs-
 import { renderListPackageDocsText } from "../shared/list-package-docs-text.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { DOCS_GUARDRAIL } from "./guardrails.js";
-import { mcpMappedErrorResult } from "./shared.js";
+import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
   BOUNDED_WRITE_TOOL_ANNOTATIONS,
   type ToolDefinition,
@@ -62,7 +62,7 @@ export function createListPackageDocsTool(
     description: DESCRIPTION,
     schema,
     annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
-    handler: async (args) => {
+    handler: async (args, context) => {
       try {
         const build = buildListPackageDocsParams({
           registry: args.registry,
@@ -83,8 +83,9 @@ export function createListPackageDocsTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
+        throwIfCallerCancellation(error, context?.signal);
         const mapped = mapPackageIntelligenceError(error);
-        return mcpMappedErrorResult(mapped);
+        return mcpMappedErrorResult(mapped, context);
       }
     },
   };

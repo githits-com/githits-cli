@@ -5,6 +5,8 @@ import { join } from "node:path";
 import {
   buildNodeTargetProbe,
   findDirectProcessOutputAccess,
+  findForbiddenBrowserBundleSpecifiers,
+  findForbiddenBrowserOutputMarkers,
   findForbiddenFilesystemSpecifiersInMetafile,
   findForbiddenStaticFilesystemSpecifiers,
   findStaticModuleSpecifiers,
@@ -88,5 +90,38 @@ describe("public package boundary helpers", () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  it("classifies browser bundle module and output markers", () => {
+    expect(
+      findForbiddenBrowserBundleSpecifiers({
+        inputs: {
+          entry: {
+            imports: [
+              { path: "node:fs" },
+              { original: "@modelcontextprotocol/sdk/client" },
+              { original: "@githits/core-internal" },
+              { original: "workspace:*" },
+              { original: "zod" },
+            ],
+          },
+        },
+      }),
+    ).toEqual([
+      "@githits/core-internal",
+      "@modelcontextprotocol/sdk/client",
+      "node:fs",
+      "workspace:*",
+    ]);
+    expect(
+      findForbiddenBrowserOutputMarkers(
+        'const processOutput = process.env.NODE_ENV; const value = Buffer.from("x");',
+      ),
+    ).toEqual(["process global", "Buffer global"]);
+    expect(
+      findForbiddenBrowserOutputMarkers(
+        'const text = "process and Buffer are ordinary words";',
+      ),
+    ).toEqual([]);
   });
 });

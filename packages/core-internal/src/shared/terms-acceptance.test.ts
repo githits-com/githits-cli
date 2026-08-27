@@ -6,6 +6,12 @@ import {
 } from "./terms-acceptance.js";
 
 describe("terms acceptance contract", () => {
+  it("keeps the core error message host-neutral", () => {
+    expect(new TermsAcceptanceRequiredError().message).toBe(
+      "Terms acceptance required.",
+    );
+  });
+
   it("parses a REST response with an environment-specific acceptance URL", () => {
     expect(
       createTermsAcceptanceError({

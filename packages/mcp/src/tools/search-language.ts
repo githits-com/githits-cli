@@ -39,16 +39,20 @@ export function createSearchLanguageTool(
     description: DESCRIPTION,
     schema,
     annotations: READ_ONLY_TOOL_ANNOTATIONS,
-    handler: async (args) => {
-      return withErrorHandling("search languages", async () => {
-        const result = (await service.searchLanguages(args.query)).map(
-          toLanguageMatch,
-        );
-        if (isTextFormat(args.format)) {
-          return textResult(renderLanguageMatches(result));
-        }
-        return textResult(JSON.stringify(result));
-      });
+    handler: async (args, context) => {
+      return withErrorHandling(
+        "search languages",
+        async () => {
+          const result = (await service.searchLanguages(args.query)).map(
+            toLanguageMatch,
+          );
+          if (isTextFormat(args.format)) {
+            return textResult(renderLanguageMatches(result));
+          }
+          return textResult(JSON.stringify(result));
+        },
+        context,
+      );
     },
   };
 }

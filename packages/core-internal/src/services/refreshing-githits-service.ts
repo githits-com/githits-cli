@@ -4,6 +4,7 @@ import {
   type FeedbackResult,
   type GitHitsService,
   GitHitsServiceImpl,
+  type GitHitsServiceRequestOptions,
   type GitHitsServiceRuntimeOptions,
   isTokenRefreshableError,
   type Language,
@@ -29,8 +30,16 @@ export class RefreshingGitHitsService implements GitHitsService {
     private readonly runtime: GitHitsServiceRuntimeOptions = {},
   ) {}
 
-  async search(params: SearchParams): Promise<string> {
-    return this.withTokenRefresh((service) => service.search(params));
+  async search(
+    params: SearchParams,
+    options?: GitHitsServiceRequestOptions,
+  ): Promise<string> {
+    return this.withTokenRefresh(
+      options
+        ? (service) => service.search(params, options)
+        : (service) => service.search(params),
+      options,
+    );
   }
 
   async getLanguages(): Promise<Language[]> {
@@ -53,12 +62,20 @@ export class RefreshingGitHitsService implements GitHitsService {
    */
   private async withTokenRefresh<T>(
     operation: (service: GitHitsService) => Promise<T>,
+    options?: GitHitsServiceRequestOptions,
   ): Promise<T> {
     return executeWithTokenRefresh({
-      getToken: () => this.tokenProvider.getToken(),
-      forceRefresh: () => this.tokenProvider.forceRefresh(),
+      getToken: () => {
+        options?.signal?.throwIfAborted();
+        return this.tokenProvider.getToken();
+      },
+      forceRefresh: () => {
+        options?.signal?.throwIfAborted();
+        return this.tokenProvider.forceRefresh();
+      },
       shouldRefresh: isTokenRefreshableError,
       executeWithToken: async (token) => {
+        options?.signal?.throwIfAborted();
         const service = this.serviceFactory
           ? this.serviceFactory(this.apiUrl, token)
           : new GitHitsServiceImpl(

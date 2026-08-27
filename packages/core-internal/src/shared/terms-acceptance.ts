@@ -15,9 +15,7 @@ export class TermsAcceptanceRequiredError extends Error {
   readonly acceptanceUrl: string;
 
   constructor(remediation: TermsAcceptanceRemediation = {}) {
-    super(
-      "Terms acceptance required. Run `githits settings terms accept`, then retry.",
-    );
+    super("Terms acceptance required.");
     this.name = "TermsAcceptanceRequiredError";
     this.termsUrl = remediation.termsUrl ?? TERMS_URL;
     this.acceptanceUrl = remediation.acceptanceUrl ?? TERMS_ACCEPTANCE_URL;

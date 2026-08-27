@@ -21,15 +21,20 @@ import {
   type ToolResult,
   type ZodRawShape,
 } from "../tools/index.js";
-import {
-  type McpAuthAction,
-  withErrorHandling,
-  withMcpErrorOptions,
-} from "../tools/shared.js";
+import { type McpAuthAction, withErrorHandling } from "../tools/shared.js";
 import type { McpToolServices } from "../tools/tool-services.js";
+import type {
+  ToolExecutionContext,
+  ToolTermsRemediation,
+} from "../tools/types.js";
 import { buildMcpQuickStart } from "./instructions.js";
 
-export type { McpAuthAction, McpAuthActionContext } from "../tools/shared.js";
+export type {
+  McpAuthAction,
+  McpAuthActionContext,
+  ToolExecutionContext,
+  ToolTermsRemediation,
+} from "../tools/shared.js";
 
 export interface McpServerMetadata {
   name: string;
@@ -60,6 +65,7 @@ export interface CreateMcpServerOptions<TExtra = unknown> {
   metadata: McpServerMetadata;
   services: McpToolServicesProvider<TExtra>;
   authAction?: McpAuthAction;
+  termsRemediation?: ToolTermsRemediation;
   /** Optional caller-owned MCP instructions. GitHits does not provide defaults. */
   instructions?: string;
   /** Controls the guide returned by `quick_start`. */
@@ -163,7 +169,7 @@ export function eraseMcpTool<TArgs, TSchema extends ZodRawShape>(
 ): ToolDefinition<unknown> {
   return {
     ...tool,
-    handler: (args, extra) => tool.handler(args as TArgs, extra),
+    handler: (args, context) => tool.handler(args as TArgs, context),
   };
 }
 
@@ -171,6 +177,7 @@ export function registerMcpTools<TExtra = unknown>(
   server: McpServer,
   options: {
     authAction?: McpAuthAction;
+    termsRemediation?: ToolTermsRemediation;
     services: McpToolServicesProvider<TExtra>;
     traceTool?: McpToolExecutionHook;
   },
@@ -189,6 +196,7 @@ export function registerMcpToolsWithFactories<
   toolFactories: readonly McpToolFactory<TServices>[],
   options: {
     authAction?: McpAuthAction;
+    termsRemediation?: ToolTermsRemediation;
     services: McpToolServicesProviderFor<TServices, TExtra>;
     traceTool?: McpToolExecutionHook;
     descriptorServices: TServices;
@@ -204,22 +212,26 @@ export function registerMcpToolsWithFactories<
         annotations: descriptor.annotations,
       },
       async (args, extra) => {
+        const context: ToolExecutionContext = {
+          authAction: options.authAction,
+          termsRemediation: options.termsRemediation,
+          signal: extra?.signal,
+        };
         const runHandler = async () => {
-          const services = await withErrorHandling("resolve MCP services", () =>
-            resolveMcpToolServices(options.services, {
-              extra: extra as TExtra | undefined,
-            }),
+          const services = await withErrorHandling(
+            "resolve MCP services",
+            () =>
+              resolveMcpToolServices(options.services, {
+                extra: extra as TExtra | undefined,
+              }),
+            context,
           );
           if (isToolResult(services)) return services;
-          return createTool(services).handler(args, extra);
+          return createTool(services).handler(args, context);
         };
-        return withMcpErrorOptions(
-          { authAction: options.authAction },
-          async () =>
-            options.traceTool
-              ? await options.traceTool(descriptor.name, runHandler)
-              : runHandler(),
-        );
+        return options.traceTool
+          ? await options.traceTool(descriptor.name, runHandler)
+          : runHandler();
       },
     );
   }
@@ -250,6 +262,7 @@ export interface CreateMcpServerWithFactoriesOptions<
   toolFactories: readonly McpToolFactory<TServices>[];
   descriptorServices: TServices;
   authAction?: McpAuthAction;
+  termsRemediation?: ToolTermsRemediation;
   instructions?: string;
   traceTool?: McpToolExecutionHook;
 }
@@ -267,6 +280,7 @@ export function createMcpServerWithFactories<
 
   registerMcpToolsWithFactories(server, options.toolFactories, {
     authAction: options.authAction,
+    termsRemediation: options.termsRemediation,
     services: options.services,
     traceTool: options.traceTool,
     descriptorServices: options.descriptorServices,
