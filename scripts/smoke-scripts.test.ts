@@ -6,6 +6,7 @@ import { EXPECTED_MCP_TOOLS } from "@githits/mcp/smoke-test";
 import {
   assertExperimentalCliResolveText,
   assertRootHelpStructure,
+  assertSearchTerminalText,
   buildMcpParityCommand,
   EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS,
   EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
@@ -22,6 +23,25 @@ import {
   STABLE_MCP_SMOKE_CONFIG,
 } from "./mcp-smoke.ts";
 import { toStdioLaunch } from "./smoke-launch-target.ts";
+
+describe("CLI search smoke contract", () => {
+  const valid = `1 result from npm:express@5.2.1
+githits code read 'npm:express@5.2.1' 'lib/application.js' --lines 1-10
+More hits available. Pass --offset 10 or --limit N to widen.`;
+
+  it("accepts outcome-first text with CLI-native actions", () => {
+    expect(() => assertSearchTerminalText(valid, "search")).not.toThrow();
+  });
+
+  it.each([
+    [`Warning: indexing\n${valid}`, "non-outcome text"],
+    [`${valid}\nstatus: indexing`, "lifecycle status"],
+    [valid.replace("--offset 10", "offset=10"), "MCP pagination syntax"],
+    ["1 result from npm:express@5.2.1", "missing CLI-native"],
+  ])("rejects invalid search text", (text, message) => {
+    expect(() => assertSearchTerminalText(text, "search")).toThrow(message);
+  });
+});
 
 describe("smoke script options", () => {
   const tempDirs: string[] = [];

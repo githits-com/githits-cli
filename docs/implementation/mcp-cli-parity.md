@@ -258,9 +258,9 @@ only in the exact continuation action. MCP renders
 `Next: githits search-status ... --wait ...`. Terminal and unknown responses
 instead give an explicit transport-neutral no-poll instruction.
 
-CLI supplies ANSI enablement and CLI-native follow-up commands to the shared
-formatter; MCP supplies no color and MCP-native tool-call syntax. Hierarchy,
-wording, wrapping, and fact selection are otherwise identical. Search-result
+CLI supplies ANSI enablement and CLI-native follow-up and pagination syntax to the
+shared formatter; MCP supplies no color and MCP-native tool-call syntax. Hierarchy,
+wrapping, and fact selection are otherwise identical. Search-result
 follow-ups likewise render as `githits code read` / `githits docs read` in CLI
 and `code_read` / `docs_read` in MCP. ANSI-stripped CLI output is structurally
 identical to no-color output.
@@ -273,7 +273,7 @@ payloads with no result snapshot omit that field. Full `warnings[]`, source
 diagnostics, evidence notices, reason codes, references, and alternative lists
 remain available in JSON even when MCP text classifies or bounds them for
 readability. The shared JSON parity tests compare these envelopes deeply; only
-surface-native follow-up syntax and ANSI differ.
+surface-native follow-up and pagination syntax plus ANSI differ.
 
 ### `PARITY-ERROR-ENVELOPE`
 

@@ -364,7 +364,7 @@ function assertTerminalOutput(result: CommandResult, context: string): string {
   return text;
 }
 
-function assertSearchTerminalText(text: string, context: string): void {
+export function assertSearchTerminalText(text: string, context: string): void {
   const lines = text.split("\n");
   const firstLine = lines[0]?.trim() ?? "";
   assert(firstLine.length > 0, `${context}: missing outcome first line`);
@@ -391,6 +391,13 @@ function assertSearchTerminalText(text: string, context: string): void {
   assert(
     statusActions.length <= 1,
     `${context}: expected at most one search-status action`,
+  );
+  const paginationLines = lines.filter((line) =>
+    line.startsWith("More hits available."),
+  );
+  assert(
+    !paginationLines.some((line) => /\b(?:offset|limit)=/.test(line)),
+    `${context}: MCP pagination syntax leaked into CLI output`,
   );
   assert(
     text.includes("githits code read") ||
