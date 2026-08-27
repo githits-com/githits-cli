@@ -14,7 +14,6 @@ export function renderUnifiedSearchStatusText(payload: StatusPayload): string {
   const result = payload.result;
   return renderUnifiedSearchPresentationText(presentation, {
     results: result?.results ?? [],
-    hasMore: result?.hasMore ?? false,
     nextOffset: result?.nextOffset,
   });
 }

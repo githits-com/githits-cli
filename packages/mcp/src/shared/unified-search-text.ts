@@ -65,7 +65,6 @@ export function renderUnifiedSearchSuccess(
 
 export interface UnifiedSearchTextResult {
   results: UnifiedSearchHitPayload[];
-  hasMore: boolean;
   nextOffset?: number;
 }
 
@@ -84,7 +83,7 @@ export function renderUnifiedSearchPresentationText(
     appendUnifiedSearchHits(lines, result.results);
   }
 
-  if (result.hasMore) {
+  if (presentation.hasMore) {
     if (lines[lines.length - 1] !== "") lines.push("");
     const nextOffsetHint =
       typeof result.nextOffset === "number"
@@ -233,7 +232,7 @@ function appendPresentationSources(
       ),
     );
     const unique = [...new Set(values)];
-    lines.push(`${label}: ${unique.join(", ")}`);
+    lines.push(...wrapText(`${label}: ${unique.join(", ")}`));
   }
 }
 
@@ -362,8 +361,7 @@ function appendPresentationAlternatives(
   lines: string[],
   presentation: UnifiedSearchPresentation,
 ): void {
-  const alternatives = presentation.alternatives;
-  for (const alternative of alternatives) {
+  for (const alternative of presentation.alternatives) {
     const categories: string[] = [];
     if (alternative.versions.length > 0) {
       categories.push(
@@ -382,7 +380,9 @@ function appendPresentationAlternatives(
     }
     if (categories.length > 0) {
       lines.push(
-        `Indexed alternatives${alternatives.length > 1 && alternative.target ? ` for ${alternative.target}` : ""}: ${categories.join("; ")}`,
+        ...wrapText(
+          `Indexed alternatives${presentation.alternatives.length > 1 && alternative.target ? ` for ${alternative.target}` : ""}: ${categories.join("; ")}`,
+        ),
       );
     }
   }
@@ -403,7 +403,9 @@ function appendPresentationSiteSuggestions(
     const targetSuffix =
       presentation.siteSuggestions.length > 1 ? ` for ${facts.target}` : "";
     lines.push(
-      `Suggested site targets${targetSuffix}: ${suggestions.join(", ")}`,
+      ...wrapText(
+        `Suggested site targets${targetSuffix}: ${suggestions.join(", ")}`,
+      ),
     );
   }
   if (presentation.siteSuggestions.some((facts) => facts.truncated)) {
@@ -1396,7 +1398,7 @@ function formatDetailValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function wrapText(text: string, width: number): string[] {
+function wrapText(text: string, width = SUMMARY_WRAP_WIDTH): string[] {
   const lines: string[] = [];
   for (const paragraph of text.split(/\n/)) {
     if (paragraph.length === 0) {
@@ -1406,7 +1408,8 @@ function wrapText(text: string, width: number): string[] {
     let remaining = paragraph.trim();
     while (remaining.length > width) {
       let breakAt = remaining.lastIndexOf(" ", width);
-      if (breakAt <= 0) breakAt = width;
+      if (breakAt <= 0) breakAt = remaining.indexOf(" ", width);
+      if (breakAt < 0) breakAt = remaining.length;
       lines.push(remaining.slice(0, breakAt).trimEnd());
       remaining = remaining.slice(breakAt).trimStart();
     }

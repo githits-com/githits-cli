@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { projectUnifiedSearchPresentation } from "./unified-search-presentation.js";
 import type {
   UnifiedSearchCompletedPayload,
   UnifiedSearchErrorPayload,
@@ -8,6 +9,7 @@ import type {
 } from "./unified-search-response.js";
 import {
   renderUnifiedSearchError,
+  renderUnifiedSearchPresentationText,
   renderUnifiedSearchSuccess,
 } from "./unified-search-text.js";
 
@@ -225,7 +227,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "Available but not searched: n8n.io docs (1,480 pages; capped)",
     );
     expect(text).toContain(
-      "Indexed alternatives: versions 2.26.9, 2.26.5, 2.23.2 +2 more; refs HEAD, master",
+      "Indexed alternatives: versions 2.26.9, 2.26.5, 2.23.2 +2 more; refs HEAD,\nmaster",
     );
     expect(text).toContain(
       'Next: search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=20000',
@@ -398,14 +400,18 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain(
       "Waiting: code for npm:one@1.0.0, code for npm:two@2.0.0",
     );
-    expect(text).toContain(
-      "repository docs (https://github.com/one/repo @ commit-one) for npm:one@1.0.0",
+    expect(text).toMatch(
+      /repository docs \(https:\/\/github\.com\/one\/repo @ commit-one\) for\nnpm:one@1\.0\.0/,
     );
-    expect(text).toContain(
-      "repository docs (https://github.com/two/repo @ commit-two) for npm:two@2.0.0",
+    expect(text).toMatch(
+      /repository docs \(https:\/\/github\.com\/two\/repo @ commit-two\)\nfor npm:two@2\.0\.0/,
     );
-    expect(text).toContain("site docs (docs.one.example) for npm:one@1.0.0");
-    expect(text).toContain("site docs (docs.two.example) for npm:two@2.0.0");
+    expect(text).toMatch(
+      /site docs \(docs\.one\.example\) for npm:one@1\.0\.0/,
+    );
+    expect(text).toMatch(
+      /site docs\n\(docs\.two\.example\) for npm:two@2\.0\.0/,
+    );
   });
 
   it.each([
@@ -671,11 +677,79 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("[1] cline/cline@v3.4.2");
     expect(text).toContain("[2] aider/edit-formats aider-AI/aider");
     expect(text).toContain(
-      "Indexed alternatives: versions 5.2.1, 5.2.0, 5.1.0 +1 more; refs HEAD, main, next +1 more",
+      "Indexed alternatives: versions 5.2.1, 5.2.0, 5.1.0 +1 more; refs HEAD, main,\nnext +1 more",
     );
     expect(text).toContain("More hits available. Pass offset=10");
     expect(text).not.toContain("v5.0.0");
     expect(text).not.toContain("dev");
+  });
+
+  it("uses the presentation pagination flag as the rendering authority", () => {
+    const payload = completed([], { hasMore: true, nextOffset: 10 });
+    const presentation = projectUnifiedSearchPresentation(payload);
+    const text = renderUnifiedSearchPresentationText(presentation, {
+      results: payload.results,
+      nextOffset: payload.nextOffset,
+    });
+
+    expect(presentation.hasMore).toBe(true);
+    expect(text).toContain("More hits available. Pass offset=10");
+  });
+
+  it("wraps bounded summaries without splitting exact tokens", () => {
+    const targetOne = "npm:one-long-package@1.0.0";
+    const targetTwo = "npm:two-long-package@2.0.0";
+    const suggestions = [
+      "site:docs.example.com/guide/one",
+      "site:docs.example.com/guide/two",
+      "site:docs.example.com/guide/three",
+    ];
+    const longRef = `refs/${"x".repeat(90)}`;
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            targetLabel: targetOne,
+            codeIndexState: "INDEXING",
+            targetResolution: {
+              availableVersions: [{ version: "1.0.0", ref: "v1.0.0" }],
+              availableRefs: [{ ref: longRef }],
+            },
+          }),
+          source({
+            targetLabel: targetTwo,
+            codeIndexState: "INDEXING",
+            targetResolution: {
+              availableVersions: [{ version: "2.0.0", ref: "v2.0.0" }],
+              availableRefs: [{ ref: "main" }],
+            },
+          }),
+          source({
+            source: "docs",
+            targetLabel: "site:docs.example.com",
+            suggestedSiteTargets: suggestions,
+            suggestedSiteTargetsTruncated: true,
+          }),
+        ],
+      }),
+    );
+
+    const lines = text.split("\n");
+    const summaryLines = lines.filter((line) =>
+      /^(Waiting|Searched|Indexed alternatives|Suggested site targets)/.test(
+        line,
+      ),
+    );
+    expect(summaryLines.length).toBeGreaterThan(3);
+    expect(summaryLines.every((line) => line.length <= 76)).toBe(true);
+    expect(text).toContain(targetOne);
+    expect(text).toContain(targetTwo);
+    expect(text).toContain(longRef);
+    expect(text).toContain("Additional site targets were omitted.");
+
+    const overlongLines = lines.filter((line) => line.length > 76);
+    expect(overlongLines).toHaveLength(1);
+    expect(overlongLines[0]).toContain(longRef);
   });
 
   it("shows capped searched coverage without repeating the trust limit", () => {
