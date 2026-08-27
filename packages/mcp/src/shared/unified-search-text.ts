@@ -19,13 +19,6 @@
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
 import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
-import { isHealthySearchLifecycleState } from "./search-lifecycle.js";
-import {
-  buildResolutionFromRetryCandidates,
-  buildTargetResolutionNotes,
-  formatTargetResolutionIdentity,
-  type LeanTargetResolution,
-} from "./target-resolution.js";
 import {
   projectUnifiedSearchPresentation,
   type UnifiedSearchAction,
@@ -38,12 +31,9 @@ import {
 } from "./unified-search-presentation.js";
 import type {
   UnifiedSearchCompletedPayload,
-  UnifiedSearchDocumentationContributorPayload,
   UnifiedSearchErrorPayload,
   UnifiedSearchHitPayload,
   UnifiedSearchIncompletePayload,
-  UnifiedSearchQueryEcho,
-  UnifiedSearchSourceStatusPayload,
 } from "./unified-search-response.js";
 
 const SUMMARY_WRAP_WIDTH = 76;
@@ -109,10 +99,10 @@ export function renderUnifiedSearchPresentationText(
 
   if (presentation.hasMore) {
     if (lines[lines.length - 1] !== "") lines.push("");
-    const nextOffsetHint =
-      typeof result.nextOffset === "number"
-        ? `More hits available. Pass offset=${result.nextOffset} or limit=N to widen.`
-        : "More hits available. Pass limit=N to widen.";
+    const nextOffsetHint = formatPaginationHint(
+      result.nextOffset,
+      settings.actionSyntax,
+    );
     lines.push(nextOffsetHint);
   }
 
@@ -120,6 +110,20 @@ export function renderUnifiedSearchPresentationText(
   appendPresentationSiteSuggestions(lines, presentation, settings);
   appendPresentationAction(lines, presentation, settings);
   return lines.join("\n");
+}
+
+function formatPaginationHint(
+  nextOffset: number | undefined,
+  actionSyntax: "mcp" | "cli",
+): string {
+  if (actionSyntax === "cli") {
+    return typeof nextOffset === "number"
+      ? `More hits available. Pass --offset ${nextOffset} or --limit N to widen.`
+      : "More hits available. Pass --limit N to widen.";
+  }
+  return typeof nextOffset === "number"
+    ? `More hits available. Pass offset=${nextOffset} or limit=N to widen.`
+    : "More hits available. Pass limit=N to widen.";
 }
 
 interface NormalizedTextOptions {
@@ -832,167 +836,6 @@ function formatLineRange(start?: number, end?: number): string {
   return `:${start}-${end}`;
 }
 
-export interface DocumentationSourceResult {
-  target: string;
-}
-
-/** Render compact references for healthy docs and explain only exceptions. */
-export function appendDocumentationSources(
-  lines: string[],
-  sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
-  results: DocumentationSourceResult[] = [],
-): void {
-  const documented =
-    sourceStatus?.filter((entry) => entry.contributors?.length) ?? [];
-  if (documented.length === 0) return;
-  if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
-
-  const entries = documented.map((entry) => {
-    const contributors = entry.contributors ?? [];
-    const sources = contributors.map((contributor) => ({
-      contributor,
-      identity: formatDocumentationContributorIdentity(
-        contributor,
-        contributors,
-      ),
-    }));
-    return {
-      entry,
-      sources,
-      healthy: contributors.every(isHealthyDocumentationContributor),
-    };
-  });
-  const healthy = entries.filter((entry) => entry.healthy);
-  const exceptional = entries.filter((entry) => !entry.healthy);
-  const responseTargets = new Set([
-    ...(sourceStatus?.map((entry) => entry.targetLabel) ?? []),
-    ...results.map((result) => result.target),
-  ]);
-  const showTargets = responseTargets.size > 1;
-
-  if (healthy.length > 0) {
-    if (showTargets) {
-      lines.push("searched:");
-      for (const { entry, sources } of healthy) {
-        lines.push(
-          `  ${entry.targetLabel}: ${sources.map(({ identity }) => identity).join("; ")}`,
-        );
-      }
-    } else {
-      lines.push(
-        `searched: ${healthy.flatMap(({ sources }) => sources.map(({ identity }) => identity)).join("; ")}`,
-      );
-    }
-  }
-
-  if (healthy.length > 0 && exceptional.length > 0) lines.push("");
-
-  if (exceptional.length > 0) {
-    lines.push("documentation sources:");
-    for (const { entry, sources } of exceptional) {
-      if (showTargets) lines.push(`  ${entry.targetLabel}:`);
-      const indent = showTargets ? "    " : "  ";
-      for (const { contributor, identity } of sources) {
-        lines.push(
-          `${indent}- ${formatDocumentationContributor(contributor, identity)}`,
-        );
-      }
-    }
-  }
-}
-
-function formatDocumentationContributor(
-  contributor: NonNullable<
-    UnifiedSearchSourceStatusPayload["contributors"]
-  >[number],
-  identity: string,
-): string {
-  if (isHealthyDocumentationContributor(contributor)) {
-    return `${identity} - searched`;
-  }
-
-  const details: string[] = [];
-  if (contributor.state === "SEARCHED") {
-    if (contributor.freshness === "STALE") {
-      details.push("searched an older snapshot");
-    } else if (contributor.freshness === "PROVISIONAL") {
-      details.push("searched provisional index; indexing continues");
-    } else {
-      details.push("searched");
-    }
-  } else {
-    details.push(formatDocumentationContributorState(contributor.state));
-    if (contributor.freshness === "STALE") {
-      details.push("the available snapshot is older");
-    }
-  }
-  const coverage = formatPublishedCoverage(contributor.coverage);
-  if (coverage) {
-    details.push(coverage);
-  } else if (
-    contributor.kind === "DOCPACK" &&
-    contributor.state === "SEARCHED" &&
-    !contributor.coverage
-  ) {
-    details.push("published coverage details unavailable");
-  }
-  return `${identity} - ${details.join("; ")}`;
-}
-
-function formatDocumentationContributorState(
-  state: UnifiedSearchDocumentationContributorPayload["state"],
-): string {
-  switch (state) {
-    case "SEARCHED":
-      return "searched";
-    case "READY":
-      return "available, but not searched for this response";
-    case "PENDING":
-      return "not ready, so it was not searched";
-    case "UNAVAILABLE":
-      return "unavailable and was not searched";
-  }
-}
-
-function formatDocumentationContributorIdentity(
-  contributor: NonNullable<
-    UnifiedSearchSourceStatusPayload["contributors"]
-  >[number],
-  contributors: UnifiedSearchDocumentationContributorPayload[],
-): string {
-  if (contributor.kind === "REPOSITORY_DOCS") {
-    const identity = [contributor.repositoryUrl, contributor.commitSha]
-      .filter(Boolean)
-      .join(" @ ");
-    return identity ? `repo ${identity}` : "repository docs";
-  }
-  const docpacks = contributors.filter(
-    (candidate) => candidate.kind === "DOCPACK",
-  );
-  const siteIdentity = formatDocumentationSiteIdentity(contributor.siteUrl);
-  const collidingDocpacks = docpacks.filter(
-    (candidate) =>
-      formatDocumentationSiteIdentity(candidate.siteUrl) === siteIdentity,
-  );
-  const docpackNumber = collidingDocpacks.indexOf(contributor) + 1;
-  const numberSuffix = collidingDocpacks.length > 1 ? ` ${docpackNumber}` : "";
-  if (siteIdentity) return `site ${siteIdentity}${numberSuffix}`;
-
-  return `site documentation${numberSuffix}`;
-}
-
-function isHealthyDocumentationContributor(
-  contributor: UnifiedSearchDocumentationContributorPayload,
-): boolean {
-  if (contributor.state !== "SEARCHED" || contributor.freshness !== "CURRENT") {
-    return false;
-  }
-  return (
-    contributor.kind === "REPOSITORY_DOCS" ||
-    contributor.coverage?.coverageState === "COMPLETE"
-  );
-}
-
 function formatDocumentationSiteIdentity(
   value: string | undefined,
 ): string | undefined {
@@ -1005,311 +848,6 @@ function formatDocumentationSiteIdentity(
   } catch {
     return undefined;
   }
-}
-
-function formatPublishedCoverage(
-  coverage: NonNullable<
-    UnifiedSearchSourceStatusPayload["contributors"]
-  >[number]["coverage"],
-): string | undefined {
-  if (!coverage) return undefined;
-  if (coverage.coverageState === "COMPLETE") return undefined;
-
-  const details: string[] = [];
-  if (typeof coverage.pagesCrawled === "number") {
-    details.push(
-      `${coverage.pagesCrawled} page${coverage.pagesCrawled === 1 ? "" : "s"} included`,
-    );
-  }
-  if (
-    typeof coverage.artifactOverflowPageCount === "number" &&
-    coverage.artifactOverflowPageCount > 0
-  ) {
-    details.push(
-      `${coverage.artifactOverflowPageCount} page${coverage.artifactOverflowPageCount === 1 ? "" : "s"} omitted`,
-    );
-  }
-  if (
-    typeof coverage.frontierRemaining === "number" &&
-    coverage.frontierRemaining > 0
-  ) {
-    details.push(
-      `${coverage.frontierRemaining} discovered page${coverage.frontierRemaining === 1 ? "" : "s"} not included`,
-    );
-  }
-  if (typeof coverage.estimatedTotalPages === "number") {
-    details.push(`about ${coverage.estimatedTotalPages} estimated total`);
-  }
-
-  const reason = coverage.coverageReason
-    ? humanizeCoverageReason(coverage.coverageReason)
-    : undefined;
-  const cappedReasonIsHeadline =
-    coverage.coverageState === "CAPPED" &&
-    (reason === "artifact size" || reason === "max pages");
-  if (reason && !cappedReasonIsHeadline) {
-    details.push(`limited by ${reason}`);
-  }
-
-  const detailText = details.length > 0 ? `: ${details.join(", ")}` : "";
-  switch (coverage.coverageState) {
-    case "PARTIAL":
-      return `published snapshot is partial${detailText}`;
-    case "CAPPED":
-      if (reason === "artifact size") {
-        return `published snapshot hit its size cap${detailText}`;
-      }
-      if (reason === "max pages") {
-        return `published snapshot reached its page limit${detailText}`;
-      }
-      return `published snapshot is capped${detailText}`;
-    case "NONE":
-      return `published coverage was not measured${detailText}`;
-    default:
-      return `published coverage is ${coverage.coverageState.toLowerCase()}${detailText}`;
-  }
-}
-
-function humanizeCoverageReason(reason: string): string {
-  if (reason === "trap_suspected") return "a suspected crawl trap";
-  return reason.replaceAll(/[_-]+/g, " ");
-}
-
-export function appendEmptySearchGuidance(
-  lines: string[],
-  options: {
-    query?: UnifiedSearchQueryEcho;
-    showQuery?: boolean;
-    sourceStatus?: UnifiedSearchCompletedPayload["sourceStatus"];
-    evidenceNotice?: string;
-    guidanceStyle?: "mcp" | "cli";
-    fallbackHeadline?: string;
-  },
-): void {
-  if (options.showQuery && options.query?.raw) {
-    lines.push(`query=${quote(options.query.raw)}`);
-  }
-  const hasUnsearchedSources = hasUnsearchedDocumentationSources(
-    options.sourceStatus,
-  );
-  if (options.evidenceNotice) {
-    lines.push("No hits in the searched evidence on this page.");
-    lines.push("Do not repeat immediately.");
-    return;
-  }
-  lines.push(
-    hasUnsearchedSources
-      ? "No hits in the searched evidence on this page."
-      : (options.fallbackHeadline ??
-          formatEmptySearchHeadline(options.sourceStatus)),
-  );
-  if (options.guidanceStyle === "cli") {
-    lines.push(
-      hasIndexingSource(options.sourceStatus)
-        ? "Run again with a larger --wait while indexing finishes."
-        : isStandaloneSiteSearch(options.sourceStatus)
-          ? "Try a shorter or broader query."
-          : "Try a shorter or broader query, or search another source.",
-    );
-    return;
-  }
-  lines.push("Do not repeat this search unchanged.");
-  if (hasIndexingSource(options.sourceStatus)) {
-    const hasAlternatives = options.sourceStatus?.some(
-      (entry) =>
-        Boolean(entry.targetResolution?.availableVersions.length) ||
-        Boolean(entry.targetResolution?.availableRefs.length),
-    );
-    lines.push(
-      hasAlternatives
-        ? 'next: query an indexed version/ref labelled "queryable now", or rerun with a larger wait_timeout_ms to wait for indexing.'
-        : "next: rerun with a larger wait_timeout_ms to wait for indexing.",
-    );
-    return;
-  }
-
-  const pivots = ["shorten or broaden the query"];
-  if (hasRestrictiveSearchFilters(options.query)) {
-    pivots.push("remove restrictive filters");
-  }
-  const standaloneSiteSearch = isStandaloneSiteSearch(options.sourceStatus);
-  if (!standaloneSiteSearch && !options.query?.sources?.includes("symbol")) {
-    pivots.push('use source="symbol" for an exact API/entity name');
-  }
-  if (!standaloneSiteSearch) {
-    pivots.push("use code_grep for a known literal or regex");
-  }
-  lines.push(`next: ${pivots.join("; ")}.`);
-}
-
-function hasUnsearchedDocumentationSources(
-  sourceStatus: UnifiedSearchCompletedPayload["sourceStatus"],
-): boolean {
-  return Boolean(
-    sourceStatus?.some((entry) =>
-      entry.contributors?.some(
-        (contributor) => contributor.state !== "SEARCHED",
-      ),
-    ),
-  );
-}
-
-// Discovery carries provisional readiness through codeIndexState or
-// targetResolution; legacy indexingStatus remains INDEXING.
-function hasIndexingSource(
-  sourceStatus: UnifiedSearchCompletedPayload["sourceStatus"],
-): boolean {
-  return Boolean(
-    sourceStatus?.some(
-      (entry) =>
-        entry.targetResolution?.freshness === "indexing" ||
-        entry.targetResolution?.freshness === "provisional" ||
-        entry.indexingStatus === "INDEXING" ||
-        entry.codeIndexState === "INDEXING" ||
-        entry.codeIndexState === "PROVISIONAL" ||
-        entry.contributors?.some(
-          (contributor) => contributor.freshness === "PROVISIONAL",
-        ),
-    ),
-  );
-}
-
-function hasRestrictiveSearchFilters(
-  query: UnifiedSearchQueryEcho | undefined,
-): boolean {
-  const filters = query?.filters;
-  return Boolean(
-    filters?.kind ||
-      filters?.category ||
-      filters?.pathPrefix ||
-      filters?.fileIntent ||
-      filters?.publicOnly === true ||
-      (query?.raw &&
-        /(?:^|\s)(?:kind|category|path|lang|name|intent):/i.test(query.raw)),
-  );
-}
-
-function isStandaloneSiteSearch(
-  sourceStatus: UnifiedSearchCompletedPayload["sourceStatus"],
-): boolean {
-  return Boolean(
-    sourceStatus?.length &&
-      sourceStatus.every((entry) => {
-        const resolution = entry.targetResolution;
-        return Boolean(
-          entry.targetLabel.startsWith("site:") ||
-            resolution?.requested?.site ||
-            resolution?.resolvedRequested?.site ||
-            resolution?.served?.site,
-        );
-      }),
-  );
-}
-
-function formatEmptySearchHeadline(
-  sourceStatus: UnifiedSearchCompletedPayload["sourceStatus"],
-): string {
-  if (!sourceStatus || sourceStatus.length === 0) return "No hits.";
-  if (sourceStatus.length > 1) {
-    const sources = Array.from(
-      new Set(sourceStatus.map((entry) => entry.source)),
-    ).join(", ");
-    return `No hits from any source (${sources}).`;
-  }
-
-  const entry = sourceStatus[0];
-  if (!entry) return "No hits.";
-  const served =
-    entry.servedTarget ??
-    formatTargetResolutionIdentity(entry.targetResolution?.served) ??
-    entry.targetLabel;
-  const requested =
-    entry.requestedTarget ??
-    formatTargetResolutionIdentity(entry.targetResolution?.requested);
-  // STALE is headline-worthy provenance even when it is not warning-worthy.
-  const unhealthyIndexState = [entry.indexingStatus, entry.codeIndexState].find(
-    (state) => state && !isHealthySearchLifecycleState(state),
-  );
-  const freshness =
-    unhealthyIndexState ??
-    entry.targetResolution?.freshness ??
-    entry.codeIndexState ??
-    entry.indexingStatus;
-  const context: string[] = [];
-  if (requested && requested !== served) context.push(`requested ${requested}`);
-  if (freshness) context.push(describeFreshness(freshness));
-  const suffix = context.length > 0 ? ` (${context.join("; ")})` : "";
-  return `No hits for ${entry.source} on ${served}${suffix}.`;
-}
-
-export function formatProgressTarget(target: {
-  requested?: string;
-  resolvedRequested?: string;
-  served?: string;
-  freshness?: string;
-  indexingRef?: string;
-  requestedRefKind?: string;
-  targetResolution?: LeanTargetResolution;
-  availableVersions?: Array<{ version?: string; ref: string }>;
-  availableRefs?: Array<{ version?: string; ref: string }>;
-  suggestedRefs?: Array<{ version?: string; ref: string }>;
-}): string {
-  const parts: string[] = [];
-  if (target.requested) parts.push(`requested=${target.requested}`);
-  if (target.resolvedRequested) parts.push(`fresh=${target.resolvedRequested}`);
-  if (target.served) parts.push(`served=${target.served}`);
-  if (target.freshness)
-    parts.push(`state=${describeFreshness(target.freshness)}`);
-  if (target.requestedRefKind) parts.push(`intent=${target.requestedRefKind}`);
-  if (target.indexingRef) parts.push(`indexingRef=${target.indexingRef}`);
-  for (const note of buildTargetResolutionNotes(
-    target.targetResolution ?? buildResolutionFromRetryCandidates(target),
-  )) {
-    parts.push(note);
-  }
-  return parts.length > 0 ? parts.join(SEP) : "target progress unavailable";
-}
-
-function describeFreshness(value: string): string {
-  switch (value) {
-    case "PENDING":
-      return "pending";
-    case "INDEXING":
-      return "indexing";
-    case "PROVISIONAL":
-      return "provisional (still indexing)";
-    case "STALE":
-      return "previous-snapshot";
-    case "CURRENT":
-    case "INDEXED":
-      return "current";
-    default:
-      return value.toLowerCase();
-  }
-}
-
-/** Render replayable standalone-site recovery guidance from structured fields. */
-export function formatSuggestedSiteTargetGuidance(entry: {
-  suggestedSiteTargets?: string[];
-  suggestedSiteTargetsTruncated?: boolean;
-}): string[] {
-  const lines: string[] = [];
-  if (entry.suggestedSiteTargets?.length) {
-    lines.push(
-      `Suggested site targets: ${entry.suggestedSiteTargets.join(", ")}`,
-    );
-  }
-  if (entry.suggestedSiteTargetsTruncated) {
-    lines.push("Additional site targets were omitted.");
-  }
-  return lines;
-}
-
-function quote(value: string): string {
-  // Use single quotes when the value already contains a double quote;
-  // agents read either form. JSON-escape would be over-engineering for
-  // a header.
-  return value.includes('"') ? `'${value}'` : `"${value}"`;
 }
 
 function formatDetailValue(value: unknown): string {

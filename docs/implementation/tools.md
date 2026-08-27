@@ -301,6 +301,8 @@ More hits available. Pass offset=N for the next page or limit=N to widen.
 ```
 
 `<type>` compacts to `code` / `symbol` / `docs` / `repo-docs`. `<locator-line>` is a ready-to-call follow-up when possible. MCP uses `code_read target="npm:pkg@version" path="..." start_line=N end_line=M` or `docs_read page_id="..."`; CLI uses the equivalent `githits code read ... --lines N-M` or `githits docs read ...`. If a code/symbol hit lacks a file path, text mode prints `follow-up unavailable: missing filePath` rather than fabricating a path.
+Pagination follows the same dialect rule: MCP uses `offset=N` / `limit=N`, while
+CLI uses `--offset N` / `--limit N`.
 
 **Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title while returning only its page ID. Without a line anchor, `docs_read` must start at the beginning of the page. Carrying section ranges through search results requires backend/search-location support and is outside the CLI response-formatting slice.
 

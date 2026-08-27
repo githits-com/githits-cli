@@ -1033,37 +1033,43 @@ describe("renderUnifiedSearchSuccess", () => {
   });
 
   it("bounds alternatives and preserves pagination and result ordering", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([codeHit(), docsHit()], {
-        hasMore: true,
-        nextOffset: 10,
-        sourceStatus: [
-          source({
-            targetLabel: "npm:express",
-            targetResolution: {
-              availableVersions: [
-                { version: "5.2.1", ref: "v5.2.1" },
-                { version: "5.2.0", ref: "v5.2.0" },
-                { version: "5.1.0", ref: "v5.1.0" },
-                { version: "5.0.0", ref: "v5.0.0" },
-              ],
-              availableRefs: [
-                { ref: "HEAD" },
-                { ref: "main" },
-                { ref: "next" },
-                { ref: "dev" },
-              ],
-            },
-          }),
-        ],
-      }),
-    );
+    const payload = completed([codeHit(), docsHit()], {
+      hasMore: true,
+      nextOffset: 10,
+      sourceStatus: [
+        source({
+          targetLabel: "npm:express",
+          targetResolution: {
+            availableVersions: [
+              { version: "5.2.1", ref: "v5.2.1" },
+              { version: "5.2.0", ref: "v5.2.0" },
+              { version: "5.1.0", ref: "v5.1.0" },
+              { version: "5.0.0", ref: "v5.0.0" },
+            ],
+            availableRefs: [
+              { ref: "HEAD" },
+              { ref: "main" },
+              { ref: "next" },
+              { ref: "dev" },
+            ],
+          },
+        }),
+      ],
+    });
+    const text = renderUnifiedSearchSuccess(payload);
+    const cliText = renderUnifiedSearchSuccess(payload, {
+      actionSyntax: "cli",
+    });
     expect(text).toContain("[1] cline/cline@v3.4.2");
     expect(text).toContain("[2] aider/edit-formats aider-AI/aider");
     expect(text).toContain(
       "Indexed alternatives: versions 5.2.1, 5.2.0, 5.1.0 +1 more; refs HEAD, main,\nnext +1 more",
     );
     expect(text).toContain("More hits available. Pass offset=10");
+    expect(cliText).toContain(
+      "More hits available. Pass --offset 10 or --limit N to widen.",
+    );
+    expect(cliText).not.toContain("Pass offset=10");
     expect(text).not.toContain("v5.0.0");
     expect(text).not.toContain("dev");
   });
