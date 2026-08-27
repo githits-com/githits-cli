@@ -264,8 +264,7 @@ function formatSourceReadiness(
 ): string {
   const sourceLabel = sourceGroupLabel(group.kind);
   const contextSuffix = (identity?: string): string =>
-    showTargetContext &&
-    (group.kind === "code" || identity !== entry.searchTarget)
+    showTargetContext && identity !== entry.searchTarget
       ? ` for ${entry.searchTarget}`
       : "";
   if (entry.state === "unavailable") {
@@ -295,11 +294,15 @@ function formatSourceReadiness(
         : undefined;
     return `${sourceLabel}${identity ? ` (${identity})` : ""}${contextSuffix(identity)}`;
   }
+  const baseIdentity =
+    group.kind === "site_docs"
+      ? formatDocumentationSourceIdentity(group, entry)
+      : entry.target;
   const identity =
     group.kind === "site_docs"
-      ? `${formatDocumentationSourceIdentity(group, entry)} docs`
-      : `${sourceLabel} (${entry.target})`;
-  return `${identity}${coverageDetails ? ` (${coverageDetails})` : ""}${contextSuffix(identity)}`;
+      ? `${baseIdentity} docs`
+      : `${sourceLabel} (${baseIdentity})`;
+  return `${identity}${coverageDetails ? ` (${coverageDetails})` : ""}${contextSuffix(baseIdentity)}`;
 }
 
 function formatDocumentationSourceIdentity(

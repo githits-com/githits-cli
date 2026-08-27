@@ -565,6 +565,47 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("site docs (site:docs.one.example) for site:");
   });
 
+  it("does not repeat exact identities for unavailable code or available sites", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            targetLabel: "npm:one@1.0.0",
+            codeIndexState: "MISSING",
+          }),
+          source({
+            targetLabel: "npm:two@2.0.0",
+            codeIndexState: "CURRENT",
+          }),
+          source({
+            source: "docs",
+            targetLabel: "site:docs.one.example",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "READY",
+                resultCount: 0,
+                siteKey: "site:docs.one.example",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain("Unavailable: code (npm:one@1.0.0)");
+    expect(text).not.toContain(
+      "Unavailable: code (npm:one@1.0.0) for npm:one@1.0.0",
+    );
+    expect(text).toContain("Searched: code for npm:two@2.0.0");
+    expect(text).toContain(
+      "Available but not searched: site:docs.one.example docs",
+    );
+    expect(text).not.toMatch(
+      /Available but not searched: site:docs\.one\.example docs for\s+site:docs\.one\.example/,
+    );
+  });
+
   it("omits a singular outcome target when hits span multiple targets", () => {
     const text = renderUnifiedSearchSuccess(
       completed([
