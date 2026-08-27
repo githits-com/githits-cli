@@ -230,6 +230,39 @@ test suite anchors the doc.
   healthy source status remains suppressed for non-empty success. Text advice
   is renderer-only and never replaces structured JSON.
 
+### Search output parity
+
+Phase 1a changes MCP `search` and `search_status` default `text-v1` in place.
+The MCP text contract is outcome-first: one outcome line, one concise readiness
+and trust summary, result blocks, bounded alternatives or provenance, and one
+action. `PENDING`, `INDEXING`, and `SEARCHING` remain distinct; active
+no-snapshot output says that no result snapshot was returned, while active empty
+output says that no results were returned yet. Active result counts use
+`interim` when `partialResults` is false and `partial` when it is true.
+Terminal and unknown statuses retain their exact status and never poll the same
+reference. Site suggestions remain ordered advisory labels with explicit retry
+guidance; they are never selected automatically. Parser/query and structured
+constraint facts appear once below the outcome, while promoted lifecycle warning
+prose and opaque evidence text stay out of default MCP text.
+
+The three MCP anti-repeat directives are part of this text behavior:
+`Do not repeat search.` for active polling, `Do not repeat this search unchanged.`
+for an ordinary completed empty result, and `Do not repeat immediately.` for
+evidence-limited or status-continuation actions. A rendered `searchRef` appears
+only in the exact `Next: search_status search_ref=... wait_timeout_ms=...`
+action; terminal and unknown responses instead give an explicit no-poll
+instruction.
+
+The CLI human renderer is unchanged in Phase 1a. Its `--json` output and MCP
+`format: "json"` output remain the structured parity boundary: every
+result-bearing initial payload and stored `search_status.result` carries the
+backend's exact `partialResults: boolean`, including both `false` and `true`;
+payloads with no result snapshot omit that field. Full `warnings[]`, source
+diagnostics, evidence notices, reason codes, references, and alternative lists
+remain available in JSON even when MCP text classifies or bounds them for
+readability. The shared JSON parity tests compare these envelopes deeply; only
+surface-native text and follow-up syntax differ.
+
 ### `PARITY-ERROR-ENVELOPE`
 
 - Every error result, on both surfaces, carries

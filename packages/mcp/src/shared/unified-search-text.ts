@@ -10,9 +10,10 @@
  * variants, and there are no Unicode characters that require
  * client-side escaping.
  *
- * Format is a public contract — locked with snapshot-style tests in
- * `unified-search-text.test.ts`. Update the spec in
- * `docs/implementation/tools.md` when changing the format.
+ * `text-v1` names the compact representation, not an exact-prose compatibility
+ * boundary. Its lifecycle, ordering, action, and hit-anatomy invariants are
+ * covered by structural tests in `unified-search-text.test.ts`; JSON remains
+ * the stable structured boundary for programmatic callers.
  */
 
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
