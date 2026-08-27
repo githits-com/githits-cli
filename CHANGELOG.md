@@ -5,6 +5,68 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.11.1] - 2026-08-27
+
+Patch release: reduces agent context round trips, improves package-tool
+selection, and makes selected uninstall cleanup and diagnostics ownership more
+predictable.
+
+### Changed
+
+- **Reduce agent context round trips** - Allow deliberate 300-line source and
+  documentation reads while keeping 150-line defaults, align grep per-file
+  limits with requested totals, clarify served indexing snapshots, and improve
+  public-repository discovery and source safety guidance.
+- **Clarify packaged ownership guidance** - Agent guidance now assigns
+  diagnostics lifecycle and output destinations to the CLI host while core and
+  MCP remain host-neutral; MCP error classifiers no longer emit CLI debug
+  lines, while core service diagnostics can still emit when the CLI container
+  injects them.
+- **Improve package-tool selection** - Package MCP descriptions now lead with
+  compact user-intent phrases so truncated tool catalogs distinguish health,
+  vulnerability, dependency, changelog, and upgrade questions.
+
+### Fixed
+
+- **Respect uninstall selection for guidance** - Interactive user uninstall
+  now removes guidance only for selected tools whose MCP is absent after
+  cleanup and preserves shared guidance usable by any detected tool that was
+  kept.
+
+## [@githits/mcp 0.11.1] - 2026-08-27
+
+Coordinated patch release: adds the browser-callable tool entry, propagates
+host execution context, reduces agent context round trips, and tightens the
+public client boundary.
+
+### Added
+
+- **Add browser-callable tools entry** - `@githits/mcp/tools` exposes the
+  validated `get_example` callable surface for frontend WebMCP integration;
+  only this selected runtime graph is browser-safe, while the installed package
+  and other entries remain Node-oriented.
+
+### Changed
+
+- **Reduce agent context round trips** - Allow deliberate 300-line source and
+  documentation reads while keeping 150-line defaults, align grep per-file
+  limits with requested totals, clarify served indexing snapshots, and improve
+  public-repository discovery and source safety guidance.
+- **Add host-aware terms remediation and cancellation** - Hosted and
+  browser-callable defaults now use canonical acceptance-URL guidance, while
+  local CLI and stdio hosts preserve the CLI command override; explicit caller
+  cancellation propagates through execution context so trace hooks observe
+  rejection and cancelled work cannot refresh or retry.
+- **Improve package-tool selection** - Package MCP descriptions now lead with
+  compact user-intent phrases so truncated tool catalogs distinguish health,
+  vulnerability, dependency, changelog, and upgrade questions.
+
+### Removed
+
+- **Remove client telemetry lifecycle globals** - The pre-1.0
+  `@githits/mcp/client` telemetry lifecycle exports are removed; remote hosts
+  inject `ServiceDiagnostics` when they need operation or debug diagnostics.
+
 ## [githits 0.11.0] - 2026-08-26
 
 Minor release: adds portable MCP quick-start guidance, makes onboarding setup
