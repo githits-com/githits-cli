@@ -13,6 +13,11 @@ import {
 } from "../shared/terms-acceptance.js";
 import { validateServiceUrl } from "./config.js";
 import {
+  ApiRateLimitError,
+  AuthenticationError,
+  SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+} from "./githits-service-errors.js";
+import {
   type ServiceDiagnostics,
   withServiceDiagnostics,
 } from "./runtime-diagnostics.js";
@@ -25,37 +30,16 @@ export {
   type TermsAcceptanceRemediation,
   TermsAcceptanceRequiredError,
 } from "../shared/terms-acceptance.js";
+export type { AuthenticationErrorSource } from "./githits-service-errors.js";
+export {
+  ApiRateLimitError,
+  AUTHENTICATION_REQUIRED_MESSAGE,
+  AuthenticationError,
+  LOCAL_AUTHENTICATION_MISSING_MESSAGE,
+  SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+} from "./githits-service-errors.js";
 
 const DEFAULT_EXAMPLE_REQUEST_TIMEOUT_MS = 240_000;
-
-/**
- * Neutral auth-required message for service/core errors. Surface layers append
- * CLI- or MCP-specific recovery guidance when presenting the error.
- */
-export const AUTHENTICATION_REQUIRED_MESSAGE = "Authentication required.";
-export const LOCAL_AUTHENTICATION_MISSING_MESSAGE =
-  "No local GitHits authentication token found.";
-export const SERVER_AUTHENTICATION_REJECTED_MESSAGE =
-  "GitHits could not accept the authentication token.";
-
-export type AuthenticationErrorSource = "local" | "server";
-
-/**
- * Error thrown when the API returns 401 Unauthorized.
- * Used by RefreshingGitHitsService to detect auth failures and trigger token refresh.
- */
-export class AuthenticationError extends Error {
-  readonly source: AuthenticationErrorSource;
-
-  constructor(
-    message: string = AUTHENTICATION_REQUIRED_MESSAGE,
-    source: AuthenticationErrorSource = "local",
-  ) {
-    super(message);
-    this.name = "AuthenticationError";
-    this.source = source;
-  }
-}
 
 /** A stale OAuth JWT can be refreshed once for either auth failure signal. */
 export function isTokenRefreshableError(error: unknown): boolean {
@@ -63,26 +47,6 @@ export function isTokenRefreshableError(error: unknown): boolean {
     error instanceof AuthenticationError ||
     error instanceof TermsAcceptanceRequiredError
   );
-}
-
-/**
- * Error returned when the REST API asks the client to retry later.
- *
- * `retryAfterSeconds` is derived from the standard Retry-After response
- * header when it contains either delay-seconds or a future HTTP date.
- */
-export class ApiRateLimitError extends Error {
-  readonly status = 429;
-  readonly retryAfterSeconds: number | undefined;
-
-  constructor(
-    message: string = "Request rate limited.",
-    retryAfterSeconds?: number,
-  ) {
-    super(message);
-    this.name = "ApiRateLimitError";
-    this.retryAfterSeconds = retryAfterSeconds;
-  }
 }
 
 /**
@@ -150,6 +114,11 @@ export interface SearchParams {
   includeExplanation?: boolean;
 }
 
+/** Optional browser-standard controls for a GitHits service request. */
+export interface GitHitsServiceRequestOptions {
+  signal?: AbortSignal;
+}
+
 /**
  * Parameters for feedback API call.
  *
@@ -195,7 +164,10 @@ const LANGUAGES_SCHEMA = z.array(LANGUAGE_SCHEMA);
  */
 export interface GitHitsService {
   /** Search for code examples. Returns markdown-formatted result. */
-  search(params: SearchParams): Promise<string>;
+  search(
+    params: SearchParams,
+    options?: GitHitsServiceRequestOptions,
+  ): Promise<string>;
 
   /** Get all supported languages. */
   getLanguages(): Promise<Language[]>;
@@ -219,7 +191,11 @@ export class GitHitsServiceImpl implements GitHitsService {
     private readonly runtime: GitHitsServiceRuntimeOptions = {},
   ) {}
 
-  async search(params: SearchParams): Promise<string> {
+  async search(
+    params: SearchParams,
+    options?: GitHitsServiceRequestOptions,
+  ): Promise<string> {
+    options?.signal?.throwIfAborted();
     return withServiceDiagnostics(
       this.runtime.diagnostics,
       "githits.search.request",
@@ -235,6 +211,7 @@ export class GitHitsServiceImpl implements GitHitsService {
               license_mode: params.licenseMode ?? "strict",
               include_explanation: params.includeExplanation ?? false,
             }),
+            ...(options?.signal ? { signal: options.signal } : {}),
           },
           this.runtime.exampleRequestTimeoutMs ??
             DEFAULT_EXAMPLE_REQUEST_TIMEOUT_MS,
@@ -357,6 +334,7 @@ export class GitHitsServiceImpl implements GitHitsService {
         fetchOptions,
       );
     } catch (cause) {
+      if (isCallerAbort(cause, init.signal)) throw cause;
       if (isFetchTimeoutError(cause) || isAbortError(cause)) {
         throw new GitHitsRequestTimeoutError(fetchOptions.timeoutMs, cause);
       }
@@ -437,4 +415,13 @@ class GitHitsRequestTimeoutError extends FetchTimeoutError {
 
 function isAbortError(error: unknown): error is DOMException {
   return error instanceof Error && error.name === "AbortError";
+}
+
+function isCallerAbort(
+  error: unknown,
+  signal: AbortSignal | null | undefined,
+): boolean {
+  return Boolean(
+    signal?.aborted && (error === signal.reason || isAbortError(error)),
+  );
 }

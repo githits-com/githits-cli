@@ -1,4 +1,4 @@
-import type { MappedError } from "./code-navigation-error-map.js";
+import type { MappedError } from "./mapped-error.js";
 
 /** Add MCP-native path discovery guidance for an exact-path grep miss. */
 export function withGrepFileRecovery(mapped: MappedError): MappedError {

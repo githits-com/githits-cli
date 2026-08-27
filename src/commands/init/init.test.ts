@@ -196,6 +196,20 @@ function createFsWithDetection(
   });
 }
 
+function createAgentSelectionPromptService(agentId: string): PromptService {
+  return createMockPromptService({
+    checkbox: mock(<T>(_message: string, choices: { value: T }[]) =>
+      Promise.resolve(
+        choices
+          .map((choice) => choice.value)
+          .filter(
+            (value): value is T => (value as { id?: string }).id === agentId,
+          ),
+      ),
+    ) as PromptService["checkbox"],
+  });
+}
+
 /** Helper to extract log output as string array */
 function getLogOutput(): string[] {
   return (logSpy.mock.calls as unknown[][]).map((c) => String(c[0] ?? ""));
@@ -7396,15 +7410,7 @@ describe("initUninstallAction", () => {
       },
     );
     // Keep Windsurf by leaving only Cursor checked.
-    const promptService = createMockPromptService({
-      checkbox: mock(<T>(_m: string, choices: { value: T }[]) =>
-        Promise.resolve(
-          choices
-            .map((c) => c.value)
-            .filter((v): v is T => (v as { id?: string }).id === "cursor"),
-        ),
-      ) as PromptService["checkbox"],
-    });
+    const promptService = createAgentSelectionPromptService("cursor");
 
     await initUninstallAction(
       {},
@@ -7425,6 +7431,277 @@ describe("initUninstallAction", () => {
           msg.includes("~/.cursor/mcp.json"),
       ),
     ).toBe(true);
+  });
+
+  it("does not remove unrelated guidance when only Claude Desktop is selected", async () => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "darwin",
+    });
+    const desktopConfigPath =
+      "/home/test/Library/Application Support/Claude/claude_desktop_config.json";
+    const guidanceFiles = {
+      ...readCanonicalSkillFiles("/home/test/.claude/skills"),
+      ...readCanonicalSkillFiles("/home/test/.agents/skills"),
+      ...readCanonicalSkillFiles("/home/test/.hermes/skills"),
+    };
+    const configFiles: Record<string, string> = {
+      [desktopConfigPath]: JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      ...guidanceFiles,
+    };
+    const fs = createFsWithDetection(
+      ["/home/test/Library/Application Support/Claude"],
+      configFiles,
+    );
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    const promptService = createAgentSelectionPromptService("claude-desktop");
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(JSON.parse(configFiles[desktopConfigPath]!).mcpServers.GitHits).toBe(
+      undefined,
+    );
+    expect(deleteCalls).toEqual([]);
+    for (const [path, content] of Object.entries(guidanceFiles)) {
+      expect(configFiles[path]).toBe(content);
+    }
+    expect(
+      getLogOutput().some((line) => line.includes("GitHits guidance")),
+    ).toBe(false);
+  });
+
+  it("preserves shared guidance usable by an unselected detected tool", async () => {
+    const githitsConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const guidanceFiles = readCanonicalSkillFiles("/home/test/.agents/skills");
+    const configFiles: Record<string, string> = {
+      "/home/test/.cursor/mcp.json": githitsConfig,
+      ...guidanceFiles,
+    };
+    const fs = createFsWithDetection(
+      ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
+      configFiles,
+    );
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    const promptService = createAgentSelectionPromptService("cursor");
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(
+      JSON.parse(configFiles["/home/test/.cursor/mcp.json"]!).mcpServers,
+    ).toEqual({});
+    expect(
+      configFiles["/home/test/.codeium/windsurf/mcp_config.json"],
+    ).toBeUndefined();
+    expect(deleteCalls).toEqual([]);
+    for (const [path, content] of Object.entries(guidanceFiles)) {
+      expect(configFiles[path]).toBe(content);
+    }
+    expect(normalizeHumanOutput()).toContain(
+      "GitHits guidance unchanged 4 guidance targets skipped because tools may still use them",
+    );
+  });
+
+  it("preserves shared guidance usable by an unselected configured tool", async () => {
+    const githitsConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: {
+          command: "npx",
+          args: ["-y", "githits@latest", "mcp", "start"],
+        },
+      },
+    });
+    const guidanceFiles = readCanonicalSkillFiles("/home/test/.agents/skills");
+    const configFiles: Record<string, string> = {
+      "/home/test/.cursor/mcp.json": githitsConfig,
+      "/home/test/.codeium/windsurf/mcp_config.json": githitsConfig,
+      ...guidanceFiles,
+    };
+    const fs = createFsWithDetection(
+      ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
+      configFiles,
+    );
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService: createAgentSelectionPromptService("cursor"),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(
+      JSON.parse(configFiles["/home/test/.cursor/mcp.json"]!).mcpServers,
+    ).toEqual({});
+    expect(
+      JSON.parse(configFiles["/home/test/.codeium/windsurf/mcp_config.json"]!)
+        .mcpServers.GitHits,
+    ).toBeDefined();
+    expect(deleteCalls).toEqual([]);
+    for (const [path, content] of Object.entries(guidanceFiles)) {
+      expect(configFiles[path]).toBe(content);
+    }
+    expect(normalizeHumanOutput()).toContain(
+      "GitHits guidance unchanged 4 guidance targets skipped because tools may still use them",
+    );
+  });
+
+  it("cleans all guidance with --yes when configured agents exist", async () => {
+    const cursorConfigPath = "/home/test/.cursor/mcp.json";
+    const guidanceFiles = readCanonicalSkillFiles("/home/test/.claude/skills");
+    const configFiles: Record<string, string> = {
+      [cursorConfigPath]: JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            url: "https://mcp.githits.com",
+          },
+        },
+      }),
+      ...guidanceFiles,
+    };
+    const fs = createFsWithDetection(["/home/test/.cursor"], configFiles);
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+
+    await initUninstallAction(
+      { yes: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(JSON.parse(configFiles[cursorConfigPath]!).mcpServers).toEqual({});
+    expect(deleteCalls).toEqual(Object.keys(guidanceFiles));
+    for (const path of Object.keys(guidanceFiles)) {
+      expect(configFiles[path]).toBeUndefined();
+    }
+  });
+
+  it("removes guidance owned by the selected tool", async () => {
+    const kiroConfigPath = "/home/test/.kiro/settings/mcp.json";
+    const guidanceFiles = readCanonicalSkillFiles("/home/test/.kiro/skills");
+    const configFiles: Record<string, string> = {
+      [kiroConfigPath]: JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      ...guidanceFiles,
+    };
+    const fs = createFsWithDetection(["/home/test/.kiro"], configFiles);
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+    const promptService = createAgentSelectionPromptService("kiro");
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService,
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(JSON.parse(configFiles[kiroConfigPath]!).mcpServers).toEqual({});
+    expect(deleteCalls).toEqual(Object.keys(guidanceFiles));
+    for (const path of Object.keys(guidanceFiles)) {
+      expect(configFiles[path]).toBeUndefined();
+    }
+  });
+
+  it("preserves selected tool guidance when its MCP uninstall fails", async () => {
+    const kiroConfigPath = "/home/test/.kiro/settings/mcp.json";
+    const guidanceFiles = readCanonicalSkillFiles("/home/test/.kiro/skills");
+    const configFiles: Record<string, string> = {
+      [kiroConfigPath]: JSON.stringify({
+        mcpServers: {
+          GitHits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      ...guidanceFiles,
+    };
+    const fs = createFsWithDetection(["/home/test/.kiro"], configFiles);
+    fs.atomicWriteFile = mock(async () => {
+      throw Object.assign(new Error("read only"), { code: "EACCES" });
+    }) as typeof fs.atomicWriteFile;
+    const deleteCalls: string[] = [];
+    fs.deleteFile = mock(async (path: string) => {
+      deleteCalls.push(path);
+      delete configFiles[path];
+    }) as typeof fs.deleteFile;
+
+    await initUninstallAction(
+      {},
+      {
+        fileSystemService: fs,
+        promptService: createAgentSelectionPromptService("kiro"),
+        execService: createMockExecService(),
+      },
+    );
+
+    expect(
+      JSON.parse(configFiles[kiroConfigPath]!).mcpServers.GitHits,
+    ).toBeDefined();
+    expect(deleteCalls).toEqual([]);
+    for (const [path, content] of Object.entries(guidanceFiles)) {
+      expect(configFiles[path]).toBe(content);
+    }
+    expect(process.exitCode).toBe(1);
   });
 
   it("removes configured CLI agents with verified commands", async () => {

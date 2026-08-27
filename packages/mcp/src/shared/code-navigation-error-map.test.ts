@@ -35,14 +35,14 @@ class UnsupportedRegistryError extends Error {
 }
 
 describe("mapCodeNavigationError", () => {
-  it("maps terms gating with stable command and URL remediation", () => {
+  it("maps terms gating with stable URL remediation", () => {
     expect(
       mapCodeNavigationError(new TermsAcceptanceRequiredError()),
     ).toMatchObject({
       code: "TERMS_ACCEPTANCE_REQUIRED",
+      message: "Terms acceptance required.",
       retryable: false,
       details: {
-        action: "githits settings terms accept",
         termsUrl: "https://githits.com/legal/terms-of-service/",
         acceptanceUrl: "https://app.githits.com/settings/privacy",
       },

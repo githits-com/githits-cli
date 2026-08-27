@@ -9,7 +9,7 @@ import {
   formatPackageDependenciesTerminal,
 } from "../shared/package-dependencies-response.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
-import { mcpMappedErrorResult } from "./shared.js";
+import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
   READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
@@ -81,7 +81,7 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Map a package's dependency graph, direct groups, and bounded transitive footprint. Lists direct runtime " +
+  "Inspect what a package depends on, directly or transitively. Lists direct runtime " +
   "dependencies with resolved versions; non-runtime groups are " +
   "omitted by default. Use `lifecycle` with a concrete value for " +
   "matching dependency groups, or `all` for every available group. " +
@@ -100,7 +100,7 @@ export function createPackageDependenciesTool(
     description: DESCRIPTION,
     schema,
     annotations: READ_ONLY_TOOL_ANNOTATIONS,
-    handler: async (args) => {
+    handler: async (args, context) => {
       try {
         const includeTransitiveOutput =
           args.max_depth !== undefined || args.include_importers === true;
@@ -152,8 +152,9 @@ export function createPackageDependenciesTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
+        throwIfCallerCancellation(error, context?.signal);
         const mapped = mapPackageIntelligenceError(error);
-        return mcpMappedErrorResult(mapped);
+        return mcpMappedErrorResult(mapped, context);
       }
     },
   };

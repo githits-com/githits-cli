@@ -2,12 +2,14 @@ import { describe, expect, it, mock } from "bun:test";
 import {
   AuthenticationError,
   CodeNavigationFileNotFoundError,
+  TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
 import * as publicMcp from "@githits/mcp";
 import {
   buildMcpQuickStart,
   createMcpServer,
   getMcpToolDescriptors,
+  type McpToolExecutionHook,
   type McpToolServices,
   type McpToolServicesProvider,
   registerMcpTools,
@@ -226,6 +228,112 @@ describe("public MCP package surface", () => {
         authSource: "server",
       },
     });
+  });
+
+  it("uses URL-based terms remediation for hosted callers", async () => {
+    const acceptanceUrl = "https://acceptance.example.test/settings/privacy";
+    const server = createMcpServer({
+      metadata: { name: "remote-githits", version: "0.0.0" },
+      services: createServices({
+        githitsService: createMockGitHitsService({
+          search: mock(() =>
+            Promise.reject(new TermsAcceptanceRequiredError({ acceptanceUrl })),
+          ),
+        }),
+      }),
+    });
+
+    const result = await registeredTool(server, "get_example").handler(
+      { query: "express hello world" },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
+      error: `Terms acceptance required. Review and accept the current terms at ${acceptanceUrl}, then retry.`,
+      code: "TERMS_ACCEPTANCE_REQUIRED",
+      retryable: false,
+      details: {
+        termsUrl: "https://githits.com/legal/terms-of-service/",
+        acceptanceUrl,
+        action: acceptanceUrl,
+      },
+    });
+  });
+
+  it("keeps custom auth actions isolated across concurrent servers", async () => {
+    const makeServer = (action: string) => {
+      const server = new McpServer({
+        name: "remote-githits",
+        version: "0.0.0",
+      });
+      registerMcpTools(server, {
+        authAction: action,
+        services: createServices({
+          githitsService: createMockGitHitsService({
+            searchLanguages: mock(() =>
+              Promise.reject(new AuthenticationError()),
+            ),
+          }),
+        }),
+      });
+      return server;
+    };
+
+    const [resultA, resultB] = await Promise.all([
+      registeredTool(makeServer("authenticate A"), "search_language").handler(
+        { query: "python", format: "json" },
+        undefined as unknown as RequestHandlerExtra<
+          ServerRequest,
+          ServerNotification
+        >,
+      ),
+      registeredTool(makeServer("authenticate B"), "search_language").handler(
+        { query: "python", format: "json" },
+        undefined as unknown as RequestHandlerExtra<
+          ServerRequest,
+          ServerNotification
+        >,
+      ),
+    ]);
+
+    expect(JSON.parse(resultA.content[0]?.text ?? "{}").details.action).toBe(
+      "authenticate A",
+    );
+    expect(JSON.parse(resultB.content[0]?.text ?? "{}").details.action).toBe(
+      "authenticate B",
+    );
+  });
+
+  it("propagates caller cancellation through traceTool", async () => {
+    const controller = new AbortController();
+    const reason = new Error("caller cancelled");
+    controller.abort(reason);
+    const traceTool: McpToolExecutionHook = mock(async (_name, runHandler) =>
+      runHandler(),
+    );
+    const server = createMcpServer({
+      metadata: { name: "remote-githits", version: "0.0.0" },
+      services: createServices({
+        githitsService: createMockGitHitsService({
+          search: mock(() => Promise.reject(reason)),
+        }),
+      }),
+      traceTool,
+    });
+
+    await expect(
+      registeredTool(server, "get_example").handler(
+        { query: "express hello world" },
+        { signal: controller.signal } as unknown as RequestHandlerExtra<
+          ServerRequest,
+          ServerNotification
+        >,
+      ),
+    ).rejects.toBe(reason);
+    expect(traceTool).toHaveBeenCalledTimes(1);
   });
 
   it("applies MCP-native file recovery through the remote server API", async () => {

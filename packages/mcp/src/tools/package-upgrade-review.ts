@@ -8,7 +8,7 @@ import {
   formatPackageUpgradeReviewTerminal,
 } from "../shared/package-upgrade-review-response.js";
 import { PKG_UPGRADE_REVIEW_GUARDRAIL } from "./guardrails.js";
-import { mcpMappedErrorResult } from "./shared.js";
+import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
   READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
@@ -111,8 +111,8 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Compare current and target package versions and report upgrade evidence: direct vulnerability checks, changelog ranges, target deprecation " +
-  "metadata, peer dependency changes, and optional transitive evidence diffs. " +
+  "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. " +
+  "Compares current and target versions using direct vulnerability checks, changelog ranges, target deprecation metadata, peer dependency changes, and optional transitive evidence diffs. " +
   "The tool reports facts only and does not assign risk or decide whether to accept an upgrade. " +
   "Use this instead of inferring acceptability from semver, including patch bumps. " +
   "Accepts either one package via registry/package_name/current_version/" +
@@ -128,7 +128,7 @@ export function createPackageUpgradeReviewTool(
     description: DESCRIPTION,
     schema,
     annotations: READ_ONLY_TOOL_ANNOTATIONS,
-    handler: async (args) => {
+    handler: async (args, context) => {
       try {
         const request = buildPackageUpgradeReviewRequest({
           registry: args.registry,
@@ -157,8 +157,9 @@ export function createPackageUpgradeReviewTool(
           }).trimEnd(),
         );
       } catch (error) {
+        throwIfCallerCancellation(error, context?.signal);
         const mapped = mapPackageIntelligenceError(error);
-        return mcpMappedErrorResult(mapped);
+        return mcpMappedErrorResult(mapped, context);
       }
     },
   };

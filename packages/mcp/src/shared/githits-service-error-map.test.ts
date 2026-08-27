@@ -13,11 +13,9 @@ describe("mapGitHitsServiceError", () => {
       mapGitHitsServiceError("search", new TermsAcceptanceRequiredError()),
     ).toEqual({
       code: "TERMS_ACCEPTANCE_REQUIRED",
-      message:
-        "Terms acceptance required. Run `githits settings terms accept`, then retry.",
+      message: "Terms acceptance required.",
       retryable: false,
       details: {
-        action: "githits settings terms accept",
         termsUrl: "https://githits.com/legal/terms-of-service/",
         acceptanceUrl: "https://app.githits.com/settings/privacy",
       },

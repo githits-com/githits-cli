@@ -19,7 +19,13 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
     expect(tool.description).toContain("NuGet, Maven, Packagist");
     expect(tool.description).toContain("Swift");
     expect(tool.description).toContain("vcpkg and Zig");
-    expect(tool.description).toContain("known package vulnerabilities");
+    expect(tool.description).toContain(
+      "Check whether a package version is vulnerable",
+    );
+    expect(tool.description).toContain(
+      "identifiers and aliases, including CVEs when available",
+    );
+    expect(tool.description).toContain("identifier aliases (including CVEs)");
     expect(Object.keys(tool.schema).sort()).toEqual([
       "advisory_scope",
       "format",

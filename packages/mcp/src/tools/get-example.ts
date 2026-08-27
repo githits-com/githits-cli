@@ -1,4 +1,3 @@
-import type { GitHitsService } from "@githits/core-internal";
 import { z } from "zod";
 import { extractSolutionId } from "../shared/extract-solution-id.js";
 import { GET_EXAMPLE_GUARDRAIL } from "./guardrails.js";
@@ -10,11 +9,32 @@ import {
   type ZodRawShape,
 } from "./types.js";
 
-interface GetExampleArgs {
+export interface GetExampleInput {
   query: string;
   language?: string;
   license_mode?: "strict" | "yolo" | "custom";
   format?: "json" | "text" | "text-v1";
+}
+
+/** Search parameters required by the browser-callable example tool. */
+export interface GetExampleSearchParams {
+  query: string;
+  language?: string;
+  licenseMode?: "strict" | "yolo" | "custom";
+  includeExplanation?: boolean;
+}
+
+/** Browser-standard request controls for example search. */
+export interface GetExampleRequestOptions {
+  signal?: AbortSignal;
+}
+
+/** Minimal injected service contract used by the example tool. */
+export interface GetExampleService {
+  search(
+    params: GetExampleSearchParams,
+    options?: GetExampleRequestOptions,
+  ): Promise<string>;
 }
 
 const schema: ZodRawShape = {
@@ -52,38 +72,45 @@ Default output is markdown, with source repository provenance and a trailing \`s
 ${GET_EXAMPLE_GUARDRAIL}`;
 
 export function createGetExampleTool(
-  service: GitHitsService,
-): ToolDefinition<GetExampleArgs, typeof schema> {
+  service: GetExampleService,
+): ToolDefinition<GetExampleInput, typeof schema> {
   return {
     name: "get_example",
     description: DESCRIPTION,
     schema,
     annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
-    handler: async (args) => {
-      return withErrorHandling("get example", async () => {
-        const markdown = await service.search({
-          query: args.query,
-          language: args.language,
-          licenseMode: args.license_mode,
-          includeExplanation: false,
-        });
-        const solutionId = extractSolutionId(markdown);
-        const payload = solutionId
-          ? { result: markdown, solution_id: solutionId }
-          : { result: markdown };
-        if (isTextFormat(args.format)) {
-          return textResult(
-            solutionId
-              ? `${markdown.trimEnd()}\n\nsolution_id: ${solutionId}`
-              : markdown,
-          );
-        }
-        return textResult(JSON.stringify(payload));
-      });
+    handler: async (args, context) => {
+      return withErrorHandling(
+        "get example",
+        async () => {
+          const searchParams = {
+            query: args.query,
+            language: args.language,
+            licenseMode: args.license_mode,
+            includeExplanation: false,
+          };
+          const markdown = context?.signal
+            ? await service.search(searchParams, { signal: context.signal })
+            : await service.search(searchParams);
+          const solutionId = extractSolutionId(markdown);
+          const payload = solutionId
+            ? { result: markdown, solution_id: solutionId }
+            : { result: markdown };
+          if (isTextFormat(args.format)) {
+            return textResult(
+              solutionId
+                ? `${markdown.trimEnd()}\n\nsolution_id: ${solutionId}`
+                : markdown,
+            );
+          }
+          return textResult(JSON.stringify(payload));
+        },
+        context,
+      );
     },
   };
 }
 
-function isTextFormat(format: GetExampleArgs["format"]): boolean {
+function isTextFormat(format: GetExampleInput["format"]): boolean {
   return format === undefined || format === "text" || format === "text-v1";
 }

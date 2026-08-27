@@ -2,9 +2,9 @@ import {
   ApiRateLimitError,
   AuthenticationError,
   FetchTimeoutError,
-} from "@githits/core-internal";
-import type { MappedError } from "./code-navigation-error-map.js";
-import { mapTermsAcceptanceError } from "./code-navigation-error-map.js";
+} from "@githits/core-internal/browser";
+import type { MappedError } from "./mapped-error.js";
+import { mapTermsAcceptanceError } from "./terms-acceptance-error-map.js";
 
 /**
  * Classify errors from the GitHits API service into the shared envelope used

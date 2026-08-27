@@ -59,16 +59,20 @@ export function createFeedbackTool(
     description: DESCRIPTION,
     schema,
     annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
-    handler: async (args) => {
-      return withErrorHandling("submit feedback", async () => {
-        const result = await service.submitFeedback({
-          solutionId: args.solution_id,
-          accepted: args.accepted,
-          feedbackText: args.feedback_text,
-          toolName: args.tool_name,
-        });
-        return textResult(result.message);
-      });
+    handler: async (args, context) => {
+      return withErrorHandling(
+        "submit feedback",
+        async () => {
+          const result = await service.submitFeedback({
+            solutionId: args.solution_id,
+            accepted: args.accepted,
+            feedbackText: args.feedback_text,
+            toolName: args.tool_name,
+          });
+          return textResult(result.message);
+        },
+        context,
+      );
     },
   };
 }

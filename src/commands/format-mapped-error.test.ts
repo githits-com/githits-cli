@@ -5,6 +5,46 @@ import {
 } from "./format-mapped-error.js";
 
 describe("formatMappedErrorForTerminal", () => {
+  it("reconstructs CLI terms remediation in terminal output", () => {
+    expect(
+      formatMappedErrorForTerminal({
+        code: "TERMS_ACCEPTANCE_REQUIRED",
+        message: "Terms acceptance required.",
+        retryable: false,
+        details: {
+          termsUrl: "https://githits.com/legal/terms-of-service/",
+          acceptanceUrl: "https://app.githits.com/settings/privacy",
+        },
+      }),
+    ).toBe(
+      "Terms acceptance required. Run `githits settings terms accept`, then retry.",
+    );
+  });
+
+  it("reconstructs CLI terms remediation in JSON output", () => {
+    expect(
+      buildCliMappedErrorPayload({
+        code: "TERMS_ACCEPTANCE_REQUIRED",
+        message: "Terms acceptance required.",
+        retryable: false,
+        details: {
+          termsUrl: "https://githits.com/legal/terms-of-service/",
+          acceptanceUrl: "https://app.githits.com/settings/privacy",
+        },
+      }),
+    ).toEqual({
+      error:
+        "Terms acceptance required. Run `githits settings terms accept`, then retry.",
+      code: "TERMS_ACCEPTANCE_REQUIRED",
+      retryable: false,
+      details: {
+        termsUrl: "https://githits.com/legal/terms-of-service/",
+        acceptanceUrl: "https://app.githits.com/settings/privacy",
+        action: "githits settings terms accept",
+      },
+    });
+  });
+
   it("formats AUTH_REQUIRED with CLI terminal remediation", () => {
     expect(
       formatMappedErrorForTerminal({

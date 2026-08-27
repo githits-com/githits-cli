@@ -15,7 +15,9 @@ manifest move is complete.
   export is intentionally small: transport-neutral MCP server factory, tool
   registration, static tool descriptors, instructions, and MCP-facing types. It
   builds from `packages/mcp/src/index.ts` to `dist/` and bundles private
-  core-internal source into its artifacts.
+  core-internal source into its Node-oriented artifacts. Its separate
+  `@githits/mcp/tools` entry exposes the selected browser-callable
+  `get_example` surface; that entry has its own narrow resolved runtime graph.
 - `packages/cli` is a private placeholder package; the public `githits` manifest
   still lives at the repository root.
 - Root TypeScript path aliases exist for workspace development imports:
@@ -37,7 +39,21 @@ manifest move is complete.
 
 - External consumers, including the future remote MCP server repo, must import
   only from `@githits/mcp`, `@githits/mcp/client`,
-  `@githits/mcp/smoke-test`, and `@githits/mcp/package.json`.
+  `@githits/mcp/smoke-test`, `@githits/mcp/tools`, and
+  `@githits/mcp/package.json`.
+- `@githits/mcp/tools` is the browser-callable proof-of-concept boundary. It
+  bundles the selected tool implementation and keeps Zod as its runtime
+  dependency. Only this resolved `/tools` graph is browser-safe; installing
+  `@githits/mcp` still brings the package's MCP SDK and Node-oriented
+  dependency tree, while the root and `/client` entries remain Node entries.
+  The `/tools` entry supplies no filesystem access, authentication
+  implementation or storage, environment/config discovery, or other host
+  behavior.
+  Runtime-graph isolation is sufficient for the current browser-callable proof
+  of concept; it is not a claim of install-time dependency-tree purity. If
+  install-time purity becomes a requirement, the callable contract should move
+  to a separate public browser SDK/package. That remains an open
+  package/release-boundary decision, not an approved plan.
 - `@githits/mcp/client` is the public runtime/client entry for remote MCP server
   composition. It re-exports bundled service implementations, token/header
   helpers, URL/config helpers, the injectable `ServiceDiagnostics` type, and
@@ -128,6 +144,13 @@ manifest move is complete.
   runtime externals are the MCP SDK and Zod; `@githits/core-internal` is resolved
   and bundled into JS/declaration output so the packed public package does not
   reference private workspace internals.
+- The packed-package validator installs the actual MCP tarball in an external
+  temporary consumer. It typechecks and executes `@githits/mcp/tools`, checks
+  `dist/tools.js` and `dist/tools.d.ts`, then builds a consumer that imports
+  only `/tools` for a browser target. Its metafile and emitted output reject
+  Node builtins/polyfills, MCP SDK runtime edges, Node globals, private aliases,
+  and `workspace:*`; the same validator retains the root, `/client`, and
+  `/smoke-test` consumer checks.
 
 ## Dependency Notes
 

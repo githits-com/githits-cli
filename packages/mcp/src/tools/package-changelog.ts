@@ -12,7 +12,7 @@ import {
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { InvalidPackageSpecError } from "../shared/package-spec.js";
 import { PKG_CHANGELOG_GUARDRAIL } from "./guardrails.js";
-import { mcpMappedErrorResult } from "./shared.js";
+import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
   READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
@@ -119,7 +119,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION: string =
-  "Find release and changelog evidence for a package or GitHub repository. Default " +
+  "Find release notes and changelog history for a package or public GitHub repo. Default " +
   "latest mode returns up to ten entries (`limit` 1–50); source ordering may interleave maintained release lines. " +
   "With `from_version`, returns every entry in the " +
   "`(from_version, to_version]` range (range mode, no count cap); use latest mode with `to_version` and `limit: 1` for one exact release. " +
@@ -147,7 +147,7 @@ export function createPackageChangelogTool(
     description: DESCRIPTION,
     schema,
     annotations: READ_ONLY_TOOL_ANNOTATIONS,
-    handler: async (args) => {
+    handler: async (args, context) => {
       try {
         const textFormat = isTextFormat(args.format);
         const bodyPreviewLines = textFormat
@@ -191,8 +191,9 @@ export function createPackageChangelogTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
+        throwIfCallerCancellation(error, context?.signal);
         const mapped = mapPackageIntelligenceError(error);
-        return mcpMappedErrorResult(mapped);
+        return mcpMappedErrorResult(mapped, context);
       }
     },
   };

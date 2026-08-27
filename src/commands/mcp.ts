@@ -6,6 +6,7 @@ import {
   type LocalExperimentalMcpPolicy,
   type LocalMcpToolServices,
   shouldUseColors,
+  type ToolTermsRemediation,
 } from "@githits/mcp/internal";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { type Command, Option } from "commander";
@@ -28,9 +29,16 @@ const OVERRIDE_LOCAL_MCP_POLICY: LocalExperimentalMcpPolicy = {
   reportToolIssues: undefined,
 };
 
+const LOCAL_TERMS_REMEDIATION: ToolTermsRemediation = {
+  message:
+    "Terms acceptance required. Run `githits settings terms accept`, then retry.",
+  action: "githits settings terms accept",
+};
+
 export interface StartMcpServerOptions {
   onServerCreated?: (server: LocalMcpServer) => void;
   experimentalPolicy?: LocalExperimentalMcpPolicy;
+  termsRemediation?: ToolTermsRemediation;
 }
 
 export interface CreateMcpCommandStartupOptions {
@@ -53,6 +61,7 @@ export async function startMcpServer(
     services,
     metadata: LOCAL_MCP_SERVER_METADATA,
     policy: options.experimentalPolicy ?? DISABLED_LOCAL_MCP_POLICY,
+    termsRemediation: options.termsRemediation ?? LOCAL_TERMS_REMEDIATION,
   });
   const transport = new StdioServerTransport();
 

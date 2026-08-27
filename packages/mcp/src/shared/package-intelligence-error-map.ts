@@ -21,16 +21,14 @@ import {
   PackageIntelligenceValidationError,
   PackageIntelligenceVersionNotFoundError,
 } from "@githits/core-internal";
+import { buildUpdateRequiredError } from "./code-navigation-error-map.js";
 import type {
   MappedError,
   MappedErrorCode,
   MappedErrorDetails,
-} from "./code-navigation-error-map.js";
-import {
-  buildUpdateRequiredError,
-  mapTermsAcceptanceError,
-} from "./code-navigation-error-map.js";
+} from "./mapped-error.js";
 import { AuthRequiredError } from "./require-auth.js";
+import { mapTermsAcceptanceError } from "./terms-acceptance-error-map.js";
 
 // Re-export for caller convenience — callers of
 // `mapPackageIntelligenceError` use the same envelope type as code-nav

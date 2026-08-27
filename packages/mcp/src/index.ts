@@ -15,6 +15,8 @@ export type {
   McpToolDescriptor,
   McpToolExecutionHook,
   McpToolServicesProvider,
+  ToolExecutionContext,
+  ToolTermsRemediation,
 } from "./mcp/server.js";
 export {
   createMcpServer,

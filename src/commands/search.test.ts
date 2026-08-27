@@ -11,6 +11,7 @@ import {
   AuthenticationError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
+  TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import {
@@ -25,6 +26,17 @@ import {
 
 const DOCUMENTATION_EVIDENCE_NOTICE =
   "Results and status reflect the disclosed snapshots at this response boundary. Pending or required work may change hits and ordering; callers may follow searchRef when present or retry.";
+const CLI_TERMS_ERROR_PAYLOAD = {
+  error:
+    "Terms acceptance required. Run `githits settings terms accept`, then retry.",
+  code: "TERMS_ACCEPTANCE_REQUIRED",
+  retryable: false,
+  details: {
+    action: "githits settings terms accept",
+    termsUrl: "https://githits.com/legal/terms-of-service/",
+    acceptanceUrl: "https://app.githits.com/settings/privacy",
+  },
+};
 
 function createDocumentationSearchResult(): UnifiedSearchResult {
   return {
@@ -162,6 +174,36 @@ describe("searchAction", () => {
     );
     errorSpy.mockRestore();
     exitSpy.mockRestore();
+  });
+
+  it("preserves CLI terms remediation in JSON search errors", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await expect(
+        searchAction(
+          "router middleware",
+          { in: ["npm:express"], json: true },
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              search: mock(() =>
+                Promise.reject(new TermsAcceptanceRequiredError()),
+              ),
+            }),
+          }),
+        ),
+      ).rejects.toThrow("process.exit");
+
+      expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toEqual(
+        CLI_TERMS_ERROR_PAYLOAD,
+      );
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
   });
 
   it("emits the PII-safe classification event for search errors", async () => {
@@ -1714,6 +1756,36 @@ describe("searchStatusAction", () => {
     );
     errorSpy.mockRestore();
     exitSpy.mockRestore();
+  });
+
+  it("preserves CLI terms remediation in JSON search-status errors", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await expect(
+        searchStatusAction(
+          "search-ref-123",
+          { json: true },
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              searchStatus: mock(() =>
+                Promise.reject(new TermsAcceptanceRequiredError()),
+              ),
+            }),
+          }),
+        ),
+      ).rejects.toThrow("process.exit");
+
+      expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toEqual(
+        CLI_TERMS_ERROR_PAYLOAD,
+      );
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
   });
 
   it("outputs progress for incomplete search refs", async () => {

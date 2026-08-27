@@ -6,6 +6,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createCodeDiffTool } from "../tools/code-diff.js";
 import { createResolveTargetTool } from "../tools/resolve-target.js";
 import type { McpToolServices } from "../tools/tool-services.js";
+import type { ToolTermsRemediation } from "../tools/types.js";
 import {
   buildLocalMcpQuickStart,
   type LocalExperimentalToolName,
@@ -46,6 +47,7 @@ export interface CreateLocalMcpServerOptions<TExtra = unknown> {
   services: LocalMcpToolServicesProvider<TExtra>;
   policy: LocalExperimentalMcpPolicy;
   authAction?: McpAuthAction;
+  termsRemediation?: ToolTermsRemediation;
   traceTool?: McpToolExecutionHook;
 }
 
@@ -73,6 +75,7 @@ export function createLocalMcpServer<TExtra = unknown>(
     toolFactories,
     descriptorServices: createLocalDescriptorServices(),
     authAction: options.authAction,
+    termsRemediation: options.termsRemediation,
     traceTool: options.traceTool,
   });
 }

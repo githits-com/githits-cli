@@ -8,7 +8,7 @@ import {
   formatPackageSummaryTerminal,
 } from "../shared/package-summary-response.js";
 import { PKG_INFO_GUARDRAIL } from "./guardrails.js";
-import { mcpMappedErrorResult } from "./shared.js";
+import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
   READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
@@ -52,7 +52,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION: string =
-  "Summarize latest package health and adoption signals: license, repository, downloads, publish age, and vulnerabilities. Provide " +
+  "Assess latest package health and adoption: license, downloads, and activity. Provide " +
   "`registry` and `package_name` (for example `npm` + `express`). " +
   "Default text returns license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
@@ -70,7 +70,7 @@ export function createPackageSummaryTool(
     description: DESCRIPTION,
     schema,
     annotations: READ_ONLY_TOOL_ANNOTATIONS,
-    handler: async (args) => {
+    handler: async (args, context) => {
       try {
         const { params } = buildPackageSummaryParams({
           registry: args.registry,
@@ -92,8 +92,9 @@ export function createPackageSummaryTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
+        throwIfCallerCancellation(error, context?.signal);
         const mapped = mapPackageIntelligenceError(error);
-        return mcpMappedErrorResult(mapped);
+        return mcpMappedErrorResult(mapped, context);
       }
     },
   };

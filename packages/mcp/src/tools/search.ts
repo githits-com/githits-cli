@@ -26,7 +26,11 @@ import {
   structuredCodeTargetObject,
 } from "./code-navigation-shared.js";
 import { SEARCH_GUARDRAIL } from "./guardrails.js";
-import { addLocalMcpAuthAction, mcpMappedErrorResult } from "./shared.js";
+import {
+  addLocalMcpAuthAction,
+  mcpMappedErrorResult,
+  throwIfCallerCancellation,
+} from "./shared.js";
 import {
   BOUNDED_WRITE_TOOL_ANNOTATIONS,
   errorResult,
@@ -283,7 +287,7 @@ export function createSearchTool(
     description: DESCRIPTION,
     schema,
     annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
-    handler: async (args) => {
+    handler: async (args, context) => {
       try {
         const effectiveTarget = isBlankSearchTarget(args.target)
           ? undefined
@@ -345,8 +349,10 @@ export function createSearchTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
+        throwIfCallerCancellation(error, context?.signal);
         const payload = addLocalMcpAuthAction(
           buildUnifiedSearchErrorPayload(error),
+          context,
         );
         if (isTextFormat(args.format)) {
           return errorResult(renderUnifiedSearchError(payload));

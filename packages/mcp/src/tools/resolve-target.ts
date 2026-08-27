@@ -18,7 +18,7 @@ import {
   isResolveTargetIdentityActionable,
   sanitizeTerminalText,
 } from "../shared/resolve-target-response.js";
-import { mcpMappedErrorResult } from "./shared.js";
+import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
   READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
@@ -89,7 +89,7 @@ export function createResolveTargetTool(
     description: DESCRIPTION,
     schema,
     annotations: READ_ONLY_TOOL_ANNOTATIONS,
-    handler: async (args) => {
+    handler: async (args, context) => {
       try {
         const textFormat = isTextFormat(args.format);
         const params = buildResolveTargetParams({
@@ -113,7 +113,11 @@ export function createResolveTargetTool(
           JSON.stringify(buildResolveTargetSuccessPayload(result)),
         );
       } catch (error) {
-        return mcpMappedErrorResult(mapPackageIntelligenceError(error));
+        throwIfCallerCancellation(error, context?.signal);
+        return mcpMappedErrorResult(
+          mapPackageIntelligenceError(error),
+          context,
+        );
       }
     },
   };

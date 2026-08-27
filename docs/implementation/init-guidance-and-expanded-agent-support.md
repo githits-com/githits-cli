@@ -106,12 +106,17 @@ After successful cleanup, another guided run is a no-op for that migration.
 
 The canonical command is `githits uninstall`; `githits init uninstall` remains
 a compatibility alias with identical `--yes`, `--project`, and
-`--keep-guidance` behavior. Without `--keep-guidance`, uninstall independently
-and best-effort removes all four active skill files and the exact historical
-Cline/Junie files for the chosen scope, while preserving unrelated files and
-directories. Removing a shared root can affect every compatible agent that
-reads that directory; the result reports the shared guidance target. The
-`--keep-guidance` option preserves active and historical guidance.
+`--keep-guidance` behavior. Without `--keep-guidance`, interactive user
+uninstall best-effort removes active and historical guidance only for selected
+tools. It retains a shared skill or managed-block target when any unselected
+detected tool could use it, and retains a selected tool's guidance when its MCP
+removal fails. Non-interactive `--yes`, project uninstall, and user uninstall
+with no configured MCP targets clean every verified guidance target in the
+chosen scope. Cleanup removes all four active skill files and the exact
+historical Cline/Junie files while preserving unrelated files and directories.
+The `--keep-guidance` option preserves active and historical guidance.
+When cleanup removes a shared root, the result warns that every compatible
+agent reading that root is affected.
 
 Human output lists created, updated, unchanged, removed, and failed skill files
 accurately. Uninstall failure reasons are sanitized while failed target paths

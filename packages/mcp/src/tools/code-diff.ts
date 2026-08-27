@@ -8,7 +8,7 @@ import {
 } from "../shared/code-diff-request.js";
 import { buildCodeDiffSuccessPayload } from "../shared/code-diff-response.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
-import { mcpMappedErrorResult } from "./shared.js";
+import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
   READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
@@ -102,7 +102,7 @@ export function createCodeDiffTool(
     description: DESCRIPTION,
     schema,
     annotations: READ_ONLY_TOOL_ANNOTATIONS,
-    handler: async (args) => {
+    handler: async (args, context) => {
       try {
         const build = buildCodeDiffMcpParams({
           target: args.target,
@@ -123,7 +123,8 @@ export function createCodeDiffTool(
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {
-        return mcpMappedErrorResult(mapCodeNavigationError(error));
+        throwIfCallerCancellation(error, context?.signal);
+        return mcpMappedErrorResult(mapCodeNavigationError(error), context);
       }
     },
   };

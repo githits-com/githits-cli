@@ -145,6 +145,42 @@ describe("GitHitsServiceImpl", () => {
       expect(headers.Authorization).toBe("Bearer test-token");
     });
 
+    it("forwards a caller signal and preserves its abort reason", async () => {
+      const controller = new AbortController();
+      const reason = new Error("caller aborted");
+      const fn = mock((_url: string, init?: RequestInit) => {
+        expect(init?.signal).toBeInstanceOf(AbortSignal);
+        controller.abort(reason);
+        return Promise.reject(reason);
+      });
+      const signalService = new GitHitsServiceImpl(
+        API_URL,
+        TOKEN,
+        asFetchFn(fn),
+      );
+
+      await expect(
+        signalService.search({ query: "probe" }, { signal: controller.signal }),
+      ).rejects.toBe(reason);
+    });
+
+    it("throws an already-aborted caller reason before starting fetch", async () => {
+      const controller = new AbortController();
+      const reason = new Error("already cancelled");
+      controller.abort(reason);
+      const fn = mock(() => Promise.resolve(new Response("unexpected")));
+      const signalService = new GitHitsServiceImpl(
+        API_URL,
+        TOKEN,
+        asFetchFn(fn),
+      );
+
+      await expect(
+        signalService.search({ query: "probe" }, { signal: controller.signal }),
+      ).rejects.toBe(reason);
+      expect(fn).not.toHaveBeenCalled();
+    });
+
     it("sends x-githits-* telemetry headers on REST requests", async () => {
       // Pins the contract that `GitHitsServiceImpl.headers()` spreads
       // the telemetry headers onto every REST call, not just that the
