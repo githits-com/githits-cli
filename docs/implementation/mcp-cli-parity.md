@@ -260,7 +260,8 @@ instead give an explicit transport-neutral no-poll instruction.
 
 CLI supplies ANSI enablement and CLI-native follow-up and pagination syntax to the
 shared formatter; MCP supplies no color and MCP-native tool-call syntax. Hierarchy,
-wrapping, and fact selection are otherwise identical. Search-result
+wrapping, fact selection, and wording apart from those syntax differences are
+otherwise identical. Search-result
 follow-ups likewise render as `githits code read` / `githits docs read` in CLI
 and `code_read` / `docs_read` in MCP. ANSI-stripped CLI output is structurally
 identical to no-color output.

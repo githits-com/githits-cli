@@ -31,13 +31,25 @@ More hits available. Pass --offset 10 or --limit N to widen.`;
 
   it("accepts outcome-first text with CLI-native actions", () => {
     expect(() => assertSearchTerminalText(valid, "search")).not.toThrow();
+    expect(() =>
+      assertSearchTerminalText(
+        "No results returned from npm:express\nNext: shorten or broaden query; use githits code grep.",
+        "search",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertSearchTerminalText(
+        "FAILED - no results returned\nNext: rerun search later.",
+        "search",
+      ),
+    ).not.toThrow();
   });
 
   it.each([
     [`Warning: indexing\n${valid}`, "non-outcome text"],
     [`${valid}\nstatus: indexing`, "lifecycle status"],
     [valid.replace("--offset 10", "offset=10"), "MCP pagination syntax"],
-    ["1 result from npm:express@5.2.1", "missing CLI-native"],
+    ["1 result from npm:express@5.2.1", "missing result follow-up"],
   ])("rejects invalid search text", (text, message) => {
     expect(() => assertSearchTerminalText(text, "search")).toThrow(message);
   });

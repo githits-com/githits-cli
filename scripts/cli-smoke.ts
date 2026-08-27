@@ -402,8 +402,8 @@ export function assertSearchTerminalText(text: string, context: string): void {
   assert(
     text.includes("githits code read") ||
       text.includes("githits docs read") ||
-      statusActions.length === 1,
-    `${context}: missing CLI-native result or status follow-up`,
+      lines.some((line) => line.startsWith("Next: ")),
+    `${context}: missing result follow-up or next action`,
   );
 }
 
