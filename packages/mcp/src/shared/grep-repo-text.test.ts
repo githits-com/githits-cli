@@ -182,6 +182,19 @@ describe("renderGrepRepoText", () => {
     expect(text).toContain("More matches available. Pass cursor=ABC123");
   });
 
+  it("names max_matches_per_file when that limit truncates results", () => {
+    const text = renderGrepRepoText(
+      envelope({
+        truncatedReason: "max_matches_per_file",
+        hasMore: true,
+        matches: [match()],
+      }),
+    );
+
+    expect(text).toContain("increase max_matches_per_file");
+    expect(text).not.toContain("increase max_matches.");
+  });
+
   it("pages an empty incomplete result instead of changing the grep", () => {
     const text = renderGrepRepoText(
       envelope({

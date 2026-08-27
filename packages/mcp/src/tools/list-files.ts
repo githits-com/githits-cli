@@ -114,7 +114,7 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "List indexed files and paths, then hand off to `code_read` or " +
+  "List indexed files and paths in any public GitHub repo/package; then use `code_read` or " +
   "`code_grep`. Use this for enumeration tasks such as files under a directory; use " +
   "`path_prefix` for directory prefixes (e.g. `lib/`) and optional " +
   "`extensions` for language filtering. Discover paths before `code_read` " +

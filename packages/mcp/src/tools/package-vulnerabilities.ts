@@ -77,7 +77,7 @@ const schema: ZodRawShape = {
     ),
 };
 
-export const DESCRIPTION: string =
+export const DESCRIPTION_BASE: string =
   "Check whether a package version is vulnerable; find affected and fixed versions. Supports npm, PyPI, Hex, " +
   "Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift (vcpkg and Zig " +
   "are not supported for vulnerability data). Returns a count summary and advisory details: identifiers and aliases, including CVEs when available, " +
@@ -92,8 +92,9 @@ export const DESCRIPTION: string =
   "`critical`) and `include_withdrawn` to also see retracted " +
   'advisories. Use `advisory_scope:"non_affecting"` to list ' +
   "historical advisories that do not affect the inspected version, or " +
-  '`advisory_scope:"all"` to list affected and historical advisories together. Use `pkg_info` for a latest-version health overview or `pkg_upgrade_review` for current-vs-target upgrade evidence.' +
-  `\n\n${PKG_VULNS_GUARDRAIL}`;
+  '`advisory_scope:"all"` to list affected and historical advisories together. Use `pkg_info` for a latest-version health overview or `pkg_upgrade_review` for current-vs-target upgrade evidence.';
+
+export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_VULNS_GUARDRAIL}`;
 
 export function createPackageVulnerabilitiesTool(
   service: PackageIntelligenceService,

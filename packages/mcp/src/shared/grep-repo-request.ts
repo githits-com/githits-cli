@@ -130,7 +130,10 @@ export function buildGrepRepoParams(
     contextLinesAfter ?? (contextLines !== undefined ? contextLines : 0);
 
   const maxMatches = normalizeMaxMatches(input.maxMatches);
-  const maxMatchesPerFile = normalizeMaxMatchesPerFile(input.maxMatchesPerFile);
+  const maxMatchesPerFile = normalizeMaxMatchesPerFile(
+    input.maxMatchesPerFile,
+    maxMatches,
+  );
   const waitTimeoutMs = normalizeWaitTimeoutMs(input.waitTimeoutMs);
   const cursor = normalizeOptionalNonEmpty(input.cursor, "cursor");
   const symbolFields = normalizeSymbolFields(input.symbolFields);
@@ -280,8 +283,9 @@ function normalizeMaxMatches(value: number | undefined): number {
 
 function normalizeMaxMatchesPerFile(
   value: number | undefined,
-): number | undefined {
-  if (value === undefined) return undefined;
+  maxMatches: number,
+): number {
+  if (value === undefined) return maxMatches;
   if (!Number.isInteger(value) || value < 0 || value > LIMIT_MAX) {
     throw new InvalidPackageSpecError(
       `\`max_matches_per_file\` must be an integer between 0 and ${LIMIT_MAX}. Got ${value}.`,

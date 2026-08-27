@@ -57,7 +57,7 @@ githits docs read <pageId> --lines 20-120
 - For `githits example` results, report the source repositories/citations shown in GitHits' generated references/provenance section; they are core evidence for the synthesized pattern.
 - Package targets inspect published artifacts and omitted versions resolve to the latest release; repository targets inspect repository trees. For source-layout questions, always pin and report the package version or Git ref.
 - For source work, locate symbols or matches first, then read a focused window with explicit `--lines`.
-- Documentation text reads return at most 150 lines per call. Continue with explicit `--lines` windows when more context is needed; pass `--json` when you need `startLine`, `endLine`, or `totalLines` pagination metadata.
+- Documentation text reads honor the requested range. Use explicit `--lines` windows to keep only needed context; pass `--json` when you need `startLine`, `endLine`, or `totalLines` metadata.
 - For multi-step code/docs investigations, keep raw CLI output out of the final answer unless it is the evidence the user needs.
 - If output says it used recent, stale, or provisional indexed evidence, treat the displayed served target as provenance. Provisional evidence is queryable while visibly still indexing. If freshness matters, follow the rendered continuation, retry with a longer `--wait`, use one of the displayed `queryable now` versions/refs, or inspect JSON `targetResolution` for structured candidates.
 - Partial and capped documentation coverage are usable published evidence. Report the disclosed limit, but infer neither indexing progress nor retryability from coverage; follow only `searchRef` and the evidence notice.

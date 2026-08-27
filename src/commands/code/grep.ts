@@ -345,7 +345,7 @@ export function registerCodeGrepCommand(pkgCommand: Command): Command {
     )
     .option(
       "--per-file-limit <n>",
-      "Cap matches per file within this page (0-1000, 0 = unlimited)",
+      "Cap matches per file within this page (0-1000, defaults to --limit; 0 = unlimited)",
     )
     .option(
       "--cursor <cursor>",

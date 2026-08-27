@@ -187,7 +187,7 @@ describe("buildMcpQuickStart", () => {
       "Discover relevant evidence in a known target before exact grep",
     );
     expect(descriptions.get("code_grep")).toStartWith(
-      "Enumerate matches for a known exact literal",
+      "Enumerate text, regex, or identifier matches in any public GitHub repo/package",
     );
     expect(descriptions.get("pkg_vulns")).toStartWith(
       "Check whether a package version is vulnerable",

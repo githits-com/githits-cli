@@ -93,12 +93,27 @@ export {
   PKG_VULNS_GUARDRAIL,
   SEARCH_GUARDRAIL,
 } from "./tools/guardrails.js";
-export { DESCRIPTION as PACKAGE_CHANGELOG_DESCRIPTION } from "./tools/package-changelog.js";
-export { DESCRIPTION as PACKAGE_SUMMARY_DESCRIPTION } from "./tools/package-summary.js";
-export { DESCRIPTION as PACKAGE_VULNERABILITIES_DESCRIPTION } from "./tools/package-vulnerabilities.js";
+export {
+  DESCRIPTION as PACKAGE_CHANGELOG_DESCRIPTION,
+  DESCRIPTION_BASE as PACKAGE_CHANGELOG_DESCRIPTION_BASE,
+} from "./tools/package-changelog.js";
+export {
+  DESCRIPTION as PACKAGE_SUMMARY_DESCRIPTION,
+  DESCRIPTION_BASE as PACKAGE_SUMMARY_DESCRIPTION_BASE,
+} from "./tools/package-summary.js";
+export {
+  DESCRIPTION as PACKAGE_VULNERABILITIES_DESCRIPTION,
+  DESCRIPTION_BASE as PACKAGE_VULNERABILITIES_DESCRIPTION_BASE,
+} from "./tools/package-vulnerabilities.js";
 export { DESCRIPTION as QUICK_START_DESCRIPTION } from "./tools/quick-start.js";
-export { DESCRIPTION as READ_FILE_DESCRIPTION } from "./tools/read-file.js";
-export { DESCRIPTION as READ_PACKAGE_DOC_DESCRIPTION } from "./tools/read-package-doc.js";
+export {
+  DESCRIPTION as READ_FILE_DESCRIPTION,
+  DESCRIPTION_BASE as READ_FILE_DESCRIPTION_BASE,
+} from "./tools/read-file.js";
+export {
+  DESCRIPTION as READ_PACKAGE_DOC_DESCRIPTION,
+  DESCRIPTION_BASE as READ_PACKAGE_DOC_DESCRIPTION_BASE,
+} from "./tools/read-package-doc.js";
 export {
   createResolveTargetTool,
   type ResolveTargetMcpArgs,

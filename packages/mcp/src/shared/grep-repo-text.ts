@@ -99,9 +99,7 @@ export function buildEmptyGrepGuidance(
   if (envelope.truncatedReason) {
     const reason = formatTruncationReason(envelope.truncatedReason);
     lines.push(
-      surface === "cli"
-        ? `Truncated: ${reason}. Narrow the file selectors or increase --limit.`
-        : `Truncated: ${reason}. Pass narrower path/path_prefix/globs or increase max_matches.`,
+      `Truncated: ${reason}. ${formatTruncationAdvice(envelope.truncatedReason, surface)}`,
     );
   }
   if (envelope.hasMore && envelope.nextCursor) {
@@ -163,6 +161,30 @@ function formatTruncationReason(reason: string): string {
   }
 }
 
+function formatTruncationAdvice(
+  reason: string,
+  surface: "mcp" | "cli",
+): string {
+  if (surface === "cli") {
+    switch (reason) {
+      case "max_matches":
+        return "Narrow the file selectors or increase --limit.";
+      case "max_matches_per_file":
+        return "Narrow the file selectors or increase --per-file-limit.";
+      default:
+        return "Narrow the file selectors.";
+    }
+  }
+  switch (reason) {
+    case "max_matches":
+      return "Pass narrower path/path_prefix/globs or increase max_matches.";
+    case "max_matches_per_file":
+      return "Pass narrower path/path_prefix/globs or increase max_matches_per_file.";
+    default:
+      return "Pass narrower path/path_prefix/globs.";
+  }
+}
+
 function formatGrepServedTarget(
   envelope: LeanGrepRepoEnvelope,
 ): string | undefined {
@@ -203,7 +225,7 @@ function buildTrailer(envelope: LeanGrepRepoEnvelope): string[] {
 
   if (envelope.truncatedReason) {
     lines.push(
-      `Truncated: ${formatTruncationReason(envelope.truncatedReason)}. Pass narrower path/path_prefix/globs or increase max_matches.`,
+      `Truncated: ${formatTruncationReason(envelope.truncatedReason)}. ${formatTruncationAdvice(envelope.truncatedReason, "mcp")}`,
     );
   }
 
