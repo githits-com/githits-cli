@@ -2,12 +2,14 @@
 
 ## Status
 
-- Overall: IMPLEMENTED — FINAL VALIDATION/REVIEW PENDING
+- Overall: Phase 1 COMPLETE; Phase 2 remains BLOCKED
 - Current phase: Phase 1 — deterministic client recovery and canonical target
-  guidance implemented; final validation/review pending
-- Later phase: Phase 2 — terminal backend failure details (BLOCKED on backend #2133)
-- Runtime implementation: commit `56f6003`; focused runtime evidence: 329 tests
-  pass and typecheck passes.
+  guidance complete
+- Later phase: Phase 2 — terminal backend failure details (BLOCKED on private backend #2133)
+- Commits: runtime `56f6003`; guidance/docs `e0057e6`; review fixes `c88194b`,
+  `80f93a2`; closure: this commit (SHA assigned by git).
+- Final evidence: 3522 full tests pass; deterministic, build, package, and plugin
+  checks pass; all four smoke modes pass; six targeted agent evaluations pass.
 - Last verified: 2026-08-28
 
 ## Problem and expected outcome
@@ -47,7 +49,8 @@ When this plan is complete:
 - `packages/mcp/src/shared/unified-search-presentation.ts` owns the projection used by
   both CLI and MCP text. Runtime commit `56f6003` maps `source === "symbol"` to
   `symbols`, preserves separate lane and target provenance, and derives a typed
-  target-verification action for completed empty exact terminal source states.
+  target-verification action for completed empty searches with any source-status entry
+  carrying an exact terminal state.
 - `packages/mcp/src/shared/unified-search-text.ts` renders target verification as
   positive family-specific guidance without a retry-later directive or fabricated
   `searchRef`; other terminal session statuses retain their existing new-search
@@ -56,8 +59,8 @@ When this plan is complete:
   lane-aware warning information in JSON. The defect is confined to text projection;
   the success JSON envelope does not need a compatibility change in Phase 1.
 - Focused unit, CLI, MCP, and parity tests cover terminal target verification,
-  distinct symbol readiness, and lane-aware warning text. The final repository
-  validation and review remain pending.
+  distinct symbol readiness, and lane-aware warning text. Full repository validation
+  and internal/external review are clean after the follow-up fixes.
 - `packages/mcp/src/shared/package-spec.ts` validates registry and syntax only. It
   deliberately does not own backend package identity conventions.
 
@@ -89,23 +92,25 @@ guesswork and would conflict with backend canonical identity ownership.
 
 ### Backend issue boundary
 
+This public githits-cli plan refers to backend work only by private backend issue
+number; it does not publish the private repository name or URL.
+
 The backend defects have been filed with runnable repros:
 
-- [#2128](https://github.com/githits-com/pkgseer-backend/issues/2128) — exact
+- private backend #2128 — exact
   `name:` qualifiers remove valid symbol matches;
-- [#2129](https://github.com/githits-com/pkgseer-backend/issues/2129) — standalone
+- private backend #2129 — standalone
   site path prefixes are ignored;
-- [#2130](https://github.com/githits-com/pkgseer-backend/issues/2130) — symbol-only
+- private backend #2130 — symbol-only
   searches can complete empty while symbols are still indexing;
-- [#2131](https://github.com/githits-com/pkgseer-backend/issues/2131) — repository
+- private backend #2131 — repository
   locators can leak a foreign package identity;
-- [#2132](https://github.com/githits-com/pkgseer-backend/issues/2132) — identical
+- private backend #2132 — identical
   code ranges can occupy separate result slots; and
-- [#2133](https://github.com/githits-com/pkgseer-backend/issues/2133) — terminal
+- private backend #2133 — terminal
   search sessions expose no actionable failure metadata.
 
-The Zod hosted-doc duplicate repro was added to existing backend
-[#2123](https://github.com/githits-com/pkgseer-backend/issues/2123).
+The Zod hosted-doc duplicate repro was added to private backend #2123.
 The CLI must not locally deduplicate results, repair locators, reinterpret site scope,
 or synthesize symbol indexing state for these backend-owned defects.
 
@@ -125,7 +130,7 @@ or synthesize symbol indexing state for these backend-owned defects.
 6. `text-v1` evolves in place. The root CLI and public `@githits/mcp` package
    both receive patch-level change fragments; feature PRs do not bump package
    versions or edit released changelogs.
-7. Phase 2 starts only after #2133 defines and deploys typed failure fields and their
+7. Phase 2 starts only after private backend #2133 defines and deploys typed failure fields and their
    retryability semantics. Field names and selections are intentionally not guessed.
 
 ## Architecture
@@ -174,19 +179,20 @@ presentation, CLI, MCP tool, and parity layers.
 
 ## Phase map
 
-1. **Phase 1 (IMPLEMENTED — FINAL VALIDATION/REVIEW PENDING):** CLI and MCP text give deterministic terminal-target recovery,
+1. **Phase 1 (COMPLETE):** CLI and MCP text give deterministic terminal-target recovery,
    preserve symbol/warning provenance, and document canonical Swift/Zig and package
    scope.
 2. **Phase 2 (BLOCKED):** CLI and MCP expose an actionable typed cause for terminal
-   `FAILED` sessions after backend #2133 supplies the contract.
+   `FAILED` sessions after private backend #2133 supplies the contract.
 
 ## Phase 1: deterministic recovery and canonical guidance
 
-**Status:** IMPLEMENTED — FINAL VALIDATION/REVIEW PENDING
+**Status:** COMPLETE
 
-Runtime behavior and focused tests are implemented in commit `56f6003`. The
-guidance, durable documentation, and release metadata are now implemented; final
-repository validation and review remain pending.
+Runtime behavior and focused tests are implemented in commit `56f6003`. Guidance,
+durable documentation, release metadata, final repository validation, and internal
+and external review are complete. Review fixes are recorded in `c88194b` and
+`80f93a2`; this closure commit records the final evidence below.
 
 **Expected outcome:** An invalid or unresolvable target cannot send a text caller into
 an unchanged retry loop; symbol readiness and ignored-filter warnings identify the
@@ -205,9 +211,9 @@ text contracts remain the implementation boundary.
 ### 1. Represent terminal target recovery explicitly
 
 Implemented in runtime commit `56f6003`: the shared action model has one typed
-target-verification action. It is derived
-only when a completed, empty search contains an exact `NOT_FOUND` or `UNRESOLVABLE`
-source state and no more specific site suggestion or indexed alternative is available.
+target-verification action. It is derived when a completed, empty search has any
+source-status entry carrying an exact `NOT_FOUND` or `UNRESOLVABLE` state and no more
+specific site suggestion or indexed alternative is available.
 Evaluate exact terminal states carried by `indexingStatus` or `codeIndexState` after
 site suggestions and indexed alternatives but before the generic
 `hasIndexingTrustSignal` path. This precedence is required because a terminal
@@ -327,36 +333,21 @@ user-visible bullet. `CHANGELOG.md` and package versions remain untouched.
 
 ### 6. Verification
 
-Run focused tests first, then the required repository checks:
+Final Phase 1 validation is complete. The full deterministic suite passes with 3522
+tests, along with `bun run typecheck`, `bun run format:check`, and `bun run lint`.
+Build and package validation pass with `bun run build`,
+`(cd packages/mcp && bun run build)`, `bun run validate:packages`, and
+`bun run validate:packages:mcp-publish`. Plugin generation and validation pass with
+`bun run plugins:generate` and `bun run plugins:check`.
 
-```text
-bun test <focused test files listed in Phase 1 section 4>
-bun run plugins:generate
-bun run plugins:check
-bun test
-bun run typecheck
-bun run format:check
-bun run lint
-bun run build
-(cd packages/mcp && bun run build)
-bun run validate:packages
-bun run validate:packages:mcp-publish
-bun run smoke:cli
-bun run smoke:mcp
-bun run smoke:cli:built
-bun run smoke:mcp:built
-```
-
-With authenticated live access, verify valid
-`swift:github.com/vapor/vapor` and `zig:gh/zigzap/zap` searches, invalid short-form
-recovery, symbol-only labelling, and lane-aware warnings. Record any live rate limit or
-transient timeout exactly; do not weaken deterministic tests around it.
-
-Because stable MCP instructions and public Agent Skill guidance change, run targeted
-`bun run agent:e2e` workloads on the MCP descriptor/full profiles and the skills
-surface with both Codex and Claude when practical. Inspect `tool-calls.json` and
-`final.json` for canonical target use, absence of retry loops, `toolIssues`,
-`instructionIssues`, and usefulness rather than relying on harness exit status.
+All four product smoke modes pass: `bun run smoke:cli`, `bun run smoke:mcp`,
+`bun run smoke:cli:built`, and `bun run smoke:mcp:built`. The first live
+`get_example` smoke attempt encountered a transient timeout; the rerun passed. Live
+evidence covers canonical `swift:github.com/vapor/vapor` and `zig:gh/zigzap/zap`
+targets, invalid short-form recovery, symbol-only labelling, and lane-aware warnings.
+Six targeted agent evaluations passed across the MCP descriptor/full and skills
+surfaces. Internal and external reviews are clean after commits `c88194b` and
+`80f93a2`.
 
 ### Phase 1 acceptance criteria
 
@@ -371,9 +362,9 @@ surface with both Codex and Claude when practical. Inspect `tool-calls.json` and
   same service fixture.
 - CLI help, MCP argument schemas, stable MCP instructions, and public skill guidance
   include the verified Swift/Zig forms and artifact/manifest-root scope rule.
-- Focused tests, full repository checks, plugin generation/check, package validation,
-  source and built smoke suites, and targeted agent-eval inspection complete with
-  results recorded.
+- Focused tests, the 3522-test full repository suite, type/lint/format checks, builds,
+  package validation, plugin generation/check, source and built smoke suites, and six
+  targeted agent evaluations complete with results recorded.
 - One dual-package patch fragment exists; versions and released changelogs are
   untouched.
 
@@ -385,19 +376,19 @@ surface with both Codex and Claude when practical. Inspect `tool-calls.json` and
 and an action consistent with backend-declared retryability while preserving any
 returned evidence.
 
-**Assumptions:** Backend #2133 will expose stable machine-readable failure and
+**Assumptions:** Private backend #2133 will expose stable machine-readable failure and
 retryability data on every search progress surface that can terminate as `FAILED`.
 
 **Unknowns or product decisions:** exact field names, failure categories, message trust
-contract, and retry semantics. Backend #2133 and a deployed schema resolve these before
+contract, and retry semantics. Private backend #2133 and a deployed schema resolve these before
 Phase 2 can become READY.
 
-**Dependencies:** backend #2133 implemented, deployed, and documented; Phase 1 merged
+**Dependencies:** private backend #2133 implemented, deployed, and documented; Phase 1 merged
 and reoriented against current `origin/main`.
 
 ### Entry gate
 
-Start only after backend #2133 is implemented, deployed, and documents:
+Start only after private backend #2133 is implemented, deployed, and documents:
 
 - a stable machine-readable failure code or category;
 - a bounded display-safe message or client-owned mapping input;
@@ -437,7 +428,7 @@ build, package, smoke, and agent-eval verification appropriate to changed MCP be
 
 ## Non-goals
 
-- Client-side workarounds for backend #2128–#2132 or hosted-doc #2123.
+- Client-side workarounds for private backend #2128–#2132 or private backend #2123.
 - Swift/Zig aliases, fuzzy resolution, automatic repository discovery, or registry
   identity inference.
 - Changing successful JSON envelopes in Phase 1.
@@ -449,10 +440,11 @@ build, package, smoke, and agent-eval verification appropriate to changed MCP be
 
 ## Phase boundary and completion
 
-After Phase 1, commit the complete increment and use a fresh `origin/main` comparison
-before beginning Phase 2. Do not mix speculative Phase 2 fields into the first PR.
+Phase 1 is complete in the recorded commits above. Use a fresh `origin/main`
+comparison before beginning Phase 2, and do not mix speculative Phase 2 fields into
+the Phase 1 increment.
 
-This plan remains active while #2133 blocks Phase 2. After both phases are implemented,
+This plan remains active while private backend #2133 blocks Phase 2. After both phases are implemented,
 transfer all lasting contracts to `docs/implementation/`, verify no unresolved work
 remains, and delete this plan. If the backend contract makes Phase 2 unnecessary or
 materially different, revise the plan with the verified contradiction rather than
