@@ -2685,3 +2685,215 @@ export function formatComparisonReport(
   for (const warning of artifact.warnings) lines.push(`Warning: ${warning}`);
   return `${lines.join("\n")}\n`;
 }
+
+const AGENT_EVAL_SUITE_CLI_MODES = ["run", "pair", "compare"] as const;
+type AgentEvalSuiteCliMode = (typeof AGENT_EVAL_SUITE_CLI_MODES)[number];
+
+export type AgentEvalSuiteCliCommand =
+  | { mode: "help" }
+  | {
+      mode: "run";
+      suite: AgentEvalSuiteName;
+      outDir?: string;
+      targetRoot?: string;
+      dryRun: boolean;
+    }
+  | {
+      mode: "pair";
+      suite: AgentEvalSuiteName;
+      baselineRoot: string;
+      outDir?: string;
+      dryRun: boolean;
+    }
+  | {
+      mode: "compare";
+      baselineSuitePath: string;
+      candidateSuitePath: string;
+      outDir?: string;
+    };
+
+export const AGENT_EVAL_SUITE_USAGE = `Usage:
+  bun run agent:e2e:suite run --suite <name> [--dry-run] [--out <dir>] [--target-root <path>]
+  bun run agent:e2e:suite pair --suite <name> --baseline-root <path> [--dry-run] [--out <dir>]
+  bun run agent:e2e:suite compare --baseline-suite <path> --candidate-suite <path> [--out <dir>]
+
+Suites: ${AGENT_EVAL_SUITE_NAMES.join(", ")}
+Matrix: Codex ${LUNA_MODEL}, reasoning low, local MCP, descriptors + full profiles
+`;
+
+const CLI_OPTIONS_BY_MODE: Record<AgentEvalSuiteCliMode, readonly string[]> = {
+  run: ["--suite", "--out", "--target-root", "--dry-run"],
+  pair: ["--suite", "--baseline-root", "--out", "--dry-run"],
+  compare: ["--baseline-suite", "--candidate-suite", "--out"],
+};
+
+function isCliMode(value: string): value is AgentEvalSuiteCliMode {
+  return (AGENT_EVAL_SUITE_CLI_MODES as readonly string[]).includes(value);
+}
+
+function assertCliValue(value: string | undefined, flag: string): string {
+  assert(value !== undefined && value.length > 0, `${flag} requires a value`);
+  return value;
+}
+
+function assertSuiteName(value: string): AgentEvalSuiteName {
+  assert(
+    AGENT_EVAL_SUITE_NAMES.includes(value as AgentEvalSuiteName),
+    `unknown suite name: ${value}`,
+  );
+  return value as AgentEvalSuiteName;
+}
+
+export function parseAgentEvalSuiteCliArgs(
+  args: readonly string[],
+): AgentEvalSuiteCliCommand {
+  if (args.length === 0) {
+    return { mode: "help" };
+  }
+  if (args.includes("--help")) {
+    assert(
+      args.filter((arg) => arg === "--help").length === 1,
+      "duplicate argument: --help",
+    );
+    const withoutHelp = args.filter((arg) => arg !== "--help");
+    assert(
+      withoutHelp.length === 0 ||
+        (withoutHelp.length === 1 && isCliMode(withoutHelp[0] ?? "")),
+      "--help must be used alone or with one command",
+    );
+    return { mode: "help" };
+  }
+  const [rawMode, ...tokens] = args;
+  assert(
+    rawMode !== undefined && isCliMode(rawMode),
+    `unknown mode: ${rawMode}`,
+  );
+  const values = new Map<string, string | true>();
+  const allowed = new Set(CLI_OPTIONS_BY_MODE[rawMode]);
+  for (let index = 0; index < tokens.length; index += 1) {
+    const flag = tokens[index];
+    assert(flag !== undefined, `unexpected argument: ${flag}`);
+    assert(flag.startsWith("--"), `unexpected argument: ${flag}`);
+    assert(allowed.has(flag), `${flag} is not valid for ${rawMode}`);
+    assert(!values.has(flag), `duplicate argument: ${flag}`);
+    if (flag === "--dry-run") {
+      values.set(flag, true);
+      continue;
+    }
+    const value = tokens[index + 1];
+    assert(
+      value !== undefined && !value.startsWith("--"),
+      `${flag} requires a value`,
+    );
+    values.set(flag, assertCliValue(value, flag));
+    index += 1;
+  }
+  const getValue = (flag: string): string | undefined => {
+    const value = values.get(flag);
+    return typeof value === "string" ? value : undefined;
+  };
+  const dryRun = values.has("--dry-run");
+  if (rawMode === "run") {
+    return {
+      mode: rawMode,
+      suite: assertSuiteName(assertCliValue(getValue("--suite"), "--suite")),
+      outDir: getValue("--out"),
+      targetRoot: getValue("--target-root"),
+      dryRun,
+    };
+  }
+  if (rawMode === "pair") {
+    return {
+      mode: rawMode,
+      suite: assertSuiteName(assertCliValue(getValue("--suite"), "--suite")),
+      baselineRoot: assertCliValue(
+        getValue("--baseline-root"),
+        "--baseline-root",
+      ),
+      outDir: getValue("--out"),
+      dryRun,
+    };
+  }
+  assert(!dryRun, "--dry-run is not valid for compare");
+  return {
+    mode: rawMode,
+    baselineSuitePath: assertCliValue(
+      getValue("--baseline-suite"),
+      "--baseline-suite",
+    ),
+    candidateSuitePath: assertCliValue(
+      getValue("--candidate-suite"),
+      "--candidate-suite",
+    ),
+    outDir: getValue("--out"),
+  };
+}
+
+function defaultSuiteOutputDir(repoRoot: string): string {
+  return resolve(
+    repoRoot,
+    ".agent-eval",
+    "suites",
+    comparisonOutputTimestamp(),
+  );
+}
+
+export interface AgentEvalSuiteCliDependencies {
+  runSuite?: typeof runAgentEvalSuite;
+  runPair?: typeof runAgentEvalSuitePair;
+  compareOffline?: typeof compareAgentEvalSuitesOffline;
+}
+
+export async function runAgentEvalSuiteCli(
+  args: readonly string[],
+  repoRoot = process.cwd(),
+  dependencies: AgentEvalSuiteCliDependencies = {},
+): Promise<string> {
+  const command = parseAgentEvalSuiteCliArgs(args);
+  if (command.mode === "help") return AGENT_EVAL_SUITE_USAGE;
+  const root = resolve(repoRoot);
+  if (command.mode === "run") {
+    const outDir = resolve(root, command.outDir ?? defaultSuiteOutputDir(root));
+    const artifact = await (dependencies.runSuite ?? runAgentEvalSuite)({
+      suite: command.suite,
+      repoRoot: root,
+      targetRoot: command.targetRoot,
+      outDir,
+      dryRun: command.dryRun,
+    });
+    return `${formatSuiteReport(artifact)}suite artifact: ${join(outDir, "suite.json")}\n`;
+  }
+  if (command.mode === "pair") {
+    const outDir = command.outDir ? resolve(root, command.outDir) : undefined;
+    const result = await (dependencies.runPair ?? runAgentEvalSuitePair)({
+      suite: command.suite,
+      repoRoot: root,
+      baselineRoot: command.baselineRoot,
+      outDir,
+      dryRun: command.dryRun,
+    });
+    return `${formatSuiteReport(result.baselineSuite)}${formatSuiteReport(result.candidateSuite)}${formatComparisonReport(result.comparison)}artifacts:\n  baseline suite: ${result.baselineSuitePath}\n  candidate suite: ${result.candidateSuitePath}\n  comparison: ${result.comparisonPath}\n`;
+  }
+  const result = await (
+    dependencies.compareOffline ?? compareAgentEvalSuitesOffline
+  )({
+    baselineSuitePath: command.baselineSuitePath,
+    candidateSuitePath: command.candidateSuitePath,
+    repoRoot: root,
+    outputDir: command.outDir ? resolve(root, command.outDir) : undefined,
+  });
+  return `${formatComparisonReport(result)}comparison artifact: ${result.outputPath ?? "unknown"}\n`;
+}
+
+async function main(): Promise<void> {
+  process.stdout.write(
+    await runAgentEvalSuiteCli(process.argv.slice(2), process.cwd()),
+  );
+}
+
+if (import.meta.main) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}

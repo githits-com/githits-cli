@@ -15,6 +15,11 @@ conditions, and package data can all change. The useful output is the artifact
 set, especially `tool-calls.json`, `final.json`, `metrics.json`, `report.json`,
 `toolIssues`, `instructionIssues`, and the agent's usefulness assessment.
 
+The repository-local named-suite commands below are the Phase 2 measurement
+workflow. They run the fixed Luna matrix and produce validated suite and
+comparison artifacts, but they do not yet schedule paid runs, retain history in
+a service, or judge answer quality.
+
 ## What Is Under Test
 
 - MCP local mode starts the MCP server from this checkout with
@@ -99,6 +104,81 @@ bun run agent:e2e --agent codex --model gpt-5.4-mini --workload eval/agentic/wor
 bun run agent:e2e:report .agent-eval/runs/<run>
 bun run agent:e2e:report --compare .agent-eval/runs/<before> .agent-eval/runs/<after>
 ```
+
+## Named suites and Luna matrix
+
+Use the named-suite entrypoint when the change should be measured with the
+curated workload policy rather than one manually selected workload:
+
+```bash
+# One target checkout; default output is .agent-eval/suites/<timestamp>
+bun run agent:e2e:suite run --suite canary --dry-run
+bun run agent:e2e:suite run --suite smoke --out .agent-eval/suites/smoke-local
+
+# Compare the current checkout with an explicit baseline target checkout
+bun run agent:e2e:suite pair --suite canary --baseline-root ../githits-main --dry-run
+
+# Compare two existing suite artifacts without launching an agent
+bun run agent:e2e:suite compare \
+  --baseline-suite .agent-eval/pairs/<timestamp>/baseline/suite.json \
+  --candidate-suite .agent-eval/pairs/<timestamp>/candidate/suite.json \
+  --out .agent-eval/comparisons/local-review
+```
+
+Canary has `express-router` and
+`package-overview-vulnerabilities`; smoke adds `global-example`,
+`unified-search-investigation`, `docs-search-followup`, and
+`package-upgrade-safety`; stable-full contains all 21 stable workloads.
+`stateful-manual` contains only `githits-onboarding` and is dry-run-only in
+this phase. `experimental` contains only
+`experimental-code-diff`, `experimental-resolution-follow-up`, and
+`experimental-site-resolution-follow-up`. The manifest therefore classifies
+25 workloads: 21 stable, one stateful, and three experimental. Canary is a
+subset of smoke, smoke is a subset of stable-full, and stateful or experimental
+workloads never enter those stable suites.
+
+Every named suite uses exactly Codex `gpt-5.6-luna`, reasoning `low`, local MCP,
+and two profile shards: `descriptors` and `full`. The shards run concurrently;
+workloads are sequential within each shard. The experimental suite passes the
+explicit experimental-tools option. The pair command runs the baseline target
+fully before the current checkout, while the current checkout owns the
+measurement harness for both sides. A pair has no candidate-root option: run it
+from the candidate checkout and use `--baseline-root` for the other target.
+
+For `run`, the current checkout owns workloads, the manifest, reporting
+contract, result schema, adapters, output, and comparison code. `--target-root`
+can point a single-target run at another checkout; that target supplies its
+local MCP/CLI implementation, target Git identity, and full-profile
+`skills/githits-mcp` plus `GITHITS_GUIDANCE_BLOCK`. Pair artifacts record both
+the measurement-harness and target roots/identities so harness drift is not
+mistaken for a target change.
+
+Each run writes `suite.json` under its suite directory. A pair writes
+`baseline/suite.json`, `candidate/suite.json`, and
+`comparison/comparison.json` under `.agent-eval/pairs/<timestamp>` (or under
+`--out`). Offline comparison defaults to
+`.agent-eval/comparisons/<timestamp>`. The suite and comparison artifacts point
+to child `run.json`, `metrics.json`, and `report.json` using portable relative
+paths; imported references cannot traverse or follow symlinks outside their
+owning suite directory.
+
+Suite and comparison output includes normalized token buckets, cost estimates,
+duration, process/final status, full-cell failures, and logical tool counts
+grouped by `(surface, normalized tool)` with separate MCP and CLI rows. Raw
+provider event counts remain separate audit evidence. `callsByTool: null`,
+unknown token/cost/duration values, and missing cell IDs mean telemetry was not
+available or was inconsistent; they are never silently converted to zero.
+Partial shards preserve their successful sibling and the full status matrix.
+Comparison aggregate deltas use only compatible cells where that metric is
+known on both sides and list included/excluded cells. Reporting-contract or
+result-schema changes suppress direct deltas; a workload-content change excludes
+only that workload's cells. Harness Git or Codex CLI drift is warned about and
+prevents a repository-only attribution label, while target Git/guidance changes
+remain intentional comparison dimensions.
+
+These local commands are diagnostic measurement tools. Paid CI scheduling,
+persistent result history, service export, Haiku coverage, and quality judging
+remain later phases.
 
 For ad hoc interactive testing with the same MCP/skills setup logic:
 
@@ -258,9 +338,8 @@ bun run agent:e2e:report --json .agent-eval/runs/<run>
 bun run agent:e2e:report .agent-eval/runs/<run>
 ```
 
-Named suites, daily pipeline execution, persistent result history, and quality
-judging are later phases; this implementation runs the existing workload list
-one workload at a time.
+Named suites are now available through `agent:e2e:suite`; daily pipeline
+execution, persistent result history, and quality judging remain later phases.
 
 For broad skill edits, run at least:
 

@@ -35,9 +35,11 @@ import {
   loadComparisonArtifact,
   loadImportedSuite,
   loadSuiteManifest,
+  parseAgentEvalSuiteCliArgs,
   parseComparisonArtifact,
   parseSuiteArtifact,
   runAgentEvalSuite,
+  runAgentEvalSuiteCli,
   runAgentEvalSuitePair,
   selectSuiteWorkloads,
   validateSuiteManifest,
@@ -416,6 +418,261 @@ describe("agent eval suites", () => {
       "stateful",
       "experimental",
     ]);
+  });
+
+  it("parses strict run, pair, compare, and help CLI forms", () => {
+    expect(
+      parseAgentEvalSuiteCliArgs([
+        "run",
+        "--suite",
+        "canary",
+        "--dry-run",
+        "--out",
+        "runs",
+        "--target-root",
+        "../target",
+      ]),
+    ).toMatchObject({
+      mode: "run",
+      suite: "canary",
+      dryRun: true,
+      outDir: "runs",
+      targetRoot: "../target",
+    });
+    expect(
+      parseAgentEvalSuiteCliArgs([
+        "pair",
+        "--suite",
+        "smoke",
+        "--baseline-root",
+        "../main",
+      ]),
+    ).toMatchObject({
+      mode: "pair",
+      suite: "smoke",
+      baselineRoot: "../main",
+      dryRun: false,
+    });
+    expect(
+      parseAgentEvalSuiteCliArgs([
+        "compare",
+        "--baseline-suite",
+        "before/suite.json",
+        "--candidate-suite",
+        "after/suite.json",
+        "--out",
+        "comparison",
+      ]),
+    ).toEqual({
+      mode: "compare",
+      baselineSuitePath: "before/suite.json",
+      candidateSuitePath: "after/suite.json",
+      outDir: "comparison",
+    });
+    expect(parseAgentEvalSuiteCliArgs(["--help"])).toEqual({ mode: "help" });
+
+    for (const args of [
+      ["run", "--suite", "canary", "--suite", "smoke"],
+      ["run", "--suite", "canary", "--baseline-root", "../main"],
+      [
+        "pair",
+        "--suite",
+        "canary",
+        "--baseline-root",
+        "../main",
+        "--target-root",
+        "../other",
+      ],
+      [
+        "compare",
+        "--baseline-suite",
+        "before.json",
+        "--candidate-suite",
+        "after.json",
+        "--dry-run",
+      ],
+      ["compare", "--baseline-suite", "before.json"],
+      ["run", "--suite", "not-a-suite"],
+      ["run", "--suite", "canary", "--unknown"],
+      ["--help", "--help"],
+    ]) {
+      expect(() => parseAgentEvalSuiteCliArgs(args)).toThrow();
+    }
+  });
+
+  it("routes run, pair, and offline compare commands with artifact paths", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const explicitRunDir = join(candidate.root, "explicit-run");
+    const explicitPairDir = join(candidate.root, "explicit-pair");
+    const explicitCompareDir = join(candidate.root, "explicit-compare");
+    let compareCalls = 0;
+    const shardExecutor = async (options: AgentEvalSuiteShardOptions) => {
+      writeShardArtifacts(
+        options,
+        options.workloads.map((workload) =>
+          suiteRecord(workload.id, { guidanceProfile: options.profile }),
+        ),
+      );
+      return { runDir: options.outDir };
+    };
+    const runSuite = (options: Parameters<typeof runAgentEvalSuite>[0]) =>
+      runAgentEvalSuite({
+        ...options,
+        targetRoot: candidate.root,
+        manifestPath: candidate.manifestPath,
+        workloadsDir: candidate.workloadsDir,
+        reportingPath: candidate.reportingPath,
+        schemaPath: candidate.schemaPath,
+        shardExecutor,
+      });
+    const runText = await runAgentEvalSuiteCli(
+      ["run", "--suite", "stable-full", "--dry-run", "--out", explicitRunDir],
+      candidate.root,
+      { runSuite },
+    );
+    expect(runText).toContain(
+      `suite artifact: ${join(explicitRunDir, "suite.json")}`,
+    );
+    expect(runText).toContain("Agent eval suite: dry-run stable-full");
+    const defaultRunText = await runAgentEvalSuiteCli(
+      ["run", "--suite", "stable-full", "--dry-run"],
+      candidate.root,
+      { runSuite },
+    );
+    expect(defaultRunText).toContain(`${candidate.root}/.agent-eval/suites/`);
+
+    const runPair = (options: Parameters<typeof runAgentEvalSuitePair>[0]) =>
+      runAgentEvalSuitePair({
+        ...options,
+        manifestPath: candidate.manifestPath,
+        workloadsDir: candidate.workloadsDir,
+        reportingPath: candidate.reportingPath,
+        schemaPath: candidate.schemaPath,
+        shardExecutor,
+      });
+    const pairText = await runAgentEvalSuiteCli(
+      [
+        "pair",
+        "--suite",
+        "stable-full",
+        "--baseline-root",
+        baseline.root,
+        "--dry-run",
+        "--out",
+        explicitPairDir,
+      ],
+      candidate.root,
+      { runPair },
+    );
+    expect(pairText).toContain(
+      `baseline suite: ${join(explicitPairDir, "baseline", "suite.json")}`,
+    );
+    expect(pairText).toContain(
+      `candidate suite: ${join(explicitPairDir, "candidate", "suite.json")}`,
+    );
+    expect(pairText).toContain(
+      `comparison: ${join(explicitPairDir, "comparison", "comparison.json")}`,
+    );
+    const defaultPairText = await runAgentEvalSuiteCli(
+      [
+        "pair",
+        "--suite",
+        "stable-full",
+        "--baseline-root",
+        baseline.root,
+        "--dry-run",
+      ],
+      candidate.root,
+      { runPair },
+    );
+    expect(defaultPairText).toContain(`${candidate.root}/.agent-eval/pairs/`);
+
+    const compareText = await runAgentEvalSuiteCli(
+      [
+        "compare",
+        "--baseline-suite",
+        join(explicitPairDir, "baseline", "suite.json"),
+        "--candidate-suite",
+        join(explicitPairDir, "candidate", "suite.json"),
+        "--out",
+        explicitCompareDir,
+      ],
+      candidate.root,
+      {
+        compareOffline: (options) => {
+          compareCalls += 1;
+          return compareAgentEvalSuitesOffline(options);
+        },
+      },
+    );
+    expect(compareCalls).toBe(1);
+    expect(compareText).toContain(
+      `comparison artifact: ${join(explicitCompareDir, "comparison.json")}`,
+    );
+    expect(compareText).toContain("Agent eval comparison: offline");
+    const defaultCompareText = await runAgentEvalSuiteCli(
+      [
+        "compare",
+        "--baseline-suite",
+        join(explicitPairDir, "baseline", "suite.json"),
+        "--candidate-suite",
+        join(explicitPairDir, "candidate", "suite.json"),
+      ],
+      candidate.root,
+      { compareOffline: compareAgentEvalSuitesOffline },
+    );
+    expect(defaultCompareText).toContain(
+      `${candidate.root}/.agent-eval/comparisons/`,
+    );
+  });
+
+  it("refuses live stateful CLI runs before execution but routes dry runs", async () => {
+    const fixture = createSuiteExecutionFixture([
+      {
+        id: "stateful-a",
+        path: "eval/agentic/workloads/stateful-a.md",
+        safety: "stateful",
+        suites: ["stateful-manual"],
+      },
+    ]);
+    let executorCalls = 0;
+    const runSuite = (options: Parameters<typeof runAgentEvalSuite>[0]) =>
+      runAgentEvalSuite({
+        ...options,
+        targetRoot: fixture.targetRoot,
+        manifestPath: fixture.manifestPath,
+        workloadsDir: fixture.workloadsDir,
+        reportingPath: fixture.reportingPath,
+        schemaPath: fixture.schemaPath,
+        shardExecutor: async (shard) => {
+          executorCalls += 1;
+          writeShardArtifacts(
+            shard,
+            shard.workloads.map((workload) => suiteRecord(workload.id)),
+          );
+          return { runDir: shard.outDir };
+        },
+      });
+    try {
+      await expect(
+        runAgentEvalSuiteCli(
+          ["run", "--suite", "stateful-manual"],
+          fixture.root,
+          { runSuite },
+        ),
+      ).rejects.toThrow("dry-run-only");
+      expect(executorCalls).toBe(0);
+      const output = await runAgentEvalSuiteCli(
+        ["run", "--suite", "stateful-manual", "--dry-run"],
+        fixture.root,
+        { runSuite },
+      );
+      expect(executorCalls).toBe(2);
+      expect(output).toContain("Agent eval suite: dry-run stateful-manual");
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
   });
 
   it("expands suites in deterministic ID and path order", () => {

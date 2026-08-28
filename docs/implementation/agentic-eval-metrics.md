@@ -8,8 +8,9 @@ and the console summary are review aids built from that artifact; they do not
 replace the raw terminal output or `tool-calls.json`.
 
 This is local maintainer tooling. It is not a daily pipeline, persistent
-history service, deterministic CI gate, or quality judge. Named suites, daily
-execution, long-term export, and answer-quality scoring remain later phases.
+history service, deterministic CI gate, or quality judge. Named Luna suites and
+local paired/offline comparisons are implemented here; daily execution,
+long-term export, and answer-quality scoring remain later phases.
 
 ## Run lifecycle
 
@@ -37,6 +38,79 @@ Duplicate or unmatched records are warned and are not attached to a workload;
 the validated artifact aggregate remains available for inspection. Legacy
 workload status and duration fields from `run.json` remain readable when
 present.
+
+## Named suite and comparison artifacts
+
+The Phase 2 suite layer keeps the Phase 1 metrics schema at version 1 and derives
+its own validated `suite.json` around the child run artifacts. The fixed matrix
+is Codex `gpt-5.6-luna`, reasoning `low`, local MCP, with concurrent
+`descriptors` and `full` profile shards and sequential workloads inside each
+shard. The manifest selects canary, smoke, stable-full, stateful-manual, or
+experimental workloads. Stateful onboarding is dry-run-only; experimental
+workloads are selected only by the experimental suite, which enables the
+experimental-tools option.
+
+Use the local entrypoint as follows:
+
+```bash
+bun run agent:e2e:suite run --suite canary [--dry-run] [--out <dir>]
+bun run agent:e2e:suite pair --suite canary --baseline-root ../githits-main [--dry-run] [--out <dir>]
+bun run agent:e2e:suite compare --baseline-suite <path> --candidate-suite <path> [--out <dir>]
+```
+
+`run` defaults to `.agent-eval/suites/<timestamp>`. Pair output has distinct
+`baseline/`, `candidate/`, and `comparison/` directories under
+`.agent-eval/pairs/<timestamp>`; offline comparison defaults to
+`.agent-eval/comparisons/<timestamp>`. `--out` overrides the corresponding
+directory. Pair execution always uses the current checkout as both candidate
+target and measurement harness, and accepts only an explicit baseline target.
+The harness owns the manifest, workload prompts, reporting contract, result
+schema, adapters, and output. Each target owns its local MCP/CLI implementation,
+target Git identity, and full-profile `skills/githits-mcp` plus
+`GITHITS_GUIDANCE_BLOCK`; a single-target run can select a target with
+`--target-root`.
+
+`suite.json` is schema-versioned and records the suite execution ID, matrix,
+selected workloads, measurement-harness and target Git identities, wall and
+cumulative agent time, shard status/errors, full workload/profile cell status,
+normalized tokens, cost, duration, aggregate logical calls by `(surface,
+normalized tool)`, missing telemetry cell IDs, exact Codex CLI versions, and
+content identities. Content identities hash exact bytes with SHA-256 and sorted
+forward-slash repository-relative paths for selected workloads, the reporting
+contract, and the result schema. Target guidance identity is separate and
+contains target skill file hashes plus the runtime-validated guidance-block
+hash/size.
+
+`comparison.json` is also schema-versioned. Live pair mode and offline mode use
+the same pure builder and record each input suite's ID, SHA-256 of its exact
+`suite.json` bytes, and diagnostic absolute path. Imported `run.json`,
+`metrics.json`, and `report.json` references are resolved relative to the
+owning suite directory and checked with realpath containment. Absolute paths,
+traversal, missing files, and symlink escapes are validation errors, even when
+the two suite trees have unrelated parents.
+
+Comparison checks agent/model/effort/surface/server/profile/workload,
+experimental-tools, published-package, and measurement-content identity before
+direct deltas. Reporting-contract or result-schema mismatches suppress direct
+metric deltas for the whole suite. A workload hash mismatch excludes only that
+workload's profile cells. Harness Git and Codex CLI version differences remain
+prominent attribution warnings and make `repositoryOnly` false; target Git and
+guidance differences are intentional comparison dimensions. Per-cell output
+retains before/after status, duration, logical calls, token buckets, cost,
+calls-by-tool additions/removals/status counts, ordered tool sequence changes,
+and process/final status. Unknown values remain unknown, and zero baselines use
+`added`/`removed` with a null percentage.
+
+Aggregate deltas are metric-specific matched cohorts. A cell is included only
+when it is compatible and that metric is known on both sides; every aggregate
+lists included and excluded cell IDs. One-sided missing/failed cells and unknown
+telemetry remain in the full status matrix but are excluded from the affected
+cohort. A suite aggregate `callsByTool` is null when any selected cell lacks
+consistent logical telemetry, with those cell IDs listed; a mismatch between
+`logicalCallCount` and sequence length is treated as inconsistent telemetry.
+Raw child artifacts remain authoritative and partial shards preserve successful
+siblings. These commands perform no retries, service export, persistence,
+scheduled CI execution, Haiku runs, or quality judging.
 
 ## Metrics contract
 
@@ -172,6 +246,8 @@ artifacts that resolve outside the run directory.
 | `scripts/agent-eval.ts` | Run lifecycle, raw artifacts, redaction, and metrics/report ordering |
 | `scripts/agent-eval-metrics.ts` | Codex adapter, Zod schemas, normalization, and aggregate builder |
 | `scripts/agent-eval-report.ts` | Safe metrics loading, derived report fields, and console formatting |
+| `scripts/agent-eval-suite.ts` | Named-suite manifest validation, Luna orchestration, paired comparison, and artifact containment |
+| `scripts/agent-eval-suite.test.ts` | Suite, comparison, CLI, failure, and containment coverage |
 | `scripts/agent-eval.test.ts` | Runner, report, fallback, safety, and integration coverage |
 | `scripts/agent-eval-metrics.test.ts` | Adapter and metrics-contract coverage |
 | `eval/agentic/README.md` | User-facing harness usage, workload guidance, and limitations |
