@@ -432,6 +432,33 @@ describe("package upgrade review response", () => {
     expect(omitted).not.toContain("Dependency issues");
   });
 
+  it("preserves defined zero-valued dependency changes and omits undefined evidence", () => {
+    const base = formatterReview();
+    const zero = formatPackageUpgradeReviewTerminal({
+      summary: backendResponse.summary,
+      reviews: [
+        {
+          ...base,
+          dependencyChanges: {
+            direct: { added: [], removed: [], changed: [] },
+            transitive: { added: [], removed: [], changed: [] },
+          },
+        },
+      ],
+    });
+    expect(zero).toContain("Dependencies");
+    expect(zero).toContain("Direct: 0 added | 0 removed | 0 changed");
+    expect(zero).toContain("Transitive: 0 added | 0 removed | 0 changed");
+    expect(zero).not.toContain("Direct added");
+    expect(zero).not.toContain("Transitive added");
+
+    const omitted = formatPackageUpgradeReviewTerminal({
+      summary: backendResponse.summary,
+      reviews: [{ ...base, dependencyChanges: undefined }],
+    });
+    expect(omitted).not.toContain("Dependencies");
+  });
+
   it("keeps missing target deprecation evidence explicit", () => {
     const base = formatterReview();
     const missingTarget = formatPackageUpgradeReviewTerminal({

@@ -1058,11 +1058,6 @@ function formatDependencyChangesSection(
   changes: UpgradeDependencyChanges,
   options: FormatPackageUpgradeReviewTerminalOptions,
 ): string[] {
-  if (
-    !hasDependencyChangeGroupItems(changes.direct) &&
-    !hasDependencyChangeGroupItems(changes.transitive)
-  )
-    return [];
   const useColors = options.useColors === true;
   const lines = [sectionTitle("Dependencies", useColors)];
   lines.push(
