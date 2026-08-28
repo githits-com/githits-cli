@@ -222,7 +222,10 @@ describe("agent skills packaging", () => {
   });
 
   it("packages the canonical GitHits MCP skill with OSS context triggers", async () => {
-    const publicContent = await read(githitsMcpSkillPath);
+    const publicContent = (await read(githitsMcpSkillPath)).replace(
+      /\r\n/g,
+      "\n",
+    );
     const quickStartHeading = "## Quick-start guide\n\n";
     const quickStartIndex = publicContent.indexOf(quickStartHeading);
     expect(quickStartIndex).toBeGreaterThanOrEqual(0);
