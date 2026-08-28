@@ -809,6 +809,24 @@ describe("agent eval suites", () => {
           reportPath: "shards/full/report.json",
         },
       ]);
+      expect(() =>
+        agentEvalSuiteArtifactSchema.parse({
+          ...artifact,
+          matrix: { ...artifact.matrix, profiles: ["full", "descriptors"] },
+        }),
+      ).toThrow();
+      expect(() =>
+        agentEvalSuiteArtifactSchema.parse({
+          ...artifact,
+          shards: [artifact.shards[0]],
+        }),
+      ).toThrow();
+      expect(() =>
+        agentEvalSuiteArtifactSchema.parse({
+          ...artifact,
+          shards: [artifact.shards[0], artifact.shards[0]],
+        }),
+      ).toThrow();
       expect(formatSuiteReport(artifact)).toContain("callsByTool=");
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
@@ -908,6 +926,11 @@ describe("agent eval suites", () => {
       expect(artifact.totals.successfulExecutions).toBe(2);
       expect(artifact.totals.failedWorkloadCount).toBe(1);
       expect(artifact.totals.missingWorkloadCount).toBe(1);
+      expect(artifact.shards[0]).toMatchObject({
+        status: "failed",
+        error: "one or more child workloads failed",
+        runPath: "shards/descriptors/run.json",
+      });
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
       rmSync(outDir, { recursive: true, force: true });
@@ -1099,5 +1122,44 @@ describe("agent eval suites", () => {
     expect(() =>
       agentEvalSuiteArtifactSchema.parse({ schemaVersion: 1 }),
     ).toThrow();
+  });
+
+  it("assigns each suite artifact a unique UUID execution ID", async () => {
+    const fixture = createSuiteExecutionFixture();
+    const firstOutDir = mkdtempSync(join(tmpdir(), "agent-eval-suite-id-a-"));
+    const secondOutDir = mkdtempSync(join(tmpdir(), "agent-eval-suite-id-b-"));
+    const run = (outDir: string): Promise<AgentEvalSuiteArtifact> =>
+      runAgentEvalSuite({
+        suite: "stable-full",
+        repoRoot: fixture.root,
+        targetRoot: fixture.targetRoot,
+        outDir,
+        manifestPath: fixture.manifestPath,
+        workloadsDir: fixture.workloadsDir,
+        reportingPath: fixture.reportingPath,
+        schemaPath: fixture.schemaPath,
+        dryRun: true,
+        shardExecutor: async (options) => {
+          writeShardArtifacts(
+            options,
+            options.workloads.map((workload) => suiteRecord(workload.id)),
+          );
+          return { runDir: options.outDir };
+        },
+      });
+    try {
+      const first = await run(firstOutDir);
+      const second = await run(secondOutDir);
+      expect(first.suiteId).not.toBe(second.suiteId);
+      expect(first.suiteId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+      expect(() => agentEvalSuiteArtifactSchema.parse(first)).not.toThrow();
+      expect(first.suiteName).toBe("stable-full");
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(firstOutDir, { recursive: true, force: true });
+      rmSync(secondOutDir, { recursive: true, force: true });
+    }
   });
 });

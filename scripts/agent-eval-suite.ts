@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -439,6 +439,12 @@ const suiteShardSchema = z.object({
   metricsPath: z.string().nullable(),
   reportPath: z.string().nullable(),
 });
+const descriptorShardSchema = suiteShardSchema.extend({
+  profile: z.literal("descriptors"),
+});
+const fullShardSchema = suiteShardSchema.extend({
+  profile: z.literal("full"),
+});
 const suiteCellSchema = z.object({
   id: z.string().min(1),
   profile: suiteProfileSchema,
@@ -461,7 +467,7 @@ const suiteTotalsSchema = z.object({
 
 export const agentEvalSuiteArtifactSchema = z.object({
   schemaVersion: z.literal(1),
-  suiteId: z.string().min(1),
+  suiteId: z.string().uuid(),
   suiteName: suiteNameSchema,
   status: z.enum(["success", "partial", "failed", "dry-run"]),
   dryRun: z.boolean(),
@@ -477,12 +483,12 @@ export const agentEvalSuiteArtifactSchema = z.object({
     reasoningEffort: z.literal("low"),
     surface: z.literal("mcp"),
     server: z.literal("local"),
-    profiles: z.tuple([suiteProfileSchema, suiteProfileSchema]),
+    profiles: z.tuple([z.literal("descriptors"), z.literal("full")]),
   }),
   selectedWorkloads: z.array(suiteSelectedWorkloadSchema),
   contentIdentity: suiteContentIdentitySchema,
   targetGuidanceIdentity: targetGuidanceIdentitySchema,
-  shards: z.array(suiteShardSchema),
+  shards: z.tuple([descriptorShardSchema, fullShardSchema]),
   cells: z.array(suiteCellSchema),
   wallTimeMs: z.number().int().nonnegative(),
   cumulativeAgentTimeMs: z.number().int().nonnegative().nullable(),
@@ -648,6 +654,36 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function hasChildWorkloadFailure(
+  runMetadata: Record<string, unknown>,
+  metrics: AgentEvalMetrics | undefined,
+  report: AgentEvalReport | undefined,
+): boolean {
+  const runWorkloads = Array.isArray(runMetadata.workloads)
+    ? runMetadata.workloads
+    : [];
+  const runFailed = runWorkloads.some(
+    (workload) =>
+      workload !== null &&
+      typeof workload === "object" &&
+      ((workload as { status?: unknown }).status === "failed" ||
+        (workload as { status?: unknown }).status === "timeout"),
+  );
+  return (
+    runFailed ||
+    (metrics?.records.some(
+      (record) =>
+        record.processStatus === "failed" || record.processStatus === "timeout",
+    ) ??
+      false) ||
+    (report?.workloads.some(
+      (workload) =>
+        workload.status === "failed" || workload.status === "timeout",
+    ) ??
+      false)
+  );
+}
+
 function readShardEvidence(
   suiteRoot: string,
   profile: AgentEvalSuiteProfile,
@@ -687,9 +723,20 @@ function readShardEvidence(
         )
       : undefined;
     const report = resolvedReportPath ? loadRunReport(runDir) : undefined;
+    const childWorkloadFailure = hasChildWorkloadFailure(
+      runValue,
+      metrics,
+      report,
+    );
+    const shardFailed = execution?.status === "failed" || childWorkloadFailure;
     return {
-      status: execution?.status === "failed" ? "failed" : "success",
-      error: execution?.status === "failed" ? (execution.error ?? null) : null,
+      status: shardFailed ? "failed" : "success",
+      error:
+        execution?.status === "failed"
+          ? (execution.error ?? null)
+          : childWorkloadFailure
+            ? "one or more child workloads failed"
+            : null,
       runPath: resolvedRunPath,
       metricsPath: resolvedMetricsPath,
       reportPath: resolvedReportPath,
@@ -940,7 +987,7 @@ function buildSuiteArtifact(
         : "success";
   return parseSuiteArtifact({
     schemaVersion: 1,
-    suiteId: preflight.suite,
+    suiteId: randomUUID(),
     suiteName: preflight.suite,
     status,
     dryRun: preflight.dryRun,
