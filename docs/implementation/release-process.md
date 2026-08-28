@@ -116,7 +116,8 @@ For each artifact being released:
 2. Confirm each fragment's impact matches the actual public surface, compute
    the highest pending bump for each artifact, and verify every notable entry
    states required migration or compatibility effects.
-3. Bump only the affected package manifests. For a root release, also update
+3. Bump only the affected package manifests. When `@githits/mcp` is released,
+   align its workspace version in `bun.lock`. For a root release, also update
    `server.json` and regenerate every plugin/assistant manifest.
 4. Group each affected artifact's fragment entries by category into its own
    `## [<artifact> <version>] - YYYY-MM-DD` section. Keep separate sections for

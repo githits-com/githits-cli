@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { parse as parseJsonc } from "jsonc-parser";
 import { parse as parseYaml } from "yaml";
 
 async function readJson<T>(path: string): Promise<T> {
@@ -15,6 +16,10 @@ interface PackageJson {
   optionalDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   version: string;
+}
+
+interface BunLock {
+  workspaces: Record<string, { version?: string }>;
 }
 
 const changelogCategories = [
@@ -68,6 +73,20 @@ describe("package release boundaries", () => {
         `## [${mcpPackage.name} ${mcpPackage.version}]`,
       );
     }
+  });
+
+  it("keeps the MCP package and lockfile workspace versions aligned", async () => {
+    const root = join(import.meta.dir, "..");
+    const mcpPackage = await readJson<PackageJson>(
+      join(root, "packages", "mcp", "package.json"),
+    );
+    const lockfile = parseJsonc(
+      await readFile(join(root, "bun.lock"), "utf8"),
+    ) as BunLock;
+
+    expect(lockfile.workspaces["packages/mcp"]?.version).toBe(
+      mcpPackage.version,
+    );
   });
 
   it("keeps independent changelog fragments well formed", async () => {
