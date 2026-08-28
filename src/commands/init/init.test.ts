@@ -37,6 +37,8 @@ import {
   GITHITS_SKILL_CATALOG,
 } from "./guidance-assets.js";
 import {
+  createInitLoginDependencies,
+  type InitLoginDependencyOptions,
   initAction,
   initUninstallAction,
   registerInitCommand,
@@ -1877,6 +1879,29 @@ describe("initAction", () => {
       "Cursor uses the remote GitHits MCP at https://mcp.githits.com and manages its OAuth separately from local GitHits CLI authentication.",
     );
     expect(JSON.stringify(payload)).not.toContain("githits@latest login");
+  });
+
+  it("keeps the staged auth probe on the default refresh policy", async () => {
+    const fs = createFsWithDetection(["/home/test/.config/opencode"]);
+    const createLoginDeps = mock(() =>
+      Promise.reject(new Error("stored refresh failed")),
+    );
+
+    await initAction(
+      { installAgents: "opencode", guidance: false, json: true },
+      {
+        fileSystemService: fs,
+        promptService: createMockPromptService(),
+        execService: createMockExecService(),
+        createLoginDeps,
+      },
+    );
+
+    const payload = JSON.parse(getLogOutput()[0] ?? "{}");
+    expect(createLoginDeps).toHaveBeenCalledTimes(1);
+    expect(createLoginDeps.mock.calls[0]).toEqual([]);
+    expect(payload.auth.status).toBe("not_checked");
+    expect(payload.auth.command).toBe("npx -y githits@latest login");
   });
 
   it("treats already configured staged install targets as idempotent", async () => {
@@ -5789,6 +5814,122 @@ describe("initAction", () => {
       expect(fs.atomicWriteFile).toHaveBeenCalled();
     });
 
+    it("opens browser login for a retained expired token after the init probe finds no usable token", async () => {
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
+      const promptService = createMockPromptService({
+        confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+      });
+      const expiredToken = createValidTokenData({
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      const authStorage = createMockAuthStorage({
+        loadTokens: mock(() => Promise.resolve(expiredToken)),
+      });
+      const browserService = createMockBrowserService();
+      const createLoginDeps = mock(() =>
+        Promise.resolve({
+          authService: createMockAuthService(),
+          authStorage,
+          browserService,
+          mcpUrl: "https://mcp.githits.com",
+          hasValidToken: false,
+        }),
+      );
+
+      await initAction(
+        {},
+        {
+          fileSystemService: fs,
+          promptService,
+          execService: createMockExecService(),
+          createLoginDeps,
+        },
+      );
+
+      expect(createLoginDeps).toHaveBeenCalledWith({
+        refreshFailureMode: "return-undefined",
+      });
+      expect(browserService.open).toHaveBeenCalledTimes(1);
+      expect(authStorage.saveAuthSession).toHaveBeenCalledWith(
+        "https://mcp.githits.com",
+        expect.any(Object),
+        expect.any(Object),
+      );
+    });
+
+    it("reaches browser login again when retrying after an OAuth failure", async () => {
+      const fs = createFsWithDetection([
+        "/home/test/.cursor",
+        "/home/test/.codeium/windsurf",
+      ]);
+      let recoveryPrompts = 0;
+      const promptService = createMockPromptService({
+        confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
+        select: mock((message, choices, defaultValue) => {
+          if (String(message).includes("Authentication failed")) {
+            recoveryPrompts++;
+            return Promise.resolve("retry");
+          }
+          return Promise.resolve(defaultValue ?? choices[0]?.value);
+        }),
+      });
+      const browserService = createMockBrowserService();
+      const expiredToken = createValidTokenData({
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      let dependencyAttempts = 0;
+      const createLoginDeps = mock((_options?: InitLoginDependencyOptions) => {
+        dependencyAttempts++;
+        const authService =
+          dependencyAttempts === 1
+            ? createMockAuthService({
+                startCallbackServer: mock(() =>
+                  Promise.resolve({
+                    result: Promise.resolve({
+                      type: "oauth_error" as const,
+                      message: "OAuth attempt cancelled",
+                    }),
+                    close: mock(() => Promise.resolve()),
+                  }),
+                ),
+              })
+            : createMockAuthService();
+        return Promise.resolve({
+          authService,
+          authStorage: createMockAuthStorage({
+            loadTokens: mock(() => Promise.resolve(expiredToken)),
+          }),
+          browserService,
+          mcpUrl: "https://mcp.githits.com",
+          hasValidToken: false,
+        });
+      });
+
+      await initAction(
+        {},
+        {
+          fileSystemService: fs,
+          promptService,
+          execService: createMockExecService(),
+          createLoginDeps,
+        },
+      );
+
+      expect(createLoginDeps).toHaveBeenCalledTimes(2);
+      expect(createLoginDeps.mock.calls).toEqual([
+        [{ refreshFailureMode: "return-undefined" }],
+        [{ refreshFailureMode: "return-undefined" }],
+      ]);
+      expect(browserService.open).toHaveBeenCalledTimes(2);
+      expect(recoveryPrompts).toBe(1);
+      expect(
+        getLogOutput().some((msg) => msg.includes("Signed in successfully")),
+      ).toBe(true);
+    });
+
     it("prints login URL instead of opening browser with --no-browser", async () => {
       const fs = createFsWithDetection([
         "/home/test/.cursor",
@@ -5886,6 +6027,20 @@ describe("initAction", () => {
           msg.includes("Continuing without authentication"),
         ),
       ).toBe(true);
+      expect(
+        logCalls.some((msg) => msg.trim() === "npx githits@latest auth status"),
+      ).toBe(true);
+      expect(
+        logCalls.some(
+          (msg) => msg.trim() === "npx githits@latest login --force",
+        ),
+      ).toBe(true);
+      expect(logCalls.some((msg) => msg.trim() === "githits auth status")).toBe(
+        false,
+      );
+      expect(
+        logCalls.some((msg) => msg.trim() === "githits login --force"),
+      ).toBe(false);
       expect(fs.atomicWriteFile).toHaveBeenCalled();
     });
 
@@ -5979,6 +6134,11 @@ describe("initAction", () => {
       expect(logCalls.some((msg) => msg.includes("Setup cancelled"))).toBe(
         true,
       );
+      expect(
+        logCalls.some((msg) =>
+          msg.includes("Run `npx githits@latest login` to authenticate."),
+        ),
+      ).toBe(true);
       expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     });
 
@@ -6038,6 +6198,14 @@ describe("initAction", () => {
       );
 
       expect(promptService.confirm3).not.toHaveBeenCalled();
+      expect(createLoginDeps).toHaveBeenCalledWith({
+        refreshFailureMode: "return-undefined",
+      });
+      expect(
+        getLogOutput().some((msg) =>
+          msg.includes("Continuing without authentication"),
+        ),
+      ).toBe(true);
       expect(fs.atomicWriteFile).toHaveBeenCalled();
     });
 
@@ -9305,7 +9473,34 @@ describe("registerInitCommand", () => {
     expect(
       initCommand?.commands.some((cmd) => cmd.name() === "uninstall"),
     ).toBe(true);
+    expect(rootUninstallCommand?.description()).toContain(
+      "npx githits@latest logout",
+    );
+    expect(rootUninstallCommand?.description()).not.toContain(
+      "use `githits logout`",
+    );
     expect(program.helpInformation()).toContain("uninstall");
+  });
+
+  it("maps the interactive init refresh policy into container options", async () => {
+    const deps = {
+      authService: createMockAuthService(),
+      authStorage: createMockAuthStorage(),
+      browserService: createMockBrowserService(),
+      mcpUrl: "https://mcp.githits.com",
+      hasValidToken: false,
+    };
+    const containerFactory = mock(() => Promise.resolve(deps));
+
+    const result = await createInitLoginDependencies(
+      { refreshFailureMode: "return-undefined" },
+      containerFactory,
+    );
+
+    expect(result).toBe(deps);
+    expect(containerFactory).toHaveBeenCalledWith({
+      refreshFailureMode: "return-undefined",
+    });
   });
 
   it("registers staged agent-safe init options", () => {

@@ -11,7 +11,10 @@ import {
 } from "@githits/mcp/internal";
 import { ExitPromptError } from "@inquirer/core";
 import type { Command } from "commander";
-import { createContainer } from "../../container.js";
+import {
+  type CreateContainerOptions,
+  createContainer,
+} from "../../container.js";
 import type { ExecService } from "../../services/exec-service.js";
 import { ExecServiceImpl } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
@@ -113,8 +116,33 @@ export interface InitUninstallOptions {
   keepGuidance?: boolean;
 }
 
-interface InitLoginDependencies extends LoginDependencies {
+export interface InitLoginDependencies extends LoginDependencies {
   hasValidToken?: boolean;
+}
+
+export interface InitLoginDependencyOptions {
+  refreshFailureMode?: CreateContainerOptions["refreshFailureMode"];
+}
+
+type InitContainerFactory = (
+  options?: CreateContainerOptions,
+) => Promise<InitLoginDependencies>;
+
+/**
+ * Create the policy-bearing container used only by the immediately following
+ * init login flow. Do not reuse these dependencies for later authenticated API
+ * work because interactive init may intentionally treat a stored refresh
+ * failure as unauthenticated.
+ */
+export function createInitLoginDependencies(
+  options: InitLoginDependencyOptions = {},
+  containerFactory: InitContainerFactory = createContainer,
+): Promise<InitLoginDependencies> {
+  const containerOptions: CreateContainerOptions =
+    options.refreshFailureMode === undefined
+      ? {}
+      : { refreshFailureMode: options.refreshFailureMode };
+  return containerFactory(containerOptions);
 }
 
 /** Dependencies for the init command */
@@ -123,7 +151,9 @@ export interface InitDependencies {
   promptService: PromptService;
   execService: ExecService;
   /** Factory to create auth deps for the login step. Omit to skip login. */
-  createLoginDeps?: () => Promise<InitLoginDependencies>;
+  createLoginDeps?: (
+    options?: InitLoginDependencyOptions,
+  ) => Promise<InitLoginDependencies>;
   /** Whether this invocation can safely prompt on stdin/stdout. */
   isInteractive?: boolean;
 }
@@ -385,6 +415,11 @@ function formatCommand(command: string, useColors: boolean): string {
 const AGENT_SAFE_CLI = "npx -y githits@latest";
 const AGENT_LOGIN_COMMAND = `${AGENT_SAFE_CLI} login`;
 const AGENT_LOGIN_NO_BROWSER_COMMAND = `${AGENT_SAFE_CLI} login --no-browser`;
+const INTERACTIVE_CLI = "npx githits@latest";
+const INTERACTIVE_AUTH_STATUS_COMMAND = `${INTERACTIVE_CLI} auth status`;
+const INTERACTIVE_LOGIN_COMMAND = `${INTERACTIVE_CLI} login`;
+const INTERACTIVE_LOGIN_FORCE_COMMAND = `${INTERACTIVE_LOGIN_COMMAND} --force`;
+const INTERACTIVE_LOGOUT_COMMAND = `${INTERACTIVE_CLI} logout`;
 const AGENTIC_INIT_YES_WARNING =
   "Do not run `githits init -y` or `githits init --yes` unless the user explicitly asks to configure every detected tool.";
 
@@ -473,14 +508,14 @@ function printAuthRequiredNextSteps(useColors: boolean): void {
   printInitProse("  GitHits MCP is configured, but sign-in is still needed.");
   console.log();
   printInitProse("  Sign in when you're ready:");
-  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
+  console.log(`    ${formatCommand(INTERACTIVE_LOGIN_COMMAND, useColors)}`);
 }
 
 function printAuthNotCheckedNextSteps(useColors: boolean): void {
   printInitProse("  GitHits MCP is configured. Sign-in was not checked.");
   console.log();
   printInitProse("  If your agent asks you to sign in, run:");
-  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
+  console.log(`    ${formatCommand(INTERACTIVE_LOGIN_COMMAND, useColors)}`);
 }
 
 function printProjectAuthRequiredNextSteps(useColors: boolean): void {
@@ -489,7 +524,7 @@ function printProjectAuthRequiredNextSteps(useColors: boolean): void {
   );
   console.log();
   printInitProse("  Sign in when you're ready:");
-  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
+  console.log(`    ${formatCommand(INTERACTIVE_LOGIN_COMMAND, useColors)}`);
 }
 
 function printProjectAuthNotCheckedNextSteps(useColors: boolean): void {
@@ -498,7 +533,7 @@ function printProjectAuthNotCheckedNextSteps(useColors: boolean): void {
   );
   console.log();
   printInitProse("  If your agent asks you to sign in, run:");
-  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
+  console.log(`    ${formatCommand(INTERACTIVE_LOGIN_COMMAND, useColors)}`);
 }
 
 function printAgenticLoginInstructions(useColors: boolean): void {
@@ -762,7 +797,7 @@ const AUTH_START_CHOICES: SelectChoice<InitAuthStartChoice>[] = [
   {
     name: "Skip for now",
     value: "skip",
-    description: "Finish MCP setup and sign in later with `githits login`.",
+    description: `Finish MCP setup and sign in later with \`${INTERACTIVE_LOGIN_COMMAND}\`.`,
   },
   { name: "Cancel setup", value: "cancel" },
 ];
@@ -925,7 +960,7 @@ function printSkillsInstructions(useColors: boolean): void {
   console.log();
   console.log("  Then sign in so your agent can use GitHits:");
   console.log();
-  console.log(`    ${formatCommand("npx githits@latest login", useColors)}`);
+  console.log(`    ${formatCommand(INTERACTIVE_LOGIN_COMMAND, useColors)}`);
   console.log();
 }
 
@@ -2650,7 +2685,7 @@ async function runInitAuthentication(
     printTask(
       "warning",
       "Sign-in unavailable",
-      "sign in later with `githits login`",
+      `sign in later with \`${INTERACTIVE_LOGIN_COMMAND}\``,
       useColors,
     );
     return "unavailable";
@@ -2659,7 +2694,9 @@ async function runInitAuthentication(
   while (true) {
     let loginResult: LoginFlowResult;
     try {
-      const loginDeps = await createLoginDeps();
+      const loginDeps = await createLoginDeps({
+        refreshFailureMode: "return-undefined",
+      });
       if (loginDeps.hasValidToken) {
         printTask(
           "success",
@@ -2702,7 +2739,7 @@ async function runInitAuthentication(
         }
         if (authChoice === "cancel") {
           console.log(
-            "\n  Setup cancelled. Run `githits login` to authenticate.\n",
+            `\n  Setup cancelled. Run \`${INTERACTIVE_LOGIN_COMMAND}\` to authenticate.\n`,
           );
           return "cancelled";
         }
@@ -2776,7 +2813,7 @@ async function runInitAuthentication(
     }
     if (choice === "cancel") {
       console.log(
-        "\n  Setup cancelled. Run `githits login` to authenticate.\n",
+        `\n  Setup cancelled. Run \`${INTERACTIVE_LOGIN_COMMAND}\` to authenticate.\n`,
       );
       return "cancelled";
     }
@@ -5331,8 +5368,12 @@ function printAuthRecoveryHint(useColors: boolean): void {
     "    You can still configure MCP, but GitHits tools will require auth.",
   );
   console.log("    Recovery steps:");
-  console.log(`      ${formatCommand("githits auth status", useColors)}`);
-  console.log(`      ${formatCommand("githits login --force", useColors)}`);
+  console.log(
+    `      ${formatCommand(INTERACTIVE_AUTH_STATUS_COMMAND, useColors)}`,
+  );
+  console.log(
+    `      ${formatCommand(INTERACTIVE_LOGIN_FORCE_COMMAND, useColors)}`,
+  );
   console.log("    For CI or locked-down machines, set GITHITS_API_TOKEN.");
   console.log(
     "    If your system keychain is unavailable, set GITHITS_AUTH_STORAGE=file after accepting plaintext storage.\n",
@@ -5355,7 +5396,7 @@ project-level MCP config. Removes only GitHits MCP/plugin entries with your
 confirmation. Interactive user guidance cleanup follows the tool selection and
 retains shared guidance usable by detected tools you keep; \`--yes\` and project
 cleanup are scope-wide. Pass \`--keep-guidance\` to leave all guidance in place.
-Authentication tokens are not removed; use \`githits logout\` to remove stored
+Authentication tokens are not removed; use \`${INTERACTIVE_LOGOUT_COMMAND}\` to remove stored
 credentials.`;
 
 function registerUninstallCommand(parent: Command): Command {
@@ -5429,7 +5470,7 @@ export function registerInitCommand(program: Command): void {
         fileSystemService,
         promptService,
         execService,
-        createLoginDeps: () => createContainer(),
+        createLoginDeps: createInitLoginDependencies,
         isInteractive:
           process.stdin.isTTY === true && process.stdout.isTTY === true,
       };
