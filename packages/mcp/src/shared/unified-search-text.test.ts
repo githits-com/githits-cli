@@ -306,7 +306,7 @@ describe("renderUnifiedSearchSuccess", () => {
     const text = renderUnifiedSearchSuccess(
       completed([
         codeHit({
-          title: "Überprüfung",
+          title: "Überprüfung · human review",
           summary: "Café — маршрутизация",
         }),
         {
@@ -326,9 +326,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("[1] code | cline/cline@v3.4.2 |");
     expect(text).toContain("[2] repo doc | npm:express@5.2.1 | History.md:1");
     expect(text).toContain("[3] docs | aider-AI/aider@v0.55.0 | Документация");
-    const middleDotSeparator = ` ${String.fromCodePoint(0x00b7)} `;
-    expect(text).not.toContain(middleDotSeparator);
-    expect(text).toContain("Überprüfung");
+    expect(text).toContain("  Überprüfung · human review");
     expect(text).toContain("Café — маршрутизация");
     expect(text).toContain("Résumé");
   });
