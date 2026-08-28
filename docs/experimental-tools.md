@@ -5,7 +5,7 @@ considered for the stable surface:
 
 | MCP tool | CLI command | Purpose |
 |---|---|---|
-| `resolve_target` | `githits resolve` | Rank canonical package or public GitHub repository targets for a fuzzy, misspelled, or ambiguous name. |
+| `resolve_target` | `githits resolve` | Rank canonical package, public GitHub repository, or standalone documentation-site targets for a fuzzy, misspelled, or ambiguous name. |
 | `code_diff` | `githits code diff` | Compare repository trees resolved from two exact package versions or public GitHub refs. |
 
 Experimental means the tools are disabled and hidden from CLI help by default,
@@ -73,12 +73,19 @@ Resolve a noncanonical name before calling another GitHits command:
 ```sh
 githits resolve "testing library for react" --query "upgrade component tests"
 githits resolve requests --registry pypi --prefer-kind package --json
+githits resolve "Express docs" --prefer-kind site
 ```
 
-Canonical targets such as `npm:express` or `github:expressjs/express` do not
-need resolution. Passing a package or GitHub repository target already accepted
+Canonical targets such as `npm:express`, `github:expressjs/express`, or
+`site:expressjs.com` do not need resolution. Passing a target already accepted
 by downstream tools is rejected locally with `INVALID_ARGUMENT`; pass that
-target directly to the next GitHits tool instead.
+target directly to the next GitHits tool instead. A selected site candidate is
+a standalone documentation target. Search it in docs mode and read relevant
+results with `docs_read` (or `githits docs read`):
+
+```sh
+githits search "router parameters" --in site:expressjs.com --source docs
+```
 
 Structured output preserves each candidate's latest-version malicious-content
 decision. Text stays silent for `clear` and `not_applicable`; affected, uncertain,

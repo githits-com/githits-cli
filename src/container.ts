@@ -62,7 +62,10 @@ import {
 import { MigratingAuthStorage } from "./services/migrating-auth-storage.js";
 import { ModeAwareFileAuthStorage } from "./services/mode-aware-file-auth-storage.js";
 import { createCliFetch, createLazyCliFetch } from "./services/proxy-fetch.js";
-import { TokenManager } from "./services/token-manager.js";
+import {
+  TokenManager,
+  type TokenManagerDeps,
+} from "./services/token-manager.js";
 import { debugLog, isDebugAreaEnabled } from "./shared/debug-log.js";
 import {
   endTelemetrySpan,
@@ -290,6 +293,8 @@ export interface Dependencies {
 export interface CreateContainerOptions {
   /** Resolve stored OAuth immediately. Disable for MCP startup to avoid keychain prompts until first tool use. */
   resolveStoredToken?: boolean;
+  /** How stored OAuth refresh failures surface for this container's token manager, including later service refreshes. */
+  refreshFailureMode?: TokenManagerDeps["refreshFailureMode"];
   /** Client name for telemetry headers. Defaults to direct CLI mode. */
   clientName?: string;
   /** Optional per-request/client agent identity provider. */
@@ -387,6 +392,9 @@ export async function createContainer(
       authService,
       authStorage,
       mcpUrl,
+      ...(options.refreshFailureMode !== undefined
+        ? { refreshFailureMode: options.refreshFailureMode }
+        : {}),
       authDiagnostics: new AuthDiagnosticsStorage(fileSystemService),
     });
     const apiToken = resolveStoredToken

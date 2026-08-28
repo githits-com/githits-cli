@@ -28,7 +28,7 @@ const CODE_FILES_BULLET =
   "- `code_files` — list/discover file paths; first choice for directory enumeration before `code_read` or scoped `code_grep`.";
 
 const DOCS_LIST_BULLET =
-  '- `docs_list` — browse documentation pages available for a package; for a docs topic, use `search` with `source:"docs"`, then pass its `pageId` to `docs_read`.';
+  '- `docs_list` — browse documentation pages available for a package, not standalone `site:` targets. For a package or site docs topic, use `search` with `source:"docs"`; request `format:"json"` when exact `pageId` and line locators are needed, then pass them to `docs_read`.';
 
 const DOCS_READ_BULLET =
   "- `docs_read` — read a documentation page by pageId from `docs_list` or docs `search` results; text reads return 150 lines by default or up to 300 with an explicit range.";
@@ -146,7 +146,7 @@ const LOCAL_EXPERIMENTAL_PRIVACY =
   "Inputs are sent to GitHits. Never send credentials, personal data, private or proprietary content, local paths, or private targets.";
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
-  "- `resolve_target` — resolve fuzzy, misspelled, or noncanonical names; skip canonical `registry:name` and `github:owner/repo`. Reuse only a non-ambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select.";
+  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` target is docs-only: pass it to `search` with `source:"docs"`; request `format:"json"` when exact locator fields are needed, then pass a relevant `pageId` and returned line range to `docs_read`.';
 
 const LOCAL_CODE_DIFF_GUIDANCE =
   "- `code_diff` — compare exact package versions or public GitHub refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text-v1` unless exact fields or the full returned patch are needed. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";

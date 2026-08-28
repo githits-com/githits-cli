@@ -16,6 +16,7 @@ import {
   GITHITS_GUIDANCE_MARKER,
 } from "../src/commands/init/guidance-assets.ts";
 import {
+  buildAgentEvalMetricsArtifact,
   buildClaudeCommand,
   buildCodexCommand,
   buildCodexConfig,
@@ -25,6 +26,9 @@ import {
   buildOpenCodeCommand,
   buildOpenCodeConfig,
   buildOpenCodeSkillsConfig,
+  type CommandProbe,
+  type CommandProbeResult,
+  collectGitMetadata,
   collectSecretValues,
   DEFAULT_CODEX_MODEL,
   DEFAULT_CODEX_REASONING_EFFORT,
@@ -41,12 +45,19 @@ import {
   sanitizedEnvSummary,
 } from "./agent-eval.ts";
 import {
+  type AgentEvalRecordInput,
+  adaptAgentUsage,
+  agentEvalMetricsSchema,
+  buildAgentEvalMetrics,
+} from "./agent-eval-metrics.ts";
+import {
   assertUniqueWorkloadIds,
   buildRunReportFromMetadata,
   compareReports,
   formatCompareReport,
   formatRunReport,
   isContainedRelativePath,
+  loadRunReport,
   normalizeToolName,
   normalizeToolStatus,
   parseReportArgs,
@@ -99,6 +110,72 @@ function createRunFixture(status = "success"): string {
     ],
   });
   return runDir;
+}
+
+function createMetricsRecord(
+  workloadId: string,
+  overrides: Partial<AgentEvalRecordInput> = {},
+): AgentEvalRecordInput {
+  return {
+    workloadId,
+    requestedModel: DEFAULT_CODEX_MODEL,
+    resolvedModel: null,
+    agent: "codex",
+    agentVersion: "codex 0.150.1",
+    reasoningEffort: "high",
+    surface: "mcp",
+    server: "local",
+    guidanceProfile: "descriptors",
+    experimentalTools: false,
+    publishedPackage: null,
+    targetGit: { branch: "main", sha: "abc123", dirty: false },
+    startedAt: "2026-08-28T10:00:00.000Z",
+    completedAt: "2026-08-28T10:00:01.000Z",
+    durationMs: 1000,
+    processStatus: "success",
+    finalStatus: "success",
+    exitCode: 0,
+    timedOut: false,
+    usage: adaptAgentUsage(
+      JSON.stringify({
+        type: "turn.completed",
+        usage: {
+          input_tokens: 100,
+          cached_input_tokens: 40,
+          cache_write_input_tokens: 20,
+          output_tokens: 10,
+          reasoning_output_tokens: 4,
+        },
+      }),
+      "codex",
+      DEFAULT_CODEX_MODEL,
+    ),
+    toolCalls: [
+      {
+        tool: "mcp__githits__pkg_info",
+        server: "githits",
+        status: "completed",
+      },
+      { tool: "search", server: "githits-cli", status: "completed" },
+    ],
+    artifacts: {},
+    ...overrides,
+  };
+}
+
+function writeMetricsFixture(
+  runDir: string,
+  records: AgentEvalRecordInput[],
+): void {
+  writeJson(
+    join(runDir, "metrics.json"),
+    buildAgentEvalMetrics({
+      runId: "run-metrics",
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:03.000Z",
+      records,
+    }),
+  );
 }
 
 describe("agent eval harness", () => {
@@ -1080,6 +1157,227 @@ describe("agent eval harness", () => {
     ).toThrow("--experimental-tools requires --surface mcp --server local");
   });
 
+  it("builds metrics through the runner seam without persisting tool arguments", () => {
+    const metrics = buildAgentEvalMetricsArtifact({
+      runId: "run-synthetic",
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:03.000Z",
+      records: [
+        {
+          workloadId: "pkg-info",
+          requestedModel: DEFAULT_CODEX_MODEL,
+          resolvedModel: null,
+          agent: "codex",
+          agentVersion: "codex 0.150.1",
+          reasoningEffort: "low",
+          surface: "mcp",
+          server: "local",
+          guidanceProfile: "descriptors",
+          experimentalTools: false,
+          publishedPackage: null,
+          targetGit: { branch: "main", sha: "abc123", dirty: true },
+          startedAt: "2026-08-28T10:00:00.000Z",
+          completedAt: "2026-08-28T10:00:03.000Z",
+          durationMs: 3000,
+          processStatus: "success",
+          finalStatus: "success",
+          exitCode: 0,
+          timedOut: false,
+          toolCalls: [
+            { tool: "search", server: "githits-cli", status: "started" },
+            {
+              tool: "mcp__githits__pkg_info",
+              server: "githits",
+              status: "completed",
+            },
+          ],
+          artifacts: {
+            toolCalls: "workloads/pkg-info/tool-calls.json",
+            final: "workloads/pkg-info/final.json",
+          },
+          stdout: [
+            JSON.stringify({
+              type: "command_execution",
+              command: "githits search express --json --token secret-value",
+            }),
+            JSON.stringify({
+              type: "item.completed",
+              item: {
+                type: "mcp_tool_call",
+                server: "githits",
+                tool: "pkg_info",
+                status: "completed",
+              },
+            }),
+            JSON.stringify({
+              type: "turn.completed",
+              usage: {
+                input_tokens: 100,
+                cached_input_tokens: 40,
+                cache_write_input_tokens: 20,
+                output_tokens: 10,
+                reasoning_output_tokens: 4,
+                diagnostic: "secret-value",
+              },
+            }),
+          ].join("\n"),
+          dryRun: false,
+        },
+      ],
+    });
+
+    expect(agentEvalMetricsSchema.parse(metrics)).toEqual(metrics);
+    expect(metrics.runId).toBe("run-synthetic");
+    expect(metrics.records[0]).toMatchObject({
+      agentVersion: "codex 0.150.1",
+      requestedModel: DEFAULT_CODEX_MODEL,
+      resolvedModel: null,
+      targetGit: { branch: "main", sha: "abc123", dirty: true },
+      processStatus: "success",
+      durationMs: 3000,
+      artifacts: {
+        toolCalls: "workloads/pkg-info/tool-calls.json",
+        final: "workloads/pkg-info/final.json",
+      },
+      usage: {
+        normalizedTokens: {
+          uncachedInputTokens: 40,
+          cachedInputTokens: 40,
+          cacheWriteInputTokens: 20,
+          outputTokens: 10,
+          reasoningOutputTokens: 4,
+        },
+      },
+    });
+    expect(metrics.records[0]?.tools.sequence).toEqual([
+      { tool: "search", surface: "cli", status: "started" },
+      { tool: "pkg_info", surface: "mcp", status: "completed" },
+    ]);
+    expect(metrics.aggregates).toMatchObject({
+      durationMs: 3000,
+      logicalToolCalls: 2,
+      uncachedInputTokens: 40,
+      cachedInputTokens: 40,
+      cacheWriteInputTokens: 20,
+      outputTokens: 10,
+      reasoningOutputTokens: 4,
+      baseRateEstimatedCostUsd: 0.0000258,
+    });
+    const serialized = JSON.stringify(metrics);
+    expect(serialized).not.toContain("githits search express");
+    expect(serialized).not.toContain("diagnostic");
+    expect(serialized).not.toContain("secret-value");
+  });
+
+  it("writes unknown Codex dry-run metrics without probing availability or versions", async () => {
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-codex-dry-run-"));
+    let availabilityProbeCalls = 0;
+    let versionProbeCalls = 0;
+    try {
+      const options = parseArgs(
+        [
+          "--agent",
+          "codex",
+          "--dry-run",
+          "--out",
+          outDir,
+          "--workload",
+          "eval/agentic/workloads/express-router.md",
+        ],
+        process.cwd(),
+      );
+      await runAgentEval(options, {
+        assertAgentAvailable: () => {
+          availabilityProbeCalls += 1;
+          return Promise.resolve();
+        },
+        collectAgentVersions: () => {
+          versionProbeCalls += 1;
+          return Promise.resolve([
+            "stub-claude-version",
+            "stub-codex-version",
+            "stub-opencode-version",
+          ]);
+        },
+      });
+
+      const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
+      const metrics = JSON.parse(
+        readFileSync(join(outDir, "metrics.json"), "utf8"),
+      );
+      const report = JSON.parse(
+        readFileSync(join(outDir, "report.json"), "utf8"),
+      );
+      expect(availabilityProbeCalls).toBe(0);
+      expect(versionProbeCalls).toBe(0);
+      expect(run.runId).toEqual(metrics.runId);
+      expect(run.startedAt).toEqual(metrics.startedAt);
+      expect(run.completedAt).toEqual(metrics.completedAt);
+      expect(report.git).toEqual(run.git);
+      expect(report.git).toHaveProperty("dirty");
+      expect(metrics.records).toHaveLength(1);
+      expect(metrics.records[0]).toMatchObject({
+        agent: "codex",
+        requestedModel: DEFAULT_CODEX_MODEL,
+        resolvedModel: null,
+        agentVersion: null,
+        processStatus: "dry-run",
+        usage: {
+          normalizedTokens: {
+            uncachedInputTokens: null,
+            outputTokens: null,
+          },
+          cost: { kind: "unknown", usd: null },
+          warnings: ["dry_run_no_telemetry"],
+        },
+      });
+      expect(metrics.records[0]?.artifacts).toMatchObject({
+        dryRun: "workloads/express-router/dry-run.json",
+        discoveryEvents: "workloads/express-router/discovery-events.json",
+      });
+      expect(agentEvalMetricsSchema.parse(metrics)).toEqual(metrics);
+      expect(report.metricsWarnings).toContain("dry_run_no_telemetry");
+      expect(report.workloads[0].metrics.cost).toEqual({
+        kind: "unknown",
+        usd: null,
+        uncertainty: "unknown",
+      });
+      expect(
+        formatRunReport(report).match(/Warning: dry_run_no_telemetry/g),
+      ).toHaveLength(1);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("distinguishes clean, dirty, and failed Git metadata probes", async () => {
+    const probe =
+      (status: CommandProbeResult): CommandProbe =>
+      async (_command, args) => {
+        if (args[0] === "status") return status;
+        return {
+          stdout: args[0] === "branch" ? "main\n" : "abc123\n",
+          exitCode: 0,
+        };
+      };
+
+    await expect(
+      collectGitMetadata("/repo", probe({ stdout: "", exitCode: 0 })),
+    ).resolves.toEqual({ branch: "main", sha: "abc123", dirty: false });
+    await expect(
+      collectGitMetadata(
+        "/repo",
+        probe({ stdout: "?? untracked.txt\n", exitCode: 0 }),
+      ),
+    ).resolves.toEqual({ branch: "main", sha: "abc123", dirty: true });
+    await expect(
+      collectGitMetadata(
+        "/repo",
+        probe({ stdout: "status details", exitCode: 1 }),
+      ),
+    ).resolves.toEqual({ branch: "main", sha: "abc123", dirty: null });
+  });
+
   it("persists the enabled flag without probing agent versions during dry runs", async () => {
     const outDir = mkdtempSync(join(tmpdir(), "agent-eval-override-"));
     let availabilityProbeCalls = 0;
@@ -1293,6 +1591,124 @@ describe("agent eval harness", () => {
     ]);
   });
 
+  it("preserves Codex provider IDs and statuses for paired MCP and CLI events", () => {
+    const events = [
+      {
+        type: "item.started",
+        item: {
+          type: "command_execution",
+          id: "command-1",
+          command: "githits search express",
+          status: "in_progress",
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          id: "command-1",
+          command: "githits search express",
+          status: "completed",
+        },
+      },
+      {
+        type: "item.started",
+        item: {
+          type: "mcp_tool_call",
+          id: "mcp-1",
+          server: "githits",
+          tool: "search",
+          status: "in_progress",
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "mcp_tool_call",
+          id: "mcp-1",
+          server: "githits",
+          tool: "search",
+          status: "completed",
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "mcp_tool_call",
+          id: "mcp-2",
+          server: "githits",
+          tool: "search",
+          status: "completed",
+        },
+      },
+      {
+        type: "item.started",
+        item: {
+          type: "mcp_tool_call",
+          id: "mcp-3",
+          server: "githits",
+          tool: "search",
+          status: "in_progress",
+        },
+      },
+    ].map((event) => JSON.stringify(event));
+
+    expect(extractToolCalls(events.join("\n"), "codex")).toEqual([
+      {
+        agent: "codex",
+        server: "githits-cli",
+        tool: "search",
+        providerCallId: "command-1",
+        status: "in_progress",
+        arguments: { command: "githits search express" },
+      },
+      {
+        agent: "codex",
+        server: "githits-cli",
+        tool: "search",
+        providerCallId: "command-1",
+        status: "completed",
+        arguments: { command: "githits search express" },
+      },
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "search",
+        providerCallId: "mcp-1",
+        status: "in_progress",
+        arguments: undefined,
+        error: undefined,
+      },
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "search",
+        providerCallId: "mcp-1",
+        status: "completed",
+        arguments: undefined,
+        error: undefined,
+      },
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "search",
+        providerCallId: "mcp-2",
+        status: "completed",
+        arguments: undefined,
+        error: undefined,
+      },
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "search",
+        providerCallId: "mcp-3",
+        status: "in_progress",
+        arguments: undefined,
+        error: undefined,
+      },
+    ]);
+  });
+
   it("extracts Claude MCP tool calls from verbose stream events", () => {
     const calls = extractToolCalls(
       `${JSON.stringify({
@@ -1475,7 +1891,6 @@ describe("agent eval harness", () => {
         },
       })}\n`,
       "claude",
-      "skills",
     );
 
     expect(calls.map((call) => call.tool)).toEqual([
@@ -1486,12 +1901,18 @@ describe("agent eval harness", () => {
     expect(calls[0]?.server).toBe("githits-cli");
   });
 
-  it("extracts CLI fallback from full MCP Codex runs only", () => {
+  it("extracts CLI fallback from MCP profiles and ignores unrelated shell commands", () => {
     const stdout = [
       JSON.stringify({
         item: {
           type: "command_execution",
           command: "githits search opencode",
+        },
+      }),
+      JSON.stringify({
+        item: {
+          type: "command_execution",
+          command: "git status --short",
         },
       }),
       JSON.stringify({
@@ -1504,31 +1925,23 @@ describe("agent eval harness", () => {
         },
       }),
     ].join("\n");
-    expect(extractToolCalls(stdout, "codex", "mcp", "full")).toEqual([
+    const expectedCalls = [
       {
-        agent: "codex",
+        agent: "codex" as const,
         server: "githits-cli",
         tool: "search",
         status: "started",
         arguments: { command: "githits search opencode" },
       },
       {
-        agent: "codex",
+        agent: "codex" as const,
         server: "githits",
         tool: "code_read",
         status: "completed",
         arguments: { path: "packages/opencode/src/session/compaction.ts" },
       },
-    ]);
-    expect(extractToolCalls(stdout, "codex", "mcp", "descriptors")).toEqual([
-      {
-        agent: "codex",
-        server: "githits",
-        tool: "code_read",
-        status: "completed",
-        arguments: { path: "packages/opencode/src/session/compaction.ts" },
-      },
-    ]);
+    ];
+    expect(extractToolCalls(stdout, "codex")).toEqual(expectedCalls);
   });
 
   it("ignores non-MCP Claude tool calls", () => {
@@ -1629,11 +2042,275 @@ describe("agent eval harness", () => {
     );
   });
 
-  it("warns when a full MCP run uses CLI fallback", () => {
-    const runDir = mkdtempSync(join(tmpdir(), "agent-eval-cli-fallback-"));
-    const workloadDir = join(runDir, "workloads", "fallback");
-    mkdirSync(workloadDir, { recursive: true });
-    writeJson(join(workloadDir, "tool-calls.json"), [
+  it("attaches per-workload and aggregate usage metrics to the report", () => {
+    const runDir = mkdtempSync(join(tmpdir(), "agent-eval-metrics-report-"));
+    const firstWorkloadDir = join(runDir, "workloads", "pkg-info");
+    const secondWorkloadDir = join(runDir, "workloads", "docs-search");
+    mkdirSync(firstWorkloadDir, { recursive: true });
+    mkdirSync(secondWorkloadDir, { recursive: true });
+    writeJson(join(firstWorkloadDir, "tool-calls.json"), []);
+    writeJson(join(secondWorkloadDir, "tool-calls.json"), []);
+
+    const first = createMetricsRecord("pkg-info");
+    const second = createMetricsRecord("docs-search", {
+      durationMs: 2000,
+      processStatus: "timeout",
+      timedOut: true,
+      toolCalls: [
+        {
+          tool: "mcp__githits__docs_search",
+          server: "githits",
+          status: "completed",
+        },
+      ],
+      usage: adaptAgentUsage(
+        JSON.stringify({
+          type: "turn.completed",
+          usage: {
+            input_tokens: 200,
+            cached_input_tokens: 100,
+            cache_write_input_tokens: 20,
+            output_tokens: 30,
+            reasoning_output_tokens: 5,
+          },
+        }),
+        "codex",
+        DEFAULT_CODEX_MODEL,
+      ),
+    });
+    writeMetricsFixture(runDir, [first, second]);
+    const report = buildRunReportFromMetadata(runDir, {
+      agent: "codex",
+      model: DEFAULT_CODEX_MODEL,
+      surface: "mcp",
+      server: "local",
+      workloads: [
+        {
+          id: "pkg-info",
+          status: "success",
+          durationMs: 1000,
+          workloadDir: firstWorkloadDir,
+        },
+        {
+          id: "docs-search",
+          status: "timeout",
+          durationMs: 2000,
+          workloadDir: secondWorkloadDir,
+        },
+      ],
+    });
+
+    expect(report.workloads[0]?.metrics).toMatchObject({
+      normalizedTokens: {
+        uncachedInputTokens: 40,
+        cachedInputTokens: 40,
+        cacheWriteInputTokens: 20,
+        outputTokens: 10,
+        reasoningOutputTokens: 4,
+      },
+      cost: {
+        kind: "base_rate_estimate",
+        usd: 0.0000258,
+        uncertainty: "rate_based_estimate",
+      },
+      logicalToolCount: 2,
+      mcpCallCount: 1,
+      cliCallCount: 1,
+    });
+    expect(report.workloads[1]?.metrics).toMatchObject({
+      logicalToolCount: 1,
+      mcpCallCount: 1,
+      cliCallCount: 0,
+    });
+    expect(report.metrics).toMatchObject({
+      workloadCount: 2,
+      succeededCount: 1,
+      failedCount: 0,
+      timedOutCount: 1,
+      durationMs: 3000,
+      logicalToolCalls: 3,
+      uncachedInputTokens: 120,
+      cachedInputTokens: 140,
+      cacheWriteInputTokens: 40,
+      outputTokens: 40,
+      reasoningOutputTokens: 9,
+      baseRateEstimatedCostUsd: 0.0000848,
+    });
+    const formatted = formatRunReport(report);
+    expect(formatted).toContain("tokens=uncachedInput=40");
+    expect(formatted).toContain("output=10 reasoning(detail)=4");
+    expect(formatted).toContain("cost=base_rate_estimate costUsd=0.0000258");
+    expect(formatted).toContain("aggregate workloads=2");
+    expect(formatted).toContain("baseRateCostUsd=0.0000848");
+    expect(formatted).not.toContain("output=14");
+
+    const longContextRunDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-long-context-report-"),
+    );
+    writeMetricsFixture(longContextRunDir, [
+      createMetricsRecord("long-context", {
+        usage: adaptAgentUsage(
+          JSON.stringify({
+            type: "turn.completed",
+            usage: {
+              input_tokens: 272_001,
+              cached_input_tokens: 0,
+              cache_write_input_tokens: 0,
+              output_tokens: 1,
+              reasoning_output_tokens: 0,
+            },
+          }),
+          "codex",
+          DEFAULT_CODEX_MODEL,
+        ),
+      }),
+    ]);
+    const longContextReport = buildRunReportFromMetadata(longContextRunDir, {
+      agent: "codex",
+      model: DEFAULT_CODEX_MODEL,
+      surface: "mcp",
+      workloads: [{ id: "long-context", status: "success" }],
+    });
+    expect(longContextReport.workloads[0]?.metrics.cost.uncertainty).toBe(
+      "long_context_pricing_not_attributable",
+    );
+    expect(formatRunReport(longContextReport)).toContain(
+      "costUncertainty=long_context_pricing_not_attributable",
+    );
+  });
+
+  it("binds metrics to run identity while accepting legacy run metadata", () => {
+    const runDir = createRunFixture();
+    writeMetricsFixture(runDir, [createMetricsRecord("pkg-vulns")]);
+    const workloads = [
+      {
+        id: "pkg-vulns",
+        status: "success",
+      },
+    ];
+
+    writeJson(join(runDir, "run.json"), {
+      runId: "run-other",
+      workloads,
+    });
+    const mismatch = loadRunReport(runDir);
+    expect(mismatch.metrics.baseRateEstimatedCostUsd).toBeNull();
+    expect(mismatch.workloads[0]?.metrics.logicalToolCount).toBeNull();
+    expect(mismatch.metricsWarnings).toContain(
+      "metrics.json runId mismatch; normalized usage, cost, and logical tool metrics are unknown",
+    );
+
+    const matching = buildRunReportFromMetadata(runDir, {
+      runId: "run-metrics",
+      workloads,
+    });
+    expect(matching.workloads[0]?.metrics.logicalToolCount).toBe(2);
+    expect(matching.metrics.baseRateEstimatedCostUsd).not.toBeNull();
+
+    const legacy = buildRunReportFromMetadata(runDir, { workloads });
+    expect(legacy.workloads[0]?.metrics.logicalToolCount).toBe(2);
+    expect(legacy.metrics.baseRateEstimatedCostUsd).not.toBeNull();
+  });
+
+  it("keeps old and unsafe metrics runs reportable with unknown values", () => {
+    const missingRunDir = createRunFixture();
+    const missing = buildRunReportFromMetadata(
+      missingRunDir,
+      JSON.parse(readFileSync(join(missingRunDir, "run.json"), "utf8")),
+    );
+    expect(missing.metrics.durationMs).toBeNull();
+    expect(missing.metrics.baseRateEstimatedCostUsd).toBeNull();
+    expect(missing.workloads[0]?.metrics.logicalToolCount).toBeNull();
+    expect(missing.metricsWarnings[0]).toContain("metrics.json missing");
+    expect(formatRunReport(missing)).toContain("costUsd=unknown");
+
+    const invalidRunDir = createRunFixture();
+    writeFileSync(join(invalidRunDir, "metrics.json"), "not json");
+    const invalid = buildRunReportFromMetadata(
+      invalidRunDir,
+      JSON.parse(readFileSync(join(invalidRunDir, "run.json"), "utf8")),
+    );
+    expect(invalid.metricsWarnings[0]).toContain("metrics.json invalid");
+    expect(invalid.workloads[0]?.metrics.cliCallCount).toBeNull();
+
+    const unsafeRunDir = createRunFixture();
+    const outsideDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-unsafe-metrics-"),
+    );
+    writeJson(join(outsideDir, "metrics.json"), {});
+    symlinkSync(
+      join(outsideDir, "metrics.json"),
+      join(unsafeRunDir, "metrics.json"),
+    );
+    const unsafe = buildRunReportFromMetadata(
+      unsafeRunDir,
+      JSON.parse(readFileSync(join(unsafeRunDir, "run.json"), "utf8")),
+    );
+    expect(unsafe.metricsWarnings[0]).toContain(
+      "metrics.json path outside run directory ignored",
+    );
+    expect(unsafe.workloads[0]?.metrics.normalizedTokens.outputTokens).toBe(
+      null,
+    );
+  });
+
+  it("does not attach duplicate or missing metrics records by accident", () => {
+    const runDir = mkdtempSync(join(tmpdir(), "agent-eval-metric-ids-"));
+    writeMetricsFixture(runDir, [
+      createMetricsRecord("pkg-vulns"),
+      createMetricsRecord("pkg-vulns", { durationMs: 2000 }),
+      createMetricsRecord("extra"),
+    ]);
+    const report = buildRunReportFromMetadata(runDir, {
+      workloads: [
+        { id: "pkg-vulns", status: "success" },
+        { id: "missing", status: "success" },
+      ],
+    });
+
+    expect(report.warnings).toContain(
+      "duplicate metrics record for workload: pkg-vulns",
+    );
+    expect(report.warnings).toContain(
+      "metrics record has no matching workload: extra",
+    );
+    expect(report.warnings).toContain(
+      "metrics record missing for workload: missing",
+    );
+    expect(report.workloads[0]?.metrics.logicalToolCount).toBeNull();
+    expect(report.workloads[1]?.metrics.logicalToolCount).toBeNull();
+  });
+
+  it("warns when any MCP profile uses CLI fallback", () => {
+    for (const guidanceProfile of ["descriptors", "full"] as const) {
+      const runDir = mkdtempSync(join(tmpdir(), "agent-eval-cli-fallback-"));
+      const workloadDir = join(runDir, "workloads", "fallback");
+      mkdirSync(workloadDir, { recursive: true });
+      writeJson(join(workloadDir, "tool-calls.json"), [
+        {
+          agent: "codex",
+          server: "githits-cli",
+          tool: "search",
+          status: "started",
+        },
+      ]);
+      writeFileSync(join(workloadDir, "stderr.txt"), "");
+      const report = buildRunReportFromMetadata(runDir, {
+        agent: "codex",
+        surface: "mcp",
+        guidanceProfile,
+        workloads: [{ id: "fallback", status: "failed", workloadDir }],
+      });
+      expect(report.workloads[0]?.warnings).toContain(
+        `MCP ${guidanceProfile} guidance run used GitHits CLI fallback: search`,
+      );
+      expect(formatRunReport(report)).toContain("CLI fallback");
+    }
+
+    const skillsRunDir = mkdtempSync(join(tmpdir(), "agent-eval-cli-skills-"));
+    const skillsWorkloadDir = join(skillsRunDir, "workloads", "fallback");
+    mkdirSync(skillsWorkloadDir, { recursive: true });
+    writeJson(join(skillsWorkloadDir, "tool-calls.json"), [
       {
         agent: "codex",
         server: "githits-cli",
@@ -1641,17 +2318,14 @@ describe("agent eval harness", () => {
         status: "started",
       },
     ]);
-    writeFileSync(join(workloadDir, "stderr.txt"), "");
-    const report = buildRunReportFromMetadata(runDir, {
+    const skillsReport = buildRunReportFromMetadata(skillsRunDir, {
       agent: "codex",
-      surface: "mcp",
-      guidanceProfile: "full",
-      workloads: [{ id: "fallback", status: "failed", workloadDir }],
+      surface: "skills",
+      workloads: [
+        { id: "fallback", status: "success", workloadDir: skillsWorkloadDir },
+      ],
     });
-    expect(report.workloads[0]?.warnings).toContain(
-      "MCP full guidance run used GitHits CLI fallback: search",
-    );
-    expect(formatRunReport(report)).toContain("CLI fallback");
+    expect(skillsReport.workloads[0]?.warnings).not.toContain("CLI fallback");
   });
 
   it("reports discovery status and artifact path", () => {

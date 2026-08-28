@@ -11,9 +11,9 @@ This harness is intentionally human/agent-driven, not CI. Use it to understand
 how MCP tool-description, quick-start, or skill changes affect real agent
 behavior. Do not treat a live agent pass/fail result as a deterministic
 regression test: model behavior, backend indexing state, auth state, network
-conditions, and package data can all change. The useful output is the artifact set, especially
-`tool-calls.json`, `final.json`, `toolIssues`, `instructionIssues`, and the
-agent's usefulness assessment.
+conditions, and package data can all change. The useful output is the artifact
+set, especially `tool-calls.json`, `final.json`, `metrics.json`, `report.json`,
+`toolIssues`, `instructionIssues`, and the agent's usefulness assessment.
 
 ## What Is Under Test
 
@@ -71,8 +71,10 @@ and `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` to exclude global and
 Claude-compatible skills. Full MCP runs retain the intended local
 `.opencode/skills` installation. Generated OpenCode config denies task
 delegation (`permission.task: "deny"`) so GitHits calls stay in the observable
-session. Full MCP reports identify any GitHits CLI fallback rather than
-counting it as equivalent MCP usage.
+session. MCP reports identify any GitHits CLI fallback in both the
+`descriptors` and `full` profiles rather than counting it as equivalent MCP
+usage. Skills runs intentionally use the CLI surface and do not receive that
+MCP fallback warning.
 
 GitHits authentication follows normal local behavior. Keychain-backed human
 login should work by default. Automation can use `GITHITS_API_TOKEN`.
@@ -175,11 +177,13 @@ available. The harness stores the effective model and reasoning effort in
 `run.json` and `report.json`, and includes them in the console summary.
 
 After each run, the harness prints a concise summary with the run directory,
-per-workload status, unique GitHits tool count, raw tool event count,
-usefulness/confidence when available, key artifact paths, and reported
-tool/instruction issues. It also prints a `Next:` block with the exact report,
-compare, and raw-call inspection commands an agent should use for follow-up. The
-same summary can be regenerated later from persisted artifacts:
+per-workload status and duration, unique GitHits tool count, raw tool event
+count, normalized token buckets, cost kind/USD/uncertainty, logical call count,
+MCP/CLI call counts, usefulness/confidence when available, key artifact paths,
+and reported tool/instruction issues. Null metrics are printed as `unknown`.
+It also prints a `Next:` block with the exact report, compare, and raw-call
+inspection commands an agent should use for follow-up. The same summary can be
+regenerated later from persisted artifacts:
 
 ```bash
 bun run agent:e2e:report .agent-eval/runs/<run>
@@ -235,7 +239,7 @@ use at least one agent for quick iteration.
 | File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior |
 | Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |
 | Multi-tool code navigation strategy and MCP/skill guidance | `express-router.md`; `opencode-compaction.md` is the remote-MCP routing regression derived from the connector transcript |
-| Experimental target resolution | `experimental-resolution-follow-up.md` |
+| Experimental target resolution | `experimental-resolution-follow-up.md`; use `experimental-site-resolution-follow-up.md` for site resolution into docs search |
 | Experimental exact source diff | `experimental-code-diff.md` |
 
 For broad MCP quick-start or description edits, start with the cheap Luna-low
@@ -245,6 +249,18 @@ canary in both guidance profiles:
 bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile full --workload eval/agentic/workloads/express-router.md
 ```
+
+These two commands are the smallest local Luna-low metrics pair. Each run
+writes `metrics.json` and `report.json`; use the printed run directory with:
+
+```bash
+bun run agent:e2e:report --json .agent-eval/runs/<run>
+bun run agent:e2e:report .agent-eval/runs/<run>
+```
+
+Named suites, daily pipeline execution, persistent result history, and quality
+judging are later phases; this implementation runs the existing workload list
+one workload at a time.
 
 For broad skill edits, run at least:
 
@@ -264,6 +280,8 @@ For local experimental tool changes, run both new workloads and the
 ```bash
 bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/experimental-resolution-follow-up.md
 bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/experimental-resolution-follow-up.md
+bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/experimental-site-resolution-follow-up.md
+bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/experimental-site-resolution-follow-up.md
 bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/experimental-code-diff.md
 bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/experimental-code-diff.md
 bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
@@ -326,8 +344,11 @@ Each run writes:
 
 - `run.json` with command, git, environment, and timing metadata.
 - `summary.json` with backward-compatible execution status metadata.
-- `report.json` with derived review fields, normalized tool summaries, relative
-  artifact paths, and warnings for missing artifacts or self-report drift.
+- `metrics.json` with schema-versioned per-workload and aggregate normalized
+  usage, cost, tool-surface, identity, timing, and warning fields.
+- `report.json` with derived review fields, normalized tool summaries, matched
+  metrics fields, relative artifact paths, and warnings for missing or
+  ambiguous metrics, missing artifacts, CLI fallback, or self-report drift.
 - One workload directory per workload with `prompt.md`, `stdout.json`,
   `stderr.txt`, `tool-calls.json`, and `final.json` when parsing succeeds.
 - Each live or dry-run workload also records `discovery-events.json`. For Claude
@@ -346,6 +367,36 @@ Each run writes:
 - Full MCP runs additionally write `guidance-installation.json` with the
   canonical project instruction paths and copied skill metadata. Paths are
   persisted for inspection; credentials are never persisted.
+
+`metrics.json` is authoritative for normalized usage and cost. For Codex it
+uses the final `turn.completed.usage` aggregate. `input_tokens` is inclusive of
+cached and cache-write input, so uncached input is derived by subtraction;
+that partition is verified by the upstream Codex parser fixture
+`parses_cache_write_token_usage` (input 100, cached input 40, cache-write input
+60, total tokens 110). The Luna canary had zero cache-write input, so it did
+not independently verify a nonzero cache-write case.
+
+Reasoning output is an output detail and is not added again. Raw observations
+retain their provider `item.id` for pairing: Codex logical counts collapse
+observations with the same surface, ID, and normalized tool, keep first-call
+order, and use the latest status. Started-only observations count once and
+separate IDs remain separate calls; observations without IDs are not paired by
+heuristics. The derived metrics sequence does not persist IDs or arguments.
+`server: "githits-cli"` is surfaced as `cli`, and other persisted GitHits calls
+as `mcp`.
+
+Luna cost is a reproducible base-rate estimate using the stored rate snapshot,
+not billed or exact cost. A turn aggregate above 272,000 inclusive input
+tokens retains the estimate and warns that request-level long-context pricing
+cannot be attributed. Missing or invalid Codex terminal telemetry is unknown,
+not zero. Claude and OpenCode currently emit unknown usage/cost with
+`adapter_not_implemented`. See
+`docs/implementation/agentic-eval-metrics.md` for the complete derivation and
+limitations.
+
+The current Codex CLI does not expose a provider-resolved model, so Phase 1
+metrics retain `resolvedModel: null` and use the requested model for cost;
+the nullable field supports later provider adapters.
 
 Claude is launched with `--permission-mode bypassPermissions` so non-interactive
 evals can exercise GitHits without a human approval prompt. Non-full MCP runs
