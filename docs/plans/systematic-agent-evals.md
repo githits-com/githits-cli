@@ -3,7 +3,7 @@
 ## Status
 
 - Overall: PLANNED
-- Current phase: Phase 1 — trustworthy local metrics (IMPLEMENTATION COMPLETE; pending final validation/live canary)
+- Current phase: Phase 1 — trustworthy local metrics (COMPLETE)
 - Next phase: Phase 2 — systematic local suites and paired comparison (PLANNED)
 - Owner: repository maintainers
 - Last verified: 2026-08-28
@@ -436,10 +436,9 @@ The following must be resolved before Phase 5:
 
 ## Phase Map
 
-1. **Phase 1 — trustworthy local metrics (IMPLEMENTATION COMPLETE; pending
-   final validation/live canary):** every existing local run produces auditable
-   per-workload tool/token/cost metrics, including visible CLI fallback and
-   explicit unknown telemetry.
+1. **Phase 1 — trustworthy local metrics (COMPLETE):** every existing local run
+   produces auditable per-workload tool/token/cost metrics, including visible
+   CLI fallback and explicit unknown telemetry.
 2. **Phase 2 — systematic local suites and paired comparison (PLANNED):**
    maintainers can execute canary/smoke/full matrices locally, compare a
    candidate to a compatible main baseline, and see measured time/cost totals.
@@ -458,7 +457,7 @@ The following must be resolved before Phase 5:
 
 ### Status
 
-IMPLEMENTATION COMPLETE; pending final validation/live canary
+COMPLETE — implementation and validation complete; live canary passed
 
 ### Expected Outcome
 
@@ -540,12 +539,12 @@ None.
    captured exact agent CLI versions into normalized metrics and reports.
    Preserve sanitized existing command/config evidence.
 6. **Completed:** Update the agentic eval documentation and add the required change fragment.
-7. **Pending final validation/live canary:** Run deterministic tests, typecheck/format/lint as applicable, then rerun the
-   two-workload canary once for Luna-low across both profiles. Compare emitted
-   metrics manually to the raw terminal records and report actual duration/cost.
-   Deterministic coverage now includes provider-ID pairing for Codex MCP and
-   CLI start/completion observations, started-only calls, and repeated calls to
-   one tool under distinct IDs.
+7. **Completed:** Run deterministic tests, typecheck/format/lint/build, then
+   rerun the two-workload canary once for Luna-low across both profiles.
+   Compare emitted metrics manually to the raw terminal records and report
+   actual duration/cost. Deterministic coverage includes provider-ID pairing
+   for Codex MCP and CLI start/completion observations, started-only calls, and
+   repeated calls to one tool under distinct IDs.
 
 ### Edge Cases And Boundaries
 
@@ -578,29 +577,47 @@ None.
 ### Deterministic Implementation Evidence
 
 - `bun test scripts/agent-eval.test.ts scripts/agent-eval-metrics.test.ts`:
-  90 tests passed with no failures on 2026-08-28.
-- `bun run typecheck`: passed on 2026-08-28.
+  92 tests passed with no failures on 2026-08-28.
+- `bun run typecheck`, `bun run format:check`, `bun run lint`, and
+  `bun run build`: passed on 2026-08-28.
+- The full test suite reported 3,335 passing tests and one failure in the
+  existing POSIX process-group timing test under full concurrency. The
+  complete `scripts/agent-eval.test.ts` file passed in isolation with 84/84;
+  the full suite is not considered green.
 - The implementation increments are committed in repository history; this plan
   records behavior and verification rather than immutable commit identifiers.
-- The targeted two-workload Luna-low canary and manual raw-artifact comparison
-  remain pending final validation; no paid/live eval was run as part of the
-  deterministic implementation work.
+
+### Luna Validation Canary
+
+The Luna-low two-workload canary completed successfully in all four executions
+(2 workloads × 2 MCP guidance profiles) on 2026-08-28. Metrics aggregates were:
+
+| Guidance profile | Workloads | Summed workload duration | Logical calls | Uncached input | Cached input | Output | Reasoning detail | Base-rate estimate |
+| ---------------- | --------: | -----------------------: | ------------: | -------------: | -----------: | -----: | ---------------: | -----------------: |
+| descriptors       |         2 |                 203.857 s |            14 |         62,329 |      279,296 | 3,063 |             561 |          $0.02172732 |
+| full              |         2 |                 107.390 s |            13 |         66,823 |      278,528 | 2,225 |             452 |          $0.02160516 |
+
+Raw terminal usage matched metrics for all four executions. Raw tool
+observations paired 2:1 by provider ID into logical calls. The descriptors
+express workload used 10 MCP calls and the package workload used 4 CLI calls
+with the expected MCP-to-CLI fallback warning. The full profile used all 13
+calls through MCP.
 
 ### Acceptance Criteria
 
-- Each of the four canary executions emits one valid metrics record with the
+- [x] Each of the four canary executions emits one valid metrics record with the
   complete compatible identity dimensions.
-- Codex token buckets match the terminal aggregate fixtures and reasoning tokens
+- [x] Codex token buckets match the terminal aggregate fixtures and reasoning tokens
   are not double-counted.
-- Provider-reported versus base-rate-estimated cost is explicit, the Luna rate
+- [x] Provider-reported versus base-rate-estimated cost is explicit, the Luna rate
   snapshot makes the base calculation reproducible, and request-level
   long-context uncertainty remains visible.
-- Descriptor-profile CLI fallback is visible and cannot be mistaken for MCP
+- [x] Descriptor-profile CLI fallback is visible and cannot be mistaken for MCP
   success or zero GitHits use.
-- Missing usage or cost is represented as unknown with a warning.
-- No credential value appears in committed fixtures or generated artifacts.
-- Existing local eval commands and raw artifacts continue to work.
-- Updated documentation accurately states what the metrics do and do not prove.
+- [x] Missing usage or cost is represented as unknown with a warning.
+- [x] No credential value appears in committed fixtures or generated artifacts.
+- [x] Existing local eval commands and raw artifacts continue to work.
+- [x] Updated documentation accurately states what the metrics do and do not prove.
 
 ## Phase 2 — Systematic Local Suites And Paired Comparison
 
