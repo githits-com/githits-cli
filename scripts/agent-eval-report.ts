@@ -176,11 +176,13 @@ export interface AgentEvalCompareReport {
   sameAgent: boolean;
   warnings: string[];
   workloads: string[];
-  toolDeltas: Array<{
-    workloadId: string;
-    deltas: CallsByToolDelta[];
-  }>;
+  toolDeltas: WorkloadCallsByToolComparison[];
   lines: string[];
+}
+
+export interface WorkloadCallsByToolComparison {
+  workloadId: string;
+  deltas: CallsByToolDelta[] | null;
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -994,13 +996,13 @@ function formatCallsByToolEntry(entry: CallsByToolEntry | null): string {
 function compareCallsByTool(
   before: CallsByToolEntry[] | null,
   after: CallsByToolEntry[] | null,
-): CallsByToolDelta[] {
-  if (before === null && after === null) return [];
+): CallsByToolDelta[] | null {
+  if (before === null || after === null) return null;
   const beforeMap = new Map(
-    (before ?? []).map((entry) => [`${entry.surface}\0${entry.tool}`, entry]),
+    before.map((entry) => [`${entry.surface}\0${entry.tool}`, entry]),
   );
   const afterMap = new Map(
-    (after ?? []).map((entry) => [`${entry.surface}\0${entry.tool}`, entry]),
+    after.map((entry) => [`${entry.surface}\0${entry.tool}`, entry]),
   );
   const keys = [...new Set([...beforeMap.keys(), ...afterMap.keys()])].sort(
     (left, right) => {
@@ -1018,11 +1020,8 @@ function compareCallsByTool(
       string,
     ];
     const beforeEntry =
-      beforeMap.get(key) ??
-      (before === null ? null : zeroCallsByToolEntry(surface, tool));
-    const afterEntry =
-      afterMap.get(key) ??
-      (after === null ? null : zeroCallsByToolEntry(surface, tool));
+      beforeMap.get(key) ?? zeroCallsByToolEntry(surface, tool);
+    const afterEntry = afterMap.get(key) ?? zeroCallsByToolEntry(surface, tool);
     if (beforeEntry === null || afterEntry === null) {
       return {
         surface,
@@ -1134,10 +1133,7 @@ export function compareReports(
     `Agent eval compare: before=${before.runDir} (${formatRunLabel(before)}) ${formatRunContext(before)} after=${after.runDir} (${formatRunLabel(after)}) ${formatRunContext(after)}`,
     ...warnings.map((warning) => `Warning: ${warning}`),
   ];
-  const toolDeltas: Array<{
-    workloadId: string;
-    deltas: CallsByToolDelta[];
-  }> = [];
+  const toolDeltas: WorkloadCallsByToolComparison[] = [];
   for (const id of ids) {
     const left = beforeMap.get(id);
     const right = afterMap.get(id);
@@ -1160,10 +1156,16 @@ export function compareReports(
         right.metrics.callsByTool,
       );
       toolDeltas.push({ workloadId: id, deltas });
-      for (const delta of deltas) {
+      if (deltas === null) {
         lines.push(
-          `  callsByTool ${delta.surface}/${delta.tool}: ${delta.change} before=${formatCallsByToolEntry(delta.before)} after=${formatCallsByToolEntry(delta.after)}${delta.delta ? ` delta=${formatCallsByToolEntry({ surface: delta.surface, tool: delta.tool, ...delta.delta })}` : " delta=unknown"}`,
+          "  callsByTool: unknown (logical tool telemetry unavailable for before or after)",
         );
+      } else {
+        for (const delta of deltas) {
+          lines.push(
+            `  callsByTool ${delta.surface}/${delta.tool}: ${delta.change} before=${formatCallsByToolEntry(delta.before)} after=${formatCallsByToolEntry(delta.after)}${delta.delta ? ` delta=${formatCallsByToolEntry({ surface: delta.surface, tool: delta.tool, ...delta.delta })}` : " delta=unknown"}`,
+          );
+        }
       }
     }
     const toolDiff = diffStrings(

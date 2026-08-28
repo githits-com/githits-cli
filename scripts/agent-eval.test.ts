@@ -2476,31 +2476,30 @@ describe("agent eval harness", () => {
     expect(comparison.toolDeltas).toEqual([
       {
         workloadId: "pkg-info",
-        deltas: [
-          {
-            surface: "mcp",
-            tool: "pkg_info",
-            before: {
-              surface: "mcp",
-              tool: "pkg_info",
-              total: 1,
-              started: 0,
-              completed: 1,
-              failed: 0,
-              unknown: 0,
-            },
-            after: null,
-            delta: null,
-            change: "unknown",
-          },
-        ],
+        deltas: null,
       },
     ]);
+    expect(formatCompareReport(comparison)).toContain(
+      "callsByTool: unknown (logical tool telemetry unavailable for before or after)",
+    );
     expect(before.workloads[0]?.metrics.callsByTool).not.toBeNull();
     expect(after.workloads[0]?.metrics.callsByTool).toBeNull();
     expect(after.workloads[0]?.metrics.telemetryWarnings).toContain(
       "logical tool telemetry unavailable or inconsistent; callsByTool is unknown",
     );
+
+    const bothUnknown = compareReports(after, after);
+    expect(bothUnknown.toolDeltas).toEqual([
+      { workloadId: "pkg-info", deltas: null },
+    ]);
+    expect(formatCompareReport(bothUnknown)).toContain(
+      "callsByTool: unknown (logical tool telemetry unavailable for before or after)",
+    );
+    const knownEmpty = buildReport([]);
+    const unknownVsKnownEmpty = compareReports(after, knownEmpty);
+    expect(unknownVsKnownEmpty.toolDeltas).toEqual([
+      { workloadId: "pkg-info", deltas: null },
+    ]);
   });
 
   it("binds metrics to run identity while accepting legacy run metadata", () => {
