@@ -72,13 +72,16 @@ gate. Compact loses ~2 percentage points and saves ~78% of the
 wording (787 words v4 → 171 words compact).
 
 Those measurements validate the shared wording only when the block is in
-context. Delivery normally depends on the agent calling `quick_start`; this
-avoids host-dependent server-instruction duplication. Luna-low descriptor-only
+context. Plain MCP delivery normally depends on the agent calling `quick_start`;
+the loaded `githits-mcp` skill embeds the same stable block and skips that
+redundant call. Current tool descriptions remain authoritative, and a material
+stale-snapshot mismatch or exposed local `Experimental` descriptor can still
+justify `quick_start` for runtime-specific guidance. Luna-low descriptor-only
 and full-guidance canaries called `quick_start` exactly once in every workload,
 but a later Claude Desktop source-reading session skipped it. `code_read` and
 `code_grep` therefore now carry focused local posture as a fallback. This is
-not evidence that other content tools are protected when the bootstrap is
-skipped.
+not evidence that other content tools are protected when neither the skill nor
+the bootstrap supplies the shared block.
 
 The focused source fallback was validated in August 2026 with exactly one
 tool-local addendum and no shared block. After scoping it to redirecting advice,
@@ -115,8 +118,11 @@ maintainer-controlled content:
 
 Other tools (`quick_start`, `pkg_deps`, `code_files`, `search_status`,
 `search_language`, `feedback`) have no third-party prose surface or attacker
-control and need no per-tool addendum. The shared posture is available after
-the agent calls `quick_start`; it is not inherited automatically.
+control and need no per-tool addendum. The shared posture is available to plain
+MCP agents after they call `quick_start`; a loaded `githits-mcp` skill already
+carries the stable posture. The runtime-only local appendices are not embedded
+in that skill. An exposed `Experimental` descriptor or material stale-snapshot
+mismatch remains a bounded reason to call `quick_start`.
 
 ## Where the wording lives
 
