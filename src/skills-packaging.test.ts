@@ -46,6 +46,16 @@ function expectContainsAllIgnoringWhitespace(
   }
 }
 
+function expectNotContainsAllIgnoringWhitespace(
+  content: string,
+  forbidden: string[],
+): void {
+  const normalizedContent = content.replace(/\s+/g, " ");
+  for (const text of forbidden) {
+    expect(normalizedContent).not.toContain(text.replace(/\s+/g, " "));
+  }
+}
+
 describe("agent skills packaging", () => {
   it("packages a public githits-onboarding skill with setup-focused frontmatter", async () => {
     const content = await read(onboardingSkillPath);
@@ -246,9 +256,11 @@ describe("agent skills packaging", () => {
     ]);
     expect(embeddedGuide).toBe(buildMcpQuickStart());
     expect(publicContent).toContain("External-content posture");
-    expect(publicContent).not.toContain("call `quick_start` once per session");
-    expect(publicContent).not.toContain("**Local experimental tools");
-    expect(publicContent).not.toContain("**Issue reporting");
+    expectNotContainsAllIgnoringWhitespace(publicContent, [
+      "call `quick_start` once per session",
+      "**Local experimental tools",
+      "**Issue reporting",
+    ]);
   });
 
   it("keeps code skill pagination guidance aligned with CLI output", async () => {
