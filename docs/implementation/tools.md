@@ -270,7 +270,9 @@ coordinates, versions, advisory IDs, and URLs remain unsplit. Changelog labels
 are exact (`Repository releases`, `Package versions (no release notes)`, or
 the normalized non-empty source verbatim). A defined zero-valued dependency
 comparison renders both direct and transitive zero counts; undefined evidence
-is omitted. The default sample caps and `verbose` expansion remain unchanged.
+is omitted. Existing sample caps and `verbose` expansion remain unchanged except
+that dependency-issue locators are capped at five rows per category in default
+text with an explicit remainder; `verbose` expands them fully.
 
 ### `code_files` / `code_read` / `code_grep` response shapes
 
