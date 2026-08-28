@@ -310,9 +310,27 @@ describe("package upgrade review response", () => {
     expect(text).toContain(
       "Direct: 0 affected -> 1 affected | 0 fixed | 1 added | 0 still present",
     );
-    expect(text).toContain("Added direct advisories");
     expect(text).toContain(
       "Transitive: 0 affected packages -> 1 | 0 fixed | 2 added | 0 still affected",
+    );
+    expect(text).toContain("Added direct advisories");
+    expect(text).toContain("Added transitive vulnerable packages");
+    expect(
+      text.indexOf(
+        "Direct: 0 affected -> 1 affected | 0 fixed | 1 added | 0 still present",
+      ),
+    ).toBeLessThan(
+      text.indexOf(
+        "Transitive: 0 affected packages -> 1 | 0 fixed | 2 added | 0 still affected",
+      ),
+    );
+    expect(
+      text.indexOf(
+        "Transitive: 0 affected packages -> 1 | 0 fixed | 2 added | 0 still affected",
+      ),
+    ).toBeLessThan(text.indexOf("Added direct advisories"));
+    expect(text.indexOf("Added direct advisories")).toBeLessThan(
+      text.indexOf("Added transitive vulnerable packages"),
     );
     expect(text).toContain("+1 more not returned by backend page");
     expect(text).toContain("Target: deprecated: bad release");
@@ -473,6 +491,21 @@ describe("package upgrade review response", () => {
     expect(missingTarget).toContain(
       "Deprecation\n  Target: deprecation unknown",
     );
+
+    const missingBoth = formatPackageUpgradeReviewTerminal({
+      summary: backendResponse.summary,
+      reviews: [
+        {
+          ...base,
+          security: {
+            ...base.security,
+            current: undefined,
+            target: undefined,
+          },
+        },
+      ],
+    });
+    expect(missingBoth).toContain("Deprecation\n  Target: deprecation unknown");
 
     const knownNotDeprecated = formatPackageUpgradeReviewTerminal({
       summary: backendResponse.summary,

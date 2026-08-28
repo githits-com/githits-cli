@@ -322,9 +322,9 @@ surface-native follow-up and pagination syntax plus ANSI differ.
 
 ### `PARITY-SHARED-TEXT-FORMATTER`
 
-- Unified search terminal and MCP text rendering use one shared formatter;
-  other text surfaces may share formatter code when the output is useful to
-  both humans and agents.
+- Unified search and `pkg_upgrade_review` terminal/MCP text rendering use one
+  shared formatter; other tools may share formatter code when their output is
+  useful to both humans and agents.
 - Shared formatters must accept surface-specific hints so MCP never emits
   CLI-only instructions like `--verbose` or `--lifecycle all`.
 - Default MCP success output should be compact `text-v1`; programmatic
@@ -365,10 +365,10 @@ When a new tool lands with both MCP and CLI surfaces:
 
 ## Non-goals
 
-- **Forcing identical default prose outside unified search.** Unified search
-  deliberately shares wording, hierarchy, and wrapping; other CLI terminal
-  output and MCP text remain related products whose hints can be
-  surface-native.
+- **Forcing identical default prose for tools without an intentionally shared
+  formatter.** Unified search and `pkg_upgrade_review` deliberately share
+  wording, hierarchy, and wrapping; other CLI terminal output and MCP text
+  remain related products whose hints can be surface-native.
 - **Shared MCP description copy.** Each tool's description targets a
   different decision the agent is making. Copy is not reusable.
 
@@ -524,8 +524,9 @@ presentation contract, so parity covers hierarchy and wording invariants rather
 than byte stability: the outcome headline, package coordinate, evidence-group
 headings, stable locators, bounded samples, and explicit unknown/zero states.
 
-The default order is identity, `Security` and non-empty advisory groups, target
-`Deprecation`, `Changes`, `Compatibility`, `Dependencies`, returned
+The default order is identity, `Security` with direct and optional transitive
+summary rows before non-empty advisory groups, target `Deprecation`, `Changes`,
+`Compatibility`, `Dependencies`, returned
 `Dependency issues`, and `Unknown evidence`. A batch adds one `Across packages:`
 summary. The formatter keeps JSON unchanged and lossless for machine callers;
 CLI `--json` and MCP `format: "json"` are the structured parity boundary. ANSI

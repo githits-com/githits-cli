@@ -243,7 +243,8 @@ surface for humans and agents, not a serialization of the JSON fields. The
 default output leads with the outcome and groups each package in this order:
 
 1. package identity and version relationship;
-2. `Security`, followed by non-empty advisory groups;
+2. `Security`, with direct and optional transitive summary rows first, followed
+   by non-empty advisory groups;
 3. `Deprecation` when target deprecation is known or target evidence is missing;
 4. `Changes`;
 5. `Compatibility` when it has evidence;
@@ -259,15 +260,21 @@ Representative output:
 
 ```text
 Upgrade review - 2 packages
-Across packages: 1 with evidence gaps | 1 with added direct vulnerabilities | 1 with added transitive vulnerabilities | 1 with heuristic change signals | 1 with direct dependency changes
+Across packages: 1 with evidence gaps | 1 with added direct vulnerabilities | 1
+                 with added transitive vulnerabilities | 1 without transitive
+                 security evidence | 1 with heuristic change signals | 1 with
+                 direct dependency changes
 
 npm:zod 4.3.6 -> 4.4.3 (minor)
 
 Security
   Direct: 0 affected -> 1 affected | 0 fixed | 1 added | 0 still present
+  Transitive: 0 affected packages -> 1 | 0 fixed | 2 added | 0 still affected
   Added direct advisories
-    - GHSA-new HIGH(7.5): new advisory | fixed in 4.4.4
-  Transitive: 0 affected packages -> 1 | 0 fixed | 1 added | 0 still affected
+    - GHSA-new high(7.5): new advisory | fixed in 4.4.4
+  Added transitive vulnerable packages
+    - npm:left-pad@1.0.0 affected=1 medium(4) advisories: GHSA-transitive
+    - ... +1 more not returned by backend page
 
 Deprecation
   Target: deprecated: bad release
@@ -282,11 +289,13 @@ Changes
 Dependencies
   Direct: 1 added | 0 removed | 0 changed
   Direct added
-    - npm:left-pad 1.0.0
+    - npm:left-pad@1.0.0
   Transitive: 0 added | 0 removed | 0 changed
 
 Dependency issues
-  none introduced | current total: 0 | target total: 0
+  1 introduced | current total: 0 | target total: 1
+  Introduced deprecated
+    - npm:left-pad@1.0.0
 
 Unknown evidence
   - changelog evidence incomplete

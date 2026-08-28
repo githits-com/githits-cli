@@ -253,7 +253,8 @@ byte-stable contract.
 
 Default text is one shared formatter for CLI and MCP. It leads with
 `Upgrade review - N package(s)`, then groups each package as identity,
-`Security`, non-empty advisory groups, target `Deprecation`, `Changes`,
+`Security`, with direct and optional transitive summary rows before non-empty
+advisory groups, target `Deprecation`, `Changes`,
 `Compatibility`, `Dependencies`, returned `Dependency issues`, and final
 `Unknown evidence`. A batch adds one `Across packages:` summary; zero and one
 package omit it. The formatter removes internal tool headers and repeated

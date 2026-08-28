@@ -592,7 +592,6 @@ function formatDeprecationLine(
 ): string[] | undefined {
   const current = review.security.current;
   const target = review.security.target;
-  if (!current && !target) return undefined;
   const width = normaliseTerminalWidth(options.terminalWidth);
   const useColors = options.useColors === true;
   const hasCurrentDeprecation = current?.deprecated === true;
@@ -645,6 +644,9 @@ function formatVulnerabilitySection(
       ? (line) => attentionLine(line, useColors)
       : undefined,
   );
+  lines.push(
+    ...formatTransitiveVulnerabilitySummary(security.transitive, options),
+  );
   const limit = options.verbose ? Number.POSITIVE_INFINITY : 5;
   appendAdvisoryLines(
     lines,
@@ -674,7 +676,7 @@ function formatVulnerabilitySection(
     true,
   );
   lines.push(
-    ...formatTransitiveVulnerabilitySubsection(security.transitive, options),
+    ...formatTransitiveVulnerabilityDetails(security.transitive, options),
   );
   return lines;
 }
@@ -739,15 +741,15 @@ function formatAdvisoryProse(advisory: UpgradeAdvisorySummary): string {
   return parts.join(" | ");
 }
 
-function formatTransitiveVulnerabilitySubsection(
+function formatTransitiveVulnerabilitySummary(
   transitive: UpgradeTransitiveSecurity | undefined,
   options: FormatPackageUpgradeReviewTerminalOptions,
 ): string[] {
-  const width = normaliseTerminalWidth(options.terminalWidth);
   const useColors = options.useColors === true;
   if (!transitive)
     return [attentionLine("  Transitive: not checked", useColors)];
   const lines: string[] = [];
+  const width = normaliseTerminalWidth(options.terminalWidth);
   appendWrappedText(
     lines,
     "  Transitive: ",
@@ -759,6 +761,16 @@ function formatTransitiveVulnerabilitySubsection(
       ? (line) => attentionLine(line, useColors)
       : undefined,
   );
+  return lines;
+}
+
+function formatTransitiveVulnerabilityDetails(
+  transitive: UpgradeTransitiveSecurity | undefined,
+  options: FormatPackageUpgradeReviewTerminalOptions,
+): string[] {
+  if (!transitive) return [];
+  const useColors = options.useColors === true;
+  const lines: string[] = [];
   const limit = options.verbose ? Number.POSITIVE_INFINITY : 5;
   appendTransitivePackageLines(
     lines,
