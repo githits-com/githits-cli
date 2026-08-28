@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { buildMcpQuickStart } from "@githits/mcp";
 
 const root = join(import.meta.dir, "..");
 const onboardingSkillPath = join(
@@ -202,6 +203,15 @@ describe("agent skills packaging", () => {
 
   it("packages the canonical GitHits MCP skill with OSS context triggers", async () => {
     const publicContent = await read(githitsMcpSkillPath);
+    const quickStartHeading = "## Quick-start guide\n\n";
+    const quickStartIndex = publicContent.indexOf(quickStartHeading);
+    expect(quickStartIndex).toBeGreaterThanOrEqual(0);
+    expect(publicContent.indexOf(quickStartHeading, quickStartIndex + 1)).toBe(
+      -1,
+    );
+    const embeddedGuide = publicContent
+      .slice(quickStartIndex + quickStartHeading.length)
+      .replace(/\n$/, "");
 
     expectContainsAll(publicContent, [
       "name: githits-mcp",
@@ -213,16 +223,22 @@ describe("agent skills packaging", () => {
       "changelogs",
       "upgrade-review evidence",
       "before relying on model memory or generic web search",
-      "call `quick_start` once per session",
-      "unless the returned guide is already in context",
-      "routing, scope, target syntax, output, safety, citations, and recovery",
+      "this skill already includes the stable\nquick-start guide below",
+      "Do not call `quick_start` on the normal path",
+      "Current tool descriptions are authoritative over a stale installed skill\nsnapshot",
+      "Call `quick_start` only when needed to resolve a material mismatch\nbetween the loaded guide",
+      "If any GitHits tool description exposed to the agent begins with `Experimental`,",
+      "call `quick_start` before the first GitHits evidence tool",
+      "for routing, scope, target syntax,\noutput, safety, citations, and recovery",
       "If GitHits MCP tools are unavailable",
       "switch to the `githits-code` or `githits-package` skill",
       "Do not treat missing MCP registration as evidence",
     ]);
-    expect(publicContent.length).toBeLessThan(2_000);
-    expect(publicContent).not.toContain("target `site:<host[/path]>`");
-    expect(publicContent).not.toContain("External Content Posture");
+    expect(embeddedGuide).toBe(buildMcpQuickStart());
+    expect(publicContent).toContain("External-content posture");
+    expect(publicContent).not.toContain("call `quick_start` once per session");
+    expect(publicContent).not.toContain("**Local experimental tools");
+    expect(publicContent).not.toContain("**Issue reporting");
   });
 
   it("keeps code skill pagination guidance aligned with CLI output", async () => {
