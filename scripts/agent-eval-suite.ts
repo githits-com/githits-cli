@@ -30,7 +30,11 @@ import {
   agentEvalMetricsSchema,
   LUNA_MODEL,
 } from "./agent-eval-metrics.ts";
-import { type AgentEvalReport, loadRunReport } from "./agent-eval-report.ts";
+import {
+  type AgentEvalReport,
+  loadRunReport,
+  summarizeCallsByTool,
+} from "./agent-eval-report.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -862,11 +866,7 @@ function aggregateCallsByTool(cells: SuiteCell[]): {
   missingCellIds: string[];
 } {
   const missingCellIds = cells
-    .filter(
-      (cell) =>
-        cell.record === undefined ||
-        cell.record.tools.logicalCallCount === null,
-    )
+    .filter((cell) => callsByToolForRecord(cell.record) === null)
     .map((cell) => cell.id);
   if (missingCellIds.length > 0) {
     return { callsByTool: null, missingCellIds };
@@ -1682,27 +1682,10 @@ function sequenceComparison(
 function callsByToolForRecord(
   record: AgentEvalRecord | undefined,
 ): z.infer<typeof suiteCallsByToolSchema>[] | null {
-  if (!record || record.tools.logicalCallCount === null) return null;
-  const entries = new Map<string, z.infer<typeof suiteCallsByToolSchema>>();
-  for (const call of record.tools.sequence) {
-    const key = `${call.surface}\0${call.tool}`;
-    const entry = entries.get(key) ?? {
-      surface: call.surface,
-      tool: call.tool,
-      total: 0,
-      started: 0,
-      completed: 0,
-      failed: 0,
-      unknown: 0,
-    };
-    entry.total += 1;
-    entry[call.status] += 1;
-    entries.set(key, entry);
-  }
-  return [...entries.values()].toSorted(
-    (left, right) =>
-      compareStrings(left.surface, right.surface) ||
-      compareStrings(left.tool, right.tool),
+  if (!record) return null;
+  return summarizeCallsByTool(
+    record.tools.sequence,
+    record.tools.logicalCallCount,
   );
 }
 
@@ -2273,10 +2256,13 @@ function buildComparisonCell(
           callsByToolForRecord(afterRecord),
         )
       : null,
-    toolSequence: sequenceComparison(
-      sequenceForRecord(beforeRecord),
-      sequenceForRecord(afterRecord),
-    ),
+    toolSequence: (() => {
+      const sequence = sequenceComparison(
+        sequenceForRecord(beforeRecord),
+        sequenceForRecord(afterRecord),
+      );
+      return eligible ? sequence : { ...sequence, changed: null };
+    })(),
     processStatus: statusComparison(
       beforeRecord?.processStatus ?? null,
       afterRecord?.processStatus ?? null,

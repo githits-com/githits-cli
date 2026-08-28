@@ -1528,6 +1528,9 @@ describe("agent eval suites", () => {
       expect(
         comparison.cells.every((cell) => cell.beforeStatus === "success"),
       ).toBe(true);
+      expect(
+        comparison.cells.every((cell) => cell.toolSequence.changed === null),
+      ).toBe(true);
       expect(comparison.warnings.join("\n")).toContain("reportingContract");
     } finally {
       rmSync(baseline.root, { recursive: true, force: true });
@@ -1592,8 +1595,50 @@ describe("agent eval suites", () => {
       ).toBe(true);
       expect(
         comparison.cells
+          .filter((cell) => cell.workloadId === "stable-a")
+          .every((cell) => cell.toolSequence.changed === null),
+      ).toBe(true);
+      expect(
+        comparison.cells
           .filter((cell) => cell.workloadId === "stable-b")
           .every((cell) => cell.compatibility === "compatible"),
+      ).toBe(true);
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("suppresses ordered tool sequences for result schema mismatches", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-schema-sequence-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-schema-sequence-candidate-"),
+    );
+    const outputDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-schema-sequence-output-"),
+    );
+    try {
+      await generatePairSuite(baseline, baselineOutDir);
+      writeFileSync(candidate.schemaPath, '{"changed":true}\n');
+      await generatePairSuite(candidate, candidateOutDir);
+      const comparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath: join(candidateOutDir, "suite.json"),
+        outputDir,
+      });
+      expect(comparison.compatibility.directDeltasSuppressed).toBe(true);
+      expect(
+        comparison.cells.every((cell) => cell.toolSequence.changed === null),
+      ).toBe(true);
+      expect(
+        comparison.cells.every((cell) => cell.processStatus.changed === false),
       ).toBe(true);
     } finally {
       rmSync(baseline.root, { recursive: true, force: true });
@@ -1872,6 +1917,88 @@ describe("agent eval suites", () => {
           percentChange: 0,
           change: "changed",
         },
+      ]);
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("treats inconsistent logical telemetry as unknown in suite and comparison cohorts", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-logical-mismatch-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-logical-mismatch-candidate-"),
+    );
+    const outputDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-logical-mismatch-output-"),
+    );
+    try {
+      await generatePairSuite(baseline, baselineOutDir);
+      const candidateArtifact = await runAgentEvalSuite({
+        suite: "stable-full",
+        repoRoot: candidate.root,
+        targetRoot: candidate.root,
+        outDir: candidateOutDir,
+        manifestPath: candidate.manifestPath,
+        workloadsDir: candidate.workloadsDir,
+        reportingPath: candidate.reportingPath,
+        schemaPath: candidate.schemaPath,
+        dryRun: true,
+        shardExecutor: async (options) => {
+          writeShardArtifacts(
+            options,
+            options.workloads.map((workload) =>
+              suiteRecord(workload.id, { guidanceProfile: options.profile }),
+            ),
+          );
+          if (options.profile === "descriptors") {
+            const metricsPath = join(options.outDir, "metrics.json");
+            const metrics = JSON.parse(readFileSync(metricsPath, "utf8")) as {
+              records: Array<{
+                workloadId: string;
+                tools: { logicalCallCount: number | null };
+              }>;
+            };
+            const record = metrics.records.find(
+              (item) => item.workloadId === "stable-a",
+            );
+            if (!record) throw new Error("missing mismatch test record");
+            record.tools.logicalCallCount = 99;
+            writeJson(metricsPath, metrics);
+          }
+          return { runDir: options.outDir };
+        },
+      });
+      expect(candidateArtifact.callsByTool).toBeNull();
+      expect(candidateArtifact.missingToolTelemetryCellIds).toEqual([
+        "descriptors/stable-a",
+      ]);
+
+      const comparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath: join(candidateOutDir, "suite.json"),
+        outputDir,
+      });
+      const descriptorCell = comparison.cells.find(
+        (cell) => cell.id === "descriptors/stable-a",
+      );
+      expect(descriptorCell?.callsByTool).toMatchObject({
+        before: expect.any(Array),
+        after: null,
+        deltas: null,
+      });
+      expect(comparison.aggregates.callsByTool.includedCellIds).toEqual([
+        "full/stable-a",
+      ]);
+      expect(comparison.aggregates.callsByTool.excludedCellIds).toEqual([
+        "descriptors/stable-a",
       ]);
     } finally {
       rmSync(baseline.root, { recursive: true, force: true });
