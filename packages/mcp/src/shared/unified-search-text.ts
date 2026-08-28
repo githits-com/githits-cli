@@ -138,85 +138,65 @@ function formatPresentationOutcome(
   const targetSuffix = target ? ` ${target}` : "";
   const count = presentation.availability.resultCount;
   const countLabel = `${count} result${count === 1 ? "" : "s"}`;
+  const finish = (value: string): string =>
+    styleOutcome(
+      appendPagination(value, presentation.hasMore, nextOffset),
+      presentation,
+      options.useColors,
+    );
 
   if (presentation.lifecycle.kind === "active") {
     const label = activeLifecycleLabel(presentation.lifecycle);
     if (presentation.availability.kind === "no_snapshot") {
-      return styleOutcome(
-        `${label}${targetSuffix} - no result snapshot yet`,
-        presentation,
-        options.useColors,
-      );
+      return finish(`${label}${targetSuffix} - no result snapshot yet`);
     }
     if (presentation.availability.kind === "empty") {
-      return styleOutcome(
-        `${label}${targetSuffix} - no results yet`,
-        presentation,
-        options.useColors,
-      );
+      return finish(`${label}${targetSuffix} - no results yet`);
     }
     const resultKind =
       presentation.availability.kind === "partial" ? "partial" : "interim";
-    return styleOutcome(
+    return finish(
       `${label} continues - ${countLabel.replace("result", `${resultKind} result`)} returned`,
-      presentation,
-      options.useColors,
     );
   }
 
   if (presentation.lifecycle.kind === "completed") {
-    return styleOutcome(
+    return finish(
       count > 0
-        ? formatCompletedResultsHeadline(
-            presentation,
-            results,
-            nextOffset,
-            countLabel,
-          )
+        ? formatCompletedResultsHeadline(results, countLabel)
         : `No results returned${target ? ` from ${target}` : ""}`,
-      presentation,
-      options.useColors,
     );
   }
 
   const status = presentation.lifecycle.status ?? "UNKNOWN";
-  if (count > 0)
-    return styleOutcome(
-      `${status} - ${countLabel} returned`,
-      presentation,
-      options.useColors,
-    );
+  if (count > 0) return finish(`${status} - ${countLabel} returned`);
   if (presentation.availability.kind === "no_snapshot") {
-    return styleOutcome(
-      `${status} - no result snapshot returned`,
-      presentation,
-      options.useColors,
-    );
+    return finish(`${status} - no result snapshot returned`);
   }
-  return styleOutcome(
-    `${status} - no results returned`,
-    presentation,
-    options.useColors,
-  );
+  return finish(`${status} - no results returned`);
 }
 
 function formatCompletedResultsHeadline(
-  presentation: UnifiedSearchPresentation,
   results: UnifiedSearchHitPayload[],
-  nextOffset: number | undefined,
   countLabel: string,
 ): string {
   const parts = [countLabel];
   const breakdown = formatResultBreakdown(results);
   if (breakdown) parts.push(breakdown);
-  if (presentation.hasMore) {
-    parts.push(
-      typeof nextOffset === "number"
-        ? `next_offset=${nextOffset}`
-        : "more available",
-    );
-  }
   return parts.join(SEP);
+}
+
+function appendPagination(
+  value: string,
+  hasMore: boolean,
+  nextOffset: number | undefined,
+): string {
+  if (!hasMore) return value;
+  const field =
+    typeof nextOffset === "number"
+      ? `next_offset=${nextOffset}`
+      : "more available";
+  return `${value}${SEP}${field}`;
 }
 
 function formatResultBreakdown(results: UnifiedSearchHitPayload[]): string {
@@ -811,9 +791,13 @@ function appendUnifiedSearchHits(
   hits: UnifiedSearchHitPayload[],
   options: NormalizedTextOptions,
 ): void {
+  const hitTargets = new Set(
+    hits.map((hit) => hit.requestedTarget ?? hit.target),
+  );
+  const showDocsTarget = hitTargets.size > 1;
   hits.forEach((hit, idx) => {
     if (idx > 0) lines.push("");
-    appendHit(lines, idx + 1, hit, options);
+    appendHit(lines, idx + 1, hit, showDocsTarget, options);
   });
 }
 
@@ -821,14 +805,19 @@ function appendHit(
   lines: string[],
   index: number,
   hit: UnifiedSearchHitPayload,
+  showDocsTarget: boolean,
   options: NormalizedTextOptions,
 ): void {
   lines.push(
-    `[${index}] ${highlight(formatHitHeader(hit), options.useColors)}`,
+    `[${index}] ${highlight(formatHitHeader(hit, showDocsTarget), options.useColors)}`,
   );
 
-  if (hit.type === "documentation_page" && isHttpUrl(hit.locator.sourceUrl)) {
-    lines.push(`  ${hit.locator.sourceUrl}`);
+  if (hit.type === "documentation_page") {
+    lines.push(
+      isHttpUrl(hit.locator.sourceUrl)
+        ? `  ${hit.locator.sourceUrl}`
+        : "  Source URL unavailable",
+    );
   }
 
   const titleIsInHeader = hit.type === "documentation_page";
@@ -872,7 +861,10 @@ function wrapHighlightedText(
     let consumed = 0;
     while (content.length - consumed > available) {
       let breakAt = content.lastIndexOf(" ", consumed + available);
-      if (breakAt <= consumed) breakAt = consumed + available;
+      if (breakAt <= consumed) {
+        breakAt = content.indexOf(" ", consumed + available);
+        if (breakAt < 0) break;
+      }
       const chunk = content.slice(consumed, breakAt).trimEnd();
       output.push(
         highlightWrappedSegment(
@@ -926,15 +918,24 @@ function highlightWrappedSegment(
   return highlightRanges(value, localRanges, true);
 }
 
-function formatHitHeader(hit: UnifiedSearchHitPayload): string {
+function formatHitHeader(
+  hit: UnifiedSearchHitPayload,
+  showDocsTarget: boolean,
+): string {
   const loc = hit.locator;
   const type = shortType(hit.type);
   if (hit.type === "documentation_page") {
-    return `${type} · ${hit.title ?? stripVersionFromTarget(hit.target)}`;
+    return [
+      type,
+      showDocsTarget ? (hit.requestedTarget ?? hit.target) : undefined,
+      hit.title ?? stripVersionFromTarget(hit.target),
+    ]
+      .filter(Boolean)
+      .join(" · ");
   }
   const location = loc.filePath
     ? `${loc.filePath}${formatLineRange(loc.startLine, loc.endLine)}`
-    : undefined;
+    : "location unavailable";
   return [type, hit.target, location].filter(Boolean).join(" · ");
 }
 

@@ -316,7 +316,9 @@ function hasHumanSearchHitLocator(lines: string[]): boolean {
     );
     if (!match) return false;
     if (match[1] === "docs") {
-      return /^ {2}https?:\/\/\S+/.test(lines[index + 1] ?? "");
+      return /^(?: {2}https?:\/\/\S+| {2}Source URL unavailable)$/.test(
+        lines[index + 1] ?? "",
+      );
     }
     const value = match[2];
     if (!value) return false;

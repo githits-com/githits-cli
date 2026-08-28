@@ -302,6 +302,46 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(firstLine(docsText)).toBe("1 result | 1 docs page");
   });
 
+  it("keeps documentation targets compact unless multiple targets need attribution", () => {
+    const single = renderUnifiedSearchSuccess(completed([docsHit()]));
+    expect(single).toContain("[1] docs · Edit Formats");
+    expect(single).not.toContain("[1] docs · aider-AI/aider@v0.55.0");
+
+    const multiple = renderUnifiedSearchSuccess(
+      completed([
+        docsHit(),
+        docsHit({
+          target: "npm:express@5.2.1",
+          title: "Routing",
+          locator: { sourceUrl: "https://expressjs.com/en/guide/routing" },
+        }),
+      ]),
+    );
+    expect(multiple).toContain(
+      "[1] docs · aider-AI/aider@v0.55.0 · Edit Formats",
+    );
+    expect(multiple).toContain("[2] docs · npm:express@5.2.1 · Routing");
+  });
+
+  it("states when a documentation source URL is unavailable without exposing its page ID", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([docsHit({ locator: { pageId: "internal-page-id" } })]),
+    );
+
+    expect(text).toContain("[1] docs · Edit Formats\n  Source URL unavailable");
+    expect(text).not.toContain("internal-page-id");
+  });
+
+  it("marks repository hits whose human location is unavailable", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([codeHit({ locator: {} })]),
+    );
+
+    expect(text).toContain(
+      "[1] code · cline/cline@v3.4.2 · location unavailable",
+    );
+  });
+
   it("renders completed empty evidence once and uses model pivots", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
@@ -1283,7 +1323,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain(
       "[1] code · cline/cline@v3.4.2 · src/integrations/diff/strategies/multi-search-replace.ts:142-156",
     );
-    expect(text).toContain("[2] docs · Edit Formats");
+    expect(text).toContain("[2] docs · aider-AI/aider@v0.55.0 · Edit Formats");
     expect(text).toContain(
       "Available now: versions 5.2.1, 5.2.0, 5.1.0 +1, refs HEAD,\n  main, next +1",
     );
@@ -1303,7 +1343,36 @@ describe("renderUnifiedSearchSuccess", () => {
     });
 
     expect(presentation.hasMore).toBe(true);
-    expect(text).toContain("No results returned");
+    expect(text).toContain("No results returned | next_offset=10");
+  });
+
+  it("keeps pagination in active and terminal result headlines", () => {
+    const active = renderUnifiedSearchSuccess(
+      incomplete({
+        partialResults: false,
+        hasMore: true,
+        nextOffset: 10,
+        results: [codeHit()],
+      }),
+    );
+    const terminal = renderUnifiedSearchSuccess(
+      incomplete({
+        partialResults: false,
+        completed: false,
+        hasMore: true,
+        nextOffset: 10,
+        results: [codeHit()],
+        progress: {
+          status: "DEFERRED",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 1,
+        },
+      }),
+    );
+
+    expect(firstLine(active)).toContain("next_offset=10");
+    expect(firstLine(terminal)).toContain("next_offset=10");
   });
 
   it("wraps bounded summaries without splitting exact tokens", () => {
@@ -1420,6 +1489,16 @@ describe("renderUnifiedSearchSuccess", () => {
     for (const line of text.split("\n")) {
       if (!line.startsWith("[")) expect(line.length).toBeLessThanOrEqual(82);
     }
+  });
+
+  it("does not split unbreakable summary tokens", () => {
+    const token = `https://example.com/${"segment".repeat(20)}`;
+    const text = renderUnifiedSearchSuccess(
+      completed([codeHit({ summary: `Reference ${token} after` })]),
+      { width: 40 },
+    );
+
+    expect(text).toContain(`  ${token}`);
   });
 });
 

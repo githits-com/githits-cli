@@ -366,6 +366,9 @@ Hit headers are numbered so ranked results can be referenced as `[1]` through
 `[N]`. Types compact to `repo doc`, `docs`, `code`, and `symbol`; repository
 and code hits include their target plus a non-empty file location when one is
 available. Documentation hits put a direct HTTP(S) source URL in the body.
+When the backend has no source URL, the body says `Source URL unavailable`
+without exposing the opaque page ID. Repository-backed hits without a file path
+end their header with `location unavailable` rather than fabricating a locator.
 Executable `docs_read` / `code_read` commands, opaque page IDs, qualified
 internal IDs, and kind/category tails are omitted from default text; JSON keeps
 the full locator and follow-up fields unchanged. A summary's first line is
@@ -373,8 +376,8 @@ omitted when it repeats the title after removing Markdown heading markers, as
 is an immediately following setext underline. Source indentation is retained
 when summaries wrap, with a consistent two-space hit-body indent.
 
-Completed result headlines combine count, type breakdown, and pagination when
-known, for example `10 results | 5 repo docs, 5 docs pages | next_offset=10`.
+Result headlines combine count, type breakdown when completed, and pagination
+when known, for example `10 results | 5 repo docs, 5 docs pages | next_offset=10`.
 When more results exist without a next offset, the final field is
 `more available`. Pagination is not repeated as a bottom paragraph.
 

@@ -380,6 +380,20 @@ describe("runMcpSmoke", () => {
     await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
   });
 
+  it("allows documentation hits that disclose a missing source URL", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          "1 result | 1 docs page\n\n[1] docs · README\n" +
+            "  Source URL unavailable",
+        );
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
+
   it.each([
     [
       "1 result\n\n[1] code · npm:express@5.2.1\n" +

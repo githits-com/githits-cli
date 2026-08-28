@@ -41,7 +41,7 @@ Next: shorten or broaden query; use githits code grep.`;
   const completed = `1 result | 1 code | next_offset=10
 
 [1] code · npm:express@5.2.1 · lib/application.js`;
-  const completedDocs = `1 result | 1 docs pages
+  const completedDocs = `1 result | 1 docs page
 
 [1] docs · Getting started
   https://docs.example.com/getting-started`;
@@ -88,6 +88,15 @@ Next: shorten or broaden query; use githits code grep.`;
   it("accepts completed documentation hit text without a target group", () => {
     expect(() =>
       assertSearchTerminalText(completedDocs, "search"),
+    ).not.toThrow();
+  });
+
+  it("accepts documentation hits that disclose a missing source URL", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        "1 result | 1 docs page\n\n[1] docs · README\n  Source URL unavailable",
+        "search",
+      ),
     ).not.toThrow();
   });
 
