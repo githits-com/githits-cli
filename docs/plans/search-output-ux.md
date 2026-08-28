@@ -536,7 +536,8 @@ Deterministic and product verification completed as follows:
 
 Review and evaluation truth is also recorded explicitly: Luna preflight
 findings were fixed; the single internal reviewer finding (parity process-state
-leak) was fixed; and three actual Claude Opus review rounds finished clean.
+leak) was fixed; and three actual Claude Opus rounds completed, with round-1
+and round-2 findings fixed and the final round clean.
 The retained terminal session is not a durable plan requirement.
 
 The after run at
