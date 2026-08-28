@@ -6,8 +6,8 @@
 - Current phase: Phase 1 — deterministic client recovery and canonical target
   guidance complete
 - Later phase: Phase 2 — terminal backend failure details (BLOCKED on private backend #2133)
-- Commits: runtime `56f6003`; guidance/docs `e0057e6`; review fixes `c88194b`,
-  `80f93a2`; closure: this commit (SHA assigned by git).
+- Commits: implementation runtime `56f6003`; guidance/docs `e0057e6`; runtime/preflight
+  fixes `c88194b`, `80f93a2`; privacy/wording review closure `b6c0581`.
 - Final evidence: 3522 full tests pass; deterministic, build, package, and plugin
   checks pass; all four smoke modes pass; six targeted agent evaluations pass.
 - Last verified: 2026-08-28
@@ -191,8 +191,8 @@ presentation, CLI, MCP tool, and parity layers.
 
 Runtime behavior and focused tests are implemented in commit `56f6003`. Guidance,
 durable documentation, release metadata, final repository validation, and internal
-and external review are complete. Review fixes are recorded in `c88194b` and
-`80f93a2`; this closure commit records the final evidence below.
+and external review are complete. Runtime/preflight fixes are recorded in `c88194b`
+and `80f93a2`; privacy/wording review closure is recorded in `b6c0581`.
 
 **Expected outcome:** An invalid or unresolvable target cannot send a text caller into
 an unchanged retry loop; symbol readiness and ignored-filter warnings identify the
@@ -346,8 +346,8 @@ All four product smoke modes pass: `bun run smoke:cli`, `bun run smoke:mcp`,
 evidence covers canonical `swift:github.com/vapor/vapor` and `zig:gh/zigzap/zap`
 targets, invalid short-form recovery, symbol-only labelling, and lane-aware warnings.
 Six targeted agent evaluations passed across the MCP descriptor/full and skills
-surfaces. Internal and external reviews are clean after commits `c88194b` and
-`80f93a2`.
+surfaces. Internal and external reviews are clean after runtime/preflight fixes
+`c88194b` and `80f93a2`, followed by privacy/wording review closure `b6c0581`.
 
 ### Phase 1 acceptance criteria
 
