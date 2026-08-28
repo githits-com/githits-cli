@@ -16,6 +16,10 @@ const ANSI_SGR_PATTERN = new RegExp(
   "g",
 );
 
+function stripAnsi(text: string): string {
+  return text.replace(ANSI_SGR_PATTERN, "");
+}
+
 const backendResponse: PackageUpgradeReviewResponse = {
   summary: {
     total: 1,
@@ -590,6 +594,185 @@ describe("package upgrade review response", () => {
       terminalWidth: 1,
     });
     expect(narrow).toContain("Upgrade review - 1 package");
+  });
+
+  it("bounds multi-locator rows while preserving overlong single locators", () => {
+    const base = formatterReview();
+    const transitive = base.security.transitive!;
+    const response = formatterResponse([
+      formatterReview({
+        security: {
+          ...base.security,
+          transitive: {
+            ...transitive,
+            introducedPackageDetails: [
+              {
+                ...transitive.introducedPackageDetails[0]!,
+                registry: "npm",
+                name: "qs",
+                versions: ["6.13.0", "6.15.3"],
+                advisoryIds: [
+                  "GHSA-6rw7-vpxm-498p",
+                  "GHSA-q8mj-m7cp-5q26",
+                  "GHSA-w7fw-mjwx-w883",
+                  "GHSA-extra-long-locator",
+                ],
+                maxSeverityLabel: "medium",
+              },
+            ],
+            introducedPackageDetailsTotalCount: 1,
+            introducedPackageDetailsTruncated: false,
+          },
+        },
+        changelog: {
+          ...base.changelog,
+          entries: [
+            {
+              ...base.changelog.entries[0]!,
+              version: "5.2.1",
+              publishedAt: "2025-12-01T20:49:43.268Z",
+              htmlUrl:
+                "https://github.com/expressjs/express/releases/tag/v5.2.1",
+            },
+          ],
+          keywordEntries: [
+            {
+              ...base.changelog.keywordEntries[0]!,
+              version: "5.2.1",
+              publishedAt: "2025-12-01T20:49:43.268Z",
+              htmlUrl:
+                "https://github.com/expressjs/express/releases/tag/v5.2.1",
+            },
+          ],
+        },
+      }),
+    ]);
+    const text = formatPackageUpgradeReviewTerminal(response, {
+      terminalWidth: 80,
+    });
+    const plain = stripAnsi(text);
+    const lines = plain.split("\n").filter((line) => line.length > 0);
+
+    expect(plain).toContain("    - npm:qs@6.13.0|6.15.3 affected=1 medium(4)");
+    expect(plain).toContain(
+      "      Advisories: GHSA-6rw7-vpxm-498p, GHSA-q8mj-m7cp-5q26, GHSA-w7fw-mjwx-w883,",
+    );
+    expect(plain).toContain("                  GHSA-extra-long-locator");
+    expect(plain).toContain(
+      "    - 5.2.1 (2025-12-01T20:49:43.268Z)\n      https://github.com/expressjs/express/releases/tag/v5.2.1",
+    );
+    expect(Math.max(...lines.map((line) => line.length))).toBeLessThanOrEqual(
+      80,
+    );
+
+    const ordinary = stripAnsi(
+      formatPackageUpgradeReviewTerminal(
+        formatterResponse([
+          formatterReview({
+            changelog: {
+              ...base.changelog,
+              entries: [
+                {
+                  ...base.changelog.entries[0]!,
+                  version: "5.2.1",
+                  publishedAt: "2025-12-01T20:49:43.268Z",
+                  htmlUrl:
+                    "https://github.com/expressjs/express/releases/tag/v5.2.1",
+                },
+              ],
+              sampledEntries: [
+                {
+                  ...base.changelog.entries[0]!,
+                  version: "5.2.1",
+                  publishedAt: "2025-12-01T20:49:43.268Z",
+                  htmlUrl:
+                    "https://github.com/expressjs/express/releases/tag/v5.2.1",
+                },
+              ],
+              keywordEntries: [],
+              totalKeywordEntries: 0,
+              breakingSignals: [],
+              migrationSignals: [],
+            },
+          }),
+        ]),
+        { terminalWidth: 80 },
+      ),
+    );
+    expect(ordinary).toContain(
+      "Sampled release entries\n    - 5.2.1 (2025-12-01T20:49:43.268Z)\n      https://github.com/expressjs/express/releases/tag/v5.2.1",
+    );
+    expect(
+      Math.max(
+        ...ordinary
+          .split("\n")
+          .filter((line) => line.length > 0)
+          .map((line) => line.length),
+      ),
+    ).toBeLessThanOrEqual(80);
+
+    const overlongUrl = "https://example.com/releases/" + "x".repeat(80);
+    const overlongCoordinate = "transitive-" + "x".repeat(80);
+    const overlong = stripAnsi(
+      formatPackageUpgradeReviewTerminal(
+        formatterResponse([
+          formatterReview({
+            security: {
+              ...base.security,
+              transitive: {
+                ...transitive,
+                introducedPackageDetails: [
+                  {
+                    ...transitive.introducedPackageDetails[0]!,
+                    name: overlongCoordinate,
+                    advisoryIds: [],
+                  },
+                ],
+                introducedPackageDetailsTotalCount: 1,
+                introducedPackageDetailsTruncated: false,
+              },
+            },
+            changelog: {
+              ...base.changelog,
+              entries: [
+                {
+                  ...base.changelog.entries[0]!,
+                  htmlUrl: overlongUrl,
+                },
+              ],
+              keywordEntries: [
+                {
+                  ...base.changelog.keywordEntries[0]!,
+                  htmlUrl: overlongUrl,
+                },
+              ],
+            },
+          }),
+        ]),
+        { terminalWidth: 80 },
+      ),
+    );
+    expect(overlong).toContain(overlongUrl);
+    expect(overlong).toContain(overlongCoordinate);
+    expect(
+      overlong
+        .split("\n")
+        .some((line) => line.includes(overlongUrl) && line.length > 80),
+    ).toBe(true);
+    expect(
+      overlong
+        .split("\n")
+        .some((line) => line.includes(overlongCoordinate) && line.length > 80),
+    ).toBe(true);
+    expect(
+      overlong
+        .split("\n")
+        .filter((line) => line.length > 80)
+        .every(
+          (line) =>
+            line.includes(overlongUrl) || line.includes(overlongCoordinate),
+        ),
+    ).toBe(true);
   });
 
   it("keeps no-color text ASCII-authored and colors attention without changing words", () => {

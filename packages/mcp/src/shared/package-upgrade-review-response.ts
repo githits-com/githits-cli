@@ -770,6 +770,7 @@ function formatTransitiveVulnerabilityDetails(
 ): string[] {
   if (!transitive) return [];
   const useColors = options.useColors === true;
+  const width = normaliseTerminalWidth(options.terminalWidth);
   const lines: string[] = [];
   const limit = options.verbose ? Number.POSITIVE_INFINITY : 5;
   appendTransitivePackageLines(
@@ -779,6 +780,7 @@ function formatTransitiveVulnerabilityDetails(
     transitive.introducedPackageDetailsTotalCount,
     transitive.introducedPackageDetailsTruncated,
     limit,
+    width,
     useColors,
   );
   appendTransitivePackageLines(
@@ -788,6 +790,7 @@ function formatTransitiveVulnerabilityDetails(
     transitive.stillAffectedPackageDetailsTotalCount,
     transitive.stillAffectedPackageDetailsTruncated,
     limit,
+    width,
     useColors,
   );
   appendTransitivePackageLines(
@@ -797,6 +800,7 @@ function formatTransitiveVulnerabilityDetails(
     transitive.fixedPackageDetailsTotalCount,
     transitive.fixedPackageDetailsTruncated,
     limit,
+    width,
     useColors,
   );
   return lines;
@@ -809,6 +813,7 @@ function appendTransitivePackageLines(
   totalCount: number,
   truncated: boolean,
   limit: number,
+  width: number,
   useColors: boolean,
 ): void {
   if (totalCount === 0) return;
@@ -818,9 +823,8 @@ function appendTransitivePackageLines(
       : `  ${label}`,
   );
   const visible = packages.slice(0, limit);
-  for (const pkg of visible) {
-    lines.push(`    - ${formatTransitivePackage(pkg)}`);
-  }
+  for (const pkg of visible)
+    lines.push(...formatTransitivePackageLines(pkg, width));
   const verboseRemaining = Math.max(0, packages.length - visible.length);
   if (verboseRemaining > 0)
     lines.push(`    - ... +${verboseRemaining} more with verbose output`);
@@ -836,16 +840,27 @@ function appendTransitivePackageLines(
     );
 }
 
-function formatTransitivePackage(
+function formatTransitivePackageLines(
   pkg: UpgradeTransitiveVulnerablePackage,
-): string {
+  width: number,
+): string[] {
   const severity = pkg.maxSeverityLabel
     ? ` ${pkg.maxSeverityLabel}${typeof pkg.maxSeverityScore === "number" ? `(${pkg.maxSeverityScore})` : ""}`
     : "";
-  const advisories = pkg.advisoryIds.length
-    ? ` advisories: ${pkg.advisoryIds.join(", ")}`
-    : "";
-  return `${pkg.registry}:${pkg.name}@${pkg.versions.join("|")} affected=${pkg.affectedCount}${severity}${advisories}`;
+  const lines = [
+    `    - ${pkg.registry}:${pkg.name}@${pkg.versions.join("|")} affected=${pkg.affectedCount}${severity}`,
+  ];
+  if (pkg.advisoryIds.length > 0) {
+    const prefix = "      Advisories: ";
+    appendWrappedText(
+      lines,
+      prefix,
+      pkg.advisoryIds.join(", "),
+      width,
+      " ".repeat(prefix.length),
+    );
+  }
+  return lines;
 }
 
 function formatChangesSection(
@@ -975,11 +990,7 @@ function formatKeywordChangelogEntry(
   width: number,
   useColors: boolean,
 ): string[] {
-  const version = entry.version ?? "unknown-version";
-  const link = entry.htmlUrl ? ` ${entry.htmlUrl}` : "";
-  const lines = [
-    `    - ${version}${entry.publishedAt ? ` (${entry.publishedAt})` : ""}${link}`,
-  ];
+  const lines = formatChangelogEntryHeader(entry, width);
   const matched = formatMatchedExcerpts(entry, options.verbose === true);
   for (const excerpt of matched) {
     appendWrappedText(lines, "      ", excerpt, width, "      ", (line) =>
@@ -993,11 +1004,7 @@ function formatPlainChangelogEntry(
   entry: UpgradeChangelogEntry,
   width: number,
 ): string[] {
-  const version = entry.version ?? "unknown-version";
-  const link = entry.htmlUrl ? ` ${entry.htmlUrl}` : "";
-  const lines = [
-    `    - ${version}${entry.publishedAt ? ` (${entry.publishedAt})` : ""}${link}`,
-  ];
+  const lines = formatChangelogEntryHeader(entry, width);
   if (entry.headline) {
     appendWrappedText(
       lines,
@@ -1008,6 +1015,18 @@ function formatPlainChangelogEntry(
     );
   }
   return lines;
+}
+
+function formatChangelogEntryHeader(
+  entry: UpgradeChangelogEntry,
+  width: number,
+): string[] {
+  const version = entry.version ?? "unknown-version";
+  const header = `    - ${version}${entry.publishedAt ? ` (${entry.publishedAt})` : ""}`;
+  if (!entry.htmlUrl) return [header];
+  if (header.length + 1 + entry.htmlUrl.length <= width)
+    return [`${header} ${entry.htmlUrl}`];
+  return [header, `      ${entry.htmlUrl}`];
 }
 
 function formatMatchedExcerpts(

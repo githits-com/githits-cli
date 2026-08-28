@@ -273,7 +273,8 @@ Security
   Added direct advisories
     - GHSA-new high(7.5): new advisory | fixed in 4.4.4
   Added transitive vulnerable packages
-    - npm:left-pad@1.0.0 affected=1 medium(4) advisories: GHSA-transitive
+    - npm:left-pad@1.0.0 affected=1 medium(4)
+      Advisories: GHSA-transitive
     - ... +1 more not returned by backend page
 
 Deprecation
