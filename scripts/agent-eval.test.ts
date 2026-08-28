@@ -57,6 +57,7 @@ import {
   formatCompareReport,
   formatRunReport,
   isContainedRelativePath,
+  loadRunReport,
   normalizeToolName,
   normalizeToolStatus,
   parseReportArgs,
@@ -2177,6 +2178,39 @@ describe("agent eval harness", () => {
     expect(formatRunReport(longContextReport)).toContain(
       "costUncertainty=long_context_pricing_not_attributable",
     );
+  });
+
+  it("binds metrics to run identity while accepting legacy run metadata", () => {
+    const runDir = createRunFixture();
+    writeMetricsFixture(runDir, [createMetricsRecord("pkg-vulns")]);
+    const workloads = [
+      {
+        id: "pkg-vulns",
+        status: "success",
+      },
+    ];
+
+    writeJson(join(runDir, "run.json"), {
+      runId: "run-other",
+      workloads,
+    });
+    const mismatch = loadRunReport(runDir);
+    expect(mismatch.metrics.baseRateEstimatedCostUsd).toBeNull();
+    expect(mismatch.workloads[0]?.metrics.logicalToolCount).toBeNull();
+    expect(mismatch.metricsWarnings).toContain(
+      "metrics.json runId mismatch; normalized usage, cost, and logical tool metrics are unknown",
+    );
+
+    const matching = buildRunReportFromMetadata(runDir, {
+      runId: "run-metrics",
+      workloads,
+    });
+    expect(matching.workloads[0]?.metrics.logicalToolCount).toBe(2);
+    expect(matching.metrics.baseRateEstimatedCostUsd).not.toBeNull();
+
+    const legacy = buildRunReportFromMetadata(runDir, { workloads });
+    expect(legacy.workloads[0]?.metrics.logicalToolCount).toBe(2);
+    expect(legacy.metrics.baseRateEstimatedCostUsd).not.toBeNull();
   });
 
   it("keeps old and unsafe metrics runs reportable with unknown values", () => {

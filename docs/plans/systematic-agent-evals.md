@@ -562,6 +562,9 @@ None.
 - Non-GitHits shell commands remain outside GitHits tool metrics.
 - Older run directories without usage events produce a readable report with
   unknown metrics and a schema warning.
+- When run metadata includes `runId`, a validated metrics artifact with a
+  different run ID is rejected as unknown; legacy metadata without a run ID
+  remains compatible with valid metrics artifacts.
 
 ### Verification
 

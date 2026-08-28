@@ -36,6 +36,7 @@ export interface AgentEvalReportOptions {
 }
 
 export interface AgentEvalRunMetadata {
+  runId?: string;
   agent?: string;
   model?: string;
   reasoningEffort?: string;
@@ -289,7 +290,7 @@ function unknownAggregateMetrics(
   };
 }
 
-function loadRunMetrics(runDir: string): LoadedMetrics {
+function loadRunMetrics(runDir: string, expectedRunId?: string): LoadedMetrics {
   const metricsPath = join(runDir, "metrics.json");
   if (!existsSync(metricsPath)) {
     return {
@@ -328,6 +329,13 @@ function loadRunMetrics(runDir: string): LoadedMetrics {
     return {
       warnings: [
         "metrics.json invalid; normalized usage, cost, and logical tool metrics are unknown",
+      ],
+    };
+  }
+  if (expectedRunId !== undefined && parsed.data.runId !== expectedRunId) {
+    return {
+      warnings: [
+        "metrics.json runId mismatch; normalized usage, cost, and logical tool metrics are unknown",
       ],
     };
   }
@@ -626,7 +634,7 @@ export function buildRunReportFromMetadata(
     }
     workloadIds.add(workload.id);
   }
-  const loadedMetrics = loadRunMetrics(runDir);
+  const loadedMetrics = loadRunMetrics(runDir, metadata.runId);
   const metrics = loadedMetrics.value;
   const metricsByWorkloadId = new Map<string, AgentEvalRecord>();
   const duplicateMetricIds = new Set<string>();

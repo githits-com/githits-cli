@@ -28,6 +28,9 @@ For each run, `scripts/agent-eval.ts`:
 
 The report loader accepts older run directories. It checks that `metrics.json`
 resolves inside the run directory and validates it with the shared Zod schema.
+When `run.json` includes a `runId`, the validated metrics artifact must carry
+the same ID; a mismatch is rejected as unknown rather than attached to the
+run. Legacy run metadata without a `runId` continues to accept valid metrics.
 Missing, malformed, or unsafe metrics make normalized usage, cost, aggregate
 duration, and logical-call values `null`/`unknown`, never fabricated zeroes.
 Duplicate or unmatched records are warned and are not attached to a workload;
