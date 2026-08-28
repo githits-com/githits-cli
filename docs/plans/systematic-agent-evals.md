@@ -3,7 +3,7 @@
 ## Status
 
 - Overall: IN PROGRESS
-- Current phase: Phase 2 — systematic local suites and paired comparison (READY)
+- Current phase: Phase 2 — systematic local suites and paired comparison (VALIDATED)
 - Previous phase: Phase 1 — trustworthy local metrics (MERGED)
 - Owner: repository maintainers
 - Last verified: 2026-08-28
@@ -16,9 +16,10 @@ The repository has a real-agent eval harness and a useful workload corpus. The
 initial implementation was optimized for qualitative, human-driven inspection:
 it did not persist normalized token or cost metrics, its comparison output was
 too narrow for regression analysis, and one verified extraction rule could hide
-GitHits CLI fallback in the minimal MCP profile. Phase 1 now adds local,
-schema-validated metrics and report fields, while comparison breadth, suite
-orchestration, and persistent history remain later work.
+GitHits CLI fallback in the minimal MCP profile. Phase 1 added local,
+schema-validated metrics and report fields; Phase 2 now adds named suites,
+paired comparison, and measured local baselines. Persistent history remains
+later work.
 
 When this effort is complete:
 
@@ -78,10 +79,10 @@ Out of scope for the initial phases:
   final JSON, discovery events, effective model settings, agent CLI versions,
   and git branch/SHA.
 - `scripts/agent-eval-report.ts` derives status, duration, unique tools, raw
-  event count, errors, self-reported issues, and matched normalized metrics.
-  Comparison remains limited to status, tool-name presence, raw event/status
-  counts, and self-reported issue strings; logical per-tool frequency and
-  token/cost deltas remain Phase 2 work.
+  event count, errors, self-reported issues, matched normalized metrics, and
+  logical calls by normalized tool and surface. The Phase 2 suite layer adds
+  persistent suite artifacts and matched-cohort token, cost, duration, and
+  per-tool comparisons around those reports.
 - There are 25 non-reporting workloads: 21 automation-safe stable workloads,
   one stateful onboarding workload, and three explicitly experimental-tool
   workloads.
@@ -345,9 +346,9 @@ harness changes.
   shows a workload is redundant, unsafe, or consistently non-diagnostic.
 - MCP local mode is the initial scheduled surface because it evaluates the
   checkout on `main`.
-- Two Luna/profile shards can run concurrently. The bounded local baseline
-  exercised this shape without a verified backend issue; Phase 2 measurements
-  will determine the automation limit.
+- Two Luna/profile shards can run concurrently. The Phase 2 validation exercised
+  this shape without a verified backend issue and measured the actual suite
+  timing and cost before any automation decision.
 - Daily evals are for regression detection and investigation, not deterministic
   correctness proof.
 - A service-neutral JSON contract lets local work proceed before the team
@@ -367,10 +368,10 @@ The following must be resolved before Phase 3 is detailed or implemented:
   authentication must be verified without exposing credentials. If policy or
   licensing requires a dedicated runner, that is a user-approved infrastructure
   decision.
-- **Budget and concurrency:** approve a daily dollar/quota ceiling after Phase 2
-  measures the real suites. The current Luna-only planning estimate is about
-  $0.49/day for stable-full, or about $15 per 30-day month, before service
-  charges.
+- **Budget and concurrency:** approve a daily dollar/quota ceiling before Phase
+  3. The measured Luna-only stable-full run cost an estimated $0.48549548 for
+  both profiles, before service charges; this is a base-rate estimate rather
+  than a billing guarantee.
 - **Harness update policy:** confirm whether daily jobs intentionally install
   latest agent CLIs, use an approved moving version range, or run both floating
   and pinned controls. Latest-only is the smallest design that detects harness
@@ -474,7 +475,7 @@ The following must be resolved before Phase 5:
 1. **Phase 1 — trustworthy local metrics (MERGED):** every existing local run
    produces auditable per-workload tool/token/cost metrics, including visible
    CLI fallback and explicit unknown telemetry.
-2. **Phase 2 — systematic local suites and paired comparison (READY):**
+2. **Phase 2 — systematic local suites and paired comparison (VALIDATED):**
    maintainers can execute canary/smoke/full matrices locally, compare a
    candidate to a compatible main baseline, and see per-tool frequency plus
    measured time/cost totals.
@@ -493,8 +494,9 @@ The following must be resolved before Phase 5:
 
 ### Status
 
-MERGED — implementation and validation complete; live canary passed. PR #321
-merged as `e9ccdabec02cdc9c544ef9959c3a886d868e12a6` on 2026-08-28.
+MERGED — implementation and validation complete. The durable behavior is
+schema-validated local metrics, visible MCP-to-CLI fallback, explicit unknown
+telemetry, and compatibility with existing raw run artifacts.
 
 ### Expected Outcome
 
@@ -624,10 +626,9 @@ None.
   `bun run build`: passed on 2026-08-28.
 - `bun test`: 3,338 tests passed with no failures, across 184 files, with
   10,762 expectations in 59.05 seconds on 2026-08-28.
-- Pull request #321 merged to `main` as
-  `e9ccdabec02cdc9c544ef9959c3a886d868e12a6`. Its final pull-request workflow
-  run (`33167102840`) passed build and checks, Ubuntu and Windows tests, Bun
-  compatibility, and Node 20, 22, 24, and 26 compatibility.
+- The implementation is covered by deterministic metrics, redaction,
+  compatibility, and cross-platform path tests; typecheck, formatting, lint,
+  and build validation passed during acceptance.
 
 ### Luna Validation Canary
 
@@ -666,8 +667,14 @@ calls through MCP.
 
 ### Status
 
-READY FOR IMPLEMENTATION. This phase is local-only; deterministic coverage runs
-in normal CI, but paid agent execution remains Phase 3 work.
+VALIDATED — implementation and paid Luna validation completed on 2026-08-28.
+This phase remains local-only; paid CI scheduling, service persistence, Haiku,
+and quality judging remain later work.
+
+The canary, smoke, and stable-full artifacts plus the bounded pair contain
+66/66 successful paid cells, with estimated spend of $0.78084672 across all
+artifacts. Exact per-tool counts, workload costs, timing, and observed natural
+variance are recorded in `docs/implementation/agentic-eval-metrics.md`.
 
 ### Expected Outcome
 
@@ -687,10 +694,10 @@ designed.
   can be derived without changing or duplicating the schema.
 - Local profile comparisons remain diagnostic because of the documented global
   instruction isolation limits.
-- Baseline and candidate can use the same installed agent CLI versions during a
-  paired run.
-- Two Luna profile shards can run concurrently without a verified backend quota
-  problem; workloads remain sequential inside each shard.
+- The bounded paid pair used the same installed agent CLI version on both sides;
+  the comparison records this identity explicitly.
+- Two Luna profile shards ran concurrently without a quota failure in the
+  validation runs; workloads remained sequential inside each shard.
 
 ### Unknowns Or Product Decisions
 
@@ -753,7 +760,9 @@ None. The target service and automation budget remain later-phase decisions.
    checkout is both the measurement-harness root and candidate target, so a
    separate candidate-root flag cannot point execution at a different tree.
 
-   The experimental suite is explicit intent and enables the required local
+   The suite artifact's `dryRun` mode is an explicit comparison dimension:
+   mixed dry-run/live evidence is incompatible and suppresses direct metric
+   deltas. The experimental suite is explicit intent and enables the required local
    experimental-tool flag. `stateful-manual` is manifest-visible and supports
    validation/dry-run only in Phase 2; a live suite invocation fails before
    launching an agent because no disposable home/config contract has been
@@ -810,8 +819,9 @@ None. The target service and automation budget remain later-phase decisions.
    Live paired mode and offline compare mode call the same pure comparison and
    write a schema-validated `comparison.json` with one pair ID and references to
    its baseline and candidate suite artifacts. Agent, model, effort, surface,
-   server, profile, workload, experimental-tool, published-package, and
-   measurement-content mismatches are checked before calculating direct deltas.
+   server, profile, workload, execution mode, experimental-tool,
+   published-package, and measurement-content mismatches are checked before
+   calculating direct deltas.
    An agent CLI version mismatch remains reportable: it produces a prominent
    warning and prevents the result from being labeled repository-only, but does
    not suppress otherwise compatible deltas.
@@ -868,7 +878,7 @@ None. The target service and automation budget remain later-phase decisions.
    Phase 2 adds no GitHub Actions workflow, scheduled paid run, service SDK,
    exporter, repository database, queue, cache, lock, or retry mechanism.
 
-### Ordered Implementation Steps
+### Ordered Implementation Steps (completed)
 
 1. Write failing report tests for logical `callsByTool` aggregation and deltas:
    repeated calls, the same name across MCP/CLI, started-only/failed calls,
@@ -920,6 +930,9 @@ None. The target service and automation budget remain later-phase decisions.
   both targets by design.
 - Offline comparison performs no agent or target launch and produces the same
   structured/readable deltas as the live pair for equivalent artifacts.
+- Mixed dry-run/live suite artifacts are incompatible evidence; direct metric,
+  logical-call, and ordered-sequence deltas are suppressed while status
+  evidence remains visible.
 - A dirty checkout is allowed for local exploration but must be labeled; the
   comparison cannot claim a reproducible git-only baseline.
 - A profile or model missing from one side is a missing matrix cell, not a zero.
@@ -935,67 +948,67 @@ None. The target service and automation budget remain later-phase decisions.
 
 ### Verification
 
-- Deterministic tests for per-tool aggregation/deltas, manifest inventory and
+- [x] Deterministic tests for per-tool aggregation/deltas, manifest inventory and
   expansion, fixed Luna matrix identity, root separation, target-owned full
   guidance, content identity, partial failure, matched-cohort aggregate math,
   and traversal/symlink containment.
-- `bun test scripts/agent-eval*.test.ts`
-- `bun test`
-- `bun run typecheck`
-- `bun run format:check`
-- `bun run lint`
-- `bun run build`
-- Dry-run all named suites and inspect commands/output paths.
-- Live canary, smoke, and stable-full measurements using Luna-low and both
+- [x] `bun test scripts/agent-eval*.test.ts`
+- [x] `bun test`
+- [x] `bun run typecheck`
+- [x] `bun run format:check`
+- [x] `bun run lint`
+- [x] `bun run build`
+- [x] Dry-run all named suites and inspect commands/output paths.
+- [x] Live canary, smoke, and stable-full measurements using Luna-low and both
   profiles.
-- Run a no-change paired canary; it may show stochastic metric variance but no
+- [x] Run a no-change paired canary; it may show stochastic metric variance but no
   identity, harness, or content mismatch.
 
 ### Acceptance Criteria
 
-- One documented command runs each named suite and the default two-cell Luna
+- [x] One documented command runs each named suite and the default two-cell Luna
   matrix.
-- The manifest classifies exactly all 25 current workloads: 21 stable, one
+- [x] The manifest classifies exactly all 25 current workloads: 21 stable, one
   stateful, and three experimental. Adding an unclassified workload fails
   deterministic validation.
-- Every workload and suite report directly shows each normalized tool/surface
+- [x] Every workload and suite report directly shows each normalized tool/surface
   pair and its logical call count; raw provider events cannot inflate it.
-- Comparison shows per-tool before/after counts and absolute deltas, including
+- [x] Comparison shows per-tool before/after counts and absolute deltas, including
   additions, removals, status changes, and MCP/CLI surface movement. Unknown
   telemetry remains unknown.
-- Normal canary/smoke/stable-full execution cannot invoke onboarding or an
+- [x] Normal canary/smoke/stable-full execution cannot invoke onboarding or an
   experimental workload. `stateful-manual` refuses live execution in Phase 2.
-- One documented local pair workflow compares an explicit main baseline with
+- [x] One documented local pair workflow compares an explicit main baseline with
   the current candidate checkout without mutating either checkout, and one
   offline workflow compares two existing suite artifacts without paid work.
-- Offline comparison writes a standalone validated artifact that identifies
+- [x] Offline comparison writes a standalone validated artifact that identifies
   both input suites by ID/hash/path while containing each suite's child reads to
   that suite directory.
-- The paired workflow uses one candidate-owned measurement harness for both
+- [x] The paired workflow uses one candidate-owned measurement harness for both
   targets and records measurement-harness identity separately from each target
   checkout identity.
-- Each target supplies its own MCP/CLI implementation and full-profile GitHits
+- [x] Each target supplies its own MCP/CLI implementation and full-profile GitHits
   skill/project guidance. A guidance-only target fixture produces different
   installed full guidance and target-guidance identity while using the same
   measurement harness.
-- Comparison exposes token and cost deltas, duration, failures, content
+- [x] Comparison exposes token and cost deltas, duration, failures, content
   identity, and exact agent CLI versions alongside tool-count deltas.
-- Aggregate deltas use only matched compatible cells with that metric known on
+- [x] Aggregate deltas use only matched compatible cells with that metric known on
   both sides and list included/excluded cells; one-sided failures or unknown
   telemetry cannot create unlike-cohort deltas.
-- Workload-content mismatches exclude only affected workload cells;
+- [x] Workload-content mismatches exclude only affected workload cells;
   reporting/schema mismatches suppress all direct suite deltas; harness Git or
   agent CLI version mismatches remain prominent attribution warnings.
-- Complete and partial `suite.json` and `comparison.json` artifacts validate
+- [x] Complete and partial `suite.json` and `comparison.json` artifacts validate
   against their versioned schemas and reference the child raw/metrics evidence.
-- Imported child references cannot traverse or follow symlinks outside their
+- [x] Imported child references cannot traverse or follow symlinks outside their
   owning suite directory.
-- Canary, smoke, and stable-full have measured wall-time and cost summaries;
+- [x] Canary, smoke, and stable-full have measured wall-time and cost summaries;
   Phase 3 no longer relies on the two-workload linear estimate.
-- Local profile evidence is labeled diagnostic unless the run manifest proves a
+- [x] Local profile evidence is labeled diagnostic unless the run manifest proves a
   clean instruction-isolated host.
-- Existing targeted `--workload` usage remains available.
-- No paid agent invocation is added to pull-request or `main` CI in this phase.
+- [x] Existing targeted `--workload` usage remains available.
+- [x] No paid agent invocation is added to pull-request or `main` CI in this phase.
 
 ## Phase 3 — Daily Main Execution And Persistent Export
 
