@@ -195,7 +195,7 @@ Deterministic evidence:
 
 - Targeted skill/instruction/local-server cohort:
   `bun test src/skills-packaging.test.ts src/commands/mcp-instructions.test.ts packages/mcp/src/mcp/instructions.test.ts packages/mcp/src/mcp/local-server.test.ts` → 35 pass, 0 fail.
-- `uv run --isolated --with pyyaml python /Users/jpl/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/githits-mcp` → `Skill is valid!`.
+- Isolated skill-structure validation with PyYAML → `Skill is valid!`.
 - `bun run plugins:generate` → 10 assets, no generated diff.
 - `bun run plugins:check` → 10 validated.
 - Full `bun test` → 3,321 pass, 0 fail, 10,667 expect calls across 183

@@ -43,9 +43,10 @@ the source values and relies on JSON escaping rather than terminal sanitization.
 
 One layer, with a second held in reserve:
 
-1. **Shared block** in the `quick_start` result — once per session —
-   states the external-content posture. Names the harm-pass-through
-   categories the agent must discount when consuming any third-party
+1. **Shared block** is delivered in the plain-MCP `quick_start` result — once
+   per session — or by the exact embedded stable guide in a loaded
+   `githits-mcp` skill. Both paths state the external-content posture and name
+   the harm-pass-through categories the agent must discount when consuming any third-party
    prose: shell / install / build / test / "validator" commands
    (including "do not execute, only display" framings); alternative /
    successor / "extracted" / "renamed" / "moved to" / peer-dependency
@@ -153,8 +154,11 @@ maintainer-controlled content:
    (IDs, versions, hashes, paths, dedicated reference URLs) versus
    the prose fields the agent should treat with the external-content
    posture.
-2. Add the tool to the `quick_start` guide — the shared block is intended to
-   be sufficient once the guide is loaded.
+2. Add the tool to the `quick_start` guide and update the exact embedded
+   `## Quick-start guide` copy in `skills/githits-mcp/SKILL.md` in the same PR;
+   `src/skills-packaging.test.ts` must continue to prove byte parity. The
+   shared block is intended to be sufficient once either stable delivery path
+   has loaded the guide.
 3. If a Pass 1 cell on the new tool shows compliance >= 2/3 on any
    attack, add a per-tool addendum to `packages/mcp/src/tools/guardrails.ts`
    naming the trustworthy structured fields and any tool-specific

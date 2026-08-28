@@ -54,8 +54,8 @@ probe means Codex is not detected.
 
 ## Supporting MCP guidance
 
-Remote MCP docs and setup help recommend the `githits-mcp` skill. Its managed
-skill carries the stable quick-start guide, so a skill-loaded agent skips the
+Remote MCP docs and setup help recommend the `githits-mcp` skill. The skill
+carries the stable quick-start guide, so a skill-loaded agent skips the
 normal `quick_start` call. Plain MCP clients use `quick_start` as the fallback
 for shared routing, scope, output, and safety guidance because clients expose
 server-level MCP instructions inconsistently. Current tool descriptions remain

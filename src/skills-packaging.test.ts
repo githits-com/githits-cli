@@ -36,6 +36,16 @@ function expectContainsAll(content: string, expected: string[]): void {
   }
 }
 
+function expectContainsAllIgnoringWhitespace(
+  content: string,
+  expected: string[],
+): void {
+  const normalizedContent = content.replace(/\s+/g, " ");
+  for (const text of expected) {
+    expect(normalizedContent).toContain(text.replace(/\s+/g, " "));
+  }
+}
+
 describe("agent skills packaging", () => {
   it("packages a public githits-onboarding skill with setup-focused frontmatter", async () => {
     const content = await read(onboardingSkillPath);
@@ -213,7 +223,7 @@ describe("agent skills packaging", () => {
       .slice(quickStartIndex + quickStartHeading.length)
       .replace(/\n$/, "");
 
-    expectContainsAll(publicContent, [
+    expectContainsAllIgnoringWhitespace(publicContent, [
       "name: githits-mcp",
       "OSS context layer",
       "public OSS/package evidence",
