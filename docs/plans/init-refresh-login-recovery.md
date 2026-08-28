@@ -2,7 +2,7 @@
 
 ## Overall plan
 
-- **Status:** Implemented and validated; final code review in progress
+- **Status:** Implemented, validated, and review-clean; awaiting merge
 - **Delivered outcome:** `npx githits@latest init` still reuses or refreshes valid
   stored authentication, but an unclassified/transient refresh failure after
   token expiry can no longer trap the user in a pre-login retry loop. Init
@@ -214,11 +214,11 @@ Do not merge these prefixes or add `-y` to interactive OAuth commands.
 
 | Phase | Status | Outcome |
 |---|---|---|
-| 1. Init recovery fix | Complete; final review in progress | One implementation increment prevents the refresh loop, normalizes init recovery commands, proves compatibility, and records the CLI patch. |
+| 1. Init recovery fix | Complete; review clean | One implementation increment prevents the refresh loop, normalizes init recovery commands, proves compatibility, and records the CLI patch. |
 
 ## Phase 1: Init recovery fix
 
-- **Status:** Complete; validation passed; final code review in progress
+- **Status:** Complete; validation and code review passed
 - **Delivered outcome:** Reinstalling with expired stale retained credentials
   either refreshes successfully or opens a fresh OAuth login. Retrying a failed
   OAuth attempt may recheck refresh first, but it reaches OAuth rather than being
@@ -399,6 +399,11 @@ the following bounded decisions:
   typed unit-test seam. It does not expand the published CLI or MCP API, and the
   production `InitDependencies` contract cannot pass an accidental second
   argument.
+
+The final internal review and Opus round on 2026-08-28 reviewed the complete
+`origin/main...HEAD` delta and returned clean with no findings. Opus also ran the
+required once-per-increment fresh-context reviewer, which independently approved
+the implementation without defects.
 
 ### Phase acceptance criteria
 
