@@ -7,12 +7,27 @@ import {
 } from "./upgrade-review.js";
 
 const originalStdoutWrite = process.stdout.write;
-const originalStdoutColumns = process.stdout.columns;
+const originalStdoutColumnsDescriptor = Object.getOwnPropertyDescriptor(
+  process.stdout,
+  "columns",
+);
 
 afterEach(() => {
   process.stdout.write = originalStdoutWrite;
-  process.stdout.columns = originalStdoutColumns;
+  restoreProperty(process.stdout, "columns", originalStdoutColumnsDescriptor);
 });
+
+function restoreProperty(
+  target: object,
+  property: string,
+  descriptor: PropertyDescriptor | undefined,
+): void {
+  if (descriptor) {
+    Object.defineProperty(target, property, descriptor);
+  } else {
+    Reflect.deleteProperty(target, property);
+  }
+}
 
 describe("parseUpgradeReviewPackageOption", () => {
   it("accepts shell-safe double-dot package ranges", () => {
@@ -75,7 +90,11 @@ describe("parseUpgradeReviewPackageOption", () => {
 
   it("passes the terminal width to the shared human-readable formatter", async () => {
     let output = "";
-    process.stdout.columns = 30;
+    Object.defineProperty(process.stdout, "columns", {
+      configurable: true,
+      writable: true,
+      value: 30,
+    });
     process.stdout.write = ((chunk: string | Uint8Array) => {
       output += chunk.toString();
       return true;
