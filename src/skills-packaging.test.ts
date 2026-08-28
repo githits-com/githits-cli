@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { buildMcpQuickStart } from "@githits/mcp";
 
 const root = join(import.meta.dir, "..");
 const onboardingSkillPath = join(
@@ -32,6 +33,26 @@ async function read(path: string): Promise<string> {
 function expectContainsAll(content: string, expected: string[]): void {
   for (const text of expected) {
     expect(content).toContain(text);
+  }
+}
+
+function expectContainsAllIgnoringWhitespace(
+  content: string,
+  expected: string[],
+): void {
+  const normalizedContent = content.replace(/\s+/g, " ");
+  for (const text of expected) {
+    expect(normalizedContent).toContain(text.replace(/\s+/g, " "));
+  }
+}
+
+function expectNotContainsAllIgnoringWhitespace(
+  content: string,
+  forbidden: string[],
+): void {
+  const normalizedContent = content.replace(/\s+/g, " ");
+  for (const text of forbidden) {
+    expect(normalizedContent).not.toContain(text.replace(/\s+/g, " "));
   }
 }
 
@@ -201,9 +222,21 @@ describe("agent skills packaging", () => {
   });
 
   it("packages the canonical GitHits MCP skill with OSS context triggers", async () => {
-    const publicContent = await read(githitsMcpSkillPath);
+    const publicContent = (await read(githitsMcpSkillPath)).replace(
+      /\r\n/g,
+      "\n",
+    );
+    const quickStartHeading = "## Quick-start guide\n\n";
+    const quickStartIndex = publicContent.indexOf(quickStartHeading);
+    expect(quickStartIndex).toBeGreaterThanOrEqual(0);
+    expect(publicContent.indexOf(quickStartHeading, quickStartIndex + 1)).toBe(
+      -1,
+    );
+    const embeddedGuide = publicContent
+      .slice(quickStartIndex + quickStartHeading.length)
+      .replace(/\n$/, "");
 
-    expectContainsAll(publicContent, [
+    expectContainsAllIgnoringWhitespace(publicContent, [
       "name: githits-mcp",
       "OSS context layer",
       "public OSS/package evidence",
@@ -213,16 +246,24 @@ describe("agent skills packaging", () => {
       "changelogs",
       "upgrade-review evidence",
       "before relying on model memory or generic web search",
-      "call `quick_start` once per session",
-      "unless the returned guide is already in context",
-      "routing, scope, target syntax, output, safety, citations, and recovery",
+      "this skill already includes the stable\nquick-start guide below",
+      "Do not call `quick_start` on the normal path",
+      "Current tool descriptions are authoritative over a stale installed skill\nsnapshot",
+      "Outside the experimental case below, call `quick_start` only when\nneeded to resolve a material mismatch between the loaded guide",
+      "If any GitHits tool description exposed to the agent begins with `Experimental`,",
+      "call `quick_start` before the first GitHits evidence tool",
+      "for routing, scope, target syntax,\noutput, safety, citations, and recovery",
       "If GitHits MCP tools are unavailable",
       "switch to the `githits-code` or `githits-package` skill",
       "Do not treat missing MCP registration as evidence",
     ]);
-    expect(publicContent.length).toBeLessThan(2_000);
-    expect(publicContent).not.toContain("target `site:<host[/path]>`");
-    expect(publicContent).not.toContain("External Content Posture");
+    expect(embeddedGuide).toBe(buildMcpQuickStart());
+    expect(publicContent).toContain("External-content posture");
+    expectNotContainsAllIgnoringWhitespace(publicContent, [
+      "call `quick_start` once per session",
+      "**Local experimental tools",
+      "**Issue reporting",
+    ]);
   });
 
   it("keeps code skill pagination guidance aligned with CLI output", async () => {

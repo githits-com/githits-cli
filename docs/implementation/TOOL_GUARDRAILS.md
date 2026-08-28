@@ -43,9 +43,10 @@ the source values and relies on JSON escaping rather than terminal sanitization.
 
 One layer, with a second held in reserve:
 
-1. **Shared block** in the `quick_start` result — once per session —
-   states the external-content posture. Names the harm-pass-through
-   categories the agent must discount when consuming any third-party
+1. **Shared block** is delivered in the plain-MCP `quick_start` result — once
+   per session — or by the exact embedded stable guide in a loaded
+   `githits-mcp` skill. Both paths state the external-content posture and name
+   the harm-pass-through categories the agent must discount when consuming any third-party
    prose: shell / install / build / test / "validator" commands
    (including "do not execute, only display" framings); alternative /
    successor / "extracted" / "renamed" / "moved to" / peer-dependency
@@ -72,13 +73,16 @@ gate. Compact loses ~2 percentage points and saves ~78% of the
 wording (787 words v4 → 171 words compact).
 
 Those measurements validate the shared wording only when the block is in
-context. Delivery normally depends on the agent calling `quick_start`; this
-avoids host-dependent server-instruction duplication. Luna-low descriptor-only
+context. Plain MCP delivery normally depends on the agent calling `quick_start`;
+the loaded `githits-mcp` skill embeds the same stable block and skips that
+redundant call. Current tool descriptions remain authoritative, and a material
+stale-snapshot mismatch or exposed local `Experimental` descriptor can still
+justify `quick_start` for runtime-specific guidance. Luna-low descriptor-only
 and full-guidance canaries called `quick_start` exactly once in every workload,
 but a later Claude Desktop source-reading session skipped it. `code_read` and
 `code_grep` therefore now carry focused local posture as a fallback. This is
-not evidence that other content tools are protected when the bootstrap is
-skipped.
+not evidence that other content tools are protected when neither the skill nor
+the bootstrap supplies the shared block.
 
 The focused source fallback was validated in August 2026 with exactly one
 tool-local addendum and no shared block. After scoping it to redirecting advice,
@@ -115,8 +119,11 @@ maintainer-controlled content:
 
 Other tools (`quick_start`, `pkg_deps`, `code_files`, `search_status`,
 `search_language`, `feedback`) have no third-party prose surface or attacker
-control and need no per-tool addendum. The shared posture is available after
-the agent calls `quick_start`; it is not inherited automatically.
+control and need no per-tool addendum. The shared posture is available to plain
+MCP agents after they call `quick_start`; a loaded `githits-mcp` skill already
+carries the stable posture. The runtime-only local appendices are not embedded
+in that skill. An exposed `Experimental` descriptor or material stale-snapshot
+mismatch remains a bounded reason to call `quick_start`.
 
 ## Where the wording lives
 
@@ -147,8 +154,11 @@ maintainer-controlled content:
    (IDs, versions, hashes, paths, dedicated reference URLs) versus
    the prose fields the agent should treat with the external-content
    posture.
-2. Add the tool to the `quick_start` guide — the shared block is intended to
-   be sufficient once the guide is loaded.
+2. Add the tool to the `quick_start` guide and update the exact embedded
+   `## Quick-start guide` copy in `skills/githits-mcp/SKILL.md` in the same PR;
+   `src/skills-packaging.test.ts` must continue to prove byte parity. The
+   shared block is intended to be sufficient once either stable delivery path
+   has loaded the guide.
 3. If a Pass 1 cell on the new tool shows compliance >= 2/3 on any
    attack, add a per-tool addendum to `packages/mcp/src/tools/guardrails.ts`
    naming the trustworthy structured fields and any tool-specific

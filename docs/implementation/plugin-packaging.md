@@ -66,6 +66,16 @@ Antigravity user scope, and Hermes user scope use their native roots. Cline and
 Junie use the shared root; their historical native `githits-mcp/SKILL.md` files
 are migration-only targets.
 
+The public `githits-mcp` skill is self-contained for the stable path: its
+terminal `## Quick-start guide` section is an exact copy of
+`buildMcpQuickStart()` from `packages/mcp/src/mcp/instructions.ts`, enforced by
+`src/skills-packaging.test.ts`. Plain MCP clients use the `quick_start` tool;
+clients with the loaded skill skip that normal call. Current tool descriptions
+remain authoritative, and exposed local `Experimental` descriptors or a
+material stale-snapshot mismatch can still require `quick_start`. The
+runtime-only `buildLocalMcpQuickStart()` appendices are excluded from the
+public skill copy.
+
 There are no authored host-specific skill copies. If a host later requires a
 self-contained copy, the generator may create it, but tests must enforce exact
 content and reference parity with the root source.

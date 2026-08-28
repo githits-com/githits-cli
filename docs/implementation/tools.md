@@ -52,14 +52,17 @@ Write the prefix as the answer to “why would an agent choose this tool now?”
 
 GitHits intentionally omits MCP initialize instructions because clients treat
 them inconsistently: some hide them, some promote them, and some repeat them
-with every tool. The no-argument, read-only `quick_start` tool is the canonical
-shared guide. Its catalog prefix names routing, public-OSS scope, and
-external-content safety; its full description asks agents to call it once per
-session before other GitHits tools unless the quick-start guide is already in
-context. It also states that tools execute without it but then lack the shared
-safety posture. Its result owns public-OSS scope, target syntax, output,
-safety, citations, and cross-tool routing. Individual tool descriptions remain
-self-contained so direct tool selection does not depend on the bootstrap.
+with every tool. Guidance has two delivery paths: a loaded `githits-mcp` skill
+already carries the stable guide and skips a normal `quick_start` call, while
+plain MCP clients use the no-argument, read-only `quick_start` tool as their
+fallback. Current tool descriptions remain authoritative; a material mismatch
+with a stale skill snapshot or an exposed `Experimental` descriptor can still
+require `quick_start` for runtime-specific guidance. The stable guide is owned
+by `packages/mcp/src/mcp/instructions.ts`; the terminal skill section must stay
+byte-for-byte aligned under `src/skills-packaging.test.ts`. Local
+`buildLocalMcpQuickStart()` appendices are runtime-only and excluded from that
+public copy. Individual tool descriptions remain self-contained so direct
+tool selection does not depend on the bootstrap.
 
 Use the tools in these roles:
 
@@ -97,7 +100,7 @@ Use the tools in these roles:
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `quick_start` | none | Load the canonical guide for public GitHub/package search, grep, code, docs, examples, routing, and external-content safety without querying GitHits evidence. Call once per session before other GitHits tools unless the guide is already in context. |
+| `quick_start` | none | Load the canonical guide for public GitHub/package search, grep, code, docs, examples, routing, and external-content safety without querying GitHits evidence. Plain MCP clients call it once per session before other GitHits tools; skip it when the loaded `githits-mcp` skill already carries the guide. |
 | `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer or target-scoped search came up short. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance and an optional `solution_id` for `feedback`; pass `format: "json"` for `{result, solution_id?}`. |
 | `search_language` | `query`, `format?` | Resolve a supported language name or alias for `get_example`; do not use it for source search. Defaults to one compact line per match; pass `format: "json"` for structured matches. |
 | `feedback` | `solution_id?`, `accepted`, `feedback_text?`, `tool_name?` | Submit feedback when a GitHits result or the overall experience was helpful, unhelpful, wrong, incomplete, slow, or confusing. Pass `solution_id` to rate an example or `tool_name` to identify a result. |
@@ -458,9 +461,11 @@ total-line response contract.
 
 The MCP server deliberately omits protocol-level `instructions`. Clients have
 handled that field as hidden guidance, privileged guidance, namespace metadata,
-or a prefix repeated on every tool. The `quick_start` tool exposes shared
-guidance once, on demand, while individual descriptions remain the source of
-truth for tool-specific routing, arguments, output, and recovery.
+or a prefix repeated on every tool. Plain MCP clients use the `quick_start`
+tool to expose shared guidance once, on demand. The loaded `githits-mcp` skill
+contains the same stable guide and therefore needs no normal bootstrap call;
+current tool descriptions remain the source of truth for tool-specific
+routing, arguments, output, and recovery.
 
 The concrete Codex failure was verified in August 2026. Codex PR
 [#21053](https://github.com/openai/codex/pull/21053) intentionally preserved
@@ -493,6 +498,13 @@ payload whose privilege, visibility, and repetition vary by host.
   guidance only for the configured reporting scope.
   Disabled or dormant reporting returns the public builder's exact baseline;
   public and remote servers never receive this block.
+
+The stable guide embedded in `skills/githits-mcp/SKILL.md` is an exact copy of
+`buildMcpQuickStart()` and is checked by `src/skills-packaging.test.ts`. The
+local experimental appendices from `buildLocalMcpQuickStart()` are not copied
+into the public skill; an exposed local `Experimental` descriptor or a material
+stale-snapshot mismatch is the bounded case where that client may call
+`quick_start` after loading the skill.
 
 The reporting contract is validated structurally in the focused instruction
 tests: one concise `accepted: false` report per distinct issue, exact enabled
@@ -665,7 +677,7 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 | `packages/mcp/src/tools/shared.ts` | Shared MCP error/action helpers |
 | `packages/mcp/src/services/test-helpers.ts` | Mock service factories |
 | `packages/mcp/src/mcp/server.ts` | Transport-neutral MCP server construction and tool registration |
-| `packages/mcp/src/mcp/instructions.ts` | Canonical guide returned by `quick_start` |
+| `packages/mcp/src/mcp/instructions.ts` | Stable guide builder returned by `quick_start` and copied into the loaded `githits-mcp` skill |
 | `src/commands/mcp.ts` | CLI stdio startup, request-header mode setup, and TTY setup instructions |
 | `packages/core-internal/src/services/githits-service.ts` | REST API client for example search, languages, and feedback |
 | `packages/core-internal/src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, `code_files`, `code_read`, and `code_grep` |
