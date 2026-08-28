@@ -60,7 +60,7 @@ describe("resolveAction", () => {
     ).rejects.toThrow("process.exit");
 
     expect(errorSpy).toHaveBeenCalledWith(
-      "`--prefer-kind` expects package or repository. Got 'workspace'.",
+      "`--prefer-kind` expects package, repository, or site. Got 'workspace'.",
     );
   });
 
@@ -440,8 +440,15 @@ describe("registerResolveCommand", () => {
       "rank retrieved candidates and do not expand candidate retrieval",
     );
     expect(resolveCommand?.description()).toContain(
-      "Pass canonical registry:name or github:owner/repo targets directly",
+      "Pass canonical registry:name, github:owner/repo, or site:<host[/path]> targets",
     );
+    expect(resolveCommand?.description()).toContain(
+      "standalone documentation-site targets",
+    );
+    expect(
+      resolveCommand?.options.find((option) => option.long === "--prefer-kind")
+        ?.description,
+    ).toContain("package, repository, or site");
     for (const registry of PKGSEER_REGISTRY_ARGS) {
       expect(help).toContain(registry);
     }

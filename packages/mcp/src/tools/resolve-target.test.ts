@@ -83,6 +83,9 @@ describe("resolve_target MCP adapter", () => {
       openWorldHint: false,
       destructiveHint: false,
     });
+    expect(DESCRIPTION.slice(0, 80)).toBe(
+      "Resolve package, repository, or documentation-site names into canonical targets.",
+    );
     expect(Object.keys(tool.schema)).toEqual([
       "name",
       "query",
@@ -101,11 +104,17 @@ describe("resolve_target MCP adapter", () => {
         "rank retrieved candidates and does not expand candidate retrieval",
       ),
     });
-    expect(schema.properties?.registries).toMatchObject({
-      description: expect.stringContaining(
-        "constrains package candidates only",
-      ),
-    });
+    const registriesSchema = schema.properties?.registries;
+    if (typeof registriesSchema !== "object" || registriesSchema === null) {
+      throw new Error("registries schema is missing");
+    }
+    const registriesDescription = registriesSchema.description ?? "";
+    expect(registriesDescription).toContain(
+      "constrains package candidates only",
+    );
+    expect(registriesDescription).toContain(
+      "repository and site candidates remain eligible",
+    );
     expect(schema.properties?.intent_hints).toMatchObject({
       description: expect.stringContaining(
         "rank retrieved candidates and do not expand candidate retrieval",
@@ -119,6 +128,13 @@ describe("resolve_target MCP adapter", () => {
       "human-friendly",
       "registry:name",
       "github:owner/repo",
+      "site:<host[/path]>",
+      "standalone documentation-site",
+      'source: "docs"',
+      'format: "json"',
+      "pageId",
+      "returned line range",
+      "docs_read",
       "credentials",
       "personal data",
       "private code",
@@ -206,6 +222,26 @@ describe("resolve_target MCP adapter", () => {
       expect(text).not.toContain("Warning:");
       expect(text).not.toContain("malicious");
     }
+  });
+
+  it("routes an actionable site through docs search and docs_read", () => {
+    const site = {
+      kind: "SITE" as const,
+      canonicalKey: "site:expressjs.com",
+      confidence: "EXACT" as const,
+      latestVersionMaliciousStatus: "NOT_APPLICABLE" as const,
+      docsAvailable: true,
+      codeAvailable: false,
+    };
+    const text = formatResolveTargetMcpText(
+      result({ best: site, candidates: [site], protectedMatches: [] }),
+      { name: "Express docs" },
+    );
+
+    expect(text).toContain(
+      'Next: call search with target "site:expressjs.com" and source "docs", then call docs_read for relevant results.',
+    );
+    expect(text).not.toContain("pass the canonical target");
   });
 
   it("fails closed for affected, unknown, and future malicious statuses", () => {
@@ -556,7 +592,8 @@ describe("resolve_target MCP adapter", () => {
     });
     expect(parseResult(preferredKind)).toEqual({
       code: "INVALID_ARGUMENT",
-      error: "Preferred kind expects package or repository. Got 'workspace'.",
+      error:
+        "Preferred kind expects package, repository, or site. Got 'workspace'.",
       retryable: false,
     });
   });

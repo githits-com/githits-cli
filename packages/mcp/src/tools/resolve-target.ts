@@ -40,7 +40,7 @@ const schema: ZodRawShape = {
   name: z
     .string()
     .describe(
-      "Human-friendly package or repository name to resolve. Do not use canonical registry:name or github:owner/repo targets.",
+      "Human-friendly package, repository, or standalone documentation-site name to resolve. Do not use canonical registry:name, github:owner/repo, or site:<host[/path]> targets.",
     ),
   query: z
     .string()
@@ -52,13 +52,13 @@ const schema: ZodRawShape = {
     .array(z.string())
     .optional()
     .describe(
-      `Optional registry filter that constrains package candidates only; repository candidates remain eligible. Accepted registries: ${PKGSEER_REGISTRY_LIST}. An empty list deliberately means no filter.`,
+      `Optional registry filter that constrains package candidates only; repository and site candidates remain eligible. Accepted registries: ${PKGSEER_REGISTRY_LIST}. An empty list deliberately means no filter.`,
     ),
   preferred_kind: z
     .string()
     .optional()
     .describe(
-      "Optional preference: package or repository. An empty string means no preference; other values are rejected as invalid arguments.",
+      "Optional preference: package, repository, or site. An empty string means no preference; other values are rejected as invalid arguments.",
     ),
   intent_hints: z
     .array(z.string())
@@ -79,7 +79,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  "Experimental tool. Use for fuzzy, ambiguous, misspelled, or human-friendly package and repository names when a canonical target is not known. Do not call for canonical `registry:name` or `github:owner/repo` targets; use those directly with the next MCP tool. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text-v1` (also available as `text`) gives bounded ranked candidates. Only a non-ambiguous EXACT or HIGH best result with CLEAR or NOT_APPLICABLE malicious-content status gets a direct follow-up; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. MEDIUM and LOW require narrowing or an explicit choice. Use `json` for the structured result.";
+  'Resolve package, repository, or documentation-site names into canonical targets. Experimental tool for fuzzy, ambiguous, misspelled, or human-friendly public OSS names. Do not call for canonical `registry:name`, `github:owner/repo`, or `site:<host[/path]>` targets; use those directly with the next MCP tool. Pass a selected standalone documentation-site target to `search` with `source: "docs"`; request `format: "json"` when exact locator fields are needed, then pass a relevant `pageId` and returned line range to `docs_read`. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text-v1` (also available as `text`) gives bounded ranked candidates. Only a non-ambiguous EXACT or HIGH best result with CLEAR or NOT_APPLICABLE malicious-content status gets a direct follow-up; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. MEDIUM and LOW require narrowing or an explicit choice. Use `json` for the structured result.';
 
 export function createResolveTargetTool(
   service: ResolveTargetService,
@@ -228,8 +228,11 @@ export function formatResolveTargetMcpText(
       "Next: choose the canonical target that matches the user's intent, then pass that exact target to the next MCP tool; do not auto-select a candidate.",
     );
   } else if (actionable && result.best) {
+    const target = sanitizeTerminalText(result.best.canonicalKey);
     lines.push(
-      `Next: pass the canonical target "${sanitizeTerminalText(result.best.canonicalKey)}" to the next MCP tool.`,
+      result.best.kind === "SITE"
+        ? `Next: call search with target "${target}" and source "docs", then call docs_read for relevant results.`
+        : `Next: pass the canonical target "${target}" to the next MCP tool.`,
     );
   } else if (result.best && hasBlockedReference) {
     lines.push(

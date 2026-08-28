@@ -20,7 +20,7 @@ import {
 } from "./runtime-diagnostics.js";
 import type { TokenProvider } from "./token-provider.js";
 
-export type ResolveTargetKind = "PACKAGE" | "REPOSITORY";
+export type ResolveTargetKind = "PACKAGE" | "REPOSITORY" | "SITE";
 
 export type KnownLatestVersionMaliciousStatus =
   | "NOT_APPLICABLE"

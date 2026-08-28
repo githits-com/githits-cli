@@ -294,6 +294,32 @@ describe("formatResolveTargetTerminal", () => {
     expect(output).toContain("githits search '<query>'");
   });
 
+  it("renders standalone documentation sites as a known target kind", () => {
+    const site = candidate({
+      kind: "SITE",
+      canonicalKey:
+        "site:developer.apple.com/design/human-interface-guidelines",
+      displayName: "Apple Human Interface Guidelines",
+      stars: undefined,
+      downloadsLastMonth: undefined,
+      documentationUrl:
+        "https://developer.apple.com/design/human-interface-guidelines",
+      codeAvailable: false,
+    });
+
+    const output = formatResolveTargetTerminal(
+      result({ best: site, candidates: [site], protectedMatches: [] }),
+      { name: "Apple human interface guidelines", useColors: false },
+    );
+
+    expect(output).toContain(
+      "site:developer.apple.com/design/human-interface-guidelines [exact] · site · docs",
+    );
+    expect(output).toContain(
+      "Next: githits search '<query>' --in 'site:developer.apple.com/design/human-interface-guidelines' --source docs",
+    );
+  });
+
   it("appends missing protected and best candidates after ranked candidates", () => {
     const protectedExtra = {
       kind: "PACKAGE",

@@ -167,6 +167,9 @@ async function assertExperimentalMcpSession(
   assert(
     quickStart.includes("resolve_target") &&
       quickStart.includes("code_diff") &&
+      quickStart.includes("site:<host[/path]>") &&
+      quickStart.includes('source:"docs"') &&
+      quickStart.includes("docs_read") &&
       quickStart.includes("credentials") &&
       quickStart.includes("diffs do not prove compatibility") &&
       quickStart.includes("public OSS") &&

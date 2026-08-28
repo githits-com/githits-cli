@@ -118,10 +118,10 @@ function collectIntentHint(value: string, previous: string[] = []): string[] {
   return [...previous, value];
 }
 
-const DESCRIPTION = `Resolve a human-provided name to ranked package or GitHub repository targets.
+const DESCRIPTION = `Resolve a human-provided name to ranked package, GitHub repository, or standalone documentation-site targets.
 
-Pass canonical registry:name or github:owner/repo targets directly to the next
-GitHits command; resolve rejects them locally.
+Pass canonical registry:name, github:owner/repo, or site:<host[/path]> targets
+directly to the next GitHits command; resolve rejects them locally.
 
 The optional --query and --intent-hint values are sent to the service as ranking
 context. They rank retrieved candidates and do not expand candidate retrieval.
@@ -131,15 +131,21 @@ in either option.`;
 export function registerResolveCommand(program: Command): Command {
   return program
     .command("resolve")
-    .summary("Resolve a package or GitHub repository name")
+    .summary("Resolve a package, repository, or documentation-site name")
     .description(DESCRIPTION)
-    .argument("<name>", "Package or GitHub repository name")
+    .argument(
+      "<name>",
+      "Package, GitHub repository, or documentation-site name",
+    )
     .option("-q, --query <text>", "Task context used as a soft ranking hint")
     .option(
       "--registry <list>",
       `Comma-separated filter that constrains package candidates only: ${PKGSEER_REGISTRY_LIST}`,
     )
-    .option("--prefer-kind <kind>", "Soft preference: package or repository")
+    .option(
+      "--prefer-kind <kind>",
+      "Soft preference: package, repository, or site",
+    )
     .option(
       "--intent-hint <text>",
       "Soft intent hint (repeatable)",

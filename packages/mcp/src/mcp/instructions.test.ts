@@ -54,6 +54,13 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("`resolve_target`");
     expect(instructions).toContain("`code_diff`");
     expect(instructions).toContain("canonical `registry:name`");
+    expect(instructions).toContain("fuzzy, misspelled, or noncanonical");
+    expect(instructions).toContain("documentation-site names");
+    expect(instructions).toContain("`site:<host[/path]>`");
+    expect(instructions).toContain('`source:"docs"`');
+    expect(instructions).toContain('`format:"json"`');
+    expect(instructions).toContain("relevant `pageId` and returned line range");
+    expect(instructions).toContain("to `docs_read`");
     expect(instructions).toContain("EXACT/HIGH");
     expect(instructions).toContain("CLEAR or NOT_APPLICABLE");
     expect(instructions).toContain(
@@ -70,9 +77,9 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private or proprietary content");
     expect(instructions).toContain("targets.\n\n- `resolve_target`");
-    expect(instructions).toContain("auto-select.\n- `code_diff`");
+    expect(instructions).toContain("to `docs_read`.\n- `code_diff`");
     expect(instructions.length - buildMcpQuickStart().length).toBeLessThan(
-      1_200,
+      1_400,
     );
     expect(instructions).not.toContain("Issue reporting");
     expect(instructions).not.toContain("accepted: false");

@@ -493,9 +493,11 @@ payload whose privilege, visibility, and repetition vary by host.
   only for a non-ambiguous `EXACT` or `HIGH` best result with `CLEAR` or
   `NOT_APPLICABLE` malicious-content status. `CLEAR` is not a vulnerability-free
   claim. Other or missing statuses are non-actionable; `MEDIUM`, `LOW`, and
-  ambiguous results require narrowing or an explicit actionable choice. The
-  block also states public-OSS/privacy limits and adds opt-in negative-feedback
-  guidance only for the configured reporting scope.
+  ambiguous results require narrowing or an explicit actionable choice. Site candidates
+  are routed into `search` with `source:"docs"`, followed by `docs_read`; exact
+  `site:<host[/path]>` targets skip resolution. The block also
+  states public-OSS/privacy limits and adds opt-in negative-feedback guidance
+  only for the configured reporting scope.
   Disabled or dormant reporting returns the public builder's exact baseline;
   public and remote servers never receive this block.
 
