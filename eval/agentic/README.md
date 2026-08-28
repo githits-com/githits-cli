@@ -369,6 +369,11 @@ Each run writes:
 `metrics.json` is authoritative for normalized usage and cost. For Codex it
 uses the final `turn.completed.usage` aggregate. `input_tokens` is inclusive of
 cached and cache-write input, so uncached input is derived by subtraction;
+that partition is verified by the upstream Codex parser fixture
+`parses_cache_write_token_usage` (input 100, cached input 40, cache-write input
+60, total tokens 110). The Luna canary had zero cache-write input, so it did
+not independently verify a nonzero cache-write case.
+
 reasoning output is an output detail and is not added again. Raw observations
 retain their provider `item.id` for pairing: Codex logical counts collapse
 observations with the same surface, ID, and normalized tool, keep first-call
@@ -386,6 +391,10 @@ not zero. Claude and OpenCode currently emit unknown usage/cost with
 `adapter_not_implemented`. See
 `docs/implementation/agentic-eval-metrics.md` for the complete derivation and
 limitations.
+
+The current Codex CLI does not expose a provider-resolved model, so Phase 1
+metrics retain `resolvedModel: null` and use the requested model for cost;
+the nullable field supports later provider adapters.
 
 Claude is launched with `--permission-mode bypassPermissions` so non-interactive
 evals can exercise GitHits without a human approval prompt. Non-full MCP runs

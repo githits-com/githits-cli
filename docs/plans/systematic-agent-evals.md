@@ -162,6 +162,13 @@ CLI surface by design and do not receive the MCP fallback warning.
 
 - Codex emits one `turn.completed.usage` aggregate with input, cached input,
   cache-write input, output, and reasoning-output fields.
+- The inclusive input partition is verified by the upstream Codex parser
+  fixture `parses_cache_write_token_usage` (input 100, cached input 40,
+  cache-write input 60, total tokens 110). The Luna canary had zero cache-write
+  input, so it did not independently verify a nonzero cache-write case.
+- The current Codex CLI does not expose a provider-resolved model. Phase 1
+  writes `resolvedModel: null` and uses the requested model for cost
+  calculation; the nullable field remains for later adapters.
 - Claude emits a terminal `result` record with `modelUsage`, aggregate usage,
   duration, turns, and provider-reported cost. In the measured full-profile
   runs, `modelUsage.inputTokens` differed from `usage.input_tokens`; therefore
@@ -230,8 +237,9 @@ suite manifest
      when the harness exposes them;
    - provider-native usage plus normalized uncached input, cache-read input,
      cache-write input, output, and reasoning-output details;
-   - provider-reported cost when present, otherwise a calculated base-rate
-     estimate plus the recorded rate-card snapshot and pricing uncertainty;
+   - provider-reported cost for a future adapter that exposes it, otherwise a
+     calculated base-rate estimate plus the recorded rate-card snapshot and
+     pricing uncertainty;
    - artifact-relative paths and warnings for missing/ambiguous telemetry.
 
    Missing telemetry is `unknown`, not zero. Raw artifacts remain authoritative.
@@ -504,9 +512,11 @@ None.
   documents whether an input field is inclusive of cached/cache-write tokens.
 - Use the terminal Codex usage aggregate once; derive uncached input only under
   the verified event semantics, while preserving the raw inclusive input.
-- Record provider-reported cost as `reported`; calculate Luna cost as a
-  `base_rate_estimate` and embed the rate snapshot. When request-level
-  long-context pricing cannot be reconstructed from the turn aggregate, emit a
+- Codex exposes no provider-reported cost here, so current cost kinds are
+  `base_rate_estimate` and `unknown`. Calculate Luna cost as a
+  `base_rate_estimate` and embed the rate snapshot. A future provider-reported
+  kind requires a schema revision. When request-level long-context pricing
+  cannot be reconstructed from the turn aggregate, emit a
   `long_context_pricing_not_attributable` warning. Never present an estimate as
   a billed value or upper bound.
 - Extract GitHits CLI commands from every agent/profile. Store them with
@@ -580,7 +590,7 @@ None.
 ### Deterministic Implementation Evidence
 
 - `bun test scripts/agent-eval.test.ts scripts/agent-eval-metrics.test.ts`:
-  92 tests passed with no failures on 2026-08-28.
+  94 tests passed with no failures on 2026-08-28.
 - `bun run typecheck`, `bun run format:check`, `bun run lint`, and
   `bun run build`: passed on 2026-08-28.
 - The full test suite reported 3,335 passing tests and one failure in the
@@ -612,9 +622,10 @@ calls through MCP.
   complete compatible identity dimensions.
 - [x] Codex token buckets match the terminal aggregate fixtures and reasoning tokens
   are not double-counted.
-- [x] Provider-reported versus base-rate-estimated cost is explicit, the Luna rate
-  snapshot makes the base calculation reproducible, and request-level
-  long-context uncertainty remains visible.
+- [x] Current Codex cost is explicit as a base-rate estimate or unknown; the Luna
+  rate snapshot makes the base calculation reproducible, and request-level
+  long-context uncertainty remains visible. A future provider-reported cost
+  kind requires a schema revision.
 - [x] Descriptor-profile CLI fallback is visible and cannot be mistaken for MCP
   success or zero GitHits use.
 - [x] Missing usage or cost is represented as unknown with a warning.

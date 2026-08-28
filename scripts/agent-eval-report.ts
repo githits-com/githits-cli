@@ -35,6 +35,12 @@ export interface AgentEvalReportOptions {
   afterRunDir?: string;
 }
 
+export interface AgentEvalGitMetadata {
+  branch?: string | null;
+  sha?: string | null;
+  dirty?: boolean | null;
+}
+
 export interface AgentEvalRunMetadata {
   runId?: string;
   agent?: string;
@@ -44,7 +50,7 @@ export interface AgentEvalRunMetadata {
   server?: string;
   guidanceProfile?: string;
   dryRun?: boolean;
-  git?: Record<string, string | undefined>;
+  git?: AgentEvalGitMetadata;
   workloads?: WorkloadRunMetadata[];
 }
 
@@ -136,7 +142,7 @@ export interface AgentEvalReport {
   server?: string;
   guidanceProfile?: string;
   dryRun?: boolean;
-  git?: Record<string, string | undefined>;
+  git?: AgentEvalGitMetadata;
   runDir: string;
   workloads: WorkloadReport[];
   metrics: AgentEvalAggregateMetricsReport;
@@ -812,8 +818,6 @@ export function formatRunReport(report: AgentEvalReport): string {
       lines.push(`  warning: ${warning}`);
   }
   lines.push(formatAggregateMetrics(report.metrics));
-  for (const warning of report.metricsWarnings)
-    if (!report.warnings.includes(warning)) lines.push(`Warning: ${warning}`);
   for (const warning of report.warnings) lines.push(`Warning: ${warning}`);
   const issues = report.workloads.flatMap((workload) => {
     const final = workload.finalReport;

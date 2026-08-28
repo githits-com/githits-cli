@@ -1313,6 +1313,8 @@ describe("agent eval harness", () => {
       expect(run.runId).toEqual(metrics.runId);
       expect(run.startedAt).toEqual(metrics.startedAt);
       expect(run.completedAt).toEqual(metrics.completedAt);
+      expect(report.git).toEqual(run.git);
+      expect(report.git).toHaveProperty("dirty");
       expect(metrics.records).toHaveLength(1);
       expect(metrics.records[0]).toMatchObject({
         agent: "codex",
@@ -1340,6 +1342,9 @@ describe("agent eval harness", () => {
         usd: null,
         uncertainty: "unknown",
       });
+      expect(
+        formatRunReport(report).match(/Warning: dry_run_no_telemetry/g),
+      ).toHaveLength(1);
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
@@ -1886,7 +1891,6 @@ describe("agent eval harness", () => {
         },
       })}\n`,
       "claude",
-      "skills",
     );
 
     expect(calls.map((call) => call.tool)).toEqual([
@@ -1937,12 +1941,7 @@ describe("agent eval harness", () => {
         arguments: { path: "packages/opencode/src/session/compaction.ts" },
       },
     ];
-    expect(extractToolCalls(stdout, "codex", "mcp", "full")).toEqual(
-      expectedCalls,
-    );
-    expect(extractToolCalls(stdout, "codex", "mcp", "descriptors")).toEqual(
-      expectedCalls,
-    );
+    expect(extractToolCalls(stdout, "codex")).toEqual(expectedCalls);
   });
 
   it("ignores non-MCP Claude tool calls", () => {

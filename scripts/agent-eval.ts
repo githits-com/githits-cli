@@ -1290,8 +1290,6 @@ function extractCliToolCalls(
 export function extractToolCalls(
   stdout: string,
   agent: AgentName,
-  _surface: EvalSurface = "mcp",
-  _guidanceProfile?: GuidanceProfile,
 ): ExtractedToolCall[] {
   const calls: ExtractedToolCall[] = [];
   for (const line of stdout.split("\n")) {
@@ -1862,12 +1860,7 @@ async function runWorkload(
       redactText(result.stderr, secretValues),
     );
 
-    const toolCalls = extractToolCalls(
-      result.stdout,
-      options.agent,
-      options.surface,
-      options.guidanceProfile,
-    );
+    const toolCalls = extractToolCalls(result.stdout, options.agent);
     writeJson(
       join(workloadDir, "tool-calls.json"),
       redactValue(toolCalls, secretValues),
@@ -2101,10 +2094,7 @@ export async function runAgentEval(
   );
   const report = buildRunReportFromMetadata(options.outDir, {
     ...runMetadata,
-    git: {
-      branch: git.branch ?? undefined,
-      sha: git.sha ?? undefined,
-    },
+    git,
   });
   writeReportJson(options.outDir, report);
   console.log(formatRunReport(report).trimEnd());

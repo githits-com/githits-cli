@@ -49,6 +49,10 @@ Skills surface, local or published server, guidance profile, experimental
 tools, published package, target git state, workload timing, process/final
 status, exit code, timeout, and relative artifact paths.
 
+The resolved-model field remains nullable for future provider adapters. The
+current Codex CLI does not expose a provider-resolved model, so Phase 1 writes
+`resolvedModel: null` and the cost adapter uses the requested model.
+
 `usage` contains:
 
 - `providerUsage`, retaining the five validated Codex numeric fields:
@@ -60,8 +64,8 @@ status, exit code, timeout, and relative artifact paths.
   USD, uncertainty, and the embedded Luna rate snapshot.
 
 `tools` contains raw event count, the current logical-call count, completed and
-failed counts, sorted unique normalized tool names, ordered sequence entries,
-and result bytes when available. Sequence entries retain `mcp` or `cli`
+failed counts, sorted unique normalized tool names, and ordered sequence
+entries. Sequence entries retain `mcp` or `cli`
 surface and normalized status (`started`, `completed`, `failed`, or `unknown`).
 The builder preserves duplicate raw observations and their order; Codex's
 derived sequence applies provider-ID pairing as described below. A persisted
@@ -81,6 +85,12 @@ cached and cache-write input:
 ```text
 uncached input = input_tokens - cached_input_tokens - cache_write_input_tokens
 ```
+
+This inclusive-input partition is verified against the upstream Codex parser
+fixture `parses_cache_write_token_usage` (input 100, cached input 40,
+cache-write input 60, total tokens 110). The Luna live canary had zero
+cache-write input, so it did not independently verify a nonzero cache-write
+case.
 
 The Luna base-rate snapshot is effective 2026-08-28 and sourced from the
 [OpenAI gpt-5.6-luna model page](https://developers.openai.com/api/docs/models/gpt-5.6-luna):

@@ -104,7 +104,6 @@ export interface PersistedToolCall {
   providerCallId?: string;
   status?: string;
   error?: unknown;
-  resultBytes?: number | null;
 }
 
 export interface AgentEvalRecordInput {
@@ -173,7 +172,6 @@ const toolsMetricsSchema = z.object({
   failedCount: nonNegativeInteger,
   uniqueTools: z.array(z.string()),
   sequence: z.array(toolSequenceEntrySchema),
-  resultBytes: nonNegativeInteger.nullable(),
 });
 
 export const agentEvalRecordSchema = z.object({
@@ -462,7 +460,6 @@ interface NormalizedToolObservation {
   tool: string;
   surface: "mcp" | "cli";
   status: NormalizedToolStatus;
-  resultBytes: number | null;
 }
 
 function normalizeToolObservation(
@@ -472,7 +469,6 @@ function normalizeToolObservation(
     tool: normalizeToolName(call.tool),
     surface: call.server === "githits-cli" ? "cli" : "mcp",
     status: normalizeToolStatus(call.status, call.error),
-    resultBytes: call.resultBytes ?? null,
   };
 }
 
@@ -521,7 +517,6 @@ function buildAgentEvalRecord(input: AgentEvalRecordInput): AgentEvalRecord {
     warnings.push("tool_logical_count_not_implemented");
   }
 
-  const resultBytes = sumKnown(observations.map((call) => call.resultBytes));
   const record = {
     workloadId: input.workloadId,
     requestedModel: input.requestedModel ?? null,
@@ -555,7 +550,6 @@ function buildAgentEvalRecord(input: AgentEvalRecordInput): AgentEvalRecord {
       failedCount: sequence.filter((call) => call.status === "failed").length,
       uniqueTools: [...new Set(sequence.map((call) => call.tool))].sort(),
       sequence,
-      resultBytes,
     },
     artifacts: input.artifacts,
     warnings: uniqueStrings(warnings),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  type AgentEvalRecordInput,
   adaptAgentUsage,
   agentEvalMetricsSchema,
   agentUsageMetricsSchema,
@@ -158,6 +159,85 @@ describe("agent eval usage metrics", () => {
     expect(otherModel.warnings).toContain("rate_card_not_configured");
   });
 
+  it("keeps known aggregate values when another record is unknown", () => {
+    const known: AgentEvalRecordInput = {
+      workloadId: "known",
+      requestedModel: LUNA_MODEL,
+      resolvedModel: null,
+      agent: "codex",
+      agentVersion: null,
+      reasoningEffort: "low",
+      surface: "mcp",
+      server: "local",
+      guidanceProfile: "descriptors",
+      experimentalTools: false,
+      publishedPackage: null,
+      targetGit: { branch: "main", sha: "abc123", dirty: false },
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:01.000Z",
+      durationMs: 1000,
+      processStatus: "success",
+      finalStatus: "success",
+      exitCode: 0,
+      timedOut: false,
+      usage: adaptAgentUsage(
+        codexUsageEvent({
+          input_tokens: 100,
+          cached_input_tokens: 40,
+          cache_write_input_tokens: 20,
+          output_tokens: 10,
+          reasoning_output_tokens: 4,
+        }),
+        "codex",
+        LUNA_MODEL,
+      ),
+      toolCalls: [{ tool: "search", server: "githits", status: "completed" }],
+      artifacts: {},
+    };
+    const unknown: AgentEvalRecordInput = {
+      ...known,
+      workloadId: "unknown",
+      requestedModel: LUNA_MODEL,
+      agent: "codex",
+      agentVersion: null,
+      reasoningEffort: null,
+      durationMs: null,
+      processStatus: "failed",
+      finalStatus: "failure",
+      exitCode: 1,
+      usage: adaptAgentUsage("", "codex", LUNA_MODEL),
+      toolCalls: [],
+    };
+
+    const metrics = buildAgentEvalMetrics({
+      runId: "run-mixed",
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:01.000Z",
+      records: [known, unknown],
+    });
+
+    expect(metrics.records[1]?.warnings).toEqual([
+      "codex_terminal_usage_missing",
+    ]);
+    expect(metrics.aggregates).toMatchObject({
+      workloadCount: 2,
+      durationMs: 1000,
+      logicalToolCalls: 1,
+      uncachedInputTokens: 40,
+      cachedInputTokens: 40,
+      cacheWriteInputTokens: 20,
+      outputTokens: 10,
+      reasoningOutputTokens: 4,
+      baseRateEstimatedCostUsd: 0.0000258,
+    });
+    expect(metrics.aggregates).not.toMatchObject({
+      durationMs: 0,
+      uncachedInputTokens: 0,
+      baseRateEstimatedCostUsd: 0,
+    });
+    expect(metrics.warnings).toEqual(["codex_terminal_usage_missing"]);
+  });
+
   it("builds a schema-valid run with identity, tool, and aggregate metrics", () => {
     const firstUsage = adaptAgentUsage(
       codexUsageEvent({
@@ -230,7 +310,6 @@ describe("agent eval usage metrics", () => {
               tool: "search",
               server: "githits-cli",
               status: "completed",
-              resultBytes: 12,
             },
             {
               tool: "pkg_vulns",
@@ -306,7 +385,6 @@ describe("agent eval usage metrics", () => {
         { tool: "search", surface: "cli", status: "completed" },
         { tool: "pkg_vulns", surface: "mcp", status: "failed" },
       ],
-      resultBytes: 12,
     });
     expect(metrics.aggregates).toMatchObject({
       workloadCount: 2,
@@ -467,7 +545,6 @@ describe("agent eval usage metrics", () => {
         { tool: "search", surface: "mcp", status: "completed" },
         { tool: "search", surface: "mcp", status: "started" },
       ],
-      resultBytes: null,
     });
     expect(JSON.stringify(metrics)).not.toContain("providerCallId");
   });
