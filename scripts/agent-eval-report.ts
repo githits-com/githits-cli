@@ -1,5 +1,11 @@
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import {
+  type AgentEvalMetrics,
+  type AgentEvalRecord,
+  type AgentUsageMetrics,
+  agentEvalMetricsSchema,
+} from "./agent-eval-metrics.ts";
 
 export type AgentEvalReportMode = "report" | "json" | "compare";
 
@@ -64,6 +70,30 @@ export interface ToolCallSummary {
   errors: string[];
 }
 
+export interface WorkloadMetricsReport {
+  normalizedTokens: AgentUsageMetrics["normalizedTokens"];
+  cost: Pick<AgentUsageMetrics["cost"], "kind" | "usd" | "uncertainty">;
+  logicalToolCount: number | null;
+  mcpCallCount: number | null;
+  cliCallCount: number | null;
+  telemetryWarnings: string[];
+}
+
+export interface AgentEvalAggregateMetricsReport {
+  workloadCount: number;
+  succeededCount: number;
+  failedCount: number;
+  timedOutCount: number;
+  durationMs: number | null;
+  logicalToolCalls: number | null;
+  uncachedInputTokens: number | null;
+  cachedInputTokens: number | null;
+  cacheWriteInputTokens: number | null;
+  outputTokens: number | null;
+  reasoningOutputTokens: number | null;
+  baseRateEstimatedCostUsd: number | null;
+}
+
 export interface DiscoverySummary {
   status: DiscoveryObservation;
   eventCount: number;
@@ -89,6 +119,7 @@ export interface WorkloadReport {
   artifacts: Record<string, string>;
   missingArtifacts: string[];
   toolCalls: ToolCallSummary;
+  metrics: WorkloadMetricsReport;
   discovery?: DiscoverySummary;
   finalReport?: FinalReportSummary;
   warnings: string[];
@@ -107,6 +138,8 @@ export interface AgentEvalReport {
   git?: Record<string, string | undefined>;
   runDir: string;
   workloads: WorkloadReport[];
+  metrics: AgentEvalAggregateMetricsReport;
+  metricsWarnings: string[];
   warnings: string[];
 }
 
@@ -190,6 +223,115 @@ function realPathInsideRun(runDir: string, path: string): string | undefined {
   const relativePath = relative(realRunDir, realPath);
   if (!isContainedRelativePath(relativePath)) return undefined;
   return realPath;
+}
+
+interface LoadedMetrics {
+  value?: AgentEvalMetrics;
+  warnings: string[];
+}
+
+function unknownWorkloadMetrics(warning: string): WorkloadMetricsReport {
+  return {
+    normalizedTokens: {
+      uncachedInputTokens: null,
+      cachedInputTokens: null,
+      cacheWriteInputTokens: null,
+      outputTokens: null,
+      reasoningOutputTokens: null,
+    },
+    cost: { kind: "unknown", usd: null, uncertainty: "unknown" },
+    logicalToolCount: null,
+    mcpCallCount: null,
+    cliCallCount: null,
+    telemetryWarnings: [warning],
+  };
+}
+
+function workloadMetricsFromRecord(
+  record: AgentEvalRecord,
+): WorkloadMetricsReport {
+  return {
+    normalizedTokens: record.usage.normalizedTokens,
+    cost: {
+      kind: record.usage.cost.kind,
+      usd: record.usage.cost.usd,
+      uncertainty: record.usage.cost.uncertainty,
+    },
+    logicalToolCount: record.tools.logicalCallCount,
+    mcpCallCount: record.tools.sequence.filter((call) => call.surface === "mcp")
+      .length,
+    cliCallCount: record.tools.sequence.filter((call) => call.surface === "cli")
+      .length,
+    telemetryWarnings: record.warnings,
+  };
+}
+
+function unknownAggregateMetrics(
+  workloads: WorkloadRunMetadata[],
+): AgentEvalAggregateMetricsReport {
+  return {
+    workloadCount: workloads.length,
+    succeededCount: workloads.filter(
+      (workload) => workload.status === "success",
+    ).length,
+    failedCount: workloads.filter((workload) => workload.status === "failed")
+      .length,
+    timedOutCount: workloads.filter((workload) => workload.status === "timeout")
+      .length,
+    durationMs: null,
+    logicalToolCalls: null,
+    uncachedInputTokens: null,
+    cachedInputTokens: null,
+    cacheWriteInputTokens: null,
+    outputTokens: null,
+    reasoningOutputTokens: null,
+    baseRateEstimatedCostUsd: null,
+  };
+}
+
+function loadRunMetrics(runDir: string): LoadedMetrics {
+  const metricsPath = join(runDir, "metrics.json");
+  if (!existsSync(metricsPath)) {
+    return {
+      warnings: [
+        "metrics.json missing; normalized usage, cost, and logical tool metrics are unknown",
+      ],
+    };
+  }
+
+  let safePath: string | undefined;
+  try {
+    safePath = realPathInsideRun(runDir, metricsPath);
+  } catch {
+    safePath = undefined;
+  }
+  if (!safePath) {
+    return {
+      warnings: [
+        "metrics.json path outside run directory ignored; normalized usage, cost, and logical tool metrics are unknown",
+      ],
+    };
+  }
+
+  let value: unknown;
+  try {
+    value = readJson(safePath);
+  } catch {
+    return {
+      warnings: [
+        "metrics.json invalid; normalized usage, cost, and logical tool metrics are unknown",
+      ],
+    };
+  }
+  const parsed = agentEvalMetricsSchema.safeParse(value);
+  if (!parsed.success) {
+    return {
+      warnings: [
+        "metrics.json invalid; normalized usage, cost, and logical tool metrics are unknown",
+      ],
+    };
+  }
+  return { value: parsed.data, warnings: [] };
 }
 
 export function parseReportArgs(argv: string[]): AgentEvalReportOptions {
@@ -365,7 +507,9 @@ function readDiscovery(path: string): DiscoverySummary | undefined {
 function buildWorkloadReport(
   runDir: string,
   workload: WorkloadRunMetadata,
-  warnOnCliFallback: boolean,
+  fallbackGuidanceProfile: string | undefined,
+  metricsRecord: AgentEvalRecord | undefined,
+  metricsWarning: string | undefined,
 ): WorkloadReport {
   const workloadDir = workloadDirFor(runDir, workload);
   const paths = {
@@ -419,7 +563,7 @@ function buildWorkloadReport(
       `success workload is missing artifacts: ${missingArtifacts.join(", ")}`,
     );
   }
-  if (warnOnCliFallback) {
+  if (fallbackGuidanceProfile) {
     const cliFallbackTools = [
       ...new Set(
         persistedToolCalls
@@ -429,10 +573,16 @@ function buildWorkloadReport(
     ].sort();
     if (cliFallbackTools.length > 0) {
       warnings.push(
-        `MCP full guidance run used GitHits CLI fallback: ${cliFallbackTools.join(", ")}`,
+        `MCP ${fallbackGuidanceProfile} guidance run used GitHits CLI fallback: ${cliFallbackTools.join(", ")}`,
       );
     }
   }
+  const metrics = metricsRecord
+    ? workloadMetricsFromRecord(metricsRecord)
+    : unknownWorkloadMetrics(
+        metricsWarning ??
+          "metrics record missing; normalized usage, cost, and logical tool metrics are unknown",
+      );
   if (finalReport) {
     const rawTools = new Set(toolCalls.uniqueTools);
     const drift = finalReport.unexpectedToolUse.filter(
@@ -454,6 +604,7 @@ function buildWorkloadReport(
     artifacts,
     missingArtifacts,
     toolCalls,
+    metrics,
     discovery,
     finalReport,
     warnings,
@@ -465,13 +616,56 @@ export function buildRunReportFromMetadata(
   metadata: AgentEvalRunMetadata,
 ): AgentEvalReport {
   const workloads = metadata.workloads ?? [];
-  const ids = new Set<string>();
+  const workloadIds = new Set<string>();
+  const duplicateWorkloadIds = new Set<string>();
   const warnings: string[] = [];
   for (const workload of workloads) {
-    if (ids.has(workload.id))
+    if (workloadIds.has(workload.id)) {
+      duplicateWorkloadIds.add(workload.id);
       warnings.push(`duplicate workload id in run metadata: ${workload.id}`);
-    ids.add(workload.id);
+    }
+    workloadIds.add(workload.id);
   }
+  const loadedMetrics = loadRunMetrics(runDir);
+  const metrics = loadedMetrics.value;
+  const metricsByWorkloadId = new Map<string, AgentEvalRecord>();
+  const duplicateMetricIds = new Set<string>();
+  const metricsMatchingWarnings: string[] = [];
+  if (metrics) {
+    for (const record of metrics.records) {
+      if (duplicateMetricIds.has(record.workloadId)) continue;
+      if (metricsByWorkloadId.has(record.workloadId)) {
+        duplicateMetricIds.add(record.workloadId);
+        metricsByWorkloadId.delete(record.workloadId);
+        metricsMatchingWarnings.push(
+          `duplicate metrics record for workload: ${record.workloadId}`,
+        );
+        continue;
+      }
+      metricsByWorkloadId.set(record.workloadId, record);
+    }
+    for (const workloadId of metricsByWorkloadId.keys()) {
+      if (!workloadIds.has(workloadId)) {
+        metricsMatchingWarnings.push(
+          `metrics record has no matching workload: ${workloadId}`,
+        );
+      }
+    }
+    for (const workload of workloads) {
+      if (duplicateMetricIds.has(workload.id)) continue;
+      if (!metricsByWorkloadId.has(workload.id)) {
+        metricsMatchingWarnings.push(
+          `metrics record missing for workload: ${workload.id}`,
+        );
+      }
+    }
+  }
+  const metricWarnings = [
+    ...loadedMetrics.warnings,
+    ...(metrics?.warnings ?? []),
+    ...metricsMatchingWarnings,
+  ];
+  warnings.push(...metricWarnings);
   const isolationWarning = profileIsolationWarning(metadata.agent);
   if (
     isolationWarning &&
@@ -484,7 +678,19 @@ export function buildRunReportFromMetadata(
     buildWorkloadReport(
       runDir,
       workload,
-      metadata.surface === "mcp" && metadata.guidanceProfile === "full",
+      metadata.surface === "mcp"
+        ? (metadata.guidanceProfile ?? "descriptors")
+        : undefined,
+      duplicateWorkloadIds.has(workload.id)
+        ? undefined
+        : metricsByWorkloadId.get(workload.id),
+      metrics
+        ? duplicateMetricIds.has(workload.id)
+          ? `duplicate metrics records; metrics for ${workload.id} are unknown`
+          : metricsByWorkloadId.has(workload.id)
+            ? undefined
+            : `metrics record missing for workload: ${workload.id}`
+        : loadedMetrics.warnings[0],
     ),
   );
   const status = reports.some((workload) =>
@@ -507,6 +713,8 @@ export function buildRunReportFromMetadata(
     git: metadata.git,
     runDir,
     workloads: reports,
+    metrics: metrics?.aggregates ?? unknownAggregateMetrics(workloads),
+    metricsWarnings: metricWarnings,
     warnings,
   };
 }
@@ -518,9 +726,50 @@ export function loadRunReport(runDir: string): AgentEvalReport {
   return buildRunReportFromMetadata(runDir, metadata as AgentEvalRunMetadata);
 }
 
-function formatDuration(ms: number | undefined): string {
+function formatDuration(ms: number | null | undefined): string {
   if (ms === undefined) return "n/a";
+  if (ms === null) return "unknown";
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function formatMetricValue(value: number | null): string {
+  return value === null ? "unknown" : String(value);
+}
+
+function formatWorkloadMetrics(metrics: WorkloadMetricsReport): string {
+  const tokens = metrics.normalizedTokens;
+  return [
+    `tokens=uncachedInput=${formatMetricValue(tokens.uncachedInputTokens)}`,
+    `cachedInput=${formatMetricValue(tokens.cachedInputTokens)}`,
+    `cacheWriteInput=${formatMetricValue(tokens.cacheWriteInputTokens)}`,
+    `output=${formatMetricValue(tokens.outputTokens)}`,
+    `reasoning(detail)=${formatMetricValue(tokens.reasoningOutputTokens)}`,
+    `cost=${metrics.cost.kind}`,
+    `costUsd=${formatMetricValue(metrics.cost.usd)}`,
+    `costUncertainty=${metrics.cost.uncertainty}`,
+    `logicalCalls=${formatMetricValue(metrics.logicalToolCount)}`,
+    `mcpCalls=${formatMetricValue(metrics.mcpCallCount)}`,
+    `cliCalls=${formatMetricValue(metrics.cliCallCount)}`,
+  ].join(" ");
+}
+
+function formatAggregateMetrics(
+  metrics: AgentEvalAggregateMetricsReport,
+): string {
+  return [
+    `aggregate workloads=${metrics.workloadCount}`,
+    `succeeded=${metrics.succeededCount}`,
+    `failed=${metrics.failedCount}`,
+    `timedOut=${metrics.timedOutCount}`,
+    `duration=${formatDuration(metrics.durationMs)}`,
+    `logicalCalls=${formatMetricValue(metrics.logicalToolCalls)}`,
+    `tokens=uncachedInput=${formatMetricValue(metrics.uncachedInputTokens)}`,
+    `cachedInput=${formatMetricValue(metrics.cachedInputTokens)}`,
+    `cacheWriteInput=${formatMetricValue(metrics.cacheWriteInputTokens)}`,
+    `output=${formatMetricValue(metrics.outputTokens)}`,
+    `reasoning(detail)=${formatMetricValue(metrics.reasoningOutputTokens)}`,
+    `baseRateCostUsd=${formatMetricValue(metrics.baseRateEstimatedCostUsd)}`,
+  ].join(" ");
 }
 
 export function formatRunReport(report: AgentEvalReport): string {
@@ -537,7 +786,7 @@ export function formatRunReport(report: AgentEvalReport): string {
       ? ` usefulness=${final.usefulness} confidence=${final.confidence}`
       : "";
     lines.push(
-      `${workload.id} ${workload.status} ${formatDuration(workload.durationMs)} uniqueTools=${workload.toolCalls.uniqueTools.length} rawEvents=${workload.toolCalls.rawCount}${workload.discovery ? ` discovery=${workload.discovery.status}` : ""}${details}`,
+      `${workload.id} ${workload.status} ${formatDuration(workload.durationMs)} uniqueTools=${workload.toolCalls.uniqueTools.length} rawEvents=${workload.toolCalls.rawCount} ${formatWorkloadMetrics(workload.metrics)}${workload.discovery ? ` discovery=${workload.discovery.status}` : ""}${details}`,
     );
     const artifacts = [
       workload.artifacts.toolCalls,
@@ -549,9 +798,14 @@ export function formatRunReport(report: AgentEvalReport): string {
     ].filter(Boolean);
     if (artifacts.length > 0)
       lines.push(`  artifacts: ${artifacts.join(", ")}`);
+    for (const warning of workload.metrics.telemetryWarnings)
+      lines.push(`  metrics warning: ${warning}`);
     for (const warning of workload.warnings)
       lines.push(`  warning: ${warning}`);
   }
+  lines.push(formatAggregateMetrics(report.metrics));
+  for (const warning of report.metricsWarnings)
+    if (!report.warnings.includes(warning)) lines.push(`Warning: ${warning}`);
   for (const warning of report.warnings) lines.push(`Warning: ${warning}`);
   const issues = report.workloads.flatMap((workload) => {
     const final = workload.finalReport;

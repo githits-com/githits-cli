@@ -2030,14 +2030,6 @@ export async function runAgentEval(
     ),
   });
 
-  const report = buildRunReportFromMetadata(options.outDir, {
-    ...runMetadata,
-    git: {
-      branch: git.branch ?? undefined,
-      sha: git.sha ?? undefined,
-    },
-  });
-  writeReportJson(options.outDir, report);
   const agentVersion =
     options.agent === "claude"
       ? claude
@@ -2081,6 +2073,14 @@ export async function runAgentEval(
     join(options.outDir, "metrics.json"),
     redactValue(metrics, secretValues),
   );
+  const report = buildRunReportFromMetadata(options.outDir, {
+    ...runMetadata,
+    git: {
+      branch: git.branch ?? undefined,
+      sha: git.sha ?? undefined,
+    },
+  });
+  writeReportJson(options.outDir, report);
   console.log(formatRunReport(report).trimEnd());
 }
 
