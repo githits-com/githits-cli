@@ -6,9 +6,8 @@
  * format — programmatic / parity callers opt into the structured
  * JSON envelope by passing `format: "json"`.
  *
- * ASCII-only output — separators tokenize cleanly across BPE
- * variants, and there are no Unicode characters that require
- * client-side escaping.
+ * Compact punctuation and line-oriented output keep the response easy to scan
+ * across terminal and agent clients.
  *
  * `text-v1` names the compact representation, not an exact-prose compatibility
  * boundary. Its lifecycle, ordering, action, and hit-anatomy invariants are
@@ -18,7 +17,6 @@
 
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
-import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
 import {
   projectUnifiedSearchPresentation,
   targetDisplayFamilyKey,
@@ -27,6 +25,7 @@ import {
   type UnifiedSearchPresentation,
   type UnifiedSearchSourceEntry,
   type UnifiedSearchSourceGroup,
+  type UnifiedSearchSourceKind,
   type UnifiedSearchTargetGroup,
   type UnifiedSearchTrustLimit,
   type UnifiedSearchWarning,
@@ -79,7 +78,12 @@ export function renderUnifiedSearchPresentationText(
 ): string {
   const settings = normalizeTextOptions(options);
   const lines: string[] = [
-    formatPresentationOutcome(presentation, result.results, settings),
+    formatPresentationOutcome(
+      presentation,
+      result.results,
+      result.nextOffset,
+      settings,
+    ),
   ];
   appendPresentationContext(lines, presentation, settings);
 
@@ -89,7 +93,6 @@ export function renderUnifiedSearchPresentationText(
   }
 
   const hasPostResultBlock =
-    presentation.hasMore ||
     presentation.searchRef !== undefined ||
     presentation.progress !== undefined ||
     presentation.action.kind !== "none";
@@ -101,32 +104,9 @@ export function renderUnifiedSearchPresentationText(
     lines.push("");
   }
 
-  if (presentation.hasMore) {
-    if (lines[lines.length - 1] !== "") lines.push("");
-    const nextOffsetHint = formatPaginationHint(
-      result.nextOffset,
-      settings.actionSyntax,
-    );
-    lines.push(nextOffsetHint);
-  }
-
   appendPresentationSession(lines, presentation, settings);
   appendPresentationAction(lines, presentation, settings);
   return lines.join("\n");
-}
-
-function formatPaginationHint(
-  nextOffset: number | undefined,
-  actionSyntax: "mcp" | "cli",
-): string {
-  if (actionSyntax === "cli") {
-    return typeof nextOffset === "number"
-      ? `More hits available. Pass --offset ${nextOffset} or --limit N to widen.`
-      : "More hits available. Pass --limit N to widen.";
-  }
-  return typeof nextOffset === "number"
-    ? `More hits available. Pass offset=${nextOffset} or limit=N to widen.`
-    : "More hits available. Pass limit=N to widen.";
 }
 
 interface NormalizedTextOptions {
@@ -151,6 +131,7 @@ function normalizeTextOptions(
 function formatPresentationOutcome(
   presentation: UnifiedSearchPresentation,
   results: UnifiedSearchHitPayload[],
+  nextOffset: number | undefined,
   options: NormalizedTextOptions,
 ): string {
   const target = presentationTarget(presentation, results);
@@ -186,7 +167,12 @@ function formatPresentationOutcome(
   if (presentation.lifecycle.kind === "completed") {
     return styleOutcome(
       count > 0
-        ? `${countLabel}${target ? ` from ${target}` : ""}`
+        ? formatCompletedResultsHeadline(
+            presentation,
+            results,
+            nextOffset,
+            countLabel,
+          )
         : `No results returned${target ? ` from ${target}` : ""}`,
       presentation,
       options.useColors,
@@ -212,6 +198,59 @@ function formatPresentationOutcome(
     presentation,
     options.useColors,
   );
+}
+
+function formatCompletedResultsHeadline(
+  presentation: UnifiedSearchPresentation,
+  results: UnifiedSearchHitPayload[],
+  nextOffset: number | undefined,
+  countLabel: string,
+): string {
+  const parts = [countLabel];
+  const breakdown = formatResultBreakdown(results);
+  if (breakdown) parts.push(breakdown);
+  if (presentation.hasMore) {
+    parts.push(
+      typeof nextOffset === "number"
+        ? `next_offset=${nextOffset}`
+        : "more available",
+    );
+  }
+  return parts.join(SEP);
+}
+
+function formatResultBreakdown(results: UnifiedSearchHitPayload[]): string {
+  const counts = new Map<string, number>();
+  for (const result of results) {
+    const label = resultBreakdownLabel(result.type);
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([label, count]) => `${count} ${resultCountLabel(label, count)}`)
+    .join(", ");
+}
+
+function resultCountLabel(label: string, count: number): string {
+  if (count !== 1) return label;
+  if (label === "repo docs") return "repo doc";
+  if (label === "docs pages") return "docs page";
+  if (label === "symbols") return "symbol";
+  return label;
+}
+
+function resultBreakdownLabel(type: string): string {
+  switch (type) {
+    case "repository_doc":
+      return "repo docs";
+    case "documentation_page":
+      return "docs pages";
+    case "repository_symbol":
+      return "symbols";
+    case "repository_code":
+      return "code";
+    default:
+      return type;
+  }
 }
 
 function styleOutcome(
@@ -283,7 +322,10 @@ function appendPresentationContext(
   presentation: UnifiedSearchPresentation,
   options: NormalizedTextOptions,
 ): void {
-  if (presentation.targetGroups.length > 0) {
+  if (shouldRenderCompactSources(presentation)) {
+    lines.push("");
+    appendCompactSources(lines, presentation.sources, options);
+  } else if (presentation.targetGroups.length > 0) {
     lines.push("");
     presentation.targetGroups.forEach((group, index) => {
       if (index > 0) lines.push("");
@@ -291,6 +333,114 @@ function appendPresentationContext(
     });
   }
   appendPresentationWarnings(lines, presentation.warnings, options);
+}
+
+function shouldRenderCompactSources(
+  presentation: UnifiedSearchPresentation,
+): boolean {
+  if (
+    presentation.lifecycle.kind !== "completed" ||
+    presentation.availability.resultCount === 0 ||
+    presentation.sources.length === 0 ||
+    presentation.targetGroups.length === 0 ||
+    presentation.alternatives.length > 0 ||
+    presentation.trustLimits.length > 0 ||
+    presentation.siteSuggestions.length > 0
+  ) {
+    return false;
+  }
+  return presentation.targetGroups.every(
+    (group) =>
+      group.alternatives === undefined &&
+      group.siteSuggestions.length === 0 &&
+      group.trustLimits.length === 0 &&
+      (group.freshnessKind === undefined ||
+        group.freshnessKind === "current") &&
+      group.sources.every((source) =>
+        source.entries.every((entry) => entry.state === "searched"),
+      ),
+  );
+}
+
+function appendCompactSources(
+  lines: string[],
+  sources: UnifiedSearchSourceGroup[],
+  options: NormalizedTextOptions,
+): void {
+  const values = sources
+    .flatMap((source) =>
+      source.entries.map((entry) => ({
+        rank: compactSourceRank(source.kind),
+        value: formatCompactSource(source.kind, entry),
+      })),
+    )
+    .filter(
+      (entry): entry is { rank: number; value: string } =>
+        entry.value.length > 0,
+    )
+    .sort((left, right) => left.rank - right.rank)
+    .map((entry) => entry.value);
+  const unique = [...new Set(values)];
+  if (unique.length === 0) return;
+  lines.push(...wrapText(`Sources: ${unique.join("; ")}`, options.width));
+}
+
+function compactSourceRank(kind: UnifiedSearchSourceKind): number {
+  switch (kind) {
+    case "site_docs":
+      return 0;
+    case "repository_docs":
+      return 1;
+    case "docs":
+      return 2;
+    case "code":
+      return 3;
+  }
+}
+
+function formatCompactSource(
+  kind: UnifiedSearchSourceKind,
+  entry: UnifiedSearchSourceEntry,
+): string {
+  if (kind === "site_docs") {
+    return (
+      formatDocumentationSiteIdentity(entry.siteUrl) ??
+      entry.siteKey ??
+      compactTarget(entry.target)
+    );
+  }
+  if (entry.repositoryUrl) {
+    return formatRepositoryIdentity(entry.repositoryUrl, entry.commitSha);
+  }
+  if (entry.siteUrl) {
+    return formatDocumentationSiteIdentity(entry.siteUrl) ?? entry.siteUrl;
+  }
+  return compactTarget(entry.target);
+}
+
+function formatRepositoryIdentity(url: string, commitSha?: string): string {
+  let identity = url;
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname
+      .split("/")
+      .filter(Boolean)
+      .join("/")
+      .replace(/\.git$/, "");
+    identity =
+      parsed.host === "github.com" && path ? path : `${parsed.host}/${path}`;
+  } catch {
+    identity = url.replace(/^https?:\/\//, "").replace(/\.git$/, "");
+  }
+  if (!commitSha) return identity;
+  return `${identity}@${commitSha.slice(0, 8)}`;
+}
+
+function compactTarget(value: string): string {
+  return value
+    .replace(/^site:/, "")
+    .replace(/^github:/, "")
+    .replace(/@[^/@#]+$/, "");
 }
 
 function appendPresentationTargetGroup(
@@ -673,33 +823,31 @@ function appendHit(
   hit: UnifiedSearchHitPayload,
   options: NormalizedTextOptions,
 ): void {
-  const headerParts: string[] = [
-    highlight(formatHitPrimary(hit), options.useColors),
-    shortType(hit.type),
-  ];
-  lines.push(`[${index}] ${headerParts.join("  ")}`);
+  lines.push(
+    `[${index}] ${highlight(formatHitHeader(hit), options.useColors)}`,
+  );
 
-  const locator = buildLocatorLine(hit, options.actionSyntax);
-  if (locator) lines.push(`    ${locator}`);
+  if (hit.type === "documentation_page" && isHttpUrl(hit.locator.sourceUrl)) {
+    lines.push(`  ${hit.locator.sourceUrl}`);
+  }
 
-  // Title is suppressed when it's literally the locator we just
-  // printed; the response builder already drops `qualifiedPath` when
-  // it equals `title`, so we don't double-check that here.
-  if (hit.title && hit.title !== hit.locator.filePath) {
+  const titleIsInHeader = hit.type === "documentation_page";
+  if (hit.title && !titleIsInHeader) {
     lines.push(
-      `    ${highlightRanges(hit.title, hit.highlights?.title, options.useColors)}`,
+      `  ${highlightRanges(hit.title, hit.highlights?.title, options.useColors)}`,
     );
   }
 
-  if (hit.summary) {
-    for (const wrapped of wrapHighlightedText(
-      hit.summary,
-      hit.highlights?.summary,
-      Math.max(1, options.width - 4),
-      options.useColors,
-    )) {
-      lines.push(`    ${wrapped}`);
-    }
+  const summary = prepareSummary(hit.summary, hit.title);
+  if (summary) {
+    lines.push(
+      ...wrapHighlightedText(
+        summary.text,
+        shiftHighlightRanges(hit.highlights?.summary, summary.offset),
+        Math.max(1, options.width - 2),
+        options.useColors,
+      ).map((line) => (line.length === 0 ? "" : `  ${line}`)),
+    );
   }
 }
 
@@ -709,44 +857,85 @@ function wrapHighlightedText(
   width: number,
   useColors: boolean,
 ): string[] {
-  const wrapped = wrapText(text, width);
-  if (!useColors || !ranges || ranges.length === 0) return wrapped;
-  const highlighted: string[] = [];
-  let cursor = 0;
-  for (const line of wrapped) {
-    const start = text.indexOf(line, cursor);
-    const offset = start >= 0 ? start : cursor;
-    const localRanges = ranges.map(
-      ([from, to]) => [from - offset, to - offset] as const,
+  const output: string[] = [];
+  let lineOffset = 0;
+  for (const sourceLine of text.split("\n")) {
+    const leading = sourceLine.match(/^\s*/)?.[0] ?? "";
+    const content = sourceLine.slice(leading.length);
+    if (content.length === 0) {
+      output.push(leading);
+      lineOffset += sourceLine.length + 1;
+      continue;
+    }
+
+    const available = Math.max(1, width - leading.length);
+    let consumed = 0;
+    while (content.length - consumed > available) {
+      let breakAt = content.lastIndexOf(" ", consumed + available);
+      if (breakAt <= consumed) breakAt = consumed + available;
+      const chunk = content.slice(consumed, breakAt).trimEnd();
+      output.push(
+        highlightWrappedSegment(
+          leading,
+          chunk,
+          lineOffset + leading.length + consumed,
+          ranges,
+          useColors,
+        ),
+      );
+      consumed = breakAt;
+      while (content[consumed] === " ") consumed += 1;
+    }
+    output.push(
+      highlightWrappedSegment(
+        leading,
+        content.slice(consumed),
+        lineOffset + leading.length + consumed,
+        ranges,
+        useColors,
+      ),
     );
-    highlighted.push(highlightRanges(line, localRanges, true));
-    cursor = offset + line.length;
+    lineOffset += sourceLine.length + 1;
   }
-  return highlighted;
+  return output;
 }
 
-function formatHitPrimary(hit: UnifiedSearchHitPayload): string {
-  const loc = hit.locator;
-  if (hit.type === "documentation_page" && loc.pageId) {
-    const target = formatDocsPageTarget(loc, hit.target);
-    return target ? `${loc.pageId} ${target}` : loc.pageId;
-  }
-  if (hit.type === "repository_doc" && loc.filePath) {
-    return `${hit.target} ${loc.filePath}${formatLineRange(loc.startLine, loc.endLine)}`;
-  }
-  return hit.target;
-}
-
-function formatDocsPageTarget(
-  locator: {
-    registry?: string;
-    packageName?: string;
-  },
-  fallbackTarget?: string,
+function highlightWrappedSegment(
+  leading: string,
+  content: string,
+  contentOffset: number,
+  ranges: ReadonlyArray<readonly [number, number]> | undefined,
+  useColors: boolean,
 ): string {
-  return locator.registry && locator.packageName
-    ? `${locator.registry}:${locator.packageName}`
-    : stripVersionFromTarget(fallbackTarget);
+  const value = `${leading}${content}`;
+  if (!useColors || !ranges || ranges.length === 0) return value;
+  const localRanges = ranges.flatMap(([from, to]) => {
+    const segmentStart = contentOffset;
+    const segmentEnd = contentOffset + content.length;
+    const overlapStart = Math.max(from, segmentStart);
+    const overlapEnd = Math.min(to, segmentEnd);
+    return overlapStart < overlapEnd
+      ? [
+          [
+            leading.length + overlapStart - segmentStart,
+            leading.length + overlapEnd - segmentStart,
+          ] as const,
+        ]
+      : [];
+  });
+  return highlightRanges(value, localRanges, true);
+}
+
+function formatHitHeader(hit: UnifiedSearchHitPayload): string {
+  const loc = hit.locator;
+  const type = shortType(hit.type);
+  if (hit.type === "documentation_page") {
+    return `${type} · ${hit.title ?? stripVersionFromTarget(hit.target)}`;
+  }
+  const location = loc.filePath
+    ? `${loc.filePath}${formatLineRange(loc.startLine, loc.endLine)}`
+    : undefined;
+  return [type, hit.target, location].filter(Boolean).join(" · ");
 }
 
 function stripVersionFromTarget(value: string | undefined): string {
@@ -755,13 +944,6 @@ function stripVersionFromTarget(value: string | undefined): string {
   return atIndex > 0 ? value.slice(0, atIndex) : value;
 }
 
-/**
- * Compact, agent-friendly type label.
- *
- * Backend types are uppercase enum-style; the JSON envelope already
- * lowercases them. Text mode further compacts to a single token so a
- * reader can scan the third column quickly.
- */
 function shortType(type: string): string {
   switch (type) {
     case "repository_code":
@@ -771,35 +953,66 @@ function shortType(type: string): string {
     case "documentation_page":
       return "docs";
     case "repository_doc":
-      return "repo-docs";
+      return "repo doc";
     default:
       return type;
   }
 }
 
-function buildLocatorLine(
-  hit: UnifiedSearchHitPayload,
-  actionSyntax: "mcp" | "cli",
-): string {
-  const loc = hit.locator;
-  const followUp = buildSearchHitFollowUpCommand(hit, actionSyntax);
-  if (followUp) {
-    const tail: string[] = [];
-    if (loc.qualifiedPath) tail.push(loc.qualifiedPath);
-    if (loc.kind) tail.push(loc.kind);
-    return tail.length > 0 ? `${followUp}  ${tail.join(SEP)}` : followUp;
+function isHttpUrl(value: string | undefined): value is string {
+  return (
+    value?.startsWith("http://") === true ||
+    value?.startsWith("https://") === true
+  );
+}
+
+interface PreparedSummary {
+  text: string;
+  offset: number;
+}
+
+function prepareSummary(
+  summary: string | undefined,
+  title: string | undefined,
+): PreparedSummary | undefined {
+  if (!summary) return undefined;
+  const lines = summary.split("\n");
+  let offset = 0;
+  if (title && normalizeHeading(lines[0]) === normalizeHeading(title)) {
+    offset += (lines[0]?.length ?? 0) + 1;
+    lines.shift();
+    if (lines[0] !== undefined && isSetextUnderline(lines[0])) {
+      offset += lines[0].length + 1;
+      lines.shift();
+    }
   }
-  if (loc.filePath) {
-    let line = `${loc.filePath}${formatLineRange(loc.startLine, loc.endLine)}`;
-    const tail: string[] = [];
-    if (loc.qualifiedPath) tail.push(loc.qualifiedPath);
-    if (loc.kind) tail.push(loc.kind);
-    if (tail.length > 0) line += `  ${tail.join(SEP)}`;
-    return line;
-  }
-  if (loc.pageId) return `pageId: ${loc.pageId}`;
-  if (loc.sourceUrl) return loc.sourceUrl;
-  return "";
+  const remaining = lines.join("\n");
+  const leadingNewline = remaining.match(/^\n+/)?.[0].length ?? 0;
+  const text = remaining.replace(/^\n+|\n+$/g, "");
+  if (text.trim().length === 0) return undefined;
+  return { text, offset: offset + leadingNewline };
+}
+
+function shiftHighlightRanges(
+  ranges: ReadonlyArray<readonly [number, number]> | undefined,
+  offset: number,
+): ReadonlyArray<readonly [number, number]> | undefined {
+  if (!ranges || offset === 0) return ranges;
+  return ranges.flatMap(([from, to]) => {
+    const shiftedFrom = from - offset;
+    const shiftedTo = to - offset;
+    return shiftedTo > 0
+      ? [[Math.max(0, shiftedFrom), shiftedTo] as const]
+      : [];
+  });
+}
+
+function normalizeHeading(value: string | undefined): string {
+  return (value ?? "").trim().replace(/^#{1,6}\s+/, "");
+}
+
+function isSetextUnderline(value: string): boolean {
+  return /^\s*(?:=+|-+)\s*$/.test(value);
 }
 
 function formatLineRange(start?: number, end?: number): string {

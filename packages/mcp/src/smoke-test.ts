@@ -182,7 +182,7 @@ export function assertDefaultText(
 
 function assertSearchDefaultText(text: string, context: string): void {
   const lines = text.split("\n");
-  const formatterLines = lines.filter((line) => !line.startsWith("    "));
+  const formatterLines = searchFormatterLines(lines);
   const formatterText = formatterLines.join("\n");
   const firstLine = lines[0]?.trim() ?? "";
   assert(firstLine.length > 0, `${context}: missing outcome first line`);
@@ -242,14 +242,14 @@ function assertSearchDefaultText(text: string, context: string): void {
     `${context}: poll policy prose`,
   );
 
-  const hasReadinessText = lines.some((line) =>
+  const hasReadinessText = formatterLines.some((line) =>
     /^ {2}(?! {2}).*(?:Indexing|Searched|Available now|Unavailable|Using|Status):/.test(
       line,
     ),
   );
   if (hasReadinessText) {
     assert(
-      lines.some((line) => /^-\s+\S/.test(line)),
+      formatterLines.some((line) => /^-\s+\S/.test(line)),
       `${context}: readiness details must be grouped under a target`,
     );
   }
@@ -303,41 +303,42 @@ function assertSearchDefaultText(text: string, context: string): void {
     `${context}: CLI command syntax leaked into MCP output`,
   );
   assert(
-    hasHitLocator(lines, isMcpCodeReadLocator) ||
-      hasHitLocator(lines, isMcpDocsReadLocator) ||
+    hasHumanSearchHitLocator(lines) ||
       lines.some((line) => line.startsWith("Next:")),
-    `${context}: missing ready-to-call result or status follow-up`,
+    `${context}: missing usable result locator or status follow-up`,
   );
 }
 
-function hasHitLocator(
-  lines: string[],
-  isLocator: (line: string) => boolean,
-): boolean {
-  return lines.some(
-    (line, index) =>
-      /^\[\d+\]\s/.test(line) && isLocator(lines[index + 1] ?? ""),
-  );
+function hasHumanSearchHitLocator(lines: string[]): boolean {
+  return lines.some((line, index) => {
+    const match = /^\[\d+\]\s+(repo doc|code|symbol|docs)\s+·\s+(.+)$/.exec(
+      line,
+    );
+    if (!match) return false;
+    if (match[1] === "docs") {
+      return /^ {2}https?:\/\/\S+/.test(lines[index + 1] ?? "");
+    }
+    const value = match[2];
+    if (!value) return false;
+    const parts = value.split(" · ");
+    const first = parts[0] ?? "";
+    const last = parts[parts.length - 1] ?? "";
+    return (
+      parts.length >= 2 && first.trim().length > 0 && last.trim().length > 0
+    );
+  });
 }
 
-function hasNonEmptyMcpArgument(line: string, argument: string): boolean {
-  return new RegExp(
-    `(?:^|\\s)${argument}=(?:"[^"]+"|'[^']+'|[^\\s"']+)(?=\\s|$)`,
-  ).test(line);
-}
-
-function isMcpCodeReadLocator(line: string): boolean {
-  return (
-    /^ {4}code_read\b/.test(line) &&
-    hasNonEmptyMcpArgument(line, "target") &&
-    hasNonEmptyMcpArgument(line, "path")
-  );
-}
-
-function isMcpDocsReadLocator(line: string): boolean {
-  return (
-    /^ {4}docs_read\b/.test(line) && hasNonEmptyMcpArgument(line, "page_id")
-  );
+function searchFormatterLines(lines: string[]): string[] {
+  let inHit = false;
+  return lines.filter((line) => {
+    if (/^\[\d+\]\s/.test(line)) {
+      inHit = true;
+      return true;
+    }
+    if (inHit && line.length > 0 && !line.startsWith("  ")) inHit = false;
+    return !inHit;
+  });
 }
 
 export function assertJsonResult(

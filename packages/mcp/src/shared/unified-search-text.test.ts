@@ -172,17 +172,134 @@ function firstLine(text: string): string {
 }
 
 describe("renderUnifiedSearchSuccess", () => {
+  it("renders completed Express results as compact ranked source-backed hits", () => {
+    const repoSummary =
+      "5.0.0-alpha.4 / 2017-03-01\n" +
+      "==========================\n" +
+      "  * remove:\n" +
+      "    - Remove Express 3.x middleware error stubs\n" +
+      "  * deps: router@~1.3.0\n" +
+      '    - Add `next("router")` to exit from router';
+    const results: UnifiedSearchHitPayload[] = [
+      ...Array.from({ length: 5 }, (_, index) =>
+        index === 0
+          ? {
+              type: "repository_doc",
+              target: "npm:express@5.2.1",
+              title: "5.0.0-alpha.4 / 2017-03-01",
+              summary: repoSummary,
+              locator: {
+                registry: "npm",
+                packageName: "express",
+                version: "5.2.1",
+                filePath: "History.md",
+                startLine: 169,
+                endLine: 179,
+              },
+            }
+          : {
+              type: "repository_doc",
+              target: "npm:express@5.2.1",
+              title: `History entry ${index}`,
+              summary: `History entry ${index} details`,
+              locator: {
+                filePath: "History.md",
+                startLine: 180 + index,
+                endLine: 185 + index,
+              },
+            },
+      ),
+      ...Array.from({ length: 5 }, (_, index) => ({
+        type: "documentation_page",
+        target: "npm:express@5.2.1",
+        title: index === 0 ? "router.use()" : `Router docs ${index}`,
+        summary:
+          index === 0 ? "### router.use()" : `Router docs ${index} details`,
+        locator: {
+          pageId: `opaque-page-${index}`,
+          sourceUrl: `https://expressjs.com/en/api/router/${index}`,
+        },
+      })),
+    ];
+    const text = renderUnifiedSearchSuccess(
+      completed(results, {
+        hasMore: true,
+        nextOffset: 10,
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                resultCount: 5,
+                siteKey: "expressjs.com",
+                siteUrl: "https://expressjs.com",
+              },
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                resultCount: 5,
+                repositoryUrl: "https://github.com/expressjs/express",
+                commitSha: "dbac741a49a5a64336b70c06e85c2e2706e36336",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(text.split("\n")[0]).toBe(
+      "10 results | 5 repo docs, 5 docs pages | next_offset=10",
+    );
+    expect(text).toContain(
+      "Sources: expressjs.com; expressjs/express@dbac741a",
+    );
+    expect(text).toContain(
+      "[1] repo doc · npm:express@5.2.1 · History.md:169-179",
+    );
+    expect(text).toContain(
+      "[6] docs · router.use()\n  https://expressjs.com/en/api/router/0",
+    );
+    expect(text).toContain("    * remove:");
+    expect(text).toContain("      - Remove Express 3.x middleware error stubs");
+    expect(text).not.toContain("githits docs read");
+    expect(text).not.toContain("docs_read");
+    expect(text).not.toContain("opaque-page");
+    expect(text).not.toContain("### router.use()");
+    expect(text.match(/next_offset=10/g)).toHaveLength(1);
+    expect(text.length).toBeLessThan(3459);
+  });
+
   it("starts completed hits with the outcome and preserves hit anatomy", () => {
     const text = renderUnifiedSearchSuccess(completed([codeHit()]));
 
     expect(firstLine(text)).toContain("1 result");
     expect(firstLine(text)).not.toContain("search |");
-    expect(text).toContain("[1] cline/cline@v3.4.2  code");
     expect(text).toContain(
-      '    code_read target="npm:cline@v3.4.2" path="src/integrations/diff/strategies/multi-search-replace.ts" start_line=142 end_line=156  function',
+      "[1] code · cline/cline@v3.4.2 · src/integrations/diff/strategies/multi-search-replace.ts:142-156",
     );
-    expect(text).toContain("    applyEdit");
+    expect(text).toContain("  applyEdit");
     expect(text).not.toContain("searchRef=");
+  });
+
+  it("uses singular labels for one repository doc and one docs page", () => {
+    const repoText = renderUnifiedSearchSuccess(
+      completed([
+        {
+          type: "repository_doc",
+          target: "npm:express@5.2.1",
+          title: "History.md",
+          summary: "Release history",
+          locator: { filePath: "History.md", startLine: 169, endLine: 179 },
+        },
+      ]),
+    );
+    const docsText = renderUnifiedSearchSuccess(completed([docsHit()]));
+
+    expect(firstLine(repoText)).toBe("1 result | 1 repo doc");
+    expect(firstLine(docsText)).toBe("1 result | 1 docs page");
   });
 
   it("renders completed empty evidence once and uses model pivots", () => {
@@ -289,7 +406,7 @@ describe("renderUnifiedSearchSuccess", () => {
       actionSyntax: "cli",
     });
     expect(code).toContain(
-      "githits code read 'npm:cline@v3.4.2' 'src/integrations/diff/strategies/multi-search-replace.ts' --lines 142-156",
+      "[1] code · cline/cline@v3.4.2 · src/integrations/diff/strategies/multi-search-replace.ts:142-156",
     );
 
     const repositoryCode = renderUnifiedSearchSuccess(
@@ -308,13 +425,15 @@ describe("renderUnifiedSearchSuccess", () => {
       { actionSyntax: "cli" },
     );
     expect(repositoryCode).toContain(
-      "githits code read --repo-url 'https://github.com/cline/cline' --git-ref 'main' 'src/index.ts' --lines 10-20",
+      "[1] code · github:cline/cline#main · src/index.ts:10-20",
     );
 
     const docs = renderUnifiedSearchSuccess(completed([docsHit()]), {
       actionSyntax: "cli",
     });
-    expect(docs).toContain("githits docs read 'aider/edit-formats'");
+    expect(docs).toContain(
+      "[1] docs · Edit Formats\n  https://aider.chat/docs/more/edit-formats.html",
+    );
 
     const empty = renderUnifiedSearchSuccess(
       completed([], {
@@ -728,7 +847,7 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
 
-    expect(firstLine(text)).toBe("2 results");
+    expect(firstLine(text)).toBe("2 results | 2 code");
     expect(firstLine(text)).not.toContain(" from ");
   });
 
@@ -873,7 +992,7 @@ describe("renderUnifiedSearchSuccess", () => {
       ),
     );
 
-    expect(firstLine(text)).toBe("1 result");
+    expect(firstLine(text)).toBe("1 result | 1 code");
     expect(text).toContain("- npm:express latest -> 5.2.1");
     expect(text.match(/Using:/g)).toHaveLength(1);
     expect(text).toContain("Using: 5.1.0 while 5.2.1 indexes");
@@ -892,7 +1011,7 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
 
-    expect(firstLine(text)).toBe("1 result");
+    expect(firstLine(text)).toBe("1 result | 1 code");
     expect(text).toContain("- npm:express latest -> 5.2.1");
     expect(text.match(/Using:/g)).toHaveLength(1);
     expect(text).toContain("Using: 5.1.0 while 5.2.1 indexes");
@@ -1161,16 +1280,16 @@ describe("renderUnifiedSearchSuccess", () => {
     const cliText = renderUnifiedSearchSuccess(payload, {
       actionSyntax: "cli",
     });
-    expect(text).toContain("[1] cline/cline@v3.4.2");
-    expect(text).toContain("[2] aider/edit-formats aider-AI/aider");
+    expect(text).toContain(
+      "[1] code · cline/cline@v3.4.2 · src/integrations/diff/strategies/multi-search-replace.ts:142-156",
+    );
+    expect(text).toContain("[2] docs · Edit Formats");
     expect(text).toContain(
       "Available now: versions 5.2.1, 5.2.0, 5.1.0 +1, refs HEAD,\n  main, next +1",
     );
-    expect(text).toContain("More hits available. Pass offset=10");
-    expect(cliText).toContain(
-      "More hits available. Pass --offset 10 or --limit N to widen.",
-    );
-    expect(cliText).not.toContain("Pass offset=10");
+    expect(text).toContain("next_offset=10");
+    expect(cliText).toContain("next_offset=10");
+    expect(cliText).not.toContain("More hits available");
     expect(text).not.toContain("v5.0.0");
     expect(text).not.toContain("dev");
   });
@@ -1184,7 +1303,7 @@ describe("renderUnifiedSearchSuccess", () => {
     });
 
     expect(presentation.hasMore).toBe(true);
-    expect(text).toContain("More hits available. Pass offset=10");
+    expect(text).toContain("No results returned");
   });
 
   it("wraps bounded summaries without splitting exact tokens", () => {
@@ -1289,7 +1408,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text.match(/120 pages/g)).toHaveLength(1);
   });
 
-  it("retains ASCII output and wraps long summaries", () => {
+  it("wraps long summaries", () => {
     const text = renderUnifiedSearchSuccess(
       completed([
         codeHit({
@@ -1298,10 +1417,8 @@ describe("renderUnifiedSearchSuccess", () => {
         }),
       ]),
     );
-    expect(text).not.toMatch(/[·…—–]/);
     for (const line of text.split("\n")) {
-      if (!line.includes("code_read "))
-        expect(line.length).toBeLessThanOrEqual(82);
+      if (!line.startsWith("[")) expect(line.length).toBeLessThanOrEqual(82);
     }
   });
 });

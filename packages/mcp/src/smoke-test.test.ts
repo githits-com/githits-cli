@@ -313,21 +313,38 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result\n\n[1] npm:express@5.2.1  code\n" +
-            '    code_read target="npm:express@5.2.1" path="index.js"\n' +
-            "    Ready: payload text\n" +
-            "    Waiting: payload text\n" +
-            "    Available but not searched: payload text\n" +
-            "    Indexed alternatives: payload text\n" +
-            "    Evidence may change.\n" +
-            "    Do not repeat this payload.\n" +
-            "    Do not poll this payload.\n" +
-            "    Next: payload text\n" +
-            "    Indexing: payload text\n" +
-            "    status: payload text\n" +
-            "    searchRef=payload text\n" +
-            "    indexingRef payload text\n" +
-            "    search_ref=payload text",
+          "1 result\n\n[1] code · npm:express@5.2.1 · index.js\n" +
+            "  Ready: payload text\n" +
+            "  Waiting: payload text\n" +
+            "  Available but not searched: payload text\n" +
+            "  Indexed alternatives: payload text\n" +
+            "  Evidence may change.\n" +
+            "  Do not repeat this payload.\n" +
+            "  Do not poll this payload.\n" +
+            "  Next: payload text\n" +
+            "  Indexing: payload text\n" +
+            "  status: payload text\n" +
+            "  searchRef=payload text\n" +
+            "  indexingRef payload text\n" +
+            "  search_ref=payload text",
+        );
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
+
+  it("keeps multiline hit-body diagnostics opaque after a blank line", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          "1 result | 1 code\n\n[1] code · npm:express@5.2.1 · index.js\n" +
+            "  First summary paragraph.\n\n" +
+            "  status: payload text\n" +
+            "  searchRef=payload text\n" +
+            "  indexingRef payload text\n" +
+            "  search_ref=payload text",
         );
       }
       return smokeResponse(name, args);
@@ -340,8 +357,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result\n\n[1] npm:express@5.2.1  code\n" +
-            '    code_read target="npm:express@5.2.1" path="index.js"',
+          "1 result\n\n[1] code · npm:express@5.2.1 · index.js",
         );
       }
       return smokeResponse(name, args);
@@ -354,8 +370,8 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result\n\n[1] docs.example.com/readme  documentation\n" +
-            '    docs_read page_id="docs.example.com/readme"',
+          "1 result\n\n[1] docs · README\n" +
+            "  https://docs.example.com/readme",
         );
       }
       return smokeResponse(name, args);
@@ -366,21 +382,18 @@ describe("runMcpSmoke", () => {
 
   it.each([
     [
-      "1 result\n\n[1] npm:express@5.2.1  code\n" +
-        "    This payload mentions code_read but has no locator",
+      "1 result\n\n[1] code · npm:express@5.2.1\n" +
+        "  This payload mentions code_read but has no locator",
     ],
     [
-      "1 result\n\n[1] npm:express@5.2.1  code\n" +
-        '    code_read target="npm:express@5.2.1"',
+      "1 result\n\n[1] code · npm:express@5.2.1\n" +
+        '  code_read target="npm:express@5.2.1"',
     ],
+    ["1 result\n\n[1] docs · README\n" + "  documentation prose only"],
     [
-      "1 result\n\n[1] docs.example.com/readme  documentation\n" +
-        '    docs_read page_id=""',
-    ],
-    [
-      "1 result\n\n[1] npm:express@5.2.1  code\n" +
-        "    ordinary title\n" +
-        '    code_read target="npm:express@5.2.1" path="index.js"',
+      "1 result\n\n[1] code · npm:express@5.2.1\n" +
+        "  ordinary title\n" +
+        '  code_read target="npm:express@5.2.1" path="index.js"',
     ],
   ])("rejects incomplete or prose-only hit follow-ups", async (searchText) => {
     const caller = createCaller(async (name, args) => {
@@ -391,7 +404,7 @@ describe("runMcpSmoke", () => {
     });
 
     await expect(runMcpSmoke(caller)).rejects.toThrow(
-      "search default: missing ready-to-call result or status follow-up",
+      "search default: missing usable result locator or status follow-up",
     );
   });
 

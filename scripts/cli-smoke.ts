@@ -366,7 +366,7 @@ function assertTerminalOutput(result: CommandResult, context: string): string {
 
 export function assertSearchTerminalText(text: string, context: string): void {
   const lines = text.split("\n");
-  const formatterLines = lines.filter((line) => !line.startsWith("    "));
+  const formatterLines = searchFormatterLines(lines);
   const formatterText = formatterLines.join("\n");
   const firstLine = lines[0]?.trim() ?? "";
   assert(firstLine.length > 0, `${context}: missing outcome first line`);
@@ -456,13 +456,6 @@ export function assertSearchTerminalText(text: string, context: string): void {
     statusActions.length <= 1,
     `${context}: expected at most one search-status action`,
   );
-  const paginationLines = formatterLines.filter((line) =>
-    line.startsWith("More hits available."),
-  );
-  assert(
-    !paginationLines.some((line) => /\b(?:offset|limit)=/.test(line)),
-    `${context}: MCP pagination syntax leaked into CLI output`,
-  );
   const summaryLines = formatterLines.filter((line) =>
     /^Search\s+\S+\s+\|/.test(line),
   );
@@ -491,44 +484,41 @@ export function assertSearchTerminalText(text: string, context: string): void {
     `${context}: MCP search_ref syntax leaked into CLI output`,
   );
   assert(
-    hasSearchHitLocator(lines, isCliCodeReadLocator) ||
-      hasSearchHitLocator(lines, isCliDocsReadLocator) ||
-      nextLines.length > 0,
+    hasHumanSearchHitLocator(lines) || nextLines.length > 0,
     `${context}: missing result follow-up or next action`,
   );
 }
 
-function hasSearchHitLocator(
-  lines: string[],
-  isLocator: (line: string) => boolean,
-): boolean {
-  return lines.some(
-    (line, index) =>
-      /^\[\d+\]\s/.test(line) && isLocator(lines[index + 1] ?? ""),
-  );
+function hasHumanSearchHitLocator(lines: string[]): boolean {
+  return lines.some((line, index) => {
+    const match = /^\[\d+\]\s+(repo doc|code|symbol|docs)\s+·\s+(.+)$/.exec(
+      line,
+    );
+    if (!match) return false;
+    if (match[1] === "docs") {
+      return /^ {2}https?:\/\/\S+/.test(lines[index + 1] ?? "");
+    }
+    const value = match[2];
+    if (!value) return false;
+    const parts = value.split(" · ");
+    const first = parts[0] ?? "";
+    const last = parts[parts.length - 1] ?? "";
+    return (
+      parts.length >= 2 && first.trim().length > 0 && last.trim().length > 0
+    );
+  });
 }
 
-const CLI_SHELL_ARGUMENT = String.raw`(?:'[^']+'|"[^"]+"|[^\s'"]+)`;
-const CLI_POSITIONAL_ARGUMENT = String.raw`(?:'[^']+'|"[^"]+"|(?!-)[^\s'"]+)`;
-const CLI_PACKAGE_CODE_READ_LOCATOR = new RegExp(
-  String.raw`^ {4}githits code read\s+(?!--repo-url\b)${CLI_POSITIONAL_ARGUMENT}\s+${CLI_POSITIONAL_ARGUMENT}(?:\s|$)`,
-);
-const CLI_REPOSITORY_CODE_READ_LOCATOR = new RegExp(
-  String.raw`^ {4}githits code read\s+--repo-url\s+${CLI_SHELL_ARGUMENT}(?:\s+--git-ref\s+${CLI_SHELL_ARGUMENT})?\s+${CLI_POSITIONAL_ARGUMENT}(?:\s|$)`,
-);
-const CLI_DOCS_READ_LOCATOR = new RegExp(
-  String.raw`^ {4}githits docs read\s+${CLI_POSITIONAL_ARGUMENT}(?:\s|$)`,
-);
-
-function isCliCodeReadLocator(line: string): boolean {
-  return (
-    CLI_PACKAGE_CODE_READ_LOCATOR.test(line) ||
-    CLI_REPOSITORY_CODE_READ_LOCATOR.test(line)
-  );
-}
-
-function isCliDocsReadLocator(line: string): boolean {
-  return CLI_DOCS_READ_LOCATOR.test(line);
+function searchFormatterLines(lines: string[]): string[] {
+  let inHit = false;
+  return lines.filter((line) => {
+    if (/^\[\d+\]\s/.test(line)) {
+      inHit = true;
+      return true;
+    }
+    if (inHit && line.length > 0 && !line.startsWith("  ")) inHit = false;
+    return !inHit;
+  });
 }
 
 function assertJsonOutput(result: CommandResult, context: string): unknown {

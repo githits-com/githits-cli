@@ -297,7 +297,7 @@ The `hint` field is emitted only when the cap *actually truncated* the response 
 
 **In-place evolution.** `text-v1` names the compact line-oriented representation; it is not an exact-prose compatibility boundary. Search and `search_status` may tighten human/agent copy in place as long as their structural lifecycle, ordering, action, and hit-anatomy invariants remain covered by tests (`packages/mcp/src/shared/unified-search-text.test.ts`, `packages/mcp/src/tools/search-status.test.ts`). JSON is the stable structured boundary for programmatic callers. Other text-v1 renderers retain their own contracts and are not changed by the search presentation work.
 
-**ASCII-only.** Separators are ` | `; ellipsis is `...`; no box-drawing or Latin-1 punctuation. Tokenizer behavior for multi-byte UTF-8 varies across BPE variants, and the format runs into Claude, Codex CLI, OpenCode, Cline, Cursor, etc. — ASCII keeps it predictable.
+**Compact punctuation.** Separators are ` | ` and hit fields use ` · `; ellipsis is `...`; no box-drawing or decorative punctuation. Tokenizer behavior for multi-byte UTF-8 varies across BPE variants, and the format runs into Claude, Codex CLI, OpenCode, Cline, Cursor, etc. — the small fixed vocabulary keeps it predictable.
 
 **Example-search anatomy.** `get_example` text mode returns markdown directly, followed by `solution_id: <id>` when the REST response includes an app URL. This avoids JSON-wrapped markdown while preserving the `feedback` workflow. `search_language` text mode returns one match per line as `name (Display Name) aliases: a, b`; agents should pass the `name` value to `get_example.language`.
 
@@ -310,7 +310,7 @@ anatomy, and ordering. Callers supply only ANSI enablement and surface-native
 action syntax. The order is:
 
 1. outcome headline;
-2. target blocks, each with identity plus grouped readiness and usable alternatives;
+2. one compact `Sources:` row for ordinary completed current results, or target blocks with identity plus grouped readiness and usable alternatives when trust facts require them;
 3. warnings and results;
 4. an optional session summary; and
 5. one positive next action, when applicable.
@@ -352,20 +352,31 @@ The representative CLI n8n example is maintained in
 **Hit anatomy within unified search text-v1:**
 
 ```
-[1] <target>  <type>
-    <locator-line>
-    <title?>
-    <summary line 1>
-    <summary line 2 (wrapped at ~76 cols)>
+[1] repo doc · <target> · <path:line-range>
+  <title>
+  <summary line 1>
+  <summary line 2 (wrapped at output width)>
 [blank]
-[2] ...
-[blank]
-More hits available. Pass offset=N for the next page or limit=N to widen.
+[2] docs · <title>
+  https://<source-url>
+  <summary, when informative>
 ```
 
-`<type>` compacts to `code` / `symbol` / `docs` / `repo-docs`. `<locator-line>` is a ready-to-call follow-up when possible. MCP uses `code_read target="npm:pkg@version" path="..." start_line=N end_line=M` or `docs_read page_id="..."`; CLI uses the equivalent `githits code read ... --lines N-M` or `githits docs read ...`. If a code/symbol hit lacks a file path, text mode prints `follow-up unavailable: missing filePath` rather than fabricating a path.
-Pagination follows the same dialect rule: MCP uses `offset=N` / `limit=N`, while
-CLI uses `--offset N` / `--limit N`.
+Hit headers are numbered so ranked results can be referenced as `[1]` through
+`[N]`. Types compact to `repo doc`, `docs`, `code`, and `symbol`; repository
+and code hits include their target plus a non-empty file location when one is
+available. Documentation hits put a direct HTTP(S) source URL in the body.
+Executable `docs_read` / `code_read` commands, opaque page IDs, qualified
+internal IDs, and kind/category tails are omitted from default text; JSON keeps
+the full locator and follow-up fields unchanged. A summary's first line is
+omitted when it repeats the title after removing Markdown heading markers, as
+is an immediately following setext underline. Source indentation is retained
+when summaries wrap, with a consistent two-space hit-body indent.
+
+Completed result headlines combine count, type breakdown, and pagination when
+known, for example `10 results | 5 repo docs, 5 docs pages | next_offset=10`.
+When more results exist without a next offset, the final field is
+`more available`. Pagination is not repeated as a bottom paragraph.
 
 **Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title while returning only its page ID. Without a line anchor, `docs_read` must start at the beginning of the page. Carrying section ranges through search results requires backend/search-location support and is outside the CLI response-formatting slice.
 
